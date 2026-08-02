@@ -113,34 +113,28 @@ export default function AutomationDashboard() {
     }
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchStats() {
-      try {
-        const res = await fetch('/api/automation/stats');
-        if (!cancelled && res.ok) {
-          const data = await res.json();
-          setMetrics(data.metrics);
-          setEmailAccounts(data.emailAccounts);
-          setActivities(data.activities);
-        } else if (!cancelled) {
-          showToast('Failed to load automation stats', 'error');
-        }
-      } catch {
-        if (!cancelled) {
-          showToast('Network error loading automation stats', 'error');
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+  const fetchStats = async () => {
+    try {
+      const res = await fetch('/api/automation/stats');
+      if (res.ok) {
+        const data = await res.json();
+        setMetrics(data.metrics);
+        setEmailAccounts(data.emailAccounts);
+        setActivities(data.activities);
+      } else {
+        showToast('Failed to load automation stats', 'error');
       }
+    } catch {
+      showToast('Network error loading automation stats', 'error');
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchStats();
-    return () => {
-      cancelled = true;
-    };
-  }, [showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleTriggerSequence = async () => {
     setIsTriggeringSequence(true);
