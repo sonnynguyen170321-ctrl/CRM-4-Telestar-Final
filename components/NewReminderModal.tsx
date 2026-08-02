@@ -47,7 +47,7 @@ export default function NewReminderModal({ onClose, onSuccess }: Props) {
         <div role="dialog" aria-modal="true" aria-label="New reminder" className="bg-card-bg border border-card-border rounded-2xl shadow-2xl w-full max-w-xs pointer-events-auto animate-in fade-in slide-in-from-bottom-4 duration-200">
           <div className="flex items-center justify-between px-5 py-4 border-b border-card-border">
             <div className="flex items-center gap-2">
-              <Bell className="w-4 h-4 text-brand-gold" />
+              <Bell className="w-4 h-4 text-brand-gold-text" />
               <div>
                 <h2 className="font-display font-bold text-sm text-text-primary">New Reminder</h2>
                 <p className="text-[10px] text-text-muted mt-0.5">Set a timed alert</p>

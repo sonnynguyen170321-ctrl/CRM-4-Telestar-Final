@@ -247,7 +247,7 @@ export default function MeetingsPage() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm space-y-1">
           <div className="flex items-center justify-between text-text-muted">
-            <span className="text-[10px] font-mono uppercase tracking-wider">Total</span>
+            <span className="text-[10px] uppercase tracking-wider">Total</span>
             <Calendar className="w-4 h-4 text-brand-red" />
           </div>
           <div className="text-2xl font-bold font-mono text-text-primary">{stats.total}</div>
@@ -256,7 +256,7 @@ export default function MeetingsPage() {
 
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm space-y-1">
           <div className="flex items-center justify-between text-text-muted">
-            <span className="text-[10px] font-mono uppercase tracking-wider">Links Sent</span>
+            <span className="text-[10px] uppercase tracking-wider">Links Sent</span>
             <Send className="w-4 h-4 text-blue-400" />
           </div>
           <div className="text-2xl font-bold font-mono text-blue-400">{stats.linkSent}</div>
@@ -265,16 +265,16 @@ export default function MeetingsPage() {
 
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm space-y-1">
           <div className="flex items-center justify-between text-text-muted">
-            <span className="text-[10px] font-mono uppercase tracking-wider">Scheduled</span>
-            <Clock className="w-4 h-4 text-brand-orange" />
+            <span className="text-[10px] uppercase tracking-wider">Scheduled</span>
+            <Clock className="w-4 h-4 text-brand-orange-text" />
           </div>
-          <div className="text-2xl font-bold font-mono text-brand-orange">{stats.scheduled}</div>
+          <div className="text-2xl font-bold font-mono text-brand-orange-text">{stats.scheduled}</div>
           <p className="text-[10px] text-text-muted font-mono">On calendar</p>
         </div>
 
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm space-y-1">
           <div className="flex items-center justify-between text-text-muted">
-            <span className="text-[10px] font-mono uppercase tracking-wider">Completed</span>
+            <span className="text-[10px] uppercase tracking-wider">Completed</span>
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="text-2xl font-bold font-mono text-emerald-400">{stats.completed}</div>
@@ -283,16 +283,16 @@ export default function MeetingsPage() {
 
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm space-y-1">
           <div className="flex items-center justify-between text-text-muted">
-            <span className="text-[10px] font-mono uppercase tracking-wider">Qualified</span>
-            <UserCheck className="w-4 h-4 text-brand-gold" />
+            <span className="text-[10px] uppercase tracking-wider">Qualified</span>
+            <UserCheck className="w-4 h-4 text-brand-gold-text" />
           </div>
-          <div className="text-2xl font-bold font-mono text-brand-gold">{stats.qualified}</div>
+          <div className="text-2xl font-bold font-mono text-brand-gold-text">{stats.qualified}</div>
           <p className="text-[10px] text-text-muted font-mono">Sales opps generated</p>
         </div>
 
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm space-y-1">
           <div className="flex items-center justify-between text-text-muted">
-            <span className="text-[10px] font-mono uppercase tracking-wider">Pending Outcome</span>
+            <span className="text-[10px] uppercase tracking-wider">Pending Outcome</span>
             <AlertCircle className="w-4 h-4 text-rose-500" />
           </div>
           <div className="text-2xl font-bold font-mono text-rose-500">{stats.outcomePending}</div>
@@ -415,7 +415,7 @@ export default function MeetingsPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-background/40 text-text-muted font-mono uppercase text-[10px] border-b border-card-border">
+              <thead className="bg-background/40 text-text-muted uppercase text-[10px] border-b border-card-border">
                 <tr>
                   <th className="py-3 px-4">Lead / Prospect</th>
                   <th className="py-3 px-4">Client & Campaign</th>
@@ -447,7 +447,7 @@ export default function MeetingsPage() {
                     <td className="py-3.5 px-4">
                       <div className="flex flex-col">
                         <span className="font-medium text-text-primary flex items-center gap-1">
-                          <Building2 className="w-3 h-3 text-brand-orange" />
+                          <Building2 className="w-3 h-3 text-brand-orange-text" />
                           {m.client?.name}
                         </span>
                         <span className="text-[10px] text-text-muted font-mono">{m.campaign?.name}</span>
@@ -496,7 +496,7 @@ export default function MeetingsPage() {
                               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                               : m.outcome === 'completed_not_qualified' || m.outcome === 'cancelled' || m.outcome === 'no_show'
                               ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                              : 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20'
+                              : 'bg-brand-orange/10 text-brand-orange-text border border-brand-orange/20'
                           }`}>
                             {m.outcome.replace(/_/g, ' ').toUpperCase()}
                           </span>

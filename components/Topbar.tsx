@@ -264,7 +264,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
             </button>
           ) : (
             <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
-              <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-card-border text-text-muted rounded">/</kbd>
+              <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-card-border text-text-secondary rounded">/</kbd>
             </span>
           )}
         </div>
@@ -280,7 +280,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
             )}
             {searchResults.leads.length > 0 && (
               <div>
-                <div className="px-3 py-1.5 text-[9px] font-bold font-mono uppercase text-text-muted bg-background/50 border-b border-card-border">Leads</div>
+                <div className="px-3 py-1.5 text-[9px] font-bold uppercase text-text-muted bg-background/50 border-b border-card-border">Leads</div>
                 {searchResults.leads.map((lead: any) => (
                   <button
                     key={lead.id}
@@ -294,14 +294,14 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
                       <p className="text-xs font-semibold text-text-primary truncate">{lead.firstName} {lead.lastName}</p>
                       <p className="text-[10px] text-text-muted truncate font-mono">{lead.company} · {lead.stage?.replace(/_/g, ' ')}</p>
                     </div>
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono flex-shrink-0 ${lead.priority === 'hot' ? 'bg-brand-red/10 text-brand-red' : lead.priority === 'warm' ? 'bg-brand-orange/10 text-brand-orange' : 'bg-card-border text-text-muted'}`}>{lead.priority}</span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono flex-shrink-0 ${lead.priority === 'hot' ? 'bg-brand-red/10 text-brand-red' : lead.priority === 'warm' ? 'bg-brand-orange/10 text-brand-orange-text' : 'bg-card-border text-text-secondary'}`}>{lead.priority}</span>
                   </button>
                 ))}
               </div>
             )}
             {searchResults.templates.length > 0 && (
               <div>
-                <div className="px-3 py-1.5 text-[9px] font-bold font-mono uppercase text-text-muted bg-background/50 border-b border-card-border">Templates</div>
+                <div className="px-3 py-1.5 text-[9px] font-bold uppercase text-text-muted bg-background/50 border-b border-card-border">Templates</div>
                 {searchResults.templates.map((tpl: any) => (
                   <button
                     key={tpl.id}
@@ -350,14 +350,14 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
                   onClick={() => handleNewClick('task')}
                   className="w-full text-left px-4 py-2 text-xs text-text-primary hover:bg-background transition-colors flex items-center gap-2"
                 >
-                  <span className="text-brand-orange">📋</span> New Task
+                  <span className="text-brand-orange-text">📋</span> New Task
                 </button>
                 <button
                   role="menuitem"
                   onClick={() => handleNewClick('reminder')}
                   className="w-full text-left px-4 py-2 text-xs text-text-primary hover:bg-background transition-colors flex items-center gap-2"
                 >
-                  <span className="text-brand-gold">🔔</span> New Reminder
+                  <span className="text-brand-gold-text">🔔</span> New Reminder
                 </button>
                 {(currentRole === 'director' || currentRole === 'floor_manager') && (
                   <>
@@ -387,7 +387,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
           >
             <Bell className="w-4 h-4" aria-hidden="true" />
             {unreadCount > 0 && (
-              <span aria-live="polite" aria-atomic="true" className="absolute top-1.5 right-1.5 w-4 h-4 bg-brand-red border-2 border-topbar-bg text-[9px] font-bold text-white flex items-center justify-center rounded-full animate-bounce">
+              <span aria-live="polite" aria-atomic="true" className="absolute top-1.5 right-1.5 w-4 h-4 bg-brand-red border-2 border-topbar-bg text-[9px] font-bold text-white flex items-center justify-center rounded-full">
                 {unreadCount}
               </span>
             )}
@@ -422,10 +422,10 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
                         const isOverdue = new Date(item.dueAt) < new Date();
                         return (
                           <div key={`rem-${item.id}`} className={`p-3 text-xs flex items-start gap-2.5 hover:bg-background/80 relative ${isOverdue ? 'bg-brand-gold/[0.03]' : ''}`}>
-                            <AlarmClock className={`w-4 h-4 mt-0.5 flex-shrink-0 ${isOverdue ? 'text-brand-gold' : 'text-text-muted'}`} aria-hidden="true" />
+                            <AlarmClock className={`w-4 h-4 mt-0.5 flex-shrink-0 ${isOverdue ? 'text-brand-gold-text' : 'text-text-muted'}`} aria-hidden="true" />
                             <div className="flex-1 min-w-0 pr-6">
                               <p className="text-text-secondary text-[11px] leading-normal">{item.text}</p>
-                              <span className={`text-[9px] mt-1 inline-block font-mono ${isOverdue ? 'text-brand-gold' : 'text-text-muted'}`}>
+                              <span className={`text-[9px] mt-1 inline-block font-mono ${isOverdue ? 'text-brand-gold-text' : 'text-text-muted'}`}>
                                 {isOverdue ? '⚠ overdue · ' : ''}
                                 {new Date(item.dueAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}{' '}
                                 {new Date(item.dueAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -483,7 +483,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
             aria-haspopup="menu"
             className="flex items-center gap-2 hover:bg-card-border/30 px-2 py-1.5 rounded-lg transition-colors duration-150 focus-ring"
           >
-            <div className="w-7 h-7 rounded-full bg-brand-orange/10 border border-brand-orange/20 flex items-center justify-center text-xs font-bold text-brand-orange uppercase overflow-hidden">
+            <div className="w-7 h-7 rounded-full bg-brand-orange/10 border border-brand-orange/20 flex items-center justify-center text-xs font-bold text-brand-orange-text uppercase overflow-hidden">
               {avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -507,13 +507,13 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
                 {process.env.NODE_ENV !== 'production' && (
                   <>
                     <div className="px-4 py-2 border-b border-card-border bg-background/30 mb-1">
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-text-muted block">
+                      <span className="text-[10px] uppercase tracking-widest text-text-muted block">
                         Simulate Role (Showcase)
                       </span>
                       <p className="text-[11px] text-text-secondary leading-normal mt-0.5">
                         Test how the interface adapts to different access scopes.
                       </p>
-                      <p className="text-[9px] text-brand-orange leading-normal mt-1 italic font-medium">
+                      <p className="text-[9px] text-brand-orange-text leading-normal mt-1 italic font-medium">
                         ⚠️ UI simulation only — server permissions unchanged.
                       </p>
                     </div>
@@ -538,7 +538,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
                         }`}
                       >
                         <span className="flex items-center gap-2">
-                          <UserCheck className="w-3.5 h-3.5 text-brand-orange" aria-hidden="true" /> {icon} {label}
+                          <UserCheck className="w-3.5 h-3.5 text-brand-orange-text" aria-hidden="true" /> {icon} {label}
                         </span>
                         {currentRole === role && <Check className="w-3.5 h-3.5" aria-hidden="true" />}
                       </button>

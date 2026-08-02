@@ -183,7 +183,7 @@ export default function WorkerHealthAdminPage() {
         <div className="grid grid-cols-3 gap-6 flex-1 min-h-0 overflow-auto">
           {/* Left panel: connection status */}
           <div className="col-span-1 space-y-4">
-            <h3 className="text-[10px] font-bold font-mono text-text-muted uppercase tracking-wider">Infrastructure status</h3>
+            <h3 className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Infrastructure status</h3>
             
             <div className="glass-card rounded-2xl p-4 flex justify-between items-center border border-card-border">
               <div>
@@ -205,7 +205,7 @@ export default function WorkerHealthAdminPage() {
             {data.latestHealthcheck && (
               <div className="glass-card rounded-2xl p-4 space-y-4 border border-card-border bg-background/25">
                 <div className="flex justify-between items-center">
-                  <h4 className="text-[10px] font-bold font-mono text-text-muted uppercase tracking-wider">Last Healthcheck Run</h4>
+                  <h4 className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Last Healthcheck Run</h4>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold border capitalize ${getJobStatusBadge(data.latestHealthcheck.status)}`}>
                     {data.latestHealthcheck.status}
                   </span>
@@ -213,13 +213,13 @@ export default function WorkerHealthAdminPage() {
 
                 <div className="space-y-2.5 text-xs">
                   <div>
-                    <span className="text-text-muted block text-[10px] uppercase font-mono">Run Date</span>
+                    <span className="text-text-muted block text-[10px] uppercase">Run Date</span>
                     <span className="text-text-primary font-medium">{new Date(data.latestHealthcheck.enqueuedAt).toLocaleString()}</span>
                   </div>
 
                   {data.latestHealthcheck.result && (
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">Worker Outcomes</span>
+                      <span className="text-text-muted block text-[10px] uppercase">Worker Outcomes</span>
                       <pre className="bg-background/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] text-text-secondary mt-1 max-h-24 overflow-auto">
                         {JSON.stringify(data.latestHealthcheck.result, null, 2)}
                       </pre>
@@ -240,7 +240,7 @@ export default function WorkerHealthAdminPage() {
 
           {/* Right panel: queues list */}
           <div className="col-span-2 space-y-4 flex flex-col min-h-0">
-            <h3 className="text-[10px] font-bold font-mono text-text-muted uppercase tracking-wider">BullMQ Queue status</h3>
+            <h3 className="text-[10px] font-bold text-text-muted uppercase tracking-wider">BullMQ Queue status</h3>
 
             <div className="space-y-3 overflow-y-auto flex-1 pr-1">
               {data.queues.map((q) => (
@@ -263,13 +263,13 @@ export default function WorkerHealthAdminPage() {
                       {[
                         { label: 'Waiting', val: q.counts.waiting, color: 'text-text-primary' },
                         { label: 'Active', val: q.counts.active, color: 'text-blue-400 font-bold' },
-                        { label: 'Delayed', val: q.counts.delayed, color: 'text-brand-orange' },
+                        { label: 'Delayed', val: q.counts.delayed, color: 'text-brand-orange-text' },
                         { label: 'Paused', val: q.counts.paused, color: 'text-text-muted' },
                         { label: 'Completed', val: q.counts.completed, color: 'text-emerald-400' },
                         { label: 'Failed', val: q.counts.failed, color: q.counts.failed > 0 ? 'text-brand-red font-bold' : 'text-text-muted' },
                       ].map((item) => (
                         <div key={item.label} className="bg-background/40 border border-card-border/60 rounded-xl p-2.5 text-center">
-                          <span className="text-[9px] font-mono text-text-muted uppercase block">{item.label}</span>
+                          <span className="text-[9px] text-text-muted uppercase block">{item.label}</span>
                           <span className={`text-sm font-extrabold font-mono mt-0.5 block ${item.color}`}>
                             {item.val}
                           </span>

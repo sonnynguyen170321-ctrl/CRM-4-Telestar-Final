@@ -487,7 +487,7 @@ ${detail.sequences && detail.sequences.length > 0 ? `
             )}
           </div>
         ) : (
-          <div className="text-xs font-mono font-bold text-brand-orange uppercase">
+          <div className="text-xs font-bold text-brand-orange-text uppercase">
             SDR Workspace Scoped
           </div>
         )}

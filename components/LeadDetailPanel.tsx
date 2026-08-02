@@ -785,14 +785,14 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
 
   const priorityColors = {
     hot: 'bg-brand-red/10 text-brand-red border-brand-red/20',
-    warm: 'bg-brand-gold/10 text-brand-gold border-brand-gold/20',
+    warm: 'bg-brand-gold/10 text-brand-gold-text border-brand-gold/20',
     cold: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
   };
 
   const stageColors = {
     new: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
     sequence_active: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-    replied: 'bg-brand-orange/10 text-brand-orange border-brand-orange/20',
+    replied: 'bg-brand-orange/10 text-brand-orange-text border-brand-orange/20',
     meeting_booked: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
     won: 'bg-green-600/15 text-green-500 border-green-600/30',
     lost: 'bg-brand-red/15 text-brand-red border-brand-red/30',
@@ -859,7 +859,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
         {lead.sequenceStatus === 'active' && lead.sequence && (
           <div className="px-4 py-2.5 border-b border-card-border bg-blue-500/5">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-bold font-mono text-blue-500 uppercase tracking-wide flex items-center gap-1">
+              <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wide flex items-center gap-1">
                 <Repeat className="w-3 h-3" />
                 {lead.sequence.name}
               </span>
@@ -974,13 +974,13 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               {lead.aiScore !== undefined && (
                 <div className="bg-background/40 border border-card-border rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider font-mono flex items-center gap-1.5">
+                    <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-1.5">
                       AI Lead Score
                     </h3>
                     <span
                       className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
                         lead.aiLabel === 'hot' ? 'bg-brand-red/10 text-brand-red border-brand-red/20' :
-                        lead.aiLabel === 'warm' ? 'bg-brand-gold/10 text-brand-gold border-brand-gold/20' :
+                        lead.aiLabel === 'warm' ? 'bg-brand-gold/10 text-brand-gold-text border-brand-gold/20' :
                         'bg-blue-500/10 text-blue-500 border-blue-500/20'
                       }`}
                     >
@@ -1016,9 +1016,9 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
 
               <div className="bg-background/40 border border-card-border rounded-xl p-4 space-y-3.5">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider font-mono">Prospect Profile</h3>
+                  <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Prospect Profile</h3>
                   {!editingProfile ? (
-                    <button onClick={startEditProfile} className="text-[10px] text-brand-red hover:text-brand-orange font-mono transition-colors">Edit</button>
+                    <button onClick={startEditProfile} className="text-[10px] text-brand-red hover:text-brand-orange-text font-mono transition-colors">Edit</button>
                   ) : (
                     <div className="flex gap-2">
                       <button
@@ -1046,7 +1046,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                       ['WhatsApp', 'whatsApp'],
                     ] as [string, keyof typeof profileDraft][]).map(([label, key]) => (
                       <div key={key} className={key === 'email' || key === 'linkedIn' ? 'col-span-2' : ''}>
-                        <label className="text-text-muted block text-[10px] uppercase font-mono mb-1">{label}</label>
+                        <label className="text-text-muted block text-[10px] uppercase mb-1">{label}</label>
                         <input
                           type={key === 'email' ? 'email' : 'text'}
                           value={profileDraft[key]}
@@ -1059,31 +1059,31 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 ) : (
                   <div className="grid grid-cols-2 gap-4 text-xs">
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">First / Last Name</span>
+                      <span className="text-text-muted block text-[10px] uppercase">First / Last Name</span>
                       <span className="text-text-primary font-medium">{lead.firstName} {lead.lastName}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">Title</span>
+                      <span className="text-text-muted block text-[10px] uppercase">Title</span>
                       <span className="text-text-primary font-medium">{lead.title || '—'}</span>
                     </div>
                     <div className="col-span-2">
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">Direct Email</span>
+                      <span className="text-text-muted block text-[10px] uppercase">Direct Email</span>
                       <span className="text-text-primary font-medium select-all">{lead.email || 'N/A'}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">Phone Number</span>
+                      <span className="text-text-muted block text-[10px] uppercase">Phone Number</span>
                       <span className="text-text-primary font-medium">{lead.phone || 'N/A'}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">WhatsApp</span>
+                      <span className="text-text-muted block text-[10px] uppercase">WhatsApp</span>
                       <span className="text-text-primary font-medium">{lead.whatsApp || 'N/A'}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">Lead Source</span>
+                      <span className="text-text-muted block text-[10px] uppercase">Lead Source</span>
                       <span className="text-text-primary font-medium">{lead.source || '—'}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">Tags</span>
+                      <span className="text-text-muted block text-[10px] uppercase">Tags</span>
                       <div className="flex flex-wrap gap-1 mt-0.5">
                         {(lead.tags ?? []).map((tag) => (
                           <span key={tag} className="bg-card-border px-1.5 py-0.5 rounded text-[9px] text-text-secondary font-mono">
@@ -1098,10 +1098,10 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
 
               {(lead.emailValidation || lead.emailScore != null || lead.importListName || lead.contact || lead.account) && (
                 <div className="bg-background/40 border border-card-border rounded-xl p-4 space-y-3.5">
-                  <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider font-mono">Enrichment Data</h3>
+                  <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Enrichment Data</h3>
                   <div className="grid grid-cols-2 gap-4 text-xs">
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">Email Quality</span>
+                      <span className="text-text-muted block text-[10px] uppercase">Email Quality</span>
                       <span className="text-text-primary font-medium">
                         {lead.emailValidation || lead.contact?.emailValidation || 'N/A'}
                         {(lead.emailScore ?? lead.contact?.emailScore) !== undefined && (lead.emailScore ?? lead.contact?.emailScore) !== null
@@ -1110,31 +1110,31 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                       </span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">Import List</span>
+                      <span className="text-text-muted block text-[10px] uppercase">Import List</span>
                       <span className="text-text-primary font-medium">{lead.importListName || lead.vendorSource || 'N/A'}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">Department</span>
+                      <span className="text-text-muted block text-[10px] uppercase">Department</span>
                       <span className="text-text-primary font-medium">{lead.contact?.department || 'N/A'}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">Seniority</span>
+                      <span className="text-text-muted block text-[10px] uppercase">Seniority</span>
                       <span className="text-text-primary font-medium">{lead.contact?.seniority || 'N/A'}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">Contact Country</span>
+                      <span className="text-text-muted block text-[10px] uppercase">Contact Country</span>
                       <span className="text-text-primary font-medium">{lead.contact?.country || 'N/A'}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">Industry</span>
+                      <span className="text-text-muted block text-[10px] uppercase">Industry</span>
                       <span className="text-text-primary font-medium">{lead.account?.industry || 'N/A'}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">Company Country</span>
+                      <span className="text-text-muted block text-[10px] uppercase">Company Country</span>
                       <span className="text-text-primary font-medium">{lead.account?.country || 'N/A'}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase font-mono">Staff Range</span>
+                      <span className="text-text-muted block text-[10px] uppercase">Staff Range</span>
                       <span className="text-text-primary font-medium">{lead.account?.staffCountRange || 'N/A'}</span>
                     </div>
                   </div>
@@ -1143,9 +1143,9 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
 
               {lead.sequenceStatus === 'active' && lead.sequence && (
                 <div className="bg-background/40 border border-card-border rounded-xl p-4 space-y-3">
-                  <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider font-mono">Active Sequence</h3>
+                  <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Active Sequence</h3>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-brand-orange">{lead.sequence.name}</span>
+                    <span className="font-semibold text-brand-orange-text">{lead.sequence.name}</span>
                     <span className="text-text-muted font-mono text-[11px]">
                       Step {lead.sequenceStep ?? 1} of {lead.sequence.steps.length}
                     </span>
@@ -1162,10 +1162,10 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               )}
 
               <div className="bg-background/40 border border-card-border rounded-xl p-4 space-y-3">
-                <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider font-mono">Pipeline Control</h3>
+                <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Pipeline Control</h3>
                 <div className="grid grid-cols-2 gap-3.5">
                   <div>
-                    <label className="text-[10px] text-text-muted uppercase font-mono block mb-1">Pipeline Stage</label>
+                    <label className="text-[10px] text-text-muted uppercase block mb-1">Pipeline Stage</label>
                     <select
                       value={lead.stage}
                       onChange={(e) => handleStageChange(e.target.value as LeadDetail['stage'])}
@@ -1180,7 +1180,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] text-text-muted uppercase font-mono block mb-1">Priority Badge</label>
+                    <label className="text-[10px] text-text-muted uppercase block mb-1">Priority Badge</label>
                     <select
                       value={lead.priority}
                       onChange={(e) => handlePriorityChange(e.target.value as LeadDetail['priority'])}
@@ -1194,7 +1194,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 </div>
                 {users.length > 0 && (
                   <div>
-                    <label className="text-[10px] text-text-muted uppercase font-mono block mb-1">Assigned SDR</label>
+                    <label className="text-[10px] text-text-muted uppercase block mb-1">Assigned SDR</label>
                     <select
                       value={lead.assignedTo?.id ?? ''}
                       onChange={(e) => handleReassign(e.target.value)}
@@ -1214,13 +1214,13 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               {/* REMINDERS SECTION */}
               <div className="bg-background/40 border border-card-border rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider font-mono flex items-center gap-1.5">
-                    <AlarmClock className="w-3.5 h-3.5 text-brand-gold" aria-hidden="true" />
+                  <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-1.5">
+                    <AlarmClock className="w-3.5 h-3.5 text-brand-gold-text" aria-hidden="true" />
                     Reminders
                   </h3>
                   <button
                     onClick={() => setShowReminderForm((v) => !v)}
-                    className="text-[10px] text-brand-red hover:text-brand-orange font-mono flex items-center gap-1 transition-colors"
+                    className="text-[10px] text-brand-red hover:text-brand-orange-text font-mono flex items-center gap-1 transition-colors"
                     aria-label="Add reminder"
                   >
                     <Plus className="w-3 h-3" aria-hidden="true" />
@@ -1272,10 +1272,10 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                       const isOverdue = new Date(r.dueAt) < new Date();
                       return (
                         <li key={r.id} className={`flex items-start gap-2 text-xs rounded-lg p-2 ${isOverdue ? 'bg-brand-gold/5 border border-brand-gold/20' : 'bg-background/60 border border-card-border'}`}>
-                          <AlarmClock className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isOverdue ? 'text-brand-gold' : 'text-text-muted'}`} aria-hidden="true" />
+                          <AlarmClock className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isOverdue ? 'text-brand-gold-text' : 'text-text-muted'}`} aria-hidden="true" />
                           <div className="flex-1 min-w-0">
                             <p className="text-text-secondary leading-snug">{r.text}</p>
-                            <span className={`text-[9px] font-mono ${isOverdue ? 'text-brand-gold' : 'text-text-muted'}`}>
+                            <span className={`text-[9px] font-mono ${isOverdue ? 'text-brand-gold-text' : 'text-text-muted'}`}>
                               {isOverdue ? '⚠ overdue · ' : ''}
                               {new Date(r.dueAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}{' '}
                               {new Date(r.dueAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1342,7 +1342,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                         : item.type === 'task_completed'
                         ? 'bg-green-500 text-white'
                         : item.type === 'task_skipped'
-                        ? 'bg-card-border text-text-muted'
+                        ? 'bg-card-border text-text-secondary'
                         : item.type === 'activity'
                         ? 'bg-emerald-500 text-white'
                         : 'bg-brand-orange text-white';
@@ -1376,7 +1376,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                             <button
                               onClick={() => handleTogglePin(item.id)}
                               className={`absolute right-3.5 top-3.5 transition-colors ${
-                                item.isPinned ? 'text-brand-gold' : 'text-text-muted hover:text-text-secondary'
+                                item.isPinned ? 'text-brand-gold-text' : 'text-text-muted hover:text-text-secondary'
                               }`}
                             >
                               <Pin className="w-3.5 h-3.5" fill={item.isPinned ? 'currentColor' : 'none'} />
@@ -1407,7 +1407,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
           {activeTab === 'tasks' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider font-mono">Tasks</h3>
+                <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Tasks</h3>
                 <button
                   onClick={() => setShowTaskForm((v) => !v)}
                   className="flex items-center gap-1 px-2.5 py-1 bg-brand-red hover:bg-brand-red-hover text-white text-[10px] font-semibold rounded-lg transition-colors"
@@ -1421,7 +1421,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 <form onSubmit={handleCreateTask} className="bg-background/60 border border-brand-red/20 rounded-xl p-3.5 space-y-2.5 text-xs">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-[9px] font-mono text-text-muted uppercase mb-1">Channel</label>
+                      <label className="block text-[9px] text-text-muted uppercase mb-1">Channel</label>
                       <select
                         value={newTask.type}
                         onChange={(e) => setNewTask((p) => ({ ...p, type: e.target.value as TaskItem['type'] }))}
@@ -1435,7 +1435,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[9px] font-mono text-text-muted uppercase mb-1">Due Date</label>
+                      <label className="block text-[9px] text-text-muted uppercase mb-1">Due Date</label>
                       <input
                         type="datetime-local"
                         required
@@ -1520,11 +1520,11 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                             ✓ DONE
                           </span>
                         ) : task.status === 'skipped' ? (
-                          <span className="px-2 py-0.5 bg-card-border text-text-muted text-[9px] font-bold rounded font-mono">
+                          <span className="px-2 py-0.5 bg-card-border text-text-secondary text-[9px] font-bold rounded font-mono">
                             ⏭ SKIPPED
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 bg-brand-orange/10 text-brand-orange text-[9px] font-bold border border-brand-orange/20 rounded font-mono">
+                          <span className="px-2 py-0.5 bg-brand-orange/10 text-brand-orange-text text-[9px] font-bold border border-brand-orange/20 rounded font-mono">
                             PENDING
                           </span>
                         )}
@@ -1544,7 +1544,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 <div className="glass-card rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-mono text-text-muted uppercase tracking-wider">Active Sequence</p>
+                      <p className="text-[10px] text-text-muted uppercase tracking-wider">Active Sequence</p>
                       <p className="text-sm font-bold text-text-primary mt-0.5">{lead.sequence.name}</p>
                     </div>
                     <button
@@ -1580,7 +1580,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               {/* Enrollment History */}
               {(lead as any).sequenceEnrollments && ((lead as any).sequenceEnrollments as any[]).length > 0 && (
                 <div className="space-y-2">
-                  <h3 className="text-[10px] font-bold font-mono text-text-muted uppercase tracking-wider mb-2">
+                  <h3 className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">
                     Enrollment History
                   </h3>
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-1 mb-4">
@@ -1597,10 +1597,10 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                           enr.status === 'active'
                             ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
                             : enr.status === 'paused'
-                            ? 'bg-brand-orange/10 text-brand-orange border-brand-orange/20'
+                            ? 'bg-brand-orange/10 text-brand-orange-text border-brand-orange/20'
                             : enr.status === 'completed'
                             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                            : 'bg-card-border text-text-muted'
+                            : 'bg-card-border text-text-secondary'
                         }`}>
                           {enr.status}
                         </span>
@@ -1612,7 +1612,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
 
               {/* Available sequences */}
               <div>
-                <h3 className="text-[10px] font-bold font-mono text-text-muted uppercase tracking-wider mb-2">
+                <h3 className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">
                   {lead.sequenceStatus === 'active' ? 'Switch Sequence' : 'Available Sequences'}
                 </h3>
                 {sequences.length === 0 ? (
@@ -1651,12 +1651,12 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
           {activeTab === 'meetings' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider font-mono">
+                <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider">
                   Lead Meetings
                 </h4>
                 <button
                   onClick={() => setShowBookingModal(true)}
-                  className="flex items-center gap-1 text-[10px] font-semibold text-brand-red hover:text-brand-orange font-mono transition-colors"
+                  className="flex items-center gap-1 text-[10px] font-semibold text-brand-red hover:text-brand-orange-text font-mono transition-colors"
                 >
                   <Plus className="w-3 h-3" />
                   Book Meeting
@@ -1696,7 +1696,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         {m.scheduledAt && (
                           <div>
-                            <span className="text-[10px] text-text-muted uppercase font-mono block">Scheduled For</span>
+                            <span className="text-[10px] text-text-muted uppercase block">Scheduled For</span>
                             <span className="text-text-primary font-medium">
                               {new Date(m.scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                             </span>
@@ -1704,19 +1704,19 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                         )}
                         {m.sdr && (
                           <div>
-                            <span className="text-[10px] text-text-muted uppercase font-mono block">Booked By</span>
+                            <span className="text-[10px] text-text-muted uppercase block">Booked By</span>
                             <span className="text-text-primary font-medium">{m.sdr.firstName} {m.sdr.lastName}</span>
                           </div>
                         )}
                         {m.bookingLinkNameSnapshot && (
                           <div>
-                            <span className="text-[10px] text-text-muted uppercase font-mono block">Booking Link</span>
+                            <span className="text-[10px] text-text-muted uppercase block">Booking Link</span>
                             <span className="text-text-primary font-medium">{m.bookingLinkNameSnapshot}</span>
                           </div>
                         )}
                         {m.meetingUrl && (
                           <div>
-                            <span className="text-[10px] text-text-muted uppercase font-mono block">Meeting URL</span>
+                            <span className="text-[10px] text-text-muted uppercase block">Meeting URL</span>
                             <a href={m.meetingUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline truncate block">
                               {m.meetingUrl}
                             </a>
@@ -1727,7 +1727,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                       {m.outcome && (
                         <div className="bg-surface/50 border border-card-border rounded-lg p-2.5 text-xs space-y-1">
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold uppercase font-mono text-emerald-400">
+                            <span className="text-[10px] font-bold uppercase text-emerald-400">
                               Outcome: {m.outcome.replace(/_/g, ' ')}
                             </span>
                             {m.outcomeLoggedAt && (
@@ -1738,7 +1738,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                           </div>
                           {m.outcomeNotes && <p className="text-text-secondary">{m.outcomeNotes}</p>}
                           {m.painPoints && <p className="text-text-muted text-[11px]"><strong>Pain points:</strong> {m.painPoints}</p>}
-                          {m.nextStep && <p className="text-brand-orange text-[11px]"><strong>Next:</strong> {m.nextStep}</p>}
+                          {m.nextStep && <p className="text-brand-orange-text text-[11px]"><strong>Next:</strong> {m.nextStep}</p>}
                         </div>
                       )}
                     </div>
@@ -1773,7 +1773,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                     key={ch}
                     type="button"
                     onClick={() => { setLogChannel(ch); setLogAction(''); }}
-                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold font-mono capitalize transition-all ${logChannel === ch ? 'bg-brand-red text-white' : 'bg-card-border text-text-muted hover:text-text-primary'}`}
+                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold font-mono capitalize transition-all ${logChannel === ch ? 'bg-brand-red text-white' : 'bg-card-border text-text-secondary hover:text-text-primary'}`}
                   >
                     {icons[ch]}<br/>{ch}
                   </button>
@@ -1783,7 +1783,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
 
             {/* Action type */}
             <div className="space-y-1">
-              <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">Action <span className="text-brand-red">*</span></label>
+              <label className="text-[10px] font-bold text-text-muted uppercase block">Action <span className="text-brand-red">*</span></label>
               <select
                 value={logAction}
                 onChange={(e) => setLogAction(e.target.value)}
@@ -1871,7 +1871,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 <h3 className="font-display font-bold text-sm text-text-primary">Switch Sequence?</h3>
                 <p className="text-xs text-text-secondary mt-1 leading-relaxed">
                   <span className="font-semibold text-text-primary">{lead.firstName} {lead.lastName}</span> is currently on{' '}
-                  <span className="text-brand-orange font-semibold">
+                  <span className="text-brand-orange-text font-semibold">
                     {lead.sequence?.name ?? 'a sequence'}
                   </span>{' '}
                   at step{' '}

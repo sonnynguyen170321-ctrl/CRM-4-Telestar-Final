@@ -384,7 +384,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
 
           {mode === 'qualify' && (
             <div className="flex items-center gap-2 ml-auto">
-              <span className="text-[10px] text-text-muted font-mono uppercase">QA notes</span>
+              <span className="text-[10px] text-text-muted uppercase">QA notes</span>
               <input
                 value={qaNotes}
                 onChange={(e) => setQaNotes(e.target.value)}
@@ -413,15 +413,15 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
                 <th className="w-8 px-3 py-2.5">
                   <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-purple-500" />
                 </th>
-                <th className="px-3 py-2.5 text-[10px] font-mono uppercase text-text-muted">Contact</th>
-                <th className="px-3 py-2.5 text-[10px] font-mono uppercase text-text-muted">Company</th>
-                <th className="px-3 py-2.5 text-[10px] font-mono uppercase text-text-muted">Title</th>
-                <th className="px-3 py-2.5 text-[10px] font-mono uppercase text-text-muted">Email</th>
-                <th className="px-3 py-2.5 text-[10px] font-mono uppercase text-text-muted">Qualification</th>
-                <th className="px-3 py-2.5 text-[10px] font-mono uppercase text-text-muted">Status</th>
-                <th className="px-3 py-2.5 text-[10px] font-mono uppercase text-text-muted">Source</th>
-                <th className="px-3 py-2.5 text-[10px] font-mono uppercase text-text-muted">Scores</th>
-                <th className="px-3 py-2.5 text-[10px] font-mono uppercase text-text-muted">Route</th>
+                <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">Contact</th>
+                <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">Company</th>
+                <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">Title</th>
+                <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">Email</th>
+                <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">Qualification</th>
+                <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">Status</th>
+                <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">Source</th>
+                <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">Scores</th>
+                <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">Route</th>
               </tr>
             </thead>
             <tbody>
@@ -484,7 +484,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
                         <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded border ${q.color}`}>{q.label}</span>
                       </td>
                       <td className="px-3 py-2.5">
-                        <span className="text-[10px] font-mono text-text-muted uppercase">{item.status.replaceAll('_', ' ')}</span>
+                        <span className="text-[10px] text-text-muted uppercase">{item.status.replaceAll('_', ' ')}</span>
                       </td>
                       <td className="px-3 py-2.5">
                         <span className="text-[10px] font-mono text-text-muted">{item.sourceName || item.sourceType}</span>
@@ -554,7 +554,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
             </p>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-mono uppercase text-text-muted">Campaign</label>
+              <label className="text-[10px] uppercase text-text-muted">Campaign</label>
               <select value={assignCampaignId} onChange={(e) => setAssignCampaignId(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-purple-500/40">
                 <option value="">{showConvert ? 'Select campaign (required)' : 'No campaign'}</option>
                 {campaigns.map((c) => (
@@ -564,7 +564,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-mono uppercase text-text-muted">
+              <label className="text-[10px] uppercase text-text-muted">
                 SDRs {showConvert ? '(required)' : '(optional)'}
               </label>
               <div className="max-h-40 overflow-y-auto border border-card-border rounded-lg bg-background divide-y divide-card-border/60">
@@ -575,7 +575,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
                     <label key={u.id} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-background/60">
                       <input type="checkbox" checked={assignSdrIds.includes(u.id)} onChange={() => toggleSdr(u.id)} className="accent-purple-500" />
                       <span className="text-xs text-text-secondary">{u.firstName} {u.lastName}</span>
-                      <span className="ml-auto text-[10px] font-mono text-text-muted uppercase">{u.role.replace('_', ' ')}</span>
+                      <span className="ml-auto text-[10px] text-text-muted uppercase">{u.role.replace('_', ' ')}</span>
                     </label>
                   ))
                 )}
@@ -682,7 +682,7 @@ function CreateForm({ onDone }: { onDone: (ok: boolean) => void }) {
       <div className="grid grid-cols-2 gap-3">
         {fields.map(([key, label, required]) => (
           <div key={key} className="space-y-1">
-            <label className="text-[10px] font-mono uppercase text-text-muted">{label}</label>
+            <label className="text-[10px] uppercase text-text-muted">{label}</label>
             <input
               value={form[key]}
               onChange={set(key)}
@@ -793,7 +793,7 @@ function RequirementsPanel({ campaigns }: { campaigns: Campaign[] }) {
       {showForm && (
         <div className="grid grid-cols-2 gap-3 p-3 border border-card-border rounded-xl bg-background/40">
           <div className="space-y-1">
-            <label className="text-[10px] font-mono uppercase text-text-muted">Campaign</label>
+            <label className="text-[10px] uppercase text-text-muted">Campaign</label>
             <select value={form.campaignId} onChange={(e) => setForm((p) => ({ ...p, campaignId: e.target.value }))} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none">
               <option value="">Select campaign</option>
               {campaigns.map((c) => (
@@ -802,7 +802,7 @@ function RequirementsPanel({ campaigns }: { campaigns: Campaign[] }) {
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-mono uppercase text-text-muted">Required count</label>
+            <label className="text-[10px] uppercase text-text-muted">Required count</label>
             <input
               type="number"
               min={1}
@@ -812,7 +812,7 @@ function RequirementsPanel({ campaigns }: { campaigns: Campaign[] }) {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-mono uppercase text-text-muted">Due date</label>
+            <label className="text-[10px] uppercase text-text-muted">Due date</label>
             <input
               type="date"
               value={form.dueDate}
@@ -821,7 +821,7 @@ function RequirementsPanel({ campaigns }: { campaigns: Campaign[] }) {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-mono uppercase text-text-muted">Notes</label>
+            <label className="text-[10px] uppercase text-text-muted">Notes</label>
             <input
               value={form.notes}
               onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}

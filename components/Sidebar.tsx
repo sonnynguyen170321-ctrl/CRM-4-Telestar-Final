@@ -124,12 +124,12 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
     >
       {/* Brand Header */}
       <div className="flex items-center gap-3 px-3 py-5 border-b border-sidebar-border h-16 overflow-hidden">
-        <div className="flex items-center justify-center bg-brand-red/10 rounded-lg p-1.5 text-brand-red logo-glow flex-shrink-0">
+        <div className="flex items-center justify-center bg-brand-red/10 rounded-lg p-1.5 text-brand-red flex-shrink-0">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
             fill="currentColor"
-            className="w-6 h-6 text-brand-red drop-shadow-[0_0_8px_rgba(212,43,30,0.6)]"
+            className="w-6 h-6 text-brand-red"
           >
             <path d="M12 2L14.73 8.35L21.6 9L16.42 13.56L17.95 20.3L12 16.72L6.05 20.3L7.58 13.56L2.4 9L9.27 8.35L12 2Z" />
             <path
@@ -146,7 +146,7 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
           </svg>
         </div>
         {expanded && (
-          <span className="font-display font-extrabold text-base tracking-wide bg-gradient-to-r from-brand-red via-brand-orange to-brand-gold bg-clip-text text-transparent whitespace-nowrap">
+          <span className="font-display font-extrabold text-base tracking-wide text-brand-red whitespace-nowrap">
             TELESTAR
           </span>
         )}
@@ -165,7 +165,7 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
               aria-current={isActive ? 'page' : undefined}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative focus-ring ${
                 isActive
-                  ? 'bg-brand-red/15 text-white font-semibold shadow-md shadow-brand-red/10 border-beam-container'
+                  ? 'bg-brand-red text-white font-semibold'
                   : 'text-sidebar-text-muted hover:bg-sidebar-border hover:text-sidebar-text'
               }`}
             >
@@ -174,7 +174,7 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
                 aria-hidden="true"
                 className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${
                   isActive
-                    ? 'text-white drop-shadow-[0_0_6px_rgba(212,43,30,0.4)]'
+                    ? 'text-white'
                     : 'text-sidebar-text-muted group-hover:text-sidebar-text'
                 }`}
               />
@@ -208,14 +208,14 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
 
       {/* User Footer */}
       <div
-        className="p-3 border-t border-sidebar-border flex items-center gap-3 bg-sidebar-bg/50 overflow-hidden"
+        className="p-3 border-t border-sidebar-border flex items-center gap-3 overflow-hidden"
         aria-label={
           currentUser
             ? `Logged in as ${[currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ')}, role: ${userRole}`
             : `Current role: ${userRole}`
         }
       >
-        <div className="w-9 h-9 rounded-full bg-sidebar-border border border-sidebar-border flex items-center justify-center font-bold text-xs text-brand-orange uppercase flex-shrink-0">
+        <div className="w-9 h-9 rounded-full bg-sidebar-border flex items-center justify-center font-bold text-xs text-brand-orange-text uppercase flex-shrink-0">
           {currentUser
             ? `${currentUser.firstName[0] || ''}${currentUser.lastName[0] || ''}`
             : userRole === 'director'
@@ -229,7 +229,7 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
                 ? [currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ')
                 : 'Loading...'}
             </span>
-            <span className="text-[10px] text-sidebar-text-muted font-mono tracking-tighter truncate uppercase">
+            <span className="text-[10px] text-sidebar-text-muted tracking-tighter truncate uppercase">
               {isLeadgenManager ? 'leadgen manager' : userRole.replace('_', ' ')}
             </span>
           </div>

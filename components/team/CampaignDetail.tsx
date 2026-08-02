@@ -110,7 +110,7 @@ export default function CampaignDetail({
             </button>
           )}
           <div>
-            <span className="text-[10px] font-bold font-mono text-brand-orange uppercase tracking-wider">
+            <span className="text-[10px] font-bold text-brand-orange-text uppercase tracking-wider">
               {data.clientName}
             </span>
             <h2 className="font-display font-extrabold text-lg text-text-primary leading-tight">
@@ -140,15 +140,15 @@ export default function CampaignDetail({
       {/* Six KPI cards */}
       <div className="grid grid-cols-6 gap-3 stagger-container">
         {[
-          { label: 'Meetings Booked', value: kpis.meetingsBooked, Icon: Award, color: 'text-brand-gold' },
+          { label: 'Meetings Booked', value: kpis.meetingsBooked, Icon: Award, color: 'text-brand-gold-text' },
           { label: 'Contacts Touched', value: kpis.contactsTouched, Icon: Users, color: 'text-blue-500' },
-          { label: 'Unique Replies', value: kpis.replies, Icon: MessageSquare, color: 'text-brand-orange' },
+          { label: 'Unique Replies', value: kpis.replies, Icon: MessageSquare, color: 'text-brand-orange-text' },
           { label: 'Reply Rate', value: `${kpis.replyRate}%`, Icon: TrendingUp, color: 'text-green-500' },
           { label: 'Active Sequences', value: kpis.sequencesRunning, Icon: Zap, color: 'text-purple-400' },
           { label: 'Tasks Completed', value: kpis.tasksDone, Icon: Clock, color: 'text-text-secondary' },
         ].map(({ label, value, Icon, color }) => (
           <div key={label} className="stagger-child glass-card rounded-xl p-3 flex flex-col justify-between hover-lift">
-            <span className="text-[9px] uppercase font-bold text-text-muted font-mono leading-tight">{label}</span>
+            <span className="text-[9px] uppercase font-bold text-text-muted leading-tight">{label}</span>
             <div className="flex items-baseline justify-between mt-2">
               <span className={`font-display font-extrabold text-xl ${color}`}>{value}</span>
               <Icon className={`w-3.5 h-3.5 ${color} opacity-80`} aria-hidden="true" />
@@ -162,7 +162,7 @@ export default function CampaignDetail({
         <div className="col-span-2 glass-card rounded-2xl p-5 hover-lift space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-brand-orange" />
+              <TrendingUp className="w-5 h-5 text-brand-orange-text" />
               <span>Conversion Pipeline Funnel</span>
             </h3>
             <span className="text-[10px] font-mono text-text-muted">Leads distribution</span>
@@ -204,12 +204,12 @@ export default function CampaignDetail({
             
             {/* Conversion rates panel */}
             <div className="w-1/3 bg-background/40 border border-card-border p-4 rounded-xl space-y-2.5">
-              <h4 className="text-[10px] font-bold font-mono text-text-muted uppercase">Stage Conversion</h4>
+              <h4 className="text-[10px] font-bold text-text-muted uppercase">Stage Conversion</h4>
               <div className="space-y-2 text-xs">
                 {convRates.map((c) => (
                   <div key={c.label} className="flex justify-between items-center py-0.5 border-b border-card-border/30 last:border-b-0">
                     <span className="text-text-secondary">{c.label}</span>
-                    <span className="font-bold font-mono text-brand-orange">{c.rate}%</span>
+                    <span className="font-bold font-mono text-brand-orange-text">{c.rate}%</span>
                   </div>
                 ))}
               </div>
@@ -221,7 +221,7 @@ export default function CampaignDetail({
         <div className="glass-card rounded-2xl p-5 hover-lift flex flex-col justify-between">
           <div className="space-y-3">
             <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-brand-orange" />
+              <BarChart3 className="w-5 h-5 text-brand-orange-text" />
               <span>Campaign Metadata</span>
             </h3>
             <div className="space-y-2 text-xs">
@@ -256,7 +256,7 @@ export default function CampaignDetail({
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left border-collapse">
             <thead>
-              <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold font-mono tracking-wider text-text-muted">
+              <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
                 <th className="p-3">Sequence Name</th>
                 <th className="p-3 text-center">Enrolled</th>
                 <th className="p-3 text-center">Completed</th>
@@ -277,8 +277,8 @@ export default function CampaignDetail({
                     <td className="p-3 font-semibold text-text-primary">{seq.name}</td>
                     <td className="p-3 text-center font-mono">{seq.enrolled}</td>
                     <td className="p-3 text-center font-mono">{seq.completed}</td>
-                    <td className="p-3 text-center font-bold font-mono text-brand-orange">{seq.replyRate}%</td>
-                    <td className="p-3 text-center font-bold font-mono text-brand-gold">{seq.meetingsBooked}</td>
+                    <td className="p-3 text-center font-bold font-mono text-brand-orange-text">{seq.replyRate}%</td>
+                    <td className="p-3 text-center font-bold font-mono text-brand-gold-text">{seq.meetingsBooked}</td>
                   </tr>
                 ))
               )}
@@ -298,14 +298,14 @@ export default function CampaignDetail({
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left border-collapse">
             <thead>
-              <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold font-mono tracking-wider text-text-muted">
+              <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
                 <th className="p-3">Rep</th>
                 <th className="p-3 text-center">Tasks Completed</th>
                 <th className="p-3 text-center">Emails Sent</th>
                 <th className="p-3 text-center">Calls Made</th>
                 <th className="p-3 text-center">LinkedIn</th>
                 <th className="p-3 text-center">WhatsApp</th>
-                <th className="p-3 text-center text-brand-gold">Meetings Booked</th>
+                <th className="p-3 text-center text-brand-gold-text">Meetings Booked</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-card-border text-text-secondary">
@@ -324,7 +324,7 @@ export default function CampaignDetail({
                     <td className="p-3 text-center font-mono">{rep.calls}</td>
                     <td className="p-3 text-center font-mono">{rep.linkedin}</td>
                     <td className="p-3 text-center font-mono">{rep.whatsapp}</td>
-                    <td className="p-3 text-center font-bold font-mono text-brand-gold bg-brand-gold/[0.01]">{rep.booked}</td>
+                    <td className="p-3 text-center font-bold font-mono text-brand-gold-text bg-brand-gold/[0.01]">{rep.booked}</td>
                   </tr>
                 ))
               )}

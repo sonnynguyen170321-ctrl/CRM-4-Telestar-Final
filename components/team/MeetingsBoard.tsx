@@ -104,7 +104,7 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
       <div className="grid grid-cols-4 gap-4">
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 flex items-center justify-between shadow-sm">
           <div>
-            <span className="text-[10px] font-bold font-mono text-text-muted uppercase tracking-wider">Total Booked</span>
+            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Total Booked</span>
             <p className="font-display font-extrabold text-2xl text-text-primary mt-1">{totalBooked}</p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500">
@@ -114,7 +114,7 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
 
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 flex items-center justify-between shadow-sm">
           <div>
-            <span className="text-[10px] font-bold font-mono text-text-muted uppercase tracking-wider">Won / Closed</span>
+            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Won / Closed</span>
             <p className="font-display font-extrabold text-2xl text-green-500 mt-1">{wonCount}</p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500">
@@ -124,7 +124,7 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
 
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 flex items-center justify-between shadow-sm">
           <div>
-            <span className="text-[10px] font-bold font-mono text-text-muted uppercase tracking-wider">Lost / No-Show</span>
+            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Lost / No-Show</span>
             <p className="font-display font-extrabold text-2xl text-brand-red mt-1">{lostCount}</p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-brand-red/10 border border-brand-red/20 flex items-center justify-center text-brand-red">
@@ -134,10 +134,10 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
 
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 flex items-center justify-between shadow-sm">
           <div>
-            <span className="text-[10px] font-bold font-mono text-text-muted uppercase tracking-wider">Win Rate</span>
-            <p className="font-display font-extrabold text-2xl text-brand-orange mt-1">{winRate}%</p>
+            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Win Rate</span>
+            <p className="font-display font-extrabold text-2xl text-brand-orange-text mt-1">{winRate}%</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-brand-orange/10 border border-brand-orange/20 flex items-center justify-center text-brand-orange">
+          <div className="w-10 h-10 rounded-xl bg-brand-orange/10 border border-brand-orange/20 flex items-center justify-center text-brand-orange-text">
             <Star className="w-5 h-5" />
           </div>
         </div>
@@ -193,7 +193,7 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-card-border bg-background/50 font-mono text-[10px] font-bold text-text-muted uppercase">
+                <tr className="border-b border-card-border bg-background/50 text-[10px] font-bold text-text-muted uppercase">
                   <th className="p-4">Lead / Company</th>
                   <th className="p-4">Campaign</th>
                   <th className="p-4">Booked By (SDR)</th>

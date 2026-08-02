@@ -19,23 +19,27 @@
    button labels and body copy, and nothing occupied the gap between 15.3 and
    26.3 — page titles jumped straight to body text with no tier in between.
 
+   The floor sits at 11px on purpose: an earlier pass ran prose at 10px, which
+   reads as "tiny body text" in accessibility audits. Body is 14px — the top of
+   the 13–14px the brand rules allow — so density survives the lift.
+
    tier        size    used for
    ─────────────────────────────────────────────────────────────────────────
    page-title  28px    the one <h1> per route
-   section     19px    panel / card headers  (the tier that was missing)
-   subsection  15.5px  group labels inside a panel
-   body        13.5px  paragraphs, table cells, form values
-   meta        11.5px  timestamps, counts, secondary chrome
-   micro       10px    badges, kbd hints, avatar initials
+   section     20px    panel / card headers  (the tier that was missing)
+   subsection  16px    group labels inside a panel
+   body        14px    paragraphs, table cells, form values
+   meta        12.5px  timestamps, counts, secondary chrome
+   micro       11px    badges, kbd hints, avatar initials
    ─────────────────────────────────────────────────────────────────────────
-   ~1.25–1.47x between adjacent steps, 2.8:1 overall.                       */
+   ~1.12–1.4x between adjacent steps, 2.55:1 overall.                       */
 :root {
   --text-page-title: 28px;
-  --text-section: 19px;
-  --text-subsection: 15.5px;
-  --text-body: 13.5px;
-  --text-meta: 11.5px;
-  --text-micro: 10px;
+  --text-section: 20px;
+  --text-subsection: 16px;
+  --text-body: 14px;
+  --text-meta: 12.5px;
+  --text-micro: 11px;
 }
 
 /* ─── THEME TOKENS ─── */
@@ -47,6 +51,12 @@
   --brand-orange-hover: #C54E12;
   --brand-gold: #F5A623;
   --brand-yellow: #FEDD44;
+  /* Text-safe variants. The display colours are tuned for fills and borders; as
+     text on white they measure 2.03:1 (gold) and 3.41:1 (orange), both below the
+     4.5:1 AA floor. These darkened versions read as the same colour and pass at
+     4.9:1 and 5.2:1. Fills keep using --brand-gold / --brand-orange. */
+  --brand-gold-text: #A16207;
+  --brand-orange-text: #C2410C;
   --brand-dark: #0A0A0A;
   --brand-dark-alt: #1A1A1A;
 
@@ -75,7 +85,10 @@ body[data-theme="light"] {
   --sidebar-text-muted: #6B7280;
   --text-primary: #111827;
   --text-secondary: #4B5563;
-  --text-muted: #9CA3AF;
+  /* #9CA3AF measured 2.54:1 on white — below the 4.5:1 WCAG AA floor, and the
+     single source of every "low contrast text" finding. #6B7280 is 4.83:1 and
+     matches --sidebar-text-muted, so muted text is now one colour app-wide. */
+  --text-muted: #6B7280;
   --topbar-bg: #FFFFFF;
   --topbar-border: #E5E7EB;
   --header-glow: rgba(0, 0, 0, 0.01);
@@ -91,6 +104,11 @@ body[data-theme="light"] {
   --color-brand-orange-hover: var(--brand-orange-hover);
   --color-brand-gold: var(--brand-gold);
   --color-brand-yellow: var(--brand-yellow);
+  /* Text-only variants — see --brand-gold-text above. Tailwind v4 folds any
+     same-named rule of ours into its own utilities layer, so overriding
+     `.text-brand-gold` in plain CSS silently loses. Separate colours instead. */
+  --color-brand-gold-text: var(--brand-gold-text);
+  --color-brand-orange-text: var(--brand-orange-text);
   --color-brand-dark: var(--brand-dark);
   
   --color-channel-email: var(--channel-email);
@@ -313,19 +331,12 @@ p, li {
   -webkit-backdrop-filter: blur(12px);
 }
 
-/* Glow Effect for HOT leads */
-@keyframes pulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 4px rgba(212, 43, 30, 0.15), 0 0 1px rgba(212, 43, 30, 0.1);
-  }
-  50% {
-    box-shadow: 0 0 10px rgba(212, 43, 30, 0.35), 0 0 3px rgba(212, 43, 30, 0.2);
-  }
-}
-
+/* HOT lead marker. A pulsing outer glow reads as decoration and is one of the
+   surest "AI-generated UI" tells; a solid left accent bar carries the same
+   signal, costs no animation frames, and survives a screenshot. */
 .glow-hot {
-  animation: pulseGlow 2.5s infinite ease-in-out;
-  border-color: rgba(212, 43, 30, 0.3) !important;
+  border-color: rgba(212, 43, 30, 0.4) !important;
+  box-shadow: inset 3px 0 0 var(--brand-red);
 }
 
 /* Custom Scrollbars */
@@ -353,31 +364,9 @@ p, li {
    UI/UX PRO MAX — KEYFRAMES
 ════════════════════════════════════════════ */
 
-@keyframes logo-aurora {
-  0%, 100% { filter: drop-shadow(0 0 6px rgba(212,43,30,0.5)) drop-shadow(0 0 12px rgba(232,97,26,0.3)); }
-  33%       { filter: drop-shadow(0 0 8px rgba(232,97,26,0.6)) drop-shadow(0 0 16px rgba(245,166,35,0.3)); }
-  66%       { filter: drop-shadow(0 0 10px rgba(245,166,35,0.5)) drop-shadow(0 0 20px rgba(212,43,30,0.2)); }
-}
-
-@keyframes aurora {
-  0%   { background-position: 0% 50%; }
-  33%  { background-position: 60% 20%; }
-  66%  { background-position: 100% 80%; }
-  100% { background-position: 0% 50%; }
-}
-
 @keyframes stagger-fade-up {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
-}
-
-@property --beam-angle {
-  syntax: '<angle>';
-  initial-value: 0deg;
-  inherits: false;
-}
-@keyframes beam-rotate {
-  to { --beam-angle: 360deg; }
 }
 
 /* ════════════════════════════════════════════
@@ -397,16 +386,9 @@ body[data-theme="light"] .glass-card {
   -webkit-backdrop-filter: none;
   border: 1px solid #E5E7EB;
 }
-/* Light mode: no aurora animation — clean static background */
+/* The app ships light-only, so this is the app background people actually see. */
 body[data-theme="light"] .aurora-bg {
   background: #F8F9FA;
-  animation: none;
-}
-/* Light mode: replace pulsing glow with a static left accent bar */
-body[data-theme="light"] .glow-hot {
-  animation: none;
-  border-color: rgba(212, 43, 30, 0.4) !important;
-  box-shadow: inset 3px 0 0 var(--brand-red);
 }
 /* Light mode: glass-sidebar becomes solid white */
 body[data-theme="light"] .glass-sidebar {
@@ -436,35 +418,16 @@ body[data-theme="light"] .glass-sidebar {
     color-mix(in srgb, var(--background) 95%, rgba(245,166,35,0.08)) 80%,
     var(--background) 100%
   );
-  background-size: 400% 400%;
-  animation: aurora 14s ease-in-out infinite;
+  background-size: 100% 100%;
 }
 
+/* Marks the active sidebar item. This used to be a conic gradient rotating
+   forever around the border — the most conspicuous "generated UI" flourish in
+   the app. A 1px brand border states the same thing and holds still. */
 .border-beam-container {
   position: relative;
   isolation: isolate;
-}
-.border-beam-container::before {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  padding: 1px;
-  background: conic-gradient(
-    from var(--beam-angle, 0deg) at 50% 50%,
-    transparent 0deg,
-    var(--brand-red) 60deg,
-    var(--brand-orange) 120deg,
-    var(--brand-gold) 180deg,
-    transparent 240deg
-  );
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  animation: beam-rotate 3s linear infinite;
-  pointer-events: none;
-  z-index: -1;
+  border: 1px solid color-mix(in srgb, var(--brand-red) 55%, transparent);
 }
 
 .sidebar-beam-indicator {
@@ -475,12 +438,7 @@ body[data-theme="light"] .glass-sidebar {
   width: 3px;
   height: 60%;
   border-radius: 0 2px 2px 0;
-  background: linear-gradient(to bottom, var(--brand-red), var(--brand-orange));
-  box-shadow: 0 0 8px rgba(212,43,30,0.6);
-}
-
-.logo-glow {
-  animation: logo-aurora 4s ease-in-out infinite;
+  background: var(--brand-red);
 }
 
 .hover-lift {
@@ -638,5 +596,21 @@ body[data-theme="light"] .glass-sidebar {
   }
   [class*="text-emerald"] {
     color: #059669 !important;
+  }
+}
+
+/* ─── REDUCED MOTION ─────────────────────────────────────────────────────────
+   Honour the OS setting. Everything that remains after the decorative motion
+   was removed is functional (loading spinners, toast progress, hover/focus
+   transitions), so it is safe to collapse it all to near-zero rather than
+   maintain a per-animation opt-out. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

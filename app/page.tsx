@@ -1122,7 +1122,7 @@ export default function DashboardPage() {
                         className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border ${
                           task.status === 'completed'
                             ? 'bg-green-500/15 text-green-500 border-green-500/20'
-                            : 'bg-card-border text-text-muted border-transparent'
+                            : 'bg-card-border text-text-secondary border-transparent'
                         }`}
                       >
                         {task.status.toUpperCase()}
@@ -1169,7 +1169,7 @@ export default function DashboardPage() {
             {!isManager && (
               <div className="glass-card rounded-2xl p-5 space-y-4">
                 <h3 className="type-section text-text-primary flex items-center gap-2">
-                  <Award className="w-5 h-5 text-brand-gold" aria-hidden="true" />
+                  <Award className="w-5 h-5 text-brand-gold-text" aria-hidden="true" />
                   My Performance
                 </h3>
                 <div className="grid grid-cols-3 gap-3 text-center">
@@ -1213,7 +1213,7 @@ export default function DashboardPage() {
 
             <div className="glass-card rounded-2xl p-5 space-y-4">
               <h3 className="type-section text-text-primary flex items-center gap-2">
-                <BarChart className="w-5 h-5 text-brand-orange" aria-hidden="true" />
+                <BarChart className="w-5 h-5 text-brand-orange-text" aria-hidden="true" />
                 Recent Activity Feed
               </h3>
               <div className="space-y-4 max-h-[360px] overflow-y-auto pr-1">
@@ -1413,7 +1413,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-emerald-500 font-medium">→ You'll be prompted to move this lead to Meeting Booked.</p>
                 )}
                 {callOutcome === 'callback_requested' && (
-                  <p className="text-xs text-brand-orange font-medium">→ A follow-up call task will be created for tomorrow.</p>
+                  <p className="text-xs text-brand-orange-text font-medium">→ A follow-up call task will be created for tomorrow.</p>
                 )}
                 {(callOutcome === 'wrong_number' || callOutcome === 'do_not_call') && (
                   <p className="text-xs text-text-secondary font-medium">→ The lead will be flagged.</p>
@@ -1500,7 +1500,7 @@ export default function DashboardPage() {
 
             {/* Notes */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold font-mono text-text-muted uppercase block">Notes</label>
+              <label className="text-xs font-bold text-text-muted uppercase block">Notes</label>
               <textarea
                 placeholder={
                   loggingTask.type === 'phone'
@@ -1548,10 +1548,10 @@ export default function DashboardPage() {
             className="bg-card-bg border border-card-border rounded-2xl shadow-xl w-full max-w-sm relative z-10 p-5 space-y-4"
           >
             <h2 className="font-display font-bold text-base text-text-primary flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-brand-orange" /> Reschedule Task
+              <Calendar className="w-4 h-4 text-brand-orange-text" /> Reschedule Task
             </h2>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold font-mono text-text-muted uppercase block">New Due Date &amp; Time</label>
+              <label className="text-xs font-bold text-text-muted uppercase block">New Due Date &amp; Time</label>
               <input
                 type="datetime-local"
                 value={newDueDate}
@@ -1599,7 +1599,7 @@ export default function DashboardPage() {
 
             <div className="space-y-3 text-xs">
               <div className="space-y-2">
-                <div className="text-[10px] font-mono uppercase text-text-muted font-bold">Task Queue Navigation</div>
+                <div className="text-[10px] uppercase text-text-muted font-bold">Task Queue Navigation</div>
                 <div className="flex items-center justify-between py-1 border-b border-card-border/40">
                   <span className="text-text-secondary">Next / Previous task</span>
                   <span className="flex gap-1"><kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">J</kbd> / <kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">K</kbd> or <kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">↓</kbd> <kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">↑</kbd></span>
@@ -1623,7 +1623,7 @@ export default function DashboardPage() {
               </div>
 
               <div className="space-y-2 pt-2">
-                <div className="text-[10px] font-mono uppercase text-text-muted font-bold">Call Logger Modal</div>
+                <div className="text-[10px] uppercase text-text-muted font-bold">Call Logger Modal</div>
                 <div className="flex items-center justify-between py-1 border-b border-card-border/40">
                   <span className="text-text-secondary">Select outcome 1–5</span>
                   <span className="flex gap-1"><kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">1</kbd>–<kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">5</kbd></span>

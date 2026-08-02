@@ -387,10 +387,10 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
               {steps.map((item, index) => (
                 <React.Fragment key={item.key}>
                   <div className="flex items-center gap-1 shrink-0">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-colors ${index === stepIndex ? 'bg-brand-red text-white' : index < stepIndex ? 'bg-brand-red/20 text-brand-red' : 'bg-card-border text-text-muted'}`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-colors ${index === stepIndex ? 'bg-brand-red text-white' : index < stepIndex ? 'bg-brand-red/20 text-brand-red' : 'bg-card-border text-text-secondary'}`}>
                       {index < stepIndex ? 'OK' : index + 1}
                     </div>
-                    <span className={`text-[10px] font-mono font-bold uppercase ${index === stepIndex ? 'text-text-primary' : 'text-text-muted'}`}>{item.label}</span>
+                    <span className={`text-[10px] font-bold uppercase ${index === stepIndex ? 'text-text-primary' : 'text-text-muted'}`}>{item.label}</span>
                   </div>
                   {index < steps.length - 1 && <ChevronRight className="w-3 h-3 text-text-muted shrink-0" />}
                 </React.Fragment>
@@ -452,7 +452,7 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
                 <div className="grid md:grid-cols-2 gap-3">
                   {groupedFields.map(([group, fields]) => (
                     <div key={group} className="rounded-xl border border-card-border overflow-hidden">
-                      <div className="px-3 py-2 bg-card-bg border-b border-card-border text-[10px] font-bold font-mono text-text-muted uppercase">{group}</div>
+                      <div className="px-3 py-2 bg-card-bg border-b border-card-border text-[10px] font-bold text-text-muted uppercase">{group}</div>
                       <div className="divide-y divide-card-border">
                         {fields.map((field) => (
                           <div key={field.key} className="grid grid-cols-[130px_1fr] gap-2 items-center px-3 py-2">
@@ -480,7 +480,7 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
                       <thead>
                         <tr className="border-b border-card-border bg-card-bg">
                           {FIELD_DEFS.filter((field) => fieldMap[field.key]).slice(0, 10).map((field) => (
-                            <th key={field.key} className="text-left px-3 py-2 text-[10px] font-bold font-mono text-text-muted uppercase whitespace-nowrap">{field.label}</th>
+                            <th key={field.key} className="text-left px-3 py-2 text-[10px] font-bold text-text-muted uppercase whitespace-nowrap">{field.label}</th>
                           ))}
                         </tr>
                       </thead>
@@ -571,7 +571,7 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
                     ['Bad Email', summary.undeliverableEmails, 'text-brand-red'],
                   ].map(([label, value, color]) => (
                     <div key={label} className="rounded-xl border border-card-border bg-background/50 p-3">
-                      <p className="text-[10px] font-mono uppercase text-text-muted">{label}</p>
+                      <p className="text-[10px] uppercase text-text-muted">{label}</p>
                       <p className={`text-lg font-bold font-mono ${color}`}>{value}</p>
                     </div>
                   ))}
@@ -603,7 +603,7 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
                           <div className="min-w-0">
                             <p className="font-semibold text-text-primary truncate">
                               Row {duplicate.row}: {duplicate.incoming.firstName} {duplicate.incoming.lastName}
-                              <span className="ml-1.5 text-[9px] font-mono uppercase text-amber-500">{MATCH_LABELS[duplicate.matchType]}</span>
+                              <span className="ml-1.5 text-[9px] uppercase text-amber-500">{MATCH_LABELS[duplicate.matchType]}</span>
                             </p>
                             <p className="text-text-muted truncate">matches {duplicate.existingSummary}</p>
                           </div>

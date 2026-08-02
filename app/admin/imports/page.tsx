@@ -151,13 +151,13 @@ export default function ImportsAdminPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-card-border bg-background/25 sticky top-0 backdrop-blur-md">
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Filename</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Target Campaign</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Uploaded By</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Rows (Total / Success / Error)</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Status</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Date</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide"></th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Filename</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Target Campaign</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Uploaded By</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Rows (Total / Success / Error)</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Status</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Date</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-card-border">
@@ -188,7 +188,7 @@ export default function ImportsAdminPage() {
                     <td className="p-4 text-right">
                       <button
                         onClick={() => fetchBatchDetail(batch.id)}
-                        className="text-[10px] font-semibold text-brand-orange hover:underline font-mono flex items-center gap-0.5 ml-auto"
+                        className="text-[10px] font-semibold text-brand-orange-text hover:underline font-mono flex items-center gap-0.5 ml-auto"
                       >
                         Inspect <ChevronRight className="w-3.5 h-3.5" />
                       </button>
@@ -235,15 +235,15 @@ export default function ImportsAdminPage() {
                   {/* Summary metrics */}
                   <div className="grid grid-cols-3 gap-2">
                     <div className="bg-background/60 border border-card-border rounded-xl p-3 text-center">
-                      <span className="text-[10px] font-mono text-text-muted uppercase block">Total Rows</span>
+                      <span className="text-[10px] text-text-muted uppercase block">Total Rows</span>
                       <span className="text-base font-extrabold text-text-primary font-mono mt-0.5 block">{batchDetail.totalRows}</span>
                     </div>
                     <div className="bg-background/60 border border-card-border rounded-xl p-3 text-center">
-                      <span className="text-[10px] font-mono text-text-muted uppercase block">Imported</span>
+                      <span className="text-[10px] text-text-muted uppercase block">Imported</span>
                       <span className="text-base font-extrabold text-emerald-400 font-mono mt-0.5 block">{batchDetail.parsedRows}</span>
                     </div>
                     <div className="bg-background/60 border border-card-border rounded-xl p-3 text-center">
-                      <span className="text-[10px] font-mono text-text-muted uppercase block">Skipped/Errors</span>
+                      <span className="text-[10px] text-text-muted uppercase block">Skipped/Errors</span>
                       <span className="text-base font-extrabold text-brand-red font-mono mt-0.5 block">{batchDetail.errorRows}</span>
                     </div>
                   </div>
@@ -251,7 +251,7 @@ export default function ImportsAdminPage() {
                   {/* Rows List */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-[10px] font-bold font-mono text-text-muted uppercase tracking-wider">Row Validation Log</p>
+                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Row Validation Log</p>
                       {batchDetail.importRows.some((row) => row.status === 'error') && (
                         <button
                           type="button"
@@ -286,7 +286,7 @@ export default function ImportsAdminPage() {
                               {row.leadId && (
                                 <Link
                                   href={`/leads/${row.leadId}`}
-                                  className="text-[10px] font-mono text-brand-orange hover:underline mt-1 inline-block"
+                                  className="text-[10px] font-mono text-brand-orange-text hover:underline mt-1 inline-block"
                                 >
                                   Open lead
                                 </Link>

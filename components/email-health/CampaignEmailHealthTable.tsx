@@ -13,7 +13,7 @@ function pct(rate: number): string {
 
 function bounceTone(rate: number): string {
   if (rate >= 0.05) return 'text-brand-red font-semibold';
-  if (rate >= 0.02) return 'text-brand-orange font-semibold';
+  if (rate >= 0.02) return 'text-brand-orange-text font-semibold';
   return 'text-text-secondary';
 }
 
@@ -21,8 +21,8 @@ function bounceTone(rate: number): string {
 function verdict(row: CampaignHealthRow): { label: string; tone: string } {
   if (row.sent === 0) return { label: 'No email sent', tone: 'text-text-muted' };
   if (row.hardBounceRate >= 0.05) return { label: 'Pause & audit list', tone: 'text-brand-red' };
-  if (row.hardBounceRate >= 0.02) return { label: 'Review bounces', tone: 'text-brand-orange' };
-  if (row.replyRate === 0 && row.sent >= 20) return { label: 'Check inboxing', tone: 'text-brand-orange' };
+  if (row.hardBounceRate >= 0.02) return { label: 'Review bounces', tone: 'text-brand-orange-text' };
+  if (row.replyRate === 0 && row.sent >= 20) return { label: 'Check inboxing', tone: 'text-brand-orange-text' };
   return { label: 'Healthy', tone: 'text-channel-whatsapp' };
 }
 

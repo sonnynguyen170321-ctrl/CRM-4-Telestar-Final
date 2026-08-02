@@ -212,7 +212,7 @@ export default function BookingLinkSettingsPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-semibold text-white">Booking Links</h3>
+          <h3 className="type-section text-text-primary">Booking Links</h3>
           <p className="text-sm text-muted mt-0.5">
             Manage booking links for clients and campaigns. SDRs see the correct link for each lead.
           </p>

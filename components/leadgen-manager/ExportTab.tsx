@@ -75,13 +75,13 @@ export default function ExportTab() {
           </div>
           <div>
             <h3 className="font-display font-bold text-sm text-text-primary">Internal Database Export</h3>
-            <p className="text-[10px] text-text-muted font-mono uppercase">CSV · up to 10,000 records</p>
+            <p className="text-[10px] text-text-muted uppercase">CSV · up to 10,000 records</p>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2 space-y-1">
-            <label className="text-[10px] font-mono uppercase text-text-muted">Search filter</label>
+            <label className="text-[10px] uppercase text-text-muted">Search filter</label>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -90,7 +90,7 @@ export default function ExportTab() {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-mono uppercase text-text-muted">Status</label>
+            <label className="text-[10px] uppercase text-text-muted">Status</label>
             <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none">
               {STATUS_OPTS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -98,7 +98,7 @@ export default function ExportTab() {
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-mono uppercase text-text-muted">Qualification</label>
+            <label className="text-[10px] uppercase text-text-muted">Qualification</label>
             <select value={qualification} onChange={(e) => setQualification(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none">
               {QUAL_OPTS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -106,7 +106,7 @@ export default function ExportTab() {
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-mono uppercase text-text-muted">Source type</label>
+            <label className="text-[10px] uppercase text-text-muted">Source type</label>
             <select value={sourceType} onChange={(e) => setSourceType(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none">
               <option value="">All sources</option>
               <option value="manual">Manual</option>
@@ -120,7 +120,7 @@ export default function ExportTab() {
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-mono uppercase text-text-muted">Sheet</label>
+            <label className="text-[10px] uppercase text-text-muted">Sheet</label>
             <select value="pool" disabled className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-muted opacity-60">
               <option value="pool">Pool records</option>
             </select>

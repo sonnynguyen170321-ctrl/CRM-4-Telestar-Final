@@ -379,7 +379,7 @@ export default function LeadsPage() {
   const stageBadgeClass = (stage: Lead['stage']) => {
     switch (stage) {
       case 'sequence_active': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
-      case 'replied': return 'bg-brand-orange/10 text-brand-orange border-brand-orange/20';
+      case 'replied': return 'bg-brand-orange/10 text-brand-orange-text border-brand-orange/20';
       case 'meeting_booked': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
       case 'won': return 'bg-green-500/10 text-green-500 border-green-500/20';
       case 'lost': return 'bg-brand-red/10 text-brand-red border-brand-red/20';
@@ -390,7 +390,7 @@ export default function LeadsPage() {
   const priorityBadgeClass = (priority: Lead['priority']) => {
     switch (priority) {
       case 'hot': return 'bg-brand-red/10 text-brand-red border-brand-red/20';
-      case 'warm': return 'bg-brand-gold/10 text-brand-gold border-brand-gold/20';
+      case 'warm': return 'bg-brand-gold/10 text-brand-gold-text border-brand-gold/20';
       default: return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
     }
   };
@@ -756,7 +756,7 @@ export default function LeadsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left border-collapse">
               <thead>
-                <tr className="bg-background/50 border-b border-card-border text-xs uppercase font-bold font-mono tracking-wider text-text-muted">
+                <tr className="bg-background/50 border-b border-card-border text-xs uppercase font-bold tracking-wider text-text-muted">
                   <th className="p-3 w-8">
                     <input
                       type="checkbox"

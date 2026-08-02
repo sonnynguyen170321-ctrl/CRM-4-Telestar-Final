@@ -83,28 +83,28 @@ export default function SourcesTab() {
           <Globe2 className="w-5 h-5 text-blue-400 flex-shrink-0" />
           <div>
             <div className="text-xl font-bold text-text-primary font-display">{metrics.qualifiedBySource.length}</div>
-            <div className="text-[10px] text-text-muted font-mono uppercase tracking-wide">Active sources</div>
+            <div className="text-[10px] text-text-muted uppercase tracking-wide">Active sources</div>
           </div>
         </div>
         <div className="bg-card-bg border border-card-border rounded-xl px-4 py-3 flex items-center gap-3">
           <BarChart3 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
           <div>
             <div className="text-xl font-bold text-text-primary font-display truncate">{topSource}</div>
-            <div className="text-[10px] text-text-muted font-mono uppercase tracking-wide">Top source</div>
+            <div className="text-[10px] text-text-muted uppercase tracking-wide">Top source</div>
           </div>
         </div>
         <div className="bg-card-bg border border-card-border rounded-xl px-4 py-3 flex items-center gap-3">
           <MailCheck className="w-5 h-5 text-cyan-400 flex-shrink-0" />
           <div>
             <div className="text-xl font-bold text-text-primary font-display">{metrics.emailValidRate}%</div>
-            <div className="text-[10px] text-text-muted font-mono uppercase tracking-wide">Email valid rate</div>
+            <div className="text-[10px] text-text-muted uppercase tracking-wide">Email valid rate</div>
           </div>
         </div>
         <div className="bg-card-bg border border-card-border rounded-xl px-4 py-3 flex items-center gap-3">
           <Copy className="w-5 h-5 text-amber-400 flex-shrink-0" />
           <div>
             <div className="text-xl font-bold text-text-primary font-display">{metrics.duplicateRate}%</div>
-            <div className="text-[10px] text-text-muted font-mono uppercase tracking-wide">Duplicate rate</div>
+            <div className="text-[10px] text-text-muted uppercase tracking-wide">Duplicate rate</div>
           </div>
         </div>
       </div>

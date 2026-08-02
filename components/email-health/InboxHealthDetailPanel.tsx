@@ -137,7 +137,7 @@ export default function InboxHealthDetailPanel({ accountId, fallbackRow, onClose
               <ul className="space-y-1.5">
                 {account.reasons.map((reason, i) => (
                   <li key={reason} className="text-xs text-text-secondary flex gap-2">
-                    <span className="text-brand-orange shrink-0">•</span>
+                    <span className="text-brand-orange-text shrink-0">•</span>
                     <span>
                       {reason}
                       {account.recommendedActions[i] && (

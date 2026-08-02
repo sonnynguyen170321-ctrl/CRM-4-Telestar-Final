@@ -15,7 +15,7 @@ function pct(rate: number): string {
 /** Bounce and spam are inverted metrics — higher is worse. */
 function riskTone(rate: number, warnAt: number, badAt: number): string {
   if (rate >= badAt) return 'text-brand-red';
-  if (rate >= warnAt) return 'text-brand-orange';
+  if (rate >= warnAt) return 'text-brand-orange-text';
   return 'text-text-primary';
 }
 
@@ -91,7 +91,7 @@ export default function EmailHealthOverviewCards({ overview }: Props) {
 
       <Tile
         icon={<MailX className="w-6 h-6" />}
-        iconClass="bg-brand-orange/10 text-brand-orange border-brand-orange/20"
+        iconClass="bg-brand-orange/10 text-brand-orange-text border-brand-orange/20"
         label="Hard Bounce Rate"
         value={pct(sevenDay.hardBounceRate)}
         valueClass={riskTone(sevenDay.hardBounceRate, 0.02, 0.05)}

@@ -10,7 +10,7 @@ import type { EmailHealthAlert } from '@/lib/hooks/useEmailHealth';
 
 const SEVERITY_CONFIG = {
   critical: { icon: ShieldAlert, text: 'text-brand-red', bg: 'bg-brand-red/10', border: 'border-brand-red/25' },
-  warning: { icon: AlertTriangle, text: 'text-brand-orange', bg: 'bg-brand-orange/10', border: 'border-brand-orange/25' },
+  warning: { icon: AlertTriangle, text: 'text-brand-orange-text', bg: 'bg-brand-orange/10', border: 'border-brand-orange/25' },
   info: { icon: Info, text: 'text-channel-email', bg: 'bg-channel-email/10', border: 'border-channel-email/25' },
 } as const;
 

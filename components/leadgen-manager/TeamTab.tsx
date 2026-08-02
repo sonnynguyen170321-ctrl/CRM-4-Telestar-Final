@@ -88,7 +88,7 @@ export default function TeamTab() {
           <Users className="w-5 h-5 text-purple-400 flex-shrink-0" />
           <div>
             <div className="text-xl font-bold text-text-primary font-display">{team.length}</div>
-            <div className="text-[10px] text-text-muted font-mono uppercase tracking-wide">Team members</div>
+            <div className="text-[10px] text-text-muted uppercase tracking-wide">Team members</div>
           </div>
         </div>
         <div className="bg-card-bg border border-card-border rounded-xl px-4 py-3 flex items-center gap-3">
@@ -97,7 +97,7 @@ export default function TeamTab() {
             <div className="text-xl font-bold text-text-primary font-display">
               {Object.values(qualifiedMap).reduce((s, n) => s + n, 0)}
             </div>
-            <div className="text-[10px] text-text-muted font-mono uppercase tracking-wide">Records qualified</div>
+            <div className="text-[10px] text-text-muted uppercase tracking-wide">Records qualified</div>
           </div>
         </div>
         <div className="bg-card-bg border border-card-border rounded-xl px-4 py-3 flex items-center gap-3">
@@ -106,7 +106,7 @@ export default function TeamTab() {
             <div className="text-xl font-bold text-text-primary font-display">
               {Object.values(assignedCounts).reduce((s, n) => s + n, 0)}
             </div>
-            <div className="text-[10px] text-text-muted font-mono uppercase tracking-wide">Records held by SDRs</div>
+            <div className="text-[10px] text-text-muted uppercase tracking-wide">Records held by SDRs</div>
           </div>
         </div>
       </div>
@@ -116,11 +116,11 @@ export default function TeamTab() {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-card-border bg-background/60">
-                <th className="px-4 py-3 text-[10px] font-mono uppercase text-text-muted">Member</th>
-                <th className="px-4 py-3 text-[10px] font-mono uppercase text-text-muted">Role</th>
-                <th className="px-4 py-3 text-[10px] font-mono uppercase text-text-muted">Records Qualified</th>
-                <th className="px-4 py-3 text-[10px] font-mono uppercase text-text-muted">Assigned Pool Records</th>
-                <th className="px-4 py-3 text-[10px] font-mono uppercase text-text-muted">Joined</th>
+                <th className="px-4 py-3 text-[10px] uppercase text-text-muted">Member</th>
+                <th className="px-4 py-3 text-[10px] uppercase text-text-muted">Role</th>
+                <th className="px-4 py-3 text-[10px] uppercase text-text-muted">Records Qualified</th>
+                <th className="px-4 py-3 text-[10px] uppercase text-text-muted">Assigned Pool Records</th>
+                <th className="px-4 py-3 text-[10px] uppercase text-text-muted">Joined</th>
               </tr>
             </thead>
             <tbody>

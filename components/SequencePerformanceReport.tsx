@@ -67,7 +67,7 @@ export default function SequencePerformanceReport({ stats, loading, scopeLabel }
   return (
     <div className="space-y-5">
       {scopeLabel && (
-        <p className="text-[10px] font-mono uppercase tracking-wider text-text-muted">{scopeLabel}</p>
+        <p className="text-[10px] uppercase tracking-wider text-text-muted">{scopeLabel}</p>
       )}
 
       <div className="grid grid-cols-4 gap-4">
@@ -75,7 +75,7 @@ export default function SequencePerformanceReport({ stats, loading, scopeLabel }
           <div key={label} className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm">
             <div className={`flex items-center gap-2 mb-3 ${tone}`}>
               <Icon className="w-4 h-4" />
-              <span className="text-[10px] font-bold font-mono uppercase tracking-wider">{label}</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>
             </div>
             <div className="text-2xl font-display font-extrabold text-text-primary">{value}</div>
             <div className="text-[10px] text-text-muted font-mono mt-1">{sub}</div>
@@ -85,13 +85,13 @@ export default function SequencePerformanceReport({ stats, loading, scopeLabel }
 
       <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm">
         <h3 className="font-display font-bold text-sm text-text-primary mb-3 flex items-center gap-2">
-          <BarChart3 className="w-4 h-4 text-brand-orange" />
+          <BarChart3 className="w-4 h-4 text-brand-orange-text" />
           Sequences in Scope
         </h3>
         <div className="overflow-hidden rounded-xl border border-card-border">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold font-mono tracking-wider text-text-muted">
+              <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
                 <th className="text-left px-3 py-2">Sequence</th>
                 <th className="text-right px-3 py-2">Enrolled</th>
                 <th className="text-right px-3 py-2">Active</th>

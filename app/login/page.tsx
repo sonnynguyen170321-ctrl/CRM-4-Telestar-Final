@@ -17,7 +17,7 @@ const DEMO_ACCOUNTS = [
 
 const ROLE_COLORS: Record<string, string> = {
   director: 'border-brand-red/40 bg-brand-red/5 text-brand-red hover:bg-brand-red/10',
-  floor_manager: 'border-brand-orange/40 bg-brand-orange/5 text-brand-orange hover:bg-brand-orange/10',
+  floor_manager: 'border-brand-orange/40 bg-brand-orange/5 text-brand-orange-text hover:bg-brand-orange/10',
   team_lead: 'border-amber-500/40 bg-amber-500/5 text-amber-400 hover:bg-amber-500/10',
   sdr: 'border-card-border bg-background text-text-secondary hover:bg-card-bg',
   leadgen_manager: 'border-purple-400/40 bg-purple-400/5 text-purple-300 hover:bg-purple-400/10',
@@ -73,7 +73,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => setShowDemo(!showDemo)}
-            className="w-full flex items-center justify-between px-4 py-3 text-[10px] font-bold font-mono text-text-muted uppercase tracking-widest hover:bg-background/40 transition-colors"
+            className="w-full flex items-center justify-between px-4 py-3 text-[10px] font-bold text-text-muted uppercase tracking-widest hover:bg-background/40 transition-colors"
           >
             <span>⚡ Demo Accounts — click to sign in</span>
             {showDemo ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -119,7 +119,7 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">
+              <label className="text-[10px] font-bold text-text-muted uppercase block">
                 Email Address
               </label>
               <div className="relative">
@@ -136,7 +136,7 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">
+              <label className="text-[10px] font-bold text-text-muted uppercase block">
                 Password
               </label>
               <div className="relative">

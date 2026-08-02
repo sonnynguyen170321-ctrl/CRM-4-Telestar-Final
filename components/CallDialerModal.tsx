@@ -276,21 +276,18 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
           <div className="relative mb-4">
             <div className={`w-16 h-16 rounded-full flex items-center justify-center text-white ${
               callState === 'dialing' 
-                ? 'bg-brand-orange animate-pulse shadow-[0_0_15px_rgba(232,97,26,0.4)]'
-                : 'bg-green-600 shadow-[0_0_15px_rgba(34,197,94,0.4)]'
+                ? 'bg-brand-orange ring-2 ring-brand-orange/30'
+                : 'bg-green-600 ring-2 ring-green-600/30'
             }`}>
-              <Phone className="w-6 h-6 animate-bounce" />
+              <Phone className="w-6 h-6" />
             </div>
-            {callState === 'dialing' && (
-              <div className="absolute inset-0 w-16 h-16 rounded-full border-2 border-brand-orange animate-ping opacity-60" />
-            )}
           </div>
 
           <h2 className="font-display font-extrabold text-base text-text-primary">
             {lead.firstName} {lead.lastName}
           </h2>
           <p className="text-xs text-text-muted mt-0.5">{lead.company}</p>
-          <span className="text-[10px] text-brand-orange font-mono font-bold uppercase tracking-widest mt-1">
+          <span className="text-[10px] text-brand-orange-text font-bold uppercase tracking-widest mt-1">
             {lead.phone || 'Unknown dial'}
           </span>
 
@@ -299,7 +296,7 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
               <span className="text-text-muted animate-pulse">Dialing PBX Server...</span>
             ) : (
               <>
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-ping" />
+                <span className="w-2 h-2 rounded-full bg-green-500" />
                 <span className="text-green-500">Connected: {formatTime(seconds)}</span>
               </>
             )}
@@ -326,7 +323,7 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
             onClick={() => setShowKeypad(!showKeypad)}
             className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${
               showKeypad 
-                ? 'bg-brand-orange/15 border-brand-orange/40 text-brand-orange font-semibold' 
+                ? 'bg-brand-orange/15 border-brand-orange/40 text-brand-orange-text font-semibold' 
                 : 'border-card-border text-text-secondary hover:bg-card-border/40'
             }`}
             title="Keypad"
@@ -339,7 +336,7 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
             onClick={() => setIsSpeaker(!isSpeaker)}
             className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${
               isSpeaker 
-                ? 'bg-brand-gold/10 border-brand-gold/30 text-brand-gold font-semibold' 
+                ? 'bg-brand-gold/10 border-brand-gold/30 text-brand-gold-text font-semibold' 
                 : 'border-card-border text-text-secondary hover:bg-card-border/40'
             }`}
             title="Speaker"
@@ -367,7 +364,7 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
         {/* Outcome Logging Form */}
         <form onSubmit={handleHangUpSubmit} className="p-5 space-y-4 text-xs">
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">Select Outcome</label>
+            <label className="text-[10px] font-bold text-text-muted uppercase block">Select Outcome</label>
             <select
               value={callOutcome}
               onChange={(e) => setCallOutcome(e.target.value)}
@@ -382,7 +379,7 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">Call Notes</label>
+            <label className="text-[10px] font-bold text-text-muted uppercase block">Call Notes</label>
             <textarea
               placeholder="Log conversion feedback, timing preference, or gating items..."
               value={callNote}

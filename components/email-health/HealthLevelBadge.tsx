@@ -23,14 +23,14 @@ const LEVEL_CONFIG: Record<EmailHealthLevelValue, LevelConfig> = {
   },
   watch: {
     label: 'Watch',
-    text: 'text-brand-gold',
+    text: 'text-brand-gold-text',
     bg: 'bg-brand-gold/10',
     border: 'border-brand-gold/25',
     dot: 'bg-brand-gold',
   },
   at_risk: {
     label: 'At Risk',
-    text: 'text-brand-orange',
+    text: 'text-brand-orange-text',
     bg: 'bg-brand-orange/10',
     border: 'border-brand-orange/25',
     dot: 'bg-brand-orange',

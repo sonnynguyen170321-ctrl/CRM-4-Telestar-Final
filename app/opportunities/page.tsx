@@ -207,7 +207,7 @@ export default function OpportunitiesPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <Funnel className="h-5 w-5 text-brand-orange" />
+            <Funnel className="h-5 w-5 text-brand-orange-text" />
             <h1 className="text-xl font-semibold text-white">Opportunities</h1>
           </div>
           <p className="mt-1 text-sm text-muted">

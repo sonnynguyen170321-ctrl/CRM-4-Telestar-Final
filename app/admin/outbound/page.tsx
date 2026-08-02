@@ -119,12 +119,12 @@ export default function OutboundAdminPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-card-border bg-background/25 sticky top-0 backdrop-blur-md">
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Recipient</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Subject</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">From Account</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Status</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Sent At / Created At</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide"></th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Recipient</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Subject</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">From Account</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Status</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Sent At / Created At</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-card-border">
@@ -172,7 +172,7 @@ export default function OutboundAdminPage() {
                         <td className="p-4 text-right">
                           <button
                             onClick={() => setExpandedId(isExpanded ? null : msg.id)}
-                            className="text-[10px] font-semibold text-brand-orange hover:underline font-mono"
+                            className="text-[10px] font-semibold text-brand-orange-text hover:underline font-mono"
                           >
                             {isExpanded ? 'Hide Payload' : 'View Payload'}
                           </button>
@@ -186,7 +186,7 @@ export default function OutboundAdminPage() {
                               {/* Left column: metadata & errors */}
                               <div className="space-y-3">
                                 <div>
-                                  <p className="font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Idempotency Key</p>
+                                  <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Idempotency Key</p>
                                   <pre className="bg-background/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] overflow-x-auto text-text-secondary">
                                     {msg.idempotencyKey}
                                   </pre>
@@ -194,7 +194,7 @@ export default function OutboundAdminPage() {
 
                                 {msg.providerMessageId && (
                                   <div>
-                                    <p className="font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Provider Message ID</p>
+                                    <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Provider Message ID</p>
                                     <pre className="bg-background/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] overflow-x-auto text-text-secondary">
                                       {msg.providerMessageId}
                                     </pre>
@@ -203,7 +203,7 @@ export default function OutboundAdminPage() {
 
                                 {(msg.status === 'failed' || msg.status === 'bounced') && msg.errorMessage && (
                                   <div className="bg-brand-red/[0.03] border border-brand-red/20 rounded-xl p-3 space-y-1">
-                                    <h4 className="text-[10px] font-bold font-mono text-brand-red uppercase tracking-wider flex items-center gap-1">
+                                    <h4 className="text-[10px] font-bold text-brand-red uppercase tracking-wider flex items-center gap-1">
                                       <AlertCircle className="w-3.5 h-3.5" />
                                       Delivery Failure Report
                                     </h4>
@@ -216,7 +216,7 @@ export default function OutboundAdminPage() {
 
                               {/* Right column: email content body */}
                               <div className="flex flex-col">
-                                <p className="font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Email Body</p>
+                                <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Email Body</p>
                                 <div className="bg-background/60 border border-card-border rounded-xl p-3 flex-1 font-mono text-[11px] text-text-secondary overflow-y-auto max-h-48 whitespace-pre-wrap break-words">
                                   {msg.body || <span className="text-text-muted italic">— no content —</span>}
                                 </div>

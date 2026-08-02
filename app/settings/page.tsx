@@ -569,7 +569,7 @@ function SettingsPageInner() {
           {/* Profile Card */}
           <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
             <h3 className="type-section text-text-primary flex items-center gap-2">
-              <Globe className="w-4 h-4 text-brand-orange" />
+              <Globe className="w-4 h-4 text-brand-orange-text" />
               <span>Personal Profile</span>
             </h3>
             <div className="flex items-center gap-3">
@@ -582,7 +582,7 @@ function SettingsPageInner() {
                 </div>
               )}
               <div className="flex-1 space-y-1 text-xs">
-                <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">Avatar URL</label>
+                <label className="text-[10px] font-bold text-text-muted uppercase block">Avatar URL</label>
                 <input
                   type="url"
                   value={profileAvatarUrl}
@@ -594,7 +594,7 @@ function SettingsPageInner() {
             </div>
             <div className="grid grid-cols-2 gap-4 text-xs">
               <div className="space-y-1">
-                <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">
+                <label className="text-[10px] font-bold text-text-muted uppercase block">
                   First Name
                 </label>
                 <input
@@ -605,7 +605,7 @@ function SettingsPageInner() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">
+                <label className="text-[10px] font-bold text-text-muted uppercase block">
                   Last Name
                 </label>
                 <input
@@ -616,7 +616,7 @@ function SettingsPageInner() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">
+                <label className="text-[10px] font-bold text-text-muted uppercase block">
                   Work Email
                 </label>
                 <input
@@ -627,7 +627,7 @@ function SettingsPageInner() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">
+                <label className="text-[10px] font-bold text-text-muted uppercase block">
                   Timezone
                 </label>
                 <select
@@ -674,7 +674,7 @@ function SettingsPageInner() {
                         setDefaultLeadView(mode);
                         if (typeof window !== 'undefined') localStorage.setItem('crm:defaultLeadView', mode);
                       }}
-                      className={`px-3 py-1 rounded text-[10px] font-bold font-mono capitalize transition-all ${defaultLeadView === mode ? 'bg-brand-red text-white shadow-sm' : 'text-text-muted hover:text-text-primary'}`}
+                      className={`px-3 py-1 rounded text-[10px] font-bold font-mono capitalize transition-all ${defaultLeadView === mode ? 'bg-brand-red text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
                     >
                       {mode}
                     </button>
@@ -696,7 +696,7 @@ function SettingsPageInner() {
                         setItemsPerPage(n);
                         if (typeof window !== 'undefined') localStorage.setItem('crm:itemsPerPage', String(n));
                       }}
-                      className={`px-3 py-1 rounded text-[10px] font-bold font-mono transition-all ${itemsPerPage === n ? 'bg-brand-red text-white shadow-sm' : 'text-text-muted hover:text-text-primary'}`}
+                      className={`px-3 py-1 rounded text-[10px] font-bold font-mono transition-all ${itemsPerPage === n ? 'bg-brand-red text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
                     >
                       {n}
                     </button>
@@ -713,13 +713,13 @@ function SettingsPageInner() {
           {/* Security — Change Password */}
           <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
             <h3 className="type-section text-text-primary flex items-center gap-2">
-              <Key className="w-4 h-4 text-brand-orange" />
+              <Key className="w-4 h-4 text-brand-orange-text" />
               <span>Security</span>
             </h3>
             <form onSubmit={handleChangePassword} className="space-y-3">
               <div className="grid grid-cols-1 gap-3 text-xs">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">Current Password</label>
+                  <label className="text-[10px] font-bold text-text-muted uppercase block">Current Password</label>
                   <input
                     type="password"
                     autoComplete="current-password"
@@ -731,7 +731,7 @@ function SettingsPageInner() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">New Password</label>
+                    <label className="text-[10px] font-bold text-text-muted uppercase block">New Password</label>
                     <input
                       type="password"
                       autoComplete="new-password"
@@ -742,7 +742,7 @@ function SettingsPageInner() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">Confirm New Password</label>
+                    <label className="text-[10px] font-bold text-text-muted uppercase block">Confirm New Password</label>
                     <input
                       type="password"
                       autoComplete="new-password"
@@ -773,7 +773,7 @@ function SettingsPageInner() {
               <Mail className="w-4 h-4 text-blue-500" />
               <span>Email Accounts Integration</span>
             </h3>
-            <p className="text-xs text-text-secondary leading-relaxed">
+            <p className="text-xs text-text-secondary leading-relaxed max-w-[68ch]">
               Connect the campaign-specific mail servers. Supports Google OAuth, Microsoft Graph,
               and legacy IMAP/SMTP (Roundcube).
             </p>
@@ -793,7 +793,7 @@ function SettingsPageInner() {
                       <p className="font-semibold text-text-primary truncate">{item.email}</p>
                       <p className="text-[10px] text-text-muted font-mono mt-0.5">
                         Connected via{' '}
-                        <span className="text-brand-orange">{providerLabel(item.provider)}</span>
+                        <span className="text-brand-orange-text">{providerLabel(item.provider)}</span>
                       </p>
                     </div>
                   </div>
@@ -803,7 +803,7 @@ function SettingsPageInner() {
                     </span>
                     <button
                       onClick={() => handleStartEditSignature(item)}
-                      className="p-1 hover:bg-brand-orange/10 text-text-muted hover:text-brand-orange rounded"
+                      className="p-1 hover:bg-brand-orange/10 text-text-muted hover:text-brand-orange-text rounded"
                       title="Edit Email Signature"
                     >
                       <Pencil className="w-4.5 h-4.5" />
@@ -823,7 +823,7 @@ function SettingsPageInner() {
             {editingSignatureAccountId && (
               <div className="border border-brand-orange/20 rounded-xl p-4 bg-brand-orange/[0.01] space-y-3 animate-in fade-in duration-200 text-xs">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold font-mono text-brand-orange uppercase">
+                  <h4 className="text-xs font-bold text-brand-orange-text uppercase">
                     Edit Email Signature for {connectedEmails.find(e => e.id === editingSignatureAccountId)?.email}
                   </h4>
                   <button
@@ -883,10 +883,10 @@ function SettingsPageInner() {
                 <div className="space-y-1">
                   <p className="font-semibold">OAuth credentials missing</p>
                   {!providerStatus.gmail.configured && (
-                    <p className="text-amber-400/80 font-mono text-[10px]">Gmail: set {missingText(providerStatus.gmail)} in .env.local</p>
+                    <p className="text-amber-400/80 font-mono text-[10px] max-w-[68ch] break-words">Gmail: set {missingText(providerStatus.gmail)} in .env.local</p>
                   )}
                   {!providerStatus.outlook.configured && (
-                    <p className="text-amber-400/80 font-mono text-[10px]">Outlook: set {missingText(providerStatus.outlook)} in .env.local</p>
+                    <p className="text-amber-400/80 font-mono text-[10px] max-w-[68ch] break-words">Outlook: set {missingText(providerStatus.outlook)} in .env.local</p>
                   )}
                 </div>
               </div>
@@ -911,7 +911,7 @@ function SettingsPageInner() {
               </button>
               <button
                 onClick={() => setShowManualForm(!showManualForm)}
-                className="px-3 py-1.5 border border-brand-orange/30 hover:border-brand-orange bg-brand-orange/5 hover:bg-brand-orange/15 text-brand-orange text-xs font-semibold rounded-lg transition-all active:scale-95"
+                className="px-3 py-1.5 border border-brand-orange/30 hover:border-brand-orange bg-brand-orange/5 hover:bg-brand-orange/15 text-brand-orange-text text-xs font-semibold rounded-lg transition-all active:scale-95"
               >
                 + Connect Roundcube (IMAP)
               </button>
@@ -925,7 +925,7 @@ function SettingsPageInner() {
                 <h4 className="font-display font-semibold text-text-primary">Manual Server Settings</h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2 space-y-1">
-                    <label className="text-[10px] font-bold font-mono text-text-muted uppercase">
+                    <label className="text-[10px] font-bold text-text-muted uppercase">
                       Email Address
                     </label>
                     <input
@@ -938,7 +938,7 @@ function SettingsPageInner() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold font-mono text-text-muted uppercase">
+                    <label className="text-[10px] font-bold text-text-muted uppercase">
                       IMAP Server
                     </label>
                     <input
@@ -951,7 +951,7 @@ function SettingsPageInner() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold font-mono text-text-muted uppercase">
+                    <label className="text-[10px] font-bold text-text-muted uppercase">
                       IMAP Port
                     </label>
                     <input
@@ -963,7 +963,7 @@ function SettingsPageInner() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold font-mono text-text-muted uppercase">
+                    <label className="text-[10px] font-bold text-text-muted uppercase">
                       SMTP Server
                     </label>
                     <input
@@ -976,7 +976,7 @@ function SettingsPageInner() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold font-mono text-text-muted uppercase">
+                    <label className="text-[10px] font-bold text-text-muted uppercase">
                       SMTP Port
                     </label>
                     <input
@@ -988,7 +988,7 @@ function SettingsPageInner() {
                     />
                   </div>
                   <div className="col-span-2 space-y-1">
-                    <label className="text-[10px] font-bold font-mono text-text-muted uppercase">
+                    <label className="text-[10px] font-bold text-text-muted uppercase">
                       Password
                     </label>
                     <input
@@ -1031,7 +1031,7 @@ function SettingsPageInner() {
         {/* Notification Preferences */}
         <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
           <h3 className="type-section text-text-primary flex items-center gap-2">
-            <Bell className="w-4 h-4 text-brand-gold" />
+            <Bell className="w-4 h-4 text-brand-gold-text" />
             <span>Notification Preferences</span>
           </h3>
           <p className="text-[11px] text-text-muted font-mono">Toggle which events trigger in-app notifications. "Always on" events cannot be disabled.</p>
@@ -1042,7 +1042,7 @@ function SettingsPageInner() {
                 <div key={key} className="flex items-center justify-between py-1.5 border-b border-card-border/40 last:border-0">
                   <div>
                     <span className="text-xs text-text-primary font-medium">{label}</span>
-                    {always && <span className="ml-2 text-[9px] font-mono text-brand-gold bg-brand-gold/10 px-1.5 py-0.5 rounded">Always on</span>}
+                    {always && <span className="ml-2 text-[9px] font-mono text-brand-gold-text bg-brand-gold/10 px-1.5 py-0.5 rounded">Always on</span>}
                   </div>
                   <button
                     type="button"
@@ -1078,7 +1078,7 @@ function SettingsPageInner() {
                   </h4>
                   <button
                     onClick={() => setShowNewUserForm((v) => !v)}
-                    className="flex items-center gap-1 text-[10px] font-semibold text-brand-red hover:text-brand-orange font-mono transition-colors"
+                    className="flex items-center gap-1 text-[10px] font-semibold text-brand-red hover:text-brand-orange-text font-mono transition-colors"
                   >
                     <Plus className="w-3 h-3" />
                     Add User
@@ -1104,7 +1104,7 @@ function SettingsPageInner() {
                       <option value="floor_manager">Floor Manager</option>
                       <option value="director">Director</option>
                     </select>
-                    <p className="text-[10px] text-text-muted font-mono">Temp password: <span className="text-brand-orange">Telestar2026!</span> — user must change on first login.</p>
+                    <p className="text-[10px] text-text-muted font-mono">Temp password: <span className="text-brand-orange-text">Telestar2026!</span> — user must change on first login.</p>
                     <div className="flex gap-2">
                       <button type="submit" disabled={savingUser}
                         className="flex-1 py-1.5 bg-brand-red hover:bg-brand-orange text-white font-bold rounded-lg disabled:opacity-50 transition-colors flex items-center justify-center gap-1">
@@ -1128,7 +1128,7 @@ function SettingsPageInner() {
                         {u.isActive && (
                           <div className="flex items-center gap-0.5">
                             <button onClick={() => (editingUserId === u.id ? setEditingUserId(null) : handleStartEditUser(u))}
-                              className="text-text-muted hover:text-brand-orange transition-colors p-1 rounded" title="Edit user">
+                              className="text-text-muted hover:text-brand-orange-text transition-colors p-1 rounded" title="Edit user">
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
                             <button onClick={() => handleDeactivateUser(u.id, `${u.firstName} ${u.lastName}`)}
@@ -1180,7 +1180,7 @@ function SettingsPageInner() {
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-text-primary">Campaigns</h4>
                   <button onClick={() => setShowNewCampaignForm((v) => !v)}
-                    className="flex items-center gap-1 text-[10px] font-semibold text-brand-red hover:text-brand-orange font-mono transition-colors">
+                    className="flex items-center gap-1 text-[10px] font-semibold text-brand-red hover:text-brand-orange-text font-mono transition-colors">
                     <Plus className="w-3 h-3" /> Add Campaign
                   </button>
                 </div>
@@ -1230,9 +1230,9 @@ function SettingsPageInner() {
                           {c.client?.name && <span className="text-text-muted ml-2 font-mono text-[10px]">{c.client.name}</span>}
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold ${c.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : c.status === 'paused' ? 'bg-amber-500/10 text-amber-500' : 'bg-card-border text-text-muted'}`}>{c.status}</span>
+                          <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold ${c.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : c.status === 'paused' ? 'bg-amber-500/10 text-amber-500' : 'bg-card-border text-text-secondary'}`}>{c.status}</span>
                           <button onClick={() => (editingCampaignId === c.id ? setEditingCampaignId(null) : handleStartEditCampaign(c))}
-                            className="text-text-muted hover:text-brand-orange transition-colors p-1 rounded" title="Edit campaign">
+                            className="text-text-muted hover:text-brand-orange-text transition-colors p-1 rounded" title="Edit campaign">
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -1279,13 +1279,13 @@ function SettingsPageInner() {
                 <h4 className="font-bold text-text-primary">Data Export</h4>
                 {/* Format toggle */}
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono text-text-muted uppercase">Format</span>
+                  <span className="text-[10px] text-text-muted uppercase">Format</span>
                   <div className="flex bg-card-border rounded-lg p-0.5 gap-0.5">
                     {(['csv', 'json'] as const).map((fmt) => (
                       <button
                         key={fmt}
                         onClick={() => setExportFormat(fmt)}
-                        className={`px-3 py-1 rounded text-[10px] font-bold font-mono uppercase transition-all ${exportFormat === fmt ? 'bg-brand-red text-white shadow-sm' : 'text-text-muted hover:text-text-primary'}`}
+                        className={`px-3 py-1 rounded text-[10px] font-bold uppercase transition-all ${exportFormat === fmt ? 'bg-brand-red text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
                       >
                         {fmt}
                       </button>
@@ -1295,19 +1295,19 @@ function SettingsPageInner() {
                 {/* Date range */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <label className="text-[9px] font-bold font-mono text-text-muted uppercase block">From (optional)</label>
+                    <label className="text-[9px] font-bold text-text-muted uppercase block">From (optional)</label>
                     <input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)}
                       className="w-full bg-background border border-card-border rounded-lg px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono text-[11px]" />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[9px] font-bold font-mono text-text-muted uppercase block">To (optional)</label>
+                    <label className="text-[9px] font-bold text-text-muted uppercase block">To (optional)</label>
                     <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)}
                       className="w-full bg-background border border-card-border rounded-lg px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono text-[11px]" />
                   </div>
                 </div>
                 <button onClick={handleExportAllData} disabled={exportingData}
                   className="w-full py-2 border border-card-border hover:border-brand-orange bg-background hover:bg-brand-orange/5 text-text-primary text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-60">
-                  {exportingData ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5 text-brand-orange" />}
+                  {exportingData ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5 text-brand-orange-text" />}
                   Export Leads as {exportFormat.toUpperCase()}
                 </button>
               </div>

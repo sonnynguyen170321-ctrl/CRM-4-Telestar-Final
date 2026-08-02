@@ -82,7 +82,6 @@ function RobotIcon({ hasUnread, isThinking }: { hasUnread: boolean; isThinking: 
         <div style={{
           width: 8, height: 8, borderRadius: '50%',
           background: isThinking ? '#F5A623' : '#FEDD44',
-          boxShadow: isThinking ? '0 0 6px #F5A623' : 'none',
           marginTop: -4,
           transition: 'all 0.3s',
         }} />
@@ -105,7 +104,6 @@ function RobotIcon({ hasUnread, isThinking }: { hasUnread: boolean; isThinking: 
               width: 10, height: 10, borderRadius: '50%',
               background: 'white',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: hasUnread ? `0 0 4px #E8611A` : 'none',
             }}>
               <div style={{
                 width: 5, height: 5, borderRadius: '50%',
@@ -606,21 +604,20 @@ export default function AiAssistant() {
     <>
       {/* Global CSS for robot animations */}
       <style>{`
-        @keyframes aiRobotFloat {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-4px); }
+        /* No idle float, no bounce, no pulse. Perpetual decorative motion on a
+           always-on-screen widget is both an "AI-generated UI" tell and a
+           distraction in a tool people stare at all day. State is carried by the
+           badge and the antenna colour instead; only hover moves, and only once. */
+        .ai-robot-idle { transition: transform 0.16s ease-out; }
+        .ai-robot-idle:hover { transform: translateY(-2px); }
+        .ai-robot-unread { transition: transform 0.16s ease-out; }
+        .ai-robot-thinking { opacity: 0.75; }
+        /* Typing indicator: a linear fade, not the springy default bounce. */
+        @keyframes aiTypingFade {
+          0%, 100% { opacity: 0.25; }
+          50% { opacity: 1; }
         }
-        @keyframes aiRobotBounce {
-          0%, 100% { transform: translateY(0px) scale(1); }
-          50% { transform: translateY(-6px) scale(1.05); }
-        }
-        @keyframes aiRobotPulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.6; }
-        }
-        .ai-robot-idle { animation: aiRobotFloat 3s ease-in-out infinite; }
-        .ai-robot-unread { animation: aiRobotBounce 1.2s ease-in-out infinite; }
-        .ai-robot-thinking { animation: aiRobotPulse 0.8s ease-in-out infinite; }
+        .ai-typing-dot { animation: aiTypingFade 1.1s ease-in-out infinite; }
         .ai-chat-panel {
           box-shadow: 0 8px 40px rgba(0,0,0,0.4), 0 2px 12px rgba(212,43,30,0.15);
         }
@@ -709,9 +706,9 @@ export default function AiAssistant() {
                   >
                     {msg.role === 'assistant' && isStreaming && idx === messages.length - 1 && msg.content === '' ? (
                       <span className="flex gap-1 items-center py-0.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 ai-typing-dot" style={{ animationDelay: '0ms' }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 ai-typing-dot" style={{ animationDelay: '150ms' }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 ai-typing-dot" style={{ animationDelay: '300ms' }} />
                       </span>
                     ) : (
                       <span className="ai-message-content" dangerouslySetInnerHTML={{

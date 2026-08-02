@@ -43,7 +43,7 @@ export default function Toast({ message, type, onClose, duration = 3000 }: Toast
     },
     warning: {
       bg: 'bg-card-bg/95 border-brand-gold/25',
-      icon: <AlertTriangle className="w-4 h-4 text-brand-gold" />,
+      icon: <AlertTriangle className="w-4 h-4 text-brand-gold-text" />,
       barColor: 'bg-brand-gold',
     }
   };

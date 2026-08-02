@@ -90,12 +90,12 @@ export default function SequencePerformancePage() {
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm">
           <div className="flex items-center gap-2 text-blue-500 mb-3">
             <Send className="w-4 h-4" />
-            <span className="text-[10px] font-bold font-mono uppercase tracking-wider">Sends Today</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">Sends Today</span>
           </div>
           <div className="text-2xl font-display font-extrabold text-text-primary">
             {stats?.todaySends ?? 0}
           </div>
-          <div className="text-[10px] text-text-muted font-mono mt-1">
+          <div className="type-meta text-text-muted mt-1">
             {stats?.weekSends ?? 0} this week &middot; {stats?.monthSends ?? 0} this month
           </div>
         </div>
@@ -103,13 +103,13 @@ export default function SequencePerformancePage() {
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm">
           <div className="flex items-center gap-2 text-emerald-500 mb-3">
             <MessageSquare className="w-4 h-4" />
-            <span className="text-[10px] font-bold font-mono uppercase tracking-wider">Replies</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">Replies</span>
           </div>
           <div className="text-2xl font-display font-extrabold text-text-primary">
             {stats?.todayReplies ?? 0}
             <span className="text-xs text-text-muted font-normal ml-1">today</span>
           </div>
-          <div className="text-[10px] text-text-muted font-mono mt-1">
+          <div className="type-meta text-text-muted mt-1">
             {stats?.weekReplies ?? 0} this week
           </div>
         </div>
@@ -117,12 +117,12 @@ export default function SequencePerformancePage() {
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm">
           <div className="flex items-center gap-2 text-amber-500 mb-3">
             <TrendingUp className="w-4 h-4" />
-            <span className="text-[10px] font-bold font-mono uppercase tracking-wider">Active Enrollments</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">Active Enrollments</span>
           </div>
           <div className="text-2xl font-display font-extrabold text-text-primary">
             {stats?.activeEnrollments ?? 0}
           </div>
-          <div className="text-[10px] text-text-muted font-mono mt-1">
+          <div className="type-meta text-text-muted mt-1">
             of {stats?.totalLeads ?? 0} total leads
           </div>
         </div>
@@ -130,12 +130,12 @@ export default function SequencePerformancePage() {
         <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm">
           <div className="flex items-center gap-2 text-red-500 mb-3">
             <AlertTriangle className="w-4 h-4" />
-            <span className="text-[10px] font-bold font-mono uppercase tracking-wider">Bounces</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">Bounces</span>
           </div>
           <div className="text-2xl font-display font-extrabold text-text-primary">
             {stats?.totalBounces ?? 0}
           </div>
-          <div className="text-[10px] text-text-muted font-mono mt-1">
+          <div className="type-meta text-text-muted mt-1">
             flagged invalid
           </div>
         </div>
@@ -146,7 +146,7 @@ export default function SequencePerformancePage() {
         <div className="col-span-1">
           <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm">
             <h2 className="font-display font-bold text-sm text-text-primary mb-3 flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-brand-orange" />
+              <BarChart3 className="w-4 h-4 text-brand-orange-text" />
               Your Sequences
             </h2>
             <div className="space-y-1">
@@ -167,7 +167,7 @@ export default function SequencePerformancePage() {
                 </button>
               ))}
               {(!stats?.sequences || stats.sequences.length === 0) && (
-                <p className="text-[10px] text-text-muted py-4 text-center">
+                <p className="type-body text-text-muted py-4 text-center">
                   No sequences yet. Create sequences in the Sequence Builder.
                 </p>
               )}
@@ -183,37 +183,37 @@ export default function SequencePerformancePage() {
                 <h2 className="font-display font-bold text-sm text-text-primary mb-4">Campaign Metrics</h2>
                 <div className="grid grid-cols-4 gap-4">
                   <div>
-                    <div className="text-[10px] font-mono text-text-muted uppercase">Enrolled</div>
+                    <div className="text-[10px] text-text-muted uppercase">Enrolled</div>
                     <div className="text-lg font-display font-extrabold text-text-primary">{seqAnalytics.totalEnrolled}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-mono text-text-muted uppercase">Active</div>
+                    <div className="text-[10px] text-text-muted uppercase">Active</div>
                     <div className="text-lg font-display font-extrabold text-blue-500">{seqAnalytics.activeEnrolled}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-mono text-text-muted uppercase">Reply Rate</div>
+                    <div className="text-[10px] text-text-muted uppercase">Reply Rate</div>
                     <div className="text-lg font-display font-extrabold text-emerald-500">{seqAnalytics.replyRate}%</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-mono text-text-muted uppercase">Bounce Rate</div>
+                    <div className="text-[10px] text-text-muted uppercase">Bounce Rate</div>
                     <div className="text-lg font-display font-extrabold text-red-500">{seqAnalytics.bounceRate}%</div>
                   </div>
                 </div>
                 <div className="grid grid-cols-4 gap-4 mt-4 pt-4 border-t border-card-border">
                   <div>
-                    <div className="text-[10px] font-mono text-text-muted uppercase">Total Sends</div>
+                    <div className="text-[10px] text-text-muted uppercase">Total Sends</div>
                     <div className="text-lg font-display font-extrabold text-text-primary">{seqAnalytics.totalSends}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-mono text-text-muted uppercase">Replies</div>
+                    <div className="text-[10px] text-text-muted uppercase">Replies</div>
                     <div className="text-lg font-display font-extrabold text-text-primary">{seqAnalytics.uniqueReplies}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-mono text-text-muted uppercase">Bounces</div>
+                    <div className="text-[10px] text-text-muted uppercase">Bounces</div>
                     <div className="text-lg font-display font-extrabold text-text-primary">{seqAnalytics.bounceCount}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-mono text-text-muted uppercase">Completed</div>
+                    <div className="text-[10px] text-text-muted uppercase">Completed</div>
                     <div className="text-lg font-display font-extrabold text-text-primary">{seqAnalytics.completedCount}</div>
                   </div>
                 </div>
@@ -222,7 +222,7 @@ export default function SequencePerformancePage() {
               {/* Step breakdown */}
               <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm">
                 <h2 className="font-display font-bold text-sm text-text-primary mb-4 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-brand-orange" />
+                  <Clock className="w-4 h-4 text-brand-orange-text" />
                   Step-by-Step Breakdown
                 </h2>
                 <div className="space-y-2">
@@ -243,7 +243,7 @@ export default function SequencePerformancePage() {
                     </div>
                   ))}
                   {seqAnalytics.stepBreakdown.length === 0 && (
-                    <p className="text-[10px] text-text-muted py-4 text-center">No step data yet.</p>
+                    <p className="type-body text-text-muted py-4 text-center">No step data yet.</p>
                   )}
                 </div>
               </div>
@@ -289,12 +289,12 @@ export default function SequencePerformancePage() {
       {/* Send-time optimization info */}
       <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm">
         <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-xl bg-brand-orange/10 border border-brand-orange/20 flex items-center justify-center text-brand-orange flex-shrink-0">
+          <div className="w-8 h-8 rounded-xl bg-brand-orange/10 border border-brand-orange/20 flex items-center justify-center text-brand-orange-text flex-shrink-0">
             <Clock className="w-4 h-4" />
           </div>
           <div>
             <h3 className="font-display font-bold text-sm text-text-primary mb-1">Smart Send-Time Optimization</h3>
-            <p className="text-[10px] text-text-muted leading-relaxed">
+            <p className="type-body text-text-muted leading-relaxed max-w-[68ch]">
               Emails are automatically scheduled during business hours based on the lead&apos;s detected timezone.
               Sends are distributed in 2-hour windows to avoid spam-filter clustering, with a maximum of 80 sends/day
               per email account. A/B subject line testing is supported for templates with variants configured.

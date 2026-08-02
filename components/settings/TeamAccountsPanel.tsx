@@ -180,7 +180,7 @@ export default function TeamAccountsPanel() {
               <div className="flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-text-muted" />
                 <span className="font-semibold text-text-primary">{m.name}</span>
-                <span className="text-text-muted font-mono text-[10px] uppercase">
+                <span className="text-text-muted text-[10px] uppercase">
                   {m.role.replace('_', ' ')}
                 </span>
               </div>
@@ -188,7 +188,7 @@ export default function TeamAccountsPanel() {
               {/* Team membership editor (SDR org only, and only for SDR rows) */}
               {data.canEditTeam && !isLeadgen && m.role === 'sdr' && data.managers.length > 0 && (
                 <label className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-mono text-text-muted uppercase">Team</span>
+                  <span className="text-[10px] text-text-muted uppercase">Team</span>
                   <select
                     value={m.managerId ?? ''}
                     onChange={(e) => changeManager(m.id, e.target.value)}

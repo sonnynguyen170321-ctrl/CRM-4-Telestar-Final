@@ -79,7 +79,7 @@ function LeadgenManagerPageInner() {
           </div>
           <div>
             <h1 className="font-display font-bold text-sm text-text-primary">Leadgen Manager Console</h1>
-            <p className="text-[10px] text-text-muted font-mono uppercase">
+            <p className="text-[10px] text-text-muted uppercase">
               Internal database · Enrich · Qualify · Route · Convert
             </p>
           </div>

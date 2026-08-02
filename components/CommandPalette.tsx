@@ -76,9 +76,9 @@ export default function CommandPalette() {
   const commandItems: CommandItem[] = [
     { id: 'go_dash', name: 'Go to Tasks Dashboard', category: 'Navigation', shortcut: 'G D', icon: <LayoutDashboard className="w-4 h-4 text-brand-red" />, action: () => router.push('/') },
     { id: 'go_leads', name: 'Go to Leads Pipeline', category: 'Navigation', shortcut: 'G L', icon: <Users className="w-4 h-4 text-blue-500" />, action: () => router.push('/leads') },
-    { id: 'go_seq', name: 'Go to Drip Sequences', category: 'Navigation', shortcut: 'G S', icon: <Sparkles className="w-4 h-4 text-brand-orange" />, action: () => router.push('/sequences') },
+    { id: 'go_seq', name: 'Go to Drip Sequences', category: 'Navigation', shortcut: 'G S', icon: <Sparkles className="w-4 h-4 text-brand-orange-text" />, action: () => router.push('/sequences') },
     { id: 'role_dir', name: 'Simulate Director Profile (Unlock Team)', category: 'Persona Scoping', icon: <Flame className="w-4 h-4 text-brand-red" />, action: () => setRole('director') },
-    { id: 'role_sdr', name: 'Simulate SDR Profile (Lock Team)', category: 'Persona Scoping', icon: <Flame className="w-4 h-4 text-brand-orange" />, action: () => setRole('sdr') },
+    { id: 'role_sdr', name: 'Simulate SDR Profile (Lock Team)', category: 'Persona Scoping', icon: <Flame className="w-4 h-4 text-brand-orange-text" />, action: () => setRole('sdr') },
   ];
 
   // Search through commands and leads
@@ -217,9 +217,7 @@ export default function CommandPalette() {
                         <p className={`font-semibold truncate ${isActive ? 'text-white' : 'text-text-primary'}`}>
                           {isCommand ? item.name : `${item.firstName} ${item.lastName}`}
                         </p>
-                        <p className={`text-[9px] uppercase font-bold font-mono tracking-wider ${
-                          isActive ? 'text-white/80' : 'text-text-muted'
-                        }`}>
+                        <p className={`text-[9px] uppercase font-bold tracking-wider ${ isActive ? 'text-white/80' : 'text-text-muted' }`}>
                           {isCommand ? item.category : `Lead at ${item.company}`}
                         </p>
                       </div>

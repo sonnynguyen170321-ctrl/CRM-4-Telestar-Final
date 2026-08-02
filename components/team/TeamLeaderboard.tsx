@@ -42,7 +42,7 @@ export default function TeamLeaderboard({ leaderboard, dateRange }: TeamLeaderbo
       <div className="overflow-x-auto">
         <table className="w-full text-xs text-left border-collapse">
           <thead>
-            <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold font-mono tracking-wider text-text-muted">
+            <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
               <th className="p-3 w-16 text-center">Rank</th>
               <th className="p-3">Rep Name</th>
               <th className="p-3">Role</th>
@@ -50,7 +50,7 @@ export default function TeamLeaderboard({ leaderboard, dateRange }: TeamLeaderbo
               <th className="p-3 text-center">Emails</th>
               <th className="p-3 text-center">LinkedIn</th>
               <th className="p-3 text-center">WhatsApp</th>
-              <th className="p-3 text-center text-brand-gold">Booked</th>
+              <th className="p-3 text-center text-brand-gold-text">Booked</th>
               <th className="p-3 text-center font-bold">Total</th>
             </tr>
           </thead>
@@ -77,7 +77,7 @@ export default function TeamLeaderboard({ leaderboard, dateRange }: TeamLeaderbo
                   <td className="p-3 text-center font-medium font-mono">{rep.emails}</td>
                   <td className="p-3 text-center font-medium font-mono">{rep.linkedin}</td>
                   <td className="p-3 text-center font-medium font-mono">{rep.whatsapp}</td>
-                  <td className="p-3 text-center font-bold font-mono text-brand-gold bg-brand-gold/[0.02]">
+                  <td className="p-3 text-center font-bold font-mono text-brand-gold-text bg-brand-gold/[0.02]">
                     {rep.booked}
                   </td>
                   <td className="p-3 text-center font-bold font-mono text-text-primary">

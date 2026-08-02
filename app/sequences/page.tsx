@@ -403,7 +403,7 @@ export default function SequencesPage() {
             >
               <div>
                 <div className="flex items-center justify-between mb-3.5">
-                  <div className="bg-brand-orange/10 border border-brand-orange/20 rounded-lg p-1.5 text-brand-orange">
+                  <div className="bg-brand-orange/10 border border-brand-orange/20 rounded-lg p-1.5 text-brand-orange-text">
                     <Repeat className="w-5 h-5" />
                   </div>
                   <span
@@ -429,7 +429,7 @@ export default function SequencesPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-text-muted">Enrolled Leads:</span>
-                    <span className="font-semibold text-brand-orange font-mono">
+                    <span className="font-semibold text-brand-orange-text font-mono">
                       {seq._count?.leads ?? 0} active
                     </span>
                   </div>
@@ -468,7 +468,7 @@ export default function SequencesPage() {
           <div className="bg-card-bg border border-card-border rounded-2xl p-4 flex flex-col gap-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-[10px] uppercase font-bold text-text-muted font-mono tracking-wider">
+                <span className="text-[10px] uppercase font-bold text-text-muted tracking-wider">
                   Managing Sequence
                 </span>
                 <h2 className="font-display font-bold text-base text-text-primary mt-0.5">
@@ -561,7 +561,7 @@ export default function SequencesPage() {
                               ))}
                             </select>
                             {step.template && (
-                              <span className="text-[9px] font-mono text-brand-orange bg-brand-orange/10 border border-brand-orange/20 px-1.5 py-0.5 rounded">
+                              <span className="text-[9px] font-mono text-brand-orange-text bg-brand-orange/10 border border-brand-orange/20 px-1.5 py-0.5 rounded">
                                 {step.template.name}
                               </span>
                             )}
@@ -609,7 +609,7 @@ export default function SequencesPage() {
 
                 <div className="space-y-3.5 text-xs">
                   <div>
-                    <label className="text-[10px] font-bold font-mono text-text-muted uppercase block mb-1">
+                    <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">
                       Select Channel
                     </label>
                     <select
@@ -626,7 +626,7 @@ export default function SequencesPage() {
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-[10px] font-bold font-mono text-text-muted uppercase block mb-1">
+                      <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">
                         Wait Days
                       </label>
                       <input
@@ -639,7 +639,7 @@ export default function SequencesPage() {
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold font-mono text-text-muted uppercase block mb-1">
+                      <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">
                         Wait Hours
                       </label>
                       <input
@@ -781,7 +781,7 @@ export default function SequencesPage() {
                               <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono border ${
                                 enr.status === 'active' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
                                 enr.status === 'paused' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
-                                'bg-card-border text-text-muted border-card-border'
+                                'bg-card-border text-text-secondary border-card-border'
                               }`}>
                                 {enr.status.toUpperCase()}
                               </span>
@@ -855,7 +855,7 @@ export default function SequencesPage() {
                 <p className="text-[10px] text-text-muted mt-0.5">Build a reusable multi-step cadence</p>
               </div>
               <div>
-                <label className="block text-[10px] font-bold font-mono text-text-muted uppercase mb-1">
+                <label className="block text-[10px] font-bold text-text-muted uppercase mb-1">
                   Sequence Name *
                 </label>
                 <input
@@ -868,7 +868,7 @@ export default function SequencesPage() {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold font-mono text-text-muted uppercase mb-1">
+                <label className="block text-[10px] font-bold text-text-muted uppercase mb-1">
                   Description
                 </label>
                 <textarea
@@ -908,7 +908,7 @@ export default function SequencesPage() {
             <div className="flex items-center gap-2">
               <span className="text-base">📋</span>
               <div className="text-left">
-                <h3 className="text-xs font-bold font-mono text-text-primary uppercase">Sequence Audit Log</h3>
+                <h3 className="text-xs font-bold text-text-primary uppercase">Sequence Audit Log</h3>
                 <p className="text-[10px] text-text-muted mt-0.5">
                   Lead: {enrollments.find((e) => e.id === selectedEnrollmentForLogs)?.lead.firstName} {enrollments.find((e) => e.id === selectedEnrollmentForLogs)?.lead.lastName}
                 </p>
@@ -932,7 +932,7 @@ export default function SequencesPage() {
               <div className="space-y-4">
                 {/* Activity Timeline */}
                 <div className="space-y-3">
-                  <h4 className="text-[10px] font-bold font-mono text-text-muted uppercase">Execution Timeline</h4>
+                  <h4 className="text-[10px] font-bold text-text-muted uppercase">Execution Timeline</h4>
                   {logsData.activities.length === 0 && logsData.tasks.length === 0 ? (
                     <p className="text-text-muted italic text-[10px]">No sequence execution events recorded yet.</p>
                   ) : (
@@ -971,7 +971,7 @@ export default function SequencesPage() {
                                 {item.status && (
                                   <span className={`px-1 rounded text-[8px] uppercase border ${
                                     item.status === 'completed' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
-                                    item.status === 'skipped' ? 'bg-card-border text-text-muted border-card-border' :
+                                    item.status === 'skipped' ? 'bg-card-border text-text-secondary border-card-border' :
                                     'bg-amber-500/10 text-amber-500 border-amber-500/20'
                                   }`}>
                                     {item.status}
@@ -988,7 +988,7 @@ export default function SequencesPage() {
                 {/* Outbound Messages */}
                 {logsData.outboundMessages.length > 0 && (
                   <div className="space-y-2 border-t border-card-border/60 pt-3 text-left">
-                    <h4 className="text-[10px] font-bold font-mono text-text-muted uppercase">Sent Outbound Emails</h4>
+                    <h4 className="text-[10px] font-bold text-text-muted uppercase">Sent Outbound Emails</h4>
                     <div className="space-y-2">
                       {logsData.outboundMessages.map((msg) => (
                         <div key={msg.id} className="p-2 border border-card-border rounded-lg bg-card-bg space-y-1">

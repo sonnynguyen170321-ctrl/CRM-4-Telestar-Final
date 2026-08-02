@@ -92,7 +92,7 @@ export default function OverviewTab() {
               <div className="text-xl font-bold text-text-primary font-display">
                 {typeof metrics[key] === 'number' ? `${metrics[key]}${key === 'duplicateRate' || key === 'emailValidRate' ? '%' : ''}` : '—'}
               </div>
-              <div className="text-[10px] text-text-muted font-mono uppercase tracking-wide">{label}</div>
+              <div className="text-[10px] text-text-muted uppercase tracking-wide">{label}</div>
             </div>
           </div>
         ))}

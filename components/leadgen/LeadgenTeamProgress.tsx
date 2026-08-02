@@ -46,7 +46,7 @@ export default function LeadgenTeamProgress() {
             <BarChart2 className="w-4 h-4 text-brand-red" />
           </div>
           <div>
-            <span className="text-[10px] font-bold font-mono text-brand-orange uppercase tracking-wider">
+            <span className="text-[10px] font-bold text-brand-orange-text uppercase tracking-wider">
               Leadgen Team Performance
             </span>
             <h2 className="font-display font-extrabold text-sm text-text-primary leading-tight">
@@ -88,7 +88,7 @@ export default function LeadgenTeamProgress() {
                 >
                   {/* User Profile Header */}
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-sidebar-border border border-sidebar-border flex items-center justify-center font-bold text-xs text-brand-orange uppercase flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-sidebar-border border border-sidebar-border flex items-center justify-center font-bold text-xs text-brand-orange-text uppercase flex-shrink-0">
                       {member.name.split(' ').map((n) => n[0]).join('')}
                     </div>
                     <div>
@@ -101,7 +101,7 @@ export default function LeadgenTeamProgress() {
 
                   {/* Campaigns Coverage */}
                   <div className="space-y-1.5">
-                    <h4 className="text-[9px] font-bold font-mono text-text-muted uppercase">Assigned Campaigns:</h4>
+                    <h4 className="text-[9px] font-bold text-text-muted uppercase">Assigned Campaigns:</h4>
                     <div className="flex flex-wrap gap-1.5">
                       {member.campaigns.length === 0 ? (
                         <span className="text-[10px] text-text-muted italic">No campaigns assigned</span>
@@ -123,19 +123,19 @@ export default function LeadgenTeamProgress() {
                     <div className="bg-background border border-card-border rounded-xl p-2.5">
                       <Inbox className="w-4 h-4 text-blue-500 mx-auto mb-1" />
                       <p className="font-display font-extrabold text-sm text-text-primary">{member.sourcedCount}</p>
-                      <span className="text-[8px] uppercase font-mono text-text-muted block mt-0.5">Sourced</span>
+                      <span className="text-[8px] uppercase text-text-muted block mt-0.5">Sourced</span>
                     </div>
 
                     <div className="bg-background border border-card-border rounded-xl p-2.5">
-                      <Target className="w-4 h-4 text-brand-orange mx-auto mb-1" />
+                      <Target className="w-4 h-4 text-brand-orange-text mx-auto mb-1" />
                       <p className="font-display font-extrabold text-sm text-text-primary">{member.assignedCount}</p>
-                      <span className="text-[8px] uppercase font-mono text-text-muted block mt-0.5">Active Pip</span>
+                      <span className="text-[8px] uppercase text-text-muted block mt-0.5">Active Pip</span>
                     </div>
 
                     <div className="bg-background border border-card-border rounded-xl p-2.5">
                       <CheckCircle2 className="w-4 h-4 text-green-500 mx-auto mb-1" />
                       <p className="font-display font-extrabold text-sm text-text-primary">{member.qualifiedCount}</p>
-                      <span className="text-[8px] uppercase font-mono text-text-muted block mt-0.5">Meetings</span>
+                      <span className="text-[8px] uppercase text-text-muted block mt-0.5">Meetings</span>
                     </div>
                   </div>
 
@@ -143,7 +143,7 @@ export default function LeadgenTeamProgress() {
                   <div className="space-y-1 pt-2 border-t border-card-border/50">
                     <div className="flex justify-between items-center text-[10px] font-mono font-semibold text-text-muted">
                       <span>Pipeline Qualification Rate:</span>
-                      <span className="font-bold text-brand-orange">{conversionRate}%</span>
+                      <span className="font-bold text-brand-orange-text">{conversionRate}%</span>
                     </div>
                     <div className="w-full h-1.5 bg-background border border-card-border rounded-full overflow-hidden">
                       <div

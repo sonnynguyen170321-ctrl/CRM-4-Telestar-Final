@@ -40,11 +40,14 @@ lives in the jump between tiers, not in overall size.
 | Tier | Token | Size | Used for |
 |------|-------|------|----------|
 | Page title  | `--text-page-title` | 28px   | the single `<h1>` per route |
-| Section     | `--text-section`    | 19px   | panel / card headers |
-| Subsection  | `--text-subsection` | 15.5px | group labels inside a panel |
-| Body        | `--text-body`       | 13.5px | paragraphs, table cells, form values |
-| Meta        | `--text-meta`       | 11.5px | timestamps, counts, secondary chrome |
-| Micro       | `--text-micro`      | 10px   | badges, kbd hints, avatar initials |
+| Section     | `--text-section`    | 20px   | panel / card headers |
+| Subsection  | `--text-subsection` | 16px   | group labels inside a panel |
+| Body        | `--text-body`       | 14px   | paragraphs, table cells, form values |
+| Meta        | `--text-meta`       | 12.5px | timestamps, counts, secondary chrome |
+| Micro       | `--text-micro`      | 11px   | badges, kbd hints, avatar initials |
+
+**11px is the floor.** Nothing renders smaller. Prose at 10px reads as "tiny body
+text" to accessibility audits and to people over 40 looking at a 1440p monitor.
 
 Rules:
 
@@ -60,6 +63,27 @@ Rules:
 - The root is `html { font-size: 17.5px }`, so rem-based Tailwind steps render fractional
   (13.109px, 15.312px). Tier sizes are absolute px on purpose. `text-xs`/`text-sm`/`text-lg`/
   `text-2xl` are snapped onto the scale, so existing markup stays on whole pixels.
+
+## Colour & Motion Discipline
+
+An AI-design detector flagged this UI on eight counts. The fixes are rules now, not
+one-offs — reintroducing any of these puts the flag back:
+
+- **Contrast.** `--text-muted` is `#6B7280` (4.83:1 on white). Never lighten it: the previous
+  `#9CA3AF` measured 2.54:1 and failed WCAG AA everywhere it appeared. Any new text colour
+  must clear 4.5:1 against its actual background, 3:1 for ≥18.66px bold.
+- **Mono is for data.** Numbers, percentages, IDs, timestamps, counts. Never for labels,
+  headings, empty states or prose — that pushed mono to 24% of all text against a 10–15%
+  budget. Uppercase label + mono is the specific combination to avoid.
+- **No gradient text.** No `bg-clip-text`. The wordmark is solid `--brand-red`.
+- **No decorative motion.** No idle float, bounce, elastic easing, pulsing glow, aurora
+  background, or rotating conic border. Motion must report state: loading spinners, toast
+  progress, hover/focus transitions. A global `prefers-reduced-motion` guard collapses
+  what remains.
+- **No glow.** No `0 0 Npx` box-shadows or `drop-shadow` halos. Use a solid border, a ring,
+  or an inset accent bar.
+- **Prose gets a measure.** Cap running text at `max-w-[68ch]`.
+- **No card inside a card.** Use a divider or spacing to group within a panel.
 
 ## Channel Color Map
 

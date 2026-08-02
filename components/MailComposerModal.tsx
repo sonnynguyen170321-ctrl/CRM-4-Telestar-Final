@@ -143,21 +143,21 @@ export default function MailComposerModal({ lead, onClose, onSent }: MailCompose
               <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" aria-hidden="true" />
               <span>
                 No email account connected.{' '}
-                <Link href="/settings" onClick={onClose} className="text-brand-orange font-semibold hover:underline">Connect one in Settings</Link>
+                <Link href="/settings" onClick={onClose} className="text-brand-orange-text font-semibold hover:underline">Connect one in Settings</Link>
                 {' '}to send from the CRM, or{' '}
-                <a href={`mailto:${lead.email}?subject=${encodeURIComponent(subject)}`} className="text-brand-orange font-semibold hover:underline">open your mail app</a>.
+                <a href={`mailto:${lead.email}?subject=${encodeURIComponent(subject)}`} className="text-brand-orange-text font-semibold hover:underline">open your mail app</a>.
               </span>
             </div>
           )}
 
           <div className="space-y-1">
-            <label htmlFor="mail-to" className="text-[10px] font-bold font-mono text-text-muted uppercase block">Recipient</label>
+            <label htmlFor="mail-to" className="text-[10px] font-bold text-text-muted uppercase block">Recipient</label>
             <input id="mail-to" type="text" value={`${lead.firstName} ${lead.lastName} <${lead.email}>`} disabled
               className="w-full bg-card-border/20 border border-transparent rounded-lg px-2.5 py-1.5 text-text-muted cursor-not-allowed font-medium" />
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="mail-template" className="text-[10px] font-bold font-mono text-text-muted uppercase block">Template</label>
+            <label htmlFor="mail-template" className="text-[10px] font-bold text-text-muted uppercase block">Template</label>
             <select id="mail-template" value={selectedTemplateId} onChange={handleTemplateChange}
               className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium">
               <option value="">— Blank Template —</option>
@@ -168,13 +168,13 @@ export default function MailComposerModal({ lead, onClose, onSent }: MailCompose
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="mail-subject" className="text-[10px] font-bold font-mono text-text-muted uppercase block">Subject Line</label>
+            <label htmlFor="mail-subject" className="text-[10px] font-bold text-text-muted uppercase block">Subject Line</label>
             <input id="mail-subject" type="text" value={subject} onChange={(e) => setSubject(e.target.value)} required
               className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium" />
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="mail-body" className="text-[10px] font-bold font-mono text-text-muted uppercase block">Body</label>
+            <label htmlFor="mail-body" className="text-[10px] font-bold text-text-muted uppercase block">Body</label>
             <textarea id="mail-body" value={body} onChange={(e) => setBody(e.target.value)} required
               className="w-full bg-background border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-48 placeholder-text-muted resize-none leading-relaxed font-mono text-xs" />
           </div>

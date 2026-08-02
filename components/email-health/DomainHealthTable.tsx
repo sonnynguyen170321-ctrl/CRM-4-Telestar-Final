@@ -15,7 +15,7 @@ import type { DomainHealthRow } from '@/lib/hooks/useEmailHealth';
 const DNS_CONFIG: Record<string, { label: string; tone: string }> = {
   pass: { label: 'Pass', tone: 'text-channel-whatsapp' },
   manual_verified: { label: 'Manual', tone: 'text-channel-whatsapp' },
-  warning: { label: 'Warn', tone: 'text-brand-gold' },
+  warning: { label: 'Warn', tone: 'text-brand-gold-text' },
   fail: { label: 'Fail', tone: 'text-brand-red' },
   unknown: { label: 'Unknown', tone: 'text-text-muted' },
 };

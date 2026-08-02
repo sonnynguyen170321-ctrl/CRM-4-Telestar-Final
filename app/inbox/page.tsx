@@ -250,7 +250,7 @@ export default function InboxPage() {
       <div className="h-14 border-b border-card-border bg-white px-5 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-lg font-bold text-text-primary">Unified Inbox</span>
-          <span className="text-[10px] bg-brand-red/10 border border-brand-red/20 text-brand-red font-mono px-2 py-0.5 rounded-full uppercase font-bold">
+          <span className="text-[10px] bg-brand-red/10 border border-brand-red/20 text-brand-red px-2 py-0.5 rounded-full uppercase font-bold">
             Live
           </span>
         </div>
@@ -379,7 +379,7 @@ export default function InboxPage() {
                         {latestMsg?.body || '(Empty email body)'}
                       </p>
                       {thread.lead && (
-                        <span className="text-[9px] font-semibold text-brand-orange border border-brand-orange/20 bg-brand-orange/5 px-1.5 py-0.5 rounded font-mono block w-fit mt-1">
+                        <span className="text-[9px] font-semibold text-brand-orange-text border border-brand-orange/20 bg-brand-orange/5 px-1.5 py-0.5 rounded font-mono block w-fit mt-1">
                           {thread.lead.company}
                         </span>
                       )}
@@ -410,7 +410,7 @@ export default function InboxPage() {
                   {folder !== 'spam' && (
                     <button
                       onClick={() => handleBulkAction('spam', selectedThread)}
-                      className="p-1.5 hover:bg-card-border/50 text-text-muted hover:text-brand-orange rounded transition-colors"
+                      className="p-1.5 hover:bg-card-border/50 text-text-muted hover:text-brand-orange-text rounded transition-colors"
                       title="Mark as Spam"
                     >
                       <AlertTriangle className="w-4 h-4" />
@@ -438,7 +438,7 @@ export default function InboxPage() {
                 {selectedThread.lead && (
                   <Link
                     href={`/leads/${selectedThread.lead.id}`}
-                    className="text-[10px] font-bold font-mono text-brand-red hover:underline uppercase"
+                    className="text-[10px] font-bold text-brand-red hover:underline uppercase"
                   >
                     View Lead Profile →
                   </Link>
@@ -498,7 +498,7 @@ export default function InboxPage() {
               {selectedThread.lead ? (
                 <form onSubmit={handleSendReply} className="border-t border-card-border p-4 bg-white space-y-3">
                   <div className="flex items-center justify-between text-left">
-                    <span className="text-[10px] font-bold font-mono text-text-muted uppercase flex items-center gap-1">
+                    <span className="text-[10px] font-bold text-text-muted uppercase flex items-center gap-1">
                       <Reply className="w-3.5 h-3.5" />
                       <span>Reply to {selectedThread.lead.firstName}</span>
                     </span>

@@ -155,7 +155,7 @@ export default function EmailHealthPage() {
       <div className="page-hero flex flex-row items-center justify-between gap-4">
         <div>
           <h1 className="font-display font-extrabold text-2xl text-text-primary tracking-tight flex items-center gap-2">
-            <ShieldCheck className="w-6 h-6 text-brand-orange" />
+            <ShieldCheck className="w-6 h-6 text-brand-orange-text" />
             Email Health
           </h1>
           <p className="text-xs text-text-secondary mt-1">
@@ -247,7 +247,7 @@ export default function EmailHealthPage() {
               <h2 className="font-display font-bold text-sm text-text-primary uppercase tracking-wider">
                 Domain Health
               </h2>
-              <p className="text-[11px] text-text-muted mt-1">
+              <p className="type-meta text-text-muted mt-1 max-w-[68ch]">
                 SPF, DMARC and MX are verified live. DKIM has no automated check — its selector is
                 provider-specific — so it is recorded manually.
               </p>

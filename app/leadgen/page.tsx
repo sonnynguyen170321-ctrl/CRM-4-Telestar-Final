@@ -264,7 +264,7 @@ export default function LeadgenPage() {
             <h1 className="font-display font-bold text-sm text-text-primary">
               {isManager ? 'Leadgen Manager Console' : 'Leadgen Pipeline'}
             </h1>
-            <p className="text-[10px] text-text-muted font-mono uppercase">
+            <p className="text-[10px] text-text-muted uppercase">
               {isManager ? 'Campaign routing · Prospect assignment · Intent tracking' : 'Import · Qualify · Hand off'}
             </p>
           </div>
@@ -297,7 +297,7 @@ export default function LeadgenPage() {
               <Icon className={`w-5 h-5 ${color} flex-shrink-0`} />
               <div>
                 <div className="text-xl font-bold text-text-primary font-display">{value}</div>
-                <div className="text-[10px] text-text-muted font-mono uppercase tracking-wide">{label}</div>
+                <div className="text-[10px] text-text-muted uppercase tracking-wide">{label}</div>
               </div>
             </div>
           ))}
@@ -342,7 +342,7 @@ export default function LeadgenPage() {
               <div className="space-y-4 h-full flex flex-col">
                 <div className="flex flex-wrap items-center justify-between gap-3 bg-card-bg border border-card-border rounded-2xl px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold font-mono text-purple-300 uppercase">Bulk Assign:</span>
+                    <span className="text-xs font-bold text-purple-300 uppercase">Bulk Assign:</span>
                     <select
                       value={routeCampaignId}
                       onChange={(e) => setRouteCampaignId(e.target.value)}
@@ -377,7 +377,7 @@ export default function LeadgenPage() {
                 <div className="flex-1 bg-card-bg border border-card-border rounded-2xl overflow-hidden shadow-sm flex flex-col">
                   <table className="w-full text-xs text-left border-collapse">
                     <thead>
-                      <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold font-mono tracking-wider text-text-muted">
+                      <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
                         <th className="p-3 w-8">
                           <input
                             type="checkbox"
@@ -460,7 +460,7 @@ export default function LeadgenPage() {
                 <div className="bg-card-bg border border-card-border rounded-2xl overflow-hidden shadow-sm">
                   <table className="w-full text-xs text-left border-collapse">
                     <thead>
-                      <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold font-mono tracking-wider text-text-muted">
+                      <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
                         <th className="p-3">Prospect</th>
                         <th className="p-3">Job Title</th>
                         <th className="p-3">Enriched Contact Info</th>
@@ -527,7 +527,7 @@ export default function LeadgenPage() {
                     <div key={stat.label} className="bg-card-bg border border-card-border p-4 rounded-2xl flex items-center justify-between">
                       <div>
                         <p className="text-2xl font-bold text-text-primary font-display">{stat.count}</p>
-                        <span className="text-[10px] font-mono text-text-muted uppercase tracking-wider">{stat.label}</span>
+                        <span className="text-[10px] text-text-muted uppercase tracking-wider">{stat.label}</span>
                       </div>
                       <div className={`w-8 h-8 rounded-lg ${stat.bg} flex items-center justify-center ${stat.color} font-bold`}>
                         ✓
@@ -544,7 +544,7 @@ export default function LeadgenPage() {
                   <div className="bg-card-bg border border-card-border rounded-2xl overflow-hidden shadow-sm">
                     <table className="w-full text-xs text-left border-collapse">
                       <thead>
-                        <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold font-mono tracking-wider text-text-muted">
+                        <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
                           <th className="p-3">Prospect</th>
                           <th className="p-3">Campaign</th>
                           <th className="p-3">Assigned SDR</th>
@@ -834,7 +834,7 @@ function TableView({ leads, onSelectLead }: { leads: Lead[]; onSelectLead: (id: 
     <div className="bg-card-bg border border-card-border rounded-xl overflow-hidden">
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-card-border text-text-muted font-mono uppercase text-[10px]">
+          <tr className="border-b border-card-border text-text-muted uppercase text-[10px]">
             <th className="text-left px-4 py-2.5 font-medium">Name</th>
             <th className="text-left px-4 py-2.5 font-medium">Company</th>
             <th className="text-left px-4 py-2.5 font-medium">Stage</th>

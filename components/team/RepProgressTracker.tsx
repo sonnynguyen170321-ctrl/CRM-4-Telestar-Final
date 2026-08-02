@@ -104,7 +104,7 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
             <Award className="w-4 h-4 text-brand-red" />
           </div>
           <div>
-            <span className="text-[10px] font-bold font-mono text-brand-orange uppercase tracking-wider">
+            <span className="text-[10px] font-bold text-brand-orange-text uppercase tracking-wider">
               Individual Progress Tracker
             </span>
             <h2 className="font-display font-extrabold text-sm text-text-primary leading-tight">
@@ -114,7 +114,7 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold font-mono text-text-muted uppercase">Select Representative:</span>
+          <span className="text-xs font-bold text-text-muted uppercase">Select Representative:</span>
           <select
             value={selectedSdrId}
             onChange={(e) => setSelectedSdrId(e.target.value)}
@@ -143,7 +143,7 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
           <div className="col-span-2 glass-card rounded-2xl p-5 hover-lift space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-brand-orange" />
+                <TrendingUp className="w-5 h-5 text-brand-orange-text" />
                 <span>Conversion Pipeline Funnel</span>
               </h3>
               <span className="text-[10px] font-mono text-text-muted">Leads distribution</span>
@@ -186,7 +186,7 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
 
               {/* Conversion ratios */}
               <div className="w-1/3 bg-background/40 border border-card-border p-4 rounded-xl space-y-2.5">
-                <h4 className="text-[10px] font-bold font-mono text-text-muted uppercase">Stage Conversion</h4>
+                <h4 className="text-[10px] font-bold text-text-muted uppercase">Stage Conversion</h4>
                 <div className="space-y-2 text-xs">
                   {[
                     { label: 'New → Active', rate: getConvRate(stageCounts.sequence_active ?? 0, stageCounts.new ?? 0) },
@@ -196,7 +196,7 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
                   ].map((c) => (
                     <div key={c.label} className="flex justify-between items-center py-0.5 border-b border-card-border/30 last:border-b-0 font-mono">
                       <span className="text-text-secondary">{c.label}</span>
-                      <span className="font-bold text-brand-orange">{c.rate}%</span>
+                      <span className="font-bold text-brand-orange-text">{c.rate}%</span>
                     </div>
                   ))}
                 </div>
@@ -214,19 +214,19 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
             <div className="grid grid-cols-2 gap-3 text-center">
               <div className="bg-background/60 border border-card-border rounded-xl p-3">
                 <p className="font-display font-extrabold text-xl text-green-500">{taskProgress.completed}</p>
-                <span className="text-[9px] uppercase font-mono text-text-muted">Completed</span>
+                <span className="text-[9px] uppercase text-text-muted">Completed</span>
               </div>
               <div className="bg-background/60 border border-card-border rounded-xl p-3">
                 <p className="font-display font-extrabold text-xl text-amber-500">{taskProgress.skipped}</p>
-                <span className="text-[9px] uppercase font-mono text-text-muted">Skipped</span>
+                <span className="text-[9px] uppercase text-text-muted">Skipped</span>
               </div>
               <div className="bg-background/60 border border-card-border rounded-xl p-3">
                 <p className="font-display font-extrabold text-xl text-blue-500">{taskProgress.pending}</p>
-                <span className="text-[9px] uppercase font-mono text-text-muted">Pending</span>
+                <span className="text-[9px] uppercase text-text-muted">Pending</span>
               </div>
               <div className="bg-background/60 border border-card-border rounded-xl p-3">
                 <p className="font-display font-extrabold text-xl text-brand-red">{taskProgress.overdue}</p>
-                <span className="text-[9px] uppercase font-mono text-text-muted">Overdue</span>
+                <span className="text-[9px] uppercase text-text-muted">Overdue</span>
               </div>
             </div>
 
@@ -253,7 +253,7 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
             
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-                <h4 className="text-[10px] font-bold font-mono text-text-muted uppercase">Recent Touchpoints</h4>
+                <h4 className="text-[10px] font-bold text-text-muted uppercase">Recent Touchpoints</h4>
                 {data.recentOutcomes.length === 0 ? (
                   <p className="text-xs text-text-muted italic py-4">No recent outcomes logged.</p>
                 ) : (
@@ -278,7 +278,7 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
               </div>
 
               <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 border-l border-card-border/30 pl-4">
-                <h4 className="text-[10px] font-bold font-mono text-text-muted uppercase">Pipeline Distribution</h4>
+                <h4 className="text-[10px] font-bold text-text-muted uppercase">Pipeline Distribution</h4>
                 <div className="space-y-2 text-xs">
                   {funnelData.map((stage) => {
                     const pct = Math.round((stage.count / totalLeads) * 100);

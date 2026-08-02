@@ -274,7 +274,7 @@ export default function AutomationDashboard() {
             <div className="flex items-start justify-between">
               <div className="space-y-1">
                 <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
-                  <Cpu className="w-4.5 h-4.5 text-brand-orange" />
+                  <Cpu className="w-4.5 h-4.5 text-brand-orange-text" />
                   Sequence Automation Engine
                 </h3>
                 <p className="text-[11px] text-text-secondary leading-relaxed">
@@ -339,7 +339,7 @@ export default function AutomationDashboard() {
             <div className="flex items-start justify-between">
               <div className="space-y-1">
                 <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
-                  <RefreshCw className="w-4.5 h-4.5 text-brand-gold" />
+                  <RefreshCw className="w-4.5 h-4.5 text-brand-gold-text" />
                   Inbox Sync Engine
                 </h3>
                 <p className="text-[11px] text-text-secondary leading-relaxed">
@@ -445,7 +445,7 @@ export default function AutomationDashboard() {
 
           <Link
             href="/email-health"
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border border-card-border text-text-primary hover:border-brand-orange/40 hover:text-brand-orange transition-colors"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border border-card-border text-text-primary hover:border-brand-orange/40 hover:text-brand-orange-text transition-colors"
           >
             <ShieldCheck className="w-3.5 h-3.5" />
             View Email Health
@@ -499,7 +499,7 @@ export default function AutomationDashboard() {
                         {act.lead ? (
                           <Link 
                             href={`/leads/${act.lead.id}`}
-                            className="font-semibold text-brand-orange hover:underline block"
+                            className="font-semibold text-brand-orange-text hover:underline block"
                           >
                             {act.lead.firstName} {act.lead.lastName}
                             <span className="font-normal text-[10px] text-text-secondary block">{act.lead.company}</span>

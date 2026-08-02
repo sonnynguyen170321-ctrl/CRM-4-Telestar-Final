@@ -20,7 +20,7 @@ function pct(rate: number): string {
 
 function rateTone(rate: number, warnAt: number, badAt: number): string {
   if (rate >= badAt) return 'text-brand-red font-semibold';
-  if (rate >= warnAt) return 'text-brand-orange font-semibold';
+  if (rate >= warnAt) return 'text-brand-orange-text font-semibold';
   return 'text-text-secondary';
 }
 
@@ -169,7 +169,7 @@ export default function InboxHealthTable({
                           <button
                             type="button"
                             onClick={() => startEditingCap(row)}
-                            className="text-text-muted hover:text-brand-orange transition-colors cursor-pointer"
+                            className="text-text-muted hover:text-brand-orange-text transition-colors cursor-pointer"
                             aria-label={`Edit daily cap for ${row.email}`}
                           >
                             <Pencil className="w-3 h-3" />
@@ -195,7 +195,7 @@ export default function InboxHealthTable({
                 </td>
                 <td className="py-2.5 pr-3 text-right font-mono text-text-secondary">{pct(row.replyRate)}</td>
 
-                <td className={`py-2.5 pr-3 font-mono text-[11px] ${sync.isStale ? 'text-brand-orange' : 'text-text-secondary'}`}>
+                <td className={`py-2.5 pr-3 font-mono text-[11px] ${sync.isStale ? 'text-brand-orange-text' : 'text-text-secondary'}`}>
                   {sync.text}
                 </td>
 

@@ -137,13 +137,13 @@ export default function JobsAdminPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-card-border bg-background/25 sticky top-0 backdrop-blur-md">
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Job Info</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Queue</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Status</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Attempts</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Duration</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide">Enqueued At</th>
-                  <th className="p-4 font-bold font-mono text-[10px] text-text-muted uppercase tracking-wide"></th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Job Info</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Queue</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Status</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Attempts</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Duration</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Enqueued At</th>
+                  <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-card-border">
@@ -163,7 +163,7 @@ export default function JobsAdminPage() {
                           </div>
                         </td>
                         <td className="p-4">
-                          <span className="px-2 py-0.5 rounded bg-card-border font-mono text-[10px] text-text-secondary uppercase">
+                          <span className="px-2 py-0.5 rounded bg-card-border text-[10px] text-text-secondary uppercase">
                             {job.queueName}
                           </span>
                         </td>
@@ -191,7 +191,7 @@ export default function JobsAdminPage() {
                         <td className="p-4 text-right">
                           <button
                             onClick={() => setExpandedJobId(isExpanded ? null : job.id)}
-                            className="text-[10px] font-semibold text-brand-orange hover:underline font-mono"
+                            className="text-[10px] font-semibold text-brand-orange-text hover:underline font-mono"
                           >
                             {isExpanded ? 'Hide Details' : 'View Details'}
                           </button>
@@ -203,14 +203,14 @@ export default function JobsAdminPage() {
                           <td colSpan={7} className="p-4">
                             <div className="grid grid-cols-2 gap-4 text-xs">
                               <div className="space-y-2">
-                                <p className="font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider">Deduplication Key</p>
+                                <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Deduplication Key</p>
                                 <pre className="bg-background/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] overflow-x-auto text-text-secondary break-all">
                                   {job.dedupeKey}
                                 </pre>
 
                                 {job.bullJobId && (
                                   <>
-                                    <p className="font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider mt-3">BullMQ Job ID</p>
+                                    <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mt-3">BullMQ Job ID</p>
                                     <pre className="bg-background/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] text-text-secondary">
                                       {job.bullJobId}
                                     </pre>
@@ -221,7 +221,7 @@ export default function JobsAdminPage() {
                               <div className="space-y-2">
                                 {job.status === 'failed' && job.failedReason && (
                                   <div className="bg-brand-red/[0.03] border border-brand-red/20 rounded-xl p-3 space-y-1">
-                                    <h4 className="text-[10px] font-bold font-mono text-brand-red uppercase tracking-wider flex items-center gap-1">
+                                    <h4 className="text-[10px] font-bold text-brand-red uppercase tracking-wider flex items-center gap-1">
                                       <AlertCircle className="w-3.5 h-3.5" />
                                       Failed Reason
                                     </h4>
@@ -233,7 +233,7 @@ export default function JobsAdminPage() {
 
                                 {job.progress && (
                                   <div>
-                                    <p className="font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Execution Progress</p>
+                                    <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Execution Progress</p>
                                     <pre className="bg-background/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] overflow-x-auto text-text-secondary">
                                       {JSON.stringify(job.progress, null, 2)}
                                     </pre>
@@ -242,7 +242,7 @@ export default function JobsAdminPage() {
 
                                 {job.result && (
                                   <div>
-                                    <p className="font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Job Result</p>
+                                    <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Job Result</p>
                                     <pre className="bg-background/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] overflow-x-auto text-text-secondary">
                                       {JSON.stringify(job.result, null, 2)}
                                     </pre>

@@ -45,7 +45,7 @@ export default function CampaignOverview({
             label: 'Total Meetings Booked',
             value: totalMeetings,
             Icon: Award,
-            color: 'text-brand-gold',
+            color: 'text-brand-gold-text',
             bg: 'bg-brand-gold/10',
             border: 'border-brand-gold/20',
           },
@@ -69,14 +69,14 @@ export default function CampaignOverview({
             label: 'Active Campaigns',
             value: activeCount,
             Icon: BarChart3,
-            color: 'text-brand-orange',
+            color: 'text-brand-orange-text',
             bg: 'bg-brand-orange/10',
             border: 'border-brand-orange/20',
           },
         ].map(({ label, value, Icon, color, bg, border }) => (
           <div key={label} className="stagger-child glass-card rounded-2xl p-4 hover-lift flex items-center justify-between group">
             <div className="space-y-1">
-              <span className="text-[10px] uppercase font-bold text-text-muted font-mono tracking-wider">{label}</span>
+              <span className="text-[10px] uppercase font-bold text-text-muted tracking-wider">{label}</span>
               <p className={`font-display font-extrabold text-2xl ${color}`}>{value}</p>
             </div>
             <div className={`w-10 h-10 rounded-xl ${bg} border ${border} flex items-center justify-center ${color} group-hover:scale-110 transition-transform`}>
@@ -98,7 +98,7 @@ export default function CampaignOverview({
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left border-collapse">
             <thead>
-              <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold font-mono tracking-wider text-text-muted">
+              <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
                 <th className="p-3 w-16 text-center">Status</th>
                 <th className="p-3">Campaign Name</th>
                 <th className="p-3">Client</th>
@@ -126,7 +126,7 @@ export default function CampaignOverview({
                       <span
                         className={`inline-block w-2.5 h-2.5 rounded-full border ${
                           camp.isActive
-                            ? 'bg-green-500 border-green-400 shadow-[0_0_6px_rgba(34,197,94,0.4)]'
+                            ? 'bg-green-500 border-green-400'
                             : 'bg-zinc-600 border-zinc-500'
                         }`}
                         title={camp.isActive ? 'Active' : 'Paused'}
@@ -138,13 +138,13 @@ export default function CampaignOverview({
                     <td className="p-3 font-mono text-[10px] text-text-muted">
                       {camp.client.name}
                     </td>
-                    <td className="p-3 text-center font-bold font-mono text-brand-gold bg-brand-gold/[0.01]">
+                    <td className="p-3 text-center font-bold font-mono text-brand-gold-text bg-brand-gold/[0.01]">
                       {camp.meetingsBooked}
                     </td>
                     <td className="p-3 text-center font-medium font-mono">
                       {camp.contactsTouched}
                     </td>
-                    <td className="p-3 text-center font-bold font-mono text-brand-orange">
+                    <td className="p-3 text-center font-bold font-mono text-brand-orange-text">
                       {camp.replyRate}%
                     </td>
                     <td className="p-3 text-right">

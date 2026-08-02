@@ -85,10 +85,10 @@ export default function DirectorPage() {
       <div className="glass-card rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-card-border bg-background/25 flex items-center justify-between">
           <h2 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
-            <ClipboardList className="w-5 h-5 text-brand-orange" />
+            <ClipboardList className="w-5 h-5 text-brand-orange-text" />
             <span>My Tasks — Prep &amp; Follow-ups</span>
           </h2>
-          <Link href="/" className="text-[11px] font-semibold text-brand-orange hover:underline flex items-center gap-1">
+          <Link href="/" className="text-[11px] font-semibold text-brand-orange-text hover:underline flex items-center gap-1">
             Full task dashboard <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
@@ -105,7 +105,7 @@ export default function DirectorPage() {
                     {t.lead && (
                       <button
                         onClick={() => setSelectedLeadId(t.lead!.id)}
-                        className="text-xs text-text-muted hover:text-brand-orange truncate"
+                        className="text-xs text-text-muted hover:text-brand-orange-text truncate"
                       >
                         {t.lead.firstName} {t.lead.lastName ?? ''}
                         {t.lead.company ? ` · ${t.lead.company}` : ''}
@@ -143,11 +143,11 @@ export default function DirectorPage() {
         >
           <div>
             <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-brand-orange" /> Floor → Team → SDR
+              <BarChart3 className="w-5 h-5 text-brand-orange-text" /> Floor → Team → SDR
             </h3>
             <p className="text-xs text-text-muted mt-1">Campaigns, performance, rep progress, and meetings org-wide.</p>
           </div>
-          <ArrowRight className="w-5 h-5 text-text-muted group-hover:text-brand-orange transition-colors" />
+          <ArrowRight className="w-5 h-5 text-text-muted group-hover:text-brand-orange-text transition-colors" />
         </Link>
         <Link
           href="/leads"
@@ -155,11 +155,11 @@ export default function DirectorPage() {
         >
           <div>
             <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
-              <Users className="w-5 h-5 text-brand-orange" /> All Leads
+              <Users className="w-5 h-5 text-brand-orange-text" /> All Leads
             </h3>
             <p className="text-xs text-text-muted mt-1">The full org-wide pipeline — every account and stage.</p>
           </div>
-          <ArrowRight className="w-5 h-5 text-text-muted group-hover:text-brand-orange transition-colors" />
+          <ArrowRight className="w-5 h-5 text-text-muted group-hover:text-brand-orange-text transition-colors" />
         </Link>
       </div>
 

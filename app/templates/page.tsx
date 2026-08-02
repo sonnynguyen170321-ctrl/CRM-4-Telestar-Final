@@ -436,7 +436,7 @@ export default function TemplatesPage() {
                   {getChannelIcon(temp.channel)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <span className="bg-card-border/50 text-text-secondary text-[8px] font-extrabold px-1.5 py-0.5 rounded font-mono uppercase">
+                  <span className="bg-card-border/50 text-text-secondary text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase">
                     {temp.category}
                   </span>
                   <h4 className="font-display font-bold text-xs text-text-primary mt-1.5 truncate">
@@ -511,7 +511,7 @@ export default function TemplatesPage() {
                   <div className="space-y-4 text-xs">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">
+                        <label className="text-[10px] font-bold text-text-muted uppercase block">
                           Template Name
                         </label>
                         <input
@@ -522,7 +522,7 @@ export default function TemplatesPage() {
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">
+                        <label className="text-[10px] font-bold text-text-muted uppercase block">
                           Category Tag
                         </label>
                         <input
@@ -535,7 +535,7 @@ export default function TemplatesPage() {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">
+                      <label className="text-[10px] font-bold text-text-muted uppercase block">
                         Channel Route
                       </label>
                       <select
@@ -552,7 +552,7 @@ export default function TemplatesPage() {
 
                     {channel === 'email' && (
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">
+                        <label className="text-[10px] font-bold text-text-muted uppercase block">
                           Email Subject
                         </label>
                         <input
@@ -570,7 +570,7 @@ export default function TemplatesPage() {
                         onClick={() => setAbOpen(!abOpen)}
                         className="w-full flex items-center justify-between px-3 py-2 bg-background/50 hover:bg-background/80 transition-colors"
                       >
-                        <span className="text-[10px] font-bold font-mono text-text-muted uppercase flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-text-muted uppercase flex items-center gap-1.5">
                           <span className="text-xs">A/B</span> Testing
                           {abVariants.length > 0 && (
                             <span className="bg-brand-red/10 text-brand-red text-[8px] font-extrabold px-1.5 py-0.5 rounded-full">
@@ -600,7 +600,7 @@ export default function TemplatesPage() {
                               className="bg-background/50 border border-card-border rounded-lg p-3 space-y-1.5"
                             >
                               <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-bold font-mono text-brand-red uppercase">
+                                <span className="text-[10px] font-bold text-brand-red uppercase">
                                   Variant {v.version}
                                 </span>
                                 <button
@@ -629,7 +629,7 @@ export default function TemplatesPage() {
 
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-[10px] font-bold font-mono text-text-muted uppercase block">
+                        <label className="text-[10px] font-bold text-text-muted uppercase block">
                           Message Body
                         </label>
                         <div className="flex flex-wrap gap-1 justify-end">
@@ -723,7 +723,7 @@ export default function TemplatesPage() {
                           {/* Attachments Section */}
                           <div className="border border-card-border rounded-xl p-3 bg-background/30 space-y-3">
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-bold font-mono text-text-muted uppercase">Template Attachments</span>
+                              <span className="text-[10px] font-bold text-text-muted uppercase">Template Attachments</span>
                               <label className="cursor-pointer px-2 py-1 bg-background hover:bg-card-border/40 border border-card-border rounded text-[9px] font-bold font-mono text-text-secondary transition-colors">
                                 {uploading ? 'Uploading...' : '+ Attach File'}
                                 <input
@@ -744,7 +744,7 @@ export default function TemplatesPage() {
                                     <div className="flex items-center gap-1.5 min-w-0">
                                       <span className="text-xs">📎</span>
                                       <span className="font-medium text-text-primary truncate" title={att.name}>{att.name}</span>
-                                      <span className="text-[8px] text-text-muted font-mono uppercase">({att.contentType.split('/')[1] || att.contentType})</span>
+                                      <span className="text-[8px] text-text-muted uppercase">({att.contentType.split('/')[1] || att.contentType})</span>
                                     </div>
                                     <button
                                       type="button"
@@ -774,7 +774,7 @@ export default function TemplatesPage() {
                       {channel === 'email' && (
                         <div className="border-b border-card-border/60 pb-3">
                           <p className="text-text-muted">
-                            <span className="font-semibold uppercase font-mono text-[10px]">Subject: </span>
+                            <span className="font-semibold uppercase text-[10px]">Subject: </span>
                             {applyMergeFields(subject) || '(No Subject)'}
                           </p>
                         </div>
