@@ -17,9 +17,26 @@ Detailed context lives in `.claude/rules/` — Claude Code loads these automatic
 **Product spec:** `SKILL.md` — the authoritative reference for all modules, data models,
 UI requirements, and iteration patterns. Always read it before writing code.
 
-## 🔴 Active initiative — Runtime Hardening + BullMQ migration
+## 🔴 Active initiative — Deliverability / Email Health (item 4)
 
-The current primary bug-fix + update flow. Before doing correctness, sequencing, email,
+**Currently in flight.** P0–P6 are complete and green; P7a is next.
+
+1. Read **`docs/deliverability/STATUS.md`** — resume pointer (current phase, next task, blockers).
+2. Execute the next unchecked task in **`docs/deliverability/PLAN.md`**.
+3. Tick the checkbox in both files when done.
+
+> ⚠️ **`next build` is currently red** — 117 `tsc` errors and 11 failing tests, all in the
+> pre-existing `client-reports` module, none from Email Health. Repairing that is task **P7a**.
+> Full diagnosis in `docs/deliverability/STATUS.md` § Blockers.
+
+> ⚠️ **Windows env trap:** the repo path contains `&` (`Sonny & AI`), which breaks every
+> npm/npx `.bin` shim. Call entry scripts through node directly —
+> `node node_modules/prisma/build/index.js …`, `node ./node_modules/next/dist/bin/next dev`.
+> Details in `docs/deliverability/STATUS.md` § Environment gotchas.
+
+## 🟡 Runtime Hardening + BullMQ migration
+
+Complete except P10 infra provisioning. Before doing correctness, sequencing, email,
 import, or worker/runtime work:
 
 1. Read **`docs/runtime-hardening/STATUS.md`** — the resume pointer (current phase, next task, blockers).

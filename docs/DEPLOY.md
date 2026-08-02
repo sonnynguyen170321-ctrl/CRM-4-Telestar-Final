@@ -117,7 +117,12 @@ Point the host scheduler (PM2 cron module or OS `crontab`) at the cron routes wi
 */5 * * * *  curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://crm.yourdomain.com/api/cron/sequence-engine
 # inbox sync — pulls replies/bounces for connected mailboxes (every 10 min)
 */10 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://crm.yourdomain.com/api/cron/inbox-sync
+# email health — scores inboxes, writes snapshots, raises deliverability alerts (hourly)
+0 * * * *    curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://crm.yourdomain.com/api/cron/email-health
 ```
+
+The email-health pass reads only data the inbox sync has already stored, so it is safe to run
+at any offset — but it is pointless more often than hourly, since its windows are 24h and 7d.
 
 ---
 

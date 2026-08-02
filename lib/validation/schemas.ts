@@ -455,3 +455,31 @@ export const verifyShareLinkSchema = z.object({
   password: z.string().min(1).max(100).optional(),
 });
 
+// ─── Email Health / Deliverability ───────────────────────────────────────────
+
+export const emailHealthLevel = z.enum(['healthy', 'watch', 'at_risk', 'critical', 'paused']);
+export const emailHealthAlertStatus = z.enum(['open', 'acknowledged', 'resolved', 'ignored']);
+export const dnsCheckStatus = z.enum(['unknown', 'pass', 'fail', 'warning', 'manual_verified']);
+
+/**
+ * Upper bound on dailyCap. Not a provider limit — a guard so a typo cannot set a
+ * five-figure cap and torch a domain's reputation in one run.
+ */
+export const MAX_DAILY_CAP = 2000;
+
+export const updateDailyCapSchema = z.object({
+  dailyCap: z.number().int().min(1).max(MAX_DAILY_CAP),
+});
+
+export const pauseSendingSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
+
+export const manualDnsStatusSchema = z.object({
+  spfStatus: dnsCheckStatus.optional(),
+  dkimStatus: dnsCheckStatus.optional(),
+  dmarcStatus: dnsCheckStatus.optional(),
+  mxStatus: dnsCheckStatus.optional(),
+  dnsNotes: nullableShortText.optional(),
+});
+

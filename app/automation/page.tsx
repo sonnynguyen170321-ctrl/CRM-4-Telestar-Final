@@ -11,7 +11,8 @@ import {
   CheckCircle2, 
   Activity, 
   AlertCircle,
-  Edit2
+  Edit2,
+  ShieldCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAppContext } from '@/context/AppContext';
@@ -399,129 +400,56 @@ export default function AutomationDashboard() {
 
         </div>
 
-        {/* Right Hand: Active Connected Email Accounts */}
+        {/* Right Hand: pointer to the Email Health module.
+            The per-inbox table that used to live here (daily cap, usage bar,
+            last sync, inline cap editing) moved to /email-health, which is a
+            strict superset — it adds health scoring, bounce and reply rates,
+            pause/resume and alerts. Keeping a second copy here would let the
+            two drift and put cap editing in two places. */}
         <div className="col-span-7 glass-card rounded-2xl p-5 space-y-4">
           <div className="space-y-1">
             <h3 className="font-display font-extrabold text-sm text-text-primary">
-              Active Outbound Accounts & Daily Limits
+              Outbound Mailbox Capacity
             </h3>
             <p className="text-[11px] text-text-secondary">
-              Review remaining send capacity per connected SDR email address. Cap is 80 daily sends.
+              Per-inbox caps, bounce risk and sending controls now live in Email Health.
             </p>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-card-border text-[10px] uppercase text-text-secondary tracking-wider font-semibold">
-                  <th className="py-2.5">Owner / SDR</th>
-                  <th className="py-2.5">Email / Provider</th>
-                  <th className="py-2.5 text-center">Daily Cap</th>
-                  <th className="py-2.5">Last Sync</th>
-                  <th className="py-2.5 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-card-border/50">
-                {emailAccounts.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-8 text-center text-text-muted">
-                      No active connected email accounts found.
-                    </td>
-                  </tr>
-                ) : (
-                  emailAccounts.map((account) => {
-                    const dailyCap = account.dailyCap || 80;
-                    const capPercentage = Math.min(100, Math.round((account.dailySendCount / dailyCap) * 100));
-                    
-                    return (
-                      <tr key={account.id} className="group hover:bg-card-bg/20 transition-colors">
-                        <td className="py-3 font-semibold text-text-primary">
-                          {account.user.firstName} {account.user.lastName}
-                        </td>
-                        <td className="py-3">
-                          <div className="font-medium text-text-primary truncate max-w-[150px]">{account.email}</div>
-                          <div className="text-[9px] font-mono text-text-secondary uppercase">{account.provider}</div>
-                        </td>
-                        <td className="py-3 px-2">
-                          <div className="flex flex-col items-center gap-1 min-w-[80px]">
-                            {editingCapId === account.id ? (
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="number"
-                                  className="w-14 text-center bg-background border border-card-border rounded px-1 py-0.5 text-xs font-mono"
-                                  value={editCapValue}
-                                  onChange={(e) => setEditCapValue(e.target.value)}
-                                  disabled={isUpdatingCap}
-                                  autoFocus
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleUpdateCap(account.id);
-                                    if (e.key === 'Escape') setEditingCapId(null);
-                                  }}
-                                />
-                                <button
-                                  onClick={() => handleUpdateCap(account.id)}
-                                  disabled={isUpdatingCap}
-                                  className="text-green-500 hover:text-green-400 p-0.5 cursor-pointer"
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-semibold">{account.dailySendCount} / {dailyCap}</span>
-                                {isManager && (
-                                  <button
-                                    onClick={() => {
-                                      setEditingCapId(account.id);
-                                      setEditCapValue(dailyCap.toString());
-                                    }}
-                                    className="text-text-muted hover:text-text-primary p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                            <div className="w-full bg-card-border/50 h-1.5 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-300 ${
-                                  capPercentage >= 90 
-                                    ? 'bg-red-500' 
-                                    : capPercentage >= 70 
-                                      ? 'bg-brand-orange' 
-                                      : 'bg-blue-500'
-                                }`} 
-                                style={{ width: `${capPercentage}%` }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 font-mono text-[10px] text-text-secondary">
-                          {account.lastSyncAt 
-                            ? new Date(account.lastSyncAt).toLocaleString('en-US', { 
-                                month: 'short', 
-                                day: 'numeric', 
-                                hour: '2-digit', 
-                                minute: '2-digit' 
-                              })
-                            : 'Never'}
-                        </td>
-                        <td className="py-3 text-center">
-                          <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide border ${
-                            account.isActive 
-                              ? 'bg-green-500/10 text-green-400 border-green-500/20' 
-                              : 'bg-red-500/10 text-red-400 border-red-500/20'
-                          }`}>
-                            {account.isActive ? 'Active' : 'Disabled'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-xl border border-card-border p-3">
+              <span className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold font-display block">
+                Connected
+              </span>
+              <span className="text-xl font-extrabold text-text-primary font-display">
+                {emailAccounts.length}
+              </span>
+            </div>
+            <div className="rounded-xl border border-card-border p-3">
+              <span className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold font-display block">
+                Sent Today
+              </span>
+              <span className="text-xl font-extrabold text-text-primary font-display">
+                {emailAccounts.reduce((sum, a) => sum + (a.dailySendCount ?? 0), 0)}
+              </span>
+            </div>
+            <div className="rounded-xl border border-card-border p-3">
+              <span className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold font-display block">
+                Capacity
+              </span>
+              <span className="text-xl font-extrabold text-text-primary font-display">
+                {emailAccounts.reduce((sum, a) => sum + (a.dailyCap || 80), 0)}
+              </span>
+            </div>
           </div>
+
+          <Link
+            href="/email-health"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border border-card-border text-text-primary hover:border-brand-orange/40 hover:text-brand-orange transition-colors"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            View Email Health
+          </Link>
         </div>
 
       </div>

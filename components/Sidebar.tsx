@@ -24,6 +24,7 @@ import {
   Upload,
   Route,
   FileBarChart,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 
@@ -103,6 +104,9 @@ export default function Sidebar({ userRole = 'sdr' }: SidebarProps) {
           { name: 'Templates', href: '/templates', icon: FileText },
           ...(isManager ? [{ name: 'Team View', href: '/team', icon: BarChart3 }] : []),
           { name: 'Automation', href: '/automation', icon: Cpu },
+          // Everyone gets a link: managers see their whole pod, SDRs see only
+          // their own mailbox (read-only) — the API scopes it either way.
+          { name: 'Email Health', href: '/email-health', icon: ShieldCheck },
           { name: 'Settings', href: '/settings', icon: Settings },
         ];
 

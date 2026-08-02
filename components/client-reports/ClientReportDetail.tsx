@@ -23,10 +23,10 @@ import {
   Trash2,
   Mail,
   Phone,
-  Linkedin,
   MessageSquare,
   ShieldCheck,
 } from 'lucide-react';
+import Linkedin from '@/components/icons/Linkedin';
 import { ClientReportSnapshot, ReportStatus, ReportAudience } from '@/lib/client-reports/types';
 import ClientReportShareModal from './ClientReportShareModal';
 

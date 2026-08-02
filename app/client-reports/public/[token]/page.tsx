@@ -12,11 +12,11 @@ import {
   Sparkles,
   Mail,
   Phone,
-  Linkedin,
   MessageSquare,
   AlertCircle,
   ShieldCheck,
 } from 'lucide-react';
+import Linkedin from '@/components/icons/Linkedin';
 import { ClientReportSnapshot } from '@/lib/client-reports/types';
 
 export default function PublicReportViewer() {
