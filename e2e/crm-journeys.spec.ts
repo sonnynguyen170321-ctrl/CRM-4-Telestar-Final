@@ -8,10 +8,10 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
     await expect(page.locator('input[type="password"]')).toBeVisible();
   });
 
-  test.describe('1. Director Role Experience', () => {
+  // ─── 1. DIRECTOR JOURNEY ──────────────────────────────────────────────
+  test.describe('1. Director Persona Journey', () => {
     test.beforeEach(async ({ page }) => {
       await page.goto('/login');
-      // Click Demo Account or login with credentials
       const directorBtn = page.locator('button', { hasText: 'dean@telestar.vn' });
       if (await directorBtn.isVisible()) {
         await directorBtn.click();
@@ -24,33 +24,106 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
     });
 
     test('Director has full executive access across all modules', async ({ page }) => {
-      // 1. Director Cockpit
+      // Step 1: Director Cockpit
       await page.goto('/director');
       await expect(page.locator('h1', { hasText: 'Director Cockpit' })).toBeVisible();
 
-      // 2. Team View
+      // Step 2: Team View & Floor Leaderboard
       await page.goto('/team');
       await expect(page).toHaveURL(/.*team/);
 
-      // 3. Opportunities & Revenue Forecasting
+      // Step 3: Opportunities & Revenue Forecasting
       await page.goto('/opportunities');
       await expect(page).toHaveURL(/.*opportunities/);
 
-      // 4. Client Performance Reports
+      // Step 4: Client Performance Reports
       await page.goto('/client-reports');
       await expect(page).toHaveURL(/.*client-reports/);
 
-      // 5. Deliverability & Email Health
+      // Step 5: Deliverability & Email Health
       await page.goto('/email-health');
       await expect(page).toHaveURL(/.*email-health/);
 
-      // 6. Leadgen Manager Hub
+      // Step 6: Leadgen Manager Hub
       await page.goto('/leadgen-manager');
       await expect(page).toHaveURL(/.*leadgen-manager/);
     });
   });
 
-  test.describe('2. SDR Role Experience', () => {
+  // ─── 2. FLOOR MANAGER JOURNEY ─────────────────────────────────────────
+  test.describe('2. Floor Manager Persona Journey', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.goto('/login');
+      const fmBtn = page.locator('button', { hasText: 'sonny@telestar.vn' });
+      if (await fmBtn.isVisible()) {
+        await fmBtn.click();
+      } else {
+        await page.fill('input[type="email"]', 'sonny@telestar.vn');
+        await page.fill('input[type="password"]', 'telestar2026');
+        await page.click('button[type="submit"]');
+      }
+      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
+    });
+
+    test('Floor Manager accesses team supervision, meetings, and deliverability', async ({ page }) => {
+      // Step 1: Team Floor Hub
+      await page.goto('/team');
+      await expect(page).toHaveURL(/.*team/);
+
+      // Step 2: Leads Pipeline Oversight
+      await page.goto('/leads');
+      await expect(page).toHaveURL(/.*leads/);
+
+      // Step 3: Meetings & Quality Control
+      await page.goto('/meetings');
+      await expect(page).toHaveURL(/.*meetings/);
+
+      // Step 4: Deliverability Management
+      await page.goto('/email-health');
+      await expect(page).toHaveURL(/.*email-health/);
+
+      // Step 5: Leadgen Manager Data Pool
+      await page.goto('/leadgen-manager');
+      await expect(page).toHaveURL(/.*leadgen-manager/);
+    });
+  });
+
+  // ─── 3. TEAM LEAD JOURNEY ─────────────────────────────────────────────
+  test.describe('3. Team Lead Persona Journey', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.goto('/login');
+      const tlBtn = page.locator('button', { hasText: 'brandon@telestar.vn' });
+      if (await tlBtn.isVisible()) {
+        await tlBtn.click();
+      } else {
+        await page.fill('input[type="email"]', 'brandon@telestar.vn');
+        await page.fill('input[type="password"]', 'telestar2026');
+        await page.click('button[type="submit"]');
+      }
+      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
+    });
+
+    test('Team Lead supervises pod tasks and sequence executions', async ({ page }) => {
+      // Step 1: Daily Task Board
+      await page.goto('/');
+      await expect(page).toHaveURL('/');
+
+      // Step 2: Leads pipeline
+      await page.goto('/leads');
+      await expect(page).toHaveURL(/.*leads/);
+
+      // Step 3: Sequences cadences
+      await page.goto('/sequences');
+      await expect(page).toHaveURL(/.*sequences/);
+
+      // Step 4: Meetings
+      await page.goto('/meetings');
+      await expect(page).toHaveURL(/.*meetings/);
+    });
+  });
+
+  // ─── 4. SDR JOURNEY ───────────────────────────────────────────────────
+  test.describe('4. SDR Persona Journey', () => {
     test.beforeEach(async ({ page }) => {
       await page.goto('/login');
       const sdrBtn = page.locator('button', { hasText: 'lan.pham@telestar.vn' });
@@ -64,30 +137,35 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
       await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
     });
 
-    test('SDR is restricted from executive screens and sees focused workbench', async ({ page }) => {
-      // 1. Task Dashboard
+    test('SDR executes focused daily task queue and is gated from executive hubs', async ({ page }) => {
+      // Step 1: Task Dashboard
       await page.goto('/');
       await expect(page).toHaveURL('/');
 
-      // 2. Leads pipeline
+      // Step 2: Leads pipeline
       await page.goto('/leads');
       await expect(page).toHaveURL(/.*leads/);
 
-      // 3. Attempting to access Director cockpit redirects away
+      // Step 3: Meetings view
+      await page.goto('/meetings');
+      await expect(page).toHaveURL(/.*meetings/);
+
+      // Step 4: Unified Inbox
+      await page.goto('/inbox');
+      await expect(page).toHaveURL(/.*inbox/);
+
+      // Step 5: Director Cockpit Gated
       await page.goto('/director');
       await expect(page).not.toHaveURL(/.*director/);
 
-      // 4. Attempting to access Team Floor manager view redirects away
+      // Step 6: Team Floor Gated
       await page.goto('/team');
       await expect(page).not.toHaveURL(/.*team/);
-
-      // 5. Meetings view for personal booked calls
-      await page.goto('/meetings');
-      await expect(page).toHaveURL(/.*meetings/);
     });
   });
 
-  test.describe('3. Leadgen Specialist Role Experience', () => {
+  // ─── 5. LEADGEN SPECIALIST JOURNEY ────────────────────────────────────
+  test.describe('5. Leadgen Specialist Persona Journey', () => {
     test.beforeEach(async ({ page }) => {
       await page.goto('/login');
       const leadgenBtn = page.locator('button', { hasText: 'alex@telestar.vn' });
@@ -101,18 +179,19 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
       await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
     });
 
-    test('Leadgen is auto-redirected to dedicated /leadgen prospecting workbench', async ({ page }) => {
-      // Navigating to / should auto-route to /leadgen
+    test('Leadgen Specialist auto-routes to /leadgen prospecting workbench', async ({ page }) => {
+      // Step 1: Navigating to / auto-redirects to /leadgen
       await page.goto('/');
       await expect(page).toHaveURL(/.*leadgen/);
 
-      // Leadgen manager management console redirects away
+      // Step 2: Gated from manager ecosystem
       await page.goto('/leadgen-manager');
       await expect(page).not.toHaveURL(/.*leadgen-manager/);
     });
   });
 
-  test.describe('4. Leadgen Manager Role Experience', () => {
+  // ─── 6. LEADGEN MANAGER JOURNEY ───────────────────────────────────────
+  test.describe('6. Leadgen Manager Persona Journey', () => {
     test.beforeEach(async ({ page }) => {
       await page.goto('/login');
       const lgMgrBtn = page.locator('button', { hasText: 'dominic@telestar.vn' });
@@ -126,7 +205,7 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
       await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
     });
 
-    test('Leadgen Manager has access to the full 7-tab database ecosystem', async ({ page }) => {
+    test('Leadgen Manager has access to 7-tab database ecosystem', async ({ page }) => {
       await page.goto('/leadgen-manager');
       await expect(page).toHaveURL(/.*leadgen-manager/);
       await expect(page.locator('button', { hasText: 'Internal Database' })).toBeVisible();

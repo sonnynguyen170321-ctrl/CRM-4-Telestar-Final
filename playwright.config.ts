@@ -2,6 +2,10 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
+  timeout: 60000,
+  expect: {
+    timeout: 10000,
+  },
   fullyParallel: false,
   retries: 0,
   workers: 1,
@@ -18,4 +22,10 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
+  webServer: {
+    command: 'node "node_modules/next/dist/bin/next" dev -p 3000',
+    url: 'http://localhost:3000',
+    reuseExistingServer: true,
+    timeout: 120 * 1000,
+  },
 });
