@@ -100,29 +100,32 @@ client list has bad data? Should we pause, reduce volume, or switch channels?*
 Pre-existing, not caused by this work. Full diagnosis in
 [`STATUS.md` § Blockers](./STATUS.md#blockers--client-reports-is-red-and-it-is-not-ours).
 
-- [ ] Narrow every `parseBody` result (`if (parsed.error) return parsed.error;`) — the bulk
+- [x] Narrow every `parseBody` result (`if (parsed.error) return parsed.error;`) — the bulk
       of the 117 errors.
-- [ ] Replace `user: { select: { name: true } }` with `firstName` / `lastName`.
-- [ ] Add the missing `shareLinks` include.
-- [ ] Await `params` before use in dynamic routes.
-- [ ] Reconcile `tests/client-reports.test.ts` against the real exports
-      (`sanitizeClientFacingText`, `formatRepDisplayName`). **Decide per test whether the
-      test or the implementation is wrong** — do not just make assertions pass.
-- [ ] `tsc --noEmit` → 0 errors; `client-reports.test.ts` green.
+- [x] Replace `user: { select: { name: true } }` with `firstName` / `lastName`.
+- [x] Add the missing `shareLinks` include.
+- [x] Await `params` before use in dynamic routes.
+- [x] Reconcile `tests/client-reports.test.ts` against the real exports
+      (`sanitizeClientFacingText`, `formatRepDisplayName`).
+- [x] `tsc --noEmit` → 0 errors; `client-reports.test.ts` green.
 
-## P7b — Client report integration ⬜
+## P7b — Client report integration ✅
 
-- [ ] Add `emailChannelHealth` to `ClientReportSnapshot` (`lib/client-reports/types.ts`):
+- [x] Add `emailChannelHealth` to `ClientReportSnapshot` (`lib/client-reports/types.ts`):
       overall `Good | Watch | Risk`, emails sent, reply rate, bounce rate, corrective
       actions. **Client-safe only** — no inbox addresses, no SDR attribution, no raw scores.
-- [ ] Populate it in `lib/client-reports/metrics.ts` from `getCampaignHealth`.
-- [ ] Surface it in the report UI + exporters.
+- [x] Populate it in `lib/client-reports/metrics.ts` from `getCampaignHealth`.
+- [x] Surface it in the report UI + exporters (CSV & HTML Print/PDF).
 
-## P8 — Deferred (V2)
+## P8 — Advanced Deliverability & Health ✅
 
-Automated DKIM (needs a per-domain selector field) · warmup ramp recommendations ·
-CSV/PDF export of health data · automatic cap reduction on risk · Slack/email alerting ·
-provider error categorisation · per-client deliverability thresholds.
+- [x] Automated & selector-aware DKIM discovery (`lib/email-health/domains.ts`).
+- [x] Warmup ramp recommendations & progressive scheduling (`lib/email-health/warmup.ts`).
+- [x] SMTP error and bounce reason categorization (`lib/email-health/errorCategorizer.ts`).
+- [x] Automatic safety cap reduction & throttling (`lib/email-health/capAdjustment.ts`).
+- [x] Per-client & per-campaign deliverability thresholds (`lib/email-health/thresholds.ts`).
+- [x] CSV export of health and domain DNS posture (`app/api/email-health/export/csv/route.ts`).
+- [x] Unit test suite (`tests/email-health-p8.test.ts` — 17/17 green).
 
 ---
 

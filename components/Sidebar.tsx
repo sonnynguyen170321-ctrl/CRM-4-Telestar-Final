@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
@@ -38,7 +38,15 @@ const W_COLLAPSED = '56px';
 
 const isLeadgenUser = (role: string) => role === 'leadgen' || role === 'leadgen_manager';
 
-export default function Sidebar({ userRole = 'sdr' }: SidebarProps) {
+export default function Sidebar(props: SidebarProps) {
+  return (
+    <Suspense fallback={<aside className="fixed inset-y-0 left-0 z-20 flex flex-col glass-sidebar border-r border-sidebar-border w-14" />}>
+      <SidebarInner {...props} />
+    </Suspense>
+  );
+}
+
+function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { currentUser, isManager, isLeadgenManager } = useAppContext();
@@ -70,7 +78,7 @@ export default function Sidebar({ userRole = 'sdr' }: SidebarProps) {
     });
   };
 
-  const fullPath = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '');
+  const fullPath = pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : '');
 
   const navItems =
     isLeadgenUser(userRole)

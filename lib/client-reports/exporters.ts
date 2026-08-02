@@ -58,6 +58,17 @@ export function exportReportToCSV(snapshot: ClientReportSnapshot): string {
   }
   lines.push('');
 
+  // Section 4b: Email Channel Health
+  if (snapshot.emailChannelHealth) {
+    lines.push('=== EMAIL CHANNEL DELIVERABILITY & HEALTH ===');
+    lines.push(`Overall Health,${snapshot.emailChannelHealth.overall}`);
+    lines.push(`Emails Sent,${snapshot.emailChannelHealth.emailsSent}`);
+    lines.push(`Bounce Rate,${(snapshot.emailChannelHealth.bounceRate * 100).toFixed(2)}%`);
+    lines.push(`Reply Rate,${(snapshot.emailChannelHealth.replyRate * 100).toFixed(2)}%`);
+    lines.push(`Corrective Actions,${escapeCsv(snapshot.emailChannelHealth.correctiveActions.join(' | '))}`);
+    lines.push('');
+  }
+
   // Section 5: Meetings Log
   lines.push('=== MEETINGS LOG ===');
   lines.push('Company,Contact,Scheduled Date,Status,Outcome,SDR,Notes');
@@ -334,6 +345,27 @@ export function exportReportToHTML(snapshot: ClientReportSnapshot): string {
       `).join('')}
     </tbody>
   </table>
+
+  ${snapshot.emailChannelHealth ? `
+  <!-- Email Channel Health & Deliverability -->
+  <div class="section-title">Email Channel Health & Deliverability</div>
+  <div class="card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid ${snapshot.emailChannelHealth.overall === 'Good' ? '#16a34a' : snapshot.emailChannelHealth.overall === 'Watch' ? '#d97706' : '#dc2626'};">
+    <div>
+      <div style="font-weight: 700; font-size: 13px; margin-bottom: 4px;">
+        Overall Posture: <span class="badge ${snapshot.emailChannelHealth.overall === 'Good' ? 'badge-success' : snapshot.emailChannelHealth.overall === 'Watch' ? 'badge-warning' : 'badge-danger'}" style="${snapshot.emailChannelHealth.overall === 'Risk' ? 'background: #fee2e2; color: #b91c1c;' : ''}">${snapshot.emailChannelHealth.overall}</span>
+      </div>
+      <div style="font-size: 12px; color: #475569;">
+        ${snapshot.emailChannelHealth.correctiveActions.join(' ')}
+      </div>
+    </div>
+    <div style="text-align: right; min-width: 150px;">
+      <div style="font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600;">Bounce Rate</div>
+      <div style="font-size: 15px; font-weight: 700; color: #0f172a;">${(snapshot.emailChannelHealth.bounceRate * 100).toFixed(2)}%</div>
+      <div style="font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-top: 4px;">Reply Rate</div>
+      <div style="font-size: 13px; font-weight: 600; color: #0f172a;">${(snapshot.emailChannelHealth.replyRate * 100).toFixed(2)}%</div>
+    </div>
+  </div>
+  ` : ''}
 
   <!-- Meetings Log -->
   <div class="section-title">Booked Meetings & Outcomes</div>

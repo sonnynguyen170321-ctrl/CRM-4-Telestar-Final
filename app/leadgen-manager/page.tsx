@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
@@ -36,6 +36,14 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id'];
 
 export default function LeadgenManagerPage() {
+  return (
+    <Suspense fallback={null}>
+      <LeadgenManagerPageInner />
+    </Suspense>
+  );
+}
+
+function LeadgenManagerPageInner() {
   const { currentRole, isSessionLoading } = useAppContext();
   const router = useRouter();
   const searchParams = useSearchParams();

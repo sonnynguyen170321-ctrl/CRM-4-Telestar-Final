@@ -103,6 +103,63 @@ async function checkMx(domain: string, notes: string[]): Promise<DnsCheckStatus>
   }
 }
 
+export interface DomainDnsResultWithDkim extends DomainDnsResult {
+  dkimStatus: DnsCheckStatus;
+  detectedSelector?: string;
+}
+
+const COMMON_DKIM_SELECTORS = [
+  'google',
+  's1',
+  'k1',
+  'selector1',
+  'mail',
+  'default',
+  'mandrill',
+  'sendgrid',
+  'smtp',
+  'zoho',
+];
+
+/**
+ * Checks for a valid DKIM public key record on the specified selector or probes common provider selectors.
+ */
+export async function checkDkim(
+  domain: string,
+  selector?: string,
+  notes: string[] = []
+): Promise<{ status: DnsCheckStatus; selector?: string }> {
+  const selectorsToTry = selector ? [selector] : COMMON_DKIM_SELECTORS;
+
+  for (const sel of selectorsToTry) {
+    try {
+      const recordKey = `${sel}._domainkey.${domain}`;
+      const txt = flattenTxt(await withTimeout(dns.resolveTxt(recordKey), DNS_TIMEOUT_MS));
+      const dkim = txt.find((r) => r.includes('v=DKIM1') || r.includes('k=rsa') || r.includes('p='));
+
+      if (dkim) {
+        if (dkim.includes('p=') && !dkim.includes('p=;')) {
+          notes.push(`DKIM record verified on selector "${sel}"`);
+          return { status: 'pass', selector: sel };
+        } else {
+          notes.push(`DKIM record on selector "${sel}" has empty public key`);
+          return { status: 'warning', selector: sel };
+        }
+      }
+    } catch {
+      // Continue to next selector
+    }
+  }
+
+  if (selector) {
+    notes.push(`No DKIM record found on requested selector "${selector}"`);
+    return { status: 'fail' };
+  }
+
+  notes.push('No standard DKIM selector discovered automatically. Custom selector may be configured.');
+  return { status: 'unknown' };
+}
+
 /**
  * Runs all three automated checks. Never throws — an unreachable resolver yields
  * `unknown`, which the scorer treats as risky but distinguishable from `fail`.
@@ -117,6 +174,33 @@ export async function checkDomainDns(domain: string): Promise<DomainDnsResult> {
   ]);
 
   return { spfStatus, dmarcStatus, mxStatus, notes, checkedAt: new Date() };
+}
+
+/**
+ * Runs SPF, DMARC, MX, and selector-aware DKIM DNS verification.
+ */
+export async function checkDomainDnsWithDkim(
+  domain: string,
+  dkimSelector?: string
+): Promise<DomainDnsResultWithDkim> {
+  const notes: string[] = [];
+
+  const [spfStatus, dmarcStatus, mxStatus, dkimRes] = await Promise.all([
+    checkSpf(domain, notes),
+    checkDmarc(domain, notes),
+    checkMx(domain, notes),
+    checkDkim(domain, dkimSelector, notes),
+  ]);
+
+  return {
+    spfStatus,
+    dmarcStatus,
+    mxStatus,
+    dkimStatus: dkimRes.status,
+    detectedSelector: dkimRes.selector,
+    notes,
+    checkedAt: new Date(),
+  };
 }
 
 /** Rejects obviously invalid input before it reaches the resolver. */

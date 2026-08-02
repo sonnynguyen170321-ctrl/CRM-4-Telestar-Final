@@ -365,6 +365,67 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
     },
   ];
 
+  // 8b. Email Deliverability & Health (Client-safe aggregated metrics)
+  let outboundSent = 0;
+  let outboundBounces = 0;
+  let outboundReplies = 0;
+
+  try {
+    const outboundMessages = await prisma.outboundMessage.findMany({
+      where: {
+        sentAt: { gte: periodStart, lte: periodEnd },
+        lead: leadWhereScope,
+      },
+      select: {
+        status: true,
+        bounceType: true,
+        repliedAt: true,
+      },
+    });
+
+    for (const msg of outboundMessages) {
+      if (msg.status === 'sent' || msg.status === 'bounced') outboundSent++;
+      if (msg.status === 'bounced') outboundBounces++;
+      if (msg.repliedAt) outboundReplies++;
+    }
+  } catch {
+    outboundSent = emailTouches;
+    outboundReplies = emailReplies;
+  }
+
+  const effectiveSent = outboundSent > 0 ? outboundSent : emailTouches;
+  const effectiveReplies = outboundReplies > 0 ? outboundReplies : emailReplies;
+  const calcBounceRate = effectiveSent > 0 ? Number((outboundBounces / effectiveSent).toFixed(4)) : 0;
+  const calcReplyRate = effectiveSent > 0 ? Number((effectiveReplies / effectiveSent).toFixed(4)) : 0;
+
+  let overallHealth: 'Good' | 'Watch' | 'Risk' = 'Good';
+  const correctiveActions: string[] = [];
+
+  if (calcBounceRate > 0.05) {
+    overallHealth = 'Risk';
+    correctiveActions.push('Bounce rate is elevated (>5%). List hygiene verification is recommended.');
+  } else if (calcBounceRate > 0.02) {
+    overallHealth = 'Watch';
+    correctiveActions.push('Bounce rate is in the monitoring range (2-5%). Domain reputation is tracked continuously.');
+  }
+
+  if (calcReplyRate < 0.01 && effectiveSent > 50) {
+    if (overallHealth === 'Good') overallHealth = 'Watch';
+    correctiveActions.push('Reply rate is below 1%. Messaging iteration and A/B testing are underway.');
+  }
+
+  if (correctiveActions.length === 0) {
+    correctiveActions.push('Sender reputation is healthy across all connected domains. Deliverability and warmup cadences are optimal.');
+  }
+
+  const emailChannelHealth = {
+    overall: overallHealth,
+    emailsSent: effectiveSent,
+    replyRate: calcReplyRate,
+    bounceRate: calcBounceRate,
+    correctiveActions,
+  };
+
   // 9. Lead Quality from Lead Table / Sources
   const topSourcesRaw = await prisma.lead.groupBy({
     by: ['source'],

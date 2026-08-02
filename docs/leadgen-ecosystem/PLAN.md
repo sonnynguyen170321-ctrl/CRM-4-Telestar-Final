@@ -14,8 +14,8 @@ Goal: explicit `leadgen_manager` role + internal lead pool + campaign routing + 
 | 3 | lib/leadgen service layer | DONE |
 | 4 | `/api/leadgen-pool` routes + worker pool-import branch | DONE |
 | 5 | Sidebar / Topbar / login / settings / AppContext / redirects | DONE |
-| 6 | `/leadgen-manager` console UI | IN PROGRESS |
-| 7 | Tests + lint + typecheck + build | PENDING |
+| 6 | `/leadgen-manager` console UI | DONE |
+| 7 | Tests + lint + typecheck + build | DONE |
 
 ## Required deviations from source doc
 
@@ -54,13 +54,13 @@ Goal: explicit `leadgen_manager` role + internal lead pool + campaign routing + 
 
 ## Acceptance (done criteria per doc §15)
 
-- [ ] `leadgen_manager` is a real role
-- [ ] Leadgen Manager manages leadgen members
-- [ ] Imported raw leads stored without campaign/SDR assignment (LeadPoolItem)
-- [ ] Pool dedupes + qualifies
-- [ ] Qualified leads assigned to campaign
-- [ ] Qualified leads converted into SDR-owned `Lead`
-- [ ] Qualified leads exported as CSV
-- [ ] Lead supply visible by campaign (requirements progress)
-- [ ] SDRs only see converted leads assigned to them
-- [ ] Leadgen activity logged
+- [x] `leadgen_manager` is a real role
+- [x] Leadgen Manager manages leadgen members
+- [x] Imported raw leads stored without campaign/SDR assignment (LeadPoolItem)
+- [x] Pool dedupes + qualifies
+- [x] Qualified leads assigned to campaign
+- [x] Qualified leads converted into SDR-owned `Lead`
+- [x] Qualified leads exported as CSV
+- [x] Lead supply visible by campaign (requirements progress)
+- [x] SDRs only see converted leads assigned to them
+- [x] Leadgen activity logged

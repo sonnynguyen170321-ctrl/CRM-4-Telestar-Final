@@ -59,6 +59,13 @@ export interface ClientReportSnapshot {
     meetingsBooked: number;
     conversionRate: number;
   }>;
+  emailChannelHealth?: {
+    overall: 'Good' | 'Watch' | 'Risk';
+    emailsSent: number;
+    replyRate: number;
+    bounceRate: number;
+    correctiveActions: string[];
+  };
   leadQuality: {
     imported?: number;
     validated?: number;

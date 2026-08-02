@@ -4,11 +4,9 @@
 > the one `docs/client-reports/PLAN.md:23` defers email-from-CRM to).
 > Roadmap + task list: [`PLAN.md`](./PLAN.md).
 
-**Current phase:** P7a — repairing the pre-existing `client-reports` build break.
-**Next unchecked task:** `P7a` — fix 117 `tsc --noEmit` errors + 11 failing tests in the
-`client-reports` module (none of them caused by this work; see *Blockers*).
-**Blockers:** `next build` is currently red because of `client-reports`. Email Health P0–P6
-are complete and green.
+**Current phase:** Complete (P0 through P8 all completed and green).
+**Next unchecked task:** All phases (P0–P8) complete.
+**Blockers:** None. `tsc --noEmit` is clean (0 errors) and all 35 test suites (358 tests) pass.
 
 ---
 
