@@ -82,6 +82,38 @@ export const updateTaskSchema = z.object({
   outcome: nullableText(100).optional(),
 });
 
+export const bulkTaskAction = z.enum(['complete', 'skip', 'reschedule', 'reassign', 'note']);
+
+/**
+ * Bulk task action. Every action is applied per task with the same access checks and
+ * activity logging as the single-task PUT — bulk is a convenience, never a shortcut
+ * past scoping or the audit trail.
+ */
+export const bulkTaskActionSchema = z
+  .object({
+    taskIds: z.array(id).min(1).max(200),
+    action: bulkTaskAction,
+    /** reschedule */
+    dueDate: isoDate.optional(),
+    /** reassign */
+    userId: id.optional(),
+    /** note, and the optional shared outcome for complete */
+    note: nullableLongText.optional(),
+    outcome: nullableText(100).optional(),
+  })
+  .refine((v) => v.action !== 'reschedule' || !!v.dueDate, {
+    message: 'dueDate is required to reschedule',
+    path: ['dueDate'],
+  })
+  .refine((v) => v.action !== 'reassign' || !!v.userId, {
+    message: 'userId is required to reassign',
+    path: ['userId'],
+  })
+  .refine((v) => v.action !== 'note' || !!v.note, {
+    message: 'note is required',
+    path: ['note'],
+  });
+
 // ─── Sequences ───────────────────────────────────────────────────────────────
 
 const sequenceStepSchema = z.object({

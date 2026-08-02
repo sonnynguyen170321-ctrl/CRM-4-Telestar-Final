@@ -16,6 +16,24 @@ import { buildPoolDuplicateKey } from '@/lib/leadgen/pool';
 
 const CHUNK_SIZE = 500;
 
+/**
+ * How the parse step hands work to the chunk/commit steps.
+ *
+ * The worker uses the queue-backed dispatcher (default). When Redis is
+ * unreachable the API route can run the same parse logic with an inline
+ * dispatcher (see `lib/workflows/importInline.ts`), so the import still lands
+ * instead of dying at `queue.add`.
+ */
+export interface ImportDispatcher {
+  chunk(payload: ImportChunkPayload, tenantId: string): Promise<unknown>;
+  commit(payload: ImportCommitPayload, tenantId: string): Promise<unknown>;
+}
+
+const queueDispatcher: ImportDispatcher = {
+  chunk: (payload, tenantId) => enqueue(JobType.IMPORT_CHUNK, payload, { tenantId }),
+  commit: (payload, tenantId) => enqueue(JobType.IMPORT_COMMIT, payload, { tenantId }),
+};
+
 type ExistingLead = {
   id: string;
   email: string;
@@ -194,8 +212,8 @@ async function enrichExistingLead(
   });
 }
 
-async function handleImportParse(payload: ImportParsePayload) {
-  if (payload.targetType === 'pool') return handlePoolParse(payload);
+async function handleImportParse(payload: ImportParsePayload, dispatch: ImportDispatcher = queueDispatcher) {
+  if (payload.targetType === 'pool') return handlePoolParse(payload, dispatch);
 
   const {
     batchId,
@@ -315,7 +333,7 @@ async function handleImportParse(payload: ImportParsePayload) {
   }
 
   for (let i = 0; i < chunks.length; i++) {
-    await enqueue(JobType.IMPORT_CHUNK, {
+    await dispatch.chunk({
       batchId,
       chunkIndex: i,
       rowIds: chunks[i],
@@ -326,10 +344,10 @@ async function handleImportParse(payload: ImportParsePayload) {
       tenantId,
       initialStage: sequenceId ? 'sequence_active' : initialStage ?? 'new',
       sequenceId,
-    } satisfies ImportChunkPayload, { tenantId });
+    } satisfies ImportChunkPayload, tenantId);
   }
 
-  await enqueue(JobType.IMPORT_COMMIT, { batchId } satisfies ImportCommitPayload, { tenantId });
+  await dispatch.commit({ batchId } satisfies ImportCommitPayload, tenantId);
 
   const [accepted, errored] = await Promise.all([
     prisma.importRow.count({ where: { batchId, status: { in: ['valid', 'updated', 'imported'] } } }),
@@ -418,7 +436,7 @@ async function enrichExistingPoolItem(
   });
 }
 
-async function handlePoolParse(payload: ImportParsePayload) {
+async function handlePoolParse(payload: ImportParsePayload, dispatch: ImportDispatcher = queueDispatcher) {
   const { batchId, tenantId, userId, defaultResolution, resolutions, emailQualityMode, filename } = payload;
   const mode = (emailQualityMode ?? 'recommended') as EmailQualityMode;
 
@@ -511,8 +529,7 @@ async function handlePoolParse(payload: ImportParsePayload) {
   }
 
   for (let i = 0; i < chunks.length; i++) {
-    await enqueue(
-      JobType.IMPORT_CHUNK,
+    await dispatch.chunk(
       {
         batchId,
         chunkIndex: i,
@@ -524,11 +541,11 @@ async function handlePoolParse(payload: ImportParsePayload) {
         targetType: 'pool',
         initialStage: 'new',
       } satisfies ImportChunkPayload,
-      { tenantId }
+      tenantId
     );
   }
 
-  await enqueue(JobType.IMPORT_COMMIT, { batchId } satisfies ImportCommitPayload, { tenantId });
+  await dispatch.commit({ batchId } satisfies ImportCommitPayload, tenantId);
 
   const [accepted, errored] = await Promise.all([
     prisma.importRow.count({ where: { batchId, status: { in: ['valid', 'updated', 'imported'] } } }),

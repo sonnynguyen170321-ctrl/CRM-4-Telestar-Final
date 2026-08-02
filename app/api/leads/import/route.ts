@@ -5,6 +5,9 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth, canImportExport, canAccessUser, getLeadgenScope } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { startImportWorkflow } from '@/lib/workflows/import';
+import { runImportInline, INLINE_IMPORT_MAX_ROWS } from '@/lib/workflows/importInline';
+import { isQueueReachable } from '@/lib/bullmq/health';
+import { apiError, handleApiError } from '@/lib/api/errors';
 import {
   normalizeImportRow,
   validateNormalizedImportRow,
@@ -303,45 +306,78 @@ export async function POST(req: NextRequest) {
   }
 
   const isPool = body.targetType === 'pool';
-  const importBatch = await prisma.importBatch.create({
-    data: {
-      campaignId: isPool ? null : body.campaignId!,
-      targetType: isPool ? 'pool' : 'lead',
-      userId: user.id,
-      filename: body.filename || 'import.csv',
-      totalRows: body.leads.length,
-      status: 'pending',
-      tenantId,
-    },
-  });
 
-  await prisma.importRow.createMany({
-    data: body.leads.map((row, index) => ({
+  try {
+    const importBatch = await prisma.importBatch.create({
+      data: {
+        campaignId: isPool ? null : body.campaignId!,
+        targetType: isPool ? 'pool' : 'lead',
+        userId: user.id,
+        filename: body.filename || 'import.csv',
+        totalRows: body.leads.length,
+        status: 'pending',
+        tenantId,
+      },
+    });
+
+    await prisma.importRow.createMany({
+      data: body.leads.map((row, index) => ({
+        batchId: importBatch.id,
+        rowIndex: index + 1,
+        data: normalizeImportRow(row as ImportLeadRow, { filename: body.filename }) as unknown as Prisma.InputJsonValue,
+        status: 'pending' as const,
+        tenantId,
+      })),
+    });
+
+    const parsePayload = {
       batchId: importBatch.id,
-      rowIndex: index + 1,
-      data: normalizeImportRow(row as ImportLeadRow, { filename: body.filename }) as unknown as Prisma.InputJsonValue,
-      status: 'pending' as const,
+      assignedToId: body.assignedToId || user.id,
+      campaignId: isPool ? undefined : body.campaignId!,
+      targetType: body.targetType || 'lead',
       tenantId,
-    })),
-  });
+      userId: user.id,
+      initialStage: body.sequenceId ? 'sequence_active' : body.initialStage || 'new',
+      sequenceId: body.sequenceId || undefined,
+      defaultResolution: body.defaultResolution || 'skip',
+      resolutions: body.resolutions as Record<string, ImportResolution> | undefined,
+      emailQualityMode: body.emailQualityMode || 'recommended',
+      filename: body.filename,
+    };
 
-  await startImportWorkflow({
-    batchId: importBatch.id,
-    assignedToId: body.assignedToId || user.id,
-    campaignId: isPool ? undefined : body.campaignId!,
-    targetType: body.targetType || 'lead',
-    tenantId,
-    userId: user.id,
-    initialStage: body.sequenceId ? 'sequence_active' : body.initialStage || 'new',
-    sequenceId: body.sequenceId || undefined,
-    defaultResolution: body.defaultResolution || 'skip',
-    resolutions: body.resolutions as Record<string, ImportResolution> | undefined,
-    emailQualityMode: body.emailQualityMode || 'recommended',
-    filename: body.filename,
-  });
+    // Normal path: hand the batch to the worker.
+    if (await isQueueReachable()) {
+      try {
+        await startImportWorkflow(parsePayload);
+        return NextResponse.json(
+          { batchId: importBatch.id, totalRows: body.leads.length, status: 'queued' },
+          { status: 202 }
+        );
+      } catch (err) {
+        // Redis answered the ping but the add failed — fall through to the inline path
+        // rather than leaving the batch stuck at 'pending' forever.
+        console.error('[api/leads/import POST] enqueue failed, falling back to inline import', err);
+      }
+    }
 
-  return NextResponse.json(
-    { batchId: importBatch.id, totalRows: body.leads.length, status: 'queued' },
-    { status: 202 }
-  );
+    // Degraded path: no queue. Commit small batches in-request so the import still lands.
+    if (body.leads.length > INLINE_IMPORT_MAX_ROWS) {
+      await prisma.importBatch.update({ where: { id: importBatch.id }, data: { status: 'failed' } });
+      return apiError(
+        `Import queue is offline and this file is too large to import directly (${body.leads.length} rows, limit ${INLINE_IMPORT_MAX_ROWS}). Start the background worker, or split the file, and try again.`,
+        503
+      );
+    }
+
+    const result = await runImportInline(parsePayload);
+    return NextResponse.json({
+      batchId: importBatch.id,
+      totalRows: body.leads.length,
+      status: 'imported',
+      mode: 'inline',
+      ...result,
+    });
+  } catch (err) {
+    return handleApiError('api/leads/import POST', err);
+  }
 }

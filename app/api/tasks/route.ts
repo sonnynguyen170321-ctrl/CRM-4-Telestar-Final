@@ -76,6 +76,10 @@ export async function GET(req: NextRequest) {
             crmPriorityScore: true,
             stage: true,
             tags: true,
+            // Campaign + client power the dashboard task filters.
+            campaign: {
+              select: { id: true, name: true, client: { select: { id: true, name: true } } },
+            },
           },
         },
         user: { select: { id: true, firstName: true, lastName: true } },

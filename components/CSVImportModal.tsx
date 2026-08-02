@@ -325,7 +325,16 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
       });
       if (!res.ok) throw new Error(await readApiError(res, 'Import failed'));
       const data = await res.json();
-      showToast(`Import queued: ${data.totalRows} rows. Batch ${data.batchId}`, 'success');
+      // 'inline' means the background worker was unavailable and the rows were
+      // committed during this request — report the real counts, not "queued".
+      showToast(
+        data.mode === 'inline'
+          ? `Imported ${data.imported} lead${data.imported === 1 ? '' : 's'}` +
+              (data.updated ? `, updated ${data.updated}` : '') +
+              (data.errored ? `, ${data.errored} row(s) had errors` : '')
+          : `Import queued: ${data.totalRows} rows. Batch ${data.batchId}`,
+        data.errored && !data.imported ? 'error' : 'success'
+      );
       onSuccess?.();
       onClose();
     } catch (err) {

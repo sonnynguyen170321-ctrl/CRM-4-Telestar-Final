@@ -19,6 +19,7 @@ import {
   CheckCircle,
   Briefcase,
   Zap,
+  Keyboard,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
@@ -37,6 +38,7 @@ interface TaskLead {
   priority: string;
   stage: string;
   tags?: string[];
+  campaign?: { id: string; name: string; client?: { id: string; name: string } | null } | null;
 }
 
 interface Task {
@@ -113,6 +115,25 @@ export default function DashboardPage() {
     return true;
   });
   const [overflowOpenId, setOverflowOpenId] = useState<string | null>(null);
+
+  // ── Task filters (F4A) + bulk selection (F4B) ──────────────────────────────
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [taskPriorityFilter, setTaskPriorityFilter] = useState<string>('all');
+  const [stageFilter, setStageFilter] = useState<string>('all');
+  const [campaignFilter, setCampaignFilter] = useState<string>('all');
+  const [clientFilter, setClientFilter] = useState<string>('all');
+  const [taskSearch, setTaskSearch] = useState('');
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkRescheduleDate, setBulkRescheduleDate] = useState('');
+  const [bulkReassignId, setBulkReassignId] = useState('');
+  const [bulkNoteText, setBulkNoteText] = useState('');
+  const [bulkPanel, setBulkPanel] = useState<'reschedule' | 'reassign' | 'note' | null>(null);
+
+  // ── Keyboard shortcuts & active task selection ──────────────────────────────
+  const [focusedTaskIndex, setFocusedTaskIndex] = useState<number>(0);
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
 
   const toggleStats = () => {
     setShowStats((v) => {
@@ -380,12 +401,250 @@ export default function DashboardPage() {
     return [...active, ...deferred];
   };
 
-  const visibleTasks =
+  const tabTasks =
     activeTab === 'today'
       ? orderDeferred(todayTasks.filter((t) => t.status === 'pending'))
       : activeTab === 'overdue'
       ? orderDeferred(overdueTasks)
       : yesterdayTasks;
+
+  const matchesFilters = (task: Task) => {
+    if (typeFilter !== 'all' && task.type !== typeFilter) return false;
+    if (statusFilter !== 'all' && task.status !== statusFilter) return false;
+    if (taskPriorityFilter !== 'all' && task.priority !== taskPriorityFilter) return false;
+    if (stageFilter !== 'all' && task.lead?.stage !== stageFilter) return false;
+    if (campaignFilter !== 'all' && task.lead?.campaign?.id !== campaignFilter) return false;
+    if (clientFilter !== 'all' && task.lead?.campaign?.client?.id !== clientFilter) return false;
+    if (taskSearch.trim()) {
+      const needle = taskSearch.trim().toLowerCase();
+      const haystack = [
+        task.title,
+        task.lead?.firstName,
+        task.lead?.lastName,
+        task.lead?.company,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(needle)) return false;
+    }
+    return true;
+  };
+
+  const visibleTasks = tabTasks.filter(matchesFilters);
+
+  const activeFilterCount = [
+    typeFilter !== 'all',
+    statusFilter !== 'all',
+    taskPriorityFilter !== 'all',
+    stageFilter !== 'all',
+    campaignFilter !== 'all',
+    clientFilter !== 'all',
+    !!taskSearch.trim(),
+  ].filter(Boolean).length;
+
+  const clearTaskFilters = () => {
+    setTypeFilter('all');
+    setStatusFilter('all');
+    setTaskPriorityFilter('all');
+    setStageFilter('all');
+    setCampaignFilter('all');
+    setClientFilter('all');
+    setTaskSearch('');
+  };
+
+  // Filter option lists come from the loaded tasks, so they only ever offer
+  // campaigns/clients the current user can actually see.
+  const allLoadedTasks = [...todayTasks, ...yesterdayTasks, ...overdueTasks];
+  const campaignOptions = Array.from(
+    new Map(
+      allLoadedTasks
+        .map((t) => t.lead?.campaign)
+        .filter((c): c is NonNullable<TaskLead['campaign']> => !!c)
+        .map((c) => [c.id, c])
+    ).values()
+  );
+  const clientOptions = Array.from(
+    new Map(
+      allLoadedTasks
+        .map((t) => t.lead?.campaign?.client)
+        .filter((c): c is { id: string; name: string } => !!c)
+        .map((c) => [c.id, c])
+    ).values()
+  );
+
+  const selectedTasks = visibleTasks.filter((t) => selectedTaskIds.has(t.id));
+  const allVisibleSelected = visibleTasks.length > 0 && selectedTasks.length === visibleTasks.length;
+
+  const toggleTaskSelected = (taskId: string) => {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
+
+  const toggleSelectAllVisible = () => {
+    setSelectedTaskIds(allVisibleSelected ? new Set() : new Set(visibleTasks.map((t) => t.id)));
+  };
+
+  const runBulkAction = async (
+    action: 'complete' | 'skip' | 'reschedule' | 'reassign' | 'note',
+    extra: Record<string, unknown> = {}
+  ) => {
+    const taskIds = Array.from(selectedTaskIds);
+    if (taskIds.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const res = await fetch('/api/tasks/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskIds, action, ...extra }),
+      });
+      if (!res.ok) {
+        showToast(await readApiError(res, 'Bulk action failed'), 'error');
+        return;
+      }
+      const data = await res.json();
+      const failed = Array.isArray(data.failed) ? data.failed.length : 0;
+      showToast(
+        failed > 0
+          ? `${data.updated} task(s) updated · ${failed} skipped (${data.failed[0]?.reason ?? 'not allowed'})`
+          : `${data.updated} task(s) updated`,
+        failed > 0 && data.updated === 0 ? 'error' : 'success'
+      );
+      setSelectedTaskIds(new Set());
+      setBulkPanel(null);
+      setBulkNoteText('');
+      setBulkRescheduleDate('');
+      setBulkReassignId('');
+      loadAll();
+    } catch {
+      showToast('Network error during bulk action', 'error');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  // ── Global Keyboard Shortcuts Handler ───────────────────────────────────────
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable);
+
+      // Escape always closes top-level dialogs
+      if (e.key === 'Escape') {
+        if (loggingModalOpen) {
+          setLoggingModalOpen(false);
+          setLoggingTask(null);
+          return;
+        }
+        if (rescheduleTask) {
+          setRescheduleTask(null);
+          return;
+        }
+        if (selectedLeadId) {
+          setSelectedLeadId(null);
+          return;
+        }
+        if (showShortcutsHelp) {
+          setShowShortcutsHelp(false);
+          return;
+        }
+      }
+
+      // Inside Call/Touch Logging Modal
+      if (loggingModalOpen && loggingTask) {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+          e.preventDefault();
+          const form = document.querySelector('form[data-modal="call-logger"]') as HTMLFormElement | null;
+          if (form) form.requestSubmit();
+          return;
+        }
+
+        if (!isInput && loggingTask.type === 'phone') {
+          if (e.key === '1') { e.preventDefault(); setCallOutcome('no_answer'); }
+          else if (e.key === '2') { e.preventDefault(); setCallOutcome('voicemail_left'); }
+          else if (e.key === '3') { e.preventDefault(); setCallOutcome('connected_interested'); }
+          else if (e.key === '4') { e.preventDefault(); setCallOutcome('callback_requested'); }
+          else if (e.key === '5') { e.preventDefault(); setCallOutcome('connected_meeting_booked'); }
+        }
+        return;
+      }
+
+      // If typing inside an input/textarea, do not intercept list navigation
+      if (isInput) return;
+      if (selectedLeadId || rescheduleTask || meetingPrompt) return;
+
+      // J / Down: Next task
+      if (e.key === 'j' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        setFocusedTaskIndex((prev) => {
+          if (visibleTasks.length === 0) return 0;
+          return (prev + 1) % visibleTasks.length;
+        });
+      }
+      // K / Up: Prev task
+      else if (e.key === 'k' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setFocusedTaskIndex((prev) => {
+          if (visibleTasks.length === 0) return 0;
+          return (prev - 1 + visibleTasks.length) % visibleTasks.length;
+        });
+      }
+      // Enter: Complete / Open Logger
+      else if (e.key === 'Enter' || e.key === ' ') {
+        if (visibleTasks.length > 0 && visibleTasks[focusedTaskIndex]) {
+          e.preventDefault();
+          handleTaskComplete(visibleTasks[focusedTaskIndex]);
+        }
+      }
+      // S: Skip
+      else if (e.key === 's' || e.key === 'S') {
+        if (visibleTasks.length > 0 && visibleTasks[focusedTaskIndex]) {
+          e.preventDefault();
+          handleSkip(visibleTasks[focusedTaskIndex]);
+        }
+      }
+      // X: Toggle selection checkbox
+      else if (e.key === 'x' || e.key === 'X') {
+        if (visibleTasks.length > 0 && visibleTasks[focusedTaskIndex]) {
+          e.preventDefault();
+          toggleTaskSelected(visibleTasks[focusedTaskIndex].id);
+        }
+      }
+      // L: Open lead detail panel
+      else if (e.key === 'l' || e.key === 'L') {
+        if (visibleTasks.length > 0 && visibleTasks[focusedTaskIndex]?.lead?.id) {
+          e.preventDefault();
+          setSelectedLeadId(visibleTasks[focusedTaskIndex].lead.id);
+        }
+      }
+      // ?: Toggle Shortcuts Help
+      else if (e.key === '?') {
+        e.preventDefault();
+        setShowShortcutsHelp((v) => !v);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [
+    loggingModalOpen,
+    loggingTask,
+    visibleTasks,
+    focusedTaskIndex,
+    selectedLeadId,
+    rescheduleTask,
+    meetingPrompt,
+    showShortcutsHelp,
+  ]);
 
   const sdrUsers = users.filter((u) => u.role === 'sdr' || u.role === 'leadgen');
 
@@ -414,6 +673,15 @@ export default function DashboardPage() {
               </select>
             </div>
           )}
+          <button
+            onClick={() => setShowShortcutsHelp(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-card-bg border border-card-border rounded-xl text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors"
+            title="Keyboard shortcuts (?)"
+          >
+            <Keyboard className="w-3.5 h-3.5 text-text-muted" />
+            <span className="hidden sm:inline">Shortcuts</span>
+            <kbd className="px-1 py-0.2 bg-card-border/50 text-[10px] font-mono rounded text-text-muted">?</kbd>
+          </button>
           <button
             onClick={toggleStats}
             className="flex items-center gap-1 px-3 py-1.5 bg-card-bg border border-card-border rounded-xl text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors"
@@ -459,7 +727,7 @@ export default function DashboardPage() {
               return (
                 <button
                   key={tab}
-                  onClick={() => setActiveTab(tab)}
+                  onClick={() => { setActiveTab(tab); setSelectedTaskIds(new Set()); setBulkPanel(null); }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 transition-all capitalize ${
                     activeTab === tab
                       ? 'bg-brand-red/10 text-brand-red border-brand-red/25'
@@ -481,8 +749,235 @@ export default function DashboardPage() {
             })}
           </div>
 
+          {/* Filters (F4A) */}
+          <div className="px-5 py-2.5 border-b border-card-border bg-background/10 flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={taskSearch}
+              onChange={(e) => setTaskSearch(e.target.value)}
+              placeholder="Search task or lead..."
+              className="w-52 px-2.5 py-1 text-xs bg-background border border-card-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
+            />
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="bg-background border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+            >
+              <option value="all">All channels</option>
+              <option value="phone">Call</option>
+              <option value="email">Email</option>
+              <option value="linkedin">LinkedIn</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="manual">Manual</option>
+            </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="bg-background border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+            >
+              <option value="all">Any status</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+              <option value="skipped">Skipped</option>
+            </select>
+            <select
+              value={taskPriorityFilter}
+              onChange={(e) => setTaskPriorityFilter(e.target.value)}
+              className="bg-background border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+            >
+              <option value="all">Any priority</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <select
+              value={stageFilter}
+              onChange={(e) => setStageFilter(e.target.value)}
+              className="bg-background border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+            >
+              <option value="all">Any stage</option>
+              <option value="new">New</option>
+              <option value="sequence_active">Sequence Active</option>
+              <option value="replied">Replied</option>
+              <option value="meeting_booked">Meeting Booked</option>
+              <option value="won">Won</option>
+              <option value="lost">Lost</option>
+            </select>
+            {clientOptions.length > 1 && (
+              <select
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+                className="bg-background border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+              >
+                <option value="all">All clients</option>
+                {clientOptions.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
+            {campaignOptions.length > 1 && (
+              <select
+                value={campaignFilter}
+                onChange={(e) => setCampaignFilter(e.target.value)}
+                className="bg-background border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+              >
+                <option value="all">All campaigns</option>
+                {campaignOptions.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
+            {activeFilterCount > 0 && (
+              <button
+                onClick={clearTaskFilters}
+                className="text-xs font-mono text-brand-red hover:underline whitespace-nowrap"
+              >
+                Clear {activeFilterCount} filter{activeFilterCount === 1 ? '' : 's'}
+              </button>
+            )}
+            <span className="ml-auto text-[10px] font-mono text-text-muted">
+              {visibleTasks.length} of {tabTasks.length}
+            </span>
+          </div>
+
+          {/* Bulk selection bar (F4B) */}
+          <div className="px-5 py-2 border-b border-card-border flex flex-wrap items-center gap-2 bg-background/25">
+            <label className="flex items-center gap-2 text-xs font-semibold text-text-secondary cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={toggleSelectAllVisible}
+                disabled={visibleTasks.length === 0}
+                className="w-3.5 h-3.5 accent-brand-red cursor-pointer"
+              />
+              Select all visible
+            </label>
+            {selectedTasks.length > 0 && (
+              <>
+                <span className="text-xs font-bold text-brand-red font-mono">
+                  {selectedTasks.length} selected
+                </span>
+                <button
+                  onClick={() => runBulkAction('complete')}
+                  disabled={bulkBusy}
+                  className="px-2.5 py-1 bg-green-500/10 border border-green-500/20 text-green-600 hover:bg-green-500 hover:text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                >
+                  Complete
+                </button>
+                <button
+                  onClick={() => runBulkAction('skip')}
+                  disabled={bulkBusy}
+                  className="px-2.5 py-1 bg-card-border/30 hover:bg-card-border text-text-secondary rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+                >
+                  Skip
+                </button>
+                <button
+                  onClick={() => setBulkPanel(bulkPanel === 'reschedule' ? null : 'reschedule')}
+                  disabled={bulkBusy}
+                  className="px-2.5 py-1 bg-card-border/30 hover:bg-card-border text-text-secondary rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+                >
+                  Reschedule
+                </button>
+                {isManager && (
+                  <button
+                    onClick={() => setBulkPanel(bulkPanel === 'reassign' ? null : 'reassign')}
+                    disabled={bulkBusy}
+                    className="px-2.5 py-1 bg-card-border/30 hover:bg-card-border text-text-secondary rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+                  >
+                    Reassign
+                  </button>
+                )}
+                <button
+                  onClick={() => setBulkPanel(bulkPanel === 'note' ? null : 'note')}
+                  disabled={bulkBusy}
+                  className="px-2.5 py-1 bg-card-border/30 hover:bg-card-border text-text-secondary rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+                >
+                  Add note
+                </button>
+                <button
+                  onClick={() => { setSelectedTaskIds(new Set()); setBulkPanel(null); }}
+                  className="text-xs font-mono text-text-muted hover:text-text-primary"
+                >
+                  Clear
+                </button>
+              </>
+            )}
+          </div>
+
+          {bulkPanel && selectedTasks.length > 0 && (
+            <div className="px-5 py-2.5 border-b border-card-border bg-background/40 flex flex-wrap items-center gap-2">
+              {bulkPanel === 'reschedule' && (
+                <>
+                  <input
+                    type="datetime-local"
+                    value={bulkRescheduleDate}
+                    onChange={(e) => setBulkRescheduleDate(e.target.value)}
+                    className="px-2 py-1 text-xs bg-background border border-card-border rounded-lg text-text-primary focus:outline-none focus:border-brand-red"
+                  />
+                  <button
+                    onClick={() =>
+                      runBulkAction('reschedule', { dueDate: new Date(bulkRescheduleDate).toISOString() })
+                    }
+                    disabled={!bulkRescheduleDate || bulkBusy}
+                    className="px-2.5 py-1 bg-brand-red text-white rounded-lg text-xs font-bold disabled:opacity-40"
+                  >
+                    Move {selectedTasks.length} task{selectedTasks.length === 1 ? '' : 's'}
+                  </button>
+                </>
+              )}
+              {bulkPanel === 'reassign' && (
+                <>
+                  <select
+                    value={bulkReassignId}
+                    onChange={(e) => setBulkReassignId(e.target.value)}
+                    className="bg-background border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+                  >
+                    <option value="">Choose rep...</option>
+                    {sdrUsers.map((u) => (
+                      <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => runBulkAction('reassign', { userId: bulkReassignId })}
+                    disabled={!bulkReassignId || bulkBusy}
+                    className="px-2.5 py-1 bg-brand-red text-white rounded-lg text-xs font-bold disabled:opacity-40"
+                  >
+                    Reassign {selectedTasks.length}
+                  </button>
+                </>
+              )}
+              {bulkPanel === 'note' && (
+                <>
+                  <input
+                    type="text"
+                    value={bulkNoteText}
+                    onChange={(e) => setBulkNoteText(e.target.value)}
+                    placeholder="Note added to each selected lead..."
+                    className="flex-1 min-w-[240px] px-2.5 py-1 text-xs bg-background border border-card-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
+                  />
+                  <button
+                    onClick={() => runBulkAction('note', { note: bulkNoteText })}
+                    disabled={!bulkNoteText.trim() || bulkBusy}
+                    className="px-2.5 py-1 bg-brand-red text-white rounded-lg text-xs font-bold disabled:opacity-40"
+                  >
+                    Add to {selectedTasks.length}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           <div className="divide-y divide-card-border max-h-[600px] overflow-y-auto">
-            {visibleTasks.length === 0 && (
+            {visibleTasks.length === 0 && tabTasks.length > 0 && (
+              <div className="p-10 text-center text-xs text-text-muted space-y-2">
+                <p className="font-semibold text-text-primary">No tasks match the active filters.</p>
+                <button onClick={clearTaskFilters} className="text-brand-red font-mono hover:underline">
+                  Clear filters
+                </button>
+              </div>
+            )}
+
+            {tabTasks.length === 0 && (
               <div className="p-10 text-center text-xs text-text-muted space-y-2">
                 <div className="flex justify-center text-text-muted mb-2">
                   {activeTab === 'overdue' ? <CheckCircle className="w-12 h-12" /> : <PartyPopper className="w-12 h-12" />}
@@ -497,14 +992,27 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {visibleTasks.map((task) => {
+            {visibleTasks.map((task, idx) => {
               const isHot = task.lead?.priority === 'hot';
+              const isFocused = idx === focusedTaskIndex;
               return (
                 <div
                   key={task.id}
-                  className="p-4 transition-all hover:bg-background/40 flex flex-row items-center justify-between gap-3 group"
+                  onClick={() => setFocusedTaskIndex(idx)}
+                  className={`p-4 transition-all flex flex-row items-center justify-between gap-3 group cursor-pointer ${
+                    isFocused
+                      ? 'bg-brand-red/[0.04] border-l-2 border-l-brand-red'
+                      : 'hover:bg-background/40 border-l-2 border-l-transparent'
+                  }`}
                 >
                   <div className="flex items-start gap-3 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={selectedTaskIds.has(task.id)}
+                      onChange={() => toggleTaskSelected(task.id)}
+                      aria-label={`Select task ${task.title}`}
+                      className="w-3.5 h-3.5 mt-2.5 accent-brand-red cursor-pointer flex-shrink-0"
+                    />
                     <div
                       className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${getChannelColor(task.type)}`}
                     >
@@ -781,6 +1289,7 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setLoggingModalOpen(false)} />
           <form
+            data-modal="call-logger"
             onSubmit={handleLoggingSubmit}
             className="glass-card rounded-2xl shadow-xl w-full max-w-md relative z-10 p-5 space-y-4"
           >
@@ -798,23 +1307,103 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            {/* Phone outcome — 9 options (SKILL.md §21) */}
+            {/* Phone outcome — 9 options (SKILL.md §21) with hotkeys */}
             {loggingTask.type === 'phone' && (
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-text-secondary block">
-                  Call Outcome <span className="text-brand-red">*</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-text-secondary block">
+                    Call Outcome <span className="text-brand-red">*</span>
+                  </label>
+                  <span className="text-[10px] font-mono text-text-muted">Hotkeys: [1] - [5]</span>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="col-span-2 text-[10px] font-bold text-text-muted uppercase tracking-wider mt-1">No Contact</div>
-                  <button type="button" onClick={() => setCallOutcome('no_answer')} className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-colors ${callOutcome === 'no_answer' ? 'bg-brand-red/10 border-brand-red/30 text-brand-red' : 'bg-background border-card-border text-text-secondary hover:border-brand-red/30 hover:text-text-primary'}`}>No Answer</button>
-                  <button type="button" onClick={() => setCallOutcome('voicemail_left')} className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-colors ${callOutcome === 'voicemail_left' ? 'bg-brand-red/10 border-brand-red/30 text-brand-red' : 'bg-background border-card-border text-text-secondary hover:border-brand-red/30 hover:text-text-primary'}`}>Voicemail Left</button>
-                  <button type="button" onClick={() => setCallOutcome('voicemail_not_left')} className={`col-span-2 py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-colors ${callOutcome === 'voicemail_not_left' ? 'bg-brand-red/10 border-brand-red/30 text-brand-red' : 'bg-background border-card-border text-text-secondary hover:border-brand-red/30 hover:text-text-primary'}`}>Went to Voicemail — No Message</button>
+                  <div className="col-span-2 text-[10px] font-bold text-text-muted uppercase tracking-wider mt-1 flex items-center justify-between">
+                    <span>No Contact</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCallOutcome('no_answer')}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-all flex items-center justify-between ${
+                      callOutcome === 'no_answer'
+                        ? 'bg-brand-red/10 border-brand-red/30 text-brand-red shadow-sm'
+                        : 'bg-background border-card-border text-text-secondary hover:border-brand-red/30 hover:text-text-primary'
+                    }`}
+                  >
+                    <span>No Answer</span>
+                    <kbd className="text-[9px] font-mono opacity-60 bg-card-border/40 px-1 rounded">[1]</kbd>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCallOutcome('voicemail_left')}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-all flex items-center justify-between ${
+                      callOutcome === 'voicemail_left'
+                        ? 'bg-brand-red/10 border-brand-red/30 text-brand-red shadow-sm'
+                        : 'bg-background border-card-border text-text-secondary hover:border-brand-red/30 hover:text-text-primary'
+                    }`}
+                  >
+                    <span>Voicemail Left</span>
+                    <kbd className="text-[9px] font-mono opacity-60 bg-card-border/40 px-1 rounded">[2]</kbd>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCallOutcome('voicemail_not_left')}
+                    className={`col-span-2 py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-all ${
+                      callOutcome === 'voicemail_not_left'
+                        ? 'bg-brand-red/10 border-brand-red/30 text-brand-red shadow-sm'
+                        : 'bg-background border-card-border text-text-secondary hover:border-brand-red/30 hover:text-text-primary'
+                    }`}
+                  >
+                    Went to Voicemail — No Message
+                  </button>
 
                   <div className="col-span-2 text-[10px] font-bold text-text-muted uppercase tracking-wider mt-1">Connected</div>
-                  <button type="button" onClick={() => setCallOutcome('connected_interested')} className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-colors ${callOutcome === 'connected_interested' ? 'bg-green-500/10 border-green-500/30 text-green-500' : 'bg-background border-card-border text-text-secondary hover:border-green-500/30 hover:text-text-primary'}`}>Interested</button>
-                  <button type="button" onClick={() => setCallOutcome('connected_not_interested')} className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-colors ${callOutcome === 'connected_not_interested' ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 'bg-background border-card-border text-text-secondary hover:border-amber-500/30 hover:text-text-primary'}`}>Not Interested</button>
-                  <button type="button" onClick={() => setCallOutcome('callback_requested')} className={`col-span-2 py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-colors ${callOutcome === 'callback_requested' ? 'bg-blue-500/10 border-blue-500/30 text-blue-500' : 'bg-background border-card-border text-text-secondary hover:border-blue-500/30 hover:text-text-primary'}`}>Call Back Requested</button>
-                  <button type="button" onClick={() => setCallOutcome('connected_meeting_booked')} className={`col-span-2 py-1.5 px-2 rounded-lg text-xs font-bold text-center border transition-colors ${callOutcome === 'connected_meeting_booked' ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-500 shadow-sm' : 'bg-background border-card-border text-text-secondary hover:border-emerald-500/30 hover:text-text-primary'}`}>Meeting Booked</button>
+                  <button
+                    type="button"
+                    onClick={() => setCallOutcome('connected_interested')}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-all flex items-center justify-between ${
+                      callOutcome === 'connected_interested'
+                        ? 'bg-green-500/15 border-green-500/40 text-green-500 shadow-sm'
+                        : 'bg-background border-card-border text-text-secondary hover:border-green-500/30 hover:text-text-primary'
+                    }`}
+                  >
+                    <span>Interested</span>
+                    <kbd className="text-[9px] font-mono opacity-60 bg-card-border/40 px-1 rounded">[3]</kbd>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCallOutcome('connected_not_interested')}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-all ${
+                      callOutcome === 'connected_not_interested'
+                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-500 shadow-sm'
+                        : 'bg-background border-card-border text-text-secondary hover:border-amber-500/30 hover:text-text-primary'
+                    }`}
+                  >
+                    Not Interested
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCallOutcome('callback_requested')}
+                    className={`col-span-2 py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-all flex items-center justify-between ${
+                      callOutcome === 'callback_requested'
+                        ? 'bg-blue-500/15 border-blue-500/40 text-blue-500 shadow-sm'
+                        : 'bg-background border-card-border text-text-secondary hover:border-blue-500/30 hover:text-text-primary'
+                    }`}
+                  >
+                    <span>Call Back Requested</span>
+                    <kbd className="text-[9px] font-mono opacity-60 bg-card-border/40 px-1 rounded">[4]</kbd>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCallOutcome('connected_meeting_booked')}
+                    className={`col-span-2 py-1.5 px-2 rounded-lg text-xs font-bold text-center border transition-all flex items-center justify-between ${
+                      callOutcome === 'connected_meeting_booked'
+                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-sm'
+                        : 'bg-background border-card-border text-text-secondary hover:border-emerald-500/30 hover:text-text-primary'
+                    }`}
+                  >
+                    <span>Meeting Booked</span>
+                    <kbd className="text-[9px] font-mono opacity-60 bg-card-border/40 px-1 rounded">[5]</kbd>
+                  </button>
 
                   <div className="col-span-2 text-[10px] font-bold text-text-muted uppercase tracking-wider mt-1">Bad Data</div>
                   <button type="button" onClick={() => setCallOutcome('wrong_number')} className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-colors ${callOutcome === 'wrong_number' ? 'bg-card-border/40 border-card-border text-text-primary' : 'bg-background border-card-border text-text-secondary hover:border-card-border hover:text-text-primary'}`}>Wrong Number</button>
@@ -939,7 +1528,8 @@ export default function DashboardPage() {
                 className="flex-1 py-2.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors"
               >
                 <Check className="w-4 h-4" aria-hidden="true" />
-                Submit &amp; Mark Complete
+                <span>Submit &amp; Complete</span>
+                <kbd className="text-[9px] font-mono bg-white/20 px-1 py-0.5 rounded ml-1">Ctrl+↵</kbd>
               </button>
             </div>
           </form>
@@ -986,6 +1576,72 @@ export default function DashboardPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Keyboard Shortcuts Cheat Sheet Modal */}
+      {showShortcutsHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowShortcutsHelp(false)} />
+          <div className="relative glass-card rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 border border-card-border bg-card-bg">
+            <div className="flex items-center justify-between pb-3 border-b border-card-border">
+              <div className="flex items-center gap-2">
+                <Keyboard className="w-5 h-5 text-brand-red" />
+                <h3 className="font-display font-bold text-sm text-text-primary">SDR Keyboard Shortcuts</h3>
+              </div>
+              <button
+                onClick={() => setShowShortcutsHelp(false)}
+                className="text-xs font-mono text-text-muted hover:text-text-primary"
+              >
+                ✕ Esc
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="space-y-2">
+                <div className="text-[10px] font-mono uppercase text-text-muted font-bold">Task Queue Navigation</div>
+                <div className="flex items-center justify-between py-1 border-b border-card-border/40">
+                  <span className="text-text-secondary">Next / Previous task</span>
+                  <span className="flex gap-1"><kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">J</kbd> / <kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">K</kbd> or <kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">↓</kbd> <kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">↑</kbd></span>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-card-border/40">
+                  <span className="text-text-secondary">Open task logger / Complete</span>
+                  <kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">Enter</kbd>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-card-border/40">
+                  <span className="text-text-secondary">Skip task for today</span>
+                  <kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">S</kbd>
+                </div>
+                <div className="flex items-center justify-between py-1 border-b border-card-border/40">
+                  <span className="text-text-secondary">Select checkbox (bulk mode)</span>
+                  <kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">X</kbd>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-text-secondary">Open Lead Detail slideover</span>
+                  <kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">L</kbd>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <div className="text-[10px] font-mono uppercase text-text-muted font-bold">Call Logger Modal</div>
+                <div className="flex items-center justify-between py-1 border-b border-card-border/40">
+                  <span className="text-text-secondary">Select outcome 1–5</span>
+                  <span className="flex gap-1"><kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">1</kbd>–<kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">5</kbd></span>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-text-secondary">Submit &amp; Advance</span>
+                  <kbd className="px-1.5 py-0.5 bg-card-border rounded font-mono text-text-primary">Ctrl + Enter</kbd>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowShortcutsHelp(false)}
+              className="w-full py-2 bg-brand-red text-white text-xs font-bold rounded-xl mt-2"
+            >
+              Got it!
+            </button>
+          </div>
         </div>
       )}
     </div>

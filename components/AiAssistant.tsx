@@ -26,6 +26,44 @@ function detectMemoryIntent(text: string): boolean {
   return MEMORY_TRIGGERS.some((t) => lower.includes(t));
 }
 
+const ONBOARDING_QUESTION_PROMPTS = [
+  `**Question 1 of 5:** What campaign or client are you currently working on?`,
+  `**Question 2 of 5:** Who is your ideal buyer — their job title and type of company?`,
+  `**Question 3 of 5:** In 1–2 sentences, what problem does your product or service solve for them?`,
+  `**Question 4 of 5:** What outreach channels do you use and in what order? (e.g., "LinkedIn first, then email, then WhatsApp")`,
+  `**Question 5 of 5:** Any personal preferences I should know about? (e.g., tone, things to avoid, how you like to work)`,
+];
+
+const ONBOARDING_MEMORY_KEYS = [
+  'campaign',
+  'target_buyer',
+  'value_prop',
+  'preferred_channels',
+  'preferences',
+];
+
+// After this many rejections on the same question we accept the answer and move on.
+// Without it a strict validator can trap the SDR on step 1 forever.
+const MAX_REJECTIONS_PER_STEP = 2;
+
+/**
+ * How many setup questions are already answered, derived from saved memories.
+ * Setup progress lives in the DB, not in component state — so a refresh mid-setup
+ * resumes at the next unanswered question instead of restarting at question 1.
+ */
+function countAnsweredOnboardingSteps(memories: string[]): number {
+  return ONBOARDING_MEMORY_KEYS.filter((key) =>
+    memories.some((m) => m.startsWith(`${key}: `))
+  ).length;
+}
+
+function buildOnboardingIntro(firstName: string, step: number): string {
+  if (step > 0) {
+    return `Welcome back, ${firstName}! We're ${step} of 5 questions into your setup — picking up where you left off.\n\n${ONBOARDING_QUESTION_PROMPTS[step]}`;
+  }
+  return `Hey ${firstName}! I'm your AI SDR Assistant. Before I can help you properly, I need to understand your work — just 5 quick questions.\n\n${ONBOARDING_QUESTION_PROMPTS[0]}`;
+}
+
 function getContextChips(page: string, hasLead: boolean): string[] {
   if (hasLead) return ['Best angle for this lead', 'Research this company', 'Prep me for a call', 'Write an opener'];
   if (page === '/') return ['Morning brief', 'What to focus on?', 'Summarize my day', 'Teach me SPIN'];
@@ -132,6 +170,8 @@ export default function AiAssistant() {
   const modelMenuRef = useRef<HTMLDivElement>(null);
   // Prevents React StrictMode from double-firing the memory fetch in dev
   const memoryFetchedRef = useRef(false);
+  // How many times the validator has rejected an answer for a given setup step
+  const rejectionsRef = useRef<Record<number, number>>({});
 
   const firstName = currentUser?.firstName || 'there';
 
@@ -172,7 +212,12 @@ export default function AiAssistant() {
 
       const isDone = mems.some((m) => m === 'setup_complete: true');
       setSetupComplete(isDone);
-      if (!isDone) setIsOnboarding(true);
+      if (!isDone) {
+        // Resume at the first unanswered question rather than restarting at 1.
+        const answered = countAnsweredOnboardingSteps(mems);
+        setOnboardingStep(Math.min(answered, ONBOARDING_QUESTION_PROMPTS.length - 1));
+        setIsOnboarding(true);
+      }
     }
 
     // Serve from sessionStorage cache on repeat visits — avoids cold DB hit
@@ -185,10 +230,12 @@ export default function AiAssistant() {
     } catch { /* sessionStorage unavailable */ }
 
     fetch('/api/ai/memory')
-      .then((r) => r.json())
-      .then((mems: string[]) => {
-        try { sessionStorage.setItem(cacheKey, JSON.stringify(mems)); } catch { /* ignore */ }
-        applyMemories(mems);
+      .then((r) => (r.ok ? r.json() : []))
+      .then((mems: unknown) => {
+        // A failed GET returns an error object, not an array — never cache or read that.
+        const list = Array.isArray(mems) ? (mems as string[]) : [];
+        try { sessionStorage.setItem(cacheKey, JSON.stringify(list)); } catch { /* ignore */ }
+        applyMemories(list);
       })
       .catch(() => setSetupComplete(true));
   }, [currentUserId, pathname]);
@@ -202,10 +249,10 @@ export default function AiAssistant() {
   // memory fetch and click), inject the intro message so the SDR isn't staring at blank.
   useEffect(() => {
     if (isOpen && isOnboarding && messages.length === 0) {
-      setMessages([{ role: 'assistant', content: `Hey ${firstName}! I'm your AI SDR Assistant. Before I can help you properly, I need to understand your work — just 5 quick questions.\n\n**Question 1 of 5:** What campaign or client are you currently working on?` }]);
+      setMessages([{ role: 'assistant', content: buildOnboardingIntro(firstName, onboardingStep) }]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, isOnboarding]);
+  }, [isOpen, isOnboarding, onboardingStep]);
 
   // Close model menu on outside click
   useEffect(() => {
@@ -274,42 +321,52 @@ export default function AiAssistant() {
 
     if (setupComplete === true && messages.length === 0) {
       fireMorningBriefing();
-    } else if (setupComplete === false && messages.length === 0) {
-      startOnboarding();
     }
+    // When setup is incomplete the intro effect injects the *current* question — calling
+    // startOnboarding() here would reset the step and re-ask question 1 (CRMTest F1).
 
     setTimeout(() => inputRef.current?.focus(), 100);
-    // startOnboarding is declared later in the component (TDZ) and is stable for this
-    // handler's purpose; including it would crash the dep array. Intentionally omitted.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setupComplete, messages.length, fireMorningBriefing]);
-
-  // Onboarding intro shown on first question — uses firstName so defined inside component
-  const ONBOARDING_INTRO = `Hey ${firstName}! I'm your AI SDR Assistant. Before I can help you properly, I need to understand your work — just 5 quick questions.\n\n**Question 1 of 5:** What campaign or client are you currently working on?`;
-
-  const ONBOARDING_QUESTION_PROMPTS = [
-    `**Question 1 of 5:** What campaign or client are you currently working on?`,
-    `**Question 2 of 5:** Who is your ideal buyer — their job title and type of company?`,
-    `**Question 3 of 5:** In 1–2 sentences, what problem does your product or service solve for them?`,
-    `**Question 4 of 5:** What outreach channels do you use and in what order? (e.g., "LinkedIn first, then email, then WhatsApp")`,
-    `**Question 5 of 5:** Any personal preferences I should know about? (e.g., tone, things to avoid, how you like to work)`,
-  ];
-
-  const ONBOARDING_MEMORY_KEYS = [
-    'campaign',
-    'target_buyer',
-    'value_prop',
-    'preferred_channels',
-    'preferences',
-  ];
 
   function startOnboarding() {
     setIsOnboarding(true);
     setOnboardingStep(0);
-    setMessages([{ role: 'assistant', content: ONBOARDING_INTRO }]);
+    rejectionsRef.current = {};
+    setMessages([{ role: 'assistant', content: buildOnboardingIntro(firstName, 0) }]);
+  }
+
+  /** Replace the trailing placeholder bubble with real text. Never writes undefined. */
+  function replaceLastAssistantMessage(content: string) {
+    setMessages((prev) => {
+      const updated = [...prev];
+      updated[updated.length - 1] = { role: 'assistant', content: content || 'Got it.' };
+      return updated;
+    });
+  }
+
+  /**
+   * Persist one setup answer. Returns false when the write failed so the caller can keep
+   * the SDR on the same question — silently advancing would lose the answer and send them
+   * back to question 1 on the next page load.
+   */
+  async function saveOnboardingMemory(memory: string): Promise<boolean> {
+    try {
+      const res = await fetch('/api/ai/memory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memory }),
+      });
+      bustMemCache();
+      return res.ok;
+    } catch {
+      return false;
+    }
   }
 
   async function handleOnboardingAnswer(answer: string) {
+    const step = onboardingStep;
+    const questionKey = ONBOARDING_MEMORY_KEYS[step];
+
     // Show user message + loading dots immediately
     setMessages((prev) => [
       ...prev,
@@ -319,71 +376,75 @@ export default function AiAssistant() {
     setIsStreaming(true);
 
     try {
-      const res = await fetch('/api/ai/onboarding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          questionKey: ONBOARDING_MEMORY_KEYS[onboardingStep],
-          answer,
-          firstName,
-        }),
-      });
+      let valid = true;
+      let message = 'Got it!';
 
-      const { valid, message } = await res.json() as { valid: boolean; message: string };
-
-      if (valid) {
-        // Save the validated answer as memory
-        await fetch('/api/ai/memory', {
+      try {
+        const res = await fetch('/api/ai/onboarding', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ memory: `${ONBOARDING_MEMORY_KEYS[onboardingStep]}: ${answer}` }),
-        }).then(() => bustMemCache());
-
-        const nextStep = onboardingStep + 1;
-
-        if (nextStep >= ONBOARDING_QUESTION_PROMPTS.length) {
-          // All 5 questions answered — mark setup complete
-          await fetch('/api/ai/memory', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ memory: 'setup_complete: true' }),
-          }).then(() => bustMemCache());
-
-          const fullMessage = `${message}\n\n✅ All set! I've saved your campaign context, target buyer, value prop, preferred channels, and preferences. I'll use these in every response — no need to repeat yourself.\n\nYou can say "reset my setup" any time to change anything.\n\nWhat would you like help with first?`;
-
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[updated.length - 1] = { role: 'assistant', content: fullMessage };
-            return updated;
-          });
-          setSetupComplete(true);
-          setIsOnboarding(false);
-          setOnboardingStep(0);
-        } else {
-          // Advance to the next question, show AI confirmation + next prompt
-          const fullMessage = `${message}\n\n${ONBOARDING_QUESTION_PROMPTS[nextStep]}`;
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[updated.length - 1] = { role: 'assistant', content: fullMessage };
-            return updated;
-          });
-          setOnboardingStep(nextStep);
-        }
-      } else {
-        // Answer was invalid — show the challenge, stay on same step (don't advance)
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { role: 'assistant', content: message };
-          return updated;
+          body: JSON.stringify({ questionKey, answer, firstName }),
         });
+
+        // A non-OK response (or any shape other than { valid, message }) must not block
+        // setup — treat validation as unavailable and accept the answer.
+        if (res.ok) {
+          const data = await res.json() as { valid?: unknown; message?: unknown };
+          if (typeof data?.valid === 'boolean') valid = data.valid;
+          if (typeof data?.message === 'string' && data.message.trim()) message = data.message.trim();
+        }
+      } catch {
+        // Validator unreachable — accept the answer rather than trapping the SDR.
       }
-    } catch {
-      // Fail open — don't leave the SDR stuck
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = { role: 'assistant', content: 'Got it, let\'s keep going.' };
-        return updated;
-      });
+
+      // Escape hatch: after repeated rejections, accept whatever they typed and move on.
+      if (!valid) {
+        const rejections = (rejectionsRef.current[step] ?? 0) + 1;
+        rejectionsRef.current[step] = rejections;
+        if (rejections > MAX_REJECTIONS_PER_STEP) {
+          valid = true;
+          message = "Alright — I'll take that as your answer and move on.";
+        }
+      }
+
+      if (!valid) {
+        replaceLastAssistantMessage(message);
+        return;
+      }
+
+      const saved = await saveOnboardingMemory(`${questionKey}: ${answer}`);
+      if (!saved) {
+        replaceLastAssistantMessage(
+          "I couldn't save that answer — the server rejected the write. Send it again and I'll retry."
+        );
+        return;
+      }
+
+      rejectionsRef.current[step] = 0;
+      const nextStep = step + 1;
+
+      if (nextStep >= ONBOARDING_QUESTION_PROMPTS.length) {
+        // All 5 questions answered — mark setup complete
+        const completed = await saveOnboardingMemory('setup_complete: true');
+        if (!completed) {
+          replaceLastAssistantMessage(
+            "I saved your last answer but couldn't finish setup — send anything to retry the final step."
+          );
+          return;
+        }
+
+        replaceLastAssistantMessage(
+          `${message}\n\n✅ All set! I've saved your campaign context, target buyer, value prop, preferred channels, and preferences. I'll use these in every response — no need to repeat yourself.\n\nYou can say "reset my setup" any time to change anything.\n\nWhat would you like help with first?`
+        );
+        setSetupComplete(true);
+        setIsOnboarding(false);
+        setOnboardingStep(0);
+        return;
+      }
+
+      // Advance to the next question, show AI confirmation + next prompt
+      replaceLastAssistantMessage(`${message}\n\n${ONBOARDING_QUESTION_PROMPTS[nextStep]}`);
+      setOnboardingStep(nextStep);
     } finally {
       setIsStreaming(false);
     }

@@ -193,8 +193,12 @@ export default function LeadsPage() {
   const [bulkSeqId, setBulkSeqId] = useState('');
   const [sortField, setSortField] = useState<'name' | 'company' | 'stage' | 'priority' | 'assignedTo' | 'lastContacted' | ''>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  // Archived leads are hidden by default; only managers can pull them back into view.
+  const canSeeArchived = currentRole !== 'sdr';
+  const [showArchived, setShowArchived] = useState(false);
 
   const filters = {
+    archived: canSeeArchived && showArchived,
     search: searchQuery || undefined,
     stage: stageFilter,
     priority: priorityFilter,
@@ -490,7 +494,7 @@ export default function LeadsPage() {
             </span>
             <input
               type="text"
-              placeholder="Search name, email, company..."
+              placeholder="Search full name, email, company, phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-1.5 text-xs bg-background border border-card-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
@@ -541,6 +545,25 @@ export default function LeadsPage() {
             )}
             <ChevronDown className={`w-3 h-3 transition-transform ${showExtraFilters ? 'rotate-180' : ''}`} />
           </button>
+
+          {canSeeArchived && (
+            <label
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border cursor-pointer transition-colors ${
+                showArchived
+                  ? 'bg-brand-red/10 text-brand-red border-brand-red/25'
+                  : 'bg-background border-card-border text-text-secondary hover:text-text-primary'
+              }`}
+              title="Show leads that were archived"
+            >
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+                className="w-3 h-3 accent-brand-red cursor-pointer"
+              />
+              Archived
+            </label>
+          )}
 
           {(priorityFilter !== 'all' || stageFilter !== 'all' || searchQuery || anyExtraFilter) && (
             <button

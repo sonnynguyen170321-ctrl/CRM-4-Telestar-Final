@@ -68,6 +68,7 @@ interface LeadDetail {
   vendorSource?: string | null;
   tags: string[];
   lastContactedAt?: string;
+  archivedAt?: string | null;
   sequenceId?: string | null;
   sequenceStep?: number | null;
   sequenceStatus?: 'active' | 'paused' | null;
@@ -144,7 +145,7 @@ interface LeadDetailPanelProps {
 }
 
 export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadDetailPanelProps) {
-  const { isManager } = useAppContext();
+  const { isManager, currentRole } = useAppContext();
   const [lead, setLead] = useState<LeadDetail | null>(null);
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -577,7 +578,27 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
 
   const handleArchive = async () => {
     if (!lead) return;
-    if (!window.confirm(`Archive ${lead.firstName} ${lead.lastName}? They will be hidden from the pipeline.`)) return;
+
+    // Spell out what is still open on this lead — archiving stops the sequence and
+    // hides the record, so the SDR should see the cost before confirming.
+    const openTasks = tasks.filter((t) => t.status === 'pending').length;
+    const upcomingMeetings = (lead.meetings ?? []).filter(
+      (m) => m.status === 'scheduled' || m.status === 'rescheduled'
+    ).length;
+    const impact = [
+      openTasks > 0 ? `${openTasks} open task${openTasks === 1 ? '' : 's'}` : null,
+      upcomingMeetings > 0 ? `${upcomingMeetings} upcoming meeting${upcomingMeetings === 1 ? '' : 's'}` : null,
+      lead.sequenceId ? 'an active sequence (it will be stopped)' : null,
+    ].filter(Boolean);
+
+    const warning = impact.length > 0 ? `\n\nThis lead still has ${impact.join(', ')}.` : '';
+    const confirmed = window.confirm(
+      `Archive ${lead.firstName} ${lead.lastName}?${warning}\n\n` +
+        'They will be hidden from the pipeline and search. History, meetings and reports are kept, ' +
+        'and a director can restore the lead later.'
+    );
+    if (!confirmed) return;
+
     const res = await fetch(`/api/leads/${lead.id}`, {
       method: 'DELETE',
     });
@@ -587,6 +608,18 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
       onClose();
     } else {
       showToast(await readApiError(res, 'Failed to archive lead'), 'error');
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!lead) return;
+    const res = await fetch(`/api/leads/${lead.id}/restore`, { method: 'POST' });
+    if (res.ok) {
+      showToast('Lead restored to active pipeline', 'success');
+      if (onLeadUpdate) onLeadUpdate({ ...lead, archivedAt: null });
+      onClose();
+    } else {
+      showToast(await readApiError(res, 'Failed to restore lead'), 'error');
     }
   };
 
@@ -789,13 +822,29 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
             </p>
           </div>
           <div className="flex items-center gap-1">
-            <button
-              onClick={handleArchive}
-              title="Archive lead"
-              className="px-2.5 py-1.5 text-[10px] font-semibold text-text-muted hover:text-brand-red hover:bg-brand-red/5 border border-card-border hover:border-brand-red/30 rounded-lg transition-colors font-mono flex items-center gap-1"
-            >
-              Archive
-            </button>
+            {lead.archivedAt ? (
+              currentRole === 'director' ? (
+                <button
+                  onClick={handleRestore}
+                  title="Restore lead to the active pipeline"
+                  className="px-2.5 py-1.5 text-[10px] font-semibold text-emerald-600 hover:text-white hover:bg-emerald-500 border border-emerald-500/30 rounded-lg transition-colors font-mono flex items-center gap-1"
+                >
+                  Restore
+                </button>
+              ) : (
+                <span className="px-2.5 py-1.5 text-[10px] font-semibold text-text-muted border border-card-border rounded-lg font-mono">
+                  Archived
+                </span>
+              )
+            ) : (
+              <button
+                onClick={handleArchive}
+                title="Archive lead"
+                className="px-2.5 py-1.5 text-[10px] font-semibold text-text-muted hover:text-brand-red hover:bg-brand-red/5 border border-card-border hover:border-brand-red/30 rounded-lg transition-colors font-mono flex items-center gap-1"
+              >
+                Archive
+              </button>
+            )}
             <button
               onClick={onClose}
               className="p-1.5 hover:bg-card-border/40 text-text-muted hover:text-text-primary rounded-lg transition-colors ml-1"

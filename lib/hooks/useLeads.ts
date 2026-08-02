@@ -24,6 +24,7 @@ export interface Lead {
   nextTaskType?: string | null;
   sequenceId?: string | null;
   atRisk?: boolean;
+  archivedAt?: string | null;
   tags?: string[];
   assignedTo?: { id: string; firstName: string; lastName: string };
   contact?: {
@@ -66,6 +67,7 @@ interface LeadFilters {
   tag?: string;
   dateFrom?: string;
   dateTo?: string;
+  archived?: boolean;
 }
 
 function buildQueryString(filters: LeadFilters): string {
@@ -82,6 +84,8 @@ function buildQueryString(filters: LeadFilters): string {
   if (filters.tag) params.set('tag', filters.tag);
   if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
   if (filters.dateTo) params.set('dateTo', filters.dateTo);
+  // The API ignores this for SDRs — archived leads stay hidden from them.
+  if (filters.archived) params.set('archived', 'true');
   return params.toString();
 }
 

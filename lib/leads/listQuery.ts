@@ -67,16 +67,43 @@ export function buildLeadListWhere(
     });
   }
 
-  if (filters.search) {
-    clauses.push({
-      OR: [
-        { firstName: { contains: filters.search, mode: 'insensitive' } },
-        { lastName: { contains: filters.search, mode: 'insensitive' } },
-        { company: { contains: filters.search, mode: 'insensitive' } },
-        { email: { contains: filters.search, mode: 'insensitive' } },
-      ],
-    });
+  for (const clause of buildSearchClauses(filters.search)) {
+    clauses.push(clause);
   }
 
   return { AND: clauses };
+}
+
+/** Fields a free-text lead search matches against. */
+const SEARCH_FIELDS = ['firstName', 'lastName', 'company', 'email', 'phone', 'linkedIn'] as const;
+
+/** Strip diacritics so "Nguyễn" also matches a record stored as "Nguyen". */
+function stripAccents(value: string): string {
+  // ̀-ͯ is the Unicode combining-diacritical-marks block that NFD splits out.
+  return value.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+/**
+ * Free-text search over a lead.
+ *
+ * Every whitespace-separated term must match at least one searchable field, which is
+ * what makes a full name work: "Elena Popov" requires "Elena" to match some field and
+ * "Popov" to match some field — `firstName` and `lastName` respectively. Matching the
+ * whole string against a single column (the old behaviour) returned nothing for any
+ * first-plus-last-name query. Term order does not matter, so "Popov Elena" works too.
+ */
+export function buildSearchClauses(search?: string): Prisma.LeadWhereInput[] {
+  const terms = (search ?? '').trim().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return [];
+
+  return terms.map((term) => {
+    const variants = Array.from(new Set([term, stripAccents(term)]));
+    return {
+      OR: variants.flatMap((variant) =>
+        SEARCH_FIELDS.map((field) => ({
+          [field]: { contains: variant, mode: 'insensitive' as const },
+        }))
+      ),
+    } as Prisma.LeadWhereInput;
+  });
 }
