@@ -30,10 +30,10 @@ export function exportReportToCSV(snapshot: ClientReportSnapshot): string {
 
   // Section 3: KPI Scorecard
   lines.push('=== CAMPAIGN KPI SCORECARD ===');
-  lines.push('Metric,Value');
+  lines.push('KPI,Value');
   lines.push(`Total Leads Assigned,${snapshot.kpis.totalLeadsAssigned}`);
   lines.push(`New Leads Added,${snapshot.kpis.newLeadsAdded}`);
-  lines.push(`Leads Touched,${snapshot.kpis.leadsTouched}`);
+  lines.push(`Prospects Contacted,${snapshot.kpis.leadsTouched}`);
   lines.push(`Touchpoints Completed,${snapshot.kpis.touchpointsCompleted}`);
   lines.push(`Replies Received,${snapshot.kpis.replies}`);
   lines.push(`Reply Rate,${(snapshot.kpis.replyRate * 100).toFixed(1)}%`);
@@ -359,6 +359,35 @@ export function exportReportToHTML(snapshot: ClientReportSnapshot): string {
       `).join('')}
     </tbody>
   </table>
+
+  ${snapshot.opportunities && snapshot.opportunities.length > 0 ? `
+  <!-- Opportunity Pipeline -->
+  <div class="section-title">Opportunity Pipeline</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Company</th>
+        <th>Opportunity Title</th>
+        <th>Stage</th>
+        <th>Handoff Status</th>
+        <th>Value</th>
+        <th>Next Step</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${snapshot.opportunities.map(opp => `
+        <tr>
+          <td><strong>${opp.company}</strong></td>
+          <td>${opp.title}</td>
+          <td><span class="badge badge-info">${opp.stage}</span></td>
+          <td><span class="badge ${opp.handoffStatus === 'accepted' ? 'badge-success' : 'badge-warning'}">${opp.handoffStatus}</span></td>
+          <td>${opp.value ? `$${opp.value.toLocaleString()}` : '&mdash;'}</td>
+          <td>${opp.nextStep || '&mdash;'}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+  ` : ''}
 
   <div class="footer">
     <div>Confidential &mdash; Prepared for ${snapshot.meta.clientName}</div>

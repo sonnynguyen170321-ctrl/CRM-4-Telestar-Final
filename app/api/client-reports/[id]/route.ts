@@ -22,8 +22,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       include: {
         client: { select: { id: true, name: true } },
         campaign: { select: { id: true, name: true } },
-        generatedBy: { select: { id: true, name: true, email: true } },
-        approvedBy: { select: { id: true, name: true, email: true } },
+        generatedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
         shareLinks: {
           where: { revokedAt: null },
           select: {
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({
       report: {
         ...report,
-        shareLinks: report.shareLinks.map((sl: { id: any; expiresAt: { toISOString: () => any; }; viewCount: any; lastViewedAt: { toISOString: () => any; }; createdAt: { toISOString: () => any; }; passwordHash: any; }) => ({
+        shareLinks: report.shareLinks.map((sl) => ({
           id: sl.id,
           expiresAt: sl.expiresAt?.toISOString() || null,
           viewCount: sl.viewCount,
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       },
     });
   } catch (error) {
-    return handleApiError(error, 'Failed to fetch report');
+    return handleApiError('Failed to fetch report', error);
   }
 }
 
@@ -86,8 +86,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const parsed = await parseBody(req, updateClientReportSchema);
-  if (parsed instanceof NextResponse) return parsed;
-  const body = parsed;
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   try {
     const currentSnapshot = existing.snapshotJson as unknown as ClientReportSnapshot;
@@ -116,14 +116,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       include: {
         client: { select: { id: true, name: true } },
         campaign: { select: { id: true, name: true } },
-        generatedBy: { select: { id: true, name: true, email: true } },
-        approvedBy: { select: { id: true, name: true, email: true } },
+        generatedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
 
     return NextResponse.json({ report: updated });
   } catch (error) {
-    return handleApiError(error, 'Failed to update report');
+    return handleApiError('Failed to update report', error);
   }
 }
 
@@ -155,6 +155,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return NextResponse.json({ success: true, action: 'archived', report: archived });
     }
   } catch (error) {
-    return handleApiError(error, 'Failed to delete/archive report');
+    return handleApiError('Failed to delete/archive report', error);
   }
 }

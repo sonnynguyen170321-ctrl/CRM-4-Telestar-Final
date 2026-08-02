@@ -20,8 +20,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
 
   const parsed = await parseBody(req, createShareLinkSchema);
-  if (parsed instanceof NextResponse) return parsed;
-  const body = parsed;
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   try {
     const report = await prisma.clientReport.findUnique({ where: { id } });
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
     });
   } catch (error) {
-    return handleApiError(error, 'Failed to generate share link');
+    return handleApiError('Failed to generate share link', error);
   }
 }
 
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       where: { reportId: id, revokedAt: null },
       orderBy: { createdAt: 'desc' },
       include: {
-        createdBy: { select: { name: true, email: true } },
+        createdBy: { select: { firstName: true, lastName: true, email: true } },
       },
     });
 
@@ -91,11 +91,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         lastViewedAt: sl.lastViewedAt?.toISOString() || null,
         createdAt: sl.createdAt.toISOString(),
         hasPassword: Boolean(sl.passwordHash),
-        createdByName: sl.createdBy.name || sl.createdBy.email.split('@')[0],
+        createdByName: [sl.createdBy.firstName, sl.createdBy.lastName].filter(Boolean).join(' ') || sl.createdBy.email.split('@')[0],
       })),
     });
   } catch (error) {
-    return handleApiError(error, 'Failed to fetch share links');
+    return handleApiError('Failed to fetch share links', error);
   }
 }
 
@@ -119,6 +119,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     await revokeShareLink(linkId);
     return NextResponse.json({ success: true, revokedLinkId: linkId });
   } catch (error) {
-    return handleApiError(error, 'Failed to revoke share link');
+    return handleApiError('Failed to revoke share link', error);
   }
 }

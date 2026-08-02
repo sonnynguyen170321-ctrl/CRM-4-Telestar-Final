@@ -33,6 +33,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       },
     });
   } catch (error) {
-    return handleApiError(error, 'Failed to export PDF/HTML');
+    return handleApiError('Failed to export PDF/HTML', error);
   }
 }

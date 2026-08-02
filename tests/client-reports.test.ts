@@ -144,7 +144,7 @@ describe('Client Reports Module - Unit Tests', () => {
   describe('4. Exporters (CSV & HTML Print)', () => {
     const mockSnapshot: ClientReportSnapshot = {
       meta: {
-        reportId: 'rep-test',
+        version: 'v1',
         clientId: 'client-1',
         clientName: 'Acme Enterprises',
         campaignId: 'camp-1',
@@ -160,18 +160,25 @@ describe('Client Reports Module - Unit Tests', () => {
       },
       kpis: {
         totalLeadsAssigned: 500,
+        newLeadsAdded: 50,
         leadsTouched: 450,
         touchpointsCompleted: 1200,
         replies: 45,
+        positiveReplies: 20,
         replyRate: 0.1,
+        positiveReplyRate: 0.044,
         meetingsBooked: 18,
         meetingsCompleted: 15,
         noShows: 3,
         noShowRate: 0.166,
         qualifiedMeetings: 12,
+        opportunitiesSubmitted: 12,
         clientAcceptedOpportunities: 10,
+        clientRejectedOpportunities: 2,
+        clientAcceptanceRate: 0.833,
         activePipelineValue: 150000,
         wonValue: 45000,
+        opportunityWinRate: 0.3,
       },
       funnel: [
         { stage: 'assigned', label: 'Leads Assigned', count: 500, conversionRate: 1 },
@@ -186,7 +193,15 @@ describe('Client Reports Module - Unit Tests', () => {
         { channel: 'call', label: 'Cold Calls', touchpoints: 300, replies: 10, meetingsBooked: 5, conversionRate: 0.0333 },
         { channel: 'linkedin', label: 'LinkedIn', touchpoints: 100, replies: 5, meetingsBooked: 1, conversionRate: 0.05 },
       ],
-      leads: { totalAssigned: 500, byStatus: {}, byTier: {}, qualifiedCount: 300 },
+      leadQuality: {
+        imported: 500,
+        validated: 480,
+        qualified: 300,
+        rejected: 20,
+        duplicateRate: 0.02,
+        averageEmailScore: 88,
+        topSources: [{ source: 'Apollo', qualified: 200, meetings: 12 }],
+      },
       meetings: [
         {
           id: 'mtg-1',
@@ -210,7 +225,6 @@ describe('Client Reports Module - Unit Tests', () => {
           handoffStatus: 'accepted',
           value: 50000,
           probability: 80,
-          submittedAt: '2026-07-04T10:00:00.000Z',
           nextStep: 'Legal review',
         },
       ],
@@ -222,6 +236,7 @@ describe('Client Reports Module - Unit Tests', () => {
           touchpoints: 1200,
           replies: 45,
           meetingsBooked: 18,
+          qualifiedMeetings: 12,
           acceptedOpportunities: 10,
         },
       ],

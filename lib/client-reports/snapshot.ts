@@ -63,8 +63,8 @@ export async function freezeReportSnapshot(
     include: {
       client: { select: { id: true, name: true } },
       campaign: { select: { id: true, name: true } },
-      generatedBy: { select: { id: true, name: true, email: true } },
-      approvedBy: { select: { id: true, name: true, email: true } },
+      generatedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+      approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
     },
   });
 

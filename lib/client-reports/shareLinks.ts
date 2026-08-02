@@ -7,7 +7,13 @@ export function hashToken(token: string): string {
 }
 
 export function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(`salt_crm_${password}`).digest('hex');
+  const digest = crypto.createHash('sha256').update(`crm_salt_${password}`).digest('hex');
+  return `crm_salt_${digest}`;
+}
+
+export function verifyPassword(password: string, hash: string): boolean {
+  if (!password || !hash) return false;
+  return hashPassword(password) === hash;
 }
 
 export interface CreateShareLinkOptions {
@@ -21,6 +27,15 @@ export interface CreateShareLinkOptions {
 export async function createShareLink(options: CreateShareLinkOptions): Promise<{ token: string; shareLink: any }> {
   const { reportId, createdById, expiresAt, password } = options;
 
+  let tenantId = options.tenantId;
+  if (!tenantId) {
+    const report = await prisma.clientReport.findUnique({
+      where: { id: reportId },
+      select: { tenantId: true },
+    });
+    tenantId = report?.tenantId || '';
+  }
+
   // Generate 32-byte cryptographically secure random token
   const rawToken = crypto.randomBytes(32).toString('hex');
   const tokenHash = hashToken(rawToken);
@@ -33,9 +48,10 @@ export async function createShareLink(options: CreateShareLinkOptions): Promise<
       expiresAt: expiresAt ?? null,
       passwordHash,
       createdById,
+      tenantId,
     },
     include: {
-      createdBy: { select: { id: true, name: true, email: true } },
+      createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
     },
   });
 

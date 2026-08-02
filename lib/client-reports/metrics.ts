@@ -83,7 +83,7 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
       channel: true,
       leadId: true,
       userId: true,
-      user: { select: { id: true, name: true, email: true } },
+      user: { select: { id: true, firstName: true, lastName: true, email: true } },
       metadata: true,
     },
   });
@@ -119,8 +119,9 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
 
     if (act.userId && act.user) {
       if (!repActivityMap.has(act.userId)) {
+        const userName = [act.user.firstName, act.user.lastName].filter(Boolean).join(' ') || act.user.email.split('@')[0];
         repActivityMap.set(act.userId, {
-          name: act.user.name || act.user.email.split('@')[0],
+          name: userName,
           touches: 0,
           replies: 0,
           leadIds: new Set(),
@@ -175,8 +176,8 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
       },
     },
     include: {
-      lead: { select: { company: true, contactName: true, contactTitle: true } },
-      bookedBy: { select: { id: true, name: true, email: true } },
+      lead: { select: { company: true, firstName: true, lastName: true, title: true } },
+      sdr: { select: { id: true, firstName: true, lastName: true, email: true } },
     },
     orderBy: { scheduledAt: 'desc' },
   });
@@ -189,26 +190,27 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
   const meetingList = meetings.map((m, idx) => {
     if (m.status === 'completed') meetingsCompleted++;
     if (m.status === 'no_show') noShows++;
-    if (m.outcome === 'qualified_opportunity' || m.outcome === 'qualified') qualifiedMeetings++;
+    if (m.outcome === 'qualified_opportunity') qualifiedMeetings++;
 
     // Attribution to rep
-    if (m.bookedById && repActivityMap.has(m.bookedById)) {
-      repActivityMap.get(m.bookedById)!.meetingsBooked++;
-      if (m.outcome === 'qualified_opportunity' || m.outcome === 'qualified') {
-        repActivityMap.get(m.bookedById)!.qualifiedMeetings++;
+    if (m.sdrId && repActivityMap.has(m.sdrId)) {
+      repActivityMap.get(m.sdrId)!.meetingsBooked++;
+      if (m.outcome === 'qualified_opportunity') {
+        repActivityMap.get(m.sdrId)!.qualifiedMeetings++;
       }
     }
 
-    const sdrName = m.bookedBy?.name || m.bookedBy?.email?.split('@')[0] || 'SDR';
+    const sdrName = [m.sdr?.firstName, m.sdr?.lastName].filter(Boolean).join(' ') || m.sdr?.email?.split('@')[0] || 'SDR';
+    const contactName = [m.lead?.firstName, m.lead?.lastName].filter(Boolean).join(' ') || undefined;
     return {
       id: m.id,
       company: m.lead?.company || 'Unknown Company',
-      contactName: m.lead?.contactName || undefined,
-      contactTitle: m.lead?.contactTitle || undefined,
+      contactName,
+      contactTitle: m.lead?.title || undefined,
       scheduledAt: m.scheduledAt ? m.scheduledAt.toISOString() : new Date().toISOString(),
       status: m.status,
       outcome: m.outcome || undefined,
-      summaryNotes: sanitizeClientFacingText(m.outcomeNotes || m.instructions),
+      summaryNotes: sanitizeClientFacingText(m.outcomeNotes),
       nextStep: sanitizeClientFacingText(m.nextStep),
       sdrDisplayName: formatRepDisplayName(sdrName, audience, sdrDisplayMode, idx),
     };

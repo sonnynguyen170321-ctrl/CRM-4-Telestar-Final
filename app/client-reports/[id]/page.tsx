@@ -23,8 +23,8 @@ export default async function ClientReportDetailPage({ params }: PageProps) {
     include: {
       client: { select: { id: true, name: true } },
       campaign: { select: { id: true, name: true } },
-      generatedBy: { select: { id: true, name: true, email: true } },
-      approvedBy: { select: { id: true, name: true, email: true } },
+      generatedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+      approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
     },
   });
 
@@ -38,6 +38,18 @@ export default async function ClientReportDetailPage({ params }: PageProps) {
 
   const serializedReport = {
     ...report,
+    generatedBy: {
+      id: report.generatedBy.id,
+      name: [report.generatedBy.firstName, report.generatedBy.lastName].filter(Boolean).join(' ') || report.generatedBy.email.split('@')[0],
+      email: report.generatedBy.email,
+    },
+    approvedBy: report.approvedBy
+      ? {
+          id: report.approvedBy.id,
+          name: [report.approvedBy.firstName, report.approvedBy.lastName].filter(Boolean).join(' ') || report.approvedBy.email.split('@')[0],
+          email: report.approvedBy.email,
+        }
+      : null,
     periodStart: report.periodStart.toISOString(),
     periodEnd: report.periodEnd.toISOString(),
     approvedAt: report.approvedAt?.toISOString() || null,

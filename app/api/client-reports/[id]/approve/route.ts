@@ -27,6 +27,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ report, success: true });
   } catch (error) {
-    return handleApiError(error, 'Failed to approve report');
+    return handleApiError('Failed to approve report', error);
   }
 }

@@ -12,8 +12,8 @@ export async function POST(req: NextRequest) {
   const user = userOrRes as SessionUser;
 
   const parsed = await parseBody(req, previewClientReportSchema);
-  if (parsed instanceof NextResponse) return parsed;
-  const body = parsed;
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   try {
     const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email.split('@')[0];
@@ -31,6 +31,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ snapshot });
   } catch (error) {
-    return handleApiError(error, 'Failed to generate report preview');
+    return handleApiError('Failed to generate report preview', error);
   }
 }

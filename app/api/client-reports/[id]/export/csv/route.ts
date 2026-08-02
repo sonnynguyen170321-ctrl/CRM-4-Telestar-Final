@@ -37,6 +37,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       },
     });
   } catch (error) {
-    return handleApiError(error, 'Failed to export CSV');
+    return handleApiError('Failed to export CSV', error);
   }
 }

@@ -46,8 +46,8 @@ export async function GET(req: NextRequest) {
       include: {
         client: { select: { id: true, name: true } },
         campaign: { select: { id: true, name: true } },
-        generatedBy: { select: { id: true, name: true, email: true } },
-        approvedBy: { select: { id: true, name: true, email: true } },
+        generatedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
         _count: {
           select: {
             shareLinks: true,
@@ -73,9 +73,9 @@ export async function GET(req: NextRequest) {
         status: r.status,
         audience: r.audience,
         generatedById: r.generatedById,
-        generatedByName: r.generatedBy.name || r.generatedBy.email.split('@')[0],
+        generatedByName: [r.generatedBy.firstName, r.generatedBy.lastName].filter(Boolean).join(' ') || r.generatedBy.email.split('@')[0],
         approvedById: r.approvedById,
-        approvedByName: r.approvedBy ? r.approvedBy.name || r.approvedBy.email.split('@')[0] : null,
+        approvedByName: r.approvedBy ? [r.approvedBy.firstName, r.approvedBy.lastName].filter(Boolean).join(' ') || r.approvedBy.email.split('@')[0] : null,
         approvedAt: r.approvedAt?.toISOString() || null,
         sharedAt: r.sharedAt?.toISOString() || null,
         createdAt: r.createdAt.toISOString(),
@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ reports: items });
   } catch (error) {
-    return handleApiError(error, 'Failed to fetch client reports');
+    return handleApiError('Failed to fetch client reports', error);
   }
 }
 
@@ -100,8 +100,8 @@ export async function POST(req: NextRequest) {
   }
 
   const parsed = await parseBody(req, createClientReportSchema);
-  if (parsed instanceof NextResponse) return parsed;
-  const body = parsed;
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   try {
     const tenantId = user.tenantId || (await prisma.user.findUnique({ where: { id: user.id }, select: { tenantId: true } }))?.tenantId || 'default-tenant';
@@ -154,12 +154,12 @@ export async function POST(req: NextRequest) {
       include: {
         client: { select: { id: true, name: true } },
         campaign: { select: { id: true, name: true } },
-        generatedBy: { select: { id: true, name: true, email: true } },
+        generatedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
 
     return NextResponse.json({ report }, { status: 201 });
   } catch (error) {
-    return handleApiError(error, 'Failed to create client report');
+    return handleApiError('Failed to create client report', error);
   }
 }

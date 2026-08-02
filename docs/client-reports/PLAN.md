@@ -8,14 +8,14 @@ Goal: formal Client Reports module — frozen, client-safe campaign report snaps
 
 | Phase | Task | Status |
 |-------|------|--------|
-| 0 | Assessment + this plan | IN PROGRESS |
-| 1 | Schema + migration | PENDING |
-| 1 | lib/client-reports (access, metrics, snapshot, sanitization, validation, shareLinks, exporters) | PENDING |
-| 1 | API: list/create, preview, [id] GET/PATCH/DELETE, approve, share, export csv/pdf, public token | PENDING |
-| 2 | UI: `/client-reports` list + create modal + `[id]` detail + narrative editors + approval bar + sidebar nav | PENDING |
-| 3 | Export buttons + share modal + public share page + view tracking + archive/history | PENDING |
-| 4 | BPO metrics (leadgen quality, meeting outcomes, opportunity handoff, client acceptance, source attribution) + ClientReportSettings | PENDING |
-| 5 | Tests + lint + typecheck + build | PENDING |
+| 0 | Assessment + this plan | DONE |
+| 1 | Schema + migration | DONE |
+| 1 | lib/client-reports (access, metrics, snapshot, sanitization, validation, shareLinks, exporters) | DONE |
+| 1 | API: list/create, preview, [id] GET/PATCH/DELETE, approve, share, export csv/pdf, public token | DONE |
+| 2 | UI: `/client-reports` list + create modal + `[id]` detail + narrative editors + approval bar + sidebar nav | DONE |
+| 3 | Export buttons + share modal + public share page + view tracking + archive/history | DONE |
+| 4 | BPO metrics (leadgen quality, meeting outcomes, opportunity handoff, client acceptance, source attribution) + ClientReportSettings | DONE |
+| 5 | Tests + lint + typecheck + build | DONE |
 
 ## Required deviations from source doc
 
@@ -54,13 +54,13 @@ Goal: formal Client Reports module — frozen, client-safe campaign report snaps
 
 ## Acceptance (done criteria per spec)
 
-- [ ] Manager creates report for client/campaign/date range
-- [ ] Preview pulls real CRM metrics (lead, activity, meeting, opportunity)
-- [ ] Manager adds exec summary, wins, blockers, recommendations
-- [ ] Approve freezes snapshot; audit logged
-- [ ] Approved report exports to PDF (print) and CSV
-- [ ] Approved report shares via secure link; views tracked; revocable
-- [ ] Client-facing version hides internal notes by default (sanitization)
-- [ ] History stored by client/campaign/period
-- [ ] Metrics filterable by client, campaign, period
-- [ ] BPO client-acceptance / opportunity-handoff metrics present
+- [x] Manager creates report for client/campaign/date range
+- [x] Preview pulls real CRM metrics (lead, activity, meeting, opportunity)
+- [x] Manager adds exec summary, wins, blockers, recommendations
+- [x] Approve freezes snapshot; audit logged
+- [x] Approved report exports to PDF (print) and CSV
+- [x] Approved report shares via secure link; views tracked; revocable
+- [x] Client-facing version hides internal notes by default (sanitization)
+- [x] History stored by client/campaign/period
+- [x] Metrics filterable by client, campaign, period
+- [x] BPO client-acceptance / opportunity-handoff metrics present
