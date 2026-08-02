@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "node scripts/build.cjs",
     "start": "next start",
     "lint": "eslint app components lib context tests",
     "test": "vitest run",
@@ -20,7 +20,7 @@
     "sync-enrollments": "tsx scripts/sync-sequence-enrollments.ts",
     "prod:check-env": "tsx scripts/prod-check-env.ts",
     "prod:audit": "tsx scripts/prod-audit.ts",
-    "analyze": "ANALYZE=true next build",
+    "analyze": "node scripts/build.cjs --analyze",
     "worker:dev": "node scripts/worker-dev.cjs",
     "worker:start": "node scripts/worker-start.cjs",
     "worker:healthcheck": "tsx -e \"require('dotenv').config(); const {enqueue,JobType}=require('./lib/bullmq'); enqueue(JobType.MAINTENANCE_HEALTHCHECK,{startedAt:new Date().toISOString()}).then(id=>console.log('enqueued',id)).catch(console.error)\""
@@ -46,7 +46,7 @@
     "isomorphic-dompurify": "^3.18.0",
     "lucide-react": "^1.17.0",
     "mailparser": "^3.9.14",
-    "next": "^16.2.9",
+    "next": "^16.2.12",
     "next-auth": "^5.0.0-beta.31",
     "nodemailer": "^9.0.1",
     "react": "19.2.4",
