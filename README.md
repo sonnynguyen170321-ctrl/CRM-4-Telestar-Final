@@ -139,13 +139,13 @@ DIRECT_URL="postgresql://user:pass@host:5432/crm?sslmode=require"
 REDIS_URL="redis://localhost:6379"
 
 # Security & Session
-APP_SECRET="your-32-byte-hex-secret"
-NEXTAUTH_SECRET="your-nextauth-secret"
+AUTH_SECRET="your-32-byte-hex-secret"
 NEXTAUTH_URL="http://localhost:3000"
+ENCRYPTION_KEY="your-64-char-hex-key"
 
-# Application Settings
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-EMAIL_SEND_DRY_RUN=false
+# Email Sending Safety Controls (Default: Disabled)
+SEQUENCE_AUTOSEND_ENABLED="false"
+EMAIL_HEALTH_AUTOPAUSE="false"
 ```
 
 ### 3. Database Migration & Setup
@@ -204,7 +204,8 @@ node --max-old-space-size=4096 ./node_modules/next/dist/bin/next build
 3. **Database**:
    - Connection pool for web app, direct connection for Prisma migrations and long-running workers.
 
-For comprehensive deployment guides, refer to:
+For comprehensive deployment & migration guides, refer to:
+- [Production Migration & Cutover Runbook](docs/MIGRATION_RUNBOOK.md)
 - [Docker Deployment Guide](docs/DOCKER_DEPLOY.md)
 - [AWS Deployment Guide](docs/AWS_DEPLOY.md)
 - [Meeting Module Architecture](docs/MEETING_MODULE_ARCHITECTURE.md)

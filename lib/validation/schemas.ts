@@ -8,7 +8,7 @@ export const channel = z.enum(['email', 'phone', 'linkedin', 'whatsapp']);
 export const taskType = z.enum(['email', 'phone', 'linkedin', 'whatsapp', 'manual']);
 export const taskStatus = z.enum(['pending', 'completed', 'skipped']);
 export const taskPriority = z.enum(['high', 'medium', 'low']);
-export const role = z.enum(['director', 'floor_manager', 'team_lead', 'sdr', 'leadgen']);
+export const role = z.enum(['director', 'floor_manager', 'team_lead', 'sdr', 'leadgen_manager', 'leadgen']);
 export const campaignStatus = z.enum(['active', 'paused', 'completed']);
 export const activityType = z.enum([
   'email_sent', 'call_made', 'call_logged', 'linkedin_sent', 'linkedin_touch',

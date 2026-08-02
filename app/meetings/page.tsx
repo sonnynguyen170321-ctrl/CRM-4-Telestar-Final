@@ -45,7 +45,15 @@ interface MeetingRecord {
   prospectEmail?: string | null;
   clientOwnerName?: string | null;
   clientOwnerEmail?: string | null;
-  outcome?: 'qualified_opportunity' | 'not_interested' | 'wrong_fit' | 'rescheduled_needed' | 'follow_up_later' | null;
+  outcome?:
+    | 'qualified_opportunity'
+    | 'completed_not_qualified'
+    | 'no_show'
+    | 'cancelled'
+    | 'rescheduled'
+    | 'no_decision'
+    | 'other'
+    | null;
   outcomeNotes?: string | null;
   painPoints?: string | null;
   nextStep?: string | null;
@@ -467,7 +475,7 @@ export default function MeetingsPage() {
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono inline-block w-fit ${
                             m.outcome === 'qualified_opportunity'
                               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : m.outcome === 'not_interested' || m.outcome === 'wrong_fit'
+                              : m.outcome === 'completed_not_qualified' || m.outcome === 'cancelled' || m.outcome === 'no_show'
                               ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                               : 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20'
                           }`}>

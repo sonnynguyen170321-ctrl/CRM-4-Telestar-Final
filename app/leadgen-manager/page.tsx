@@ -52,13 +52,18 @@ function LeadgenManagerPageInner() {
   const tabParam = searchParams.get('tab');
   const activeTab: TabId = TABS.some((t) => t.id === tabParam) ? (tabParam as TabId) : 'overview';
 
+  const canAccessLeadgenManager =
+    currentRole === 'leadgen_manager' ||
+    currentRole === 'director' ||
+    currentRole === 'floor_manager';
+
   useEffect(() => {
-    if (!isSessionLoading && currentRole !== 'leadgen_manager') {
+    if (!isSessionLoading && !canAccessLeadgenManager) {
       router.replace('/');
     }
-  }, [isSessionLoading, currentRole, router]);
+  }, [isSessionLoading, canAccessLeadgenManager, router]);
 
-  if (isSessionLoading || currentRole !== 'leadgen_manager') return null;
+  if (isSessionLoading || !canAccessLeadgenManager) return null;
 
   const switchTab = (id: TabId) => {
     const href = id === 'overview' ? '/leadgen-manager' : `/leadgen-manager?tab=${id}`;

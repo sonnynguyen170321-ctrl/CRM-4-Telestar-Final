@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
 
 const raw = new PrismaClient();
-const roles = ['director', 'floor_manager', 'team_lead', 'sdr', 'leadgen'] as const;
+const roles = ['director', 'floor_manager', 'team_lead', 'sdr', 'leadgen_manager', 'leadgen'] as const;
 type Role = (typeof roles)[number];
 
 const arg = (flag: string): string | undefined => {
@@ -16,7 +16,7 @@ const hasFlag = (flag: string): boolean => process.argv.includes(flag);
 
 const usage = () => {
   console.error(
-    "Usage: npm run create-user -- --email user@domain.com --password 'password' --first-name 'First' --last-name 'Last' --role team_lead [--activate]"
+    "Usage: npm run create-user -- --email user@domain.com --password 'password' --first-name 'First' --last-name 'Last' --role leadgen_manager [--activate]"
   );
 };
 
