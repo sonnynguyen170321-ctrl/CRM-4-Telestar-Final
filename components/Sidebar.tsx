@@ -215,7 +215,10 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
             : `Current role: ${userRole}`
         }
       >
-        <div className="w-9 h-9 rounded-full bg-sidebar-border flex items-center justify-center font-bold text-xs text-brand-orange-text uppercase flex-shrink-0">
+        {/* Tinted rather than grey: the orange initials measured 4.18:1 on the
+            grey chip, just under AA. On this near-white tint they clear 5.2:1,
+            and it matches the topbar avatar. */}
+        <div className="w-9 h-9 rounded-full bg-brand-orange/10 flex items-center justify-center font-bold text-xs text-brand-orange-text uppercase flex-shrink-0">
           {currentUser
             ? `${currentUser.firstName[0] || ''}${currentUser.lastName[0] || ''}`
             : userRole === 'director'

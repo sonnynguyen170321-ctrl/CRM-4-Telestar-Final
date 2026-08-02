@@ -291,7 +291,7 @@ export default function AutomationDashboard() {
               className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
                 isTriggeringSequence 
                   ? 'bg-brand-dark border border-card-border text-text-muted cursor-not-allowed'
-                  : 'bg-brand-red hover:bg-brand-red-hover text-white shadow-brand-red/10'
+                  : 'bg-brand-red hover:bg-brand-red-hover text-white'
               }`}
             >
               {isTriggeringSequence ? (
@@ -356,7 +356,7 @@ export default function AutomationDashboard() {
               className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
                 isTriggeringInbox 
                   ? 'bg-brand-dark border border-card-border text-text-muted cursor-not-allowed'
-                  : 'bg-brand-orange hover:bg-brand-orange-hover text-white shadow-brand-orange/10'
+                  : 'bg-brand-orange hover:bg-brand-orange-hover text-white'
               }`}
             >
               {isTriggeringInbox ? (

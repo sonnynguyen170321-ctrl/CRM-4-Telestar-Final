@@ -1368,7 +1368,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                         <div
                           className={`p-3.5 border rounded-xl bg-card-bg/60 hover:bg-card-bg transition-all ${
                             item.isPinned
-                              ? 'border-brand-gold/40 shadow-sm shadow-brand-gold/5'
+                              ? 'border-brand-gold/40 shadow-sm'
                               : 'border-card-border hover:border-text-secondary/40'
                           }`}
                         >

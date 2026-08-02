@@ -219,7 +219,7 @@ export default function BookingLinkSettingsPanel() {
         </div>
         <button
           onClick={() => { resetForm(); setShowForm(true); }}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-brand-red hover:bg-brand-red/90 text-white shadow-md shadow-brand-red/20 transition-all"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-brand-red hover:bg-brand-red/90 text-white shadow-md transition-all"
         >
           <Plus size={14} /> Add Link
         </button>
@@ -299,7 +299,7 @@ export default function BookingLinkSettingsPanel() {
           </label>
           <div className="flex justify-end gap-3 pt-2">
             <button onClick={resetForm} className="px-3 py-2 text-sm text-muted hover:text-white transition-colors">Cancel</button>
-            <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-brand-red hover:bg-brand-red/90 text-white shadow-md shadow-brand-red/20 transition-all disabled:opacity-50">
+            <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-brand-red hover:bg-brand-red/90 text-white shadow-md transition-all disabled:opacity-50">
               {saving && <Loader2 size={14} className="animate-spin" />}
               {editingId ? 'Update' : 'Create'}
             </button>

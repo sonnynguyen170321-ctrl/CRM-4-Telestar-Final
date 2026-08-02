@@ -391,7 +391,7 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
 
           <button
             type="submit"
-            className="w-full py-2.5 bg-brand-red hover:bg-brand-red-hover text-white text-xs font-semibold rounded-xl shadow-lg transition-colors duration-150 flex items-center justify-center gap-1.5 active:scale-95 shadow-brand-red/10"
+            className="w-full py-2.5 bg-brand-red hover:bg-brand-red-hover text-white text-xs font-semibold rounded-xl shadow-lg transition-colors duration-150 flex items-center justify-center gap-1.5 active:scale-95"
           >
             <PhoneOff className="w-4 h-4" />
             <span>Hang Up &amp; Save Outcome</span>

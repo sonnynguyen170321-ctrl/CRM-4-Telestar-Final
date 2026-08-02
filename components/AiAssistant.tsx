@@ -95,7 +95,7 @@ function RobotIcon({ hasUnread, isThinking }: { hasUnread: boolean; isThinking: 
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         gap: 0,
-        boxShadow: '0 2px 8px rgba(212,43,30,0.4)',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
       }}>
         {/* Eyes row */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 4 }}>
@@ -619,7 +619,7 @@ export default function AiAssistant() {
         }
         .ai-typing-dot { animation: aiTypingFade 1.1s ease-in-out infinite; }
         .ai-chat-panel {
-          box-shadow: 0 8px 40px rgba(0,0,0,0.4), 0 2px 12px rgba(212,43,30,0.15);
+          box-shadow: 0 8px 32px rgba(0,0,0,0.18);
         }
         .ai-message-content { white-space: pre-wrap; word-break: break-word; }
         .ai-message-content strong { font-weight: 600; }

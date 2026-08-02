@@ -155,7 +155,7 @@ export default function WorkerHealthAdminPage() {
         <button
           onClick={handleRunHealthCheck}
           disabled={triggering || pollingCount > 0}
-          className="flex items-center gap-2 px-4 py-2 bg-brand-red hover:bg-brand-orange text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-brand-red/10 disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-brand-red hover:bg-brand-orange text-white text-xs font-bold rounded-xl transition-all shadow-md disabled:opacity-50"
         >
           <Zap className="w-4 h-4" />
           <span>{pollingCount > 0 ? 'Testing Worker...' : 'Run Diagnostics Now'}</span>

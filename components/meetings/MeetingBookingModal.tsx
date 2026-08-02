@@ -309,7 +309,7 @@ export default function MeetingBookingModal({
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 bg-brand-red hover:bg-brand-red/90 text-white shadow-md shadow-brand-red/20"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 bg-brand-red hover:bg-brand-red/90 text-white shadow-md"
           >
             {loading && <Loader2 size={14} className="animate-spin" />}
             {mode === 'link_sent' ? 'Record Link Sent' : 'Schedule Meeting'}

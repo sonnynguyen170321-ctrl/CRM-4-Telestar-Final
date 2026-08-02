@@ -82,6 +82,12 @@ one-offs — reintroducing any of these puts the flag back:
   what remains.
 - **No glow.** No `0 0 Npx` box-shadows or `drop-shadow` halos. Use a solid border, a ring,
   or an inset accent bar.
+- **Shadows are neutral.** Never tint a shadow with a brand colour — no `shadow-brand-red/10`,
+  no `rgba(212,43,30,…)` in a `box-shadow`. A coloured shadow at *any* offset reads as a
+  glowing accent, not just a zero-offset one. Use plain `shadow-sm` / `shadow-md`.
+- **Fonts are IBM Plex**, deliberately: Plex Sans (body), Plex Sans Condensed (chrome),
+  Plex Mono (data). Inter and Geist are the stack nearly every generated app ships, and
+  detectors flag them by name. Do not reintroduce them, or Poppins/Montserrat.
 - **Prose gets a measure.** Cap running text at `max-w-[68ch]`.
 - **No card inside a card.** Use a divider or spacing to group within a panel.
 
