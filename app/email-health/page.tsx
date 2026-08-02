@@ -158,7 +158,7 @@ export default function EmailHealthPage() {
             <ShieldCheck className="w-6 h-6 text-brand-orange-text" />
             Email Health
           </h1>
-          <p className="text-xs text-text-secondary mt-1">
+          <p className="text-xs text-text-secondary mt-1 prose-measure">
             Mailbox safety, bounce risk and sending capacity — before sender reputation is damaged.
           </p>
         </div>

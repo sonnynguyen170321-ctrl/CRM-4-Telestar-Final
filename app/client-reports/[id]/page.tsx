@@ -61,7 +61,7 @@ export default async function ClientReportDetailPage({ params }: PageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="min-h-screen bg-bg-main p-6">
       <ClientReportDetail report={serializedReport} currentUserRole={user.role} />
     </div>
   );

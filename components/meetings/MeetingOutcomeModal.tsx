@@ -128,10 +128,10 @@ export default function MeetingOutcomeModal({
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-card-border">
           <div>
-            <h2 className="text-lg font-semibold text-white">Log Meeting Outcome</h2>
-            <p className="text-sm text-muted mt-0.5">{meetingTitle}</p>
+            <h2 className="text-lg font-semibold text-text-primary">Log Meeting Outcome</h2>
+            <p className="text-sm text-text-muted mt-0.5">{meetingTitle}</p>
           </div>
-          <button onClick={onClose} className="text-muted hover:text-white transition-colors">
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -139,7 +139,7 @@ export default function MeetingOutcomeModal({
         <div className="p-5 space-y-5">
           {/* Status */}
           <div>
-            <label className="block text-xs font-medium text-muted mb-2">Meeting Status *</label>
+            <label className="block text-xs font-medium text-text-muted mb-2">Meeting Status *</label>
             <div className="grid grid-cols-2 gap-2">
               {STATUS_OPTIONS.map(opt => (
                 <button
@@ -159,7 +159,7 @@ export default function MeetingOutcomeModal({
                       : opt.color === 'red' ? 'bg-red-500/15 border-red-500/40 text-red-400'
                       : opt.color === 'purple' ? 'bg-purple-500/15 border-purple-500/40 text-purple-400'
                       : 'bg-gray-500/15 border-gray-500/40 text-gray-400'
-                      : 'bg-surface border-card-border text-muted hover:text-white hover:border-card-border-hover'
+                      : 'bg-card-bg border-card-border text-text-muted hover:text-text-primary hover:border-card-border-hover'
                   }`}
                 >
                   {opt.label}
@@ -170,11 +170,11 @@ export default function MeetingOutcomeModal({
 
           {/* Outcome */}
           <div>
-            <label className="block text-xs font-medium text-muted mb-1.5">Outcome *</label>
+            <label className="block text-xs font-medium text-text-muted mb-1.5">Outcome *</label>
             <select
               value={outcome}
               onChange={e => setOutcome(e.target.value)}
-              className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none"
+              className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none"
             >
               {OUTCOME_OPTIONS.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -199,8 +199,8 @@ export default function MeetingOutcomeModal({
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-muted mb-1.5">
-                        Value <span className="text-muted/60">(optional)</span>
+                      <label className="block text-xs font-medium text-text-muted mb-1.5">
+                        Value <span className="text-text-muted/60">(optional)</span>
                       </label>
                       <input
                         type="number"
@@ -209,23 +209,23 @@ export default function MeetingOutcomeModal({
                         value={opportunityValue}
                         onChange={e => setOpportunityValue(e.target.value)}
                         placeholder="0.00"
-                        className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none"
+                        className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/50 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-muted mb-1.5">Currency</label>
+                      <label className="block text-xs font-medium text-text-muted mb-1.5">Currency</label>
                       <input
                         type="text"
                         maxLength={3}
                         value={opportunityCurrency}
                         onChange={e => setOpportunityCurrency(e.target.value.toUpperCase())}
-                        className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none"
+                        className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-muted mb-1.5">
+                    <label className="block text-xs font-medium text-text-muted mb-1.5">
                       Qualification Summary <span className="text-emerald-400">*</span>
                     </label>
                     <textarea
@@ -233,33 +233,33 @@ export default function MeetingOutcomeModal({
                       onChange={e => setQualificationSummary(e.target.value)}
                       rows={2}
                       placeholder="Why is this a qualified opportunity? Budget, authority, need, timeline..."
-                      className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none resize-none"
+                      className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/50 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none resize-none"
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-muted mb-1.5">
-                        Client Owner Name <span className="text-muted/60">(optional)</span>
+                      <label className="block text-xs font-medium text-text-muted mb-1.5">
+                        Client Owner Name <span className="text-text-muted/60">(optional)</span>
                       </label>
                       <input
                         type="text"
                         value={opportunityClientOwnerName}
                         onChange={e => setOpportunityClientOwnerName(e.target.value)}
                         placeholder="e.g. Sarah Johnson"
-                        className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none"
+                        className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/50 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-muted mb-1.5">
-                        Client Owner Email <span className="text-muted/60">(optional)</span>
+                      <label className="block text-xs font-medium text-text-muted mb-1.5">
+                        Client Owner Email <span className="text-text-muted/60">(optional)</span>
                       </label>
                       <input
                         type="email"
                         value={opportunityClientOwnerEmail}
                         onChange={e => setOpportunityClientOwnerEmail(e.target.value)}
                         placeholder="owner@client.com"
-                        className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none"
+                        className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/50 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none"
                       />
                     </div>
                   </div>
@@ -270,45 +270,45 @@ export default function MeetingOutcomeModal({
 
           {/* Outcome Notes */}
           <div>
-            <label className="block text-xs font-medium text-muted mb-1.5">
-              Outcome Notes <span className="text-muted/60">(optional)</span>
+            <label className="block text-xs font-medium text-text-muted mb-1.5">
+              Outcome Notes <span className="text-text-muted/60">(optional)</span>
             </label>
             <textarea
               value={outcomeNotes}
               onChange={e => setOutcomeNotes(e.target.value)}
               rows={3}
               placeholder="Summary of the meeting outcome..."
-              className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none resize-none"
+              className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/50 focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none resize-none"
             />
           </div>
 
           {/* Pain Points — only for completed */}
           {status === 'completed' && (
             <div>
-              <label className="block text-xs font-medium text-muted mb-1.5">
-                Pain Points <span className="text-muted/60">(optional)</span>
+              <label className="block text-xs font-medium text-text-muted mb-1.5">
+                Pain Points <span className="text-text-muted/60">(optional)</span>
               </label>
               <textarea
                 value={painPoints}
                 onChange={e => setPainPoints(e.target.value)}
                 rows={2}
                 placeholder="Key challenges discussed..."
-                className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none resize-none"
+                className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/50 focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none resize-none"
               />
             </div>
           )}
 
           {/* Next Step */}
           <div>
-            <label className="block text-xs font-medium text-muted mb-1.5">
-              Next Step <span className="text-muted/60">(optional)</span>
+            <label className="block text-xs font-medium text-text-muted mb-1.5">
+              Next Step <span className="text-text-muted/60">(optional)</span>
             </label>
             <textarea
               value={nextStep}
               onChange={e => setNextStep(e.target.value)}
               rows={2}
               placeholder="Follow-up action items..."
-              className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none resize-none"
+              className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/50 focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none resize-none"
             />
           </div>
         </div>
@@ -317,7 +317,7 @@ export default function MeetingOutcomeModal({
         <div className="flex justify-end gap-3 p-5 border-t border-card-border">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-muted hover:text-white transition-colors"
+            className="px-4 py-2 text-sm text-text-muted hover:text-text-primary transition-colors"
           >
             Cancel
           </button>

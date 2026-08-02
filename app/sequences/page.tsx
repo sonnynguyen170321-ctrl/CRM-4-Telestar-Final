@@ -374,7 +374,7 @@ export default function SequencesPage() {
           <h1 className="font-display font-extrabold text-2xl text-text-primary tracking-tight">
             Sequence Cadences
           </h1>
-          <p className="text-xs text-text-secondary mt-0.5">
+          <p className="text-xs text-text-secondary mt-0.5 prose-measure">
             Design multi-step, multi-channel automated drip touchpoints for campaigns.
           </p>
         </div>
@@ -407,7 +407,7 @@ export default function SequencesPage() {
                     <Repeat className="w-5 h-5" />
                   </div>
                   <span
-                    className={`px-2 py-0.5 rounded text-[9px] font-bold border font-mono ${
+                    className={`px-2 py-0.5 rounded text-xs font-bold border font-mono ${
                       seq.isActive
                         ? 'bg-green-500/15 text-green-500 border-green-500/20'
                         : 'bg-gray-500/10 text-gray-500'
@@ -417,7 +417,7 @@ export default function SequencesPage() {
                   </span>
                 </div>
 
-                <h3 className="font-display font-bold text-sm text-text-primary mb-1">{seq.name}</h3>
+                <h2 className="font-display font-bold text-sm text-text-primary mb-1">{seq.name}</h2>
                 <p className="text-xs text-text-secondary leading-relaxed mb-4">{seq.description}</p>
 
                 <div className="space-y-2 border-t border-card-border/30 pt-3 text-xs mb-5">
@@ -439,7 +439,7 @@ export default function SequencesPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => handleSelectSequence(seq)}
-                  className="flex-1 py-2 bg-background hover:bg-brand-red hover:text-white border border-card-border hover:border-brand-red rounded-xl text-xs font-semibold text-text-primary transition-all flex items-center justify-center gap-1 active:scale-95"
+                  className="flex-1 py-2 bg-bg-main hover:bg-brand-red hover:text-white border border-card-border hover:border-brand-red rounded-xl text-xs font-semibold text-text-primary transition-all flex items-center justify-center gap-1 active:scale-95"
                 >
                   <span>Manage</span>
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -447,14 +447,14 @@ export default function SequencesPage() {
                 <button
                   onClick={() => handleDuplicate(seq)}
                   title="Duplicate sequence"
-                  className="px-3 py-2 bg-background hover:bg-card-border border border-card-border rounded-xl text-xs font-semibold text-text-muted hover:text-text-primary transition-all active:scale-95"
+                  className="px-3 py-2 bg-bg-main hover:bg-card-border border border-card-border rounded-xl text-xs font-semibold text-text-muted hover:text-text-primary transition-all active:scale-95"
                 >
                   Copy
                 </button>
                 <button
                   onClick={() => handleArchiveSeq(seq)}
                   title="Archive sequence"
-                  className="px-3 py-2 bg-background hover:bg-brand-red/5 border border-card-border hover:border-brand-red/30 rounded-xl text-xs font-semibold text-text-muted hover:text-brand-red transition-all active:scale-95"
+                  className="px-3 py-2 bg-bg-main hover:bg-brand-red/5 border border-card-border hover:border-brand-red/30 rounded-xl text-xs font-semibold text-text-muted hover:text-brand-red transition-all active:scale-95"
                 >
                   Archive
                 </button>
@@ -478,7 +478,7 @@ export default function SequencesPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => setSelectedSeq(null)}
-                  className="px-3 py-1.5 border border-card-border bg-background hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors"
+                  className="px-3 py-1.5 border border-card-border bg-bg-main hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors"
                 >
                   Back to All
                 </button>
@@ -516,7 +516,7 @@ export default function SequencesPage() {
                 {steps.map((step, idx) => (
                   <div
                     key={step.id}
-                    className="bg-card-bg border border-card-border rounded-xl p-4 shadow-sm flex items-start justify-between gap-4 hover:bg-background/20 transition-all"
+                    className="bg-card-bg border border-card-border rounded-xl p-4 shadow-sm flex items-start justify-between gap-4 hover:bg-bg-main/20 transition-all"
                   >
                     <div className="flex gap-3">
                       <div className="w-7 h-7 rounded-lg bg-card-border/40 border border-card-border flex items-center justify-center font-mono font-bold text-xs text-text-secondary">
@@ -553,7 +553,7 @@ export default function SequencesPage() {
                             <select
                               value={step.templateId ?? ''}
                               onChange={(e) => handleStepTemplateChange(step.id, e.target.value || null)}
-                              className="bg-background border border-card-border rounded px-2 py-1 text-[10px] text-text-secondary focus:outline-none focus:border-brand-red font-mono max-w-[200px]"
+                              className="bg-bg-main border border-card-border rounded px-2 py-1 text-[10px] text-text-secondary focus:outline-none focus:border-brand-red font-mono max-w-[200px]"
                             >
                               <option value="">— No template —</option>
                               {templates.filter((t) => t.channel === step.channel).map((t) => (
@@ -615,7 +615,7 @@ export default function SequencesPage() {
                     <select
                       value={newStepChannel}
                       onChange={(e) => setNewStepChannel(e.target.value as SequenceStep['channel'])}
-                      className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red"
                     >
                       <option value="email">📧 Email outreach</option>
                       <option value="phone">📞 Phone call dial</option>
@@ -635,7 +635,7 @@ export default function SequencesPage() {
                         max={30}
                         value={newStepDelayDays}
                         onChange={(e) => setNewStepDelayDays(Math.max(0, parseInt(e.target.value) || 0))}
-                        className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red text-xs font-mono"
+                        className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red text-xs font-mono"
                       />
                     </div>
                     <div>
@@ -648,7 +648,7 @@ export default function SequencesPage() {
                         max={23}
                         value={newStepDelayHours}
                         onChange={(e) => setNewStepDelayHours(Math.max(0, parseInt(e.target.value) || 0))}
-                        className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red text-xs font-mono"
+                        className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red text-xs font-mono"
                       />
                     </div>
                   </div>
@@ -674,7 +674,7 @@ export default function SequencesPage() {
                   <select 
                     value={enrollmentFilters.step} 
                     onChange={e => setEnrollmentFilters(p => ({ ...p, step: e.target.value }))}
-                    className="bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red"
+                    className="bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red"
                   >
                     <option value="">All Steps</option>
                     {steps.map(s => (
@@ -684,7 +684,7 @@ export default function SequencesPage() {
                   <select 
                     value={enrollmentFilters.status} 
                     onChange={e => setEnrollmentFilters(p => ({ ...p, status: e.target.value }))}
-                    className="bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red"
+                    className="bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red"
                   >
                     <option value="">Status: Active & Paused</option>
                     <option value="active">Active</option>
@@ -720,7 +720,7 @@ export default function SequencesPage() {
                     <button
                       onClick={() => handleBulkAction('unenroll')}
                       disabled={bulkActioning}
-                      className="px-3 py-1.5 border border-card-border bg-background hover:bg-card-border/50 text-text-secondary rounded-lg text-xs font-semibold shadow-sm transition-colors disabled:opacity-60 flex items-center gap-1"
+                      className="px-3 py-1.5 border border-card-border bg-bg-main hover:bg-card-border/50 text-text-secondary rounded-lg text-xs font-semibold shadow-sm transition-colors disabled:opacity-60 flex items-center gap-1"
                     >
                       <StopCircle className="w-3.5 h-3.5" /> Unenroll
                     </button>
@@ -740,13 +740,13 @@ export default function SequencesPage() {
                 ) : (
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="border-b border-card-border bg-background/50">
+                      <tr className="border-b border-card-border bg-bg-main/50">
                         <th className="px-4 py-3 font-semibold text-text-secondary w-10">
                           <input 
                             type="checkbox" 
                             checked={selectedEnrollments.length === enrollments.length && enrollments.length > 0}
                             onChange={toggleAllEnrollments}
-                            className="rounded border-card-border bg-background"
+                            className="rounded border-card-border bg-bg-main"
                           />
                         </th>
                         <th className="px-4 py-3 font-semibold text-text-secondary">Lead</th>
@@ -762,13 +762,13 @@ export default function SequencesPage() {
                         const isSelected = selectedEnrollments.includes(enr.id);
                         const pendingTask = enr.lead.tasks?.[0];
                         return (
-                          <tr key={enr.id} className={`hover:bg-background/30 transition-colors ${isSelected ? 'bg-brand-red/5' : ''}`}>
+                          <tr key={enr.id} className={`hover:bg-bg-main/30 transition-colors ${isSelected ? 'bg-brand-red/5' : ''}`}>
                             <td className="px-4 py-3">
                               <input 
                                 type="checkbox" 
                                 checked={isSelected}
                                 onChange={() => toggleEnrollmentSelection(enr.id)}
-                                className="rounded border-card-border bg-background"
+                                className="rounded border-card-border bg-bg-main"
                               />
                             </td>
                             <td className="px-4 py-3">
@@ -864,7 +864,7 @@ export default function SequencesPage() {
                   value={newSeqName}
                   onChange={(e) => setNewSeqName(e.target.value)}
                   placeholder="e.g. Cold Email → LinkedIn → Call"
-                  className="w-full px-3 py-2 bg-background border border-card-border rounded-lg text-xs text-text-primary focus:outline-none focus:border-brand-red"
+                  className="w-full px-3 py-2 bg-bg-main border border-card-border rounded-lg text-xs text-text-primary focus:outline-none focus:border-brand-red"
                 />
               </div>
               <div>
@@ -876,14 +876,14 @@ export default function SequencesPage() {
                   onChange={(e) => setNewSeqDesc(e.target.value)}
                   placeholder="What is this sequence for?"
                   rows={2}
-                  className="w-full px-3 py-2 bg-background border border-card-border rounded-lg text-xs text-text-primary focus:outline-none focus:border-brand-red resize-none placeholder-text-muted"
+                  className="w-full px-3 py-2 bg-bg-main border border-card-border rounded-lg text-xs text-text-primary focus:outline-none focus:border-brand-red resize-none placeholder-text-muted"
                 />
               </div>
               <div className="flex gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="flex-1 py-2 border border-card-border bg-background hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors"
+                  className="flex-1 py-2 border border-card-border bg-bg-main hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors"
                 >
                   Cancel
                 </button>
@@ -904,12 +904,12 @@ export default function SequencesPage() {
       {selectedEnrollmentForLogs && (
         <div className="fixed inset-y-0 right-0 w-96 bg-card-bg border-l border-card-border shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-250 text-left">
           {/* Header */}
-          <div className="p-4 border-b border-card-border flex items-center justify-between bg-background">
+          <div className="p-4 border-b border-card-border flex items-center justify-between bg-bg-main">
             <div className="flex items-center gap-2">
               <span className="text-base">📋</span>
               <div className="text-left">
                 <h3 className="text-xs font-bold text-text-primary uppercase">Sequence Audit Log</h3>
-                <p className="text-[10px] text-text-muted mt-0.5">
+                <p className="text-xs text-text-muted mt-0.5">
                   Lead: {enrollments.find((e) => e.id === selectedEnrollmentForLogs)?.lead.firstName} {enrollments.find((e) => e.id === selectedEnrollmentForLogs)?.lead.lastName}
                 </p>
               </div>
@@ -923,7 +923,7 @@ export default function SequencesPage() {
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs bg-background/50">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs bg-bg-main/50">
             {logsLoading ? (
               <div className="flex justify-center items-center h-48">
                 <Loader2 className="w-6 h-6 animate-spin text-text-muted" />
@@ -932,9 +932,9 @@ export default function SequencesPage() {
               <div className="space-y-4">
                 {/* Activity Timeline */}
                 <div className="space-y-3">
-                  <h4 className="text-[10px] font-bold text-text-muted uppercase">Execution Timeline</h4>
+                  <h4 className="text-xs font-bold text-text-muted uppercase">Execution Timeline</h4>
                   {logsData.activities.length === 0 && logsData.tasks.length === 0 ? (
-                    <p className="text-text-muted italic text-[10px]">No sequence execution events recorded yet.</p>
+                    <p className="text-text-muted italic text-xs">No sequence execution events recorded yet.</p>
                   ) : (
                     <div className="relative border-l border-card-border pl-4 ml-1.5 space-y-4 text-left">
                       {[
@@ -966,10 +966,10 @@ export default function SequencesPage() {
                             }`} />
                             <div className="space-y-0.5">
                               <p className="font-semibold text-text-primary">{item.title}</p>
-                              <div className="flex items-center gap-1.5 text-[9px] text-text-muted font-mono">
+                              <div className="flex items-center gap-1.5 text-xs text-text-muted font-mono">
                                 <span>{item.date.toLocaleString()}</span>
                                 {item.status && (
-                                  <span className={`px-1 rounded text-[8px] uppercase border ${
+                                  <span className={`px-1 rounded text-xs uppercase border ${
                                     item.status === 'completed' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
                                     item.status === 'skipped' ? 'bg-card-border text-text-secondary border-card-border' :
                                     'bg-amber-500/10 text-amber-500 border-amber-500/20'
@@ -988,14 +988,14 @@ export default function SequencesPage() {
                 {/* Outbound Messages */}
                 {logsData.outboundMessages.length > 0 && (
                   <div className="space-y-2 border-t border-card-border/60 pt-3 text-left">
-                    <h4 className="text-[10px] font-bold text-text-muted uppercase">Sent Outbound Emails</h4>
+                    <h4 className="text-xs font-bold text-text-muted uppercase">Sent Outbound Emails</h4>
                     <div className="space-y-2">
                       {logsData.outboundMessages.map((msg) => (
                         <div key={msg.id} className="p-2 border border-card-border rounded-lg bg-card-bg space-y-1">
                           <p className="font-semibold text-text-primary truncate">{msg.subject || '(No Subject)'}</p>
-                          <div className="flex justify-between items-center text-[9px] text-text-muted font-mono">
+                          <div className="flex justify-between items-center text-xs text-text-muted font-mono">
                             <span>{new Date(msg.createdAt).toLocaleString()}</span>
-                            <span className={`px-1 rounded text-[8px] uppercase ${
+                            <span className={`px-1 rounded text-xs uppercase ${
                               msg.status === 'sent' ? 'bg-green-500/10 text-green-500' :
                               msg.status === 'failed' ? 'bg-red-500/10 text-red-500' :
                               'bg-amber-500/10 text-amber-500'

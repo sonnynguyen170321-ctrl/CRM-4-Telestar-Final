@@ -115,7 +115,7 @@ export default function TeamTab() {
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-card-border bg-background/60">
+              <tr className="border-b border-card-border bg-bg-main/60">
                 <th className="px-4 py-3 text-[10px] uppercase text-text-muted">Member</th>
                 <th className="px-4 py-3 text-[10px] uppercase text-text-muted">Role</th>
                 <th className="px-4 py-3 text-[10px] uppercase text-text-muted">Records Qualified</th>
@@ -130,7 +130,7 @@ export default function TeamTab() {
                 </tr>
               ) : (
                 sorted.map((u) => (
-                  <tr key={u.id} className="border-b border-card-border/60 hover:bg-background/40">
+                  <tr key={u.id} className="border-b border-card-border/60 hover:bg-bg-main/40">
                     <td className="px-4 py-3">
                       <div className="text-xs font-semibold text-text-primary">{u.firstName} {u.lastName}</div>
                       <div className="text-[10px] font-mono text-text-muted">{u.email}</div>

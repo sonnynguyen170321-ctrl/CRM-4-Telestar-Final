@@ -14,33 +14,33 @@ export default function OpportunityValueCard({ summary }: { summary: Opportunity
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
       <div className="rounded-xl border border-card-border bg-card-bg p-4">
-        <p className="text-xs text-muted mb-1">Pipeline Value (Open)</p>
-        <p className="text-2xl font-semibold text-white">
+        <p className="text-xs text-text-muted mb-1">Pipeline Value (Open)</p>
+        <p className="text-2xl font-semibold text-text-primary">
           {formatMoney(summary.totalPipelineValue, 'USD')}
         </p>
-        <p className="text-xs text-muted mt-1">
+        <p className="text-xs text-text-muted mt-1">
           Weighted: {formatMoney(summary.weightedPipelineValue, 'USD')}
         </p>
       </div>
 
       <div className="rounded-xl border border-card-border bg-card-bg p-4">
-        <p className="text-xs text-muted mb-1">Open Opportunities</p>
-        <p className="text-2xl font-semibold text-white">{summary.totalOpen}</p>
-        <p className="text-xs text-muted mt-1">in pipeline</p>
+        <p className="text-xs text-text-muted mb-1">Open Opportunities</p>
+        <p className="text-2xl font-semibold text-text-primary">{summary.totalOpen}</p>
+        <p className="text-xs text-text-muted mt-1">in pipeline</p>
       </div>
 
       <div className="rounded-xl border border-card-border bg-card-bg p-4">
-        <p className="text-xs text-muted mb-1">Won</p>
+        <p className="text-xs text-text-muted mb-1">Won</p>
         <p className="text-2xl font-semibold text-emerald-400">{summary.won}</p>
-        <p className="text-xs text-muted mt-1">closed-won this period</p>
+        <p className="text-xs text-text-muted mt-1">closed-won this period</p>
       </div>
 
       <div className="rounded-xl border border-card-border bg-card-bg p-4">
-        <p className="text-xs text-muted mb-1">Lost / Rejected</p>
+        <p className="text-xs text-text-muted mb-1">Lost / Rejected</p>
         <p className="text-2xl font-semibold text-red-400">
           {summary.lost + summary.rejected}
         </p>
-        <p className="text-xs text-muted mt-1">not moving forward</p>
+        <p className="text-xs text-text-muted mt-1">not moving forward</p>
       </div>
 
       <div className="col-span-full flex flex-wrap gap-2">

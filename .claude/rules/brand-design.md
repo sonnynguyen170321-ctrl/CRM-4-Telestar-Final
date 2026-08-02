@@ -39,27 +39,29 @@ lives in the jump between tiers, not in overall size.
 
 | Tier | Token | Size | Used for |
 |------|-------|------|----------|
-| Page title  | `--text-page-title` | 28px   | the single `<h1>` per route |
-| Section     | `--text-section`    | 20px   | panel / card headers |
-| Subsection  | `--text-subsection` | 16px   | group labels inside a panel |
-| Body        | `--text-body`       | 14px   | paragraphs, table cells, form values |
-| Meta        | `--text-meta`       | 12.5px | timestamps, counts, secondary chrome |
-| Micro       | `--text-micro`      | 11px   | badges, kbd hints, avatar initials |
+| Page title  | `--text-page-title` | 28px | the single `<h1>` per route |
+| Section     | `--text-section`    | 20px | panel / card headers (`<h2>`) |
+| Subsection  | `--text-subsection` | 16px | group labels inside a panel (`<h3>`) |
+| Body        | `--text-body`       | 14px | paragraphs, table cells, form values |
+| Meta        | `--text-meta`       | 13px | timestamps, counts, secondary chrome |
+| Micro       | `--text-micro`      | 12px | badges, kbd hints, avatar initials |
 
-**11px is the floor.** Nothing renders smaller. Prose at 10px reads as "tiny body
-text" to accessibility audits and to people over 40 looking at a 1440p monitor.
+**12px is the floor.** Nothing renders smaller (<12px trips accessibility / AI design flags).
+Prose and subtitles use `text-xs` or higher.
 
 Rules:
 
+- **Strict Heading Hierarchy:** Exactly one `<h1>` per page/route. Sub-panels and top-level
+  card headers must be `<h2>`. Nested groups or modals inside panels use `<h3>` or `<h4>`.
+  Never skip heading levels (e.g., jumping from `<h1>` directly to `<h3>`).
 - **`<h1>`/`<h2>`/`<h3>` are styled globally** — a heading lands on its tier with no size
   class. Do not add `text-2xl`/`text-sm` to a heading to "fix" its size.
 - **A heading on the wrong tier gets a `type-*` class**, not a raw size: a panel header
-  written as `<h3>` becomes `<h3 className="type-section …">`. The same classes
+  written as `<h2>` becomes `<h2 className="type-section …">`. The same classes
   (`type-page-title`, `type-section`, `type-subsection`, `type-body`, `type-meta`,
   `type-micro`) work on any element, including a `<span>` acting as a card title.
 - **Never introduce a new `text-[Npx]` value.** Arbitrary sizes previously produced five
-  near-identical micro sizes (8/9/10/11/13) that read as noise. Existing ones are remapped
-  onto the scale in `globals.css`; new code should use a tier.
+  near-identical micro sizes (8/9/10/11/13) that read as noise. Use canonical theme tokens.
 - The root is `html { font-size: 17.5px }`, so rem-based Tailwind steps render fractional
   (13.109px, 15.312px). Tier sizes are absolute px on purpose. `text-xs`/`text-sm`/`text-lg`/
   `text-2xl` are snapped onto the scale, so existing markup stays on whole pixels.
@@ -88,8 +90,12 @@ one-offs — reintroducing any of these puts the flag back:
 - **Fonts are IBM Plex**, deliberately: Plex Sans (body), Plex Sans Condensed (chrome),
   Plex Mono (data). Inter and Geist are the stack nearly every generated app ships, and
   detectors flag them by name. Do not reintroduce them, or Poppins/Montserrat.
-- **Prose gets a measure.** Cap running text at `max-w-[68ch]`.
-- **No card inside a card.** Use a divider or spacing to group within a panel.
+- **Prose gets a measure.** Cap running text, subtitles, and panel descriptions at `max-w-[68ch]`
+  using the `.prose-measure` utility.
+- **No card inside a card.** Never put card chrome (`border border-card-border bg-card-bg` or `glass-card`)
+  on a container holding cards. Use a divider or spacing to group within a panel. Flatten wrapper containers.
+- **Data Table Padding Exception:** Tables are the one documented exception to tight brand density.
+  Use `.table-row-dense` or table defaults (~48px row height, 12px/16px cell padding) for clean scannability.
 
 ## Channel Color Map
 

@@ -214,7 +214,7 @@ export default function AutomationDashboard() {
           <h1 className="font-display font-extrabold text-2xl text-text-primary tracking-tight">
             AI Automation Control Center
           </h1>
-          <p className="text-xs text-text-secondary mt-1">
+          <p className="text-xs text-text-secondary mt-1 prose-measure">
             Monitor outbound sequence task triggers, mail counts, and manual synchronization crons.
           </p>
         </div>
@@ -273,10 +273,10 @@ export default function AutomationDashboard() {
           <div className="glass-card rounded-2xl p-5 space-y-4">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
+                <h2 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
                   <Cpu className="w-4.5 h-4.5 text-brand-orange-text" />
                   Sequence Automation Engine
-                </h3>
+                </h2>
                 <p className="text-[11px] text-text-secondary leading-relaxed">
                   Processes and automatically sends outgoing sequence emails. Distributes scheduling hourly windows.
                 </p>
@@ -338,10 +338,10 @@ export default function AutomationDashboard() {
           <div className="glass-card rounded-2xl p-5 space-y-4">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
+                <h2 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
                   <RefreshCw className="w-4.5 h-4.5 text-brand-gold-text" />
                   Inbox Sync Engine
-                </h3>
+                </h2>
                 <p className="text-[11px] text-text-secondary leading-relaxed">
                   Fetches recent inbox replies. Flags email bounces (NDR) and auto-unenrolls leads who have replied.
                 </p>
@@ -408,9 +408,9 @@ export default function AutomationDashboard() {
             two drift and put cap editing in two places. */}
         <div className="col-span-7 glass-card rounded-2xl p-5 space-y-4">
           <div className="space-y-1">
-            <h3 className="font-display font-extrabold text-sm text-text-primary">
+            <h2 className="font-display font-extrabold text-sm text-text-primary">
               Outbound Mailbox Capacity
-            </h3>
+            </h2>
             <p className="text-[11px] text-text-secondary">
               Per-inbox caps, bounce risk and sending controls now live in Email Health.
             </p>
@@ -457,10 +457,10 @@ export default function AutomationDashboard() {
       {/* Live System Activity Feed */}
       <div className="glass-card rounded-2xl p-5 space-y-4">
         <div className="space-y-1">
-          <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
+          <h2 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
             <Activity className="w-4.5 h-4.5 text-brand-red animate-pulse" />
             Live Automation Activity Feed
-          </h3>
+          </h2>
           <p className="text-[11px] text-text-secondary">
             Real-time synchronization logs showing active outreach transitions and auto-replies.
           </p>

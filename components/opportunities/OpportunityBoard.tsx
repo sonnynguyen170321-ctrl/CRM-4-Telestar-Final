@@ -29,34 +29,34 @@ export default function OpportunityBoard({
       {COLUMNS.map(col => {
         const items = byStage(col.stage);
         return (
-          <div key={col.stage} className="flex flex-col rounded-xl border border-card-border bg-card-bg/60">
-            <div className="flex items-center gap-2 border-b border-card-border px-3 py-2.5">
+          <div key={col.stage} className="flex flex-col">
+            <div className="flex items-center gap-2 border-b border-card-border/60 px-2 py-2 mb-1">
               <span className={`h-2 w-2 rounded-full ${col.accent}`} />
-              <span className="text-xs font-medium uppercase tracking-wide text-muted">{col.label}</span>
-              <span className="ml-auto rounded-full bg-surface px-2 py-0.5 text-xs text-muted">
+              <span className="text-xs font-medium uppercase tracking-wide text-text-muted">{col.label}</span>
+              <span className="ml-auto text-xs font-mono text-text-muted">
                 {items.length}
               </span>
             </div>
-            <div className="flex flex-col gap-2 p-2">
+            <div className="flex flex-col gap-2">
               {items.length === 0 ? (
-                <p className="px-2 py-4 text-center text-xs text-muted/60">No opportunities</p>
+                <p className="px-2 py-4 text-center text-xs text-text-muted/60">No opportunities</p>
               ) : (
                 items.map(opp => (
                   <button
                     key={opp.id}
                     onClick={() => onSelect(opp)}
-                    className="rounded-lg border border-card-border bg-card-bg p-3 text-left transition-colors hover:border-brand-orange/40 hover:bg-surface/50"
+                    className="rounded-lg border border-card-border bg-card-bg p-3 text-left transition-colors hover:border-brand-orange/40 hover:bg-card-bg/50"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-white leading-snug">{opp.title}</p>
+                      <p className="text-sm font-medium text-text-primary leading-snug">{opp.title}</p>
                       <OpportunityStageBadge stage={opp.stage} status={opp.status} handoffStatus={opp.handoffStatus} />
                     </div>
-                    <p className="mt-1 text-xs text-muted">{opp.client.name}</p>
+                    <p className="mt-1 text-xs text-text-muted">{opp.client.name}</p>
                     <div className="mt-2 flex items-center justify-between">
-                      <span className="text-sm text-white">
+                      <span className="text-sm text-text-primary">
                         {formatMoney(toNumber(opp.value), opp.currency)}
                       </span>
-                      <span className="text-xs text-muted">
+                      <span className="text-xs text-text-muted">
                         {opp.owner.firstName} {opp.owner.lastName[0]}
                       </span>
                     </div>

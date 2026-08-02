@@ -150,7 +150,7 @@ export default function ImportsAdminPage() {
           <div className="flex-1 overflow-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-card-border bg-background/25 sticky top-0 backdrop-blur-md">
+                <tr className="border-b border-card-border bg-bg-main/25 sticky top-0 backdrop-blur-md">
                   <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Filename</th>
                   <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Target Campaign</th>
                   <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Uploaded By</th>
@@ -162,7 +162,7 @@ export default function ImportsAdminPage() {
               </thead>
               <tbody className="divide-y divide-card-border">
                 {batches.map((batch) => (
-                  <tr key={batch.id} className="hover:bg-background/40 transition-colors">
+                  <tr key={batch.id} className="hover:bg-bg-main/40 transition-colors">
                     <td className="p-4 font-semibold text-text-primary">
                       {batch.filename || 'import.csv'}
                     </td>
@@ -207,7 +207,7 @@ export default function ImportsAdminPage() {
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedBatchId(null)} />
           <div className="relative w-full max-w-lg h-full bg-card-bg border-l border-card-border shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-300">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-card-border bg-background/50">
+            <div className="flex items-center justify-between p-4 border-b border-card-border bg-bg-main/50">
               <div>
                 <h2 className="font-display font-bold text-sm text-text-primary">
                   Inspect Import Batch
@@ -234,15 +234,15 @@ export default function ImportsAdminPage() {
                 <div className="space-y-4">
                   {/* Summary metrics */}
                   <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-background/60 border border-card-border rounded-xl p-3 text-center">
+                    <div className="bg-bg-main/60 border border-card-border rounded-xl p-3 text-center">
                       <span className="text-[10px] text-text-muted uppercase block">Total Rows</span>
                       <span className="text-base font-extrabold text-text-primary font-mono mt-0.5 block">{batchDetail.totalRows}</span>
                     </div>
-                    <div className="bg-background/60 border border-card-border rounded-xl p-3 text-center">
+                    <div className="bg-bg-main/60 border border-card-border rounded-xl p-3 text-center">
                       <span className="text-[10px] text-text-muted uppercase block">Imported</span>
                       <span className="text-base font-extrabold text-emerald-400 font-mono mt-0.5 block">{batchDetail.parsedRows}</span>
                     </div>
-                    <div className="bg-background/60 border border-card-border rounded-xl p-3 text-center">
+                    <div className="bg-bg-main/60 border border-card-border rounded-xl p-3 text-center">
                       <span className="text-[10px] text-text-muted uppercase block">Skipped/Errors</span>
                       <span className="text-base font-extrabold text-brand-red font-mono mt-0.5 block">{batchDetail.errorRows}</span>
                     </div>

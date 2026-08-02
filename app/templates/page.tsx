@@ -372,7 +372,7 @@ export default function TemplatesPage() {
           <h1 className="font-display font-extrabold text-2xl text-text-primary tracking-tight">
             Templates Library
           </h1>
-          <p className="text-xs text-text-secondary mt-0.5">
+          <p className="text-xs text-text-secondary mt-0.5 prose-measure">
             Create and customize multi-channel message scripts with dynamic merge variables.
           </p>
         </div>
@@ -396,7 +396,7 @@ export default function TemplatesPage() {
                 placeholder="Search templates..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-background border border-card-border rounded-lg text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
+                className="w-full pl-8 pr-3 py-1.5 bg-bg-main border border-card-border rounded-lg text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
               />
             </div>
             <div className="flex gap-1 flex-wrap">
@@ -404,7 +404,7 @@ export default function TemplatesPage() {
                 <button
                   key={ch}
                   onClick={() => setFilterChannel(ch)}
-                  className={`px-2 py-1 rounded text-[10px] font-semibold border capitalize transition-colors ${
+                  className={`px-2 py-1 rounded text-xs font-semibold border capitalize transition-colors ${
                     filterChannel === ch
                       ? 'bg-brand-red/10 border-brand-red/20 text-brand-red'
                       : 'border-transparent text-text-secondary hover:text-text-primary'
@@ -436,13 +436,13 @@ export default function TemplatesPage() {
                   {getChannelIcon(temp.channel)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <span className="bg-card-border/50 text-text-secondary text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase">
+                  <span className="bg-card-border/50 text-text-secondary text-xs font-extrabold px-1.5 py-0.5 rounded uppercase">
                     {temp.category}
                   </span>
-                  <h4 className="font-display font-bold text-xs text-text-primary mt-1.5 truncate">
+                  <h2 className="font-display font-bold text-xs text-text-primary mt-1.5 truncate">
                     {temp.name}
-                  </h4>
-                  <p className="text-[10px] text-text-muted mt-1 truncate">{temp.body}</p>
+                  </h2>
+                  <p className="text-xs text-text-muted mt-1 truncate">{temp.body}</p>
                 </div>
                 <button
                   onClick={(e) => {
@@ -472,7 +472,7 @@ export default function TemplatesPage() {
             </div>
           ) : (
             <div className="flex-1 flex flex-col">
-              <div className="flex items-center justify-between px-5 py-3 border-b border-card-border bg-background/20">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-card-border bg-bg-main/20">
                 <div className="flex bg-card-border/40 p-1 rounded-lg">
                   <button
                     onClick={() => setActivePane('edit')}
@@ -518,7 +518,7 @@ export default function TemplatesPage() {
                           type="text"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
-                          className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
+                          className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
                         />
                       </div>
                       <div className="space-y-1">
@@ -529,7 +529,7 @@ export default function TemplatesPage() {
                           type="text"
                           value={category}
                           onChange={(e) => setCategory(e.target.value)}
-                          className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
+                          className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
                         />
                       </div>
                     </div>
@@ -541,7 +541,7 @@ export default function TemplatesPage() {
                       <select
                         value={channel}
                         onChange={(e) => setChannel(e.target.value as Template['channel'])}
-                        className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red"
+                        className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red"
                       >
                         <option value="email">Email</option>
                         <option value="phone">Phone Call</option>
@@ -559,7 +559,7 @@ export default function TemplatesPage() {
                           type="text"
                           value={subject}
                           onChange={(e) => setSubject(e.target.value)}
-                          className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
+                          className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
                         />
                       </div>
                     )}
@@ -568,7 +568,7 @@ export default function TemplatesPage() {
                     <div className="border border-card-border rounded-xl overflow-hidden">
                       <button
                         onClick={() => setAbOpen(!abOpen)}
-                        className="w-full flex items-center justify-between px-3 py-2 bg-background/50 hover:bg-background/80 transition-colors"
+                        className="w-full flex items-center justify-between px-3 py-2 bg-bg-main/50 hover:bg-bg-main/80 transition-colors"
                       >
                         <span className="text-[10px] font-bold text-text-muted uppercase flex items-center gap-1.5">
                           <span className="text-xs">A/B</span> Testing
@@ -589,7 +589,7 @@ export default function TemplatesPage() {
                             <button
                               onClick={handleCreateAbVariant}
                               disabled={creatingAb}
-                              className="px-2.5 py-1.5 bg-background border border-card-border hover:border-brand-red text-text-secondary hover:text-brand-red text-[10px] font-semibold rounded-lg transition-colors disabled:opacity-50"
+                              className="px-2.5 py-1.5 bg-bg-main border border-card-border hover:border-brand-red text-text-secondary hover:text-brand-red text-[10px] font-semibold rounded-lg transition-colors disabled:opacity-50"
                             >
                               {creatingAb ? 'Creating...' : 'Create B Variant from Current'}
                             </button>
@@ -597,7 +597,7 @@ export default function TemplatesPage() {
                           {abVariants.map((v) => (
                             <div
                               key={v.id}
-                              className="bg-background/50 border border-card-border rounded-lg p-3 space-y-1.5"
+                              className="bg-bg-main/50 border border-card-border rounded-lg p-3 space-y-1.5"
                             >
                               <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-bold text-brand-red uppercase">
@@ -642,7 +642,7 @@ export default function TemplatesPage() {
                               type="button"
                               onMouseDown={(e) => e.preventDefault()}
                               onClick={() => handleInsertMergeField(f)}
-                              className="px-1.5 py-0.5 border border-card-border bg-background hover:bg-card-border text-[9px] font-semibold text-text-secondary rounded transition-colors"
+                              className="px-1.5 py-0.5 border border-card-border bg-bg-main hover:bg-card-border text-[9px] font-semibold text-text-secondary rounded transition-colors"
                             >
                               {f}
                             </button>
@@ -653,7 +653,7 @@ export default function TemplatesPage() {
                       {channel === 'email' ? (
                         <div className="space-y-2">
                           {/* Rich Text Editor Toolbar */}
-                          <div className="flex items-center justify-between bg-background border border-card-border rounded-lg p-1">
+                          <div className="flex items-center justify-between bg-bg-main border border-card-border rounded-lg p-1">
                             <div className="flex items-center gap-1">
                               <button
                                 type="button"
@@ -707,7 +707,7 @@ export default function TemplatesPage() {
                             <textarea
                               value={body}
                               onChange={(e) => setBody(e.target.value)}
-                              className="w-full bg-background border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-48 placeholder-text-muted resize-none leading-relaxed font-mono text-xs"
+                              className="w-full bg-bg-main border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-48 placeholder-text-muted resize-none leading-relaxed font-mono text-xs"
                               placeholder="<p>Write your raw HTML here...</p>"
                             />
                           ) : (
@@ -715,16 +715,16 @@ export default function TemplatesPage() {
                               ref={editorRef}
                               contentEditable
                               onInput={(e) => setBody(e.currentTarget.innerHTML)}
-                              className="w-full bg-background border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-48 placeholder-text-muted overflow-y-auto leading-relaxed font-sans text-xs focus:ring-1 focus:ring-brand-red/35 outline-none"
+                              className="w-full bg-bg-main border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-48 placeholder-text-muted overflow-y-auto leading-relaxed font-sans text-xs focus:ring-1 focus:ring-brand-red/35 outline-none"
                               style={{ minHeight: '12rem' }}
                             />
                           )}
 
                           {/* Attachments Section */}
-                          <div className="border border-card-border rounded-xl p-3 bg-background/30 space-y-3">
+                          <div className="border border-card-border rounded-xl p-3 bg-bg-main/30 space-y-3">
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-bold text-text-muted uppercase">Template Attachments</span>
-                              <label className="cursor-pointer px-2 py-1 bg-background hover:bg-card-border/40 border border-card-border rounded text-[9px] font-bold font-mono text-text-secondary transition-colors">
+                              <label className="cursor-pointer px-2 py-1 bg-bg-main hover:bg-card-border/40 border border-card-border rounded text-[9px] font-bold font-mono text-text-secondary transition-colors">
                                 {uploading ? 'Uploading...' : '+ Attach File'}
                                 <input
                                   type="file"
@@ -763,14 +763,14 @@ export default function TemplatesPage() {
                         <textarea
                           value={body}
                           onChange={(e) => setBody(e.target.value)}
-                          className="w-full bg-background border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-48 placeholder-text-muted resize-none leading-relaxed font-mono text-xs"
+                          className="w-full bg-bg-main border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-48 placeholder-text-muted resize-none leading-relaxed font-mono text-xs"
                         />
                       )}
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-4 text-xs h-full flex flex-col">
-                    <div className="border border-card-border bg-background/30 rounded-xl p-4 flex-1 space-y-4 min-h-[250px]">
+                    <div className="border border-card-border bg-bg-main/30 rounded-xl p-4 flex-1 space-y-4 min-h-[250px]">
                       {channel === 'email' && (
                         <div className="border-b border-card-border/60 pb-3">
                           <p className="text-text-muted">

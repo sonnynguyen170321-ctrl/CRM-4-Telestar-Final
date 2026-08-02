@@ -664,7 +664,7 @@ export default function DashboardPage() {
               <select
                 value={selectedSdrId}
                 onChange={(e) => setSelectedSdrId(e.target.value)}
-                className="bg-background border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+                className="bg-bg-main border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
               >
                 <option value="all">All Reps</option>
                 {sdrUsers.map((u) => (
@@ -718,7 +718,7 @@ export default function DashboardPage() {
       <div className={`grid gap-6 flex-1 items-start ${showStats ? 'grid-cols-3' : 'grid-cols-1'}`}>
         {/* Task Hub */}
         <div className={`glass-card rounded-2xl overflow-hidden flex flex-col ${showStats ? 'col-span-2' : ''}`}>
-          <div className="flex items-center px-5 py-4 border-b border-card-border bg-background/25 gap-2">
+          <div className="flex items-center px-5 py-4 border-b border-card-border bg-bg-main/25 gap-2">
             {(['today', 'yesterday', 'overdue'] as const).map((tab) => {
               const count =
                 tab === 'today' ? pendingTodayCount
@@ -750,18 +750,18 @@ export default function DashboardPage() {
           </div>
 
           {/* Filters (F4A) */}
-          <div className="px-5 py-2.5 border-b border-card-border bg-background/10 flex flex-wrap items-center gap-2">
+          <div className="px-5 py-2.5 border-b border-card-border bg-bg-main/10 flex flex-wrap items-center gap-2">
             <input
               type="text"
               value={taskSearch}
               onChange={(e) => setTaskSearch(e.target.value)}
               placeholder="Search task or lead..."
-              className="w-52 px-2.5 py-1 text-xs bg-background border border-card-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
+              className="w-52 px-2.5 py-1 text-xs bg-bg-main border border-card-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
             />
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="bg-background border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+              className="bg-bg-main border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
             >
               <option value="all">All channels</option>
               <option value="phone">Call</option>
@@ -773,7 +773,7 @@ export default function DashboardPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-background border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+              className="bg-bg-main border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
             >
               <option value="all">Any status</option>
               <option value="pending">Pending</option>
@@ -783,7 +783,7 @@ export default function DashboardPage() {
             <select
               value={taskPriorityFilter}
               onChange={(e) => setTaskPriorityFilter(e.target.value)}
-              className="bg-background border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+              className="bg-bg-main border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
             >
               <option value="all">Any priority</option>
               <option value="high">High</option>
@@ -793,7 +793,7 @@ export default function DashboardPage() {
             <select
               value={stageFilter}
               onChange={(e) => setStageFilter(e.target.value)}
-              className="bg-background border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+              className="bg-bg-main border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
             >
               <option value="all">Any stage</option>
               <option value="new">New</option>
@@ -807,7 +807,7 @@ export default function DashboardPage() {
               <select
                 value={clientFilter}
                 onChange={(e) => setClientFilter(e.target.value)}
-                className="bg-background border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+                className="bg-bg-main border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
               >
                 <option value="all">All clients</option>
                 {clientOptions.map((c) => (
@@ -819,7 +819,7 @@ export default function DashboardPage() {
               <select
                 value={campaignFilter}
                 onChange={(e) => setCampaignFilter(e.target.value)}
-                className="bg-background border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+                className="bg-bg-main border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
               >
                 <option value="all">All campaigns</option>
                 {campaignOptions.map((c) => (
@@ -841,7 +841,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Bulk selection bar (F4B) */}
-          <div className="px-5 py-2 border-b border-card-border flex flex-wrap items-center gap-2 bg-background/25">
+          <div className="px-5 py-2 border-b border-card-border flex flex-wrap items-center gap-2 bg-bg-main/25">
             <label className="flex items-center gap-2 text-xs font-semibold text-text-secondary cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -905,14 +905,14 @@ export default function DashboardPage() {
           </div>
 
           {bulkPanel && selectedTasks.length > 0 && (
-            <div className="px-5 py-2.5 border-b border-card-border bg-background/40 flex flex-wrap items-center gap-2">
+            <div className="px-5 py-2.5 border-b border-card-border bg-bg-main/40 flex flex-wrap items-center gap-2">
               {bulkPanel === 'reschedule' && (
                 <>
                   <input
                     type="datetime-local"
                     value={bulkRescheduleDate}
                     onChange={(e) => setBulkRescheduleDate(e.target.value)}
-                    className="px-2 py-1 text-xs bg-background border border-card-border rounded-lg text-text-primary focus:outline-none focus:border-brand-red"
+                    className="px-2 py-1 text-xs bg-bg-main border border-card-border rounded-lg text-text-primary focus:outline-none focus:border-brand-red"
                   />
                   <button
                     onClick={() =>
@@ -930,7 +930,7 @@ export default function DashboardPage() {
                   <select
                     value={bulkReassignId}
                     onChange={(e) => setBulkReassignId(e.target.value)}
-                    className="bg-background border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+                    className="bg-bg-main border border-card-border rounded-lg text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
                   >
                     <option value="">Choose rep...</option>
                     {sdrUsers.map((u) => (
@@ -953,7 +953,7 @@ export default function DashboardPage() {
                     value={bulkNoteText}
                     onChange={(e) => setBulkNoteText(e.target.value)}
                     placeholder="Note added to each selected lead..."
-                    className="flex-1 min-w-[240px] px-2.5 py-1 text-xs bg-background border border-card-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
+                    className="flex-1 min-w-[240px] px-2.5 py-1 text-xs bg-bg-main border border-card-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
                   />
                   <button
                     onClick={() => runBulkAction('note', { note: bulkNoteText })}
@@ -1002,7 +1002,7 @@ export default function DashboardPage() {
                   className={`p-4 transition-all flex flex-row items-center justify-between gap-3 group cursor-pointer ${
                     isFocused
                       ? 'bg-brand-red/[0.04] border-l-2 border-l-brand-red'
-                      : 'hover:bg-background/40 border-l-2 border-l-transparent'
+                      : 'hover:bg-bg-main/40 border-l-2 border-l-transparent'
                   }`}
                 >
                   <div className="flex items-start gap-3 min-w-0">
@@ -1089,7 +1089,7 @@ export default function DashboardPage() {
                                     setQuickNoteText('');
                                     setOverflowOpenId(null);
                                   }}
-                                  className="w-full text-left px-3 py-2 hover:bg-background text-text-primary flex items-center gap-2 transition-colors"
+                                  className="w-full text-left px-3 py-2 hover:bg-bg-main text-text-primary flex items-center gap-2 transition-colors"
                                 >
                                   <FileText className="w-3.5 h-3.5 text-amber-500" /> Add Note
                                 </button>
@@ -1099,7 +1099,7 @@ export default function DashboardPage() {
                                     setNewDueDate('');
                                     setOverflowOpenId(null);
                                   }}
-                                  className="w-full text-left px-3 py-2 hover:bg-background text-text-primary flex items-center gap-2 transition-colors"
+                                  className="w-full text-left px-3 py-2 hover:bg-bg-main text-text-primary flex items-center gap-2 transition-colors"
                                 >
                                   <Clock className="w-3.5 h-3.5 text-blue-500" /> Reschedule
                                 </button>
@@ -1108,7 +1108,7 @@ export default function DashboardPage() {
                                     setSelectedLeadId(task.lead?.id);
                                     setOverflowOpenId(null);
                                   }}
-                                  className="w-full text-left px-3 py-2 hover:bg-background text-text-primary flex items-center gap-2 transition-colors"
+                                  className="w-full text-left px-3 py-2 hover:bg-bg-main text-text-primary flex items-center gap-2 transition-colors"
                                 >
                                   <Users className="w-3.5 h-3.5 text-text-muted" /> View Lead
                                 </button>
@@ -1139,7 +1139,7 @@ export default function DashboardPage() {
                         onChange={(e) => setQuickNoteText(e.target.value)}
                         placeholder={`Add note for ${task.lead?.firstName}…`}
                         autoFocus
-                        className="flex-1 bg-background border border-amber-500/30 rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-amber-500"
+                        className="flex-1 bg-bg-main border border-amber-500/30 rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-amber-500"
                       />
                       <button
                         type="submit"
@@ -1168,17 +1168,17 @@ export default function DashboardPage() {
           <div className="space-y-6">
             {!isManager && (
               <div className="glass-card rounded-2xl p-5 space-y-4">
-                <h3 className="type-section text-text-primary flex items-center gap-2">
+                <h2 className="type-section text-text-primary flex items-center gap-2">
                   <Award className="w-5 h-5 text-brand-gold-text" aria-hidden="true" />
                   My Performance
-                </h3>
+                </h2>
                 <div className="grid grid-cols-3 gap-3 text-center">
                   {[
                     { label: 'Calls', count: activities.filter((a) => a.type === 'call_logged').length, color: 'text-emerald-500' },
                     { label: 'Emails', count: activities.filter((a) => a.type === 'email_sent').length, color: 'text-blue-500' },
                     { label: 'LinkedIn', count: activities.filter((a) => a.type === 'linkedin_touch').length, color: 'text-indigo-500' },
                   ].map(({ label, count, color }) => (
-                    <div key={label} className="bg-background/60 border border-card-border rounded-xl p-3">
+                    <div key={label} className="bg-bg-main/60 border border-card-border rounded-xl p-3">
                       <p className={`font-display font-extrabold text-xl ${color}`}>{count}</p>
                       <span className="text-xs font-medium text-text-secondary">{label}</span>
                     </div>
@@ -1212,10 +1212,10 @@ export default function DashboardPage() {
             )}
 
             <div className="glass-card rounded-2xl p-5 space-y-4">
-              <h3 className="type-section text-text-primary flex items-center gap-2">
+              <h2 className="type-section text-text-primary flex items-center gap-2">
                 <BarChart className="w-5 h-5 text-brand-orange-text" aria-hidden="true" />
                 Recent Activity Feed
-              </h3>
+              </h2>
               <div className="space-y-4 max-h-[360px] overflow-y-auto pr-1">
                 {activities.length === 0 ? (
                   <p className="text-xs text-text-muted text-center py-4">No activities logged yet.</p>
@@ -1326,7 +1326,7 @@ export default function DashboardPage() {
                     className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-all flex items-center justify-between ${
                       callOutcome === 'no_answer'
                         ? 'bg-brand-red/10 border-brand-red/30 text-brand-red shadow-sm'
-                        : 'bg-background border-card-border text-text-secondary hover:border-brand-red/30 hover:text-text-primary'
+                        : 'bg-bg-main border-card-border text-text-secondary hover:border-brand-red/30 hover:text-text-primary'
                     }`}
                   >
                     <span>No Answer</span>
@@ -1338,7 +1338,7 @@ export default function DashboardPage() {
                     className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-all flex items-center justify-between ${
                       callOutcome === 'voicemail_left'
                         ? 'bg-brand-red/10 border-brand-red/30 text-brand-red shadow-sm'
-                        : 'bg-background border-card-border text-text-secondary hover:border-brand-red/30 hover:text-text-primary'
+                        : 'bg-bg-main border-card-border text-text-secondary hover:border-brand-red/30 hover:text-text-primary'
                     }`}
                   >
                     <span>Voicemail Left</span>
@@ -1350,7 +1350,7 @@ export default function DashboardPage() {
                     className={`col-span-2 py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-all ${
                       callOutcome === 'voicemail_not_left'
                         ? 'bg-brand-red/10 border-brand-red/30 text-brand-red shadow-sm'
-                        : 'bg-background border-card-border text-text-secondary hover:border-brand-red/30 hover:text-text-primary'
+                        : 'bg-bg-main border-card-border text-text-secondary hover:border-brand-red/30 hover:text-text-primary'
                     }`}
                   >
                     Went to Voicemail — No Message
@@ -1363,7 +1363,7 @@ export default function DashboardPage() {
                     className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-all flex items-center justify-between ${
                       callOutcome === 'connected_interested'
                         ? 'bg-green-500/15 border-green-500/40 text-green-500 shadow-sm'
-                        : 'bg-background border-card-border text-text-secondary hover:border-green-500/30 hover:text-text-primary'
+                        : 'bg-bg-main border-card-border text-text-secondary hover:border-green-500/30 hover:text-text-primary'
                     }`}
                   >
                     <span>Interested</span>
@@ -1375,7 +1375,7 @@ export default function DashboardPage() {
                     className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-all ${
                       callOutcome === 'connected_not_interested'
                         ? 'bg-amber-500/15 border-amber-500/40 text-amber-500 shadow-sm'
-                        : 'bg-background border-card-border text-text-secondary hover:border-amber-500/30 hover:text-text-primary'
+                        : 'bg-bg-main border-card-border text-text-secondary hover:border-amber-500/30 hover:text-text-primary'
                     }`}
                   >
                     Not Interested
@@ -1386,7 +1386,7 @@ export default function DashboardPage() {
                     className={`col-span-2 py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-all flex items-center justify-between ${
                       callOutcome === 'callback_requested'
                         ? 'bg-blue-500/15 border-blue-500/40 text-blue-500 shadow-sm'
-                        : 'bg-background border-card-border text-text-secondary hover:border-blue-500/30 hover:text-text-primary'
+                        : 'bg-bg-main border-card-border text-text-secondary hover:border-blue-500/30 hover:text-text-primary'
                     }`}
                   >
                     <span>Call Back Requested</span>
@@ -1398,7 +1398,7 @@ export default function DashboardPage() {
                     className={`col-span-2 py-1.5 px-2 rounded-lg text-xs font-bold text-center border transition-all flex items-center justify-between ${
                       callOutcome === 'connected_meeting_booked'
                         ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-sm'
-                        : 'bg-background border-card-border text-text-secondary hover:border-emerald-500/30 hover:text-text-primary'
+                        : 'bg-bg-main border-card-border text-text-secondary hover:border-emerald-500/30 hover:text-text-primary'
                     }`}
                   >
                     <span>Meeting Booked</span>
@@ -1406,8 +1406,8 @@ export default function DashboardPage() {
                   </button>
 
                   <div className="col-span-2 text-[10px] font-bold text-text-muted uppercase tracking-wider mt-1">Bad Data</div>
-                  <button type="button" onClick={() => setCallOutcome('wrong_number')} className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-colors ${callOutcome === 'wrong_number' ? 'bg-card-border/40 border-card-border text-text-primary' : 'bg-background border-card-border text-text-secondary hover:border-card-border hover:text-text-primary'}`}>Wrong Number</button>
-                  <button type="button" onClick={() => setCallOutcome('do_not_call')} className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-colors ${callOutcome === 'do_not_call' ? 'bg-card-border/40 border-card-border text-text-primary' : 'bg-background border-card-border text-text-secondary hover:border-card-border hover:text-text-primary'}`}>Do Not Call</button>
+                  <button type="button" onClick={() => setCallOutcome('wrong_number')} className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-colors ${callOutcome === 'wrong_number' ? 'bg-card-border/40 border-card-border text-text-primary' : 'bg-bg-main border-card-border text-text-secondary hover:border-card-border hover:text-text-primary'}`}>Wrong Number</button>
+                  <button type="button" onClick={() => setCallOutcome('do_not_call')} className={`py-1.5 px-2 rounded-lg text-xs font-semibold text-center border transition-colors ${callOutcome === 'do_not_call' ? 'bg-card-border/40 border-card-border text-text-primary' : 'bg-bg-main border-card-border text-text-secondary hover:border-card-border hover:text-text-primary'}`}>Do Not Call</button>
                 </div>
                 {callOutcome === 'connected_meeting_booked' && (
                   <p className="text-xs text-emerald-500 font-medium">→ You'll be prompted to move this lead to Meeting Booked.</p>
@@ -1431,7 +1431,7 @@ export default function DashboardPage() {
                   value={channelAction}
                   onChange={(e) => setChannelAction(e.target.value)}
                   required
-                  className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-text-primary focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-2 text-xs text-text-primary focus:outline-none focus:border-indigo-500"
                 >
                   <option value="">— Select action —</option>
                   <option value="message_sent">Message Sent</option>
@@ -1451,7 +1451,7 @@ export default function DashboardPage() {
                   value={channelAction}
                   onChange={(e) => setChannelAction(e.target.value)}
                   required
-                  className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-text-primary focus:outline-none focus:border-teal-500"
+                  className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-2 text-xs text-text-primary focus:outline-none focus:border-teal-500"
                 >
                   <option value="">— Select type —</option>
                   <option value="first_message">Message Sent</option>
@@ -1486,7 +1486,7 @@ export default function DashboardPage() {
                     <select
                       value={responseStage}
                       onChange={(e) => setResponseStage(e.target.value)}
-                      className="w-full bg-background border border-emerald-500/30 rounded-lg px-2.5 py-2 text-xs text-text-primary focus:outline-none focus:border-emerald-500"
+                      className="w-full bg-bg-main border border-emerald-500/30 rounded-lg px-2.5 py-2 text-xs text-text-primary focus:outline-none focus:border-emerald-500"
                     >
                       <option value="">— Keep current stage —</option>
                       <option value="replied">Replied</option>
@@ -1511,7 +1511,7 @@ export default function DashboardPage() {
                 }
                 value={activityNote}
                 onChange={(e) => setActivityNote(e.target.value)}
-                className="w-full bg-background border border-card-border rounded-lg p-2.5 text-xs text-text-primary focus:outline-none focus:border-brand-red h-20 placeholder-text-muted resize-none"
+                className="w-full bg-bg-main border border-card-border rounded-lg p-2.5 text-xs text-text-primary focus:outline-none focus:border-brand-red h-20 placeholder-text-muted resize-none"
               />
             </div>
 
@@ -1556,7 +1556,7 @@ export default function DashboardPage() {
                 type="datetime-local"
                 value={newDueDate}
                 onChange={(e) => setNewDueDate(e.target.value)}
-                className="w-full bg-background border border-card-border rounded-lg px-2.5 py-2 text-xs text-text-primary focus:outline-none focus:border-brand-red"
+                className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-2 text-xs text-text-primary focus:outline-none focus:border-brand-red"
                 required
               />
             </div>

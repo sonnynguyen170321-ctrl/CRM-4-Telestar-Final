@@ -143,10 +143,10 @@ export default function MeetingBookingModal({
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-card-border">
           <div>
-            <h2 className="text-lg font-semibold text-white">Book Meeting</h2>
-            <p className="text-sm text-muted mt-0.5">{leadName}</p>
+            <h2 className="text-lg font-semibold text-text-primary">Book Meeting</h2>
+            <p className="text-sm text-text-muted mt-0.5">{leadName}</p>
           </div>
-          <button onClick={onClose} className="text-muted hover:text-white transition-colors">
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -154,13 +154,13 @@ export default function MeetingBookingModal({
         <div className="p-5 space-y-5">
           {/* Booking Link Selection */}
           <div>
-            <label className="block text-xs font-medium text-muted mb-1.5">Booking Link</label>
+            <label className="block text-xs font-medium text-text-muted mb-1.5">Booking Link</label>
             {linksLoading ? (
-              <div className="flex items-center gap-2 text-muted text-sm py-2">
+              <div className="flex items-center gap-2 text-text-muted text-sm py-2">
                 <Loader2 size={14} className="animate-spin" /> Loading links…
               </div>
             ) : bookingLinks.length === 0 ? (
-              <p className="text-sm text-muted py-2">No booking links configured for this client/campaign.</p>
+              <p className="text-sm text-text-muted py-2">No booking links configured for this client/campaign.</p>
             ) : (
               <>
                 <select
@@ -170,7 +170,7 @@ export default function MeetingBookingModal({
                     const link = bookingLinks.find(l => l.id === e.target.value);
                     if (link) setDurationMins(link.durationMins || 30);
                   }}
-                  className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none"
+                  className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none"
                 >
                   {bookingLinks.map(link => (
                     <option key={link.id} value={link.id}>
@@ -216,14 +216,14 @@ export default function MeetingBookingModal({
 
           {/* Mode toggle */}
           <div>
-            <label className="block text-xs font-medium text-muted mb-1.5">Action</label>
+            <label className="block text-xs font-medium text-text-muted mb-1.5">Action</label>
             <div className="flex gap-2">
               <button
                 onClick={() => setMode('link_sent')}
                 className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all border ${
                   mode === 'link_sent'
                     ? 'bg-blue-500/15 border-blue-500/40 text-blue-400'
-                    : 'bg-surface border-card-border text-muted hover:text-white hover:border-card-border-hover'
+                    : 'bg-card-bg border-card-border text-text-muted hover:text-text-primary hover:border-card-border-hover'
                 }`}
               >
                 <Send size={14} /> Mark Link Sent
@@ -233,7 +233,7 @@ export default function MeetingBookingModal({
                 className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all border ${
                   mode === 'scheduled'
                     ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
-                    : 'bg-surface border-card-border text-muted hover:text-white hover:border-card-border-hover'
+                    : 'bg-card-bg border-card-border text-text-muted hover:text-text-primary hover:border-card-border-hover'
                 }`}
               >
                 <Calendar size={14} /> Schedule Meeting
@@ -243,15 +243,15 @@ export default function MeetingBookingModal({
 
           {/* Title */}
           <div>
-            <label className="block text-xs font-medium text-muted mb-1.5">
-              Meeting Title <span className="text-muted/60">(optional)</span>
+            <label className="block text-xs font-medium text-text-muted mb-1.5">
+              Meeting Title <span className="text-text-muted/60">(optional)</span>
             </label>
             <input
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder={`Meeting with ${leadName}`}
-              className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none"
+              className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/50 focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none"
             />
           </div>
 
@@ -260,20 +260,20 @@ export default function MeetingBookingModal({
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-muted mb-1.5">Date & Time *</label>
+                  <label className="block text-xs font-medium text-text-muted mb-1.5">Date & Time *</label>
                   <input
                     type="datetime-local"
                     value={scheduledAt}
                     onChange={e => setScheduledAt(e.target.value)}
-                    className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none [color-scheme:dark]"
+                    className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none [color-scheme:dark]"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted mb-1.5">Duration (min)</label>
+                  <label className="block text-xs font-medium text-text-muted mb-1.5">Duration (min)</label>
                   <select
                     value={durationMins}
                     onChange={e => setDurationMins(Number(e.target.value))}
-                    className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none"
+                    className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none"
                   >
                     {[15, 30, 45, 60, 90, 120].map(d => (
                       <option key={d} value={d}>{d} minutes</option>
@@ -283,15 +283,15 @@ export default function MeetingBookingModal({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-muted mb-1.5">
-                  Meeting URL <span className="text-muted/60">(optional)</span>
+                <label className="block text-xs font-medium text-text-muted mb-1.5">
+                  Meeting URL <span className="text-text-muted/60">(optional)</span>
                 </label>
                 <input
                   type="url"
                   value={meetingUrl}
                   onChange={e => setMeetingUrl(e.target.value)}
                   placeholder="https://meet.google.com/..."
-                  className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none"
+                  className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/50 focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none"
                 />
               </div>
             </>
@@ -302,7 +302,7 @@ export default function MeetingBookingModal({
         <div className="flex justify-end gap-3 p-5 border-t border-card-border">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-muted hover:text-white transition-colors"
+            className="px-4 py-2 text-sm text-text-muted hover:text-text-primary transition-colors"
           >
             Cancel
           </button>

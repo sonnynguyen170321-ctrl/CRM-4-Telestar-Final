@@ -72,14 +72,14 @@ function LeadgenManagerPageInner() {
   return (
     <div className="flex flex-col h-full overflow-hidden animate-in fade-in duration-200">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-card-border bg-background flex-shrink-0">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-card-border bg-bg-main flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
             <Database className="w-4 h-4 text-purple-400" />
           </div>
           <div>
             <h1 className="font-display font-bold text-sm text-text-primary">Leadgen Manager Console</h1>
-            <p className="text-[10px] text-text-muted uppercase">
+            <p className="text-xs text-text-muted uppercase prose-measure">
               Internal database · Enrich · Qualify · Route · Convert
             </p>
           </div>
@@ -97,7 +97,7 @@ function LeadgenManagerPageInner() {
       </div>
 
       {/* Tab bar */}
-      <div className="px-6 py-2 border-b border-card-border bg-background flex items-center gap-2 flex-shrink-0 overflow-x-auto">
+      <div className="px-6 py-2 border-b border-card-border bg-bg-main flex items-center gap-2 flex-shrink-0 overflow-x-auto">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           return (

@@ -37,7 +37,7 @@ export default function NewReminderModal({ onClose, onSuccess }: Props) {
     }
   };
 
-  const inputClass = 'w-full px-3 py-2 bg-background border border-card-border rounded-lg text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red transition-colors';
+  const inputClass = 'w-full px-3 py-2 bg-bg-main border border-card-border rounded-lg text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red transition-colors';
   const labelClass = 'block text-[10px] font-bold font-mono text-text-muted uppercase mb-1 tracking-wide';
 
   return (
@@ -83,7 +83,7 @@ export default function NewReminderModal({ onClose, onSuccess }: Props) {
             </div>
 
             <div className="flex gap-2 pt-1">
-              <button type="button" onClick={onClose} className="flex-1 py-2 border border-card-border bg-background hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors">
+              <button type="button" onClick={onClose} className="flex-1 py-2 border border-card-border bg-bg-main hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors">
                 Cancel
               </button>
               <button type="submit" disabled={saving} className="flex-1 py-2 bg-brand-gold hover:opacity-90 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5">

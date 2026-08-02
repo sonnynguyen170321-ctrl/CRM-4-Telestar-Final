@@ -82,7 +82,7 @@ export default function ClientReportList() {
         );
       case 'archived':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-card-border/40 text-muted-foreground border border-card-border">
             <Archive className="w-3 h-3" /> Archived
           </span>
         );
@@ -101,11 +101,11 @@ export default function ClientReportList() {
       {/* Top Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
+          <h1 className="text-xl font-bold text-text-primary flex items-center gap-2">
             <FileBarChart className="w-6 h-6 text-brand-red" />
             Client Performance Reports
           </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5 prose-measure">
             Immutable performance snapshots, omnichannel KPIs, and client-safe review packages
           </p>
         </div>
@@ -120,7 +120,7 @@ export default function ClientReportList() {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="p-4 bg-card border border-border rounded-xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
+      <div className="p-4 bg-card-bg border border-card-border rounded-xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
         <div className="relative w-full md:w-80">
           <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-2.5" />
           <input
@@ -128,7 +128,7 @@ export default function ClientReportList() {
             placeholder="Search reports by client or title..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-background border border-border rounded-lg pl-9 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:ring-1 focus:ring-brand-red focus:outline-none"
+            className="w-full bg-bg-main border border-card-border rounded-lg pl-9 pr-3 py-1.5 text-xs text-text-primary placeholder:text-muted-foreground focus:ring-1 focus:ring-brand-red focus:outline-none"
           />
         </div>
 
@@ -137,7 +137,7 @@ export default function ClientReportList() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-brand-red focus:outline-none"
+            className="bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:ring-1 focus:ring-brand-red focus:outline-none"
           >
             <option value="all">All Statuses</option>
             <option value="draft">Drafts</option>
@@ -150,7 +150,7 @@ export default function ClientReportList() {
           <select
             value={audienceFilter}
             onChange={(e) => setAudienceFilter(e.target.value)}
-            className="bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-brand-red focus:outline-none"
+            className="bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:ring-1 focus:ring-brand-red focus:outline-none"
           >
             <option value="all">All Audiences</option>
             <option value="client">Client-Facing</option>
@@ -160,15 +160,15 @@ export default function ClientReportList() {
       </div>
 
       {/* Reports Table */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+      <div className="bg-card-bg border border-card-border rounded-xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="p-12 text-center text-xs text-muted-foreground">Loading campaign reports...</div>
         ) : filteredReports.length === 0 ? (
           <div className="p-12 text-center space-y-3">
-            <div className="inline-flex p-3 rounded-full bg-muted text-muted-foreground">
+            <div className="inline-flex p-3 rounded-full bg-card-border/40 text-muted-foreground">
               <FileBarChart className="w-6 h-6" />
             </div>
-            <p className="text-sm font-medium text-foreground">No campaign reports found</p>
+            <p className="text-sm font-medium text-text-primary">No campaign reports found</p>
             <p className="text-xs text-muted-foreground max-w-sm mx-auto">
               Generate your first weekly or monthly campaign report snapshot to share performance with clients.
             </p>
@@ -183,7 +183,7 @@ export default function ClientReportList() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <tr className="border-b border-card-border bg-card-border/40/40 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                   <th className="py-3 px-4">Report & Client</th>
                   <th className="py-3 px-4">Period</th>
                   <th className="py-3 px-4">Status</th>
@@ -195,9 +195,9 @@ export default function ClientReportList() {
               </thead>
               <tbody className="divide-y divide-border text-xs">
                 {filteredReports.map((r) => (
-                  <tr key={r.id} className="hover:bg-muted/30 transition-colors group">
+                  <tr key={r.id} className="hover:bg-card-border/40/30 transition-colors group">
                     <td className="py-3 px-4">
-                      <div className="font-semibold text-foreground">
+                      <div className="font-semibold text-text-primary">
                         <Link href={`/client-reports/${r.id}`} className="hover:text-brand-red transition-colors">
                           {r.title}
                         </Link>
@@ -222,7 +222,7 @@ export default function ClientReportList() {
                     <td className="py-3 px-4 whitespace-nowrap">{getStatusBadge(r.status)}</td>
 
                     <td className="py-3 px-4 whitespace-nowrap">
-                      <span className="capitalize px-2 py-0.5 rounded text-[11px] font-medium bg-muted text-foreground border border-border">
+                      <span className="capitalize px-2 py-0.5 rounded text-[11px] font-medium bg-card-border/40 text-text-primary border border-card-border">
                         {r.audience}
                       </span>
                     </td>
@@ -248,7 +248,7 @@ export default function ClientReportList() {
                       <div className="flex items-center justify-end gap-1.5">
                         <Link
                           href={`/client-reports/${r.id}`}
-                          className="px-2.5 py-1 bg-muted hover:bg-muted/80 text-foreground rounded text-[11px] font-medium transition-colors"
+                          className="px-2.5 py-1 bg-card-border/40 hover:bg-card-border/40/80 text-text-primary rounded text-[11px] font-medium transition-colors"
                         >
                           View
                         </Link>

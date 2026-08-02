@@ -619,7 +619,7 @@ export default function AiAssistant() {
         }
         .ai-typing-dot { animation: aiTypingFade 1.1s ease-in-out infinite; }
         .ai-chat-panel {
-          box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.12);
         }
         .ai-message-content { white-space: pre-wrap; word-break: break-word; }
         .ai-message-content strong { font-weight: 600; }
@@ -701,7 +701,7 @@ export default function AiAssistant() {
                     className={`rounded-2xl px-3 py-2 text-sm ${
                       msg.role === 'user'
                         ? 'bg-[#D42B1E] text-white rounded-tr-sm'
-                        : 'bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded-tl-sm shadow-sm'
+                        : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-tl-sm'
                     }`}
                   >
                     {msg.role === 'assistant' && isStreaming && idx === messages.length - 1 && msg.content === '' ? (
@@ -751,14 +751,14 @@ export default function AiAssistant() {
                             <button
                               key={reason}
                               onClick={() => handleFeedbackReason(idx, reason)}
-                              className="text-[10px] px-2 py-0.5 rounded-full border border-red-400/40 text-red-400 hover:bg-red-400/10 transition-colors"
+                              className="text-xs px-2 py-0.5 rounded-full border border-red-400/40 text-red-400 hover:bg-red-400/10 transition-colors"
                             >
                               {reason}
                             </button>
                           ))}
                           <button
                             onClick={() => setFeedbackPendingIdx(null)}
-                            className="text-[10px] px-2 py-0.5 rounded-full border border-zinc-600 text-zinc-500 hover:bg-zinc-700/30 transition-colors"
+                            className="text-xs px-2 py-0.5 rounded-full border border-zinc-600 text-zinc-500 hover:bg-zinc-700/30 transition-colors"
                           >
                             Cancel
                           </button>

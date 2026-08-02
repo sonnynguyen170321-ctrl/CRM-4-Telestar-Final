@@ -136,7 +136,7 @@ export default function JobsAdminPage() {
           <div className="flex-1 overflow-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-card-border bg-background/25 sticky top-0 backdrop-blur-md">
+                <tr className="border-b border-card-border bg-bg-main/25 sticky top-0 backdrop-blur-md">
                   <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Job Info</th>
                   <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Queue</th>
                   <th className="p-4 font-bold text-[10px] text-text-muted uppercase tracking-wide">Status</th>
@@ -152,8 +152,8 @@ export default function JobsAdminPage() {
                   return (
                     <Fragment key={job.id}>
                       <tr
-                        className={`hover:bg-background/40 transition-colors ${
-                          isExpanded ? 'bg-background/20' : ''
+                        className={`hover:bg-bg-main/40 transition-colors ${
+                          isExpanded ? 'bg-bg-main/20' : ''
                         }`}
                       >
                         <td className="p-4">
@@ -199,19 +199,19 @@ export default function JobsAdminPage() {
                       </tr>
 
                       {isExpanded && (
-                        <tr className="bg-background/10 border-b border-card-border">
+                        <tr className="bg-bg-main/10 border-b border-card-border">
                           <td colSpan={7} className="p-4">
                             <div className="grid grid-cols-2 gap-4 text-xs">
                               <div className="space-y-2">
                                 <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Deduplication Key</p>
-                                <pre className="bg-background/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] overflow-x-auto text-text-secondary break-all">
+                                <pre className="bg-bg-main/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] overflow-x-auto text-text-secondary break-all">
                                   {job.dedupeKey}
                                 </pre>
 
                                 {job.bullJobId && (
                                   <>
                                     <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mt-3">BullMQ Job ID</p>
-                                    <pre className="bg-background/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] text-text-secondary">
+                                    <pre className="bg-bg-main/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] text-text-secondary">
                                       {job.bullJobId}
                                     </pre>
                                   </>
@@ -234,7 +234,7 @@ export default function JobsAdminPage() {
                                 {job.progress && (
                                   <div>
                                     <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Execution Progress</p>
-                                    <pre className="bg-background/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] overflow-x-auto text-text-secondary">
+                                    <pre className="bg-bg-main/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] overflow-x-auto text-text-secondary">
                                       {JSON.stringify(job.progress, null, 2)}
                                     </pre>
                                   </div>
@@ -243,7 +243,7 @@ export default function JobsAdminPage() {
                                 {job.result && (
                                   <div>
                                     <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Job Result</p>
-                                    <pre className="bg-background/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] overflow-x-auto text-text-secondary">
+                                    <pre className="bg-bg-main/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] overflow-x-auto text-text-secondary">
                                       {JSON.stringify(job.result, null, 2)}
                                     </pre>
                                   </div>

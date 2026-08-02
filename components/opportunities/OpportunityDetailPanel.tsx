@@ -44,8 +44,8 @@ const ACTIVITY_LABELS: Record<string, string> = {
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs text-muted">{label}</p>
-      <p className="mt-0.5 text-sm text-white">{value || '—'}</p>
+      <p className="text-xs text-text-muted">{label}</p>
+      <p className="mt-0.5 text-sm text-text-primary">{value || '—'}</p>
     </div>
   );
 }
@@ -148,15 +148,15 @@ export default function OpportunityDetailPanel({
         <div className="flex items-start justify-between border-b border-card-border px-6 py-4">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold text-white">{opp.title}</h2>
+              <h2 className="text-lg font-semibold text-text-primary">{opp.title}</h2>
               <OpportunityStageBadge stage={opp.stage} status={opp.status} handoffStatus={opp.handoffStatus} />
             </div>
-            <p className="mt-1 text-sm text-muted">
+            <p className="mt-1 text-sm text-text-muted">
               {opp.client.name} · {opp.campaign.name} ·{' '}
               {opp.owner.firstName} {opp.owner.lastName}
             </p>
           </div>
-          <button onClick={onClose} className="text-muted hover:text-white">
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -174,24 +174,24 @@ export default function OpportunityDetailPanel({
           </div>
 
           {opp.nextStepAt && (
-            <p className="mb-4 text-xs text-muted">Next step due: {formatDate(opp.nextStepAt)}</p>
+            <p className="mb-4 text-xs text-text-muted">Next step due: {formatDate(opp.nextStepAt)}</p>
           )}
 
-          <div className="mb-4 rounded-lg border border-card-border bg-surface/30 p-4">
-            <h3 className="mb-2 text-sm font-medium text-white">Qualification Summary</h3>
-            <p className="text-sm text-muted">{opp.qualificationSummary || 'No qualification summary recorded.'}</p>
+          <div className="mb-4 rounded-lg border border-card-border bg-card-bg/30 p-4">
+            <h3 className="mb-2 text-sm font-medium text-text-primary">Qualification Summary</h3>
+            <p className="text-sm text-text-muted">{opp.qualificationSummary || 'No qualification summary recorded.'}</p>
           </div>
 
           <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-lg border border-card-border bg-surface/30 p-4">
-              <h3 className="mb-2 text-sm font-medium text-white">Contact</h3>
+            <div className="rounded-lg border border-card-border bg-card-bg/30 p-4">
+              <h3 className="mb-2 text-sm font-medium text-text-primary">Contact</h3>
               <DetailRow label="Name" value={opp.contact ? `${opp.contact.firstName} ${opp.contact.lastName}` : opp.contactName} />
               <DetailRow label="Title" value={opp.contact?.title ?? opp.contactTitle} />
               <DetailRow label="Email" value={opp.contact?.email ?? opp.contactEmail} />
               <DetailRow label="Phone" value={opp.contactPhone} />
             </div>
-            <div className="rounded-lg border border-card-border bg-surface/30 p-4">
-              <h3 className="mb-2 text-sm font-medium text-white">Client Owner</h3>
+            <div className="rounded-lg border border-card-border bg-card-bg/30 p-4">
+              <h3 className="mb-2 text-sm font-medium text-text-primary">Client Owner</h3>
               <DetailRow label="Name" value={opp.clientOwnerName} />
               <DetailRow label="Email" value={opp.clientOwnerEmail} />
               {opp.meeting ? (
@@ -204,9 +204,9 @@ export default function OpportunityDetailPanel({
           </div>
 
           {opp.painPoints && (
-            <div className="mb-4 rounded-lg border border-card-border bg-surface/30 p-4">
-              <h3 className="mb-2 text-sm font-medium text-white">Pain Points</h3>
-              <p className="text-sm text-muted">{opp.painPoints}</p>
+            <div className="mb-4 rounded-lg border border-card-border bg-card-bg/30 p-4">
+              <h3 className="mb-2 text-sm font-medium text-text-primary">Pain Points</h3>
+              <p className="text-sm text-text-muted">{opp.painPoints}</p>
             </div>
           )}
 
@@ -220,14 +220,14 @@ export default function OpportunityDetailPanel({
           )}
 
           {isManager && (
-            <div className="mb-4 rounded-lg border border-card-border bg-surface/30 p-4">
-              <h3 className="mb-2 text-sm font-medium text-white">Manager Actions</h3>
+            <div className="mb-4 rounded-lg border border-card-border bg-card-bg/30 p-4">
+              <h3 className="mb-2 text-sm font-medium text-text-primary">Manager Actions</h3>
               <div className="flex flex-wrap items-center gap-2">
                 <select
                   value={open ? opp.stage : ''}
                   onChange={e => handleStageChange(e.target.value)}
                   disabled={!open || movingStage}
-                  className="rounded-lg border border-card-border bg-surface px-3 py-2 text-sm text-white focus:ring-1 focus:ring-emerald-500/50 outline-none disabled:opacity-50"
+                  className="rounded-lg border border-card-border bg-card-bg px-3 py-2 text-sm text-text-primary focus:ring-1 focus:ring-emerald-500/50 outline-none disabled:opacity-50"
                 >
                   {!open && <option value="">{opp.status === 'won' ? 'Won' : opp.status === 'lost' ? 'Lost' : 'Closed'}</option>}
                   {STAGES.map(s => (
@@ -255,8 +255,8 @@ export default function OpportunityDetailPanel({
             </div>
           )}
 
-          <div className="mb-4 rounded-lg border border-card-border bg-surface/30 p-4">
-            <h3 className="mb-2 text-sm font-medium text-white">Add Note</h3>
+          <div className="mb-4 rounded-lg border border-card-border bg-card-bg/30 p-4">
+            <h3 className="mb-2 text-sm font-medium text-text-primary">Add Note</h3>
             <div className="flex gap-2">
               <input
                 value={note}
@@ -265,7 +265,7 @@ export default function OpportunityDetailPanel({
                   if (e.key === 'Enter') handleAddNote();
                 }}
                 placeholder="Type a note and press Enter..."
-                className="flex-1 bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none"
+                className="flex-1 bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/50 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none"
               />
               <button
                 onClick={handleAddNote}
@@ -277,23 +277,23 @@ export default function OpportunityDetailPanel({
             </div>
           </div>
 
-          <div className="rounded-lg border border-card-border bg-surface/30 p-4">
-            <h3 className="mb-2 text-sm font-medium text-white">Activity History</h3>
+          <div className="rounded-lg border border-card-border bg-card-bg/30 p-4">
+            <h3 className="mb-2 text-sm font-medium text-text-primary">Activity History</h3>
             {activities.length === 0 ? (
-              <p className="text-sm text-muted">No activity yet.</p>
+              <p className="text-sm text-text-muted">No activity yet.</p>
             ) : (
               <ul className="space-y-3">
                 {activities.map(a => (
                   <li key={a.id} className="flex items-start gap-3 text-sm">
                     <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
                     <div>
-                      <p className="text-white">
+                      <p className="text-text-primary">
                         {ACTIVITY_LABELS[a.type] ?? a.type.replace(/_/g, ' ')}
-                        <span className="ml-2 text-xs text-muted">
+                        <span className="ml-2 text-xs text-text-muted">
                           {a.user.firstName} {a.user.lastName} · {new Date(a.createdAt).toLocaleString()}
                         </span>
                       </p>
-                      {a.description && <p className="text-muted">{a.description}</p>}
+                      {a.description && <p className="text-text-muted">{a.description}</p>}
                     </div>
                   </li>
                 ))}

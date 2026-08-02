@@ -15,7 +15,7 @@ export default async function ClientReportsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="min-h-screen bg-bg-main p-6">
       <ClientReportList />
     </div>
   );

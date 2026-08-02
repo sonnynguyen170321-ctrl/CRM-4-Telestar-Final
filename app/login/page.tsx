@@ -19,7 +19,7 @@ const ROLE_COLORS: Record<string, string> = {
   director: 'border-brand-red/40 bg-brand-red/5 text-brand-red hover:bg-brand-red/10',
   floor_manager: 'border-brand-orange/40 bg-brand-orange/5 text-brand-orange-text hover:bg-brand-orange/10',
   team_lead: 'border-amber-500/40 bg-amber-500/5 text-amber-400 hover:bg-amber-500/10',
-  sdr: 'border-card-border bg-background text-text-secondary hover:bg-card-bg',
+  sdr: 'border-card-border bg-bg-main text-text-secondary hover:bg-card-bg',
   leadgen_manager: 'border-purple-400/40 bg-purple-400/5 text-purple-300 hover:bg-purple-400/10',
   leadgen: 'border-purple-500/40 bg-purple-500/5 text-purple-400 hover:bg-purple-500/10',
 };
@@ -51,7 +51,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-start justify-center p-4 overflow-y-auto">
+    <div className="min-h-screen bg-bg-main flex items-start justify-center p-4 overflow-y-auto">
       <div className="w-full max-w-sm py-8">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
@@ -73,7 +73,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => setShowDemo(!showDemo)}
-            className="w-full flex items-center justify-between px-4 py-3 text-[10px] font-bold text-text-muted uppercase tracking-widest hover:bg-background/40 transition-colors"
+            className="w-full flex items-center justify-between px-4 py-3 text-[10px] font-bold text-text-muted uppercase tracking-widest hover:bg-bg-main/40 transition-colors"
           >
             <span>⚡ Demo Accounts — click to sign in</span>
             {showDemo ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -130,7 +130,7 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@telestar.vn"
                   required
-                  className="w-full pl-9 pr-4 py-2.5 bg-background border border-card-border rounded-xl text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red transition-colors"
+                  className="w-full pl-9 pr-4 py-2.5 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red transition-colors"
                 />
               </div>
             </div>
@@ -147,7 +147,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="w-full pl-9 pr-4 py-2.5 bg-background border border-card-border rounded-xl text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red transition-colors"
+                  className="w-full pl-9 pr-4 py-2.5 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red transition-colors"
                 />
               </div>
             </div>

@@ -93,19 +93,19 @@ export default function ClientAcceptanceModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl border border-card-border bg-card-bg p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Client Review Decision</h2>
-          <button onClick={onClose} className="text-muted hover:text-white">
+          <h2 className="text-lg font-semibold text-text-primary">Client Review Decision</h2>
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <p className="mb-4 text-sm text-muted">
-          <span className="text-white">{target.title}</span> · {target.client.name}
+        <p className="mb-4 text-sm text-text-muted">
+          <span className="text-text-primary">{target.title}</span> · {target.client.name}
         </p>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted mb-1.5">Decision *</label>
+            <label className="block text-xs font-medium text-text-muted mb-1.5">Decision *</label>
             <div className="flex gap-2">
               {[
                 { value: 'accepted', label: 'Accept', cls: 'border-emerald-500/40 text-emerald-400' },
@@ -118,7 +118,7 @@ export default function ClientAcceptanceModal({
                   className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                     decision === o.value
                       ? o.cls
-                      : 'border-card-border text-muted hover:text-white'
+                      : 'border-card-border text-text-muted hover:text-text-primary'
                   }`}
                 >
                   {o.label}
@@ -128,24 +128,24 @@ export default function ClientAcceptanceModal({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted mb-1.5">Client Feedback</label>
+            <label className="block text-xs font-medium text-text-muted mb-1.5">Client Feedback</label>
             <textarea
               value={clientFeedback}
               onChange={e => setClientFeedback(e.target.value)}
               rows={3}
               placeholder="What did the client say?"
-              className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none resize-none"
+              className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/50 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none resize-none"
             />
           </div>
 
           {decision === 'rejected' && (
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-muted mb-1.5">Lost Reason *</label>
+                <label className="block text-xs font-medium text-text-muted mb-1.5">Lost Reason *</label>
                 <select
                   value={lostReason}
                   onChange={e => setLostReason(e.target.value)}
-                  className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none"
+                  className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none"
                 >
                   <option value="">Select reason</option>
                   {LOST_REASONS.map(r => (
@@ -154,12 +154,12 @@ export default function ClientAcceptanceModal({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted mb-1.5">Details</label>
+                <label className="block text-xs font-medium text-text-muted mb-1.5">Details</label>
                 <textarea
                   value={lostReasonDetails}
                   onChange={e => setLostReasonDetails(e.target.value)}
                   rows={2}
-                  className="w-full bg-surface border border-card-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none resize-none"
+                  className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/50 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 outline-none resize-none"
                 />
               </div>
             </div>
@@ -169,7 +169,7 @@ export default function ClientAcceptanceModal({
         <div className="mt-6 flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="rounded-lg border border-card-border px-4 py-2 text-sm text-muted hover:text-white"
+            className="rounded-lg border border-card-border px-4 py-2 text-sm text-text-muted hover:text-text-primary"
           >
             Cancel
           </button>

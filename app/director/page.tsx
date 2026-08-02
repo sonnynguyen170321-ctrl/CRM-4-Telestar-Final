@@ -67,7 +67,7 @@ export default function DirectorPage() {
       <div className="page-hero flex flex-row items-center justify-between gap-4">
         <div>
           <h1 className="font-display font-extrabold text-2xl text-text-primary">Director Cockpit</h1>
-          <p className="text-sm text-text-muted mt-0.5">
+          <p className="text-sm text-text-muted mt-0.5 prose-measure">
             The meetings your SDRs booked for you to close — plus your prep, follow-ups, and org oversight.
           </p>
         </div>
@@ -83,7 +83,7 @@ export default function DirectorPage() {
 
       {/* My prep / follow-up tasks */}
       <div className="glass-card rounded-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-card-border bg-background/25 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-card-border bg-bg-main/25 flex items-center justify-between">
           <h2 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
             <ClipboardList className="w-5 h-5 text-brand-orange-text" />
             <span>My Tasks — Prep &amp; Follow-ups</span>
@@ -99,7 +99,7 @@ export default function DirectorPage() {
             {myTasks.map((t) => {
               const due = dueLabel(t.dueDate);
               return (
-                <li key={t.id} className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-background/40">
+                <li key={t.id} className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-bg-main/40">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-text-primary truncate">{t.title}</p>
                     {t.lead && (

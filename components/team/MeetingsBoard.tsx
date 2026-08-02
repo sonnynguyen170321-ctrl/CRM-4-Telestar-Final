@@ -151,9 +151,9 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
             placeholder="Search meetings..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-background border border-card-border rounded-lg px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red placeholder-text-muted w-60 font-semibold"
+            className="bg-bg-main border border-card-border rounded-lg px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red placeholder-text-muted w-60 font-semibold"
           />
-          <div className="flex bg-background border border-card-border rounded-lg p-0.5 gap-0.5 w-auto">
+          <div className="flex bg-bg-main border border-card-border rounded-lg p-0.5 gap-0.5 w-auto">
             {['all', 'scheduled', 'won', 'lost'].map((st) => (
               <button
                 key={st}
@@ -172,7 +172,7 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
 
         <button
           onClick={fetchMeetings}
-          className="w-auto flex items-center justify-center gap-2 bg-background border border-card-border hover:bg-card-border/30 rounded-xl px-4 py-2 text-xs font-semibold text-text-primary transition-all active:scale-95"
+          className="w-auto flex items-center justify-center gap-2 bg-bg-main border border-card-border hover:bg-card-border/30 rounded-xl px-4 py-2 text-xs font-semibold text-text-primary transition-all active:scale-95"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh Board</span>
@@ -193,7 +193,7 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-card-border bg-background/50 text-[10px] font-bold text-text-muted uppercase">
+                <tr className="border-b border-card-border bg-bg-main/50 text-[10px] font-bold text-text-muted uppercase">
                   <th className="p-4">Lead / Company</th>
                   <th className="p-4">Campaign</th>
                   <th className="p-4">Booked By (SDR)</th>
@@ -262,7 +262,7 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
                         ) : (
                           <button
                             onClick={() => handleUpdateStage(m.id, 'sequence_active')}
-                            className="bg-background border border-card-border hover:bg-card-border/30 text-text-secondary font-bold px-2.5 py-1.5 rounded-lg transition-colors"
+                            className="bg-bg-main border border-card-border hover:bg-card-border/30 text-text-secondary font-bold px-2.5 py-1.5 rounded-lg transition-colors"
                           >
                             Reschedule
                           </button>

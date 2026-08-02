@@ -44,8 +44,8 @@
   --text-section: 20px;
   --text-subsection: 16px;
   --text-body: 14px;
-  --text-meta: 12.5px;
-  --text-micro: 11px;
+  --text-meta: 13px;
+  --text-micro: 12px;
 }
 
 /* ─── THEME TOKENS ─── */
@@ -241,25 +241,29 @@ h1.type-micro, h2.type-micro, h3.type-micro, h4.type-micro, .type-micro {
   letter-spacing: 0.01em;
 }
 
+/* ── Prose Measure ──────────────────────────────────────────────────────────
+   Constrain long lines to 68ch max width for readability */
+.prose-measure {
+  max-width: 68ch;
+}
+
 /* ── Collapse ad-hoc sizes onto the scale ───────────────────────────────────
    ~675 call sites use arbitrary Tailwind sizes (`text-[9px]`, `text-[11px]`,
    …) which produced five near-duplicate micro sizes — 8, 9, 10, 11, 13 — that
    read as noise rather than a hierarchy. Rather than edit every call site,
    remap the classes here: these rules sit outside `@layer`, so they beat
-   Tailwind's layered utilities of the same specificity.                      */
+   Tailwind's layered utilities of the same specificity.
+   12px is the strict floor.                                                 */
 .text-\[8px\],
 .text-\[9px\],
-.text-\[10px\] {
+.text-\[10px\],
+.text-\[11px\],
+.text-\[12px\] {
   font-size: var(--text-micro);
 }
 
-.text-\[11px\],
-.text-\[12px\] {
-  font-size: var(--text-meta);
-}
-
 .text-\[13px\] {
-  font-size: var(--text-body);
+  font-size: var(--text-meta);
 }
 
 /* Snap the Tailwind steps the app actually leans on onto the same scale, so
@@ -328,6 +332,21 @@ table td, table th,
 textarea, input, select,
 p, li {
   font-family: var(--font-sans);
+}
+
+/* ── Table density — data tables are the documented exception to brand density ── */
+table th, table td {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.table-row-dense th,
+.table-row-dense td {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  padding-left: 14px;
+  padding-right: 14px;
 }
 
 /* ─── CUSTOM EFFECTS & LAYOUTS ─── */

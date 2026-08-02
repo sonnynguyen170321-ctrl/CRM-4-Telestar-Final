@@ -249,8 +249,8 @@ export default function InboxPage() {
       {/* Search Header */}
       <div className="h-14 border-b border-card-border bg-white px-5 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-lg font-bold text-text-primary">Unified Inbox</span>
-          <span className="text-[10px] bg-brand-red/10 border border-brand-red/20 text-brand-red px-2 py-0.5 rounded-full uppercase font-bold">
+          <h1 className="text-lg font-bold text-text-primary">Unified Inbox</h1>
+          <span className="text-xs bg-brand-red/10 border border-brand-red/20 text-brand-red px-2 py-0.5 rounded-full uppercase font-bold">
             Live
           </span>
         </div>
@@ -282,7 +282,7 @@ export default function InboxPage() {
               <span>Inbox</span>
             </div>
             {threads.filter((t) => !t.isRead && t.folder === 'inbox').length > 0 && (
-              <span className="px-1.5 py-0.5 bg-brand-red text-white text-[9px] font-bold rounded-full font-mono">
+              <span className="px-1.5 py-0.5 bg-brand-red text-white text-xs font-bold rounded-full font-mono">
                 {threads.filter((t) => !t.isRead && t.folder === 'inbox').length}
               </span>
             )}
@@ -368,18 +368,18 @@ export default function InboxPage() {
                         <span className={`font-semibold truncate max-w-[130px] ${!thread.isRead ? 'text-text-primary font-bold' : 'text-text-secondary'}`}>
                           {thread.lead ? `${thread.lead.firstName} ${thread.lead.lastName}` : latestMsg?.fromName || latestMsg?.fromEmail}
                         </span>
-                        <span className="text-[9px] text-text-muted font-mono whitespace-nowrap">
+                        <span className="text-xs text-text-muted font-mono whitespace-nowrap">
                           {new Date(thread.latestMessageAt).toLocaleDateString()}
                         </span>
                       </div>
                       <p className={`truncate font-medium text-text-primary ${!thread.isRead ? 'font-bold' : ''}`}>
                         {thread.subject}
                       </p>
-                      <p className="text-text-muted truncate text-[10px] pr-2">
+                      <p className="text-text-muted truncate text-xs pr-2">
                         {latestMsg?.body || '(Empty email body)'}
                       </p>
                       {thread.lead && (
-                        <span className="text-[9px] font-semibold text-brand-orange-text border border-brand-orange/20 bg-brand-orange/5 px-1.5 py-0.5 rounded font-mono block w-fit mt-1">
+                        <span className="text-xs font-semibold text-brand-orange-text border border-brand-orange/20 bg-brand-orange/5 px-1.5 py-0.5 rounded font-mono block w-fit mt-1">
                           {thread.lead.company}
                         </span>
                       )}
@@ -546,7 +546,7 @@ export default function InboxPage() {
                       contentEditable
                       suppressContentEditableWarning
                       onInput={(e) => setReplyBody(e.currentTarget.innerHTML)}
-                      className="w-full bg-background border border-card-border rounded-xl p-3 text-text-primary text-xs focus:outline-none focus:border-brand-red min-h-[5rem] max-h-36 overflow-y-auto leading-relaxed text-left focus:ring-1 focus:ring-brand-red/35 outline-none font-sans empty-placeholder"
+                      className="w-full bg-bg-main border border-card-border rounded-xl p-3 text-text-primary text-xs focus:outline-none focus:border-brand-red min-h-[5rem] max-h-36 overflow-y-auto leading-relaxed text-left focus:ring-1 focus:ring-brand-red/35 outline-none font-sans empty-placeholder"
                       data-placeholder="Type your reply here..."
                       style={{ minHeight: '5rem' }}
                     />
@@ -582,7 +582,7 @@ export default function InboxPage() {
             <div className="flex-1 flex flex-col justify-center items-center text-text-muted space-y-2 p-8">
               <span className="text-3xl">📭</span>
               <p className="text-xs font-semibold">No Conversation Selected</p>
-              <p className="text-[10px] text-text-muted">Select a thread from the list to view the full dialogue history.</p>
+              <p className="text-xs text-text-muted">Select a thread from the list to view the full dialogue history.</p>
             </div>
           )}
         </div>

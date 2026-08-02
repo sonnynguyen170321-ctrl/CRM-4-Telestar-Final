@@ -207,7 +207,7 @@ export default function MeetingsPage() {
             <CalendarDays className="w-7 h-7 text-brand-red" />
             <span>Meetings & Outcomes</span>
           </h1>
-          <p className="text-xs text-text-muted mt-1 font-mono">
+          <p className="text-xs text-text-muted mt-1 font-mono prose-measure">
             Track booking links sent, scheduled calls, client outcomes, and conversion rates.
           </p>
         </div>
@@ -311,7 +311,7 @@ export default function MeetingsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by prospect, company, meeting title, or client..."
-              className="w-full pl-9 pr-4 py-2 bg-background border border-card-border rounded-xl text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
+              className="w-full pl-9 pr-4 py-2 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
             />
           </div>
 
@@ -321,7 +321,7 @@ export default function MeetingsPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 bg-background border border-card-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
+              className="px-3 py-2 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
             >
               <option value="all">Status: All</option>
               <option value="link_sent">Link Sent</option>
@@ -336,7 +336,7 @@ export default function MeetingsPage() {
             <select
               value={outcomeFilter}
               onChange={(e) => setOutcomeFilter(e.target.value)}
-              className="px-3 py-2 bg-background border border-card-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
+              className="px-3 py-2 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
             >
               <option value="all">Outcome: All</option>
               <option value="pending">Outcome Pending</option>
@@ -352,7 +352,7 @@ export default function MeetingsPage() {
               <select
                 value={clientFilter}
                 onChange={(e) => setClientFilter(e.target.value)}
-                className="px-3 py-2 bg-background border border-card-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
+                className="px-3 py-2 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
               >
                 <option value="all">Client: All</option>
                 {clients.map((c) => (
@@ -366,7 +366,7 @@ export default function MeetingsPage() {
               <select
                 value={campaignFilter}
                 onChange={(e) => setCampaignFilter(e.target.value)}
-                className="px-3 py-2 bg-background border border-card-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
+                className="px-3 py-2 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
               >
                 <option value="all">Campaign: All</option>
                 {campaigns.map((cp) => (
@@ -380,7 +380,7 @@ export default function MeetingsPage() {
               <select
                 value={sdrFilter}
                 onChange={(e) => setSdrFilter(e.target.value)}
-                className="px-3 py-2 bg-background border border-card-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
+                className="px-3 py-2 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
               >
                 <option value="all">SDR: All</option>
                 {sdrs.map((s) => (
@@ -415,7 +415,7 @@ export default function MeetingsPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-background/40 text-text-muted uppercase text-[10px] border-b border-card-border">
+              <thead className="bg-bg-main/40 text-text-muted uppercase text-[10px] border-b border-card-border">
                 <tr>
                   <th className="py-3 px-4">Lead / Prospect</th>
                   <th className="py-3 px-4">Client & Campaign</th>
@@ -428,7 +428,7 @@ export default function MeetingsPage() {
               </thead>
               <tbody className="divide-y divide-card-border">
                 {filteredMeetings.map((m) => (
-                  <tr key={m.id} className="hover:bg-background/30 transition-colors">
+                  <tr key={m.id} className="hover:bg-bg-main/30 transition-colors">
                     {/* Lead */}
                     <td className="py-3.5 px-4">
                       <div className="flex flex-col">

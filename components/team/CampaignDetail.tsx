@@ -203,7 +203,7 @@ export default function CampaignDetail({
             </div>
             
             {/* Conversion rates panel */}
-            <div className="w-1/3 bg-background/40 border border-card-border p-4 rounded-xl space-y-2.5">
+            <div className="w-1/3 bg-bg-main/40 border border-card-border p-4 rounded-xl space-y-2.5">
               <h4 className="text-[10px] font-bold text-text-muted uppercase">Stage Conversion</h4>
               <div className="space-y-2 text-xs">
                 {convRates.map((c) => (
@@ -247,7 +247,7 @@ export default function CampaignDetail({
 
       {/* Sequences Performance */}
       <div className="glass-card rounded-2xl overflow-hidden flex flex-col">
-        <div className="px-5 py-4 border-b border-card-border bg-background/25 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-card-border bg-bg-main/25 flex items-center justify-between">
           <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
             <Mail className="w-5 h-5 text-brand-red" />
             <span>Active Sequences Performance</span>
@@ -256,7 +256,7 @@ export default function CampaignDetail({
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left border-collapse">
             <thead>
-              <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
+              <tr className="bg-bg-main/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
                 <th className="p-3">Sequence Name</th>
                 <th className="p-3 text-center">Enrolled</th>
                 <th className="p-3 text-center">Completed</th>
@@ -273,7 +273,7 @@ export default function CampaignDetail({
                 </tr>
               ) : (
                 sequences.map((seq) => (
-                  <tr key={seq.id} className="hover:bg-background/40">
+                  <tr key={seq.id} className="hover:bg-bg-main/40">
                     <td className="p-3 font-semibold text-text-primary">{seq.name}</td>
                     <td className="p-3 text-center font-mono">{seq.enrolled}</td>
                     <td className="p-3 text-center font-mono">{seq.completed}</td>
@@ -289,7 +289,7 @@ export default function CampaignDetail({
 
       {/* Reps Performance */}
       <div className="glass-card rounded-2xl overflow-hidden flex flex-col">
-        <div className="px-5 py-4 border-b border-card-border bg-background/25 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-card-border bg-bg-main/25 flex items-center justify-between">
           <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
             <Users className="w-5 h-5 text-brand-red" />
             <span>Assigned Reps Outreach Breakdown</span>
@@ -298,7 +298,7 @@ export default function CampaignDetail({
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left border-collapse">
             <thead>
-              <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
+              <tr className="bg-bg-main/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
                 <th className="p-3">Rep</th>
                 <th className="p-3 text-center">Tasks Completed</th>
                 <th className="p-3 text-center">Emails Sent</th>
@@ -317,7 +317,7 @@ export default function CampaignDetail({
                 </tr>
               ) : (
                 reps.map((rep) => (
-                  <tr key={rep.id} className="hover:bg-background/40">
+                  <tr key={rep.id} className="hover:bg-bg-main/40">
                     <td className="p-3 font-semibold text-text-primary">{rep.name}</td>
                     <td className="p-3 text-center font-mono">{rep.tasksDone}</td>
                     <td className="p-3 text-center font-mono">{rep.emails}</td>

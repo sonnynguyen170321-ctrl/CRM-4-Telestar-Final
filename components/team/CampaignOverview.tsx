@@ -88,17 +88,17 @@ export default function CampaignOverview({
 
       {/* Campaigns Table */}
       <div className="glass-card rounded-2xl overflow-hidden flex flex-col">
-        <div className="px-5 py-4 border-b border-card-border bg-background/25 flex items-center justify-between">
-          <h3 className="type-section text-text-primary flex items-center gap-2">
+        <div className="px-5 py-4 border-b border-card-border bg-bg-main/25 flex items-center justify-between">
+          <h2 className="type-section text-text-primary flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-brand-red" />
             <span>Outbound Campaigns Performance ({dateLabel})</span>
-          </h3>
+          </h2>
           <span className="text-[10px] font-mono text-text-muted">Safe for client screenshare</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left border-collapse">
             <thead>
-              <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
+              <tr className="bg-bg-main/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
                 <th className="p-3 w-16 text-center">Status</th>
                 <th className="p-3">Campaign Name</th>
                 <th className="p-3">Client</th>
@@ -120,7 +120,7 @@ export default function CampaignOverview({
                   <tr
                     key={camp.id}
                     onClick={() => onSelectCampaign(camp.id)}
-                    className="hover:bg-background/40 cursor-pointer table-row-dense group"
+                    className="hover:bg-bg-main/40 cursor-pointer table-row-dense group"
                   >
                     <td className="p-3 text-center">
                       <span

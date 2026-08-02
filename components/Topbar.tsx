@@ -256,7 +256,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
             onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true); }}
             onFocus={() => setSearchOpen(true)}
             placeholder="Search leads, templates… (press /)"
-            className="w-full pl-9 pr-10 py-1.5 text-xs bg-background border border-card-border rounded-lg text-text-primary placeholder-text-muted hover:border-brand-red/50 focus:outline-none focus:border-brand-red transition-all"
+            className="w-full pl-9 pr-10 py-1.5 text-xs bg-bg-main border border-card-border rounded-lg text-text-primary placeholder-text-muted hover:border-brand-red/50 focus:outline-none focus:border-brand-red transition-all"
           />
           {searchQuery ? (
             <button onClick={() => { setSearchQuery(''); setSearchResults({ leads: [], templates: [] }); }} className="absolute inset-y-0 right-2 flex items-center text-text-muted hover:text-text-primary">
@@ -280,7 +280,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
             )}
             {searchResults.leads.length > 0 && (
               <div>
-                <div className="px-3 py-1.5 text-[9px] font-bold uppercase text-text-muted bg-background/50 border-b border-card-border">Leads</div>
+                <div className="px-3 py-1.5 text-[9px] font-bold uppercase text-text-muted bg-bg-main/50 border-b border-card-border">Leads</div>
                 {searchResults.leads.map((lead: any) => (
                   <button
                     key={lead.id}
@@ -301,7 +301,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
             )}
             {searchResults.templates.length > 0 && (
               <div>
-                <div className="px-3 py-1.5 text-[9px] font-bold uppercase text-text-muted bg-background/50 border-b border-card-border">Templates</div>
+                <div className="px-3 py-1.5 text-[9px] font-bold uppercase text-text-muted bg-bg-main/50 border-b border-card-border">Templates</div>
                 {searchResults.templates.map((tpl: any) => (
                   <button
                     key={tpl.id}
@@ -341,21 +341,21 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
                 <button
                   role="menuitem"
                   onClick={() => handleNewClick('lead')}
-                  className="w-full text-left px-4 py-2 text-xs text-text-primary hover:bg-background transition-colors flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-xs text-text-primary hover:bg-bg-main transition-colors flex items-center gap-2"
                 >
                   <span className="text-blue-500">👥</span> New Lead
                 </button>
                 <button
                   role="menuitem"
                   onClick={() => handleNewClick('task')}
-                  className="w-full text-left px-4 py-2 text-xs text-text-primary hover:bg-background transition-colors flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-xs text-text-primary hover:bg-bg-main transition-colors flex items-center gap-2"
                 >
                   <span className="text-brand-orange-text">📋</span> New Task
                 </button>
                 <button
                   role="menuitem"
                   onClick={() => handleNewClick('reminder')}
-                  className="w-full text-left px-4 py-2 text-xs text-text-primary hover:bg-background transition-colors flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-xs text-text-primary hover:bg-bg-main transition-colors flex items-center gap-2"
                 >
                   <span className="text-brand-gold-text">🔔</span> New Reminder
                 </button>
@@ -365,7 +365,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
                     <button
                       role="menuitem"
                       onClick={() => handleNewClick('campaign')}
-                      className="w-full text-left px-4 py-2 text-xs text-text-primary hover:bg-background transition-colors flex items-center gap-2"
+                      className="w-full text-left px-4 py-2 text-xs text-text-primary hover:bg-bg-main transition-colors flex items-center gap-2"
                     >
                       <span className="text-emerald-500">🚀</span> New Campaign
                     </button>
@@ -397,7 +397,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
             <>
               <div className="fixed inset-0 z-30" onClick={() => setBellOpen(false)} />
               <div className="absolute right-0 mt-2 w-80 bg-card-bg border border-card-border rounded-xl shadow-xl shadow-black/10 z-40 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-card-border bg-background/50">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-card-border bg-bg-main/50">
                   <span className="font-display font-bold text-xs text-text-primary flex items-center gap-1.5">
                     <span>🔔</span> Notifications &amp; Reminders
                   </span>
@@ -421,7 +421,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
                       if (item.kind === 'reminder') {
                         const isOverdue = new Date(item.dueAt) < new Date();
                         return (
-                          <div key={`rem-${item.id}`} className={`p-3 text-xs flex items-start gap-2.5 hover:bg-background/80 relative ${isOverdue ? 'bg-brand-gold/[0.03]' : ''}`}>
+                          <div key={`rem-${item.id}`} className={`p-3 text-xs flex items-start gap-2.5 hover:bg-bg-main/80 relative ${isOverdue ? 'bg-brand-gold/[0.03]' : ''}`}>
                             <AlarmClock className={`w-4 h-4 mt-0.5 flex-shrink-0 ${isOverdue ? 'text-brand-gold-text' : 'text-text-muted'}`} aria-hidden="true" />
                             <div className="flex-1 min-w-0 pr-6">
                               <p className="text-text-secondary text-[11px] leading-normal">{item.text}</p>
@@ -446,7 +446,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
                         <div
                           key={`notif-${item.id}`}
                           onClick={() => handleNotificationClick(item)}
-                          className={`p-3 text-xs transition-colors hover:bg-background/80 relative flex items-start gap-2.5 ${item.linkTo ? 'cursor-pointer' : ''} ${!item.isRead ? 'bg-brand-red/[0.02]' : ''}`}
+                          className={`p-3 text-xs transition-colors hover:bg-bg-main/80 relative flex items-start gap-2.5 ${item.linkTo ? 'cursor-pointer' : ''} ${!item.isRead ? 'bg-brand-red/[0.02]' : ''}`}
                         >
                           <span className="mt-0.5 text-base flex-shrink-0">
                             {item.type === 'meeting_booked' ? '🎉' : item.type === 'overdue_tasks' ? '⚠️' : item.type === 'lead_reply' ? '📧' : '🔔'}
@@ -506,7 +506,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
               <div role="menu" aria-orientation="vertical" className="absolute right-0 mt-2 w-56 bg-card-bg border border-card-border rounded-xl shadow-xl shadow-black/10 z-40 py-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
                 {process.env.NODE_ENV !== 'production' && (
                   <>
-                    <div className="px-4 py-2 border-b border-card-border bg-background/30 mb-1">
+                    <div className="px-4 py-2 border-b border-card-border bg-bg-main/30 mb-1">
                       <span className="text-[10px] uppercase tracking-widest text-text-muted block">
                         Simulate Role (Showcase)
                       </span>
@@ -534,7 +534,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
                         className={`w-full text-left px-4 py-2 text-xs transition-colors flex items-center justify-between ${
                           currentRole === role
                             ? 'text-brand-red font-semibold bg-brand-red/5'
-                            : 'text-text-primary hover:bg-background'
+                            : 'text-text-primary hover:bg-bg-main'
                         }`}
                       >
                         <span className="flex items-center gap-2">

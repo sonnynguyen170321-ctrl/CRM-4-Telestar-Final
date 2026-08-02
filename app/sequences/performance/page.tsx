@@ -229,7 +229,7 @@ export default function SequencePerformancePage() {
                   {seqAnalytics.stepBreakdown.map((step) => (
                     <div
                       key={step.step}
-                      className="flex items-center justify-between px-3 py-2 bg-background rounded-xl border border-card-border"
+                      className="flex items-center justify-between px-3 py-2 bg-bg-main rounded-xl border border-card-border"
                     >
                       <div className="flex items-center gap-3">
                         <span className="w-6 h-6 rounded-lg bg-card-border/40 border border-card-border flex items-center justify-center font-mono font-bold text-[10px] text-text-secondary">

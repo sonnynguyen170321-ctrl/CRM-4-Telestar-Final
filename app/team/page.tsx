@@ -400,7 +400,7 @@ ${detail.sequences && detail.sequences.length > 0 ? `
           <h1 className="font-display font-extrabold text-2xl text-text-primary tracking-tight">
             {isSdr ? 'My Campaign Performance' : 'Organization Team View'}
           </h1>
-          <p className="text-xs text-text-secondary mt-0.5">
+          <p className="text-xs text-text-secondary mt-0.5 prose-measure">
             {isSdr
               ? 'Performance tracking, metrics conversion, and export summaries for your campaign.'
               : 'Aggregate coaching leaderboards, pipeline analysis, and client report exports.'}
@@ -409,10 +409,10 @@ ${detail.sequences && detail.sequences.length > 0 ? `
       </div>
 
       {/* Tabs and Filters bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-card-bg border border-card-border rounded-2xl px-4 py-3 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Tab switcher: Only shown for managers */}
         {!isSdr ? (
-          <div className="flex bg-background border border-card-border rounded-lg p-0.5 gap-0.5">
+          <div className="flex bg-bg-main border border-card-border rounded-lg p-0.5 gap-0.5">
             <button
               onClick={() => {
                 setActiveTab('campaigns');
@@ -494,7 +494,7 @@ ${detail.sequences && detail.sequences.length > 0 ? `
 
         <div className="flex flex-wrap items-center gap-3 ml-auto">
           {/* Date range filter */}
-          <div className="flex bg-background border border-card-border rounded-lg p-0.5 gap-0.5">
+          <div className="flex bg-bg-main border border-card-border rounded-lg p-0.5 gap-0.5">
             {(['today', 'week', 'month'] as const).map((r) => (
               <button
                 key={r}
@@ -519,7 +519,7 @@ ${detail.sequences && detail.sequences.length > 0 ? `
                     setFilterManager(e.target.value);
                     setFilterSdr('');
                   }}
-                  className="bg-background border border-card-border rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
+                  className="bg-bg-main border border-card-border rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
                 >
                   <option value="">All Pods</option>
                   {users
@@ -546,7 +546,7 @@ ${detail.sequences && detail.sequences.length > 0 ? `
                   setFilterSdr(e.target.value);
                   setFilterManager('');
                 }}
-                className="bg-background border border-card-border rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
+                className="bg-bg-main border border-card-border rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
               >
                 <option value="">All SDRs</option>
                 {users

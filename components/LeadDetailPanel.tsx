@@ -804,7 +804,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
 
       <div className="relative w-full max-w-lg h-full bg-card-bg border-l border-card-border shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-300">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-card-border bg-background/50">
+        <div className="flex items-center justify-between p-4 border-b border-card-border bg-bg-main/50">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`px-2 py-0.5 rounded text-[10px] font-bold border capitalize ${stageColors[lead.stage]}`}>
@@ -881,7 +881,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
         )}
 
         {/* Tabs */}
-        <div className="flex border-b border-card-border bg-background/20 px-2 overflow-x-auto">
+        <div className="flex border-b border-card-border bg-bg-main/20 px-2 overflow-x-auto">
           {([
             { key: 'info' as const, label: 'Info', icon: null },
             { key: 'timeline' as const, label: 'Timeline Feed', icon: null },
@@ -972,7 +972,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               </div>
 
               {lead.aiScore !== undefined && (
-                <div className="bg-background/40 border border-card-border rounded-xl p-4 space-y-3">
+                <div className="bg-bg-main/40 border border-card-border rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-1.5">
                       AI Lead Score
@@ -1014,7 +1014,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 </div>
               )}
 
-              <div className="bg-background/40 border border-card-border rounded-xl p-4 space-y-3.5">
+              <div className="bg-bg-main/40 border border-card-border rounded-xl p-4 space-y-3.5">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Prospect Profile</h3>
                   {!editingProfile ? (
@@ -1051,7 +1051,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                           type={key === 'email' ? 'email' : 'text'}
                           value={profileDraft[key]}
                           onChange={(e) => setProfileDraft((prev) => prev ? { ...prev, [key]: e.target.value } : prev)}
-                          className="w-full bg-background border border-card-border rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red"
+                          className="w-full bg-bg-main border border-card-border rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red"
                         />
                       </div>
                     ))}
@@ -1097,7 +1097,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               </div>
 
               {(lead.emailValidation || lead.emailScore != null || lead.importListName || lead.contact || lead.account) && (
-                <div className="bg-background/40 border border-card-border rounded-xl p-4 space-y-3.5">
+                <div className="bg-bg-main/40 border border-card-border rounded-xl p-4 space-y-3.5">
                   <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Enrichment Data</h3>
                   <div className="grid grid-cols-2 gap-4 text-xs">
                     <div>
@@ -1142,7 +1142,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               )}
 
               {lead.sequenceStatus === 'active' && lead.sequence && (
-                <div className="bg-background/40 border border-card-border rounded-xl p-4 space-y-3">
+                <div className="bg-bg-main/40 border border-card-border rounded-xl p-4 space-y-3">
                   <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Active Sequence</h3>
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-brand-orange-text">{lead.sequence.name}</span>
@@ -1161,7 +1161,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 </div>
               )}
 
-              <div className="bg-background/40 border border-card-border rounded-xl p-4 space-y-3">
+              <div className="bg-bg-main/40 border border-card-border rounded-xl p-4 space-y-3">
                 <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Pipeline Control</h3>
                 <div className="grid grid-cols-2 gap-3.5">
                   <div>
@@ -1169,7 +1169,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                     <select
                       value={lead.stage}
                       onChange={(e) => handleStageChange(e.target.value as LeadDetail['stage'])}
-                      className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red font-medium"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red font-medium"
                     >
                       <option value="new">New</option>
                       <option value="sequence_active">Sequence Active</option>
@@ -1184,7 +1184,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                     <select
                       value={lead.priority}
                       onChange={(e) => handlePriorityChange(e.target.value as LeadDetail['priority'])}
-                      className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red font-medium"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red font-medium"
                     >
                       <option value="hot">🔥 Hot</option>
                       <option value="warm">⚡ Warm</option>
@@ -1198,7 +1198,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                     <select
                       value={lead.assignedTo?.id ?? ''}
                       onChange={(e) => handleReassign(e.target.value)}
-                      className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red font-medium"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red font-medium"
                     >
                       <option value="">— Unassigned —</option>
                       {users.map((u) => (
@@ -1212,7 +1212,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               </div>
 
               {/* REMINDERS SECTION */}
-              <div className="bg-background/40 border border-card-border rounded-xl p-4 space-y-3">
+              <div className="bg-bg-main/40 border border-card-border rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-1.5">
                     <AlarmClock className="w-3.5 h-3.5 text-brand-gold-text" aria-hidden="true" />
@@ -1235,13 +1235,13 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                       value={newReminderText}
                       onChange={(e) => setNewReminderText(e.target.value)}
                       placeholder="Reminder note..."
-                      className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
                     />
                     <input
                       type="datetime-local"
                       value={newReminderDate}
                       onChange={(e) => setNewReminderDate(e.target.value)}
-                      className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
                     />
                     <div className="flex gap-2">
                       <button
@@ -1271,7 +1271,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                     {reminders.map((r) => {
                       const isOverdue = new Date(r.dueAt) < new Date();
                       return (
-                        <li key={r.id} className={`flex items-start gap-2 text-xs rounded-lg p-2 ${isOverdue ? 'bg-brand-gold/5 border border-brand-gold/20' : 'bg-background/60 border border-card-border'}`}>
+                        <li key={r.id} className={`flex items-start gap-2 text-xs rounded-lg p-2 ${isOverdue ? 'bg-brand-gold/5 border border-brand-gold/20' : 'bg-bg-main/60 border border-card-border'}`}>
                           <AlarmClock className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isOverdue ? 'text-brand-gold-text' : 'text-text-muted'}`} aria-hidden="true" />
                           <div className="flex-1 min-w-0">
                             <p className="text-text-secondary leading-snug">{r.text}</p>
@@ -1314,7 +1314,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                   placeholder="Add a new note to this timeline..."
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
-                  className="w-full bg-background border border-card-border rounded-xl p-3 text-xs text-text-primary focus:outline-none focus:border-brand-red h-20 placeholder-text-muted resize-none leading-relaxed"
+                  className="w-full bg-bg-main border border-card-border rounded-xl p-3 text-xs text-text-primary focus:outline-none focus:border-brand-red h-20 placeholder-text-muted resize-none leading-relaxed"
                 />
                 <div className="flex justify-end">
                   <button
@@ -1418,14 +1418,14 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               </div>
 
               {showTaskForm && (
-                <form onSubmit={handleCreateTask} className="bg-background/60 border border-brand-red/20 rounded-xl p-3.5 space-y-2.5 text-xs">
+                <form onSubmit={handleCreateTask} className="bg-bg-main/60 border border-brand-red/20 rounded-xl p-3.5 space-y-2.5 text-xs">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-[9px] text-text-muted uppercase mb-1">Channel</label>
                       <select
                         value={newTask.type}
                         onChange={(e) => setNewTask((p) => ({ ...p, type: e.target.value as TaskItem['type'] }))}
-                        className="w-full bg-background border border-card-border rounded-lg px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red text-xs"
+                        className="w-full bg-bg-main border border-card-border rounded-lg px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red text-xs"
                       >
                         <option value="email">Email</option>
                         <option value="phone">Phone</option>
@@ -1441,7 +1441,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                         required
                         value={newTask.dueDate}
                         onChange={(e) => setNewTask((p) => ({ ...p, dueDate: e.target.value }))}
-                        className="w-full bg-background border border-card-border rounded-lg px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red text-xs"
+                        className="w-full bg-bg-main border border-card-border rounded-lg px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red text-xs"
                       />
                     </div>
                   </div>
@@ -1451,7 +1451,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                     placeholder="Task title, e.g. Send intro email"
                     value={newTask.title}
                     onChange={(e) => setNewTask((p) => ({ ...p, title: e.target.value }))}
-                    className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red text-xs"
+                    className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red text-xs"
                   />
                   <div className="flex gap-2 justify-end">
                     <button type="button" onClick={() => setShowTaskForm(false)} className="px-2.5 py-1 border border-card-border rounded-lg text-text-secondary text-[10px] font-semibold hover:bg-card-border/30 transition-colors">Cancel</button>
@@ -1471,7 +1471,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                   {tasks.map((task) => (
                     <div
                       key={task.id}
-                      className={`p-3 border rounded-xl flex items-center justify-between gap-3 text-xs bg-background/10 ${
+                      className={`p-3 border rounded-xl flex items-center justify-between gap-3 text-xs bg-bg-main/10 ${
                         task.status === 'completed'
                           ? 'border-green-600/20 opacity-80'
                           : task.status === 'skipped'
@@ -1571,7 +1571,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-background/30 border border-card-border text-xs text-text-muted">
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-bg-main/30 border border-card-border text-xs text-text-muted">
                   <Repeat className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
                   <span>No active sequence. Enroll below.</span>
                 </div>
@@ -1585,7 +1585,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                   </h3>
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-1 mb-4">
                     {((lead as any).sequenceEnrollments as any[]).map((enr) => (
-                      <div key={enr.id} className="flex justify-between items-center p-2.5 bg-background/30 border border-card-border rounded-xl text-xs font-sans">
+                      <div key={enr.id} className="flex justify-between items-center p-2.5 bg-bg-main/30 border border-card-border rounded-xl text-xs font-sans">
                         <div>
                           <p className="font-semibold text-text-primary">{enr.sequence?.name || 'Unknown Sequence'}</p>
                           <p className="text-[9px] text-text-muted font-mono mt-0.5">
@@ -1677,7 +1677,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               ) : (
                 <div className="space-y-3">
                   {lead.meetings.map((m) => (
-                    <div key={m.id} className="bg-background/40 border border-card-border rounded-xl p-4 space-y-3">
+                    <div key={m.id} className="bg-bg-main/40 border border-card-border rounded-xl p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-semibold text-text-primary">{m.title}</span>
@@ -1725,7 +1725,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                       </div>
 
                       {m.outcome && (
-                        <div className="bg-surface/50 border border-card-border rounded-lg p-2.5 text-xs space-y-1">
+                        <div className="bg-card-bg/50 border border-card-border rounded-lg p-2.5 text-xs space-y-1">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-bold uppercase text-emerald-400">
                               Outcome: {m.outcome.replace(/_/g, ' ')}
@@ -1788,7 +1788,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 value={logAction}
                 onChange={(e) => setLogAction(e.target.value)}
                 required
-                className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red"
+                className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red"
               >
                 <option value="">— Select —</option>
                 {logChannel === 'phone' && <>
@@ -1846,7 +1846,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               value={logNote}
               onChange={(e) => setLogNote(e.target.value)}
               placeholder="Notes (optional)..."
-              className="w-full bg-background border border-card-border rounded-lg p-2.5 text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red h-16 resize-none"
+              className="w-full bg-bg-main border border-card-border rounded-lg p-2.5 text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red h-16 resize-none"
             />
 
             <div className="flex gap-3 pt-1">

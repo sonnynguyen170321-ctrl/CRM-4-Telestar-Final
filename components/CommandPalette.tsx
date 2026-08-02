@@ -167,7 +167,7 @@ export default function CommandPalette() {
           className="pointer-events-auto w-full max-w-lg bg-card-bg/95 border border-card-border shadow-2xl rounded-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150 glassmorphism"
         >
           {/* Input field */}
-          <div className="flex items-center gap-3 px-4 border-b border-card-border h-12.5 bg-background/30">
+          <div className="flex items-center gap-3 px-4 border-b border-card-border h-12.5 bg-bg-main/30">
             <Search className="w-4.5 h-4.5 text-text-muted" />
             <input
               ref={inputRef}
@@ -180,7 +180,7 @@ export default function CommandPalette() {
               }}
               className="flex-1 bg-transparent border-0 text-xs text-text-primary placeholder-text-muted focus:outline-none h-full"
             />
-            <span className="inline-block px-1.5 py-0.5 border border-card-border bg-background rounded text-[9px] font-mono text-text-muted">
+            <span className="inline-block px-1.5 py-0.5 border border-card-border bg-bg-main rounded text-[9px] font-mono text-text-muted">
               ESC
             </span>
           </div>
@@ -204,20 +204,20 @@ export default function CommandPalette() {
                     key={item.id}
                     onClick={() => executeResult(item)}
                     className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs transition-colors flex items-center justify-between gap-3 ${
-                      isActive ? 'bg-brand-red text-white' : 'text-text-primary hover:bg-background'
+                      isActive ? 'bg-brand-red text-white' : 'text-text-primary hover:bg-bg-main'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className={`w-6 h-6 rounded-lg flex items-center justify-center bg-card-border/30 ${
-                        isActive ? 'text-white' : 'text-text-secondary'
+                        isActive ? 'text-text-primary' : 'text-text-secondary'
                       }`}>
                         {isCommand ? item.icon : '👤'}
                       </div>
                       <div className="min-w-0">
-                        <p className={`font-semibold truncate ${isActive ? 'text-white' : 'text-text-primary'}`}>
+                        <p className={`font-semibold truncate ${isActive ? 'text-text-primary' : 'text-text-primary'}`}>
                           {isCommand ? item.name : `${item.firstName} ${item.lastName}`}
                         </p>
-                        <p className={`text-[9px] uppercase font-bold tracking-wider ${ isActive ? 'text-white/80' : 'text-text-muted' }`}>
+                        <p className={`text-[9px] uppercase font-bold tracking-wider ${ isActive ? 'text-text-primary/80' : 'text-text-muted' }`}>
                           {isCommand ? item.category : `Lead at ${item.company}`}
                         </p>
                       </div>
@@ -226,12 +226,12 @@ export default function CommandPalette() {
                     <div className="flex items-center gap-2">
                       {isCommand && item.shortcut && (
                         <span className={`px-1.5 py-0.5 rounded text-[8px] font-mono ${
-                          isActive ? 'bg-white/20 text-white' : 'bg-card-border/60 text-text-muted'
+                          isActive ? 'bg-white/20 text-text-primary' : 'bg-card-border/60 text-text-muted'
                         }`}>
                           {item.shortcut}
                         </span>
                       )}
-                      {isActive && <ChevronRight className="w-3.5 h-3.5 text-white animate-pulse" />}
+                      {isActive && <ChevronRight className="w-3.5 h-3.5 text-text-primary animate-pulse" />}
                     </div>
                   </button>
                 );
@@ -240,7 +240,7 @@ export default function CommandPalette() {
           </div>
 
           {/* Footer Guide bar */}
-          <div className="px-4 py-2 border-t border-card-border bg-background/50 flex justify-between text-[9px] font-mono text-text-muted">
+          <div className="px-4 py-2 border-t border-card-border bg-bg-main/50 flex justify-between text-[9px] font-mono text-text-muted">
             <div className="flex gap-2">
               <span>↑↓ to navigate</span>
               <span>·</span>

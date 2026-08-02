@@ -358,12 +358,12 @@ export default function LeadsPage() {
   );
 
   const columns: { id: Lead['stage']; label: string; color: string; dotColor: string }[] = [
-    { id: 'new', label: 'New', color: 'border border-card-border bg-gray-500/5', dotColor: 'bg-gray-400' },
-    { id: 'sequence_active', label: 'Seq. Active', color: 'border border-card-border bg-blue-500/5', dotColor: 'bg-blue-500' },
-    { id: 'replied', label: 'Replied', color: 'border border-card-border bg-brand-orange/5', dotColor: 'bg-brand-orange' },
-    { id: 'meeting_booked', label: 'Meeting', color: 'border border-card-border bg-emerald-500/5', dotColor: 'bg-emerald-500' },
-    { id: 'won', label: 'Won', color: 'border border-card-border bg-green-600/5', dotColor: 'bg-green-600' },
-    { id: 'lost', label: 'Lost', color: 'border border-card-border bg-brand-red/5', dotColor: 'bg-brand-red' },
+    { id: 'new', label: 'New', color: '', dotColor: 'bg-gray-400' },
+    { id: 'sequence_active', label: 'Seq. Active', color: '', dotColor: 'bg-blue-500' },
+    { id: 'replied', label: 'Replied', color: '', dotColor: 'bg-brand-orange' },
+    { id: 'meeting_booked', label: 'Meeting', color: '', dotColor: 'bg-emerald-500' },
+    { id: 'won', label: 'Won', color: '', dotColor: 'bg-green-600' },
+    { id: 'lost', label: 'Lost', color: '', dotColor: 'bg-brand-red' },
   ];
 
   // Bucket leads by stage once per leads-change instead of filtering the full
@@ -467,7 +467,7 @@ export default function LeadsPage() {
           {canImportExport(currentRole) && (
             <button
               onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-card-bg border border-card-border hover:bg-background text-text-primary text-xs font-semibold rounded-lg shadow-sm transition-colors focus-ring"
+              className="flex items-center gap-1.5 px-3 py-2 bg-card-bg border border-card-border hover:bg-bg-main text-text-primary text-xs font-semibold rounded-lg shadow-sm transition-colors focus-ring"
             >
               <Upload className="w-4 h-4" aria-hidden="true" />
               <span>Import CSV</span>
@@ -497,7 +497,7 @@ export default function LeadsPage() {
               placeholder="Search full name, email, company, phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-1.5 text-xs bg-background border border-card-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
+              className="w-full pl-9 pr-4 py-1.5 text-xs bg-bg-main border border-card-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
             />
           </div>
 
@@ -505,7 +505,7 @@ export default function LeadsPage() {
           <select
             value={stageFilter}
             onChange={(e) => setStageFilter(e.target.value)}
-            className="bg-background border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+            className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
           >
             <option value="all">All Stages</option>
             <option value="new">New</option>
@@ -519,7 +519,7 @@ export default function LeadsPage() {
           <select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
-            className="bg-background border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+            className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
           >
             <option value="all">All Priorities</option>
             <option value="hot">🔥 Hot</option>
@@ -533,7 +533,7 @@ export default function LeadsPage() {
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
               showExtraFilters || anyExtraFilter
                 ? 'bg-brand-red/10 text-brand-red border-brand-red/25'
-                : 'bg-background border-card-border text-text-secondary hover:text-text-primary'
+                : 'bg-bg-main border-card-border text-text-secondary hover:text-text-primary'
             }`}
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -551,7 +551,7 @@ export default function LeadsPage() {
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border cursor-pointer transition-colors ${
                 showArchived
                   ? 'bg-brand-red/10 text-brand-red border-brand-red/25'
-                  : 'bg-background border-card-border text-text-secondary hover:text-text-primary'
+                  : 'bg-bg-main border-card-border text-text-secondary hover:text-text-primary'
               }`}
               title="Show leads that were archived"
             >
@@ -582,7 +582,7 @@ export default function LeadsPage() {
               <select
                 value={sdrFilter}
                 onChange={(e) => setSdrFilter(e.target.value)}
-                className="bg-background border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+                className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
               >
                 <option value="all">All Reps</option>
                 {sdrUsers.map((u) => (
@@ -595,19 +595,19 @@ export default function LeadsPage() {
               placeholder="Source…"
               value={sourceFilter}
               onChange={(e) => setSourceFilter(e.target.value)}
-              className="bg-background border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-28"
+              className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-28"
             />
             <input
               type="text"
               placeholder="Import list..."
               value={importListFilter}
               onChange={(e) => setImportListFilter(e.target.value)}
-              className="bg-background border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-32"
+              className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-32"
             />
             <select
               value={emailValidationFilter}
               onChange={(e) => setEmailValidationFilter(e.target.value)}
-              className="bg-background border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+              className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
             >
               <option value="all">All Email Quality</option>
               <option value="deliverable">Deliverable</option>
@@ -620,35 +620,35 @@ export default function LeadsPage() {
               placeholder="Country..."
               value={countryFilter}
               onChange={(e) => setCountryFilter(e.target.value)}
-              className="bg-background border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-28"
+              className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-28"
             />
             <input
               type="text"
               placeholder="Industry..."
               value={industryFilter}
               onChange={(e) => setIndustryFilter(e.target.value)}
-              className="bg-background border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-28"
+              className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-28"
             />
             <input
               type="text"
               placeholder="Tag…"
               value={tagFilter}
               onChange={(e) => setTagFilter(e.target.value)}
-              className="bg-background border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-28"
+              className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-28"
             />
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
               title="Created from"
-              className="bg-background border border-card-border rounded-lg text-xs px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono w-32"
+              className="bg-bg-main border border-card-border rounded-lg text-xs px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono w-32"
             />
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
               title="Created to"
-              className="bg-background border border-card-border rounded-lg text-xs px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono w-32"
+              className="bg-bg-main border border-card-border rounded-lg text-xs px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono w-32"
             />
           </div>
         )}
@@ -670,8 +670,8 @@ export default function LeadsPage() {
                 onDragOver={(e) => handleDragOver(e, col.id)}
                 onDragLeave={() => handleDragLeave(col.id)}
                 onDrop={(e) => handleDrop(e, col.id)}
-                className={`rounded-2xl border flex flex-col p-3.5 shadow-sm min-h-[400px] w-[300px] flex-shrink-0 transition-colors duration-200 ${
-                  isHovered ? 'border-brand-red border-dashed bg-brand-red/[0.03]' : col.color
+                className={`flex flex-col p-2.5 min-h-[400px] w-[300px] flex-shrink-0 transition-colors duration-200 ${
+                  isHovered ? 'rounded-2xl border border-brand-red border-dashed bg-brand-red/[0.03]' : ''
                 }`}
               >
                 <div className="flex items-center justify-between pb-2.5 border-b border-card-border/50 mb-2.5">
@@ -714,7 +714,7 @@ export default function LeadsPage() {
               <select
                 value={bulkStage}
                 onChange={(e) => setBulkStage(e.target.value)}
-                className="bg-background border border-card-border rounded-lg px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red"
+                className="bg-bg-main border border-card-border rounded-lg px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red"
               >
                 <option value="">Change Stage…</option>
                 {['new', 'sequence_active', 'replied', 'meeting_booked', 'won', 'lost'].map((s) => (
@@ -725,7 +725,7 @@ export default function LeadsPage() {
                 <select
                   value={bulkSdr}
                   onChange={(e) => setBulkSdr(e.target.value)}
-                  className="bg-background border border-card-border rounded-lg px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red"
+                  className="bg-bg-main border border-card-border rounded-lg px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red"
                 >
                   <option value="">Assign SDR…</option>
                   {users.map((u) => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
@@ -735,7 +735,7 @@ export default function LeadsPage() {
                 <select
                   value={bulkSeqId}
                   onChange={(e) => setBulkSeqId(e.target.value)}
-                  className="bg-background border border-card-border rounded-lg px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red"
+                  className="bg-bg-main border border-card-border rounded-lg px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red"
                 >
                   <option value="">Add to Sequence…</option>
                   {sequences.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -756,7 +756,7 @@ export default function LeadsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left border-collapse">
               <thead>
-                <tr className="bg-background/50 border-b border-card-border text-xs uppercase font-bold tracking-wider text-text-muted">
+                <tr className="bg-bg-main/50 border-b border-card-border text-xs uppercase font-bold tracking-wider text-text-muted">
                   <th className="p-3 w-8">
                     <input
                       type="checkbox"
@@ -787,7 +787,7 @@ export default function LeadsPage() {
                     <tr
                       key={lead.id}
                       onClick={() => setSelectedLeadId(lead.id)}
-                      className={`hover:bg-background/40 cursor-pointer table-row-dense ${selectedLeads.has(lead.id) ? 'bg-brand-red/[0.025]' : ''}`}
+                      className={`hover:bg-bg-main/40 cursor-pointer table-row-dense ${selectedLeads.has(lead.id) ? 'bg-brand-red/[0.025]' : ''}`}
                     >
                       <td className="p-3" onClick={(e) => e.stopPropagation()}>
                         <input

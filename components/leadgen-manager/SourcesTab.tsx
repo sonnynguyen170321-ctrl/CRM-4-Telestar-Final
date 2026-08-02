@@ -126,7 +126,7 @@ export default function SourcesTab() {
                     <span className="text-text-secondary truncate">{s.source}</span>
                     <span className="font-mono text-text-muted whitespace-nowrap">{s.count} · {pct}%</span>
                   </div>
-                  <div className="h-1.5 bg-background border border-card-border rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-bg-main border border-card-border rounded-full overflow-hidden">
                     <div className="h-full bg-emerald-500/70 rounded-full" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
@@ -149,7 +149,7 @@ export default function SourcesTab() {
                   <span className="text-text-secondary truncate">{SOURCE_TYPE_LABEL[t.type] ?? t.type}</span>
                   <span className="font-mono text-text-muted">{t.count}</span>
                 </div>
-                <div className="h-1.5 bg-background border border-card-border rounded-full overflow-hidden">
+                <div className="h-1.5 bg-bg-main border border-card-border rounded-full overflow-hidden">
                   <div className="h-full bg-blue-500/70 rounded-full" style={{ width: `${(t.count / maxType) * 100}%` }} />
                 </div>
               </div>

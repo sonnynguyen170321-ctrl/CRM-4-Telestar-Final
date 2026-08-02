@@ -42,13 +42,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Header */}
       <div className="page-hero">
         <h1 className="font-display font-extrabold text-2xl text-text-primary">System Administration</h1>
-        <p className="text-sm text-text-muted mt-0.5">
+        <p className="text-sm text-text-muted mt-0.5 prose-measure">
           Monitor background worker queues, outbound delivery logs, duplicate check logs, and core infrastructure health.
         </p>
       </div>
 
       {/* Admin Sub-navigation */}
-      <div className="flex border-b border-card-border bg-background/25 rounded-xl p-1.5 gap-1 self-start shrink-0">
+      <div className="flex border-b border-card-border bg-bg-main/25 rounded-xl p-1.5 gap-1 self-start shrink-0">
         {tabs.map((tab) => {
           const isActive = pathname === tab.href || pathname.startsWith(tab.href + '/');
           const Icon = tab.icon;

@@ -49,7 +49,7 @@ const FIELD_DEFS: FieldDef[] = [
 ];
 
 const inputClass =
-  'w-full px-3 py-2 bg-background border border-card-border rounded-lg text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red transition-colors';
+  'w-full px-3 py-2 bg-bg-main border border-card-border rounded-lg text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red transition-colors';
 const labelClass = 'block text-[10px] font-bold font-mono text-text-muted uppercase mb-1 tracking-wide';
 
 interface DuplicateInfo {
@@ -548,7 +548,7 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
                         key={mode.value}
                         type="button"
                         onClick={() => setEmailQualityMode(mode.value)}
-                        className={`text-left p-3 rounded-xl border transition-colors ${emailQualityMode === mode.value ? 'bg-brand-red/10 border-brand-red/40 text-text-primary' : 'bg-background border-card-border text-text-secondary hover:text-text-primary'}`}
+                        className={`text-left p-3 rounded-xl border transition-colors ${emailQualityMode === mode.value ? 'bg-brand-red/10 border-brand-red/40 text-text-primary' : 'bg-bg-main border-card-border text-text-secondary hover:text-text-primary'}`}
                       >
                         <span className="block text-xs font-bold">{mode.label}</span>
                         <span className="block text-[10px] text-text-muted mt-1">{mode.description}</span>
@@ -570,7 +570,7 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
                     ['Risky', summary.riskyEmails, 'text-amber-400'],
                     ['Bad Email', summary.undeliverableEmails, 'text-brand-red'],
                   ].map(([label, value, color]) => (
-                    <div key={label} className="rounded-xl border border-card-border bg-background/50 p-3">
+                    <div key={label} className="rounded-xl border border-card-border bg-bg-main/50 p-3">
                       <p className="text-[10px] uppercase text-text-muted">{label}</p>
                       <p className={`text-lg font-bold font-mono ${color}`}>{value}</p>
                     </div>
@@ -590,7 +590,7 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
                               setDefaultResolution(resolution);
                               setRowResolutions({});
                             }}
-                            className={`px-2 py-1 rounded-md border font-bold capitalize ${defaultResolution === resolution ? 'bg-brand-red/10 border-brand-red/40 text-brand-red' : 'bg-background border-card-border text-text-muted'}`}
+                            className={`px-2 py-1 rounded-md border font-bold capitalize ${defaultResolution === resolution ? 'bg-brand-red/10 border-brand-red/40 text-brand-red' : 'bg-bg-main border-card-border text-text-muted'}`}
                           >
                             All {resolution}
                           </button>
@@ -607,7 +607,7 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
                             </p>
                             <p className="text-text-muted truncate">matches {duplicate.existingSummary}</p>
                           </div>
-                          <select value={rowResolutions[String(duplicate.row)] ?? defaultResolution} onChange={(event) => setRowResolutions((prev) => ({ ...prev, [String(duplicate.row)]: event.target.value as Resolution }))} className="bg-background border border-card-border rounded-md px-1.5 py-1 text-[10px] font-semibold text-text-primary focus:outline-none focus:border-brand-red shrink-0">
+                          <select value={rowResolutions[String(duplicate.row)] ?? defaultResolution} onChange={(event) => setRowResolutions((prev) => ({ ...prev, [String(duplicate.row)]: event.target.value as Resolution }))} className="bg-bg-main border border-card-border rounded-md px-1.5 py-1 text-[10px] font-semibold text-text-primary focus:outline-none focus:border-brand-red shrink-0">
                             <option value="skip">Skip</option>
                             <option value="update">Update existing</option>
                             <option value="import">Import anyway</option>
@@ -654,17 +654,17 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
 
           <div className="px-6 py-4 border-t border-card-border shrink-0 flex gap-2">
             {step === 'upload' && (
-              <button type="button" onClick={onClose} className="flex-1 py-2 border border-card-border bg-background hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors">Cancel</button>
+              <button type="button" onClick={onClose} className="flex-1 py-2 border border-card-border bg-bg-main hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors">Cancel</button>
             )}
             {step === 'map' && (
               <>
-                <button type="button" onClick={() => setStep('upload')} className="flex-1 py-2 border border-card-border bg-background hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors">Back</button>
+                <button type="button" onClick={() => setStep('upload')} className="flex-1 py-2 border border-card-border bg-bg-main hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors">Back</button>
                 <button type="button" onClick={() => setStep('context')} disabled={!hasMinimumMapping} className="flex-1 py-2 bg-brand-red hover:bg-brand-red-hover text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60">Continue</button>
               </>
             )}
             {step === 'context' && (
               <>
-                <button type="button" onClick={() => setStep('map')} className="flex-1 py-2 border border-card-border bg-background hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors">Back</button>
+                <button type="button" onClick={() => setStep('map')} className="flex-1 py-2 border border-card-border bg-bg-main hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors">Back</button>
                 <button type="button" onClick={runDryRun} disabled={dryRunning || (!campaignId && !isPool)} className="flex-1 py-2 bg-brand-red hover:bg-brand-red-hover text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5">
                   {dryRunning ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Analyzing...</span></> : 'Run Duplicate Check'}
                 </button>
@@ -672,13 +672,13 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
             )}
             {step === 'review' && (
               <>
-                <button type="button" onClick={() => setStep('context')} className="flex-1 py-2 border border-card-border bg-background hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors">Back</button>
+                <button type="button" onClick={() => setStep('context')} className="flex-1 py-2 border border-card-border bg-bg-main hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors">Back</button>
                 <button type="button" onClick={() => setStep('confirm')} disabled={!summary || (summary.toImport === 0 && !summary.duplicates.some((duplicate) => (rowResolutions[String(duplicate.row)] ?? defaultResolution) !== 'skip'))} className="flex-1 py-2 bg-brand-red hover:bg-brand-red-hover text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60">Review Import</button>
               </>
             )}
             {step === 'confirm' && (
               <>
-                <button type="button" onClick={() => setStep('review')} className="flex-1 py-2 border border-card-border bg-background hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors">Back</button>
+                <button type="button" onClick={() => setStep('review')} className="flex-1 py-2 border border-card-border bg-bg-main hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors">Back</button>
                 <button type="button" onClick={confirmImport} disabled={importing || (!campaignId && !isPool)} className="flex-1 py-2 bg-brand-red hover:bg-brand-red-hover text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5">
                   {importing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Queueing...</span></> : 'Confirm Import'}
                 </button>

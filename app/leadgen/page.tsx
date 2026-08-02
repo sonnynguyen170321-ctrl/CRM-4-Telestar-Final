@@ -255,7 +255,7 @@ export default function LeadgenPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden animate-in fade-in duration-200">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-card-border bg-background flex-shrink-0">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-card-border bg-bg-main flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
             <Target className="w-4 h-4 text-purple-400" />
@@ -264,7 +264,7 @@ export default function LeadgenPage() {
             <h1 className="font-display font-bold text-sm text-text-primary">
               {isManager ? 'Leadgen Manager Console' : 'Leadgen Pipeline'}
             </h1>
-            <p className="text-[10px] text-text-muted uppercase">
+            <p className="text-xs text-text-muted uppercase prose-measure">
               {isManager ? 'Campaign routing · Prospect assignment · Intent tracking' : 'Import · Qualify · Hand off'}
             </p>
           </div>
@@ -285,7 +285,7 @@ export default function LeadgenPage() {
       </div>
 
       {/* Stats bar */}
-      <div className="px-6 py-3 border-b border-card-border bg-background flex-shrink-0">
+      <div className="px-6 py-3 border-b border-card-border bg-bg-main flex-shrink-0">
         <div className="grid grid-cols-4 gap-3">
           {[
             { label: 'Total Leads Pool', value: leads.length, icon: Target, color: 'text-purple-400' },
@@ -308,7 +308,7 @@ export default function LeadgenPage() {
       {isManager ? (
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Tab Selector */}
-          <div className="px-6 py-2 border-b border-card-border bg-background flex items-center gap-2 flex-shrink-0">
+          <div className="px-6 py-2 border-b border-card-border bg-bg-main flex items-center gap-2 flex-shrink-0">
             {[
               { id: 'assign', label: 'Route & Assign', icon: Shuffle },
               { id: 'enrich', label: 'Enrich & Intent Board', icon: Tag },
@@ -346,7 +346,7 @@ export default function LeadgenPage() {
                     <select
                       value={routeCampaignId}
                       onChange={(e) => setRouteCampaignId(e.target.value)}
-                      className="bg-background border border-card-border rounded-xl text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-purple-500 cursor-pointer"
+                      className="bg-bg-main border border-card-border rounded-xl text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-purple-500 cursor-pointer"
                     >
                       <option value="">— Select Target Campaign —</option>
                       {campaigns.map((c) => (
@@ -356,7 +356,7 @@ export default function LeadgenPage() {
                     <select
                       value={routeSdrId}
                       onChange={(e) => setRouteSdrId(e.target.value)}
-                      className="bg-background border border-card-border rounded-xl text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-purple-500 cursor-pointer"
+                      className="bg-bg-main border border-card-border rounded-xl text-xs font-semibold px-2 py-1 text-text-primary focus:outline-none focus:border-purple-500 cursor-pointer"
                     >
                       <option value="">— Select Target Rep (SDR) —</option>
                       {teamMembers.filter((u) => u.role === 'sdr').map((u) => (
@@ -377,7 +377,7 @@ export default function LeadgenPage() {
                 <div className="flex-1 bg-card-bg border border-card-border rounded-2xl overflow-hidden shadow-sm flex flex-col">
                   <table className="w-full text-xs text-left border-collapse">
                     <thead>
-                      <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
+                      <tr className="bg-bg-main/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
                         <th className="p-3 w-8">
                           <input
                             type="checkbox"
@@ -405,7 +405,7 @@ export default function LeadgenPage() {
                         </tr>
                       ) : (
                         filtered.map((lead) => (
-                          <tr key={lead.id} className="hover:bg-background/40 cursor-pointer" onClick={() => setSelectedLeadId(lead.id)}>
+                          <tr key={lead.id} className="hover:bg-bg-main/40 cursor-pointer" onClick={() => setSelectedLeadId(lead.id)}>
                             <td className="p-3" onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="checkbox"
@@ -460,7 +460,7 @@ export default function LeadgenPage() {
                 <div className="bg-card-bg border border-card-border rounded-2xl overflow-hidden shadow-sm">
                   <table className="w-full text-xs text-left border-collapse">
                     <thead>
-                      <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
+                      <tr className="bg-bg-main/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
                         <th className="p-3">Prospect</th>
                         <th className="p-3">Job Title</th>
                         <th className="p-3">Enriched Contact Info</th>
@@ -538,13 +538,13 @@ export default function LeadgenPage() {
 
                 {/* Meetings Outcomes List */}
                 <div className="space-y-3">
-                  <h3 className="font-display font-extrabold text-sm text-text-primary">
+                  <h2 className="font-display font-extrabold text-sm text-text-primary">
                     Booked Meetings & Sales Outcomes
-                  </h3>
+                  </h2>
                   <div className="bg-card-bg border border-card-border rounded-2xl overflow-hidden shadow-sm">
                     <table className="w-full text-xs text-left border-collapse">
                       <thead>
-                        <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
+                        <tr className="bg-bg-main/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
                           <th className="p-3">Prospect</th>
                           <th className="p-3">Campaign</th>
                           <th className="p-3">Assigned SDR</th>
@@ -600,10 +600,10 @@ export default function LeadgenPage() {
                 {/* Daily Export Action Card */}
                 <div className="bg-card-bg border border-card-border p-6 rounded-2xl flex flex-row justify-between items-center gap-4">
                   <div className="space-y-1">
-                    <h3 className="font-display font-bold text-sm text-text-primary flex items-center gap-2">
+                    <h2 className="font-display font-bold text-sm text-text-primary flex items-center gap-2">
                       <FileSpreadsheet className="w-5 h-5 text-purple-400" />
                       <span>Daily Export outcomes</span>
-                    </h3>
+                    </h2>
                     <p className="text-xs text-text-secondary max-w-md">
                       Download a structured CSV containing lead details, enrichment attributes, priority scores, and the final outcomes.
                     </p>
@@ -625,7 +625,7 @@ export default function LeadgenPage() {
               <div className="bg-card-bg border border-card-border p-8 rounded-2xl max-w-md mx-auto text-center space-y-4">
                 <Upload className="w-10 h-10 text-purple-400 mx-auto opacity-70" />
                 <div className="space-y-1">
-                  <h3 className="font-display font-bold text-sm text-text-primary">Bulk Intake Upload</h3>
+                  <h2 className="font-display font-bold text-sm text-text-primary">Bulk Intake Upload</h2>
                   <p className="text-xs text-text-secondary leading-relaxed">
                     Upload and clean prospects spreadsheets (.csv or .xlsx) using customized deduplication rules.
                   </p>
@@ -649,7 +649,7 @@ export default function LeadgenPage() {
         /* STANDARD LEADGEN MEMBER VIEW (Kanban / Table) */
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Toolbar */}
-          <div className="px-6 py-2.5 border-b border-card-border bg-background flex items-center gap-3 flex-shrink-0">
+          <div className="px-6 py-2.5 border-b border-card-border bg-bg-main flex items-center gap-3 flex-shrink-0">
             <div className="relative flex-1 max-w-xs">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
               <input
@@ -852,7 +852,7 @@ function TableView({ leads, onSelectLead }: { leads: Lead[]; onSelectLead: (id: 
                 key={lead.id}
                 onClick={() => onSelectLead(lead.id)}
                 className={`border-b border-card-border/50 hover:bg-purple-500/5 cursor-pointer transition-colors ${
-                  idx % 2 === 0 ? '' : 'bg-background/30'
+                  idx % 2 === 0 ? '' : 'bg-bg-main/30'
                 }`}
               >
                 <td className="px-4 py-2.5 font-medium text-text-primary">

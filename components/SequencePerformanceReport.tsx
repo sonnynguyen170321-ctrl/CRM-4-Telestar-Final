@@ -91,7 +91,7 @@ export default function SequencePerformanceReport({ stats, loading, scopeLabel }
         <div className="overflow-hidden rounded-xl border border-card-border">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
+              <tr className="bg-bg-main/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
                 <th className="text-left px-3 py-2">Sequence</th>
                 <th className="text-right px-3 py-2">Enrolled</th>
                 <th className="text-right px-3 py-2">Active</th>
@@ -104,7 +104,7 @@ export default function SequencePerformanceReport({ stats, loading, scopeLabel }
                 </tr>
               ) : (
                 stats.sequences.map((seq) => (
-                  <tr key={seq.id} className="hover:bg-background/40">
+                  <tr key={seq.id} className="hover:bg-bg-main/40">
                     <td className="px-3 py-2 font-semibold text-text-primary">{seq.name}</td>
                     <td className="px-3 py-2 text-right font-mono text-text-secondary">{seq._count.leads}</td>
                     <td className="px-3 py-2 text-right font-mono text-blue-500">{seq.activeLeads}</td>

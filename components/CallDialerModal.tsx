@@ -274,7 +274,7 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
           
           {/* Avatar / Icon dialing animation */}
           <div className="relative mb-4">
-            <div className={`w-16 h-16 rounded-full flex items-center justify-center text-white ${
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center text-text-primary ${
               callState === 'dialing' 
                 ? 'bg-brand-orange ring-2 ring-brand-orange/30'
                 : 'bg-green-600 ring-2 ring-green-600/30'
@@ -304,7 +304,7 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
         </div>
 
         {/* Call Controls Pad */}
-        <div className="px-6 py-4 flex justify-center gap-6 border-b border-card-border/30 bg-background/20">
+        <div className="px-6 py-4 flex justify-center gap-6 border-b border-card-border/30 bg-bg-main/20">
           <button 
             type="button"
             onClick={toggleMute}
@@ -347,7 +347,7 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
 
         {/* Dynamic DTMF Keypad Grid */}
         {showKeypad && (
-          <div className="bg-background/40 border-b border-card-border/30 px-6 py-4 grid grid-cols-3 gap-2.5 justify-items-center animate-in slide-in-from-top-3 duration-200">
+          <div className="bg-bg-main/40 border-b border-card-border/30 px-6 py-4 grid grid-cols-3 gap-2.5 justify-items-center animate-in slide-in-from-top-3 duration-200">
             {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map((digit) => (
               <button
                 key={digit}
@@ -368,7 +368,7 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
             <select
               value={callOutcome}
               onChange={(e) => setCallOutcome(e.target.value)}
-              className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-semibold cursor-pointer"
+              className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-semibold cursor-pointer"
             >
               <option value="Connected - Pitching">Connected - Pitching</option>
               <option value="Connected - Meeting Booked">Connected - Meeting Booked</option>
@@ -384,7 +384,7 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
               placeholder="Log conversion feedback, timing preference, or gating items..."
               value={callNote}
               onChange={(e) => setCallNote(e.target.value)}
-              className="w-full bg-background border border-card-border rounded-xl p-2.5 text-text-primary focus:outline-none focus:border-brand-red h-20 placeholder-text-muted resize-none leading-relaxed"
+              className="w-full bg-bg-main border border-card-border rounded-xl p-2.5 text-text-primary focus:outline-none focus:border-brand-red h-20 placeholder-text-muted resize-none leading-relaxed"
               required
             />
           </div>

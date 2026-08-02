@@ -203,7 +203,7 @@ export default function WorkerHealthAdminPage() {
 
             {/* Latest health check report card */}
             {data.latestHealthcheck && (
-              <div className="glass-card rounded-2xl p-4 space-y-4 border border-card-border bg-background/25">
+              <div className="glass-card rounded-2xl p-4 space-y-4 border border-card-border bg-bg-main/25">
                 <div className="flex justify-between items-center">
                   <h4 className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Last Healthcheck Run</h4>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold border capitalize ${getJobStatusBadge(data.latestHealthcheck.status)}`}>
@@ -220,7 +220,7 @@ export default function WorkerHealthAdminPage() {
                   {data.latestHealthcheck.result && (
                     <div>
                       <span className="text-text-muted block text-[10px] uppercase">Worker Outcomes</span>
-                      <pre className="bg-background/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] text-text-secondary mt-1 max-h-24 overflow-auto">
+                      <pre className="bg-bg-main/60 border border-card-border rounded-lg p-2.5 font-mono text-[10px] text-text-secondary mt-1 max-h-24 overflow-auto">
                         {JSON.stringify(data.latestHealthcheck.result, null, 2)}
                       </pre>
                     </div>
@@ -268,7 +268,7 @@ export default function WorkerHealthAdminPage() {
                         { label: 'Completed', val: q.counts.completed, color: 'text-emerald-400' },
                         { label: 'Failed', val: q.counts.failed, color: q.counts.failed > 0 ? 'text-brand-red font-bold' : 'text-text-muted' },
                       ].map((item) => (
-                        <div key={item.label} className="bg-background/40 border border-card-border/60 rounded-xl p-2.5 text-center">
+                        <div key={item.label} className="bg-bg-main/40 border border-card-border/60 rounded-xl p-2.5 text-center">
                           <span className="text-[9px] text-text-muted uppercase block">{item.label}</span>
                           <span className={`text-sm font-extrabold font-mono mt-0.5 block ${item.color}`}>
                             {item.val}

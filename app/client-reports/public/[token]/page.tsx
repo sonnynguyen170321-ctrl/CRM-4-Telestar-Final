@@ -83,7 +83,7 @@ export default function PublicReportViewer() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen bg-bg-main flex items-center justify-center p-4">
         <div className="text-center space-y-3">
           <div className="w-8 h-8 border-2 border-brand-red border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-xs text-muted-foreground">Loading performance report...</p>
@@ -94,13 +94,13 @@ export default function PublicReportViewer() {
 
   if (requiresPassword) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+      <div className="min-h-screen bg-bg-main flex items-center justify-center p-4">
+        <div className="bg-card-bg border border-card-border rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
           <div className="text-center space-y-1">
             <div className="inline-flex p-3 rounded-full bg-brand-red/10 text-brand-red mb-2">
               <Lock className="w-6 h-6" />
             </div>
-            <h2 className="text-base font-bold text-foreground">Password Protected Report</h2>
+            <h2 className="text-base font-bold text-text-primary">Password Protected Report</h2>
             <p className="text-xs text-muted-foreground">{title || 'Confidential Performance Report'}</p>
           </div>
 
@@ -113,13 +113,13 @@ export default function PublicReportViewer() {
 
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <div>
-              <label className="text-xs font-medium text-foreground block mb-1">Enter Passcode</label>
+              <label className="text-xs font-medium text-text-primary block mb-1">Enter Passcode</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter access password"
-                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-brand-red focus:outline-none"
+                className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:ring-1 focus:ring-brand-red focus:outline-none"
               />
             </div>
             <button
@@ -137,12 +137,12 @@ export default function PublicReportViewer() {
 
   if (error || !snapshot) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-md p-8 text-center space-y-3">
+      <div className="min-h-screen bg-bg-main flex items-center justify-center p-4">
+        <div className="bg-card-bg border border-card-border rounded-xl shadow-xl w-full max-w-md p-8 text-center space-y-3">
           <div className="inline-flex p-3 rounded-full bg-red-500/10 text-red-500">
             <AlertCircle className="w-6 h-6" />
           </div>
-          <h2 className="text-base font-bold text-foreground">Unable to Access Report</h2>
+          <h2 className="text-base font-bold text-text-primary">Unable to Access Report</h2>
           <p className="text-xs text-muted-foreground">{error || 'This share link may have expired or been revoked.'}</p>
         </div>
       </div>
@@ -161,10 +161,10 @@ export default function PublicReportViewer() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-foreground py-8 px-4 sm:px-6 lg:px-8 font-sans">
+    <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-text-primary py-8 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Top Header Card */}
-        <div className="bg-card border border-border rounded-2xl p-6 sm:p-8 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="bg-card-bg border border-card-border rounded-2xl p-6 sm:p-8 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-brand-red">Executive Campaign Report</span>
@@ -172,9 +172,9 @@ export default function PublicReportViewer() {
                 <ShieldCheck className="w-3 h-3" /> Verified Snapshot
               </span>
             </div>
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">{title}</h1>
+            <h1 className="text-2xl font-bold text-text-primary tracking-tight">{title}</h1>
             <div className="flex items-center gap-3 text-xs text-muted-foreground pt-1">
-              <span className="flex items-center gap-1 font-semibold text-foreground">
+              <span className="flex items-center gap-1 font-semibold text-text-primary">
                 <Building2 className="w-3.5 h-3.5 text-brand-red" /> {clientName}
               </span>
               <span>&bull;</span>
@@ -186,7 +186,7 @@ export default function PublicReportViewer() {
 
           <button
             onClick={() => window.print()}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-foreground text-background hover:bg-foreground/90 rounded-xl text-xs font-semibold transition-all shadow-sm flex-shrink-0 self-start md:self-auto"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand-dark text-bg-main hover:bg-brand-dark/90 rounded-xl text-xs font-semibold transition-all shadow-sm flex-shrink-0 self-start md:self-auto"
           >
             <Printer className="w-4 h-4" /> Print / Save PDF
           </button>
@@ -194,11 +194,11 @@ export default function PublicReportViewer() {
 
         {/* KPI Scorecard */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+          <div className="bg-card-bg border border-card-border rounded-xl p-5 shadow-sm">
             <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
               Prospects Contacted
             </div>
-            <div className="text-2xl font-bold text-foreground mt-1">
+            <div className="text-2xl font-bold text-text-primary mt-1">
               {snapshot.kpis.leadsTouched.toLocaleString()}
             </div>
             <div className="text-[11px] text-muted-foreground mt-0.5">
@@ -206,23 +206,23 @@ export default function PublicReportViewer() {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+          <div className="bg-card-bg border border-card-border rounded-xl p-5 shadow-sm">
             <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Replies Received</div>
-            <div className="text-2xl font-bold text-foreground mt-1">{snapshot.kpis.replies}</div>
+            <div className="text-2xl font-bold text-text-primary mt-1">{snapshot.kpis.replies}</div>
             <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
               {(snapshot.kpis.replyRate * 100).toFixed(1)}% reply rate
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+          <div className="bg-card-bg border border-card-border rounded-xl p-5 shadow-sm">
             <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Booked Meetings</div>
-            <div className="text-2xl font-bold text-foreground mt-1">{snapshot.kpis.meetingsBooked}</div>
+            <div className="text-2xl font-bold text-text-primary mt-1">{snapshot.kpis.meetingsBooked}</div>
             <div className="text-[11px] text-blue-600 dark:text-blue-400 font-medium mt-0.5">
               {snapshot.kpis.qualifiedMeetings} qualified discovery calls
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+          <div className="bg-card-bg border border-card-border rounded-xl p-5 shadow-sm">
             <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Accepted Pipeline</div>
             <div className="text-2xl font-bold text-brand-red mt-1">
               ${snapshot.kpis.activePipelineValue.toLocaleString()}
@@ -234,12 +234,12 @@ export default function PublicReportViewer() {
         </div>
 
         {/* Executive Summary */}
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">
+        <div className="bg-card-bg border border-card-border rounded-2xl p-6 shadow-sm space-y-4">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-brand-red" />
-            <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Executive Overview</h2>
+            <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider">Executive Overview</h2>
           </div>
-          <p className="text-xs sm:text-sm text-foreground/80 leading-relaxed">
+          <p className="text-xs sm:text-sm text-text-primary/80 leading-relaxed">
             {snapshot.insights.summary ||
               `Outreach conducted across this reporting period delivered strong prospect engagement, generating ${snapshot.kpis.replies} direct replies and ${snapshot.kpis.meetingsBooked} scheduled meetings with decision-makers.`}
           </p>
@@ -248,7 +248,7 @@ export default function PublicReportViewer() {
             {snapshot.insights.keyWins?.length > 0 && (
               <div className="p-4 bg-emerald-500/5 border border-emerald-500/15 rounded-xl space-y-2">
                 <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Key Highlights</span>
-                <ul className="space-y-1.5 text-xs text-foreground/80 list-disc list-inside">
+                <ul className="space-y-1.5 text-xs text-text-primary/80 list-disc list-inside">
                   {snapshot.insights.keyWins.map((w, idx) => (
                     <li key={idx}>{w}</li>
                   ))}
@@ -259,7 +259,7 @@ export default function PublicReportViewer() {
             {snapshot.insights.recommendations?.length > 0 && (
               <div className="p-4 bg-blue-500/5 border border-blue-500/15 rounded-xl space-y-2">
                 <span className="text-xs font-bold text-blue-600 dark:text-blue-400">Strategic Next Steps</span>
-                <ul className="space-y-1.5 text-xs text-foreground/80 list-disc list-inside">
+                <ul className="space-y-1.5 text-xs text-text-primary/80 list-disc list-inside">
                   {snapshot.insights.recommendations.map((r, idx) => (
                     <li key={idx}>{r}</li>
                   ))}
@@ -270,12 +270,12 @@ export default function PublicReportViewer() {
         </div>
 
         {/* Outreach by Channel */}
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">
-          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Omnichannel Performance</h2>
+        <div className="bg-card-bg border border-card-border rounded-2xl p-6 shadow-sm space-y-4">
+          <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider">Omnichannel Performance</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-border text-[11px] text-muted-foreground font-semibold">
+                <tr className="border-b border-card-border text-[11px] text-muted-foreground font-semibold">
                   <th className="py-2.5 px-3">Channel</th>
                   <th className="py-2.5 px-3">Touchpoints</th>
                   <th className="py-2.5 px-3">Replies</th>
@@ -285,10 +285,10 @@ export default function PublicReportViewer() {
               </thead>
               <tbody className="divide-y divide-border/60">
                 {snapshot.channels.map((ch) => (
-                  <tr key={ch.channel} className="hover:bg-muted/20">
-                    <td className="py-3 px-3 font-semibold text-foreground">{ch.label}</td>
+                  <tr key={ch.channel} className="hover:bg-card-border/40/20">
+                    <td className="py-3 px-3 font-semibold text-text-primary">{ch.label}</td>
                     <td className="py-3 px-3 text-muted-foreground">{ch.touchpoints.toLocaleString()}</td>
-                    <td className="py-3 px-3 font-semibold text-foreground">{ch.replies}</td>
+                    <td className="py-3 px-3 font-semibold text-text-primary">{ch.replies}</td>
                     <td className="py-3 px-3 font-semibold text-brand-red">{ch.meetingsBooked}</td>
                     <td className="py-3 px-3 text-muted-foreground">{(ch.conversionRate * 100).toFixed(1)}%</td>
                   </tr>
@@ -299,7 +299,7 @@ export default function PublicReportViewer() {
 
           {/* Email Deliverability & Health */}
           {snapshot.emailChannelHealth && (
-            <div className="mt-4 pt-4 border-t border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-muted/20 rounded-xl">
+            <div className="mt-4 pt-4 border-t border-card-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-card-border/40/20 rounded-xl">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -338,8 +338,8 @@ export default function PublicReportViewer() {
         </div>
 
         {/* Booked Meetings Table */}
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">
-          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">
+        <div className="bg-card-bg border border-card-border rounded-2xl p-6 shadow-sm space-y-4">
+          <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider">
             Meetings & Discovery Calls ({snapshot.meetings.length})
           </h2>
           {snapshot.meetings.length === 0 ? (
@@ -348,7 +348,7 @@ export default function PublicReportViewer() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-border text-[11px] text-muted-foreground font-semibold">
+                  <tr className="border-b border-card-border text-[11px] text-muted-foreground font-semibold">
                     <th className="py-2.5 px-3">Company</th>
                     <th className="py-2.5 px-3">Date</th>
                     <th className="py-2.5 px-3">Status</th>
@@ -358,8 +358,8 @@ export default function PublicReportViewer() {
                 </thead>
                 <tbody className="divide-y divide-border/60">
                   {snapshot.meetings.map((m) => (
-                    <tr key={m.id} className="hover:bg-muted/20">
-                      <td className="py-3 px-3 font-semibold text-foreground">
+                    <tr key={m.id} className="hover:bg-card-border/40/20">
+                      <td className="py-3 px-3 font-semibold text-text-primary">
                         {m.company}
                         {m.contactName && (
                           <div className="text-[11px] font-normal text-muted-foreground">{m.contactName}</div>
@@ -369,7 +369,7 @@ export default function PublicReportViewer() {
                         {new Date(m.scheduledAt).toLocaleDateString()}
                       </td>
                       <td className="py-3 px-3 whitespace-nowrap">
-                        <span className="capitalize px-2 py-0.5 rounded text-[11px] font-medium bg-muted text-foreground border border-border">
+                        <span className="capitalize px-2 py-0.5 rounded text-[11px] font-medium bg-card-border/40 text-text-primary border border-card-border">
                           {m.status.replace('_', ' ')}
                         </span>
                       </td>
@@ -397,9 +397,9 @@ export default function PublicReportViewer() {
 
         {/* Opportunity Pipeline */}
         {snapshot.opportunities?.length > 0 && (
-          <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">
+          <div className="bg-card-bg border border-card-border rounded-2xl p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">
+              <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider">
                 Qualified Deal Pipeline ({snapshot.opportunities.length})
               </h2>
               <span className="text-xs font-bold text-brand-red">
@@ -409,7 +409,7 @@ export default function PublicReportViewer() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-border text-[11px] text-muted-foreground font-semibold">
+                  <tr className="border-b border-card-border text-[11px] text-muted-foreground font-semibold">
                     <th className="py-2.5 px-3">Company</th>
                     <th className="py-2.5 px-3">Opportunity</th>
                     <th className="py-2.5 px-3">Stage</th>
@@ -419,15 +419,15 @@ export default function PublicReportViewer() {
                 </thead>
                 <tbody className="divide-y divide-border/60">
                   {snapshot.opportunities.map((opp) => (
-                    <tr key={opp.id} className="hover:bg-muted/20">
-                      <td className="py-3 px-3 font-semibold text-foreground">{opp.company}</td>
+                    <tr key={opp.id} className="hover:bg-card-border/40/20">
+                      <td className="py-3 px-3 font-semibold text-text-primary">{opp.company}</td>
                       <td className="py-3 px-3 text-muted-foreground">{opp.title}</td>
                       <td className="py-3 px-3 whitespace-nowrap">
                         <span className="capitalize px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                           {opp.stage.replace(/_/g, ' ')}
                         </span>
                       </td>
-                      <td className="py-3 px-3 font-semibold text-foreground whitespace-nowrap">
+                      <td className="py-3 px-3 font-semibold text-text-primary whitespace-nowrap">
                         {opp.value ? `$${opp.value.toLocaleString()}` : '&ndash;'}
                       </td>
                       <td className="py-3 px-3 text-muted-foreground">{opp.nextStep || 'In Progress'}</td>
@@ -440,7 +440,7 @@ export default function PublicReportViewer() {
         )}
 
         {/* Footer */}
-        <div className="pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between text-xs text-muted-foreground gap-2">
+        <div className="pt-6 border-t border-card-border flex flex-col sm:flex-row items-center justify-between text-xs text-muted-foreground gap-2">
           <div>Prepared for {clientName} &bull; Confidential</div>
           <div>Generated by SalesFlow Enterprise Platform</div>
         </div>

@@ -558,7 +558,7 @@ function SettingsPageInner() {
         <h1 className="font-display font-extrabold text-2xl text-text-primary tracking-tight">
           Workspace Settings
         </h1>
-        <p className="text-xs text-text-secondary mt-0.5">
+        <p className="text-xs text-text-secondary mt-0.5 prose-measure">
           Configure profile settings, connect campaign email servers, and manage user pods.
         </p>
       </div>
@@ -568,10 +568,10 @@ function SettingsPageInner() {
         <div className="col-span-2 space-y-6">
           {/* Profile Card */}
           <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="type-section text-text-primary flex items-center gap-2">
+            <h2 className="type-section text-text-primary flex items-center gap-2">
               <Globe className="w-4 h-4 text-brand-orange-text" />
               <span>Personal Profile</span>
-            </h3>
+            </h2>
             <div className="flex items-center gap-3">
               {profileAvatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -588,7 +588,7 @@ function SettingsPageInner() {
                   value={profileAvatarUrl}
                   onChange={(e) => setProfileAvatarUrl(e.target.value)}
                   placeholder="https://…/avatar.png  (leave blank to use initials)"
-                  className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
+                  className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
                 />
               </div>
             </div>
@@ -601,7 +601,7 @@ function SettingsPageInner() {
                   type="text"
                   value={profileFirstName}
                   onChange={(e) => setProfileFirstName(e.target.value)}
-                  className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
+                  className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
                 />
               </div>
               <div className="space-y-1">
@@ -612,7 +612,7 @@ function SettingsPageInner() {
                   type="text"
                   value={profileLastName}
                   onChange={(e) => setProfileLastName(e.target.value)}
-                  className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
+                  className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
                 />
               </div>
               <div className="space-y-1">
@@ -633,7 +633,7 @@ function SettingsPageInner() {
                 <select
                   value={profileTimezone}
                   onChange={(e) => setProfileTimezone(e.target.value)}
-                  className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none"
+                  className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none"
                 >
                   <option value="Asia/Ho_Chi_Minh">Asia/Ho Chi Minh (GMT+7)</option>
                   <option value="Europe/London">Europe/London (GMT+1)</option>
@@ -655,10 +655,10 @@ function SettingsPageInner() {
 
           {/* Display Preferences */}
           <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="type-section text-text-primary flex items-center gap-2">
+            <h2 className="type-section text-text-primary flex items-center gap-2">
               <Globe className="w-4 h-4 text-indigo-400" />
               <span>Display Preferences</span>
-            </h3>
+            </h2>
             <div className="space-y-4 text-xs">
               {/* Default pipeline view */}
               <div className="flex items-center justify-between">
@@ -712,10 +712,10 @@ function SettingsPageInner() {
 
           {/* Security — Change Password */}
           <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="type-section text-text-primary flex items-center gap-2">
+            <h2 className="type-section text-text-primary flex items-center gap-2">
               <Key className="w-4 h-4 text-brand-orange-text" />
               <span>Security</span>
-            </h3>
+            </h2>
             <form onSubmit={handleChangePassword} className="space-y-3">
               <div className="grid grid-cols-1 gap-3 text-xs">
                 <div className="space-y-1">
@@ -726,7 +726,7 @@ function SettingsPageInner() {
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red"
+                    className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -738,7 +738,7 @@ function SettingsPageInner() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="8+ characters"
-                      className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red"
                     />
                   </div>
                   <div className="space-y-1">
@@ -749,7 +749,7 @@ function SettingsPageInner() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="Repeat password"
-                      className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red"
                     />
                   </div>
                 </div>
@@ -769,10 +769,10 @@ function SettingsPageInner() {
 
           {/* Email Account Connections */}
           <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="type-section text-text-primary flex items-center gap-2">
+            <h2 className="type-section text-text-primary flex items-center gap-2">
               <Mail className="w-4 h-4 text-blue-500" />
               <span>Email Accounts Integration</span>
-            </h3>
+            </h2>
             <p className="text-xs text-text-secondary leading-relaxed max-w-[68ch]">
               Connect the campaign-specific mail servers. Supports Google OAuth, Microsoft Graph,
               and legacy IMAP/SMTP (Roundcube).
@@ -785,7 +785,7 @@ function SettingsPageInner() {
               {connectedEmails.map((item) => (
                 <div
                   key={item.id}
-                  className="p-3 border border-card-border rounded-xl flex items-center justify-between text-xs bg-background/20"
+                  className="p-3 border border-card-border rounded-xl flex items-center justify-between text-xs bg-bg-main/20"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span className="text-base flex-shrink-0">📧</span>
@@ -823,9 +823,9 @@ function SettingsPageInner() {
             {editingSignatureAccountId && (
               <div className="border border-brand-orange/20 rounded-xl p-4 bg-brand-orange/[0.01] space-y-3 animate-in fade-in duration-200 text-xs">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-brand-orange-text uppercase">
+                  <h3 className="text-xs font-bold text-brand-orange-text uppercase">
                     Edit Email Signature for {connectedEmails.find(e => e.id === editingSignatureAccountId)?.email}
-                  </h4>
+                  </h3>
                   <button
                     onClick={() => { setEditingSignatureAccountId(null); setSignatureText(''); }}
                     className="p-1 hover:bg-card-border/60 text-text-muted hover:text-text-primary rounded"
@@ -840,14 +840,14 @@ function SettingsPageInner() {
                   <textarea
                     value={signatureText}
                     onChange={(e) => setSignatureText(e.target.value)}
-                    className="w-full bg-background border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-24 placeholder-text-muted resize-none leading-relaxed font-mono text-xs"
+                    className="w-full bg-bg-main border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-24 placeholder-text-muted resize-none leading-relaxed font-mono text-xs"
                     placeholder="Best regards,<br><b>Dean</b><br>Director"
                   />
                 </div>
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={() => { setEditingSignatureAccountId(null); setSignatureText(''); }}
-                    className="px-3 py-1.5 bg-background border border-card-border text-text-secondary hover:text-text-primary text-xs font-semibold rounded-lg transition-colors"
+                    className="px-3 py-1.5 bg-bg-main border border-card-border text-text-secondary hover:text-text-primary text-xs font-semibold rounded-lg transition-colors"
                   >
                     Cancel
                   </button>
@@ -920,9 +920,9 @@ function SettingsPageInner() {
             {showManualForm && (
               <form
                 onSubmit={handleConnectManual}
-                className="border border-card-border rounded-xl p-4 bg-background/30 space-y-3.5 text-xs animate-in slide-in-from-top-2 duration-150"
+                className="border border-card-border rounded-xl p-4 bg-bg-main/30 space-y-3.5 text-xs animate-in slide-in-from-top-2 duration-150"
               >
-                <h4 className="font-display font-semibold text-text-primary">Manual Server Settings</h4>
+                <h3 className="font-display font-semibold text-text-primary">Manual Server Settings</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2 space-y-1">
                     <label className="text-[10px] font-bold text-text-muted uppercase">
@@ -933,7 +933,7 @@ function SettingsPageInner() {
                       placeholder="user@customdomain.com"
                       value={manualEmail}
                       onChange={(e) => setManualEmail(e.target.value)}
-                      className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1 focus:outline-none focus:border-brand-red"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1 focus:outline-none focus:border-brand-red"
                       required
                     />
                   </div>
@@ -946,7 +946,7 @@ function SettingsPageInner() {
                       placeholder="mail.domain.com"
                       value={imapServer}
                       onChange={(e) => setImapServer(e.target.value)}
-                      className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1 focus:outline-none focus:border-brand-red"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1 focus:outline-none focus:border-brand-red"
                       required
                     />
                   </div>
@@ -958,7 +958,7 @@ function SettingsPageInner() {
                       type="text"
                       value={imapPort}
                       onChange={(e) => setImapPort(e.target.value)}
-                      className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1 focus:outline-none focus:border-brand-red"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1 focus:outline-none focus:border-brand-red"
                       required
                     />
                   </div>
@@ -971,7 +971,7 @@ function SettingsPageInner() {
                       placeholder="smtp.domain.com"
                       value={smtpServer}
                       onChange={(e) => setSmtpServer(e.target.value)}
-                      className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1 focus:outline-none focus:border-brand-red"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1 focus:outline-none focus:border-brand-red"
                       required
                     />
                   </div>
@@ -983,7 +983,7 @@ function SettingsPageInner() {
                       type="text"
                       value={smtpPort}
                       onChange={(e) => setSmtpPort(e.target.value)}
-                      className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1 focus:outline-none focus:border-brand-red"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1 focus:outline-none focus:border-brand-red"
                       required
                     />
                   </div>
@@ -995,7 +995,7 @@ function SettingsPageInner() {
                       type="password"
                       value={mailPassword}
                       onChange={(e) => setMailPassword(e.target.value)}
-                      className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1 focus:outline-none focus:border-brand-red"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1 focus:outline-none focus:border-brand-red"
                       required
                     />
                   </div>
@@ -1030,10 +1030,10 @@ function SettingsPageInner() {
 
         {/* Notification Preferences */}
         <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
-          <h3 className="type-section text-text-primary flex items-center gap-2">
+          <h2 className="type-section text-text-primary flex items-center gap-2">
             <Bell className="w-4 h-4 text-brand-gold-text" />
             <span>Notification Preferences</span>
-          </h3>
+          </h2>
           <p className="text-[11px] text-text-muted font-mono">Toggle which events trigger in-app notifications. "Always on" events cannot be disabled.</p>
           <div className="space-y-2">
             {NOTIF_EVENTS.map(({ key, label, always }) => {
@@ -1061,10 +1061,10 @@ function SettingsPageInner() {
 
         {/* Admin Panel */}
         <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
-          <h3 className="type-section text-text-primary flex items-center gap-2">
+          <h2 className="type-section text-text-primary flex items-center gap-2">
             <Key className="w-4 h-4 text-brand-red" />
             <span>Admin Control Panel</span>
-          </h3>
+          </h2>
 
           {currentRole === 'director' ? (
             <div className="space-y-6 text-xs animate-in fade-in duration-200">
@@ -1072,10 +1072,10 @@ function SettingsPageInner() {
               {/* User Management */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-text-primary flex items-center gap-1.5">
+                  <h3 className="font-bold text-text-primary flex items-center gap-1.5">
                     <Users className="w-3.5 h-3.5 text-indigo-400" />
                     User Management
-                  </h4>
+                  </h3>
                   <button
                     onClick={() => setShowNewUserForm((v) => !v)}
                     className="flex items-center gap-1 text-[10px] font-semibold text-brand-red hover:text-brand-orange-text font-mono transition-colors"
@@ -1086,7 +1086,7 @@ function SettingsPageInner() {
                 </div>
 
                 {showNewUserForm && (
-                  <form onSubmit={handleCreateUser} className="bg-background border border-card-border rounded-xl p-3 space-y-2">
+                  <form onSubmit={handleCreateUser} className="bg-bg-main border border-card-border rounded-xl p-3 space-y-2">
                     <div className="grid grid-cols-2 gap-2">
                       <input value={newUserFirst} onChange={(e) => setNewUserFirst(e.target.value)} placeholder="First name" required
                         className="bg-card-bg border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
@@ -1118,7 +1118,7 @@ function SettingsPageInner() {
 
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {adminUsers.map((u) => (
-                    <div key={u.id} className={`rounded-lg border ${u.isActive ? 'border-card-border bg-background/40' : 'border-card-border/40 bg-card-border/10 opacity-60'}`}>
+                    <div key={u.id} className={`rounded-lg border ${u.isActive ? 'border-card-border bg-bg-main/40' : 'border-card-border/40 bg-card-border/10 opacity-60'}`}>
                       <div className="flex items-center justify-between p-2">
                         <div>
                           <span className="font-semibold text-text-primary">{u.firstName} {u.lastName}</span>
@@ -1143,12 +1143,12 @@ function SettingsPageInner() {
                         <div className="border-t border-card-border/60 p-2.5 space-y-2 bg-card-bg/60">
                           <div className="grid grid-cols-2 gap-2">
                             <input value={editFirst} onChange={(e) => setEditFirst(e.target.value)} placeholder="First name"
-                              className="bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                              className="bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
                             <input value={editLast} onChange={(e) => setEditLast(e.target.value)} placeholder="Last name"
-                              className="bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                              className="bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
                           </div>
                           <select value={editRole} onChange={(e) => setEditRole(e.target.value)}
-                            className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red">
+                            className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red">
                             <option value="sdr">SDR</option>
                             <option value="leadgen">Leadgen</option>
                             <option value="leadgen_manager">Leadgen Manager</option>
@@ -1158,7 +1158,7 @@ function SettingsPageInner() {
                           </select>
                           <input type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} autoComplete="new-password"
                             placeholder="Reset password (optional, 8+ chars)"
-                            className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                            className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
                           <div className="flex gap-2">
                             <button onClick={() => handleSaveEditUser(u.id)} disabled={savingEdit}
                               className="flex-1 py-1.5 bg-brand-red hover:bg-brand-orange text-white font-bold rounded-lg disabled:opacity-50 transition-colors flex items-center justify-center gap-1">
@@ -1178,7 +1178,7 @@ function SettingsPageInner() {
               {/* Campaign Management */}
               <div className="space-y-2.5 border-t border-card-border/50 pt-4">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-text-primary">Campaigns</h4>
+                  <h3 className="font-bold text-text-primary">Campaigns</h3>
                   <button onClick={() => setShowNewCampaignForm((v) => !v)}
                     className="flex items-center gap-1 text-[10px] font-semibold text-brand-red hover:text-brand-orange-text font-mono transition-colors">
                     <Plus className="w-3 h-3" /> Add Campaign
@@ -1186,7 +1186,7 @@ function SettingsPageInner() {
                 </div>
 
                 {showNewCampaignForm && (
-                  <form onSubmit={handleCreateCampaign} className="bg-background border border-card-border rounded-xl p-3 space-y-2">
+                  <form onSubmit={handleCreateCampaign} className="bg-bg-main border border-card-border rounded-xl p-3 space-y-2">
                     <input value={campName} onChange={(e) => setCampName(e.target.value)} placeholder="Campaign name" required
                       className="w-full bg-card-bg border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
                     <select value={campClientId} onChange={(e) => setCampClientId(e.target.value)}
@@ -1223,7 +1223,7 @@ function SettingsPageInner() {
 
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {adminClients.map((c: any) => (
-                    <div key={c.id} className="rounded-lg border border-card-border bg-background/40">
+                    <div key={c.id} className="rounded-lg border border-card-border bg-bg-main/40">
                       <div className="flex items-center justify-between p-2">
                         <div className="min-w-0">
                           <span className="text-text-primary font-semibold truncate">{c.name}</span>
@@ -1240,15 +1240,15 @@ function SettingsPageInner() {
                       {editingCampaignId === c.id && (
                         <div className="border-t border-card-border/60 p-2.5 space-y-2 bg-card-bg/60">
                           <input value={editCampName} onChange={(e) => setEditCampName(e.target.value)} placeholder="Campaign name"
-                            className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                            className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
                           <div className="grid grid-cols-2 gap-2">
                             <input value={editCampVertical} onChange={(e) => setEditCampVertical(e.target.value)} placeholder="Vertical"
-                              className="bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                              className="bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
                             <input value={editCampGeo} onChange={(e) => setEditCampGeo(e.target.value)} placeholder="Geo"
-                              className="bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
+                              className="bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red" />
                           </div>
                           <select value={editCampStatus} onChange={(e) => setEditCampStatus(e.target.value)}
-                            className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red">
+                            className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red">
                             <option value="active">Active</option>
                             <option value="paused">Paused</option>
                             <option value="completed">Completed</option>
@@ -1276,7 +1276,7 @@ function SettingsPageInner() {
 
               {/* Data Export */}
               <div className="border-t border-card-border/50 pt-4 space-y-2.5">
-                <h4 className="font-bold text-text-primary">Data Export</h4>
+                <h3 className="font-bold text-text-primary">Data Export</h3>
                 {/* Format toggle */}
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-text-muted uppercase">Format</span>
@@ -1297,16 +1297,16 @@ function SettingsPageInner() {
                   <div className="space-y-1">
                     <label className="text-[9px] font-bold text-text-muted uppercase block">From (optional)</label>
                     <input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)}
-                      className="w-full bg-background border border-card-border rounded-lg px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono text-[11px]" />
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono text-[11px]" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[9px] font-bold text-text-muted uppercase block">To (optional)</label>
                     <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)}
-                      className="w-full bg-background border border-card-border rounded-lg px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono text-[11px]" />
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono text-[11px]" />
                   </div>
                 </div>
                 <button onClick={handleExportAllData} disabled={exportingData}
-                  className="w-full py-2 border border-card-border hover:border-brand-orange bg-background hover:bg-brand-orange/5 text-text-primary text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-60">
+                  className="w-full py-2 border border-card-border hover:border-brand-orange bg-bg-main hover:bg-brand-orange/5 text-text-primary text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-60">
                   {exportingData ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5 text-brand-orange-text" />}
                   Export Leads as {exportFormat.toUpperCase()}
                 </button>
@@ -1314,7 +1314,7 @@ function SettingsPageInner() {
 
               {/* Seed / Reset */}
               <div className="border-t border-card-border/50 pt-4 space-y-2">
-                <h4 className="font-bold text-text-primary">Demo Data</h4>
+                <h3 className="font-bold text-text-primary">Demo Data</h3>
                 <button
                   onClick={async () => {
                     const res = await fetch('/api/seed', { method: 'POST' });

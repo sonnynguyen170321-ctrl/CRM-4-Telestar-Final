@@ -86,12 +86,12 @@ export default function ExportTab() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="name, email, company, title, source…"
-              className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-emerald-500/40"
+              className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-emerald-500/40"
             />
           </div>
           <div className="space-y-1">
             <label className="text-[10px] uppercase text-text-muted">Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none">
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none">
               {STATUS_OPTS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
@@ -99,7 +99,7 @@ export default function ExportTab() {
           </div>
           <div className="space-y-1">
             <label className="text-[10px] uppercase text-text-muted">Qualification</label>
-            <select value={qualification} onChange={(e) => setQualification(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none">
+            <select value={qualification} onChange={(e) => setQualification(e.target.value)} className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none">
               {QUAL_OPTS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
@@ -107,7 +107,7 @@ export default function ExportTab() {
           </div>
           <div className="space-y-1">
             <label className="text-[10px] uppercase text-text-muted">Source type</label>
-            <select value={sourceType} onChange={(e) => setSourceType(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none">
+            <select value={sourceType} onChange={(e) => setSourceType(e.target.value)} className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none">
               <option value="">All sources</option>
               <option value="manual">Manual</option>
               <option value="csv_import">CSV Import</option>
@@ -121,7 +121,7 @@ export default function ExportTab() {
           </div>
           <div className="space-y-1">
             <label className="text-[10px] uppercase text-text-muted">Sheet</label>
-            <select value="pool" disabled className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-muted opacity-60">
+            <select value="pool" disabled className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-muted opacity-60">
               <option value="pool">Pool records</option>
             </select>
           </div>

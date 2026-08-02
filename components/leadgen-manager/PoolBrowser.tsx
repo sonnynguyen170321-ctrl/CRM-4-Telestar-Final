@@ -86,7 +86,7 @@ const STATUSES = [
 ];
 
 function qualMeta(value: string) {
-  return QUALIFICATIONS.find((q) => q.value === value) ?? { value, label: value, color: 'text-text-muted bg-background border-card-border' };
+  return QUALIFICATIONS.find((q) => q.value === value) ?? { value, label: value, color: 'text-text-muted bg-bg-main border-card-border' };
 }
 
 function nameOf(item: { firstName?: string | null; lastName?: string | null; fullName?: string | null }) {
@@ -299,22 +299,22 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
               setPage(1);
             }}
             placeholder="Search name, email, company, title, source…"
-            className="w-full bg-background border border-card-border rounded-lg pl-9 pr-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-purple-500/40"
+            className="w-full bg-bg-main border border-card-border rounded-lg pl-9 pr-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-purple-500/40"
           />
         </div>
-        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="bg-background border border-card-border rounded-lg px-2 py-2 text-xs text-text-secondary focus:outline-none">
+        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="bg-bg-main border border-card-border rounded-lg px-2 py-2 text-xs text-text-secondary focus:outline-none">
           <option value="">All statuses</option>
           {STATUSES.map((s) => (
             <option key={s.value} value={s.value}>{s.label}</option>
           ))}
         </select>
-        <select value={qualFilter} onChange={(e) => { setQualFilter(e.target.value); setPage(1); }} className="bg-background border border-card-border rounded-lg px-2 py-2 text-xs text-text-secondary focus:outline-none">
+        <select value={qualFilter} onChange={(e) => { setQualFilter(e.target.value); setPage(1); }} className="bg-bg-main border border-card-border rounded-lg px-2 py-2 text-xs text-text-secondary focus:outline-none">
           <option value="">All qualifications</option>
           {QUALIFICATIONS.map((q) => (
             <option key={q.value} value={q.value}>{q.label}</option>
           ))}
         </select>
-        <select value={sourceType} onChange={(e) => { setSourceType(e.target.value); setPage(1); }} className="bg-background border border-card-border rounded-lg px-2 py-2 text-xs text-text-secondary focus:outline-none">
+        <select value={sourceType} onChange={(e) => { setSourceType(e.target.value); setPage(1); }} className="bg-bg-main border border-card-border rounded-lg px-2 py-2 text-xs text-text-secondary focus:outline-none">
           <option value="">All sources</option>
           <option value="manual">Manual</option>
           <option value="csv_import">CSV Import</option>
@@ -334,7 +334,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
             Add Record
           </button>
         )}
-        <button onClick={() => { setPage(1); loadRef(); }} className="flex items-center gap-1.5 px-3 py-2 bg-background border border-card-border text-text-secondary hover:text-text-primary text-xs font-bold rounded-lg transition-all">
+        <button onClick={() => { setPage(1); loadRef(); }} className="flex items-center gap-1.5 px-3 py-2 bg-bg-main border border-card-border text-text-secondary hover:text-text-primary text-xs font-bold rounded-lg transition-all">
           <RefreshCw className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -359,7 +359,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
                 value={disqualifyReason}
                 onChange={(e) => setDisqualifyReason(e.target.value)}
                 placeholder="Disqualification reason"
-                className="bg-background border border-card-border rounded-lg px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-brand-red/40 min-w-[180px]"
+                className="bg-bg-main border border-card-border rounded-lg px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-brand-red/40 min-w-[180px]"
               />
             </>
           )}
@@ -377,7 +377,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
           )}
 
           {mode === 'pool' && (
-            <button onClick={archiveSelected} className="flex items-center gap-1.5 px-3 py-1.5 bg-background border border-card-border text-text-secondary hover:text-brand-red text-xs font-bold rounded-lg ml-auto">
+            <button onClick={archiveSelected} className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-main border border-card-border text-text-secondary hover:text-brand-red text-xs font-bold rounded-lg ml-auto">
               <Trash2 className="w-3.5 h-3.5" /> Archive
             </button>
           )}
@@ -389,7 +389,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
                 value={qaNotes}
                 onChange={(e) => setQaNotes(e.target.value)}
                 placeholder="e.g. verified title + company size"
-                className="bg-background border border-card-border rounded-lg px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-purple-500/40 min-w-[220px]"
+                className="bg-bg-main border border-card-border rounded-lg px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-purple-500/40 min-w-[220px]"
               />
             </div>
           )}
@@ -409,7 +409,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-card-border bg-background/60">
+              <tr className="border-b border-card-border bg-bg-main/60">
                 <th className="w-8 px-3 py-2.5">
                   <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-purple-500" />
                 </th>
@@ -441,7 +441,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
                 items.map((item) => {
                   const q = qualMeta(item.qualification);
                   return (
-                    <tr key={item.id} className={`border-b border-card-border/60 hover:bg-background/40 ${selected.has(item.id) ? 'bg-purple-500/5' : ''}`}>
+                    <tr key={item.id} className={`border-b border-card-border/60 hover:bg-bg-main/40 ${selected.has(item.id) ? 'bg-purple-500/5' : ''}`}>
                       <td className="px-3 py-2.5">
                         <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggle(item.id)} className="accent-purple-500" />
                       </td>
@@ -518,20 +518,20 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
         </div>
 
         {/* Pagination */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-card-border bg-background/60">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-card-border bg-bg-main/60">
           <span className="text-[10px] font-mono text-text-muted">{total} records · page {page}/{pages || 1}</span>
           <div className="flex items-center gap-2">
             <button
               disabled={page <= 1}
               onClick={() => setPage((p) => p - 1)}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-background border border-card-border text-text-secondary disabled:opacity-40 hover:text-text-primary text-xs rounded-lg"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-bg-main border border-card-border text-text-secondary disabled:opacity-40 hover:text-text-primary text-xs rounded-lg"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
             <button
               disabled={page >= pages}
               onClick={() => setPage((p) => p + 1)}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-background border border-card-border text-text-secondary disabled:opacity-40 hover:text-text-primary text-xs rounded-lg"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-bg-main border border-card-border text-text-secondary disabled:opacity-40 hover:text-text-primary text-xs rounded-lg"
             >
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
@@ -555,7 +555,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
 
             <div className="space-y-1.5">
               <label className="text-[10px] uppercase text-text-muted">Campaign</label>
-              <select value={assignCampaignId} onChange={(e) => setAssignCampaignId(e.target.value)} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-purple-500/40">
+              <select value={assignCampaignId} onChange={(e) => setAssignCampaignId(e.target.value)} className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-purple-500/40">
                 <option value="">{showConvert ? 'Select campaign (required)' : 'No campaign'}</option>
                 {campaigns.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -567,12 +567,12 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
               <label className="text-[10px] uppercase text-text-muted">
                 SDRs {showConvert ? '(required)' : '(optional)'}
               </label>
-              <div className="max-h-40 overflow-y-auto border border-card-border rounded-lg bg-background divide-y divide-card-border/60">
+              <div className="max-h-40 overflow-y-auto border border-card-border rounded-lg bg-bg-main divide-y divide-card-border/60">
                 {sdrOptions.length === 0 ? (
                   <div className="px-3 py-4 text-center text-[10px] text-text-muted italic">No SDRs available</div>
                 ) : (
                   sdrOptions.map((u) => (
-                    <label key={u.id} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-background/60">
+                    <label key={u.id} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-bg-main/60">
                       <input type="checkbox" checked={assignSdrIds.includes(u.id)} onChange={() => toggleSdr(u.id)} className="accent-purple-500" />
                       <span className="text-xs text-text-secondary">{u.firstName} {u.lastName}</span>
                       <span className="ml-auto text-[10px] text-text-muted uppercase">{u.role.replace('_', ' ')}</span>
@@ -596,7 +596,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
             )}
 
             <div className="flex items-center justify-end gap-2 pt-2">
-              <button onClick={() => { setShowAssign(false); setShowConvert(false); }} className="px-4 py-2 bg-background border border-card-border text-text-secondary hover:text-text-primary text-xs font-bold rounded-lg">
+              <button onClick={() => { setShowAssign(false); setShowConvert(false); }} className="px-4 py-2 bg-bg-main border border-card-border text-text-secondary hover:text-text-primary text-xs font-bold rounded-lg">
                 Cancel
               </button>
               <button
@@ -687,13 +687,13 @@ function CreateForm({ onDone }: { onDone: (ok: boolean) => void }) {
               value={form[key]}
               onChange={set(key)}
               placeholder={label.replace(' *', '')}
-              className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-purple-500/40"
+              className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-purple-500/40"
             />
           </div>
         ))}
       </div>
       <div className="flex justify-end gap-2">
-        <button onClick={() => onDone(false)} className="px-4 py-2 bg-background border border-card-border text-text-secondary hover:text-text-primary text-xs font-bold rounded-lg">
+        <button onClick={() => onDone(false)} className="px-4 py-2 bg-bg-main border border-card-border text-text-secondary hover:text-text-primary text-xs font-bold rounded-lg">
           Cancel
         </button>
         <button onClick={submit} disabled={busy} className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg disabled:opacity-50">
@@ -791,10 +791,10 @@ function RequirementsPanel({ campaigns }: { campaigns: Campaign[] }) {
       </div>
 
       {showForm && (
-        <div className="grid grid-cols-2 gap-3 p-3 border border-card-border rounded-xl bg-background/40">
+        <div className="grid grid-cols-2 gap-3 p-3 border border-card-border rounded-xl bg-bg-main/40">
           <div className="space-y-1">
             <label className="text-[10px] uppercase text-text-muted">Campaign</label>
-            <select value={form.campaignId} onChange={(e) => setForm((p) => ({ ...p, campaignId: e.target.value }))} className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none">
+            <select value={form.campaignId} onChange={(e) => setForm((p) => ({ ...p, campaignId: e.target.value }))} className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none">
               <option value="">Select campaign</option>
               {campaigns.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -808,7 +808,7 @@ function RequirementsPanel({ campaigns }: { campaigns: Campaign[] }) {
               min={1}
               value={form.requiredCount}
               onChange={(e) => setForm((p) => ({ ...p, requiredCount: e.target.value }))}
-              className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none"
+              className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none"
             />
           </div>
           <div className="space-y-1">
@@ -817,7 +817,7 @@ function RequirementsPanel({ campaigns }: { campaigns: Campaign[] }) {
               type="date"
               value={form.dueDate}
               onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))}
-              className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none"
+              className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none"
             />
           </div>
           <div className="space-y-1">
@@ -826,7 +826,7 @@ function RequirementsPanel({ campaigns }: { campaigns: Campaign[] }) {
               value={form.notes}
               onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
               placeholder="Optional"
-              className="w-full bg-background border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:outline-none"
+              className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:outline-none"
             />
           </div>
           <div className="col-span-2 flex justify-end">
@@ -844,7 +844,7 @@ function RequirementsPanel({ campaigns }: { campaigns: Campaign[] }) {
           reqs.map((r) => {
             const pct = r.requiredCount > 0 ? Math.min(100, Math.round((r.delivered / r.requiredCount) * 100)) : 0;
             return (
-              <div key={r.id} className="flex items-center gap-4 border border-card-border rounded-xl p-3 bg-background/30">
+              <div key={r.id} className="flex items-center gap-4 border border-card-border rounded-xl p-3 bg-bg-main/30">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-text-primary truncate">{r.campaign.name}</span>
@@ -855,7 +855,7 @@ function RequirementsPanel({ campaigns }: { campaigns: Campaign[] }) {
                   </div>
                   {r.notes && <p className="text-[10px] text-text-muted truncate mt-0.5">{r.notes}</p>}
                   <div className="flex items-center gap-2 mt-2">
-                    <div className="flex-1 h-1.5 bg-background border border-card-border rounded-full overflow-hidden">
+                    <div className="flex-1 h-1.5 bg-bg-main border border-card-border rounded-full overflow-hidden">
                       <div className="h-full bg-gradient-to-r from-purple-500 to-purple-300" style={{ width: `${pct}%` }} />
                     </div>
                     <span className="text-[10px] font-mono text-text-muted whitespace-nowrap">{r.delivered}/{r.requiredCount}</span>

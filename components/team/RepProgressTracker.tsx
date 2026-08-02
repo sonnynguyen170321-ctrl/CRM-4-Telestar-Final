@@ -118,7 +118,7 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
           <select
             value={selectedSdrId}
             onChange={(e) => setSelectedSdrId(e.target.value)}
-            className="bg-background border border-card-border rounded-xl text-xs font-semibold px-3 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+            className="bg-bg-main border border-card-border rounded-xl text-xs font-semibold px-3 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
           >
             {sdrs.map((u) => (
               <option key={u.id} value={u.id}>
@@ -185,7 +185,7 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
               </div>
 
               {/* Conversion ratios */}
-              <div className="w-1/3 bg-background/40 border border-card-border p-4 rounded-xl space-y-2.5">
+              <div className="w-1/3 bg-bg-main/40 border border-card-border p-4 rounded-xl space-y-2.5">
                 <h4 className="text-[10px] font-bold text-text-muted uppercase">Stage Conversion</h4>
                 <div className="space-y-2 text-xs">
                   {[
@@ -212,19 +212,19 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
             </h3>
             
             <div className="grid grid-cols-2 gap-3 text-center">
-              <div className="bg-background/60 border border-card-border rounded-xl p-3">
+              <div className="bg-bg-main/60 border border-card-border rounded-xl p-3">
                 <p className="font-display font-extrabold text-xl text-green-500">{taskProgress.completed}</p>
                 <span className="text-[9px] uppercase text-text-muted">Completed</span>
               </div>
-              <div className="bg-background/60 border border-card-border rounded-xl p-3">
+              <div className="bg-bg-main/60 border border-card-border rounded-xl p-3">
                 <p className="font-display font-extrabold text-xl text-amber-500">{taskProgress.skipped}</p>
                 <span className="text-[9px] uppercase text-text-muted">Skipped</span>
               </div>
-              <div className="bg-background/60 border border-card-border rounded-xl p-3">
+              <div className="bg-bg-main/60 border border-card-border rounded-xl p-3">
                 <p className="font-display font-extrabold text-xl text-blue-500">{taskProgress.pending}</p>
                 <span className="text-[9px] uppercase text-text-muted">Pending</span>
               </div>
-              <div className="bg-background/60 border border-card-border rounded-xl p-3">
+              <div className="bg-bg-main/60 border border-card-border rounded-xl p-3">
                 <p className="font-display font-extrabold text-xl text-brand-red">{taskProgress.overdue}</p>
                 <span className="text-[9px] uppercase text-text-muted">Overdue</span>
               </div>

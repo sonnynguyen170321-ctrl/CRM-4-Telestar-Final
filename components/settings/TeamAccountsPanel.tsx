@@ -174,7 +174,7 @@ export default function TeamAccountsPanel() {
         {data.members.map((m) => (
           <div
             key={m.id}
-            className="bg-background/40 border border-card-border rounded-xl p-3 space-y-2.5"
+            className="bg-bg-main/40 border border-card-border rounded-xl p-3 space-y-2.5"
           >
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-1.5">

@@ -57,7 +57,7 @@ export default function LeadgenTeamProgress() {
 
         <button
           onClick={fetchStats}
-          className="w-auto flex items-center justify-center gap-2 bg-background border border-card-border hover:bg-card-border/30 rounded-xl px-4 py-2 text-xs font-semibold text-text-primary transition-all active:scale-95"
+          className="w-auto flex items-center justify-center gap-2 bg-bg-main border border-card-border hover:bg-card-border/30 rounded-xl px-4 py-2 text-xs font-semibold text-text-primary transition-all active:scale-95"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh Stats</span>
@@ -109,7 +109,7 @@ export default function LeadgenTeamProgress() {
                         member.campaigns.map((camp) => (
                           <span
                             key={camp}
-                            className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-background border border-card-border text-text-secondary"
+                            className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-bg-main border border-card-border text-text-secondary"
                           >
                             {camp}
                           </span>
@@ -120,19 +120,19 @@ export default function LeadgenTeamProgress() {
 
                   {/* Metric Summary Grid */}
                   <div className="grid grid-cols-3 gap-2 text-center pt-2">
-                    <div className="bg-background border border-card-border rounded-xl p-2.5">
+                    <div className="bg-bg-main border border-card-border rounded-xl p-2.5">
                       <Inbox className="w-4 h-4 text-blue-500 mx-auto mb-1" />
                       <p className="font-display font-extrabold text-sm text-text-primary">{member.sourcedCount}</p>
                       <span className="text-[8px] uppercase text-text-muted block mt-0.5">Sourced</span>
                     </div>
 
-                    <div className="bg-background border border-card-border rounded-xl p-2.5">
+                    <div className="bg-bg-main border border-card-border rounded-xl p-2.5">
                       <Target className="w-4 h-4 text-brand-orange-text mx-auto mb-1" />
                       <p className="font-display font-extrabold text-sm text-text-primary">{member.assignedCount}</p>
                       <span className="text-[8px] uppercase text-text-muted block mt-0.5">Active Pip</span>
                     </div>
 
-                    <div className="bg-background border border-card-border rounded-xl p-2.5">
+                    <div className="bg-bg-main border border-card-border rounded-xl p-2.5">
                       <CheckCircle2 className="w-4 h-4 text-green-500 mx-auto mb-1" />
                       <p className="font-display font-extrabold text-sm text-text-primary">{member.qualifiedCount}</p>
                       <span className="text-[8px] uppercase text-text-muted block mt-0.5">Meetings</span>
@@ -145,7 +145,7 @@ export default function LeadgenTeamProgress() {
                       <span>Pipeline Qualification Rate:</span>
                       <span className="font-bold text-brand-orange-text">{conversionRate}%</span>
                     </div>
-                    <div className="w-full h-1.5 bg-background border border-card-border rounded-full overflow-hidden">
+                    <div className="w-full h-1.5 bg-bg-main border border-card-border rounded-full overflow-hidden">
                       <div
                         className="h-full bg-green-500 rounded-full transition-all"
                         style={{ width: `${conversionRate}%` }}

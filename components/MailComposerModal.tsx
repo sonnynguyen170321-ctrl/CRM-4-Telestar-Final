@@ -120,7 +120,7 @@ export default function MailComposerModal({ lead, onClose, onSent }: MailCompose
         onSubmit={handleSubmit}
         className="bg-card-bg border border-card-border rounded-2xl shadow-xl w-full max-w-lg relative z-10 overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
       >
-        <div className="flex items-center justify-between p-4 border-b border-card-border bg-background/50">
+        <div className="flex items-center justify-between p-4 border-b border-card-border bg-bg-main/50">
           <h2 className="font-display font-bold text-sm text-text-primary flex items-center gap-2">
             <Mail className="w-4 h-4 text-blue-500" />
             <span>Compose Email</span>
@@ -159,7 +159,7 @@ export default function MailComposerModal({ lead, onClose, onSent }: MailCompose
           <div className="space-y-1">
             <label htmlFor="mail-template" className="text-[10px] font-bold text-text-muted uppercase block">Template</label>
             <select id="mail-template" value={selectedTemplateId} onChange={handleTemplateChange}
-              className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium">
+              className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium">
               <option value="">— Blank Template —</option>
               {templates.map(t => (
                 <option key={t.id} value={t.id}>{t.name}</option>
@@ -170,13 +170,13 @@ export default function MailComposerModal({ lead, onClose, onSent }: MailCompose
           <div className="space-y-1">
             <label htmlFor="mail-subject" className="text-[10px] font-bold text-text-muted uppercase block">Subject Line</label>
             <input id="mail-subject" type="text" value={subject} onChange={(e) => setSubject(e.target.value)} required
-              className="w-full bg-background border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium" />
+              className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium" />
           </div>
 
           <div className="space-y-1.5">
             <label htmlFor="mail-body" className="text-[10px] font-bold text-text-muted uppercase block">Body</label>
             <textarea id="mail-body" value={body} onChange={(e) => setBody(e.target.value)} required
-              className="w-full bg-background border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-48 placeholder-text-muted resize-none leading-relaxed font-mono text-xs" />
+              className="w-full bg-bg-main border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-48 placeholder-text-muted resize-none leading-relaxed font-mono text-xs" />
           </div>
 
           {error && (
@@ -184,9 +184,9 @@ export default function MailComposerModal({ lead, onClose, onSent }: MailCompose
           )}
         </div>
 
-        <div className="p-4 border-t border-card-border bg-background/30 flex justify-end gap-2">
+        <div className="p-4 border-t border-card-border bg-bg-main/30 flex justify-end gap-2">
           <button type="button" onClick={onClose}
-            className="px-3.5 py-2 border border-card-border bg-background hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors focus-ring">
+            className="px-3.5 py-2 border border-card-border bg-bg-main hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors focus-ring">
             Cancel
           </button>
           <button type="submit" disabled={!account || sending || loadingAccount}

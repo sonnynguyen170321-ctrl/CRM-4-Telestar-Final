@@ -32,17 +32,17 @@ export default function TeamLeaderboard({ leaderboard, dateRange }: TeamLeaderbo
 
   return (
     <div className="glass-card rounded-2xl overflow-hidden flex flex-col">
-      <div className="px-5 py-4 border-b border-card-border bg-background/25 flex items-center justify-between">
-        <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
+      <div className="px-5 py-4 border-b border-card-border bg-bg-main/25 flex items-center justify-between">
+        <h2 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
           <Award className="w-5 h-5 text-brand-red" />
           <span>SDR Activity Leaderboard</span>
-        </h3>
+        </h2>
         <span className="text-[10px] font-mono text-text-muted">{dateLabel}</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs text-left border-collapse">
           <thead>
-            <tr className="bg-background/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
+            <tr className="bg-bg-main/50 border-b border-card-border text-[10px] uppercase font-bold tracking-wider text-text-muted">
               <th className="p-3 w-16 text-center">Rank</th>
               <th className="p-3">Rep Name</th>
               <th className="p-3">Role</th>
@@ -63,7 +63,7 @@ export default function TeamLeaderboard({ leaderboard, dateRange }: TeamLeaderbo
               </tr>
             ) : (
               leaderboard.map((rep, idx) => (
-                <tr key={rep.id} className="hover:bg-background/40 table-row-dense">
+                <tr key={rep.id} className="hover:bg-bg-main/40 table-row-dense">
                   <td className="p-3 text-center text-sm flex items-center justify-center h-full">
                     {getRankBadge(idx)}
                   </td>

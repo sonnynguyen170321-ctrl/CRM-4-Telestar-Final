@@ -15,7 +15,7 @@ const STATUS_STYLES: Record<string, string> = {
   open: 'bg-sky-500/10 text-sky-400 border-sky-500/25',
   won: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25',
   lost: 'bg-red-500/10 text-red-400 border-red-500/25',
-  archived: 'bg-muted/10 text-muted border-muted/25',
+  archived: 'bg-card-border/40/10 text-text-muted border-card-border/25',
 };
 
 const STAGE_LABELS: Record<string, string> = {

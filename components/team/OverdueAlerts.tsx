@@ -31,10 +31,10 @@ export default function OverdueAlerts({ users, atRiskLeads, onSelectLead }: Over
       {/* SDRs Overdue Monitor */}
       <div className="glass-card rounded-2xl p-5 hover-lift space-y-4 flex flex-col justify-between">
         <div className="space-y-4">
-          <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
+          <h2 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
             <Clock className="w-5 h-5 text-brand-red" />
             <span>Rep Overdue Tasks Monitor</span>
-          </h3>
+          </h2>
           <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
             {users.length === 0 ? (
               <p className="text-xs text-text-muted text-center py-4">No rep task data available.</p>
@@ -42,7 +42,7 @@ export default function OverdueAlerts({ users, atRiskLeads, onSelectLead }: Over
               users.map((u) => (
                 <div
                   key={u.userId}
-                  className={`p-3 border rounded-xl flex items-center justify-between gap-3 text-xs bg-background/20 transition-all ${
+                  className={`p-3 border rounded-xl flex items-center justify-between gap-3 text-xs bg-bg-main/20 transition-all ${
                     u.overdueCount > 0 ? 'border-brand-red/30 hover:border-brand-red/50' : 'border-card-border'
                   }`}
                 >
@@ -87,10 +87,10 @@ export default function OverdueAlerts({ users, atRiskLeads, onSelectLead }: Over
       {/* At-risk leads */}
       <div className="glass-card rounded-2xl p-5 hover-lift space-y-4 flex flex-col justify-between">
         <div className="space-y-4">
-          <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
+          <h2 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-500" />
             <span>At-Risk Outreach Leads (3+ Days Overdue)</span>
-          </h3>
+          </h2>
           <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
             {atRiskLeads.length === 0 ? (
               <p className="text-xs text-text-muted text-center py-4">No at-risk leads detected.</p>
@@ -99,7 +99,7 @@ export default function OverdueAlerts({ users, atRiskLeads, onSelectLead }: Over
                 <div
                   key={lead.id}
                   onClick={() => onSelectLead(lead.leadId)}
-                  className="p-3 border border-card-border hover:border-amber-500/30 bg-background/20 rounded-xl flex items-center justify-between gap-3 text-xs cursor-pointer transition-all hover:bg-background/45"
+                  className="p-3 border border-card-border hover:border-amber-500/30 bg-bg-main/20 rounded-xl flex items-center justify-between gap-3 text-xs cursor-pointer transition-all hover:bg-bg-main/45"
                 >
                   <div className="min-w-0">
                     <p className="font-semibold text-text-primary truncate">

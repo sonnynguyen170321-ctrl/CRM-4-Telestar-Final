@@ -160,15 +160,15 @@ export default function CreateClientReportModal({ isOpen, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-card-bg border border-card-border rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
+        <div className="px-6 py-4 border-b border-card-border flex items-center justify-between bg-card-border/40/30">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-lg bg-brand-red/10 text-brand-red">
               <FileBarChart className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-foreground">Generate Campaign Report</h3>
+              <h3 className="text-base font-semibold text-text-primary">Generate Campaign Report</h3>
               <p className="text-xs text-muted-foreground">
                 Aggregate omnichannel metrics, meetings, opportunities & insights
               </p>
@@ -176,7 +176,7 @@ export default function CreateClientReportModal({ isOpen, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-text-primary hover:bg-card-border/40 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -195,7 +195,7 @@ export default function CreateClientReportModal({ isOpen, onClose }: Props) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Client Select */}
             <div>
-              <label className="text-xs font-medium text-foreground block mb-1">
+              <label className="text-xs font-medium text-text-primary block mb-1">
                 Client <span className="text-red-500">*</span>
               </label>
               <select
@@ -204,7 +204,7 @@ export default function CreateClientReportModal({ isOpen, onClose }: Props) {
                   setClientId(e.target.value);
                   setCampaignId('');
                 }}
-                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-brand-red focus:outline-none"
+                className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:ring-1 focus:ring-brand-red focus:outline-none"
               >
                 <option value="">Select a client...</option>
                 {clients.map((c) => (
@@ -217,14 +217,14 @@ export default function CreateClientReportModal({ isOpen, onClose }: Props) {
 
             {/* Campaign Select */}
             <div>
-              <label className="text-xs font-medium text-foreground block mb-1">
+              <label className="text-xs font-medium text-text-primary block mb-1">
                 Campaign <span className="text-muted-foreground">(Optional)</span>
               </label>
               <select
                 value={campaignId}
                 onChange={(e) => setCampaignId(e.target.value)}
                 disabled={!clientId}
-                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground disabled:opacity-50 focus:ring-1 focus:ring-brand-red focus:outline-none"
+                className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary disabled:opacity-50 focus:ring-1 focus:ring-brand-red focus:outline-none"
               >
                 <option value="">All Campaigns for Client</option>
                 {filteredCampaigns.map((c) => (
@@ -237,11 +237,11 @@ export default function CreateClientReportModal({ isOpen, onClose }: Props) {
 
             {/* Period Type */}
             <div>
-              <label className="text-xs font-medium text-foreground block mb-1">Period Cadence</label>
+              <label className="text-xs font-medium text-text-primary block mb-1">Period Cadence</label>
               <select
                 value={periodType}
                 onChange={(e) => setPeriodType(e.target.value as ReportPeriodType)}
-                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-brand-red focus:outline-none"
+                className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:ring-1 focus:ring-brand-red focus:outline-none"
               >
                 <option value="weekly">Weekly Report</option>
                 <option value="monthly">Monthly Report</option>
@@ -251,11 +251,11 @@ export default function CreateClientReportModal({ isOpen, onClose }: Props) {
 
             {/* Audience Mode */}
             <div>
-              <label className="text-xs font-medium text-foreground block mb-1">Audience Scope</label>
+              <label className="text-xs font-medium text-text-primary block mb-1">Audience Scope</label>
               <select
                 value={audience}
                 onChange={(e) => setAudience(e.target.value as ReportAudience)}
-                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-brand-red focus:outline-none"
+                className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:ring-1 focus:ring-brand-red focus:outline-none"
               >
                 <option value="client">Client-Facing (Sanitized)</option>
                 <option value="internal">Internal Team Review</option>
@@ -264,42 +264,42 @@ export default function CreateClientReportModal({ isOpen, onClose }: Props) {
 
             {/* Date Pickers */}
             <div>
-              <label className="text-xs font-medium text-foreground block mb-1">Period Start</label>
+              <label className="text-xs font-medium text-text-primary block mb-1">Period Start</label>
               <input
                 type="date"
                 value={periodStart}
                 onChange={(e) => setPeriodStart(e.target.value)}
-                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-brand-red focus:outline-none"
+                className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:ring-1 focus:ring-brand-red focus:outline-none"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-foreground block mb-1">Period End</label>
+              <label className="text-xs font-medium text-text-primary block mb-1">Period End</label>
               <input
                 type="date"
                 value={periodEnd}
                 onChange={(e) => setPeriodEnd(e.target.value)}
-                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-brand-red focus:outline-none"
+                className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:ring-1 focus:ring-brand-red focus:outline-none"
               />
             </div>
           </div>
 
           {/* Title input */}
           <div>
-            <label className="text-xs font-medium text-foreground block mb-1">Report Title</label>
+            <label className="text-xs font-medium text-text-primary block mb-1">Report Title</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Acme Corp - Weekly Campaign Performance"
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-brand-red focus:outline-none"
+              className="w-full bg-bg-main border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:ring-1 focus:ring-brand-red focus:outline-none"
             />
           </div>
 
           {/* Live Preview Card */}
           {previewSnapshot && (
-            <div className="p-4 bg-muted/40 border border-border rounded-xl space-y-3 animate-in fade-in duration-150">
+            <div className="p-4 bg-card-border/40/40 border border-card-border rounded-xl space-y-3 animate-in fade-in duration-150">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-text-primary flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Live Data Snapshot Preview
                 </span>
                 <span className="text-[11px] text-muted-foreground">
@@ -308,21 +308,21 @@ export default function CreateClientReportModal({ isOpen, onClose }: Props) {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                <div className="p-2 bg-card border border-border/70 rounded-lg">
+                <div className="p-2 bg-card-bg border border-card-border/70 rounded-lg">
                   <div className="text-[10px] text-muted-foreground uppercase font-medium">Contacted</div>
-                  <div className="text-base font-bold text-foreground">{previewSnapshot.kpis.leadsTouched}</div>
+                  <div className="text-base font-bold text-text-primary">{previewSnapshot.kpis.leadsTouched}</div>
                 </div>
-                <div className="p-2 bg-card border border-border/70 rounded-lg">
+                <div className="p-2 bg-card-bg border border-card-border/70 rounded-lg">
                   <div className="text-[10px] text-muted-foreground uppercase font-medium">Replies</div>
-                  <div className="text-base font-bold text-foreground">{previewSnapshot.kpis.replies}</div>
+                  <div className="text-base font-bold text-text-primary">{previewSnapshot.kpis.replies}</div>
                 </div>
-                <div className="p-2 bg-card border border-border/70 rounded-lg">
+                <div className="p-2 bg-card-bg border border-card-border/70 rounded-lg">
                   <div className="text-[10px] text-muted-foreground uppercase font-medium">Booked Mtgs</div>
-                  <div className="text-base font-bold text-foreground">{previewSnapshot.kpis.meetingsBooked}</div>
+                  <div className="text-base font-bold text-text-primary">{previewSnapshot.kpis.meetingsBooked}</div>
                 </div>
-                <div className="p-2 bg-card border border-border/70 rounded-lg">
+                <div className="p-2 bg-card-bg border border-card-border/70 rounded-lg">
                   <div className="text-[10px] text-muted-foreground uppercase font-medium">Accepted Ops</div>
-                  <div className="text-base font-bold text-foreground">{previewSnapshot.kpis.clientAcceptedOpportunities}</div>
+                  <div className="text-base font-bold text-text-primary">{previewSnapshot.kpis.clientAcceptedOpportunities}</div>
                 </div>
               </div>
             </div>
@@ -330,12 +330,12 @@ export default function CreateClientReportModal({ isOpen, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-border bg-muted/20 flex items-center justify-between gap-3">
+        <div className="px-6 py-4 border-t border-card-border bg-card-border/40/20 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={handlePreview}
             disabled={previewing || !clientId}
-            className="px-3.5 py-2 bg-muted hover:bg-muted/80 disabled:opacity-50 text-foreground rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+            className="px-3.5 py-2 bg-card-border/40 hover:bg-card-border/40/80 disabled:opacity-50 text-text-primary rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
           >
             <Sparkles className="w-3.5 h-3.5 text-brand-red" />
             {previewing ? 'Aggregating...' : 'Preview Live Metrics'}
@@ -345,7 +345,7 @@ export default function CreateClientReportModal({ isOpen, onClose }: Props) {
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-2 border border-border text-foreground hover:bg-muted rounded-lg text-xs font-medium transition-colors"
+              className="px-3.5 py-2 border border-card-border text-text-primary hover:bg-card-border/40 rounded-lg text-xs font-medium transition-colors"
             >
               Cancel
             </button>

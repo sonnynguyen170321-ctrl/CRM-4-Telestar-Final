@@ -118,7 +118,7 @@ export default function OverviewTab() {
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="flex-1 h-2 bg-background border border-card-border rounded-full overflow-hidden">
+                    <div className="flex-1 h-2 bg-bg-main border border-card-border rounded-full overflow-hidden">
                       <div className="h-full bg-gradient-to-r from-purple-500 to-purple-300 transition-all" style={{ width: `${pct}%` }} />
                     </div>
                     <span className="text-[10px] font-mono text-text-muted whitespace-nowrap">
@@ -145,7 +145,7 @@ export default function OverviewTab() {
                   <span className="text-text-secondary truncate">{s.source}</span>
                   <span className="font-mono text-text-muted">{s.count}</span>
                 </div>
-                <div className="h-1.5 bg-background border border-card-border rounded-full overflow-hidden">
+                <div className="h-1.5 bg-bg-main border border-card-border rounded-full overflow-hidden">
                   <div className="h-full bg-blue-500/70 rounded-full" style={{ width: `${(s.count / maxSource) * 100}%` }} />
                 </div>
               </div>
@@ -165,7 +165,7 @@ export default function OverviewTab() {
                   <span className="text-text-secondary truncate">{m.name}</span>
                   <span className="font-mono text-text-muted">{m.count}</span>
                 </div>
-                <div className="h-1.5 bg-background border border-card-border rounded-full overflow-hidden">
+                <div className="h-1.5 bg-bg-main border border-card-border rounded-full overflow-hidden">
                   <div className="h-full bg-emerald-500/70 rounded-full" style={{ width: `${(m.count / maxMember) * 100}%` }} />
                 </div>
               </div>
