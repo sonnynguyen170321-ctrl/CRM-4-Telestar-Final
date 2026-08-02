@@ -568,7 +568,7 @@ function SettingsPageInner() {
         <div className="col-span-2 space-y-6">
           {/* Profile Card */}
           <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="font-display font-bold text-sm text-text-primary flex items-center gap-2">
+            <h3 className="type-section text-text-primary flex items-center gap-2">
               <Globe className="w-4 h-4 text-brand-orange" />
               <span>Personal Profile</span>
             </h3>
@@ -655,7 +655,7 @@ function SettingsPageInner() {
 
           {/* Display Preferences */}
           <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="font-display font-bold text-sm text-text-primary flex items-center gap-2">
+            <h3 className="type-section text-text-primary flex items-center gap-2">
               <Globe className="w-4 h-4 text-indigo-400" />
               <span>Display Preferences</span>
             </h3>
@@ -712,7 +712,7 @@ function SettingsPageInner() {
 
           {/* Security — Change Password */}
           <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="font-display font-bold text-sm text-text-primary flex items-center gap-2">
+            <h3 className="type-section text-text-primary flex items-center gap-2">
               <Key className="w-4 h-4 text-brand-orange" />
               <span>Security</span>
             </h3>
@@ -769,7 +769,7 @@ function SettingsPageInner() {
 
           {/* Email Account Connections */}
           <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="font-display font-bold text-sm text-text-primary flex items-center gap-2">
+            <h3 className="type-section text-text-primary flex items-center gap-2">
               <Mail className="w-4 h-4 text-blue-500" />
               <span>Email Accounts Integration</span>
             </h3>
@@ -1030,7 +1030,7 @@ function SettingsPageInner() {
 
         {/* Notification Preferences */}
         <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
-          <h3 className="font-display font-bold text-sm text-text-primary flex items-center gap-2">
+          <h3 className="type-section text-text-primary flex items-center gap-2">
             <Bell className="w-4 h-4 text-brand-gold" />
             <span>Notification Preferences</span>
           </h3>
@@ -1061,7 +1061,7 @@ function SettingsPageInner() {
 
         {/* Admin Panel */}
         <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
-          <h3 className="font-display font-bold text-sm text-text-primary flex items-center gap-2">
+          <h3 className="type-section text-text-primary flex items-center gap-2">
             <Key className="w-4 h-4 text-brand-red" />
             <span>Admin Control Panel</span>
           </h3>

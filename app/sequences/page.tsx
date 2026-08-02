@@ -603,7 +603,7 @@ export default function SequencesPage() {
               </div>
 
               <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
-                <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
+                <h3 className="type-section text-text-primary flex items-center gap-2">
                   <span>➕</span> Add New Cadence Step
                 </h3>
 

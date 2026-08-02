@@ -252,13 +252,24 @@ export default function ClientReportList() {
                         >
                           View
                         </Link>
-                        <button
-                          onClick={() => setShareTarget({ id: r.id, title: r.title })}
-                          className="p-1 rounded text-muted-foreground hover:text-brand-red hover:bg-brand-red/10 transition-colors"
-                          title="Share Link"
-                        >
-                          <Link2 className="w-3.5 h-3.5" />
-                        </button>
+                        {r.shareLinksCount > 0 ? (
+                          <button
+                            onClick={() => setShareTarget({ id: r.id, title: r.title })}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 rounded text-[10px] font-bold transition-colors"
+                            title="Open share modal to copy public link"
+                          >
+                            <Link2 className="w-3 h-3" />
+                            Copy Link
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setShareTarget({ id: r.id, title: r.title })}
+                            className="p-1 rounded text-muted-foreground hover:text-brand-red hover:bg-brand-red/10 transition-colors"
+                            title="Share Link"
+                          >
+                            <Link2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <a
                           href={`/api/client-reports/${r.id}/export/pdf`}
                           target="_blank"

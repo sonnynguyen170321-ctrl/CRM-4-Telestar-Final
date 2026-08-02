@@ -213,6 +213,25 @@ export default function MeetingsPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {stats.outcomePending > 0 && (
+            <button
+              onClick={() => {
+                setStatusFilter('all');
+                setOutcomeFilter('pending');
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2 border rounded-xl text-xs font-semibold shadow-sm transition-colors ${
+                outcomeFilter === 'pending'
+                  ? 'bg-rose-500/15 border-rose-500/30 text-rose-500'
+                  : 'bg-card-bg border-card-border hover:border-rose-500/30 text-rose-500'
+              }`}
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              Missing Outcomes
+              <span className="px-1.5 py-0.5 rounded-full bg-rose-500/15 text-rose-500 text-[10px] font-bold font-mono">
+                {stats.outcomePending}
+              </span>
+            </button>
+          )}
           <button
             onClick={fetchMeetings}
             disabled={loading}

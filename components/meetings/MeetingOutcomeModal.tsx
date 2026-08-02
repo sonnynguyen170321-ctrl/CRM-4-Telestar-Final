@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useToast } from '@/context/ToastContext';
 import { readApiError } from '@/lib/api/client';
 
@@ -36,6 +37,7 @@ export default function MeetingOutcomeModal({
   onOutcomeLogged,
 }: MeetingOutcomeModalProps) {
   const { showToast } = useToast();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string>('completed');
   const [outcome, setOutcome] = useState<string>('qualified_opportunity');
@@ -95,7 +97,19 @@ export default function MeetingOutcomeModal({
         return;
       }
 
-      showToast('Meeting outcome logged', 'success');
+      const data = await res.json();
+
+      if (data.opportunity?.id) {
+        showToast(
+          'Outcome logged — Opportunity created! Redirecting…',
+          'success'
+        );
+        // Brief delay so user sees the toast before redirect
+        setTimeout(() => router.push(`/opportunities`), 1200);
+      } else {
+        showToast('Meeting outcome logged', 'success');
+      }
+
       onOutcomeLogged?.();
       onClose();
     } catch {

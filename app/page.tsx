@@ -1168,7 +1168,7 @@ export default function DashboardPage() {
           <div className="space-y-6">
             {!isManager && (
               <div className="glass-card rounded-2xl p-5 space-y-4">
-                <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
+                <h3 className="type-section text-text-primary flex items-center gap-2">
                   <Award className="w-5 h-5 text-brand-gold" aria-hidden="true" />
                   My Performance
                 </h3>
@@ -1212,7 +1212,7 @@ export default function DashboardPage() {
             )}
 
             <div className="glass-card rounded-2xl p-5 space-y-4">
-              <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
+              <h3 className="type-section text-text-primary flex items-center gap-2">
                 <BarChart className="w-5 h-5 text-brand-orange" aria-hidden="true" />
                 Recent Activity Feed
               </h3>

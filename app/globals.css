@@ -2,7 +2,41 @@
 @import "tailwindcss";
 
 /* ─── TYPOGRAPHY ─── */
+/* Font strategy:
+   • Outfit (--font-display): Headings, navigation, card titles, KPI stats,
+     buttons, badges, modal headers, tab labels — bold UI chrome (~40–45%).
+   • Inter  (--font-sans):    Body paragraphs, table cell data, form inputs,
+     descriptive text, tooltips — readable body content (~40–45%).
+   • Geist Mono (--font-mono): Data labels, timestamps, code, technical IDs (~10–15%).
+*/
 
+/* ─── TYPE SCALE ─────────────────────────────────────────────────────────────
+   Six deliberate tiers. Sizes are absolute px, not rem, because the root is
+   17.5px (see `html` below) — rem-based Tailwind steps land on fractional
+   values like 13.1 / 15.3 / 26.3, which render sub-pixel and form no ratio.
+
+   Before this scale existed, section headings rendered at the same 15.3px as
+   button labels and body copy, and nothing occupied the gap between 15.3 and
+   26.3 — page titles jumped straight to body text with no tier in between.
+
+   tier        size    used for
+   ─────────────────────────────────────────────────────────────────────────
+   page-title  28px    the one <h1> per route
+   section     19px    panel / card headers  (the tier that was missing)
+   subsection  15.5px  group labels inside a panel
+   body        13.5px  paragraphs, table cells, form values
+   meta        11.5px  timestamps, counts, secondary chrome
+   micro       10px    badges, kbd hints, avatar initials
+   ─────────────────────────────────────────────────────────────────────────
+   ~1.25–1.47x between adjacent steps, 2.8:1 overall.                       */
+:root {
+  --text-page-title: 28px;
+  --text-section: 19px;
+  --text-subsection: 15.5px;
+  --text-body: 13.5px;
+  --text-meta: 11.5px;
+  --text-micro: 10px;
+}
 
 /* ─── THEME TOKENS ─── */
 :root {
@@ -102,8 +136,174 @@ body {
   transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
 }
 
+/* ── Outfit on headings (native + Tailwind) ── */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
+}
+
+/* ── Heading tiers ──────────────────────────────────────────────────────────
+   The bare selector catches headings with no class; the `[class]` variant
+   lifts specificity to (0,1,1) so these also win over a single Tailwind size
+   utility already on the element (`text-2xl`, `text-sm`, …) — no `!important`
+   and no rewrite of ~150 heading tags. A heading that genuinely belongs on a
+   different tier opts out with a `.type-*` class below.                      */
+h1, h1[class] {
+  font-size: var(--text-page-title);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.022em;
+}
+
+h2, h2[class] {
+  font-size: var(--text-section);
+  font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: -0.014em;
+}
+
+h3, h3[class] {
+  font-size: var(--text-subsection);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.008em;
+}
+
+/* ── Semantic type utilities ──────────────────────────────────────────────
+   Use these to place an element on a tier explicitly: a panel title rendered
+   as a <span>, an <h3> that is really a section header, a KPI number.
+
+   Each tier is listed element-qualified (`h3.type-section`) *and* bare, so it
+   matches the heading tiers above at equal specificity (0,1,1) and wins on
+   source order, while the bare class still styles spans and divs. Do not
+   collapse these to the bare class alone — the heading rules would win.     */
+h1.type-page-title, h2.type-page-title, h3.type-page-title, h4.type-page-title, .type-page-title {
+  font-family: var(--font-display);
+  font-size: var(--text-page-title);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.022em;
+}
+
+h1.type-section, h2.type-section, h3.type-section, h4.type-section, .type-section {
+  font-family: var(--font-display);
+  font-size: var(--text-section);
+  font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: -0.014em;
+}
+
+h1.type-subsection, h2.type-subsection, h3.type-subsection, h4.type-subsection, .type-subsection {
+  font-family: var(--font-display);
+  font-size: var(--text-subsection);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+h1.type-body, h2.type-body, h3.type-body, h4.type-body, .type-body {
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+
+h1.type-meta, h2.type-meta, h3.type-meta, h4.type-meta, .type-meta {
+  font-size: var(--text-meta);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+h1.type-micro, h2.type-micro, h3.type-micro, h4.type-micro, .type-micro {
+  font-size: var(--text-micro);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+}
+
+/* ── Collapse ad-hoc sizes onto the scale ───────────────────────────────────
+   ~675 call sites use arbitrary Tailwind sizes (`text-[9px]`, `text-[11px]`,
+   …) which produced five near-duplicate micro sizes — 8, 9, 10, 11, 13 — that
+   read as noise rather than a hierarchy. Rather than edit every call site,
+   remap the classes here: these rules sit outside `@layer`, so they beat
+   Tailwind's layered utilities of the same specificity.                      */
+.text-\[8px\],
+.text-\[9px\],
+.text-\[10px\] {
+  font-size: var(--text-micro);
+}
+
+.text-\[11px\],
+.text-\[12px\] {
+  font-size: var(--text-meta);
+}
+
+.text-\[13px\] {
+  font-size: var(--text-body);
+}
+
+/* Snap the Tailwind steps the app actually leans on onto the same scale, so
+   `text-xs` (748 uses) and `text-sm` (216) stop rendering at 13.109px /
+   15.312px. Same visual weight, whole pixels, and every size on screen now
+   belongs to one of the six tiers. `text-base`/`text-xl`/`text-3xl` are left
+   alone — they are rare and intentionally in-between. */
+.text-xs {
+  font-size: var(--text-body);
+}
+
+.text-sm {
+  font-size: var(--text-subsection);
+  font-weight: inherit;
+}
+
+.text-lg {
+  font-size: var(--text-section);
+}
+
+.text-2xl {
+  font-size: var(--text-page-title);
+}
+
+/* ── Outfit on bold UI chrome: navigation, buttons, badges, tabs, card headers, stats ── */
+/* Sidebar + Topbar navigation items */
+nav, [class*="sidebar"], [class*="topbar"] {
+  font-family: var(--font-display);
+}
+
+/* Buttons — all buttons get Outfit for a punchier feel */
+button, [role="button"], a[class*="btn"], a[class*="rounded-lg"][class*="font-"] {
+  font-family: var(--font-display);
+}
+
+/* KPI stat numbers and large display values */
+[class*="text-2xl"][class*="font-bold"],
+[class*="text-3xl"][class*="font-bold"],
+[class*="text-xl"][class*="font-bold"],
+[class*="text-4xl"] {
+  font-family: var(--font-display);
+}
+
+/* Badge-like elements: small bold labels used as status indicators */
+[class*="rounded-full"][class*="font-semibold"],
+[class*="rounded-full"][class*="font-bold"] {
+  font-family: var(--font-display);
+}
+
+/* Tab labels and filter pills */
+[role="tab"], [role="tablist"] button {
+  font-family: var(--font-display);
+}
+
+/* Modal / dialog titles */
+[role="dialog"] h2,
+[role="dialog"] h3,
+[aria-modal="true"] h2,
+[aria-modal="true"] h3 {
+  font-family: var(--font-display);
+}
+
+/* ── Inter stays on data-reading surfaces ── */
+/* Ensure table cell data, textareas, and inputs remain Inter for readability */
+table td, table th,
+textarea, input, select,
+p, li {
+  font-family: var(--font-sans);
 }
 
 /* ─── CUSTOM EFFECTS & LAYOUTS ─── */
@@ -350,7 +550,7 @@ body[data-theme="light"] .glass-sidebar {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  font-size: 9px;
+  font-size: var(--text-micro);
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -382,4 +582,61 @@ body[data-theme="light"] .glass-sidebar {
   content: attr(data-placeholder);
   color: var(--text-muted);
   pointer-events: none;
+}
+
+/* ─── PRINT / PDF OPTIMIZATION (Client Reports Public Page) ─── */
+@media print {
+  body {
+    background: #fff !important;
+    color: #111 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide interactive elements */
+  button, select, input, [role="dialog"] {
+    display: none !important;
+  }
+
+  /* Force light background on cards */
+  .bg-card, .bg-card-bg, [class*="bg-zinc"], [class*="bg-slate"] {
+    background: #fff !important;
+  }
+
+  /* Collapse shadows and rounded borders for clean print */
+  [class*="shadow"], [class*="rounded-2xl"] {
+    box-shadow: none !important;
+    border-radius: 4px !important;
+  }
+
+  /* Keep borders visible but lighter */
+  [class*="border"] {
+    border-color: #e5e7eb !important;
+  }
+
+  /* Ensure tables don't break mid-row */
+  tr {
+    page-break-inside: avoid;
+  }
+
+  /* Section breaks before major content blocks */
+  h2 {
+    page-break-after: avoid;
+  }
+
+  /* Remove dark mode text overrides */
+  [class*="text-foreground"], [class*="text-white"] {
+    color: #111 !important;
+  }
+  [class*="text-muted"] {
+    color: #6b7280 !important;
+  }
+
+  /* Ensure brand colors still print */
+  [class*="text-brand-red"] {
+    color: #D42B1E !important;
+  }
+  [class*="text-emerald"] {
+    color: #059669 !important;
+  }
 }

@@ -25,7 +25,6 @@ const CSVImportModal = dynamic(() => import('@/components/CSVImportModal'), { ss
 const TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'pool', label: 'Internal Database', icon: Database },
-  { id: 'import', label: 'Import Center', icon: Upload },
   { id: 'qualify', label: 'Qualification Queue', icon: Target },
   { id: 'routing', label: 'Campaign Routing', icon: Route },
   { id: 'export', label: 'Export Center', icon: FileText },
@@ -122,24 +121,7 @@ function LeadgenManagerPageInner() {
       <div className="flex-1 overflow-auto p-6">
         {activeTab === 'overview' && <OverviewTab />}
         {activeTab === 'pool' && <PoolBrowser mode="pool" />}
-        {activeTab === 'import' && (
-          <div className="bg-card-bg border border-card-border p-8 rounded-2xl max-w-md mx-auto text-center space-y-4">
-            <Upload className="w-10 h-10 text-purple-400 mx-auto opacity-70" />
-            <div className="space-y-1">
-              <h3 className="font-display font-bold text-sm text-text-primary">Bulk Intake Upload</h3>
-              <p className="text-xs text-text-secondary leading-relaxed">
-                Upload raw prospect lists (.csv / .xlsx) into the internal lead database for enrichment and qualification.
-                Rows are deduplicated against the existing pool.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowImport(true)}
-              className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition-all active:scale-95 shadow-sm shadow-purple-600/10"
-            >
-              Launch CSV Import Tool
-            </button>
-          </div>
-        )}
+
         {activeTab === 'qualify' && <PoolBrowser mode="qualify" />}
         {activeTab === 'routing' && <PoolBrowser mode="routing" />}
         {activeTab === 'export' && <ExportTab />}

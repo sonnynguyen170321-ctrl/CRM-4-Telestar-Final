@@ -638,7 +638,7 @@ export default function AiAssistant() {
           style={{ outline: 'none' }}
         >
           <RobotIcon hasUnread={hasUnread} isThinking={isStreaming} />
-          <span style={{ fontSize: 9, color: '#D42B1E', fontWeight: 600, marginTop: 2, letterSpacing: 0.5 }}>AI</span>
+          <span style={{ fontSize: 'var(--text-micro)', color: '#D42B1E', fontWeight: 600, marginTop: 2, letterSpacing: 0.5 }}>AI</span>
         </button>
       )}
 

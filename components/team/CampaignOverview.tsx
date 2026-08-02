@@ -89,7 +89,7 @@ export default function CampaignOverview({
       {/* Campaigns Table */}
       <div className="glass-card rounded-2xl overflow-hidden flex flex-col">
         <div className="px-5 py-4 border-b border-card-border bg-background/25 flex items-center justify-between">
-          <h3 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
+          <h3 className="type-section text-text-primary flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-brand-red" />
             <span>Outbound Campaigns Performance ({dateLabel})</span>
           </h3>
