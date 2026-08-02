@@ -1,0 +1,1700 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  director
+  floor_manager
+  team_lead
+  sdr
+  leadgen_manager
+  leadgen
+}
+
+enum LeadStage {
+  new
+  sequence_active
+  replied
+  meeting_booked
+  won
+  lost
+}
+
+enum Priority {
+  hot
+  warm
+  cold
+}
+
+enum Channel {
+  email
+  phone
+  linkedin
+  whatsapp
+}
+
+enum TaskType {
+  email
+  phone
+  linkedin
+  whatsapp
+  manual
+}
+
+enum TaskStatus {
+  pending
+  completed
+  skipped
+}
+
+enum TaskPriority {
+  high
+  medium
+  low
+}
+
+enum ActivityType {
+  email_sent
+  call_made
+  call_logged
+  linkedin_sent
+  linkedin_touch
+  whatsapp_sent
+  whatsapp_message
+  note_added
+  stage_changed
+  task_completed
+  task_skipped
+  lead_created
+  meeting_booked
+  booking_link_sent
+  meeting_outcome_logged
+  meeting_cancelled
+  meeting_rescheduled
+  sequence_enrolled
+  sequence_completed
+  sequence_unenrolled
+  email_task_completed
+  lead_reassigned
+  email_replied
+  email_bounced
+}
+
+enum ClientStatus {
+  active
+  paused
+  churned
+}
+
+enum CampaignStatus {
+  active
+  paused
+  completed
+}
+
+enum EmailProvider {
+  gmail
+  outlook
+  imap_smtp
+}
+
+enum SequenceEnrollmentStatus {
+  active
+  paused
+  completed
+  unenrolled
+}
+
+enum BookingLinkProvider {
+  calendly
+  google_calendar
+  hubspot
+  microsoft_bookings
+  salesloft
+  other
+}
+
+enum MeetingStatus {
+  link_sent
+  scheduled
+  completed
+  no_show
+  cancelled
+  rescheduled
+}
+
+enum MeetingOutcome {
+  qualified_opportunity
+  completed_not_qualified
+  no_show
+  cancelled
+  rescheduled
+  no_decision
+  other
+}
+
+enum OpportunityStage {
+  pending_client_review
+  accepted_by_client
+  discovery
+  proposal
+  negotiation
+  won
+  lost
+  nurture
+}
+
+enum OpportunityStatus {
+  open
+  won
+  lost
+  rejected
+  archived
+}
+
+enum HandoffStatus {
+  pending
+  accepted
+  rejected
+  needs_more_info
+}
+
+enum OpportunitySource {
+  meeting_outcome
+  manual
+  import
+}
+
+enum LostReason {
+  no_budget
+  no_authority
+  no_need
+  no_timeline
+  wrong_icp
+  wrong_persona
+  duplicate
+  competitor
+  unresponsive
+  client_rejected
+  other
+}
+
+enum OpportunityActivityType {
+  created
+  stage_changed
+  value_updated
+  handoff_submitted
+  client_accepted
+  client_rejected
+  note_added
+  next_step_updated
+  closed_won
+  closed_lost
+}
+
+// ─── Users ───────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      Role     @default(sdr)
+  managerId String?
+  manager   User?    @relation("UserReports", fields: [managerId], references: [id])
+  reports   User[]   @relation("UserReports")
+  avatarUrl String?
+  timezone  String   @default("UTC")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  assignedLeads            Lead[]                    @relation("LeadAssignee")
+  tasks                    Task[]
+  notes                    Note[]
+  activities               Activity[]
+  emailAccounts            EmailAccount[]
+  notifications            Notification[]
+  reminders                Reminder[]
+  sequences                Sequence[]
+  templates                Template[]
+  campaignSdrs             CampaignSdr[]
+  auditLogs                AuditLog[]
+  aiMemories               AiMemory[]
+  importBatches            ImportBatch[]
+  createdBookingLinks      BookingLink[]             @relation("BookingLinkCreator")
+  sdrMeetings              Meeting[]                 @relation("MeetingSdr")
+  outcomeLoggedMeetings    Meeting[]                 @relation("MeetingOutcomeLogger")
+  ownedOpportunities       Opportunity[]             @relation("OpportunityOwner")
+  createdOpportunities     Opportunity[]             @relation("OpportunityCreator")
+  opportunityActivities    OpportunityActivity[]
+  leadgenQualified         LeadPoolItem[]            @relation("LeadPoolQualifiedBy")
+  leadgenAssigned          LeadPoolItem[]            @relation("LeadPoolAssignedSdr")
+  leadgenAssignedBy        LeadPoolItem[]            @relation("LeadPoolAssignedBy")
+  campaignLeadRequirements CampaignLeadRequirement[] @relation("LeadRequirementCreatedBy")
+  leadgenActivities        LeadgenActivity[]
+  generatedReports         ClientReport[]            @relation("ReportGeneratedBy")
+  approvedReports          ClientReport[]            @relation("ReportApprovedBy")
+  reportExports            ClientReportExport[]
+  reportShareLinks         ClientReportShareLink[]
+  healthSnapshots          EmailHealthSnapshot[]
+
+  @@index([tenantId])
+}
+
+// ─── Clients & Campaigns ─────────────────────────────────────────────────────
+
+model Client {
+  id           String       @id @default(cuid())
+  name         String
+  industry     String
+  contactName  String
+  contactEmail String
+  status       ClientStatus @default(active)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  tenantId     String
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  campaigns     Campaign[]
+  bookingLinks  BookingLink[]
+  meetings      Meeting[]
+  opportunities Opportunity[]
+  clientReports ClientReport[]
+
+  @@index([tenantId])
+}
+
+model Campaign {
+  id             String         @id @default(cuid())
+  clientId       String
+  client         Client         @relation(fields: [clientId], references: [id])
+  name           String
+  targetVertical String?
+  targetGeo      String?
+  status         CampaignStatus @default(active)
+  startDate      DateTime
+  endDate        DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  tenantId       String
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  leads              Lead[]
+  campaignSdrs       CampaignSdr[]
+  suppressionEntries SuppressionEntry[]
+  importBatches      ImportBatch[]
+  bookingLinks       BookingLink[]
+  meetings           Meeting[]
+  opportunities      Opportunity[]
+  leadRequirements   CampaignLeadRequirement[]
+  assignedPoolItems  LeadPoolItem[]
+  clientReports      ClientReport[]
+  emailHealthAlerts  EmailHealthAlert[]
+
+  @@index([tenantId])
+}
+
+model CampaignSdr {
+  campaignId String
+  userId     String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, userId])
+  @@index([tenantId])
+}
+
+// ─── Account (company-level) — Premium Data Model (P8) ──────────────────────
+
+model Account {
+  id              String   @id @default(cuid())
+  name            String
+  industry        String?
+  website         String?
+  linkedIn        String?
+  size            Int?
+  country         String?
+  companyPhone    String?
+  staffCountRange String?
+  staffCountMin   Int?
+  staffCountMax   Int?
+  domain          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  leads         Lead[]
+  opportunities Opportunity[]
+  poolItems     LeadPoolItem[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([tenantId, industry])
+  @@index([tenantId, country])
+}
+
+// ─── Contact (person-level) — Premium Data Model (P8) ───────────────────────
+
+model Contact {
+  id                       String   @id @default(cuid())
+  fullName                 String?
+  firstName                String
+  lastName                 String
+  company                  String
+  title                    String?
+  department               String?
+  seniority                String?
+  country                  String?
+  email                    String
+  phone                    String?
+  secondaryPhone           String?
+  linkedIn                 String?
+  whatsApp                 String?
+  emailValidation          String?
+  emailScore               Int?
+  alternateEmail           String?
+  alternateEmailValidation String?
+  normalizedEmail          String?
+  normalizedPhone          String?
+  normalizedLinkedIn       String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  tenantId                 String
+  tenant                   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  leadAssignments Lead[]
+  opportunities   Opportunity[]
+  poolItems       LeadPoolItem[]
+
+  @@unique([tenantId, normalizedEmail])
+  @@index([tenantId])
+  @@index([tenantId, country])
+  @@index([tenantId, emailValidation])
+}
+
+// ─── Leads (assignment-level) — Premium Data Model (P8) ─────────────────────
+
+model Lead {
+  id                 String                    @id @default(cuid())
+  contactId          String?
+  contact            Contact?                  @relation(fields: [contactId], references: [id])
+  firstName          String
+  lastName           String
+  company            String
+  title              String?
+  email              String
+  phone              String?
+  linkedIn           String?
+  whatsApp           String?
+  accountId          String?
+  account            Account?                  @relation(fields: [accountId], references: [id])
+  stage              LeadStage                 @default(new)
+  assignedToId       String
+  assignedTo         User                      @relation("LeadAssignee", fields: [assignedToId], references: [id])
+  campaignId         String
+  campaign           Campaign                  @relation(fields: [campaignId], references: [id])
+  sequenceId         String?
+  sequence           Sequence?                 @relation(fields: [sequenceId], references: [id])
+  sequenceStep       Int?
+  sequenceStatus     SequenceEnrollmentStatus?
+  timezone           String?
+  emailInvalid       Boolean                   @default(false)
+  source             String?
+  importListName     String?
+  emailValidation    String?
+  emailScore         Int?
+  vendorSource       String?
+  tags               String[]
+  crmPriorityScore   Priority                  @default(warm)
+  engagementScore    Int?
+  lastContactedAt    DateTime?
+  nextTaskDue        DateTime?
+  emailSentCount     Int                       @default(0)
+  emailOpenCount     Int                       @default(0)
+  emailReplyCount    Int                       @default(0)
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  tenantId           String
+  tenant             Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  normalizedEmail    String?
+  normalizedPhone    String?
+  normalizedLinkedIn String?
+  archivedAt         DateTime?
+  archivedById       String?
+  archiveReason      String?
+
+  tasks               Task[]
+  notes               Note[]
+  activities          Activity[]
+  reminders           Reminder[]
+  outboundMessages    OutboundMessage[]
+  inboundMessages     InboundMessage[]
+  sequenceEnrollments SequenceEnrollment[]
+  importRows          ImportRow[]
+  meetings            Meeting[]
+  opportunities       Opportunity[]
+  poolSources         LeadPoolItem[]       @relation("LeadPoolConverted")
+
+  @@index([stage])
+  @@index([assignedToId])
+  @@index([campaignId])
+  @@index([accountId])
+  @@index([crmPriorityScore])
+  @@index([engagementScore])
+  @@index([contactId])
+  @@index([tenantId])
+  @@index([tenantId, stage])
+  @@index([tenantId, assignedToId])
+  @@index([tenantId, crmPriorityScore])
+  @@index([tenantId, email])
+  @@index([campaignId, stage])
+  @@index([campaignId, assignedToId])
+  @@index([tenantId, archivedAt])
+  @@index([tenantId, campaignId, normalizedEmail])
+  @@index([tenantId, importListName])
+}
+
+// ─── Sequences ───────────────────────────────────────────────────────────────
+
+model Sequence {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  isArchived  Boolean  @default(false)
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  steps               SequenceStep[]
+  leads               Lead[]
+  activities          Activity[]
+  sequenceEnrollments SequenceEnrollment[]
+
+  @@index([tenantId])
+}
+
+model SequenceStep {
+  id           String    @id @default(cuid())
+  sequenceId   String
+  sequence     Sequence  @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  order        Int
+  channel      Channel
+  delayDays    Int       @default(1)
+  delayHours   Int       @default(0)
+  templateId   String?
+  template     Template? @relation(fields: [templateId], references: [id])
+  instructions String?
+  autoComplete Boolean   @default(false)
+  version      Int       @default(1)
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([sequenceId, order])
+  @@index([sequenceId])
+  @@index([tenantId])
+}
+
+// ─── Tasks ───────────────────────────────────────────────────────────────────
+
+model Task {
+  id           String       @id @default(cuid())
+  leadId       String
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User         @relation(fields: [userId], references: [id])
+  type         TaskType
+  title        String
+  description  String?
+  outcome      String?
+  notes        String?
+  dueDate      DateTime
+  completedAt  DateTime?
+  status       TaskStatus   @default(pending)
+  sequenceId   String?
+  sequenceStep Int?
+  // Soft lock claimed by the auto-send cron; CAS via updateMany since the
+  // Neon HTTP driver does not support interactive transactions.
+  lockedAt     DateTime?
+  priority     TaskPriority @default(medium)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  tenantId     String
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([userId])
+  @@index([dueDate])
+  @@index([status])
+  @@index([tenantId])
+  @@index([userId, status, dueDate])
+  @@index([leadId, status])
+  @@index([type, status, dueDate])
+}
+
+// ─── Templates ───────────────────────────────────────────────────────────────
+
+model Template {
+  id          String   @id @default(cuid())
+  name        String
+  channel     Channel
+  subject     String?
+  body        String
+  category    String?
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  sequenceSteps    SequenceStep[]
+  abVariants       AbTestVariant[]
+  outboundMessages OutboundMessage[]
+  attachments      Attachment[]
+
+  @@index([tenantId])
+}
+
+model AbTestVariant {
+  id         String   @id @default(cuid())
+  templateId String
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  subject    String?
+  body       String?
+  version    String // "A" | "B"
+  sentCount  Int      @default(0)
+  replyCount Int      @default(0)
+  createdAt  DateTime @default(now())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@index([tenantId])
+}
+
+// ─── Notes ───────────────────────────────────────────────────────────────────
+
+model Note {
+  id          String   @id @default(cuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  content     String
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  isPinned    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([tenantId])
+}
+
+// ─── Reminders ───────────────────────────────────────────────────────────────
+
+model Reminder {
+  id          String   @id @default(cuid())
+  leadId      String?
+  lead        Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text        String
+  dueAt       DateTime
+  isDismissed Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([dueAt])
+  @@index([tenantId])
+}
+
+// ─── Activities ──────────────────────────────────────────────────────────────
+
+model Activity {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id])
+  leadId      String?
+  lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  sequenceId  String?
+  sequence    Sequence?    @relation(fields: [sequenceId], references: [id])
+  type        ActivityType
+  channel     Channel?
+  metadata    Json?
+  description String?
+  createdAt   DateTime     @default(now())
+  tenantId    String
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([leadId])
+  @@index([leadId, type, createdAt])
+  @@index([tenantId, userId, type, createdAt])
+  @@index([type])
+  @@index([createdAt])
+  @@index([tenantId])
+  @@index([userId, type, createdAt])
+}
+
+// ─── Email Accounts ──────────────────────────────────────────────────────────
+
+model EmailAccount {
+  id               String        @id @default(cuid())
+  userId           String
+  user             User          @relation(fields: [userId], references: [id])
+  email            String
+  provider         EmailProvider
+  accessToken      String?       @db.Text
+  refreshToken     String?       @db.Text
+  encAccessToken   String?       @db.Text
+  encRefreshToken  String?       @db.Text
+  tokenExpiry      DateTime?
+  imapServer       String?
+  imapPort         Int?
+  smtpServer       String?
+  smtpPort         Int?
+  encPassword      String?       @db.Text
+  isActive         Boolean       @default(true)
+  lastSyncAt       DateTime?
+  syncCursor       String?
+  dailySendCount   Int           @default(0)
+  dailyCap         Int           @default(80)
+  dailySendDate    DateTime?
+  hourlySendWindow Int           @default(0)
+  signature        String?       @db.Text
+
+  // ── Deliverability / health ──
+  // healthScore + healthLevel are a denormalised cache written by the hourly
+  // email-health cron. Live tables recompute from source rows; these exist so a
+  // list view can sort and filter without aggregating.
+  healthScore       Int?
+  healthLevel       EmailHealthLevel?
+  lastHealthCheckAt DateTime?
+  // Manager-set pause. Non-null hard-blocks the send worker (workers/email.ts).
+  sendPausedAt      DateTime?
+  sendPausedById    String?
+  sendPauseReason   String?
+
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  tenantId         String
+  tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  outboundMessages OutboundMessage[]
+  inboundMessages  InboundMessage[]
+  healthSnapshots  EmailHealthSnapshot[]
+  healthAlerts     EmailHealthAlert[]
+
+  @@index([userId])
+  @@index([tenantId])
+  @@index([tenantId, healthLevel])
+}
+
+// ─── Notifications ───────────────────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String?
+  text      String
+  linkTo    String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([tenantId])
+}
+
+// ─── Audit Logs ──────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action        String // e.g. "update_lead", "create_lead", "connect_email"
+  tableName     String
+  recordId      String
+  changedFields Json? // { "field": { "old": "x", "new": "y" } }
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tableName, recordId])
+  @@index([createdAt])
+  @@index([tenantId])
+}
+
+// ─── Job Runs (durable mirror for BullMQ) ─────────────────────────────────────
+
+model JobRun {
+  id           String    @id @default(cuid())
+  queueName    String
+  jobName      String
+  bullJobId    String?
+  dedupeKey    String    @unique
+  status       String    @default("queued") // queued | active | completed | failed
+  progress     Json?
+  result       Json?
+  failedReason String?
+  attempts     Int       @default(0)
+  maxAttempts  Int       @default(3)
+  enqueuedAt   DateTime  @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([queueName, status])
+  @@index([dedupeKey])
+  @@index([tenantId])
+}
+
+// ─── Outbound Messages ───────────────────────────────────────────────────────
+
+model OutboundMessage {
+  id                String       @id @default(cuid())
+  leadId            String
+  lead              Lead         @relation(fields: [leadId], references: [id])
+  accountId         String
+  account           EmailAccount @relation(fields: [accountId], references: [id])
+  templateId        String?
+  template          Template?    @relation(fields: [templateId], references: [id])
+  to                String
+  subject           String?
+  body              String?
+  providerMessageId String?
+  idempotencyKey    String       @unique
+  status            String       @default("pending") // pending | sending | sent | failed | bounced
+  errorMessage      String?
+  sentAt            DateTime?
+  openedAt          DateTime? // NOTE: no writer exists — there is no open-tracking pixel route.
+  repliedAt         DateTime?
+  bouncedAt         DateTime?
+  bounceType        String? // hard | soft — set by workers/sync.ts handleApplyBounce
+  tenantId          String
+  tenant            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([leadId])
+  @@index([accountId])
+  @@index([status])
+  @@index([idempotencyKey])
+  @@index([providerMessageId])
+  @@index([tenantId])
+  // Deliverability rollups: per-inbox 24h/7d windows, and tenant-wide status slices.
+  @@index([accountId, sentAt])
+  @@index([tenantId, status, sentAt])
+  // Bounce correlation: most-recent sent message to an address on an account.
+  @@index([accountId, to, status])
+}
+
+// ─── Suppression Entries ─────────────────────────────────────────────────────
+
+model SuppressionEntry {
+  id         String    @id @default(cuid())
+  email      String?
+  domain     String?
+  company    String?
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+  reason     String // hard_bounce | spam | manual | unsubscribed
+  createdAt  DateTime  @default(now())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, email, campaignId])
+  @@unique([tenantId, domain, campaignId])
+  @@unique([tenantId, company, campaignId])
+  @@index([email])
+  @@index([domain])
+  @@index([campaignId])
+  @@index([tenantId])
+  // Suppression-growth metric for the deliverability dashboard.
+  @@index([tenantId, createdAt])
+}
+
+// ─── Sequence Enrollments ────────────────────────────────────────────────────
+
+model SequenceEnrollment {
+  id          String                   @id @default(cuid())
+  leadId      String
+  lead        Lead                     @relation(fields: [leadId], references: [id])
+  sequenceId  String
+  sequence    Sequence                 @relation(fields: [sequenceId], references: [id])
+  status      SequenceEnrollmentStatus @default(active)
+  currentStep Int                      @default(1)
+  startedAt   DateTime                 @default(now())
+  completedAt DateTime?
+  tenantId    String
+  tenant      Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([sequenceId])
+  @@index([status])
+  @@index([tenantId])
+}
+
+// ─── Import ──────────────────────────────────────────────────────────────────
+
+model ImportBatch {
+  id         String         @id @default(cuid())
+  campaignId String?
+  campaign   Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  targetType String         @default("lead") // lead | pool
+  userId     String
+  user       User           @relation(fields: [userId], references: [id])
+  filename   String?
+  totalRows  Int            @default(0)
+  parsedRows Int            @default(0)
+  errorRows  Int            @default(0)
+  status     String         @default("pending") // pending | parsing | parsed | committing | committed | failed
+  errorFile  String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  tenantId   String
+  tenant     Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  importRows ImportRow[]
+  poolItems  LeadPoolItem[]
+
+  @@index([campaignId])
+  @@index([userId])
+  @@index([status])
+  @@index([targetType])
+  @@index([tenantId])
+}
+
+model ImportRow {
+  id         String        @id @default(cuid())
+  batchId    String
+  batch      ImportBatch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  rowIndex   Int
+  data       Json
+  errors     Json?
+  status     String        @default("pending") // pending | valid | error | imported
+  leadId     String?
+  lead       Lead?         @relation(fields: [leadId], references: [id])
+  poolItemId String?
+  poolItem   LeadPoolItem? @relation(fields: [poolItemId], references: [id])
+  createdAt  DateTime      @default(now())
+  tenantId   String
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@index([status])
+  @@index([poolItemId])
+  @@index([tenantId])
+}
+
+// ─── AI SDR Assistant — Per-User Memory ─────────────────────────────────────
+
+model AiMemory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memory    String
+  createdAt DateTime @default(now())
+  tenantId  String
+
+  @@index([userId])
+  @@index([tenantId])
+}
+
+// ─── Booking Links ───────────────────────────────────────────────────────────
+
+model BookingLink {
+  id                 String              @id @default(cuid())
+  clientId           String
+  client             Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  campaignId         String?
+  campaign           Campaign?           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name               String
+  url                String              @db.Text
+  provider           BookingLinkProvider @default(other)
+  ownerName          String?
+  ownerEmail         String?
+  timezone           String              @default("UTC")
+  durationMins       Int                 @default(30)
+  instructions       String?             @db.Text
+  qualificationNotes String?             @db.Text
+  isDefault          Boolean             @default(false)
+  isActive           Boolean             @default(true)
+  createdById        String?
+  createdBy          User?               @relation("BookingLinkCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  meetings           Meeting[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  tenantId           String
+  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([clientId])
+  @@index([campaignId])
+  @@index([clientId, isDefault])
+  @@index([campaignId, isDefault])
+  @@index([isActive])
+}
+
+// ─── Meetings ────────────────────────────────────────────────────────────────
+
+model Meeting {
+  id                      String          @id @default(cuid())
+  leadId                  String
+  lead                    Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  clientId                String
+  client                  Client          @relation(fields: [clientId], references: [id])
+  campaignId              String
+  campaign                Campaign        @relation(fields: [campaignId], references: [id])
+  sdrId                   String
+  sdr                     User            @relation("MeetingSdr", fields: [sdrId], references: [id])
+  bookingLinkId           String?
+  bookingLink             BookingLink?    @relation(fields: [bookingLinkId], references: [id], onDelete: SetNull)
+  bookingLinkUrlSnapshot  String?         @db.Text
+  bookingLinkNameSnapshot String?
+  sourceChannel           Channel?
+  status                  MeetingStatus   @default(scheduled)
+  title                   String
+  scheduledAt             DateTime?
+  durationMins            Int             @default(30)
+  timezone                String?
+  meetingUrl              String?         @db.Text
+  prospectName            String?
+  prospectEmail           String?
+  clientOwnerName         String?
+  clientOwnerEmail        String?
+  externalEventId         String?
+  externalEventUrl        String?         @db.Text
+  outcome                 MeetingOutcome?
+  outcomeNotes            String?         @db.Text
+  painPoints              String?         @db.Text
+  nextStep                String?         @db.Text
+  outcomeLoggedById       String?
+  outcomeLoggedBy         User?           @relation("MeetingOutcomeLogger", fields: [outcomeLoggedById], references: [id], onDelete: SetNull)
+  outcomeLoggedAt         DateTime?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  tenantId                String
+  tenant                  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  opportunity Opportunity?
+
+  @@index([tenantId])
+  @@index([leadId])
+  @@index([clientId])
+  @@index([campaignId])
+  @@index([sdrId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([tenantId, status, scheduledAt])
+}
+
+// ─── Opportunities (Deal pipeline, after meeting booked) ────────────────────
+
+model Opportunity {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+
+  leadId String?
+  lead   Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  meetingId String?  @unique
+  meeting   Meeting? @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+
+  title        String
+  company      String
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  contactTitle String?
+
+  ownerId String
+  owner   User   @relation("OpportunityOwner", fields: [ownerId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("OpportunityCreator", fields: [createdById], references: [id])
+
+  source        OpportunitySource @default(meeting_outcome)
+  stage         OpportunityStage  @default(pending_client_review)
+  status        OpportunityStatus @default(open)
+  handoffStatus HandoffStatus     @default(pending)
+
+  value             Decimal?  @db.Decimal(14, 2)
+  currency          String    @default("USD")
+  probability       Int       @default(10)
+  expectedCloseDate DateTime?
+
+  clientOwnerName  String?
+  clientOwnerEmail String?
+  externalCrmName  String?
+  externalCrmUrl   String?
+  externalDealId   String?
+
+  qualificationSummary String?   @db.Text
+  painPoints           String?   @db.Text
+  prospectNeed         String?   @db.Text
+  budgetNotes          String?   @db.Text
+  authorityNotes       String?   @db.Text
+  timelineNotes        String?   @db.Text
+  nextStep             String?   @db.Text
+  nextStepAt           DateTime?
+
+  clientFeedback    String?     @db.Text
+  lostReason        LostReason?
+  lostReasonDetails String?     @db.Text
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  closedAt  DateTime?
+
+  activities OpportunityActivity[]
+
+  @@index([tenantId])
+  @@index([clientId])
+  @@index([campaignId])
+  @@index([leadId])
+  @@index([accountId])
+  @@index([contactId])
+  @@index([meetingId])
+  @@index([ownerId])
+  @@index([stage])
+  @@index([status])
+  @@index([handoffStatus])
+  @@index([expectedCloseDate])
+  @@index([tenantId, stage])
+  @@index([tenantId, status])
+  @@index([campaignId, stage])
+}
+
+model OpportunityActivity {
+  id            String      @id @default(cuid())
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  type        OpportunityActivityType
+  description String?
+  metadata    Json?
+  createdAt   DateTime                @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([opportunityId])
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ─── Leadgen Ecosystem — Internal Lead Pool ──────────────────────────────────
+
+enum LeadPoolStatus {
+  raw
+  imported
+  enriching
+  enriched
+  qa_pending
+  qualified
+  disqualified
+  assigned_to_campaign
+  archived
+}
+
+enum LeadQualificationStatus {
+  unreviewed
+  qualified
+  disqualified
+  needs_research
+  duplicate
+  invalid_contact
+  invalid_company
+  out_of_icp
+}
+
+enum LeadQualityTier {
+  a
+  b
+  c
+  d
+}
+
+enum LeadSourceType {
+  manual
+  csv_import
+  apollo
+  linkedin
+  clay
+  lusha
+  zoominfo
+  client_provided
+  vendor
+  other
+}
+
+enum CampaignLeadRequirementStatus {
+  open
+  fulfilled
+  paused
+  cancelled
+}
+
+enum LeadgenActivityType {
+  imported
+  enriched
+  qualified
+  disqualified
+  duplicate_marked
+  assigned_to_campaign
+  assigned_to_sdr
+  exported
+  qa_reviewed
+  returned_by_sdr
+  archived
+}
+
+// ─── Client Reports — client-facing campaign report snapshots ───────────────
+
+enum ReportStatus {
+  draft
+  internal_review
+  approved
+  shared
+  archived
+}
+
+enum ReportPeriodType {
+  weekly
+  monthly
+  custom
+}
+
+enum ReportAudience {
+  internal
+  client
+}
+
+enum ReportExportType {
+  pdf
+  csv
+  share_link
+}
+
+model ClientReport {
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+
+  title       String
+  periodType  ReportPeriodType @default(weekly)
+  periodStart DateTime
+  periodEnd   DateTime
+  status      ReportStatus     @default(draft)
+  audience    ReportAudience   @default(client)
+
+  summary         String?
+  keyWins         String[]
+  blockers        String[]
+  recommendations String[]
+  clientActions   String[]
+
+  // Snapshot JSON freezes report metrics and tables at approval/share time.
+  snapshotJson Json
+
+  generatedById String
+  generatedBy   User   @relation("ReportGeneratedBy", fields: [generatedById], references: [id])
+
+  approvedById String?
+  approvedBy   User?     @relation("ReportApprovedBy", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+
+  sharedAt   DateTime?
+  archivedAt DateTime?
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  exports    ClientReportExport[]
+  shareLinks ClientReportShareLink[]
+  recipients ClientReportRecipient[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([clientId])
+  @@index([campaignId])
+  @@index([periodStart, periodEnd])
+  @@index([status])
+}
+
+model ClientReportRecipient {
+  id       String       @id @default(cuid())
+  reportId String
+  report   ClientReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  name      String?
+  email     String
+  role      String?
+  isPrimary Boolean @default(false)
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([reportId])
+  @@index([email])
+}
+
+model ClientReportExport {
+  id       String       @id @default(cuid())
+  reportId String
+  report   ClientReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  type         ReportExportType
+  fileUrl      String?
+  fileName     String?
+  exportedById String
+  exportedBy   User             @relation(fields: [exportedById], references: [id])
+  exportedAt   DateTime         @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([reportId])
+  @@index([type])
+}
+
+model ClientReportShareLink {
+  id       String       @id @default(cuid())
+  reportId String
+  report   ClientReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  tokenHash    String    @unique
+  expiresAt    DateTime?
+  revokedAt    DateTime?
+  passwordHash String?
+  viewCount    Int       @default(0)
+  lastViewedAt DateTime?
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([reportId])
+  @@index([expiresAt])
+}
+
+model LeadPoolItem {
+  id        String   @id @default(cuid())
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id])
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id])
+
+  firstName String?
+  lastName  String?
+  fullName  String?
+  company   String
+  title     String?
+  email     String?
+  phone     String?
+  linkedIn  String?
+  website   String?
+  country   String?
+  industry  String?
+
+  status        LeadPoolStatus          @default(raw)
+  qualification LeadQualificationStatus @default(unreviewed)
+  qualityTier   LeadQualityTier?
+  sourceType    LeadSourceType          @default(csv_import)
+  sourceName    String?
+  importBatchId String?
+  importBatch   ImportBatch?            @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
+  icpFitScore      Int?
+  dataQualityScore Int?
+  emailValidation  String?
+  emailScore       Int?
+  duplicateKey     String?
+  duplicateOfId    String?
+  duplicateOf      LeadPoolItem?  @relation("LeadPoolDuplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates       LeadPoolItem[] @relation("LeadPoolDuplicates")
+
+  qualifiedById      String?
+  qualifiedBy        User?     @relation("LeadPoolQualifiedBy", fields: [qualifiedById], references: [id])
+  qualifiedAt        DateTime?
+  disqualifiedReason String?
+  qaNotes            String?
+
+  assignedCampaignId String?
+  assignedCampaign   Campaign? @relation(fields: [assignedCampaignId], references: [id])
+  assignedSdrId      String?
+  assignedSdr        User?     @relation("LeadPoolAssignedSdr", fields: [assignedSdrId], references: [id])
+  convertedLeadId    String?
+  convertedLead      Lead?     @relation("LeadPoolConverted", fields: [convertedLeadId], references: [id])
+  assignedAt         DateTime?
+  assignedById       String?
+  assignedBy         User?     @relation("LeadPoolAssignedBy", fields: [assignedById], references: [id])
+
+  tags       String[]
+  rawPayload Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  activities LeadgenActivity[]
+  importRows ImportRow[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([qualification])
+  @@index([sourceType])
+  @@index([assignedCampaignId])
+  @@index([assignedSdrId])
+  @@index([tenantId, email])
+  @@index([tenantId, duplicateKey])
+}
+
+model CampaignLeadRequirement {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  requiredCount  Int
+  deliveredCount Int @default(0)
+  acceptedCount  Int @default(0)
+  rejectedCount  Int @default(0)
+
+  targetTitles     String[]
+  targetCountries  String[]
+  targetIndustries String[]
+  companySizeMin   Int?
+  companySizeMax   Int?
+  requiredFields   String[]
+  notes            String?
+  status           CampaignLeadRequirementStatus @default(open)
+
+  dueDate     DateTime?
+  createdById String
+  createdBy   User      @relation("LeadRequirementCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([status])
+  @@index([tenantId])
+}
+
+model LeadgenActivity {
+  id          String              @id @default(cuid())
+  poolItemId  String?
+  poolItem    LeadPoolItem?       @relation(fields: [poolItemId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User                @relation(fields: [userId], references: [id])
+  type        LeadgenActivityType
+  description String?
+  metadata    Json?
+  createdAt   DateTime            @default(now())
+  tenantId    String
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([poolItemId])
+  @@index([userId])
+  @@index([type])
+  @@index([tenantId])
+}
+
+// ─── Tenant ──────────────────────────────────────────────────────────────────
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users                    User[]
+  clients                  Client[]
+  campaigns                Campaign[]
+  campaignSdrs             CampaignSdr[]
+  accounts                 Account[]
+  contacts                 Contact[]
+  leads                    Lead[]
+  sequences                Sequence[]
+  sequenceSteps            SequenceStep[]
+  tasks                    Task[]
+  templates                Template[]
+  abVariants               AbTestVariant[]
+  notes                    Note[]
+  reminders                Reminder[]
+  activities               Activity[]
+  emailAccounts            EmailAccount[]
+  notifications            Notification[]
+  auditLogs                AuditLog[]
+  jobRuns                  JobRun[]
+  outboundMessages         OutboundMessage[]
+  inboundMessages          InboundMessage[]
+  suppressionEntries       SuppressionEntry[]
+  sequenceEnrollments      SequenceEnrollment[]
+  importBatches            ImportBatch[]
+  importRows               ImportRow[]
+  attachments              Attachment[]
+  bookingLinks             BookingLink[]
+  meetings                 Meeting[]
+  opportunities            Opportunity[]
+  opportunityActivities    OpportunityActivity[]
+  leadPoolItems            LeadPoolItem[]
+  campaignLeadRequirements CampaignLeadRequirement[]
+  leadgenActivities        LeadgenActivity[]
+  clientReports            ClientReport[]
+  reportRecipients         ClientReportRecipient[]
+  reportExports            ClientReportExport[]
+  reportShareLinks         ClientReportShareLink[]
+  emailHealthSnapshots     EmailHealthSnapshot[]
+  emailDomainHealth        EmailDomainHealth[]
+  emailHealthAlerts        EmailHealthAlert[]
+}
+
+model Attachment {
+  id          String   @id @default(cuid())
+  name        String
+  contentType String
+  content     String   @db.Text // Base64 encoded file data
+  templateId  String
+  template    Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@index([tenantId])
+}
+
+model InboundMessage {
+  id                String       @id @default(cuid())
+  accountId         String
+  account           EmailAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  leadId            String?
+  lead              Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  fromEmail         String
+  fromName          String?
+  to                String
+  subject           String?
+  body              String?      @db.Text
+  bodyHtml          String?      @db.Text
+  providerMessageId String       @unique
+  date              DateTime
+  isRead            Boolean      @default(false)
+  isSpam            Boolean      @default(false)
+  isTrash           Boolean      @default(false)
+  // Deliverability signals. Bounce notifications used to be discarded at sync time,
+  // which made historical bounce rate uncomputable; they are now persisted here.
+  isBounce          Boolean      @default(false)
+  isReply           Boolean      @default(false)
+  bounceType        String? // hard | soft — only set when isBounce
+  bouncedRecipient  String? // address that bounced, parsed from the DSN body
+  tenantId          String
+  tenant            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt         DateTime     @default(now())
+
+  @@index([accountId])
+  @@index([leadId])
+  @@index([providerMessageId])
+  @@index([tenantId])
+  // Deliverability rollups: per-inbox windowed reply/bounce/spam counts.
+  @@index([accountId, date])
+  @@index([tenantId, date])
+}
+
+// ─── Deliverability / Email Health ───────────────────────────────────────────
+
+enum EmailHealthLevel {
+  healthy
+  watch
+  at_risk
+  critical
+  paused
+}
+
+enum EmailHealthAlertSeverity {
+  info
+  warning
+  critical
+}
+
+enum EmailHealthAlertStatus {
+  open
+  acknowledged
+  resolved
+  ignored
+}
+
+enum DnsCheckStatus {
+  unknown
+  pass
+  fail
+  warning
+  manual_verified
+}
+
+/// Point-in-time rollup per inbox. History only — live views recompute from
+/// OutboundMessage/InboundMessage so the dashboard can never show stale truth.
+model EmailHealthSnapshot {
+  id        String       @id @default(cuid())
+  accountId String
+  account   EmailAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id])
+  domain    String?
+
+  windowStart      DateTime
+  windowEnd        DateTime
+  sentCount        Int      @default(0)
+  failedCount      Int      @default(0)
+  hardBounceCount  Int      @default(0)
+  softBounceCount  Int      @default(0)
+  replyCount       Int      @default(0)
+  spamSignalCount  Int      @default(0)
+  trashSignalCount Int      @default(0)
+  suppressionCount Int      @default(0)
+
+  dailyCap        Int?
+  dailySendCount  Int?
+  lastSyncAt      DateTime?
+  healthScore     Int
+  healthLevel     EmailHealthLevel
+  reasons         String[]
+  recommendations String[]
+
+  createdAt DateTime @default(now())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, windowStart])
+  @@index([tenantId, healthLevel])
+  @@index([tenantId, windowStart])
+  @@index([tenantId, domain])
+}
+
+/// Domain-level posture. SPF/DMARC/MX are checked automatically via dns/promises;
+/// DKIM requires a per-provider selector and is set manually.
+model EmailDomainHealth {
+  id       String  @id @default(cuid())
+  domain   String
+  provider String?
+
+  spfStatus     DnsCheckStatus @default(unknown)
+  dkimStatus    DnsCheckStatus @default(unknown)
+  dmarcStatus   DnsCheckStatus @default(unknown)
+  mxStatus      DnsCheckStatus @default(unknown)
+  dnsNotes      String?
+  lastCheckedAt DateTime?
+
+  activeInboxCount   Int              @default(0)
+  sevenDaySent       Int              @default(0)
+  sevenDayBounceRate Float            @default(0)
+  sevenDayReplyRate  Float            @default(0)
+  healthScore        Int              @default(100)
+  healthLevel        EmailHealthLevel @default(healthy)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, domain])
+  @@index([tenantId, healthLevel])
+}
+
+/// Manager-reviewable risk. Deduped by (accountId, type) while status = open so
+/// the hourly cron cannot flood the panel.
+model EmailHealthAlert {
+  id         String        @id @default(cuid())
+  accountId  String?
+  account    EmailAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  campaignId String?
+  campaign   Campaign?     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  domain     String?
+
+  type              String
+  title             String
+  message           String
+  severity          EmailHealthAlertSeverity @default(warning)
+  status            EmailHealthAlertStatus   @default(open)
+  recommendedAction String?
+
+  acknowledgedById String?
+  acknowledgedAt   DateTime?
+  resolvedById     String?
+  resolvedAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([tenantId, severity])
+  @@index([accountId])
+  @@index([campaignId])
+  @@index([domain])
+  @@index([accountId, type, status])
+}

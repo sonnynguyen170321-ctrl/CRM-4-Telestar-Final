@@ -1,0 +1,184 @@
+'use client';
+
+import React, { useCallback, useEffect, useState } from 'react';
+import { Upload, Target, XCircle, Database, Copy, MailCheck, Route, Users } from 'lucide-react';
+import { useToast } from '@/context/ToastContext';
+import { readApiError } from '@/lib/api/client';
+
+type Metrics = {
+  importedWeek: number;
+  qualifiedWeek: number;
+  disqualifiedWeek: number;
+  totalPool: number;
+  duplicateRate: number;
+  emailValidRate: number;
+  assignedToCampaign: number;
+  assignedToSdr: number;
+  qualifiedBySource: { source: string; count: number }[];
+  qualifiedByMember: { id: string; name: string; count: number }[];
+  requirementProgress: {
+    campaignId: string;
+    campaignName: string;
+    required: number;
+    delivered: number;
+    status: string;
+  }[];
+  avgDaysToQualification: number;
+};
+
+const STAT_CARDS = [
+  { key: 'importedWeek', label: 'Imported (7d)', icon: Upload, color: 'text-blue-400' },
+  { key: 'qualifiedWeek', label: 'Qualified (7d)', icon: Target, color: 'text-emerald-400' },
+  { key: 'disqualifiedWeek', label: 'Disqualified (7d)', icon: XCircle, color: 'text-brand-red' },
+  { key: 'totalPool', label: 'Pool Records', icon: Database, color: 'text-purple-400' },
+  { key: 'duplicateRate', label: 'Duplicate Rate', icon: Copy, color: 'text-amber-400' },
+  { key: 'emailValidRate', label: 'Email Valid Rate', icon: MailCheck, color: 'text-cyan-400' },
+  { key: 'assignedToCampaign', label: 'Assigned to Campaign', icon: Route, color: 'text-purple-300' },
+  { key: 'assignedToSdr', label: 'Assigned to SDR', icon: Users, color: 'text-amber-300' },
+] as const;
+
+export default function OverviewTab() {
+  const { showToast } = useToast();
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchMetrics = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/leadgen-pool/metrics');
+      if (!res.ok) throw new Error(await readApiError(res, 'Failed to load metrics'));
+      setMetrics(await res.json());
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to load metrics', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    fetchMetrics();
+  }, [fetchMetrics]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-400 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!metrics) {
+    return (
+      <div className="flex flex-col items-center justify-center h-48 text-center">
+        <Database className="w-10 h-10 text-text-muted mb-3 opacity-40" />
+        <p className="text-sm text-text-muted">Could not load leadgen metrics.</p>
+      </div>
+    );
+  }
+
+  const topSources = metrics.qualifiedBySource.slice(0, 6);
+  const topMembers = metrics.qualifiedByMember.slice(0, 6);
+  const maxSource = Math.max(1, ...topSources.map((s) => s.count));
+  const maxMember = Math.max(1, ...topMembers.map((m) => m.count));
+
+  return (
+    <div className="space-y-6">
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-3">
+        {STAT_CARDS.map(({ key, label, icon: Icon, color }) => (
+          <div key={key} className="bg-card-bg border border-card-border rounded-xl px-4 py-3 flex items-center gap-3">
+            <Icon className={`w-5 h-5 ${color} flex-shrink-0`} />
+            <div>
+              <div className="text-xl font-bold text-text-primary font-display">
+                {typeof metrics[key] === 'number' ? `${metrics[key]}${key === 'duplicateRate' || key === 'emailValidRate' ? '%' : ''}` : '—'}
+              </div>
+              <div className="text-[10px] text-text-muted font-mono uppercase tracking-wide">{label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Requirements progress */}
+      <div className="space-y-3">
+        <h3 className="font-display font-extrabold text-sm text-text-primary">Campaign Lead Requirements</h3>
+        {metrics.requirementProgress.length === 0 ? (
+          <div className="bg-card-bg border border-card-border rounded-2xl p-6 text-center text-xs text-text-muted italic">
+            No campaign lead requirements yet. Create them from the Campaign Routing tab.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {metrics.requirementProgress.map((req) => {
+              const pct = req.required > 0 ? Math.min(100, Math.round((req.delivered / req.required) * 100)) : 0;
+              return (
+                <div key={req.campaignId} className="bg-card-bg border border-card-border rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-text-primary">{req.campaignName}</p>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${req.status === 'fulfilled' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-purple-500/10 text-purple-300 border border-purple-500/20'}`}>
+                      {req.status.replace('_', ' ')}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-2 bg-background border border-card-border rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-purple-500 to-purple-300 transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-[10px] font-mono text-text-muted whitespace-nowrap">
+                      {req.delivered}/{req.required}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-6">
+        {/* Qualified by source */}
+        <div className="bg-card-bg border border-card-border rounded-2xl p-4 space-y-3">
+          <h3 className="font-display font-extrabold text-sm text-text-primary">Qualified by Source</h3>
+          {topSources.length === 0 ? (
+            <p className="text-xs text-text-muted italic">No qualified leads yet.</p>
+          ) : (
+            topSources.map((s) => (
+              <div key={s.source} className="space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-text-secondary truncate">{s.source}</span>
+                  <span className="font-mono text-text-muted">{s.count}</span>
+                </div>
+                <div className="h-1.5 bg-background border border-card-border rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500/70 rounded-full" style={{ width: `${(s.count / maxSource) * 100}%` }} />
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Qualified by member */}
+        <div className="bg-card-bg border border-card-border rounded-2xl p-4 space-y-3">
+          <h3 className="font-display font-extrabold text-sm text-text-primary">Qualified by Team Member</h3>
+          {topMembers.length === 0 ? (
+            <p className="text-xs text-text-muted italic">No qualified leads yet.</p>
+          ) : (
+            topMembers.map((m) => (
+              <div key={m.id} className="space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-text-secondary truncate">{m.name}</span>
+                  <span className="font-mono text-text-muted">{m.count}</span>
+                </div>
+                <div className="h-1.5 bg-background border border-card-border rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500/70 rounded-full" style={{ width: `${(m.count / maxMember) * 100}%` }} />
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Avg qualification time */}
+      <div className="bg-card-bg border border-card-border rounded-2xl px-4 py-3 flex items-center justify-between">
+        <span className="text-xs text-text-secondary">Average time from import to qualification</span>
+        <span className="text-xs font-mono font-bold text-purple-300">{metrics.avgDaysToQualification} days</span>
+      </div>
+    </div>
+  );
+}
