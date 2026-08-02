@@ -26,6 +26,32 @@ import {
   createShareLinkSchema,
 } from '@/lib/validation/schemas';
 import { ClientReportSnapshot } from '@/lib/client-reports/types';
+import { buildReportMetrics } from '@/lib/client-reports/metrics';
+
+const mockPrismaClient = {
+  client: { findUnique: vi.fn() },
+  campaign: { findUnique: vi.fn() },
+  lead: { count: vi.fn(), groupBy: vi.fn() },
+  activity: { findMany: vi.fn() },
+  meeting: { findMany: vi.fn() },
+  opportunity: { findMany: vi.fn() },
+  outboundMessage: { findMany: vi.fn() },
+};
+
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
+    client: { findUnique: (...args: unknown[]) => mockPrismaClient.client.findUnique(...args) },
+    campaign: { findUnique: (...args: unknown[]) => mockPrismaClient.campaign.findUnique(...args) },
+    lead: {
+      count: (...args: unknown[]) => mockPrismaClient.lead.count(...args),
+      groupBy: (...args: unknown[]) => mockPrismaClient.lead.groupBy(...args),
+    },
+    activity: { findMany: (...args: unknown[]) => mockPrismaClient.activity.findMany(...args) },
+    meeting: { findMany: (...args: unknown[]) => mockPrismaClient.meeting.findMany(...args) },
+    opportunity: { findMany: (...args: unknown[]) => mockPrismaClient.opportunity.findMany(...args) },
+    outboundMessage: { findMany: (...args: unknown[]) => mockPrismaClient.outboundMessage.findMany(...args) },
+  },
+}));
 
 describe('Client Reports Module - Unit Tests', () => {
   describe('1. Access Control (RBAC)', () => {
@@ -308,4 +334,51 @@ describe('Client Reports Module - Unit Tests', () => {
       expect(createShareLinkSchema.safeParse(emptyLink).success).toBe(true);
     });
   });
+
+  describe('6. buildReportMetrics query scoping', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockPrismaClient.client.findUnique.mockResolvedValue({ id: 'cli-1', name: 'Acme Corp' });
+      mockPrismaClient.campaign.findUnique.mockResolvedValue({ id: 'camp-1', name: 'Outreach Q1' });
+      mockPrismaClient.lead.count.mockResolvedValue(10);
+      mockPrismaClient.lead.groupBy.mockResolvedValue([]);
+      mockPrismaClient.activity.findMany.mockResolvedValue([]);
+      mockPrismaClient.meeting.findMany.mockResolvedValue([]);
+      mockPrismaClient.opportunity.findMany.mockResolvedValue([]);
+      mockPrismaClient.outboundMessage.findMany.mockResolvedValue([]);
+    });
+
+    it('scopes lead queries through campaign relation instead of direct lead.clientId', async () => {
+      const snapshot = await buildReportMetrics({
+        clientId: 'cli-1',
+        campaignId: 'camp-1',
+        periodStart: new Date('2026-07-01'),
+        periodEnd: new Date('2026-07-07'),
+        generatedById: 'u1',
+        generatedByName: 'Dean Director',
+      });
+
+      expect(snapshot.meta.clientName).toBe('Acme Corp');
+      expect(mockPrismaClient.lead.count).toHaveBeenCalledWith({
+        where: {
+          campaign: {
+            clientId: 'cli-1',
+            id: 'camp-1',
+          },
+          archivedAt: null,
+        },
+      });
+
+      expect(mockPrismaClient.meeting.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            clientId: 'cli-1',
+            campaignId: 'camp-1',
+            scheduledAt: expect.any(Object),
+          },
+        })
+      );
+    });
+  });
 });
+

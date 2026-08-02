@@ -105,6 +105,7 @@ describe('handleEmailSend', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.EMAIL_HEALTH_AUTOPAUSE;
+    delete process.env.EMAIL_SEND_DRY_RUN;
     // The deliverability preflight reads the account before quota is reserved,
     // so every test needs a sendable account unless it is testing the gate.
     mockAccountFindUnique.mockResolvedValue(mockEmailAccount());
@@ -303,6 +304,40 @@ describe('handleEmailSend — deliverability send gate', () => {
     const result = await handleEmailSend(buildPayload());
 
     expect(result).toEqual({ skipped: true, reason: 'suppressed' });
+  });
+
+  it('respects EMAIL_SEND_DRY_RUN and marks dry run without calling external email provider', async () => {
+    process.env.EMAIL_SEND_DRY_RUN = 'true';
+    mockAccountFindUnique.mockResolvedValue(mockEmailAccount());
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockSuppressionFindFirst.mockResolvedValueOnce(null);
+    mockExecuteRaw.mockResolvedValueOnce(1);
+
+    const result = await handleEmailSend(buildPayload());
+
+    expect(result).toEqual({
+      success: true,
+      dryRun: true,
+      outboundMessageId: 'msg-1',
+      providerMessageId: 'dry-run-msg-1',
+    });
+    expect(mockServiceSend).not.toHaveBeenCalled();
+    expect(mockOutboundUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: {
+        status: 'sent',
+        providerMessageId: 'dry-run-msg-1',
+        sentAt: expect.any(Date),
+        errorMessage: null,
+      },
+    });
+    expect(mockActivityCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'email_sent',
+        description: expect.stringContaining('[DRY RUN]'),
+        metadata: expect.objectContaining({ dryRun: true }),
+      }),
+    });
   });
 });
 

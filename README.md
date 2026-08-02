@@ -143,8 +143,9 @@ AUTH_SECRET="your-32-byte-hex-secret"
 NEXTAUTH_URL="http://localhost:3000"
 ENCRYPTION_KEY="your-64-char-hex-key"
 
-# Email Sending Safety Controls (Default: Disabled)
+# Email Sending Safety Controls (Default: Disabled / Dry-run)
 SEQUENCE_AUTOSEND_ENABLED="false"
+EMAIL_SEND_DRY_RUN="true"
 EMAIL_HEALTH_AUTOPAUSE="false"
 ```
 

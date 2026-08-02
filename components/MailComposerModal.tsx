@@ -35,7 +35,24 @@ export default function MailComposerModal({ lead, onClose, onSent }: MailCompose
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  const applyTemplate = useCallback((templateId: string, availableTemplates: Template[] = templates) => {
+    const t = availableTemplates.find(x => x.id === templateId);
+    if (!t) return;
+    const replacements: Record<string, string> = {
+      firstName: lead.firstName, lastName: lead.lastName, company: lead.company,
+      title: lead.title, email: lead.email, phone: lead.phone || 'your phone number',
+      sdrName: 'SDR', sdrTitle: 'Sales Development Representative',
+    };
+    const substitute = (str: string) =>
+      Object.entries(replacements).reduce(
+        (s, [k, v]) => s.replace(new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`, 'g'), v), str);
+
+    setSubject(substitute(t.subject ?? 'Following up'));
+    setBody(substitute(t.body));
+  }, [lead, templates]);
+
   useEffect(() => {
+    setLoadingAccount(true);
     Promise.all([
       fetch('/api/templates').then((r) => (r.ok ? r.json() : [])),
       fetch('/api/email/accounts').then((r) => (r.ok ? r.json() : [])),
@@ -64,23 +81,7 @@ export default function MailComposerModal({ lead, onClose, onSent }: MailCompose
       })
       .catch(() => setSubject('Following up'))
       .finally(() => setLoadingAccount(false));
-  }, [lead]);
-
-  const applyTemplate = (templateId: string, availableTemplates: Template[] = templates) => {
-    const t = availableTemplates.find(x => x.id === templateId);
-    if (!t) return;
-    const replacements: Record<string, string> = {
-      firstName: lead.firstName, lastName: lead.lastName, company: lead.company,
-      title: lead.title, email: lead.email, phone: lead.phone || 'your phone number',
-      sdrName: 'SDR', sdrTitle: 'Sales Development Representative',
-    };
-    const substitute = (str: string) =>
-      Object.entries(replacements).reduce(
-        (s, [k, v]) => s.replace(new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`, 'g'), v), str);
-
-    setSubject(substitute(t.subject ?? 'Following up'));
-    setBody(substitute(t.body));
-  };
+  }, [lead, applyTemplate]);
 
   const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const tid = e.target.value;

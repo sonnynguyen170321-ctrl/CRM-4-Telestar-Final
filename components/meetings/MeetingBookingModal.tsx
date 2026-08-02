@@ -48,11 +48,7 @@ export default function MeetingBookingModal({
   const [title, setTitle] = useState('');
   const [durationMins, setDurationMins] = useState(30);
 
-  useEffect(() => {
-    fetchBookingLinks();
-  }, [clientId, campaignId]);
-
-  async function fetchBookingLinks() {
+  const fetchBookingLinks = useCallback(async () => {
     setLinksLoading(true);
     try {
       const res = await fetch(`/api/booking-links?clientId=${clientId}&campaignId=${campaignId}`);
@@ -69,7 +65,11 @@ export default function MeetingBookingModal({
     } finally {
       setLinksLoading(false);
     }
-  }
+  }, [clientId, campaignId]);
+
+  useEffect(() => {
+    fetchBookingLinks();
+  }, [fetchBookingLinks]);
 
   const selectedLink = bookingLinks.find(l => l.id === selectedLinkId);
 

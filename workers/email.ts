@@ -164,6 +164,52 @@ async function handleEmailSend(payload: EmailSendPayload) {
     }
   }
 
+  // Dry-run gate for safe demo/staging execution
+  if (process.env.EMAIL_SEND_DRY_RUN === 'true') {
+    const dryRunProviderId = `dry-run-${outboundMessageId}`;
+    await prisma.outboundMessage.update({
+      where: { id: outboundMessageId },
+      data: {
+        status: 'sent',
+        providerMessageId: dryRunProviderId,
+        sentAt: new Date(),
+        errorMessage: null,
+      },
+    });
+
+    const resolvedLeadId = leadId ?? existing.leadId;
+    const resolvedUserId = existing.lead?.assignedToId ?? 'system';
+    await prisma.activity.create({
+      data: {
+        userId: resolvedUserId,
+        leadId: resolvedLeadId,
+        type: 'email_sent',
+        channel: 'email',
+        description: `[DRY RUN] Email would have been sent to ${to}`,
+        metadata: {
+          dryRun: true,
+          subject: finalSubject,
+          accountId,
+          outboundMessageId,
+        },
+      },
+    });
+
+    if (resolvedLeadId) {
+      await prisma.lead.update({
+        where: { id: resolvedLeadId },
+        data: { lastContactedAt: new Date() },
+      });
+    }
+
+    return {
+      success: true,
+      dryRun: true,
+      outboundMessageId,
+      providerMessageId: dryRunProviderId,
+    };
+  }
+
   // Send
   let providerMessageId: string | undefined;
   try {

@@ -44,10 +44,12 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
     campaignName = campaign?.name;
   }
 
-  // Base scope for queries
-  const leadWhereScope: any = {
-    clientId,
-    ...(campaignId ? { campaignId } : {}),
+  // Base scope for Lead-based queries (Lead -> Campaign -> Client)
+  const leadWhereScope = {
+    campaign: {
+      clientId,
+      ...(campaignId ? { id: campaignId } : {}),
+    },
   };
 
   // 2. Query Leads assigned & new
@@ -169,7 +171,8 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
   // 4. Query Meetings in Period
   const meetings = await prisma.meeting.findMany({
     where: {
-      lead: leadWhereScope,
+      clientId,
+      ...(campaignId ? { campaignId } : {}),
       scheduledAt: {
         gte: periodStart,
         lte: periodEnd,
@@ -182,7 +185,7 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
     orderBy: { scheduledAt: 'desc' },
   });
 
-  let meetingsBooked = meetings.length;
+  const meetingsBooked = meetings.length;
   let meetingsCompleted = 0;
   let noShows = 0;
   let qualifiedMeetings = 0;
@@ -244,7 +247,7 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
     orderBy: { createdAt: 'desc' },
   });
 
-  let opportunitiesSubmitted = opportunities.length;
+  const opportunitiesSubmitted = opportunities.length;
   let clientAcceptedOpportunities = 0;
   let clientRejectedOpportunities = 0;
   let activePipelineValue = 0;

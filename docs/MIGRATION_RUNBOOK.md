@@ -26,10 +26,10 @@ The migration encompasses the following relational entities:
 | **05** | Internal Lead Database | `LeadPoolItem` | Unassigned raw lead inventory with deduplication keys |
 | **06** | Campaign Requirements | `CampaignLeadRequirement` | Quotas, ICP titles, delivery target dates |
 | **07** | Working Leads & Contacts | `Contact`, `Lead` | Deduplication on `(tenantId, campaignId, normalizedEmail)` |
-| **08** | Booking Links & Meetings | `MeetingBookingLink`, `Meeting` | Waterfall resolution links & completed/scheduled meetings |
+| **08** | Booking Links & Meetings | `BookingLink`, `Meeting` | Waterfall resolution links & completed/scheduled meetings |
 | **09** | Opportunities | `Opportunity`, `OpportunityActivity` | Sales stages (`discovery` -> `closed_won`/`closed_lost`) |
 | **10** | Email Accounts & Inboxes | `EmailAccount` | Encrypted tokens (`encAccessToken`, `encRefreshToken`) |
-| **11** | Templates & Sequences | `Sequence`, `SequenceStep`, `EmailTemplate` | Automated step cadences & instructions |
+| **11** | Templates & Sequences | `Sequence`, `SequenceStep`, `Template` | Automated step cadences & instructions |
 | **12** | Suppressions & History | `SuppressionEntry`, `LeadgenActivity`, `Activity` | Domain/email suppression rules & audit trails |
 
 ---
@@ -43,6 +43,7 @@ In `.env` / production environment:
 ```env
 # CRITICAL: Prevent workers from sending emails during data ingestion
 SEQUENCE_AUTOSEND_ENABLED="false"
+EMAIL_SEND_DRY_RUN="true"
 EMAIL_HEALTH_AUTOPAUSE="false"
 ```
 
@@ -122,7 +123,7 @@ npx tsx scripts/encrypt-existing-tokens.ts
 2. **Import Campaigns** -> `Campaign`, `CampaignSdr`
 3. **Import Pool Inventory** -> `LeadPoolItem` via `/api/leadgen-pool/import`
 4. **Import Active Leads** -> `Lead` with stage mapping
-5. **Import Meetings & Outcomes** -> `MeetingBookingLink`, `Meeting`
+5. **Import Meetings & Outcomes** -> `BookingLink`, `Meeting`
 6. **Import Opportunities** -> `Opportunity`
 
 ---
@@ -145,7 +146,7 @@ SELECT role, count(*) FROM "User" GROUP BY role;
 SELECT stage, count(*) FROM "Lead" GROUP BY stage;
 
 -- 4. Check Opportunity Stages & Pipeline Totals
-SELECT stage, count(*), sum("estimatedValue") FROM "Opportunity" GROUP BY stage;
+SELECT stage, count(*), sum(value) FROM "Opportunity" GROUP BY stage;
 
 -- 5. Confirm Outbound Messages are not in unmonitored sending loops
 SELECT status, count(*) FROM "OutboundMessage" GROUP BY status;

@@ -526,10 +526,11 @@ export default function AiAssistant() {
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
-        assistantContent += chunk;
+        assistantContent = `${assistantContent}${chunk}`;
+        const currentText = assistantContent;
         setMessages((prev) => {
           const updated = [...prev];
-          updated[assistantIdx] = { role: 'assistant', content: assistantContent };
+          updated[assistantIdx] = { role: 'assistant', content: currentText };
           return updated;
         });
       }

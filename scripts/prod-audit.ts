@@ -84,7 +84,7 @@ async function main() {
 
     const badRoles = await rawCount(
       prisma,
-      "SELECT COUNT(*)::bigint AS count FROM \"User\" WHERE role::text NOT IN ('director','floor_manager','team_lead','sdr','leadgen')"
+      "SELECT COUNT(*)::bigint AS count FROM \"User\" WHERE role::text NOT IN ('director','floor_manager','team_lead','sdr','leadgen_manager','leadgen')"
     );
     record(badRoles > 0 ? 'FAIL' : 'PASS', `users with bad roles: ${badRoles}`);
 
