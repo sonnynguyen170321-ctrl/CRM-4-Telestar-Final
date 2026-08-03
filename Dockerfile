@@ -43,14 +43,18 @@ ARG NPM_VERSION
 
 WORKDIR /app
 
+# Runtime sentinels, NOT usable defaults. Every one of these fails the fail-fast
+# check in lib/env.ts, so a deployment that forgets to inject the real secrets
+# crashes on boot instead of silently serving with a known placeholder signing
+# key. The real values arrive from the platform's secret store at run time.
+# NEXTAUTH_URL is deliberately absent — auth.config.ts sets trustHost: true.
 ENV NODE_ENV=production \
   PORT=3000 \
   HOSTNAME=0.0.0.0 \
-  DATABASE_URL="postgresql://crm:crm@postgres:5432/telestar_crm" \
-  DIRECT_URL="postgresql://crm:crm@postgres:5432/telestar_crm" \
-  AUTH_SECRET="build-time-placeholder" \
-  ENCRYPTION_KEY="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" \
-  NEXTAUTH_URL="http://localhost:3000"
+  DATABASE_URL="postgresql://invalid" \
+  DIRECT_URL="postgresql://invalid" \
+  AUTH_SECRET="" \
+  ENCRYPTION_KEY="REPLACE_AT_RUNTIME"
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates openssl \
