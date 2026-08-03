@@ -40,7 +40,13 @@ export const proxy = auth(function handler(req: NextRequest & { auth: { user?: u
   return response;
 });
 
-// Exclude NextAuth endpoints, the login page, and static assets
+// Exclude NextAuth endpoints, the cron routes, the login page, and static assets.
+//
+// api/cron is excluded because this proxy demands a session and 401s anything
+// without one, which an external scheduler calling with a CRON_SECRET bearer
+// token never has. Every route under app/api/cron re-implements the same check
+// itself — `Bearer ${CRON_SECRET}` or a director/floor_manager/team_lead
+// session — so letting the request reach the handler opens nothing up.
 export const config = {
-  matcher: ['/((?!api/auth|login|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)'],
+  matcher: ['/((?!api/auth|api/cron|login|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)'],
 };
