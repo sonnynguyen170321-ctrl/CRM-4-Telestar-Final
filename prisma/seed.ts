@@ -217,14 +217,19 @@ async function main() {
     },
   });
 
-  // Leadgen team
+  // Leadgen team. Dominic runs the pod, so he carries leadgen_manager — the same
+  // role the 20260802020000_promote_leadgen_managers migration would give him
+  // (a leadgen user is a member only when their own manager is leadgen; his is
+  // Dean). Seeding him as plain 'leadgen' left the database with no
+  // leadgen_manager at all, which made /leadgen-manager unreachable for every
+  // account except director and floor_manager.
   const dominic = await prisma.user.create({
     data: {
       email: 'dominic@telestar.vn',
       password: pw,
       firstName: 'Dominic',
       lastName: '',
-      role: 'leadgen',
+      role: 'leadgen_manager',
       managerId: dean.id,
       timezone: 'Asia/Ho_Chi_Minh',
     },
