@@ -159,15 +159,38 @@ On the VM. **Node.js is not needed and is not installed** — migrations and see
 the application image, which already contains `prisma`, `@prisma/client` and `tsx` as runtime
 dependencies:
 
+Docker must come from Docker's own apt repository. Ubuntu ships `docker.io`, but **not**
+`docker-compose-plugin` — and because apt aborts the whole transaction on one unknown
+package, asking for both installs neither, leaving a confusing
+`usermod: group 'docker' does not exist` as the only visible symptom. The v2 `docker compose`
+subcommand every command below uses exists only in this package.
+
 ```bash
 sudo apt-get update
-sudo apt-get install -y docker.io docker-compose-plugin git
+sudo apt-get install -y ca-certificates curl gnupg git
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 sudo usermod -aG docker $USER
-newgrp docker
+docker compose version
+exit
+```
 
+`exit` is part of the block: Linux only reads group membership at login, so the new `docker`
+group does not apply until you reconnect. Prefer this over `newgrp docker`, which opens a
+sub-shell and silently swallows the remainder of a pasted block.
+
+Reconnect with `gcloud compute ssh "$VM_NAME" --zone="$ZONE"`, confirm `docker ps` returns an
+empty table rather than a socket permission error, then:
+
+```bash
 sudo mkdir -p /opt/crm-4-u && sudo chown -R $USER:$USER /opt/crm-4-u
 git clone <REPO_URL> /opt/crm-4-u
 cd /opt/crm-4-u
+git log --oneline -1
 ```
 
 ---
@@ -243,10 +266,29 @@ Validate the environment before anything touches the database. There is no Node 
 so the checker runs inside the image with the env file bind-mounted:
 
 ```bash
-$DC run --rm -v "$PWD/.env.production:/app/.env.production:ro" web npm run prod:check-env
+$DC run --rm --user root -v "$PWD/.env.production:/app/.env.production:ro" web npm run prod:check-env
 ```
 
+`--user root` is required. The image runs as the `node` user (uid 1000) while
+`.env.production` is mode 600 owned by your VM account (uid 1001), so a read-only bind mount
+without it fails with `EACCES: permission denied, open '.env.production'`. Overriding the
+container user keeps the file at 600 on disk rather than loosening its permissions.
+
 Fix anything it reports before continuing. Then migrate, seed, and start:
+
+> **`prod:check-env` validates URL *shape*, not credentials.** A wrong or empty database
+> password still parses as a valid URL and passes. The first real credential test is
+> `migrate deploy` below — a `P1000: Authentication failed` there means the password in
+> `.env.production` and the one on the Cloud SQL user disagree. Resolve it by setting both
+> to one known value:
+> ```bash
+> # on the VM — rewrite all three DSNs, then print the matching gcloud command
+> NEWPW=$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32)
+> sed -i -E "s|(postgresql://crm:)[^@]*(@)|\1${NEWPW}\2|g" .env.production
+> echo "gcloud sql users set-password crm --instance=$DB_INSTANCE --password='${NEWPW}'"
+> ```
+> Run the printed line in Cloud Shell, then retry. Note `P1000` means the server was reached
+> and rejected the credentials — a genuine network/allowlist problem times out instead.
 
 ```bash
 $DC run --rm web npx prisma migrate deploy
@@ -376,3 +418,16 @@ not reintroduced:
    was not a declared dependency. `dotenv` is now in `dependencies`.
 8. No static IP was reserved, so the external address changed on every VM stop and broke both
    DNS and the Cloud SQL allowlist.
+
+Two more were found while running this runbook end to end against a live project, and are
+fixed above:
+
+9. `apt-get install docker.io docker-compose-plugin` installs **neither** — `docker-compose-plugin`
+   is not in the Ubuntu archive, and apt aborts the whole transaction on an unknown package.
+   Docker now comes from Docker's own apt repository.
+10. The `prod:check-env` bind mount failed with `EACCES` because the image runs as uid 1000
+    while the mode-600 env file is owned by uid 1001. The check now runs with `--user root`.
+
+Also worth knowing: the repeated `WARN ... "POSTGRES_PASSWORD" variable is not set` lines are
+expected noise. Compose interpolates the local `postgres` service block before deciding the
+`aws` overlay profile disables it. They are harmless.
