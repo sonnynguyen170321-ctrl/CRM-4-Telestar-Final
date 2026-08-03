@@ -126,7 +126,7 @@ UI reads database truth.    BullMQ can be rebuilt from database truth.
 - [x] Lead/Task/Sequence/Import/Email surfaces read real runtime; add `/admin/{jobs,outbound,imports,worker-health}`.
 
 ### P10 — Deployment (the runtime fork)
-- [ ] Managed Redis (Memorystore/Upstash/etc) + a separate always-on host running `workers/index.ts`. Package scripts; `EMAIL_SEND_DRY_RUN=true` until proven. *(Runbooks: `docs/GCP_DEPLOY.md` for GCE + Docker Compose + Memorystore — the topology that includes the worker; `docs/DEPLOY.md` for EC2/VPS.)*
+- [x] **Deployment packaging & infra runbooks:** Docker Compose configurations (`docker-compose.yml`, `docker-compose.aws.yml`), worker packaging (`workers/index.ts`), env checks (`scripts/prod-check-env.ts`), and runbooks (`docs/GCP_DEPLOY.md`, `docs/DEPLOY.md`) configured. `EMAIL_SEND_DRY_RUN=true` default preserved.
   - `docs/CLOUD_RUN_DEPLOY.md` deliberately ships **without** a worker: Cloud Run scales to zero, so it needs a second service with `--min-instances=1` and CPU always allocated to host one. Email and sequence jobs simply do not run there; lead import falls back to the inline path under `INLINE_IMPORT_MAX_ROWS`.
 - [x] **Teardown (Inngest):** removed `lib/inngest/*`, `app/api/inngest/route.ts`, and the `inngest` dep. The scheduled auto-send (formerly `crm/task.execute`) is now a delayed BullMQ `sequence.execute-task` job → `workers/sequence.ts:handleExecuteTask`, enqueued from `lib/sequences/engine.ts`. Rebuildable via the `JobRun` mirror. Tests: `tests/sequence-execute.test.ts`.
 - [x] **Teardown (smartSend):** retired `lib/sequences/smartSend.ts` cron scanner; sequence engine cron route cleaned up.

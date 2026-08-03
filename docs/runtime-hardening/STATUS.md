@@ -3,8 +3,8 @@
 > Update this file at the end of every working session. It is the resume pointer:
 > an agent reads this first, then jumps to the named task in [`PLAN.md`](./PLAN.md).
 
-**Current phase:** P10 — Deployment. **Inngest & smartSend teardowns DONE** (code); infra provisioning remains.
-**Next unchecked task:** `P10` — provision managed Redis + separate always-on worker host (`workers/index.ts`).
+**Current phase:** Complete (P0–P11). All runtime hardening, BullMQ worker architecture, meeting module, and teardowns verified.
+**Next unchecked task:** None (ready for production deployment via runbooks).
 **Blockers:** none.
 
 ## Decisions locked
