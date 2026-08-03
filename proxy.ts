@@ -40,13 +40,21 @@ export const proxy = auth(function handler(req: NextRequest & { auth: { user?: u
   return response;
 });
 
-// Exclude NextAuth endpoints, the cron routes, the login page, and static assets.
+// Exclude NextAuth endpoints, the cron routes, the health probe, the login page,
+// and static assets.
 //
 // api/cron is excluded because this proxy demands a session and 401s anything
 // without one, which an external scheduler calling with a CRON_SECRET bearer
 // token never has. Every route under app/api/cron re-implements the same check
 // itself — `Bearer ${CRON_SECRET}` or a director/floor_manager/team_lead
 // session — so letting the request reach the handler opens nothing up.
+//
+// api/health is excluded for the same reason: an uptime check or a platform
+// health probe has no session either, so it only ever saw a 401 and could not
+// report on the database. The handler runs `SELECT 1` and returns nothing but a
+// boolean, so it is safe to reach unauthenticated.
 export const config = {
-  matcher: ['/((?!api/auth|api/cron|login|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)'],
+  matcher: [
+    '/((?!api/auth|api/cron|api/health|login|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)',
+  ],
 };
