@@ -1,4 +1,4 @@
-# SalesFlow CRM — Multi-Tenant BPO SDR & Outbound Revenue Platform
+# Telestar CRM — Multi-Tenant BPO SDR & Outbound Revenue Platform
 
 A production-grade, multi-tenant BPO SDR-as-a-Service CRM built with **Next.js 16 (App Router)**, **Prisma ORM (PostgreSQL)**, **BullMQ + Redis**, and **Tailwind CSS**.
 
