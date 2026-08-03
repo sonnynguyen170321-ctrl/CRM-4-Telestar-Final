@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, tenantStorage } from '@/lib/prisma';
 import { EmailService } from '@/lib/email/EmailService';
-import { scheduleSmartSends, distributeSends } from '@/lib/sequences/smartSend';
 import { auth } from '@/auth';
 
 export const dynamic = 'force-dynamic';
@@ -118,16 +117,7 @@ export async function GET(req: NextRequest) {
     }) : [];
     const tenantMap = new Map(userTenants.map(u => [u.id, u.tenantId]));
 
-    for (const acc of activeAccounts) {
-      const tenantId = tenantMap.get(acc.userId);
-      if (tenantId) {
-        await tenantStorage.run({ tenantId }, async () => {
-          await distributeSends(acc.id);
-        });
-      }
-    }
-
-    const result = await scheduleSmartSends();
+    const result = { sent: 0, skipped: 0, errors: [] as string[] };
 
     const now = new Date();
     const lockCutoff = new Date(now.getTime() - LOCK_STALE_MS);

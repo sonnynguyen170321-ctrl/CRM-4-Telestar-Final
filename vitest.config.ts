@@ -13,6 +13,8 @@ export default defineConfig({
     hookTimeout: 30000,
     testTimeout: 20000,
     env: {
+      DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/telestar_crm',
+      DIRECT_URL: process.env.DIRECT_URL || 'postgresql://postgres:postgres@localhost:5432/telestar_crm',
       ENCRYPTION_KEY: '6d64c7c6eea90808d36288f23843bf9d9f472c558deaa00c731107030a5b717b',
     },
   },

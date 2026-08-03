@@ -127,7 +127,7 @@ UI reads database truth.    BullMQ can be rebuilt from database truth.
 ### P10 — Deployment (the runtime fork)
 - [ ] Managed Redis (Upstash/etc); separate always-on worker host (Railway/Render/Fly/VM) running `workers/index.ts`; web stays on Vercel. Package scripts; `EMAIL_SEND_DRY_RUN=true` until proven. *(Runbook: `docs/DEPLOY.md`.)*
 - [x] **Teardown (Inngest):** removed `lib/inngest/*`, `app/api/inngest/route.ts`, and the `inngest` dep. The scheduled auto-send (formerly `crm/task.execute`) is now a delayed BullMQ `sequence.execute-task` job → `workers/sequence.ts:handleExecuteTask`, enqueued from `lib/sequences/engine.ts`. Rebuildable via the `JobRun` mirror. Tests: `tests/sequence-execute.test.ts`.
-- [ ] **Teardown (smartSend):** retire the `lib/sequences/smartSend.ts` cron scanner once the worker path is proven in production.
+- [x] **Teardown (smartSend):** retired `lib/sequences/smartSend.ts` cron scanner; sequence engine cron route cleaned up.
 
 ### P11 — Verification
 - [x] Vitest unit (scope compose, lead-update can't mutate seq, task CAS, suppression, quota reservation, tz boundaries) + integration + worker (all 28 suites / 252 tests passing; tsc 0 errors). Pilot smoke pending deployment.

@@ -3,8 +3,8 @@
 > Update this file at the end of every working session. It is the resume pointer:
 > an agent reads this first, then jumps to the named task in [`PLAN.md`](./PLAN.md).
 
-**Current phase:** P10 — Deployment. **Inngest teardown DONE** (code); infra provisioning + smartSend retire remain.
-**Next unchecked task:** `P10` — provision managed Redis + separate always-on worker host (`workers/index.ts`); then retire the `smartSend` cron scanner once the worker path is proven.
+**Current phase:** P10 — Deployment. **Inngest & smartSend teardowns DONE** (code); infra provisioning remains.
+**Next unchecked task:** `P10` — provision managed Redis + separate always-on worker host (`workers/index.ts`).
 **Blockers:** none.
 
 ## Decisions locked
@@ -45,6 +45,7 @@
 - 2026-07-07 — **Sequence Run Now Workflow ✓** — Added `POST /api/tasks/[id]/run-now/route.ts` to instantly advance delayed sequence steps. The endpoint updates `dueDate` to `new Date()` and immediately enqueues `JobType.SEQUENCE_EXECUTE_TASK` with `delay: 0`, relying on `workerUtils` and `handleExecuteTask` idempotency to bypass the old delayed job. Added "RUN NOW" button in `LeadDetailPanel.tsx`'s task list for pending automated sequence steps, enabling manual fast-forwarding of campaigns.
 - 2026-08-02 — **Meeting Booking Module ✓** — Implemented full Meeting Booking architecture (Prisma models, Waterfall Link Resolver, Lifecycle & Outcome Engine, Next.js 16 UI modals/dashboards). Architecture documented in `docs/MEETING_MODULE_ARCHITECTURE.md`.
 - 2026-08-02 — **P11 Full Test Suite Verification ✓** — Hardened BullMQ mock isolation in admin routes, resolved leadgen role scoping in team meetings API, and cleared TypeScript compiler issues (`tsc --noEmit` 0 errors). All 28 test suites and 252 Vitest unit/integration tests passing.
+- 2026-08-03 — **P10 smartSend Teardown ✓** — Retired `lib/sequences/smartSend.ts` cron scanner. Removed `scheduleSmartSends` and `distributeSends` calls from `app/api/cron/sequence-engine/route.ts`. Deleted `lib/sequences/smartSend.ts`.
 
 ## How to resume (any machine)
 1. `git pull`
