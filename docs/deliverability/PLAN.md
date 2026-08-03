@@ -95,7 +95,7 @@ client list has bad data? Should we pause, reduce volume, or switch channels?*
 
 ---
 
-## P7a — Repair `client-reports` ⬜ **← NEXT**
+## P7a — Repair `client-reports` ✅
 
 Pre-existing, not caused by this work. Full diagnosis in
 [`STATUS.md` § Blockers](./STATUS.md#blockers--client-reports-is-red-and-it-is-not-ours).

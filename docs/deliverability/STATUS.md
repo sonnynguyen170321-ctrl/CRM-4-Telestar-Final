@@ -6,7 +6,11 @@
 
 **Current phase:** Complete (P0 through P8 all completed and green).
 **Next unchecked task:** All phases (P0–P8) complete.
-**Blockers:** None. `tsc --noEmit` is clean (0 errors) and all 35 test suites (358 tests) pass.
+**Blockers:** None.
+
+**Gates re-measured 2026-08-03:** `tsc --noEmit` 0 errors · eslint 0 errors ·
+Vitest **37 suites / 388 tests** all passing · Playwright **20/20**
+(`e2e/crm-journeys.spec.ts` + `e2e/deep-smoke.spec.ts`).
 
 ---
 
@@ -71,7 +75,7 @@ then the dashboard renders correctly but with thin data. Do not interpret low co
 | 2026-08-02 | **P4** ✅ | `app/api/cron/email-health/route.ts` + send gate in `workers/email.ts`. `tests/email-worker.test.ts` **7 → 17 tests green**, including *"blocks a manager-paused inbox without consuming daily quota"*. |
 | 2026-08-02 | **P5** ✅ | 12 routes under `app/api/email-health/**`, incl. real `dns/promises` SPF/DMARC/MX checking. |
 | 2026-08-02 | **P6** ✅ | `app/email-health/page.tsx` + 8 components + sidebar nav + `/automation` table moved out. |
-| 2026-08-02 | **P7a** ⬜ | **IN PROGRESS** — see Blockers. |
+| 2026-08-02 | **P7a** ✅ | `client-reports` repaired — tsc and its suite green. |
 
 **Tests added by this work: 74** — sync +14 (15→29), scoring +28 (new), access +22 (new),
 email worker +10 (7→17).
@@ -83,14 +87,21 @@ filtering the output).
 
 ---
 
-## Blockers — `client-reports` is red and it is not ours
+## Blockers — RESOLVED (historical record below)
 
-`tsc --noEmit` reports **117 errors**; the suite has **11 failing tests**. Every one is in
+> **Resolved.** P7a repaired `client-reports`; `docs/client-reports/PLAN.md` now shows
+> Phases 0–5 done. Re-measured 2026-08-03: `tsc --noEmit` **0 errors**, Vitest
+> **388/388**. The counts below are kept only as a record of what P7a faced.
+>
+> This section stayed stale long enough to mislead — `CLAUDE.md` was still repeating
+> "117 errors" on 2026-08-03. **Run the gates before trusting any status doc.**
+
+`tsc --noEmit` reported **117 errors**; the suite had **11 failing tests**. Every one was in
 `client-reports`, a module that was mid-build before this work started (its own
-`docs/client-reports/PLAN.md` says Phase 0 IN PROGRESS, Phases 1–5 PENDING).
-**Zero errors are in any file this work touched** — verified by filtering tsc output.
+`docs/client-reports/PLAN.md` said Phase 0 IN PROGRESS, Phases 1–5 PENDING).
+**Zero errors were in any file this work touched** — verified by filtering tsc output.
 
-`next.config.ts` has no `typescript.ignoreBuildErrors`, so **`next build` fails today.**
+`next.config.ts` has no `typescript.ignoreBuildErrors`, so `next build` failed at the time.
 
 ### Affected files
 ```

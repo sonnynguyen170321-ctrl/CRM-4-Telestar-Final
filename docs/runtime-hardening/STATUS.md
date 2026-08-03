@@ -8,7 +8,7 @@
 **Blockers:** none.
 
 ## Decisions locked
-- **Runtime:** Full BullMQ — separate always-on worker host + managed Redis (P10). Web stays on Vercel.
+- **Runtime:** Full BullMQ — separate always-on worker host + managed Redis (P10). The web tier is host-agnostic; there is no Vercel coupling in this repo (no `vercel.json`, no `@vercel/*`, no edge runtime). See `docs/GCP_DEPLOY.md`, `docs/CLOUD_RUN_DEPLOY.md`, `docs/DEPLOY.md`.
 - **Scope:** Entire plan P0–P11.
 - **Migrations/workers:** use `DIRECT_URL` (Neon HTTP driver has no interactive transactions).
 - **Email live-send:** stays `EMAIL_SEND_DRY_RUN=true` until P4/P6 verified.

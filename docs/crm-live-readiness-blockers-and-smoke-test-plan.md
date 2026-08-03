@@ -8,16 +8,35 @@
 
 ## Progress Tracker
 
+Verified against the code on 2026-08-03. All four blockers were already fixed; the boxes
+below had simply never been ticked, which made the document read as if nothing had been done.
+
 ```text
-□ Phase 0 — Create safety branch and freeze demo data
-□ Blocker 1 — Fix Client Report metrics runtime issue
-□ Blocker 2 — Fix production audit role validation
-□ Blocker 3 — Fix EMAIL_SEND_DRY_RUN safety inconsistency
-□ Blocker 4 — Fix Migration Runbook stale model/field names
-□ Phase 5 — Run local validation commands
-□ Phase 6 — Run full end-to-end smoke test
-□ Phase 7 — Final demo/live readiness sign-off
+■ Blocker 1 — Client Report metrics        lib/client-reports/metrics.ts scopes leads through
+                                           campaign.clientId, not Lead.clientId
+■ Blocker 2 — prod-audit role validation   scripts/prod-audit.ts role list includes
+                                           leadgen_manager and leadgen
+■ Blocker 3 — EMAIL_SEND_DRY_RUN           present in .env.example and both compose files,
+                                           enforced by scripts/prod-check-env.ts, honoured
+                                           at workers/email.ts
+■ Blocker 4 — Migration Runbook names      docs/MIGRATION_RUNBOOK.md uses BookingLink,
+                                           Template, sum(value); role list current
+■ Phase 5 — Local validation               tsc 0 · eslint 0 · Vitest 388/388 · Playwright 20/20
+■ Phase 6 — End-to-end smoke               automated as e2e/deep-smoke.spec.ts (6 personas ×
+                                           every route, role gates, outbound-email guard)
+□ Phase 7 — Final demo/live sign-off       pending the actual deployment
 ```
+
+> **Blocker 3 caveat — the flag is not the guard.** `EMAIL_SEND_DRY_RUN` is honoured only in
+> `workers/email.ts`. `app/api/cron/sequence-engine/route.ts` sends through
+> `EmailService.send()` directly and never consults it, so on any deployment without a
+> worker the load-bearing guard is `SEQUENCE_AUTOSEND_ENABLED=false`. Set both, and verify
+> behaviourally — `deep-smoke.spec.ts` asserts the route returns `{"disabled":true,"sent":0}`.
+
+> **Two blockers this document never listed** were found on 2026-08-03 and are now fixed:
+> the migration history did not reproduce `schema.prisma` (Meeting/BookingLink/Attachment
+> and more had no migration), and the auth proxy returned 401 for every `/api/cron/*` and
+> `/api/health` request before those handlers could run their own checks.
 
 ---
 
@@ -907,21 +926,35 @@ It is demo-ready and near-live ready after final smoke test and deployment safet
 
 # Quick Final Checklist
 
+Code and gates verified 2026-08-03 against a local PostgreSQL 16.10 stack.
+Everything still open depends on the deployment itself.
+
 ```text
-□ Client Report metrics fixed
-□ prod-audit role list fixed
-□ EMAIL_SEND_DRY_RUN implemented or removed consistently
-□ Migration Runbook corrected
-□ npm ci passed
-□ prisma generate passed
-□ migrations passed
-□ seed passed
-□ lint passed
-□ typecheck passed
-□ tests passed
-□ build passed
-□ smoke test passed
-□ demo data prepared
-□ real email sending disabled
+■ Client Report metrics fixed
+■ prod-audit role list fixed
+■ EMAIL_SEND_DRY_RUN implemented consistently   (but see the caveat above — it gates the
+                                                 worker only; SEQUENCE_AUTOSEND_ENABLED is
+                                                 the guard on the worker-free send path)
+■ Migration Runbook corrected
+■ npm ci passed                                  lockfile valid after moving prisma into
+                                                 dependencies — the Dockerfile runs npm ci twice
+■ prisma generate passed
+■ migrations passed                              on an empty database; migrate diff then
+                                                 reports an empty migration (zero drift)
+■ seed passed
+■ lint passed                                    0 errors (56 pre-existing unused-var warnings)
+■ typecheck passed                               tsc --noEmit, 0 errors
+■ tests passed                                   Vitest 37 suites / 388 tests
+■ build passed                                   next build exit 0
+■ smoke test passed                              Playwright 20/20, automated in
+                                                 e2e/deep-smoke.spec.ts
+■ demo data prepared                             seeded org; dominic is leadgen_manager so
+                                                 the /leadgen-manager persona is reachable
+□ real email sending disabled                    verify on the deployment: no EmailAccount
+                                                 rows, and the cron route must answer
+                                                 {"disabled":true,"sent":0}
 □ tag created
 ```
+
+> **Windows note:** `prisma generate` fails with `EPERM ... query_engine-windows.dll.node`
+> if a dev server is running — it holds the engine open. Stop it before building.

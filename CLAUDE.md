@@ -23,10 +23,17 @@ P0–P8 are done, including the P7a `client-reports` repair.
 
 Reference: `docs/deliverability/PLAN.md` and `docs/deliverability/STATUS.md`.
 
-> **Gates as of 2026-08-03:** `tsc --noEmit` 0 errors · eslint clean · Vitest 387/388
-> (the one failure is cross-file test isolation — several suites share a database and
-> `deleteMany()` in `beforeEach`; `tests/bullmq.test.ts` passes 7/7 on its own) ·
-> Playwright 20/20 across `crm-journeys` and `deep-smoke`.
+> **Gates as of 2026-08-03:** `npm ci` clean · `tsc --noEmit` 0 errors · eslint 0 errors
+> (56 pre-existing unused-var warnings) · Vitest **388/388** · `next build` exit 0 ·
+> Playwright **20/20** across `crm-journeys` and `deep-smoke`.
+>
+> Vitest is occasionally 387/388: several DB suites share one database and call
+> `deleteMany()` in `beforeEach`, so parallel files can wipe each other's rows.
+> `tests/bullmq.test.ts` passes 7/7 in isolation. Re-run the file alone before treating
+> a failure there as real.
+>
+> `prisma generate` fails on Windows with `EPERM ... query_engine-windows.dll.node` while a
+> dev server is running — stop it before `npm run build`.
 >
 > An earlier note here claimed 117 `tsc` errors and 11 failing tests. That was stale —
 > the P7a repair had already landed. Re-run the gates before trusting any status doc.

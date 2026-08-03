@@ -15,7 +15,8 @@
 
 **Runtime constraints that bite (verified):**
 - DB is **Neon**. The serverless **HTTP driver has no interactive transactions** — single-statement compare-and-set (`updateMany`) is fine, but multi-step atomic work in **workers must use `DIRECT_URL`** (TCP).
-- Web runs on **Vercel serverless only** (functions pinned to `sin1`). BullMQ workers need a **separate always-on host + managed Redis** — they do **not** run on Vercel. See P10.
+- BullMQ workers need a **separate always-on host + managed Redis**. Any request-scoped or scale-to-zero host (Vercel functions, Cloud Run without `--min-instances`) cannot run `workers/index.ts`. See P10.
+  - The old note here claimed the web tier "runs on Vercel serverless only, functions pinned to `sin1`". That was never true of this repo — there is no `vercel.json`, no `@vercel/*` dependency, and no edge runtime. Deployment targets are GCE/Docker (`docs/GCP_DEPLOY.md`), Cloud Run (`docs/CLOUD_RUN_DEPLOY.md`), and EC2/VPS (`docs/DEPLOY.md`). Crons are driven by a host scheduler with a `CRON_SECRET` bearer, not `vercel.json` crons.
 - **Next.js 16** has breaking changes vs training data — read `node_modules/next/dist/docs/` before writing route/runtime code (per `AGENTS.md`).
 - Encryption already exists: `lib/crypto.ts` (AES-256-GCM + optional KMS), `ENCRYPTION_KEY` env. Reuse it; don't roll new crypto.
 
@@ -125,7 +126,8 @@ UI reads database truth.    BullMQ can be rebuilt from database truth.
 - [x] Lead/Task/Sequence/Import/Email surfaces read real runtime; add `/admin/{jobs,outbound,imports,worker-health}`.
 
 ### P10 — Deployment (the runtime fork)
-- [ ] Managed Redis (Upstash/etc); separate always-on worker host (Railway/Render/Fly/VM) running `workers/index.ts`; web stays on Vercel. Package scripts; `EMAIL_SEND_DRY_RUN=true` until proven. *(Runbook: `docs/DEPLOY.md`.)*
+- [ ] Managed Redis (Memorystore/Upstash/etc) + a separate always-on host running `workers/index.ts`. Package scripts; `EMAIL_SEND_DRY_RUN=true` until proven. *(Runbooks: `docs/GCP_DEPLOY.md` for GCE + Docker Compose + Memorystore — the topology that includes the worker; `docs/DEPLOY.md` for EC2/VPS.)*
+  - `docs/CLOUD_RUN_DEPLOY.md` deliberately ships **without** a worker: Cloud Run scales to zero, so it needs a second service with `--min-instances=1` and CPU always allocated to host one. Email and sequence jobs simply do not run there; lead import falls back to the inline path under `INLINE_IMPORT_MAX_ROWS`.
 - [x] **Teardown (Inngest):** removed `lib/inngest/*`, `app/api/inngest/route.ts`, and the `inngest` dep. The scheduled auto-send (formerly `crm/task.execute`) is now a delayed BullMQ `sequence.execute-task` job → `workers/sequence.ts:handleExecuteTask`, enqueued from `lib/sequences/engine.ts`. Rebuildable via the `JobRun` mirror. Tests: `tests/sequence-execute.test.ts`.
 - [x] **Teardown (smartSend):** retired `lib/sequences/smartSend.ts` cron scanner; sequence engine cron route cleaned up.
 
