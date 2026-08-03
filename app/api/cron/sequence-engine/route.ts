@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, tenantStorage } from '@/lib/prisma';
 import { EmailService } from '@/lib/email/EmailService';
+import { isAutosendEnabled } from '@/lib/emailSafety';
 import { auth } from '@/auth';
 
 export const dynamic = 'force-dynamic';
@@ -100,7 +101,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (process.env.SEQUENCE_AUTOSEND_ENABLED === 'false') {
+  if (!isAutosendEnabled()) {
     return NextResponse.json({ disabled: true, sent: 0 });
   }
 

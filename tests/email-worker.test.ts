@@ -105,7 +105,10 @@ describe('handleEmailSend', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.EMAIL_HEALTH_AUTOPAUSE;
-    delete process.env.EMAIL_SEND_DRY_RUN;
+    // Dry-run is now the default when EMAIL_SEND_DRY_RUN is unset, so the real-send
+    // path has to be opted into explicitly. Deleting the var would route every test
+    // below into the dry-run branch and they would stop exercising the provider.
+    process.env.EMAIL_SEND_DRY_RUN = 'false';
     // The deliverability preflight reads the account before quota is reserved,
     // so every test needs a sendable account unless it is testing the gate.
     mockAccountFindUnique.mockResolvedValue(mockEmailAccount());

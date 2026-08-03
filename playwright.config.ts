@@ -2,9 +2,12 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  timeout: 60000,
+  // Remote targets are slower than a local dev server end to end: sign-in alone has been
+  // measured at up to 37s against GCE + Cloud SQL, and beforeEach time counts against the
+  // test budget. 60s left no headroom once the login wait was raised to match reality.
+  timeout: process.env.BASE_URL ? 120_000 : 60_000,
   expect: {
-    timeout: 10000,
+    timeout: process.env.BASE_URL ? 20_000 : 10_000,
   },
   fullyParallel: false,
   retries: 0,
@@ -22,10 +25,15 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'node "node_modules/next/dist/bin/next" dev -p 3000',
-    url: 'http://localhost:3000',
-    reuseExistingServer: true,
-    timeout: 120 * 1000,
-  },
+  // Only boot a local dev server when no BASE_URL was supplied. Without this guard the
+  // suite still waits on http://localhost:3000 even when pointed at a deployment, so
+  // running it as a post-deploy gate either hangs or silently tests the wrong target.
+  webServer: process.env.BASE_URL
+    ? undefined
+    : {
+        command: 'node "node_modules/next/dist/bin/next" dev -p 3000',
+        url: 'http://localhost:3000',
+        reuseExistingServer: true,
+        timeout: 120 * 1000,
+      },
 });

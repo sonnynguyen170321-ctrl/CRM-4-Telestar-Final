@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test';
 
+// Sign-in round-trip budget. 10s was enough against a local dev server but is marginal
+// against a deployment: on the GCE + Cloud SQL box the same leadgen login measured
+// anywhere from under 10s to 37s, so a fixed 10s made the suite fail roughly one run in
+// three with a timeout that looked like an auth bug. Credentials were never the problem —
+// POSTing them directly returns 302 with a valid session every time.
+const LOGIN_TIMEOUT = process.env.BASE_URL ? 45_000 : 15_000;
+
 test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
   test('Unauthenticated user is redirected to login', async ({ page }) => {
     await page.goto('/');
@@ -20,7 +27,7 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
         await page.fill('input[type="password"]', 'telestar2026');
         await page.click('button[type="submit"]');
       }
-      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
+      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: LOGIN_TIMEOUT });
     });
 
     test('Director has full executive access across all modules', async ({ page }) => {
@@ -62,7 +69,7 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
         await page.fill('input[type="password"]', 'telestar2026');
         await page.click('button[type="submit"]');
       }
-      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
+      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: LOGIN_TIMEOUT });
     });
 
     test('Floor Manager accesses team supervision, meetings, and deliverability', async ({ page }) => {
@@ -100,7 +107,7 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
         await page.fill('input[type="password"]', 'telestar2026');
         await page.click('button[type="submit"]');
       }
-      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
+      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: LOGIN_TIMEOUT });
     });
 
     test('Team Lead supervises pod tasks and sequence executions', async ({ page }) => {
@@ -134,7 +141,7 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
         await page.fill('input[type="password"]', 'telestar2026');
         await page.click('button[type="submit"]');
       }
-      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
+      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: LOGIN_TIMEOUT });
     });
 
     test('SDR executes focused daily task queue and is gated from executive hubs', async ({ page }) => {
@@ -176,7 +183,7 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
         await page.fill('input[type="password"]', 'telestar2026');
         await page.click('button[type="submit"]');
       }
-      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
+      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: LOGIN_TIMEOUT });
     });
 
     test('Leadgen Specialist auto-routes to /leadgen prospecting workbench', async ({ page }) => {
@@ -202,7 +209,7 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
         await page.fill('input[type="password"]', 'telestar2026');
         await page.click('button[type="submit"]');
       }
-      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
+      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: LOGIN_TIMEOUT });
     });
 
     test('Leadgen Manager has access to 7-tab database ecosystem', async ({ page }) => {

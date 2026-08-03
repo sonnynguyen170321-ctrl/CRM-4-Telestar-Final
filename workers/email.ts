@@ -3,6 +3,7 @@ import { createAppWorker } from '@/lib/bullmq';
 import { JobType } from '@/lib/bullmq/types';
 import type { EmailSendPayload } from '@/lib/bullmq/types';
 import { EmailService } from '@/lib/email/EmailService';
+import { isDryRun } from '@/lib/emailSafety';
 import { renderTemplate } from '@/lib/templates/render';
 
 function isHtml(text: string): boolean {
@@ -164,8 +165,9 @@ async function handleEmailSend(payload: EmailSendPayload) {
     }
   }
 
-  // Dry-run gate for safe demo/staging execution
-  if (process.env.EMAIL_SEND_DRY_RUN === 'true') {
+  // Dry-run gate for safe demo/staging execution. Engaged unless EMAIL_SEND_DRY_RUN
+  // is explicitly "false" — see lib/emailSafety.ts for why the default is inverted.
+  if (isDryRun()) {
     const dryRunProviderId = `dry-run-${outboundMessageId}`;
     await prisma.outboundMessage.update({
       where: { id: outboundMessageId },
