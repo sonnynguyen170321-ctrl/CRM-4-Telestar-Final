@@ -12,7 +12,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: brandng/clone-crm-4-u-migration
+  IMAGE_NAME: sonnynguyen170321-ctrl/crm-4-telestar-final
 
 jobs:
   build:

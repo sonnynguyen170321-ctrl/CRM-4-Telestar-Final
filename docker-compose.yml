@@ -1,5 +1,5 @@
 x-app-base: &app-base
-  image: ghcr.io/brandng/clone-crm-4-u-migration:${IMAGE_TAG:-latest}
+  image: ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final:${IMAGE_TAG:-latest}
   env_file:
     - ${APP_ENV_FILE:-.env.docker}
   environment:
