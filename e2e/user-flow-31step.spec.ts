@@ -1,35 +1,82 @@
 import { test, expect } from '@playwright/test';
+import type { APIRequestContext, Page } from '@playwright/test';
 
+/**
+ * The full product journey from the post-migration instructions doc §6:
+ *
+ *   Lead Pool -> Qualified Lead -> SDR Lead -> Task -> Meeting -> Opportunity -> Client Report
+ *
+ * This is the only test that exercises the write path end to end, so it is the one
+ * that catches contract drift. Several steps below call out *why* they are shaped the
+ * way they are — each corresponds to a defect where the spec previously asserted
+ * something that could never fail.
+ */
 test.describe('31-Step Director & SDR E2E Journey', () => {
-  test.describe.configure({ timeout: 180_000 });
+  test.describe.configure({ timeout: 240_000 });
 
-  const PASSWORD = 'telestar2026';
-  let createdSdrEmail = `sdr.e2e.${Date.now()}@telestar.vn`;
-  let createdLgMgrEmail = `lgmgr.e2e.${Date.now()}@telestar.vn`;
+  const PASSWORD = process.env.E2E_PASSWORD || 'telestar2026';
+  const LOGIN_TIMEOUT = process.env.BASE_URL ? 45_000 : 15_000;
+
+  const stamp = Date.now();
+  const createdSdrEmail = `sdr.e2e.${stamp}@telestar.vn`;
+  const createdLgMgrEmail = `lgmgr.e2e.${stamp}@telestar.vn`;
   let createdClientId: string;
   let createdCampaignId: string;
   let createdSdrId: string;
   let sampleLeadId: string;
 
-  async function getAuthHeader(page: any) {
+  type AuthHeaders = { cookie: string };
+
+  async function getAuthHeader(page: Page): Promise<AuthHeaders> {
     const cookies = await page.context().cookies();
-    return { cookie: cookies.map((c: any) => `${c.name}=${c.value}`).join('; ') };
+    return { cookie: cookies.map((c) => `${c.name}=${c.value}`).join('; ') };
+  }
+
+  async function signIn(page: Page, email: string): Promise<AuthHeaders> {
+    await page.goto('/login');
+    await page.fill('input[type="email"]', email);
+    await page.fill('input[type="password"]', PASSWORD);
+    await page.click('button[type="submit"]');
+    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: LOGIN_TIMEOUT });
+    await expect(page).not.toHaveURL(/.*login/);
+    return getAuthHeader(page);
+  }
+
+  /**
+   * POST /api/leads/import returns 202 with status 'queued' whenever Redis is
+   * reachable — the rows are materialised by the import worker, not by the request.
+   * It only falls back to an inline import when the queue is unreachable. The
+   * previous version asserted leads existed on the very next line, which passed only
+   * by accident on the inline path and raced everywhere else.
+   */
+  async function waitForImportedLeads(
+    request: APIRequestContext,
+    headers: AuthHeaders,
+    campaignId: string,
+    timeoutMs = 90_000
+  ): Promise<Array<{ id: string; firstName?: string }>> {
+    const deadline = Date.now() + timeoutMs;
+    let last: Array<{ id: string; firstName?: string }> = [];
+    while (Date.now() < deadline) {
+      const res = await request.get(`/api/leads?campaignId=${campaignId}`, { headers });
+      if (res.ok()) {
+        const payload = await res.json();
+        last = Array.isArray(payload) ? payload : payload.leads || [];
+        if (last.length > 0) return last;
+      }
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    throw new Error(
+      `Import never materialised any leads for campaign ${campaignId} within ${timeoutMs}ms. ` +
+        `Is the BullMQ import worker running?`
+    );
   }
 
   test('Execute full 31-step end-to-end flow', async ({ page, request }) => {
     // ── 1. Login as Director ──────────────────────────────────
-    console.log('Step 1: Login as Director');
-    await page.goto('/login');
-    await page.fill('input[type="email"]', 'dean@telestar.vn');
-    await page.fill('input[type="password"]', PASSWORD);
-    await page.click('button[type="submit"]');
-    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 });
-    await expect(page).not.toHaveURL(/.*login/);
-
-    let headers = await getAuthHeader(page);
+    let headers = await signIn(page, 'dean@telestar.vn');
 
     // ── 2. Create Leadgen Manager user ───────────────────────
-    console.log('Step 2: Create Leadgen Manager user');
     const lgMgrRes = await request.post('/api/users', {
       headers,
       data: {
@@ -43,7 +90,6 @@ test.describe('31-Step Director & SDR E2E Journey', () => {
     expect([200, 201]).toContain(lgMgrRes.status());
 
     // ── 3. Create SDR user ───────────────────────────────────
-    console.log('Step 3: Create SDR user');
     const sdrRes = await request.post('/api/users', {
       headers,
       data: {
@@ -55,27 +101,26 @@ test.describe('31-Step Director & SDR E2E Journey', () => {
       },
     });
     expect([200, 201]).toContain(sdrRes.status());
-    const sdrData = await sdrRes.json();
-    createdSdrId = sdrData.id;
+    createdSdrId = (await sdrRes.json()).id;
+    expect(createdSdrId).toBeTruthy();
 
-    // ── 4. Create Client & Campaign ──────────────────────────
-    console.log('Step 4 & 5: Create Client & Campaign');
-    const clientRes = await request.post('/api/campaigns', {
+    // ── 4 & 5. Create Client & Campaign ──────────────────────
+    const campaignRes = await request.post('/api/campaigns', {
       headers,
       data: {
-        name: `Demo SDR Campaign ${Date.now()}`,
-        newClientName: `Demo Client ${Date.now()}`,
+        name: `Demo SDR Campaign ${stamp}`,
+        newClientName: `Demo Client ${stamp}`,
         status: 'active',
       },
     });
-    expect([200, 201]).toContain(clientRes.status());
-    const clientData = await clientRes.json();
-    createdClientId = clientData.clientId || clientData.client?.id;
-    createdCampaignId = clientData.id;
-    expect(createdCampaignId).toBeDefined();
+    expect([200, 201]).toContain(campaignRes.status());
+    const campaignData = await campaignRes.json();
+    createdClientId = campaignData.clientId || campaignData.client?.id;
+    createdCampaignId = campaignData.id;
+    expect(createdCampaignId).toBeTruthy();
+    expect(createdClientId).toBeTruthy();
 
-    // ── 6. Add booking link for Demo Client/Campaign ─────────
-    console.log('Step 6: Add booking link');
+    // ── 6. Add booking link ──────────────────────────────────
     const linkRes = await request.post('/api/booking-links', {
       headers,
       data: {
@@ -87,31 +132,23 @@ test.describe('31-Step Director & SDR E2E Journey', () => {
     });
     expect([200, 201]).toContain(linkRes.status());
 
-    // ── 7. Import 10 leads into Internal Lead Database ───────
-    console.log('Step 7: Import 10 leads');
+    // ── 7. Import 10 leads ───────────────────────────────────
     const leadsToImport = Array.from({ length: 10 }).map((_, i) => ({
       firstName: `Lead${i + 1}`,
       lastName: `TestUser${i + 1}`,
-      email: `lead${i + 1}.${Date.now()}@example.com`,
+      email: `lead${i + 1}.${stamp}@example.com`,
       company: `Company ${i + 1}`,
       title: 'Prospect',
       phone: `+155500000${i}`,
     }));
     const importRes = await request.post('/api/leads/import', {
       headers,
-      data: {
-        leads: leadsToImport,
-        campaignId: createdCampaignId,
-      },
+      data: { leads: leadsToImport, campaignId: createdCampaignId },
     });
     expect([200, 201, 202]).toContain(importRes.status());
 
-    // ── 8. Fetch & qualify leads ──────────────────────────────
-    console.log('Step 8: Qualify 5 leads');
-    const fetchLeadsRes = await request.get(`/api/leads?campaignId=${createdCampaignId}`, { headers });
-    expect(fetchLeadsRes.ok()).toBe(true);
-    const fetchedLeads = await fetchLeadsRes.json();
-    const leadsArray = Array.isArray(fetchedLeads) ? fetchedLeads : fetchedLeads.leads || [];
+    // ── 8. Wait for the import, then qualify 5 leads ─────────
+    const leadsArray = await waitForImportedLeads(request, headers, createdCampaignId);
     expect(leadsArray.length).toBeGreaterThan(0);
     sampleLeadId = leadsArray[0].id;
 
@@ -124,8 +161,7 @@ test.describe('31-Step Director & SDR E2E Journey', () => {
       expect(qRes.ok()).toBe(true);
     }
 
-    // ── 9. Route 5 qualified leads to campaign and SDR ───────
-    console.log('Step 9: Route 5 qualified leads to SDR');
+    // ── 9. Route qualified leads to the SDR ──────────────────
     for (const lead of leadsToQualify) {
       const rRes = await request.put(`/api/leads/${lead.id}`, {
         headers,
@@ -134,182 +170,188 @@ test.describe('31-Step Director & SDR E2E Journey', () => {
       expect(rRes.ok()).toBe(true);
     }
 
-    // ── 10. Login/view as SDR ─────────────────────────────────
-    console.log('Step 10: Login as SDR');
-    await page.goto('/login');
-    await page.fill('input[type="email"]', createdSdrEmail);
-    await page.fill('input[type="password"]', PASSWORD);
-    await page.click('button[type="submit"]');
-    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 });
-    await expect(page).not.toHaveURL(/.*login/);
+    // ── 10. Login as the newly created SDR ───────────────────
+    const sdrHeaders = await signIn(page, createdSdrEmail);
 
-    const sdrHeaders = await getAuthHeader(page);
+    // ── 11. SDR sees only their assigned leads ───────────────
+    // Asserted through the API rather than the DOM: scoping is the security-relevant
+    // behaviour, and it is verifiable without depending on kanban/table view state.
+    const sdrLeadsRes = await request.get('/api/leads', { headers: sdrHeaders });
+    expect(sdrLeadsRes.ok()).toBe(true);
+    const sdrLeadsPayload = await sdrLeadsRes.json();
+    const sdrLeads = Array.isArray(sdrLeadsPayload) ? sdrLeadsPayload : sdrLeadsPayload.leads || [];
+    expect(sdrLeads.length).toBeGreaterThan(0);
+    const assignedIds = new Set(leadsToQualify.map((l) => l.id));
+    expect(sdrLeads.some((l: { id: string }) => assignedIds.has(l.id))).toBe(true);
 
-    // ── 11. Search lead by first name, last name, and full name
-    console.log('Step 11: Search lead');
+    // ── 12. Leads page renders for the SDR ───────────────────
     await page.goto('/leads', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/.*leads/);
     const searchInput = page.locator('input[placeholder*="Search"]').first();
-    if (await searchInput.isVisible()) {
-      await searchInput.fill('Lead1');
-      await page.waitForTimeout(200);
-      await searchInput.fill('TestUser1');
-      await page.waitForTimeout(200);
-      await searchInput.fill('Lead1 TestUser1');
-      await page.waitForTimeout(200);
-      await searchInput.clear();
-    }
+    await expect(searchInput).toBeVisible();
 
-    // ── 12. Open Daily Tasks ─────────────────────────────────
-    console.log('Step 12: Open Daily Tasks');
+    // ── 13. Search narrows to the imported lead ──────────────
+    await searchInput.fill('TestUser1');
+    await expect(page.getByText('Lead1', { exact: false }).first()).toBeVisible();
+    await searchInput.clear();
+
+    // ── 14. Daily task dashboard is the root route ───────────
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page).toHaveURL('/');
+    await expect(page).toHaveURL(/\/$|\/\?/);
+    await expect(page.locator('h1').first()).toBeVisible();
 
-    // ── 13. Filter by Call / Email / Campaign ────────────────
-    console.log('Step 13: Filter tasks');
-    const callFilter = page.locator('button', { hasText: /Call/i }).first();
-    if (await callFilter.isVisible()) await callFilter.click();
-    const emailFilter = page.locator('button', { hasText: /Email/i }).first();
-    if (await emailFilter.isVisible()) await emailFilter.click();
+    // ── 15. Task filters are present and usable ──────────────
+    // Newly imported leads carry no tasks yet, so this asserts the controls render
+    // rather than pretending to verify filtered results that cannot exist.
+    const taskFilters = page.locator('select, button').filter({ hasText: /channel|status|call|email/i });
+    expect(await taskFilters.count()).toBeGreaterThan(0);
 
-    // ── 14. Select 2 tasks and bulk reschedule ───────────────
-    console.log('Step 14: Select tasks & bulk reschedule');
-    const checkboxes = page.locator('input[type="checkbox"]');
-    const count = await checkboxes.count();
-    if (count >= 2) {
-      await checkboxes.nth(0).check();
-      await checkboxes.nth(1).check();
-    }
+    // ── 16. Lead detail opens as a slide-over ────────────────
+    const leadDetailRes = await request.get(`/api/leads/${sampleLeadId}`, { headers: sdrHeaders });
+    expect(leadDetailRes.ok()).toBe(true);
+    expect((await leadDetailRes.json()).id).toBe(sampleLeadId);
 
-    // ── 15. Select 1 task and bulk add note ──────────────────
-    console.log('Step 15: Task note interaction');
-    if (count >= 1) {
-      const firstCheck = checkboxes.nth(0);
-      if (!(await firstCheck.isChecked())) await firstCheck.check();
-    }
-
-    // ── 16. Open lead detail ──────────────────────────────────
-    console.log('Step 16: Open lead detail');
-    await page.goto(`/leads`, { waitUntil: 'domcontentloaded' });
-
-    // ── 17 & 18. Create scheduled meeting ─────────────────────
-    console.log('Step 17 & 18: Create scheduled meeting');
-    const recordBookingRes = await request.post('/api/meetings', {
+    // ── 17 & 18. Book a meeting ──────────────────────────────
+    // `bookingSource` is not part of createMeetingSchema and was silently stripped.
+    // The real fields are leadId / status / scheduledAt / title / durationMins.
+    const meetingRes = await request.post('/api/meetings', {
       headers: sdrHeaders,
       data: {
         leadId: sampleLeadId,
-        campaignId: createdCampaignId,
-        scheduledAt: new Date(Date.now() + 86400000).toISOString(),
-        bookingSource: 'sdr_manual',
+        title: 'Discovery call — Demo Client',
+        status: 'scheduled',
+        scheduledAt: new Date(Date.now() + 86_400_000).toISOString(),
+        durationMins: 30,
       },
     });
-    expect([200, 201]).toContain(recordBookingRes.status());
-    const meetingData = await recordBookingRes.json();
-    expect(meetingData.id).toBeDefined();
+    expect([200, 201]).toContain(meetingRes.status());
+    const meetingData = await meetingRes.json();
+    expect(meetingData.id).toBeTruthy();
 
-    // ── 19. Log meeting outcome as completed + qualified ─────
-    console.log('Step 19: Log meeting outcome');
-    const outcomeRes = await request.patch(`/api/meetings/${meetingData.id}`, {
+    // ── 19. Log the outcome as a qualified opportunity ───────
+    // The previous version PATCHed /api/meetings/{id} with `outcome: 'qualified'`.
+    // updateMeetingSchema has no `outcome` field so Zod stripped it, and 'qualified'
+    // is not a MeetingOutcome value ('qualified_opportunity' is). The PATCH returned
+    // 200, no opportunity was ever created, and steps 20-21 passed vacuously.
+    const outcomeRes = await request.post(`/api/meetings/${meetingData.id}/outcome`, {
       headers: sdrHeaders,
       data: {
         status: 'completed',
-        outcome: 'qualified',
-        notes: 'Great fit for Demo Client',
+        outcome: 'qualified_opportunity',
+        outcomeNotes: 'Great fit for Demo Client',
+        createOpportunity: true,
       },
     });
     expect(outcomeRes.ok()).toBe(true);
+    const outcomeBody = await outcomeRes.json();
+    expect(outcomeBody.meeting?.outcome).toBe('qualified_opportunity');
 
-    // ── 20. Confirm opportunity is created ───────────────────
-    console.log('Step 20: Confirm opportunity');
+    // ── 20. The opportunity actually exists ──────────────────
+    expect(outcomeBody.opportunity).toBeTruthy();
+    const opportunityId = outcomeBody.opportunity.id;
+    expect(opportunityId).toBeTruthy();
+
     const oppRes = await request.get('/api/opportunities', { headers: sdrHeaders });
     expect(oppRes.ok()).toBe(true);
-
-    // ── 21. Accept opportunity in client review ─────────────
-    console.log('Step 21: Accept opportunity');
     const oppsData = await oppRes.json();
     const opps = Array.isArray(oppsData) ? oppsData : oppsData.opportunities || [];
-    if (opps.length > 0) {
-      const acceptRes = await request.put(`/api/opportunities/${opps[0].id}`, {
-        headers: sdrHeaders,
-        data: { status: 'accepted' },
-      });
-      expect(acceptRes.ok()).toBe(true);
-    }
+    expect(opps.some((o: { id: string }) => o.id === opportunityId)).toBe(true);
 
-    // ── 22. Switch back to Director for Admin actions ────────
-    console.log('Step 22: Switch back to Director');
-    await page.goto('/login');
-    await page.fill('input[type="email"]', 'dean@telestar.vn');
-    await page.fill('input[type="password"]', PASSWORD);
-    await page.click('button[type="submit"]');
-    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 });
+    // ── 21. SDRs must NOT be able to approve their own handoff ─
+    // canApproveClientHandoff allows director / floor_manager / team_lead only.
+    const sdrAcceptRes = await request.post(`/api/opportunities/${opportunityId}/handoff`, {
+      headers: sdrHeaders,
+      data: { decision: 'accepted' },
+    });
+    expect(sdrAcceptRes.status()).toBe(403);
 
-    headers = await getAuthHeader(page);
+    // ── 22. Switch back to Director ──────────────────────────
+    headers = await signIn(page, 'dean@telestar.vn');
 
-    // ── 23. Generate client report preview ───────────────────
-    console.log('Step 23: Generate client report preview');
+    // ── 23. Director accepts the client handoff ──────────────
+    // 'accepted' here is a handoffDecisionSchema decision, not an OpportunityStatus.
+    // The old spec PUT `status: 'accepted'` to /api/opportunities/{id}: not a valid
+    // OpportunityStatus (open|won|lost|rejected|archived) and a manager-only field.
+    const acceptRes = await request.post(`/api/opportunities/${opportunityId}/handoff`, {
+      headers,
+      data: { decision: 'accepted', clientFeedback: 'Client accepted the handoff.' },
+    });
+    expect(acceptRes.ok()).toBe(true);
+
+    // ── 24. Generate the client report ───────────────────────
     const reportRes = await request.post('/api/client-reports', {
       headers,
       data: {
         clientId: createdClientId,
         campaignId: createdCampaignId,
         title: 'Weekly Performance Report',
-        periodStart: new Date(Date.now() - 7 * 86400000).toISOString(),
+        periodStart: new Date(Date.now() - 7 * 86_400_000).toISOString(),
         periodEnd: new Date().toISOString(),
       },
     });
     expect([200, 201]).toContain(reportRes.status());
-    const reportData = await reportRes.json();
+    // The route answers with an envelope — `{ report }` — matching GET's `{ reports }`.
+    // Reading `.id` off the raw body silently yielded undefined.
+    const reportData = (await reportRes.json()).report;
+    expect(reportData?.id).toBeTruthy();
 
-    // ── 24 & 25. Approve/freeze & Export/share report ────────
-    if (reportData.id) {
-      console.log('Step 24: Approve report');
-      const approveRes = await request.post(`/api/client-reports/${reportData.id}/approve`, { headers });
-      expect(approveRes.ok()).toBe(true);
+    // ── 25 & 26. Approve and share it ────────────────────────
+    const approveRes = await request.post(`/api/client-reports/${reportData.id}/approve`, { headers });
+    expect(approveRes.ok()).toBe(true);
 
-      console.log('Step 25: Export/share report');
-      const shareRes = await request.post(`/api/client-reports/${reportData.id}/share`, { headers });
-      expect(shareRes.ok()).toBe(true);
-    }
+    // An explicit `{}` is required even though every field of createShareLinkSchema is
+    // optional: parseBody calls req.json(), which throws on an empty body and answers
+    // 400 "Invalid JSON body" before the schema is ever consulted.
+    const shareRes = await request.post(`/api/client-reports/${reportData.id}/share`, {
+      headers,
+      data: {},
+    });
+    expect(shareRes.ok()).toBe(true);
+    expect((await shareRes.json()).shareUrl).toContain('/client-reports/public/');
 
-    // ── 26. Open Email Health ─────────────────────────────────
-    console.log('Step 26: Open Email Health');
+    // ── 27. Email Health renders ─────────────────────────────
     await page.goto('/email-health', { waitUntil: 'domcontentloaded' });
-    await expect(page).toHaveURL('/email-health');
+    await expect(page).toHaveURL(/.*email-health/);
 
-    // ── 27 & 28. Pause, Resume & Update daily cap ─────────────
-    console.log('Step 27 & 28: Inbox pause/resume & daily cap');
+    // ── 28 & 29. Pause / resume an inbox, set a daily cap ────
+    // The old paths were /api/email-health/{id}/pause — the real routes live under
+    // /accounts/{id}/. They were fire-and-forget, so 404s went unnoticed.
     const accountsRes = await request.get('/api/email/accounts', { headers });
-    if (accountsRes.ok()) {
-      const accounts = await accountsRes.json();
-      if (Array.isArray(accounts) && accounts.length > 0) {
-        const accId = accounts[0].id;
-        await request.post(`/api/email-health/${accId}/pause`, { headers });
-        await request.post(`/api/email-health/${accId}/resume`, { headers });
-        await request.patch(`/api/email/accounts/${accId}`, {
-          headers,
-          data: { dailySendLimit: 50 },
-        });
-      }
+    expect(accountsRes.ok()).toBe(true);
+    const accounts = await accountsRes.json();
+    const accountList = Array.isArray(accounts) ? accounts : accounts.accounts || [];
+    if (accountList.length > 0) {
+      const accId = accountList[0].id;
+      const pauseRes = await request.post(`/api/email-health/accounts/${accId}/pause`, {
+        headers,
+        data: { reason: 'e2e pause check' },
+      });
+      expect(pauseRes.ok()).toBe(true);
+
+      const resumeRes = await request.post(`/api/email-health/accounts/${accId}/resume`, { headers });
+      expect(resumeRes.ok()).toBe(true);
+
+      const capRes = await request.patch(`/api/email-health/accounts/${accId}/cap`, {
+        headers,
+        data: { dailySendLimit: 50 },
+      });
+      expect(capRes.ok()).toBe(true);
     }
 
-    // ── 29. Archive one lead ──────────────────────────────────
-    console.log('Step 29: Archive one lead');
+    // ── 30. Archive a lead (soft delete) ─────────────────────
     const archiveRes = await request.delete(`/api/leads/${sampleLeadId}`, { headers });
     expect(archiveRes.ok()).toBe(true);
 
-    // ── 30. Confirm archived lead disappears ──────────────────
-    console.log('Step 30: Confirm lead is archived');
-    const getLeadRes = await request.get(`/api/leads/${sampleLeadId}`, { headers });
-    if (getLeadRes.ok()) {
-      const leadData = await getLeadRes.json();
-      expect(leadData.archivedAt).not.toBeNull();
-    }
+    const archivedRes = await request.get(`/api/leads/${sampleLeadId}`, { headers });
+    expect(archivedRes.ok()).toBe(true);
+    expect((await archivedRes.json()).archivedAt).not.toBeNull();
 
-    // ── 31. Restore archived lead ─────────────────────────────
-    console.log('Step 31: Restore archived lead');
+    // ── 31. Restore it — director-only ───────────────────────
     const restoreRes = await request.post(`/api/leads/${sampleLeadId}/restore`, { headers });
     expect(restoreRes.ok()).toBe(true);
 
-    console.log('🎉 ALL 31 STEPS PASSED PERFECTLY!');
+    const restoredRes = await request.get(`/api/leads/${sampleLeadId}`, { headers });
+    expect(restoredRes.ok()).toBe(true);
+    expect((await restoredRes.json()).archivedAt).toBeNull();
   });
 });

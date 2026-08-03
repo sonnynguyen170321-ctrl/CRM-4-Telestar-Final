@@ -21,6 +21,7 @@ is fixed — with the evidence recorded, so it is not re-litigated later.
 |---|---|---|---|---|---|---|
 | BUG-001 | P2 | Leadgen | E2E / auth | `crm-journeys` login wait hardcoded to 10s, too tight for a deployment — failed ~1 run in 3 | **Done** | `playwright.config.ts`, `e2e/crm-journeys.spec.ts` |
 | BUG-002 | P2 | All | E2E config | `playwright.config.ts` always booted a local dev server, so `BASE_URL` could not target a deployment | **Done** | `playwright.config.ts` |
+| BUG-003 | P1 | SDR / Director | E2E / end-to-end journey | The 31-step journey spec asserted against wrong endpoints, invalid enum values and response shapes — the meeting→opportunity chain never ran, yet the test reported success | **Done** | `e2e/user-flow-31step.spec.ts` |
 
 ---
 
@@ -94,6 +95,55 @@ the documented post-deploy gate could not run as described.
 
 **Verification:** the live sweep against `http://34.142.236.46` runs without starting any
 local server.
+
+**Status:** Done.
+
+---
+
+## BUG-003 — The end-to-end journey spec passed without exercising the journey
+
+```text
+Bug ID:        BUG-003
+Title:         31-step spec asserted against wrong endpoints, enums and response shapes
+Severity:      P1  (test defect, but it masked whether the core chain works at all)
+Role affected: SDR, Director
+Module:        E2E / Lead -> Meeting -> Opportunity -> Client Report
+Environment:   Both
+```
+
+**Why this outranks a normal test defect.** This is the only test covering the write path
+described in §6 of the instructions doc. It ended in
+`console.log('🎉 ALL 31 STEPS PASSED PERFECTLY!')` while the meeting → opportunity chain
+never executed. A green run was evidence of nothing.
+
+**Eight defects, all verified against the source contracts:**
+
+| Step | Defect | Evidence |
+|---|---|---|
+| 8 | Asserted imported leads existed immediately after `POST /api/leads/import`, which answers **202 `{status:'queued'}`** whenever Redis is reachable. Passed only on the inline fallback | `app/api/leads/import/route.ts:350-356` |
+| 17-18 | `bookingSource: 'sdr_manual'` is not in `createMeetingSchema` — Zod stripped it silently | `lib/validation/schemas.ts:292-304` |
+| 19 | `PATCH /api/meetings/{id}` with `outcome:'qualified'`. `updateMeetingSchema` has **no** `outcome` field, and `qualified` is not a `MeetingOutcome` — the value is `qualified_opportunity`. Returned 200; created nothing | `schemas.ts:306-314`, `prisma/schema.prisma:134-142` |
+| 20 | Consequently vacuous — asserted only that `GET /api/opportunities` responded | — |
+| 21 | `PUT` with `status:'accepted'`. Not an `OpportunityStatus` (`open\|won\|lost\|rejected\|archived`), and `status` is manager-only while the call used SDR headers. Guarded by `if (opps.length > 0)`, so it never even ran | `app/api/opportunities/[id]/route.ts:46-58` |
+| 24 | Read `.id` off the raw body; the route answers `{ report }` | `app/api/client-reports/route.ts:161` |
+| 26 | `POST .../share` with no body. `parseBody` calls `req.json()`, which throws on an empty body and returns 400 before the schema is consulted — every field being optional does not help | `lib/validation/core.ts` |
+| 27-28 | Hit `/api/email-health/{id}/pause`; the real routes are `/api/email-health/accounts/{id}/pause`. Fire-and-forget, so the 404s were invisible | `app/api/email-health/accounts/[id]/` |
+| 11-16 | Wrapped in `if (await x.isVisible())` — asserted nothing at all | — |
+
+**Fix:** rewritten to poll for the async import, book via the real `createMeetingSchema`
+fields, log the outcome through `POST /api/meetings/{id}/outcome` with
+`outcome: 'qualified_opportunity'`, assert the returned opportunity actually exists, and
+accept the handoff via `POST /api/opportunities/{id}/handoff` `{decision:'accepted'}` as
+Director. Steps 11-16 now assert real API and DOM state.
+
+**Added coverage:** the SDR is asserted to receive **403** when attempting to approve their
+own handoff — `canApproveClientHandoff` permits director / floor_manager / team_lead only
+(`lib/opportunities/access.ts:32-34`). The old spec would have reported success either way.
+
+**Environment note, not a bug:** running this against a cold `next dev` intermittently fails
+at step 2 with a 401, because `/api/auth/session` returns an HTML shell while the route is
+still compiling (`ClientFetchError: Unexpected token '<'`). Warm the dev server before the
+run; it does not reproduce against a built deployment.
 
 **Status:** Done.
 

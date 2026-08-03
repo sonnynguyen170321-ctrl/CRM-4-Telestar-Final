@@ -127,6 +127,16 @@ UI reads database truth.    BullMQ can be rebuilt from database truth.
 
 ### P10 — Deployment (the runtime fork)
 - [x] **Deployment packaging & infra runbooks:** Docker Compose configurations (`docker-compose.yml`, `docker-compose.aws.yml`), worker packaging (`workers/index.ts`), env checks (`scripts/prod-check-env.ts`), and runbooks (`docs/GCP_DEPLOY.md`, `docs/DEPLOY.md`) configured. `EMAIL_SEND_DRY_RUN=true` default preserved.
+- [x] **Infra provisioned (2026-08-04):** the original criterion — a separate always-on host
+  running `workers/index.ts` with a reachable queue — is met. GCE `telestar-crm-vm` in
+  `telestar-crm-final` runs `web` + `worker` + `redis` + `caddy` under Compose against Cloud
+  SQL Postgres 16. Live at `http://34.142.236.46`. Full record in `STATUS.md`.
+  - **Deviation:** Redis is a container on the same VM, not Memorystore. Queue state does not
+    survive loss of the VM. Accepted for the demo; revisit before real client data.
+  - Both email kill switches were fail-open until `lib/emailSafety.ts` inverted them — unset
+    `SEQUENCE_AUTOSEND_ENABLED` meant autosend armed, unset `EMAIL_SEND_DRY_RUN` meant real
+    provider sends. The `EMAIL_SEND_DRY_RUN=true` default claimed above existed only in
+    `docker-compose*.yml`, never in application code.
   - `docs/CLOUD_RUN_DEPLOY.md` deliberately ships **without** a worker: Cloud Run scales to zero, so it needs a second service with `--min-instances=1` and CPU always allocated to host one. Email and sequence jobs simply do not run there; lead import falls back to the inline path under `INLINE_IMPORT_MAX_ROWS`.
 - [x] **Teardown (Inngest):** removed `lib/inngest/*`, `app/api/inngest/route.ts`, and the `inngest` dep. The scheduled auto-send (formerly `crm/task.execute`) is now a delayed BullMQ `sequence.execute-task` job → `workers/sequence.ts:handleExecuteTask`, enqueued from `lib/sequences/engine.ts`. Rebuildable via the `JobRun` mirror. Tests: `tests/sequence-execute.test.ts`.
 - [x] **Teardown (smartSend):** retired `lib/sequences/smartSend.ts` cron scanner; sequence engine cron route cleaned up.

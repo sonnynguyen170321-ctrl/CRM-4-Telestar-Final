@@ -3,9 +3,34 @@
 > Update this file at the end of every working session. It is the resume pointer:
 > an agent reads this first, then jumps to the named task in [`PLAN.md`](./PLAN.md).
 
-**Current phase:** Complete (P0–P11). All runtime hardening, BullMQ worker architecture, meeting module, and teardowns verified.
-**Next unchecked task:** None (ready for production deployment via runbooks).
+**Current phase:** Complete (P0–P11) **and deployed**. P10 infra is now genuinely provisioned,
+not just packaged — see the deployment record below.
+**Next unchecked task:** None. Remaining work is tracked in `docs/post-migration/BUGS.md`.
 **Blockers:** none.
+
+### Deployment record — 2026-08-04
+
+| | |
+|---|---|
+| URL | `http://34.142.236.46` (plain HTTP, IP mode — no TLS until a domain is attached) |
+| GCP project | `telestar-crm-final`, region `asia-southeast1`, zone `-a` |
+| Host | GCE `telestar-crm-vm` (`e2-standard-2`), Docker Compose + Caddy |
+| Database | Cloud SQL `telestar-db`, Postgres 16, `db-g1-small`, Enterprise edition. 20 migrations applied, seeded |
+| Redis | `redis:7` container on the VM (compose-local, not Memorystore) |
+| Worker | `crm-4-u-worker-1` running — the always-on worker P10 required |
+| Image | built on the VM from source at commit `649c2b0` |
+
+**P10 honesty note.** An earlier revision of this file marked P10 complete while the plan's
+acceptance criterion — *provision managed Redis and a separate always-on host running
+`workers/index.ts`* — had only been met on paper, by authoring packaging and runbooks. As of
+the deployment above the worker genuinely runs, so the claim now holds. One deviation from
+the original wording: Redis is a container on the same VM rather than a managed service.
+That satisfies "always-on worker with a reachable queue" but **not** "queue state survives
+loss of the VM". Accepted deliberately for a demo; revisit before real client data.
+
+**P11 pilot smoke:** done. `crm-journeys` + `deep-smoke` ran green against the live URL —
+20/20, including the outbound-safety assertion that `/api/cron/sequence-engine` returns
+`{disabled: true, sent: 0}`.
 
 ## Decisions locked
 - **Runtime:** Full BullMQ — separate always-on worker host + managed Redis (P10). The web tier is host-agnostic; there is no Vercel coupling in this repo (no `vercel.json`, no `@vercel/*`, no edge runtime). See `docs/GCP_DEPLOY.md`, `docs/CLOUD_RUN_DEPLOY.md`, `docs/DEPLOY.md`.
