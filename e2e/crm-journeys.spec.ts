@@ -208,13 +208,23 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
     test('Leadgen Manager has access to 7-tab database ecosystem', async ({ page }) => {
       await page.goto('/leadgen-manager');
       await expect(page).toHaveURL(/.*leadgen-manager/);
-      await expect(page.locator('button', { hasText: 'Internal Database' })).toBeVisible();
-      await expect(page.locator('button', { hasText: 'Import Center' })).toBeVisible();
-      await expect(page.locator('button', { hasText: 'Qualification Queue' })).toBeVisible();
-      await expect(page.locator('button', { hasText: 'Campaign Routing' })).toBeVisible();
-      await expect(page.locator('button', { hasText: 'Export Center' })).toBeVisible();
-      await expect(page.locator('button', { hasText: 'Team Performance' })).toBeVisible();
-      await expect(page.locator('button', { hasText: 'Source Performance' })).toBeVisible();
+
+      // Mirrors the TABS array in app/leadgen-manager/page.tsx. Importing is a
+      // header action ("Import to Internal DB") that opens a modal, not a tab —
+      // this test previously looked for an "Import Center" tab that no longer exists.
+      for (const label of [
+        'Overview',
+        'Internal Database',
+        'Qualification Queue',
+        'Campaign Routing',
+        'Export Center',
+        'Team Performance',
+        'Source Performance',
+      ]) {
+        await expect(page.locator('button', { hasText: label }).first()).toBeVisible();
+      }
+
+      await expect(page.locator('button', { hasText: 'Import to Internal DB' })).toBeVisible();
     });
   });
 });
