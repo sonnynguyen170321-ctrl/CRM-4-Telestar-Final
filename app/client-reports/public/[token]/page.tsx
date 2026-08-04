@@ -289,7 +289,7 @@ export default function PublicReportViewer() {
                     <td className="py-3 px-3 font-semibold text-text-primary">{ch.label}</td>
                     <td className="py-3 px-3 text-muted-foreground">{ch.touchpoints.toLocaleString()}</td>
                     <td className="py-3 px-3 font-semibold text-text-primary">{ch.replies}</td>
-                    <td className="py-3 px-3 font-semibold text-brand-red">{ch.meetingsBooked}</td>
+                    <td className="py-3 px-3 font-semibold text-brand-red">{ch.meetingsBooked ?? '—'}</td>
                     <td className="py-3 px-3 text-muted-foreground">{(ch.conversionRate * 100).toFixed(1)}%</td>
                   </tr>
                 ))}
@@ -357,8 +357,11 @@ export default function PublicReportViewer() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {snapshot.meetings.map((m) => (
-                    <tr key={m.id} className="hover:bg-card-border/40/20">
+                  {/* Keyed by index: the public payload strips internal row ids
+                      (see toClientSafeSnapshot), and a frozen report snapshot is
+                      immutable — this list never reorders, inserts or deletes. */}
+                  {snapshot.meetings.map((m, idx) => (
+                    <tr key={idx} className="hover:bg-card-border/40/20">
                       <td className="py-3 px-3 font-semibold text-text-primary">
                         {m.company}
                         {m.contactName && (
@@ -366,7 +369,7 @@ export default function PublicReportViewer() {
                         )}
                       </td>
                       <td className="py-3 px-3 text-muted-foreground whitespace-nowrap">
-                        {new Date(m.scheduledAt).toLocaleDateString()}
+                        {m.scheduledAt ? new Date(m.scheduledAt).toLocaleDateString() : 'Not yet scheduled'}
                       </td>
                       <td className="py-3 px-3 whitespace-nowrap">
                         <span className="capitalize px-2 py-0.5 rounded text-[11px] font-medium bg-card-border/40 text-text-primary border border-card-border">
@@ -418,8 +421,9 @@ export default function PublicReportViewer() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {snapshot.opportunities.map((opp) => (
-                    <tr key={opp.id} className="hover:bg-card-border/40/20">
+                  {/* Index key for the same reason as the meetings table above. */}
+                  {snapshot.opportunities.map((opp, idx) => (
+                    <tr key={idx} className="hover:bg-card-border/40/20">
                       <td className="py-3 px-3 font-semibold text-text-primary">{opp.company}</td>
                       <td className="py-3 px-3 text-muted-foreground">{opp.title}</td>
                       <td className="py-3 px-3 whitespace-nowrap">

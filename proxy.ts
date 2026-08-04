@@ -53,8 +53,17 @@ export const proxy = auth(function handler(req: NextRequest & { auth: { user?: u
 // health probe has no session either, so it only ever saw a 401 and could not
 // report on the database. The handler runs `SELECT 1` and returns nothing but a
 // boolean, so it is safe to reach unauthenticated.
+//
+// client-reports/public and api/client-reports/public are excluded because the
+// client share link is *defined* by being openable without a Telestar account —
+// the recipient is the customer, not staff. This proxy was redirecting them to
+// the staff login page before the token was ever examined, which made the
+// feature unusable for its only audience. Authorisation is not being skipped,
+// only moved to where it belongs: `verifyAndFetchSharedReport` validates the
+// token, its expiry and its optional password before returning anything, and
+// an unknown token yields the same not-found response it always did.
 export const config = {
   matcher: [
-    '/((?!api/auth|api/cron|api/health|login|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)',
+    '/((?!api/auth|api/cron|api/health|api/client-reports/public|client-reports/public|login|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)',
   ],
 };

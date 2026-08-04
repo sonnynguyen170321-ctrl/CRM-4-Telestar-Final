@@ -16,6 +16,33 @@ export function verifyPassword(password: string, hash: string): boolean {
   return hashPassword(password) === hash;
 }
 
+/**
+ * Strip internal primary keys out of a snapshot before it leaves the building.
+ *
+ * The share endpoint is unauthenticated by design — the token is the credential —
+ * so anyone holding a link can read whatever this returns. Row cuids
+ * (`reps[].repId`, `meetings[].id`, `opportunities[].id`, `meta.generatedById`,
+ * `meta.clientId`) are internal addressing, not reporting content: the client has
+ * no use for them and they hand an outsider a map of our object graph.
+ *
+ * Display names are deliberately kept. `generatedByName` / `approvedByName` are
+ * the accountability signature on a document with commercial weight, and
+ * `reps[].displayName` is already anonymised per the report's `sdrDisplayMode`.
+ */
+export function toClientSafeSnapshot(snapshot: ClientReportSnapshot): ClientReportSnapshot {
+  if (!snapshot) return snapshot;
+
+  const { clientId: _clientId, generatedById: _generatedById, ...meta } = (snapshot.meta ?? {}) as Record<string, unknown>;
+
+  return {
+    ...snapshot,
+    meta: meta as ClientReportSnapshot['meta'],
+    reps: (snapshot.reps ?? []).map(({ repId: _repId, ...rep }) => rep) as ClientReportSnapshot['reps'],
+    meetings: (snapshot.meetings ?? []).map(({ id: _id, ...meeting }) => meeting) as ClientReportSnapshot['meetings'],
+    opportunities: (snapshot.opportunities ?? []).map(({ id: _id, ...opp }) => opp) as ClientReportSnapshot['opportunities'],
+  };
+}
+
 export interface CreateShareLinkOptions {
   reportId: string;
   createdById: string;
@@ -112,7 +139,9 @@ export async function verifyAndFetchSharedReport(
     },
   });
 
-  const snapshot = shareLink.report.snapshotJson as unknown as ClientReportSnapshot;
+  const snapshot = toClientSafeSnapshot(
+    shareLink.report.snapshotJson as unknown as ClientReportSnapshot
+  );
 
   return {
     snapshot,

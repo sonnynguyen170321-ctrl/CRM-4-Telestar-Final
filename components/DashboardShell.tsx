@@ -38,7 +38,14 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     };
   }, []);
 
-  if (pathname === '/login') {
+  // Two routes render without staff chrome. /login is the obvious one; the client
+  // report share link is the other, and it is the only route in the app whose
+  // audience is external. Drawing the internal sidebar — Leads, Opportunities,
+  // Email Health, Settings, with live links — above a document we send to a paying
+  // client shows them our tooling and invites clicks into pages they cannot open.
+  const isPublicShareLink = pathname?.startsWith('/client-reports/public') ?? false;
+
+  if (pathname === '/login' || isPublicShareLink) {
     return <DesktopOnlyGate>{children}</DesktopOnlyGate>;
   }
 
