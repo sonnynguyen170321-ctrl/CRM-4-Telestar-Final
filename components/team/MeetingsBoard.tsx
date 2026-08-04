@@ -64,7 +64,7 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
       });
       if (res.ok) {
         showToast(
-          `Lead outcome successfully updated to ${
+          `Lead outcome updated to ${
             newStage === 'won' ? 'Won' : newStage === 'lost' ? 'Lost' : 'Active'
           }`,
           'success'
@@ -99,162 +99,148 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
   });
 
   return (
-    <div className="space-y-6">
-      {/* Metrics Banner */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-card-bg border border-card-border rounded-2xl p-4 flex items-center justify-between shadow-sm">
-          <div>
-            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Total Booked</span>
-            <p className="font-display font-extrabold text-2xl text-text-primary mt-1">{totalBooked}</p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500">
-            <Calendar className="w-5 h-5" />
-          </div>
+    <div className="space-y-5">
+      {/* Executive Metrics Bar — Clean borderless data layout */}
+      <div className="grid grid-cols-4 gap-4 p-5 bg-card-bg border border-card-border rounded-xl shadow-xs">
+        <div className="flex flex-col">
+          <span className="text-xs font-semibold text-text-muted">Total Booked</span>
+          <span className="font-display font-extrabold text-2xl text-text-primary mt-1">{totalBooked}</span>
         </div>
 
-        <div className="bg-card-bg border border-card-border rounded-2xl p-4 flex items-center justify-between shadow-sm">
-          <div>
-            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Won / Closed</span>
-            <p className="font-display font-extrabold text-2xl text-green-500 mt-1">{wonCount}</p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500">
-            <CheckCircle2 className="w-5 h-5" />
-          </div>
+        <div className="flex flex-col border-l border-card-border/60 pl-4">
+          <span className="text-xs font-semibold text-text-muted">Won / Closed</span>
+          <span className="font-display font-extrabold text-2xl text-emerald-600 mt-1">{wonCount}</span>
         </div>
 
-        <div className="bg-card-bg border border-card-border rounded-2xl p-4 flex items-center justify-between shadow-sm">
-          <div>
-            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Lost / No-Show</span>
-            <p className="font-display font-extrabold text-2xl text-brand-red mt-1">{lostCount}</p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-brand-red/10 border border-brand-red/20 flex items-center justify-center text-brand-red">
-            <XCircle className="w-5 h-5" />
-          </div>
+        <div className="flex flex-col border-l border-card-border/60 pl-4">
+          <span className="text-xs font-semibold text-text-muted">Lost / No-Show</span>
+          <span className="font-display font-extrabold text-2xl text-rose-600 mt-1">{lostCount}</span>
         </div>
 
-        <div className="bg-card-bg border border-card-border rounded-2xl p-4 flex items-center justify-between shadow-sm">
-          <div>
-            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Win Rate</span>
-            <p className="font-display font-extrabold text-2xl text-brand-orange-text mt-1">{winRate}%</p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-brand-orange/10 border border-brand-orange/20 flex items-center justify-center text-brand-orange-text">
-            <Star className="w-5 h-5" />
-          </div>
+        <div className="flex flex-col border-l border-card-border/60 pl-4">
+          <span className="text-xs font-semibold text-text-muted">Win Rate</span>
+          <span className="font-display font-extrabold text-2xl text-amber-600 mt-1">{winRate}%</span>
         </div>
       </div>
 
-      {/* Table Actions Control */}
-      <div className="flex flex-row items-center justify-between gap-4 bg-card-bg border border-card-border p-4 rounded-2xl shadow-sm">
-        <div className="flex flex-wrap items-center gap-3 w-auto">
+      {/* Filter Header — Integrated control toolbar without card-in-card wrapper */}
+      <div className="flex flex-row items-center justify-between gap-4 py-1">
+        <div className="flex items-center gap-3">
           <input
             type="text"
             placeholder="Search meetings..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-bg-main border border-card-border rounded-lg px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red placeholder-text-muted w-60 font-semibold"
+            className="bg-card-bg border border-card-border rounded-lg px-3.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red placeholder-text-muted w-64 font-medium transition-colors"
           />
-          <div className="flex bg-bg-main border border-card-border rounded-lg p-0.5 gap-0.5 w-auto">
+          <nav className="flex items-center gap-1 bg-gray-100/70 p-1 rounded-lg border border-card-border/40">
             {['all', 'scheduled', 'won', 'lost'].map((st) => (
               <button
                 key={st}
                 onClick={() => setFilterStage(st)}
-                className={`px-3 py-1 rounded text-[10px] font-bold capitalize transition-all ${
+                className={`px-3 py-1 rounded-md text-xs font-semibold capitalize transition-all ${
                   filterStage === st
-                    ? 'bg-brand-red text-white'
+                    ? 'bg-white text-text-primary shadow-xs border border-card-border/60'
                     : 'text-text-muted hover:text-text-primary'
                 }`}
               >
                 {st === 'scheduled' ? 'Scheduled' : st}
               </button>
             ))}
-          </div>
+          </nav>
         </div>
 
         <button
           onClick={fetchMeetings}
-          className="w-auto flex items-center justify-center gap-2 bg-bg-main border border-card-border hover:bg-card-border/30 rounded-xl px-4 py-2 text-xs font-semibold text-text-primary transition-all active:scale-95"
+          className="flex items-center gap-1.5 bg-card-bg border border-card-border hover:bg-gray-50 rounded-lg px-3 py-1.5 text-xs font-semibold text-text-secondary transition-all active:scale-98"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh Board</span>
         </button>
       </div>
 
-      {/* Board Listing */}
+      {/* Table Listing — Generous row height & clear typographic contrast */}
       {loading && meetings.length === 0 ? (
-        <div className="flex items-center justify-center py-20 bg-card-bg border border-card-border rounded-2xl">
-          <div className="w-8 h-8 border-2 border-brand-red/30 border-t-brand-red rounded-full animate-spin" />
+        <div className="flex items-center justify-center py-20 bg-card-bg border border-card-border rounded-xl">
+          <div className="w-6 h-6 border-2 border-brand-red/30 border-t-brand-red rounded-full animate-spin" />
         </div>
       ) : filteredMeetings.length === 0 ? (
-        <div className="bg-card-bg border border-card-border p-12 rounded-2xl text-center text-xs text-text-muted font-semibold">
-          No booked meetings matched the filters.
+        <div className="bg-card-bg border border-card-border p-12 rounded-xl text-center text-xs text-text-muted font-medium">
+          No booked meetings matched the selected filters.
         </div>
       ) : (
-        <div className="bg-card-bg border border-card-border rounded-2xl overflow-hidden shadow-sm">
+        <div className="bg-card-bg border border-card-border rounded-xl overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-card-border bg-bg-main/50 text-[10px] font-bold text-text-muted uppercase">
-                  <th className="p-4">Lead / Company</th>
-                  <th className="p-4">Campaign</th>
-                  <th className="p-4">Booked By (SDR)</th>
-                  <th className="p-4">Booking Date</th>
-                  <th className="p-4">Outcome Status</th>
-                  <th className="p-4 text-right">Log Outcome</th>
+                <tr className="border-b border-card-border bg-gray-50/70 text-xs font-bold text-text-muted uppercase tracking-wider">
+                  <th className="py-3.5 px-5">Lead / Company</th>
+                  <th className="py-3.5 px-5">Campaign</th>
+                  <th className="py-3.5 px-5">Booked By (SDR)</th>
+                  <th className="py-3.5 px-5">Booking Date</th>
+                  <th className="py-3.5 px-5">Outcome Status</th>
+                  <th className="py-3.5 px-5 text-right">Log Outcome</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-card-border/50">
+              <tbody className="divide-y divide-card-border/60">
                 {filteredMeetings.map((m) => {
                   const bookingDate = m.activities?.[0]?.createdAt
-                    ? new Date(m.activities[0].createdAt).toLocaleString()
+                    ? new Date(m.activities[0].createdAt).toLocaleString([], {
+                        month: 'numeric',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
                     : 'N/A';
 
                   return (
-                    <tr key={m.id} className="hover:bg-card-border/10 transition-colors">
-                      <td className="p-4">
+                    <tr key={m.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="py-3.5 px-5">
                         <button
                           onClick={() => onSelectLead(m.id)}
                           className="flex items-center gap-1.5 font-bold text-text-primary hover:text-brand-red text-left group"
                         >
                           <span>{m.firstName} {m.lastName}</span>
-                          <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-text-muted" />
                         </button>
-                        <p className="text-[10px] text-text-muted mt-0.5">{m.company}</p>
+                        <p className="text-xs text-text-muted mt-0.5">{m.company}</p>
                       </td>
-                      <td className="p-4">
-                        <p className="font-semibold text-text-secondary">{m.campaign?.name}</p>
-                        <p className="text-[10px] text-text-muted">{m.campaign?.client?.name}</p>
+                      <td className="py-3.5 px-5">
+                        <p className="font-semibold text-text-primary">{m.campaign?.name}</p>
+                        <p className="text-xs text-text-muted mt-0.5">{m.campaign?.client?.name}</p>
                       </td>
-                      <td className="p-4 font-medium text-text-primary">
+                      <td className="py-3.5 px-5 font-medium text-text-primary">
                         {m.assignedTo?.firstName} {m.assignedTo?.lastName}
                       </td>
-                      <td className="p-4 font-mono text-text-secondary">{bookingDate}</td>
-                      <td className="p-4">
+                      <td className="py-3.5 px-5 font-mono text-xs text-text-secondary">{bookingDate}</td>
+                      <td className="py-3.5 px-5">
                         {m.stage === 'won' ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-500 border border-green-500/20 uppercase tracking-wide">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
                             Won
                           </span>
                         ) : m.stage === 'lost' ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-red/10 text-brand-red border border-brand-red/20 uppercase tracking-wide">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200/80">
                             Lost
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-500 border border-blue-500/20 uppercase tracking-wide">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
                             Scheduled
                           </span>
                         )}
                       </td>
-                      <td className="p-4 text-right">
+                      <td className="py-3.5 px-5 text-right">
                         {m.stage === 'meeting_booked' ? (
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => handleUpdateStage(m.id, 'won')}
-                              className="bg-green-500 hover:bg-green-600 text-white font-bold px-2.5 py-1.5 rounded-lg transition-colors shadow-sm"
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-1 rounded-md text-xs transition-colors shadow-2xs"
                             >
                               Won / Closed
                             </button>
                             <button
                               onClick={() => handleUpdateStage(m.id, 'lost')}
-                              className="bg-brand-red hover:bg-brand-red/90 text-white font-bold px-2.5 py-1.5 rounded-lg transition-colors shadow-sm"
+                              className="bg-gray-100 hover:bg-rose-50 hover:text-rose-700 text-text-secondary font-semibold px-3 py-1 rounded-md text-xs border border-card-border transition-colors"
                             >
                               Lost
                             </button>
@@ -262,7 +248,7 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
                         ) : (
                           <button
                             onClick={() => handleUpdateStage(m.id, 'sequence_active')}
-                            className="bg-bg-main border border-card-border hover:bg-card-border/30 text-text-secondary font-bold px-2.5 py-1.5 rounded-lg transition-colors"
+                            className="bg-white border border-card-border hover:bg-gray-50 text-text-secondary font-semibold px-3 py-1 rounded-md text-xs transition-colors"
                           >
                             Reschedule
                           </button>

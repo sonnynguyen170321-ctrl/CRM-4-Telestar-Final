@@ -1,21 +1,21 @@
 'use client';
 
 const STAGE_STYLES: Record<string, string> = {
-  pending_client_review: 'bg-amber-500/10 text-amber-400 border-amber-500/25',
-  accepted_by_client: 'bg-sky-500/10 text-sky-400 border-sky-500/25',
-  discovery: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25',
-  proposal: 'bg-violet-500/10 text-violet-400 border-violet-500/25',
-  negotiation: 'bg-orange-500/10 text-orange-400 border-orange-500/25',
-  won: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25',
-  lost: 'bg-red-500/10 text-red-400 border-red-500/25',
-  nurture: 'bg-pink-500/10 text-pink-400 border-pink-500/25',
+  pending_client_review: 'bg-amber-50 text-amber-800 border-amber-200/80',
+  accepted_by_client: 'bg-sky-50 text-sky-800 border-sky-200/80',
+  discovery: 'bg-cyan-50 text-cyan-800 border-cyan-200/80',
+  proposal: 'bg-violet-50 text-violet-800 border-violet-200/80',
+  negotiation: 'bg-orange-50 text-orange-800 border-orange-200/80',
+  won: 'bg-emerald-50 text-emerald-800 border-emerald-200/80',
+  lost: 'bg-rose-50 text-rose-800 border-rose-200/80',
+  nurture: 'bg-pink-50 text-pink-800 border-pink-200/80',
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  open: 'bg-sky-500/10 text-sky-400 border-sky-500/25',
-  won: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25',
-  lost: 'bg-red-500/10 text-red-400 border-red-500/25',
-  archived: 'bg-card-border/40/10 text-text-muted border-card-border/25',
+  open: 'bg-sky-50 text-sky-800 border-sky-200/80',
+  won: 'bg-emerald-50 text-emerald-800 border-emerald-200/80',
+  lost: 'bg-rose-50 text-rose-800 border-rose-200/80',
+  archived: 'bg-gray-100 text-text-muted border-gray-200',
 };
 
 const STAGE_LABELS: Record<string, string> = {

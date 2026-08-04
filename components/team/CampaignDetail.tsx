@@ -98,22 +98,22 @@ export default function CampaignDetail({
   return (
     <div className="space-y-6">
       {/* Detail Header */}
-      <div className="flex flex-row items-center justify-between gap-4 bg-card-bg border border-card-border p-4 rounded-2xl shadow-sm">
+      <div className="flex flex-row items-center justify-between gap-4 py-1">
         <div className="flex items-center gap-3">
           {showTabsSwitcher && (
             <button
               onClick={onBack}
-              className="p-1.5 hover:bg-card-border/40 text-text-muted hover:text-text-primary rounded-lg transition-colors border border-card-border"
+              className="p-1.5 hover:bg-gray-100 text-text-muted hover:text-text-primary rounded-lg transition-colors border border-card-border"
               aria-label="Back to overview"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
           )}
           <div>
-            <span className="text-[10px] font-bold text-brand-orange-text uppercase tracking-wider">
+            <span className="text-xs font-semibold text-brand-orange-text uppercase tracking-wider">
               {data.clientName}
             </span>
-            <h2 className="font-display font-extrabold text-lg text-text-primary leading-tight">
+            <h2 className="font-display font-extrabold text-xl text-text-primary leading-tight">
               {data.campaignName}
             </h2>
           </div>
@@ -123,13 +123,13 @@ export default function CampaignDetail({
           <div className="flex items-center gap-2 self-auto">
             <button
               onClick={onExportCSV}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-card-bg hover:bg-card-bg/80 border border-card-border text-text-secondary text-xs font-semibold rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-card-bg hover:bg-gray-50 border border-card-border text-text-secondary text-xs font-semibold rounded-lg transition-colors"
             >
               Export CSV
             </button>
             <button
               onClick={onExportPDF}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm shadow-indigo-600/10"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-xs"
             >
               Export PDF
             </button>

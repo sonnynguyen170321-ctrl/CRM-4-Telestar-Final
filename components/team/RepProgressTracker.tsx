@@ -98,27 +98,27 @@ export default function RepProgressTracker({ users, dateRange }: RepProgressTrac
   return (
     <div className="space-y-6">
       {/* Selector Hub */}
-      <div className="flex flex-row items-center justify-between gap-4 bg-card-bg border border-card-border p-4 rounded-2xl shadow-sm">
+      <div className="flex flex-row items-center justify-between gap-4 py-1">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-brand-red/10 border border-brand-red/20 flex items-center justify-center">
             <Award className="w-4 h-4 text-brand-red" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-brand-orange-text uppercase tracking-wider">
+            <span className="text-xs font-semibold text-brand-orange-text uppercase tracking-wider">
               Individual Progress Tracker
             </span>
-            <h2 className="font-display font-extrabold text-sm text-text-primary leading-tight">
+            <h2 className="font-display font-extrabold text-base text-text-primary leading-tight">
               {selectedSdr ? `${selectedSdr.firstName} ${selectedSdr.lastName}` : 'Select an SDR'}
             </h2>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-text-muted uppercase">Select Representative:</span>
+          <span className="text-xs font-semibold text-text-muted uppercase">Select Representative:</span>
           <select
             value={selectedSdrId}
             onChange={(e) => setSelectedSdrId(e.target.value)}
-            className="bg-bg-main border border-card-border rounded-xl text-xs font-semibold px-3 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+            className="bg-card-bg border border-card-border rounded-lg text-xs font-semibold px-3 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
           >
             {sdrs.map((u) => (
               <option key={u.id} value={u.id}>
