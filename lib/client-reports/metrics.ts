@@ -90,6 +90,23 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
     },
   });
 
+  /**
+   * Activity types that represent real outbound contact with a prospect.
+   *
+   * Everything else the CRM auto-logs — stage_changed, note_added, booking_link_sent,
+   * meeting_booked — is internal bookkeeping. Those were landing in `manualTouches` and
+   * inflating the client-facing "touchpoints" headline, which is how a campaign with
+   * zero emails and zero calls reported 21 touchpoints above a channel table of zeros.
+   * A client comparing those two numbers concludes we invented them, and they are right.
+   */
+  const OUTBOUND_ACTIVITY_TYPES = new Set([
+    'email_sent',
+    'call_logged',
+    'linkedin_message',
+    'whatsapp_message',
+  ]);
+  const isOutbound = (type: string) => OUTBOUND_ACTIVITY_TYPES.has(type.toLowerCase());
+
   const touchedLeadIds = new Set<string>();
   let emailTouches = 0;
   let callTouches = 0;
@@ -115,7 +132,10 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
   >();
 
   for (const act of activities) {
-    if (act.leadId) {
+    // A lead counts as "contacted" only once someone actually reached out to it.
+    // Previously any activity qualified, so a stage change with no contact marked a
+    // prospect Contacted and inflated the reply-rate denominator.
+    if (act.leadId && isOutbound(act.type)) {
       touchedLeadIds.add(act.leadId);
     }
 
@@ -150,7 +170,7 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
       if (act.userId && repActivityMap.has(act.userId)) {
         repActivityMap.get(act.userId)!.replies++;
       }
-    } else {
+    } else if (isOutbound(typeStr)) {
       if (ch === 'email' || typeStr.includes('email')) emailTouches++;
       else if (ch === 'call' || typeStr.includes('call')) callTouches++;
       else if (ch === 'linkedin' || typeStr.includes('linkedin')) linkedinTouches++;
@@ -161,31 +181,57 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
         repActivityMap.get(act.userId)!.touches++;
       }
     }
+    // Non-outbound activity is intentionally not counted anywhere client-facing.
   }
 
   const leadsTouched = touchedLeadIds.size;
   const touchpointsCompleted = emailTouches + callTouches + linkedinTouches + whatsappTouches + manualTouches;
   const replies = emailReplies + callReplies + linkedinReplies + whatsappReplies;
-  const positiveReplies = Math.round(replies * 0.45); // Estimator / or derived from positive sentiment tag
+
+  const inPeriod = (d: Date | null | undefined) => !!d && d >= periodStart && d <= periodEnd;
 
   // 4. Query Meetings in Period
+  //
+  // Two clocks, deliberately. "Booked" is when the team did the work — `createdAt`.
+  // "Held" is when the meeting actually happens — `scheduledAt`. Filtering the whole
+  // section on `scheduledAt` (the old behaviour) meant a meeting booked today for next
+  // Tuesday counted in neither week, and `link_sent` rows — which have no `scheduledAt`
+  // at all — could never be reported. That is what produced a document claiming zero
+  // booked meetings above a pipeline built out of those very meetings.
   const meetings = await prisma.meeting.findMany({
     where: {
       clientId,
       ...(campaignId ? { campaignId } : {}),
-      scheduledAt: {
-        gte: periodStart,
-        lte: periodEnd,
-      },
+      OR: [
+        { createdAt: { gte: periodStart, lte: periodEnd } },
+        { scheduledAt: { gte: periodStart, lte: periodEnd } },
+      ],
     },
     include: {
       lead: { select: { company: true, firstName: true, lastName: true, title: true } },
       sdr: { select: { id: true, firstName: true, lastName: true, email: true } },
     },
-    orderBy: { scheduledAt: 'desc' },
+    orderBy: [{ scheduledAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
   });
 
-  const meetingsBooked = meetings.length;
+  // Real per-channel meeting attribution. `Meeting.sourceChannel` records how the
+  // meeting was actually generated; the old code split the total 40/45/10/5 across
+  // email/call/linkedin/whatsapp with hardcoded ratios, which is the number a client
+  // uses to set next quarter's budget. Meetings with no sourceChannel are simply not
+  // attributed rather than allocated by invention.
+  const meetingsByChannel = new Map<string, number>();
+  for (const m of meetings) {
+    if (!m.sourceChannel) continue;
+    if (!inPeriod(m.createdAt)) continue;
+    const key = String(m.sourceChannel).toLowerCase();
+    meetingsByChannel.set(key, (meetingsByChannel.get(key) ?? 0) + 1);
+  }
+
+  // Booked in this period, by when the work was done.
+  const meetingsBooked = meetings.filter((m) => inPeriod(m.createdAt)).length;
+  // Scheduled to happen in this period — a separate, honest measure.
+  const meetingsHeld = meetings.filter((m) => inPeriod(m.scheduledAt)).length;
+
   let meetingsCompleted = 0;
   let noShows = 0;
   let qualifiedMeetings = 0;
@@ -210,7 +256,10 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
       company: m.lead?.company || 'Unknown Company',
       contactName,
       contactTitle: m.lead?.title || undefined,
-      scheduledAt: m.scheduledAt ? m.scheduledAt.toISOString() : new Date().toISOString(),
+      // Null for `link_sent` rows — a link was sent, no time agreed yet. Previously
+      // defaulted to "now", which printed today's date as a scheduled meeting.
+      scheduledAt: m.scheduledAt ? m.scheduledAt.toISOString() : null,
+      bookedAt: m.createdAt.toISOString(),
       status: m.status,
       outcome: m.outcome || undefined,
       summaryNotes: sanitizeClientFacingText(m.outcomeNotes),
@@ -284,7 +333,6 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
 
   // 6. Calculate KPIs & Rates
   const replyRate = leadsTouched > 0 ? Number((replies / leadsTouched).toFixed(3)) : 0;
-  const positiveReplyRate = leadsTouched > 0 ? Number((positiveReplies / leadsTouched).toFixed(3)) : 0;
   const noShowRate = meetingsBooked > 0 ? Number((noShows / meetingsBooked).toFixed(3)) : 0;
   const clientAcceptanceRate =
     opportunitiesSubmitted > 0 ? Number((clientAcceptedOpportunities / opportunitiesSubmitted).toFixed(3)) : 0;
@@ -333,13 +381,21 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
   ];
 
   // 8. Channels breakdown
+  // No meeting in this period records a sourceChannel, so per-channel attribution is
+  // simply unknown. Publishing a 0 in every row against a non-zero "meetings booked"
+  // headline would recreate exactly the header-vs-table contradiction this batch is
+  // fixing — with the added problem that a 0 reads as "this channel produced nothing".
+  const hasChannelAttribution = meetingsByChannel.size > 0;
+  const attributed = (key: string, alt?: string) =>
+    hasChannelAttribution ? (meetingsByChannel.get(key) ?? (alt ? meetingsByChannel.get(alt) : undefined) ?? 0) : undefined;
+
   const channels = [
     {
       channel: 'email' as const,
       label: 'Email Outreach',
       touchpoints: emailTouches,
       replies: emailReplies,
-      meetingsBooked: Math.round(meetingsBooked * 0.4),
+      meetingsBooked: attributed('email'),
       conversionRate: emailTouches > 0 ? Number((emailReplies / emailTouches).toFixed(3)) : 0,
     },
     {
@@ -347,7 +403,7 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
       label: 'Cold Calling',
       touchpoints: callTouches,
       replies: callReplies,
-      meetingsBooked: Math.round(meetingsBooked * 0.45),
+      meetingsBooked: attributed('call', 'phone'),
       conversionRate: callTouches > 0 ? Number((callReplies / callTouches).toFixed(3)) : 0,
     },
     {
@@ -355,7 +411,7 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
       label: 'LinkedIn Messaging',
       touchpoints: linkedinTouches,
       replies: linkedinReplies,
-      meetingsBooked: Math.round(meetingsBooked * 0.1),
+      meetingsBooked: attributed('linkedin'),
       conversionRate: linkedinTouches > 0 ? Number((linkedinReplies / linkedinTouches).toFixed(3)) : 0,
     },
     {
@@ -363,7 +419,7 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
       label: 'WhatsApp Direct',
       touchpoints: whatsappTouches,
       replies: whatsappReplies,
-      meetingsBooked: Math.round(meetingsBooked * 0.05),
+      meetingsBooked: attributed('whatsapp'),
       conversionRate: whatsappTouches > 0 ? Number((whatsappReplies / whatsappTouches).toFixed(3)) : 0,
     },
   ];
@@ -440,22 +496,42 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
     take: 5,
   });
 
+  // Per-source lead counts are real. The old `meetings` figure here was an allocation
+  // (sourceCount x overall booking rate), not attribution — it read as "this source
+  // produced N meetings" when nothing had measured that. Dropped rather than guessed.
   const topSources = topSourcesRaw
     .filter((s) => s.source)
     .map((s) => ({
       source: s.source || 'Standard ICP Pool',
       qualified: s._count._all,
-      meetings: Math.round(s._count._all * (meetingsBooked / (totalLeadsAssigned || 1))),
     }));
+
+  // Real email validation, straight off Contact. Previously `validated`, `qualified` and
+  // `rejected` were the lead count times 0.94 / 0.88 / 0.06, `duplicateRate` was a flat
+  // 3% and `averageEmailScore` a flat 92 — all five printed to the client as measurements.
+  // A field with no real source is now omitted instead of invented.
+  // Contacts reach this client through their lead assignments. 'valid' | 'deliverable'
+  // is the same rule lib/leadgen/metrics.ts:35 already uses for a validated address —
+  // one definition, not a second opinion.
+  const contactWhereScope = { leadAssignments: { some: leadWhereScope } };
+
+  const validatedContacts = await prisma.contact.count({
+    where: { ...contactWhereScope, emailValidation: { in: ['valid', 'deliverable'] } },
+  });
+  const scoreAgg = await prisma.contact.aggregate({
+    where: { ...contactWhereScope, emailScore: { not: null } },
+    _avg: { emailScore: true },
+  });
 
   const leadQuality = {
     imported: newLeadsAdded || totalLeadsAssigned,
-    validated: Math.round((newLeadsAdded || totalLeadsAssigned) * 0.94),
-    qualified: Math.round((newLeadsAdded || totalLeadsAssigned) * 0.88),
-    rejected: Math.round((newLeadsAdded || totalLeadsAssigned) * 0.06),
-    duplicateRate: 0.03,
-    averageEmailScore: 92,
-    topSources: topSources.length > 0 ? topSources : [{ source: 'Verified ICP Pool', qualified: totalLeadsAssigned, meetings: meetingsBooked }],
+    validated: validatedContacts,
+    averageEmailScore:
+      scoreAgg._avg.emailScore != null ? Math.round(scoreAgg._avg.emailScore) : undefined,
+    topSources:
+      topSources.length > 0
+        ? topSources
+        : [{ source: 'Verified ICP Pool', qualified: totalLeadsAssigned }],
   };
 
   // 10. Reps contribution list
@@ -506,10 +582,9 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
       leadsTouched,
       touchpointsCompleted,
       replies,
-      positiveReplies,
       replyRate,
-      positiveReplyRate,
       meetingsBooked,
+      meetingsHeld,
       meetingsCompleted,
       noShows,
       noShowRate,

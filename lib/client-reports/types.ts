@@ -29,10 +29,11 @@ export interface ClientReportSnapshot {
     leadsTouched: number;
     touchpointsCompleted: number;
     replies: number;
-    positiveReplies: number;
     replyRate: number; // e.g. 0.15 = 15%
-    positiveReplyRate: number;
+    /** Booked in the period (Meeting.createdAt) — the work delivered. */
     meetingsBooked: number;
+    /** Scheduled to occur in the period (Meeting.scheduledAt). */
+    meetingsHeld: number;
     meetingsCompleted: number;
     noShows: number;
     noShowRate: number;
@@ -56,7 +57,12 @@ export interface ClientReportSnapshot {
     label: string;
     touchpoints: number;
     replies: number;
-    meetingsBooked: number;
+    /**
+     * Real per-channel attribution from `Meeting.sourceChannel`. Undefined when no
+     * meeting in the period carries a source — printing 0 there would assert that
+     * the channel produced nothing, which is a measurement we have not made.
+     */
+    meetingsBooked?: number;
     conversionRate: number;
   }>;
   emailChannelHealth?: {
@@ -69,18 +75,19 @@ export interface ClientReportSnapshot {
   leadQuality: {
     imported?: number;
     validated?: number;
-    qualified?: number;
-    rejected?: number;
-    duplicateRate?: number;
+    /** Real mean of Contact.emailScore; omitted when no contact has been scored. */
     averageEmailScore?: number;
-    topSources?: Array<{ source: string; qualified: number; meetings: number }>;
+    topSources?: Array<{ source: string; qualified: number }>;
   };
   meetings: Array<{
     id: string;
     company: string;
     contactName?: string;
     contactTitle?: string;
-    scheduledAt: string;
+    /** Null when the meeting is only `link_sent` — no time has been agreed yet. */
+    scheduledAt: string | null;
+    /** When the meeting was booked, which is the work the client is billed for. */
+    bookedAt?: string;
     status: string;
     outcome?: string;
     summaryNotes?: string;

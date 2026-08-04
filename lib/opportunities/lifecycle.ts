@@ -41,6 +41,23 @@ export async function moveStage(input: {
   if (input.lostReason) data.lostReason = input.lostReason;
   if (input.lostReasonDetails) data.lostReasonDetails = input.lostReasonDetails;
 
+  // Walking the stage dropdown past pending_client_review *is* the client accepting the
+  // handoff, but only decideHandoff (the separate modal) ever wrote handoffStatus — so
+  // acceptance stayed 'pending' even on won deals, pinning clientAcceptanceRate at 0%
+  // while the report showed a six-figure won value. Record it here too.
+  //
+  // Deliberately narrow: a `lost` that follows acceptance is an ordinary sales loss and
+  // must not rewrite the acceptance. Only a loss straight out of pending_client_review
+  // means the client refused the handoff.
+  const ACCEPTED_STAGES = ['accepted_by_client', 'discovery', 'proposal', 'negotiation', 'won'];
+  if (opp.handoffStatus === 'pending') {
+    if (ACCEPTED_STAGES.includes(input.stage)) {
+      data.handoffStatus = 'accepted';
+    } else if (input.stage === 'lost' && prevStage === 'pending_client_review') {
+      data.handoffStatus = 'rejected';
+    }
+  }
+
   let activityType = 'stage_changed';
   if (input.stage === 'won') {
     data.status = 'won';

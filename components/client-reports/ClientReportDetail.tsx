@@ -432,7 +432,7 @@ export default function ClientReportDetail({ report: initialReport, currentUserR
                     </td>
                     <td className="py-2.5 px-3 text-muted-foreground">{ch.touchpoints.toLocaleString()}</td>
                     <td className="py-2.5 px-3 font-semibold text-text-primary">{ch.replies}</td>
-                    <td className="py-2.5 px-3 font-semibold text-brand-red">{ch.meetingsBooked}</td>
+                    <td className="py-2.5 px-3 font-semibold text-brand-red">{ch.meetingsBooked ?? '—'}</td>
                     <td className="py-2.5 px-3 text-muted-foreground">{(ch.conversionRate * 100).toFixed(1)}%</td>
                   </tr>
                 ))}
@@ -550,7 +550,7 @@ export default function ClientReportDetail({ report: initialReport, currentUserR
                       )}
                     </td>
                     <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">
-                      {new Date(m.scheduledAt).toLocaleDateString()}
+                      {m.scheduledAt ? new Date(m.scheduledAt).toLocaleDateString() : 'Not yet scheduled'}
                     </td>
                     <td className="py-2.5 px-3 whitespace-nowrap">
                       <span className="capitalize px-2 py-0.5 rounded text-[11px] font-medium bg-card-border/40 text-text-primary border border-card-border">

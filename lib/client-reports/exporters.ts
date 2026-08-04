@@ -6,6 +6,17 @@ function escapeCsv(val: any): string {
   return `"${str}"`;
 }
 
+/** Escape a value before interpolating it into the exported HTML template. */
+function escapeHtml(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  return String(val)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function exportReportToCSV(snapshot: ClientReportSnapshot): string {
   const lines: string[] = [];
 
@@ -53,7 +64,7 @@ export function exportReportToCSV(snapshot: ClientReportSnapshot): string {
   lines.push('Channel,Touchpoints,Replies,Meetings Booked,Conversion Rate');
   for (const ch of snapshot.channels) {
     lines.push(
-      `${escapeCsv(ch.label)},${ch.touchpoints},${ch.replies},${ch.meetingsBooked},${(ch.conversionRate * 100).toFixed(1)}%`
+      `${escapeCsv(ch.label)},${ch.touchpoints},${ch.replies},${ch.meetingsBooked ?? 'n/a'},${(ch.conversionRate * 100).toFixed(1)}%`
     );
   }
   lines.push('');
@@ -74,7 +85,7 @@ export function exportReportToCSV(snapshot: ClientReportSnapshot): string {
   lines.push('Company,Contact,Scheduled Date,Status,Outcome,SDR,Notes');
   for (const m of snapshot.meetings) {
     lines.push(
-      `${escapeCsv(m.company)},${escapeCsv(m.contactName || m.contactTitle || '')},${escapeCsv(m.scheduledAt)},${escapeCsv(m.status)},${escapeCsv(m.outcome || '')},${escapeCsv(m.sdrDisplayName || '')},${escapeCsv(m.summaryNotes || '')}`
+      `${escapeCsv(m.company)},${escapeCsv(m.contactName || m.contactTitle || '')},${escapeCsv(m.scheduledAt || 'Not yet scheduled')},${escapeCsv(m.status)},${escapeCsv(m.outcome || '')},${escapeCsv(m.sdrDisplayName || '')},${escapeCsv(m.summaryNotes || '')}`
     );
   }
   lines.push('');
@@ -101,9 +112,39 @@ export function exportReportToCSV(snapshot: ClientReportSnapshot): string {
   return lines.join('\n');
 }
 
-export function exportReportToHTML(snapshot: ClientReportSnapshot): string {
+/**
+ * The report's real approval state, passed in from the row rather than assumed.
+ *
+ * The header used to be the string literal "Status: Approved", so an unapproved
+ * draft exported to the client claiming a sign-off that had not happened. The
+ * approve/freeze gate exists precisely so a manager signs off before a client
+ * sees numbers; printing "Approved" on a draft does not just bypass that gate,
+ * it misrepresents it.
+ */
+export interface ReportApprovalState {
+  status: string;
+  approvedByName?: string | null;
+  approvedAt?: Date | string | null;
+}
+
+export function exportReportToHTML(
+  snapshot: ClientReportSnapshot,
+  approval?: ReportApprovalState
+): string {
   const periodStartFmt = new Date(snapshot.meta.periodStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const periodEndFmt = new Date(snapshot.meta.periodEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  const status = approval?.status ?? 'draft';
+  const isApproved = status === 'approved' || status === 'shared';
+  const approver = approval?.approvedByName || snapshot.meta.approvedByName;
+  const statusLine = isApproved
+    ? `Status: Approved${approver ? ` by ${escapeHtml(approver)}` : ''} &bull; Version ${escapeHtml(snapshot.meta.version || 'v1')}`
+    : `Status: ${escapeHtml(status.toUpperCase())} &mdash; not approved for client distribution`;
+  const draftBanner = isApproved
+    ? ''
+    : `<div style="background:#fef3c7;border:1px solid #f59e0b;color:#92400e;padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:12px;font-weight:600;">
+        DRAFT &mdash; these figures are unapproved and must not be sent to the client.
+      </div>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -262,6 +303,8 @@ export function exportReportToHTML(snapshot: ClientReportSnapshot): string {
     </button>
   </div>
 
+  ${draftBanner}
+
   <div class="header">
     <div>
       <div class="brand">SALESFLOW &bull; CAMPAIGN REPORT</div>
@@ -269,7 +312,7 @@ export function exportReportToHTML(snapshot: ClientReportSnapshot): string {
     </div>
     <div style="text-align: right;">
       <div class="meta-badge">${periodStartFmt} &ndash; ${periodEndFmt}</div>
-      <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Status: Approved &bull; Version v1</div>
+      <div style="font-size: 11px; color: #64748b; margin-top: 4px;">${statusLine}</div>
     </div>
   </div>
 
@@ -339,7 +382,7 @@ export function exportReportToHTML(snapshot: ClientReportSnapshot): string {
           <td><strong>${ch.label}</strong></td>
           <td>${ch.touchpoints.toLocaleString()}</td>
           <td>${ch.replies}</td>
-          <td>${ch.meetingsBooked}</td>
+          <td>${ch.meetingsBooked ?? '&mdash;'}</td>
           <td>${(ch.conversionRate * 100).toFixed(1)}%</td>
         </tr>
       `).join('')}
@@ -383,7 +426,7 @@ export function exportReportToHTML(snapshot: ClientReportSnapshot): string {
       ${snapshot.meetings.slice(0, 10).map(m => `
         <tr>
           <td><strong>${m.company}</strong></td>
-          <td>${new Date(m.scheduledAt).toLocaleDateString()}</td>
+          <td>${m.scheduledAt ? new Date(m.scheduledAt).toLocaleDateString() : 'Not yet scheduled'}</td>
           <td><span class="badge ${m.status === 'completed' ? 'badge-success' : 'badge-info'}">${m.status}</span></td>
           <td>${m.outcome || 'Pending'}</td>
           <td>${m.nextStep || 'Follow-up as scheduled'}</td>

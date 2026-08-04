@@ -32,6 +32,7 @@ const mockPrismaClient = {
   client: { findUnique: vi.fn() },
   campaign: { findUnique: vi.fn() },
   lead: { count: vi.fn(), groupBy: vi.fn() },
+  contact: { count: vi.fn(), aggregate: vi.fn() },
   activity: { findMany: vi.fn() },
   meeting: { findMany: vi.fn() },
   opportunity: { findMany: vi.fn() },
@@ -45,6 +46,10 @@ vi.mock('@/lib/prisma', () => ({
     lead: {
       count: (...args: unknown[]) => mockPrismaClient.lead.count(...args),
       groupBy: (...args: unknown[]) => mockPrismaClient.lead.groupBy(...args),
+    },
+    contact: {
+      count: (...args: unknown[]) => mockPrismaClient.contact.count(...args),
+      aggregate: (...args: unknown[]) => mockPrismaClient.contact.aggregate(...args),
     },
     activity: { findMany: (...args: unknown[]) => mockPrismaClient.activity.findMany(...args) },
     meeting: { findMany: (...args: unknown[]) => mockPrismaClient.meeting.findMany(...args) },
@@ -83,18 +88,49 @@ describe('Client Reports Module - Unit Tests', () => {
       expect(canShareClientReport(sdr)).toBe(false);
     });
 
+    // CRM-E-007 regression cover. canViewClientReport used to return true for
+    // every role, so both export routes and the detail route were effectively
+    // open: an SDR could pull any client's pipeline values and named accounts.
+    const seeAll = { seeAll: true, campaignIds: new Set<string>() };
+    const scopedToAcme = { seeAll: false, campaignIds: new Set(['camp-acme']) };
+
+    const acmeReport = {
+      id: 'rep-1',
+      tenantId: 'tenant-1',
+      status: 'approved',
+      audience: 'client',
+      campaignId: 'camp-acme',
+      generatedById: 'u9',
+    };
+    const otherClientReport = { ...acmeReport, id: 'rep-2', campaignId: 'camp-payflow' };
+
     it('prevents cross-tenant viewing', () => {
-      const report = {
-        id: 'rep-1',
-        tenantId: 'tenant-1',
-        status: 'approved',
-        audience: 'client',
-        generatedById: 'u4',
-      };
-      expect(canViewClientReport(director, report)).toBe(true);
+      expect(canViewClientReport(director, acmeReport, seeAll)).toBe(true);
 
       const otherTenantUser = { ...director, tenantId: 'tenant-2' };
-      expect(canViewClientReport(otherTenantUser, report)).toBe(false);
+      expect(canViewClientReport(otherTenantUser, acmeReport, seeAll)).toBe(false);
+    });
+
+    it('refuses an SDR a report for a client they do not work — the E-007 case', () => {
+      expect(canViewClientReport(sdr, otherClientReport, scopedToAcme)).toBe(false);
+    });
+
+    it('lets an SDR view a report for a campaign in their scope', () => {
+      expect(canViewClientReport(sdr, acmeReport, scopedToAcme)).toBe(true);
+    });
+
+    it('lets the author view their own report even out of campaign scope', () => {
+      const authored = { ...otherClientReport, generatedById: sdr.id };
+      expect(canViewClientReport(sdr, authored, scopedToAcme)).toBe(true);
+    });
+
+    it('keeps a client-wide report (no campaignId) manager-or-author only', () => {
+      const clientWide = { ...acmeReport, campaignId: null };
+      expect(canViewClientReport(sdr, clientWide, scopedToAcme)).toBe(false);
+      expect(canViewClientReport(director, clientWide, seeAll)).toBe(true);
+      expect(
+        canViewClientReport({ ...sdr, id: 'u9' }, clientWide, scopedToAcme)
+      ).toBe(true);
     });
 
     it('prevents editing approved/archived reports', () => {
@@ -190,10 +226,9 @@ describe('Client Reports Module - Unit Tests', () => {
         leadsTouched: 450,
         touchpointsCompleted: 1200,
         replies: 45,
-        positiveReplies: 20,
         replyRate: 0.1,
-        positiveReplyRate: 0.044,
         meetingsBooked: 18,
+        meetingsHeld: 16,
         meetingsCompleted: 15,
         noShows: 3,
         noShowRate: 0.166,
@@ -222,11 +257,8 @@ describe('Client Reports Module - Unit Tests', () => {
       leadQuality: {
         imported: 500,
         validated: 480,
-        qualified: 300,
-        rejected: 20,
-        duplicateRate: 0.02,
         averageEmailScore: 88,
-        topSources: [{ source: 'Apollo', qualified: 200, meetings: 12 }],
+        topSources: [{ source: 'Apollo', qualified: 200 }],
       },
       meetings: [
         {
@@ -346,6 +378,8 @@ describe('Client Reports Module - Unit Tests', () => {
       mockPrismaClient.meeting.findMany.mockResolvedValue([]);
       mockPrismaClient.opportunity.findMany.mockResolvedValue([]);
       mockPrismaClient.outboundMessage.findMany.mockResolvedValue([]);
+      mockPrismaClient.contact.count.mockResolvedValue(0);
+      mockPrismaClient.contact.aggregate.mockResolvedValue({ _avg: { emailScore: null } });
     });
 
     it('scopes lead queries through campaign relation instead of direct lead.clientId', async () => {
@@ -369,15 +403,145 @@ describe('Client Reports Module - Unit Tests', () => {
         },
       });
 
+      // CRM-E-002: the window must span BOTH clocks. Filtering on scheduledAt alone
+      // dropped meetings booked this period for a later date, and permanently excluded
+      // link_sent rows (scheduledAt is null) — which is how the report claimed zero
+      // booked meetings beside a pipeline built from those meetings.
       expect(mockPrismaClient.meeting.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
             clientId: 'cli-1',
             campaignId: 'camp-1',
-            scheduledAt: expect.any(Object),
+            OR: [
+              { createdAt: expect.any(Object) },
+              { scheduledAt: expect.any(Object) },
+            ],
           },
         })
       );
+    });
+
+    /**
+     * CRM-E-002 / E-003 / E-004. Lane E scored the shipped payload 11 invented,
+     * 6 structurally wrong. These pin the corrections against regression.
+     */
+    it('counts a meeting booked this period but scheduled later as booked', async () => {
+      const bookedNow = new Date('2026-07-03');
+      const scheduledLater = new Date('2026-08-20');
+      mockPrismaClient.meeting.findMany.mockResolvedValue([
+        { id: 'm1', createdAt: bookedNow, scheduledAt: scheduledLater, status: 'scheduled', outcome: null, sourceChannel: 'email', sdrId: null, lead: null, sdr: null },
+      ]);
+
+      const snapshot = await buildReportMetrics({
+        clientId: 'cli-1',
+        periodStart: new Date('2026-07-01'),
+        periodEnd: new Date('2026-07-07'),
+        generatedById: 'u1',
+        generatedByName: 'Dean',
+      });
+
+      expect(snapshot.kpis.meetingsBooked).toBe(1);
+      expect(snapshot.kpis.meetingsHeld).toBe(0);
+    });
+
+    it('reports a link_sent meeting that has no scheduledAt at all', async () => {
+      mockPrismaClient.meeting.findMany.mockResolvedValue([
+        { id: 'm2', createdAt: new Date('2026-07-02'), scheduledAt: null, status: 'link_sent', outcome: null, sourceChannel: 'linkedin', sdrId: null, lead: null, sdr: null },
+      ]);
+
+      const snapshot = await buildReportMetrics({
+        clientId: 'cli-1',
+        periodStart: new Date('2026-07-01'),
+        periodEnd: new Date('2026-07-07'),
+        generatedById: 'u1',
+        generatedByName: 'Dean',
+      });
+
+      expect(snapshot.kpis.meetingsBooked).toBe(1);
+      expect(snapshot.meetings[0].scheduledAt).toBeNull();
+    });
+
+    it('attributes channel meetings from sourceChannel, not a hardcoded 40/45/10/5 split', async () => {
+      mockPrismaClient.meeting.findMany.mockResolvedValue([
+        { id: 'm1', createdAt: new Date('2026-07-02'), scheduledAt: null, status: 'link_sent', outcome: null, sourceChannel: 'linkedin', sdrId: null, lead: null, sdr: null },
+        { id: 'm2', createdAt: new Date('2026-07-03'), scheduledAt: null, status: 'link_sent', outcome: null, sourceChannel: 'linkedin', sdrId: null, lead: null, sdr: null },
+      ]);
+
+      const snapshot = await buildReportMetrics({
+        clientId: 'cli-1',
+        periodStart: new Date('2026-07-01'),
+        periodEnd: new Date('2026-07-07'),
+        generatedById: 'u1',
+        generatedByName: 'Dean',
+      });
+
+      const byChannel = Object.fromEntries(snapshot.channels.map((c) => [c.channel, c.meetingsBooked]));
+      expect(byChannel.linkedin).toBe(2);
+      expect(byChannel.email).toBe(0);
+      expect(byChannel.call).toBe(0);
+    });
+
+    it('omits per-channel attribution entirely when no meeting records a sourceChannel', async () => {
+      // Every Meeting row in the live database has sourceChannel NULL. Printing 0 in
+      // each row would assert "this channel produced no meetings" against a non-zero
+      // booked headline — an unmeasured claim, and a fresh header/table contradiction.
+      mockPrismaClient.meeting.findMany.mockResolvedValue([
+        { id: 'm1', createdAt: new Date('2026-07-02'), scheduledAt: null, status: 'link_sent', outcome: null, sourceChannel: null, sdrId: null, lead: null, sdr: null },
+      ]);
+
+      const snapshot = await buildReportMetrics({
+        clientId: 'cli-1',
+        periodStart: new Date('2026-07-01'),
+        periodEnd: new Date('2026-07-07'),
+        generatedById: 'u1',
+        generatedByName: 'Dean',
+      });
+
+      expect(snapshot.kpis.meetingsBooked).toBe(1);
+      for (const c of snapshot.channels) expect(c.meetingsBooked).toBeUndefined();
+    });
+
+    it('excludes internal bookkeeping activity from client-facing touchpoints', async () => {
+      mockPrismaClient.activity.findMany.mockResolvedValue([
+        { id: 'a1', type: 'stage_changed', channel: null, leadId: 'l1', userId: null, user: null, metadata: null },
+        { id: 'a2', type: 'note_added', channel: null, leadId: 'l1', userId: null, user: null, metadata: null },
+        { id: 'a3', type: 'email_sent', channel: 'email', leadId: 'l1', userId: null, user: null, metadata: null },
+      ]);
+
+      const snapshot = await buildReportMetrics({
+        clientId: 'cli-1',
+        periodStart: new Date('2026-07-01'),
+        periodEnd: new Date('2026-07-07'),
+        generatedById: 'u1',
+        generatedByName: 'Dean',
+      });
+
+      // One real outbound email — not three "touchpoints".
+      expect(snapshot.kpis.touchpointsCompleted).toBe(1);
+      expect(snapshot.kpis.leadsTouched).toBe(1);
+      // The header must reconcile with the published channel table.
+      const channelSum = snapshot.channels.reduce((n, c) => n + c.touchpoints, 0);
+      expect(channelSum).toBe(snapshot.kpis.touchpointsCompleted);
+    });
+
+    it('ships no fabricated lead-quality constants', async () => {
+      mockPrismaClient.contact.count.mockResolvedValue(7);
+      mockPrismaClient.contact.aggregate.mockResolvedValue({ _avg: { emailScore: null } });
+
+      const snapshot = await buildReportMetrics({
+        clientId: 'cli-1',
+        periodStart: new Date('2026-07-01'),
+        periodEnd: new Date('2026-07-07'),
+        generatedById: 'u1',
+        generatedByName: 'Dean',
+      });
+
+      // Real count from Contact.emailValidation, not leads x 0.94.
+      expect(snapshot.leadQuality.validated).toBe(7);
+      // Omitted rather than defaulted to 92 when nothing has been scored.
+      expect(snapshot.leadQuality.averageEmailScore).toBeUndefined();
+      expect(snapshot.leadQuality).not.toHaveProperty('duplicateRate');
+      expect(snapshot.kpis).not.toHaveProperty('positiveReplies');
     });
   });
 });
