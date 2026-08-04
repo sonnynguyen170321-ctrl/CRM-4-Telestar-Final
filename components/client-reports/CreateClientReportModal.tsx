@@ -55,23 +55,32 @@ export default function CreateClientReportModal({ isOpen, onClose }: Props) {
       setPreviewSnapshot(null);
       setError(null);
 
-      // Fetch clients
+      // Clients come from /api/campaigns?type=clients — there is no /api/clients
+      // route, and the 404 it returned used to be swallowed here, leaving the
+      // dropdown empty and both action buttons permanently disabled.
       setLoadingInitial(true);
-      fetch('/api/clients')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.clients) setClients(data.clients);
+      fetch('/api/campaigns?type=clients')
+        .then((res) => {
+          if (!res.ok) throw new Error(`Could not load clients (${res.status})`);
+          return res.json();
         })
-        .catch(() => {})
+        .then((data) => {
+          setClients(Array.isArray(data) ? data : data.clients ?? []);
+        })
+        .catch((err) => setError(err.message || 'Could not load clients'))
         .finally(() => setLoadingInitial(false));
 
-      // Fetch campaigns
+      // The default branch of /api/campaigns answers with a bare array, not
+      // { campaigns: [...] }. Accept either shape rather than assuming one.
       fetch('/api/campaigns')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.campaigns) setCampaigns(data.campaigns);
+        .then((res) => {
+          if (!res.ok) throw new Error(`Could not load campaigns (${res.status})`);
+          return res.json();
         })
-        .catch(() => {});
+        .then((data) => {
+          setCampaigns(Array.isArray(data) ? data : data.campaigns ?? []);
+        })
+        .catch((err) => setError(err.message || 'Could not load campaigns'));
     }
   }, [isOpen]);
 
