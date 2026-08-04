@@ -6,6 +6,7 @@ import type { SessionUser } from '@/lib/auth';
 import { parseBody, capLimit } from '@/lib/validation/core';
 import { createLeadSchema, leadStage, priority as prioritySchema } from '@/lib/validation/schemas';
 import { buildLeadListWhere } from '@/lib/leads/listQuery';
+import { findAccentInsensitiveIds, LEAD_SEARCH_COLUMNS } from '@/lib/search/accentSearch';
 import { handleApiError } from '@/lib/api/errors';
 import { normalizePhone, normalizeLinkedIn } from '@/lib/leads/normalize';
 import { scoreLead } from '@/lib/ai/scoring';
@@ -48,6 +49,16 @@ export async function GET(req: NextRequest) {
   // Composed with AND so no filter/search can override it (BUG-001).
   const roleScope = (await getLeadWhereScope(user)) as Prisma.LeadWhereInput;
 
+  // Accent-insensitive search resolves ids in SQL first — folding only the query cannot
+  // make "Nguyen Hai" match a record stored as "Nguyễn Hải". Narrowing only; the role
+  // scope above is still ANDed on top and cannot be widened.
+  const searchIds = await findAccentInsensitiveIds(
+    'Lead',
+    LEAD_SEARCH_COLUMNS,
+    search,
+    user.tenantId
+  );
+
   try {
     const leads = await prisma.lead.findMany({
       take: limit,
@@ -65,6 +76,7 @@ export async function GET(req: NextRequest) {
         dateFrom,
         dateTo,
         search,
+        searchIds,
         includeArchived,
       }),
       include: {

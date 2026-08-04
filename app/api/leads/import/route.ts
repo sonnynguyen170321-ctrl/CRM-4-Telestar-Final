@@ -307,6 +307,20 @@ export async function POST(req: NextRequest) {
 
   const isPool = body.targetType === 'pool';
 
+  // Decide whether this import can proceed BEFORE writing anything.
+  //
+  // The size guard used to sit after the batch and every ImportRow had already been
+  // created, so a rejected 2,001-row file left 2,001 orphan rows behind on each attempt
+  // — the residue that also breaks re-seeding. Ask the queue first, refuse early, write
+  // nothing.
+  const queueOnline = await isQueueReachable();
+  if (!queueOnline && body.leads.length > INLINE_IMPORT_MAX_ROWS) {
+    return apiError(
+      `This file has ${body.leads.length.toLocaleString()} rows; the current limit is ${INLINE_IMPORT_MAX_ROWS.toLocaleString()}. Split it into smaller files, or ask an admin to enable background imports.`,
+      503
+    );
+  }
+
   try {
     const importBatch = await prisma.importBatch.create({
       data: {
@@ -346,7 +360,7 @@ export async function POST(req: NextRequest) {
     };
 
     // Normal path: hand the batch to the worker.
-    if (await isQueueReachable()) {
+    if (queueOnline) {
       try {
         await startImportWorkflow(parsePayload);
         return NextResponse.json(
@@ -360,15 +374,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Degraded path: no queue. Commit small batches in-request so the import still lands.
-    if (body.leads.length > INLINE_IMPORT_MAX_ROWS) {
-      await prisma.importBatch.update({ where: { id: importBatch.id }, data: { status: 'failed' } });
-      return apiError(
-        `Import queue is offline and this file is too large to import directly (${body.leads.length} rows, limit ${INLINE_IMPORT_MAX_ROWS}). Start the background worker, or split the file, and try again.`,
-        503
-      );
-    }
-
+    // Degraded path: no queue. Small batches commit in-request; the oversize case was
+    // already refused above, before any row was written.
     const result = await runImportInline(parsePayload);
     return NextResponse.json({
       batchId: importBatch.id,

@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma';
 import { normalizeEmail, normalizePhone, normalizeLinkedIn } from '@/lib/leads/normalize';
 import type { SessionUser } from '@/lib/auth';
 import type { LeadgenActivityType, LeadPoolItem, LeadSourceType } from '@prisma/client';
+import { buildTermClauses } from '@/lib/search/terms';
+import { findAccentInsensitiveIds, POOL_SEARCH_COLUMNS } from '@/lib/search/accentSearch';
 
 // ─── Duplicate detection ─────────────────────────────────────────────────────
 
@@ -75,6 +77,17 @@ export type PoolListQuery = {
   pageSize?: number;
 };
 
+/** Columns the Internal Database free-text search covers. */
+const POOL_SEARCH_FIELDS = [
+  'email',
+  'firstName',
+  'lastName',
+  'fullName',
+  'company',
+  'title',
+  'sourceName',
+] as const;
+
 export function buildPoolWhere(query: Pick<PoolListQuery, 'status' | 'qualification' | 'search' | 'sourceType' | 'assignedCampaignId' | 'assignedSdrId'>, tenantId: string) {
   const where: Record<string, unknown> = { tenantId };
   if (query.status) where.status = query.status;
@@ -83,15 +96,13 @@ export function buildPoolWhere(query: Pick<PoolListQuery, 'status' | 'qualificat
   if (query.assignedCampaignId) where.assignedCampaignId = query.assignedCampaignId;
   if (query.assignedSdrId) where.assignedSdrId = query.assignedSdrId;
   if (query.search) {
-    const q = query.search.trim();
-    where.OR = [
-      { email: { contains: q, mode: 'insensitive' } },
-      { firstName: { contains: q, mode: 'insensitive' } },
-      { lastName: { contains: q, mode: 'insensitive' } },
-      { company: { contains: q, mode: 'insensitive' } },
-      { title: { contains: q, mode: 'insensitive' } },
-      { sourceName: { contains: q, mode: 'insensitive' } },
-    ];
+    // One AND-ed clause per whitespace-separated term, not the whole raw string against
+    // each column. "Marcus Webb" used to return nothing because no single column holds
+    // that literal — firstName is "Marcus", lastName is "Webb" — so the most natural
+    // lookup in the product always looked like a missing record. `fullName` is searched
+    // too; the importer populates it (workers/import.ts) and it was previously ignored.
+    const clauses = buildTermClauses<Record<string, unknown>>(query.search, POOL_SEARCH_FIELDS);
+    if (clauses.length > 0) where.AND = clauses;
   }
   return where;
 }
@@ -100,7 +111,24 @@ export async function listPoolItems(query: PoolListQuery, tenantId: string) {
   const page = Math.max(1, query.page ?? 1);
   const pageSize = Math.min(200, Math.max(1, query.pageSize ?? 50));
 
-  const where = buildPoolWhere(query, tenantId) as never;
+  const baseWhere = buildPoolWhere(query, tenantId) as Record<string, unknown>;
+
+  // Accent-insensitive matching happens in SQL, because the *stored* value has to be
+  // folded too — "Giam" can only find "Giám" if both sides are normalised. Resolve the
+  // matching ids first, then let the existing Prisma where handle every other filter.
+  const matchedIds = await findAccentInsensitiveIds(
+    'LeadPoolItem',
+    POOL_SEARCH_COLUMNS,
+    query.search,
+    tenantId
+  );
+
+  const where = (
+    matchedIds === null
+      ? baseWhere
+      : // Drop the Prisma term clauses; the raw query already applied them, accent-folded.
+        { ...Object.fromEntries(Object.entries(baseWhere).filter(([k]) => k !== 'AND')), id: { in: matchedIds } }
+  ) as never;
 
   const [items, total] = await Promise.all([
     prisma.leadPoolItem.findMany({

@@ -21,12 +21,16 @@ describe('buildSearchClauses (F3 — lead search by name)', () => {
     expect(buildSearchClauses('   ')).toEqual([]);
   });
 
-  it('matches a single term against name, company, email, phone and linkedIn', () => {
+  it('matches a single term against name, company, title, email, phone and linkedIn', () => {
     const [clause] = buildSearchClauses('Elena');
+    // `title` joined the set in the CRM-C-003/D-004 fix: the pool search covered job
+    // title while /leads did not, so the two boxes had opposite blind spots. Both now
+    // read the same field list from lib/search/terms.ts.
     expect(fieldsMatched(clause)).toEqual([
       'firstName',
       'lastName',
       'company',
+      'title',
       'email',
       'phone',
       'linkedIn',

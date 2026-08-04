@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import type { z } from 'zod';
 import type { leadStage, priority } from '@/lib/validation/schemas';
+import { buildTermClauses } from '@/lib/search/terms';
 
 export interface LeadListFilters {
   stage?: z.infer<typeof leadStage>;
@@ -16,6 +17,12 @@ export interface LeadListFilters {
   dateFrom?: string;
   dateTo?: string;
   search?: string;
+  /**
+   * Ids pre-resolved by the accent-insensitive SQL search. When set, these replace the
+   * Prisma term clauses — the raw query has already applied every term, folded on both
+   * sides, which `contains` cannot do. Null/undefined means "no search was performed".
+   */
+  searchIds?: string[] | null;
   includeArchived?: boolean;
 }
 
@@ -67,43 +74,36 @@ export function buildLeadListWhere(
     });
   }
 
-  for (const clause of buildSearchClauses(filters.search)) {
-    clauses.push(clause);
+  if (filters.searchIds != null) {
+    // Accent-folded match already done in SQL; narrow to those rows.
+    clauses.push({ id: { in: filters.searchIds } });
+  } else {
+    for (const clause of buildSearchClauses(filters.search)) {
+      clauses.push(clause);
+    }
   }
 
   return { AND: clauses };
 }
 
-/** Fields a free-text lead search matches against. */
-const SEARCH_FIELDS = ['firstName', 'lastName', 'company', 'email', 'phone', 'linkedIn'] as const;
-
-/** Strip diacritics so "Nguyễn" also matches a record stored as "Nguyen". */
-function stripAccents(value: string): string {
-  // ̀-ͯ is the Unicode combining-diacritical-marks block that NFD splits out.
-  return value.normalize('NFD').replace(/[̀-ͯ]/g, '');
-}
+/**
+ * Fields a free-text lead search matches against.
+ *
+ * `title` is included so this matches the pool's field set — the two search boxes had
+ * opposite gaps: the pool searched title but could not handle two words, `/leads`
+ * handled two words but ignored title.
+ */
+const SEARCH_FIELDS = ['firstName', 'lastName', 'company', 'title', 'email', 'phone', 'linkedIn'] as const;
 
 /**
  * Free-text search over a lead.
  *
  * Every whitespace-separated term must match at least one searchable field, which is
  * what makes a full name work: "Elena Popov" requires "Elena" to match some field and
- * "Popov" to match some field — `firstName` and `lastName` respectively. Matching the
- * whole string against a single column (the old behaviour) returned nothing for any
- * first-plus-last-name query. Term order does not matter, so "Popov Elena" works too.
+ * "Popov" to match some field — `firstName` and `lastName` respectively. Term order
+ * does not matter, so "Popov Elena" works too. Implementation shared with the leadgen
+ * pool in `lib/search/terms.ts`.
  */
 export function buildSearchClauses(search?: string): Prisma.LeadWhereInput[] {
-  const terms = (search ?? '').trim().split(/\s+/).filter(Boolean);
-  if (terms.length === 0) return [];
-
-  return terms.map((term) => {
-    const variants = Array.from(new Set([term, stripAccents(term)]));
-    return {
-      OR: variants.flatMap((variant) =>
-        SEARCH_FIELDS.map((field) => ({
-          [field]: { contains: variant, mode: 'insensitive' as const },
-        }))
-      ),
-    } as Prisma.LeadWhereInput;
-  });
+  return buildTermClauses<Prisma.LeadWhereInput>(search, SEARCH_FIELDS);
 }
