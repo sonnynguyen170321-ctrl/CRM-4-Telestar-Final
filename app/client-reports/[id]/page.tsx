@@ -2,7 +2,7 @@ import React from 'react';
 import { notFound, redirect } from 'next/navigation';
 import { getSessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { canViewClientReport } from '@/lib/client-reports/access';
+import { canViewClientReport, getClientReportScope } from '@/lib/client-reports/access';
 import ClientReportDetail from '@/components/client-reports/ClientReportDetail';
 import { ClientReportSnapshot } from '@/lib/client-reports/types';
 
@@ -32,7 +32,7 @@ export default async function ClientReportDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  if (!canViewClientReport(user, report)) {
+  if (!canViewClientReport(user, report, await getClientReportScope(user))) {
     redirect('/client-reports');
   }
 

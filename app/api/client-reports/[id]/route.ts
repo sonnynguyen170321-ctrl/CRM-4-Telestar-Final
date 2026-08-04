@@ -5,7 +5,7 @@ import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { updateClientReportSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
-import { canEditClientReport, canViewClientReport, canArchiveClientReport } from '@/lib/client-reports/access';
+import { canEditClientReport, canViewClientReport, canArchiveClientReport, getClientReportScope } from '@/lib/client-reports/access';
 import { mergeNarrativeIntoSnapshot } from '@/lib/client-reports/snapshot';
 import { ClientReportSnapshot } from '@/lib/client-reports/types';
 
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Report not found' }, { status: 404 });
     }
 
-    if (!canViewClientReport(user, report)) {
+    if (!canViewClientReport(user, report, await getClientReportScope(user))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

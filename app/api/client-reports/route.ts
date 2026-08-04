@@ -5,7 +5,7 @@ import type { SessionUser } from '@/lib/auth';
 import { parseBody, capLimit } from '@/lib/validation/core';
 import { createClientReportSchema, reportStatus, reportAudience } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
-import { canCreateClientReport, canViewClientReport } from '@/lib/client-reports/access';
+import { canCreateClientReport, canViewClientReport, getClientReportScope } from '@/lib/client-reports/access';
 import { buildReportMetrics } from '@/lib/client-reports/metrics';
 import { mergeNarrativeIntoSnapshot } from '@/lib/client-reports/snapshot';
 
@@ -58,8 +58,11 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Resolved once, then applied synchronously — see getClientReportScope.
+    const scope = await getClientReportScope(user);
+
     const items = reports
-      .filter((r) => canViewClientReport(user, r))
+      .filter((r) => canViewClientReport(user, r, scope))
       .map((r) => ({
         id: r.id,
         clientId: r.clientId,
