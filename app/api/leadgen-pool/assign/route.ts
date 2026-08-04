@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requirePoolManager } from '@/app/api/leadgen-pool/guard';
 import { assignPoolItems } from '@/lib/leadgen/pool';
-import { canAccessUser } from '@/lib/auth';
+import { canAssignToRep } from '@/lib/leadgen/assignableReps';
 import { prisma } from '@/lib/prisma';
 
 const assignSchema = z.object({
@@ -33,8 +33,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Provide a campaignId or at least one sdrId' }, { status: 400 });
   }
 
+  // Same campaign-scoped rule as the convert route — see lib/leadgen/assignableReps.ts.
   for (const sdrId of sdrIds ?? []) {
-    if (!(await canAccessUser(user, sdrId))) {
+    if (!(await canAssignToRep(user, sdrId, campaignId))) {
       return NextResponse.json({ error: `Forbidden: cannot assign to user ${sdrId}` }, { status: 403 });
     }
   }

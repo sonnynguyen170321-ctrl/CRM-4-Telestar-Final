@@ -162,14 +162,21 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
     return () => clearTimeout(t);
   }, [loadRef]);
 
+  // Reps come from /api/leadgen-pool/assignable-reps, not from /api/users.
+  // /api/users is scoped to the caller's reporting subtree, and lead generation
+  // is a sibling branch to the SDR floor — so it never returned a single SDR and
+  // the routing picker was permanently empty. The new endpoint shares its scope
+  // with the convert/assign guards, so the list and the server agree.
   const loadMeta = useCallback(async () => {
     const [cRes, uRes] = await Promise.all([
       fetch('/api/campaigns').then((r) => (r.ok ? r.json() : [])),
-      fetch('/api/users').then((r) => (r.ok ? r.json() : [])),
+      fetch(
+        `/api/leadgen-pool/assignable-reps${assignCampaignId ? `?campaignId=${encodeURIComponent(assignCampaignId)}` : ''}`
+      ).then((r) => (r.ok ? r.json() : [])),
     ]);
     setCampaigns(cRes);
-    setTeam(uRes.filter((u: TeamUser) => u.role === 'sdr' || u.role === 'leadgen' || u.role === 'leadgen_manager'));
-  }, []);
+    setTeam(uRes);
+  }, [assignCampaignId]);
 
   useEffect(() => {
     if (mode === 'routing') loadMeta();

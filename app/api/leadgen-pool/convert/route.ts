@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requirePoolManager } from '@/app/api/leadgen-pool/guard';
 import { convertPoolToLeads } from '@/lib/leadgen/pool';
-import { canAccessUser } from '@/lib/auth';
+import { canAssignToRep } from '@/lib/leadgen/assignableReps';
 
 const convertSchema = z.object({
   ids: z.array(z.string().min(1)).min(1).max(500),
@@ -28,8 +28,11 @@ export async function POST(req: NextRequest) {
   }
 
   const { ids, campaignId, sdrIds, method } = parsed.data;
+  // Scoped by campaign assignment, not by the manager's reporting subtree — a
+  // leadgen manager has no SDRs beneath them, so canAccessUser rejected every
+  // valid target. See lib/leadgen/assignableReps.ts.
   for (const sdrId of sdrIds) {
-    if (!(await canAccessUser(user, sdrId))) {
+    if (!(await canAssignToRep(user, sdrId, campaignId))) {
       return NextResponse.json({ error: `Forbidden: cannot assign to user ${sdrId}` }, { status: 403 });
     }
   }

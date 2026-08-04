@@ -35,18 +35,48 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id'];
 
 export default function LeadgenManagerPage() {
+  // The import wizard lives above the Suspense boundary on purpose. Anything
+  // rendered inside it is unmounted whenever useSearchParams suspends or the
+  // access gate below closes, and unmounting CSVImportModal throws away the
+  // uploaded file and its field mapping with no message. Owning the modal here
+  // means a session revalidation can no longer destroy an upload in progress.
+  const [showImport, setShowImport] = useState(false);
+
   return (
-    <Suspense fallback={null}>
-      <LeadgenManagerPageInner />
-    </Suspense>
+    <>
+      <Suspense fallback={<LeadgenConsoleSkeleton />}>
+        <LeadgenManagerPageInner onRequestImport={() => setShowImport(true)} />
+      </Suspense>
+
+      {showImport && (
+        <CSVImportModal
+          targetType="pool"
+          onClose={() => setShowImport(false)}
+          onSuccess={() => setShowImport(false)}
+        />
+      )}
+    </>
   );
 }
 
-function LeadgenManagerPageInner() {
+/** Chrome-preserving placeholder — never `null`, so nothing below it is torn down. */
+function LeadgenConsoleSkeleton() {
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-card-border bg-bg-main flex-shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+          <Database className="w-4 h-4 text-purple-400" />
+        </div>
+        <span className="text-xs text-text-muted">Loading lead generation console…</span>
+      </div>
+    </div>
+  );
+}
+
+function LeadgenManagerPageInner({ onRequestImport }: { onRequestImport: () => void }) {
   const { currentRole, isSessionLoading } = useAppContext();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [showImport, setShowImport] = useState(false);
 
   const tabParam = searchParams.get('tab');
   const activeTab: TabId = TABS.some((t) => t.id === tabParam) ? (tabParam as TabId) : 'overview';
@@ -56,13 +86,26 @@ function LeadgenManagerPageInner() {
     currentRole === 'director' ||
     currentRole === 'floor_manager';
 
+  // Once the session has resolved and granted access, stay rendered. NextAuth
+  // revalidates on window focus, which briefly flips isSessionLoading back to
+  // true; gating the whole subtree on it meant every revalidation unmounted the
+  // console mid-task, silently wiping search text, filters and row selection.
+  // Re-checking access on each pass keeps the guard honest — a genuine loss of
+  // access still redirects through the effect below.
+  const [wasAuthorized, setWasAuthorized] = useState(false);
+  useEffect(() => {
+    if (!isSessionLoading && canAccessLeadgenManager) setWasAuthorized(true);
+  }, [isSessionLoading, canAccessLeadgenManager]);
+
   useEffect(() => {
     if (!isSessionLoading && !canAccessLeadgenManager) {
       router.replace('/');
     }
   }, [isSessionLoading, canAccessLeadgenManager, router]);
 
-  if (isSessionLoading || !canAccessLeadgenManager) return null;
+  if (!canAccessLeadgenManager && !wasAuthorized) {
+    return isSessionLoading ? <LeadgenConsoleSkeleton /> : null;
+  }
 
   const switchTab = (id: TabId) => {
     const href = id === 'overview' ? '/leadgen-manager' : `/leadgen-manager?tab=${id}`;
@@ -87,7 +130,7 @@ function LeadgenManagerPageInner() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowImport(true)}
+            onClick={onRequestImport}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/35 text-purple-300 text-xs font-semibold rounded-lg transition-all active:scale-95"
           >
             <Upload className="w-3.5 h-3.5" />
@@ -128,16 +171,6 @@ function LeadgenManagerPageInner() {
         {activeTab === 'team' && <TeamTab />}
         {activeTab === 'sources' && <SourcesTab />}
       </div>
-
-      {showImport && (
-        <CSVImportModal
-          targetType="pool"
-          onClose={() => setShowImport(false)}
-          onSuccess={() => {
-            setShowImport(false);
-          }}
-        />
-      )}
     </div>
   );
 }
