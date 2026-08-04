@@ -72,11 +72,16 @@ sidebar-1024px.png
 /scratch/
 /_proper_repo/
 
-# Parallel QA lane run: throwaway specs + their evidence (screenshots, console/network logs).
-# Regenerate by re-running the lanes; never commit.
+# QA lane evidence: screenshots, console/network logs, data dumps. Regenerate by
+# re-running the lanes. Kept out of git because it is bulky and reproducible — the
+# written FINDINGS.md reports are the durable artefact and live alongside it.
 /qa-runs/
-/e2e/qa/
 /test-results/
+
+# e2e/qa/ (the six-lane harness) is deliberately NOT ignored any more. It was, and the
+# specs silently drifted from the runs that produced the evidence: lane F's F3 assertion
+# was deleted rather than fixed after it caught a real defect, so the suite would have
+# passed whether or not the bug came back. A test that can vanish unnoticed is not a gate.
 
 # Agent tooling: machine-local ECC install.
 # Keep only .claude/rules/ (CLAUDE.md loads it) and .claude/settings.json.
