@@ -6,6 +6,7 @@ import {
   updateTaskSchema,
   sendEmailSchema,
   createSequenceSchema,
+  createCampaignSchema,
 } from '@/lib/validation/schemas';
 
 describe('createLeadSchema', () => {
@@ -113,6 +114,17 @@ describe('createSequenceSchema', () => {
         steps: [{ channel: 'email', delayHours: 30 }],
       }).success
     ).toBe(false);
+  });
+});
+
+describe('createCampaignSchema', () => {
+  it('accepts valid campaign payload with clientId', () => {
+    expect(createCampaignSchema.safeParse({ name: 'Campaign 1', clientId: 'c123' }).success).toBe(true);
+  });
+
+  it('accepts valid campaign payload with newClientName and null or undefined clientId', () => {
+    expect(createCampaignSchema.safeParse({ name: 'Campaign 1', newClientName: 'New Client Inc', clientId: null }).success).toBe(true);
+    expect(createCampaignSchema.safeParse({ name: 'Campaign 1', newClientName: 'New Client Inc', clientId: undefined }).success).toBe(true);
   });
 });
 

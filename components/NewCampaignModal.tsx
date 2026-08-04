@@ -62,7 +62,7 @@ export default function NewCampaignModal({ onClose, onSuccess }: Props) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...form,
-        clientId: isNewClient ? null : form.clientId,
+        clientId: isNewClient ? undefined : (form.clientId || undefined),
         newClientName: isNewClient ? newClientName : undefined,
       }),
     });

@@ -222,7 +222,7 @@ export const createActivitySchema = z.object({
 
 export const createCampaignSchema = z.object({
   name: z.string().min(1).max(200),
-  clientId: id.optional(),
+  clientId: id.nullish().optional(),
   newClientName: z.string().min(1).max(200).optional(),
   targetVertical: nullableShortText.optional(),
   targetGeo: nullableShortText.optional(),
