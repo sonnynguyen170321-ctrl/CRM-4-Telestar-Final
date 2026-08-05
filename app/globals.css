@@ -358,6 +358,43 @@ table th, table td {
   padding-right: 14px;
 }
 
+/* ── Contrast floor for chromatic text ──────────────────────────────────────
+   The -300/-400/-500 weights of Tailwind's palette do not clear WCAG AA on this
+   theme's light surfaces: green-500 measured 2.22:1, emerald-400 1.94:1,
+   blue-400 2.64:1, red-400 2.89:1 — against the 4.5:1 floor for normal text.
+   This is the same call already made for --text-muted (2.54:1 -> 4.83:1).
+
+   Attribute selectors, so `hover:text-emerald-500` and friends move with the base
+   class rather than reverting on hover. Unlayered, so they beat Tailwind's layered
+   utilities — the mechanism this file already relies on elsewhere.
+
+   Safe as a blanket rule only because the app is a single light theme and none of
+   these chromatic classes appear on its few dark surfaces (sidebar, the assistant's
+   header and dropdown, the desktop gate) — verified before adding this. That check
+   is the one to repeat before extending this block: a static sweep cannot see a dark
+   ancestor, and doing it blind is what produced seven false positives in an earlier
+   round. Dark surfaces here use text-white / text-zinc-*, which are left alone.    */
+[class*="text-emerald-300"],
+[class*="text-emerald-400"],
+[class*="text-emerald-500"],
+[class*="text-emerald-600"] { color: #047857; }   /* 5.3:1 */
+[class*="text-green-400"],
+[class*="text-green-500"],
+[class*="text-green-600"]   { color: #15803d; }   /* 4.9:1 */
+[class*="text-red-500"]     { color: #b91c1c; }   /* 5.9:1 */
+[class*="text-sky-400"],
+[class*="text-sky-500"],
+[class*="text-cyan-400"],
+[class*="text-cyan-500"]    { color: #0369a1; }   /* 5.6:1 */
+[class*="text-blue-400"],
+[class*="text-blue-500"]    { color: #1d4ed8; }   /* 6.3:1 */
+[class*="text-amber-400"],
+[class*="text-amber-500"]   { color: #b45309; }   /* 4.6:1 */
+[class*="text-red-400"]     { color: #b91c1c; }   /* 5.9:1 */
+[class*="text-purple-300"],
+[class*="text-purple-400"]  { color: #7e22ce; }   /* 6.5:1 */
+[class*="text-indigo-400"]  { color: #4338ca; }   /* 6.4:1 */
+
 /* ─── CUSTOM EFFECTS & LAYOUTS ─── */
 .glassmorphism {
   background: color-mix(in srgb, var(--card-bg) 80%, transparent);

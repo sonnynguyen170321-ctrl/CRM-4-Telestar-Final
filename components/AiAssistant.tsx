@@ -817,7 +817,10 @@ export default function AiAssistant() {
                 <Send size={14} />
               </button>
             </div>
-            <div className="text-center text-zinc-400 text-xs mt-1">Enter to send · Shift+Enter for newline</div>
+            {/* text-text-muted (#6B7280, 4.83:1), not text-zinc-400 (2.62:1) — this footer
+                sits on the panel's bg-white, so the zinc-400 failed WCAG AA. The dark header
+                above still uses zinc-400 correctly. */}
+            <div className="text-center text-text-muted text-xs mt-1">Enter to send · Shift+Enter for newline</div>
           </div>
         </div>
       )}

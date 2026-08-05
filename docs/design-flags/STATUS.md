@@ -114,16 +114,40 @@ button scored 1.00:1) and, more importantly, **false negatives** — any dark te
 background was measured against an imaginary white backdrop and passed. The parser now
 rasterises through a canvas, which resolves any CSS colour exactly.
 
-The 71 are real measurements and **not yet fixed**. They are two groups:
+**Fixed: 71 → 4.** Two changes:
 
-1. **`text-zinc-400` at 2.62:1** in the AI assistant's "Enter to send" hint. One component,
-   present on every route — roughly 27 of the 71 are this single class.
-2. **Channel colours at the `-500` weight**: `text-green-500` 2.22:1, `text-emerald-500`
-   2.47:1, `text-blue-500` 3.76:1. These are the Phone / WhatsApp / Email colours from
-   `brand-design.md` and they do not meet WCAG AA for normal text on white.
+1. The assistant's "Enter to send" hint moved from `text-zinc-400` (2.62:1) to
+   `text-text-muted` (4.83:1). It appears on every route, so that alone was 25 of the 71.
+   The assistant's *dark* header still uses `zinc-400` correctly and was left alone.
+2. A contrast floor for chromatic text in `globals.css` — the `-300`/`-400`/`-500`/`-600`
+   weights of emerald, green, blue, amber, red, purple, indigo, sky and cyan remapped to
+   AA-passing values. Attribute selectors so `hover:` variants move with the base class;
+   unlayered so they beat Tailwind's utilities.
 
-Group 2 needs a palette decision, not a mechanical fix — the same call that was already made
-once for `--text-muted` (2.54:1 → 4.83:1). Until then this initiative is **not** at zero.
+   **This is only safe because the app is a single light theme and none of those chromatic
+   classes appear on its dark surfaces** — sidebar, assistant header/dropdown, desktop gate,
+   which use `text-white` / `text-zinc-*`. That was verified before the rule was added.
+   Repeat the check before extending the block: a static sweep cannot see a dark ancestor,
+   and doing it blind is what produced seven false positives in an earlier round.
+
+### The remaining 4 are a brand decision, not a bug
+
+All four are **white text on a coloured button**, so the fix is to darken the *background*,
+which changes how the product looks:
+
+| Route | Control | Background | Ratio |
+|---|---|---|---|
+| `/automation` | "Run Inbox Sync" | `#E8611A` — **brand orange** | 3.41:1 |
+| `/director` | "Won / Closed" | `bg-emerald-600` | 3.65:1 |
+| `/opportunities` | "Create Opportunity" | `bg-emerald-600` | 3.65:1 |
+| `/opportunities` | "Board" (active tab) | tinted | 3.41:1 |
+
+Flame orange `#E8611A` is in the brand palette in `brand-design.md`, so white-on-orange
+failing AA is a real tension between brand and accessibility rather than an oversight. The
+options are dark text on orange (`#0A0A0A` on `#E8611A` ≈ 6.2:1), a darker orange reserved
+for filled buttons (the palette already precedents this with `--brand-orange-text`), or
+accepting it. **Not decided here.** Note 3.41:1 would pass AA for large text (≥18.66px bold)
+— these are 14–16px, so they do not qualify.
 
 ---
 
