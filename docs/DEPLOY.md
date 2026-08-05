@@ -194,6 +194,95 @@ Probed against the live deployment (`http://34.142.236.46`) on **2026-08-05**:
 - [x] Email sending decision made. *Verified: `GET /api/cron/sequence-engine` returns
       `{"disabled":true,"sent":0}` — `SEQUENCE_AUTOSEND_ENABLED` is off.*
 
+---
+
+## 8b. Redeploying the live GCE box (2026-08-05)
+
+The VM is running the build from **2026-08-04** — no Admin Control Center, and the
+`20260806000000_admin_control_center_indexes` migration is not applied. Everything below
+is now on `origin/main` at `e6fac30`.
+
+> Written from the deployment record, not from a session on the box — I have not had shell
+> access. Step 1 is discovery for that reason; adjust paths to what you find.
+
+**1 — Get on the box and find the stack.**
+
+```bash
+gcloud compute ssh telestar-crm-vm --project telestar-crm-final --zone asia-southeast1-a
+sudo docker compose ls                 # where is the compose project rooted?
+cd <that directory>                    # the repo checkout with docker-compose.yml
+git remote -v && git log --oneline -1  # confirm it tracks CRM-4-Telestar-Final @ 649c2b0
+```
+
+**2 — Back up the database before migrating.** The new migration only adds indexes, but
+this is the first schema change against live data since the deploy.
+
+```bash
+gcloud sql backups create --instance=telestar-db --project telestar-crm-final
+```
+
+**3 — Pull and rebuild.** The image is built on the VM from source, so a pull is not enough.
+
+```bash
+git pull origin main                   # 59b833a..e6fac30
+sudo docker compose build web worker
+```
+
+**4 — Apply the migration.** One new migration; it creates indexes only.
+
+```bash
+sudo docker compose run --rm web node node_modules/prisma/build/index.js migrate deploy
+```
+
+Expect exactly `20260806000000_admin_control_center_indexes` to apply. **If it reports
+anything else pending, stop** — the box and the repo have diverged further than expected.
+Never run `migrate dev` or `migrate reset` here: `package.json` wires `prisma.seed`, and
+`npm run db:seed` has 17 unfiltered `deleteMany()` calls including `tenant` and `user`.
+
+**5 — Restart and verify.**
+
+```bash
+sudo docker compose up -d web worker
+sudo docker compose ps                 # web, worker, caddy, redis all Up
+sudo docker compose logs --tail=50 worker
+```
+
+```bash
+curl -s http://34.142.236.46/api/health                  # {"ok":true,...}
+curl -s http://34.142.236.46/api/cron/sequence-engine \
+  -H "Authorization: Bearer $CRON_SECRET"                # {"disabled":true,"sent":0}
+```
+
+Then sign in as Director and confirm `/admin` renders the console — that is the whole
+point of this deploy. `/admin` returning 404 means the new build did not take.
+
+**6 — Install the crontab, which appears never to have been set up.** The newest `JobRun`
+on the box is from 2026-08-04. §7 above has the entries; the maintenance one is new and is
+what prunes the audit log.
+
+```bash
+sudo crontab -e     # paste the four entries from §7, with the real CRON_SECRET
+sudo crontab -l     # verify
+```
+
+Watch for the first firing: `sudo docker compose logs -f web | grep cron`.
+
+**7 — Post-deploy gate.** From your machine, not the VM:
+
+```bash
+BASE_URL=http://34.142.236.46 E2E_PASSWORD=telestar2026 \
+  node node_modules/@playwright/test/cli.js test e2e/crm-journeys.spec.ts e2e/deep-smoke.spec.ts
+```
+
+20/20 is the pass mark — that is what it scores locally against this commit. `LOGIN_TIMEOUT`
+already widens to 45s when `BASE_URL` is set; do not tighten it.
+
+**Rollback:** `git checkout 649c2b0 && sudo docker compose build web worker && sudo docker
+compose up -d`. The migration adds only indexes, so the old build runs against the new
+schema without being rolled back.
+
+---
+
 **Sign-in latency (UX-002) — measured, no action needed.** Three consecutive credential
 round-trips against the live box: **0.55s / 0.55s / 0.51s**, and `/login` in 0.21s. The 37s
 recorded in `docs/post-migration/UX-FEEDBACK.md` does not reproduce; it was almost certainly
