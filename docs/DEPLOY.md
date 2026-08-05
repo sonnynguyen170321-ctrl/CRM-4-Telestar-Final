@@ -172,8 +172,8 @@ stops early and logs that it will resume, which is expected, not a failure.
 Probed against the live deployment (`http://34.142.236.46`) on **2026-08-05**:
 
 - [ ] `prisma migrate deploy` applied cleanly. *20 migrations applied at deploy time and the
-      DB answers, but `20260806000000_admin_control_center_indexes` is **not** on the box yet —
-      it ships with the Admin Control Center merge and needs a redeploy.*
+      DB answers. **Done 2026-08-05** — `20260806000000_admin_control_center_indexes` applied
+      during the `ee08246` deploy; `migrate status` now reports all 22 applied.*
 - [ ] `create-admin` Director can log in over HTTPS. **Blocked on 6a** — sign-in works and is
       fast (below), but over plain HTTP.
 - [x] Login page shows **no** demo-account panel. *Verified: no "Demo Accounts" markup served.*
@@ -181,12 +181,11 @@ Probed against the live deployment (`http://34.142.236.46`) on **2026-08-05**:
 - [x] Worker process up; healthcheck completes. *Verified via `/api/admin/worker-health`:
       `redis: ok`, `database: ok`, all five queues reachable, `import.commit` /
       `import.chunk` runs recorded `completed`.*
-- [ ] Both crons firing. **Not verified — needs host log access.** Circumstantial evidence
-      says no: the newest `JobRun` on the box is `import.commit @ 2026-08-04T13:08Z`, over a
-      day old. That is not conclusive on its own (`sequence-engine` returns without enqueueing
-      while autosend is off, and `inbox-sync` enqueues nothing with no connected mailboxes),
-      but nothing in the deployment record says a crontab was ever installed. Check
-      `docker compose logs` / the host scheduler before ticking this.
+- [x] Both crons firing. **Confirmed absent, then installed 2026-08-05.** `crontab -l` on the
+      VM was empty — the schedule had never been set up, which is why the newest `JobRun` was
+      `import.commit @ 2026-08-04T13:08Z`. Four entries now installed via
+      `bin/cron-call.sh` (see §8b step 6). Watch for the first `*/5` firing before calling
+      this fully settled.
 - [x] Security headers present. *Verified via `curl -I`: `Strict-Transport-Security`,
       `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`,
       `Permissions-Policy`. **HSTS is inert until TLS lands** — a browser only honours it
@@ -196,92 +195,132 @@ Probed against the live deployment (`http://34.142.236.46`) on **2026-08-05**:
 
 ---
 
-## 8b. Redeploying the live GCE box (2026-08-05)
+## 8b. Redeploying the live GCE box
 
-The VM is running the build from **2026-08-04** — no Admin Control Center, and the
-`20260806000000_admin_control_center_indexes` migration is not applied. Everything below
-is now on `origin/main` at `e6fac30`.
+**Verified end to end on 2026-08-05 deploying `ee08246`.** An earlier draft of this section
+was written from the deployment record and got two things materially wrong; both are
+corrected below.
 
-> Written from the deployment record, not from a session on the box — I have not had shell
-> access. Step 1 is discovery for that reason; adjust paths to what you find.
+### The two corrections
 
-**1 — Get on the box and find the stack.**
+**The image is pulled from GHCR, not built on the box.** `.github/workflows/docker-image.yml`
+builds on every push to `main` and pushes both `:latest` and `:sha-<7>`. `web` and `worker`
+run `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final:${IMAGE_TAG:-latest}`. So the deploy
+is `pull`, never `build` — `docker-compose.build.yml` is an optional overlay that is *not*
+what runs. The deployment record's "built on the VM from source" was stale.
 
-```bash
-gcloud compute ssh telestar-crm-vm --project telestar-crm-final --zone asia-southeast1-a
-sudo docker compose ls                 # where is the compose project rooted?
-cd <that directory>                    # the repo checkout with docker-compose.yml
-git remote -v && git log --oneline -1  # confirm it tracks CRM-4-Telestar-Final @ 649c2b0
-```
+**Every compose command needs `--env-file .env.production`.** There is no `.env` in
+`/opt/crm-4-u`, and `docker-compose.aws.yml` sets `DATABASE_URL`, `AUTH_SECRET`,
+`ENCRYPTION_KEY`, `NEXTAUTH_URL` and `CRON_SECRET` purely by `${VAR}` interpolation. Without
+the flag those resolve to empty strings, and a bare `docker compose up -d` will recreate the
+containers with a blank database URL and a blank encryption key. **This is the single easiest
+way to take the site down from this directory.** The running containers are correct only
+because whoever last started them supplied the environment.
 
-**2 — Back up the database before migrating.** The new migration only adds indexes, but
-this is the first schema change against live data since the deploy.
+A residual `POSTGRES_PASSWORD is not set` warning is expected and harmless — it belongs to
+the local `postgres` service in the base file, which the aws overlay drops. `config
+--services` returns `redis web caddy worker`, no postgres.
 
-```bash
-gcloud sql backups create --instance=telestar-db --project telestar-crm-final
-```
+### The deploy
 
-**3 — Pull and rebuild.** The image is built on the VM from source, so a pull is not enough.
-
-```bash
-git pull origin main                   # 59b833a..e6fac30
-sudo docker compose build web worker
-```
-
-**4 — Apply the migration.** One new migration; it creates indexes only.
+Paths and names below are as verified: project `crm-4-u`, rooted at `/opt/crm-4-u`, owned by
+the login user (no `sudo` needed for `git`).
 
 ```bash
-sudo docker compose run --rm web node node_modules/prisma/build/index.js migrate deploy
+# 0 — shorthand, since every command repeats it
+cd /opt/crm-4-u
+DC="sudo docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.aws.yml"
+
+# 1 — back up. NOTE: run this from Cloud Shell, not the VM. The VM's service account
+#     lacks the sqladmin scope and fails with ACCESS_TOKEN_SCOPE_INSUFFICIENT.
+gcloud sql backups create --instance=telestar-db --project=telestar-crm-final
+gcloud sql backups list  --instance=telestar-db --project=telestar-crm-final --limit=3
+
+# 2 — pull the code
+git pull origin main && git log --oneline -1 && git status --short
+
+# 3 — pull the image for exactly this commit. This doubles as the CI check: if the tag
+#     resolves, the workflow built and pushed it. Do not fall back to :latest blindly.
+SHA=$(git rev-parse --short=7 HEAD)
+sudo docker pull ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final:sha-$SHA
+sudo docker pull ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final:latest
+sudo docker images --digests ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final | head -5
+#     The :latest and :sha-* digests must match, otherwise someone pushed after you —
+#     set IMAGE_TAG=sha-$SHA in .env.production and deploy that instead.
+
+# 4 — what is pending? read-only.
+$DC run --rm --no-deps web node node_modules/prisma/build/index.js migrate status
+
+# 5 — apply. NEVER `migrate dev` or `migrate reset` here: package.json wires prisma.seed,
+#     and the seed has 17 unfiltered deleteMany() calls including tenant and user.
+$DC run --rm --no-deps web node node_modules/prisma/build/index.js migrate deploy
+
+# 6 — swap the containers. Name the services: a bare `up -d` also starts the unused
+#     postgres service and needlessly recreates caddy and redis.
+$DC up -d web worker
+$DC ps --format 'table {{.Name}}\t{{.Image}}\t{{.Status}}'
 ```
 
-Expect exactly `20260806000000_admin_control_center_indexes` to apply. **If it reports
-anything else pending, stop** — the box and the repo have diverged further than expected.
-Never run `migrate dev` or `migrate reset` here: `package.json` wires `prisma.seed`, and
-`npm run db:seed` has 17 unfiltered `deleteMany()` calls including `tenant` and `user`.
-
-**5 — Restart and verify.**
+### Verify
 
 ```bash
-sudo docker compose up -d web worker
-sudo docker compose ps                 # web, worker, caddy, redis all Up
-sudo docker compose logs --tail=50 worker
+curl -s http://34.142.236.46/api/health                 # {"ok":true,...}
+curl -s -o /dev/null -w '%{http_code}\n' http://34.142.236.46/admin   # 307, not 404
 ```
 
-```bash
-curl -s http://34.142.236.46/api/health                  # {"ok":true,...}
-curl -s http://34.142.236.46/api/cron/sequence-engine \
-  -H "Authorization: Bearer $CRON_SECRET"                # {"disabled":true,"sent":0}
-```
-
-Then sign in as Director and confirm `/admin` renders the console — that is the whole
-point of this deploy. `/admin` returning 404 means the new build did not take.
-
-**6 — Install the crontab, which appears never to have been set up.** The newest `JobRun`
-on the box is from 2026-08-04. §7 above has the entries; the maintenance one is new and is
-what prunes the audit log.
-
-```bash
-sudo crontab -e     # paste the four entries from §7, with the real CRON_SECRET
-sudo crontab -l     # verify
-```
-
-Watch for the first firing: `sudo docker compose logs -f web | grep cron`.
-
-**7 — Post-deploy gate.** From your machine, not the VM:
+Then the post-deploy gate, **from a workstation, not the VM**:
 
 ```bash
 BASE_URL=http://34.142.236.46 E2E_PASSWORD=telestar2026 \
   node node_modules/@playwright/test/cli.js test e2e/crm-journeys.spec.ts e2e/deep-smoke.spec.ts
 ```
 
-20/20 is the pass mark — that is what it scores locally against this commit. `LOGIN_TIMEOUT`
-already widens to 45s when `BASE_URL` is set; do not tighten it.
+20/20 is the pass mark. **Do not restart `web` while this runs** — it takes ~6 minutes against
+the remote, and a mid-run `up -d` shows up as a 502 on whichever test is in flight rather than
+as anything meaningful.
 
-**Rollback:** `git checkout 649c2b0 && sudo docker compose build web worker && sudo docker
-compose up -d`. The migration adds only indexes, so the old build runs against the new
-schema without being rolled back.
+### The crons
 
----
+`crontab -l` on the VM was **empty** as of this deploy — the schedule had never been
+installed, so nothing was pruning the audit log or advancing sequences. `bin/cron-call.sh`
+reads the secret from `.env.production` at run time so it is never stored in the crontab
+(and never printed by `crontab -l`):
+
+```bash
+mkdir -p bin && cat > bin/cron-call.sh <<'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+cd /opt/crm-4-u
+SECRET=$(grep '^CRON_SECRET=' .env.production | cut -d= -f2- | tr -d '"')
+curl -fsS -H "Authorization: Bearer $SECRET" "http://localhost/api/cron/$1" >/dev/null
+SCRIPT
+chmod 700 bin/cron-call.sh
+
+cat <<'EOF' | crontab -
+*/5 * * * *  /opt/crm-4-u/bin/cron-call.sh sequence-engine
+*/10 * * * * /opt/crm-4-u/bin/cron-call.sh inbox-sync
+0 * * * *    /opt/crm-4-u/bin/cron-call.sh email-health
+30 3 * * *   /opt/crm-4-u/bin/cron-call.sh maintenance
+EOF
+```
+
+Targets `http://localhost` from inside the VM, so it neither leaves the box nor depends on
+the public IP or on TLS being present later.
+
+> **Do not put the secret directly in a crontab line.** `crontab -l` then prints it in full,
+> which is exactly how the `CRON_SECRET` in use before 2026-08-05 was exposed and had to be
+> rotated.
+
+### Rollback
+
+```bash
+sudo docker pull ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final:sha-<previous>
+# set IMAGE_TAG=sha-<previous> in .env.production, then:
+$DC up -d web worker
+```
+
+The `20260806000000` migration only creates indexes, so the previous build runs against the
+new schema unchanged — no down-migration needed.
 
 **Sign-in latency (UX-002) — measured, no action needed.** Three consecutive credential
 round-trips against the live box: **0.55s / 0.55s / 0.51s**, and `/login` in 0.21s. The 37s
