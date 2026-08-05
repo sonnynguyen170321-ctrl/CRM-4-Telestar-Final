@@ -26,7 +26,7 @@ The system stays in controlled testing mode until HTTPS and credential rotation 
 
 ## Milestone A — Immediate safety
 
-### [ ] Task 1 — Protect the database seed
+### [x] Task 1 — Protect the database seed  ✅ 9908642
 
 Stop the demo seed from deleting data in production, staging, Cloud SQL or any remote DB.
 Branch: `fix/protect-destructive-seed`.
@@ -216,7 +216,7 @@ build and the Docker build all pass, migrations have been reviewed, and no secre
 
 ## Pre-domain completion gate
 
-- [ ] Production data cannot be destroyed by the demo seed
+- [x] Production data cannot be destroyed by the demo seed
 - [ ] Deactivated or demoted users immediately lose access
 - [ ] Email processing cannot blindly send duplicates
 - [ ] PRs cannot merge without mandatory checks
