@@ -7,6 +7,31 @@ no Neon or Vercel coupling.
 > Runtime law: API routes record intent · workers execute it · the database is truth.
 > The web app and the BullMQ worker are **two processes** on the host (or two hosts).
 
+> ### What is actually deployed today (2026-08-04)
+>
+> This runbook is written generically against AWS. The live system is **GCP**, so read the
+> nouns accordingly when working the §8 checklist:
+>
+> | This runbook says | The live deployment is |
+> |---|---|
+> | AWS EC2 | GCE `telestar-crm-vm` (`e2-standard-2`), project `telestar-crm-final`, `asia-southeast1-a` |
+> | RDS | Cloud SQL `telestar-db`, Postgres 16, `db-g1-small` |
+> | ElastiCache / Upstash | a `redis:7` **container on the same VM** — not a managed service |
+> | DNS + TLS at a load balancer | Caddy on the VM, currently **plain HTTP on a bare IP** (`http://34.142.236.46`) |
+>
+> Two consequences worth stating plainly:
+>
+> - **Queue state does not survive loss of the VM.** Redis is compose-local. That satisfies
+>   "always-on worker with a reachable queue" but not durability. Accepted for a demo;
+>   revisit before real client data. BullMQ is rebuildable from the DB, so this is recoverable,
+>   not fatal.
+> - **There is no TLS yet**, so the HSTS and secure-cookie assumptions below are inert and
+>   credentials cross the network in cleartext. Tracked as UX-001 in
+>   `docs/post-migration/UX-FEEDBACK.md`; §8's "log in over HTTPS" and "security headers"
+>   items cannot be verified until a domain is attached.
+>
+> Full record: `docs/runtime-hardening/STATUS.md`.
+
 ---
 
 ## 1. Architecture at a glance
@@ -119,10 +144,26 @@ Point the host scheduler (PM2 cron module or OS `crontab`) at the cron routes wi
 */10 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://crm.yourdomain.com/api/cron/inbox-sync
 # email health — scores inboxes, writes snapshots, raises deliverability alerts (hourly)
 0 * * * *    curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://crm.yourdomain.com/api/cron/email-health
+# maintenance — repairs drift and prunes the audit log (daily, off-peak)
+30 3 * * *   curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://crm.yourdomain.com/api/cron/maintenance
 ```
 
 The email-health pass reads only data the inbox sync has already stored, so it is safe to run
 at any offset — but it is pointless more often than hourly, since its windows are 24h and 7d.
+
+The maintenance sweep enqueues one `maintenance.repair` job per tenant, covering
+`orphan-tasks`, `stale-sending`, `stuck-running`, `missing-delayed`, `reassignment-drift`
+and `audit-prune`. Narrow it with `?types=audit-prune,orphan-tasks` — unknown names return
+400 rather than being silently dropped, so a typo in the crontab is visible.
+
+**`audit-prune` is the only repair that deletes rows.** `lib/audit.ts` writes an AuditLog
+row for every create/update/delete on every model, and nothing trimmed it before this job —
+the audit-log API's mandatory 30-day read window was the only thing keeping `/admin/audit`
+fast. Retention is two-tier and set by `AUDIT_RETENTION_DAYS` (default 90, the extension's
+automatic rows) and `ADMIN_AUDIT_RETENTION_DAYS` (default 365, the actor-stamped `admin.*`
+trail); the admin window is clamped to at least the extension window. Deletes run in
+batches of 1000, capped at 20 batches per tier per run — on a large first pass the job
+stops early and logs that it will resume, which is expected, not a failure.
 
 ---
 

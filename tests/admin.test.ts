@@ -3,6 +3,17 @@ import { GET as getJobs } from '@/app/api/admin/jobs/route';
 import { GET as getOutbound } from '@/app/api/admin/outbound/route';
 import { GET as getWorkerHealth, POST as postWorkerHealth } from '@/app/api/admin/worker-health/route';
 import { POST as importLeads } from '@/app/api/leads/import/route';
+import { POST as postTransferWork } from '@/app/api/admin/transfer-work/route';
+import { GET as getAdminUsers } from '@/app/api/admin/users/route';
+import { GET as getAuditLog } from '@/app/api/admin/audit-log/route';
+import { GET as getOverview } from '@/app/api/admin/overview/route';
+import { GET as getUserImpact } from '@/app/api/users/[id]/impact/route';
+import {
+  GET as getCampaignMembers,
+  POST as postCampaignMembers,
+  DELETE as deleteCampaignMember,
+} from '@/app/api/campaigns/[id]/members/route';
+import { GET as getMemberImpact } from '@/app/api/campaigns/[id]/member-impact/[userId]/route';
 import { prisma, tenantStorage } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { NextRequest } from 'next/server';
@@ -219,6 +230,177 @@ describe('Admin Endpoints - Access Control', () => {
     const resPost = await postWorkerHealth(reqPost);
     expect(resPost.status).not.toBe(401);
     expect(resPost.status).not.toBe(403);
+  });
+});
+
+describe('Admin Control Center - 401/403 matrix', () => {
+  const mockUser = (u: SessionUser | null) =>
+    (auth as unknown as { mockResolvedValueOnce: (v: unknown) => void }).mockResolvedValueOnce(
+      u ? { user: u, expires: '' } : null
+    );
+
+  const transferBody = JSON.stringify({
+    fromUserId: teamLead.id,
+    toUserId: sdr.id,
+    requestId: 'req-matrix-01',
+    reason: 'matrix coverage',
+  });
+
+  it('transfer-work POST: 401 unauthenticated, 403 for SDR', async () => {
+    mockUser(null);
+    const unauth = new NextRequest('http://localhost:3000/api/admin/transfer-work', {
+      method: 'POST',
+      body: transferBody,
+    });
+    expect((await postTransferWork(unauth)).status).toBe(401);
+
+    mockUser(sdr);
+    const asSdr = new NextRequest('http://localhost:3000/api/admin/transfer-work', {
+      method: 'POST',
+      body: transferBody,
+    });
+    expect((await postTransferWork(asSdr)).status).toBe(403);
+  });
+
+  it('admin/users GET: 401/403 for SDR and TL, allowed for FM', async () => {
+    mockUser(null);
+    expect((await getAdminUsers()).status).toBe(401);
+
+    mockUser(sdr);
+    expect((await getAdminUsers()).status).toBe(403);
+
+    mockUser(teamLead);
+    expect((await getAdminUsers()).status).toBe(403);
+
+    mockUser(floorManager);
+    const ok = await getAdminUsers();
+    expect(ok.status).not.toBe(401);
+    expect(ok.status).not.toBe(403);
+  });
+
+  it('audit-log GET: 401/403 for SDR and TL, allowed for FM', async () => {
+    mockUser(null);
+    expect((await getAuditLog(new NextRequest('http://localhost:3000/api/admin/audit-log'))).status).toBe(401);
+
+    mockUser(sdr);
+    expect((await getAuditLog(new NextRequest('http://localhost:3000/api/admin/audit-log'))).status).toBe(403);
+
+    mockUser(teamLead);
+    expect((await getAuditLog(new NextRequest('http://localhost:3000/api/admin/audit-log'))).status).toBe(403);
+
+    mockUser(floorManager);
+    const ok = await getAuditLog(new NextRequest('http://localhost:3000/api/admin/audit-log'));
+    expect(ok.status).not.toBe(401);
+    expect(ok.status).not.toBe(403);
+  });
+
+  it('overview GET: 401/403 for SDR and TL, allowed for FM', async () => {
+    mockUser(null);
+    expect((await getOverview()).status).toBe(401);
+
+    mockUser(sdr);
+    expect((await getOverview()).status).toBe(403);
+
+    mockUser(teamLead);
+    expect((await getOverview()).status).toBe(403);
+
+    mockUser(floorManager);
+    const ok = await getOverview();
+    expect(ok.status).not.toBe(401);
+    expect(ok.status).not.toBe(403);
+  });
+
+  it('users/[id]/impact GET: 401, 403 for SDR on another user, 200 on self', async () => {
+    mockUser(null);
+    expect(
+      (await getUserImpact(new NextRequest('http://localhost:3000/api/users/sdr-1/impact'), {
+        params: Promise.resolve({ id: sdr.id }),
+      })).status
+    ).toBe(401);
+
+    mockUser(sdr);
+    expect(
+      (await getUserImpact(new NextRequest('http://localhost:3000/api/users/fm-1/impact'), {
+        params: Promise.resolve({ id: floorManager.id }),
+      })).status
+    ).toBe(403);
+
+    mockUser(sdr);
+    expect(
+      (
+        await tenantStorage.run({ tenantId }, () =>
+          getUserImpact(new NextRequest('http://localhost:3000/api/users/sdr-1/impact'), {
+            params: Promise.resolve({ id: sdr.id }),
+          })
+        )
+      ).status
+    ).toBe(200);
+  });
+
+  it('campaigns/[id]/members GET: 401, 403 for SDR and TL, allowed for FM', async () => {
+    const params = { params: Promise.resolve({ id: campaignId }) };
+    mockUser(null);
+    expect((await getCampaignMembers(new NextRequest('http://localhost:3000/api/campaigns/x/members'), params)).status).toBe(401);
+
+    mockUser(sdr);
+    expect((await getCampaignMembers(new NextRequest('http://localhost:3000/api/campaigns/x/members'), params)).status).toBe(403);
+
+    mockUser(teamLead);
+    expect((await getCampaignMembers(new NextRequest('http://localhost:3000/api/campaigns/x/members'), params)).status).toBe(403);
+
+    mockUser(floorManager);
+    const ok = await getCampaignMembers(new NextRequest('http://localhost:3000/api/campaigns/x/members'), params);
+    expect(ok.status).not.toBe(401);
+    expect(ok.status).not.toBe(403);
+  });
+
+  it('campaigns/[id]/members POST: 401, 403 for SDR', async () => {
+    const params = { params: Promise.resolve({ id: campaignId }) };
+    const body = JSON.stringify({ userIds: [sdr.id] });
+
+    mockUser(null);
+    expect(
+      (await postCampaignMembers(new NextRequest('http://localhost:3000/api/campaigns/x/members', { method: 'POST', body }), params)).status
+    ).toBe(401);
+
+    mockUser(sdr);
+    expect(
+      (await postCampaignMembers(new NextRequest('http://localhost:3000/api/campaigns/x/members', { method: 'POST', body }), params)).status
+    ).toBe(403);
+  });
+
+  it('campaigns/[id]/members DELETE: 401, 403 for SDR', async () => {
+    const params = { params: Promise.resolve({ id: campaignId }) };
+    const body = JSON.stringify({ userId: sdr.id, reason: 'matrix coverage' });
+
+    mockUser(null);
+    expect(
+      (await deleteCampaignMember(new NextRequest('http://localhost:3000/api/campaigns/x/members', { method: 'DELETE', body }), params)).status
+    ).toBe(401);
+
+    mockUser(sdr);
+    expect(
+      (await deleteCampaignMember(new NextRequest('http://localhost:3000/api/campaigns/x/members', { method: 'DELETE', body }), params)).status
+    ).toBe(403);
+  });
+
+  it('campaigns/[id]/member-impact/[userId] GET: 401, 403 for SDR and TL', async () => {
+    const params = { params: Promise.resolve({ id: campaignId, userId: sdr.id }) };
+
+    mockUser(null);
+    expect(
+      (await getMemberImpact(new NextRequest('http://localhost:3000/api/campaigns/x/member-impact/y'), params)).status
+    ).toBe(401);
+
+    mockUser(sdr);
+    expect(
+      (await getMemberImpact(new NextRequest('http://localhost:3000/api/campaigns/x/member-impact/y'), params)).status
+    ).toBe(403);
+
+    mockUser(teamLead);
+    expect(
+      (await getMemberImpact(new NextRequest('http://localhost:3000/api/campaigns/x/member-impact/y'), params)).status
+    ).toBe(403);
   });
 });
 

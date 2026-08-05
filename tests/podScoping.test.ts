@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeVisibleUserIds, type OrgUser } from '@/lib/podScoping';
+import { computeVisibleUserIds, wouldCreateManagerCycle, type OrgUser } from '@/lib/podScoping';
 
 // director → fm1 → tl1 → sdr1, sdr2
 //                → tl2 → sdr3
@@ -45,5 +45,46 @@ describe('computeVisibleUserIds', () => {
     ];
     const ids = computeVisibleUserIds(cyclic, { id: 'a', role: 'team_lead' })!;
     expect(ids.sort()).toEqual(['a', 'b']);
+  });
+});
+
+describe('wouldCreateManagerCycle', () => {
+  it('rejects making a user their own manager', () => {
+    expect(wouldCreateManagerCycle(org, 'sdr1', 'sdr1')).toBe(true);
+  });
+
+  it('rejects a direct two-node cycle', () => {
+    // tl1 already reports to fm1; making fm1 report to tl1 closes the loop.
+    expect(wouldCreateManagerCycle(org, 'fm1', 'tl1')).toBe(true);
+  });
+
+  it('rejects a three-hop cycle', () => {
+    // director → fm1 → tl1; pointing director at tl1 closes a 3-hop loop.
+    expect(wouldCreateManagerCycle(org, 'director', 'tl1')).toBe(true);
+  });
+
+  it('allows clearing the manager', () => {
+    expect(wouldCreateManagerCycle(org, 'sdr1', null)).toBe(false);
+  });
+
+  it('allows a valid reparent to another branch', () => {
+    expect(wouldCreateManagerCycle(org, 'sdr1', 'tl3')).toBe(false);
+  });
+
+  it('allows attaching to a sibling that is not an ancestor', () => {
+    expect(wouldCreateManagerCycle(org, 'tl1', 'fm2')).toBe(false);
+  });
+
+  it('refuses to extend an already-corrupt chain instead of looping forever', () => {
+    const corrupt: OrgUser[] = [
+      { id: 'x', role: 'sdr', managerId: null },
+      { id: 'a', role: 'team_lead', managerId: 'b' },
+      { id: 'b', role: 'team_lead', managerId: 'a' },
+    ];
+    expect(wouldCreateManagerCycle(corrupt, 'x', 'a')).toBe(true);
+  });
+
+  it('treats an unknown manager id as acyclic (the FK check rejects it separately)', () => {
+    expect(wouldCreateManagerCycle(org, 'sdr1', 'ghost')).toBe(false);
   });
 });

@@ -101,7 +101,7 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
       : [
           { name: 'Dashboard', href: '/', icon: LayoutDashboard },
           ...(userRole === 'director' ? [{ name: 'Director', href: '/director', icon: Briefcase }] : []),
-          ...(userRole === 'director' || userRole === 'floor_manager' ? [{ name: 'Admin', href: '/admin/jobs', icon: Shield }] : []),
+          ...(userRole === 'director' || userRole === 'floor_manager' ? [{ name: 'Admin', href: '/admin', icon: Shield }] : []),
           { name: 'Leads', href: '/leads', icon: Users },
           { name: 'Meetings', href: '/meetings', icon: CalendarDays },
           { name: 'Opportunities', href: '/opportunities', icon: Funnel },

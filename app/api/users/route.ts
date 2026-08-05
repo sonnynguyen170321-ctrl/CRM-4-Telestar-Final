@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, requireRole, getVisibleUserIds, type SessionUser } from '@/lib/auth';
+import {
+  requireAuth, requireRole, getVisibleUserIds, clearVisibleUserCache, type SessionUser,
+} from '@/lib/auth';
 import { hash } from 'bcryptjs';
+import { randomBytes } from 'crypto';
 import { parseBody } from '@/lib/validation/core';
 import { createUserSchema } from '@/lib/validation/schemas';
+import { logAdminAudit } from '@/lib/audit';
 import { handleApiError } from '@/lib/api/errors';
 
 export async function GET() {
@@ -70,7 +74,12 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const hashedPassword = await hash(body.password, 12);
+  // No password supplied → generate one and hand it back exactly once in the
+  // response. Replaces the shared literal the Settings console used to send for
+  // every new account.
+  const initialPassword = body.password ?? generateInitialPassword();
+  const isGenerated = !body.password;
+  const hashedPassword = await hash(initialPassword, 12);
 
   try {
     if (existing) {
@@ -96,7 +105,20 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      return NextResponse.json(user);
+      await logAdminAudit({
+        actorId: currentUser.id,
+        action: 'admin.user.create',
+        tableName: 'User',
+        recordId: user.id,
+        targetUserId: user.id,
+        changedFields: { email, role: body.role, reactivated: true },
+      });
+      clearVisibleUserCache();
+
+      return NextResponse.json({
+        ...user,
+        ...(isGenerated ? { generatedPassword: initialPassword } : {}),
+      });
     }
 
     const user = await prisma.user.create({
@@ -121,8 +143,30 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(user, { status: 201 });
+    await logAdminAudit({
+      actorId: currentUser.id,
+      action: 'admin.user.create',
+      tableName: 'User',
+      recordId: user.id,
+      targetUserId: user.id,
+      changedFields: { email, role: body.role, managerId: body.managerId ?? null },
+    });
+    clearVisibleUserCache();
+
+    return NextResponse.json(
+      { ...user, ...(isGenerated ? { generatedPassword: initialPassword } : {}) },
+      { status: 201 }
+    );
   } catch (err) {
     return handleApiError('api/users POST', err);
   }
+}
+
+/**
+ * A one-off initial password the director hands to the new user. 20 chars of
+ * base64url from a CSPRNG — never a shared constant, and never stored in plain
+ * text (only the bcrypt hash is persisted; the plaintext is returned once).
+ */
+function generateInitialPassword(): string {
+  return randomBytes(15).toString('base64url');
 }

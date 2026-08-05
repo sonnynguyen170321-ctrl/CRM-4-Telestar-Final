@@ -128,12 +128,88 @@ async function repairReassignmentDrift(): Promise<{ fixed: number; details: stri
   return { fixed, details };
 }
 
+/**
+ * Trim the audit trail.
+ *
+ * `auditExtension` writes a row for every create/update/delete on every model, so
+ * this table grows without bound; the audit-log API's mandatory 30-day read window
+ * is what has been keeping /admin/audit fast, which is a band-aid, not a bound.
+ *
+ * Two tiers, because the rows are not equally valuable: the extension's automatic
+ * rows age out first, while the actor-stamped `admin.*` rows written by
+ * `logAdminAudit` are the compliance-relevant trail and are kept far longer. Both
+ * are env-overridable, and the admin floor is clamped to at least the extension
+ * window so a misconfiguration cannot delete admin rows earlier than routine ones.
+ *
+ * Deletes in bounded batches rather than one unbounded statement — a first run
+ * against a year of rows would otherwise lock the table. Hitting MAX_BATCHES is
+ * normal on that first run and not an error: the job is idempotent, so the next
+ * scheduled pass simply continues where this one stopped.
+ */
+const AUDIT_PRUNE_BATCH = 1_000;
+const AUDIT_PRUNE_MAX_BATCHES = 20;
+const DAY_MS = 86_400_000;
+
+function retentionDays(envVar: string, fallback: number): number {
+  const raw = process.env[envVar];
+  const n = raw ? parseInt(raw, 10) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+async function pruneAuditTier(
+  label: string,
+  where: { action?: { startsWith?: string; not?: { startsWith: string } }; createdAt: { lt: Date } }
+): Promise<{ deleted: number; exhausted: boolean }> {
+  let deleted = 0;
+
+  for (let batch = 0; batch < AUDIT_PRUNE_MAX_BATCHES; batch++) {
+    const rows = await prisma.auditLog.findMany({
+      where,
+      select: { id: true },
+      take: AUDIT_PRUNE_BATCH,
+    });
+    if (rows.length === 0) return { deleted, exhausted: false };
+
+    const res = await prisma.auditLog.deleteMany({ where: { id: { in: rows.map((r) => r.id) } } });
+    deleted += res.count;
+
+    if (rows.length < AUDIT_PRUNE_BATCH) return { deleted, exhausted: false };
+  }
+
+  console.warn(`[maintenance/audit-prune] ${label}: hit the batch cap, ${deleted} deleted — next run resumes`);
+  return { deleted, exhausted: true };
+}
+
+async function repairAuditPrune(): Promise<{ fixed: number; details: string[] }> {
+  const extensionDays = retentionDays('AUDIT_RETENTION_DAYS', 90);
+  const adminDays = Math.max(retentionDays('ADMIN_AUDIT_RETENTION_DAYS', 365), extensionDays);
+  const now = Date.now();
+
+  const extension = await pruneAuditTier('extension', {
+    action: { not: { startsWith: 'admin.' } },
+    createdAt: { lt: new Date(now - extensionDays * DAY_MS) },
+  });
+  const admin = await pruneAuditTier('admin', {
+    action: { startsWith: 'admin.' },
+    createdAt: { lt: new Date(now - adminDays * DAY_MS) },
+  });
+
+  return {
+    fixed: extension.deleted + admin.deleted,
+    details: [
+      `extension rows older than ${extensionDays}d -> ${extension.deleted} deleted${extension.exhausted ? ' (batch cap hit, resumes next run)' : ''}`,
+      `admin.* rows older than ${adminDays}d -> ${admin.deleted} deleted${admin.exhausted ? ' (batch cap hit, resumes next run)' : ''}`,
+    ],
+  };
+}
+
 const REPAIR_FN: Record<string, () => Promise<{ fixed: number; details: string[] }>> = {
   'orphan-tasks': repairOrphanTasks,
   'stale-sending': repairStaleSending,
   'stuck-running': repairStuckRunning,
   'missing-delayed': repairMissingDelayed,
   'reassignment-drift': repairReassignmentDrift,
+  'audit-prune': repairAuditPrune,
 };
 
 async function handleRepair(payload: MaintenanceRepairPayload) {

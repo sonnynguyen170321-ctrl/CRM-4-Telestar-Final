@@ -38,23 +38,43 @@ Reference: `docs/deliverability/PLAN.md` and `docs/deliverability/STATUS.md`.
 > An earlier note here claimed 117 `tsc` errors and 11 failing tests. That was stale —
 > the P7a repair had already landed. Re-run the gates before trusting any status doc.
 
-> ⚠️ **Windows env trap:** if the checkout path contains `&`, every npm/npx `.bin` shim
-> breaks. Call entry scripts through node directly — `node node_modules/prisma/build/index.js …`,
-> `node ./node_modules/next/dist/bin/next dev`. `scripts/build.cjs` already does this.
-> The current path has no `&`, so npm scripts work here.
+> ⚠️ **Windows env trap — this IS biting.** The checkout path is
+> `C:\Users\admin\Desktop\Sonny & AI\clone-CRM-4-U-migration-main`. The `&` breaks every
+> npm/npx `.bin` shim (`npx tsc` resolves to `C:\Users\admin\Desktop\typescript\bin\tsc`).
+> An earlier note here claimed "the current path has no `&`, so npm scripts work here" —
+> that was wrong. Call entry scripts through node directly:
+>
+> ```bash
+> node node_modules/typescript/bin/tsc --noEmit
+> node node_modules/vitest/vitest.mjs run
+> node node_modules/eslint/bin/eslint.js .
+> node node_modules/prisma/build/index.js migrate deploy
+> node ./node_modules/next/dist/bin/next dev
+> ```
+>
+> `scripts/build.cjs` already does this. **`tsc` and `next build` also need
+> `NODE_OPTIONS=--max-old-space-size=8192`** or they die with
+> `FATAL ERROR: Ineffective mark-compacts near heap limit` (exit 134) — a heap limit, not a
+> type error.
 
 ## Local development database
 
-There is no Docker or system Postgres on the primary Windows machine. A portable
-PostgreSQL 16.10 lives at `C:\Users\admin\pgsql-local` (binaries in `pgsql\bin`,
-cluster in `data`), matching the Cloud SQL major version.
+PostgreSQL 16 runs as the Windows service **`postgresql-x64-16`**, binaries at
+`C:\Program Files\PostgreSQL\16\bin`. It matches the Cloud SQL major version.
 
 ```bash
-# start / stop  (server holds the console pipe, so start it detached)
-C:\Users\admin\pgsql-local\pgsql\bin\pg_ctl.exe -D C:\Users\admin\pgsql-local\data \
-  -l C:\Users\admin\pgsql-local\pg.log -o "-p 5432 -c listen_addresses=127.0.0.1" start
-C:\Users\admin\pgsql-local\pgsql\bin\pg_ctl.exe -D C:\Users\admin\pgsql-local\data stop
+# state
+Get-Service postgresql-x64-16
+# psql
+& 'C:\Program Files\PostgreSQL\16\bin\psql.exe' -U postgres -h 127.0.0.1 -d telestar_crm
 ```
+
+> Pass SQL to `psql` with `-f file.sql`, not `-c "..."` — PowerShell strips the double
+> quotes around identifiers, so `"CampaignLeadRequirement"` arrives lowercased and the
+> statement fails with `relation ... does not exist`.
+
+> An earlier note here described a portable install at `C:\Users\admin\pgsql-local` driven
+> by `pg_ctl`. That path does not exist on this machine; the service above is what runs.
 
 `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/telestar_crm` — the DSN
 `vitest.config.ts` already defaults to. `.env.local` (gitignored) holds the local values.
@@ -74,6 +94,31 @@ asserts nothing is broken once there — every permitted route for all 6 persona
 with no 5xx, no uncaught exception, no console error, and without silently redirecting away,
 plus role gates and the outbound-email safety guard. Point `BASE_URL` at a deployment to use
 it as a post-deploy gate.
+
+## ✅ Admin Control Center (people-ops console) — complete
+
+Director/Floor Manager manage users, teams, clients, campaign membership, work transfer
+and an audit log from `/admin`. Built, gated, and covered.
+
+**The rule that must not regress:** removing a campaign member or deactivating a user runs an
+impact check first and returns **409** unless the caller names a handling mode
+(`transfer_work` / `pause_tasks` / `keep_existing_work`) plus a reason. Enforcement lives in
+`lib/admin/campaignMembers.ts` — both `/api/admin/assignments` and
+`/api/campaigns/[id]/members` delegate to it, so it cannot be bypassed.
+
+Before touching admin, user, campaign-membership or work-ownership code:
+read **`docs/admin-control-center/STATUS.md`** — gate status, architecture constraints,
+and what was deliberately *not* built.
+
+> **The impact dialog is not exhaustive.** `lib/admin/impact.ts` counts leadgen pool rows
+> only via `assignedSdrId`. `LeadPoolItem.qualifiedById` and the FK-less `Lead.archivedById` /
+> `EmailAccount.sendPausedById` / `EmailHealthAlert.acknowledgedById` / `resolvedById` are
+> counted nowhere and shown nowhere — they are silently left behind on transfer. Intended,
+> but don't tell an operator the dialog is complete.
+
+> `lib/admin/transferWork.ts` deliberately has no `$transaction` — Neon HTTP has no interactive
+> transactions and the `lib/prisma.ts` `$extends` wrappers defeat array batching, so wrapping it
+> would look atomic and not be. It is idempotent-resumable instead. Don't "fix" it.
 
 ## 🟡 Runtime Hardening + BullMQ migration
 

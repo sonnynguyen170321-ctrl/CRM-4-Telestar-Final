@@ -208,6 +208,65 @@ export async function pauseSequence(
 }
 
 /**
+ * Set-based pause for the admin "pause open tasks" removal mode.
+ *
+ * All three statements are required. Skipping the tasks alone would just let the
+ * engine regenerate them on the next advance, so the lead and the enrollment have
+ * to be paused too — the same three writes `pauseSequence` does for one lead.
+ *
+ * Locked tasks are left alone: the send cron has claimed them and is mid-flight.
+ * The count of those is returned so the caller can tell the admin to re-run.
+ */
+export async function pauseSequencesBulk(
+  leadIds: string[],
+  actorUserId: string,
+  reason: string
+): Promise<{ pausedLeads: number; skippedTasks: number; lockedTasks: number }> {
+  if (leadIds.length === 0) return { pausedLeads: 0, skippedTasks: 0, lockedTasks: 0 };
+
+  const CHUNK = 500;
+  let pausedLeads = 0;
+  let skippedTasks = 0;
+  let lockedTasks = 0;
+
+  for (let i = 0; i < leadIds.length; i += CHUNK) {
+    const chunk = leadIds.slice(i, i + CHUNK);
+
+    lockedTasks += await prisma.task.count({
+      where: { leadId: { in: chunk }, status: 'pending', lockedAt: { not: null } },
+    });
+
+    const leads = await prisma.lead.updateMany({
+      where: { id: { in: chunk }, sequenceStatus: 'active' },
+      data: { sequenceStatus: 'paused' },
+    });
+    pausedLeads += leads.count;
+
+    const tasks = await prisma.task.updateMany({
+      where: { leadId: { in: chunk }, status: 'pending', lockedAt: null },
+      data: { status: 'skipped', outcome: reason },
+    });
+    skippedTasks += tasks.count;
+
+    await prisma.sequenceEnrollment.updateMany({
+      where: { leadId: { in: chunk }, status: 'active' },
+      data: { status: 'paused' },
+    });
+  }
+
+  await prisma.activity.create({
+    data: {
+      userId: actorUserId,
+      type: 'sequence_unenrolled',
+      description: `Bulk pause — ${leadIds.length} lead(s): ${reason}`,
+      metadata: { kind: 'admin_bulk_pause', leadCount: leadIds.length, reason, paused: true },
+    },
+  });
+
+  return { pausedLeads, skippedTasks, lockedTasks };
+}
+
+/**
  * Fully unenroll a lead (stage milestones, manual unenroll, sequence switch):
  * clear enrollment fields and skip any pending sequence tasks.
  */
