@@ -119,10 +119,26 @@ Point the host scheduler (PM2 cron module or OS `crontab`) at the cron routes wi
 */10 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://crm.yourdomain.com/api/cron/inbox-sync
 # email health — scores inboxes, writes snapshots, raises deliverability alerts (hourly)
 0 * * * *    curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://crm.yourdomain.com/api/cron/email-health
+# maintenance — repairs drift and prunes the audit log (daily, off-peak)
+30 3 * * *   curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://crm.yourdomain.com/api/cron/maintenance
 ```
 
 The email-health pass reads only data the inbox sync has already stored, so it is safe to run
 at any offset — but it is pointless more often than hourly, since its windows are 24h and 7d.
+
+The maintenance sweep enqueues one `maintenance.repair` job per tenant, covering
+`orphan-tasks`, `stale-sending`, `stuck-running`, `missing-delayed`, `reassignment-drift`
+and `audit-prune`. Narrow it with `?types=audit-prune,orphan-tasks` — unknown names return
+400 rather than being silently dropped, so a typo in the crontab is visible.
+
+**`audit-prune` is the only repair that deletes rows.** `lib/audit.ts` writes an AuditLog
+row for every create/update/delete on every model, and nothing trimmed it before this job —
+the audit-log API's mandatory 30-day read window was the only thing keeping `/admin/audit`
+fast. Retention is two-tier and set by `AUDIT_RETENTION_DAYS` (default 90, the extension's
+automatic rows) and `ADMIN_AUDIT_RETENTION_DAYS` (default 365, the actor-stamped `admin.*`
+trail); the admin window is clamped to at least the extension window. Deletes run in
+batches of 1000, capped at 20 batches per tier per run — on a large first pass the job
+stops early and logs that it will resume, which is expected, not a failure.
 
 ---
 

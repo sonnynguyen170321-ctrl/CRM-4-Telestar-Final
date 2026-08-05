@@ -139,7 +139,14 @@ export interface MaintenanceHealthcheckPayload {
 }
 
 export interface MaintenanceRepairPayload {
-  types: ('orphan-tasks' | 'stale-sending' | 'stuck-running' | 'missing-delayed' | 'reassignment-drift')[];
+  types: (
+    | 'orphan-tasks'
+    | 'stale-sending'
+    | 'stuck-running'
+    | 'missing-delayed'
+    | 'reassignment-drift'
+    | 'audit-prune'
+  )[];
 }
 
 export type JobPayload = {
