@@ -27,3 +27,33 @@ export function computeVisibleUserIds(
   }
   return [...visible];
 }
+
+/**
+ * Whether setting `userId`'s manager to `newManagerId` would produce a cycle in
+ * the reporting chain. Walks UP from the proposed manager looking for `userId`.
+ *
+ * A cycle is unrecoverable through the UI — `computeVisibleUserIds` would loop
+ * or silently truncate, and the user would vanish from every manager's scope.
+ * Pure and in-memory: the caller already needs one `user.findMany` for the org,
+ * so this costs no extra round-trips.
+ */
+export function wouldCreateManagerCycle(
+  allUsers: OrgUser[],
+  userId: string,
+  newManagerId: string | null
+): boolean {
+  if (newManagerId === null) return false; // orphaning cannot cycle
+  if (newManagerId === userId) return true; // self-manager
+
+  const byId = new Map(allUsers.map((u) => [u.id, u]));
+  const seen = new Set<string>();
+  let cursor: string | null = newManagerId;
+
+  while (cursor) {
+    if (cursor === userId) return true;
+    if (seen.has(cursor)) return true; // pre-existing corrupt cycle — refuse to add to it
+    seen.add(cursor);
+    cursor = byId.get(cursor)?.managerId ?? null;
+  }
+  return false;
+}

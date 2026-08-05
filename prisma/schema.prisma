@@ -251,6 +251,8 @@ model User {
   healthSnapshots          EmailHealthSnapshot[]
 
   @@index([tenantId])
+  @@index([tenantId, managerId])
+  @@index([tenantId, role, isActive])
 }
 
 // ─── Clients & Campaigns ─────────────────────────────────────────────────────
@@ -751,6 +753,7 @@ model AuditLog {
   @@index([tableName, recordId])
   @@index([createdAt])
   @@index([tenantId])
+  @@index([tenantId, action, createdAt])
 }
 
 // ─── Job Runs (durable mirror for BullMQ) ─────────────────────────────────────

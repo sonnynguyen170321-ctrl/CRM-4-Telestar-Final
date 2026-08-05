@@ -10,6 +10,7 @@ export const taskStatus = z.enum(['pending', 'completed', 'skipped']);
 export const taskPriority = z.enum(['high', 'medium', 'low']);
 export const role = z.enum(['director', 'floor_manager', 'team_lead', 'sdr', 'leadgen_manager', 'leadgen']);
 export const campaignStatus = z.enum(['active', 'paused', 'completed']);
+export const clientStatus = z.enum(['active', 'paused', 'churned']);
 export const activityType = z.enum([
   'email_sent', 'call_made', 'call_logged', 'linkedin_sent', 'linkedin_touch',
   'whatsapp_sent', 'whatsapp_message', 'note_added', 'stage_changed',
@@ -167,7 +168,8 @@ export const sendEmailSchema = z.object({
 
 export const createUserSchema = z.object({
   email: z.string().email().max(320),
-  password: z.string().min(8).max(200),
+  /** Omit to have the server generate one and return it once in the response. */
+  password: z.string().min(8).max(200).optional(),
   firstName: z.string().min(1).max(120),
   lastName: z.string().min(1).max(120),
   role,
@@ -184,6 +186,8 @@ export const updateUserSchema = z.object({
   managerId: id.nullish().optional(),
   isActive: z.boolean().optional(),
   newPassword: z.string().min(8).max(200).optional(),
+  /** Required when deactivating a user who still manages active reports. */
+  reassignReportsTo: id.optional(),
 });
 
 // ─── Notes / Reminders / Activities / Campaigns / Notifications ─────────────
@@ -239,6 +243,52 @@ export const updateCampaignSchema = z.object({
 
 export const markNotificationSchema = z.object({
   id: id.optional(),
+});
+
+// ─── Admin Control Center ────────────────────────────────────────────────────
+
+/** How a removed campaign member's still-open work is handled. */
+export const removalMode = z.enum(['keep_existing_work', 'transfer_work', 'pause_tasks']);
+
+export const removeMemberSchema = z.object({
+  userId: id,
+  campaignId: id,
+  mode: removalMode.optional(),
+  transferToUserId: id.optional(),
+  reason: z.string().min(3).max(500).optional(),
+});
+
+export const transferWorkSchema = z.object({
+  fromUserId: id,
+  toUserId: id,
+  campaignId: id.optional(),
+  includeLeads: z.boolean().default(true),
+  includeOpenTasks: z.boolean().default(true),
+  includeScheduledMeetings: z.boolean().default(true),
+  includeOpenOpportunities: z.boolean().default(true),
+  /** Idempotency key — replaying the same value returns the stored result. */
+  requestId: z.string().min(8).max(200),
+  reason: z.string().min(3).max(500),
+});
+
+export const createClientSchema = z.object({
+  name: z.string().min(1).max(200),
+  // All three are NOT NULL in the schema — the form must collect them.
+  industry: z.string().min(1).max(200),
+  contactName: z.string().min(1).max(200),
+  contactEmail: z.string().email().max(320),
+  status: clientStatus.optional(),
+});
+
+export const updateClientSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  industry: z.string().min(1).max(200).optional(),
+  contactName: z.string().min(1).max(200).optional(),
+  contactEmail: z.string().email().max(320).optional(),
+  status: clientStatus.optional(),
+  /** Required when archiving/pausing a client that still has active campaigns. */
+  cascade: z.enum(['pause_campaigns', 'none']).optional(),
+  reason: z.string().min(3).max(500).optional(),
 });
 
 // ─── Booking Links ───────────────────────────────────────────────────────────

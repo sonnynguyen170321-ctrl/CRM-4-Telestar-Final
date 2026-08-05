@@ -158,3 +158,78 @@ export const auditExtension = Prisma.defineExtension((client) => {
     },
   });
 });
+
+/**
+ * Admin actions an actor takes on someone else's record.
+ *
+ * `auditExtension` above attributes every row to the *record's* owner
+ * (`createdById || assignedToId || userId`), which is right for "what happened to
+ * my data" but wrong for "who did this to whom" — a director deactivating an SDR
+ * lands under the SDR. Rather than flip the extension (which would silently
+ * rewrite the meaning of every historical row and of the `AuditLog(userId)`
+ * index), admin operations write an explicit actor-stamped row through here.
+ *
+ * Actions use a dotted `admin.*` namespace so they are trivially separable from
+ * the extension's `create_user` / `update_campaign` rows.
+ */
+export const ADMIN_AUDIT_ACTIONS = [
+  'admin.user.create',
+  'admin.user.update',
+  'admin.user.deactivate',
+  'admin.user.reactivate',
+  'admin.user.password_reset',
+  'admin.user.manager_change',
+  'admin.user.role_change',
+  'admin.campaign.member_add',
+  'admin.campaign.member_remove',
+  'admin.work.transfer.start',
+  'admin.work.transfer',
+  'admin.client.create',
+  'admin.client.update',
+  'admin.client.archive',
+  'admin.seed.reset',
+] as const;
+
+export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number];
+
+export type AdminAuditInput = {
+  actorId: string;
+  action: AdminAuditAction;
+  /** Prisma model name, or a synthetic one like `WorkTransfer` for multi-model ops. */
+  tableName: string;
+  recordId: string;
+  changedFields?: Record<string, unknown>;
+  /** The user this action was performed *on*, when that differs from `recordId`. */
+  targetUserId?: string;
+  reason?: string;
+};
+
+/**
+ * Write one actor-stamped audit row. Never throws — an audit failure must not
+ * fail the admin action it describes (same contract as `auditExtension`).
+ *
+ * The Prisma client is imported lazily: `lib/prisma.ts` imports `auditExtension`
+ * from this module at load time, so a top-level `import { prisma }` here would
+ * close a module cycle.
+ */
+export async function logAdminAudit(input: AdminAuditInput): Promise<void> {
+  try {
+    const { prisma } = await import('./prisma');
+    await prisma.auditLog.create({
+      data: {
+        userId: input.actorId,
+        action: input.action,
+        tableName: input.tableName,
+        recordId: input.recordId,
+        changedFields: redactSensitiveFields({
+          ...(input.changedFields ?? {}),
+          __actor: input.actorId,
+          ...(input.targetUserId ? { __target: input.targetUserId } : {}),
+          ...(input.reason ? { __reason: input.reason } : {}),
+        }),
+      },
+    });
+  } catch (err) {
+    console.error('[logAdminAudit] Failed to write admin audit log:', err);
+  }
+}
