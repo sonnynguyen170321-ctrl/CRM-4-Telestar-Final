@@ -113,13 +113,22 @@ member in place, a direct mode-less `DELETE` still 409s, and a transfer actually
 Verified evidence from the run: 3 open leads moved Lan Pham → Vy Hoang, and Lan Pham then
 reappears in `suggestedTargets` with `requiresCampaignAdd: true`, confirming he left the campaign.
 
-**Run it against a production build, not `next dev`:**
+**Run it against a production build, not `next dev` — and on port 3000:**
 
 ```bash
-npm run build
-node ./node_modules/next/dist/bin/next start -p 3200
-BASE_URL=http://localhost:3200 npx playwright test e2e/qa/laneG.spec.ts
+NODE_OPTIONS=--max-old-space-size=8192 node ./node_modules/next/dist/bin/next build
+NODE_OPTIONS=--max-old-space-size=8192 node ./node_modules/next/dist/bin/next start -p 3000
+BASE_URL=http://localhost:3000 E2E_PASSWORD=telestar2026 \
+  node node_modules/@playwright/test/cli.js test e2e/qa/laneG.spec.ts
 ```
+
+> **Use port 3000, not 3200.** An earlier revision of this file said 3200. `.env` pins
+> `NEXTAUTH_URL="http://localhost:3000"`, so on any other port every *unauthenticated*
+> redirect bounces to 3000 where nothing is listening, and the signed-out and role-gate
+> tests fail with `ERR_CONNECTION_REFUSED` while the signed-in ones still pass — which
+> reads exactly like a broken auth gate. On 3000 the full suite is 20/20. laneG itself
+> survives the wrong port because `apiLogin` never takes the redirect path; the rest of
+> `deep-smoke` does not.
 
 Two harness traps this run surfaced, both worth knowing before writing another stateful lane:
 
