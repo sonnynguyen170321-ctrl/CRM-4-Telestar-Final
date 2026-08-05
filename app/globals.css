@@ -395,6 +395,32 @@ table th, table td {
 [class*="text-purple-400"]  { color: #7e22ce; }   /* 6.5:1 */
 [class*="text-indigo-400"]  { color: #4338ca; }   /* 6.4:1 */
 
+/* ── Filled buttons: white labels that do not clear AA ──────────────────────
+   White on brand orange #E8611A is 3.41:1 and white on emerald-600 is 3.65:1,
+   against the 4.5:1 floor for normal text. These are 16px regular, so the 3:1
+   large-text allowance does not apply.
+
+   Brand orange keeps its exact swatch — `brand-design.md` names #E8611A and the
+   product should not quietly drift off it — so the *label* goes near-black
+   instead: #0A0A0A on #E8611A is 5.99:1. Emerald is a semantic success colour
+   rather than a brand one, so there the background darkens instead and the
+   white label stays.
+
+   `[class~=]` matches a whole class token, so `hover:bg-brand-orange` does NOT
+   match `bg-brand-orange`. That distinction matters: several buttons are
+   `bg-brand-red hover:bg-brand-orange text-white`, and white on #D42B1E is
+   4.90:1 — already passing. Only the hovered state needs the darker label, which
+   is what the `:hover` rules below do.                                          */
+[class~="bg-brand-orange"][class~="text-white"] { color: #0A0A0A; }              /* 5.99:1 */
+[class~="hover:bg-brand-orange"][class~="text-white"]:hover { color: #0A0A0A; }
+[class~="bg-brand-orange-hover"][class~="text-white"] { color: #0A0A0A; }
+
+[class~="bg-emerald-500"],
+[class~="bg-emerald-600"] { background-color: #047857; }                          /* white 5.53:1 */
+[class~="hover:bg-emerald-500"]:hover,
+[class~="hover:bg-emerald-600"]:hover,
+[class~="hover:bg-emerald-700"]:hover { background-color: #065f46; }              /* white 7.16:1 */
+
 /* ─── CUSTOM EFFECTS & LAYOUTS ─── */
 .glassmorphism {
   background: color-mix(in srgb, var(--card-bg) 80%, transparent);

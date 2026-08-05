@@ -96,7 +96,10 @@ The sweep found **145 flags**, most of them predating the admin console. Current
 | `nestedCards` | 3 | **0** |
 | `headingOrder` | 2 | **0** |
 | `tiny`, `deadTokens`, `gradientText`, `glow`, `tintedShadow`, `darkSurfaceGlow`, `springy` | 0 | **0** |
-| `lowContrast` | 4 *(measured)* | **71** *(measured — see below)* |
+| `lowContrast` | 4 *(mis-measured — see below)* | **0** |
+
+**Every category is now at zero.** The goal at the top of this file — no accepted
+exceptions — is met as of 2026-08-05.
 
 **`cramped` was one rule, not 130 problems.** `app/globals.css` sets `table th, table td`
 padding *outside* any `@layer`, so it beats every Tailwind padding utility regardless of
@@ -130,24 +133,31 @@ rasterises through a canvas, which resolves any CSS colour exactly.
    Repeat the check before extending the block: a static sweep cannot see a dark ancestor,
    and doing it blind is what produced seven false positives in an earlier round.
 
-### The remaining 4 are a brand decision, not a bug
+### The last 4 — filled buttons — fixed 2026-08-05. Audit is at zero.
 
-All four are **white text on a coloured button**, so the fix is to darken the *background*,
-which changes how the product looks:
+All four were **white text on a coloured button**, so the text-colour floor above could not
+reach them. They split into two groups needing opposite treatments:
 
-| Route | Control | Background | Ratio |
+| Route | Control | Was | Now |
 |---|---|---|---|
-| `/automation` | "Run Inbox Sync" | `#E8611A` — **brand orange** | 3.41:1 |
-| `/director` | "Won / Closed" | `bg-emerald-600` | 3.65:1 |
-| `/opportunities` | "Create Opportunity" | `bg-emerald-600` | 3.65:1 |
-| `/opportunities` | "Board" (active tab) | tinted | 3.41:1 |
+| `/automation` | "Run Inbox Sync" | `#fff` on `#E8611A` — 3.41:1 | `#0A0A0A` on `#E8611A` — **5.99:1** |
+| `/opportunities` | "Board" (active tab) | `#fff` on `#E8611A` — 3.41:1 | `#0A0A0A` on `#E8611A` — **5.80:1** |
+| `/opportunities` | "Create Opportunity" | `#fff` on `#009966` — 3.65:1 | `#fff` on `#047857` — **5.48:1** |
+| `/director` | "Won / Closed" | `#fff` on `#009966` — 3.65:1 | `#fff` on `#047857` — **5.48:1** |
 
-Flame orange `#E8611A` is in the brand palette in `brand-design.md`, so white-on-orange
-failing AA is a real tension between brand and accessibility rather than an oversight. The
-options are dark text on orange (`#0A0A0A` on `#E8611A` ≈ 6.2:1), a darker orange reserved
-for filled buttons (the palette already precedents this with `--brand-orange-text`), or
-accepting it. **Not decided here.** Note 3.41:1 would pass AA for large text (≥18.66px bold)
-— these are 14–16px, so they do not qualify.
+**Brand orange keeps its exact swatch.** `brand-design.md` names `#E8611A`, and the product
+should not quietly drift off it to satisfy a checker, so the *label* went near-black instead
+of the background going darker. Decided 2026-08-05. Emerald is a semantic success colour
+rather than a brand one, so there the opposite choice applies — the background darkens and
+the white label stays.
+
+Implemented as rules in `globals.css` rather than edits to the 23 call sites, so the next
+filled button inherits the fix. They use `[class~=]` (whole-token match) specifically so
+`hover:bg-brand-orange` does **not** match `bg-brand-orange`: several buttons are
+`bg-brand-red hover:bg-brand-orange text-white`, and white on `#D42B1E` is 4.90:1 — already
+passing, so only their hovered state takes the darker label.
+
+None of these qualified for the 3:1 large-text allowance — all are 16px regular.
 
 ---
 
