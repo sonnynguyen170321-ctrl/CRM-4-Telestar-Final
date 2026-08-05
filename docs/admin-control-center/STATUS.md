@@ -81,16 +81,36 @@ Three of the planned files exist (`tests/podScoping.test.ts` extended,
   `/api/campaigns/[id]/members`, `/api/campaigns/[id]/member-impact/[userId]`,
   `/api/users/[id]/impact`.
 
-### 3. Playwright lane for the headline guarantee
-`e2e/deep-smoke.spec.ts` and `e2e/qa/personas.ts` are already updated with every new route
-(Director + Floor Manager allowed; TL / SDR / Leadgen / Leadgen Manager denied, tagged `edge`).
+### 3. Playwright — done ✅
+`e2e/deep-smoke.spec.ts` and `e2e/qa/personas.ts` carry every new route (Director + Floor
+Manager allowed; TL / SDR / Leadgen / Leadgen Manager denied, tagged `edge`).
 
-Still to write — **`e2e/qa/laneG.spec.ts`**, the end-to-end proof:
-director opens a campaign's members → clicks Remove on a member who owns work → asserts the
-impact dialog shows non-zero counts → **asserts the member is still present after Cancel** →
-transfers → asserts the counts landed on the target.
+**`e2e/qa/laneG.spec.ts` — 5/5 passing.** The end-to-end proof of the headline rule: the impact
+dialog shows non-zero counts, confirm stays disabled until a mode is chosen, Cancel leaves the
+member in place, a direct mode-less `DELETE` still 409s, and a transfer actually moves the work.
+Verified evidence from the run: 3 open leads moved Lan Pham → Vy Hoang, and Lan Pham then
+reappears in `suggestedTargets` with `requiresCampaignAdd: true`, confirming he left the campaign.
 
-Run: `BASE_URL=http://localhost:3000 E2E_PASSWORD=telestar2026 npx playwright test`
+**Run it against a production build, not `next dev`:**
+
+```bash
+npm run build
+node ./node_modules/next/dist/bin/next start -p 3200
+BASE_URL=http://localhost:3200 npx playwright test e2e/qa/laneG.spec.ts
+```
+
+Two harness traps this run surfaced, both worth knowing before writing another stateful lane:
+
+- **The QA harness writes artefacts into the watched project directory** (`qa-runs/`,
+  screenshots, notes). Under `next dev` every write triggers Fast Refresh, which **remounts the
+  page and resets component state** — the impact dialog disappears mid-assertion. The existing
+  read-only lanes never noticed; a stateful lane fails immediately. Production build has no
+  watcher, and is also ~2x faster since nothing compiles per route.
+- **The shared `login()` helper is hydration-sensitive.** It clicks the dev-only Demo Accounts
+  button; against a recompiling server the markup exists but the handler is not attached, so the
+  click silently does nothing. laneG signs in through the credentials callback instead
+  (`apiLogin`), which is deterministic. Worth porting to `_helpers.ts` if other lanes start
+  flaking.
 
 ### 4. Not built, and deliberately so
 - **Assignment Rules** — listed in the original spec's sidebar but never specified beyond the
