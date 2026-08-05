@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-08-05
 **Plan of record:** `C:\Users\admin\.claude\plans\what-should-come-next-greedy-wren.md`
-**Branch:** `main` (uncommitted working tree — see "Commit plan" below)
+**Branch:** `feat/admin-control-center`
 
 ---
 
@@ -26,6 +26,7 @@ mode — transfer / pause / keep — and gives a reason. Enforced server-side in
 | 2 | `PUT /api/users/[id]` never called `clearVisibleUserCache` after `managerId`/`role`/`isActive` changes — pod scoping stayed stale 60s | Cache cleared (no-arg, since the map is keyed by *viewer*) |
 | 3 | The send worker gates on `EmailAccount.isActive`/`sendPausedAt`, **not** `User.isActive` — a deactivated rep's mailbox kept sending | Deactivation now stamps `sendPausedAt`/`sendPausedById`/`sendPauseReason` |
 | 4 | New users all got the hardcoded password `Telestar2026!` | Server generates 20 chars from a CSPRNG, returned once in the 201 body |
+| 5 | `getTenantIdFromSession` swallowed **every** error (`catch { return null }`) — a session-resolution failure silently became a full-bypass cross-tenant read in dev/test | Only a missing request context (`headers`/`cookies`) still returns null; anything else (auth-provider failure, module error, DB error) rethrows instead of widening the tenant scope |
 
 ---
 
@@ -59,27 +60,35 @@ Handlers: `handleConnectGmail`, `handleConnectOutlook`, `handleConnectManual`,
 `handleDeleteEmail`, `handleStartEditSignature`, `handleSaveSignature`, `missingText`.
 Pure code motion — behaviour must not change.
 
-### 2. Vitest suites named in the plan but not yet written
-Three of the planned files exist (`tests/podScoping.test.ts` extended,
-`tests/admin-org-rules.test.ts`, `tests/admin-impact.test.ts`). Still outstanding:
+### 2. Vitest suites named in the plan — all written ✅
+All planned files now exist and pass: `tests/podScoping.test.ts` (extended),
+`tests/admin-org-rules.test.ts`, `tests/admin-impact.test.ts`,
+`tests/admin-org.test.ts`, `tests/admin-overview.test.ts`, `tests/admin-audit.test.ts`,
+plus the 401/403 matrix in `tests/admin.test.ts`.
 
-- **`tests/admin-org.test.ts`** — route-level guards on `PUT /api/users/[id]`:
-  self-manager 400 · cycle 400 · role-incompatible manager 400 · FM setting a manager outside
-  their floor 403 · deactivating a user with active reports 409 without `reassignReportsTo` ·
-  `clearVisibleUserCache` called (spy).
-  Template: `tests/admin.test.ts` (direct handler import, `vi.mock('@/auth')`, real prisma
-  inside `tenantStorage.run`).
+- **`tests/admin-org.test.ts`** — route-level guards on `PUT /api/users/[id]` (real DB,
+  `admin-org-tenant`, 15 tests): self-manager 400 · cycle 400 · role-incompatible manager 400
+  (asserts `'may only report to'`) · FM setting a manager outside their floor 403 ·
+  deactivating a user with active reports 409 (lists `reports`) without `reassignReportsTo` ·
+  deactivate-without-reports 200 + `clearVisibleUserCache` spy + `admin.user.deactivate` audit
+  row attributed to the acting director. Runs inside `tenantStorage.run`.
 - **`tests/admin-overview.test.ts`** — each of the 6 overview cards yields the right ids on a
-  seeded fixture · FM sees only their floor · the paused-campaign card uses the
-  `Lead.sequenceStatus` path (NOT a `Sequence.campaignId`, which does not exist).
-- **`tests/admin-audit.test.ts`** — `logAdminAudit` stamps `userId = actorId` · cursor pages do
-  not duplicate · the 30-day default window is applied · FM scoped to visible users ·
-  name resolution batches (assert query count).
-- **Extend `tests/admin.test.ts` / `tests/access-control.test.ts`** — 401/403 matrix for every
-  new endpoint: `/api/admin/overview`, `/api/admin/users`, `/api/admin/audit-log`,
-  `/api/admin/transfer-work`, `/api/clients`, `/api/clients/[id]`,
+  seeded fixture (`admin-overview-tenant`, 5 campaigns/4 clients/9 users/orphaned work/1 live
+  sequence under a paused campaign) · director totals vs FM-scoped totals · FM sees only their
+  floor (sdr4/sdr5/leadgen/campaignE excluded) · guard 401/403. Card-test route calls run inside
+  `tenantStorage.run({ tenantId })` so reads are tenant-scoped deterministically.
+- **`tests/admin-audit.test.ts`** — mocked-prisma route-logic suite (`NextRequest`): guard
+  401/403 · 30-day default window + `admin.` scope prefix · from/to/actorId/action/scope params ·
+  FM actor scoping via visible ids · `take = limit + 1` + `hasMore`/`nextCursor` · cursor →
+  `createdAt.lt` · batched name resolution (one `user.findMany` per page, labels merged, null for
+  non-label tables).
+- **`tests/admin.test.ts`** — 401/403 matrix for every Admin Control Center endpoint:
+  `/api/admin/overview`, `/api/admin/users`, `/api/admin/audit-log`, `/api/admin/transfer-work`,
   `/api/campaigns/[id]/members`, `/api/campaigns/[id]/member-impact/[userId]`,
-  `/api/users/[id]/impact`.
+  `/api/users/[id]/impact` (self impact 200 runs inside `tenantStorage.run`).
+
+Run: `node node_modules/vitest/vitest.mjs run tests/admin-audit.test.ts tests/admin-org.test.ts
+tests/admin-overview.test.ts tests/admin.test.ts` → **40/40 pass**; typecheck clean.
 
 ### 3. Playwright — done ✅
 `e2e/deep-smoke.spec.ts` and `e2e/qa/personas.ts` carry every new route (Director + Floor

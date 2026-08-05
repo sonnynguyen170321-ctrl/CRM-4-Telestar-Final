@@ -32,8 +32,15 @@ const getTenantIdFromSession = cache(async function getTenantIdFromSession(): Pr
       const session = await auth();
       return (session?.user as any)?.tenantId || null;
     });
-  } catch {
-    // Fail silently when cookies/headers are not available (e.g. outside request context)
+  } catch (err) {
+    // Only a missing request context (e.g. cookies()/headers() outside a request) is
+    // expected here. Anything else — a broken auth provider, a module-resolution failure,
+    // a DB error — must surface: returning null here would silently widen into a
+    // cross-tenant read via the local bypass path, which is never acceptable.
+    const message = err instanceof Error ? err.message : String(err);
+    if (!/headers|cookies|outside of a request|request scope|draft mode/i.test(message)) {
+      throw err;
+    }
     return null;
   }
 });
