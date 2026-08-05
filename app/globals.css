@@ -334,17 +334,26 @@ p, li {
   font-family: var(--font-sans);
 }
 
-/* ── Table density — data tables are the documented exception to brand density ── */
+/* ── Table density — data tables are the documented exception to brand density ──
+   These rules sit outside `@layer`, so they beat every Tailwind padding utility on a
+   table cell regardless of specificity. Cell padding is set HERE for the whole app;
+   a `py-*` class on a `<th>`/`<td>` does nothing. See the note above on ad-hoc sizes.
+
+   Vertical padding is 16px, not the 12px this block used to carry. brand-design.md
+   asks for ~48px rows, but 12px + a 19px meta-tier line box measures 43px, so every
+   table in the app failed the `cramped` audit its own rule was written for. 16px clears
+   48px for both tiers in use — 49px where the header sits on the 17px micro line box
+   (/team, /admin/jobs) and 51px on the 19px meta box (the admin console).             */
 table th, table td {
-  padding-top: 12px;
-  padding-bottom: 12px;
+  padding-top: 16px;
+  padding-bottom: 16px;
   padding-left: 16px;
   padding-right: 16px;
 }
 .table-row-dense th,
 .table-row-dense td {
-  padding-top: 12px;
-  padding-bottom: 12px;
+  padding-top: 16px;
+  padding-bottom: 16px;
   padding-left: 14px;
   padding-right: 14px;
 }
@@ -380,9 +389,12 @@ table th, table td {
   background: rgba(128, 128, 128, 0.4);
 }
 
-/* Table styling helpers */
+/* Table styling helpers.
+   `min-height`, not `height: 38px` — that older value contradicted this class's own
+   padding block above and the ~48px row target in brand-design.md. On a `<tr>` it only
+   ever acted as a floor anyway; naming it `min-height` stops it reading as a cap. */
 .table-row-dense {
-  height: 38px;
+  min-height: 48px;
 }
 
 /* ════════════════════════════════════════════

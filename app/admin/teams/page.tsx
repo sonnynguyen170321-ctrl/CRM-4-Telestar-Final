@@ -172,10 +172,12 @@ export default function AdminTeamsPage() {
         </p>
       </div>
 
+      {/* Inset accent bar, not a bordered+rounded box: this sits inside `glass-card`, and
+          card chrome on a child of a card is the "no card inside a card" rule. */}
       {orphans.length > 0 && (
-        <div className="flex items-start gap-2 p-3 bg-brand-red/5 border border-brand-red/20 rounded-xl">
+        <div className="flex items-start gap-2 bg-brand-red/5 border-l-2 border-brand-red py-2 pl-3 pr-3">
           <AlertTriangle className="w-4 h-4 text-brand-red shrink-0 mt-0.5" aria-hidden="true" />
-          <p className="type-meta text-text-secondary leading-normal">
+          <p className="type-meta text-text-secondary leading-normal prose-measure">
             <span className="font-semibold text-text-primary">{orphans.length}</span> active user
             {orphans.length === 1 ? '' : 's'} have no manager, so they fall outside every pod:{' '}
             {orphans.map((o) => o.name).join(', ')}.

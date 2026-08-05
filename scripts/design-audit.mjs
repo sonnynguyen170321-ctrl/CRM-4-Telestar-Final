@@ -195,6 +195,10 @@ const KEYS = ['lowContrast', 'tiny', 'longLine', 'gradientText', 'glow', 'tinted
 
 const ROUTES = ONLY || [
   '/', '/director', '/admin/jobs', '/admin/imports', '/admin/outbound', '/admin/worker-health',
+  // Admin Control Center. `/admin/campaigns/[id]/members` is omitted: it needs a live
+  // campaign id, and its chrome (AdminTable + ImpactPanel) is covered by the routes above.
+  '/admin', '/admin/users', '/admin/teams', '/admin/campaigns', '/admin/clients',
+  '/admin/transfer-work', '/admin/audit',
   '/leads', '/meetings', '/opportunities', '/client-reports', '/inbox', '/sequences',
   '/sequences/performance', '/templates', '/team', '/automation', '/email-health', '/settings',
   '/leadgen', '/leadgen-manager',

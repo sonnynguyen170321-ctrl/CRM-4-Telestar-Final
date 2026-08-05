@@ -61,6 +61,11 @@ export default function AdminTable<T>({
     );
   }
 
+  // The `px-4 py-3` on the cells below is inert: `app/globals.css` sets `table th, table td`
+  // padding outside any `@layer`, and unlayered CSS beats Tailwind's layered utilities
+  // whatever their specificity (the same trick the file uses to collapse ad-hoc text sizes).
+  // Cell density for every table in the app is set there, not here — don't tune it locally
+  // and expect it to take.
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse">
