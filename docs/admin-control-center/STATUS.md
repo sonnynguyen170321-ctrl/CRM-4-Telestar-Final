@@ -36,7 +36,7 @@ mode — transfer / pause / keep — and gives a reason. Enforced server-side in
 |---|---|
 | `npx tsc --noEmit` | **0 errors** |
 | `npx eslint .` | 14 errors / 74 warnings — **all pre-existing**, verified by stashing this work and re-running. They live in `scripts/*.cjs`, `next.config.ts`, `e2e/qa/laneC.spec.ts`. None in Admin Control Center files. |
-| `npx vitest run` | **489/489** (36 of them new). One earlier failure was local Postgres dropping mid-run, not logic — passes with the DB up. |
+| `npx vitest run` | **536/536** across 47 files. One earlier failure was local Postgres dropping mid-run, not logic — passes with the DB up. |
 | `npm run build` | **exit 0** — all 8 admin pages + 9 new API routes present in `.next/server/app/` |
 | Migration | `20260806000000_admin_control_center_indexes` applied to local DB via `migrate deploy` |
 
@@ -44,21 +44,34 @@ mode — transfer / pause / keep — and gives a reason. Enforced server-side in
 > `Start-Process ... pg_ctl.exe ... start -WindowStyle Hidden` (PowerShell), not a plain
 > `pg_ctl start`, or it dies partway through a long Vitest run.
 
+> **The `&` in the checkout path (`Sonny & AI`) breaks every npm/npx `.bin` shim.** CLAUDE.md
+> currently claims it does not. Call binaries through node: `node node_modules/typescript/bin/tsc`,
+> `node node_modules/vitest/vitest.mjs`, `node node_modules/eslint/bin/eslint.js`,
+> `node ./node_modules/next/dist/bin/next`. `tsc` and `next build` also need
+> `NODE_OPTIONS=--max-old-space-size=8192` or they die at exit 134 (heap, not a type error).
+
+> **The raw `eslint .` count is misleading.** 379 errors, but 365 are
+> `@typescript-eslint/no-require-imports` inside `.claude/` rule fixtures, which are not
+> project source. The real project count is the 14 pre-existing errors above.
+
 ---
 
 ## Remaining work (unassigned — pick these up)
 
-### 1. Extract `EmailConnectionsPanel` from Settings — *deferred, low risk, no functional change*
-`app/settings/page.tsx` is **839 lines**, down from 1351, but still over the project's 800-line cap.
-Plan called for pulling the email-connections block into
-`components/settings/EmailConnectionsPanel.tsx`, which lands it near 600.
+### 1. Extract `EmailConnectionsPanel` from Settings — done ✅
+`app/settings/page.tsx` was **839 lines**, over the project's 800-line cap. The
+email-connections block now lives in `components/settings/EmailConnectionsPanel.tsx`
+(468 lines) and the page is **401**.
 
-State to move: `connectedEmails`, `showManualForm`, `manualEmail`, `imapServer`, `imapPort`,
-`smtpServer`, `smtpPort`, `mailPassword`, `isConnecting`, `providerStatus`,
-`editingSignatureAccountId`, `signatureText`, `isSavingSignature`.
-Handlers: `handleConnectGmail`, `handleConnectOutlook`, `handleConnectManual`,
-`handleDeleteEmail`, `handleStartEditSignature`, `handleSaveSignature`, `missingText`.
-Pure code motion — behaviour must not change.
+Pure code motion — the moved JSX is byte-identical to the block it replaced, verified by
+whitespace-normalised diff. The OAuth callback toast effect moved with it, so the panel
+must stay rendered inside the page's existing `<Suspense>` boundary: it calls
+`useSearchParams()`, and without that boundary `/settings` stops being statically
+prerenderable. `next build` still lists it as `○ (Static)`.
+
+Verified against a production build as director — panel renders, provider badges populate,
+Connect Gmail/Outlook disable correctly with the missing-env detail, the Roundcube toggle
+opens the manual form, 0 console errors.
 
 ### 2. Vitest suites named in the plan — all written ✅
 All planned files now exist and pass: `tests/podScoping.test.ts` (extended),
@@ -121,17 +134,42 @@ Two harness traps this run surfaced, both worth knowing before writing another s
   (`apiLogin`), which is deterministic. Worth porting to `_helpers.ts` if other lanes start
   flaking.
 
-### 4. Not built, and deliberately so
+### 4. `AuditLog` retention — done ✅
+Was: *"`auditExtension` writes a row for every create/update/delete on every model. The read
+API's mandatory 30-day window is what keeps the page fast. A pruning job is a follow-up."*
+
+Shipped as an `audit-prune` repair in `workers/maintenance.ts`, plus
+`app/api/cron/maintenance` — the scheduler that was missing entirely.
+`JobType.MAINTENANCE_REPAIR` and the repair registry both already existed, but **nothing
+ever enqueued the job**, so every repair only ran if triggered by hand.
+
+Two tiers: extension rows at `AUDIT_RETENTION_DAYS` (90), the actor-stamped `admin.*` trail
+at `ADMIN_AUDIT_RETENTION_DAYS` (365), with the admin window clamped to at least the
+extension window. Deletes by id in batches of 1000, capped at 20 batches per tier per run —
+hitting the cap on a first pass is expected, and the next run resumes. See `docs/DEPLOY.md` §7.
+
+### 5. Not built, and deliberately so
+- **Leadgen work is not transferable.** `getLeadWhereScope` scopes leadgen users by *campaign*
+  rather than by assignee, so work handed to one vanishes from every user-axis queue.
+  `canOwnSdrWork` in `lib/admin/orgRules.ts` enforces this on every transfer. Confirmed as
+  intended 2026-08-05; do not "fix" it without deciding the semantics first.
+
+  **Correction — the warning coverage is narrower than this doc previously claimed.** An
+  earlier revision said `LeadPoolItem.assignedSdrId` / `qualifiedById` *and* the FK-less
+  columns `Lead.archivedById`, `EmailAccount.sendPausedById`,
+  `EmailHealthAlert.acknowledgedById` / `resolvedById` were all "reported in impact as
+  warnings only… the UI says so". Verified against the code: `lib/admin/impact.ts` counts
+  **only** `leadPoolItem.count({ where: { assignedSdrId } })`, surfaced by `ImpactPanel.tsx`
+  as *"N leadgen pool row(s) also reference this user. Those are not moved by this action."*
+  `qualifiedById` and all four FK-less columns are counted nowhere and shown nowhere — they
+  are silently left behind. Left as-is deliberately, but the operator is not warned about
+  them, so do not rely on the dialog being complete.
+
+### 6. Dropped from scope
 - **Assignment Rules** — listed in the original spec's sidebar but never specified beyond the
-  name. No default-SDR routing rule engine exists. Decide what it means before building it.
-- **Leadgen work is not transferable.** `LeadPoolItem.assignedSdrId` / `qualifiedById`, and the
-  FK-less columns `Lead.archivedById`, `EmailAccount.sendPausedById`,
-  `EmailHealthAlert.acknowledgedById` / `resolvedById` are **reported in impact as warnings
-  only** — they are never moved. The UI says so; do not silently "fix" this without deciding
-  the semantics.
-- **`AuditLog` retention.** `auditExtension` writes a row for every create/update/delete on
-  every model. The read API's mandatory 30-day window is what keeps the page fast. A pruning
-  job is a follow-up.
+  name; no default-SDR routing rule engine exists and nothing in the UI links to one.
+  **Decision 2026-08-05: dropped.** It needs a spec before it needs code. Re-raise it as its
+  own piece of work rather than carrying it here as a permanent phantom TODO.
 
 ---
 
