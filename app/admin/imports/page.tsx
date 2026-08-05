@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Upload, ChevronRight, X, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useToast } from '@/context/ToastContext';
+import { openLeadSlideOver } from '@/lib/leads/openLead';
 
 interface ImportBatch {
   id: string;
@@ -41,6 +42,7 @@ interface BatchDetail extends ImportBatch {
 
 export default function ImportsAdminPage() {
   const { showToast } = useToast();
+  const router = useRouter();
   const [batches, setBatches] = useState<ImportBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
@@ -284,12 +286,13 @@ export default function ImportsAdminPage() {
                               </p>
 
                               {row.leadId && (
-                                <Link
-                                  href={`/leads/${row.leadId}`}
+                                <button
+                                  type="button"
+                                  onClick={() => openLeadSlideOver(router, row.leadId!)}
                                   className="text-[10px] font-mono text-brand-orange-text hover:underline mt-1 inline-block"
                                 >
                                   Open lead
-                                </Link>
+                                </button>
                               )}
 
                               {row.errors && (

@@ -22,7 +22,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import DOMPurify from 'isomorphic-dompurify';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { openLeadSlideOver } from '@/lib/leads/openLead';
 
 interface Message {
   id: string;
@@ -57,6 +58,7 @@ interface Thread {
 
 export default function InboxPage() {
   const { showToast } = useToast();
+  const router = useRouter();
   const [folder, setFolder] = useState<'inbox' | 'sent' | 'spam' | 'trash'>('inbox');
   const [threads, setThreads] = useState<Thread[]>([]);
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
@@ -436,12 +438,13 @@ export default function InboxPage() {
                 </div>
 
                 {selectedThread.lead && (
-                  <Link
-                    href={`/leads/${selectedThread.lead.id}`}
+                  <button
+                    type="button"
+                    onClick={() => openLeadSlideOver(router, selectedThread.lead!.id)}
                     className="text-[10px] font-bold text-brand-red hover:underline uppercase"
                   >
                     View Lead Profile →
-                  </Link>
+                  </button>
                 )}
               </div>
 

@@ -16,6 +16,7 @@ import {
 import { signOut } from 'next-auth/react';
 import { useAppContext } from '@/context/AppContext';
 import { readNotifPrefs, isMuted, NOTIF_PREFS_EVENT } from '@/lib/notifications/prefs';
+import { openLeadSlideOver } from '@/lib/leads/openLead';
 
 interface Notification {
   id: string;
@@ -168,11 +169,11 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
   const handleNotificationClick = (item: Notification) => {
     setBellOpen(false);
     if (!item.linkTo) return;
-    // If linkTo is a leads path, fire custom event to open the lead slide-over
+    // Notification `linkTo` values are stored as `/leads/{id}`, but that route does not
+    // exist — lead detail is a slide-over. Translate it rather than navigating.
     const leadMatch = item.linkTo.match(/\/leads\/([^/?]+)/);
     if (leadMatch) {
-      window.dispatchEvent(new CustomEvent('crm:open-lead', { detail: { leadId: leadMatch[1] } }));
-      if (!window.location.pathname.includes('/leads')) router.push('/leads');
+      openLeadSlideOver(router, leadMatch[1]);
     } else {
       router.push(item.linkTo);
     }
@@ -286,7 +287,10 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
                     key={lead.id}
                     className="w-full text-left px-4 py-2.5 hover:bg-brand-red/5 transition-colors flex items-center gap-3 border-b border-card-border/50 last:border-0"
                     onClick={() => {
-                      window.dispatchEvent(new CustomEvent('crm:open-lead', { detail: { leadId: lead.id } }));
+                      // Was a bare dispatch with no navigation: the listener lives on
+                      // /leads, so picking a lead from global search did nothing at all
+                      // unless you were already there.
+                      openLeadSlideOver(router, lead.id);
                       setSearchOpen(false); setSearchQuery('');
                     }}
                   >

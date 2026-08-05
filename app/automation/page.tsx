@@ -15,6 +15,8 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { openLeadSlideOver } from '@/lib/leads/openLead';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 
@@ -63,6 +65,7 @@ interface StatsMetrics {
 export default function AutomationDashboard() {
   const { isManager } = useAppContext();
   const { showToast } = useToast();
+  const router = useRouter();
 
   const [metrics, setMetrics] = useState<StatsMetrics>({
     totalActiveSequences: 0,
@@ -498,13 +501,14 @@ export default function AutomationDashboard() {
                       </td>
                       <td className="py-3">
                         {act.lead ? (
-                          <Link 
-                            href={`/leads/${act.lead.id}`}
-                            className="font-semibold text-brand-orange-text hover:underline block"
+                          <button
+                            type="button"
+                            onClick={() => openLeadSlideOver(router, act.lead!.id)}
+                            className="font-semibold text-brand-orange-text hover:underline block text-left"
                           >
                             {act.lead.firstName} {act.lead.lastName}
                             <span className="font-normal text-[10px] text-text-secondary block">{act.lead.company}</span>
-                          </Link>
+                          </button>
                         ) : (
                           <span className="text-text-muted font-mono text-[10px]">None</span>
                         )}
