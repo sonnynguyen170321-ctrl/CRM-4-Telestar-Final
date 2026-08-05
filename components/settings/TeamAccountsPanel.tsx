@@ -3,6 +3,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Loader2, Users, Building2, ShieldAlert } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
+import { readApiError } from '@/lib/api/client';
+import ConfirmDialog from '@/components/admin/ConfirmDialog';
+import ImpactPanel, {
+  emptyChoice,
+  isChoiceComplete,
+  type ImpactChoice,
+  type UserImpact,
+} from '@/components/admin/ImpactPanel';
 
 interface Member {
   id: string;
@@ -35,6 +43,14 @@ interface PanelData {
 
 const key = (userId: string, campaignId: string) => `${userId}:${campaignId}`;
 
+/** The member whose removal is pending confirmation. */
+interface PendingRemoval {
+  userId: string;
+  userName: string;
+  campaignId: string;
+  campaignName: string;
+}
+
 export default function TeamAccountsPanel() {
   const { showToast } = useToast();
   const [data, setData] = useState<PanelData | null>(null);
@@ -42,6 +58,14 @@ export default function TeamAccountsPanel() {
   const [blocked, setBlocked] = useState(false);
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<Set<string>>(new Set());
+
+  // Removal confirmation state. A chip toggling OFF never writes directly — it
+  // opens this dialog so the operator sees what the member still owns first.
+  const [pending, setPending] = useState<PendingRemoval | null>(null);
+  const [impact, setImpact] = useState<UserImpact | null>(null);
+  const [impactLoading, setImpactLoading] = useState(false);
+  const [choice, setChoice] = useState<ImpactChoice>(emptyChoice);
+  const [removing, setRemoving] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -65,35 +89,27 @@ export default function TeamAccountsPanel() {
     };
   }, []);
 
-  const toggleAssignment = useCallback(
+  /** Adding is safe and stays optimistic. Removing is not — see openRemoval. */
+  const addAssignment = useCallback(
     async (userId: string, campaignId: string) => {
       const k = key(userId, campaignId);
       if (busy.has(k)) return;
-      const isAssigned = assigned.has(k);
       setBusy((prev) => new Set(prev).add(k));
-      // Optimistic
-      setAssigned((prev) => {
-        const next = new Set(prev);
-        if (isAssigned) next.delete(k);
-        else next.add(k);
-        return next;
-      });
+      setAssigned((prev) => new Set(prev).add(k));
       try {
         const res = await fetch('/api/admin/assignments', {
-          method: isAssigned ? 'DELETE' : 'POST',
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId, campaignId }),
         });
-        if (!res.ok) throw new Error();
-      } catch {
-        // Roll back
+        if (!res.ok) throw new Error(await readApiError(res, 'Failed to update assignment'));
+      } catch (err) {
         setAssigned((prev) => {
           const next = new Set(prev);
-          if (isAssigned) next.add(k);
-          else next.delete(k);
+          next.delete(k);
           return next;
         });
-        showToast('Failed to update assignment', 'error');
+        showToast(err instanceof Error ? err.message : 'Failed to update assignment', 'error');
       } finally {
         setBusy((prev) => {
           const next = new Set(prev);
@@ -102,8 +118,71 @@ export default function TeamAccountsPanel() {
         });
       }
     },
-    [assigned, busy, showToast]
+    [busy, showToast]
   );
+
+  /**
+   * Removing a member can orphan their leads, tasks, meetings and opportunities,
+   * so it opens the impact dialog rather than writing. The server enforces this
+   * too (409 without a handling mode) — this is the friendly half of the guard.
+   */
+  const openRemoval = useCallback(
+    async (member: Member, campaign: CampaignOpt) => {
+      setPending({
+        userId: member.id,
+        userName: member.name,
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+      });
+      setChoice(emptyChoice);
+      setImpact(null);
+      setImpactLoading(true);
+      try {
+        const res = await fetch(
+          `/api/campaigns/${campaign.id}/member-impact/${member.id}`
+        );
+        setImpact(res.ok ? await res.json() : null);
+      } catch {
+        setImpact(null);
+      } finally {
+        setImpactLoading(false);
+      }
+    },
+    []
+  );
+
+  const confirmRemoval = useCallback(async () => {
+    if (!pending) return;
+    setRemoving(true);
+    try {
+      const res = await fetch('/api/admin/assignments', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: pending.userId,
+          campaignId: pending.campaignId,
+          ...(choice.mode ? { mode: choice.mode } : {}),
+          ...(choice.transferToUserId ? { transferToUserId: choice.transferToUserId } : {}),
+          ...(choice.reason.trim() ? { reason: choice.reason.trim() } : {}),
+        }),
+      });
+      if (!res.ok) {
+        showToast(await readApiError(res, 'Failed to remove from account'), 'error');
+        return;
+      }
+      setAssigned((prev) => {
+        const next = new Set(prev);
+        next.delete(key(pending.userId, pending.campaignId));
+        return next;
+      });
+      showToast(`${pending.userName} removed from ${pending.campaignName}`, 'success');
+      setPending(null);
+    } catch {
+      showToast('Network error while removing from account', 'error');
+    } finally {
+      setRemoving(false);
+    }
+  }, [pending, choice, showToast]);
 
   const changeManager = useCallback(
     async (userId: string, managerId: string) => {
@@ -219,9 +298,13 @@ export default function TeamAccountsPanel() {
                 return (
                   <button
                     key={c.id}
-                    onClick={() => toggleAssignment(m.id, c.id)}
+                    onClick={() => (isOn ? openRemoval(m, c) : addAssignment(m.id, c.id))}
                     disabled={isBusy}
-                    title={`${c.clientName} — ${c.name}`}
+                    title={
+                      isOn
+                        ? `Remove ${m.name} from ${c.clientName} — ${c.name}`
+                        : `Assign ${m.name} to ${c.clientName} — ${c.name}`
+                    }
                     className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-medium transition-colors disabled:opacity-50 ${
                       isOn
                         ? 'bg-brand-red/10 border-brand-red/40 text-brand-red'
@@ -237,6 +320,28 @@ export default function TeamAccountsPanel() {
           </div>
         ))}
       </div>
+
+      {pending && (
+        <ConfirmDialog
+          title={`Remove ${pending.userName} from ${pending.campaignName}`}
+          tone="danger"
+          confirmLabel="Remove from account"
+          isBusy={removing}
+          isConfirmDisabled={!isChoiceComplete(impact, choice)}
+          onConfirm={confirmRemoval}
+          onClose={() => setPending(null)}
+          body={
+            <ImpactPanel
+              impact={impact}
+              isLoading={impactLoading}
+              subjectName={pending.userName}
+              context="campaign"
+              choice={choice}
+              onChoiceChange={setChoice}
+            />
+          }
+        />
+      )}
     </div>
   );
 }
