@@ -193,6 +193,26 @@ Probed against the live deployment (`http://34.142.236.46`) on **2026-08-05**:
 - [x] Email sending decision made. *Verified: `GET /api/cron/sequence-engine` returns
       `{"disabled":true,"sent":0}` — `SEQUENCE_AUTOSEND_ENABLED` is off.*
 
+### Open before real client data
+
+Two deliberate deferrals. Both are fine for a seeded demo and **not** fine once a client's
+contacts are in the database:
+
+- **Rotate `CRON_SECRET`.** The value in use since 2026-08-05 was exposed in full — it was
+  pasted into a crontab line and then printed by `crontab -l`. Anyone holding it can call
+  `/api/cron/*` on the public IP, including `/api/cron/maintenance`, which deletes AuditLog
+  rows. It cannot send email while `SEQUENCE_AUTOSEND_ENABLED=false`. Deferred knowingly on
+  2026-08-05 during testing. Rotation procedure: §8b "The crons" — generate with
+  `openssl rand -hex 32`, write to `.env.production`, restart `web worker`. The
+  `bin/cron-call.sh` wrapper exists so the replacement never lands in a crontab line again.
+- **TLS (UX-001).** Credentials cross the network in cleartext today. `CRM_DOMAIN` and
+  `CADDY_SITE_ADDRESS` in `.env.production` are already the only two values that need to
+  change, plus `NEXTAUTH_URL`; Caddy provisions the certificate itself. No code change.
+
+Also worth doing whenever convenient: **enable Cloud SQL automated backups.** As of
+2026-08-05 `gcloud sql backups list` returned a single row — the manual snapshot taken
+before that day's migration. There is no schedule.
+
 ---
 
 ## 8b. Redeploying the live GCE box
