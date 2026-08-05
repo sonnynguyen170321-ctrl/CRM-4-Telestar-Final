@@ -1,7 +1,54 @@
+/**
+ * Destructive demo seed — local development only.
+ *
+ * This wipes 17 tables including `tenant` and `user`, with no filter, through a client that
+ * deliberately bypasses tenant scoping. Production bootstrap is `npm run create-admin`, which
+ * is additive. See `docs/pre-domain-hardening/PLAN.md` Task 1.
+ *
+ * The guard below runs BEFORE the Prisma client is constructed. A guard that runs after the
+ * connection is open has already lost.
+ */
 import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
+import { randomBytes } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
+import {
+  assertDestructiveSeedAllowed,
+  describeSeedTarget,
+  DESTRUCTIVE_SEED_ENV_VAR,
+  SeedGuardError,
+} from '../lib/seed-guard';
+
+// Runs at module load, before `main()` and therefore before any query. Prisma connects
+// lazily on first use, so importing the clients above opens nothing.
+let seedTarget;
+try {
+  seedTarget = assertDestructiveSeedAllowed({
+    nodeEnv: process.env.NODE_ENV,
+    databaseUrl: process.env.DATABASE_URL,
+    confirmation: process.env[DESTRUCTIVE_SEED_ENV_VAR],
+  });
+} catch (err) {
+  if (err instanceof SeedGuardError) {
+    console.error(`\n✖ Destructive seed refused.\n\n${err.message}\n`);
+    process.exit(1);
+  }
+  throw err;
+}
+console.log(describeSeedTarget(seedTarget));
+
+/**
+ * Demo password. `DEMO_SEED_PASSWORD` when supplied — the e2e harness sets it so its logins
+ * keep working — otherwise a random one printed once. There is deliberately no default: a
+ * default is a published credential, and the previous hardcoded value ended up in the repo,
+ * in the docs, and on a public-facing deployment.
+ */
+const DEMO_PASSWORD = process.env.DEMO_SEED_PASSWORD || randomBytes(12).toString('base64url');
+if (!process.env.DEMO_SEED_PASSWORD) {
+  console.log(`  Generated demo password for every seeded user: ${DEMO_PASSWORD}`);
+  console.log(`  Set DEMO_SEED_PASSWORD to choose your own.\n`);
+}
 
 const raw = new PrismaClient();
 
@@ -47,7 +94,7 @@ async function main() {
   });
 
   // ─── Users ────────────────────────────────────────────────────────────────
-  const pw = await hash('telestar2026', 12);
+  const pw = await hash(DEMO_PASSWORD, 12);
 
   const dean = await prisma.user.create({
     data: {
@@ -749,7 +796,7 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
   // it duplicates the live one with near-identical wording in the bell.
 
   console.log('✅ Notifications created');
-  console.log('\n🚀 Seed complete! Login credentials: all users use password: telestar2026');
+  console.log(`\n🚀 Seed complete! All users share the password: ${DEMO_PASSWORD}`);
   console.log(`   Director:      dean@telestar.vn`);
   console.log(`   Floor Manager: sonny@telestar.vn / alayna@telestar.vn`);
   console.log(`   Team Lead:     brandon@telestar.vn / jackie@telestar.vn / vie@telestar.vn`);

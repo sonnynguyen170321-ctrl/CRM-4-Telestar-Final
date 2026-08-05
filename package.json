@@ -12,7 +12,7 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts",
+    "db:seed": "tsx prisma/seed-demo.ts",
     "create-admin": "tsx scripts/create-admin.ts",
     "create-user": "tsx scripts/create-user.ts",
     "list-users": "tsx scripts/list-users.ts",
@@ -25,9 +25,7 @@
     "worker:start": "node scripts/worker-start.cjs",
     "worker:healthcheck": "tsx -e \"require('dotenv').config(); const {enqueue,JobType}=require('./lib/bullmq'); enqueue(JobType.MAINTENANCE_HEALTHCHECK,{startedAt:new Date().toISOString()}).then(id=>console.log('enqueued',id)).catch(console.error)\""
   },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
-  },
+  "_prisma_seed_removed": "The `prisma.seed` key is intentionally absent. It made `prisma migrate dev` and `prisma migrate reset` invoke the destructive demo seed automatically, with no prompt — a mistyped DATABASE_URL emptied the target database. Run `npm run db:seed` explicitly instead; it is guarded by lib/seed-guard.ts. See docs/pre-domain-hardening/PLAN.md Task 1.",
   "overrides": {
     "postcss": "^8.5.10"
   },
