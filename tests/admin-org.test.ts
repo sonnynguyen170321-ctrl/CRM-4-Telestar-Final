@@ -98,6 +98,77 @@ const zombie: SessionUser = {
   tenantId,
 };
 
+// ── A second, self-contained floor ────────────────────────────────────────────
+// The cases below mutate reporting lines and deactivate a manager. They run on
+// their own branch so they cannot perturb the shared fixture above, which the
+// existing tests mutate in place without reseeding.
+const xfm: SessionUser = {
+  id: 'org-x-fm',
+  email: 'org-x-fm@telestar.vn',
+  firstName: 'Xavier',
+  lastName: 'Floor',
+  role: 'floor_manager',
+  tenantId,
+};
+const xmgr: SessionUser = {
+  id: 'org-x-mgr',
+  email: 'org-x-mgr@telestar.vn',
+  firstName: 'Xena',
+  lastName: 'Lead',
+  role: 'team_lead',
+  tenantId,
+};
+const xrep1: SessionUser = {
+  id: 'org-x-rep1',
+  email: 'org-x-rep1@telestar.vn',
+  firstName: 'Rita',
+  lastName: 'One',
+  role: 'sdr',
+  tenantId,
+};
+const xrep2: SessionUser = {
+  id: 'org-x-rep2',
+  email: 'org-x-rep2@telestar.vn',
+  firstName: 'Rory',
+  lastName: 'Two',
+  role: 'sdr',
+  tenantId,
+};
+
+// A pre-existing corrupt reporting chain: each node names the other as manager.
+// Unreachable through the API (the role rule forbids every downward edge), but
+// reachable through a bad migration or a manual DB edit — which is exactly the
+// case `wouldCreateManagerCycle` refuses to extend.
+const cycleTl: SessionUser = {
+  id: 'org-x-cycle-tl',
+  email: 'org-x-cycle-tl@telestar.vn',
+  firstName: 'Cyrus',
+  lastName: 'Lead',
+  role: 'team_lead',
+  tenantId,
+};
+const cycleFm: SessionUser = {
+  id: 'org-x-cycle-fm',
+  email: 'org-x-cycle-fm@telestar.vn',
+  firstName: 'Cybil',
+  lastName: 'Floor',
+  role: 'floor_manager',
+  tenantId,
+};
+const cycleTarget: SessionUser = {
+  id: 'org-x-cycle-target',
+  email: 'org-x-cycle-target@telestar.vn',
+  firstName: 'Tara',
+  lastName: 'Target',
+  role: 'sdr',
+  tenantId,
+};
+
+const ALL_USER_IDS = [
+  director.id, fm.id, tl.id, sdr.id, sdrOut.id, leadgen.id, mgr.id, sdr2.id, zombie.id,
+  xfm.id, xmgr.id, xrep1.id, xrep2.id, cycleTl.id, cycleFm.id, cycleTarget.id,
+];
+
 const hasDb = Boolean(process.env.DATABASE_URL);
 
 const mockAuth = (u: SessionUser | null) =>
@@ -123,6 +194,7 @@ beforeAll(async () => {
 
   await tenantStorage.run({ tenantId: 'system', bypassRls: true }, async () => {
     await prisma.auditLog.deleteMany({ where: { tenantId } });
+    await prisma.emailAccount.deleteMany({ where: { tenantId } });
     await prisma.activity.deleteMany({ where: { tenantId } });
     await prisma.lead.deleteMany({ where: { tenantId } });
     await prisma.task.deleteMany({ where: { tenantId } });
@@ -131,11 +203,7 @@ beforeAll(async () => {
     await prisma.campaignSdr.deleteMany({ where: { tenantId } });
     await prisma.campaign.deleteMany({ where: { tenantId } });
     await prisma.client.deleteMany({ where: { tenantId } });
-    await prisma.user.deleteMany({
-      where: {
-        id: { in: [director.id, fm.id, tl.id, sdr.id, sdrOut.id, leadgen.id, mgr.id, sdr2.id, zombie.id] },
-      },
-    });
+    await prisma.user.deleteMany({ where: { id: { in: ALL_USER_IDS } } });
     await prisma.tenant.deleteMany({ where: { id: tenantId } });
 
     await prisma.tenant.create({ data: { id: tenantId, name: 'Admin Org Tenant' } });
@@ -150,6 +218,14 @@ beforeAll(async () => {
       { u: mgr, managerId: fm.id },
       { u: sdr2, managerId: mgr.id },
       { u: zombie, isActive: false },
+      // Second floor — see the block comment on `xfm`.
+      { u: xfm },
+      { u: xmgr, managerId: xfm.id },
+      { u: xrep1, managerId: xmgr.id },
+      { u: xrep2, managerId: xmgr.id },
+      { u: cycleTl },
+      { u: cycleFm },
+      { u: cycleTarget, managerId: xmgr.id },
     ];
     for (const { u, managerId, isActive } of users) {
       await prisma.user.create({
@@ -166,6 +242,31 @@ beforeAll(async () => {
         },
       });
     }
+
+    // Close the corrupt loop in a second pass — neither node can be created first.
+    // Detached from the director's tree on purpose, so it widens nobody's visible set.
+    // `tenantId` is spelled out because the seeding context is `bypassRls` under the
+    // synthetic 'system' tenant: `applyBypassTenant` stamps that onto any write payload
+    // that omits it, and no Tenant row by that name exists.
+    await prisma.user.update({
+      where: { id: cycleTl.id },
+      data: { managerId: cycleFm.id, tenantId },
+    });
+    await prisma.user.update({
+      where: { id: cycleFm.id },
+      data: { managerId: cycleTl.id, tenantId },
+    });
+
+    // The mailbox whose send-pause is asserted below.
+    await prisma.emailAccount.create({
+      data: {
+        id: 'org-x-mgr-mailbox',
+        userId: xmgr.id,
+        email: xmgr.email,
+        provider: 'imap_smtp',
+        tenantId,
+      },
+    });
   });
 }, 60_000);
 
@@ -173,6 +274,7 @@ afterAll(async () => {
   if (!hasDb) return;
   await tenantStorage.run({ tenantId: 'system', bypassRls: true }, async () => {
     await prisma.auditLog.deleteMany({ where: { tenantId } });
+    await prisma.emailAccount.deleteMany({ where: { tenantId } });
     await prisma.activity.deleteMany({ where: { tenantId } });
     await prisma.lead.deleteMany({ where: { tenantId } });
     await prisma.task.deleteMany({ where: { tenantId } });
@@ -181,11 +283,7 @@ afterAll(async () => {
     await prisma.campaignSdr.deleteMany({ where: { tenantId } });
     await prisma.campaign.deleteMany({ where: { tenantId } });
     await prisma.client.deleteMany({ where: { tenantId } });
-    await prisma.user.deleteMany({
-      where: {
-        id: { in: [director.id, fm.id, tl.id, sdr.id, sdrOut.id, leadgen.id, mgr.id, sdr2.id, zombie.id] },
-      },
-    });
+    await prisma.user.deleteMany({ where: { id: { in: ALL_USER_IDS } } });
     await prisma.tenant.deleteMany({ where: { id: tenantId } });
   });
 }, 60_000);
@@ -332,5 +430,115 @@ describe.skipIf(!hasDb)('PUT /api/users/[id] — org-integrity guards', () => {
     expect(audit).not.toBeNull();
     // Attributed to the director who acted, not to the user being changed.
     expect(audit?.userId).toBe(director.id);
+  });
+});
+
+describe.skipIf(!hasDb)('PUT /api/users/[id] — cycle guard is wired into the route', () => {
+  it('refuses to attach a user to an already-corrupt reporting chain', async () => {
+    // Role-valid (sdr → team_lead), so this gets past `isValidManagerRole` and
+    // actually reaches the cycle walk. `tests/podScoping.test.ts` proves
+    // `wouldCreateManagerCycle` in isolation; nothing proved the route calls it.
+    const res = await updateUser(putReq(cycleTarget.id, { managerId: cycleTl.id }), {
+      params: Promise.resolve({ id: cycleTarget.id }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('circular reporting chain');
+
+    // And the write was refused, not merely reported.
+    const after = await tenantStorage.run({ tenantId: 'system', bypassRls: true }, () =>
+      prisma.user.findUnique({ where: { id: cycleTarget.id }, select: { managerId: true } })
+    );
+    expect(after?.managerId).toBe(xmgr.id);
+  });
+});
+
+describe.skipIf(!hasDb)('PUT /api/users/[id] — director-only fields are not writable by a Floor Manager', () => {
+  it('drops role and isActive when a Floor Manager sends them', async () => {
+    // `fmCanManage` lets a Floor Manager edit team membership inside their floor.
+    // `role` / `isActive` sit behind `isDirector` and must fall on the floor —
+    // honouring them would let an FM mint a director.
+    mockAuth(xfm);
+    const res = await updateUser(putReq(xrep1.id, { role: 'director', isActive: false }), {
+      params: Promise.resolve({ id: xrep1.id }),
+    });
+    expect(res.status).toBe(200);
+
+    const after = await tenantStorage.run({ tenantId: 'system', bypassRls: true }, () =>
+      prisma.user.findUnique({
+        where: { id: xrep1.id },
+        select: { role: true, isActive: true },
+      })
+    );
+    expect(after?.role).toBe('sdr');
+    expect(after?.isActive).toBe(true);
+  });
+});
+
+describe.skipIf(!hasDb)('PUT /api/users/[id] — reassignReportsTo', () => {
+  it('refuses to hand the reports to the user being deactivated', async () => {
+    const res = await updateUser(
+      putReq(xmgr.id, { isActive: false, reassignReportsTo: xmgr.id }),
+      { params: Promise.resolve({ id: xmgr.id }) }
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('being deactivated');
+  });
+
+  it('refuses a deactivated replacement manager', async () => {
+    const res = await updateUser(
+      putReq(xmgr.id, { isActive: false, reassignReportsTo: zombie.id }),
+      { params: Promise.resolve({ id: xmgr.id }) }
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('must be an active user');
+  });
+
+  it('refuses a replacement whose role cannot manage the reports', async () => {
+    // The reports are SDRs; an SDR may not manage an SDR. `xrep2` is used rather
+    // than a shared-fixture SDR because the earlier blocks promote `sdrOut` to
+    // team_lead mid-run, which would silently make this a valid reassignment.
+    const res = await updateUser(
+      putReq(xmgr.id, { isActive: false, reassignReportsTo: xrep2.id }),
+      { params: Promise.resolve({ id: xmgr.id }) }
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('cannot report to a');
+  });
+
+  it('moves the reports and pauses the deactivated owner mailbox on success', async () => {
+    const res = await updateUser(
+      putReq(xmgr.id, { isActive: false, reassignReportsTo: xfm.id }),
+      { params: Promise.resolve({ id: xmgr.id }) }
+    );
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ isActive: false });
+
+    const { reports, mailbox } = await tenantStorage.run(
+      { tenantId: 'system', bypassRls: true },
+      async () => ({
+        reports: await prisma.user.findMany({
+          where: { id: { in: [xrep1.id, xrep2.id, cycleTarget.id] } },
+          select: { id: true, managerId: true },
+        }),
+        mailbox: await prisma.emailAccount.findUnique({
+          where: { id: 'org-x-mgr-mailbox' },
+          select: { sendPausedAt: true, sendPausedById: true, sendPauseReason: true },
+        }),
+      })
+    );
+
+    expect(reports.every((r) => r.managerId === xfm.id)).toBe(true);
+
+    // The regression guard this suite was missing. `workers/email.ts` gates on
+    // `EmailAccount.isActive` / `sendPausedAt` and never reads `User.isActive`,
+    // so without this stamp a deactivated rep's mailbox keeps sending sequence
+    // email. The 200 above says nothing about it.
+    expect(mailbox?.sendPausedAt).toBeInstanceOf(Date);
+    expect(mailbox?.sendPausedById).toBe(director.id);
+    expect(mailbox?.sendPauseReason).toBe('Owner deactivated');
   });
 });
