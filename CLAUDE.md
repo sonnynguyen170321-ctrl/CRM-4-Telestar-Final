@@ -95,6 +95,22 @@ with no 5xx, no uncaught exception, no console error, and without silently redir
 plus role gates and the outbound-email safety guard. Point `BASE_URL` at a deployment to use
 it as a post-deploy gate.
 
+## 🔴 Pre-Domain Hardening — ACTIVE initiative
+
+Ten tasks across four milestones, none of which depend on the production domain. **Read
+`docs/pre-domain-hardening/STATUS.md` first**, then execute the next unchecked task in
+`docs/pre-domain-hardening/PLAN.md`. Tick the box and update STATUS when it lands.
+
+Operating restrictions in force for the whole phase: no external users, no real client data,
+live sequence sending stays off, email stays in dry-run, a manual Cloud SQL backup before
+every migration, and never `prisma migrate reset` or a destructive seed against a remote
+database.
+
+> ⚠️ **`prisma/seed.ts` is armed and wired into `prisma.seed`.** 17 unguarded `deleteMany()`
+> including `tenant` and `user`, run through a bare `new PrismaClient()` that bypasses tenant
+> scoping. `prisma migrate dev` and `migrate reset` invoke it automatically. Task 1 of the
+> hardening plan defuses this — until then, never point either command at a remote database.
+
 ## ✅ Admin Control Center (people-ops console) — complete
 
 Director/Floor Manager manage users, teams, clients, campaign membership, work transfer
