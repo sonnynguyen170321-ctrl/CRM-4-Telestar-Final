@@ -56,6 +56,15 @@ const PERSONAS: Persona[] = [
       '/leadgen-manager',
       '/automation',
       '/sequences/performance',
+      // Admin Control Center — people ops.
+      '/admin',
+      '/admin/users',
+      '/admin/teams',
+      '/admin/campaigns',
+      '/admin/clients',
+      '/admin/transfer-work',
+      '/admin/audit',
+      // System ops.
       '/admin/jobs',
       '/admin/imports',
       '/admin/outbound',
@@ -68,32 +77,47 @@ const PERSONAS: Persona[] = [
   {
     label: 'Floor Manager',
     email: 'sonny@telestar.vn',
-    allowed: [...DASHBOARD_ROUTES, '/team', '/email-health', '/leadgen-manager', '/opportunities'],
+    // proxy.ts ADMIN_ROLES admits floor managers, so the whole console must render
+    // for them too — it previously had no /admin coverage at all.
+    allowed: [
+      ...DASHBOARD_ROUTES,
+      '/team',
+      '/email-health',
+      '/leadgen-manager',
+      '/opportunities',
+      '/admin',
+      '/admin/users',
+      '/admin/teams',
+      '/admin/campaigns',
+      '/admin/clients',
+      '/admin/transfer-work',
+      '/admin/audit',
+    ],
     denied: [],
   },
   {
     label: 'Team Lead',
     email: 'brandon@telestar.vn',
     allowed: [...DASHBOARD_ROUTES, '/team'],
-    denied: ['/director'],
+    denied: ['/director', '/admin', '/admin/users'],
   },
   {
     label: 'SDR',
     email: 'lan.pham@telestar.vn',
     allowed: DASHBOARD_ROUTES,
-    denied: ['/director', '/team'],
+    denied: ['/director', '/team', '/admin', '/admin/users'],
   },
   {
     label: 'Leadgen Manager',
     email: 'dominic@telestar.vn',
     allowed: ['/leadgen-manager', '/leadgen'],
-    denied: ['/director'],
+    denied: ['/director', '/admin', '/admin/users'],
   },
   {
     label: 'Leadgen',
     email: 'alex@telestar.vn',
     allowed: ['/leadgen'],
-    denied: ['/leadgen-manager', '/director'],
+    denied: ['/leadgen-manager', '/director', '/admin', '/admin/users'],
   },
 ];
 

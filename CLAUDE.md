@@ -75,6 +75,26 @@ with no 5xx, no uncaught exception, no console error, and without silently redir
 plus role gates and the outbound-email safety guard. Point `BASE_URL` at a deployment to use
 it as a post-deploy gate.
 
+## 🟡 Admin Control Center (people-ops console)
+
+Built and gated except where noted. Director/Floor Manager manage users, teams, clients,
+campaign membership, work transfer and an audit log from `/admin`.
+
+**The rule that must not regress:** removing a campaign member or deactivating a user runs an
+impact check first and returns **409** unless the caller names a handling mode
+(`transfer_work` / `pause_tasks` / `keep_existing_work`) plus a reason. Enforcement lives in
+`lib/admin/campaignMembers.ts` — both `/api/admin/assignments` and
+`/api/campaigns/[id]/members` delegate to it, so it cannot be bypassed.
+
+Before touching admin, user, campaign-membership or work-ownership code:
+read **`docs/admin-control-center/STATUS.md`** — gate status, remaining tasks (build
+confirmation, 4 Vitest suites, the `laneG` Playwright lane, the `EmailConnectionsPanel`
+extraction), architecture constraints, and the commit plan.
+
+> `lib/admin/transferWork.ts` deliberately has no `$transaction` — Neon HTTP has no interactive
+> transactions and the `lib/prisma.ts` `$extends` wrappers defeat array batching, so wrapping it
+> would look atomic and not be. It is idempotent-resumable instead. Don't "fix" it.
+
 ## 🟡 Runtime Hardening + BullMQ migration
 
 Complete except P10 infra provisioning. Before doing correctness, sequencing, email,

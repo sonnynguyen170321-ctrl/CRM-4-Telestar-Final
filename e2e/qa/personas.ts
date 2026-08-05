@@ -50,8 +50,12 @@ export const PERSONA_ROLE: Record<PersonaKey, string> = {
 
 /**
  * Routes that actually exist (verified against app/). The source QA doc names
- * several that do not — /dashboard, /performance, /admin index, and an AI
- * Assistant route. Those are absent by design, not bugs to re-file.
+ * several that do not — /dashboard, /performance, and an AI Assistant route.
+ * Those are absent by design, not bugs to re-file.
+ *
+ * `/admin` DOES now exist: it is the Admin Control Center overview, added with
+ * the people-ops console (People / Teams / Campaigns / Clients / Transfer Work /
+ * Audit Log). The system-ops tabs below live under the same edge gate.
  */
 export const ROUTES = {
   dashboard: '/',
@@ -69,6 +73,13 @@ export const ROUTES = {
   emailHealth: '/email-health',
   settings: '/settings',
   director: '/director',
+  adminOverview: '/admin',
+  adminUsers: '/admin/users',
+  adminTeams: '/admin/teams',
+  adminCampaigns: '/admin/campaigns',
+  adminClients: '/admin/clients',
+  adminTransferWork: '/admin/transfer-work',
+  adminAudit: '/admin/audit',
   adminJobs: '/admin/jobs',
   adminOutbound: '/admin/outbound',
   adminImports: '/admin/imports',
@@ -95,6 +106,13 @@ export const LEADGEN_MANAGER_TABS = [
  */
 export const DENIED: Record<string, { path: string; guard: 'edge' | 'client' }[]> = {
   sdr: [
+    { path: ROUTES.adminOverview, guard: 'edge' },
+    { path: ROUTES.adminUsers, guard: 'edge' },
+    { path: ROUTES.adminTeams, guard: 'edge' },
+    { path: ROUTES.adminCampaigns, guard: 'edge' },
+    { path: ROUTES.adminClients, guard: 'edge' },
+    { path: ROUTES.adminTransferWork, guard: 'edge' },
+    { path: ROUTES.adminAudit, guard: 'edge' },
     { path: ROUTES.adminJobs, guard: 'edge' },
     { path: ROUTES.adminOutbound, guard: 'edge' },
     { path: ROUTES.director, guard: 'client' },
@@ -102,16 +120,37 @@ export const DENIED: Record<string, { path: string; guard: 'edge' | 'client' }[]
     { path: ROUTES.leadgenManager, guard: 'client' },
   ],
   leadgen: [
+    { path: ROUTES.adminOverview, guard: 'edge' },
+    { path: ROUTES.adminUsers, guard: 'edge' },
+    { path: ROUTES.adminTeams, guard: 'edge' },
+    { path: ROUTES.adminCampaigns, guard: 'edge' },
+    { path: ROUTES.adminClients, guard: 'edge' },
+    { path: ROUTES.adminTransferWork, guard: 'edge' },
+    { path: ROUTES.adminAudit, guard: 'edge' },
     { path: ROUTES.adminJobs, guard: 'edge' },
     { path: ROUTES.director, guard: 'client' },
     { path: ROUTES.team, guard: 'client' },
     { path: ROUTES.leadgenManager, guard: 'client' },
   ],
   leadgen_manager: [
+    { path: ROUTES.adminOverview, guard: 'edge' },
+    { path: ROUTES.adminUsers, guard: 'edge' },
+    { path: ROUTES.adminTeams, guard: 'edge' },
+    { path: ROUTES.adminCampaigns, guard: 'edge' },
+    { path: ROUTES.adminClients, guard: 'edge' },
+    { path: ROUTES.adminTransferWork, guard: 'edge' },
+    { path: ROUTES.adminAudit, guard: 'edge' },
     { path: ROUTES.adminJobs, guard: 'edge' },
     { path: ROUTES.director, guard: 'client' },
   ],
   team_lead: [
+    { path: ROUTES.adminOverview, guard: 'edge' },
+    { path: ROUTES.adminUsers, guard: 'edge' },
+    { path: ROUTES.adminTeams, guard: 'edge' },
+    { path: ROUTES.adminCampaigns, guard: 'edge' },
+    { path: ROUTES.adminClients, guard: 'edge' },
+    { path: ROUTES.adminTransferWork, guard: 'edge' },
+    { path: ROUTES.adminAudit, guard: 'edge' },
     { path: ROUTES.adminJobs, guard: 'edge' },
     { path: ROUTES.director, guard: 'client' },
   ],
