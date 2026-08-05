@@ -4,8 +4,42 @@
 > [`PLAN.md`](./PLAN.md). Tick the box there and update this file when a task lands.
 
 **Current phase:** Milestone A — Immediate safety
-**Next task:** Task 1 — protect the database seed
+**Next task:** Task 2 — invalidate stale JWT sessions (`authVersion`)
 **Blockers:** none for Milestone A. HTTPS/domain blocks nothing in this plan.
+
+---
+
+## 🔴 Found during Task 1 — the live Director password is published
+
+`telestar2026` is the seeded password for **every** demo user, including `dean@telestar.vn`
+(Director). It appears in `CLAUDE.md`, `app/login/page.tsx`, `docs/GCP_DEPLOY.md`,
+`docs/CLOUD_RUN_DEPLOY.md` and the e2e specs as `E2E_PASSWORD` — 15 files in a repo whose
+GHCR package pulls without authentication.
+
+The live deployment at `http://34.142.236.46` was seeded with those exact credentials and
+accepts them today. So the CRM's Director account, on a public IP, over plain HTTP, has a
+password anyone can read from the repository.
+
+Mitigating: it is a demo dataset, autosend is off, and the operating restrictions say no real
+client data. Not mitigating: a Director can read every tenant's data, transfer work, and now
+delete audit rows.
+
+Task 1 stops the *repo* shipping a default going forward — `DEMO_SEED_PASSWORD` has no
+default and a random one is generated when unset. It does **not** change what is already on
+the live box, because the guard now correctly refuses to reseed a remote database.
+
+**Fix on the box** — change the Director password in place, which needs no reseed:
+
+```bash
+npm run create-admin -- --email dean@telestar.vn --password '<new strong password>' --name 'Dean'
+```
+
+`create-admin` promotes and updates an existing user without deleting anything. Do the same
+for any other account that will be used, or deactivate the unused demo users from `/admin`.
+
+Sequencing note: Task 2 adds `authVersion`, at which point a password change also invalidates
+every existing session. Doing that first makes this fix strictly stronger, which is one
+argument for taking Task 2 next as planned.
 
 ---
 
@@ -60,3 +94,5 @@ The `prisma.seed` wiring is the sharp edge: a routine `migrate dev` against a mi
 ## Progress log
 
 - 2026-08-05 — Plan pinned from the pre-domain hardening brief. No code changed yet.
+
+- 2026-08-05 — **Task 1 ✅** (`9908642`). `lib/seed-guard.ts` + 16 tests; `prisma/seed.ts` → `seed-demo.ts`; `prisma.seed` key removed from package.json so `migrate dev`/`reset` can no longer fire it; hardcoded password replaced by `DEMO_SEED_PASSWORD` with a random fallback. Verified by running: refused with no confirmation, on `NODE_ENV=production`, against the live Cloud SQL IP, and against `localhost/telestar_crm`; succeeded against a scratch `telestar_crm_dev`. Vitest 552/552.
