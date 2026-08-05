@@ -11,7 +11,7 @@ Per `telestar-crm-post-migration-bug-fix-instructions.md` §12.
 | ID | Role | Page | Feedback | Priority | Action |
 |---|---|---|---|---|---|
 | UX-001 | All | Login / whole app | Deployment is plain HTTP on a bare IP, so credentials cross the network in cleartext and the browser shows "Not secure" | High | Point a domain at `34.142.236.46`, then set `CADDY_SITE_ADDRESS` to the hostname and `NEXTAUTH_URL` to `https://…`. Caddy provisions the certificate itself |
-| UX-002 | All | Whole app | Sign-in round-trip measured up to 37s against Cloud SQL `db-g1-small`. Usable for a demo, sluggish for daily work | Medium | Measure before acting. If it is the database, the tier is one flag; if it is cold Next.js routes, `--min-instances`-style warmth does not apply on a VM and the fix is elsewhere |
+| UX-002 | All | Whole app | ~~Sign-in round-trip measured up to 37s against Cloud SQL `db-g1-small`~~ | Medium | **Measured 2026-08-05 — does not reproduce; no action.** Three consecutive credential round-trips against `http://34.142.236.46`: 0.55s / 0.55s / 0.51s, with `/login` served in 0.21s. The 37s was almost certainly cold-start on Cloud SQL or the container. Do **not** resize the `db-g1-small` tier on the strength of the old number. Re-measure if it recurs after an idle period — that would point at warm-up, not tier |
 | UX-003 | Director / Floor Manager | `/admin` | ~~`/admin` returns 404 — there is no `app/admin/page.tsx`, only a layout. Navigation always deep-links to `/admin/jobs`, so it is only reachable by typing the URL~~ | Low | **Resolved 2026-08-05.** The Admin Control Center adds `app/admin/page.tsx` — an overview console, not a redirect — and `components/Sidebar.tsx` now links to `/admin` directly for director / floor_manager |
 
 ---

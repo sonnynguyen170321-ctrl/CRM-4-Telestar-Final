@@ -169,15 +169,36 @@ stops early and logs that it will resume, which is expected, not a failure.
 
 ## 8. Go-live checklist
 
-- [ ] `npx prisma migrate deploy` applied cleanly against RDS.
-- [ ] `create-admin` Director can log in over HTTPS.
-- [ ] Login page shows **no** demo-account panel.
-- [ ] `GET /api/health` returns OK.
-- [ ] Worker process up; `worker:healthcheck` job completes.
-- [ ] Both crons firing (check logs for 200s).
-- [ ] Security headers present (`curl -I` shows HSTS, `X-Frame-Options: DENY`, `nosniff`).
-- [ ] Email sending decision made: `SEQUENCE_AUTOSEND_ENABLED` (`false` keeps unattended
-      sends off until you're ready to go live).
+Probed against the live deployment (`http://34.142.236.46`) on **2026-08-05**:
+
+- [ ] `prisma migrate deploy` applied cleanly. *20 migrations applied at deploy time and the
+      DB answers, but `20260806000000_admin_control_center_indexes` is **not** on the box yet —
+      it ships with the Admin Control Center merge and needs a redeploy.*
+- [ ] `create-admin` Director can log in over HTTPS. **Blocked on 6a** — sign-in works and is
+      fast (below), but over plain HTTP.
+- [x] Login page shows **no** demo-account panel. *Verified: no "Demo Accounts" markup served.*
+- [x] `GET /api/health` returns OK. *Verified: `{"ok":true,"ts":…}`.*
+- [x] Worker process up; healthcheck completes. *Verified via `/api/admin/worker-health`:
+      `redis: ok`, `database: ok`, all five queues reachable, `import.commit` /
+      `import.chunk` runs recorded `completed`.*
+- [ ] Both crons firing. **Not verified — needs host log access.** Circumstantial evidence
+      says no: the newest `JobRun` on the box is `import.commit @ 2026-08-04T13:08Z`, over a
+      day old. That is not conclusive on its own (`sequence-engine` returns without enqueueing
+      while autosend is off, and `inbox-sync` enqueues nothing with no connected mailboxes),
+      but nothing in the deployment record says a crontab was ever installed. Check
+      `docker compose logs` / the host scheduler before ticking this.
+- [x] Security headers present. *Verified via `curl -I`: `Strict-Transport-Security`,
+      `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`,
+      `Permissions-Policy`. **HSTS is inert until TLS lands** — a browser only honours it
+      over HTTPS.*
+- [x] Email sending decision made. *Verified: `GET /api/cron/sequence-engine` returns
+      `{"disabled":true,"sent":0}` — `SEQUENCE_AUTOSEND_ENABLED` is off.*
+
+**Sign-in latency (UX-002) — measured, no action needed.** Three consecutive credential
+round-trips against the live box: **0.55s / 0.55s / 0.51s**, and `/login` in 0.21s. The 37s
+recorded in `docs/post-migration/UX-FEEDBACK.md` does not reproduce; it was almost certainly
+cold-start on Cloud SQL / the container. Do not resize the `db-g1-small` tier on the strength
+of that old number.
 
 ---
 
