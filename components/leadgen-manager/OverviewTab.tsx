@@ -100,10 +100,14 @@ export default function OverviewTab() {
 
       {/* Requirements progress */}
       <div className="space-y-3">
-        <h3 className="font-display font-extrabold text-sm text-text-primary">Campaign Lead Requirements</h3>
+        {/* h2, not h3 — top-level panel title under the page h1; skipping a level breaks
+            the heading order. Classes unchanged, so it looks identical. */}
+        <h2 className="font-display font-extrabold text-sm text-text-primary">Campaign Lead Requirements</h2>
         {metrics.requirementProgress.length === 0 ? (
           <div className="bg-card-bg border border-card-border rounded-2xl p-6 text-center text-xs text-text-muted italic">
-            No campaign lead requirements yet. Create them from the Campaign Routing tab.
+            <p className="prose-measure mx-auto">
+              No campaign lead requirements yet. Create them from the Campaign Routing tab.
+            </p>
           </div>
         ) : (
           <div className="space-y-3">

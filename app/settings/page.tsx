@@ -277,7 +277,7 @@ function SettingsPageInner() {
                 </div>
               </div>
 
-              <p className="text-[10px] text-text-muted font-mono border-t border-card-border/50 pt-3">
+              <p className="text-[10px] text-text-muted font-mono border-t border-card-border/50 pt-3 prose-measure">
                 Telestar uses a single light theme, tuned for speed and all-day readability.
               </p>
             </div>

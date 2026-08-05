@@ -183,7 +183,9 @@ export default function WorkerHealthAdminPage() {
         <div className="grid grid-cols-3 gap-6 flex-1 min-h-0 overflow-auto">
           {/* Left panel: connection status */}
           <div className="col-span-1 space-y-4">
-            <h3 className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Infrastructure status</h3>
+            {/* h2, not h3 — this is a top-level panel title under the page h1, and skipping
+                a level breaks the heading order. The classes keep it looking identical. */}
+            <h2 className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Infrastructure status</h2>
             
             <div className="glass-card rounded-2xl p-4 flex justify-between items-center border border-card-border">
               <div>

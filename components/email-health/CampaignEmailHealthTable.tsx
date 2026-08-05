@@ -32,7 +32,7 @@ export default function CampaignEmailHealthTable({ rows }: Props) {
   if (rows.length === 0) {
     return (
       <div className="text-center py-10 text-sm text-text-secondary">
-        No campaign email activity in the last 7 days.
+        <p className="prose-measure mx-auto">No campaign email activity in the last 7 days.</p>
       </div>
     );
   }

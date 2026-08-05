@@ -321,9 +321,11 @@ export default function EmailConnectionsPanel() {
         </div>
       )}
 
-      {/* Not-configured warning */}
+      {/* Not-configured warning. Inset accent bar, not a bordered+rounded box — this sits
+          inside the panel card, and card chrome on a child of a card is the "no card inside
+          a card" rule. */}
       {providerStatus !== null && (!providerStatus.gmail.configured || !providerStatus.outlook.configured) && (
-        <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-400">
+        <div className="flex items-start gap-2 py-2 pl-3 pr-3 bg-amber-500/10 border-l-2 border-amber-500 text-xs text-amber-400">
           <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <div className="space-y-1">
             <p className="font-semibold">OAuth credentials missing</p>

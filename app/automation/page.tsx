@@ -412,13 +412,13 @@ export default function AutomationDashboard() {
             <h2 className="font-display font-extrabold text-sm text-text-primary">
               Outbound Mailbox Capacity
             </h2>
-            <p className="text-[11px] text-text-secondary">
+            <p className="text-[11px] text-text-secondary prose-measure">
               Per-inbox caps, bounce risk and sending controls now live in Email Health.
             </p>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-xl border border-card-border p-3">
+            <div className="border-l-2 border-card-border py-1 pl-3">
               <span className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold font-display block">
                 Connected
               </span>
@@ -426,7 +426,7 @@ export default function AutomationDashboard() {
                 {emailAccounts.length}
               </span>
             </div>
-            <div className="rounded-xl border border-card-border p-3">
+            <div className="border-l-2 border-card-border py-1 pl-3">
               <span className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold font-display block">
                 Sent Today
               </span>
@@ -434,7 +434,7 @@ export default function AutomationDashboard() {
                 {emailAccounts.reduce((sum, a) => sum + (a.dailySendCount ?? 0), 0)}
               </span>
             </div>
-            <div className="rounded-xl border border-card-border p-3">
+            <div className="border-l-2 border-card-border py-1 pl-3">
               <span className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold font-display block">
                 Capacity
               </span>
@@ -462,7 +462,7 @@ export default function AutomationDashboard() {
             <Activity className="w-4.5 h-4.5 text-brand-red animate-pulse" />
             Live Automation Activity Feed
           </h2>
-          <p className="text-[11px] text-text-secondary">
+          <p className="text-[11px] text-text-secondary prose-measure">
             Real-time synchronization logs showing active outreach transitions and auto-replies.
           </p>
         </div>

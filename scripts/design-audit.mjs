@@ -17,11 +17,26 @@ for (let i = 1; i <= 3; i++) {
 }
 
 const AUDIT = () => {
+  // Rasterise through a canvas rather than regexing `rgb()`. Tailwind v4 emits modern
+  // colour syntax — Chrome reports `bg-emerald-600` as `lab(55.05 -49.92 15.93)` — and the
+  // old `rgba?()`-only parser returned null for those. `bgOf` then walked to its
+  // white fallback, so a white-on-emerald button scored 1.00:1 and every such button was
+  // reported as unreadable. Four of those false positives were the last thing standing
+  // between this audit and zero. Canvas resolves any CSS colour (lab, oklch, color(), hex,
+  // named) to sRGB bytes exactly.
+  const CVS = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
   const parseRGB = (s) => {
-    const m = String(s).match(/rgba?\(([^)]+)\)/);
-    if (!m) return null;
-    const p = m[1].split(/[,\s/]+/).filter(Boolean).map(parseFloat);
-    return { r: p[0], g: p[1], b: p[2], a: p[3] === undefined ? 1 : p[3] };
+    const str = String(s).trim();
+    if (!str || str === 'transparent' || str === 'none') return null;
+    // An invalid assignment leaves fillStyle untouched, so prime it with a sentinel and
+    // treat "unchanged" as unparseable rather than silently reporting the sentinel.
+    CVS.fillStyle = '#000000';
+    CVS.fillStyle = str;
+    if (CVS.fillStyle === '#000000' && !/^(#000000|#000|black|rgba?\(0,\s*0,\s*0)/i.test(str)) return null;
+    CVS.clearRect(0, 0, 1, 1);
+    CVS.fillRect(0, 0, 1, 1);
+    const d = CVS.getImageData(0, 0, 1, 1).data;
+    return { r: d[0], g: d[1], b: d[2], a: d[3] / 255 };
   };
   const lum = ({ r, g, b }) => {
     const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };

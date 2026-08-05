@@ -84,6 +84,49 @@ fonts: IBM Plex only, no generator-default faces
 
 ---
 
+## Run 2026-08-05 — re-verified after the Admin Control Center landed
+
+The claim above that every category was at zero **did not survive re-running the audit**.
+The sweep found **145 flags**, most of them predating the admin console. Current state:
+
+| Category | Before | After |
+|---|---|---|
+| `cramped` | 130 | **0** |
+| `longLine` | 6 | **0** |
+| `nestedCards` | 3 | **0** |
+| `headingOrder` | 2 | **0** |
+| `tiny`, `deadTokens`, `gradientText`, `glow`, `tintedShadow`, `darkSurfaceGlow`, `springy` | 0 | **0** |
+| `lowContrast` | 4 *(measured)* | **71** *(measured — see below)* |
+
+**`cramped` was one rule, not 130 problems.** `app/globals.css` sets `table th, table td`
+padding *outside* any `@layer`, so it beats every Tailwind padding utility regardless of
+specificity — the same trick the file already uses deliberately for ad-hoc text sizes. That
+means a `py-*` class on a table cell has never done anything in this app. The single rule
+was 12px vertical, giving 43px rows against the ~48px target in `brand-design.md`; it is now
+16px, which clears 48px for both type tiers in use. Task 6 above claimed this was already
+done — the padding half was, the row-height half was not.
+
+**`lowContrast` went up because the audit got more accurate, not because the UI got worse.**
+`parseRGB` only matched `rgba?()`. Chrome reports Tailwind v4 colours in modern syntax
+(`bg-emerald-600` → `lab(55.05 -49.92 15.93)`), so the parser returned null and `bgOf` fell
+through to its white fallback. That produced both false positives (white text on an emerald
+button scored 1.00:1) and, more importantly, **false negatives** — any dark text on a `lab()`
+background was measured against an imaginary white backdrop and passed. The parser now
+rasterises through a canvas, which resolves any CSS colour exactly.
+
+The 71 are real measurements and **not yet fixed**. They are two groups:
+
+1. **`text-zinc-400` at 2.62:1** in the AI assistant's "Enter to send" hint. One component,
+   present on every route — roughly 27 of the 71 are this single class.
+2. **Channel colours at the `-500` weight**: `text-green-500` 2.22:1, `text-emerald-500`
+   2.47:1, `text-blue-500` 3.76:1. These are the Phone / WhatsApp / Email colours from
+   `brand-design.md` and they do not meet WCAG AA for normal text on white.
+
+Group 2 needs a palette decision, not a mechanical fix — the same call that was already made
+once for `--text-muted` (2.54:1 → 4.83:1). Until then this initiative is **not** at zero.
+
+---
+
 ## Verification gate (all must pass before calling it done)
 
 ```bash
