@@ -181,11 +181,11 @@ Probed against the live deployment (`http://34.142.236.46`) on **2026-08-05**:
 - [x] Worker process up; healthcheck completes. *Verified via `/api/admin/worker-health`:
       `redis: ok`, `database: ok`, all five queues reachable, `import.commit` /
       `import.chunk` runs recorded `completed`.*
-- [x] Both crons firing. **Confirmed absent, then installed 2026-08-05.** `crontab -l` on the
-      VM was empty — the schedule had never been set up, which is why the newest `JobRun` was
-      `import.commit @ 2026-08-04T13:08Z`. Four entries now installed via
-      `bin/cron-call.sh` (see §8b step 6). Watch for the first `*/5` firing before calling
-      this fully settled.
+- [x] Both crons firing. **Confirmed absent, installed and verified 2026-08-05.** `crontab -l`
+      on the VM was empty — the schedule had never been set up, which is why the newest
+      `JobRun` was `import.commit @ 2026-08-04T13:08Z`. Four entries now run via
+      `bin/cron-call.sh`. Verified in `/var/log/syslog`: `sequence-engine` firing on the
+      5-minute tick, `email-health` and `inbox-sync` on the hour, all exiting clean.
 - [x] Security headers present. *Verified via `curl -I`: `Strict-Transport-Security`,
       `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`,
       `Permissions-Policy`. **HSTS is inert until TLS lands** — a browser only honours it
@@ -195,19 +195,24 @@ Probed against the live deployment (`http://34.142.236.46`) on **2026-08-05**:
 
 ### Open before real client data
 
-Two deliberate deferrals. Both are fine for a seeded demo and **not** fine once a client's
-contacts are in the database:
+- **`CRON_SECRET` — rotated and verified 2026-08-05. Closed.** The earlier value was exposed
+  in full: it had been pasted into a crontab line, and `crontab -l` then printed it. It has
+  been replaced with a fresh `openssl rand -hex 32` value, and the crontab now calls
+  `bin/cron-call.sh`, which reads the secret from `.env.production` at run time so it never
+  appears in a crontab line or in `crontab -l` output again.
 
-- **Rotate `CRON_SECRET`.** The value in use since 2026-08-05 was exposed in full — it was
-  pasted into a crontab line and then printed by `crontab -l`. Anyone holding it can call
-  `/api/cron/*` on the public IP, including `/api/cron/maintenance`, which deletes AuditLog
-  rows. It cannot send email while `SEQUENCE_AUTOSEND_ENABLED=false`. Deferred knowingly on
-  2026-08-05 during testing. Rotation procedure: §8b "The crons" — generate with
-  `openssl rand -hex 32`, write to `.env.production`, restart `web worker`. The
-  `bin/cron-call.sh` wrapper exists so the replacement never lands in a crontab line again.
-- **TLS (UX-001).** Credentials cross the network in cleartext today. `CRM_DOMAIN` and
-  `CADDY_SITE_ADDRESS` in `.env.production` are already the only two values that need to
-  change, plus `NEXTAUTH_URL`; Caddy provisions the certificate itself. No code change.
+  Verified end to end: `./bin/cron-call.sh email-health` returns clean, and `/var/log/syslog`
+  shows the schedule firing — `sequence-engine` on the 5-minute tick, `email-health` and
+  `inbox-sync` on the hour.
+
+  > Do not set this to `telestar2026` or any variant. That string is the seeded demo-account
+  > password and appears in `CLAUDE.md`, this file, and `e2e/*.spec.ts` as `E2E_PASSWORD` —
+  > i.e. it is published. Nobody types this secret by hand; the wrapper reads it from the
+  > file, so there is no convenience gained by making it memorable.
+
+- **TLS (UX-001) — still open.** Credentials cross the network in cleartext today. `CRM_DOMAIN`
+  and `CADDY_SITE_ADDRESS` in `.env.production` are the only two values that need to change,
+  plus `NEXTAUTH_URL`; Caddy provisions the certificate itself. No code change.
 
 Also worth doing whenever convenient: **enable Cloud SQL automated backups.** As of
 2026-08-05 `gcloud sql backups list` returned a single row — the manual snapshot taken
