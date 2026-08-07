@@ -96,3 +96,29 @@ The `prisma.seed` wiring is the sharp edge: a routine `migrate dev` against a mi
 - 2026-08-05 — Plan pinned from the pre-domain hardening brief. No code changed yet.
 
 - 2026-08-05 — **Task 1 ✅** (`9908642`). `lib/seed-guard.ts` + 16 tests; `prisma/seed.ts` → `seed-demo.ts`; `prisma.seed` key removed from package.json so `migrate dev`/`reset` can no longer fire it; hardcoded password replaced by `DEMO_SEED_PASSWORD` with a random fallback. Verified by running: refused with no confirmation, on `NODE_ENV=production`, against the live Cloud SQL IP, and against `localhost/telestar_crm`; succeeded against a scratch `telestar_crm_dev`. Vitest 552/552.
+
+- 2026-08-06 — **Task 2 in progress** (`f379cb2` on `fix/session-revocation`, pushed, **not merged**).
+  Implementation complete and typechecking clean: `User.authVersion` + migration
+  `20260806100000`, token stamping in `auth.ts`/`auth.config.ts`, database revalidation in
+  `getSessionUser` (cached per request, run inside a `tenantStorage` bypass to avoid recursing
+  through `getTenantIdFromSession`), increments on password change / admin reset / role change /
+  deactivate / reactivate, and `POST /api/admin/users/[id]/sign-out-all`. 13 new tests pass.
+
+  **Blocking merge:** 26 tests across `access-control`, `admin`, `admin-audit`,
+  `email-health-access` and `leadgen-redesign` now return **401 where they assert 403**. That is
+  the fix working — they mock `auth()` with synthetic users that have no database row, so the
+  request is rejected as unauthenticated before reaching the role check. They encode the old
+  contract in which the token was trusted.
+
+  Two ways to fix each, both legitimate:
+  1. Seed a real `User` row matching the mocked session id (keeps them as integration tests and
+     keeps exercising revalidation).
+  2. Mock `@/lib/auth`'s `getSessionUser` instead of `@/auth`'s `auth()` (keeps them as pure
+     unit tests of route authorization; revalidation is already covered by
+     `tests/session-revocation.test.ts`).
+
+  Option 2 is cheaper and probably right for `access-control` and `leadgen-redesign`, which are
+  pure authorization matrices. `admin.test.ts` already seeds users, so option 1 fits there.
+
+  Still outstanding for Task 2 after that: a "Sign out all sessions" control in the `/admin`
+  UI (the endpoint exists, nothing calls it), and the manual verification pass from PLAN.md.
