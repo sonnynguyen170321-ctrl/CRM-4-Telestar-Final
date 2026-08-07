@@ -353,20 +353,30 @@ jobs:
       # downloading anything or holding an API token.
       - name: gitleaks
         run: |
+          set -o pipefail
           docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0 \
             detect --source=/repo --config=/repo/.gitleaks.toml \
             --redact --no-banner --verbose \
             --report-format json --report-path /repo/gitleaks-report.json \
-            --exit-code 1
+            --exit-code 1 2>&1 | tee gitleaks.log
         shell: bash
 
       - name: Summarize gitleaks findings
         if: failure()
         run: |
+          {
+            echo "## gitleaks output"
+            echo
+            echo '```text'
+            tail -n 40 gitleaks.log 2>/dev/null || echo "no gitleaks.log"
+            echo '```'
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
           node -e '
             const fs = require("fs");
             if (!fs.existsSync("gitleaks-report.json")) {
-              console.log("No report file — gitleaks failed before scanning.");
+              console.log("## Secret scan\n");
+              console.log("No report file — gitleaks exited before writing one. That means the run failed on configuration (a malformed .gitleaks.toml, a bad flag) rather than on a finding. See the raw output above.");
               process.exit(0);
             }
             const findings = JSON.parse(fs.readFileSync("gitleaks-report.json", "utf8"));

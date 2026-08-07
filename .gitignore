@@ -103,3 +103,4 @@ seed.log
 build.log
 playwright.log
 server.log
+gitleaks.log
