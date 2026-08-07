@@ -4,8 +4,8 @@
 > [`PLAN.md`](./PLAN.md). Tick the box there and update this file when a task lands.
 
 **Current phase:** Milestone B — Reliable delivery
-**Next task:** Task 4 — mandatory CI on pull requests
-**Blockers:** none. HTTPS/domain blocks nothing in this plan.
+**Next task:** Task 5 — immutable release images
+**Blockers:** Task 4's branch protection needs applying by hand — see below.
 
 > Task 2 (session revocation) is implemented on `fix/session-revocation` but **parked to
 > last** by decision on 2026-08-06 — its 26 tests and the sign-out-all UI are outstanding.
@@ -191,3 +191,78 @@ would tighten this and needs `send()` to carry headers across all three adapters
 Gates: `tsc --noEmit` 0 · Vitest **592/592** · `next build` exit 0 · eslint unchanged from
 the branch point (379 errors / 501 warnings, all pre-existing; CLAUDE.md's "0 errors" note
 is stale). Not yet deployed — see the undeployed-commits note above.
+
+---
+
+## Task 4 — workflows done (2026-08-07), branch `ci/mandatory-quality-gates`
+
+### 🔴 CI has been red since Task 1 merged, and nobody saw it
+
+`ci.yml` ran `npm run db:seed` against a database named `telestar_crm`. Task 1's guard
+refuses any database name without `dev`/`development`/`test`/`local` in it, so that step
+has failed on every run since `9908642`. Verified by calling the guard directly:
+
+```
+old CI name REFUSED: Database name "telestar_crm" does not contain any of: dev,
+development, test, local.
+```
+
+This is exactly the failure mode Task 4 exists to end — a check nothing depends on stops
+being a check. The CI database is now `telestar_crm_test`, which the guard accepts, and
+the seed runs with `ALLOW_DESTRUCTIVE_SEED` plus a `DEMO_SEED_PASSWORD` minted per run
+(`openssl rand -hex 24`) that also becomes `E2E_PASSWORD`. No password is committed.
+
+### What the workflow now runs
+
+Eight jobs, every one with a timeout, every third-party action pinned to a commit SHA:
+
+| Job | Gate |
+| --- | --- |
+| `quality` | `npm ci`, `prisma generate`, `migrate deploy`, lint, `tsc --noEmit`, Vitest — Postgres + Redis services |
+| `migrations` | `migrate diff --exit-code` against an empty shadow DB: replays every migration from scratch **and** fails on schema drift |
+| `e2e` | seed, production build, `npm start`, Playwright (`crm-journeys` + `deep-smoke`) against the built app; artifacts uploaded on failure |
+| `docker` | image builds (validation only, no push) |
+| `secret-scan` | gitleaks over full history |
+| `dependency-review` | PR only, fails on high severity |
+| `codeql` | JavaScript/TypeScript analysis |
+| `ci-required` | aggregate — the single check to require in branch protection |
+
+`ci-required` uses `if: always()` with an explicit result test, because a `needs` job that
+is skipped or cancelled otherwise reports success and waves the merge through.
+
+gitleaks runs through its Docker image rather than `gitleaks-action`, which requires a paid
+licence key for organisation-owned repositories and would start failing the day this repo
+moves into an org.
+
+### Publishing is now gated
+
+`docker-image.yml` no longer triggers on push to `main`. It triggers on `workflow_run` of
+CI **concluding successfully**, and checks out `workflow_run.head_sha` — the commit CI
+actually validated, not whatever `main` points at by then. A failing commit on `main` now
+produces no image at all. It also tags the full SHA and records the pushed digest in the
+job summary, which is what Task 5 needs to deploy by digest.
+
+### Verified locally
+
+- Both workflows parse; all 9 jobs carry timeouts; zero unpinned actions.
+- Seed guard accepts `telestar_crm_test`, refuses `telestar_crm`, refuses without the
+  confirmation variable.
+- `migrate diff --exit-code` against a fresh shadow database: **`No difference detected.`**
+  — the migration history and `schema.prisma` agree, including Task 3's migration.
+- `next.config.ts` sets no `output: 'standalone'`, so the `npm start` the e2e job uses is
+  the same command the container's `CMD` runs.
+
+**Not verified:** the `e2e` job itself. Rehearsing it locally would need `.env` repointed
+at a scratch database, and editing the developer `.env` to prove a CI job works is a bad
+trade. Watch its first run on GitHub before requiring it.
+
+### Outstanding — branch protection is not applied
+
+`gh` is not installed on this machine (`gh auth status` → `command not found`), and branch
+protection is GitHub-side configuration, not repository content. **Until it is applied CI
+is advisory: it reports, it does not block.** The ruleset, the single check to require,
+which two jobs to hold back (`CodeQL` and `Dependency review` need a public repo or GHAS),
+and the five break-it verifications are in [`docs/BRANCH_PROTECTION.md`](../BRANCH_PROTECTION.md).
+
+Note this changes the working loop: Tasks 1 and 3 were merged straight into `main` locally.
+Requiring pull requests stops that.
