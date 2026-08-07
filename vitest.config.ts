@@ -8,6 +8,9 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     environment: 'node',
+    // Creates the `default-tenant` row that the tenant-scoped suites write against.
+    // Without it they depend on whatever a developer last seeded — see the file header.
+    setupFiles: ['tests/setup/db-baseline.ts'],
     // DB-context suites seed a tenant in beforeAll; a cold Neon connection can exceed
     // the 10s default, surfacing as a CI "failure". Give hooks/tests more headroom.
     hookTimeout: 30000,
