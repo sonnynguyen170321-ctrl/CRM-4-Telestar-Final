@@ -18,6 +18,9 @@ export default defineConfig({
     env: {
       DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/telestar_crm',
       DIRECT_URL: process.env.DIRECT_URL || 'postgresql://postgres:postgres@localhost:5432/telestar_crm',
+      // Test-only AES-256-GCM key for lib/crypto.ts. It protects nothing that outlives a
+      // test process and has never guarded stored data. It looks random, so the secret
+      // scan flags it — see the allowlist entry and its reasoning in `.gitleaks.toml`.
       ENCRYPTION_KEY: '6d64c7c6eea90808d36288f23843bf9d9f472c558deaa00c731107030a5b717b',
     },
   },

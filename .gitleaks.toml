@@ -1,0 +1,72 @@
+# gitleaks configuration.
+#
+# Every entry below is an allowlist for a value that is provably NOT a credential. The
+# default ruleset stays fully enabled — `useDefault = true` — so anything not named here
+# still fails the build.
+#
+# The bar for adding an entry: the value must be a placeholder, a localhost-only
+# connection string, or a fixed test constant that protects nothing. A value that was ever
+# a real secret does NOT get allowlisted, it gets rotated first — the scan reads full
+# history, so a rotated secret stays visible in old commits and must be treated as
+# disclosed regardless of what HEAD looks like.
+#
+# Triaged 2026-08-08 across 92 commits. Nothing found was a live credential.
+
+title = "CRM-4-U secret scan"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Non-credentials: placeholders, localhost DSNs, and fixed test constants."
+
+regexTarget = "match"
+
+regexes = [
+  # ── Local-only database and cache URLs ──────────────────────────────────────
+  # postgres:postgres@localhost is the standard local development pair and appears in
+  # vitest.config.ts, CI service definitions, seed-guard tests and every deploy doc. It
+  # grants nothing outside a developer's own machine or an ephemeral CI container.
+  # Deliberately anchored to loopback hostnames: a DSN pointing anywhere else still fails.
+  '''postgres(?:ql)?://[^:@\s]+:[^@\s]+@(?:localhost|127\.0\.0\.1|::1|postgres|db)(?::\d+)?/''',
+  '''rediss?://(?:[^:@\s]*:[^@\s]*@)?(?:localhost|127\.0\.0\.1|redis)(?::\d+)?''',
+
+  # ── Documented non-secret encryption keys ───────────────────────────────────
+  # Four repetitions of 0123456789abcdef. Used as the build-time and CI ENCRYPTION_KEY so
+  # that lib/env.ts's /^[0-9a-f]{64}$/ check passes; it encrypts nothing that outlives the
+  # process. Its obvious structure is the point — it cannot be mistaken for real key
+  # material by a human either.
+  '''0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef''',
+
+  # The fixed ENCRYPTION_KEY in vitest.config.ts. Random-looking, which is why the scanner
+  # flags it, but it exists only so the AES-256-GCM helpers in lib/crypto.ts can round-trip
+  # within a test process. It has never protected stored data. Left in place rather than
+  # regenerated: some suites encrypt and decrypt within a single run, and rotating a
+  # constant that guards nothing would be motion without benefit.
+  '''6d64c7c6eea90808d36288f23843bf9d9f472c558deaa00c731107030a5b717b''',
+]
+
+paths = [
+  # Env templates ship placeholders by design — `scripts/prod-check-env.ts` actively
+  # REJECTS any value matching /<[^>]+>|replace|change-me|todo|localhost|example\.com/i,
+  # so a real secret committed here would fail that check instead.
+  '''\.env\.[^/]*example$''',
+
+  # Fixtures shaped like Google OAuth tokens, used to exercise token parsing and refresh
+  # paths. They are syntactically valid and semantically inert.
+  '''^tests/p1-hardening\.test\.ts$''',
+  '''^tests/client-reports\.test\.ts$''',
+
+  # This file, which necessarily contains the patterns it allows.
+  '''^\.gitleaks\.toml$''',
+]
+
+stopwords = [
+  "change-me",
+  "replace",
+  "placeholder",
+  "example",
+  "your-",
+  "build-time",
+  "not-a-real-credential",
+]

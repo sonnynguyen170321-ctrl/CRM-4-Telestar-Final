@@ -354,7 +354,8 @@ jobs:
       - name: gitleaks
         run: |
           docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0 \
-            detect --source=/repo --redact --no-banner --verbose \
+            detect --source=/repo --config=/repo/.gitleaks.toml \
+            --redact --no-banner --verbose \
             --report-format json --report-path /repo/gitleaks-report.json \
             --exit-code 1
         shell: bash
