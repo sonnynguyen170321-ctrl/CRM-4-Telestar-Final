@@ -1,6 +1,8 @@
+import { cache } from 'react';
 import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { tenantStorage } from '@/lib/tenant-context';
 import { computeVisibleUserIds } from '@/lib/podScoping';
 
 export type SessionUser = {
@@ -13,6 +15,8 @@ export type SessionUser = {
   tenantId?: string;
 };
 
+const MANAGER_ROLES: readonly SessionUser['role'][] = ['director', 'floor_manager', 'team_lead'];
+
 /** True for roles on the leadgen branch (manager or member). */
 export function isLeadgenUser(role: SessionUser['role']): boolean {
   return role === 'leadgen_manager' || role === 'leadgen';
@@ -23,12 +27,69 @@ export function isLeadgenManager(role: SessionUser['role']): boolean {
   return role === 'leadgen_manager' || role === 'director' || role === 'floor_manager';
 }
 
-/** Get the authenticated session user from a Server Component or API route. */
-export async function getSessionUser(): Promise<SessionUser | null> {
+/**
+ * The authenticated user, revalidated against the database.
+ *
+ * Sessions are stateless JWTs. The token is a claim about who the user *was* when it was
+ * minted, not who they are now — a deactivated, demoted, tenant-moved or password-reset user
+ * kept full access here until the token expired. Every protected request therefore re-reads
+ * the row and rejects the token unless the user still exists, is still active, is still in the
+ * same tenant, and still carries the same `authVersion`.
+ *
+ * **Authorization uses the database role, never the token's.** A director demoted to SDR keeps
+ * `role: 'director'` in their cookie; honouring that is the whole bug this closes.
+ *
+ * Two implementation details that are load-bearing:
+ *   - `cache()` scopes the extra query to one per request, matching `getTenantIdFromSession`.
+ *   - The read runs inside a `tenantStorage` bypass. Without it the tenant extension in
+ *     `lib/prisma.ts` would call `getTenantIdFromSession()`, which calls `auth()`, to resolve
+ *     the scope for this very query.
+ *
+ * Returns `null` for every failure mode. Callers turn that into a bare 401 — deliberately not
+ * saying whether the account was deactivated, demoted or the token simply aged out.
+ */
+export const getSessionUser = cache(async function getSessionUser(): Promise<SessionUser | null> {
   const session = await auth();
-  if (!session?.user) return null;
-  return session.user as SessionUser;
-}
+  const token = session?.user as (SessionUser & { authVersion?: number }) | undefined;
+  if (!token?.id) return null;
+
+  const dbUser = await tenantStorage.run({ tenantId: 'system', bypassRls: true }, () =>
+    prisma.user.findUnique({
+      where: { id: token.id },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        isActive: true,
+        tenantId: true,
+        authVersion: true,
+        _count: { select: { reports: { where: { isActive: true } } } },
+      },
+    })
+  );
+
+  if (!dbUser) return null;              // deleted
+  if (!dbUser.isActive) return null;     // deactivated
+  if (token.tenantId && token.tenantId !== dbUser.tenantId) return null; // moved tenant
+
+  // Tokens minted before authVersion existed carry no claim; treat them as version 1, which
+  // is the column default, so this check does not sign out every existing session on deploy.
+  const tokenVersion = token.authVersion ?? 1;
+  if (tokenVersion !== dbUser.authVersion) return null;
+
+  const role = dbUser.role as SessionUser['role'];
+  return {
+    id: dbUser.id,
+    email: dbUser.email,
+    firstName: dbUser.firstName,
+    lastName: dbUser.lastName,
+    role,
+    isManager: dbUser._count.reports > 0 || MANAGER_ROLES.includes(role),
+    tenantId: dbUser.tenantId,
+  };
+});
 
 /** Require authentication in an API route handler. Returns user or 401 response. */
 export async function requireAuth(): Promise<SessionUser | NextResponse> {

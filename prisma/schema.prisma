@@ -215,6 +215,12 @@ model User {
   avatarUrl String?
   timezone  String   @default("UTC")
   isActive  Boolean  @default(true)
+  /// Bumped whenever a change must invalidate every existing session — password change,
+  /// admin reset, deactivate/reactivate, role change, tenant move, or an explicit
+  /// "sign out all sessions". The JWT carries the value it was minted with; `getSessionUser`
+  /// rejects any token whose value no longer matches. Sessions are stateless JWTs, so this
+  /// counter is the only revocation mechanism available.
+  authVersion Int    @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   tenantId  String

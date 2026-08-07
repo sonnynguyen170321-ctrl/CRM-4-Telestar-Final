@@ -26,7 +26,13 @@ export async function POST(req: NextRequest) {
   if (!valid) return NextResponse.json({ error: 'Current password is incorrect' }, { status: 401 });
 
   const hashed = await hash(newPassword, 12);
-  await prisma.user.update({ where: { id: user.id }, data: { password: hashed } });
+  // Bumped in the same statement as the password, so there is no window where the new
+  // password is live but sessions minted under the old one still work. Signs the user out
+  // everywhere, including this browser — which is the point of changing a password.
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { password: hashed, authVersion: { increment: 1 } },
+  });
 
   return NextResponse.json({ success: true });
 }
