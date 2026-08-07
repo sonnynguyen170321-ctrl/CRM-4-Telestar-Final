@@ -14,8 +14,8 @@ covered by any test and has to be applied by hand once.
 
 | Setting | Value | Why |
 | --- | --- | --- |
-| Require a pull request before merging | on | No unreviewed change reaches `main` |
-| Required approvals | 1 | Plan requirement |
+| Require a pull request before merging | on | Every change to `main` arrives as a reviewable, CI-gated unit |
+| Required approvals | **0** | See below — 1 would make `main` unmergeable |
 | Dismiss stale approvals on new commits | on | An approval describes the code that was reviewed, not whatever lands after |
 | Require conversation resolution | on | Review comments cannot be merged past silently |
 | Require status checks to pass | on | The actual gate |
@@ -23,6 +23,23 @@ covered by any test and has to be applied by hand once.
 | Block force pushes | on | History on `main` stays auditable |
 | Block deletions | on | — |
 | Include administrators | on | A rule that the person most likely to be in a hurry can skip is not a rule |
+
+### Why 0 approvals, not 1
+
+The plan text says "≥1 approval". That is written for a team, and applying it literally to
+this repository would break it: **GitHub does not let you approve your own pull request.**
+With 1 required approval *and* administrators included, a single maintainer cannot merge
+anything, ever — the only escape is to weaken `enforce_admins`, at which point the rule is
+advisory for the one person most able to bypass it.
+
+So the approval count is 0 and administrators stay included. What actually protects `main`
+is unchanged and is now absolute for everybody:
+
+- no direct pushes — every change goes through a pull request;
+- no merge while `CI required checks` is red;
+- no force pushes, no branch deletion.
+
+Raise this to 1 the day a second person gets write access. That is a one-field change.
 
 ## Which check to require
 
@@ -34,11 +51,23 @@ individual checks means adding a job later needs no change to the protection rul
 
 Two jobs are deliberately **not** required yet:
 
-- **`CodeQL`** — needs a public repository, or GitHub Advanced Security on a private one.
-  On a private repo without GHAS the upload step fails, which would block every merge.
-  Watch one run go green first, then add it.
-- **`Dependency review`** — pull-request only, and equally GHAS-dependent on private repos.
-  Same rule: see it green, then require it.
+- **`CodeQL`** and **`Dependency review`** — the repository is **public**
+  (`visibility: "public"`, confirmed via the API on 2026-08-07), so both are available and
+  should work. They are still held back from the required list until a run has been seen
+  green, because a required check that has never passed blocks every merge and the failure
+  looks like your code rather than like configuration. Add them once green.
+
+## Order of operations
+
+Turning protection on blocks direct pushes to `main` **immediately**, including yours. So
+anything already sitting on your local `main` has to reach the remote first, or it has to
+be re-landed through a pull request afterwards.
+
+1. Push whatever is already on local `main`. This is the last direct push.
+2. Push every unmerged work branch.
+3. Apply the ruleset (below).
+4. Land the remaining work through pull requests — the first one doubles as the
+   verification that the gate works.
 
 ## Applying it
 
@@ -57,9 +86,8 @@ gh api -X PUT repos/sonnynguyen170321-ctrl/crm-4-telestar-final/branches/main/pr
   },
   "enforce_admins": true,
   "required_pull_request_reviews": {
-    "required_approving_review_count": 1,
-    "dismiss_stale_reviews": true,
-    "require_last_push_approval": true
+    "required_approving_review_count": 0,
+    "dismiss_stale_reviews": true
   },
   "required_conversation_resolution": true,
   "allow_force_pushes": false,
@@ -77,9 +105,41 @@ gh api -X PUT repos/sonnynguyen170321-ctrl/crm-4-telestar-final/private-vulnerab
 
 ### In the web UI
 
-Settings → Branches → Add branch ruleset (or classic branch protection rule) for `main`,
-then tick the settings in the table above and add `CI required checks` under
-"Require status checks to pass".
+**Settings → Rules → Rulesets → New ruleset → New branch ruleset.**
+
+| Field | Value |
+| --- | --- |
+| Ruleset name | `main protection` |
+| Enforcement status | **Active** (not "Evaluate" — that only reports) |
+| Bypass list | **leave empty** — this is what "include administrators" means for rulesets |
+| Target branches | Add target → **Include default branch** |
+
+Then tick, under **Branch rules**:
+
+- **Restrict deletions**
+- **Block force pushes**
+- **Require a pull request before merging**
+  - Required approvals: **0**
+  - Dismiss stale pull request approvals when new commits are pushed: on
+  - Require conversation resolution before merging: on
+- **Require status checks to pass**
+  - Require branches to be up to date before merging: on
+  - Add checks → search `CI required checks` → select it
+
+Leave *Require signed commits*, *Require linear history* and *Require deployments* off —
+none of them are in the plan and each has its own failure mode.
+
+Save with **Create**.
+
+> The classic "Branches → Add branch protection rule" screen also works and has the same
+> fields, plus an explicit "Do not allow bypassing the above settings" checkbox which must
+> be **ticked** (it is the classic UI's name for including administrators). Rulesets are
+> the current mechanism and are what the steps above describe.
+
+> **`CI required checks` will only appear in the search box once it has reported at least
+> once on this repository.** If the list is empty, push a branch and open a pull request
+> first, let CI run, then come back and add it. Adding a never-seen check name by typing it
+> is possible but easy to typo, and a required check that never reports blocks every merge.
 
 ## Verifying it works
 
