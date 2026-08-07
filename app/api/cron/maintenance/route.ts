@@ -25,6 +25,7 @@ const MANAGER_ROLES = ['director', 'floor_manager'];
 const DEFAULT_TYPES: MaintenanceRepairPayload['types'] = [
   'orphan-tasks',
   'stale-sending',
+  'outbound-reconcile',
   'stuck-running',
   'missing-delayed',
   'reassignment-drift',

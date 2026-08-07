@@ -6,6 +6,7 @@ import { renderTemplate } from '@/lib/templates/render';
 import { parseBody } from '@/lib/validation/core';
 import { sendEmailSchema } from '@/lib/validation/schemas';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
+import { newRequestId } from '@/lib/email/idempotency';
 
 export async function POST(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -88,6 +89,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const outboundMessage = await createOutboundMessage({
+      // Prefer the task: it is durable and shared with the sequence path, so completing
+      // the same task twice resolves to one send. Otherwise this is an ad-hoc compose,
+      // keyed on the client's request id.
+      source: body.taskId
+        ? { kind: 'task', taskId: body.taskId }
+        : { kind: 'manual', requestId: body.clientRequestId ?? newRequestId() },
       leadId: body.leadId ?? 'unknown',
       accountId: body.accountId,
       templateId: body.templateId,

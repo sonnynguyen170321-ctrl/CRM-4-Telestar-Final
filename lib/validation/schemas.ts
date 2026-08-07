@@ -162,6 +162,14 @@ export const sendEmailSchema = z.object({
   replyTo: z.string().email().max(320).optional(),
   leadId: id.optional(),
   templateId: id.optional(),
+  /** Present when the send completes a CRM task — the most durable idempotency key. */
+  taskId: id.optional(),
+  /**
+   * Client-generated per compose attempt. Lets a retried request land on the same
+   * OutboundMessage instead of creating a second one. Absent it, the server mints one,
+   * which still cannot false-dedup — see lib/email/idempotency.ts.
+   */
+  clientRequestId: z.string().min(8).max(100).optional(),
 });
 
 // ─── Users ───────────────────────────────────────────────────────────────────

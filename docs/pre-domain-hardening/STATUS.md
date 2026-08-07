@@ -3,9 +3,17 @@
 > Resume pointer. Read this first, then execute the next unchecked task in
 > [`PLAN.md`](./PLAN.md). Tick the box there and update this file when a task lands.
 
-**Current phase:** Milestone A — Immediate safety
-**Next task:** Task 2 — invalidate stale JWT sessions (`authVersion`)
-**Blockers:** none for Milestone A. HTTPS/domain blocks nothing in this plan.
+**Current phase:** Milestone B — Reliable delivery
+**Next task:** Task 4 — mandatory CI on pull requests
+**Blockers:** none. HTTPS/domain blocks nothing in this plan.
+
+> Task 2 (session revocation) is implemented on `fix/session-revocation` but **parked to
+> last** by decision on 2026-08-06 — its 26 tests and the sign-out-all UI are outstanding.
+> Pick it up after Tasks 4–10.
+
+> **Local DB drift.** `authVersion` was applied to the local database from the Task 2
+> branch, but that migration file only exists on that branch. `prisma migrate status` on
+> `main` will look out of sync until Task 2 merges. Harmless extra column.
 
 ---
 
@@ -137,3 +145,49 @@ Callers to route through the shared service: `lib/workflows/email.ts` (sequence 
 Also still missing per the plan: a `reconciliation_required` state for ambiguous provider
 success, and the reconciliation pass that resolves it. Provider adapters already return a
 message id (`GmailAdapter`, `ImapAdapter`), which is what reconciliation would match on.
+
+---
+
+## Task 3 — done (2026-08-07), branch `fix/idempotent-manual-email`
+
+Both defects in the inventory above are fixed, plus a third found while building.
+
+**The key.** `lib/email/idempotency.ts` builds it from durable ids only, prefixed by
+source: `manual-task:<taskId>`, `sequence-step:<enrollmentId>:<stepId>`,
+`reply:<threadKey>:<requestId>`, `manual-send:<requestId>`. Nothing re-renderable enters
+it, so a retry after a template re-render lands on the same key, and two sends sharing a
+subject no longer collide. The old `sha256(leadId:accountId:subject)` helper is deleted
+from `lib/bullmq/jobOptions.ts`.
+
+Ad-hoc composes and inbox replies have no durable id of their own, so the client sends a
+`clientRequestId` (one per open composer, `MailComposerModal`) and the server mints one
+when it is absent. That gives no cross-request dedup without a client key, but it cannot
+false-dedup — and the worker-side guarantee holds regardless.
+
+**The claim.** `createOutboundMessage` is a single `upsert` with an empty update branch.
+`workers/email.ts` then does a CAS — `updateMany where status in (pending, failed)` —
+before suppression, quota or the provider, so a losing worker burns nothing. New columns
+`claimedAt` and `attemptCount` (migration `20260807000000_outbound_idempotency_claim`,
+additive).
+
+**The third defect.** `repairStaleSending` wrote `failed` for a `sending` row with no
+provider id. `failed` is claimable, so a message that may already have been delivered was
+one manual retry from a second delivery. It now writes `reconciliation_required`, and the
+send path treats that status, `sending` and `permanently_failed` as unsendable. An
+ambiguous provider error (timeout, socket hang up) goes there too; only errors that prove
+non-delivery — SMTP 5xx rejection, auth failure, `ECONNREFUSED`, `ENOTFOUND` — return the
+row to the claimable pool. `classifySendFailure` is a pure function with its own tests.
+
+**The reconciliation pass.** New repair type `outbound-reconcile`, in the maintenance
+worker and the maintenance cron's default list. Settles a row as `sent` on delivery
+evidence (provider id, reply, or bounce); past a 24h grace window with no evidence it
+writes `permanently_failed` and notifies the lead's owner. It never resends.
+
+*Known limit, deliberate:* with no provider-side lookup keyed on our own idempotency key,
+"no evidence" cannot distinguish a silent delivery from a message that never left — which
+is why the fallback is a human decision, not a resend. Matching on a custom message header
+would tighten this and needs `send()` to carry headers across all three adapters.
+
+Gates: `tsc --noEmit` 0 · Vitest **592/592** · `next build` exit 0 · eslint unchanged from
+the branch point (379 errors / 501 warnings, all pre-existing; CLAUDE.md's "0 errors" note
+is stale). Not yet deployed — see the undeployed-commits note above.

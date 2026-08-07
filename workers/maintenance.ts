@@ -2,9 +2,13 @@ import { prisma } from '@/lib/prisma';
 import { createAppWorker } from '@/lib/bullmq';
 import { JobType } from '@/lib/bullmq/types';
 import type { MaintenanceRepairPayload } from '@/lib/bullmq/types';
+import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
 
 const STALE_SENDING_THRESHOLD_MS = 30 * 60 * 1000;
 const STUCK_RUNNING_THRESHOLD_MS = 15 * 60 * 1000;
+/** How long an ambiguous send may wait for delivery evidence before we give up on it. */
+const RECONCILE_GRACE_MS = 24 * 60 * 60 * 1000;
+const RECONCILE_BATCH = 200;
 
 async function repairOrphanTasks(): Promise<{ fixed: number; details: string[] }> {
   const details: string[] = [];
@@ -31,13 +35,24 @@ async function repairOrphanTasks(): Promise<{ fixed: number; details: string[] }
   return { fixed, details };
 }
 
+/**
+ * Sweep sends that were claimed and never finished.
+ *
+ * A claim with a provider id is a lost final write and settles as `sent`. A claim
+ * *without* one is ambiguous — the worker may have died before, during or after the
+ * provider call — so it moves to `reconciliation_required`, **not** `failed`. This used
+ * to write `failed`, which put the row back in the claimable pool and made a duplicate
+ * delivery one manual retry away.
+ */
 async function repairStaleSending(): Promise<{ fixed: number; details: string[] }> {
   const details: string[] = [];
   let fixed = 0;
   const cutoff = new Date(Date.now() - STALE_SENDING_THRESHOLD_MS);
 
+  // Age off `claimedAt`, not `updatedAt`: any unrelated write bumps `updatedAt` and would
+  // keep resetting the staleness clock on a genuinely stuck row.
   const stale = await prisma.outboundMessage.findMany({
-    where: { status: 'sending', updatedAt: { lt: cutoff } },
+    where: { status: OUTBOUND_STATUS.SENDING, claimedAt: { lt: cutoff } },
     select: { id: true, providerMessageId: true },
   });
 
@@ -45,15 +60,18 @@ async function repairStaleSending(): Promise<{ fixed: number; details: string[] 
     if (msg.providerMessageId) {
       await prisma.outboundMessage.update({
         where: { id: msg.id },
-        data: { status: 'sent', sentAt: new Date() },
+        data: { status: OUTBOUND_STATUS.SENT, sentAt: new Date() },
       });
       details.push(`msg:${msg.id} -> sent (provider reconciled)`);
     } else {
       await prisma.outboundMessage.update({
         where: { id: msg.id },
-        data: { status: 'failed', errorMessage: 'Stale sending state — no provider confirmation' },
+        data: {
+          status: OUTBOUND_STATUS.RECONCILIATION_REQUIRED,
+          errorMessage: 'Ambiguous send, awaiting reconciliation: claimed but never confirmed',
+        },
       });
-      details.push(`msg:${msg.id} -> failed (no provider id)`);
+      details.push(`msg:${msg.id} -> reconciliation_required (no provider id)`);
     }
     fixed++;
   }
@@ -203,9 +221,93 @@ async function repairAuditPrune(): Promise<{ fixed: number; details: string[] }>
   };
 }
 
+/**
+ * Resolve messages whose provider outcome is unknown — without ever resending one.
+ *
+ * Two outcomes only:
+ *
+ *  - **Evidence of delivery.** A provider message id arrived after the fact (a late
+ *    write, or the bounce/reply sync correlating one), or the message has since been
+ *    marked replied or bounced. Settle as `sent`.
+ *  - **No evidence past the grace window.** Give up and mark `permanently_failed`, then
+ *    notify the lead's owner so a human decides whether to compose a fresh send. A new
+ *    send gets a new idempotency key, so that decision can never collide with this row.
+ *
+ * Rows inside the grace window are left alone — evidence may still arrive from the next
+ * inbox sync.
+ *
+ * Known limit: with no provider-side lookup by our own idempotency key, "no evidence"
+ * cannot distinguish a message that silently delivered from one that never left. That is
+ * why the fallback is a human decision rather than an automatic resend. Matching on a
+ * custom message header would tighten this and needs adapter support on all three
+ * providers.
+ */
+async function reconcileAmbiguousSends(): Promise<{ fixed: number; details: string[] }> {
+  const details: string[] = [];
+  let fixed = 0;
+  const graceCutoff = new Date(Date.now() - RECONCILE_GRACE_MS);
+
+  const ambiguous = await prisma.outboundMessage.findMany({
+    where: { status: OUTBOUND_STATUS.RECONCILIATION_REQUIRED },
+    select: {
+      id: true,
+      providerMessageId: true,
+      repliedAt: true,
+      bouncedAt: true,
+      claimedAt: true,
+      updatedAt: true,
+      to: true,
+      tenantId: true,
+      lead: { select: { id: true, assignedToId: true } },
+    },
+    take: RECONCILE_BATCH,
+  });
+
+  for (const msg of ambiguous) {
+    const delivered = Boolean(msg.providerMessageId || msg.repliedAt || msg.bouncedAt);
+    if (delivered) {
+      await prisma.outboundMessage.update({
+        where: { id: msg.id },
+        data: { status: OUTBOUND_STATUS.SENT, sentAt: new Date(), errorMessage: null },
+      });
+      fixed++;
+      details.push(`msg:${msg.id} -> sent (delivery evidence found)`);
+      continue;
+    }
+
+    const ambiguousSince = msg.claimedAt ?? msg.updatedAt;
+    if (ambiguousSince > graceCutoff) continue;
+
+    await prisma.outboundMessage.update({
+      where: { id: msg.id },
+      data: {
+        status: OUTBOUND_STATUS.PERMANENTLY_FAILED,
+        errorMessage: 'Unresolved after reconciliation window — delivery unconfirmed, not resent',
+      },
+    });
+    if (msg.lead?.assignedToId) {
+      await prisma.notification.create({
+        data: {
+          userId: msg.lead.assignedToId,
+          type: 'email_unconfirmed',
+          title: 'Email delivery unconfirmed',
+          text: `We could not confirm whether the email to ${msg.to} was delivered, so it was not retried. Check the inbox's sent mail before sending again.`,
+          linkTo: `/leads/${msg.lead.id}`,
+          tenantId: msg.tenantId,
+        },
+      });
+    }
+    fixed++;
+    details.push(`msg:${msg.id} -> permanently_failed (unresolved, not resent)`);
+  }
+
+  return { fixed, details };
+}
+
 const REPAIR_FN: Record<string, () => Promise<{ fixed: number; details: string[] }>> = {
   'orphan-tasks': repairOrphanTasks,
   'stale-sending': repairStaleSending,
+  'outbound-reconcile': reconcileAmbiguousSends,
   'stuck-running': repairStuckRunning,
   'missing-delayed': repairMissingDelayed,
   'reassignment-drift': repairReassignmentDrift,

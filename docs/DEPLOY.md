@@ -152,8 +152,8 @@ The email-health pass reads only data the inbox sync has already stored, so it i
 at any offset — but it is pointless more often than hourly, since its windows are 24h and 7d.
 
 The maintenance sweep enqueues one `maintenance.repair` job per tenant, covering
-`orphan-tasks`, `stale-sending`, `stuck-running`, `missing-delayed`, `reassignment-drift`
-and `audit-prune`. Narrow it with `?types=audit-prune,orphan-tasks` — unknown names return
+`orphan-tasks`, `stale-sending`, `outbound-reconcile`, `stuck-running`, `missing-delayed`,
+`reassignment-drift` and `audit-prune`. Narrow it with `?types=audit-prune,orphan-tasks` — unknown names return
 400 rather than being silently dropped, so a typo in the crontab is visible.
 
 **`audit-prune` is the only repair that deletes rows.** `lib/audit.ts` writes an AuditLog
