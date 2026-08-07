@@ -5,6 +5,12 @@ import type { EmailSendPayload } from '@/lib/bullmq/types';
 import { EmailService } from '@/lib/email/EmailService';
 import { isDryRun } from '@/lib/emailSafety';
 import { renderTemplate } from '@/lib/templates/render';
+import {
+  CLAIMABLE_STATUSES,
+  OUTBOUND_STATUS,
+  TERMINAL_STATUSES,
+  classifySendFailure,
+} from '@/lib/email/idempotency';
 
 function isHtml(text: string): boolean {
   return /<[a-z][\s\S]*>/i.test(text);
@@ -80,6 +86,24 @@ async function atomicReserveQuota(accountId: string): Promise<boolean> {
   return result > 0;
 }
 
+/**
+ * Park a message whose provider outcome is unknown.
+ *
+ * Deliberately not `failed`: `failed` means "definitely not delivered" and is claimable
+ * again. This state is the one thing standing between an ambiguous provider call and a
+ * duplicate delivery, so nothing in the send path may move a row out of it.
+ * `workers/maintenance.ts` resolves it.
+ */
+async function markReconciliationRequired(outboundMessageId: string, reason: string): Promise<void> {
+  await prisma.outboundMessage.update({
+    where: { id: outboundMessageId },
+    data: {
+      status: OUTBOUND_STATUS.RECONCILIATION_REQUIRED,
+      errorMessage: `Ambiguous send, awaiting reconciliation: ${reason}`,
+    },
+  });
+}
+
 async function handleEmailSend(payload: EmailSendPayload) {
   const { outboundMessageId, accountId, to, subject, body, leadId } = payload;
 
@@ -88,11 +112,61 @@ async function handleEmailSend(payload: EmailSendPayload) {
     include: { lead: { select: { campaignId: true, assignedToId: true } } },
   });
   if (!existing) throw new Error(`OutboundMessage not found: ${outboundMessageId}`);
-  if (existing.status === 'sent' && existing.providerMessageId) {
-    return { skipped: true, reason: 'already_sent', providerMessageId: existing.providerMessageId };
+
+  // ── Terminal and ambiguous states are never sent again ────────────────────
+  // A row is only re-sendable from `pending` or `failed`. Everything else either
+  // already delivered or *may* have delivered, and a resend is the exact duplicate this
+  // pipeline exists to prevent.
+  if (TERMINAL_STATUSES.includes(existing.status)) {
+    return {
+      skipped: true,
+      reason: existing.status === OUTBOUND_STATUS.SENT ? 'already_sent' : 'permanently_failed',
+      providerMessageId: existing.providerMessageId ?? undefined,
+    };
   }
-  if (existing.status === 'sending' && existing.providerMessageId) {
-    return { skipped: true, reason: 'already_sent_provider_reconcile', providerMessageId: existing.providerMessageId };
+  if (existing.status === OUTBOUND_STATUS.RECONCILIATION_REQUIRED) {
+    return { skipped: true, reason: 'awaiting_reconciliation' };
+  }
+  if (existing.status === OUTBOUND_STATUS.SENDING) {
+    // A previous attempt claimed this row and did not finish. If it recorded a provider
+    // id, the send got through and only the final write was lost — settle it as sent.
+    // Otherwise the outcome is genuinely unknown, so hand it to reconciliation rather
+    // than guessing. This is the path a crash between the provider call and the DB write
+    // lands on, and the reason that crash cannot produce a second delivery.
+    if (existing.providerMessageId) {
+      await prisma.outboundMessage.update({
+        where: { id: outboundMessageId },
+        data: { status: OUTBOUND_STATUS.SENT, sentAt: existing.sentAt ?? new Date() },
+      });
+      return {
+        skipped: true,
+        reason: 'already_sent_provider_reconcile',
+        providerMessageId: existing.providerMessageId,
+      };
+    }
+    await markReconciliationRequired(
+      outboundMessageId,
+      'Re-entered while already claimed — provider outcome unknown'
+    );
+    return { skipped: true, reason: 'reconciliation_required' };
+  }
+
+  // ── Claim ─────────────────────────────────────────────────────────────────
+  // Compare-and-set: exactly one worker moves pending/failed -> sending. Everyone else
+  // sees count 0 and stops here, before consuming quota or touching the provider. Same
+  // single-statement CAS the campaign-membership and task-completion paths use — it is
+  // safe on the Neon HTTP driver, which has no interactive transactions.
+  const claim = await prisma.outboundMessage.updateMany({
+    where: { id: outboundMessageId, status: { in: [...CLAIMABLE_STATUSES] } },
+    data: {
+      status: OUTBOUND_STATUS.SENDING,
+      claimedAt: new Date(),
+      attemptCount: { increment: 1 },
+      errorMessage: null,
+    },
+  });
+  if (claim.count !== 1) {
+    return { skipped: true, reason: 'claim_lost' };
   }
 
   // Check suppression
@@ -111,7 +185,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
   if (suppressed) {
     await prisma.outboundMessage.update({
       where: { id: outboundMessageId },
-      data: { status: 'failed', errorMessage: `Recipient suppressed: ${suppressed.reason}` },
+      data: { status: OUTBOUND_STATUS.FAILED, errorMessage: `Recipient suppressed: ${suppressed.reason}` },
     });
     return { skipped: true, reason: 'suppressed' };
   }
@@ -124,13 +198,21 @@ async function handleEmailSend(payload: EmailSendPayload) {
   const account = await prisma.emailAccount.findUnique({
     where: { id: accountId },
   });
-  if (!account) throw new Error(`Email account not found: ${accountId}`);
+  if (!account) {
+    // Release the claim before throwing: nothing was sent, so the row belongs back in the
+    // claimable pool rather than in the ambiguous state a bare throw would strand it in.
+    await prisma.outboundMessage.update({
+      where: { id: outboundMessageId },
+      data: { status: OUTBOUND_STATUS.FAILED, errorMessage: `Email account not found: ${accountId}` },
+    });
+    throw new Error(`Email account not found: ${accountId}`);
+  }
 
   const blocked = evaluateSendBlock(account);
   if (blocked) {
     await prisma.outboundMessage.update({
       where: { id: outboundMessageId },
-      data: { status: 'failed', errorMessage: blocked.errorMessage },
+      data: { status: OUTBOUND_STATUS.FAILED, errorMessage: blocked.errorMessage },
     });
     return { skipped: true, reason: blocked.reason };
   }
@@ -140,16 +222,10 @@ async function handleEmailSend(payload: EmailSendPayload) {
   if (!quotaOk) {
     await prisma.outboundMessage.update({
       where: { id: outboundMessageId },
-      data: { status: 'failed', errorMessage: 'Daily send limit reached' },
+      data: { status: OUTBOUND_STATUS.FAILED, errorMessage: 'Daily send limit reached' },
     });
     return { skipped: true, reason: 'quota_exhausted' };
   }
-
-  // Mark as sending
-  await prisma.outboundMessage.update({
-    where: { id: outboundMessageId },
-    data: { status: 'sending' },
-  });
 
   // Render template variables if lead is available
   let finalSubject = subject;
@@ -172,7 +248,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
     await prisma.outboundMessage.update({
       where: { id: outboundMessageId },
       data: {
-        status: 'sent',
+        status: OUTBOUND_STATUS.SENT,
         providerMessageId: dryRunProviderId,
         sentAt: new Date(),
         errorMessage: null,
@@ -258,18 +334,28 @@ async function handleEmailSend(payload: EmailSendPayload) {
     });
   } catch (sendErr: unknown) {
     const errorMessage = sendErr instanceof Error ? sendErr.message : String(sendErr);
-    await prisma.outboundMessage.update({
-      where: { id: outboundMessageId },
-      data: { status: 'failed', errorMessage },
-    });
+    // Only errors that prove the message never left the building return the row to the
+    // claimable pool. A timeout or a dropped connection might still deliver, so it goes
+    // to reconciliation instead — the retry BullMQ is about to schedule will then bounce
+    // off the status guard rather than send a second copy.
+    if (classifySendFailure(sendErr) === 'not_sent') {
+      await prisma.outboundMessage.update({
+        where: { id: outboundMessageId },
+        data: { status: OUTBOUND_STATUS.FAILED, errorMessage },
+      });
+    } else {
+      await markReconciliationRequired(outboundMessageId, errorMessage);
+    }
     throw sendErr;
   }
 
-  // Update OutboundMessage as sent
+  // Persist the provider's confirmation. If *this* write fails the job throws with the
+  // row still `sending` and no provider id, so the next attempt routes to reconciliation
+  // and the provider is never called twice.
   await prisma.outboundMessage.update({
     where: { id: outboundMessageId },
     data: {
-      status: 'sent',
+      status: OUTBOUND_STATUS.SENT,
       providerMessageId: providerMessageId ?? null,
       sentAt: new Date(),
     },

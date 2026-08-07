@@ -3,6 +3,7 @@ import type { EmailSendPayload } from '@/lib/bullmq/types';
 
 const mockOutboundFindUnique = vi.fn();
 const mockOutboundUpdate = vi.fn();
+const mockOutboundUpdateMany = vi.fn();
 const mockSuppressionFindFirst = vi.fn();
 const mockAccountFindUnique = vi.fn();
 const mockLeadFindUnique = vi.fn();
@@ -16,6 +17,7 @@ vi.mock('@/lib/prisma', () => ({
     outboundMessage: {
       findUnique: (...args: unknown[]) => mockOutboundFindUnique(...args),
       update: (...args: unknown[]) => mockOutboundUpdate(...args),
+      updateMany: (...args: unknown[]) => mockOutboundUpdateMany(...args),
     },
     suppressionEntry: {
       findFirst: (...args: unknown[]) => mockSuppressionFindFirst(...args),
@@ -112,6 +114,8 @@ describe('handleEmailSend', () => {
     // The deliverability preflight reads the account before quota is reserved,
     // so every test needs a sendable account unless it is testing the gate.
     mockAccountFindUnique.mockResolvedValue(mockEmailAccount());
+    // Winning the claim is the default; races override this with count 0.
+    mockOutboundUpdateMany.mockResolvedValue({ count: 1 });
   });
 
   it('sends email and updates outbound message to sent', async () => {
@@ -125,9 +129,14 @@ describe('handleEmailSend', () => {
 
     expect(result).toEqual({ success: true, outboundMessageId: 'msg-1', providerMessageId: 'provider-msg-id-123' });
 
-    expect(mockOutboundUpdate).toHaveBeenCalledWith({
-      where: { id: 'msg-1' },
-      data: { status: 'sending' },
+    expect(mockOutboundUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'msg-1', status: { in: ['pending', 'failed'] } },
+      data: {
+        status: 'sending',
+        claimedAt: expect.any(Date),
+        attemptCount: { increment: 1 },
+        errorMessage: null,
+      },
     });
     expect(mockOutboundUpdate).toHaveBeenCalledWith({
       where: { id: 'msg-1' },
@@ -341,6 +350,207 @@ describe('handleEmailSend — deliverability send gate', () => {
         metadata: expect.objectContaining({ dryRun: true }),
       }),
     });
+  });
+});
+
+/**
+ * Task 3 — one CRM task must produce at most one delivered email, across crashes,
+ * retries and concurrent workers. Every test here asserts on how many times the provider
+ * was called, because that is the only thing the recipient experiences.
+ */
+describe('handleEmailSend — exactly-once delivery', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env.EMAIL_HEALTH_AUTOPAUSE;
+    process.env.EMAIL_SEND_DRY_RUN = 'false';
+    mockAccountFindUnique.mockResolvedValue(mockEmailAccount());
+    mockOutboundUpdateMany.mockResolvedValue({ count: 1 });
+    mockSuppressionFindFirst.mockResolvedValue(null);
+    mockExecuteRaw.mockResolvedValue(1);
+  });
+
+  it('lets only one of two workers racing the same message reach the provider', async () => {
+    mockOutboundFindUnique.mockResolvedValue(mockOutboundMessage());
+    // Both read the row as pending; the CAS decides. The loser's updateMany matches
+    // nothing because the winner already moved the row out of `pending`.
+    mockOutboundUpdateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+    mockServiceSend.mockResolvedValue('provider-msg-id-123');
+
+    const [first, second] = await Promise.all([
+      handleEmailSend(buildPayload()),
+      handleEmailSend(buildPayload()),
+    ]);
+
+    expect(mockServiceSend).toHaveBeenCalledTimes(1);
+    const outcomes = [first, second];
+    expect(outcomes).toContainEqual({ skipped: true, reason: 'claim_lost' });
+    expect(outcomes).toContainEqual(
+      expect.objectContaining({ success: true, providerMessageId: 'provider-msg-id-123' })
+    );
+  });
+
+  it('does not resend a message left mid-flight with no provider confirmation', async () => {
+    // The shape a crash between the provider call and the DB write leaves behind.
+    mockOutboundFindUnique.mockResolvedValueOnce(
+      mockOutboundMessage({ status: 'sending', providerMessageId: null })
+    );
+
+    const result = await handleEmailSend(buildPayload());
+
+    expect(result).toEqual({ skipped: true, reason: 'reconciliation_required' });
+    expect(mockServiceSend).not.toHaveBeenCalled();
+    expect(mockOutboundUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: {
+        status: 'reconciliation_required',
+        errorMessage: expect.stringContaining('Ambiguous send'),
+      },
+    });
+  });
+
+  it('never resends a message already awaiting reconciliation', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(
+      mockOutboundMessage({ status: 'reconciliation_required' })
+    );
+
+    const result = await handleEmailSend(buildPayload());
+
+    expect(result).toEqual({ skipped: true, reason: 'awaiting_reconciliation' });
+    expect(mockServiceSend).not.toHaveBeenCalled();
+    expect(mockOutboundUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('never resends a permanently failed message', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(
+      mockOutboundMessage({ status: 'permanently_failed' })
+    );
+
+    const result = await handleEmailSend(buildPayload());
+
+    expect(result).toEqual({
+      skipped: true,
+      reason: 'permanently_failed',
+      providerMessageId: undefined,
+    });
+    expect(mockServiceSend).not.toHaveBeenCalled();
+  });
+
+  it('settles a mid-flight message that did record a provider id as sent', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(
+      mockOutboundMessage({ status: 'sending', providerMessageId: 'prov-9', sentAt: null })
+    );
+
+    const result = await handleEmailSend(buildPayload());
+
+    expect(result).toEqual({
+      skipped: true,
+      reason: 'already_sent_provider_reconcile',
+      providerMessageId: 'prov-9',
+    });
+    expect(mockServiceSend).not.toHaveBeenCalled();
+    expect(mockOutboundUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: { status: 'sent', sentAt: expect.any(Date) },
+    });
+  });
+
+  it('parks an ambiguous provider failure for reconciliation instead of retrying it', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockServiceSend.mockRejectedValueOnce(new Error('socket hang up'));
+
+    await expect(handleEmailSend(buildPayload())).rejects.toThrow('socket hang up');
+
+    expect(mockOutboundUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: {
+        status: 'reconciliation_required',
+        errorMessage: expect.stringContaining('socket hang up'),
+      },
+    });
+  });
+
+  it('returns a definitively rejected message to the claimable pool', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockServiceSend.mockRejectedValueOnce(new Error('550 5.1.1 message rejected'));
+
+    await expect(handleEmailSend(buildPayload())).rejects.toThrow('message rejected');
+
+    expect(mockOutboundUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: { status: 'failed', errorMessage: '550 5.1.1 message rejected' },
+    });
+  });
+
+  /**
+   * The plan's key acceptance test: the provider accepts, the DB write that records it
+   * fails, and the job is processed again. The provider must have been called exactly
+   * once across both passes.
+   */
+  it('calls the provider exactly once when the post-send DB write fails and the job reruns', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockServiceSend.mockResolvedValueOnce('provider-msg-id-123');
+    mockOutboundUpdate.mockRejectedValueOnce(new Error('connection terminated'));
+
+    await expect(handleEmailSend(buildPayload())).rejects.toThrow('connection terminated');
+    expect(mockServiceSend).toHaveBeenCalledTimes(1);
+
+    // Second pass: the row is whatever the failed write left behind — `sending`, no
+    // provider id. It must route to reconciliation, not to the provider.
+    mockOutboundUpdate.mockResolvedValue({});
+    mockOutboundFindUnique.mockResolvedValueOnce(
+      mockOutboundMessage({ status: 'sending', providerMessageId: null })
+    );
+
+    const second = await handleEmailSend(buildPayload());
+
+    expect(second).toEqual({ skipped: true, reason: 'reconciliation_required' });
+    expect(mockServiceSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not double-count quota or activity when the same job runs twice', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockServiceSend.mockResolvedValueOnce('provider-msg-id-123');
+    await handleEmailSend(buildPayload());
+
+    // The rerun sees the row the first pass left behind.
+    mockOutboundFindUnique.mockResolvedValueOnce(
+      mockOutboundMessage({ status: 'sent', providerMessageId: 'provider-msg-id-123' })
+    );
+    await handleEmailSend(buildPayload());
+
+    expect(mockServiceSend).toHaveBeenCalledTimes(1);
+    expect(mockExecuteRaw).toHaveBeenCalledTimes(1);
+    expect(mockActivityCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases the claim rather than stranding it when the account has vanished', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockAccountFindUnique.mockResolvedValueOnce(null);
+
+    await expect(handleEmailSend(buildPayload())).rejects.toThrow('Email account not found');
+
+    expect(mockOutboundUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: { status: 'failed', errorMessage: 'Email account not found: acc-1' },
+    });
+  });
+
+  it('runs the dry-run path through the same claim as a real send', async () => {
+    process.env.EMAIL_SEND_DRY_RUN = 'true';
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockLeadFindUnique.mockResolvedValueOnce({ id: 'lead-1', assignedTo: null });
+
+    const result = await handleEmailSend(buildPayload());
+
+    expect(result).toEqual(
+      expect.objectContaining({ success: true, dryRun: true, providerMessageId: 'dry-run-msg-1' })
+    );
+    expect(mockOutboundUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'msg-1', status: { in: ['pending', 'failed'] } } })
+    );
+    expect(mockServiceSend).not.toHaveBeenCalled();
   });
 });
 

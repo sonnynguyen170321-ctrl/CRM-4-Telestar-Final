@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { Mail, Send, X, AlertCircle, Loader2 } from 'lucide-react';
 
@@ -18,7 +18,11 @@ interface MailComposerModalProps {
   onSent?: () => void;
 }
 
-export default function MailComposerModal({ lead, onClose, onSent }: MailComposerModalProps) {
+export default function MailComposerModal({ lead, onClose, task, onSent }: MailComposerModalProps) {
+  // One id per open composer. A retried request reuses it, so the server resolves both
+  // attempts to the same OutboundMessage instead of sending twice. A task, when present,
+  // is a stronger key still and takes precedence server-side.
+  const requestIdRef = useRef<string>(crypto.randomUUID());
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [account, setAccount] = useState<EmailAccount | null>(null);
@@ -98,7 +102,7 @@ export default function MailComposerModal({ lead, onClose, onSent }: MailCompose
       const res = await fetch('/api/email/send', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ accountId: account.id, to: lead.email, subject, body, leadId: lead.id, templateId: selectedTemplateId || undefined }),
+        body: JSON.stringify({ accountId: account.id, to: lead.email, subject, body, leadId: lead.id, templateId: selectedTemplateId || undefined, taskId: task?.id, clientRequestId: requestIdRef.current }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

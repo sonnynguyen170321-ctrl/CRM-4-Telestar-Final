@@ -795,9 +795,19 @@ model OutboundMessage {
   subject           String?
   body              String?
   providerMessageId String?
+  // Derived from durable ids only (see lib/email/idempotency.ts) — never from the
+  // subject, which is re-rendered on every attempt.
   idempotencyKey    String       @unique
-  status            String       @default("pending") // pending | sending | sent | failed | bounced
+  // pending | sending | sent | failed | reconciliation_required | permanently_failed | bounced
+  // Only `pending` and `failed` may be claimed by a worker. `sending` means a provider
+  // call may be in flight; `reconciliation_required` means its outcome is unknown. Neither
+  // is ever resent — see workers/email.ts.
+  status            String       @default("pending")
   errorMessage      String?
+  /** Set by the compare-and-set claim that moves pending/failed -> sending. */
+  claimedAt         DateTime?
+  /** Incremented by the claim, so a repeatedly-ambiguous send is visible to an operator. */
+  attemptCount      Int          @default(0)
   sentAt            DateTime?
   openedAt          DateTime? // NOTE: no writer exists — there is no open-tracking pixel route.
   repliedAt         DateTime?
@@ -819,6 +829,8 @@ model OutboundMessage {
   @@index([tenantId, status, sentAt])
   // Bounce correlation: most-recent sent message to an address on an account.
   @@index([accountId, to, status])
+  // Reconciliation pass: ambiguous or stale sends, scanned by status then age.
+  @@index([status, claimedAt])
 }
 
 // ─── Suppression Entries ─────────────────────────────────────────────────────

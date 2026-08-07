@@ -1,10 +1,10 @@
-import { createHash } from 'crypto';
 import type { JobsOptions } from 'bullmq';
 import { JobType } from './types';
 
-export function generateIdempotencyKey(leadId: string, accountId: string, subject: string): string {
-  return createHash('sha256').update(`${leadId}:${accountId}:${subject}`).digest('hex').slice(0, 64);
-}
+// Outbound idempotency keys now live in `lib/email/idempotency.ts`. The old
+// sha256(leadId:accountId:subject) helper that used to sit here was removed because a
+// subject is re-rendered per attempt: it both false-deduped distinct sends and missed
+// real duplicates.
 
 export const DEFAULT_JOB_OPTIONS: JobsOptions = {
   attempts: 3,

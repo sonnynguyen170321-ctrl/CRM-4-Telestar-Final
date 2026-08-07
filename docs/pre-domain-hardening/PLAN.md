@@ -68,7 +68,7 @@ session; deleted user rejected; cross-tenant token rejected; old token fails aft
 *Done when:* security-sensitive changes invalidate sessions immediately and protected APIs
 authorize from current database state.
 
-### [ ] Task 3 — Make manual email sending idempotent
+### [x] Task 3 — Make manual email sending idempotent  ✅
 
 One CRM task must produce at most one delivered email, even across crashes.
 Branch: `fix/idempotent-manual-email`. Keep real sending disabled while building this.
@@ -218,7 +218,7 @@ build and the Docker build all pass, migrations have been reviewed, and no secre
 
 - [x] Production data cannot be destroyed by the demo seed
 - [ ] Deactivated or demoted users immediately lose access
-- [ ] Email processing cannot blindly send duplicates
+- [x] Email processing cannot blindly send duplicates
 - [ ] PRs cannot merge without mandatory checks
 - [ ] Deployments use exact image versions
 - [ ] Cross-tenant isolation tests pass

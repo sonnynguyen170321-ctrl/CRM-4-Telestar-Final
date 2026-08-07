@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
-import { enqueueEmailSendWorkflow } from '@/lib/workflows/email';
+import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
+import { newRequestId } from '@/lib/email/idempotency';
 
 export async function POST(
   req: NextRequest,
@@ -20,7 +21,7 @@ export async function POST(
   const { id: threadKey } = await params;
 
   try {
-    const { body, subject, leadId } = await req.json();
+    const { body, subject, leadId, clientRequestId } = await req.json();
 
     if (!body) {
       return NextResponse.json({ error: 'Reply body is required' }, { status: 400 });
@@ -49,21 +50,24 @@ export async function POST(
       return NextResponse.json({ error: 'No active email account connected for this user' }, { status: 400 });
     }
 
-    // 3. Create unique outbound message record
-    const uniqueId = `reply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // 3. Record the send through the shared service, so this path gets the same
+    //    upsert-on-a-durable-key treatment as sequence and compose sends. It used to
+    //    build its own `reply-<timestamp>-<random>` key and call `create` directly,
+    //    which made every retry a brand-new row and therefore a second delivery.
     const replySubject = subject.toLowerCase().startsWith('re:') ? subject : `Re: ${subject}`;
 
-    const outbound = await prisma.outboundMessage.create({
-      data: {
-        leadId: lead.id,
-        accountId: account.id,
-        to: lead.email,
-        subject: replySubject,
-        body,
-        status: 'pending',
-        tenantId: user.tenantId!,
-        idempotencyKey: uniqueId,
+    const outbound = await createOutboundMessage({
+      source: {
+        kind: 'reply',
+        threadKey,
+        requestId: typeof clientRequestId === 'string' && clientRequestId ? clientRequestId : newRequestId(),
       },
+      leadId: lead.id,
+      accountId: account.id,
+      to: lead.email,
+      subject: replySubject,
+      body,
+      tenantId: user.tenantId,
     });
 
     // 4. Enqueue email send workflow
