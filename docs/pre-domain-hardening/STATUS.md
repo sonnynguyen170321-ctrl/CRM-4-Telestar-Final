@@ -96,3 +96,44 @@ The `prisma.seed` wiring is the sharp edge: a routine `migrate dev` against a mi
 - 2026-08-05 — Plan pinned from the pre-domain hardening brief. No code changed yet.
 
 - 2026-08-05 — **Task 1 ✅** (`9908642`). `lib/seed-guard.ts` + 16 tests; `prisma/seed.ts` → `seed-demo.ts`; `prisma.seed` key removed from package.json so `migrate dev`/`reset` can no longer fire it; hardcoded password replaced by `DEMO_SEED_PASSWORD` with a random fallback. Verified by running: refused with no confirmation, on `NODE_ENV=production`, against the live Cloud SQL IP, and against `localhost/telestar_crm`; succeeded against a scratch `telestar_crm_dev`. Vitest 552/552.
+
+---
+
+## Task 3 — inventory before starting (2026-08-06)
+
+Deferred first: the rest of Task 2 (26 tests + the sign-out-all UI) is parked by decision on
+2026-08-06 and should be picked up **last**, after Tasks 3–10. The branch is pushed and green
+apart from those tests.
+
+Task 3 starts further along than the plan assumes — `OutboundMessage` already exists with
+`idempotencyKey String @unique`, `status`, `providerMessageId`, `sentAt` and bounce fields, and
+`workers/email.ts` already owns the send lifecycle from the runtime-hardening P4 work. Two real
+defects to fix rather than a build from scratch:
+
+**1. The idempotency key is wrong in both directions.** `lib/bullmq/jobOptions.ts` builds it as
+`sha256(leadId:accountId:subject)`:
+
+- *False dedup.* Two legitimately different sends that share lead + account + subject — a
+  re-enrollment, or a follow-up step reusing a subject line — collide on one key.
+  `createOutboundMessage` returns the existing row and the second email is silently never sent.
+- *Missed dedup.* The same task retried after a template re-render produces a different subject,
+  therefore a different key, therefore a **duplicate delivery**. This is precisely the failure
+  Task 3 exists to prevent.
+
+The plan's `manual-task:<taskId>` is deterministic per task and fixes both. Sequence sends need
+an equivalent stable key — task id where one exists, otherwise enrollment id + step id. It must
+not include any field that can be re-rendered.
+
+**2. `createOutboundMessage` is not atomic.** It does `findUnique` then `create`, so two workers
+can both observe "no row" and both create; one then dies on the unique constraint. Should be a
+single `upsert` on `idempotencyKey`, followed by a compare-and-set claim
+(`updateMany where status='pending'`) to move `pending -> sending` — the same CAS pattern
+`lib/admin/campaignMembers.ts` and the task-completion path already use.
+
+Callers to route through the shared service: `lib/workflows/email.ts` (sequence path) and
+`app/api/inbox/threads/[id]/reply/route.ts` (manual reply, currently builds its own
+`idempotencyKey` from a `uniqueId`).
+
+Also still missing per the plan: a `reconciliation_required` state for ambiguous provider
+success, and the reconciliation pass that resolves it. Provider adapters already return a
+message id (`GmailAdapter`, `ImapAdapter`), which is what reconciliation would match on.
