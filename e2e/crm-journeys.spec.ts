@@ -7,6 +7,15 @@ import { test, expect } from '@playwright/test';
 // POSTing them directly returns 302 with a valid session every time.
 const LOGIN_TIMEOUT = process.env.BASE_URL ? 45_000 : 15_000;
 
+// The seeded demo password. This used to be the literal `telestar2026`, repeated at six
+// call sites, which meant the suite only ran against a database seeded with that exact
+// published string. CI now mints a random DEMO_SEED_PASSWORD per run and passes it here
+// as E2E_PASSWORD, so hardcoding it made every persona login fail — and with one worker
+// and no retries, six serial failures walked the job into its timeout.
+//
+// The fallback keeps existing local workflows working against an older seeded database.
+const PASSWORD = process.env.E2E_PASSWORD || 'telestar2026';
+
 test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
   test('Unauthenticated user is redirected to login', async ({ page }) => {
     await page.goto('/');
@@ -24,7 +33,7 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
         await directorBtn.click();
       } else {
         await page.fill('input[type="email"]', 'dean@telestar.vn');
-        await page.fill('input[type="password"]', 'telestar2026');
+        await page.fill('input[type="password"]', PASSWORD);
         await page.click('button[type="submit"]');
       }
       await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: LOGIN_TIMEOUT });
@@ -66,7 +75,7 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
         await fmBtn.click();
       } else {
         await page.fill('input[type="email"]', 'sonny@telestar.vn');
-        await page.fill('input[type="password"]', 'telestar2026');
+        await page.fill('input[type="password"]', PASSWORD);
         await page.click('button[type="submit"]');
       }
       await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: LOGIN_TIMEOUT });
@@ -104,7 +113,7 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
         await tlBtn.click();
       } else {
         await page.fill('input[type="email"]', 'brandon@telestar.vn');
-        await page.fill('input[type="password"]', 'telestar2026');
+        await page.fill('input[type="password"]', PASSWORD);
         await page.click('button[type="submit"]');
       }
       await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: LOGIN_TIMEOUT });
@@ -138,7 +147,7 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
         await sdrBtn.click();
       } else {
         await page.fill('input[type="email"]', 'lan.pham@telestar.vn');
-        await page.fill('input[type="password"]', 'telestar2026');
+        await page.fill('input[type="password"]', PASSWORD);
         await page.click('button[type="submit"]');
       }
       await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: LOGIN_TIMEOUT });
@@ -180,7 +189,7 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
         await leadgenBtn.click();
       } else {
         await page.fill('input[type="email"]', 'alex@telestar.vn');
-        await page.fill('input[type="password"]', 'telestar2026');
+        await page.fill('input[type="password"]', PASSWORD);
         await page.click('button[type="submit"]');
       }
       await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: LOGIN_TIMEOUT });
@@ -206,7 +215,7 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
         await lgMgrBtn.click();
       } else {
         await page.fill('input[type="email"]', 'dominic@telestar.vn');
-        await page.fill('input[type="password"]', 'telestar2026');
+        await page.fill('input[type="password"]', PASSWORD);
         await page.click('button[type="submit"]');
       }
       await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: LOGIN_TIMEOUT });
