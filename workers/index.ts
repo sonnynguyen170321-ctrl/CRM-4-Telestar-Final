@@ -1,5 +1,6 @@
 import { Worker } from 'bullmq';
 import { getConnection, closeConnection } from '@/lib/bullmq/connection';
+import { readReleaseInfo, describeRelease } from '@/lib/release';
 import { closeAllQueues } from '@/lib/bullmq/queues';
 import { createHealthcheckWorker, closeHealthcheck } from './healthcheck';
 import { createSequenceWorker } from './sequence';
@@ -12,6 +13,11 @@ import { createImportWorker } from './import';
 const workers: Worker[] = [];
 
 function registerWorkers(): void {
+  // First line in the log names the build. A worker that silently runs a different image
+  // from web is the failure mode immutable tags exist to prevent, and this is how an
+  // operator sees it without shelling into the container.
+  console.log(`[worker] ${describeRelease(readReleaseInfo())}`);
+
   const healthcheck = createHealthcheckWorker();
   workers.push(healthcheck);
   console.log('[worker] registered: healthcheck');

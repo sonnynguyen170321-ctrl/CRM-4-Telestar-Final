@@ -4,7 +4,7 @@
 > [`PLAN.md`](./PLAN.md). Tick the box there and update this file when a task lands.
 
 **Current phase:** Milestone B — Reliable delivery
-**Next task:** Task 5 — immutable release images
+**Next task:** Task 6 — prepare and validate PostgreSQL RLS
 **Blockers:** Task 4's branch protection needs applying by hand — see below.
 
 > Task 2 (session revocation) is implemented on `fix/session-revocation` but **parked to
@@ -266,3 +266,73 @@ and the five break-it verifications are in [`docs/BRANCH_PROTECTION.md`](../BRAN
 
 Note this changes the working loop: Tasks 1 and 3 were merged straight into `main` locally.
 Requiring pull requests stops that.
+
+---
+
+## Task 5 — done (2026-08-07), branch `deploy/immutable-images`
+
+### The mutable default is gone, and compose now refuses to guess
+
+`docker-compose.yml` declared `image: …:${IMAGE_TAG:-latest}`. Both `web` and `worker`
+inherit that one anchor, so the tag was the only thing deciding what ran — and `:latest` is
+mutable. Two `up -d` runs a week apart could start different code with nothing recording
+the change, and a `worker` restarted on a newer `:latest` than `web` produces symptoms that
+all look like application bugs.
+
+It is now `${CRM_IMAGE:?<message>}` — **no default**. Compose exits with that message
+rather than starting anything. `CRM_IMAGE` must be a digest (`…@sha256:…`) or a full
+40-character SHA tag; `prod-check-env` rejects anything else, including the `:sha-<7>` tag
+CI also publishes (7 hex characters is a poor primary key for a deployment, and a short tag
+can be repointed).
+
+`IMAGE_TAG` is gone from `.env.production.example`, `.env.docker.example`, `AWS_DEPLOY.md`,
+`DOCKER_DEPLOY.md`, `GCP_DEPLOY.md` and `DEPLOY.md`.
+
+### A container can now say what it is
+
+`APP_COMMIT`, `APP_VERSION` and `APP_BUILT_AT` are build args baked into the runner stage as
+both env vars and OCI labels. `lib/release.ts` reads them; `/api/health` returns
+`commit`/`version`/`builtAt`; the worker logs its release on boot. The default is the
+literal `unknown`, which `lib/release.ts` treats as *absent* — a locally built image cannot
+masquerade as a release.
+
+The publish workflow passes the build args, adds `org.opencontainers.image.version`
+(a `git describe --exact-match` release tag when the commit has one, else the commit), and
+tags the full SHA alongside `:latest` and `:sha-<7>`.
+
+### Deploying, rolling back, and the record
+
+- **`scripts/deploy.sh`** — prompts for the Cloud SQL backup, resolves the commit's tag to
+  a digest **once**, migrates using that same image, pins `.env.production` to it while
+  keeping the replaced digest in `PREVIOUS_CRM_IMAGE`, restarts `web` and `worker`, runs
+  the smoke test, and appends a record. Refuses a commit with no published image — which is
+  also the CI check, since nothing is published unless CI passed.
+- **`scripts/rollback.sh`** — deploys `PREVIOUS_CRM_IMAGE`, so a rollback needs no lookup,
+  no checkout and no rebuild. Refuses any non-immutable reference. Sets
+  `PREVIOUS_CRM_IMAGE` to the image it rolled off, so a bad rollback is itself reversible.
+  Warns that migrations are **not** reversed and points at the backup.
+- **`deployments.ndjson`** — append-only, one JSON object per line: timestamp, commit,
+  digest, image, previous image, latest migration, operator. Gitignored, because the VM is
+  a git checkout and a tracked file there would conflict on every `git pull`.
+
+### `scripts/post-deploy-smoke.sh` — six checks
+
+`/api/health` ok · **web reports the commit that was deployed** · `/admin` redirects rather
+than 404s · `/login` renders · **`web` and `worker` are the same image digest** · the worker
+registered its queues. Read-only, safe to run any time.
+
+### Verified
+
+`tsc --noEmit` 0 · Vitest **607/607** (15 new in `tests/release.test.ts`) · `next build`
+exit 0 · `npm run lint` 0 errors · all three shell scripts pass `bash -n`.
+
+The config assertions in `tests/release.test.ts` are deliberate: this task's regression
+surface is a YAML default someone re-adds for convenience, so the tests read
+`docker-compose.yml` and `.env.production.example` directly and fail on `:latest`, on a
+per-service `image:` key, and on a missing `CRM_IMAGE`. Note js-yaml does not apply `<<:`
+merge keys — the test asserts neither service declares an image of its own, which is the
+stronger statement anyway. `js-yaml` was promoted from transitive to an explicit
+devDependency so that test cannot break on a lockfile change.
+
+**Not verified:** anything requiring Docker or the VM — no Docker on this machine. The
+scripts are syntax-checked, not executed. First real deploy should be watched.

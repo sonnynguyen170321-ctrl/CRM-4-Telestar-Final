@@ -76,7 +76,7 @@ Edit `/opt/crm-4-u/.env.production`:
 
 ```dotenv
 APP_ENV_FILE=.env.production
-IMAGE_TAG=latest
+CRM_IMAGE=ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:<digest>
 CRM_DOMAIN=crm.yourdomain.com
 NEXTAUTH_URL=https://crm.yourdomain.com
 POSTGRES_PASSWORD=<long-random-password>
@@ -166,10 +166,18 @@ docker compose --env-file .env.production run --rm web npx prisma migrate deploy
 docker compose --env-file .env.production up -d
 ```
 
-To pin a specific image instead of `latest`, set:
+Pinning is not optional — `docker-compose.yml` declares `${CRM_IMAGE:?…}` with no default,
+so compose refuses to start without an exact reference. Resolve a commit to a digest:
+
+```bash
+SHA=<full-40-char-git-sha>
+docker pull ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final:$SHA
+docker inspect --format '{{index .RepoDigests 0}}' \
+  ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final:$SHA
+```
 
 ```dotenv
-IMAGE_TAG=<short-git-sha>
+CRM_IMAGE=ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:<digest>
 ```
 
 Then run:

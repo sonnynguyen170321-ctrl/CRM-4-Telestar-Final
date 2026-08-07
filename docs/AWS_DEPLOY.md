@@ -11,7 +11,7 @@ IP mode:
 
 ```env
 APP_ENV_FILE=.env.production
-IMAGE_TAG=latest
+CRM_IMAGE=ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:<digest>
 CRM_DOMAIN=46.137.208.100
 CADDY_SITE_ADDRESS=:80
 NEXTAUTH_URL=http://46.137.208.100
