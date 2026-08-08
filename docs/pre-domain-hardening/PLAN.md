@@ -144,7 +144,7 @@ without rebuilding.
 
 ## Milestone C — Defense in depth
 
-### [ ] Task 6 — Prepare and validate PostgreSQL RLS
+### [~] Task 6 — Prepare and validate PostgreSQL RLS — policies + roles landed, enforcement validation outstanding
 
 Branch: `security/tenant-rls`. **Do not force-enable RLS in production before inventory, tests
 and staging validation.**
