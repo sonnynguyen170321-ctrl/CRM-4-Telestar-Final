@@ -662,3 +662,61 @@ violations, tighten `script-src`, then change `CSP_HEADER_NAME` to
 
   Still outstanding for Task 2 after that: a "Sign out all sessions" control in the `/admin`
   UI (the endpoint exists, nothing calls it), and the manual verification pass from PLAN.md.
+
+---
+
+## Task 2 — Session revocation ✅ (2026-08-08). Unparked and finished.
+
+The implementation had been sitting on `fix/session-revocation` since 2026-08-06, blocked on
+25 failing tests and a missing UI control. Both are done; `main` merged in, all gates green.
+
+### The 25 failures were the feature working
+
+Five suites asserted **403** and got **401**. They mock `auth()` with synthetic sessions for
+ids like `sdr-1` and `aud-fm` that have no database row — so revalidation correctly rejected
+them as unauthenticated before the role check they were testing. They encoded the old
+contract in which the token was trusted.
+
+The earlier note proposed mocking `getSessionUser` instead. **That is not available:**
+`getSessionUser` is a module-local `const` in `lib/auth.ts`, and `requireAuth`/`requireRole`
+call that local binding — replacing the export does not intercept them, and reshaping
+production code to add a test seam would be the tail wagging the dog.
+
+So the fixtures got real identities, by whichever route suited the suite:
+
+| Suite | Fix | Why |
+| --- | --- | --- |
+| `access-control`, `admin`, `leadgen-redesign` | real rows via `tests/helpers/sessionUser.ts` | they already talk to a real database; they now exercise revalidation *and* the role matrix |
+| `admin-audit`, `email-health-access` | taught their Prisma mock via `tests/helpers/mockDbUser.ts` | they mock `@/lib/prisma` wholesale, so a real row is invisible to them — they stay unit tests with no database |
+
+Three things that cost time and are worth not rediscovering:
+
+- **Fixture emails collide.** `User.email` is globally unique and the fixtures use plausible
+  addresses like `sdr@telestar.vn`, which the demo seed already owns. The helper derives
+  `<id>@session-fixture.test` instead and ignores the fixture's address; nothing asserts on
+  it.
+- **`vi.mock` factories are hoisted** above module-level `const`s, so a factory naming one
+  directly throws `Cannot access before initialization`. The mock has to reference it
+  through a lazy arrow.
+- **Tenant has to match.** `admin-audit` fixtures carry `tenantId: 'admin-audit-tenant'`, and
+  `getSessionUser` rejects a session whose token tenant differs from the row's — the
+  cross-tenant check doing its job. Seeding the row under the default tenant produced a 401
+  that looked like the original bug.
+
+### Sign out all sessions
+
+`POST /api/admin/users/[id]/sign-out-all` existed but nothing called it. `/admin/users` now
+has a per-row control (director-only, like the other destructive actions). It bumps
+`authVersion`, so existing tokens stop working on their **next request** rather than at
+expiry — distinct from deactivating, since the user keeps their access and simply signs in
+again. That is the right tool after a shared laptop, a lost phone, or a password typed into
+the plain-HTTP demo box.
+
+### Gates
+
+Vitest **686/686**, `tsc` 0, lint 0 errors, `next build` exit 0.
+
+**Still worth doing on the live box**, and not blocked by anything here: the Director
+password change from the top of this file. With `authVersion` now in place, changing it also
+invalidates every existing session — which is the stronger version of that fix, and the
+reason the original note argued for taking Task 2 first.

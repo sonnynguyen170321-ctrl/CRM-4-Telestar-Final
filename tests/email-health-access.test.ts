@@ -1,4 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { makeUserFindUnique } from './helpers/mockDbUser';
 import type { SessionUser } from '@/lib/auth';
 
 /**
@@ -20,9 +21,22 @@ vi.mock('@/auth', () => ({
   signOut: vi.fn(),
 }));
 
+const mockUserFindUnique = makeUserFindUnique([
+  { id: 'u-dir', role: 'director', tenantId: 'tenant-1' },
+  { id: 'u-fm', role: 'floor_manager', tenantId: 'tenant-1', reports: 1 },
+  { id: 'u-tl', role: 'team_lead', tenantId: 'tenant-1', reports: 1 },
+  { id: 'u-sdr', role: 'sdr', tenantId: 'tenant-1' },
+  { id: 'u-other', role: 'sdr', tenantId: 'tenant-1' },
+]);
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    user: { findMany: (...args: unknown[]) => mockUserFindMany(...args) },
+    // getSessionUser revalidates against the database on every request, so this mock
+    // has to answer findUnique or every route 401s before its role check.
+    user: {
+      findMany: (...args: unknown[]) => mockUserFindMany(...args),
+      findUnique: (args: { where?: { id?: string } }) => mockUserFindUnique(args),
+    },
     emailAccount: { findUnique: (...args: unknown[]) => mockAccountFindUnique(...args) },
   },
   tenantStorage: { run: (_: unknown, fn: () => unknown) => fn() },

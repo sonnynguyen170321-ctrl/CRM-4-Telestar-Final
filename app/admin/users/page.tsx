@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Users, Plus, Pencil, UserX, UserCheck } from 'lucide-react';
+import { Users, Plus, Pencil, UserX, UserCheck, LogOut } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { useAppContext } from '@/context/AppContext';
 import { readApiError } from '@/lib/api/client';
@@ -84,6 +84,29 @@ export default function AdminUsersPage() {
       return true;
     });
   }, [data, search, roleFilter, statusFilter, gapFilter]);
+
+  /**
+   * Revoke every active session for a user without changing their account.
+   *
+   * The endpoint bumps `authVersion`, which every protected request revalidates against,
+   * so existing tokens stop working on their next request rather than at expiry. Distinct
+   * from deactivating: the user keeps their access and simply has to sign in again. That
+   * is what you want after a shared laptop, a lost phone, or a password typed into the
+   * plain-HTTP demo box.
+   */
+  const signOutAll = useCallback(async (user: AdminUser) => {
+    if (!confirm(`Sign ${user.name} out of all sessions? They will need to sign in again.`)) return;
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/sign-out-all`, { method: 'POST' });
+      if (!res.ok) {
+        showToast(await readApiError(res, 'Failed to sign out sessions'), 'error');
+        return;
+      }
+      showToast(`${user.name} signed out of all sessions`, 'success');
+    } catch {
+      showToast('Failed to sign out sessions', 'error');
+    }
+  }, [showToast]);
 
   const openDeactivate = useCallback(async (user: AdminUser) => {
     setPendingDeactivate(user);
@@ -217,6 +240,13 @@ export default function AdminUsersPage() {
             onClick={() => setEditing(u)}
           >
             <Pencil className="w-3.5 h-3.5" />
+          </IconButton>
+          <IconButton
+            title={isDirector ? 'Sign out of all sessions' : 'Only a director can revoke sessions'}
+            disabled={!isDirector}
+            onClick={() => signOutAll(u)}
+          >
+            <LogOut className="w-3.5 h-3.5" />
           </IconButton>
           {u.isActive ? (
             <IconButton

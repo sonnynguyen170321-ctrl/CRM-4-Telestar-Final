@@ -1,4 +1,5 @@
 import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { ensureSessionUsers } from './helpers/sessionUser';
 import { GET as getJobs } from '@/app/api/admin/jobs/route';
 import { GET as getOutbound } from '@/app/api/admin/outbound/route';
 import { GET as getWorkerHealth, POST as postWorkerHealth } from '@/app/api/admin/worker-health/route';
@@ -180,6 +181,12 @@ afterAll(async () => {
     });
     await prisma.tenant.deleteMany({ where: { id: tenantId } });
   });
+});
+
+// Task 2 revalidates every request against the database, so these mocked sessions need
+// real rows -- without them the routes answer 401 before reaching the role check.
+beforeAll(async () => {
+  await ensureSessionUsers(sdr, floorManager, teamLead);
 });
 
 describe('Admin Endpoints - Access Control', () => {

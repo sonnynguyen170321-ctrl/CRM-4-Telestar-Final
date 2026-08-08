@@ -1,4 +1,5 @@
 import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { ensureSessionUsers } from './helpers/sessionUser';
 import { GET as getScope } from '@/app/api/leadgen/scope/route';
 import { POST as assignLeads } from '@/app/api/leadgen/assign/route';
 import { GET as getMeetings } from '@/app/api/team/meetings/route';
@@ -15,6 +16,15 @@ vi.mock('@/auth', () => {
     signIn: vi.fn(),
     signOut: vi.fn(),
   };
+});
+
+// Task 2 revalidates every request against the database, so these mocked sessions need
+// real rows -- without them the routes answer 401 before reaching the role check.
+beforeAll(async () => {
+  await ensureSessionUsers(
+    { id: 'sdr-id', role: 'sdr' },
+    { id: 'teamlead-id', role: 'team_lead' },
+  );
 });
 
 describe('Leadgen Redesign API Endpoints - Authorization Unit Tests', () => {
