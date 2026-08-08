@@ -127,7 +127,7 @@ export default function MeetingBookingModal({
       );
       onMeetingCreated?.();
       onClose();
-    } catch (err) {
+    } catch {
       showToast('Failed to create meeting', 'error');
     } finally {
       setLoading(false);

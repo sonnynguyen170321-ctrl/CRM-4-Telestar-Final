@@ -10,15 +10,11 @@ import {
   Search,
   CheckCircle,
   Inbox,
-  Clock,
   Bold,
   Italic,
   Underline,
   List,
   Reply,
-  Check,
-  X,
-  FileText,
 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import DOMPurify from 'isomorphic-dompurify';

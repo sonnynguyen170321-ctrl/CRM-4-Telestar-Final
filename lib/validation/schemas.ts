@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { id, isoDate, shortText, longText, nullableShortText, nullableLongText, nullableText } from './core';
+import { id, isoDate, longText, nullableShortText, nullableLongText, nullableText } from './core';
 
 // Enums mirrored from prisma/schema.prisma — keep in sync with the DB enums.
 export const leadStage = z.enum(['new', 'sequence_active', 'replied', 'meeting_booked', 'won', 'lost']);

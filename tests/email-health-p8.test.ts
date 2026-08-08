@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { calculateWarmupStatus, STANDARD_WARMUP_SCHEDULE } from '@/lib/email-health/warmup';
 import { categorizeBounceError } from '@/lib/email-health/errorCategorizer';
 import { calculateSafetyCapAdjustment } from '@/lib/email-health/capAdjustment';
-import { evaluateDeliverabilityCompliance, DEFAULT_DELIVERABILITY_THRESHOLDS } from '@/lib/email-health/thresholds';
+import { evaluateDeliverabilityCompliance } from '@/lib/email-health/thresholds';
 import { isPlausibleDomain } from '@/lib/email-health/domains';
 
 describe('Phase 8 Deliverability & Email Health', () => {

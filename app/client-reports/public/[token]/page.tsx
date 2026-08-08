@@ -3,20 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import {
-  FileBarChart,
   Lock,
   Printer,
   Calendar,
   Building2,
-  CheckCircle2,
   Sparkles,
-  Mail,
-  Phone,
-  MessageSquare,
   AlertCircle,
   ShieldCheck,
 } from 'lucide-react';
-import Linkedin from '@/components/icons/Linkedin';
 import { ClientReportSnapshot } from '@/lib/client-reports/types';
 
 export default function PublicReportViewer() {

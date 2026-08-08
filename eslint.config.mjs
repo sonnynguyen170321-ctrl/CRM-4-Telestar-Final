@@ -16,7 +16,19 @@ const eslintConfig = defineConfig([
   {
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
-      "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+      // `_name` means "deliberately discarded" throughout this codebase — a destructure that
+      // drops a field, or a caught error nobody inspects. Only args honoured that convention
+      // before, so intentional discards like `const { password: _omitted, ...rest }` still
+      // warned and pushed people toward deleting code that is doing its job.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          "argsIgnorePattern": "^_",
+          "varsIgnorePattern": "^_",
+          "caughtErrorsIgnorePattern": "^_",
+          "destructuredArrayIgnorePattern": "^_"
+        }
+      ],
       "react/no-unescaped-entities": "off",
       "react-hooks/set-state-in-effect": "off"
     }

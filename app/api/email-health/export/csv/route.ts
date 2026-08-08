@@ -18,7 +18,7 @@ function escapeCsv(val: any): string {
 /**
  * CSV Export for Email Health & Deliverability data (accounts + domain DNS status).
  */
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;

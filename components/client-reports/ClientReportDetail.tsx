@@ -5,19 +5,14 @@ import Link from 'next/link';
 import {
   ArrowLeft,
   CheckCircle2,
-  Lock,
   Link2,
-  Download,
   Calendar,
   Building2,
   FileSpreadsheet,
   Printer,
   Sparkles,
   Save,
-  Users,
-  Target,
   Clock,
-  TrendingUp,
   AlertCircle,
   Plus,
   Trash2,
@@ -70,9 +65,9 @@ export default function ClientReportDetail({ report: initialReport, currentUserR
   // Editable Narrative State
   const [summary, setSummary] = useState(report.summary || report.snapshotJson?.insights?.summary || '');
   const [keyWins, setKeyWins] = useState<string[]>(report.keyWins?.length ? report.keyWins : report.snapshotJson?.insights?.keyWins || []);
-  const [blockers, setBlockers] = useState<string[]>(report.blockers?.length ? report.blockers : report.snapshotJson?.insights?.blockers || []);
+  const [blockers] = useState<string[]>(report.blockers?.length ? report.blockers : report.snapshotJson?.insights?.blockers || []);
   const [recommendations, setRecommendations] = useState<string[]>(report.recommendations?.length ? report.recommendations : report.snapshotJson?.insights?.recommendations || []);
-  const [clientActions, setClientActions] = useState<string[]>(report.clientActions?.length ? report.clientActions : report.snapshotJson?.insights?.clientActions || []);
+  const [clientActions] = useState<string[]>(report.clientActions?.length ? report.clientActions : report.snapshotJson?.insights?.clientActions || []);
 
   const snapshot = report.snapshotJson;
   const isApproved = report.status === 'approved' || report.status === 'shared';

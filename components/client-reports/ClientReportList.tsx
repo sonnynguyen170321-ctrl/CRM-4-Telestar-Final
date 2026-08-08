@@ -6,8 +6,6 @@ import {
   FileBarChart,
   Plus,
   Search,
-  Filter,
-  Eye,
   Link2,
   Download,
   Calendar,
@@ -15,11 +13,8 @@ import {
   CheckCircle2,
   Clock,
   Archive,
-  MoreVertical,
-  ExternalLink,
-  Trash2,
 } from 'lucide-react';
-import { ClientReportListItem, ReportStatus, ReportAudience } from '@/lib/client-reports/types';
+import { ClientReportListItem, ReportStatus } from '@/lib/client-reports/types';
 import CreateClientReportModal from './CreateClientReportModal';
 import ClientReportShareModal from './ClientReportShareModal';
 

@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   CalendarDays,
   Search,
-  SlidersHorizontal,
   ExternalLink,
   CheckCircle2,
   AlertCircle,
@@ -14,11 +13,8 @@ import {
   RefreshCw,
   Send,
   Calendar,
-  XCircle,
-  FileCheck2,
 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
-import { useAppContext } from '@/context/AppContext';
 import MeetingStatusBadge from '@/components/meetings/MeetingStatusBadge';
 import dynamic from 'next/dynamic';
 
@@ -89,7 +85,6 @@ interface MeetingRecord {
 }
 
 export default function MeetingsPage() {
-  const { isManager } = useAppContext();
   const { showToast } = useToast();
   const [meetings, setMeetings] = useState<MeetingRecord[]>([]);
   const [loading, setLoading] = useState(true);

@@ -86,7 +86,7 @@ const leadgen: SessionUser = {
   tenantId,
 };
 
-let campaignA = '';
+let _campaignA = '';
 let campaignB = '';
 let campaignC = '';
 let campaignD = '';
@@ -191,7 +191,7 @@ beforeAll(async () => {
     const c = await mkCampaign('Campaign C', clientPaused.id, 'active');
     const d = await mkCampaign('Campaign D', clientActive.id, 'paused');
     const e = await mkCampaign('Campaign E', clientActive.id, 'completed');
-    campaignA = a.id;
+    _campaignA = a.id;
     campaignB = b.id;
     campaignC = c.id;
     campaignD = d.id;

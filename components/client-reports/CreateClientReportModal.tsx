@@ -25,7 +25,7 @@ export default function CreateClientReportModal({ isOpen, onClose }: Props) {
   const router = useRouter();
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignItem[]>([]);
-  const [loadingInitial, setLoadingInitial] = useState(false);
+  const [, setLoadingInitial] = useState(false);
 
   // Form State
   const [clientId, setClientId] = useState('');
@@ -35,7 +35,7 @@ export default function CreateClientReportModal({ isOpen, onClose }: Props) {
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
   const [audience, setAudience] = useState<ReportAudience>('client');
-  const [sdrDisplayMode, setSdrDisplayMode] = useState<SdrDisplayMode>('first_last_initial');
+  const [sdrDisplayMode] = useState<SdrDisplayMode>('first_last_initial');
 
   // Preview & Submit State
   const [previewing, setPreviewing] = useState(false);
