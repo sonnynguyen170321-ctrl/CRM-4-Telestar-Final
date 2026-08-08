@@ -311,6 +311,9 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
 
   // OutboundMessage (idempotent) + enqueue the actual provider send.
   const outbound = await createOutboundMessage({
+    // The task row is what makes this send unique and survives every retry and
+    // re-render. A/B variant choice and rendered copy deliberately do not enter the key.
+    source: { kind: 'task', taskId: task.id },
     leadId: task.lead.id,
     accountId: account.id,
     templateId: template.id,

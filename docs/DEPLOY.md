@@ -152,8 +152,8 @@ The email-health pass reads only data the inbox sync has already stored, so it i
 at any offset — but it is pointless more often than hourly, since its windows are 24h and 7d.
 
 The maintenance sweep enqueues one `maintenance.repair` job per tenant, covering
-`orphan-tasks`, `stale-sending`, `stuck-running`, `missing-delayed`, `reassignment-drift`
-and `audit-prune`. Narrow it with `?types=audit-prune,orphan-tasks` — unknown names return
+`orphan-tasks`, `stale-sending`, `outbound-reconcile`, `stuck-running`, `missing-delayed`,
+`reassignment-drift` and `audit-prune`. Narrow it with `?types=audit-prune,orphan-tasks` — unknown names return
 400 rather than being silently dropped, so a typo in the crontab is visible.
 
 **`audit-prune` is the only repair that deletes rows.** `lib/audit.ts` writes an AuditLog
@@ -229,10 +229,11 @@ corrected below.
 ### The two corrections
 
 **The image is pulled from GHCR, not built on the box.** `.github/workflows/docker-image.yml`
-builds on every push to `main` and pushes both `:latest` and `:sha-<7>`. `web` and `worker`
-run `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final:${IMAGE_TAG:-latest}`. So the deploy
-is `pull`, never `build` — `docker-compose.build.yml` is an optional overlay that is *not*
-what runs. The deployment record's "built on the VM from source" was stale.
+publishes `:latest`, `:sha-<7>` and the full-SHA tag — but only after CI has concluded
+successfully, so a red build ships nothing. `web` and `worker` both run
+`${CRM_IMAGE:?…}`, which has no default and must be a digest or a full-SHA tag. So the
+deploy is `pull`, never `build` — `docker-compose.build.yml` is an optional overlay that is
+*not* what runs. The deployment record's "built on the VM from source" was stale.
 
 **Every compose command needs `--env-file .env.production`.** There is no `.env` in
 `/opt/crm-4-u`, and `docker-compose.aws.yml` sets `DATABASE_URL`, `AUTH_SECRET`,
@@ -252,6 +253,25 @@ Paths and names below are as verified: project `crm-4-u`, rooted at `/opt/crm-4-
 the login user (no `sudo` needed for `git`).
 
 ```bash
+cd /opt/crm-4-u
+git pull origin main && git log --oneline -1 && git status --short
+./scripts/deploy.sh
+```
+
+That is the whole deploy. `scripts/deploy.sh` prompts for the Cloud SQL backup, resolves
+the image for `HEAD` **to a digest**, migrates with that image, pins `.env.production` to
+it, restarts `web` and `worker`, runs the post-deploy smoke test, and appends a record to
+`deployments.ndjson`. Pass a full 40-character SHA to deploy a specific commit.
+
+> **`IMAGE_TAG=latest` is gone and `docker compose up -d` no longer works on its own.**
+> `docker-compose.yml` uses `${CRM_IMAGE:?…}` with no default, so compose refuses to start
+> without an exact reference. That is deliberate: `:latest` meant two `up -d` runs a week
+> apart could start different code with nothing recording the change, and `web` and
+> `worker` could silently end up on different builds.
+
+The manual equivalent, if you need to do it by hand:
+
+```bash
 # 0 — shorthand, since every command repeats it
 cd /opt/crm-4-u
 DC="sudo docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.aws.yml"
@@ -261,23 +281,23 @@ DC="sudo docker compose --env-file .env.production -f docker-compose.yml -f dock
 gcloud sql backups create --instance=telestar-db --project=telestar-crm-final
 gcloud sql backups list  --instance=telestar-db --project=telestar-crm-final --limit=3
 
-# 2 — pull the code
-git pull origin main && git log --oneline -1 && git status --short
+# 2 — resolve the commit's image to a digest. If the tag does not resolve, CI did not
+#     publish it, which means CI did not pass. Do not reach for :latest.
+SHA=$(git rev-parse HEAD)
+sudo docker pull ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final:$SHA
+DIGEST=$(sudo docker inspect --format '{{index .RepoDigests 0}}' \
+  ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final:$SHA | sed 's/.*@//')
+echo "$DIGEST"
 
-# 3 — pull the image for exactly this commit. This doubles as the CI check: if the tag
-#     resolves, the workflow built and pushed it. Do not fall back to :latest blindly.
-SHA=$(git rev-parse --short=7 HEAD)
-sudo docker pull ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final:sha-$SHA
-sudo docker pull ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final:latest
-sudo docker images --digests ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final | head -5
-#     The :latest and :sha-* digests must match, otherwise someone pushed after you —
-#     set IMAGE_TAG=sha-$SHA in .env.production and deploy that instead.
+# 3 — pin it, keeping the digest it replaces so rollback needs no lookup.
+#     CRM_IMAGE=ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@$DIGEST
+#     PREVIOUS_CRM_IMAGE=<whatever CRM_IMAGE was>
 
 # 4 — what is pending? read-only.
 $DC run --rm --no-deps web node node_modules/prisma/build/index.js migrate status
 
-# 5 — apply. NEVER `migrate dev` or `migrate reset` here: package.json wires prisma.seed,
-#     and the seed has 17 unfiltered deleteMany() calls including tenant and user.
+# 5 — apply. NEVER `migrate dev` or `migrate reset` here — the demo seed deletes every
+#     tenant and user. (Since 9908642 the seed guard also refuses a remote database.)
 $DC run --rm --no-deps web node node_modules/prisma/build/index.js migrate deploy
 
 # 6 — swap the containers. Name the services: a bare `up -d` also starts the unused
@@ -289,9 +309,15 @@ $DC ps --format 'table {{.Name}}\t{{.Image}}\t{{.Status}}'
 ### Verify
 
 ```bash
-curl -s http://34.142.236.46/api/health                 # {"ok":true,...}
-curl -s -o /dev/null -w '%{http_code}\n' http://34.142.236.46/admin   # 307, not 404
+DEPLOYED_COMMIT=$(git rev-parse HEAD) BASE_URL=http://34.142.236.46 \
+  ./scripts/post-deploy-smoke.sh
 ```
+
+Six checks: `/api/health` ok, **the commit web reports matches the one deployed**, `/admin`
+redirects rather than 404s, `/login` renders, **`web` and `worker` are the same image
+digest**, and the worker registered its queues. `/api/health` now returns `commit`,
+`version` and `builtAt`, baked into the image at build time — so it describes what is
+actually running, not what a tag currently points at.
 
 Then the post-deploy gate, **from a workstation, not the VM**:
 
@@ -339,13 +365,20 @@ the public IP or on TLS being present later.
 ### Rollback
 
 ```bash
-sudo docker pull ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final:sha-<previous>
-# set IMAGE_TAG=sha-<previous> in .env.production, then:
-$DC up -d web worker
+cd /opt/crm-4-u && ./scripts/rollback.sh
 ```
 
-The `20260806000000` migration only creates indexes, so the previous build runs against the
-new schema unchanged — no down-migration needed.
+Deploys `PREVIOUS_CRM_IMAGE`, which `scripts/deploy.sh` wrote on the last deploy — so a
+rollback needs no registry lookup, no checkout and no rebuild. Pass a digest explicitly to
+go somewhere else; the script refuses any reference that is not a digest or a full-SHA tag.
+It also sets `PREVIOUS_CRM_IMAGE` to the image it just rolled off, so a bad rollback is
+itself reversible, and it appends a `"kind":"rollback"` record.
+
+**Migrations are not reversed.** Compare the `migration` field of the last two entries in
+`deployments.ndjson` before rolling back across a schema change; if the older image cannot
+run against the newer schema, restore the Cloud SQL backup instead. The `20260806000000`
+migration only creates indexes and `20260807000000` only adds nullable/defaulted columns,
+so both are safe to roll back across today.
 
 **Sign-in latency (UX-002) — measured, no action needed.** Three consecutive credential
 round-trips against the live box: **0.55s / 0.55s / 0.51s**, and `/login` in 0.21s. The 37s

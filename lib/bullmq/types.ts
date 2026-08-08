@@ -142,6 +142,7 @@ export interface MaintenanceRepairPayload {
   types: (
     | 'orphan-tasks'
     | 'stale-sending'
+    | 'outbound-reconcile'
     | 'stuck-running'
     | 'missing-delayed'
     | 'reassignment-drift'

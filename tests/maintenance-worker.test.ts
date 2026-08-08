@@ -10,6 +10,7 @@ const mockJobRunFindMany = vi.fn();
 const mockJobRunUpdate = vi.fn();
 const mockAuditFindMany = vi.fn();
 const mockAuditDeleteMany = vi.fn();
+const mockNotificationCreate = vi.fn();
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -34,6 +35,9 @@ vi.mock('@/lib/prisma', () => ({
     auditLog: {
       findMany: (...args: unknown[]) => mockAuditFindMany(...args),
       deleteMany: (...args: unknown[]) => mockAuditDeleteMany(...args),
+    },
+    notification: {
+      create: (...args: unknown[]) => mockNotificationCreate(...args),
     },
   },
 }));
@@ -105,17 +109,114 @@ describe('handleRepair — stale-sending', () => {
     });
   });
 
-  it('marks stale sending messages without providerMessageId as failed', async () => {
+  it('parks stale sending messages without providerMessageId for reconciliation, not retry', async () => {
+    // This used to write `failed`, which returned the row to the claimable pool — one
+    // manual retry away from a second delivery of a message that may already have gone.
     const oldDate = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    mockOutboundFindMany.mockResolvedValue([{ id: 'msg-2', providerMessageId: null, updatedAt: oldDate }]);
+    mockOutboundFindMany.mockResolvedValue([{ id: 'msg-2', providerMessageId: null, claimedAt: oldDate }]);
 
     const result = await handleRepair({ types: ['stale-sending'] });
 
     expect(result['stale-sending'].fixed).toBe(1);
     expect(mockOutboundUpdate).toHaveBeenCalledWith({
       where: { id: 'msg-2' },
-      data: { status: 'failed', errorMessage: expect.any(String) },
+      data: { status: 'reconciliation_required', errorMessage: expect.any(String) },
     });
+  });
+
+  it('ages stale sends off claimedAt, which no unrelated write resets', async () => {
+    mockOutboundFindMany.mockResolvedValue([]);
+
+    await handleRepair({ types: ['stale-sending'] });
+
+    expect(mockOutboundFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: 'sending', claimedAt: { lt: expect.any(Date) } },
+      })
+    );
+  });
+});
+
+describe('handleRepair — outbound-reconcile', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 60 * 60 * 1000);
+
+  function ambiguousRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'msg-1',
+      providerMessageId: null,
+      repliedAt: null,
+      bouncedAt: null,
+      claimedAt: hoursAgo(48),
+      updatedAt: hoursAgo(48),
+      to: 'prospect@example.com',
+      tenantId: 'tenant-1',
+      lead: { id: 'lead-1', assignedToId: 'user-1' },
+      ...overrides,
+    };
+  }
+
+  it('settles an ambiguous send as sent once delivery evidence appears', async () => {
+    mockOutboundFindMany.mockResolvedValue([ambiguousRow({ providerMessageId: 'prov-7' })]);
+
+    const result = await handleRepair({ types: ['outbound-reconcile'] });
+
+    expect(result['outbound-reconcile'].fixed).toBe(1);
+    expect(mockOutboundUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: { status: 'sent', sentAt: expect.any(Date), errorMessage: null },
+    });
+    expect(mockNotificationCreate).not.toHaveBeenCalled();
+  });
+
+  it('accepts a reply as evidence the message was delivered', async () => {
+    mockOutboundFindMany.mockResolvedValue([ambiguousRow({ repliedAt: hoursAgo(1) })]);
+
+    await handleRepair({ types: ['outbound-reconcile'] });
+
+    expect(mockOutboundUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: { status: 'sent', sentAt: expect.any(Date), errorMessage: null },
+    });
+  });
+
+  it('leaves a recently ambiguous send alone so evidence can still arrive', async () => {
+    mockOutboundFindMany.mockResolvedValue([ambiguousRow({ claimedAt: hoursAgo(2) })]);
+
+    const result = await handleRepair({ types: ['outbound-reconcile'] });
+
+    expect(result['outbound-reconcile'].fixed).toBe(0);
+    expect(mockOutboundUpdate).not.toHaveBeenCalled();
+  });
+
+  it('gives up past the grace window without resending, and tells the owner', async () => {
+    mockOutboundFindMany.mockResolvedValue([ambiguousRow()]);
+
+    const result = await handleRepair({ types: ['outbound-reconcile'] });
+
+    expect(result['outbound-reconcile'].fixed).toBe(1);
+    expect(mockOutboundUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: { status: 'permanently_failed', errorMessage: expect.stringContaining('not resent') },
+    });
+    expect(mockNotificationCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: 'user-1',
+        type: 'email_unconfirmed',
+        tenantId: 'tenant-1',
+      }),
+    });
+  });
+
+  it('is safe to run twice — the second pass sees nothing left to do', async () => {
+    mockOutboundFindMany.mockResolvedValueOnce([ambiguousRow()]).mockResolvedValueOnce([]);
+
+    const first = await handleRepair({ types: ['outbound-reconcile'] });
+    const second = await handleRepair({ types: ['outbound-reconcile'] });
+
+    expect(first['outbound-reconcile'].fixed).toBe(1);
+    expect(second['outbound-reconcile'].fixed).toBe(0);
   });
 });
 

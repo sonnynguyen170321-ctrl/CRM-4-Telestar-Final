@@ -1,9 +1,21 @@
+# Publish the release image.
+#
+# This workflow does not validate anything — CI does. It runs only after CI has succeeded
+# on `main`, so a commit that fails type-checking, tests, Playwright or the migration
+# replay never produces a published image. Validation-only Docker builds happen in the
+# `docker` job of ci.yml, including on pull requests.
+#
+# `workflow_run` runs against the default branch's copy of this file with a read/write
+# token, so it must not check out or execute pull-request code. It checks out the exact
+# commit CI validated, by SHA.
+
 name: Docker Image
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -15,43 +27,81 @@ env:
   IMAGE_NAME: sonnynguyen170321-ctrl/crm-4-telestar-final
 
 jobs:
-  build:
+  publish:
+    name: Build and push
+    # `workflow_run` fires on completion regardless of outcome, so the conclusion has to
+    # be tested explicitly — without this, a failed CI run would publish an image.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          # The commit CI actually validated — not whatever main points at now.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # Tags are needed to resolve a release version with `git describe`.
+          fetch-depth: 0
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Resolve the validated commit
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          echo "BUILD_SHA=${SHA}" >> "$GITHUB_ENV"
+          echo "BUILD_SHA_SHORT=${SHA::7}" >> "$GITHUB_ENV"
+          echo "BUILT_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+          # A release tag when this commit carries one, otherwise the commit itself.
+          # An annotated release tag is never overwritten; `latest` is not a version.
+          VERSION="$(git describe --tags --exact-match "$SHA" 2>/dev/null || echo "$SHA")"
+          echo "BUILD_VERSION=${VERSION}" >> "$GITHUB_ENV"
+        shell: bash
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build image
-        if: github.event_name == 'pull_request'
-        run: |
-          set -o pipefail
-          docker buildx build --progress=plain --file ./Dockerfile . 2>&1 | tee docker-build.log
-        shell: bash
-
       - name: Build and push image
-        if: github.event_name != 'pull_request'
         run: |
           set -o pipefail
           docker buildx build \
             --progress=plain \
             --file ./Dockerfile \
+            --build-arg "APP_COMMIT=${BUILD_SHA}" \
+            --build-arg "APP_VERSION=${BUILD_VERSION}" \
+            --build-arg "APP_BUILT_AT=${BUILT_AT}" \
             --tag "${REGISTRY}/${IMAGE_NAME}:latest" \
-            --tag "${REGISTRY}/${IMAGE_NAME}:sha-${GITHUB_SHA::7}" \
-            --label "org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "${REGISTRY}/${IMAGE_NAME}:sha-${BUILD_SHA_SHORT}" \
+            --tag "${REGISTRY}/${IMAGE_NAME}:${BUILD_SHA}" \
+            --label "org.opencontainers.image.created=${BUILT_AT}" \
+            --label "org.opencontainers.image.revision=${BUILD_SHA}" \
+            --label "org.opencontainers.image.version=${BUILD_VERSION}" \
             --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
             --label "org.opencontainers.image.title=${GITHUB_REPOSITORY#*/}" \
+            --metadata-file metadata.json \
             --push \
             . 2>&1 | tee docker-build.log
+        shell: bash
+
+      # Task 5 deploys by digest. Recording it here is what makes that possible without
+      # trusting a mutable tag.
+      - name: Record the published digest
+        run: |
+          DIGEST=$(node -e "console.log(require('./metadata.json')['containerimage.digest'])")
+          echo "Published ${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+          {
+            echo "## Published image"
+            echo
+            echo "| field | value |"
+            echo "| --- | --- |"
+            echo "| commit | \`${BUILD_SHA}\` |"
+            echo "| digest | \`${DIGEST}\` |"
+            echo "| immutable tag | \`${REGISTRY}/${IMAGE_NAME}:${BUILD_SHA}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
         shell: bash
 
       - name: Summarize Docker build failure

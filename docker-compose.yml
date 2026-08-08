@@ -1,5 +1,12 @@
+# `web` and `worker` both inherit this anchor, so they cannot be pinned to different
+# images by accident — there is one image reference in this file and both use it.
+#
+# CRM_IMAGE has no default, deliberately. `${VAR:?message}` makes compose refuse to start
+# rather than silently resolving to `:latest`, which is a mutable tag: two `up -d` runs a
+# week apart could start different code with no record of the change. Set it to a digest
+# (…@sha256:…) or a full-SHA tag. `scripts/deploy.sh` resolves the digest for you.
 x-app-base: &app-base
-  image: ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final:${IMAGE_TAG:-latest}
+  image: ${CRM_IMAGE:?CRM_IMAGE is required and must be an exact image reference — a digest (ghcr.io/...@sha256:...) or a full-git-sha tag. Never :latest. Run scripts/deploy.sh, or see docs/DEPLOY.md.}
   env_file:
     - ${APP_ENV_FILE:-.env.docker}
   environment:

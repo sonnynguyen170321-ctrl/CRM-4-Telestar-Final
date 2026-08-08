@@ -1,3 +1,13 @@
+# Mandatory quality gates.
+#
+# Every job here is intended to be a *required* status check on `main` (see
+# docs/BRANCH_PROTECTION.md). Nothing in this file publishes anything — image publishing
+# lives in docker-image.yml and only runs after this workflow succeeds, so a red build
+# cannot ship an image.
+#
+# Third-party actions are pinned to commit SHAs, not tags: a tag is mutable and an
+# attacker who moves it runs their code with this workflow's token.
+
 name: CI
 
 on:
@@ -5,35 +15,66 @@ on:
     branches: [main]
   pull_request:
 
+# A new push to the same branch makes the previous run irrelevant. `main` is excluded from
+# cancellation so the run that gates publishing always completes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+env:
+  # Matches node:24-bookworm-slim in the Dockerfile. Drifting from the production image
+  # means CI can pass on a runtime nobody deploys.
+  NODE_VERSION: '24'
+  # The seed guard requires a database name containing dev/development/test/local; this
+  # name is what makes the CI database seedable at all. See lib/seed-guard.ts.
+  CI_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/telestar_crm_test
+  # CI-only throwaway values. Real secrets never appear in this file.
+  AUTH_SECRET: ci-auth-secret
+  ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  NEXTAUTH_URL: http://localhost:3000
+
 jobs:
-  check:
+  # ── Static analysis and unit/integration tests ─────────────────────────────
+  quality:
+    name: Lint · types · tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: telestar_crm
+          POSTGRES_DB: telestar_crm_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d telestar_crm"
+          --health-cmd "pg_isready -U postgres -d telestar_crm_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/telestar_crm
-      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/telestar_crm
-      AUTH_SECRET: ci-auth-secret
-      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-      NEXTAUTH_URL: http://localhost:3000
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/telestar_crm_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/telestar_crm_test
+      REDIS_URL: redis://localhost:6379
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       - name: Install dependencies
@@ -45,18 +86,374 @@ jobs:
       - name: Apply database migrations
         run: npx prisma migrate deploy
 
-      - name: Seed CI database
-        run: npm run db:seed
-
+      # Each gate tees its output so the failure summary below can quote the decisive
+      # lines into the run page. Reading a red job should not require an API token.
       - name: Lint
-        run: npm run lint
+        run: set -o pipefail; npm run lint 2>&1 | tee lint.log
+        shell: bash
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: set -o pipefail; npx tsc --noEmit 2>&1 | tee tsc.log
+        shell: bash
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Tests
-        run: npm test
+        run: set -o pipefail; npm test 2>&1 | tee vitest.log
+        shell: bash
 
-      # - name: Deploy to Vercel
-      #   run: npx vercel deploy --prod --token ${{ secrets.VERCEL_TOKEN }}
+      - name: Summarize failure
+        if: failure()
+        run: |
+          {
+            echo "## Lint · types · tests — failure"
+            echo
+            for f in lint.log tsc.log vitest.log; do
+              [ -f "$f" ] || continue
+              echo "### ${f}"
+              echo
+              echo '```text'
+              tail -n 60 "$f"
+              echo '```'
+              echo
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
 
+  # ── The migration history must match the schema, and must replay from empty ──
+  migrations:
+    name: Migration validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: telestar_crm_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d telestar_crm_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/telestar_crm_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/telestar_crm_test
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create shadow database
+        run: PGPASSWORD=postgres psql -h localhost -U postgres -c 'CREATE DATABASE telestar_shadow;'
+        shell: bash
+
+      # Two failures in one command. `migrate diff` replays every migration from empty
+      # into the shadow database — so a migration that only applies to an already-drifted
+      # developer machine errors here — and `--exit-code` then returns 2 if the resulting
+      # database and schema.prisma describe different things. That drift is what produces
+      # "works locally, breaks on deploy".
+      - name: Replay migrations from empty and fail on schema drift
+        run: |
+          npx prisma migrate diff \
+            --from-migrations ./prisma/migrations \
+            --to-schema-datamodel ./prisma/schema.prisma \
+            --shadow-database-url postgresql://postgres:postgres@localhost:5432/telestar_shadow \
+            --exit-code
+        shell: bash
+
+  # ── Production build + end-to-end journeys against it ─────────────────────
+  e2e:
+    name: Build · Playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: telestar_crm_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d telestar_crm_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/telestar_crm_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/telestar_crm_test
+      REDIS_URL: redis://localhost:6379
+      # The operating restrictions for this phase: no live sending, ever, from CI.
+      EMAIL_SEND_DRY_RUN: 'true'
+      SEQUENCE_AUTOSEND_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Apply database migrations
+        run: npx prisma migrate deploy
+
+      # The e2e specs sign in as each persona, so they need the demo dataset. This is the
+      # one place the destructive seed is allowed to run: an ephemeral service container
+      # whose database name ends in `_test`. The password is generated per run and never
+      # leaves the job.
+      - name: Mint a per-run demo password
+        run: echo "E2E_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+        shell: bash
+
+      - name: Run demo seed
+        run: set -o pipefail; npm run db:seed 2>&1 | tee seed.log
+        shell: bash
+        env:
+          ALLOW_DESTRUCTIVE_SEED: I_UNDERSTAND_THIS_DELETES_ALL_DATA
+          DEMO_SEED_PASSWORD: ${{ env.E2E_PASSWORD }}
+
+      - name: Production build
+        run: set -o pipefail; npm run build 2>&1 | tee build.log
+        shell: bash
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      # BASE_URL is set, so playwright.config.ts does NOT boot its own dev server — we
+      # test the production build instead, which is what actually ships.
+      - name: Start the production server
+        run: |
+          npm start > server.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sSf -o /dev/null http://localhost:3000/login; then
+              echo "server up after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Server did not answer /login within 120s"
+          tail -n 100 server.log
+          exit 1
+        shell: bash
+
+      # The two suites CLAUDE.md tracks as the gate. `user-flow-31step.spec.ts` is
+      # deliberately excluded: it is not part of the documented 20/20 and has never been
+      # run green in CI, so requiring it would block merges on an unknown.
+      - name: Playwright
+        run: set -o pipefail; npx playwright test crm-journeys deep-smoke 2>&1 | tee playwright.log
+        shell: bash
+        env:
+          BASE_URL: http://localhost:3000
+
+      - name: Summarize failure
+        if: failure()
+        run: |
+          {
+            echo "## Build · Playwright — failure"
+            echo
+            for f in seed.log build.log playwright.log server.log; do
+              [ -f "$f" ] || continue
+              echo "### ${f}"
+              echo
+              echo '```text'
+              tail -n 60 "$f"
+              echo '```'
+              echo
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ── The image must build; publishing it is docker-image.yml's job ─────────
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build image
+        run: |
+          set -o pipefail
+          docker buildx build --progress=plain --file ./Dockerfile . 2>&1 | tee docker-build.log
+        shell: bash
+
+      - name: Summarize Docker build failure
+        if: failure()
+        run: |
+          {
+            echo "## Docker build log tail"
+            echo
+            echo '```text'
+            if [ -f docker-build.log ]; then
+              tail -n 160 docker-build.log
+            else
+              echo "docker-build.log was not created."
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
+
+  # ── Secrets must not enter the history ────────────────────────────────────
+  # Run through the gitleaks Docker image rather than gitleaks-action: the action
+  # requires a paid licence key for organisation-owned repositories and would start
+  # failing the moment this repo moves into an org. The scanner itself is MIT.
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      # --verbose is not optional: without it gitleaks prints only "leaks found: N" and
+      # never says where, which is a failure you cannot act on. The JSON report is parsed
+      # into the job summary below so the findings are readable from the run page without
+      # downloading anything or holding an API token.
+      - name: gitleaks
+        run: |
+          set -o pipefail
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0 \
+            detect --source=/repo --config=/repo/.gitleaks.toml \
+            --redact --no-banner --verbose \
+            --report-format json --report-path /repo/gitleaks-report.json \
+            --exit-code 1 2>&1 | tee gitleaks.log
+        shell: bash
+
+      - name: Summarize gitleaks findings
+        if: failure()
+        run: |
+          {
+            echo "## gitleaks output"
+            echo
+            echo '```text'
+            tail -n 40 gitleaks.log 2>/dev/null || echo "no gitleaks.log"
+            echo '```'
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          node -e '
+            const fs = require("fs");
+            if (!fs.existsSync("gitleaks-report.json")) {
+              console.log("## Secret scan\n");
+              console.log("No report file — gitleaks exited before writing one. That means the run failed on configuration (a malformed .gitleaks.toml, a bad flag) rather than on a finding. See the raw output above.");
+              process.exit(0);
+            }
+            const findings = JSON.parse(fs.readFileSync("gitleaks-report.json", "utf8"));
+            const rows = findings.map(f => `| \`${f.RuleID}\` | \`${f.File}\` | ${f.StartLine} | ${(f.Commit||"").slice(0,7)} | ${f.Date||""} |`);
+            console.log("## Secret scan findings\n");
+            console.log(`${findings.length} finding(s). Secret values are redacted.\n`);
+            console.log("| rule | file | line | commit | date |");
+            console.log("| --- | --- | --- | --- | --- |");
+            console.log(rows.join("\n"));
+            console.log("\nA finding in an old commit is still a finding: the value is in the history and must be treated as disclosed. Rotate first, then allowlist that path in .gitleaks.toml with a reason.");
+          ' >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
+
+      - name: Upload gitleaks report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ── New dependencies must not arrive with known vulnerabilities ──────────
+  # Pull requests only: the action diffs the PR's manifest against the base branch.
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        with:
+          fail-on-severity: high
+
+  # ── Static security analysis ─────────────────────────────────────────────
+  # Requires a public repository, or GitHub Advanced Security on a private one. Do NOT
+  # add this to the required checks until a run has been seen green — on a private repo
+  # without GHAS the upload step fails and would block every merge.
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - uses: github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3
+        with:
+          languages: javascript-typescript
+
+      - uses: github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3
+
+  # ── One check to require, so branch protection needs updating far less often ──
+  # `always()` plus an explicit result test is deliberate: without it a skipped or
+  # cancelled dependency reports success and this gate waves the merge through.
+  ci-required:
+    name: CI required checks
+    if: always()
+    needs: [quality, migrations, e2e, docker, secret-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail unless every required job succeeded
+        run: |
+          cat <<'RESULTS'
+          quality      : ${{ needs.quality.result }}
+          migrations   : ${{ needs.migrations.result }}
+          e2e          : ${{ needs.e2e.result }}
+          docker       : ${{ needs.docker.result }}
+          secret-scan  : ${{ needs.secret-scan.result }}
+          RESULTS
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" = "true" ]; then
+            echo "::error::A required job did not succeed."
+            exit 1
+          fi
+        shell: bash

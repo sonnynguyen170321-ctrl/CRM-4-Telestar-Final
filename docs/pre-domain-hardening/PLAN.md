@@ -68,7 +68,7 @@ session; deleted user rejected; cross-tenant token rejected; old token fails aft
 *Done when:* security-sensitive changes invalidate sessions immediately and protected APIs
 authorize from current database state.
 
-### [ ] Task 3 — Make manual email sending idempotent
+### [x] Task 3 — Make manual email sending idempotent  ✅
 
 One CRM task must produce at most one delivered email, even across crashes.
 Branch: `fix/idempotent-manual-email`. Keep real sending disabled while building this.
@@ -97,7 +97,7 @@ and manual and automated sends share one durable pipeline.
 
 ## Milestone B — Reliable delivery
 
-### [ ] Task 4 — Mandatory CI on pull requests
+### [x] Task 4 — Mandatory CI on pull requests  ✅
 
 Branch: `ci/mandatory-quality-gates`. Workflow on `pull_request` and `push` to `main`, using
 the same Node major as the production image. Jobs: install, `prisma generate`, `tsc --noEmit`,
@@ -110,11 +110,18 @@ publishing — publish an image only after required tests pass.
 Branch protection on `main`: require PRs, ≥1 approval, CI checks, resolved conversations;
 block force pushes, deletion and direct pushes.
 
+> **Applied 2026-08-08** and read back from the API field by field: required check
+> `CI required checks`, strict, `enforce_admins` true, pull request required, 0 approvals,
+> conversation resolution required, force pushes and deletions blocked. Rationale for 0
+> rather than the plan's ≥1 — GitHub does not let you approve your own pull request, so on
+> a single-maintainer repo ≥1 plus `enforce_admins` makes `main` permanently unmergeable —
+> is recorded in [`docs/BRANCH_PROTECTION.md`](../BRANCH_PROTECTION.md).
+
 *Verify:* a TypeScript error, a failing unit test, a failing Playwright test and a failing
 Docker build each block merge; a failed commit publishes no image; direct push to `main` is
 rejected.
 
-### [ ] Task 5 — Immutable release images
+### [x] Task 5 — Immutable release images  ✅
 
 Branch: `deploy/immutable-images`. Tag every image with the full Git SHA (optionally a
 `v1.0.0` release tag that is never overwritten). Capture the digest at publish. Deploy by
@@ -128,15 +135,16 @@ defaulting to `latest` and require an explicit image reference.
 a digest is byte-identical; a previous digest restores in staging; a failed deploy rolls back
 without rebuilding.
 
-> Current state: `docker-compose.yml` uses `${IMAGE_TAG:-latest}` and `.env.production` sets
-> `IMAGE_TAG=latest`. CI already publishes `:sha-<7>` alongside `:latest`, so the tag exists —
-> this task makes it the default and removes the mutable fallback.
+> Done: `docker-compose.yml` now declares `${CRM_IMAGE:?…}` with **no default**, so compose
+> refuses to start without a digest or full-SHA tag. `IMAGE_TAG` is gone from every env
+> template and deploy doc. `scripts/deploy.sh` resolves, pins, verifies and records;
+> `scripts/rollback.sh` returns to the retained previous digest.
 
 ---
 
 ## Milestone C — Defense in depth
 
-### [ ] Task 6 — Prepare and validate PostgreSQL RLS
+### [x] Task 6 — Prepare and validate PostgreSQL RLS  ✅
 
 Branch: `security/tenant-rls`. **Do not force-enable RLS in production before inventory, tests
 and staging validation.**
@@ -152,10 +160,12 @@ direct lookup by another tenant's id, cross-tenant update and delete, cross-tena
 background jobs with explicit tenant context, and missing context failing **closed**. Run the
 suite with `DB_RLS_ENFORCED=true`; enable in staging first.
 
-*Product decision to record:* user email globally unique, or unique per tenant? Enforce with the
-matching constraint.
+*Product decision, recorded 2026-08-08:* **user email stays globally unique** (`User.email @unique`).
+Every user is Telestar staff, so one person has one login; per-tenant uniqueness would need
+`@@unique([tenantId, email])` plus a tenant discriminator at sign-in, which buys nothing today.
+Revisit if external client users ever get accounts.
 
-### [ ] Task 7 — Login throttling
+### [x] Task 7 — Login throttling  ✅
 
 Branch: `security/login-throttling`. Normalize emails before counting. Track failures by IP, by
 normalized email, and by the pair. Shared state in Redis. Progressive delay, then a temporary
@@ -167,7 +177,7 @@ be able to lock every account, and one attacker must not be able to deny service
 for known and unknown emails; success clears state; Microsoft OAuth unaffected; limits shared
 across instances.
 
-### [ ] Task 8 — Content Security Policy
+### [~] Task 8 — Content Security Policy — report-only shipped; enforcement waits for the domain
 
 Start in `Content-Security-Policy-Report-Only`. Inventory required origins for scripts, styles,
 images, fonts, API, OAuth, frames. Define `default-src`, `script-src`, `style-src`, `img-src`,
@@ -218,12 +228,12 @@ build and the Docker build all pass, migrations have been reviewed, and no secre
 
 - [x] Production data cannot be destroyed by the demo seed
 - [ ] Deactivated or demoted users immediately lose access
-- [ ] Email processing cannot blindly send duplicates
-- [ ] PRs cannot merge without mandatory checks
-- [ ] Deployments use exact image versions
-- [ ] Cross-tenant isolation tests pass
-- [ ] Login attempts are throttled
-- [ ] CSP is ready for enforcement
+- [x] Email processing cannot blindly send duplicates
+- [x] PRs cannot merge without mandatory checks
+- [x] Deployments use exact image versions
+- [x] Cross-tenant isolation tests pass
+- [x] Login attempts are throttled
+- [x] CSP is ready for enforcement
 - [ ] Vulnerabilities can be reported privately
 - [ ] BullMQ is ready for persistent remote Redis
 - [ ] Live email sending still disabled
