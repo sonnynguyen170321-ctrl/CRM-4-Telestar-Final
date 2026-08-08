@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { readReleaseInfo } from '@/lib/release';
+import { getMigrationStatus } from '@/lib/db/migrationStatus';
 
 // Lightweight keep-alive endpoint. Runs a trivial `SELECT 1` to keep the Neon
 // compute instance warm while the app is in active use, preventing the free-tier
@@ -20,12 +21,37 @@ export async function GET() {
 
   try {
     await prisma.$queryRaw`SELECT 1`;
+
+    // `SELECT 1` succeeds against a database that is missing columns this build selects, so
+    // reachability alone reported healthy after a deploy that skipped `prisma migrate deploy`
+    // — while every protected request 500'd. Report schema readiness too, and fail the probe
+    // when migrations are outstanding, so the post-deploy smoke test catches it first.
+    const schema = await getMigrationStatus();
+    if (schema.state === 'pending') {
+      return NextResponse.json(
+        {
+          ok: false,
+          reason: 'pending_migrations',
+          pendingMigrations: schema.pending,
+          hint: 'Run `prisma migrate deploy` against this database, then restart.',
+          ts: Date.now(),
+          commit: release.commit,
+          version: release.version,
+          builtAt: release.builtAt,
+        },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       ts: Date.now(),
       commit: release.commit,
       version: release.version,
       builtAt: release.builtAt,
+      // 'unknown' when the check itself could not run; it never fails the probe on its own,
+      // so a bug in the check cannot take down a healthy deployment.
+      schema: schema.state,
     });
   } catch {
     // Still report identity on failure: "which build is broken" is the first question.

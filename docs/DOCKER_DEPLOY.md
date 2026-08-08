@@ -127,6 +127,24 @@ Apply migrations:
 docker compose --env-file .env.production run --rm web npx prisma migrate deploy
 ```
 
+> **Migrate before starting web or worker, every time — not just on first install.**
+> Compose starts both regardless of schema state, so an upgrade that skips this step brings
+> up a build whose queries reference columns the database does not have. The symptom is a
+> Prisma *"column does not exist"* error on every authenticated request, which never mentions
+> migrations. The 2026-08-08 release is a live example: it adds `User.authVersion`, which
+> `getSessionUser` selects on **every** protected request.
+>
+> Confirm before starting the stack:
+>
+> ```bash
+> docker compose --env-file .env.production run --rm web npm run prod:check-migrations
+> ```
+>
+> It exits non-zero and names the outstanding migrations. `/api/health` enforces the same
+> thing after the fact: it returns **503** with `reason: "pending_migrations"` rather than
+> reporting healthy off a bare `SELECT 1`, so the post-deploy smoke test fails loudly instead
+> of leaving users to find it.
+
 Create the first Director:
 
 ```bash
