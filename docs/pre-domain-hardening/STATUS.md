@@ -28,9 +28,21 @@ below.
 None of these can be finished from a checkout. They are the whole remaining surface.
 
 1. **Change the Director password on the live box** (`http://34.142.236.46`). Still
-   `telestar2026`, published in this repository. Worth doing *now* rather than earlier:
-   with Task 2 merged, changing the password also increments `authVersion` and therefore
-   invalidates every session that already exists. Command is in the section below.
+   `telestar2026`, published in this repository. Changing it now also increments
+   `authVersion` and therefore invalidates every session that already exists — but only
+   since 2026-08-08, and it is worth knowing why.
+
+   > **Correction.** An earlier version of this line said the session revocation came free
+   > "with Task 2 merged". It did not. Task 2 wired `authVersion` into the *application's*
+   > password paths, while `scripts/create-admin.ts` — the only supported way to rotate this
+   > credential on a deployed box — reset the password and left `authVersion` untouched. Run
+   > as documented, it would have changed the password while every token minted under
+   > `telestar2026` kept full Director access until it expired. Fixed, with
+   > `tests/create-admin.test.ts` pinning the increment so the claim cannot silently become
+   > false again.
+
+   Command is in the section below. Note that the box is still plain HTTP, so the *new*
+   password crosses the network in cleartext at the next sign-in; TLS (UX-001) remains open.
 2. **Enable RLS on a staging target** (Task 6). The policies, roles and procedure are written
    and tested; enforcement has never been switched on anywhere, because there is no staging
    database to switch it on against.
