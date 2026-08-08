@@ -1,4 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { makeUserFindUnique } from './helpers/mockDbUser';
 import { NextRequest } from 'next/server';
 import { GET as getAuditLog } from '@/app/api/admin/audit-log/route';
 import { auth } from '@/auth';
@@ -28,10 +29,26 @@ vi.mock('@/auth', () => ({
   signOut: vi.fn(),
 }));
 
+// tenantId must match the fixtures' own tenant: getSessionUser rejects a session whose
+// token tenant differs from the row's, which is the cross-tenant check doing its job.
+const userFindUnique = makeUserFindUnique([
+  { id: 'aud-director', role: 'director', tenantId: 'admin-audit-tenant' },
+  { id: 'aud-fm', role: 'floor_manager', tenantId: 'admin-audit-tenant', reports: 1 },
+  { id: 'aud-sdr', role: 'sdr', tenantId: 'admin-audit-tenant' },
+  { id: 'aud-tl', role: 'team_lead', tenantId: 'admin-audit-tenant', reports: 1 },
+]);
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     auditLog: { findMany: auditLogFindMany },
-    user: { findMany: userFindMany },
+    // getSessionUser revalidates the session against the database on every request,
+    // so this mock has to answer findUnique or every route 401s before its role check.
+    user: {
+      findMany: userFindMany,
+      // Lazy arrow, not a direct reference: vi.mock's factory is hoisted above the
+      // const below, so naming it directly throws 'Cannot access before initialization'.
+      findUnique: (...args: unknown[]) => userFindUnique(...(args as [never])),
+    },
     campaign: { findMany: campaignFindMany },
     client: { findMany: clientFindMany },
     lead: { findMany: leadFindMany },

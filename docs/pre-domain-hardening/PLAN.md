@@ -47,7 +47,7 @@ unapproved database name; `create-admin` adds one admin without deleting anythin
 *Done when:* no normal production command can trigger destructive seeding, no reusable demo
 password remains in the repo, and production bootstrap is non-destructive.
 
-### [ ] Task 2 — Invalidate stale JWT sessions
+### [x] Task 2 — Invalidate stale JWT sessions  ✅
 
 Revoke access immediately on deactivation, demotion, tenant move or password reset.
 Branch: `fix/session-revocation`.
@@ -227,7 +227,7 @@ build and the Docker build all pass, migrations have been reviewed, and no secre
 ## Pre-domain completion gate
 
 - [x] Production data cannot be destroyed by the demo seed
-- [ ] Deactivated or demoted users immediately lose access
+- [x] Deactivated or demoted users immediately lose access
 - [x] Email processing cannot blindly send duplicates
 - [x] PRs cannot merge without mandatory checks
 - [x] Deployments use exact image versions

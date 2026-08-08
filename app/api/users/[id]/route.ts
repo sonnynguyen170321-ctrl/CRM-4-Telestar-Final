@@ -199,6 +199,20 @@ export async function PUT(
       }
     }
 
+    // Anything that changes what a token is allowed to do must invalidate tokens already
+    // issued. Sessions are stateless JWTs, so bumping `authVersion` is the only revocation
+    // mechanism — `getSessionUser` rejects any token whose stamped version no longer matches.
+    // Applied as part of the same UPDATE, so there is no window where the change is live but
+    // old sessions still carry the old authority.
+    //
+    // A password reset counts even though it does not change authority: the point of a reset
+    // is that whoever knew the old password is locked out, which is false if their session
+    // survives.
+    const revokesSessions = roleChanged || activeChanged || Boolean(updateData.password);
+    if (revokesSessions) {
+      updateData.authVersion = { increment: 1 };
+    }
+
     const user = await prisma.user.update({
       where: { id },
       data: updateData,

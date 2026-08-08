@@ -1,4 +1,5 @@
-import { vi, describe, it, expect } from 'vitest';
+import { vi, describe, it, expect, beforeAll } from 'vitest';
+import { ensureSessionUsers } from './helpers/sessionUser';
 import { canAccessLead, getLeadWhereScope, type SessionUser } from '@/lib/auth';
 import { GET as getAssignments, POST as postAssignment } from '@/app/api/admin/assignments/route';
 import { auth } from '@/auth';
@@ -22,8 +23,15 @@ const teamLead: SessionUser = {
   id: 'tl-1', email: 'brandon@telestar.vn', firstName: 'Brandon', lastName: '', role: 'team_lead',
 };
 
-// These cases all short-circuit before any prisma call (sdr/director roles), so they
-// run without a database and are safe in CI.
+// Session revalidation (Task 2) re-checks every request against the database, so these
+// fixtures need real rows -- otherwise the routes answer 401 (unauthenticated) before
+// reaching the role check these tests assert on.
+beforeAll(async () => {
+  await ensureSessionUsers(sdr, director, teamLead);
+});
+
+// The canAccessLead cases below still short-circuit before any prisma call for sdr and
+// director roles; the route cases exercise the full authorization path.
 describe('canAccessLead — user axis vs account axis', () => {
   it('an SDR can access their own lead', async () => {
     expect(await canAccessLead(sdr, { assignedToId: sdr.id, campaignId: 'camp-1' })).toBe(true);

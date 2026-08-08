@@ -178,6 +178,7 @@ export const ADMIN_AUDIT_ACTIONS = [
   'admin.user.deactivate',
   'admin.user.reactivate',
   'admin.user.password_reset',
+  'admin.user.sign_out_all',
   'admin.user.manager_change',
   'admin.user.role_change',
   'admin.campaign.member_add',

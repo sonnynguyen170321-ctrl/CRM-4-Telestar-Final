@@ -27,6 +27,7 @@ export const authConfig: NextAuthConfig = {
         token.role = (user as any).role;
         token.isManager = (user as any).isManager;
         token.tenantId = (user as any).tenantId;
+        token.authVersion = (user as any).authVersion;
       }
       return token;
     },
@@ -38,6 +39,10 @@ export const authConfig: NextAuthConfig = {
         (session.user as any).role = token.role;
         (session.user as any).isManager = token.isManager;
         (session.user as any).tenantId = token.tenantId;
+        // Carried through so `getSessionUser` can compare it against the row. The middleware
+        // in proxy.ts is edge-side and cannot reach the database — it only checks that a token
+        // exists. Revocation is enforced server-side, not here.
+        (session.user as any).authVersion = token.authVersion;
       }
       return session;
     },

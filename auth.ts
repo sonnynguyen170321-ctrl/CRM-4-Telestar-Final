@@ -100,6 +100,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             role: user.role,
             isManager: reportsCount > 0 || ['director', 'floor_manager', 'team_lead'].includes(user.role),
             tenantId: user.tenantId,
+            // Stamped into the JWT so `getSessionUser` can reject it once the row moves on.
+            authVersion: user.authVersion,
           };
         });
       },
@@ -140,6 +142,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               token.role = dbUser.role;
               token.isManager = reportsCount > 0 || ['director', 'floor_manager', 'team_lead'].includes(dbUser.role);
               token.tenantId = dbUser.tenantId;
+              token.authVersion = dbUser.authVersion;
               return token;
             }
           }
@@ -149,6 +152,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.role = (user as any).role;
           token.isManager = (user as any).isManager;
           token.tenantId = (user as any).tenantId;
+          token.authVersion = (user as any).authVersion;
         }
         return token;
       });
