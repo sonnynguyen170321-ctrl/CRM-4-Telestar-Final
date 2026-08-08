@@ -55,7 +55,7 @@
     "read-excel-file": "^9.2.0",
     "recharts": "^3.8.1",
     "sip.js": "^0.21.2",
-    "tsx": "^4.22.4",
+    "tsx": "^4.23.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {
