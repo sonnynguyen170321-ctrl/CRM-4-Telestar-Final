@@ -637,3 +637,36 @@ returned 204 and logged
 **Before enforcing:** exercise every route with the browser console open, fix real
 violations, tighten `script-src`, then change `CSP_HEADER_NAME` to
 `Content-Security-Policy`. That last step ships with the domain.
+## Task 9 — Private security reporting ✅ (2026-08-08)
+
+**GitHub private vulnerability reporting is enabled**, applied via
+`gh api -X PUT .../private-vulnerability-reporting` and confirmed by reading it back:
+`{"enabled": true}`. Note the repo object's `security_and_analysis` block does **not**
+surface this field — only the dedicated endpoint does, so "not reported" there is not
+evidence it is off.
+
+`SECURITY.md` was nine lines and its advice was self-contradictory: it asked reporters to
+open "an issue in a secure manner". There is no such thing — a public issue is a disclosure,
+and one that reaches attackers before it reaches a fix. It now points at the private
+advisory form as the only monitored channel.
+
+What it now carries, per the plan: supported versions (latest `main` only — there are no
+release branches and older images are never patched in place), what to include in a report
+(feature, reproduction, impact, redacted evidence, optional mitigation), an acknowledgement
+window of 2 business days with 5 to assess and 14 to fix a confirmed critical, a named
+incident owner, and escalation for each of the five categories the plan asks for —
+credential exposure, cross-tenant access, unauthorized email, database loss, RCE — written
+against this system's actual failure modes rather than generic advice.
+
+Two deliberate choices:
+
+- **No `security@` mailbox yet.** The plan asks for one "once the domain exists". Publishing
+  an address nobody monitors is worse than publishing none, so the file says exactly that
+  and commits to adding it with the domain.
+- **The known weaknesses are listed openly** — plain HTTP, RLS not enforced, `unsafe-inline`
+  in `script-src`, the published demo password. A researcher who reports one of those has
+  wasted their time and ours; the file asks them instead to report anything *worse than
+  described*. This is a public repository, so none of it is news to an attacker.
+
+There is no second on-call, and the file says so rather than implying a rota that does not
+exist.
