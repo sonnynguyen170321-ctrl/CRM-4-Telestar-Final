@@ -5,6 +5,7 @@ import type { SessionUser } from '@/lib/auth';
 import { isQueueReachable } from '@/lib/bullmq/health';
 import { enqueue } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
+import { collectQueueMetrics, getWorkerHeartbeat, summarizeAlerts } from '@/lib/bullmq/metrics';
 import {
   sequenceQueue,
   emailQueue,
@@ -46,18 +47,25 @@ export async function GET(_req?: NextRequest) {
 
     // getJobCounts() hangs rather than throwing when Redis is unreachable, so it
     // is only safe to call once the ping above has confirmed a live connection.
+    // Depth alone cannot distinguish a healthy burst from a dead consumer, so each queue
+    // also reports the age of its oldest waiting job. collectQueueMetrics never throws.
     const queueStats = redisReachable
-      ? await Promise.all(
-          queues.map(async (item) => {
-            try {
-              const counts = await item.q.getJobCounts();
-              return { name: item.name, counts };
-            } catch {
-              return { name: item.name, counts: null, error: 'Failed to fetch counts' };
-            }
-          })
-        )
-      : queues.map((item) => ({ name: item.name, counts: null, error: 'Redis unreachable' }));
+      ? await Promise.all(queues.map((item) => collectQueueMetrics(item.name, item.q)))
+      : queues.map((item) => ({
+          name: item.name,
+          waiting: 0,
+          active: 0,
+          delayed: 0,
+          failed: 0,
+          completed: 0,
+          oldestWaitingAgeMs: null,
+          error: 'Redis unreachable',
+        }));
+
+    // Read from Postgres, not Redis: if Redis is what is broken, a heartbeat stored in
+    // Redis is unreadable exactly when it is needed.
+    const heartbeat = await getWorkerHeartbeat();
+    const alerts = summarizeAlerts(queueStats, heartbeat);
 
     // 4. Retrieve latest healthcheck job run from database
     const latestHealthcheck = await prisma.jobRun.findFirst({
@@ -73,6 +81,8 @@ export async function GET(_req?: NextRequest) {
       redis: redisStatus,
       database: dbStatus,
       queues: queueStats,
+      heartbeat,
+      alerts,
       latestHealthcheck,
     });
   } catch (err: any) {

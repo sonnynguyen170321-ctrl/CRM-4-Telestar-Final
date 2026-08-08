@@ -198,7 +198,7 @@ credential exposure, cross-tenant access, unauthorized email, database loss and 
 
 ## Milestone D — Infrastructure readiness
 
-### [ ] Task 10 — Prepare managed Redis migration
+### [x] Task 10 — Prepare managed Redis migration  ✅
 
 Branch: `infra/managed-redis`. Inventory every queue and worker with name, producer, consumer,
 retry policy, timeout, concurrency, business impact if lost, and recovery source. Confirm
@@ -235,6 +235,6 @@ build and the Docker build all pass, migrations have been reviewed, and no secre
 - [x] Login attempts are throttled
 - [x] CSP is ready for enforcement
 - [x] Vulnerabilities can be reported privately
-- [ ] BullMQ is ready for persistent remote Redis
+- [x] BullMQ is ready for persistent remote Redis
 - [ ] Live email sending still disabled
 - [ ] HTTPS and automated backups tracked as explicitly blocked
