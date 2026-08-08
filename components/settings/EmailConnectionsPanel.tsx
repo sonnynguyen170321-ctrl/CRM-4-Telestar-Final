@@ -146,6 +146,10 @@ export default function EmailConnectionsPanel() {
     }
     const authUrl = `/api/email/oauth/google`;
     showToast('Redirecting to Google OAuth...', 'info');
+    // Full document navigation on purpose — this is not an internal page. The route replies
+    // 302 to accounts.google.com and sets the OAuth state cookie on that response.
+    // router.push() would navigate inside the app and never leave for the provider.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = authUrl;
   };
 
@@ -156,6 +160,9 @@ export default function EmailConnectionsPanel() {
     }
     const authUrl = `/api/email/oauth/microsoft`;
     showToast('Redirecting to Microsoft OAuth...', 'info');
+    // Same as Gmail above: the route 302s to login.microsoftonline.com and sets the state
+    // cookie on that response, so this has to be a real navigation.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = authUrl;
   };
 
