@@ -635,6 +635,7 @@ export default function DashboardPage() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     loggingModalOpen,
     loggingTask,
@@ -644,6 +645,16 @@ export default function DashboardPage() {
     rescheduleTask,
     meetingPrompt,
     showShortcutsHelp,
+    // `handleSkip` and `handleTaskComplete` are deliberately absent, and this is the one
+    // place in this sweep where suppressing beat "fixing". Neither is memoised — they are
+    // recreated on every render — so listing them would tear down and re-register this
+    // global keydown listener on every render of the dashboard. `handleTaskComplete` is
+    // ~120 lines touching a dozen pieces of state, so wrapping it in useCallback means
+    // enumerating those deps and getting a callback whose identity churns anyway.
+    //
+    // Both only read state that is already listed above (`visibleTasks`, `focusedTaskIndex`),
+    // so the closure this effect captures is refreshed whenever the keys actually press
+    // against different data.
   ]);
 
   const sdrUsers = users.filter((u) => u.role === 'sdr' || u.role === 'leadgen');

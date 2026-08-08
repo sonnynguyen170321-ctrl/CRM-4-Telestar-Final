@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import {
   Lock,
@@ -28,7 +28,7 @@ export default function PublicReportViewer() {
   const [password, setPassword] = useState('');
   const [submittingPassword, setSubmittingPassword] = useState(false);
 
-  const fetchReport = async (pwd?: string) => {
+  const fetchReport = useCallback(async (pwd?: string) => {
     if (pwd) setSubmittingPassword(true);
     else setLoading(true);
     setError(null);
@@ -61,13 +61,16 @@ export default function PublicReportViewer() {
       setLoading(false);
       setSubmittingPassword(false);
     }
-  };
+    // Only  is read from props/state here; every other value is a setter, which React
+    // guarantees is stable. That keeps this callback's identity tied to the token alone, so
+    // the effect below re-runs when the link changes and never merely because we re-rendered.
+  }, [token]);
 
   useEffect(() => {
     if (token) {
       fetchReport();
     }
-  }, [token]);
+  }, [token, fetchReport]);
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();

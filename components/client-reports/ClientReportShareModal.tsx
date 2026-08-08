@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, Link2, Copy, Check, Lock, Eye, Trash2, Calendar, ShieldAlert } from 'lucide-react';
 
 interface ShareLinkItem {
@@ -30,7 +30,7 @@ export default function ClientReportShareModal({ reportId, reportTitle, isOpen, 
   const [expiryDays, setExpiryDays] = useState('30');
   const [error, setError] = useState<string | null>(null);
 
-  const fetchLinks = async () => {
+  const fetchLinks = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/client-reports/${reportId}/share`);
@@ -43,7 +43,7 @@ export default function ClientReportShareModal({ reportId, reportTitle, isOpen, 
     } finally {
       setLoading(false);
     }
-  };
+  }, [reportId]);
 
   useEffect(() => {
     if (isOpen) {
@@ -51,7 +51,7 @@ export default function ClientReportShareModal({ reportId, reportTitle, isOpen, 
       setError(null);
       fetchLinks();
     }
-  }, [isOpen, reportId]);
+  }, [isOpen, reportId, fetchLinks]);
 
   if (!isOpen) return null;
 

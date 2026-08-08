@@ -74,18 +74,18 @@ export default function InboxPage() {
       if (res.ok) {
         const data = await res.json();
         setThreads(data);
-        
-        // Auto-select first thread if none is selected
-        if (data.length > 0 && !selectedThread) {
-          // Find if we had a previously selected thread to preserve selection
-          setSelectedThread(data[0]);
-        } else if (selectedThread) {
-          // Update selected thread content from new data
-          const updated = data.find((t: Thread) => t.id === selectedThread.id);
-          setSelectedThread(updated || null);
-        } else {
-          setSelectedThread(null);
-        }
+
+        // Functional form on purpose: reading `selectedThread` directly would put it in this
+        // callback's deps, which would change loadThreads' identity on every selection and —
+        // once the effect below depends on it — refetch the whole folder each time a user
+        // clicks a thread.
+        setSelectedThread((prev) => {
+          // Nothing selected yet: land on the first thread.
+          if (!prev) return data.length > 0 ? data[0] : null;
+          // Keep the same thread selected, with its refreshed content. Null when it is gone
+          // from this folder.
+          return data.find((t: Thread) => t.id === prev.id) || null;
+        });
       } else {
         showToast('Failed to load inbox threads', 'error');
       }
@@ -94,11 +94,11 @@ export default function InboxPage() {
     } finally {
       setLoading(false);
     }
-  }, [folder, selectedThread, showToast]);
+  }, [folder, showToast]);
 
   useEffect(() => {
     loadThreads();
-  }, [folder]);
+  }, [loadThreads]);
 
   // Mark selected thread as read if unread
   useEffect(() => {
