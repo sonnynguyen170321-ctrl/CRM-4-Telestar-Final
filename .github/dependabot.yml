@@ -4,3 +4,19 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # ESLint 10 removed `context.getFilename()`. eslint-plugin-react still calls it
+      # (`util/version.js` -> `resolveBasedir`), and 7.37.5 — the newest published as of
+      # 2026-08-08 — declares `eslint: ^3 || ... || ^9.7`, so there is no version of the
+      # plugin that supports ESLint 10 at all. We do not depend on it directly; it arrives
+      # through eslint-config-next, whose own peer range (`>=9.0.0`) does not catch this.
+      #
+      # Every ESLint 10 bump therefore fails the Lint job before reporting a single
+      # finding:
+      #   TypeError: Error while loading rule 'react/display-name':
+      #   contextOrFilename.getFilename is not a function
+      #
+      # Remove this ignore once eslint-plugin-react publishes ESLint 10 support. Minor and
+      # patch updates to ESLint 9 still come through.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
