@@ -315,7 +315,44 @@ jobs:
       - name: Build image
         run: |
           set -o pipefail
-          docker buildx build --progress=plain --file ./Dockerfile . 2>&1 | tee docker-build.log
+          docker buildx build --progress=plain --load --tag crm-ci:test --file ./Dockerfile . 2>&1 | tee docker-build.log
+        shell: bash
+
+      # A green build is not the same as a usable image. The runner stage installs with
+      # `--omit=dev`, and every operational script in this repo is TypeScript executed by
+      # tsx — so when tsx sat in devDependencies, `npm run create-admin` and
+      # `npm run prod:check-migrations` both died with `tsx: not found` *only in production*.
+      # Nothing caught it: the test job runs with dev dependencies present, and the build
+      # itself succeeds either way. It surfaced during a live deploy, on the command meant
+      # to rotate a leaked Director password.
+      #
+      # `--no-install` is the load-bearing flag: without it npx silently downloads tsx and
+      # the check passes against the registry rather than against the image.
+      - name: Operational scripts must run in the production image
+        run: |
+          set -euo pipefail
+
+          # tsx must be baked in, not fetched at boot — the worker entrypoint depends on it.
+          docker run --rm crm-ci:test node -e "require.resolve('tsx/cli')"
+          docker run --rm crm-ci:test npx --no-install tsx --version
+
+          # The scripts must actually execute TypeScript. Both exit non-zero by design here —
+          # one refuses empty input, the other cannot reach a database — so capture the
+          # output and assert on the message. The exit code cannot tell "ran and refused"
+          # apart from "could not start", which is the whole distinction being tested.
+          create_admin_out="$(docker run --rm crm-ci:test npm run create-admin 2>&1 || true)"
+          echo "$create_admin_out" | grep -q "Missing required input" || {
+            echo "::error::create-admin cannot run in the production image"
+            echo "$create_admin_out"
+            exit 1
+          }
+
+          check_migrations_out="$(docker run --rm crm-ci:test npm run prod:check-migrations 2>&1 || true)"
+          if echo "$check_migrations_out" | grep -q "tsx: not found"; then
+            echo "::error::prod-check-migrations cannot run in the production image"
+            echo "$check_migrations_out"
+            exit 1
+          fi
         shell: bash
 
       - name: Summarize Docker build failure
