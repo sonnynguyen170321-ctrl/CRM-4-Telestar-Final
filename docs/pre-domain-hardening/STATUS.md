@@ -438,3 +438,111 @@ scanner would otherwise flag the fixtures proving the scanner works.
 - **`CodeQL` is green but also not required.** Add it to the required contexts once you are
   happy it is stable.
 - Action-deprecation warning: some pinned actions still target the Node 20 runtime.
+
+---
+
+## Task 6 — RLS: policies and roles landed (2026-08-08), enforcement validation outstanding
+
+### Two findings, both material
+
+**1. Seventeen tenant-owned tables had no policy.** `supabase/rls.sql` hardcoded a 24-name
+array against a schema with 41 tenant-owned models. Missing: `Account`, `Contact`,
+`SequenceEnrollment`, `ImportBatch`, `ImportRow`, `BookingLink`, `Meeting`, `Opportunity`,
+`OpportunityActivity`, `ClientReport`, `ClientReportRecipient`, `ClientReportExport`,
+`ClientReportShareLink`, `LeadPoolItem`, `CampaignLeadRequirement`, `LeadgenActivity`,
+`Attachment`. `docs/opportunity-pipeline/PLAN.md:49` had already spotted the staleness and
+deferred it — the hardcoded list is the root cause, so it would have gone stale again.
+
+The table list is now derived from the catalog (every `public` table with a `tenantId`
+column). Verified by applying it: **41 of 41** enabled, forced, policy present.
+
+**2. Superusers bypass RLS entirely, and `FORCE` does not help.** With rls.sql applied to
+all 41 tables, `SELECT count(*) FROM "User"` as `postgres` still returned every row.
+`FORCE ROW LEVEL SECURITY` closes the *table owner* loophole; the superuser loophole cannot
+be closed by policy at all. **Applying rls.sql while the app connects as a superuser
+produces a system that looks isolated and is not.**
+
+`supabase/roles.sql` is the answer: `crm_migrator` owns the schema and holds DDL; `crm_app`
+and `crm_maintenance` are `NOSUPERUSER` with DML only; default privileges carry grants onto
+tables future migrations create; and the script refuses to finish if either application role
+is a superuser.
+
+### State of enforcement
+
+`DB_RLS_ENFORCED` appears in no env template, so **DB-level RLS is off** and the app-layer
+`tenantId` injection in `lib/prisma.ts` is the only isolation today. That remains true after
+this change — nothing here enables RLS anywhere. Per the plan, it must not be force-enabled
+before the enforcement matrix passes in staging.
+
+### Outstanding for Task 6
+
+- **The two-tenant enforcement matrix under `DB_RLS_ENFORCED=true`.** It needs an isolated
+  database and a non-superuser role, because enabling FORCE on the shared test database
+  would blank every row for whichever suite runs alongside — and because, per finding 2,
+  running it as `postgres` would pass while proving nothing. Best shape: a standalone script
+  that creates its own database, applies schema + `rls.sql` + `roles.sql`, connects as
+  `crm_app`, and asserts cross-tenant read/update/delete all fail.
+- **Staging enablement**, then production. Blocked on having a staging target.
+- **Product decision, needs a human:** `User.email` is currently `@unique` — globally unique
+  across tenants. Two tenants therefore cannot both have `sonny@telestar.vn`. If per-tenant
+  uniqueness is wanted it becomes `@@unique([tenantId, email])`, which changes login lookup
+  (`auth.ts` would need a tenant discriminator) — a real behavioural change, not a
+  constraint swap. **Recorded, not decided.**
+
+### Inventory (for the record)
+
+Bare `new PrismaClient()` — bypasses the tenant extension entirely: `prisma/seed-demo.ts`,
+`scripts/create-admin.ts`, `scripts/create-user.ts`, `scripts/prod-audit.ts`,
+`scripts/encrypt-existing-tokens.ts`, `scripts/sync-sequence-enrollments.ts`,
+`tests/setup/db-baseline.ts`, and a stray `inspect_policies.ts` at the repository root that
+looks like a leftover debugging script and should probably go.
+
+Raw SQL (`$queryRaw` / `$executeRaw`, not intercepted by the extension): `lib/prisma.ts`,
+`workers/email.ts`, `workers/healthcheck.ts`, `lib/search/accentSearch.ts`,
+`app/api/health/route.ts`, `app/api/admin/worker-health/route.ts`, `scripts/prod-audit.ts`.
+
+### Task 6 — completed (2026-08-08)
+
+The enforcement matrix now exists: **`npm run verify:rls`** (`scripts/verify-rls.mjs`).
+
+It creates a throwaway database, applies the schema and `supabase/rls.sql`, creates a
+`NOSUPERUSER` role, builds two tenants each with their own user/client/campaign/lead, and
+then — connected as that unprivileged role holding tenant A's context — asserts:
+
+```
+PASS  reads its own tenant's rows
+PASS  cannot read another tenant's rows
+PASS  cannot read another tenant's row by direct id
+PASS  cannot update another tenant's row
+PASS  cannot delete another tenant's row
+PASS  cannot insert a row attributed to another tenant
+PASS  fails closed with no tenant context
+
+Control — the same read as a superuser:
+PASS  superuser sees both tenants (2 rows) — RLS does not apply to superusers
+```
+
+The control is deliberate. A suite that cannot fail proves nothing, so the script also
+asserts that a superuser **does** see across tenants — which both confirms the assertions
+above are detecting the policy rather than an empty table, and demonstrates the finding that
+no policy can constrain a superuser. If that control ever returns 1 row, the checks above
+have gone vacuous and the script says so.
+
+It is a script rather than a Vitest suite for two reasons: enabling FORCE on the shared test
+database would blank every row for whichever suite runs in parallel, and running the matrix
+as the default local superuser would pass while proving nothing.
+
+**Product decision, recorded:** `User.email` stays **globally unique**. Every user is
+Telestar staff, so one person has one login. Per-tenant uniqueness would need
+`@@unique([tenantId, email])` *and* a tenant discriminator at sign-in — a behavioural change
+that buys nothing while Telestar is the only operator. Revisit if external client users ever
+get accounts.
+
+**Still not enabled anywhere.** `DB_RLS_ENFORCED` remains unset; app-layer injection is the
+live isolation. Enabling is an ops sequence, not a code change: apply `roles.sql`, repoint
+`DATABASE_URL` at `crm_app`, apply `rls.sql`, set `DB_RLS_ENFORCED=true` — staging first.
+That last step is the only part still outstanding, and it is blocked on having a staging
+target rather than on any work in this repository.
+
+**Dependency graph** was enabled on the repository on 2026-08-08, so `Dependency review`
+should now report properly instead of "not supported on this repository".
