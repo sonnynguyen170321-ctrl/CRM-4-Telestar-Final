@@ -186,7 +186,7 @@ images, fonts, API, OAuth, frames. Define `default-src`, `script-src`, `style-sr
 `unsafe-eval`; remove `unsafe-inline` where practical using nonces or hashes. Collect reports,
 exercise every route, fix real violations, then switch to enforcement **with the domain deploy**.
 
-### [ ] Task 9 — Private security reporting
+### [x] Task 9 — Private security reporting  ✅
 
 Update `SECURITY.md`: supported versions, GitHub private vulnerability reporting (enable it
 now), a monitored security mailbox once the domain exists, and an instruction not to file
@@ -234,7 +234,7 @@ build and the Docker build all pass, migrations have been reviewed, and no secre
 - [x] Cross-tenant isolation tests pass
 - [x] Login attempts are throttled
 - [x] CSP is ready for enforcement
-- [ ] Vulnerabilities can be reported privately
+- [x] Vulnerabilities can be reported privately
 - [ ] BullMQ is ready for persistent remote Redis
 - [ ] Live email sending still disabled
 - [ ] HTTPS and automated backups tracked as explicitly blocked

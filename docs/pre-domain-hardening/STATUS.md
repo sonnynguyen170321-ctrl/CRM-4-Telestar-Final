@@ -3,22 +3,42 @@
 > Resume pointer. Read this first, then execute the next unchecked task in
 > [`PLAN.md`](./PLAN.md). Tick the box there and update this file when a task lands.
 
-**Current phase:** Milestone C — Defense in depth
-**Next task:** Task 6 — prepare and validate PostgreSQL RLS
-**Blockers:** none.
+**Current phase:** closing out — every task in `PLAN.md` is written.
+**Next task:** none that can be done from the repository. What remains needs a live box, a
+staging target, Docker, or a browser — see **Outstanding — needs an environment or a human**
+below.
+**Blockers:** none in the repo.
 
 > ⚠️ **`main` is protected as of 2026-08-08. You can no longer push to it.** Every change —
 > including documentation — goes through a branch and a pull request, and cannot merge until
 > `CI required checks` is green. This applies to the repository owner too (`enforce_admins`
 > is on). Tasks 1, 3, 4 and 5 were merged locally before this; everything after is a PR.
 
-> Task 2 (session revocation) is implemented on `fix/session-revocation` but **parked to
-> last** by decision on 2026-08-06 — its 26 tests and the sign-out-all UI are outstanding.
-> Pick it up after Tasks 4–10.
+> Protection is **strict** (branch must be up to date), so two open PRs cannot both merge
+> without the second re-merging `main` first. Land them one at a time.
 
-> **Local DB drift.** `authVersion` was applied to the local database from the Task 2
-> branch, but that migration file only exists on that branch. `prisma migrate status` on
-> `main` will look out of sync until Task 2 merges. Harmless extra column.
+> **`authVersion` migration `20260806100000` lands with Task 2.** The column was already
+> applied to the local database from the branch, so `prisma migrate status` on a machine that
+> ran it will now agree; a machine that did not needs `migrate deploy`.
+
+---
+
+## Outstanding — needs an environment or a human
+
+None of these can be finished from a checkout. They are the whole remaining surface.
+
+1. **Change the Director password on the live box** (`http://34.142.236.46`). Still
+   `telestar2026`, published in this repository. Worth doing *now* rather than earlier:
+   with Task 2 merged, changing the password also increments `authVersion` and therefore
+   invalidates every session that already exists. Command is in the section below.
+2. **Enable RLS on a staging target** (Task 6). The policies, roles and procedure are written
+   and tested; enforcement has never been switched on anywhere, because there is no staging
+   database to switch it on against.
+3. **Exercise the Task 5 deploy scripts and the Redis recovery scenarios** (Task 10). Both
+   need Docker or a VM.
+4. **Manual verification of Task 2.** Sign in as a user in one browser, deactivate that user
+   from another session, confirm the first is refused on its next request. Needs a browser
+   against a running instance.
 
 ---
 
@@ -637,6 +657,7 @@ returned 204 and logged
 **Before enforcing:** exercise every route with the browser console open, fix real
 violations, tighten `script-src`, then change `CSP_HEADER_NAME` to
 `Content-Security-Policy`. That last step ships with the domain.
+
 - 2026-08-06 — **Task 2 in progress** (`f379cb2` on `fix/session-revocation`, pushed, **not merged**).
   Implementation complete and typechecking clean: `User.authVersion` + migration
   `20260806100000`, token stamping in `auth.ts`/`auth.config.ts`, database revalidation in
@@ -720,3 +741,39 @@ Vitest **686/686**, `tsc` 0, lint 0 errors, `next build` exit 0.
 password change from the top of this file. With `authVersion` now in place, changing it also
 invalidates every existing session — which is the stronger version of that fix, and the
 reason the original note argued for taking Task 2 first.
+
+---
+
+## Task 9 — Private security reporting ✅ (2026-08-08)
+
+**GitHub private vulnerability reporting is enabled**, applied via
+`gh api -X PUT .../private-vulnerability-reporting` and confirmed by reading it back:
+`{"enabled": true}`. Note the repo object's `security_and_analysis` block does **not**
+surface this field — only the dedicated endpoint does, so "not reported" there is not
+evidence it is off.
+
+`SECURITY.md` was nine lines and its advice was self-contradictory: it asked reporters to
+open "an issue in a secure manner". There is no such thing — a public issue is a disclosure,
+and one that reaches attackers before it reaches a fix. It now points at the private
+advisory form as the only monitored channel.
+
+What it now carries, per the plan: supported versions (latest `main` only — there are no
+release branches and older images are never patched in place), what to include in a report
+(feature, reproduction, impact, redacted evidence, optional mitigation), an acknowledgement
+window of 2 business days with 5 to assess and 14 to fix a confirmed critical, a named
+incident owner, and escalation for each of the five categories the plan asks for —
+credential exposure, cross-tenant access, unauthorized email, database loss, RCE — written
+against this system's actual failure modes rather than generic advice.
+
+Two deliberate choices:
+
+- **No `security@` mailbox yet.** The plan asks for one "once the domain exists". Publishing
+  an address nobody monitors is worse than publishing none, so the file says exactly that
+  and commits to adding it with the domain.
+- **The known weaknesses are listed openly** — plain HTTP, RLS not enforced, `unsafe-inline`
+  in `script-src`, the published demo password. A researcher who reports one of those has
+  wasted their time and ours; the file asks them instead to report anything *worse than
+  described*. This is a public repository, so none of it is news to an attacker.
+
+There is no second on-call, and the file says so rather than implying a rota that does not
+exist.
