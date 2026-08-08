@@ -144,7 +144,7 @@ without rebuilding.
 
 ## Milestone C — Defense in depth
 
-### [~] Task 6 — Prepare and validate PostgreSQL RLS — policies + roles landed, enforcement validation outstanding
+### [x] Task 6 — Prepare and validate PostgreSQL RLS  ✅
 
 Branch: `security/tenant-rls`. **Do not force-enable RLS in production before inventory, tests
 and staging validation.**
@@ -160,8 +160,10 @@ direct lookup by another tenant's id, cross-tenant update and delete, cross-tena
 background jobs with explicit tenant context, and missing context failing **closed**. Run the
 suite with `DB_RLS_ENFORCED=true`; enable in staging first.
 
-*Product decision to record:* user email globally unique, or unique per tenant? Enforce with the
-matching constraint.
+*Product decision, recorded 2026-08-08:* **user email stays globally unique** (`User.email @unique`).
+Every user is Telestar staff, so one person has one login; per-tenant uniqueness would need
+`@@unique([tenantId, email])` plus a tenant discriminator at sign-in, which buys nothing today.
+Revisit if external client users ever get accounts.
 
 ### [ ] Task 7 — Login throttling
 
@@ -229,7 +231,7 @@ build and the Docker build all pass, migrations have been reviewed, and no secre
 - [x] Email processing cannot blindly send duplicates
 - [x] PRs cannot merge without mandatory checks
 - [x] Deployments use exact image versions
-- [ ] Cross-tenant isolation tests pass
+- [x] Cross-tenant isolation tests pass
 - [ ] Login attempts are throttled
 - [ ] CSP is ready for enforcement
 - [ ] Vulnerabilities can be reported privately

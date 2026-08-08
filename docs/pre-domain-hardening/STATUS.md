@@ -500,3 +500,49 @@ looks like a leftover debugging script and should probably go.
 Raw SQL (`$queryRaw` / `$executeRaw`, not intercepted by the extension): `lib/prisma.ts`,
 `workers/email.ts`, `workers/healthcheck.ts`, `lib/search/accentSearch.ts`,
 `app/api/health/route.ts`, `app/api/admin/worker-health/route.ts`, `scripts/prod-audit.ts`.
+
+### Task 6 — completed (2026-08-08)
+
+The enforcement matrix now exists: **`npm run verify:rls`** (`scripts/verify-rls.mjs`).
+
+It creates a throwaway database, applies the schema and `supabase/rls.sql`, creates a
+`NOSUPERUSER` role, builds two tenants each with their own user/client/campaign/lead, and
+then — connected as that unprivileged role holding tenant A's context — asserts:
+
+```
+PASS  reads its own tenant's rows
+PASS  cannot read another tenant's rows
+PASS  cannot read another tenant's row by direct id
+PASS  cannot update another tenant's row
+PASS  cannot delete another tenant's row
+PASS  cannot insert a row attributed to another tenant
+PASS  fails closed with no tenant context
+
+Control — the same read as a superuser:
+PASS  superuser sees both tenants (2 rows) — RLS does not apply to superusers
+```
+
+The control is deliberate. A suite that cannot fail proves nothing, so the script also
+asserts that a superuser **does** see across tenants — which both confirms the assertions
+above are detecting the policy rather than an empty table, and demonstrates the finding that
+no policy can constrain a superuser. If that control ever returns 1 row, the checks above
+have gone vacuous and the script says so.
+
+It is a script rather than a Vitest suite for two reasons: enabling FORCE on the shared test
+database would blank every row for whichever suite runs in parallel, and running the matrix
+as the default local superuser would pass while proving nothing.
+
+**Product decision, recorded:** `User.email` stays **globally unique**. Every user is
+Telestar staff, so one person has one login. Per-tenant uniqueness would need
+`@@unique([tenantId, email])` *and* a tenant discriminator at sign-in — a behavioural change
+that buys nothing while Telestar is the only operator. Revisit if external client users ever
+get accounts.
+
+**Still not enabled anywhere.** `DB_RLS_ENFORCED` remains unset; app-layer injection is the
+live isolation. Enabling is an ops sequence, not a code change: apply `roles.sql`, repoint
+`DATABASE_URL` at `crm_app`, apply `rls.sql`, set `DB_RLS_ENFORCED=true` — staging first.
+That last step is the only part still outstanding, and it is blocked on having a staging
+target rather than on any work in this repository.
+
+**Dependency graph** was enabled on the repository on 2026-08-08, so `Dependency review`
+should now report properly instead of "not supported on this repository".
