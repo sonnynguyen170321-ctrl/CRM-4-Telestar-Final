@@ -23,9 +23,16 @@ P0–P8 are done, including the P7a `client-reports` repair.
 
 Reference: `docs/deliverability/PLAN.md` and `docs/deliverability/STATUS.md`.
 
-> **Gates as of 2026-08-03:** `npm ci` clean · `tsc --noEmit` 0 errors · eslint 0 errors
-> (56 pre-existing unused-var warnings) · Vitest **388/388** · `next build` exit 0 ·
-> Playwright **20/20** across `crm-journeys` and `deep-smoke`.
+> **Gates as of 2026-08-08:** `npm ci` clean · `tsc --noEmit` 0 errors · eslint 0 errors
+> (63 pre-existing unused-var / exhaustive-deps warnings) · Vitest **707/707** ·
+> `next build` exit 0 · Playwright **20/20** across `crm-journeys` and `deep-smoke` ·
+> `npm audit` **0 vulnerabilities**.
+>
+> **`tests/redis-integration.test.ts` needs a real Redis and skips without one**, so a local
+> run reports 703 passed + 4 skipped. That is expected on a machine with no Redis; it is
+> *not* acceptable on CI, where the suite throws rather than skipping — an unreachable
+> `REDIS_URL` there means the service container is broken. It is the only test here that
+> connects to Redis; every other BullMQ suite mocks the library.
 >
 > Vitest is occasionally 387/388: several DB suites share one database and call
 > `deleteMany()` in `beforeEach`, so parallel files can wipe each other's rows.
