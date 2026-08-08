@@ -21,6 +21,60 @@ function arg(flag: string): string | undefined {
   return i !== -1 ? process.argv[i + 1] : undefined;
 }
 
+/**
+ * Create or promote a Director, exported so the `authVersion` guarantee below can be tested.
+ * Returns what happened, so a caller can tell a promotion from a fresh account.
+ */
+export async function upsertDirector(input: {
+  email: string;
+  password: string;
+  name?: string;
+  tenantId?: string;
+}): Promise<'created' | 'updated'> {
+  const email = input.email.trim().toLowerCase();
+  const passwordHash = await hash(input.password, 12);
+  const [firstName, ...rest] = (input.name ?? 'Admin').trim().split(' ');
+  const tenantId = input.tenantId ?? 'default-tenant';
+
+  await raw.tenant.upsert({
+    where: { id: tenantId },
+    update: {},
+    create: { id: tenantId, name: 'Default Tenant' },
+  });
+
+  return tenantStorage.run({ tenantId, bypassRls: true }, async () => {
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      await prisma.user.update({
+        where: { email },
+        // `authVersion` must move with the password. Sessions are stateless JWTs, so without
+        // this the old password stops working while every token minted under it keeps full
+        // access until it expires — exactly backwards for the case this script is used in:
+        // rotating a credential that is known or published. Matches what
+        // `app/api/settings/password` does for a self-service change.
+        data: {
+          password: passwordHash,
+          role: 'director',
+          isActive: true,
+          authVersion: { increment: 1 },
+        },
+      });
+      return 'updated';
+    }
+
+    await prisma.user.create({
+      data: {
+        email,
+        password: passwordHash,
+        firstName: firstName || 'Admin',
+        lastName: rest.join(' '),
+        role: 'director',
+      },
+    });
+    return 'created';
+  });
+}
+
 async function main() {
   const email = (arg('--email') ?? process.env.ADMIN_EMAIL ?? '').trim().toLowerCase();
   const password = arg('--password') ?? process.env.ADMIN_PASSWORD ?? '';
@@ -37,44 +91,21 @@ async function main() {
     process.exit(1);
   }
 
-  const tenantId = 'default-tenant';
-  const [firstName, ...rest] = name.split(' ');
-  const passwordHash = await hash(password, 12);
-
-  // Tenant has no tenantId column → use the raw client (not the tenant-scoped one).
-  await raw.tenant.upsert({
-    where: { id: tenantId },
-    update: {},
-    create: { id: tenantId, name: 'Default Tenant' },
-  });
-
-  await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) {
-      await prisma.user.update({
-        where: { email },
-        data: { password: passwordHash, role: 'director', isActive: true },
-      });
-      console.log(`✓ Updated ${email} → director (password reset, account active).`);
-    } else {
-      await prisma.user.create({
-        data: {
-          email,
-          password: passwordHash,
-          firstName: firstName || 'Admin',
-          lastName: rest.join(' '),
-          role: 'director',
-        },
-      });
-      console.log(`✓ Created director ${email}.`);
-    }
-  });
+  const outcome = await upsertDirector({ email, password, name });
+  console.log(
+    outcome === 'updated'
+      ? `✓ Updated ${email} → director (password reset, account active, existing sessions revoked).`
+      : `✓ Created director ${email}.`
+  );
 }
 
-main()
-  .then(() => raw.$disconnect())
-  .catch(async (err) => {
-    console.error('create-admin failed:', err);
-    await raw.$disconnect();
-    process.exit(1);
-  });
+// Only run as a CLI. Importing this module — the tests do — must not create an admin.
+if ((process.argv[1] ?? '').includes('create-admin')) {
+  main()
+    .then(() => raw.$disconnect())
+    .catch(async (err) => {
+      console.error('create-admin failed:', err);
+      await raw.$disconnect();
+      process.exit(1);
+    });
+}
