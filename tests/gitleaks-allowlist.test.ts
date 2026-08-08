@@ -40,6 +40,10 @@ describe('gitleaks allowlist', () => {
     'postgresql://postgres:postgres@127.0.0.1:5432/telestar_crm_test',
     'redis://localhost:6379',
     '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    // Documentation DSNs: real-shaped, but the password segment is a placeholder.
+    'postgresql://crm:<password>@<rds-writer-endpoint>:5432/telestar_crm?sslmode=require',
+    'postgresql://${DB_USER}:${DB_PASSWORD}@${DB_IP}:5432/${DB_NAME}?schema=public',
+    'postgresql://user:pass@host:5432/crm?sslmode=require',
   ])('allows the known non-credential %s', (value) => {
     expect(isAllowlisted(value)).toBe(true);
   });
@@ -52,6 +56,10 @@ describe('gitleaks allowlist', () => {
     ['managed Postgres', 'postgresql://crm:pw@db.abc.neon.tech:5432/main'],
     ['Cloud SQL socket', 'postgresql://crm:pw@10.20.30.40:5432/telestar_crm'],
     ['remote Redis with auth', 'rediss://user:realpass@prod-cache.example.net:6380'],
+    // The placeholder-password exemption must not spill over onto real ones. These differ
+    // from the allowed documentation DSNs only in the password segment.
+    ['a real password at a placeholder host', 'postgresql://crm:Tr0ub4dor3xK@<rds-writer-endpoint>:5432/telestar_crm'],
+    ['a password that merely contains "pass"', 'postgresql://crm:passw0rdGenuine9@db.internal:5432/crm'],
     ['GitHub personal access token', 'ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'],
     ['AWS access key id', 'AKIAIOSFODNN7EXAMPLE'],
     ['Google API key', 'AIzaSyD-1234567890abcdefghijklmnopqrstu'],

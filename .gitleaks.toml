@@ -31,6 +31,15 @@ regexes = [
   '''postgres(?:ql)?://[^:@\s]+:[^@\s]+@(?:localhost|127\.0\.0\.1|::1|postgres|db)(?::\d+)?/''',
   '''rediss?://(?:[^:@\s]*:[^@\s]*@)?(?:localhost|127\.0\.0\.1|redis)(?::\d+)?''',
 
+  # ── Connection strings whose password is itself a placeholder ───────────────
+  # The deploy guides show real-shaped DSNs pointing at RDS and Cloud SQL, but the
+  # password segment is always an unexpanded shell variable (${DB_PASSWORD}), an
+  # angle-bracket placeholder (<password>), or the literal word "pass". Those are
+  # documentation, not credentials — and unlike the loopback exemption above this one
+  # keys on the SECRET being fake rather than the host being harmless, so it stays safe
+  # no matter where the DSN points. A DSN with an actual password still fails.
+  '''(?:postgres(?:ql)?|rediss?|mysql|mongodb(?:\+srv)?)://[^:@\s]+:(?:\$\{[^}\s]*\}|\$[A-Z_][A-Z0-9_]*|<[^>@\s]+>|pass|password|passwd|changeme|change-me|your[-_]?password|REPLACE[A-Z_]*)@''',
+
   # ── Documented non-secret encryption keys ───────────────────────────────────
   # Four repetitions of 0123456789abcdef. Used as the build-time and CI ENCRYPTION_KEY so
   # that lib/env.ts's /^[0-9a-f]{64}$/ check passes; it encrypts nothing that outlives the
@@ -56,6 +65,16 @@ paths = [
   # paths. They are syntactically valid and semantically inert.
   '''^tests/p1-hardening\.test\.ts$''',
   '''^tests/client-reports\.test\.ts$''',
+
+  # The test that guards this very file. It must contain credential-shaped strings —
+  # `postgresql://crm:Tr0ub4dor3xK@...`, a GitHub PAT, an AWS key id — precisely to assert
+  # that the allowlist does NOT exempt them. Scanning it would flag the fixtures proving
+  # the scanner works. Exempted by exact path, never by directory.
+  '''^tests/gitleaks-allowlist\.test\.ts$''',
+
+  # Writes a throwaway .env to a temp dir to test the env-file parser. Its DSN password is
+  # the single character "p".
+  '''^tests/prod-env\.test\.ts$''',
 
   # This file, which necessarily contains the patterns it allows.
   '''^\.gitleaks\.toml$''',
