@@ -546,3 +546,45 @@ target rather than on any work in this repository.
 
 **Dependency graph** was enabled on the repository on 2026-08-08, so `Dependency review`
 should now report properly instead of "not supported on this repository".
+
+---
+
+## Task 7 — Login throttling ✅ (2026-08-08)
+
+Three counters per attempt, in Redis so they are shared across serverless instances:
+`pair` (ip + email), `ip`, and `email`.
+
+**The scopes are treated differently, and that is the whole design.** The obvious version —
+lock an email address after N failures — is a weapon aimed at your own staff: anyone who
+knows a colleague's address can lock them out of the CRM with a few dozen wrong passwords.
+So `pair` and `ip` may lock (they are attacker-controlled, and locking them costs the
+attacker their own access), while `email` may only delay and raise an alert. That satisfies
+the plan's requirement in both directions: one IP cannot lock every account, because its own
+`ip` counter locks first; and one attacker cannot deny service globally, because the `email`
+scope never locks.
+
+`ip` tolerates more failures than `pair` deliberately — one office NAT, VPN exit or CI
+runner legitimately carries several people's typos, and locking the address takes them all
+out.
+
+Other decisions worth keeping:
+
+- **Equal-time failures.** When the account does not exist or is deactivated, the code still
+  runs a bcrypt comparison against a dummy hash. Skipping it would make unknown addresses
+  answer measurably faster — an enumeration oracle no matter how uniform the message is.
+  The message itself is a single exported constant, now used by `app/login/page.tsx` too.
+- **Fails open when Redis is down.** A cache outage must degrade rate limiting, not
+  authentication; failing closed would turn a Redis blip into a total lockout and hand an
+  attacker a cheaper denial of service than the one being prevented. Logged loudly.
+- **Success clears `pair` and `email` but not `ip`.** Clearing the IP counter would let an
+  attacker holding one valid credential reset their spray budget at will.
+- **Delay is capped** at 8s. Uncapped doubling ties up a request slot per attempt.
+- **Addresses are hashed** into the Redis keys, so a Redis snapshot is not a user list.
+- **`x-forwarded-for` is read last-hop-first.** The leftmost entries are client-supplied and
+  forgeable; trusting them would give a fresh budget per forged header.
+- **Microsoft Entra ID is untouched by construction** — the throttle lives inside
+  `Credentials.authorize`, and the OAuth path never enters it.
+
+26 tests in `tests/login-throttle.test.ts`, including the two denial-of-service traps
+(an account never locks at any failure count; one IP is cut off before it can work through
+the user table) and the shared-across-instances behaviour.

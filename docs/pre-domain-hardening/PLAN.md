@@ -165,7 +165,7 @@ Every user is Telestar staff, so one person has one login; per-tenant uniqueness
 `@@unique([tenantId, email])` plus a tenant discriminator at sign-in, which buys nothing today.
 Revisit if external client users ever get accounts.
 
-### [ ] Task 7 — Login throttling
+### [x] Task 7 — Login throttling  ✅
 
 Branch: `security/login-throttling`. Normalize emails before counting. Track failures by IP, by
 normalized email, and by the pair. Shared state in Redis. Progressive delay, then a temporary
@@ -232,7 +232,7 @@ build and the Docker build all pass, migrations have been reviewed, and no secre
 - [x] PRs cannot merge without mandatory checks
 - [x] Deployments use exact image versions
 - [x] Cross-tenant isolation tests pass
-- [ ] Login attempts are throttled
+- [x] Login attempts are throttled
 - [ ] CSP is ready for enforcement
 - [ ] Vulnerabilities can be reported privately
 - [ ] BullMQ is ready for persistent remote Redis
