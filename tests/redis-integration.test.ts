@@ -130,4 +130,93 @@ describe.skipIf(!reachable)('BullMQ against a real Redis', () => {
 
     await queue.resume();
   });
+
+  it('holds a delayed job in the delayed set, then runs it', async () => {
+    // Delayed jobs are the one thing a Redis outage genuinely costs this system — the
+    // maintenance `missing-delayed` repair exists to rebuild them from Task. They live in a
+    // sorted set and move by score, which is a different code path from the waiting list.
+    const { url, opts } = getRedisConfig();
+    const workerConnection = new Redis(url, opts);
+    const delayedQueueName = `${queueName}-delayed`;
+    const delayedQueue = new Queue(delayedQueueName, { connection: client });
+
+    try {
+      // Arrange + Act: long enough to observe the delayed state, short enough to wait out.
+      await delayedQueue.add('later', { value: 'delayed' }, { delay: 400 });
+
+      // Assert: it is delayed, not waiting. A job that lands in `waiting` here would run
+      // immediately in production — the schedule silently collapsing to "now".
+      const counts = await delayedQueue.getJobCounts();
+      expect(counts.delayed).toBe(1);
+      expect(counts.waiting ?? 0).toBe(0);
+
+      const worker = new Worker(delayedQueueName, async (job) => ({ ran: job.data.value }), {
+        connection: workerConnection,
+      });
+      try {
+        const result = await new Promise<{ ran: string }>((resolve, reject) => {
+          worker.on('completed', (_job, r) => resolve(r));
+          worker.on('failed', (_job, err) => reject(err));
+        });
+        expect(result).toEqual({ ran: 'delayed' });
+      } finally {
+        await worker.close();
+      }
+    } finally {
+      await delayedQueue.obliterate({ force: true }).catch(() => {});
+      await delayedQueue.close().catch(() => {});
+      await workerConnection.quit().catch(() => {});
+    }
+  });
+
+  it('retries a failing job and reports the attempt count', async () => {
+    // Every worker in this system must be idempotent and retry-safe, so the retry counter
+    // is load-bearing rather than cosmetic: attemptsMade is what distinguishes a first run
+    // from a replay. It is stored on the job hash and incremented server-side.
+    const { url, opts } = getRedisConfig();
+    const workerConnection = new Redis(url, opts);
+    const retryQueueName = `${queueName}-retry`;
+    const retryQueue = new Queue(retryQueueName, { connection: client });
+    const attempts: number[] = [];
+
+    const worker = new Worker(
+      retryQueueName,
+      async (job) => {
+        attempts.push(job.attemptsMade);
+        if (job.attemptsMade < 1) throw new Error('first attempt fails on purpose');
+        return { attemptsMade: job.attemptsMade };
+      },
+      { connection: workerConnection },
+    );
+
+    try {
+      // Act
+      const completed = new Promise<{ attemptsMade: number }>((resolve, reject) => {
+        worker.on('completed', (_job, result) => resolve(result));
+        // Only the final failure ends the test; the first one is expected.
+        worker.on('failed', (job, err) => {
+          if ((job?.attemptsMade ?? 0) >= 2) reject(err);
+        });
+      });
+      await retryQueue.add(
+        'flaky',
+        { value: 'retry' },
+        { attempts: 2, backoff: { type: 'fixed', delay: 100 } },
+      );
+      const result = await completed;
+
+      // Assert: it ran twice and the second run succeeded — not that it merely finished.
+      // Deliberately not asserting the absolute value of attemptsMade: its base has moved
+      // between BullMQ versions, and pinning it here would make this test fail on an
+      // upgrade that changed nothing about the behaviour we actually depend on.
+      expect(attempts).toHaveLength(2);
+      expect(attempts[1]).toBeGreaterThan(attempts[0]);
+      expect(result.attemptsMade).toBe(attempts[1]);
+    } finally {
+      await worker.close();
+      await retryQueue.obliterate({ force: true }).catch(() => {});
+      await retryQueue.close().catch(() => {});
+      await workerConnection.quit().catch(() => {});
+    }
+  });
 });
