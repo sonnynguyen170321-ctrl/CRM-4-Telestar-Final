@@ -19,6 +19,7 @@
     "encrypt-existing-tokens": "tsx scripts/encrypt-existing-tokens.ts",
     "sync-enrollments": "tsx scripts/sync-sequence-enrollments.ts",
     "prod:check-env": "tsx scripts/prod-check-env.ts",
+    "prod:check-migrations": "tsx scripts/prod-check-migrations.ts",
     "prod:audit": "tsx scripts/prod-audit.ts",
     "analyze": "node scripts/build.cjs --analyze",
     "worker:dev": "node scripts/worker-dev.cjs",
