@@ -42,6 +42,38 @@ None of these can be finished from a checkout. They are the whole remaining surf
 
 ---
 
+## The completion gate is now fully ticked (2026-08-08)
+
+The last two boxes in `PLAN.md` were tracking items rather than build work, and the evidence
+for both already existed. Recording where it lives so the ticks are auditable.
+
+**Live email sending still disabled.** Off at every layer, and off by *default* rather than
+by configuration anyone has to remember:
+
+| Layer | Evidence |
+| --- | --- |
+| Live box | `GET /api/cron/sequence-engine` returned `{"disabled":true,"sent":0}` — recorded in `docs/DEPLOY.md` §"Email sending decision made" |
+| Compose | `docker-compose.yml` and `docker-compose.aws.yml` both interpolate `${EMAIL_SEND_DRY_RUN:-true}` / `${SEQUENCE_AUTOSEND_ENABLED:-false}` |
+| Env templates | `.env.example`, `.env.docker.example`, `.env.production.example` all ship the safe values |
+| CI | `ci.yml` pins `EMAIL_SEND_DRY_RUN: 'true'`, `SEQUENCE_AUTOSEND_ENABLED: 'false'` |
+| Code | `workers/email.ts` engages dry-run unless explicitly disabled |
+
+> ⚠️ **Both flags are fail-open**, as `.env.production.example` says in its own comment:
+> dry-run engages only on the literal `"true"`, and autosend disables only on the literal
+> `"false"`. A typo'd or deleted value sends real mail. Re-read that file before editing it
+> on the box, and re-run the cron probe after any deploy — the live-box evidence above is a
+> point-in-time check, not a guarantee.
+
+**HTTPS and automated backups tracked as explicitly blocked.** Both are in
+`docs/DEPLOY.md` → "Open before real client data": TLS (UX-001) with the exact three values
+that need to change (`CRM_DOMAIN`, `CADDY_SITE_ADDRESS`, `NEXTAUTH_URL` — Caddy provisions
+the certificate, no code change), and Cloud SQL automated backups, where `gcloud sql backups
+list` showed a single manual snapshot and no schedule. Tracked, owned, and unblocked only by
+the domain. The box asks that they be *tracked as blocked*, which they are — it does not
+claim either is done.
+
+---
+
 ## 🔴 Found during Task 1 — the live Director password is published
 
 `telestar2026` is the seeded password for **every** demo user, including `dean@telestar.vn`

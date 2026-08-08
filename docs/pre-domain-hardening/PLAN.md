@@ -236,5 +236,5 @@ build and the Docker build all pass, migrations have been reviewed, and no secre
 - [x] CSP is ready for enforcement
 - [x] Vulnerabilities can be reported privately
 - [x] BullMQ is ready for persistent remote Redis
-- [ ] Live email sending still disabled
-- [ ] HTTPS and automated backups tracked as explicitly blocked
+- [x] Live email sending still disabled
+- [x] HTTPS and automated backups tracked as explicitly blocked
