@@ -12,6 +12,29 @@ export interface SuggestedTarget {
   requiresCampaignAdd: boolean;
 }
 
+export interface StaleAttributions {
+  leadPoolQualified: number;
+  leadsArchived: number;
+  mailboxesPausedBy: number;
+  alertsAcknowledged: number;
+  alertsResolved: number;
+  total: number;
+}
+
+/** "2 qualified pool rows, 1 archived lead" — only the non-zero kinds, in a readable list. */
+function describeAttributions(a: StaleAttributions): string {
+  const parts: string[] = [];
+  const add = (n: number, one: string, many: string) => {
+    if (n > 0) parts.push(`${n} ${n === 1 ? one : many}`);
+  };
+  add(a.leadPoolQualified, 'qualified pool row', 'qualified pool rows');
+  add(a.leadsArchived, 'archived lead', 'archived leads');
+  add(a.mailboxesPausedBy, 'paused mailbox', 'paused mailboxes');
+  add(a.alertsAcknowledged, 'acknowledged alert', 'acknowledged alerts');
+  add(a.alertsResolved, 'resolved alert', 'resolved alerts');
+  return parts.join(', ');
+}
+
 export interface UserImpact {
   userId: string;
   campaignId: string | null;
@@ -24,6 +47,11 @@ export interface UserImpact {
   campaignMemberships: number;
   activeEmailAccounts: number;
   leadPoolItems: number;
+  /**
+   * Optional because this panel is also rendered from responses produced before the field
+   * existed; the render below guards on it rather than assuming.
+   */
+  staleAttributions?: StaleAttributions;
   totalOpen: number;
   canRemoveSafely: boolean;
   recommendedAction: 'safe_remove' | 'transfer_work' | 'pause_tasks' | 'blocked';
@@ -226,6 +254,14 @@ export default function ImpactPanel({
         <p className="text-xs text-text-muted leading-normal">
           Note: {impact.leadPoolItems} leadgen pool row(s) also reference this user. Those are not
           moved by this action.
+        </p>
+      )}
+
+      {impact.staleAttributions && impact.staleAttributions.total > 0 && (
+        <p className="text-xs text-text-muted leading-normal">
+          Also left pointing at this user: {describeAttributions(impact.staleAttributions)}. These
+          record who did something, not work to pick up, so nothing moves them — they are listed so
+          this dialog is not mistaken for a complete picture.
         </p>
       )}
     </div>

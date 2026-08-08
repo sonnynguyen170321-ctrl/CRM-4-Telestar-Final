@@ -219,4 +219,58 @@ describe.skipIf(!reachable)('BullMQ against a real Redis', () => {
       await workerConnection.quit().catch(() => {});
     }
   });
+
+  it('self-heals after the server severs every connection', async () => {
+    // The reason this test exists: `lib/bullmq/connection.ts` deliberately keeps reconnecting
+    // forever with a capped backoff, because a worker that permanently detaches while the
+    // process stays alive is the worst failure mode available — jobs pile up at
+    // status='queued' and nothing reports it. That retryStrategy has never been exercised.
+    //
+    // `CLIENT KILL` is how you get a real severed connection: not a client-side disconnect(),
+    // which ioredis treats as intentional, but the server dropping it underneath us. This is
+    // the closest thing to a managed-provider failover that a test can stage.
+    const { url, opts } = getRedisConfig();
+    const reconnectQueueName = `${queueName}-reconnect`;
+    const workerConnection = new Redis(url, opts);
+    const admin = new Redis(url, opts);
+    const reconnectQueue = new Queue(reconnectQueueName, { connection: client });
+
+    // A severed connection emits 'error' before it reconnects. Without listeners those are
+    // unhandled and take the process down, which would look like a product bug rather than
+    // the expected consequence of the kill below.
+    workerConnection.on('error', () => {});
+    admin.on('error', () => {});
+    client.on('error', () => {});
+
+    const worker = new Worker(reconnectQueueName, async (job) => ({ ok: job.data.n }), {
+      connection: workerConnection,
+    });
+
+    try {
+      await worker.waitUntilReady();
+      await admin.connect().catch(() => {}); // opts sets lazyConnect.
+
+      // Act: drop every client except this one — the queue connection and both of the
+      // worker's, including the duplicated blocking client BullMQ owns.
+      const reconnected = new Promise<void>((resolve) => client.once('ready', () => resolve()));
+      await admin.call('CLIENT', 'KILL', 'TYPE', 'normal', 'SKIPME', 'yes');
+      await reconnected;
+
+      // Assert: the queue still works after the outage. `enableOfflineQueue: false` means
+      // this add() would reject outright if the connection had not actually come back, so
+      // reaching a completed job proves recovery rather than buffering.
+      const completed = new Promise<{ ok: number }>((resolve, reject) => {
+        worker.on('completed', (_job, result) => resolve(result));
+        worker.on('failed', (_job, err) => reject(err));
+      });
+      await reconnectQueue.add('after-outage', { n: 7 });
+      expect(await completed).toEqual({ ok: 7 });
+    } finally {
+      await worker.close().catch(() => {});
+      await reconnectQueue.obliterate({ force: true }).catch(() => {});
+      await reconnectQueue.close().catch(() => {});
+      await workerConnection.quit().catch(() => {});
+      await admin.quit().catch(() => {});
+    }
+  });
 });
