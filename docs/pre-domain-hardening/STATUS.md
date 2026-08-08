@@ -637,3 +637,53 @@ returned 204 and logged
 **Before enforcing:** exercise every route with the browser console open, fix real
 violations, tighten `script-src`, then change `CSP_HEADER_NAME` to
 `Content-Security-Policy`. That last step ships with the domain.
+
+---
+
+## Task 10 — Managed Redis prep ✅ (2026-08-08)
+
+Full inventory, requirements and migration steps: **`docs/REDIS_MIGRATION.md`**.
+
+### The finding worth remembering
+
+**`maxmemory-policy` must be `noeviction`.** BullMQ stores queue state in keys with no TTL,
+so under any `allkeys-*` policy Redis deletes whichever keys it likes under memory pressure
+— including job hashes and the lists referencing them. The failure is silent: a job simply
+ceases to exist, or counters stop matching contents. Managed providers commonly default to
+`allkeys-lru`, which is right for a cache and wrong for a queue. With `noeviction` a full
+instance rejects writes loudly and the enqueue fails where someone can see it.
+
+### Observability
+
+`/api/admin/worker-health` already reported per-queue counts. Depth alone cannot distinguish
+a healthy burst from a dead consumer, so it now also reports:
+
+- **age of the oldest waiting job** — one job stuck for an hour is a smaller number than a
+  healthy burst and a far worse condition;
+- **a worker heartbeat**, read from `JobRun` in **Postgres, not Redis** — a heartbeat stored
+  in Redis is unreadable exactly when Redis is the problem;
+- **`alerts[]`**, the specific conditions worth acting on rather than raw numbers.
+
+### Connection hardening
+
+- `commandTimeout: 10_000` and `enableOfflineQueue: false`. Without these an unreachable
+  Redis makes callers **hang** rather than fail — BullMQ's own calls never reject — so a web
+  request that enqueued would sit until the platform killed it.
+- Reconnect stays unbounded with capped backoff, deliberately: a worker must self-heal
+  across a provider failover. Bounded *per command*, unbounded *per connection*.
+- `assertUsableRedisUrl` rejects a non-`redis(s)` scheme, and rejects a password sent over
+  plaintext to a non-local host — the exact mistake a migration invites, copying the host
+  and forgetting the extra `s`.
+- `docker-compose.yml` no longer hardcodes `redis://redis:6379`; it reads
+  `${REDIS_URL:-redis://redis:6379}`, so a managed instance needs no file edit.
+
+### Durability
+
+Every business-critical job is backed by a durable row — `OutboundMessage` for sends,
+`SequenceEnrollment`/`Task` for sequences, `ImportBatch`/`ImportRow` for imports — so a Redis
+outage is a delay, not data loss. The one thing Redis loss costs is jobs already delayed to
+a future time; the maintenance `missing-delayed` repair rebuilds those from `Task`.
+
+17 tests in `tests/redis-readiness.test.ts`, including that depth alone raises no alert,
+that a single stuck job does, that an unreadable queue is reported rather than counted as
+zero, and the URL-validation cases.
