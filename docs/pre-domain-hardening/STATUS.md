@@ -52,6 +52,31 @@ None of these can be finished from a checkout. They are the whole remaining surf
 2. 🔴 **Rotate or deactivate the other demo accounts.** Every non-Director demo user still
    has `telestar2026`, which is published in this repository. Now the single largest
    credential exposure on that box, ahead of TLS.
+
+   > ⚠️ **Do not use `create-admin` for this.** It hardcodes `role: 'director'`
+   > (`scripts/create-admin.ts:58`), so pointing it at an SDR rotates the password *and*
+   > promotes the account. Running it across the eleven demo users would make every one of
+   > them a Director — the opposite of hardening.
+
+   Use `create-user`, which writes only the fields you pass:
+
+   ```bash
+   npm run create-user -- --email sdr1@telestar.vn --password '<new strong password>' --role sdr
+   npm run create-user -- --email unused@telestar.vn --deactivate   # for accounts nobody needs
+   npm run list-users                                               # confirm roles afterwards
+   ```
+
+   Both forms bump `authVersion`, so existing sessions minted under `telestar2026` are
+   refused on their next request. **That was not true before 2026-08-09** — `create-user`
+   wrote the password and left `authVersion` alone, the same defect `c02b7f0` fixed in
+   `create-admin`. Rotating with the old script would have changed the password while every
+   live token kept working until it expired. `tests/create-user.test.ts` pins the increment
+   for password, role and deactivation changes, and pins that a rename does *not* sign
+   anyone out.
+
+   Until the box is redeployed past `#42` its image has no `tsx`, so `npm run create-user`
+   fails with `tsx: not found`. Work around it the same way the Director rotation did:
+   `npx --yes tsx scripts/create-user.ts -- --email … --password … --role …`.
 3. **Enable RLS on a staging target** (Task 6). The policies, roles and procedure are written
    and tested; enforcement has never been switched on anywhere, because there is no staging
    database to switch it on against.
