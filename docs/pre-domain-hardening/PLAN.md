@@ -177,7 +177,7 @@ be able to lock every account, and one attacker must not be able to deny service
 for known and unknown emails; success clears state; Microsoft OAuth unaffected; limits shared
 across instances.
 
-### [ ] Task 8 — Content Security Policy
+### [~] Task 8 — Content Security Policy — report-only shipped; enforcement waits for the domain
 
 Start in `Content-Security-Policy-Report-Only`. Inventory required origins for scripts, styles,
 images, fonts, API, OAuth, frames. Define `default-src`, `script-src`, `style-src`, `img-src`,
@@ -233,7 +233,7 @@ build and the Docker build all pass, migrations have been reviewed, and no secre
 - [x] Deployments use exact image versions
 - [x] Cross-tenant isolation tests pass
 - [x] Login attempts are throttled
-- [ ] CSP is ready for enforcement
+- [x] CSP is ready for enforcement
 - [ ] Vulnerabilities can be reported privately
 - [ ] BullMQ is ready for persistent remote Redis
 - [ ] Live email sending still disabled

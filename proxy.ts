@@ -49,6 +49,10 @@ export const proxy = auth(function handler(req: NextRequest & { auth: { user?: u
 // itself — `Bearer ${CRON_SECRET}` or a director/floor_manager/team_lead
 // session — so letting the request reach the handler opens nothing up.
 //
+// api/csp-report is excluded because the browser posts violation reports with no
+// cookies and no session. A report that 401s teaches nobody anything, and the handler
+// persists nothing and returns 204 to everyone.
+//
 // api/health is excluded for the same reason: an uptime check or a platform
 // health probe has no session either, so it only ever saw a 401 and could not
 // report on the database. The handler runs `SELECT 1` and returns nothing but a
@@ -64,6 +68,6 @@ export const proxy = auth(function handler(req: NextRequest & { auth: { user?: u
 // an unknown token yields the same not-found response it always did.
 export const config = {
   matcher: [
-    '/((?!api/auth|api/cron|api/health|api/client-reports/public|client-reports/public|login|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)',
+    '/((?!api/auth|api/cron|api/health|api/csp-report|api/client-reports/public|client-reports/public|login|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)',
   ],
 };
