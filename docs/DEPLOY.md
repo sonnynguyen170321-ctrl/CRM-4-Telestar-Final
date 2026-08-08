@@ -222,6 +222,61 @@ before that day's migration. There is no schedule.
 
 ## 8b. Redeploying the live GCE box
 
+> ### ⚠️ The box's checkout is stale — read before using `scripts/deploy.sh`
+>
+> Discovered while deploying `9ca7e6b` on 2026-08-08. `/opt/crm-4-u` on `telestar-crm-vm` is
+> a checkout from **before** Task 5, so the tooling described in this section is not what is
+> actually there:
+>
+> | | On the box | In this repo |
+> | --- | --- | --- |
+> | `docker-compose.yml` image | `…:${IMAGE_TAG:-latest}` | `${CRM_IMAGE:?…}` |
+> | `scripts/deploy.sh` / `rollback.sh` | not in use | present since `b64797b` |
+>
+> Consequences, until someone updates that checkout:
+>
+> - **`scripts/rollback.sh` is not available.** Roll back by editing `IMAGE_TAG` in
+>   `.env.production` to the previous full-SHA tag and running `up -d`.
+> - **`deployments.ndjson` is not being written**, so there is no machine-readable history.
+>   Records go here instead.
+> - The box's compose file resolves `IMAGE_TAG`, and **ignores `CRM_IMAGE` entirely** — so
+>   running `deploy.sh` there today would set a variable nothing reads and leave `:latest`
+>   serving.
+>
+> Updating the checkout is not a no-op: the repo's compose file *refuses to start* without
+> `CRM_IMAGE`, so `IMAGE_TAG` must be replaced with a `CRM_IMAGE` digest in the same change.
+> Do it deliberately, not mid-incident.
+
+### Deployment record — 2026-08-08, `9ca7e6b`
+
+Performed manually (the scripted path was unavailable, see above) and verified end to end.
+
+| | |
+| --- | --- |
+| Commit | `9ca7e6bfc1eaf935d6c17df99c7560f7a5f73437` |
+| Digest | `sha256:7759b952c790ad7407d4cf797b676f07dabbd14f0b2d73f52c88d00b865fd743` |
+| Previous commit | `ee0824639ed84288ff611da2065cd4bb4c60ccde` (digest `sha256:3aee2baa24a46ba2d9549728a388bab8cd5a374b2e5fd884757b77783af42d28`) |
+| Migrations applied | `20260806100000_add_user_auth_version`, `20260807000000_outbound_idempotency_claim` (22 → 24) |
+| Cloud SQL backup taken first | id `1786206208157`, 2026-08-08T16:23:28Z, `SUCCESSFUL` |
+| Rollback | `IMAGE_TAG=ee0824639ed84288ff611da2065cd4bb4c60ccde` then `up -d` — both migrations are additive, so `ee08246` runs against the new schema |
+
+Verified after the swap: `/api/health` reported `ok:true`, `schema:"ready"` and the deployed
+commit; the worker logged `[bullmq] Redis connected` with all seven queues registered (the
+first real-world confirmation of ioredis 6 / RESP3); sign-in succeeded on next-auth
+beta.32.
+
+**The Director password was rotated in the same window.** `create-admin` failed first with
+`tsx: not found` — the production image did not contain tsx; see the fix in the commit that
+moved it to `dependencies`. Worked around with `npx --yes tsx`. Session revocation was then
+confirmed the only way that counts: an already-open Director session was refused on its next
+request, and both the old password and an accidentally-set intermediate value were rejected
+at sign-in.
+
+**Still outstanding on that box:** every other demo account retains the published
+`telestar2026`, and the site is plain HTTP, so credentials cross in cleartext.
+
+---
+
 **Verified end to end on 2026-08-05 deploying `ee08246`.** An earlier draft of this section
 was written from the deployment record and got two things materially wrong; both are
 corrected below.
