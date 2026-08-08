@@ -212,7 +212,7 @@ in, or generate it directly:
 ```bash
 cat > .env.production <<EOF
 APP_ENV_FILE=.env.production
-IMAGE_TAG=latest
+CRM_IMAGE=ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:<digest>
 
 CRM_DOMAIN=${CRM_DOMAIN}
 CADDY_SITE_ADDRESS=${CRM_DOMAIN}

@@ -1,4 +1,5 @@
 import { parseEnvFile } from './prod-env';
+import { describeMutableImageRef } from '@/lib/release';
 
 type Level = 'PASS' | 'WARN' | 'FAIL';
 type Check = { level: Level; message: string };
@@ -8,6 +9,7 @@ const envPath = process.argv.includes('--file')
   : '.env.production';
 
 const requiredKeys = [
+  'CRM_IMAGE',
   'DATABASE_URL',
   'DIRECT_URL',
   'BACKUP_DATABASE_URL',
@@ -58,6 +60,11 @@ const validate = (): Check[] => {
     if (value && placeholderPattern.test(value)) {
       add(checks, 'FAIL', `${key} contains a placeholder or local/example value`);
     }
+  }
+
+  if (env.CRM_IMAGE) {
+    const problem = describeMutableImageRef(env.CRM_IMAGE);
+    if (problem) add(checks, 'FAIL', `CRM_IMAGE ${problem}`);
   }
 
   const dbUrls = ['DATABASE_URL', 'DIRECT_URL', 'BACKUP_DATABASE_URL'].map((key) => ({

@@ -41,6 +41,13 @@ FROM node:24-bookworm-slim AS runner
 
 ARG NPM_VERSION
 
+# Release provenance, baked into the image so the running container can name the commit it
+# was built from. `unknown` is the honest default for a local build: lib/release.ts treats
+# it as absent rather than letting an unpublished image claim an identity.
+ARG APP_COMMIT=unknown
+ARG APP_VERSION=unknown
+ARG APP_BUILT_AT=unknown
+
 WORKDIR /app
 
 # Runtime sentinels, NOT usable defaults. Every one of these fails the fail-fast
@@ -54,7 +61,17 @@ ENV NODE_ENV=production \
   DATABASE_URL="postgresql://invalid" \
   DIRECT_URL="postgresql://invalid" \
   AUTH_SECRET="" \
-  ENCRYPTION_KEY="REPLACE_AT_RUNTIME"
+  ENCRYPTION_KEY="REPLACE_AT_RUNTIME" \
+  APP_COMMIT=${APP_COMMIT} \
+  APP_VERSION=${APP_VERSION} \
+  APP_BUILT_AT=${APP_BUILT_AT}
+
+# Mirrored as labels so the provenance is readable with `docker inspect`, without running
+# the image. Same values, two audiences: labels for the operator, env for the process.
+LABEL org.opencontainers.image.revision="${APP_COMMIT}" \
+  org.opencontainers.image.version="${APP_VERSION}" \
+  org.opencontainers.image.created="${APP_BUILT_AT}" \
+  org.opencontainers.image.source="https://github.com/sonnynguyen170321-ctrl/crm-4-telestar-final"
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates openssl \

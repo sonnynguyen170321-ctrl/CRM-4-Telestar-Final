@@ -119,7 +119,7 @@ block force pushes, deletion and direct pushes.
 Docker build each block merge; a failed commit publishes no image; direct push to `main` is
 rejected.
 
-### [ ] Task 5 — Immutable release images
+### [x] Task 5 — Immutable release images  ✅
 
 Branch: `deploy/immutable-images`. Tag every image with the full Git SHA (optionally a
 `v1.0.0` release tag that is never overwritten). Capture the digest at publish. Deploy by
@@ -133,9 +133,10 @@ defaulting to `latest` and require an explicit image reference.
 a digest is byte-identical; a previous digest restores in staging; a failed deploy rolls back
 without rebuilding.
 
-> Current state: `docker-compose.yml` uses `${IMAGE_TAG:-latest}` and `.env.production` sets
-> `IMAGE_TAG=latest`. CI already publishes `:sha-<7>` alongside `:latest`, so the tag exists —
-> this task makes it the default and removes the mutable fallback.
+> Done: `docker-compose.yml` now declares `${CRM_IMAGE:?…}` with **no default**, so compose
+> refuses to start without a digest or full-SHA tag. `IMAGE_TAG` is gone from every env
+> template and deploy doc. `scripts/deploy.sh` resolves, pins, verifies and records;
+> `scripts/rollback.sh` returns to the retained previous digest.
 
 ---
 
@@ -225,7 +226,7 @@ build and the Docker build all pass, migrations have been reviewed, and no secre
 - [ ] Deactivated or demoted users immediately lose access
 - [x] Email processing cannot blindly send duplicates
 - [ ] PRs cannot merge without mandatory checks
-- [ ] Deployments use exact image versions
+- [x] Deployments use exact image versions
 - [ ] Cross-tenant isolation tests pass
 - [ ] Login attempts are throttled
 - [ ] CSP is ready for enforcement
