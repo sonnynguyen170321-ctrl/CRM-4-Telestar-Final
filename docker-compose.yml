@@ -14,7 +14,10 @@ x-app-base: &app-base
     PORT: "3000"
     DATABASE_URL: "postgresql://${POSTGRES_USER:-crm}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-telestar_crm}"
     DIRECT_URL: "postgresql://${POSTGRES_USER:-crm}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-telestar_crm}"
-    REDIS_URL: "redis://redis:6379"
+    # Defaults to the compose-local Redis, but overridable so a managed instance can be
+    # used without editing this file. A managed provider gives you rediss://…; the extra
+    # "s" is TLS and omitting it fails with an opaque protocol error.
+    REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
     NEXTAUTH_URL: "${NEXTAUTH_URL}"
     AUTH_SECRET: "${AUTH_SECRET}"
     ENCRYPTION_KEY: "${ENCRYPTION_KEY}"
