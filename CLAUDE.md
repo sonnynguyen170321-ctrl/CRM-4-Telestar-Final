@@ -133,11 +133,22 @@ Before touching admin, user, campaign-membership or work-ownership code:
 read **`docs/admin-control-center/STATUS.md`** — gate status, architecture constraints,
 and what was deliberately *not* built.
 
-> **The impact dialog is not exhaustive.** `lib/admin/impact.ts` counts leadgen pool rows
-> only via `assignedSdrId`. `LeadPoolItem.qualifiedById` and the FK-less `Lead.archivedById` /
-> `EmailAccount.sendPausedById` / `EmailHealthAlert.acknowledgedById` / `resolvedById` are
-> counted nowhere and shown nowhere — they are silently left behind on transfer. Intended,
-> but don't tell an operator the dialog is complete.
+> **The impact dialog now discloses what a transfer leaves behind (2026-08-08).** It used to
+> count leadgen pool rows only via `assignedSdrId`, so `LeadPoolItem.qualifiedById` and the
+> FK-less `Lead.archivedById` / `EmailAccount.sendPausedById` /
+> `EmailHealthAlert.acknowledgedById` / `resolvedById` were counted nowhere and shown nowhere.
+> `computeUserImpact` now returns `staleAttributions` for all five, and `ImpactPanel` lists
+> the non-zero ones.
+>
+> **They are deliberately excluded from `totalOpen`.** These record *who did something*, not
+> work someone must pick up. Rolling them in would flip `canRemoveSafely` for users whose only
+> remaining trace is history and start returning 409 on removals that are correct today — the
+> opposite of the intent, which is disclosure rather than a new gate. A test in
+> `tests/admin-impact.test.ts` pins that: an archived-lead attribution is reported *and*
+> `safe_remove` still stands.
+>
+> Still true: nothing rewrites these columns on transfer, and four of the five have no FK, so
+> the database will not keep them consistent either.
 
 > `lib/admin/transferWork.ts` deliberately has no `$transaction` — Neon HTTP has no interactive
 > transactions and the `lib/prisma.ts` `$extends` wrappers defeat array batching, so wrapping it
