@@ -86,16 +86,39 @@ jobs:
       - name: Apply database migrations
         run: npx prisma migrate deploy
 
+      # Each gate tees its output so the failure summary below can quote the decisive
+      # lines into the run page. Reading a red job should not require an API token.
       - name: Lint
-        run: npm run lint
+        run: set -o pipefail; npm run lint 2>&1 | tee lint.log
+        shell: bash
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: set -o pipefail; npx tsc --noEmit 2>&1 | tee tsc.log
+        shell: bash
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Tests
-        run: npm test
+        run: set -o pipefail; npm test 2>&1 | tee vitest.log
+        shell: bash
+
+      - name: Summarize failure
+        if: failure()
+        run: |
+          {
+            echo "## Lint · types · tests — failure"
+            echo
+            for f in lint.log tsc.log vitest.log; do
+              [ -f "$f" ] || continue
+              echo "### ${f}"
+              echo
+              echo '```text'
+              tail -n 60 "$f"
+              echo '```'
+              echo
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
 
   # ── The migration history must match the schema, and must replay from empty ──
   migrations:
@@ -209,13 +232,15 @@ jobs:
         shell: bash
 
       - name: Run demo seed
-        run: npm run db:seed
+        run: set -o pipefail; npm run db:seed 2>&1 | tee seed.log
+        shell: bash
         env:
           ALLOW_DESTRUCTIVE_SEED: I_UNDERSTAND_THIS_DELETES_ALL_DATA
           DEMO_SEED_PASSWORD: ${{ env.E2E_PASSWORD }}
 
       - name: Production build
-        run: npm run build
+        run: set -o pipefail; npm run build 2>&1 | tee build.log
+        shell: bash
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
@@ -243,9 +268,28 @@ jobs:
       # deliberately excluded: it is not part of the documented 20/20 and has never been
       # run green in CI, so requiring it would block merges on an unknown.
       - name: Playwright
-        run: npx playwright test crm-journeys deep-smoke
+        run: set -o pipefail; npx playwright test crm-journeys deep-smoke 2>&1 | tee playwright.log
+        shell: bash
         env:
           BASE_URL: http://localhost:3000
+
+      - name: Summarize failure
+        if: failure()
+        run: |
+          {
+            echo "## Build · Playwright — failure"
+            echo
+            for f in seed.log build.log playwright.log server.log; do
+              [ -f "$f" ] || continue
+              echo "### ${f}"
+              echo
+              echo '```text'
+              tail -n 60 "$f"
+              echo '```'
+              echo
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
 
       - name: Upload Playwright artifacts
         if: failure()
@@ -303,11 +347,57 @@ jobs:
         with:
           fetch-depth: 0
 
+      # --verbose is not optional: without it gitleaks prints only "leaks found: N" and
+      # never says where, which is a failure you cannot act on. The JSON report is parsed
+      # into the job summary below so the findings are readable from the run page without
+      # downloading anything or holding an API token.
       - name: gitleaks
         run: |
+          set -o pipefail
           docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0 \
-            detect --source=/repo --redact --no-banner --exit-code 1
+            detect --source=/repo --config=/repo/.gitleaks.toml \
+            --redact --no-banner --verbose \
+            --report-format json --report-path /repo/gitleaks-report.json \
+            --exit-code 1 2>&1 | tee gitleaks.log
         shell: bash
+
+      - name: Summarize gitleaks findings
+        if: failure()
+        run: |
+          {
+            echo "## gitleaks output"
+            echo
+            echo '```text'
+            tail -n 40 gitleaks.log 2>/dev/null || echo "no gitleaks.log"
+            echo '```'
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          node -e '
+            const fs = require("fs");
+            if (!fs.existsSync("gitleaks-report.json")) {
+              console.log("## Secret scan\n");
+              console.log("No report file — gitleaks exited before writing one. That means the run failed on configuration (a malformed .gitleaks.toml, a bad flag) rather than on a finding. See the raw output above.");
+              process.exit(0);
+            }
+            const findings = JSON.parse(fs.readFileSync("gitleaks-report.json", "utf8"));
+            const rows = findings.map(f => `| \`${f.RuleID}\` | \`${f.File}\` | ${f.StartLine} | ${(f.Commit||"").slice(0,7)} | ${f.Date||""} |`);
+            console.log("## Secret scan findings\n");
+            console.log(`${findings.length} finding(s). Secret values are redacted.\n`);
+            console.log("| rule | file | line | commit | date |");
+            console.log("| --- | --- | --- | --- | --- |");
+            console.log(rows.join("\n"));
+            console.log("\nA finding in an old commit is still a finding: the value is in the history and must be treated as disclosed. Rotate first, then allowlist that path in .gitleaks.toml with a reason.");
+          ' >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
+
+      - name: Upload gitleaks report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+          retention-days: 7
+          if-no-files-found: ignore
 
   # ── New dependencies must not arrive with known vulnerabilities ──────────
   # Pull requests only: the action diffs the PR's manifest against the base branch.

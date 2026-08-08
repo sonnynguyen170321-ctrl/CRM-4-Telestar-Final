@@ -99,3 +99,14 @@ sidebar-1024px.png
 deployments.ndjson
 .env.production.bak
 .env.docker.bak
+
+# CI diagnostic output (tee'd into job summaries, never committed)
+gitleaks-report.json
+lint.log
+tsc.log
+vitest.log
+seed.log
+build.log
+playwright.log
+server.log
+gitleaks.log
