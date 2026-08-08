@@ -27,10 +27,18 @@ below.
 
 None of these can be finished from a checkout. They are the whole remaining surface.
 
-1. **Change the Director password on the live box** (`http://34.142.236.46`). Still
-   `telestar2026`, published in this repository. Changing it now also increments
-   `authVersion` and therefore invalidates every session that already exists — but only
-   since 2026-08-08, and it is worth knowing why.
+1. ~~**Change the Director password on the live box**~~ — **done 2026-08-08.** Rotated on
+   `9ca7e6b`, and the revocation was confirmed the only way that counts: an already-open
+   Director session was refused on its next request, and both `telestar2026` and an
+   accidentally-set intermediate value were rejected at sign-in. Deployment record:
+   [`docs/DEPLOY.md` §8b](../DEPLOY.md).
+
+   **Two things this did not fix.** Every *other* demo account still holds the published
+   `telestar2026` — SDRs, team leads, floor managers — so this is now the largest remaining
+   credential exposure on that box. And the site is still plain HTTP, so the new password
+   crossed the network in cleartext at sign-in.
+
+   Kept for the record, because the reasoning was wrong before it was right:
 
    > **Correction.** An earlier version of this line said the session revocation came free
    > "with Task 2 merged". It did not. Task 2 wired `authVersion` into the *application's*
@@ -41,16 +49,21 @@ None of these can be finished from a checkout. They are the whole remaining surf
    > `tests/create-admin.test.ts` pinning the increment so the claim cannot silently become
    > false again.
 
-   Command is in the section below. Note that the box is still plain HTTP, so the *new*
-   password crosses the network in cleartext at the next sign-in; TLS (UX-001) remains open.
-2. **Enable RLS on a staging target** (Task 6). The policies, roles and procedure are written
+2. 🔴 **Rotate or deactivate the other demo accounts.** Every non-Director demo user still
+   has `telestar2026`, which is published in this repository. Now the single largest
+   credential exposure on that box, ahead of TLS.
+3. **Enable RLS on a staging target** (Task 6). The policies, roles and procedure are written
    and tested; enforcement has never been switched on anywhere, because there is no staging
    database to switch it on against.
-3. **Exercise the Task 5 deploy scripts and the Redis recovery scenarios** (Task 10). Both
-   need Docker or a VM.
-4. **Manual verification of Task 2.** Sign in as a user in one browser, deactivate that user
-   from another session, confirm the first is refused on its next request. Needs a browser
-   against a running instance.
+4. **Update `/opt/crm-4-u` on the box so the Task 5 deploy tooling actually applies.** Its
+   checkout predates Task 5: the compose file there still resolves `IMAGE_TAG` and ignores
+   `CRM_IMAGE`, so `scripts/deploy.sh` and `scripts/rollback.sh` are inert and
+   `deployments.ndjson` is never written. Details and the migration hazard are in
+   [`docs/DEPLOY.md` §8b](../DEPLOY.md). Redis failover scenarios (Task 10) still need
+   Docker or a VM.
+5. ~~**Manual verification of Task 2**~~ — **done 2026-08-08**, during the password
+   rotation. An already-open Director session was refused on its next request, which is the
+   same revocation path a deactivation takes.
 
 ---
 
