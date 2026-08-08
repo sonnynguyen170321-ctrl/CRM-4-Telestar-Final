@@ -97,7 +97,7 @@ and manual and automated sends share one durable pipeline.
 
 ## Milestone B — Reliable delivery
 
-### [~] Task 4 — Mandatory CI on pull requests — workflows landed, protection outstanding
+### [x] Task 4 — Mandatory CI on pull requests  ✅
 
 Branch: `ci/mandatory-quality-gates`. Workflow on `pull_request` and `push` to `main`, using
 the same Node major as the production image. Jobs: install, `prisma generate`, `tsc --noEmit`,
@@ -110,10 +110,12 @@ publishing — publish an image only after required tests pass.
 Branch protection on `main`: require PRs, ≥1 approval, CI checks, resolved conversations;
 block force pushes, deletion and direct pushes.
 
-> **Not applied.** Branch protection lives in GitHub settings, not this repo, and `gh` is
-> not installed on the build machine. The exact ruleset, the one check to require, and the
-> five break-it verifications are written up in [`docs/BRANCH_PROTECTION.md`](../BRANCH_PROTECTION.md).
-> Until it is applied, CI is advisory: it reports, it does not block.
+> **Applied 2026-08-08** and read back from the API field by field: required check
+> `CI required checks`, strict, `enforce_admins` true, pull request required, 0 approvals,
+> conversation resolution required, force pushes and deletions blocked. Rationale for 0
+> rather than the plan's ≥1 — GitHub does not let you approve your own pull request, so on
+> a single-maintainer repo ≥1 plus `enforce_admins` makes `main` permanently unmergeable —
+> is recorded in [`docs/BRANCH_PROTECTION.md`](../BRANCH_PROTECTION.md).
 
 *Verify:* a TypeScript error, a failing unit test, a failing Playwright test and a failing
 Docker build each block merge; a failed commit publishes no image; direct push to `main` is
@@ -225,7 +227,7 @@ build and the Docker build all pass, migrations have been reviewed, and no secre
 - [x] Production data cannot be destroyed by the demo seed
 - [ ] Deactivated or demoted users immediately lose access
 - [x] Email processing cannot blindly send duplicates
-- [ ] PRs cannot merge without mandatory checks
+- [x] PRs cannot merge without mandatory checks
 - [x] Deployments use exact image versions
 - [ ] Cross-tenant isolation tests pass
 - [ ] Login attempts are throttled

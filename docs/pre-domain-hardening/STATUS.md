@@ -3,9 +3,14 @@
 > Resume pointer. Read this first, then execute the next unchecked task in
 > [`PLAN.md`](./PLAN.md). Tick the box there and update this file when a task lands.
 
-**Current phase:** Milestone B — Reliable delivery
+**Current phase:** Milestone C — Defense in depth
 **Next task:** Task 6 — prepare and validate PostgreSQL RLS
-**Blockers:** Task 4's branch protection needs applying by hand — see below.
+**Blockers:** none.
+
+> ⚠️ **`main` is protected as of 2026-08-08. You can no longer push to it.** Every change —
+> including documentation — goes through a branch and a pull request, and cannot merge until
+> `CI required checks` is green. This applies to the repository owner too (`enforce_admins`
+> is on). Tasks 1, 3, 4 and 5 were merged locally before this; everything after is a PR.
 
 > Task 2 (session revocation) is implemented on `fix/session-revocation` but **parked to
 > last** by decision on 2026-08-06 — its 26 tests and the sign-out-all UI are outstanding.
@@ -336,3 +341,100 @@ devDependency so that test cannot break on a lockfile change.
 
 **Not verified:** anything requiring Docker or the VM — no Docker on this machine. The
 scripts are syntax-checked, not executed. First real deploy should be watched.
+
+---
+
+## Task 4 — complete (2026-08-08). Branch protection is live.
+
+### The protection, read back from the API
+
+| Setting | Value |
+| --- | --- |
+| Required status check | `CI required checks` |
+| Strict (branch up to date) | true |
+| `enforce_admins` (no bypass) | **true** |
+| Pull request required | true |
+| Required approvals | **0** — see below |
+| Conversation resolution | true |
+| Force pushes / deletions | blocked |
+
+**0 approvals, not the plan's ≥1.** GitHub does not allow approving your own pull request,
+so ≥1 plus `enforce_admins` on a single-maintainer repository leaves `main` permanently
+unmergeable — the only escape being to weaken `enforce_admins`, which makes the rule
+advisory for the person most able to bypass it. Everything that actually protects `main` is
+absolute for everybody: no direct pushes, no merging a red build, no force pushes, no
+deletion. Raise to 1 the day a second person has write access; it is a one-field change.
+(GitHub suggests `BrandNg` as a reviewer, so that day may already be here.)
+
+Proven, not assumed — pushing to `main` as the repository owner:
+
+```
+remote: error: GH006: Protected branch update failed for refs/heads/main.
+remote: - Changes must be made through a pull request.
+remote: - Required status check "CI required checks" is expected.
+! [remote rejected] main -> main (protected branch hook declined)
+```
+
+PR #11 (Task 5) was then merged **through** the gate rather than around it.
+
+### The publish gate, as a truth table
+
+Observed live, not contrived:
+
+| Commit | CI | Docker Image |
+| --- | --- | --- |
+| `39fb980` — old workflow | ❌ failure | ✅ **published from a red build** |
+| `64d50b4` — new workflow | ❌ failure | ⏭️ **skipped** |
+| `9cfe82b` — new workflow | ✅ success | ✅ published |
+
+The first row is the hole Task 4 closed, and it was live until 2026-08-07.
+
+### What getting CI green actually turned up
+
+Three real defects, none of them CI plumbing:
+
+1. **CI had been failing on every run since Task 1 merged** (`9908642`). `ci.yml` seeded a
+   database named `telestar_crm`; the seed guard refuses any name lacking
+   dev/development/test/local. Nothing depended on the result, so nobody noticed — the exact
+   failure this task exists to end. The CI database is now `telestar_crm_test`.
+
+2. **Two suites inherited seeded state from developer machines.** `bullmq.test.ts` and
+   `run-now-immediate.test.ts` wrote tenant-scoped rows but nothing created the `Tenant`,
+   giving `Foreign key constraint violated: JobRun_tenantId_fkey` on a fresh database.
+   `rls.test.ts` took `user.findFirst()` / `campaign.findFirst()` — whichever rows happened
+   to exist — so it passed on a seeded workstation, failed on CI, and silently tested against
+   a different user on every machine. Both now provide their own preconditions
+   (`tests/setup/db-baseline.ts` and self-built fixtures).
+
+3. **The Playwright job was hitting its 40-minute timeout, not failing an assertion.**
+   `crm-journeys.spec.ts` hardcoded `telestar2026` at six call sites and never read
+   `E2E_PASSWORD`, so a randomly-seeded CI password failed every persona login; then
+   `playwright.config.ts` — which selected its budgets on whether `BASE_URL` was *set*, not
+   on whether the target was remote — applied a 120s per-test budget to a localhost run with
+   `workers: 1`. Rehearsed in the CI configuration afterwards: **20/20 in 58s**.
+
+### The secret scan
+
+gitleaks reported 6 findings on first run. Triaged across 92 commits: **none is a live
+credential.** Placeholder text in `.env` templates, loopback DSNs, the documented
+`0123456789abcdef…` test key, Google-token-shaped fixtures, and deploy-guide DSNs whose
+password is `${DB_PASSWORD}` or `<password>`. No PAT, no AWS key, no private key, nothing
+resembling the `CRON_SECRET` rotated on 2026-08-05. So `.gitleaks.toml` allowlists those
+values narrowly, keeps `useDefault = true`, and anchors the database exemptions to loopback
+hosts and placeholder passwords — a credentialled DSN pointing anywhere real still fails.
+
+`tests/gitleaks-allowlist.test.ts` pins that boundary, because a widened allowlist fails
+silently. One wrinkle worth remembering: that test file must itself contain credential-shaped
+strings to prove they are *not* exempted, so it is path-exempted by exact filename — the
+scanner would otherwise flag the fixtures proving the scanner works.
+
+### Still open
+
+- **`Dependency review` fails on capability, not content** — "Dependency review is not
+  supported on this repository". Enable Settings → Code security → **Dependency graph** and
+  it goes green. It is deliberately *not* in the required checks, so it blocks nothing.
+  Do not leave it red indefinitely: a permanently-failing check trains people to ignore
+  checks, which is what this task set out to fix.
+- **`CodeQL` is green but also not required.** Add it to the required contexts once you are
+  happy it is stable.
+- Action-deprecation warning: some pinned actions still target the Node 20 runtime.
