@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { GENERIC_LOGIN_FAILURE } from '@/lib/auth/loginThrottle';
 import { Flame, Mail, Lock, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 
 const DEMO_ACCOUNTS = [
@@ -38,7 +39,9 @@ export default function LoginPage() {
     const result = await signIn('credentials', { email: e, password: p, redirect: false });
     setLoading(false);
     if (result?.error) {
-      setError('Invalid email or password.');
+      // One message for every cause — wrong password, unknown address, deactivated
+      // account, throttled attempt. Varying it would let anyone enumerate accounts.
+      setError(GENERIC_LOGIN_FAILURE);
     } else {
       router.push('/');
       router.refresh();
