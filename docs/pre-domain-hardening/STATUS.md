@@ -588,3 +588,52 @@ Other decisions worth keeping:
 26 tests in `tests/login-throttle.test.ts`, including the two denial-of-service traps
 (an account never locks at any failure count; one IP is cut off before it can work through
 the user table) and the shared-across-instances behaviour.
+
+---
+
+## Task 8 — CSP in report-only ✅ (2026-08-08). Enforcement deliberately deferred.
+
+`Content-Security-Policy-Report-Only` on every response, violations posted to
+`/api/csp-report`. Nothing is blocked yet — that switch belongs with the domain deploy,
+once the reports are quiet.
+
+**Origin inventory**, which is the part worth keeping:
+
+| Browser-facing — in the policy | Why |
+| --- | --- |
+| `fonts.googleapis.com` | the `@import` at the top of `app/globals.css` |
+| `fonts.gstatic.com` | the font files that stylesheet then references |
+| `images.unsplash.com` | demo imagery |
+| `login.microsoftonline.com` | Entra ID sign-in, as a `form-action` |
+
+**Server-side only — deliberately absent:** `graph.microsoft.com`, `www.googleapis.com`,
+`api.tavily.com`, `r.jina.ai`. The browser never contacts them; listing them would widen
+the policy for nothing. **Navigation targets — also absent:** `linkedin.com`, `wa.me`,
+`meet.google.com`, `calendly.com`. CSP does not govern `<a href>`.
+
+Closed: `default-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`,
+`frame-src 'none'`, `base-uri 'self'`, `connect-src 'self'`. No `unsafe-eval` anywhere.
+
+**The one known gap, and why it is not fixed yet.** `script-src` still allows
+`'unsafe-inline'`, because Next.js inlines its bootstrap and hydration scripts. The usual
+fix is a per-request nonce from middleware — but `proxy.ts` deliberately does not run on
+`/login`, `_next/static`, the health probe or the public client-report routes, so a
+middleware-only nonce would leave exactly those pages violating their own policy. Widening
+the matcher to cover `/login` risks a redirect loop on the one route that must stay
+reachable. `buildCsp()` already accepts a nonce, so the switch is a change in one function
+rather than at every caller.
+
+**Header is set in `next.config.ts`, not the middleware** — for the same reason: the
+middleware skips the routes a partial policy would most embarrassingly miss.
+
+The report endpoint is unauthenticated by necessity (browsers post with no cookies) and so
+is deliberately cheap: 8 KB body cap, nothing persisted, one log line, 204 to everyone.
+`proxy.ts` excludes it alongside the health probe.
+
+Verified live against a production build: header present on `/login`, a posted violation
+returned 204 and logged
+`[csp-report] directive=img-src blocked=https://evil.test/x.png document=…/login`.
+
+**Before enforcing:** exercise every route with the browser console open, fix real
+violations, tighten `script-src`, then change `CSP_HEADER_NAME` to
+`Content-Security-Policy`. That last step ships with the domain.
