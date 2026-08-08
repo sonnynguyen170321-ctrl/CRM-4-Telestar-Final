@@ -27,6 +27,17 @@ export type SuggestedTarget = {
 
 export type RecommendedAction = 'safe_remove' | 'transfer_work' | 'pause_tasks' | 'blocked';
 
+/** Historical "who did this" columns that a work transfer does not rewrite. */
+export type StaleAttributions = {
+  leadPoolQualified: number;
+  leadsArchived: number;
+  mailboxesPausedBy: number;
+  alertsAcknowledged: number;
+  alertsResolved: number;
+  /** Sum, so a caller can ask "is there anything to mention?" without adding up five fields. */
+  total: number;
+};
+
 export type UserImpact = {
   userId: string;
   campaignId: string | null;
@@ -42,6 +53,19 @@ export type UserImpact = {
   activeEmailAccounts: number;
   /** Leadgen pool rows pointing at this user. Reported, never transferred in V1. */
   leadPoolItems: number;
+  /**
+   * Other columns that still name this user after a transfer.
+   *
+   * These are *attributions* — who archived a lead, who paused a mailbox, who acknowledged
+   * an alert — not open work someone must pick up. They are reported so an operator is not
+   * told the dialog is complete when it is not, and deliberately excluded from `totalOpen`:
+   * counting them would flip `canRemoveSafely` to false for users whose only remaining trace
+   * is history, and block removals that are correct today.
+   *
+   * Four of the five are FK-less `String?` columns, so nothing at the database level keeps
+   * them consistent when the user row changes.
+   */
+  staleAttributions: StaleAttributions;
   totalOpen: number;
   canRemoveSafely: boolean;
   recommendedAction: RecommendedAction;
@@ -73,6 +97,11 @@ export async function computeUserImpact(
     campaignMemberships,
     activeEmailAccounts,
     leadPoolItems,
+    leadPoolQualified,
+    leadsArchived,
+    mailboxesPausedBy,
+    alertsAcknowledged,
+    alertsResolved,
   ] = await Promise.all([
     prisma.lead.count({
       where: {
@@ -99,8 +128,29 @@ export async function computeUserImpact(
     prisma.campaignSdr.count({ where: { userId } }),
     prisma.emailAccount.count({ where: { userId, isActive: true, sendPausedAt: null } }),
     prisma.leadPoolItem.count({ where: { assignedSdrId: userId } }),
+    // LeadPoolItem and EmailAccount have no campaignId, so these two cannot be narrowed to a
+    // campaign — they are counted whole even in the per-campaign view. Better to over-report
+    // an attribution than to hide one behind a filter the model does not support.
+    prisma.leadPoolItem.count({ where: { qualifiedById: userId } }),
+    prisma.lead.count({ where: { archivedById: userId, ...camp } }),
+    prisma.emailAccount.count({ where: { sendPausedById: userId } }),
+    prisma.emailHealthAlert.count({ where: { acknowledgedById: userId, ...camp } }),
+    prisma.emailHealthAlert.count({ where: { resolvedById: userId, ...camp } }),
   ]);
 
+  const staleAttributions: StaleAttributions = {
+    leadPoolQualified,
+    leadsArchived,
+    mailboxesPausedBy,
+    alertsAcknowledged,
+    alertsResolved,
+    total:
+      leadPoolQualified + leadsArchived + mailboxesPausedBy + alertsAcknowledged + alertsResolved,
+  };
+
+  // Deliberately unchanged: attributions are history, not work. Rolling them in here would
+  // flip canRemoveSafely for users whose only remaining trace is history and start returning
+  // 409 on removals that are correct today.
   const totalOpen = openLeads + openTasks + scheduledMeetings + openOpportunities;
 
   const suggestedTargets = actor
@@ -119,6 +169,7 @@ export async function computeUserImpact(
     campaignMemberships,
     activeEmailAccounts,
     leadPoolItems,
+    staleAttributions,
     totalOpen,
     canRemoveSafely: totalOpen === 0,
     recommendedAction: deriveRecommendedAction({
