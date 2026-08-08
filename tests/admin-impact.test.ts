@@ -296,6 +296,43 @@ describe.skipIf(!hasDb)('computeUserImpact', () => {
     expect(impact.recommendedAction).toBe('safe_remove');
   });
 
+  it('reports attributions that a transfer leaves behind without blocking the removal', async () => {
+    // Arrange: sdrB has no open work, but did archive a lead. Before this existed, that
+    // archivedById reference was counted nowhere and shown nowhere.
+    await run(() =>
+      prisma.lead.create({
+        data: {
+          tenantId,
+          campaignId,
+          firstName: 'Archived',
+          lastName: 'Lead',
+          company: 'Gone Ltd',
+          email: 'archived@prospect.test',
+          // Owned by someone else on purpose: the point is that sdrB is named only as the
+          // person who archived it, with no open work of their own.
+          assignedToId: sdrA.id,
+          stage: 'lost',
+          archivedAt: new Date(),
+          archivedById: sdrB.id,
+        },
+      })
+    );
+
+    // Act
+    const impact = await run(() => computeUserImpact({ userId: sdrB.id, campaignId }, director));
+
+    // Assert: reported...
+    expect(impact.staleAttributions.leadsArchived).toBe(1);
+    expect(impact.staleAttributions.total).toBe(1);
+
+    // ...and deliberately not treated as open work. Rolling attributions into totalOpen would
+    // start returning 409 on removals that are correct today, which is the opposite of the
+    // point: this is disclosure, not a new gate.
+    expect(impact.totalOpen).toBe(0);
+    expect(impact.canRemoveSafely).toBe(true);
+    expect(impact.recommendedAction).toBe('safe_remove');
+  });
+
   it('recommends a transfer when an eligible target exists', async () => {
     const impact = await run(() =>
       computeUserImpact({ userId: sdrA.id, campaignId }, director)
