@@ -9,7 +9,6 @@ import { handleApiError } from '@/lib/api/errors';
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
-  const user = userOrRes as SessionUser;
 
   const { searchParams } = new URL(req.url);
   const clientId = searchParams.get('clientId') || undefined;

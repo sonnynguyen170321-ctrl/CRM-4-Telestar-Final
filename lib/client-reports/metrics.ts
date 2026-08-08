@@ -599,6 +599,11 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
     },
     funnel,
     channels,
+    // Was computed above and then dropped on the floor. `exporters.ts` reads
+    // `snapshot.emailChannelHealth` behind an `if`, for both the CSV and the PDF, so that
+    // guard was always false and the Email Channel Health section was silently absent from
+    // every export. The lint warning for the unused variable was the only trace.
+    emailChannelHealth,
     leadQuality,
     meetings: meetingList,
     opportunities: opportunityList,

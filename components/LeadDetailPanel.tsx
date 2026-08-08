@@ -767,7 +767,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
         const data = await res.json().catch(() => ({}));
         showToast(data.error || 'Failed to run task', 'error');
       }
-    } catch (e) {
+    } catch {
       showToast('Error running task', 'error');
     } finally {
       setRunningTask(null);

@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { 
-  ShieldAlert, 
   Cpu, 
   Play, 
   RefreshCw, 
@@ -11,7 +10,6 @@ import {
   CheckCircle2, 
   Activity, 
   AlertCircle,
-  Edit2,
   ShieldCheck
 } from 'lucide-react';
 import Link from 'next/link';
@@ -82,39 +80,6 @@ export default function AutomationDashboard() {
   const [sequenceResult, setSequenceResult] = useState<any | null>(null);
   const [inboxResult, setInboxResult] = useState<any | null>(null);
 
-  const [editingCapId, setEditingCapId] = useState<string | null>(null);
-  const [editCapValue, setEditCapValue] = useState<string>('');
-  const [isUpdatingCap, setIsUpdatingCap] = useState(false);
-
-  const handleUpdateCap = async (accountId: string) => {
-    const val = parseInt(editCapValue, 10);
-    if (isNaN(val) || val < 1) {
-      showToast('Please enter a valid number greater than 0', 'error');
-      return;
-    }
-    
-    setIsUpdatingCap(true);
-    try {
-      const res = await fetch(`/api/automation/accounts/${accountId}/cap`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dailyCap: val }),
-      });
-      
-      if (res.ok) {
-        showToast('Daily cap updated successfully', 'success');
-        setEditingCapId(null);
-        fetchStats();
-      } else {
-        const err = await res.json();
-        showToast(err.error || 'Failed to update daily cap', 'error');
-      }
-    } catch {
-      showToast('Network error while updating daily cap', 'error');
-    } finally {
-      setIsUpdatingCap(false);
-    }
-  };
 
   const fetchStats = async () => {
     try {

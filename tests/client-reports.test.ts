@@ -22,7 +22,6 @@ import {
 } from '@/lib/client-reports/exporters';
 import {
   createClientReportSchema,
-  updateClientReportSchema,
   createShareLinkSchema,
 } from '@/lib/validation/schemas';
 import { ClientReportSnapshot } from '@/lib/client-reports/types';

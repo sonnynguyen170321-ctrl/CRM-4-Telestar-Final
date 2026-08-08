@@ -196,7 +196,6 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
   };
 
   const allSelected = items.length > 0 && selected.size === items.length;
-  const selectedItems = items.filter((i) => selected.has(i.id));
 
   const runAction = async (path: string, body: unknown, okMsg: string) => {
     setBusy(true);
@@ -687,7 +686,7 @@ function CreateForm({ onDone }: { onDone: (ok: boolean) => void }) {
         <button onClick={() => onDone(false)} className="text-text-muted hover:text-text-primary text-lg leading-none">×</button>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        {fields.map(([key, label, required]) => (
+        {fields.map(([key, label]) => (
           <div key={key} className="space-y-1">
             <label className="text-[10px] uppercase text-text-muted">{label}</label>
             <input

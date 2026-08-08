@@ -1,13 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   FileBarChart,
   Plus,
   Search,
-  Filter,
-  Eye,
   Link2,
   Download,
   Calendar,
@@ -15,11 +13,8 @@ import {
   CheckCircle2,
   Clock,
   Archive,
-  MoreVertical,
-  ExternalLink,
-  Trash2,
 } from 'lucide-react';
-import { ClientReportListItem, ReportStatus, ReportAudience } from '@/lib/client-reports/types';
+import { ClientReportListItem, ReportStatus } from '@/lib/client-reports/types';
 import CreateClientReportModal from './CreateClientReportModal';
 import ClientReportShareModal from './ClientReportShareModal';
 
@@ -34,7 +29,7 @@ export default function ClientReportList() {
   // Share Modal State
   const [shareTarget, setShareTarget] = useState<{ id: string; title: string } | null>(null);
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
       const query = new URLSearchParams();
@@ -51,11 +46,11 @@ export default function ClientReportList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, audienceFilter]);
 
   useEffect(() => {
     fetchReports();
-  }, [statusFilter, audienceFilter]);
+  }, [fetchReports]);
 
   const filteredReports = reports.filter((r) => {
     const term = search.toLowerCase();

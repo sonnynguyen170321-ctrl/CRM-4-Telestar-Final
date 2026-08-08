@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import Linkedin from '@/components/icons/Linkedin';
 import { useToast } from '@/context/ToastContext';
-import { useAppContext } from '@/context/AppContext';
 
 interface Template {
   id: string;
@@ -50,7 +49,6 @@ const PREVIEW_DATA: Record<string, string> = {
 
 export default function TemplatesPage() {
   const { showToast } = useToast();
-  const { isManager } = useAppContext();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemp, setSelectedTemp] = useState<Template | null>(null);
   const [name, setName] = useState('');
