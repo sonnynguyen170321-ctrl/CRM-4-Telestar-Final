@@ -1,19 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, tenantStorage } from '@/lib/prisma';
-import { auth } from '@/auth';
-
-const MANAGER_ROLES = ['director', 'floor_manager', 'team_lead'];
+import { requireManager } from '@/lib/auth';
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  const isManager = session?.user && MANAGER_ROLES.includes((session.user as any)?.role ?? '');
-  
-  if (!isManager) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // Authorize from the database, not the cookie.
+  //
+  // This used to read `auth()` and test the role claim inside the JWT. Sessions here are
+  // stateless, so that token is a statement about who the user *was* when it was minted:
+  // a deactivated, demoted or signed-out-all account kept working until it expired. Verified
+  // before the change — a deactivated team lead holding a live token successfully raised a
+  // mailbox's daily send cap and got a 200 back, while every other route correctly refused
+  // the same token with 401.
+  //
+  // `requireManager` goes through `getSessionUser`, which re-reads the row and matches
+  // `authVersion`, so revocation applies here like everywhere else. It also returns **403**
+  // for a role failure, which is the convention the rest of the codebase follows; the old
+  // code answered 401 and so reported "not signed in" to a user who was.
+  const userOrRes = await requireManager();
+  if (userOrRes instanceof NextResponse) return userOrRes;
 
   const { id } = await params;
   
