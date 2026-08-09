@@ -24,6 +24,19 @@ something a user can use or a test can assert.
 
 1. **Gates stay green** — `tsc --noEmit`, `eslint app components lib context tests`,
    `vitest run`, and the automation E2E specs.
+
+   **`next build` is a required completion gate** for any phase touching shared imports,
+   Next.js routes, provider code, the server/client boundary, or application wiring. It is not
+   optional and not "CI will catch it": the fast gates cannot see bundling failures. Phase 1
+   shipped a provider import that pulled `async_hooks`/`dns`/`net` into the browser bundle
+   with tsc at 0 errors and Vitest at 820 passing — CI went red on Docker build and
+   Build·Playwright, not on anything runnable in seconds.
+
+   **Docker build joins the gate** for phases that affect runtime or deployment: worker code,
+   Dockerfile, dependencies, environment contracts, or anything the always-on host runs.
+
+   **CI is green only when GitHub reports each required check successful.** A watcher process
+   exiting 0 is not evidence — read the individual check states.
 2. **Nothing gets a twin.** Each phase's acceptance includes: the capability is wired to a
    service in the [reuse map](ARCHITECTURE.md) and adds no parallel CRM, sequence, email,
    permission, tenancy, audit or reporting path.
@@ -70,6 +83,9 @@ Prerequisite: the pause vocabulary the whole lifecycle reads had diverged three 
       all still execute, with no outbound request attempted
 - [x] `lib/ai/scoring.ts` → `lib/leads/scoring.ts` — deterministic CRM logic that was misfiled
       under the AI tree and made two lead routes look AI-dependent
+- [x] `lib/ai/models.ts` — the import-free client-safe model catalog, split out of
+      `provider.ts` after the first push broke the browser bundle. Boundary recorded as
+      ARCHITECTURE §10 and held by two regression tests.
 
 **Acceptance met:** cost is queryable by tenant, user, operation, provider and work order.
 The CRM has no static dependency on `lib/ai` and none can be added without failing a test. No

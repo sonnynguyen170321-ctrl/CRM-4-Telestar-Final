@@ -89,6 +89,8 @@ client of its own.
    SDR returns it to AI. Ghost detection makes a lead *eligible* for re-engagement and says so;
    it does not re-enroll anyone. The transition out of human ownership is always a human action.
 
+10. **The AI runtime is server-only; the model catalog is the only client-safe part.** See §10.
+
 ## 4. State model — DECIDED
 
 Three concepts, kept distinct. Each answers a different question and none is derivable from
@@ -289,7 +291,35 @@ The management surfaces in PLAN Phase 10 are **presentations of these metrics**,
 pipelines. If a Director number cannot be sourced from `client-reports` or `analytics`, the fix
 is to extend that module.
 
-## 10. Cost and reliability
+## 10. The client/server AI boundary — permanent
+
+| Module | May be imported by | Contains |
+|---|---|---|
+| `lib/ai/models.ts` | **anything, including Client Components** | model ids, labels, descriptions, default. **Import-free — that is its entire purpose.** |
+| `lib/ai/provider.ts` | server only | provider SDKs, streaming, tool loop |
+| `lib/ai/usage.ts` | server only | Prisma-backed `AiCall` writes |
+| `lib/ai/tools.ts` | server only | tool execution |
+| any future Prisma-backed AI service | server only | |
+
+**No `"use client"` module may import a server-side AI module, directly or transitively.**
+
+This is not a style preference. `provider.ts` reaches the database through `usage.ts`, so a
+Client Component importing it pulls `async_hooks`, `dns` and `net` into the browser bundle and
+`next build` fails with a wall of module-not-found. It happened: `AiAssistant.tsx` imported its
+model constants from `provider.ts`, and adding usage recording to `provider.ts` broke the build.
+
+**tsc and Vitest both passed while it was broken** — the failure is bundling, not types. Two
+regression tests in `tests/ai-optional.test.ts` hold the line, because no second-scale gate can
+see this:
+
+- no `"use client"` file imports `@/lib/ai/provider`, `@/lib/ai/usage` or `@/lib/ai/tools`
+- `lib/ai/models.ts` contains no `import` and no `require`
+
+When a Client Component needs something from the AI layer, the answer is a new import-free leaf
+module or an API route — never an import that happens to work today because the server-only
+code has not reached the database yet.
+
+## 11. Cost and reliability
 
 - Per work order: `researchBudget`, `tokenBudget`, `maxToolCalls`, `maxExecutionDuration`.
   Exhaustion pauses the work order and reports partial completion — never a silent overspend.

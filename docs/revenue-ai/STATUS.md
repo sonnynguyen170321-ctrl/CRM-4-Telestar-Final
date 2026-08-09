@@ -17,10 +17,18 @@
 
 | Gate | Result |
 |---|---|
+| `next build` | exit 0 |
 | `tsc --noEmit` | 0 errors |
 | `eslint app components lib context tests` | 0 errors, 0 warnings |
-| `vitest run` | 820 passed, 5 skipped, 66 files |
+| `vitest run` | 822 passed, 5 skipped, 66 files |
 | `prisma migrate status` | up to date, 28 migrations |
+
+> **`next build` is a required gate** for any phase touching shared imports, routes, provider
+> code, the server/client boundary or app wiring; Docker build too for runtime/deployment
+> phases. Phase 1 is why: it shipped with tsc at 0 and Vitest at 820 passing, and CI still went
+> red because a Client Component's import chain reached `lib/prisma`. Bundling failures are
+> invisible to every gate that finishes in seconds. And CI counts as green only when GitHub
+> reports each required check successful — a watcher exiting 0 proves nothing.
 
 ## Phase 1 — what landed
 

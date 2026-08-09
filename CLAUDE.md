@@ -232,6 +232,18 @@ lifecycle. `SequenceEnrollment.status` + `nextActionAt` / `pausedReason` / `curr
 > reader and no new writer** — new logic branches on `SequenceEnrollment`. Where the two
 > disagree, the enrollment is right. Deprecation path in `ARCHITECTURE.md` §4.1.
 
+> ⚠️ **AI client/server boundary (`ARCHITECTURE.md` §10).** `lib/ai/models.ts` is client-safe and
+> **must stay import-free**. `provider.ts`, `usage.ts`, `tools.ts` and any Prisma-backed AI
+> service are **server-only** — no `"use client"` module may import them, directly or
+> transitively. `provider.ts` reaches the database via `usage.ts`, so a client import pulls
+> `async_hooks`/`dns`/`net` into the browser bundle and `next build` fails. **tsc and Vitest
+> pass while this is broken.** Two tests in `tests/ai-optional.test.ts` hold the line.
+
+**`next build` is a required gate** for any change touching shared imports, Next.js routes,
+provider code, the server/client boundary or app wiring — the fast gates cannot see bundling
+failures. Docker build too for runtime/deployment changes. CI is green only when GitHub reports
+each required check successful; a watcher exiting 0 is not evidence.
+
 Operating-state transitions go through four domain services — `handoffProspectToHuman`,
 `markReengagementEligible`, `handbackProspectToAI`, `startAIReengagement` — each owning its
 Task, Notification, Activity, WorkOrder and cache-refresh consequences. No route, tool or worker
