@@ -6,6 +6,8 @@ import { parseBody } from '@/lib/validation/core';
 import { updateSequenceSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
 import { invalidateList } from '@/lib/cache';
+import { reconcileSequenceSteps } from '@/lib/sequences/steps';
+import { assertSendWindowPermission } from '@/lib/sequences/permissions';
 
 export async function GET(
   _req: NextRequest,
@@ -52,22 +54,38 @@ export async function PUT(
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   try {
-    // Sequential statements — the Neon HTTP driver doesn't support interactive
-    // transactions, so rebuild steps as delete-then-create.
+    // Reconcile rather than delete-and-recreate: step ids seed the deterministic jitter
+    // and A/B choice, and active enrollments point at step orders. See lib/sequences/steps.ts.
     if (body.steps !== undefined) {
-      await prisma.sequenceStep.deleteMany({ where: { sequenceId: id } });
-      await prisma.sequenceStep.createMany({
-        data: (body.steps ?? []).map((step, idx) => ({
-          sequenceId: id,
-          order: step.order ?? idx + 1,
-          channel: step.channel,
-          delayDays: step.delayDays ?? 1,
-          delayHours: step.delayHours ?? 0,
-          templateId: step.templateId ?? null,
-          instructions: step.instructions,
-          autoComplete: step.autoComplete ?? false,
-        })),
+      const priorSteps = await prisma.sequenceStep.findMany({
+        where: { sequenceId: id },
+        select: { order: true, sendWindowStartMinutes: true, sendWindowEndMinutes: true },
       });
+      const windowViolations = assertSendWindowPermission(user.role, body.steps ?? [], priorSteps);
+      if (windowViolations.length > 0) {
+        const forbidden = windowViolations.some((v) => v.reason === 'forbidden_role');
+        return NextResponse.json(
+          {
+            error: forbidden
+              ? 'Only a Director or Floor Manager can change a step send window'
+              : 'A send window needs both a start and an end, with the end after the start',
+            steps: windowViolations,
+          },
+          { status: forbidden ? 403 : 400 }
+        );
+      }
+
+      const reconciled = await reconcileSequenceSteps(id, user.tenantId!, body.steps ?? []);
+
+      if (reconciled.blockedOrders.length > 0) {
+        return NextResponse.json(
+          {
+            error: 'Cannot remove steps that active enrollments are currently on',
+            blockedSteps: reconciled.blockedOrders,
+          },
+          { status: 409 }
+        );
+      }
     }
 
     const sequence = await prisma.sequence.update({

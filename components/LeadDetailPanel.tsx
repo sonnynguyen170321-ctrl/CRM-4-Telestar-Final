@@ -1539,26 +1539,53 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
           {/* SEQUENCES TAB */}
           {activeTab === 'sequences' && (
             <div className="space-y-4">
-              {/* Active sequence */}
-              {lead.sequenceStatus === 'active' && lead.sequence ? (
+              {/* Active / Paused sequence card (Spec §29-30) */}
+              {lead.sequence ? (
                 <div className="glass-card rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] text-text-muted uppercase tracking-wider">Active Sequence</p>
+                      <p className="text-[10px] text-text-muted uppercase tracking-wider">Outbound Sequence</p>
                       <p className="text-sm font-bold text-text-primary mt-0.5">{lead.sequence.name}</p>
                     </div>
-                    <button
-                      onClick={handleUnenroll}
-                      disabled={enrolling === 'unenroll'}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-brand-red border border-brand-red/30 rounded-lg hover:bg-brand-red/10 transition-colors disabled:opacity-50"
-                    >
-                      {enrolling === 'unenroll' ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                      Unenroll
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border font-mono ${
+                          lead.sequenceStatus === 'active'
+                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                            : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                        }`}
+                      >
+                        {lead.sequenceStatus === 'paused'
+                          ? (lead as any).pausedReason
+                            ? `Paused — ${
+                                {
+                                  reply: 'prospect replied',
+                                  hard_bounce: 'hard bounce',
+                                  soft_bounce: 'soft bounce',
+                                  meeting_booked: 'meeting booked',
+                                  manual: 'manually paused',
+                                  email_health: 'mailbox health',
+                                  campaign_paused: 'campaign paused',
+                                  mailbox_unavailable: 'mailbox unavailable',
+                                }[(lead as any).pausedReason as string] ?? (lead as any).pausedReason
+                              }`
+                            : 'Paused'
+                          : 'Active'}
+                      </span>
+                      <button
+                        onClick={handleUnenroll}
+                        disabled={enrolling === 'unenroll'}
+                        className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold text-brand-red border border-brand-red/30 rounded-lg hover:bg-brand-red/10 transition-colors disabled:opacity-50"
+                      >
+                        {enrolling === 'unenroll' ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                        Unenroll
+                      </button>
+                    </div>
                   </div>
+
                   {/* Progress bar */}
                   <div>
-                    <div className="flex justify-between text-[10px] text-text-muted mb-1">
+                    <div className="flex justify-between text-[10px] text-text-muted mb-1 font-mono">
                       <span>Step {lead.sequenceStep ?? 1} of {lead.sequence.steps?.length ?? '—'}</span>
                       <span>{lead.sequence.steps?.length ? Math.round(((lead.sequenceStep ?? 1) / lead.sequence.steps.length) * 100) : 0}%</span>
                     </div>
@@ -1569,6 +1596,48 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                       />
                     </div>
                   </div>
+
+                  {/* Automation Timeline Steps (Spec §29) */}
+                  {lead.sequence.steps && lead.sequence.steps.length > 0 && (
+                    <div className="border-t border-card-border/60 pt-3 space-y-2">
+                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Sequence Timeline</p>
+                      <div className="space-y-1.5 font-mono text-[11px]">
+                        {lead.sequence.steps.map((st: any) => {
+                          const currentStep = lead.sequenceStep ?? 1;
+                          const isDone = st.order < currentStep;
+                          const isCurrent = st.order === currentStep;
+                          const isFuture = st.order > currentStep;
+
+                          return (
+                            <div
+                              key={st.id || st.order}
+                              className={`flex items-center justify-between p-2 rounded-lg border text-xs ${
+                                isCurrent
+                                  ? 'bg-brand-orange/10 border-brand-orange/30 text-text-primary'
+                                  : isDone
+                                  ? 'bg-card-bg/50 border-card-border/40 text-text-muted'
+                                  : 'bg-bg-main/30 border-card-border/20 text-text-muted'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold">{isDone ? '✓' : isCurrent ? '→' : '○'}</span>
+                                <span className="capitalize">{st.channel} (Step {st.order})</span>
+                              </div>
+                              <div className="text-right text-[10px]">
+                                {isDone && <span className="text-green-500 font-semibold">Completed</span>}
+                                {isCurrent && (
+                                  <span className="text-brand-orange-text font-bold">
+                                    {lead.sequenceStatus === 'paused' ? 'Paused' : 'Scheduled next'}
+                                  </span>
+                                )}
+                                {isFuture && <span className="text-text-muted">After Step {st.order - 1}</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-bg-main/30 border border-card-border text-xs text-text-muted">

@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma';
-import { snapToBusinessDay } from '@/lib/dates/businessDays';
 import type { Lead, Sequence, SequenceStep, Task } from '@prisma/client';
 import { enqueue } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
@@ -14,11 +13,29 @@ import { JobType } from '@/lib/bullmq/types';
  * interactive transactions, so nothing here may use prisma.$transaction.
  */
 
+import { calculateNextActionAt } from '@/lib/automation/scheduling';
+import { resolveTimezone } from '@/lib/automation/timezone';
+import { buildJitterSeed } from '@/lib/automation/jitter';
+
 const PRIORITY_MAP = { hot: 'high', warm: 'medium', cold: 'low' } as const;
 
-export function computeStepDueDate(base: Date, step: Pick<SequenceStep, 'delayDays' | 'delayHours'>): Date {
-  const due = new Date(base.getTime() + step.delayDays * 86_400_000 + step.delayHours * 3_600_000);
-  return snapToBusinessDay(due);
+export function computeStepDueDate(
+  base: Date,
+  step: Pick<SequenceStep, 'delayDays' | 'delayHours' | 'sendWindowStartMinutes' | 'sendWindowEndMinutes'>,
+  options?: { timezone?: string | null; seed?: string | null }
+): Date {
+  const tz = options?.timezone ? resolveTimezone(options.timezone) : 'UTC';
+  const sched = calculateNextActionAt({
+    baseAt: base,
+    delayDays: step.delayDays,
+    delayHours: step.delayHours,
+    sendWindowStartMinutes: step.sendWindowStartMinutes ?? null,
+    sendWindowEndMinutes: step.sendWindowEndMinutes ?? null,
+    timezone: tz,
+    businessDayPolicy: 'skip_weekends',
+    deterministicSeed: options?.seed ?? null,
+  });
+  return sched.dueAtUtc;
 }
 
 /** Create the task for one sequence step and update the lead's nextTaskDue. */
@@ -28,7 +45,20 @@ export async function createTaskForStep(
   step: SequenceStep,
   baseDate: Date
 ): Promise<Task> {
-  const dueDate = computeStepDueDate(baseDate, step);
+  const leadFull = await prisma.lead.findUnique({
+    where: { id: lead.id },
+    select: { timezone: true, tenantId: true, assignedTo: { select: { timezone: true } } },
+  });
+
+  const tz = resolveTimezone(leadFull?.timezone, leadFull?.assignedTo?.timezone);
+  const seed = buildJitterSeed({
+    tenantId: leadFull?.tenantId,
+    sequenceId: sequence.id,
+    sequenceStepId: step.id,
+    leadId: lead.id,
+  });
+
+  const dueDate = computeStepDueDate(baseDate, step, { timezone: tz, seed });
   const channelLabel = step.channel.charAt(0).toUpperCase() + step.channel.slice(1);
 
   const task = await prisma.task.create({
@@ -50,9 +80,16 @@ export async function createTaskForStep(
     data: { nextTaskDue: dueDate },
   });
 
+  // Update active enrollment runtime scheduling state
+  await prisma.sequenceEnrollment.updateMany({
+    where: { leadId: lead.id, sequenceId: sequence.id, status: 'active' },
+    data: {
+      nextActionAt: dueDate,
+      lastEvaluatedAt: new Date(),
+    },
+  });
+
   // Schedule delayed execution on the BullMQ SEQUENCE queue for automated email steps.
-  // The JobRun durable mirror makes this rebuildable from the DB (maintenance worker's
-  // `missing-delayed` repair), so a queue blip here must never fail task creation.
   if (task.type === 'email' && step.autoComplete) {
     try {
       const delay = Math.max(0, dueDate.getTime() - Date.now());
@@ -181,7 +218,11 @@ export async function pauseSequence(
 
   await prisma.sequenceEnrollment.updateMany({
     where: { leadId, sequenceId: lead.sequenceId, status: 'active' },
-    data: { status: 'paused' },
+    data: {
+      status: 'paused',
+      pausedReason: reason,
+      lastTransitionAt: new Date(),
+    },
   });
 
   await prisma.task.updateMany({

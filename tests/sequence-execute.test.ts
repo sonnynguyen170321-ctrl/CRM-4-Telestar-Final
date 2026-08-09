@@ -9,6 +9,11 @@ const mockAccountFindFirst = vi.fn();
 const mockAbVariantUpdate = vi.fn();
 const mockLeadUpdate = vi.fn();
 
+const mockEnrollmentFindFirst = vi.fn();
+const mockEnrollmentUpdate = vi.fn();
+const mockSuppressionFindFirst = vi.fn();
+const mockActivityCreate = vi.fn();
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     task: {
@@ -18,10 +23,24 @@ vi.mock('@/lib/prisma', () => ({
     },
     sequenceStep: { findFirst: (...a: unknown[]) => mockStepFindFirst(...a) },
     emailAccount: { findFirst: (...a: unknown[]) => mockAccountFindFirst(...a) },
+    sequenceEnrollment: {
+      findFirst: (...a: unknown[]) => mockEnrollmentFindFirst(...a),
+      update: (...a: unknown[]) => mockEnrollmentUpdate(...a),
+    },
+    suppressionEntry: { findFirst: (...a: unknown[]) => mockSuppressionFindFirst(...a) },
+    activity: { create: (...a: unknown[]) => mockActivityCreate(...a) },
+    jobRun: { upsert: vi.fn().mockResolvedValue({}) },
     abTestVariant: { update: (...a: unknown[]) => mockAbVariantUpdate(...a) },
     lead: { update: (...a: unknown[]) => mockLeadUpdate(...a) },
     notification: { create: vi.fn().mockResolvedValue({}) },
   },
+}));
+
+const mockEnqueueReschedule = vi.fn().mockResolvedValue('job-2');
+vi.mock('@/lib/bullmq/enqueue', () => ({
+  enqueue: vi.fn().mockResolvedValue('job-1'),
+  enqueueImmediate: vi.fn().mockResolvedValue('job-1'),
+  enqueueReschedule: (...a: unknown[]) => mockEnqueueReschedule(...a),
 }));
 
 const mockCreateOutbound = vi.fn();
@@ -80,6 +99,7 @@ function buildStep(over: Record<string, unknown> = {}) {
     order: 1,
     channel: 'email',
     autoComplete: true,
+    templateId: 'tmpl-1',
     template: { id: 'tmpl-1', subject: 'Hi {{firstName}}', body: 'Body', abVariants: [] },
     ...over,
   };
@@ -88,18 +108,30 @@ function buildStep(over: Record<string, unknown> = {}) {
 function arrangeEligible() {
   mockTaskFindUnique.mockResolvedValue(buildTask());
   mockStepFindFirst.mockResolvedValue(buildStep());
-  mockAccountFindFirst.mockResolvedValue({ id: 'acct-1', email: 'sdr@telestar.vn' });
+  mockAccountFindFirst.mockResolvedValue({ id: 'acct-1', email: 'sdr@telestar.vn', isActive: true });
+  mockEnrollmentFindFirst.mockResolvedValue({ id: 'enr-1', status: 'active', currentStep: 1 });
+  mockSuppressionFindFirst.mockResolvedValue(null);
   mockTaskUpdateMany.mockResolvedValue({ count: 1 });
   mockCreateOutbound.mockResolvedValue({ id: 'out-1' });
   mockEnqueueSend.mockResolvedValue('job-1');
   mockTaskUpdate.mockResolvedValue({});
   mockLeadUpdate.mockResolvedValue({});
   mockAdvance.mockResolvedValue(undefined);
+  mockEnrollmentUpdate.mockResolvedValue({});
+  mockActivityCreate.mockResolvedValue({});
+  mockEnqueueReschedule.mockResolvedValue('job-2');
 }
 
 describe('handleExecuteTask', () => {
-  beforeEach(() => vi.clearAllMocks());
-  afterEach(() => vi.restoreAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-10T10:00:00Z')); // Monday 10:00 UTC
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it('sends, completes the task, bumps the counter, and advances the sequence', async () => {
     arrangeEligible();
@@ -143,20 +175,18 @@ describe('handleExecuteTask', () => {
   it('skips when the lead is no longer actively enrolled (paused)', async () => {
     mockTaskFindUnique.mockResolvedValue(buildTask({ lead: buildLead({ sequenceStatus: 'paused' }) }));
     mockStepFindFirst.mockResolvedValue(buildStep());
-    expect(await handleExecuteTask({ taskId: 'task-1' })).toEqual({
-      status: 'skipped',
-      reason: 'lead_ineligible_or_paused_or_missing_template',
-    });
+    mockEnrollmentFindFirst.mockResolvedValue({ id: 'enr-1', status: 'paused', currentStep: 1 });
+    const result = await handleExecuteTask({ taskId: 'task-1' });
+    expect(result.status).toBe('skipped');
     expect(mockCreateOutbound).not.toHaveBeenCalled();
   });
 
   it('fails when the assignee has no active mailbox', async () => {
-    mockTaskFindUnique.mockResolvedValue(buildTask());
-    mockStepFindFirst.mockResolvedValue(buildStep());
+    arrangeEligible();
     mockAccountFindFirst.mockResolvedValue(null);
     expect(await handleExecuteTask({ taskId: 'task-1' })).toEqual({
-      status: 'failed',
-      reason: 'no_active_mailbox_connected',
+      status: 'manual_action_required',
+      reason: 'no_connected_mailbox',
     });
   });
 
@@ -186,13 +216,137 @@ describe('handleExecuteTask', () => {
       }),
     );
     mockAbVariantUpdate.mockResolvedValue({});
-    vi.spyOn(Math, 'random').mockReturnValue(0.1); // < 0.5 → variant A
 
     await handleExecuteTask({ taskId: 'task-1' });
 
     expect(mockAbVariantUpdate).toHaveBeenCalledWith({
-      where: { id: 'va' },
+      where: { id: expect.stringMatching(/^v[ab]$/) },
       data: { sentCount: { increment: 1 } },
     });
+  });
+
+  // Selection is hashed from durable ids (spec §42), so a retry, a rebuild from the
+  // database, or a second worker all reach the same variant. Math.random could not.
+  it('picks the same A/B variant on every run for the same lead and step', async () => {
+    const variants = [
+      { id: 'va', version: 'A', subject: 'SA', body: 'BA' },
+      { id: 'vb', version: 'B', subject: 'SB', body: 'BB' },
+    ];
+
+    const chosen: string[] = [];
+    for (let run = 0; run < 3; run++) {
+      vi.clearAllMocks();
+      arrangeEligible();
+      mockStepFindFirst.mockResolvedValue(
+        buildStep({ template: { id: 'tmpl-1', subject: 'S', body: 'B', abVariants: variants } }),
+      );
+      mockAbVariantUpdate.mockResolvedValue({});
+
+      await handleExecuteTask({ taskId: 'task-1' });
+      chosen.push(mockAbVariantUpdate.mock.calls[0][0].where.id);
+    }
+
+    expect(new Set(chosen).size).toBe(1);
+  });
+});
+
+describe('handleExecuteTask — deferral (Phase 6)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    // 08:00 UTC Monday — an hour before the step's 09:00 send window opens.
+    vi.setSystemTime(new Date('2026-08-10T08:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  function arrangeOutsideSendWindow() {
+    arrangeEligible();
+    mockStepFindFirst.mockResolvedValue(
+      buildStep({
+        sendWindowStartMinutes: 540, // 09:00
+        sendWindowEndMinutes: 660,   // 11:00
+        delayDays: 0,
+        delayHours: 0,
+      }),
+    );
+    mockTaskFindUnique.mockResolvedValue(
+      buildTask({ lead: buildLead({ timezone: 'UTC', campaignId: 'camp-1' }) }),
+    );
+  }
+
+  it('defers instead of sending when evaluated before the send window opens', async () => {
+    arrangeOutsideSendWindow();
+
+    const result = await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(result).toMatchObject({ status: 'deferred', reason: 'before_send_window' });
+    expect(mockCreateOutbound).not.toHaveBeenCalled();
+    expect(mockEnqueueSend).not.toHaveBeenCalled();
+  });
+
+  it('moves the task and the enrollment to the new due time', async () => {
+    arrangeOutsideSendWindow();
+
+    await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(mockTaskUpdate).toHaveBeenCalledWith({
+      where: { id: 'task-1' },
+      data: { dueDate: expect.any(Date) },
+    });
+    expect(mockEnrollmentUpdate).toHaveBeenCalledWith({
+      where: { id: 'enr-1' },
+      data: { nextActionAt: expect.any(Date), lastEvaluatedAt: expect.any(Date) },
+    });
+  });
+
+  // The payload is identical to the job currently running, so a plain enqueue would
+  // rebuild the same dedupe key and be dropped — leaving a pending task with nothing
+  // scheduled behind it.
+  it('re-enqueues the task under a discriminated dedupe key', async () => {
+    arrangeOutsideSendWindow();
+
+    await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(mockEnqueueReschedule).toHaveBeenCalledTimes(1);
+    const [jobType, payload, opts] = mockEnqueueReschedule.mock.calls[0];
+    expect(jobType).toBe('sequence.execute-task');
+    expect(payload).toEqual({ taskId: 'task-1' });
+    expect(opts.discriminator).toMatch(/^defer:/);
+    expect(opts.delay).toBeGreaterThan(0);
+  });
+
+  it('records the deferral reason as an activity on the lead', async () => {
+    arrangeOutsideSendWindow();
+
+    await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(mockActivityCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'sequence_deferred',
+        leadId: 'lead-1',
+        userId: 'user-1',
+        metadata: expect.objectContaining({ reason: 'before_send_window' }),
+      }),
+    });
+  });
+
+  it('does not send when the mailbox is paused, and defers instead', async () => {
+    arrangeEligible();
+    vi.setSystemTime(new Date('2026-08-10T10:00:00Z')); // inside any window
+    mockAccountFindFirst.mockResolvedValue({
+      id: 'acct-1',
+      email: 'sdr@telestar.vn',
+      isActive: true,
+      sendPausedAt: new Date('2026-08-01T00:00:00Z'),
+      sendPauseReason: 'Warmup adjustment',
+    });
+
+    const result = await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(result).toMatchObject({ status: 'deferred', reason: 'mailbox_paused' });
+    expect(mockCreateOutbound).not.toHaveBeenCalled();
   });
 });

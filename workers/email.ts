@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { createAppWorker } from '@/lib/bullmq';
+import { enqueueReschedule } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
 import type { EmailSendPayload } from '@/lib/bullmq/types';
 import { EmailService } from '@/lib/email/EmailService';
@@ -64,6 +65,22 @@ export function evaluateSendBlock(
   }
 
   return null;
+}
+
+/**
+ * How many times a single message may be pushed to the next quota window before it is
+ * treated as undeliverable. Without a cap, a permanently over-subscribed mailbox would
+ * reschedule the same message forever and no one would ever see a failure.
+ */
+const MAX_QUOTA_DEFERRALS = 5;
+
+/**
+ * The next moment quota frees up: `atomicReserveQuota` compares against local midnight,
+ * so that boundary — plus a small margin to avoid racing the comparison — is when a
+ * deferred send becomes eligible again.
+ */
+function nextQuotaResetAt(now: Date = new Date()): Date {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 5, 0, 0);
 }
 
 async function atomicReserveQuota(accountId: string): Promise<boolean> {
@@ -220,11 +237,40 @@ async function handleEmailSend(payload: EmailSendPayload) {
   // Atomically reserve quota
   const quotaOk = await atomicReserveQuota(accountId);
   if (!quotaOk) {
+    // Quota is a temporary condition, not a delivery failure, so the row goes back into
+    // the claimable pool rather than to `failed`. It must be re-enqueued in the same
+    // breath: `pending` with no live job left is a message that stalls forever, which is
+    // worse than the `failed` this replaced because nothing surfaces it.
+    const attemptsSoFar = existing.attemptCount + 1; // the claim above already incremented
+    if (attemptsSoFar >= MAX_QUOTA_DEFERRALS) {
+      await prisma.outboundMessage.update({
+        where: { id: outboundMessageId },
+        data: {
+          status: OUTBOUND_STATUS.FAILED,
+          errorMessage: `Daily send limit reached on ${attemptsSoFar} consecutive attempts`,
+        },
+      });
+      return { skipped: true, reason: 'quota_exhausted_max_deferrals' };
+    }
+
+    const resumeAt = nextQuotaResetAt();
     await prisma.outboundMessage.update({
       where: { id: outboundMessageId },
-      data: { status: OUTBOUND_STATUS.FAILED, errorMessage: 'Daily send limit reached' },
+      data: {
+        status: OUTBOUND_STATUS.PENDING,
+        errorMessage: `Daily send limit reached — deferred to ${resumeAt.toISOString()}`,
+      },
     });
-    return { skipped: true, reason: 'quota_exhausted' };
+    await enqueueReschedule(
+      JobType.EMAIL_SEND,
+      payload,
+      {
+        tenantId: existing.tenantId,
+        delay: Math.max(0, resumeAt.getTime() - Date.now()),
+        discriminator: `quota:${resumeAt.toISOString()}`,
+      }
+    );
+    return { deferred: true, skipped: true, reason: 'quota_exhausted', resumeAt };
   }
 
   // Render template variables if lead is available

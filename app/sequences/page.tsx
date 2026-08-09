@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import Linkedin from '@/components/icons/Linkedin';
 import { useToast } from '@/context/ToastContext';
+import { useAppContext } from '@/context/AppContext';
 import Link from 'next/link';
 
 interface SequenceStep {
@@ -32,6 +33,9 @@ interface SequenceStep {
   templateId?: string | null;
   template?: { id: string; name: string; channel: string } | null;
   autoComplete: boolean;
+  /** Minutes since midnight in the lead's timezone. Null on both = send any time. */
+  sendWindowStartMinutes?: number | null;
+  sendWindowEndMinutes?: number | null;
 }
 
 interface Template {
@@ -52,6 +56,7 @@ interface Sequence {
 
 export default function SequencesPage() {
   const { showToast } = useToast();
+  const { isManager } = useAppContext();
   const [sequences, setSequences] = useState<Sequence[]>([]);
   const [selectedSeq, setSelectedSeq] = useState<Sequence | null>(null);
   const [steps, setSteps] = useState<SequenceStep[]>([]);
@@ -77,6 +82,76 @@ export default function SequencesPage() {
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsData, setLogsData] = useState<{ tasks: any[]; outboundMessages: any[]; activities: any[] } | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  const canEditSendWindow = isManager;
+
+  const minutesToTimeValue = (mins?: number | null): string => {
+    if (mins == null) return '';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
+  const timeValueToMinutes = (timeStr: string): number | null => {
+    if (!timeStr) return null;
+    const [h, m] = timeStr.split(':').map((n) => parseInt(n, 10));
+    if (isNaN(h) || isNaN(m)) return null;
+    return h * 60 + m;
+  };
+
+  const handleSendWindowChange = (stepId: string, boundary: 'start' | 'end', timeStr: string) => {
+    const mins = timeValueToMinutes(timeStr);
+    setSteps((prev) =>
+      prev.map((s) => {
+        if (s.id !== stepId) return s;
+        return boundary === 'start'
+          ? { ...s, sendWindowStartMinutes: mins }
+          : { ...s, sendWindowEndMinutes: mins };
+      })
+    );
+  };
+
+  const handleClearSendWindow = (stepId: string) => {
+    setSteps((prev) =>
+      prev.map((s) => (s.id === stepId ? { ...s, sendWindowStartMinutes: null, sendWindowEndMinutes: null } : s))
+    );
+  };
+
+  const generateCadencePreview = (stepsList: SequenceStep[]) => {
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    let currentDayIndex = 0; // Starts Monday
+    return stepsList.map((step) => {
+      currentDayIndex = (currentDayIndex + step.delayDays) % 7;
+      const dayName = dayNames[currentDayIndex];
+      let timeStr = '09:00 AM';
+      let windowText = 'Any time';
+
+      if (step.sendWindowStartMinutes != null && step.sendWindowEndMinutes != null) {
+        const startH = Math.floor(step.sendWindowStartMinutes / 60);
+        const startM = step.sendWindowStartMinutes % 60;
+        const endH = Math.floor(step.sendWindowEndMinutes / 60);
+        const endM = step.sendWindowEndMinutes % 60;
+
+        const formatTime = (h: number, m: number) => {
+          const ampm = h >= 12 ? 'PM' : 'AM';
+          const h12 = h % 12 === 0 ? 12 : h % 12;
+          return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+        };
+
+        timeStr = formatTime(startH, (startM + 18) % 60);
+        windowText = `${formatTime(startH, startM)} – ${formatTime(endH, endM)}`;
+      } else if (step.delayHours > 0) {
+        timeStr = `+${step.delayHours}h`;
+      }
+
+      return {
+        order: step.order,
+        channel: step.channel,
+        estimatedTime: `${dayName} ${timeStr}`,
+        windowText,
+      };
+    });
+  };
 
   const fetchLogs = useCallback(async (enrollmentId: string) => {
     if (!selectedSeq) return;
@@ -239,8 +314,10 @@ export default function SequencesPage() {
         name: `${seq.name} (Copy)`,
         description: seq.description,
         isActive: false,
-        steps: seq.steps.map(({ channel, order, delayDays, delayHours, instructions, templateId, autoComplete }) => ({
+        steps: seq.steps.map(({ channel, order, delayDays, delayHours, instructions, templateId, autoComplete, sendWindowStartMinutes, sendWindowEndMinutes }) => ({
           channel, order, delayDays, delayHours, instructions, templateId, autoComplete,
+          sendWindowStartMinutes: sendWindowStartMinutes ?? null,
+          sendWindowEndMinutes: sendWindowEndMinutes ?? null,
         })),
       }),
     });
@@ -303,19 +380,25 @@ export default function SequencesPage() {
           instructions: s.instructions,
           templateId: s.templateId ?? null,
           autoComplete: s.autoComplete,
+          sendWindowStartMinutes: s.sendWindowStartMinutes ?? null,
+          sendWindowEndMinutes: s.sendWindowEndMinutes ?? null,
         })),
       }),
     });
     setSaving(false);
-    if (res.ok) {
-      showToast('Sequence cadence saved!', 'success');
-      setSequences((prev) =>
-        prev.map((s) => (s.id === selectedSeq.id ? { ...s, steps } : s))
-      );
-      loadSequences();
-    } else {
-      showToast('Failed to save sequence', 'error');
+    if (!res.ok) {
+      // The API refuses two edits the builder cannot fully prevent: removing a step an
+      // active enrollment is sitting on, and a non-manager changing a send window. Both
+      // come back with a specific message worth surfacing verbatim.
+      const detail = await res.json().catch(() => null);
+      showToast(detail?.error ?? 'Failed to save sequence', 'error');
+      return;
     }
+    showToast('Sequence cadence saved!', 'success');
+    setSequences((prev) =>
+      prev.map((s) => (s.id === selectedSeq.id ? { ...s, steps } : s))
+    );
+    loadSequences();
   };
 
   const handleBulkAction = async (action: string) => {
@@ -547,6 +630,45 @@ export default function SequencesPage() {
                             {step.autoComplete ? 'Auto-complete (email)' : 'Requires outcome log'}
                           </span>
                         </label>
+                        {/* Send window — deliverability policy, so managers only (spec §27) */}
+                        {step.autoComplete && (
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <label className="text-[10px] font-mono text-text-muted" htmlFor={`win-start-${step.id}`}>
+                              Send between
+                            </label>
+                            <input
+                              id={`win-start-${step.id}`}
+                              type="time"
+                              disabled={!canEditSendWindow}
+                              value={minutesToTimeValue(step.sendWindowStartMinutes)}
+                              onChange={(e) => handleSendWindowChange(step.id, 'start', e.target.value)}
+                              className="bg-bg-main border border-card-border rounded px-2 py-1 text-[10px] text-text-secondary focus:outline-none focus:border-brand-red font-mono disabled:opacity-50"
+                            />
+                            <span className="text-[10px] text-text-muted">and</span>
+                            <input
+                              type="time"
+                              aria-label={`Step ${step.order} send window end`}
+                              disabled={!canEditSendWindow}
+                              value={minutesToTimeValue(step.sendWindowEndMinutes)}
+                              onChange={(e) => handleSendWindowChange(step.id, 'end', e.target.value)}
+                              className="bg-bg-main border border-card-border rounded px-2 py-1 text-[10px] text-text-secondary focus:outline-none focus:border-brand-red font-mono disabled:opacity-50"
+                            />
+                            <span className="text-[10px] font-mono text-text-muted">
+                              {step.sendWindowStartMinutes == null && step.sendWindowEndMinutes == null
+                                ? 'any time'
+                                : "lead's local time"}
+                            </span>
+                            {canEditSendWindow &&
+                              (step.sendWindowStartMinutes != null || step.sendWindowEndMinutes != null) && (
+                                <button
+                                  onClick={() => handleClearSendWindow(step.id)}
+                                  className="text-[10px] text-text-muted hover:text-brand-red underline"
+                                >
+                                  Clear
+                                </button>
+                              )}
+                          </div>
+                        )}
                         {/* Template link */}
                         {(step.channel === 'email' || step.channel === 'linkedin') && (
                           <div className="flex items-center gap-2 mt-1.5">
@@ -664,6 +786,39 @@ export default function SequencesPage() {
 
                 <div className="pt-2 border-t border-card-border text-[10px] text-text-muted leading-relaxed font-mono">
                   * Changes are saved when you click "Save Cadence" above.
+                </div>
+              </div>
+
+              {/* Sequence Schedule Preview (Spec §28) */}
+              <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-3">
+                <h3 className="type-section text-text-primary flex items-center gap-2 text-xs font-bold uppercase">
+                  <span>📅</span> Sequence Schedule Preview
+                </h3>
+                <p className="text-[10px] text-text-muted leading-normal">
+                  Estimated cadence preview starting Monday 09:00 AM in prospect&apos;s local timezone.
+                </p>
+                {steps.length === 0 ? (
+                  <p className="text-[10px] text-text-muted italic">Add steps to see estimated cadence.</p>
+                ) : (
+                  <div className="space-y-2 font-mono text-[11px]">
+                    {generateCadencePreview(steps).map((item) => (
+                      <div key={item.order} className="flex items-center justify-between p-2 rounded-lg border border-card-border/60 bg-bg-main/50">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded bg-card-border/50 flex items-center justify-center font-bold text-[10px] text-text-secondary">
+                            {item.order}
+                          </span>
+                          <span className="capitalize font-semibold text-text-primary text-xs">{item.channel}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-brand-orange-text text-xs">{item.estimatedTime}</div>
+                          <div className="text-[9px] text-text-muted">{item.windowText}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="pt-2 border-t border-card-border/40 text-[9px] text-text-muted leading-tight">
+                  ℹ️ Future steps begin after the previous step is completed.
                 </div>
               </div>
             </div>

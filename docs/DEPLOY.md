@@ -236,7 +236,8 @@ before that day's migration. There is no schedule.
 > Consequences, until someone updates that checkout:
 >
 > - **`scripts/rollback.sh` is not available.** Roll back by editing `IMAGE_TAG` in
->   `.env.production` to the previous full-SHA tag and running `up -d`.
+>   `.env.production` to the previous full-SHA tag and re-running the compose command in
+>   *"The exact command that works on this box"* below — a bare `up -d` fails on this checkout.
 > - **`deployments.ndjson` is not being written**, so there is no machine-readable history.
 >   Records go here instead.
 > - The box's compose file resolves `IMAGE_TAG`, and **ignores `CRM_IMAGE` entirely** — so
@@ -246,6 +247,77 @@ before that day's migration. There is no schedule.
 > Updating the checkout is not a no-op: the repo's compose file *refuses to start* without
 > `CRM_IMAGE`, so `IMAGE_TAG` must be replaced with a `CRM_IMAGE` digest in the same change.
 > Do it deliberately, not mid-incident.
+
+### The exact command that works on this box
+
+Written down because it is not obvious and getting it wrong fails in a way that leaves the box
+half-changed. The box's compose declares `env_file: ${APP_ENV_FILE:-.env.docker}` across two
+files, and `.env.docker` **does not exist there** — so the plain `docker compose up -d` in the
+sections below does not work on this checkout:
+
+```
+env file /opt/crm-4-u/.env.docker not found
+```
+
+All three pieces are required — both compose files, `APP_ENV_FILE`, and `--env-file`:
+
+```bash
+cd /opt/crm-4-u
+sudo APP_ENV_FILE=.env.production docker compose   -f docker-compose.yml -f docker-compose.aws.yml   --env-file .env.production   up -d --no-deps web worker
+```
+
+`--no-deps` matters: the base compose still defines a local `postgres` service this box does not
+use (the database is Cloud SQL), and without it compose may start one.
+
+**Check the resolution before applying it.** `config --images` changes nothing and prints what
+compose actually resolved, which is the only way to know the invocation is right before it
+touches anything running:
+
+```bash
+sudo APP_ENV_FILE=.env.production docker compose   -f docker-compose.yml -f docker-compose.aws.yml   --env-file .env.production config --images
+```
+
+> **The failure mode to know about.** If you edit `IMAGE_TAG` and *then* the compose command
+> fails, `.env.production` names the new image while the old containers keep running. The site
+> is fine, but the next person to run compose — or a reboot — silently applies an unverified
+> deploy. Either finish or revert the tag; do not stop in between. This happened during the
+> `68acd49c` deploy below and is why the dry run above is now part of the procedure.
+
+The `POSTGRES_PASSWORD is not set` warnings are expected and harmless — they come from the
+unused local `postgres` service definition.
+
+### Deployment record — 2026-08-09, `68acd49c`
+
+Playwright deep audit: four fixed defects. Performed manually via the command above.
+
+| | |
+| --- | --- |
+| Commit | `68acd49c71b4e2df50908903f7ec7ed82239f234` (PR #45) |
+| Digest | `sha256:264e94a14ee9aaeae808995f1de2a936e0086141380c55c3f4082b4e0445af8e` |
+| Previous commit | `9ca7e6bfc1eaf935d6c17df99c7560f7a5f73437` |
+| Migrations applied | **none** — schema untouched, code-only deploy |
+| Cloud SQL backup | not taken; no migration ran, and rollback is a tag change with no schema delta |
+| Rollback | `IMAGE_TAG=9ca7e6bfc1eaf935d6c17df99c7560f7a5f73437`, then the same `up -d --no-deps web worker` |
+
+What shipped: `/api/automation/accounts/[id]/cap` authorizing from the raw JWT instead of the
+database; sign-out not ending the session; the public client-report share link being entirely
+non-functional in production; and a campaign creatable against another tenant's client.
+
+Verified after the swap: `/api/health` reported the deployed commit `68acd49c71b4…`; `web` and
+`worker` on the **same** digest `sha256:264e94a1…`; `/login` 200 and `/admin` 307; all seven
+worker queues registered; no errors in the web log. Outbound email confirmed off at the source
+of truth — `EMAIL_SEND_DRY_RUN=true` and `SEQUENCE_AUTOSEND_ENABLED=false` read from **both**
+running containers' environments.
+
+> One check did not produce evidence and is recorded as such rather than as a pass: probing
+> `/api/cron/sequence-engine` with a bearer token assembled from `.env.production` returned
+> `{"error":"Unauthorized"}`, most likely because the value is quoted or padded and the naive
+> `cut -d=` extraction produced the wrong token. It says nothing either way about the safety
+> switch — the container environment above is the direct evidence, and it is unambiguous.
+
+**Behavioural change in this release:** signing out now bumps `User.authVersion`, which is per
+user rather than per session, so signing out ends that user's sessions on every device. Existing
+sessions were *not* invalidated by the deploy itself.
 
 ### Deployment record — 2026-08-08, `9ca7e6b`
 
