@@ -239,6 +239,37 @@ lifecycle. `SequenceEnrollment.status` + `nextActionAt` / `pausedReason` / `curr
 > `async_hooks`/`dns`/`net` into the browser bundle and `next build` fails. **tsc and Vitest
 > pass while this is broken.** Two tests in `tests/ai-optional.test.ts` hold the line.
 
+**Agent capabilities (Phase 2, shipped).** Every tool call resolves through
+`lib/agent/authorization.ts`, returning `ALLOW` / `REQUIRE_USER_APPROVAL` /
+`REQUIRE_MANAGER_APPROVAL` / `DENY`. Eight rules, all permanent:
+
+1. CRM authorization runs **independently** of agent autonomy — always, in the domain services.
+2. Autonomy can **restrict** existing authority, never widen it.
+3. `CAPABILITY_CEILING` is **not** tenant-overridable (resolution: ceiling → stored → default,
+   strictest wins).
+4. `prospect_reply` is `human_only` for every role and every mode.
+5. An unregistered tool fails closed.
+6. Missing authorization context fails closed.
+7. No legacy exemption — `create_task` is enforced like everything else.
+8. A blocked action is **never** reported to the model or user as if it succeeded.
+9. **Agent tools call domain services, not our own HTTP API** — for any CRM read or mutation a
+   shared domain service can own. Never a bypass header, a forwarded cookie, a bearer token or
+   a service account. External provider calls (Groq, Gemini, Tavily, Jina) are unaffected.
+
+> **Known debt:** `create_task` / `get_my_tasks` fetch `/api/tasks` with no session cookie and
+> return 401 — fail-closed, so a functional defect, not a security one. They sit in a named
+> exception list in `tests/agent-object-authorization.test.ts`; any *new* internal-HTTP call
+> fails the build. The repair is a `lib/tasks/*` extraction that the route and the tool both
+> call, scoped to the tool/domain-service phase.
+
+> ⚠️ **Capability authorization is not object authorization** (`ARCHITECTURE.md` §11).
+> `tasks = auto` means "may create tasks at all", *not* "may act on this lead". Object scope —
+> tenant, `canAccessLead`, `canAccessUser`, pod hierarchy, leadgen campaign/account scope,
+> send-window permission — stays in the CRM domain services and is **never reproduced in the
+> agent layer**. `CapabilityDecision` carries no record id, and `decideCapability` takes no
+> record argument, so the separation is structural. `tests/agent-object-authorization.test.ts`
+> asserts both halves.
+
 **`next build` is a required gate** for any change touching shared imports, Next.js routes,
 provider code, the server/client boundary or app wiring — the fast gates cannot see bundling
 failures. Docker build too for runtime/deployment changes. CI is green only when GitHub reports

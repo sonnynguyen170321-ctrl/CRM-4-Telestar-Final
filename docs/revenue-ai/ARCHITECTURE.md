@@ -91,6 +91,29 @@ client of its own.
 
 10. **The AI runtime is server-only; the model catalog is the only client-safe part.** See §10.
 
+11. **Capability authorization is not object authorization.** See §11. `tasks = auto` means an
+    agent may create tasks *in general*; whether it may create *this* task on *that* lead is
+    decided afterwards by the CRM domain service. The two are never conflated, and the agent
+    layer never reproduces the second.
+
+12. **CRM authorization runs independently of agent autonomy, and autonomy only restricts.**
+    Tenancy, role scoping, pod hierarchy and object access are checked by the domain services
+    regardless of any policy. A policy row can narrow what an agent does; it can never widen
+    what a role may do.
+
+13. **Ceilings are not tenant-configurable, and unknown fails closed.** `CAPABILITY_CEILING`
+    caps what a stored policy may loosen. An unregistered tool, a missing role, an unreadable
+    policy and an unrecognised stored value all resolve to refusal, never to permission.
+
+14. **A blocked action is never reported as done.** Refusal text tells the model to say what
+    needs approving. An agent that implies a write happened when it did not is worse than one
+    that cannot write at all.
+
+15. **Agent tools call domain services, not Telestar's own HTTP API.** For any CRM read or
+    mutation a shared domain service can own, the tool calls that service directly. It does not
+    issue an HTTP request to this application's authenticated routes. See §12. External
+    provider and research HTTP calls — Groq, Gemini, Tavily, Jina — are unaffected.
+
 ## 4. State model — DECIDED
 
 Three concepts, kept distinct. Each answers a different question and none is derivable from
@@ -319,7 +342,96 @@ When a Client Component needs something from the AI layer, the answer is a new i
 module or an API route — never an import that happens to work today because the server-only
 code has not reached the database yet.
 
-## 11. Cost and reliability
+## 11. Capability vs object authorization — permanent
+
+Two independent questions, answered by two independent layers. Conflating them is the failure
+mode this section exists to prevent.
+
+| Question | Answered by | Example |
+|---|---|---|
+| May an agent do this **kind of thing** for this role? | `lib/agent/authorization.ts` | "may it create tasks at all?" |
+| May this user act on **this record**? | the CRM domain service | "may they touch lead X, in campaign Y, in tenant Z?" |
+
+`CapabilityDecision` deliberately contains **no** lead, campaign, account or tenant field.
+`decideCapability` takes no record argument. There is nowhere to pass an object, which makes
+the separation structural rather than a convention someone has to remember.
+
+### What an `auto` capability still cannot do
+
+Even at `tasks = auto`, an agent cannot:
+
+- act on another tenant's record — tenancy is enforced by the `$extends` layer on the Prisma
+  client, and the agent holds no client
+- act on a lead outside the user's CRM scope — `canAccessLead` in the domain route
+- widen leadgen campaign or account scope — `lib/leadgen/*` owns those rules
+- bypass assignment or the pod hierarchy — `canAccessUser` and `lib/podScoping.ts`
+- bypass send-window permissions — `lib/sequences/permissions.ts`, which denies an SDR
+  regardless of capability mode
+
+`tests/agent-object-authorization.test.ts` asserts both halves: the agent layer holds no object
+rules (no `canAccessLead(` call, no import of the helpers, no `prisma.<model>` beyond its own
+`autonomyPolicy` and `aiCall`), and the domain layer still holds them all.
+
+### The four structured outcomes
+
+```text
+ALLOW                       proceed
+REQUIRE_USER_APPROVAL       permitted, a human must approve first
+REQUIRE_MANAGER_APPROVAL    permitted, a manager must approve
+DENY                        never automatable
+```
+
+The two approval outcomes stop execution today only because no approval queue exists. The
+distinction is already carried in the decision, so Phase 6 turns them into approval *requests*
+without rewriting a single rule.
+
+### The refusal contract
+
+A blocked action must never read as a completed one. Refusal text instructs the model to state
+what needs approving — "do not describe it as done" is in the string on purpose, because the
+most likely failure is not an unauthorized write but a confident report of a write that never
+happened.
+
+## 12. Agent tools call domain services, not our own HTTP API
+
+The required shape for any CRM read or mutation:
+
+```text
+authenticated agent request
+  → agent tool
+  → shared CRM domain service
+  → existing tenant / role / object authorization
+  → database
+```
+
+Not this:
+
+```text
+agent tool → fetch('/api/…') → route → domain logic
+```
+
+An internal HTTP hop adds a second authentication surface for the same operation and invites
+the worst possible fix — a bypass header, a forwarded token, a service account. **None of those
+is acceptable.** `x-ai-internal` already exists in the tool code and is read by nothing; that is
+the only reason it is harmless.
+
+External provider calls are a different thing entirely and unaffected: Groq, Gemini, Tavily and
+Jina are HTTP because they live on someone else's server.
+
+### Known debt
+
+`create_task` and `get_my_tasks` predate this rule. They `fetch` this app's `/api/tasks` with no
+session cookie, and `getSessionUser` reads the session from cookies — so both return 401 today.
+They fail **closed**, which is why this is a functional defect and not a security one, but they
+do not work.
+
+The repair is a domain-service extraction (`lib/tasks/*` owning create and list, with the route
+and the tool both calling it), scoped to the tool/domain-service integration phase rather than
+mixed into unrelated work. Until then `tests/agent-object-authorization.test.ts` carries those
+two tools in a named exception list, so any *new* violation fails immediately and the debt stays
+visible instead of becoming precedent.
+
+## 13. Cost and reliability
 
 - Per work order: `researchBudget`, `tokenBudget`, `maxToolCalls`, `maxExecutionDuration`.
   Exhaustion pauses the work order and reports partial completion — never a silent overspend.

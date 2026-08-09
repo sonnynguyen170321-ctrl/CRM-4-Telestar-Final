@@ -93,25 +93,35 @@ new reporting pipeline — these rows feed `client-reports` in Phase 10.
 
 ---
 
-## Phase 2 — Capability-based autonomy
+## Phase 2 — Capability-based autonomy ✅ complete
 
-Lands **before** any write-capable tool. Retrofitting permissions onto tools that already write
-is how a policy flag ends up ignored by four code paths.
+Landed **before** any new write-capable tool, and brought the one that already existed under
+the policy rather than grandfathering it.
 
-- [ ] `AgentCapability`: `research`, `notes`, `tasks`, `reminders`, `summarize`, `draft_reply`,
-      `objection_help`, `meeting_prep`, `sequence_draft`, `sequence_enroll`,
-      `send_window_change`, `reengagement_propose`, `reengagement_activate`, `prospect_reply`
-- [ ] `AutonomyPolicy` per tenant × role × capability →
-      `auto | approval | manager_approval | human_only`
-- [ ] Defaults: research/notes/tasks/reminders/summarize/`draft_reply`/`objection_help`/
-      `meeting_prep` → `auto`; `sequence_enroll` and `reengagement_activate` → `approval`;
-      `send_window_change` → `manager_approval`; `prospect_reply` → `human_only`
-- [ ] Enforcement in one place, on the pattern of `lib/sequences/permissions.ts`, layered
-      **on top of** existing role checks — never replacing them
+- [x] 14 capabilities in [`lib/agent/capabilities.ts`](../../lib/agent/capabilities.ts), split
+      into assistance, CRM writes and outreach
+- [x] `AutonomyPolicy` per tenant × role × capability →
+      `auto | approval | manager_approval | human_only`, with
+      `20260810120000_agent_autonomy_policy`
+- [x] Defaults: assistance and low-risk writes `auto`; `sequence_enroll` and
+      `reengagement_activate` `approval`; `send_window_change` `manager_approval`;
+      `prospect_reply` `human_only`
+- [x] **`CAPABILITY_CEILING`** — a stored row can only ever make the agent *stricter*.
+      `prospect_reply` is `human_only` in every tenant, for every role, at every setting
+- [x] Single enforcement point,
+      [`lib/agent/authorization.ts`](../../lib/agent/authorization.ts): resolution is ceiling →
+      stored policy → default, strictest wins, in one function
+- [x] CRM role authorization runs **first and independently** —
+      `CAPABILITY_ROLE_REQUIREMENT` denies before policy is consulted, so a policy row cannot
+      grant an SDR the send-window right that `lib/sequences/permissions.ts` withholds
+- [x] `executeTool` authorizes every call, fail-closed three ways: unregistered tool refused,
+      write capability with no role refused, anything short of a clean `allow` stops the call
+      and tells the model to say so rather than imply success
+- [x] `create_task` — the pre-existing write-capable tool — mapped to `tasks` and enforced
 
-**Acceptance:** a capability resolving to `approval` cannot write; it produces a pending
-approval. `prospect_reply` is unreachable at every autonomy setting. Existing role gates still
-deny what they denied before.
+**Acceptance met:** a capability resolving to `approval` cannot write. `prospect_reply` is
+denied for all four modes × all six roles. Role denial beats a permissive policy in both
+directions. Existing role gates deny exactly what they denied before.
 
 ---
 

@@ -23,6 +23,7 @@ const ROOT = process.cwd();
 /** Where AI code is allowed to live or be imported from. */
 const AI_ALLOWED_PREFIXES = [
   path.join('lib', 'ai'),
+  path.join('lib', 'agent'),
   path.join('app', 'api', 'ai'),
   path.join('components', 'AiAssistant.tsx'),
   path.join('tests', 'ai-'),
@@ -125,7 +126,14 @@ describe('AI is an optional layer, not a CRM dependency', () => {
     // the problem is bundling, not types. provider.ts and usage.ts reach the database;
     // tools.ts calls internal APIs. A "use client" file may import model constants from
     // lib/ai/models.ts, which is import-free for exactly this reason.
-    const SERVER_ONLY_AI = ['@/lib/ai/provider', '@/lib/ai/usage', '@/lib/ai/tools'];
+    const SERVER_ONLY_AI = [
+      '@/lib/ai/provider',
+      '@/lib/ai/usage',
+      '@/lib/ai/tools',
+      // Prisma-backed: reads AutonomyPolicy. lib/agent/capabilities.ts and
+      // toolCapabilities.ts are import-free vocabulary and stay client-safe.
+      '@/lib/agent/authorization',
+    ];
     const offenders: string[] = [];
 
     const clientFiles = [
