@@ -193,22 +193,53 @@ documented deprecation path; `ProspectOperatingState` is a separate axis for res
 
 ---
 
-## Phase 4 — CampaignPlaybook + versioning
+## Phase 4 — CampaignPlaybook + versioning ✅ complete
 
-Highest leverage, cheapest start: rows can be authored and read by humans before any agent
-consumes them.
+- [x] `CampaignPlaybook` — stable identity per campaign, holding no policy
+- [x] `CampaignPlaybookVersion` — immutable snapshot; `draft | approved | superseded`,
+      `createdBy`, `approvedBy`/`approvedAt`, `activatedAt`/`supersededAt`
+- [x] `lib/playbooks/policy.ts` — typed, `.strict()` zod contract at the domain boundary:
+      research depth, allowed channels, per-situation ghost thresholds, handoff SLA,
+      send-window policy, reply handling
+- [x] `lib/playbooks/versions.ts` — one service owning draft / approve / activate / supersede,
+      plus `versionActiveAt` and `detectActivationDrift`
+- [x] Ghost thresholds are per-situation policy: positive reply waiting ≠ proposal sent ≠
+      meeting no-show ≠ post-demo. **No constant existed anywhere to migrate** — searched every
+      numeric constant and ghost/stale/follow-up identifier in `lib/`, `workers/`, `app/api/`.
 
-- [ ] `CampaignPlaybook`: ICP, personas, value prop, research depth, allowed channels, sequence
-      strategy, personalization policy, allowed CTAs, send-window policy, reply handling, OOO
-      handling, **ghost thresholds per situation**, reengagement strategy, handoff SLA
-- [ ] `CampaignPlaybookVersion`: version, rules, `createdBy`, `approvedBy`, `createdAt`
-- [ ] Every agent action records the playbook version it ran under
-- [ ] Ghost thresholds are policy, never constants: positive reply waiting ≠ proposal sent ≠
-      meeting no-show ≠ post-demo
+> **The playbook does not define ICP.** `CampaignLeadRequirement` already owns target titles,
+> countries, industries, company size and required fields, with delivery counters and its own
+> lifecycle. Restating ICP would create two definitions that can disagree — worse than one. The
+> zod contract is `.strict()`, so an `icp` key is *rejected*, not ignored.
 
-**Acceptance:** "did reply rate improve after v4?" is a query. No playbook version exists
-without an `approvedBy`. Send-window policy in a playbook is applied *by the automation engine*,
-not by an agent.
+### Attribution
+
+**Phase 4:** by activation window. `[activatedAt, supersededAt)` is half-open, and activation
+supersedes the outgoing version at the *same* boundary timestamp, so the windows tile with no
+gap and no overlap. An event at T belongs to exactly one version.
+
+**Phase 6+:** work orders and agent actions store an explicit `CampaignPlaybookVersion.id` —
+provenance should not rest on time inference once a writer exists. No FK column is added before
+that writer exists.
+
+### Send windows keep exactly one path
+
+```text
+playbook policy/default → approved sequence configuration → assertSendWindowPermission
+  → SequenceStep fields → automation scheduler
+```
+
+No playbook-side scheduler, no second interpreter. The playbook states intent; Director /
+Floor Manager authority and the automation engine still decide what reaches a prospect.
+
+### Acceptance tests — 27
+
+approved version immutable · edit creates a new draft · draft cannot be activated · superseded
+cannot be reactivated · every activated version carries `approvedBy` + `approvedAt` · historical
+versions readable after supersession · version numbers monotonic per playbook · attribution
+query uses the half-open window · ghost thresholds differ by situation and all four are
+required · no playbook operation enrols, sends, queues or schedules · tenant isolation on
+playbook, version and drift detection · unknown keys rejected.
 
 ---
 

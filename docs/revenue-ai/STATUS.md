@@ -4,8 +4,8 @@
 
 | | |
 |---|---|
-| Phase | **0–3 complete.** Next: Phase 4 — `CampaignPlaybook` + versioning |
-| Branch | `feat/prospect-operating-state` |
+| Phase | **0–4 complete.** Next: Phase 5 — agent runtime, typed tools, idempotent actions |
+| Branch | `feat/campaign-playbook` |
 | Blockers | **None.** The Phase 3 state-model decision is made — see below. |
 | Restrictions | No external users, no real client data, sending off, email dry-run |
 
@@ -21,8 +21,8 @@
 | `next build` | exit 0 |
 | `tsc --noEmit` | 0 errors |
 | `eslint app components lib context tests` | 0 errors, 0 warnings |
-| `vitest run` | 891 passed, 5 skipped, 69 files |
-| `prisma migrate status` | up to date, 31 migrations |
+| `vitest run` | 918 passed, 5 skipped, 70 files |
+| `prisma migrate status` | up to date, 32 migrations |
 
 ## Phase 3 — what landed, and the one narrow exception
 
@@ -61,6 +61,34 @@ transition still reaches `completed`. **Not exactly-once.** Accepted for this ph
 is bounded, detectable and repairable — ARCHITECTURE §4.2a lists the expected effect set per
 kind and the query that finds a `completed` row missing one. That query is the entire
 manual-repair surface.
+
+## Phase 4 — the authority split that shaped it
+
+`CampaignLeadRequirement` already owned ICP — target titles, countries, industries, company
+size, required fields — with delivery counters and its own lifecycle. Putting ICP in the
+playbook would have created two definitions that can disagree, which is worse than one. So:
+
+```text
+CampaignLeadRequirement   who leadgen should source, and what qualifies
+CampaignPlaybookVersion   how approved outreach should operate
+CRM / automation services execution and enforcement
+```
+
+The zod contract is `.strict()`, so an `icp` key is **rejected**, not ignored — stronger than a
+convention that it should not be there.
+
+Attribution is by activation window in Phase 4: `[activatedAt, supersededAt)` half-open, with
+supersession stamped at the same instant as activation so the windows tile with no gap and no
+overlap. Phase 6 adds explicit `playbookVersionId` columns once work orders exist to write
+them; a column nothing writes is not worth adding early.
+
+The activation swap is not transactional — Neon HTTP has no interactive transactions and the
+`$extends` wrappers defeat array batching, the same constraint that shaped
+`lib/admin/transferWork.ts`. It is ordered, idempotent, and its intermediate state is
+detectable: `detectActivationDrift` finds a playbook whose pointer disagrees with its version
+rows, and re-running `activateVersion` repairs it. Supersede-then-activate is deliberate — a
+crash leaves *no* active version rather than two, and two would silently mis-attribute every
+event in the gap.
 
 **The migration drift gate is now required** for any change to `schema.prisma` or migration
 SQL — `migrate status` + `migrate diff --from-migrations --to-schema-datamodel --exit-code`
