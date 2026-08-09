@@ -118,6 +118,91 @@ describe('the agent layer reproduces no object authorization', () => {
   });
 });
 
+describe('agent tools call domain services, not our own HTTP API', () => {
+  /**
+   * ARCHITECTURE §12. An internal HTTP hop adds a second authentication surface for the same
+   * operation and invites the worst possible fix — a bypass header, a forwarded token, a
+   * service account.
+   *
+   * `create_task` and `get_my_tasks` predate the rule and are listed here on purpose. They
+   * fetch `/api/tasks` with no session cookie and therefore 401 today: fail-closed, so a
+   * functional defect rather than a security one. The exception list keeps that debt visible
+   * and makes any *new* violation fail immediately, instead of the existing two becoming
+   * precedent for a third.
+   *
+   * Removing these entries is the acceptance criterion for the repair — a domain-service
+   * extraction where the route and the tool both call `lib/tasks/*`.
+   */
+  const KNOWN_INTERNAL_HTTP_TOOLS = ['createTask', 'getMyTasks'];
+
+  /** Provider hosts are external services; the rule is about calling ourselves. */
+  const EXTERNAL_HOSTS = /api\.tavily\.com|r\.jina\.ai|api\.groq\.com|googleapis\.com/;
+
+  function scanInternalApiCalls(exceptions: string[]): string[] {
+    const files = [
+      ...walk(path.join(ROOT, 'lib', 'agent')),
+      ...walk(path.join(ROOT, 'lib', 'ai')),
+    ].map((f) => path.relative(ROOT, f));
+
+    const offenders: string[] = [];
+
+    for (const rel of files) {
+      const source = stripComments(readFileSync(path.join(ROOT, rel), 'utf8'));
+      // Split on function boundaries so an exception covers one tool, not a whole file.
+      for (const match of source.matchAll(
+        /(?:async\s+)?function\s+(\w+)[\s\S]*?(?=\n(?:async\s+)?function\s|\n*$)/g
+      )) {
+        const [body, fnName] = [match[0], match[1]];
+        if (exceptions.includes(fnName)) continue;
+        if (!/fetch\s*\(/.test(body)) continue;
+        if (EXTERNAL_HOSTS.test(body)) continue;
+        if (/\/api\//.test(body)) offenders.push(`${rel}:${fnName}`);
+      }
+    }
+
+    return offenders;
+  }
+
+  it('the scanner actually detects internal API calls (guards against a vacuous pass)', () => {
+    // With the exceptions removed, the two known offenders must appear. Without this, a
+    // regex that silently matches nothing would make the rule below look enforced when it
+    // is not — the failure mode of every structural test.
+    const withoutExceptions = scanInternalApiCalls([]);
+    expect(withoutExceptions).toEqual(
+      expect.arrayContaining([expect.stringContaining('createTask'), expect.stringContaining('getMyTasks')])
+    );
+  });
+
+  it('no agent module fetches an internal /api/ route outside the known exceptions', () => {
+    expect(scanInternalApiCalls(KNOWN_INTERNAL_HTTP_TOOLS)).toEqual([]);
+  });
+
+  it('the known exceptions are still exactly the two documented tools', () => {
+    // If this fails because an entry is gone, the repair landed — delete the entry and this
+    // assertion together. If it fails because one was added, the rule was worked around.
+    expect(KNOWN_INTERNAL_HTTP_TOOLS).toEqual(['createTask', 'getMyTasks']);
+  });
+
+  it('no agent module forwards auth headers or uses a bypass header', () => {
+    // The tempting fix for the 401 is a forwarded cookie, a bearer token, or an internal
+    // bypass header. All three are forbidden — the repair is to stop making the HTTP call.
+    const files = [
+      ...walk(path.join(ROOT, 'lib', 'agent')),
+      ...walk(path.join(ROOT, 'lib', 'ai')),
+    ].map((f) => path.relative(ROOT, f));
+
+    const offenders: string[] = [];
+    for (const rel of files) {
+      const source = stripComments(readFileSync(path.join(ROOT, rel), 'utf8'));
+      if (/['"]cookie['"]\s*:/i.test(source)) offenders.push(`${rel} forwards a cookie`);
+      if (/authorization['"]?\s*:\s*[`'"]Bearer/i.test(source)) offenders.push(`${rel} forwards a bearer token`);
+      if (/CRON_SECRET|INTERNAL_API_SECRET|SERVICE_ACCOUNT/i.test(source)) offenders.push(`${rel} uses a service secret`);
+    }
+
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe('the domain layer still owns object authorization', () => {
   it('the task route authenticates, scopes the assignee, and scopes the lead', () => {
     // create_task routes here. If any of these three disappears, an `auto` capability starts

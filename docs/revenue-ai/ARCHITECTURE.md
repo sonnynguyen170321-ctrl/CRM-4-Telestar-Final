@@ -109,6 +109,11 @@ client of its own.
     needs approving. An agent that implies a write happened when it did not is worse than one
     that cannot write at all.
 
+15. **Agent tools call domain services, not Telestar's own HTTP API.** For any CRM read or
+    mutation a shared domain service can own, the tool calls that service directly. It does not
+    issue an HTTP request to this application's authenticated routes. See §12. External
+    provider and research HTTP calls — Groq, Gemini, Tavily, Jina — are unaffected.
+
 ## 4. State model — DECIDED
 
 Three concepts, kept distinct. Each answers a different question and none is derivable from
@@ -387,7 +392,46 @@ what needs approving — "do not describe it as done" is in the string on purpos
 most likely failure is not an unauthorized write but a confident report of a write that never
 happened.
 
-## 12. Cost and reliability
+## 12. Agent tools call domain services, not our own HTTP API
+
+The required shape for any CRM read or mutation:
+
+```text
+authenticated agent request
+  → agent tool
+  → shared CRM domain service
+  → existing tenant / role / object authorization
+  → database
+```
+
+Not this:
+
+```text
+agent tool → fetch('/api/…') → route → domain logic
+```
+
+An internal HTTP hop adds a second authentication surface for the same operation and invites
+the worst possible fix — a bypass header, a forwarded token, a service account. **None of those
+is acceptable.** `x-ai-internal` already exists in the tool code and is read by nothing; that is
+the only reason it is harmless.
+
+External provider calls are a different thing entirely and unaffected: Groq, Gemini, Tavily and
+Jina are HTTP because they live on someone else's server.
+
+### Known debt
+
+`create_task` and `get_my_tasks` predate this rule. They `fetch` this app's `/api/tasks` with no
+session cookie, and `getSessionUser` reads the session from cookies — so both return 401 today.
+They fail **closed**, which is why this is a functional defect and not a security one, but they
+do not work.
+
+The repair is a domain-service extraction (`lib/tasks/*` owning create and list, with the route
+and the tool both calling it), scoped to the tool/domain-service integration phase rather than
+mixed into unrelated work. Until then `tests/agent-object-authorization.test.ts` carries those
+two tools in a named exception list, so any *new* violation fails immediately and the debt stays
+visible instead of becoming precedent.
+
+## 13. Cost and reliability
 
 - Per work order: `researchBudget`, `tokenBudget`, `maxToolCalls`, `maxExecutionDuration`.
   Exhaustion pauses the work order and reports partial completion — never a silent overspend.

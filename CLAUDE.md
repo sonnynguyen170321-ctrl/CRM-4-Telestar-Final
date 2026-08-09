@@ -252,6 +252,15 @@ lifecycle. `SequenceEnrollment.status` + `nextActionAt` / `pausedReason` / `curr
 6. Missing authorization context fails closed.
 7. No legacy exemption — `create_task` is enforced like everything else.
 8. A blocked action is **never** reported to the model or user as if it succeeded.
+9. **Agent tools call domain services, not our own HTTP API** — for any CRM read or mutation a
+   shared domain service can own. Never a bypass header, a forwarded cookie, a bearer token or
+   a service account. External provider calls (Groq, Gemini, Tavily, Jina) are unaffected.
+
+> **Known debt:** `create_task` / `get_my_tasks` fetch `/api/tasks` with no session cookie and
+> return 401 — fail-closed, so a functional defect, not a security one. They sit in a named
+> exception list in `tests/agent-object-authorization.test.ts`; any *new* internal-HTTP call
+> fails the build. The repair is a `lib/tasks/*` extraction that the route and the tool both
+> call, scoped to the tool/domain-service phase.
 
 > ⚠️ **Capability authorization is not object authorization** (`ARCHITECTURE.md` §11).
 > `tasks = auto` means "may create tasks at all", *not* "may act on this lead". Object scope —
