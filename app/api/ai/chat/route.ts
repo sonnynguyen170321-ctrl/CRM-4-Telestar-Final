@@ -4,6 +4,7 @@ import type { SessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { streamChat, DEFAULT_MODEL } from '@/lib/ai/provider';
 import type { ModelId } from '@/lib/ai/provider';
+import { loadAuthorizedLeadContext } from '@/lib/leads/context';
 import { readFileSync } from 'fs';
 import path from 'path';
 
@@ -26,14 +27,11 @@ interface ChatContext {
   userName?: string;
   userRole?: string;
   overdueTasks?: number;
+  leadId?: string;
+  userName?: string;
+  userRole?: string;
+  overdueTasks?: number;
   todayTasks?: number;
-  leadName?: string;
-  leadCompany?: string;
-  leadStage?: string;
-  leadDaysSinceContact?: number;
-  campaignName?: string;
-  campaignDescription?: string;
-  clientName?: string;
   sdrCallsToday?: number;
   sdrEmailsToday?: number;
 }
@@ -82,14 +80,25 @@ export async function POST(req: NextRequest) {
   if (context?.todayTasks != null) contextLines.push(`Tasks due today: ${context.todayTasks}`);
   if (context?.sdrCallsToday != null) contextLines.push(`Calls logged today: ${context.sdrCallsToday}`);
   if (context?.sdrEmailsToday != null) contextLines.push(`Emails sent today: ${context.sdrEmailsToday}`);
-  if (context?.leadName) {
-    contextLines.push(`\nCurrent lead: ${context.leadName}`);
-    if (context.leadCompany) contextLines.push(`Company: ${context.leadCompany}`);
-    if (context.leadStage) contextLines.push(`Pipeline stage: ${context.leadStage}`);
-    if (context.leadDaysSinceContact != null) contextLines.push(`Days since last contact: ${context.leadDaysSinceContact}`);
-    if (context.campaignName) contextLines.push(`Campaign: ${context.campaignName}`);
-    if (context.campaignDescription) contextLines.push(`Campaign pitch: ${context.campaignDescription}`);
-    if (context.clientName) contextLines.push(`Client: ${context.clientName}`);
+
+  let playbookVersionId: string | undefined = undefined;
+
+  const validLeadId = sanitizeLeadId(context?.leadId);
+  if (validLeadId) {
+    const leadContext = await loadAuthorizedLeadContext(user, validLeadId);
+    if (leadContext) {
+      contextLines.push(`\nCurrent lead: ${leadContext.leadName}`);
+      if (leadContext.leadCompany) contextLines.push(`Company: ${leadContext.leadCompany}`);
+      if (leadContext.leadStage) contextLines.push(`Pipeline stage: ${leadContext.leadStage}`);
+      if (leadContext.leadDaysSinceContact != null) contextLines.push(`Days since last contact: ${leadContext.leadDaysSinceContact}`);
+      if (leadContext.campaignName) contextLines.push(`Campaign: ${leadContext.campaignName}`);
+      if (leadContext.campaignDescription) contextLines.push(`Campaign pitch: ${leadContext.campaignDescription}`);
+      if (leadContext.clientName) contextLines.push(`Client: ${leadContext.clientName}`);
+      
+      if (leadContext.playbookVersionId) {
+        playbookVersionId = leadContext.playbookVersionId;
+      }
+    }
   }
 
   const contextBlock = contextLines.length > 0
@@ -119,16 +128,14 @@ IMPORTANT REMINDERS:
           messages: messages.map((m) => ({ role: m.role, content: m.content })) as Array<{role: 'user' | 'assistant' | 'system'; content: string}>,
           systemPrompt,
           modelId: (modelId as ModelId) || DEFAULT_MODEL,
-          userId: user.id,
           today,
-          // Attribution (Revenue AI Phase 1). leadId comes from the panel the SDR has open,
-          // so chat about a specific prospect is costed against that prospect.
-          tenantId: user.tenantId,
           operation: 'chat',
           leadId: sanitizeLeadId(context?.leadId),
-          // From the authenticated session, never from the request body — this is what the
-          // capability check authorizes against.
-          role: user.role,
+          sessionUser: user,
+          executionId: Array.from(crypto.getRandomValues(new Uint8Array(16)))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join(''),
+          playbookVersionId,
         });
 
         for await (const chunk of generator) {

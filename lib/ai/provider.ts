@@ -1,8 +1,9 @@
 import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { AI_TOOLS, executeTool } from './tools';
+import { AI_TOOLS } from './tools';
 import { recordAiCall, classifyFailure } from './usage';
 import type { SessionUser } from '@/lib/auth';
+import { executeAgentAction } from '@/lib/agent/runtime';
 
 // Re-exported so existing server-side imports of '@/lib/ai/provider' keep working. The
 // definitions live in the import-free leaf module because this file reaches the database
@@ -22,33 +23,20 @@ interface StreamOptions {
   messages: ChatMessage[];
   systemPrompt: string;
   modelId: ModelId;
-  userId: string;
   leadId?: string;
   today: string;
-  /**
-   * Attribution context (Revenue AI Phase 1). Optional so a caller that has not been
-   * updated still works — an unattributed call is a reporting gap, not a broken feature.
-   * `recordAiCall` skips the write when there is no tenant, since a row that cannot be
-   * scoped to a tenant is one no tenant-scoped query would ever return.
-   */
-  tenantId?: string;
-  /** What this call is for: 'chat', 'briefing', 'research', … Defaults to 'chat'. */
   operation?: string;
-  /** Set once typed work orders exist (Phase 6). */
   workOrderId?: string;
-  /**
-   * The caller's CRM role. Required for any tool that writes — `executeTool` refuses a write
-   * capability when this is absent, so an un-threaded caller degrades to read-only rather
-   * than to unauthorized.
-   */
-  role?: SessionUser['role'];
+  sessionUser: SessionUser;
+  executionId: string;
+  playbookVersionId?: string;
 }
 
 /** Attribution fields pulled off StreamOptions for the usage recorder. */
 function attributionOf(opts: StreamOptions) {
   return {
-    tenantId: opts.tenantId,
-    userId: opts.userId,
+    tenantId: opts.sessionUser.tenantId,
+    userId: opts.sessionUser.id,
     leadId: opts.leadId ?? null,
     workOrderId: opts.workOrderId ?? null,
     operation: opts.operation ?? 'chat',
@@ -185,22 +173,26 @@ async function* streamGroq(opts: StreamOptions): AsyncGenerator<string> {
         tool_calls: choice.message.tool_calls,
       } as Parameters<typeof groq.chat.completions.create>[0]['messages'][number]);
 
-      for (const toolCall of choice.message.tool_calls) {
+      for (let i = 0; i < choice.message.tool_calls.length; i++) {
+        const toolCall = choice.message.tool_calls[i];
         const args = JSON.parse(toolCall.function.arguments || '{}');
-        const result = await executeTool(toolCall.function.name, args, {
-          userId: opts.userId,
+        const actionKey = `agent:${opts.executionId}:tool:${i}:${toolCall.function.name}`;
+
+        const result = await executeAgentAction({
+          actionKey,
+          toolName: toolCall.function.name,
+          args,
+          sessionUser: opts.sessionUser,
+          tenantId: opts.sessionUser.tenantId,
           leadId: opts.leadId,
-          today: opts.today,
-          tenantId: opts.tenantId,
-          operation: opts.operation ?? 'chat',
+          playbookVersionId: opts.playbookVersionId,
           workOrderId: opts.workOrderId,
-          role: opts.role,
         });
 
         loopMessages.push({
           role: 'tool' as const,
           tool_call_id: toolCall.id,
-          content: result,
+          content: result.status === 'completed' ? (result.result || 'Done') : (result.error || 'Failed'),
         } as Parameters<typeof groq.chat.completions.create>[0]['messages'][number]);
       }
       // Continue the loop to get the final response
