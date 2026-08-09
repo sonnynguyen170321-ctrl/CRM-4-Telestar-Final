@@ -4,14 +4,15 @@
 
 | | |
 |---|---|
-| Phase | **0 and 1 complete.** Next: Phase 2 — capability-based autonomy |
-| Branch | `feat/ai-cost-attribution` |
+| Phase | **0, 1 and 2 complete.** Next: Phase 3 — `ProspectOperatingState` + the four transition services |
+| Branch | `feat/agent-capability-autonomy` |
 | Blockers | **None.** The Phase 3 state-model decision is made — see below. |
 | Restrictions | No external users, no real client data, sending off, email dry-run |
 
-> **No write-capable agent tools until Phase 2 lands.** Phase 1 added no tool and no capability;
-> the only new writes are `AiCall` accounting rows. The four existing tools are unchanged, and
-> `create_task` — the one that writes — predates this initiative and stays as it was.
+> **Every agent tool now runs under capability authorization.** `create_task` — the one
+> pre-existing write-capable tool — is mapped to `tasks` and enforced, not grandfathered.
+> `executeTool` fails closed on an unregistered tool, on a write capability with no role in
+> context, and on anything short of a clean allow.
 
 ## Gates — verified 2026-08-09, local
 
@@ -20,8 +21,20 @@
 | `next build` | exit 0 |
 | `tsc --noEmit` | 0 errors |
 | `eslint app components lib context tests` | 0 errors, 0 warnings |
-| `vitest run` | 822 passed, 5 skipped, 66 files |
-| `prisma migrate status` | up to date, 28 migrations |
+| `vitest run` | 847 passed, 5 skipped, 67 files |
+| `prisma migrate status` | up to date, 29 migrations |
+
+## Phase 2 — the two rules that make it hold
+
+**A stored policy can only ever make the agent stricter.** `CAPABILITY_CEILING` caps what a row
+may loosen, and resolution is ceiling → stored → default with *strictest wins*. Without that
+ordering, a tenant setting `prospect_reply: auto` would reopen Level 4 autonomy through a
+settings page. It is denied for all four modes across all six roles, and a test says so.
+
+**CRM role authorization runs first and independently.** `CAPABILITY_ROLE_REQUIREMENT` is
+checked before policy is consulted, so `send_window_change` set to `auto` for the SDR role
+still returns `denied / role_not_permitted` — autonomy cannot grant what
+`lib/sequences/permissions.ts` withholds. Autonomy restricts; it never widens.
 
 > **`next build` is a required gate** for any phase touching shared imports, routes, provider
 > code, the server/client boundary or app wiring; Docker build too for runtime/deployment

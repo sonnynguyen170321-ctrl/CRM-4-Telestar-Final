@@ -2,6 +2,7 @@ import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AI_TOOLS, executeTool } from './tools';
 import { recordAiCall, classifyFailure } from './usage';
+import type { SessionUser } from '@/lib/auth';
 
 // Re-exported so existing server-side imports of '@/lib/ai/provider' keep working. The
 // definitions live in the import-free leaf module because this file reaches the database
@@ -35,6 +36,12 @@ interface StreamOptions {
   operation?: string;
   /** Set once typed work orders exist (Phase 6). */
   workOrderId?: string;
+  /**
+   * The caller's CRM role. Required for any tool that writes — `executeTool` refuses a write
+   * capability when this is absent, so an un-threaded caller degrades to read-only rather
+   * than to unauthorized.
+   */
+  role?: SessionUser['role'];
 }
 
 /** Attribution fields pulled off StreamOptions for the usage recorder. */
@@ -187,6 +194,7 @@ async function* streamGroq(opts: StreamOptions): AsyncGenerator<string> {
           tenantId: opts.tenantId,
           operation: opts.operation ?? 'chat',
           workOrderId: opts.workOrderId,
+          role: opts.role,
         });
 
         loopMessages.push({

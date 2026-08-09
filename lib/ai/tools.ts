@@ -1,6 +1,24 @@
 // AI tool definitions for Groq/Gemini function calling
 
 import { recordAiCall } from './usage';
+import { authorizeCapability, type AuthorizationOutcome } from '@/lib/agent/authorization';
+import { capabilityForTool } from '@/lib/agent/toolCapabilities';
+import { WRITE_CAPABILITIES } from '@/lib/agent/capabilities';
+import type { SessionUser } from '@/lib/auth';
+
+/** What the model is told when a capability is not cleanly allowed. */
+function refusalMessage(outcome: AuthorizationOutcome): string {
+  switch (outcome) {
+    case 'needs_approval':
+      return 'That action needs approval before it can run. Tell the SDR what you would do and ask them to approve it — do not describe it as done.';
+    case 'needs_manager_approval':
+      return 'That action needs manager approval before it can run. Tell the SDR it has to go to their manager — do not describe it as done.';
+    case 'denied':
+      return 'That action is reserved for a human and cannot be performed by the assistant. Say so plainly rather than implying it happened.';
+    default:
+      return 'That action could not be authorized. No changes were made.';
+  }
+}
 
 export interface ToolDefinition {
   type: 'function';
@@ -127,14 +145,51 @@ export interface ToolContext {
   tenantId?: string;
   operation?: string;
   workOrderId?: string;
+  /**
+   * The caller's CRM role, for capability authorization (Revenue AI Phase 2). Optional so an
+   * un-threaded caller still works — but see `executeTool`: absence denies write-capable
+   * tools rather than waving them through.
+   */
+  role?: SessionUser['role'];
 }
 
-// Execute tool calls and return results
+/**
+ * Execute a tool call, after checking the caller may.
+ *
+ * Authorization is here rather than inside each tool so a new tool cannot invent its own
+ * rule, and so the refusal text is uniform. Three fail-closed positions:
+ *
+ *   - a tool absent from `TOOL_CAPABILITY` is refused, not allowed
+ *   - a write capability with no role in context is refused, because "unknown role" must
+ *     not resolve more permissively than a known one
+ *   - anything other than a clean `allow` stops the call and explains itself to the model,
+ *     so the agent tells the SDR what needs approving instead of silently doing nothing
+ */
 export async function executeTool(
   toolName: string,
   args: Record<string, string>,
   context: ToolContext
 ): Promise<string> {
+  const capability = capabilityForTool(toolName);
+  if (!capability) {
+    return `Tool "${toolName}" is not registered for use. No action taken.`;
+  }
+
+  if (WRITE_CAPABILITIES.has(capability) && !context.role) {
+    return 'That action needs your CRM role to authorize it, which is missing from this session. No changes were made.';
+  }
+
+  if (context.role) {
+    const decision = await authorizeCapability(
+      { role: context.role, tenantId: context.tenantId },
+      capability
+    );
+
+    if (decision.outcome !== 'allow') {
+      return refusalMessage(decision.outcome);
+    }
+  }
+
   switch (toolName) {
     case 'search_web':
       return searchWeb(args.query, context);

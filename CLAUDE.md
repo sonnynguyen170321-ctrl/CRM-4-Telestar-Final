@@ -239,6 +239,14 @@ lifecycle. `SequenceEnrollment.status` + `nextActionAt` / `pausedReason` / `curr
 > `async_hooks`/`dns`/`net` into the browser bundle and `next build` fails. **tsc and Vitest
 > pass while this is broken.** Two tests in `tests/ai-optional.test.ts` hold the line.
 
+**Agent capabilities (Phase 2, shipped).** Every tool call resolves through
+`lib/agent/authorization.ts`. Autonomy is per capability, and it only ever *restricts*:
+resolution is ceiling → stored policy → default with **strictest wins**, and CRM role
+authorization is checked **first and independently** — a policy row cannot grant a role a right
+`lib/permissions.ts` or `lib/sequences/permissions.ts` withholds. `prospect_reply` is
+`human_only` in every tenant, for every role, at every setting. A tool missing from
+`lib/agent/toolCapabilities.ts` is refused, not allowed.
+
 **`next build` is a required gate** for any change touching shared imports, Next.js routes,
 provider code, the server/client boundary or app wiring — the fast gates cannot see bundling
 failures. Docker build too for runtime/deployment changes. CI is green only when GitHub reports

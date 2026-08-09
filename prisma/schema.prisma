@@ -1545,6 +1545,38 @@ model Tenant {
   emailDomainHealth        EmailDomainHealth[]
   emailHealthAlerts        EmailHealthAlert[]
   aiCalls                  AiCall[]
+  autonomyPolicies         AutonomyPolicy[]
+}
+
+// ─── Agent Capability Autonomy ───────────────────────────────────────────────
+
+/// Per-tenant, per-role override of how much an agent may do on its own for one capability.
+///
+/// A missing row means "no override" and falls back to `DEFAULT_AUTONOMY` in
+/// `lib/agent/capabilities.ts` — absence is not denial, or a tenant that never opened the
+/// settings page would have a mute agent.
+///
+/// This table can only ever make the agent *stricter*. `CAPABILITY_CEILING` caps what a row
+/// may loosen (`prospect_reply` is `human_only` everywhere), and CRM role authorization runs
+/// underneath regardless — a policy row cannot grant an SDR a right the role does not have.
+model AutonomyPolicy {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// A UserRole value. Stored as text so adding a capability never requires an enum migration.
+  role       String
+  /// An AgentCapability value.
+  capability String
+  /// 'auto' | 'approval' | 'manager_approval' | 'human_only'
+  mode       String
+
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, role, capability])
+  @@index([tenantId])
 }
 
 // ─── AI Usage Attribution ────────────────────────────────────────────────────

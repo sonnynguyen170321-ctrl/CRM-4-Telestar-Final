@@ -126,6 +126,9 @@ IMPORTANT REMINDERS:
           tenantId: user.tenantId,
           operation: 'chat',
           leadId: sanitizeLeadId(context?.leadId),
+          // From the authenticated session, never from the request body — this is what the
+          // capability check authorizes against.
+          role: user.role,
         });
 
         for await (const chunk of generator) {
