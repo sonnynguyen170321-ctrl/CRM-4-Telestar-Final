@@ -19,6 +19,7 @@
  *
  * Usage:
  *   ALLOW_E2E_FIXTURE=1 E2E_PASSWORD='<strong>' node node_modules/tsx/dist/cli.mjs scripts/e2e-audit-fixture.ts
+ *   ALLOW_E2E_FIXTURE=1 node node_modules/tsx/dist/cli.mjs scripts/e2e-audit-fixture.ts --prune
  */
 import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
@@ -66,8 +67,53 @@ function assertSafeTarget(): void {
   }
 }
 
+/**
+ * Delete disposable accounts left behind by individual specs.
+ *
+ * Several tests mint a throwaway user (sign-out, session revocation, work transfer, the
+ * impact gate) because acting on a fixture role would invalidate its stored session or its
+ * campaign membership. They deactivate it afterwards rather than deleting it, since a user
+ * with audit rows, leads or tasks cannot simply be removed.
+ *
+ * That is correct per-test behaviour and untidy in aggregate: after a few dozen runs the
+ * table carries a hundred-plus inactive `@audit.test` rows. Vitest shares this database and
+ * several of its suites are already sensitive to what else is in it, so letting the residue
+ * grow without limit eventually makes a documented flakiness worse.
+ *
+ * Deletion is attempted one row at a time and failures are counted, not thrown: a user still
+ * referenced by an audit row or a lead *should* survive, and that is a foreign key doing its
+ * job rather than an error. Fixture roles are never touched.
+ */
+async function prune(): Promise<void> {
+  // `USERS` is `as const`, so its emails narrow to a literal union — widen to plain
+  // strings or `has()` refuses any address that is not one of the nine fixture roles.
+  const fixtureEmails = new Set<string>(USERS.map((u) => u.email as string));
+  const candidates = await prisma.user.findMany({
+    where: { email: { endsWith: '@audit.test' }, isActive: false },
+    select: { id: true, email: true },
+  });
+
+  let deleted = 0;
+  let retained = 0;
+  for (const user of candidates) {
+    if (fixtureEmails.has(user.email)) continue;
+    try {
+      await prisma.user.delete({ where: { id: user.id } });
+      deleted++;
+    } catch {
+      retained++;
+    }
+  }
+  console.log(`OK: pruned ${deleted} disposable users (${retained} still referenced, left alone)`);
+}
+
 async function main(): Promise<void> {
   assertSafeTarget();
+
+  if (process.argv.includes('--prune')) {
+    await prune();
+    return;
+  }
 
   const password = process.env.E2E_PASSWORD;
   if (!password || password.length < 12) {
