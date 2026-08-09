@@ -275,6 +275,23 @@ provider code, the server/client boundary or app wiring — the fast gates canno
 failures. Docker build too for runtime/deployment changes. CI is green only when GitHub reports
 each required check successful; a watcher exiting 0 is not evidence.
 
+**Campaign policy authority (Phase 4, shipped).** Three owners, never merged:
+
+| Owner | Answers |
+|---|---|
+| `CampaignLeadRequirement` | who leadgen should source, and what qualifies (**ICP lives here**) |
+| `CampaignPlaybookVersion` | how approved outreach should operate |
+| CRM / automation services | execution and enforcement |
+
+> ⚠️ **The playbook must never define ICP.** `lib/playbooks/policy.ts` is a `.strict()` zod
+> contract, so an `icp`/`targetTitles`/`companySizeMin` key is *rejected*. Approved versions are
+> immutable — editing creates a new draft. Only an approved version may be activated, at most
+> one per playbook, and activation supersedes the outgoing one at the **same** timestamp so
+> `[activatedAt, supersededAt)` windows tile without gap or overlap. Send-window policy is
+> intent only: it reaches a prospect through approved sequence configuration →
+> `assertSendWindowPermission` → `SequenceStep` → the automation scheduler. No playbook-side
+> scheduler.
+
 **The migration drift gate is required** for any change to `prisma/schema.prisma` or migration
 SQL. Run locally before pushing:
 

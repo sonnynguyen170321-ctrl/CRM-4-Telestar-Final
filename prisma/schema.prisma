@@ -322,6 +322,7 @@ model Campaign {
   tenantId       String
   tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  playbook           CampaignPlaybook?
   leads              Lead[]
   campaignSdrs       CampaignSdr[]
   suppressionEntries SuppressionEntry[]
@@ -1578,6 +1579,93 @@ model Tenant {
   aiCalls                  AiCall[]
   autonomyPolicies         AutonomyPolicy[]
   prospectTransitions      ProspectTransition[]
+  campaignPlaybooks        CampaignPlaybook[]
+  playbookVersions         CampaignPlaybookVersion[]
+}
+
+// ─── Campaign Playbooks ──────────────────────────────────────────────────────
+
+/// The stable identity for a campaign's operating policy. Holds no policy itself — every
+/// rule lives in an immutable `CampaignPlaybookVersion`.
+///
+/// **This does not define ICP.** `CampaignLeadRequirement` is the source of truth for who
+/// leadgen should source and what qualifies; a playbook says how approved outreach should
+/// operate. Restating ICP here would create two definitions that disagree, which is worse
+/// than one. Where policy needs ICP context it reads the requirement.
+model CampaignPlaybook {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaignId String   @unique
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  name String
+
+  /// The version currently in force. Null until a version is approved and activated —
+  /// a campaign with a playbook but no approved policy runs exactly as it did before.
+  currentVersionId String?                  @unique
+  currentVersion   CampaignPlaybookVersion? @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+
+  versions CampaignPlaybookVersion[] @relation("PlaybookVersions")
+
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+enum CampaignPlaybookVersionStatus {
+  draft
+  approved
+  superseded
+}
+
+/// An immutable policy snapshot.
+///
+/// Approved versions are never edited — a change creates a new draft. That is what makes
+/// "did reply rate improve after v4?" answerable: the policy a campaign ran under at any past
+/// instant is still on disk exactly as it was.
+///
+/// Attribution is by activation window. `[activatedAt, supersededAt)` are half-open and never
+/// overlap within a playbook, so an event at time T belongs to the version whose window
+/// contains T. Phase 6 adds explicit `playbookVersionId` columns on work orders and agent
+/// actions, because execution provenance should not rest on time inference once a writer
+/// exists — but a column nothing writes is not worth adding before then.
+model CampaignPlaybookVersion {
+  id         String           @id @default(cuid())
+  tenantId   String
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  playbookId String
+  playbook   CampaignPlaybook @relation("PlaybookVersions", fields: [playbookId], references: [id], onDelete: Cascade)
+
+  /// Human-readable and monotonic per playbook. **Not the authority** — the row id is the
+  /// durable reference, and every future FK points at `id`, never at a number.
+  versionNumber Int
+  status        CampaignPlaybookVersionStatus @default(draft)
+
+  /// The validated policy payload. Structure and required fields are enforced at the domain
+  /// boundary by `lib/playbooks/policy.ts`, not by column shape: the sections that matter are
+  /// nested (per-situation ghost thresholds, per-channel personalization) and would need a
+  /// table each to express as columns, for no query anyone runs.
+  rules Json
+
+  createdById String
+  createdAt   DateTime @default(now())
+
+  approvedById String?
+  approvedAt   DateTime?
+
+  /// Half-open activation window. A draft never carries `activatedAt`.
+  activatedAt  DateTime?
+  supersededAt DateTime?
+
+  currentFor CampaignPlaybook? @relation("CurrentVersion")
+
+  @@unique([playbookId, versionNumber])
+  @@index([tenantId])
+  @@index([playbookId, activatedAt])
+  @@index([playbookId, status])
 }
 
 // ─── Prospect Operating State Transitions ────────────────────────────────────
