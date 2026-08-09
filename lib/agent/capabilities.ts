@@ -29,7 +29,10 @@ export type AgentCapability =
   | 'send_window_change'
   | 'reengagement_propose'
   | 'reengagement_activate'
-  | 'prospect_reply';
+  | 'prospect_reply'
+  // Telephony — calling assistance vs placing the call.
+  | 'call_assistance'
+  | 'place_call';
 
 export const ALL_CAPABILITIES: readonly AgentCapability[] = [
   'research',
@@ -46,6 +49,8 @@ export const ALL_CAPABILITIES: readonly AgentCapability[] = [
   'reengagement_propose',
   'reengagement_activate',
   'prospect_reply',
+  'call_assistance',
+  'place_call',
 ];
 
 /**
@@ -109,6 +114,7 @@ export const WRITE_CAPABILITIES: ReadonlySet<AgentCapability> = new Set<AgentCap
  */
 export const CAPABILITY_CEILING: Partial<Record<AgentCapability, AutonomyMode>> = {
   prospect_reply: 'human_only',
+  place_call: 'human_only',
   send_window_change: 'manager_approval',
   sequence_enroll: 'approval',
   reengagement_activate: 'approval',
@@ -136,6 +142,8 @@ export const DEFAULT_AUTONOMY: Record<AgentCapability, AutonomyMode> = {
   reengagement_propose: 'auto',
   reengagement_activate: 'approval',
   prospect_reply: 'human_only',
+  call_assistance: 'auto',
+  place_call: 'human_only',
 };
 
 /**

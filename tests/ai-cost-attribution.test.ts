@@ -19,6 +19,11 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
+vi.mock('@/lib/auth', () => ({
+  canAccessLead: vi.fn().mockResolvedValue(true),
+  canAccessUser: vi.fn().mockResolvedValue(true),
+}));
+
 const { recordAiCall, classifyFailure, withAiCallRecording } = await import('@/lib/ai/usage');
 
 beforeEach(() => {

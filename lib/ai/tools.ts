@@ -5,6 +5,8 @@ import { authorizeCapability, type AuthorizationOutcome } from '@/lib/agent/auth
 import { capabilityForTool } from '@/lib/agent/toolCapabilities';
 import { WRITE_CAPABILITIES } from '@/lib/agent/capabilities';
 import type { SessionUser } from '@/lib/auth';
+import { createTask as serviceCreateTask, getTasks } from '@/lib/tasks/service';
+import { TaskType, TaskPriority } from '@prisma/client';
 
 /** What the model is told when a capability is not cleanly allowed. */
 function refusalMessage(outcome: AuthorizationOutcome): string {
@@ -151,6 +153,10 @@ export interface ToolContext {
    * tools rather than waving them through.
    */
   role?: SessionUser['role'];
+  /** The full session user, if available, for invoking domain services */
+  sessionUser?: SessionUser;
+  /** Linkage back to the executing AgentAction for AI calls */
+  agentActionId?: string;
 }
 
 /**
@@ -205,10 +211,10 @@ export async function executeTool(
       return visitPage(args.url, context);
 
     case 'create_task':
-      return createTask(args, context.userId, context.leadId);
+      return createTask(args, context.userId, context.leadId, context.sessionUser);
 
     case 'get_my_tasks':
-      return getMyTasks(args.filter, parseInt(args.limit || '10'), context.userId, context.today);
+      return getMyTasks(args.filter, parseInt(args.limit || '10'), context.userId, context.today, context.sessionUser);
 
     default:
       return `Unknown tool: ${toolName}`;
@@ -226,6 +232,7 @@ async function searchWeb(query: string, ctx: ToolContext): Promise<string> {
       userId: ctx.userId,
       leadId: ctx.leadId ?? null,
       workOrderId: ctx.workOrderId ?? null,
+      agentActionId: ctx.agentActionId ?? null,
       operation: ctx.operation ?? 'research',
       provider: 'tavily',
       // Tavily bills per search, not per token. One call, one credit.
@@ -287,6 +294,7 @@ async function visitPage(url: string, ctx: ToolContext): Promise<string> {
       userId: ctx.userId,
       leadId: ctx.leadId ?? null,
       workOrderId: ctx.workOrderId ?? null,
+      agentActionId: ctx.agentActionId ?? null,
       operation: ctx.operation ?? 'research',
       provider: 'jina',
       searchCredits: 1,
@@ -323,36 +331,29 @@ async function visitPage(url: string, ctx: ToolContext): Promise<string> {
 async function createTask(
   args: Record<string, string>,
   userId: string,
-  contextLeadId?: string
+  contextLeadId?: string,
+  sessionUser?: SessionUser
 ): Promise<string> {
   const leadId = args.leadId || contextLeadId;
+  if (!leadId) return 'Cannot create task without a leadId in context.';
+  if (!sessionUser) return 'Cannot create task without session user context.';
 
   try {
-    const body: Record<string, string | undefined> = {
-      title: args.title,
-      channel: args.channel,
-      dueDate: args.dueDate,
+    const task = await serviceCreateTask(sessionUser, {
+      leadId,
       userId,
-      notes: args.notes,
-    };
-    if (leadId) body.leadId = leadId;
-
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/tasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-ai-internal': 'true' },
-      body: JSON.stringify(body),
+      type: (args.channel as TaskType) || 'email',
+      title: args.title,
+      description: args.notes,
+      dueDate: new Date(args.dueDate),
+      priority: 'medium' as TaskPriority,
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      return `Task creation failed: ${err}`;
-    }
-
-    const task = await res.json();
     return `Task created: "${task.title}" scheduled for ${new Date(task.dueDate).toLocaleString()}. Task ID: ${task.id}`;
-  } catch {
-    return 'Could not create the task — please add it manually in the CRM.';
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    if (errorMsg.includes('Forbidden')) return 'You do not have permission to create this task.';
+    return `Could not create the task: ${errorMsg}`;
   }
 }
 
@@ -360,27 +361,27 @@ async function getMyTasks(
   filter: string,
   limit: number,
   userId: string,
-  today: string
+  today: string,
+  sessionUser?: SessionUser
 ): Promise<string> {
+  if (!sessionUser) return 'Cannot fetch tasks without session user context.';
+
   try {
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-    const params = new URLSearchParams({ filter, limit: String(limit), userId, today });
-    const res = await fetch(`${baseUrl}/api/tasks?${params}`, {
-      headers: { 'x-ai-internal': 'true' },
+    const tasks = await getTasks(sessionUser, {
+      tab: filter,
+      limit,
+      scopeUserId: userId,
     });
 
-    if (!res.ok) return 'Could not fetch tasks.';
-
-    const tasks = await res.json();
     if (!tasks.length) return `No ${filter} tasks found.`;
 
     return tasks
       .map(
-        (t: { title: string; dueDate: string; channel: string; lead?: { firstName: string; lastName: string } }) =>
-          `• ${t.channel.toUpperCase()} — ${t.title}${t.lead ? ` (${t.lead.firstName} ${t.lead.lastName})` : ''} — due ${new Date(t.dueDate).toLocaleString()}`
+        (t) =>
+          `• ${t.type.toUpperCase()} — ${t.title}${t.lead ? ` (${t.lead.firstName} ${t.lead.lastName})` : ''} — due ${new Date(t.dueDate).toLocaleString()}`
       )
       .join('\n');
-  } catch {
+  } catch (err) {
     return 'Could not fetch tasks.';
   }
 }

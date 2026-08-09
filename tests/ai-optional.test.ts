@@ -59,6 +59,11 @@ function isAiOwned(rel: string): boolean {
   return AI_ALLOWED_PREFIXES.some((prefix) => rel.startsWith(prefix));
 }
 
+/** Remove block and line comments so prose about a helper is not mistaken for a call to it. */
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
 /** Matches `from '@/lib/ai/...'`, `from './ai/...'`, `require('@/lib/ai/...')`. */
 const AI_IMPORT = /(?:from\s+|require\()\s*['"]([^'"]*\/ai\/[^'"]*|@\/lib\/ai[^'"]*)['"]/g;
 
@@ -174,6 +179,29 @@ describe('AI is an optional layer, not a CRM dependency', () => {
 
     // usage.ts records AI spend. It is not a general metrics facility, and a CRM module
     // reaching for it is a CRM module that has grown an AI dependency.
+    expect(offenders).toEqual([]);
+  });
+
+  it('the AI layer does not import SIP, Twilio, or telephony calling logic', () => {
+    const aiFiles = [
+      ...walk(path.join(ROOT, 'lib', 'ai')),
+      ...walk(path.join(ROOT, 'lib', 'agent')),
+    ].map(relative);
+
+    const offenders: string[] = [];
+    const TELEPHONY_IMPORTS = /from\s+['"](twilio|@twilio\/.*|sip|sip\.js|.*telephony.*)['"]/i;
+    const TELEPHONY_WORDS = /\b(Twilio|SIP|Dial|PlaceCall|TelephonyClient)\b/i;
+
+    for (const rel of aiFiles) {
+      const source = stripComments(readFileSync(path.join(ROOT, rel), 'utf8'));
+      if (TELEPHONY_IMPORTS.test(source) || (TELEPHONY_WORDS.test(source) && !/tests\\ai-optional\.test\.ts/.test(rel))) {
+        // Exclude the test file itself if the walker included it
+        offenders.push(rel);
+      }
+    }
+
+    // AI is restricted from initiating calls (Phase 5). This structural check ensures
+    // the AI layer physically cannot execute telephony because it holds no imports for it.
     expect(offenders).toEqual([]);
   });
 });
