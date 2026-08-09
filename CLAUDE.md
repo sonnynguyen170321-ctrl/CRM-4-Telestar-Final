@@ -240,12 +240,26 @@ lifecycle. `SequenceEnrollment.status` + `nextActionAt` / `pausedReason` / `curr
 > pass while this is broken.** Two tests in `tests/ai-optional.test.ts` hold the line.
 
 **Agent capabilities (Phase 2, shipped).** Every tool call resolves through
-`lib/agent/authorization.ts`. Autonomy is per capability, and it only ever *restricts*:
-resolution is ceiling → stored policy → default with **strictest wins**, and CRM role
-authorization is checked **first and independently** — a policy row cannot grant a role a right
-`lib/permissions.ts` or `lib/sequences/permissions.ts` withholds. `prospect_reply` is
-`human_only` in every tenant, for every role, at every setting. A tool missing from
-`lib/agent/toolCapabilities.ts` is refused, not allowed.
+`lib/agent/authorization.ts`, returning `ALLOW` / `REQUIRE_USER_APPROVAL` /
+`REQUIRE_MANAGER_APPROVAL` / `DENY`. Eight rules, all permanent:
+
+1. CRM authorization runs **independently** of agent autonomy — always, in the domain services.
+2. Autonomy can **restrict** existing authority, never widen it.
+3. `CAPABILITY_CEILING` is **not** tenant-overridable (resolution: ceiling → stored → default,
+   strictest wins).
+4. `prospect_reply` is `human_only` for every role and every mode.
+5. An unregistered tool fails closed.
+6. Missing authorization context fails closed.
+7. No legacy exemption — `create_task` is enforced like everything else.
+8. A blocked action is **never** reported to the model or user as if it succeeded.
+
+> ⚠️ **Capability authorization is not object authorization** (`ARCHITECTURE.md` §11).
+> `tasks = auto` means "may create tasks at all", *not* "may act on this lead". Object scope —
+> tenant, `canAccessLead`, `canAccessUser`, pod hierarchy, leadgen campaign/account scope,
+> send-window permission — stays in the CRM domain services and is **never reproduced in the
+> agent layer**. `CapabilityDecision` carries no record id, and `decideCapability` takes no
+> record argument, so the separation is structural. `tests/agent-object-authorization.test.ts`
+> asserts both halves.
 
 **`next build` is a required gate** for any change touching shared imports, Next.js routes,
 provider code, the server/client boundary or app wiring — the fast gates cannot see bundling

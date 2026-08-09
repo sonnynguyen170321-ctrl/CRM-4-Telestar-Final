@@ -25,22 +25,38 @@ import {
  *      stored policy, then default, strictest wins — exists in exactly one place.
  */
 
+/**
+ * The four structured outcomes. Stable vocabulary: Phase 6 turns `REQUIRE_USER_APPROVAL` and
+ * `REQUIRE_MANAGER_APPROVAL` into approval *requests* without rewriting a single rule here.
+ * They stop execution today only because no approval queue exists yet — the distinction
+ * between them is already carried, so building the queue is additive.
+ */
 export type AuthorizationOutcome =
   /** Proceed now. */
-  | 'allow'
-  /** The action is permitted but needs a human to approve it first. */
-  | 'needs_approval'
-  /** The action needs a manager, not just any human. */
-  | 'needs_manager_approval'
+  | 'ALLOW'
+  /** Permitted, but a human must approve it first. */
+  | 'REQUIRE_USER_APPROVAL'
+  /** Permitted, but a manager must approve it — not just any human. */
+  | 'REQUIRE_MANAGER_APPROVAL'
   /** Never automatable. */
-  | 'denied';
+  | 'DENY';
 
+/**
+ * A capability decision, and **only** a capability decision.
+ *
+ * Note what this type does not contain: no lead, no campaign, no account, no tenant. That is
+ * deliberate and load-bearing — **capability authorization is not object authorization**.
+ * `tasks = auto` means the agent may create tasks in general; whether it may create *this*
+ * task, on *that* lead, for *that* user is decided afterwards by the CRM domain service, which
+ * already enforces tenancy, `canAccessLead`, `canAccessUser` and the pod hierarchy. An
+ * object-scoped field here would invite a caller to treat this decision as sufficient.
+ */
 export interface CapabilityDecision {
   capability: AgentCapability;
   outcome: AuthorizationOutcome;
   /** The mode that produced this outcome, after ceiling and policy resolution. */
   mode: AutonomyMode;
-  /** Machine-stable explanation, for logs and for the approval UI. */
+  /** Machine-stable explanation, for logs and for the future approval queue. */
   reason:
     | 'auto'
     | 'policy_requires_approval'
@@ -84,7 +100,7 @@ export function decideCapability(
   if (requiredRoles && !requiredRoles.includes(user.role)) {
     return {
       capability,
-      outcome: 'denied',
+      outcome: 'DENY',
       mode: 'human_only',
       reason: 'role_not_permitted',
     };
@@ -94,25 +110,25 @@ export function decideCapability(
 
   switch (mode) {
     case 'auto':
-      return { capability, outcome: 'allow', mode, reason: 'auto' };
+      return { capability, outcome: 'ALLOW', mode, reason: 'auto' };
     case 'approval':
       return {
         capability,
-        outcome: 'needs_approval',
+        outcome: 'REQUIRE_USER_APPROVAL',
         mode,
         reason: 'policy_requires_approval',
       };
     case 'manager_approval':
       return {
         capability,
-        outcome: 'needs_manager_approval',
+        outcome: 'REQUIRE_MANAGER_APPROVAL',
         mode,
         reason: 'policy_requires_manager_approval',
       };
     case 'human_only':
       return {
         capability,
-        outcome: 'denied',
+        outcome: 'DENY',
         mode,
         reason: 'capability_is_human_only',
       };
@@ -162,5 +178,5 @@ export async function authorizeCapability(
 
 /** Convenience for call sites that only proceed on a clean allow. */
 export function isAllowed(decision: CapabilityDecision): boolean {
-  return decision.outcome === 'allow';
+  return decision.outcome === 'ALLOW';
 }

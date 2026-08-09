@@ -9,11 +9,11 @@ import type { SessionUser } from '@/lib/auth';
 /** What the model is told when a capability is not cleanly allowed. */
 function refusalMessage(outcome: AuthorizationOutcome): string {
   switch (outcome) {
-    case 'needs_approval':
+    case 'REQUIRE_USER_APPROVAL':
       return 'That action needs approval before it can run. Tell the SDR what you would do and ask them to approve it — do not describe it as done.';
-    case 'needs_manager_approval':
+    case 'REQUIRE_MANAGER_APPROVAL':
       return 'That action needs manager approval before it can run. Tell the SDR it has to go to their manager — do not describe it as done.';
-    case 'denied':
+    case 'DENY':
       return 'That action is reserved for a human and cannot be performed by the assistant. Say so plainly rather than implying it happened.';
     default:
       return 'That action could not be authorized. No changes were made.';
@@ -156,14 +156,21 @@ export interface ToolContext {
 /**
  * Execute a tool call, after checking the caller may.
  *
- * Authorization is here rather than inside each tool so a new tool cannot invent its own
+ * This is **capability** authorization only. It answers "may an agent do this kind of thing
+ * for this role?" and nothing about the specific record. Whether this user may touch *that*
+ * lead, campaign or account is decided afterwards by the CRM domain service the tool calls,
+ * which already enforces tenancy, `canAccessLead`, `canAccessUser` and the pod hierarchy.
+ * Object authorization is never reproduced here — duplicating it would create a second,
+ * weaker copy that drifts from the real one.
+ *
+ * Authorization sits here rather than inside each tool so a new tool cannot invent its own
  * rule, and so the refusal text is uniform. Three fail-closed positions:
  *
  *   - a tool absent from `TOOL_CAPABILITY` is refused, not allowed
  *   - a write capability with no role in context is refused, because "unknown role" must
  *     not resolve more permissively than a known one
- *   - anything other than a clean `allow` stops the call and explains itself to the model,
- *     so the agent tells the SDR what needs approving instead of silently doing nothing
+ *   - anything other than a clean `ALLOW` stops the call and explains itself to the model,
+ *     so the agent tells the SDR what needs approving instead of implying it happened
  */
 export async function executeTool(
   toolName: string,
@@ -185,7 +192,7 @@ export async function executeTool(
       capability
     );
 
-    if (decision.outcome !== 'allow') {
+    if (decision.outcome !== 'ALLOW') {
       return refusalMessage(decision.outcome);
     }
   }

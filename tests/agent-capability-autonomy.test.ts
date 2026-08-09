@@ -55,13 +55,13 @@ describe('prospect_reply is unreachable at every setting', () => {
     // Level 4 autonomy is out of scope for the whole plan. A policy row is not the place to
     // reopen that decision, so the ceiling wins over anything stored.
     const decision = decideCapability(DIRECTOR, 'prospect_reply', mode);
-    expect(decision.outcome).toBe('denied');
+    expect(decision.outcome).toBe('DENY');
     expect(decision.reason).toBe('capability_is_human_only');
   });
 
   it('denies for every role', () => {
     for (const role of ['director', 'floor_manager', 'team_lead', 'sdr', 'leadgen_manager', 'leadgen'] as const) {
-      expect(decideCapability({ role }, 'prospect_reply', 'auto').outcome).toBe('denied');
+      expect(decideCapability({ role }, 'prospect_reply', 'auto').outcome).toBe('DENY');
     }
   });
 });
@@ -90,19 +90,19 @@ describe('autonomy layers on top of CRM role authorization', () => {
     // send_window_change belongs to the roles that answer for domain reputation. Setting the
     // capability to auto for an SDR must not become a way around lib/sequences/permissions.ts.
     const decision = decideCapability(SDR, 'send_window_change', 'auto');
-    expect(decision.outcome).toBe('denied');
+    expect(decision.outcome).toBe('DENY');
     expect(decision.reason).toBe('role_not_permitted');
   });
 
   it('still applies the mode for a role that does hold the right', () => {
     const decision = decideCapability(FLOOR_MANAGER, 'send_window_change', 'auto');
-    expect(decision.outcome).toBe('needs_manager_approval');
+    expect(decision.outcome).toBe('REQUIRE_MANAGER_APPROVAL');
     expect(decision.reason).toBe('policy_requires_manager_approval');
   });
 
   it('role denial beats a permissive policy in both directions', () => {
     for (const mode of ALL_MODES) {
-      expect(decideCapability(SDR, 'send_window_change', mode).outcome).toBe('denied');
+      expect(decideCapability(SDR, 'send_window_change', mode).outcome).toBe('DENY');
     }
   });
 });
@@ -110,19 +110,19 @@ describe('autonomy layers on top of CRM role authorization', () => {
 describe('defaults keep the agent usable without making it dangerous', () => {
   it('assistance and low-risk writes are automatic', () => {
     for (const capability of ['research', 'summarize', 'draft_reply', 'objection_help', 'meeting_prep', 'notes', 'tasks', 'reminders'] as const) {
-      expect(decideCapability(SDR, capability, null).outcome, capability).toBe('allow');
+      expect(decideCapability(SDR, capability, null).outcome, capability).toBe('ALLOW');
     }
   });
 
   it('anything that reaches a prospect requires a human', () => {
-    expect(decideCapability(SDR, 'sequence_enroll', null).outcome).toBe('needs_approval');
-    expect(decideCapability(SDR, 'reengagement_activate', null).outcome).toBe('needs_approval');
-    expect(decideCapability(SDR, 'prospect_reply', null).outcome).toBe('denied');
+    expect(decideCapability(SDR, 'sequence_enroll', null).outcome).toBe('REQUIRE_USER_APPROVAL');
+    expect(decideCapability(SDR, 'reengagement_activate', null).outcome).toBe('REQUIRE_USER_APPROVAL');
+    expect(decideCapability(SDR, 'prospect_reply', null).outcome).toBe('DENY');
   });
 
   it('a tenant may always tighten a default', () => {
-    expect(decideCapability(SDR, 'notes', 'approval').outcome).toBe('needs_approval');
-    expect(decideCapability(SDR, 'research', 'human_only').outcome).toBe('denied');
+    expect(decideCapability(SDR, 'notes', 'approval').outcome).toBe('REQUIRE_USER_APPROVAL');
+    expect(decideCapability(SDR, 'research', 'human_only').outcome).toBe('DENY');
   });
 });
 
