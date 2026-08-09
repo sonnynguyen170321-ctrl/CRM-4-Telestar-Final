@@ -110,3 +110,7 @@ build.log
 playwright.log
 server.log
 gitleaks.log
+
+# Playwright deep audit — generated, never committed
+playwright/.auth/
+e2e/.fixture.json

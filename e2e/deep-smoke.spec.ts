@@ -16,7 +16,15 @@ import { test, expect, type Page, type ConsoleMessage } from '@playwright/test';
  * email/password form — the one path that exists in every environment.
  */
 
-const PASSWORD = process.env.E2E_PASSWORD || 'telestar2026';
+// No default. `telestar2026` is published in this repository and is still live on every
+// non-Director demo account on the deployed box; defaulting to it means a bare `npx playwright
+// test` silently authenticates with a credential anyone can read. Fail loudly instead.
+function requiredPassword(): string {
+  const value = process.env.E2E_PASSWORD;
+  if (!value) throw new Error('E2E_PASSWORD is required — there is deliberately no default.');
+  return value;
+}
+const PASSWORD = requiredPassword();
 
 // A persona sweep opens ~18 routes in one test. Against a dev server each route
 // is compiled on first hit, which alone can exceed the default per-test budget.
@@ -240,8 +248,21 @@ for (const persona of PERSONAS) {
           continue;
         }
 
-        // Every route should paint a heading; a blank body means it died quietly.
-        await expect(page.locator('body')).not.toBeEmpty();
+        // The comment used to say "every route should paint a heading" while the assertion
+        // only checked that `<body>` was non-empty — which the sidebar alone satisfies, so a
+        // route whose content died quietly still passed. Assert the heading it claims to.
+        // Verified across all 18 routes: each paints exactly one `<h1>`, per
+        // `.claude/rules/brand-design.md`.
+        // Wait for it rather than sampling once: these pages fetch their data client-side, so
+        // the heading lands a beat after `domcontentloaded`. A bare `isVisible()` here reported
+        // five personas as broken purely because it looked too early.
+        const heading = await page
+          .locator('h1')
+          .first()
+          .waitFor({ state: 'visible', timeout: 15_000 })
+          .then(() => true)
+          .catch(() => false);
+        if (!heading) brokenRoutes.push(`${route} -> painted no heading`);
       }
 
       expect(brokenRoutes, `${persona.label}: routes that failed to render`).toEqual([]);

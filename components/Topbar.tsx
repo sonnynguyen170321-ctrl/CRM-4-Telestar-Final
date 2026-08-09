@@ -13,7 +13,7 @@ import {
   X,
   LogOut,
 } from 'lucide-react';
-import { signOut } from 'next-auth/react';
+import { hardSignOut } from '@/lib/auth/clientSignOut';
 import { useAppContext } from '@/context/AppContext';
 import { readNotifPrefs, isMuted, NOTIF_PREFS_EVENT } from '@/lib/notifications/prefs';
 import { openLeadSlideOver } from '@/lib/leads/openLead';
@@ -552,7 +552,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
                 )}
                 <button
                   role="menuitem"
-                  onClick={() => signOut({ callbackUrl: '/login' })}
+                  onClick={() => { void hardSignOut('/login'); }}
                   className="w-full text-left px-4 py-2 text-xs text-brand-red hover:bg-brand-red/5 transition-colors flex items-center gap-2"
                 >
                   <LogOut className="w-3.5 h-3.5" aria-hidden="true" />

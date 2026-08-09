@@ -12,8 +12,19 @@ const baseURL = process.env.BASE_URL || 'http://localhost:3000';
 // timeout, which reads as an infrastructure problem rather than the test failure it was.
 const isRemoteTarget = !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(baseURL);
 
+/** The three root specs that predate the deep audit. CI and the post-deploy gate name them. */
+const LEGACY_SPECS = [
+  'crm-journeys.spec.ts',
+  'deep-smoke.spec.ts',
+  'user-flow-31step.spec.ts',
+];
+
 export default defineConfig({
   testDir: './e2e',
+  // `e2e/qa/**` is self-labelled throwaway QA scaffolding (see its own header comments), not
+  // part of any suite. Excluding it here stops it running by accident while it is still
+  // useful as reference material.
+  testIgnore: ['**/qa/**'],
   // Remote targets are slower than a local server end to end: sign-in alone has been
   // measured at up to 37s against GCE + Cloud SQL, and beforeEach time counts against the
   // test budget. 60s left no headroom once the login wait was raised to match reality.
@@ -27,14 +38,39 @@ export default defineConfig({
   reporter: 'list',
   use: {
     baseURL,
-    trace: 'on-first-retry',
+    // `on-first-retry` with `retries: 0` meant traces were never captured at all, so a
+    // failure produced no artifact to investigate — which §49 of the audit brief requires.
+    trace: 'retain-on-failure',
+    video: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    viewport: { width: 1280, height: 800 },
   },
   projects: [
     {
+      // Signs in once per role and writes playwright/.auth/<role>.json.
+      name: 'setup',
+      testMatch: /support[\\/]auth\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      // The deep audit. 1440x900 is the primary desktop viewport per §4; the 1024 and
+      // sub-1024 cases are exercised by the desktop-gate spec, which sets its own sizes —
+      // running every spec at three viewports would triple the run for no extra signal.
+      name: 'audit',
+      dependencies: ['setup'],
+      testMatch: /e2e[\\/](auth|roles|leads|sequences|email|meetings|opportunities|reports|admin|journeys|resilience)[\\/].*\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      // Pre-existing suite, untouched. Kept at its original 1280x800 deliberately: these
+      // specs pass today and CI gates on them, so the audit does not get to change the
+      // conditions under which they were verified.
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      // Globs, not a constructed RegExp. The previous version escaped dots by hand with
+      // `.replace(/./g, …)`, which CodeQL flags as `js/incomplete-sanitization` — and it is
+      // right that hand-rolled escaping is the wrong tool for building a pattern. Playwright
+      // matches globs natively, so there is nothing to escape.
+      testMatch: LEGACY_SPECS.map((file) => `**/e2e/${file}`),
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } },
     },
   ],
   // Only boot a local dev server when no BASE_URL was supplied. Without this guard the

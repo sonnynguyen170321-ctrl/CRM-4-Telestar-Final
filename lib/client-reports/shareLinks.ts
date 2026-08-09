@@ -1,6 +1,36 @@
 import crypto from 'crypto';
+import { PrismaClient } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ClientReportSnapshot } from './types';
+
+/**
+ * An unextended client, used **only** for resolving a public share token.
+ *
+ * The share endpoint is the one route in the product that answers with no session —
+ * `proxy.ts` excludes `api/client-reports/public` because the recipient is the customer, not
+ * Telestar staff. With no session there is no tenant context, and the extension in
+ * `lib/prisma.ts:86-93` fails closed for reads in production: `find*` returns `null` rather
+ * than risk a cross-tenant read. Every token therefore came back "Invalid or expired report
+ * link" while the rows were sitting in the table — confirmed against 14 live, unrevoked
+ * `ClientReportShareLink` rows whose `tokenHash` matched the token being presented byte for
+ * byte.
+ *
+ * It only reproduces on a production build. In development `isLocalOrScript` is true, so the
+ * same queries bypass and succeed — which is why the feature looked healthy locally.
+ *
+ * The obvious fix — wrapping the lookup in `tenantStorage.run({ bypassRls: true })`, the
+ * pattern `getSessionUser` uses — was tried and **does not work here**. The built bundle
+ * contains the wrapper, and the read still returns null: the `AsyncLocalStorage` the caller
+ * enters is not the instance the extension reads, because Next splits them across chunks.
+ * Verified by reading the emitted chunk.
+ *
+ * So this file talks to the database directly for one narrow purpose. That is safe because the
+ * token *is* the credential: 32 random bytes, stored only as a SHA-256 hash, revocable and
+ * expirable, and validated immediately below before anything is returned. What a customer may
+ * then see is still decided by `toClientSafeSnapshot`. The client is module-scoped so the
+ * process opens one extra pool, not one per request.
+ */
+const publicShareDb = new PrismaClient();
 
 export function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -85,13 +115,34 @@ export async function createShareLink(options: CreateShareLinkOptions): Promise<
   return { token: rawToken, shareLink };
 }
 
+/**
+ * Resolve a public share token.
+ *
+ * **Runs in an explicit tenant bypass, and must.** This is the one route in the product that
+ * answers with no session — `proxy.ts` excludes `api/client-reports/public` precisely because
+ * the recipient is the customer, not Telestar staff. With no session there is no tenant
+ * context, and the Prisma extension in `lib/prisma.ts:86-93` fails closed in production:
+ * `find*` returns `null` rather than risking a cross-tenant read. So every lookup here came
+ * back empty and the route answered "Invalid or expired report link" for tokens that were
+ * perfectly valid — verified with 9 live, unrevoked rows in `ClientReportShareLink` while the
+ * endpoint reported every one of them as unknown.
+ *
+ * It only reproduced in production. In development `isLocalOrScript` is true, so the same
+ * queries bypass and succeed, which is why the feature looked fine locally.
+ *
+ * The bypass is safe because the token *is* the authorization: it is random, stored only as a
+ * hash, revocable and expirable, and is checked immediately below. `tenantId: 'system'` matches
+ * the pattern `getSessionUser` and `auth.ts` already use for lookups that necessarily precede a
+ * session. Nothing tenant-scoped is returned beyond the report the token names, and
+ * `toClientSafeSnapshot` still decides what a customer may see.
+ */
 export async function verifyAndFetchSharedReport(
   token: string,
   passwordAttempt?: string
 ): Promise<{ snapshot: ClientReportSnapshot; title: string; clientName: string; requiresPassword?: boolean }> {
   const tokenHash = hashToken(token);
 
-  const shareLink = await prisma.clientReportShareLink.findUnique({
+  const shareLink = await publicShareDb.clientReportShareLink.findUnique({
     where: { tokenHash },
     include: {
       report: {
@@ -130,8 +181,8 @@ export async function verifyAndFetchSharedReport(
     }
   }
 
-  // Increment view count asynchronously
-  await prisma.clientReportShareLink.update({
+  // Same client: the view counter is written on behalf of an unauthenticated visitor.
+  await publicShareDb.clientReportShareLink.update({
     where: { id: shareLink.id },
     data: {
       viewCount: { increment: 1 },
