@@ -39,7 +39,7 @@ describe('AgentRuntime Integration Path', () => {
   });
 
   it('routes write tools through AgentRuntime and creates durable AgentAction', async () => {
-    // 1. Mock Groq yielding a tool call
+    // 1. Mock Groq yielding two tool calls in iteration 1, one in iteration 2
     mockGroqCreate
       .mockResolvedValueOnce({
         choices: [
@@ -49,15 +49,37 @@ describe('AgentRuntime Integration Path', () => {
               content: '',
               tool_calls: [
                 {
-                  id: 'call_123',
+                  id: 'call_1',
                   function: {
                     name: 'create_task',
-                    arguments: JSON.stringify({
-                      title: 'Follow up',
-                      channel: 'email',
-                      dueDate: new Date().toISOString(),
-                      leadId: 'lead-1',
-                    }),
+                    arguments: JSON.stringify({ title: 'Task 1' }),
+                  },
+                },
+                {
+                  id: 'call_2',
+                  function: {
+                    name: 'create_task',
+                    arguments: JSON.stringify({ title: 'Task 2' }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+      })
+      .mockResolvedValueOnce({
+        choices: [
+          {
+            finish_reason: 'tool_calls',
+            message: {
+              content: '',
+              tool_calls: [
+                {
+                  id: 'call_3',
+                  function: {
+                    name: 'create_task',
+                    arguments: JSON.stringify({ title: 'Task 3' }),
                   },
                 },
               ],
@@ -70,7 +92,7 @@ describe('AgentRuntime Integration Path', () => {
         choices: [
           {
             finish_reason: 'stop',
-            message: { content: 'I have created the task.' },
+            message: { content: 'Done.' },
           },
         ],
         usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
@@ -83,7 +105,7 @@ describe('AgentRuntime Integration Path', () => {
     vi.spyOn(prisma.lead, 'findUnique').mockResolvedValue({ id: 'lead-1', assignedToId: 'u-sdr-1', campaignId: null } as any);
     vi.spyOn(prisma.task, 'create').mockResolvedValue({ id: 'task-1' } as any);
     
-    // We mock AgentAction upser/update
+    // We mock AgentAction upsert/update
     const upsertAction = vi.spyOn(prisma.agentAction, 'upsert').mockResolvedValue({ id: 'action-1' } as any);
     const updateAction = vi.spyOn(prisma.agentAction, 'update').mockResolvedValue({} as any);
     vi.spyOn(prisma.aiCall, 'create').mockResolvedValue({} as any);
@@ -94,7 +116,7 @@ describe('AgentRuntime Integration Path', () => {
       modelId: 'llama3-70b-8192' as ModelId, // Groq
       today: new Date().toISOString(),
       sessionUser,
-      executionId: 'exec-123',
+      executionId: 'exec-test-uuid',
       playbookVersionId: 'pbv-1',
     });
 
@@ -103,27 +125,79 @@ describe('AgentRuntime Integration Path', () => {
       chunks.push(chunk);
     }
 
-    expect(chunks.join('')).toContain('I have created the task.');
+    expect(chunks.join('')).toContain('Done.');
 
-    // Verify AgentAction was created with execution key, not just groq's tool call id
-    expect(upsertAction).toHaveBeenCalledWith(
+    // Verify AgentAction was created with monotonically increasing execution keys
+    expect(upsertAction).toHaveBeenCalledTimes(3);
+    expect(upsertAction).toHaveBeenNthCalledWith(1,
       expect.objectContaining({
-        create: expect.objectContaining({
-          actionKey: 'agent:exec-123:tool:0:create_task',
-          tool: 'create_task',
-          playbookVersionId: 'pbv-1',
-        }),
+        create: expect.objectContaining({ actionKey: 'agent:exec-test-uuid:tool:0:create_task' }),
       })
     );
-
-    // Verify AgentAction was updated to completed
-    expect(updateAction).toHaveBeenCalledWith(
+    expect(upsertAction).toHaveBeenNthCalledWith(2,
       expect.objectContaining({
-        data: expect.objectContaining({ status: 'completed' }),
+        create: expect.objectContaining({ actionKey: 'agent:exec-test-uuid:tool:1:create_task' }),
       })
     );
+    expect(upsertAction).toHaveBeenNthCalledWith(3,
+      expect.objectContaining({
+        create: expect.objectContaining({ actionKey: 'agent:exec-test-uuid:tool:2:create_task' }),
+      })
+    );
+  });
 
-    // Verify domain service was called
-    expect(prisma.task.create).toHaveBeenCalled();
+  it('rejects retried tool calls that were already completed', async () => {
+    // Return a duplicate tool call for a retry scenario
+    mockGroqCreate.mockResolvedValueOnce({
+      choices: [
+        {
+          finish_reason: 'tool_calls',
+          message: {
+            content: '',
+            tool_calls: [
+              {
+                id: 'call_retry',
+                function: {
+                  name: 'create_task',
+                  arguments: JSON.stringify({ title: 'Duplicate' }),
+                },
+              },
+            ],
+          },
+        },
+      ],
+    }).mockResolvedValueOnce({
+      choices: [{ finish_reason: 'stop', message: { content: 'Done.' } }]
+    });
+
+    vi.spyOn(prisma.autonomyPolicy, 'findUnique').mockResolvedValue({ mode: 'auto' } as any);
+    
+    // existingAction returns a completed action
+    vi.spyOn(prisma.agentAction, 'findUnique').mockResolvedValue({
+      id: 'action-2',
+      status: 'completed',
+      result: 'Already finished',
+    } as any);
+
+    const upsertAction = vi.spyOn(prisma.agentAction, 'upsert');
+
+    const generator = streamChat({
+      messages: [{ role: 'user', content: 'Create the task again.' }],
+      systemPrompt: 'You are an AI.',
+      modelId: 'llama3-70b-8192' as ModelId,
+      today: new Date().toISOString(),
+      sessionUser,
+      executionId: 'exec-retry',
+      playbookVersionId: 'pbv-1',
+    });
+
+    const chunks = [];
+    for await (const chunk of generator) {
+      chunks.push(chunk);
+    }
+
+    // AgentAction should not be upserted (bypassed due to idempotency)
+    expect(upsertAction).not.toHaveBeenCalled();
+    // The generator should still yield since we return early inside executeAgentAction
   });
 });

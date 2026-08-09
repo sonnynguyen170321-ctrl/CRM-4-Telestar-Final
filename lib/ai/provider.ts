@@ -91,6 +91,7 @@ async function* streamGroq(opts: StreamOptions): AsyncGenerator<string> {
 
   // Tool calling loop — Groq may call a tool before giving the final answer
   let iterations = 0;
+  let toolOrdinal = 0;
   const MAX_TOOL_ITERATIONS = 3;
 
   while (iterations < MAX_TOOL_ITERATIONS) {
@@ -176,14 +177,14 @@ async function* streamGroq(opts: StreamOptions): AsyncGenerator<string> {
       for (let i = 0; i < choice.message.tool_calls.length; i++) {
         const toolCall = choice.message.tool_calls[i];
         const args = JSON.parse(toolCall.function.arguments || '{}');
-        const actionKey = `agent:${opts.executionId}:tool:${i}:${toolCall.function.name}`;
+        const actionKey = `agent:${opts.executionId}:tool:${toolOrdinal}:${toolCall.function.name}`;
+        toolOrdinal++;
 
         const result = await executeAgentAction({
           actionKey,
           toolName: toolCall.function.name,
           args,
           sessionUser: opts.sessionUser,
-          tenantId: opts.sessionUser.tenantId,
           leadId: opts.leadId,
           playbookVersionId: opts.playbookVersionId,
           workOrderId: opts.workOrderId,

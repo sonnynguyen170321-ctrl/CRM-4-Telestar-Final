@@ -472,7 +472,8 @@ export default function AiAssistant() {
       return;
     }
 
-    const userMsg: Message = { role: 'user', content };
+    const executionId = crypto.randomUUID().replace(/-/g, '').substring(0, 32);
+    const userMsg: Message & { executionId?: string } = { role: 'user', content, executionId };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
 
@@ -506,6 +507,9 @@ export default function AiAssistant() {
     setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
 
     try {
+      // The executionId of the latest user message represents this turn
+      const turnExecutionId = newMessages[newMessages.length - 1]?.executionId;
+
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -513,6 +517,7 @@ export default function AiAssistant() {
           messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
           modelId,
           context: injectedContext,
+          executionId: turnExecutionId,
         }),
       });
 

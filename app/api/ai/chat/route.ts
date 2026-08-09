@@ -51,10 +51,11 @@ export async function POST(req: NextRequest) {
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
-  const { messages, modelId, context } = await req.json() as {
+  const { messages, modelId, context, executionId: clientExecutionId } = await req.json() as {
     messages: ChatMessage[];
     modelId?: ModelId;
     context?: ChatContext;
+    executionId?: string;
   };
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -132,7 +133,7 @@ IMPORTANT REMINDERS:
           operation: 'chat',
           leadId: sanitizeLeadId(context?.leadId),
           sessionUser: user,
-          executionId: Array.from(crypto.getRandomValues(new Uint8Array(16)))
+          executionId: clientExecutionId || Array.from(crypto.getRandomValues(new Uint8Array(16)))
             .map((b) => b.toString(16).padStart(2, '0'))
             .join(''),
           playbookVersionId,

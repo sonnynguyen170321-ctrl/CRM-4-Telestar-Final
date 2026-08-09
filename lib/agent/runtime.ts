@@ -10,7 +10,6 @@ export interface ExecuteActionInput {
   toolName: string;
   args: Record<string, string>;
   sessionUser: SessionUser;
-  tenantId: string;
   leadId?: string;
   campaignId?: string;
   playbookVersionId?: string;
@@ -39,7 +38,7 @@ export async function executeAgentAction(input: ExecuteActionInput): Promise<Exe
   // Idempotency: Check if this action already ran/is running.
   const existingAction = await prisma.agentAction.findUnique({
     where: {
-      tenantId_actionKey: { tenantId: input.tenantId, actionKey: input.actionKey },
+      tenantId_actionKey: { tenantId: input.sessionUser.tenantId, actionKey: input.actionKey },
     },
   });
 
@@ -55,7 +54,7 @@ export async function executeAgentAction(input: ExecuteActionInput): Promise<Exe
   }
 
   const authorization = await authorizeCapability(
-    { role: input.sessionUser.role, tenantId: input.tenantId },
+    { role: input.sessionUser.role, tenantId: input.sessionUser.tenantId },
     capability
   );
 
@@ -63,11 +62,11 @@ export async function executeAgentAction(input: ExecuteActionInput): Promise<Exe
 
   const action = await prisma.agentAction.upsert({
     where: {
-      tenantId_actionKey: { tenantId: input.tenantId, actionKey: input.actionKey },
+      tenantId_actionKey: { tenantId: input.sessionUser.tenantId, actionKey: input.actionKey },
     },
     create: {
       actionKey: input.actionKey,
-      tenantId: input.tenantId,
+      tenantId: input.sessionUser.tenantId,
       userId: input.sessionUser.id,
       role: input.sessionUser.role,
       capability,
