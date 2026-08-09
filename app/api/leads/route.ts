@@ -9,7 +9,7 @@ import { buildLeadListWhere } from '@/lib/leads/listQuery';
 import { findAccentInsensitiveIds, LEAD_SEARCH_COLUMNS } from '@/lib/search/accentSearch';
 import { handleApiError } from '@/lib/api/errors';
 import { normalizePhone, normalizeLinkedIn } from '@/lib/leads/normalize';
-import { scoreLead } from '@/lib/ai/scoring';
+import { scoreLead } from '@/lib/leads/scoring';
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();

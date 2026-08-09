@@ -1544,6 +1544,59 @@ model Tenant {
   emailHealthSnapshots     EmailHealthSnapshot[]
   emailDomainHealth        EmailDomainHealth[]
   emailHealthAlerts        EmailHealthAlert[]
+  aiCalls                  AiCall[]
+}
+
+// ─── AI Usage Attribution ────────────────────────────────────────────────────
+
+/// One row per outbound call to an AI or research provider.
+///
+/// Written by `lib/ai/usage.ts` and by nothing else. Recording is best-effort by
+/// design: a failure to write this row must never fail the AI operation, and an AI
+/// operation failing must never fail the CRM. See docs/revenue-ai/PLAN.md Phase 1.
+///
+/// A tool-calling exchange produces several rows — one per provider round trip —
+/// rather than one aggregate. Aggregating at write time would lose which iteration
+/// spent the tokens, which is the question cost review actually asks.
+model AiCall {
+  id        String @id @default(cuid())
+  tenantId  String
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String?
+  /// Prospect this call was about, when there is one. No FK: an AiCall is an
+  /// accounting record and must outlive an archived or deleted lead.
+  leadId    String?
+  /// Set once typed work orders exist (Phase 6). No FK until the model does.
+  workOrderId String?
+
+  /// What the call was for — 'chat', 'briefing', 'research', 'draft_reply', …
+  operation String
+  /// 'groq' | 'gemini' | 'tavily' | 'jina'
+  provider  String
+  /// Model id for LLM providers; null for search/fetch providers.
+  model     String?
+
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
+  /// Billable units for non-token providers (one search, one page fetch).
+  searchCredits    Int?
+
+  latencyMs Int
+  /// Estimated, not billed: computed from lib/ai/pricing.ts rates at call time.
+  estimatedCostUsd Decimal? @db.Decimal(12, 6)
+
+  /// 'ok' | 'error' | 'rate_limited' | 'unavailable'
+  status    String
+  errorCode String?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, operation])
+  @@index([tenantId, provider])
+  @@index([userId, createdAt])
+  @@index([workOrderId])
 }
 
 model Attachment {

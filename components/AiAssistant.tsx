@@ -5,8 +5,8 @@ import { usePathname } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { X, Send, Copy, ThumbsUp, ThumbsDown, ChevronDown } from 'lucide-react';
-import { MODEL_LABELS, MODEL_DESCRIPTIONS, DEFAULT_MODEL } from '@/lib/ai/provider';
-import type { ModelId } from '@/lib/ai/provider';
+import { MODEL_LABELS, MODEL_DESCRIPTIONS, DEFAULT_MODEL } from '@/lib/ai/models';
+import type { ModelId } from '@/lib/ai/models';
 
 interface Message {
   role: 'user' | 'assistant';

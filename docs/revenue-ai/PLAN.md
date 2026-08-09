@@ -24,6 +24,19 @@ something a user can use or a test can assert.
 
 1. **Gates stay green** — `tsc --noEmit`, `eslint app components lib context tests`,
    `vitest run`, and the automation E2E specs.
+
+   **`next build` is a required completion gate** for any phase touching shared imports,
+   Next.js routes, provider code, the server/client boundary, or application wiring. It is not
+   optional and not "CI will catch it": the fast gates cannot see bundling failures. Phase 1
+   shipped a provider import that pulled `async_hooks`/`dns`/`net` into the browser bundle
+   with tsc at 0 errors and Vitest at 820 passing — CI went red on Docker build and
+   Build·Playwright, not on anything runnable in seconds.
+
+   **Docker build joins the gate** for phases that affect runtime or deployment: worker code,
+   Dockerfile, dependencies, environment contracts, or anything the always-on host runs.
+
+   **CI is green only when GitHub reports each required check successful.** A watcher process
+   exiting 0 is not evidence — read the individual check states.
 2. **Nothing gets a twin.** Each phase's acceptance includes: the capability is wired to a
    service in the [reuse map](ARCHITECTURE.md) and adds no parallel CRM, sequence, email,
    permission, tenancy, audit or reporting path.
@@ -51,17 +64,32 @@ Prerequisite: the pause vocabulary the whole lifecycle reads had diverged three 
 
 ---
 
-## Phase 1 — Cost attribution + proof that AI is optional
+## Phase 1 — Cost attribution + proof that AI is optional ✅ complete
 
-Prerequisite for every budget and every cost figure, and for rule 4 above.
+- [x] `AiCall` model + `20260810000000_ai_call_attribution` — tenant, user, lead, work order,
+      operation, provider, model, prompt/completion/total tokens, search credits, latency,
+      estimated cost, status, error code
+- [x] `lib/ai/pricing.ts` — one rate table, per-model and per-call. Unknown model returns
+      `null` rather than a guess
+- [x] `lib/ai/usage.ts` — the only writer of `AiCall`. Never throws into the caller; skips the
+      write when there is no tenant rather than inventing a placeholder
+- [x] Instrumented every provider round trip: the Groq tool-calling loop (one row per
+      iteration), the Groq tool-less retry, Gemini (recorded after the stream drains, where its
+      usage metadata appears), Tavily and Jina
+- [x] `tests/ai-optional.test.ts` — structural: no core CRM module imports `lib/ai`, no core
+      module imports a provider SDK, `recordAiCall` is confined to the AI layer
+- [x] `tests/ai-down-resilience.test.ts` — behavioural: every provider key removed and outbound
+      HTTP refusing; scheduling, eligibility, reply pause, due-date computation and lead scoring
+      all still execute, with no outbound request attempted
+- [x] `lib/ai/scoring.ts` → `lib/leads/scoring.ts` — deterministic CRM logic that was misfiled
+      under the AI tree and made two lead routes look AI-dependent
+- [x] `lib/ai/models.ts` — the import-free client-safe model catalog, split out of
+      `provider.ts` after the first push broke the browser bundle. Boundary recorded as
+      ARCHITECTURE §10 and held by two regression tests.
 
-- [ ] `provider.ts` records tokens in/out, model, latency, computed cost per call
-- [ ] `AiCall`: tenant, user, purpose, model, tokens, cost, `workOrderId?`, `createdAt`
-- [ ] A test asserting sequence execution, reply processing, email send and task completion all
-      pass with the AI subsystem unavailable
-
-**Acceptance:** cost is queryable by tenant, user and purpose. Disabling AI fails no CRM test.
-No new reporting pipeline — costs surface through `client-reports`/`analytics` in Phase 10.
+**Acceptance met:** cost is queryable by tenant, user, operation, provider and work order.
+The CRM has no static dependency on `lib/ai` and none can be added without failing a test. No
+new reporting pipeline — these rows feed `client-reports` in Phase 10.
 
 ---
 

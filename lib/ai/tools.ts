@@ -1,5 +1,7 @@
 // AI tool definitions for Groq/Gemini function calling
 
+import { recordAiCall } from './usage';
+
 export interface ToolDefinition {
   type: 'function';
   function: {
@@ -113,18 +115,32 @@ export const AI_TOOLS: ToolDefinition[] = [
   },
 ];
 
+/**
+ * Attribution context for research providers (Revenue AI Phase 1). Optional fields so a
+ * caller that has not been threaded still works — the call is then unattributed rather
+ * than failed.
+ */
+export interface ToolContext {
+  userId: string;
+  leadId?: string;
+  today: string;
+  tenantId?: string;
+  operation?: string;
+  workOrderId?: string;
+}
+
 // Execute tool calls and return results
 export async function executeTool(
   toolName: string,
   args: Record<string, string>,
-  context: { userId: string; leadId?: string; today: string }
+  context: ToolContext
 ): Promise<string> {
   switch (toolName) {
     case 'search_web':
-      return searchWeb(args.query);
+      return searchWeb(args.query, context);
 
     case 'visit_page':
-      return visitPage(args.url);
+      return visitPage(args.url, context);
 
     case 'create_task':
       return createTask(args, context.userId, context.leadId);
@@ -137,9 +153,25 @@ export async function executeTool(
   }
 }
 
-async function searchWeb(query: string): Promise<string> {
+async function searchWeb(query: string, ctx: ToolContext): Promise<string> {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) return 'Search unavailable — TAVILY_API_KEY not configured.';
+
+  const startedAt = Date.now();
+  const record = (status: 'ok' | 'error' | 'unavailable', errorCode?: string) =>
+    recordAiCall({
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      leadId: ctx.leadId ?? null,
+      workOrderId: ctx.workOrderId ?? null,
+      operation: ctx.operation ?? 'research',
+      provider: 'tavily',
+      // Tavily bills per search, not per token. One call, one credit.
+      searchCredits: 1,
+      latencyMs: Date.now() - startedAt,
+      status,
+      errorCode: errorCode ?? null,
+    });
 
   try {
     const res = await fetch('https://api.tavily.com/search', {
@@ -154,9 +186,14 @@ async function searchWeb(query: string): Promise<string> {
       }),
     });
 
-    if (!res.ok) return `Search failed: ${res.status}`;
+    // A rejected search still consumed a request against the plan, so it is recorded.
+    if (!res.ok) {
+      await record('error', String(res.status));
+      return `Search failed: ${res.status}`;
+    }
 
     const data = await res.json();
+    await record('ok');
     const results = data.results
       ?.slice(0, 4)
       .map(
@@ -168,15 +205,33 @@ async function searchWeb(query: string): Promise<string> {
     return data.answer
       ? `Summary: ${data.answer}\n\nSources:\n${results}`
       : results || 'No results found.';
-  } catch {
+  } catch (err) {
+    // Unreachable provider is 'unavailable', not 'error' — it is the signal the
+    // AI-optional guarantee is being exercised, and it reads differently in a cost review.
+    await record('unavailable', err instanceof Error ? err.name : undefined);
     return 'Search temporarily unavailable.';
   }
 }
 
-async function visitPage(url: string): Promise<string> {
+async function visitPage(url: string, ctx: ToolContext): Promise<string> {
   if (!url.startsWith('https://') && !url.startsWith('http://')) {
     return 'Invalid URL — must start with https://';
   }
+
+  const startedAt = Date.now();
+  const record = (status: 'ok' | 'error' | 'unavailable', errorCode?: string) =>
+    recordAiCall({
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      leadId: ctx.leadId ?? null,
+      workOrderId: ctx.workOrderId ?? null,
+      operation: ctx.operation ?? 'research',
+      provider: 'jina',
+      searchCredits: 1,
+      latencyMs: Date.now() - startedAt,
+      status,
+      errorCode: errorCode ?? null,
+    });
 
   try {
     const jinaUrl = `https://r.jina.ai/${url}`;
@@ -188,12 +243,17 @@ async function visitPage(url: string): Promise<string> {
       signal: AbortSignal.timeout(15000),
     });
 
-    if (!res.ok) return `Could not access that page (${res.status}). LinkedIn may have blocked access — using search results instead.`;
+    if (!res.ok) {
+      await record('error', String(res.status));
+      return `Could not access that page (${res.status}). LinkedIn may have blocked access — using search results instead.`;
+    }
 
     const text = await res.text();
+    await record('ok');
     // Trim to reasonable size to avoid massive token usage
     return text.slice(0, 3000) + (text.length > 3000 ? '\n\n[Content truncated for brevity]' : '');
-  } catch {
+  } catch (err) {
+    await record('unavailable', err instanceof Error ? err.name : undefined);
     return 'Could not read that page — it may be behind a login or blocked by the site.';
   }
 }

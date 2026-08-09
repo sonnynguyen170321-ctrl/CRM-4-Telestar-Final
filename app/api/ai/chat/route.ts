@@ -17,6 +17,12 @@ try {
 
 interface ChatContext {
   page?: string;
+  /**
+   * Which prospect the SDR has open. Client-supplied and used only to label the AiCall
+   * accounting row — it grants nothing and is never read for authorization, so it is
+   * bounded rather than verified. `sanitizeLeadId` drops anything that is not id-shaped.
+   */
+  leadId?: string;
   userName?: string;
   userRole?: string;
   overdueTasks?: number;
@@ -35,6 +41,11 @@ interface ChatContext {
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+}
+
+/** Accept only cuid-shaped ids, so a hostile client cannot write arbitrary text to AiCall. */
+function sanitizeLeadId(value: unknown): string | undefined {
+  return typeof value === 'string' && /^[a-z0-9]{20,32}$/i.test(value) ? value : undefined;
 }
 
 export async function POST(req: NextRequest) {
@@ -110,6 +121,11 @@ IMPORTANT REMINDERS:
           modelId: (modelId as ModelId) || DEFAULT_MODEL,
           userId: user.id,
           today,
+          // Attribution (Revenue AI Phase 1). leadId comes from the panel the SDR has open,
+          // so chat about a specific prospect is costed against that prospect.
+          tenantId: user.tenantId,
+          operation: 'chat',
+          leadId: sanitizeLeadId(context?.leadId),
         });
 
         for await (const chunk of generator) {
