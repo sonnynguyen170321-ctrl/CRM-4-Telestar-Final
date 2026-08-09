@@ -65,7 +65,11 @@ export default defineConfig({
       // specs pass today and CI gates on them, so the audit does not get to change the
       // conditions under which they were verified.
       name: 'chromium',
-      testMatch: new RegExp(`e2e[\\\\/](${LEGACY_SPECS.join('|').replace(/\./g, '\\.')})$`),
+      // Globs, not a constructed RegExp. The previous version escaped dots by hand with
+      // `.replace(/./g, …)`, which CodeQL flags as `js/incomplete-sanitization` — and it is
+      // right that hand-rolled escaping is the wrong tool for building a pattern. Playwright
+      // matches globs natively, so there is nothing to escape.
+      testMatch: LEGACY_SPECS.map((file) => `**/e2e/${file}`),
       use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } },
     },
   ],

@@ -15,9 +15,10 @@
 import { test, expect } from '../support/test';
 import { apiAs, readJson } from '../support/api';
 import { fixture } from '../support/fixture';
+import { uniqueSuffix, disposablePassword } from '../support/ids';
 import type { APIRequestContext } from '@playwright/test';
 
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+const stamp = () => `${Date.now()}${uniqueSuffix()}`;
 
 /** An SDR on campaign A owning one lead and one open task. */
 async function repWithWork(admin: APIRequestContext) {
@@ -26,7 +27,7 @@ async function repWithWork(admin: APIRequestContext) {
     await admin.post('/api/users', {
       data: {
         email: `pw.xfer.${s}@audit.test`,
-        password: `pw-audit-xfer-${s}`,
+        password: disposablePassword(),
         firstName: 'PW',
         lastName: `Xfer${s}`,
         role: 'sdr',
@@ -209,7 +210,7 @@ test.describe('audit trail', () => {
       await admin.post('/api/users', {
         data: {
           email: `pw.audited.${s}@audit.test`,
-          password: `pw-audit-audited-${s}`,
+          password: disposablePassword(),
           firstName: 'PW',
           lastName: `Audited${s}`,
           role: 'sdr',

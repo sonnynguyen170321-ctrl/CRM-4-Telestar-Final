@@ -7,6 +7,7 @@
 import { test, expect } from '../support/test';
 import { fixture, fixturePassword, type RoleKey } from '../support/fixture';
 import { apiAs } from '../support/api';
+import { uniqueSuffix } from '../support/ids';
 
 /** Roles that live in tenant A and should reach the app. */
 const TENANT_A_ROLES: RoleKey[] = [
@@ -73,7 +74,7 @@ async function formLogin(page: import('@playwright/test').Page, email: string, p
  * roles untouched.
  */
 async function disposableUser(baseURL: string) {
-  const s = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const s = `${Date.now()}${uniqueSuffix()}`;
   const email = `pw.signout.${s}@audit.test`;
   const admin = await apiAs('director', baseURL);
   const res = await admin.post('/api/users', {

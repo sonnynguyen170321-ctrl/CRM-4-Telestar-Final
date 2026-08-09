@@ -12,9 +12,10 @@
 import { test, expect } from '../support/test';
 import { apiAs, readJson } from '../support/api';
 import { fixture } from '../support/fixture';
+import { uniqueSuffix } from '../support/ids';
 import type { APIRequestContext } from '@playwright/test';
 
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+const stamp = () => `${Date.now()}${uniqueSuffix()}`;
 
 async function createLead(api: APIRequestContext) {
   const s = stamp();

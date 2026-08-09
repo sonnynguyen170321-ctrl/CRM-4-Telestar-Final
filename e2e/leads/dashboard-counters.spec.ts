@@ -13,9 +13,10 @@
 import { test, expect } from '../support/test';
 import { apiAs, readJson } from '../support/api';
 import { fixture } from '../support/fixture';
+import { uniqueSuffix, disposablePassword } from '../support/ids';
 import { request, type APIRequestContext } from '@playwright/test';
 
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+const stamp = () => `${Date.now()}${uniqueSuffix()}`;
 
 type Task = { id: string; status?: string; dueDate?: string };
 
@@ -23,7 +24,7 @@ type Task = { id: string; status?: string; dueDate?: string };
 async function disposableRep(admin: APIRequestContext, baseURL: string) {
   const s = stamp();
   const email = `pw.kpi.${s}@audit.test`;
-  const password = `pw-audit-kpi-${s}`;
+  const password = disposablePassword();
 
   const created = await readJson(
     await admin.post('/api/users', {

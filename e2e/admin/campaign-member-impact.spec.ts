@@ -16,9 +16,10 @@
 import { test, expect } from '../support/test';
 import { apiAs, readJson } from '../support/api';
 import { fixture } from '../support/fixture';
+import { uniqueSuffix, disposablePassword } from '../support/ids';
 import type { APIRequestContext } from '@playwright/test';
 
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+const stamp = () => `${Date.now()}${uniqueSuffix()}`;
 
 /** A member of campaign A holding one open task on one lead — i.e. real work to inherit. */
 async function memberWithOpenWork(admin: APIRequestContext) {
@@ -27,7 +28,7 @@ async function memberWithOpenWork(admin: APIRequestContext) {
     await admin.post('/api/users', {
       data: {
         email: `pw.member.${s}@audit.test`,
-        password: `pw-audit-member-${s}`,
+        password: disposablePassword(),
         firstName: 'PW',
         lastName: `Member${s}`,
         role: 'sdr',
@@ -174,7 +175,7 @@ test.describe('campaign member removal impact gate', () => {
       await admin.post('/api/users', {
         data: {
           email: `pw.mgr.${s}@audit.test`,
-          password: `pw-audit-mgr-${s}`,
+          password: disposablePassword(),
           firstName: 'PW',
           lastName: `Mgr${s}`,
           role: 'team_lead',
@@ -189,7 +190,7 @@ test.describe('campaign member removal impact gate', () => {
       await admin.post('/api/users', {
         data: {
           email: `pw.rep.${s}@audit.test`,
-          password: `pw-audit-rep-${s}`,
+          password: disposablePassword(),
           firstName: 'PW',
           lastName: `Rep${s}`,
           role: 'sdr',
