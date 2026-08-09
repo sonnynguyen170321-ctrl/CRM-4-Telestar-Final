@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { evaluateAutomationEligibility } from '@/lib/automation/eligibility';
 import type { AutomationEvaluationContext } from '@/lib/automation/types';
-import { handleEmailSend, evaluateSendBlock } from '@/workers/email';
+import { evaluateSendBlock } from '@/workers/email';
 
 describe('Production Safety Regressions (Spec §52 / Phase 7)', () => {
   const mondayMorning = new Date('2026-08-10T10:00:00Z');

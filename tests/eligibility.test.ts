@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { evaluateAutomationEligibility } from '@/lib/automation/eligibility';
 import type { AutomationEvaluationContext } from '@/lib/automation/types';
 

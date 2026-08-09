@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, tenantStorage } from '@/lib/prisma';
-import { EmailService } from '@/lib/email/EmailService';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 import { isAutosendEnabled } from '@/lib/emailSafety';
 import { auth } from '@/auth';

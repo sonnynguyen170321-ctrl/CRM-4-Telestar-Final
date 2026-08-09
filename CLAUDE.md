@@ -165,3 +165,26 @@ import, or worker/runtime work:
 
 Guardrails and runtime constraints auto-load from `.claude/rules/runtime-hardening.md`.
 This supersedes the original `CRM-4U_BullMQ_Runtime_Hardening_Plan.md`.
+
+## ✅ Automation Engine — complete
+
+Scheduling, eligibility, and send-window policy for sequence automation. Before touching
+sequence scheduling, eligibility, send windows, jitter, A/B selection, or the sequence builder's
+step save path: read **`docs/automation-engine/STATUS.md`**, then `PLAN.md`, `ARCHITECTURE.md`
+and `DOMAIN_MAP.md` in that directory.
+
+**The rules that must not regress:**
+
+- Nothing computes a schedule except `lib/automation/scheduling.ts`. Not a component, not a
+  worker, not the preview endpoint — the preview calls the same function server-side precisely
+  so it cannot drift from what the worker does.
+- Jitter and A/B variant selection are seeded from durable ids (`tenantId + sequenceId + stepId
+  + leadId`), never `Math.random()`. That is why the builder reconciles steps by id instead of
+  delete-and-recreate: new step ids would re-roll send times and re-bucket every in-flight lead.
+- Quota exhaustion is a `DEFER`, not a permanent failure, and the deliverability preflight runs
+  *before* quota reservation so a blocked send never burns a slot.
+
+> **New Playwright specs must live in a named subdirectory** (`e2e/journeys/`, `e2e/roles/`, …).
+> The `audit` project's `testMatch` only covers those; the `chromium` project runs a hardcoded
+> three-file list. A spec at the `e2e/` root matches no project and silently never runs — which
+> is exactly what happened to `automation-journeys.spec.ts` before it moved.
