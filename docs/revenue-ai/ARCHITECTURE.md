@@ -188,6 +188,92 @@ Two rules these encode:
   approved follow-up workflow built from the actual conversation. Re-enrolling the original
   cadence is prohibited.
 
+### 4.2a Idempotency is per occurrence
+
+`ProspectTransition.transitionKey` identifies **one occurrence**, never just `(lead, kind)`. A
+prospect legitimately moves AI → human → AI → human over a lifetime, so a coarse key would let
+the first handoff permanently block every later one — the transition would no-op and the SDR
+would never hear about the second real reply.
+
+| Transition | Keyed on |
+|---|---|
+| handoff | the inbound event (provider message / activity id) |
+| reengagement_eligible | the handoff that opened this human-managed episode |
+| handback | the SDR's request id (a work order once Phase 6 exists) |
+| ai_reengagement_started | the approved re-engagement work order |
+
+### The ledger claims, it does not certify
+
+The row is written **before** the state change — but its existence is not proof the transition
+finished. It carries execution status:
+
+```text
+pending → state_applied → completed
+```
+
+A retry that finds a non-completed row **resumes** from wherever it stopped. Treating existence
+as success is a trap: a crash between the insert and the state write would strand the prospect,
+every retry answering "already applied" while the lead never moved, with manual repair the only
+way out. Manual repair is for genuinely irreconcilable data, not for an ordinary crash window.
+
+Each consequence is claimed individually in `appliedEffects` by a conditional array append
+*before* it runs, so two racing resumes cannot both perform the same one. A resume also skips
+the `fromStates` guard: by then the lead has already moved, and re-checking would turn recovery
+into a permanent error.
+
+### Two guarantees, deliberately not one
+
+They are different strengths and must not be stated as one:
+
+```text
+ProspectTransition lifecycle    resumable and convergent
+Individual business effects     at-most-once claimed, with a detectable repair window
+```
+
+The **transition** always converges: whatever the crash, a retry drives the occurrence to
+`completed`.
+
+An **effect** does not. Claiming precedes execution, so a process that dies in between leaves
+that effect unperformed while the transition still reaches `completed`. This is not
+exactly-once delivery and the architecture does not claim it is. Phase 3 accepts the window
+because it is bounded, detectable and repairable — building consensus around each side effect
+would be a distributed-systems project, not a CRM state machine.
+
+**Detecting it.** Each transition kind has a known effect set:
+
+| kind | expected effects |
+|---|---|
+| `handoff` | `activity`, `task`, `notification` |
+| `reengagement_eligible` | `activity` |
+| `handback` | `activity` |
+| `ai_reengagement_started` | `activity` |
+
+A `completed` row whose `appliedEffects` is missing one of its kind's expected effects is the
+repair case, and it is a single query:
+
+```sql
+SELECT id, "leadId", kind, "appliedEffects"
+  FROM "ProspectTransition"
+ WHERE status = 'completed'
+   AND NOT ("appliedEffects" @> ARRAY['activity']::text[]
+            AND (kind <> 'handoff'
+                 OR "appliedEffects" @> ARRAY['activity','task','notification']::text[]));
+```
+
+Anything that query returns needs the missing consequence re-created by hand. Nothing else
+does — that is the whole of the manual-repair surface for this phase.
+
+Two concurrent deliveries race at the unique constraint. The loser inspects the winner's row
+rather than assuming it finished: `completed` is a safe no-op, anything else is converged.
+
+### 4.2b Pre-existing lifecycle debt, not solved here
+
+**Reply dedupe is stage-based and coarse.** `handleApplyReply` skips any lead already at stage
+`replied`, so a later legitimate reply from the same prospect is suppressed too. That behaviour
+is unchanged in Phase 3 and this phase does not claim to fix it. Handoff idempotency is
+deliberately independent of it: the transition ledger is keyed on the inbound event, and the
+reply path no longer selects `Lead.stage` for the handoff decision.
+
 ### 4.3 What `human_managed` blocks
 
 `human_managed` blocks **autonomous prospect-facing action**, nothing else. AI assistance to the

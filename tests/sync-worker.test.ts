@@ -16,6 +16,8 @@ const mockInboundFindUnique = vi.fn();
 const mockInboundCreate = vi.fn();
 const mockOutboundFindFirst = vi.fn();
 const mockOutboundUpdate = vi.fn();
+const mockEnrollmentFindFirst = vi.fn();
+const mockHandoff = vi.fn();
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -50,7 +52,17 @@ vi.mock('@/lib/prisma', () => ({
       findFirst: (...args: unknown[]) => mockOutboundFindFirst(...args),
       update: (...args: unknown[]) => mockOutboundUpdate(...args),
     },
+    sequenceEnrollment: {
+      findFirst: (...args: unknown[]) => mockEnrollmentFindFirst(...args),
+    },
   },
+}));
+
+// Ownership moves through the transition service, which owns the task, the notification, the
+// ledger row and the activity. Mocked here so these tests assert the reply path's decisions
+// rather than re-testing the transition primitive.
+vi.mock('@/lib/prospects/ownership', () => ({
+  handoffProspectToHuman: (...args: unknown[]) => mockHandoff(...args),
 }));
 
 vi.mock('@/lib/email/EmailService', () => ({
@@ -86,19 +98,32 @@ describe('handleApplyReply', () => {
     mockInboundFindUnique.mockResolvedValue(null);
     mockInboundCreate.mockResolvedValue({ id: 'inbound-1' });
     mockOutboundFindFirst.mockResolvedValue(null);
+    // The authoritative gate: an active enrollment, not the legacy Lead.sequenceStatus cache.
+    mockEnrollmentFindFirst.mockResolvedValue({ id: 'enr-1', sequenceId: 'seq-1' });
+    mockHandoff.mockResolvedValue({ applied: true, state: 'human_attention', transitionId: 'tr-1' });
+    // clearAllMocks resets recorded calls but not implementations, so a rejection set in one
+    // test would leak into every test after it. Re-establish the default each time.
+    (pauseSequence as unknown as ReturnType<typeof vi.fn>).mockResolvedValue('paused');
   });
 
   const baseLead = {
-    id: 'lead-1', stage: 'contacted', sequenceStatus: 'active',
+    id: 'lead-1', stage: 'contacted', tenantId: 'tenant-1',
     assignedToId: 'user-1', firstName: 'John', lastName: 'Doe', company: 'Acme',
   };
 
-  it('pauses sequence, creates activity, task, and notification for a reply', async () => {
+  it('pauses the sequence, records the reply, and hands the prospect to the SDR', async () => {
     mockLeadFindUnique.mockResolvedValue(baseLead);
+    (pauseSequence as unknown as ReturnType<typeof vi.fn>).mockResolvedValue('paused');
 
     const result = await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' });
 
-    expect(result).toEqual({ success: true, leadId: 'lead-1', providerMessageId: 'msg-1' });
+    expect(result).toEqual({
+      success: true,
+      leadId: 'lead-1',
+      providerMessageId: 'msg-1',
+      pauseOutcome: 'paused',
+      handoffApplied: true,
+    });
     expect(mockLeadUpdate).toHaveBeenCalledWith({
       where: { id: 'lead-1' },
       data: { stage: 'replied', emailReplyCount: { increment: 1 } },
@@ -110,10 +135,33 @@ describe('handleApplyReply', () => {
         metadata: expect.objectContaining({ to: 'replied', providerMessageId: 'msg-1' }),
       }),
     });
-    expect(mockTaskCreate).toHaveBeenCalled();
-    expect(mockNotificationCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ userId: 'user-1', type: 'lead_replied' }),
-    });
+    // The task and notification are the transition service's to own now, keyed on the provider
+    // message so a redelivered reply cannot produce a second of either.
+    expect(mockHandoff).toHaveBeenCalledWith(
+      expect.objectContaining({ leadId: 'lead-1', tenantId: 'tenant-1', eventId: 'msg-1' })
+    );
+    expect(mockTaskCreate).not.toHaveBeenCalled();
+    expect(mockNotificationCreate).not.toHaveBeenCalled();
+  });
+
+  it('still hands off when there was no active sequence to pause', async () => {
+    // `no_sequence` is not a failed handoff. The prospect engaged; the SDR still needs them.
+    mockLeadFindUnique.mockResolvedValue(baseLead);
+    (pauseSequence as unknown as ReturnType<typeof vi.fn>).mockResolvedValue('no_sequence');
+
+    const result = await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' });
+
+    expect(result).toMatchObject({ success: true, pauseOutcome: 'no_sequence', handoffApplied: true });
+    expect(mockHandoff).toHaveBeenCalledOnce();
+  });
+
+  it('lets a pause failure surface instead of swallowing it', async () => {
+    mockLeadFindUnique.mockResolvedValue(baseLead);
+    (pauseSequence as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('db down'));
+
+    await expect(
+      handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' })
+    ).rejects.toThrow('db down');
   });
 
   it('skips if lead not found', async () => {
@@ -135,22 +183,31 @@ describe('handleApplyReply', () => {
     expect(mockLeadUpdate).not.toHaveBeenCalled();
   });
 
-  it('skips if sequence is paused', async () => {
-    mockLeadFindUnique.mockResolvedValue({ ...baseLead, sequenceStatus: 'paused' });
+  it('skips when there is no active enrollment', async () => {
+    mockLeadFindUnique.mockResolvedValue(baseLead);
+    mockEnrollmentFindFirst.mockResolvedValue(null);
 
     const result = await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' });
 
     expect(result).toEqual({ skipped: true, reason: 'sequence_not_active' });
     expect(mockLeadUpdate).not.toHaveBeenCalled();
+    expect(mockHandoff).not.toHaveBeenCalled();
   });
 
-  it('skips if sequence is null', async () => {
-    mockLeadFindUnique.mockResolvedValue({ ...baseLead, sequenceStatus: null });
+  it('gates on the enrollment, not the legacy Lead.sequenceStatus cache', async () => {
+    // The cache says the run is dead; the authoritative enrollment says it is active. A stale
+    // cache must not be able to drop a real prospect reply before the handoff is reached.
+    mockLeadFindUnique.mockResolvedValue({ ...baseLead, sequenceStatus: 'paused' });
+    mockEnrollmentFindFirst.mockResolvedValue({ id: 'enr-1', sequenceId: 'seq-1' });
 
     const result = await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' });
 
-    expect(result).toEqual({ skipped: true, reason: 'sequence_not_active' });
-    expect(mockLeadUpdate).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ success: true });
+    expect(mockHandoff).toHaveBeenCalledOnce();
+
+    // And the reply path must not read the cache at all any more.
+    const selected = JSON.stringify(mockLeadFindUnique.mock.calls[0][0]);
+    expect(selected).not.toMatch(/sequenceStatus/);
   });
 
   // --- P0 deliverability data capture ---
@@ -189,7 +246,7 @@ describe('handleApplyReply', () => {
 
     const result = await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' });
 
-    expect(result).toEqual({ success: true, leadId: 'lead-1', providerMessageId: 'msg-1' });
+    expect(result).toMatchObject({ success: true, leadId: 'lead-1', providerMessageId: 'msg-1' });
     expect(mockOutboundUpdate).not.toHaveBeenCalled();
   });
 });

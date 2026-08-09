@@ -87,6 +87,28 @@ enum ActivityType {
   lead_reassigned
   email_replied
   email_bounced
+  prospect_handed_off
+  prospect_reengagement_eligible
+  prospect_handed_back
+  prospect_ai_reengagement_started
+}
+
+/// Who or what should be acting on this prospect right now.
+///
+/// Distinct from `Lead.stage` (where they are in the sales process) and from
+/// `SequenceEnrollment.status` (where the cadence is). All three carry different,
+/// non-redundant information — see docs/revenue-ai/ARCHITECTURE.md §4.
+enum ProspectOperatingState {
+  unassigned
+  researching
+  ready_for_outreach
+  ai_managed
+  human_attention
+  human_managed
+  waiting_for_prospect
+  reengagement_eligible
+  ai_reengagement
+  completed
 }
 
 enum ClientStatus {
@@ -447,6 +469,12 @@ model Lead {
   archivedById       String?
   archiveReason      String?
 
+  /// Who or what should be acting on this prospect right now. Independent of `stage` (sales
+  /// process) and of `SequenceEnrollment.status` (cadence execution). Written only by the
+  /// transition services in `lib/prospects/` — never by a route, tool or worker directly.
+  operatingState   ProspectOperatingState @default(unassigned)
+  operatingStateAt DateTime?
+
   tasks               Task[]
   notes               Note[]
   activities          Activity[]
@@ -458,6 +486,7 @@ model Lead {
   meetings            Meeting[]
   opportunities       Opportunity[]
   poolSources         LeadPoolItem[]       @relation("LeadPoolConverted")
+  operatingTransitions ProspectTransition[]
 
   @@index([stage])
   @@index([assignedToId])
@@ -474,6 +503,8 @@ model Lead {
   @@index([campaignId, stage])
   @@index([campaignId, assignedToId])
   @@index([tenantId, archivedAt])
+  @@index([operatingState])
+  @@index([tenantId, operatingState])
   @@index([tenantId, campaignId, normalizedEmail])
   @@index([tenantId, importListName])
 }
@@ -1546,6 +1577,65 @@ model Tenant {
   emailHealthAlerts        EmailHealthAlert[]
   aiCalls                  AiCall[]
   autonomyPolicies         AutonomyPolicy[]
+  prospectTransitions      ProspectTransition[]
+}
+
+// ─── Prospect Operating State Transitions ────────────────────────────────────
+
+/// One row per *occurrence* of an ownership transition.
+///
+/// This is the idempotency ledger, not the audit trail — `Activity` remains the human-readable
+/// timeline and every transition writes one. The ledger exists because idempotency needs a
+/// unique constraint, and a JSON metadata field cannot carry one.
+///
+/// `transitionKey` identifies the specific occurrence, never just the lead and the kind. A
+/// prospect legitimately moves AI → human → AI → human over a lifetime, so a key of
+/// `lead + kind` would permanently block the second genuine handoff. Keys are built from
+/// durable event identifiers in `lib/prospects/keys.ts`: the inbound activity for a handoff,
+/// the originating handoff for an eligibility episode, the caller's request or work order for a
+/// handback or re-engagement activation.
+model ProspectTransition {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  /// 'handoff' | 'reengagement_eligible' | 'handback' | 'ai_reengagement_started'
+  kind String
+  /// Identifies this occurrence. Unique per tenant — a retry of the same event finds this row.
+  transitionKey String
+
+  fromState ProspectOperatingState
+  toState   ProspectOperatingState
+
+  /// Who caused it. Null for system-driven transitions such as an inbound reply.
+  actorUserId String?
+  /// Set once typed work orders exist (Phase 6). No FK until the model does.
+  workOrderId String?
+
+  /// 'pending' | 'state_applied' | 'completed'
+  ///
+  /// The row is a durable *claim* on the occurrence, not proof that it finished. A retry that
+  /// finds a non-completed row resumes the transition instead of reporting a permanent no-op —
+  /// otherwise a crash between the insert and the state write would strand the prospect and
+  /// need manual repair, which is not an acceptable normal recovery path.
+  status String @default("pending")
+
+  /// Which consequences have already been claimed, so a resume finishes the missing ones
+  /// without repeating the done ones. Each entry is claimed by a conditional update before its
+  /// effect runs, which is what makes a consequence at-most-once.
+  appliedEffects String[] @default([])
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@unique([tenantId, transitionKey])
+  @@index([leadId, createdAt])
+  @@index([tenantId, kind])
+  /// Finding unfinished work is the resume path's main query.
+  @@index([status, createdAt])
 }
 
 // ─── Agent Capability Autonomy ───────────────────────────────────────────────

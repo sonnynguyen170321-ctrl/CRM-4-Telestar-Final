@@ -35,6 +35,24 @@ something a user can use or a test can assert.
    **Docker build joins the gate** for phases that affect runtime or deployment: worker code,
    Dockerfile, dependencies, environment contracts, or anything the always-on host runs.
 
+   **Any phase touching `schema.prisma` or migration SQL must additionally pass the drift
+   gate**, locally, before pushing:
+
+   ```bash
+   node node_modules/prisma/build/index.js migrate status
+   node node_modules/prisma/build/index.js migrate diff \
+     --from-migrations ./prisma/migrations \
+     --to-schema-datamodel ./prisma/schema.prisma \
+     --shadow-database-url "postgresql://postgres:postgres@127.0.0.1:5432/telestar_shadow" \
+     --exit-code
+   ```
+
+   `migrate diff` replays every migration into a fresh shadow database and compares the result
+   to the datamodel. **A migration-only index or constraint is not acceptable** unless the
+   datamodel represents the same final schema: it survives only until someone regenerates a
+   migration from the schema, at which point it silently disappears and a query plan changes
+   under a table nobody is watching. Phase 3 shipped three such indexes and CI caught them.
+
    **CI is green only when GitHub reports each required check successful.** A watcher process
    exiting 0 is not evidence — read the individual check states.
 2. **Nothing gets a twin.** Each phase's acceptance includes: the capability is wired to a
@@ -125,21 +143,40 @@ directions. Existing role gates deny exactly what they denied before.
 
 ---
 
-## Phase 3 — State model
+## Phase 3 — State model ✅ complete
 
-**Decision made — see [ARCHITECTURE §4](ARCHITECTURE.md).** `SequenceEnrollment` is
+**Decision recorded in [ARCHITECTURE §4](ARCHITECTURE.md).** `SequenceEnrollment` is
 authoritative for execution state; `Lead.sequenceStatus` is a legacy compatibility cache with a
 documented deprecation path; `ProspectOperatingState` is a separate axis for responsibility.
 
-- [ ] `ProspectOperatingState` with the ten states, defaulted from existing data
-      (`ai_managed` where an active enrollment exists, `human_attention` where a lead is at
-      stage `replied` with a paused enrollment, `unassigned` otherwise)
-- [ ] The four domain services of ARCHITECTURE §4.2 — `handoffProspectToHuman`,
-      `markReengagementEligible`, `handbackProspectToAI`, `startAIReengagement` — each owning
-      its Task / Notification / Activity / WorkOrder / cache consequences
-- [ ] Transitions write an `Activity` (existing table, no new audit log)
-- [ ] The compatibility refresh of `Lead.sequenceStatus` happens **only** inside these services
-      and `lib/sequences/engine.ts`
+- [x] `ProspectOperatingState` enum + `Lead.operatingState` / `operatingStateAt`, migration
+      `20260810180000_prospect_operating_state` with a conservative backfill — `completed` for
+      won/lost, `human_managed` for replied/meeting_booked, `ai_managed` where an active
+      enrollment exists, `unassigned` for everything else. Nothing is *guessed* into an
+      AI-owned state.
+- [x] `ProspectTransition` ledger with `@@unique([tenantId, transitionKey])`
+- [x] `applyTransition` primitive owning ledger + state + activity, so a caller cannot
+      half-apply a transition; caller consequences run in `onApplied`, only when new
+- [x] The four services in [`lib/prospects/ownership.ts`](../../lib/prospects/ownership.ts)
+- [x] Four dedicated `ActivityType` values rather than overloading unrelated events
+- [x] **Narrow legacy-cache exception:** `handleApplyReply` now gates on the authoritative
+      enrollment instead of `Lead.sequenceStatus`. Resolved once in the reply path; nothing
+      downstream re-interprets sequence state. No broader sweep in this phase.
+- [x] `pauseSequence` returns `paused | already_paused_or_stopped | no_sequence` instead of
+      `void`, and throws on real failure. `no_sequence` is **not** a failed handoff.
+
+### Acceptance tests
+
+| # | Assertion | Where |
+|---|---|---|
+| 1 | Every transition is reconstructible from the activity feed | `applyTransition` writes one per transition |
+| 2 | Nothing leaves `human_managed` without an explicit SDR action | handback requires a human actor; `startAIReengagement` only from `ai_reengagement` |
+| 3 | `markReengagementEligible` creates no sequence, enrollment, task, outbound or queue job — asserted by spying on all five | `prospect-operating-state.test.ts` |
+| 4 | `startAIReengagement` refuses to reuse the prior cold sequence | `ColdSequenceRestartError` |
+| 5 | `handbackProspectToAI` refuses from an AI-owned state | `TransitionNotAllowedError` |
+| 6 | New execution-state reads use `SequenceEnrollment`; no new `Lead.sequenceStatus` reader | reply path now selects no `sequenceStatus` |
+| 7 | A stale cache cannot drop a real reply | cache says paused, enrollment says active → handoff still happens |
+| 8 | Idempotency is per occurrence, not per (lead, kind) | retry inert; concurrent duplicate loses the unique-constraint race; a later event still applies |
 
 ### Acceptance tests
 

@@ -6,6 +6,7 @@ import { EmailService } from '@/lib/email/EmailService';
 import type { InboxMessage } from '@/lib/email/EmailService';
 import { isBounceMessage, isAutoReply, extractBouncedRecipient } from '@/lib/email/bounceDetection';
 import { pauseSequence } from '@/lib/sequences/engine';
+import { handoffProspectToHuman } from '@/lib/prospects/ownership';
 
 const SOFT_BOUNCE_RE = /temporarily|try again later|mailbox full|over quota|too large|try again/i;
 const DEFAULT_SYNC_LOOKBACK_MS = 24 * 60 * 60 * 1000;
@@ -192,11 +193,24 @@ export async function handleApplyReply(payload: EmailApplyReplyPayload) {
 
   const lead = await prisma.lead.findUnique({
     where: { id: leadId },
-    select: { id: true, stage: true, sequenceStatus: true, assignedToId: true, firstName: true, lastName: true, company: true },
+    select: { id: true, stage: true, tenantId: true, assignedToId: true, firstName: true, lastName: true, company: true },
   });
   if (!lead) return { skipped: true, reason: 'lead_not_found' };
+
+  // Pre-existing dedupe, unchanged: a lead already at stage `replied` is skipped entirely.
+  // It is coarse — a later legitimate reply from the same prospect is suppressed too — and it
+  // is separate lifecycle debt, not something Phase 3 claims to fix. Handoff idempotency is
+  // keyed on the inbound event and does not depend on this guard.
   if (lead.stage === 'replied') return { skipped: true, reason: 'already_replied' };
-  if (lead.sequenceStatus === 'paused' || lead.sequenceStatus === null) {
+
+  // The authoritative gate. This used to read `Lead.sequenceStatus`, the legacy compatibility
+  // cache; a stale value there could drop a real reply before the handoff was ever reached.
+  // Resolved once here and passed down — nothing further along re-interprets sequence state.
+  const activeEnrollment = await prisma.sequenceEnrollment.findFirst({
+    where: { leadId, status: 'active' },
+    select: { id: true, sequenceId: true },
+  });
+  if (!activeEnrollment) {
     return { skipped: true, reason: 'sequence_not_active' };
   }
 
@@ -219,7 +233,9 @@ export async function handleApplyReply(payload: EmailApplyReplyPayload) {
     data: { stage: 'replied', emailReplyCount: { increment: 1 } },
   });
 
-  await pauseSequence(leadId, 'reply', lead.assignedToId ?? accountId);
+  // A `no_sequence` or `already_paused_or_stopped` outcome is not a failed reply: the prospect
+  // still engaged and the SDR still needs them. Only a thrown error stops the handler.
+  const pauseOutcome = await pauseSequence(leadId, 'reply', lead.assignedToId ?? accountId);
 
   // Two activities on purpose: `stage_changed` drives the pipeline views, while
   // `email_replied` is the channel-level signal that reporting aggregates on.
@@ -245,29 +261,24 @@ export async function handleApplyReply(payload: EmailApplyReplyPayload) {
     },
   });
 
-  await prisma.task.create({
-    data: {
-      leadId,
-      userId: lead.assignedToId ?? accountId,
-      type: 'manual',
-      title: `Handle reply from ${lead.firstName} ${lead.lastName}`,
-      description: `Replied to your outreach email. Respond while it's warm.`,
-      dueDate: new Date(),
-      priority: 'high',
-    },
+  // Ownership moves to the SDR. The transition service owns the task, the notification, the
+  // ledger row and the activity, so this handler cannot half-apply the handoff by creating one
+  // and forgetting the other. Keyed on the provider message, so redelivery is inert.
+  const handoff = await handoffProspectToHuman({
+    leadId,
+    tenantId: lead.tenantId,
+    eventId: providerMessageId,
+    reason: 'replied to your outreach',
+    summary: `Replied to your outreach email. Respond while it's warm.`,
   });
 
-  await prisma.notification.create({
-    data: {
-      userId: lead.assignedToId ?? accountId,
-      type: 'lead_replied',
-      title: 'Lead Replied!',
-      text: `${lead.firstName} ${lead.lastName} (${lead.company}) replied to your email. Sequence paused — handle the reply.`,
-      linkTo: `/leads/${leadId}`,
-    },
-  });
-
-  return { success: true, leadId, providerMessageId };
+  return {
+    success: true,
+    leadId,
+    providerMessageId,
+    pauseOutcome,
+    handoffApplied: handoff.applied,
+  };
 }
 
 export async function handleApplyBounce(payload: EmailApplyBouncePayload) {

@@ -4,8 +4,8 @@
 
 | | |
 |---|---|
-| Phase | **0, 1 and 2 complete.** Next: Phase 3 — `ProspectOperatingState` + the four transition services |
-| Branch | `feat/agent-capability-autonomy` |
+| Phase | **0–3 complete.** Next: Phase 4 — `CampaignPlaybook` + versioning |
+| Branch | `feat/prospect-operating-state` |
 | Blockers | **None.** The Phase 3 state-model decision is made — see below. |
 | Restrictions | No external users, no real client data, sending off, email dry-run |
 
@@ -21,8 +21,54 @@
 | `next build` | exit 0 |
 | `tsc --noEmit` | 0 errors |
 | `eslint app components lib context tests` | 0 errors, 0 warnings |
-| `vitest run` | 847 passed, 5 skipped, 67 files |
-| `prisma migrate status` | up to date, 29 migrations |
+| `vitest run` | 891 passed, 5 skipped, 69 files |
+| `prisma migrate status` | up to date, 31 migrations |
+
+## Phase 3 — what landed, and the one narrow exception
+
+Four transition services, one `applyTransition` primitive that owns ledger + state + activity,
+and a `ProspectTransition` table whose unique key identifies **one occurrence** rather than
+`(lead, kind)` — see ARCHITECTURE §4.2a for why the coarser key would permanently block a
+prospect's second genuine handoff.
+
+**The narrow legacy-cache exception.** `handleApplyReply` gated the whole automatic-handoff path
+on `Lead.sequenceStatus`, the compatibility cache. A stale value there could drop a real prospect
+reply before `handoffProspectToHuman()` was ever reached. That one reader moved to the
+authoritative enrollment, resolved once in the reply path. **No broader sweep** — unrelated
+readers stay scheduled for the deprecation, and nothing downstream re-interprets sequence state.
+
+`pauseSequence` now returns `paused | already_paused_or_stopped | no_sequence` instead of `void`.
+A reply from a prospect with no active sequence is still a real handoff, so `no_sequence` must
+not read as failure — while a genuine database error still throws rather than being inferred
+from a missing side effect.
+
+**The ledger claims, it does not certify.** `pending → state_applied → completed`, and a retry
+that finds a non-completed row resumes rather than reporting a permanent no-op. The earlier
+design treated the row's existence as success, which meant a crash between the insert and the
+state write stranded the prospect with manual repair the only way out. A resume skips the
+`fromStates` guard — the lead has already moved, and re-checking would turn recovery into a
+permanent error.
+
+**Two guarantees, not one.** State this precisely or it will be believed:
+
+```text
+ProspectTransition lifecycle    resumable and convergent
+Individual business effects     at-most-once claimed, with a detectable repair window
+```
+
+An effect is claimed before it runs, so a crash in between leaves it unperformed while the
+transition still reaches `completed`. **Not exactly-once.** Accepted for this phase because it
+is bounded, detectable and repairable — ARCHITECTURE §4.2a lists the expected effect set per
+kind and the query that finds a `completed` row missing one. That query is the entire
+manual-repair surface.
+
+**The migration drift gate is now required** for any change to `schema.prisma` or migration
+SQL — `migrate status` + `migrate diff --from-migrations --to-schema-datamodel --exit-code`
+against a shadow database. Phase 3 shipped three migration-only indexes and CI caught them; the
+local gate set had no drift check at all, which is why it took a red PR to find.
+
+**Not solved, and not claimed:** reply dedupe remains stage-based and coarse (ARCHITECTURE
+§4.2b). Handoff idempotency is independent of `Lead.stage` by design.
 
 ## Phase 2 — the two rules that make it hold
 

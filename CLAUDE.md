@@ -275,6 +275,20 @@ provider code, the server/client boundary or app wiring — the fast gates canno
 failures. Docker build too for runtime/deployment changes. CI is green only when GitHub reports
 each required check successful; a watcher exiting 0 is not evidence.
 
+**The migration drift gate is required** for any change to `prisma/schema.prisma` or migration
+SQL. Run locally before pushing:
+
+```bash
+node node_modules/prisma/build/index.js migrate status
+node node_modules/prisma/build/index.js migrate diff \
+  --from-migrations ./prisma/migrations --to-schema-datamodel ./prisma/schema.prisma \
+  --shadow-database-url "postgresql://postgres:postgres@127.0.0.1:5432/telestar_shadow" --exit-code
+```
+
+A **migration-only index or constraint is not acceptable** unless the datamodel represents the
+same final schema — it survives only until someone regenerates a migration from the schema,
+then vanishes silently. Create the shadow DB once: `CREATE DATABASE telestar_shadow;`
+
 Operating-state transitions go through four domain services — `handoffProspectToHuman`,
 `markReengagementEligible`, `handbackProspectToAI`, `startAIReengagement` — each owning its
 Task, Notification, Activity, WorkOrder and cache-refresh consequences. No route, tool or worker
