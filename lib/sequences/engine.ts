@@ -199,14 +199,34 @@ export async function advanceSequence(
 export type PauseReason = PausedReason;
 
 /**
+ * What a pause attempt actually did.
+ *
+ * `pauseSequence` used to return void, so a caller could not tell "I paused a running cadence"
+ * from "there was nothing to pause". That mattered once handoff started calling it: a reply
+ * from a prospect with no active sequence is still a real handoff, so `no_sequence` must not
+ * read as failure — while a genuine database error must still surface rather than be inferred
+ * from a missing side effect.
+ */
+export type PauseOutcome =
+  /** An active run was paused. */
+  | 'paused'
+  /** There was a sequence, but no active enrollment to pause — already paused or finished. */
+  | 'already_paused_or_stopped'
+  /** The lead is not in a sequence at all. Not an error. */
+  | 'no_sequence';
+
+/**
  * Pause a lead's sequence run: mark paused, skip its pending sequence tasks,
  * log an activity. Callers create the reason-specific notification/task.
+ *
+ * Throws on a database failure. Callers must not treat an absent side effect as an error —
+ * that is what the returned outcome is for.
  */
 export async function pauseSequence(
   leadId: string,
   reason: PausedReason | string,
   actorUserId: string
-): Promise<void> {
+): Promise<PauseOutcome> {
   // Single write site for pausedReason, so a legacy caller or an in-flight BullMQ job
   // carrying the old payload shape still lands on a token the UI can render.
   const pausedReason = normalizePausedReason(reason);
@@ -215,14 +235,16 @@ export async function pauseSequence(
     where: { id: leadId },
     select: { id: true, sequenceId: true, firstName: true, lastName: true },
   });
-  if (!lead?.sequenceId) return;
+  if (!lead?.sequenceId) return 'no_sequence';
 
   await prisma.lead.update({
     where: { id: leadId },
     data: { sequenceStatus: 'paused' },
   });
 
-  await prisma.sequenceEnrollment.updateMany({
+  // The enrollment is authoritative for execution state, so its update count — not the lead
+  // cache — is what says whether a running cadence was actually stopped.
+  const pausedEnrollments = await prisma.sequenceEnrollment.updateMany({
     where: { leadId, sequenceId: lead.sequenceId, status: 'active' },
     data: {
       status: 'paused',
@@ -252,6 +274,8 @@ export async function pauseSequence(
       metadata: { sequenceId: lead.sequenceId, reason: pausedReason, paused: true },
     },
   });
+
+  return pausedEnrollments.count > 0 ? 'paused' : 'already_paused_or_stopped';
 }
 
 /**

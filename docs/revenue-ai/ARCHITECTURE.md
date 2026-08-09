@@ -188,6 +188,36 @@ Two rules these encode:
   approved follow-up workflow built from the actual conversation. Re-enrolling the original
   cadence is prohibited.
 
+### 4.2a Idempotency is per occurrence
+
+`ProspectTransition.transitionKey` identifies **one occurrence**, never just `(lead, kind)`. A
+prospect legitimately moves AI → human → AI → human over a lifetime, so a coarse key would let
+the first handoff permanently block every later one — the transition would no-op and the SDR
+would never hear about the second real reply.
+
+| Transition | Keyed on |
+|---|---|
+| handoff | the inbound event (provider message / activity id) |
+| reengagement_eligible | the handoff that opened this human-managed episode |
+| handback | the SDR's request id (a work order once Phase 6 exists) |
+| ai_reengagement_started | the approved re-engagement work order |
+
+The ledger row is written **before** the state change. If the process dies between them, a
+retry finds the row and reports `applied: false` with the lead still in its old state —
+visibly inconsistent and repairable. The reverse order would let a retry re-run every side
+effect against an already-moved lead.
+
+Two concurrent deliveries of the same event race at the unique constraint; the loser reports a
+no-op rather than failing its job.
+
+### 4.2b Pre-existing lifecycle debt, not solved here
+
+**Reply dedupe is stage-based and coarse.** `handleApplyReply` skips any lead already at stage
+`replied`, so a later legitimate reply from the same prospect is suppressed too. That behaviour
+is unchanged in Phase 3 and this phase does not claim to fix it. Handoff idempotency is
+deliberately independent of it: the transition ledger is keyed on the inbound event, and the
+reply path no longer selects `Lead.stage` for the handoff decision.
+
 ### 4.3 What `human_managed` blocks
 
 `human_managed` blocks **autonomous prospect-facing action**, nothing else. AI assistance to the

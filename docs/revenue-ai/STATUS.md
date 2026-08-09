@@ -4,8 +4,8 @@
 
 | | |
 |---|---|
-| Phase | **0, 1 and 2 complete.** Next: Phase 3 — `ProspectOperatingState` + the four transition services |
-| Branch | `feat/agent-capability-autonomy` |
+| Phase | **0–3 complete.** Next: Phase 4 — `CampaignPlaybook` + versioning |
+| Branch | `feat/prospect-operating-state` |
 | Blockers | **None.** The Phase 3 state-model decision is made — see below. |
 | Restrictions | No external users, no real client data, sending off, email dry-run |
 
@@ -21,8 +21,29 @@
 | `next build` | exit 0 |
 | `tsc --noEmit` | 0 errors |
 | `eslint app components lib context tests` | 0 errors, 0 warnings |
-| `vitest run` | 847 passed, 5 skipped, 67 files |
-| `prisma migrate status` | up to date, 29 migrations |
+| `vitest run` | 887 passed, 5 skipped, 69 files |
+| `prisma migrate status` | up to date, 30 migrations |
+
+## Phase 3 — what landed, and the one narrow exception
+
+Four transition services, one `applyTransition` primitive that owns ledger + state + activity,
+and a `ProspectTransition` table whose unique key identifies **one occurrence** rather than
+`(lead, kind)` — see ARCHITECTURE §4.2a for why the coarser key would permanently block a
+prospect's second genuine handoff.
+
+**The narrow legacy-cache exception.** `handleApplyReply` gated the whole automatic-handoff path
+on `Lead.sequenceStatus`, the compatibility cache. A stale value there could drop a real prospect
+reply before `handoffProspectToHuman()` was ever reached. That one reader moved to the
+authoritative enrollment, resolved once in the reply path. **No broader sweep** — unrelated
+readers stay scheduled for the deprecation, and nothing downstream re-interprets sequence state.
+
+`pauseSequence` now returns `paused | already_paused_or_stopped | no_sequence` instead of `void`.
+A reply from a prospect with no active sequence is still a real handoff, so `no_sequence` must
+not read as failure — while a genuine database error still throws rather than being inferred
+from a missing side effect.
+
+**Not solved, and not claimed:** reply dedupe remains stage-based and coarse (ARCHITECTURE
+§4.2b). Handoff idempotency is independent of `Lead.stage` by design.
 
 ## Phase 2 — the two rules that make it hold
 
