@@ -26,11 +26,23 @@ import { buildTransitionKey, type TransitionOccurrence } from './keys';
  * while the lead had never moved, and only manual repair could finish it. Manual repair is for
  * genuinely irreconcilable data, not for an ordinary crash window.
  *
- * The invariant: **each business consequence runs at most once, and an interrupted occurrence
- * always converges to completion.** Consequences are claimed by a conditional array append
- * before they run, which is what gives at-most-once. The residual window — a crash between a
- * claim and its effect — leaves that one consequence unperformed while the transition still
- * converges; that case, and only that case, is what the repair path is for.
+ * ## Two guarantees, not one
+ *
+ *   ProspectTransition lifecycle    resumable and convergent
+ *   Individual business effects     at-most-once claimed, with a detectable repair window
+ *
+ * The transition always converges: whatever the crash, a retry drives it to `completed`.
+ *
+ * An effect does not. `runEffect` claims before it executes, so a process that dies in between
+ * leaves that effect unperformed while the transition still reaches `completed`. **This is not
+ * exactly-once.** The window is accepted because it is bounded, detectable and repairable — a
+ * `completed` row missing one of its kind's expected effects is the repair case, and
+ * ARCHITECTURE §4.2a carries the query. Closing it properly would mean consensus around each
+ * side effect, which is a distributed-systems project rather than a CRM state machine.
+ *
+ * Claim-before-run is the deliberate choice over run-before-record: the latter converges every
+ * effect but can duplicate one, and a second "handle this reply" task in an SDR's queue is a
+ * worse failure than a missing one that a query can find.
  */
 
 export type TransitionStatus = 'pending' | 'state_applied' | 'completed';

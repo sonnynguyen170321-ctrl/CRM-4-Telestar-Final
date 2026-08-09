@@ -35,6 +35,24 @@ something a user can use or a test can assert.
    **Docker build joins the gate** for phases that affect runtime or deployment: worker code,
    Dockerfile, dependencies, environment contracts, or anything the always-on host runs.
 
+   **Any phase touching `schema.prisma` or migration SQL must additionally pass the drift
+   gate**, locally, before pushing:
+
+   ```bash
+   node node_modules/prisma/build/index.js migrate status
+   node node_modules/prisma/build/index.js migrate diff \
+     --from-migrations ./prisma/migrations \
+     --to-schema-datamodel ./prisma/schema.prisma \
+     --shadow-database-url "postgresql://postgres:postgres@127.0.0.1:5432/telestar_shadow" \
+     --exit-code
+   ```
+
+   `migrate diff` replays every migration into a fresh shadow database and compares the result
+   to the datamodel. **A migration-only index or constraint is not acceptable** unless the
+   datamodel represents the same final schema: it survives only until someone regenerates a
+   migration from the schema, at which point it silently disappears and a query plan changes
+   under a table nobody is watching. Phase 3 shipped three such indexes and CI caught them.
+
    **CI is green only when GitHub reports each required check successful.** A watcher process
    exiting 0 is not evidence — read the individual check states.
 2. **Nothing gets a twin.** Each phase's acceptance includes: the capability is wired to a

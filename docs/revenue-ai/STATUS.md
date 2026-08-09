@@ -45,10 +45,27 @@ from a missing side effect.
 **The ledger claims, it does not certify.** `pending → state_applied → completed`, and a retry
 that finds a non-completed row resumes rather than reporting a permanent no-op. The earlier
 design treated the row's existence as success, which meant a crash between the insert and the
-state write stranded the prospect with manual repair the only way out. Each consequence is
-claimed individually before it runs, so racing resumes cannot both perform one. A resume skips
-the `fromStates` guard — the lead has already moved, and re-checking would turn recovery into a
+state write stranded the prospect with manual repair the only way out. A resume skips the
+`fromStates` guard — the lead has already moved, and re-checking would turn recovery into a
 permanent error.
+
+**Two guarantees, not one.** State this precisely or it will be believed:
+
+```text
+ProspectTransition lifecycle    resumable and convergent
+Individual business effects     at-most-once claimed, with a detectable repair window
+```
+
+An effect is claimed before it runs, so a crash in between leaves it unperformed while the
+transition still reaches `completed`. **Not exactly-once.** Accepted for this phase because it
+is bounded, detectable and repairable — ARCHITECTURE §4.2a lists the expected effect set per
+kind and the query that finds a `completed` row missing one. That query is the entire
+manual-repair surface.
+
+**The migration drift gate is now required** for any change to `schema.prisma` or migration
+SQL — `migrate status` + `migrate diff --from-migrations --to-schema-datamodel --exit-code`
+against a shadow database. Phase 3 shipped three migration-only indexes and CI caught them; the
+local gate set had no drift check at all, which is why it took a red PR to find.
 
 **Not solved, and not claimed:** reply dedupe remains stage-based and coarse (ARCHITECTURE
 §4.2b). Handoff idempotency is independent of `Lead.stage` by design.

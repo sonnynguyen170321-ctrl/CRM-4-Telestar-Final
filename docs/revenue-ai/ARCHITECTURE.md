@@ -221,10 +221,47 @@ Each consequence is claimed individually in `appliedEffects` by a conditional ar
 the `fromStates` guard: by then the lead has already moved, and re-checking would turn recovery
 into a permanent error.
 
-**Invariant: each business consequence runs at most once, and an interrupted occurrence always
-converges to completion.** The residual window — a crash between a claim and its effect —
-leaves that single consequence unperformed while the transition still completes. That case, and
-only that case, is what the repair path is for.
+### Two guarantees, deliberately not one
+
+They are different strengths and must not be stated as one:
+
+```text
+ProspectTransition lifecycle    resumable and convergent
+Individual business effects     at-most-once claimed, with a detectable repair window
+```
+
+The **transition** always converges: whatever the crash, a retry drives the occurrence to
+`completed`.
+
+An **effect** does not. Claiming precedes execution, so a process that dies in between leaves
+that effect unperformed while the transition still reaches `completed`. This is not
+exactly-once delivery and the architecture does not claim it is. Phase 3 accepts the window
+because it is bounded, detectable and repairable — building consensus around each side effect
+would be a distributed-systems project, not a CRM state machine.
+
+**Detecting it.** Each transition kind has a known effect set:
+
+| kind | expected effects |
+|---|---|
+| `handoff` | `activity`, `task`, `notification` |
+| `reengagement_eligible` | `activity` |
+| `handback` | `activity` |
+| `ai_reengagement_started` | `activity` |
+
+A `completed` row whose `appliedEffects` is missing one of its kind's expected effects is the
+repair case, and it is a single query:
+
+```sql
+SELECT id, "leadId", kind, "appliedEffects"
+  FROM "ProspectTransition"
+ WHERE status = 'completed'
+   AND NOT ("appliedEffects" @> ARRAY['activity']::text[]
+            AND (kind <> 'handoff'
+                 OR "appliedEffects" @> ARRAY['activity','task','notification']::text[]));
+```
+
+Anything that query returns needs the missing consequence re-created by hand. Nothing else
+does — that is the whole of the manual-repair surface for this phase.
 
 Two concurrent deliveries race at the unique constraint. The loser inspects the winner's row
 rather than assuming it finished: `completed` is a safe no-op, anything else is converged.
