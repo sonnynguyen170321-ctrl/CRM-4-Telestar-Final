@@ -89,27 +89,86 @@ client of its own.
    SDR returns it to AI. Ghost detection makes a lead *eligible* for re-engagement and says so;
    it does not re-enroll anyone. The transition out of human ownership is always a human action.
 
-## 4. Operating state vs sales stage
+## 4. State model — DECIDED
 
-`Lead.stage` answers **"where is this prospect in the sales process?"**
-`ProspectOperatingState` answers **"who or what should be acting right now?"**
+Three concepts, kept distinct. Each answers a different question and none is derivable from
+another.
+
+| Field | Answers | Authority |
+|---|---|---|
+| `Lead.stage` | Where is this prospect in the **sales process**? | Authoritative |
+| `SequenceEnrollment.status` (+ `nextActionAt`, `pausedReason`, `currentStep`) | Where is this prospect in the **sequence execution lifecycle**? | **Authoritative** |
+| `ProspectOperatingState` | Who or what should be **acting right now**? | Authoritative |
+| `Lead.sequenceStatus` | — | **Legacy compatibility cache. Not a source of truth.** |
+
+After a meaningful reply, all three carry different, non-redundant information:
 
 ```text
-Lead.stage: replied          ProspectOperatingState: human_attention
-Lead.stage: replied          ProspectOperatingState: waiting_for_prospect   (SDR answered)
-Lead.stage: replied          ProspectOperatingState: reengagement_eligible  (5 days silent)
+Lead.stage                 = replied          (sales: they engaged)
+SequenceEnrollment.status  = paused           (execution: cadence stopped)
+  pausedReason             = reply            (execution: why)
+ProspectOperatingState     = human_managed    (responsibility: the SDR owns this)
 ```
 
-Proposed states: `unassigned`, `researching`, `ready_for_outreach`, `ai_managed`,
-`human_attention`, `human_managed`, `waiting_for_prospect`, `reengagement_eligible`,
-`ai_reengagement`, `completed`.
+States: `unassigned`, `researching`, `ready_for_outreach`, `ai_managed`, `human_attention`,
+`human_managed`, `waiting_for_prospect`, `reengagement_eligible`, `ai_reengagement`,
+`completed`.
 
-> **Open modeling question — must be resolved before this ships.** This would be the *fourth*
-> state field on one path: `Lead.stage`, `Lead.sequenceStatus`, `SequenceEnrollment.status`,
-> and operating state. `Lead.sequenceStatus` already mirrors `SequenceEnrollment.status` by
-> hand — every mutation path in [`../automation-engine/DOMAIN_MAP.md`](../automation-engine/DOMAIN_MAP.md)
-> §1–2 writes both, with no constraint keeping them consistent. Adding a fourth field before
-> collapsing that mirror multiplies the drift surface rather than reducing it. See PLAN Phase 3.
+### 4.1 `SequenceEnrollment` is authoritative for execution state
+
+All new logic reads `SequenceEnrollment` — `status`, `nextActionAt`, `pausedReason`,
+`currentStep`, `lastTransitionAt`. Nothing new is permitted to branch on
+`Lead.sequenceStatus`.
+
+`Lead.sequenceStatus` stays for now because the current CRM already depends on it — 15 files,
+roughly 25 write sites and 20 read sites, none of them constrained to agree with the
+enrollment. It is a **read cache maintained by domain services**, and it is the one piece of
+this model with an expiry date.
+
+**Deprecation path** (not scheduled here; a prerequisite is listed per step):
+
+1. **Stop the bleeding.** No new reader, no new writer. Enforced by review and by the Phase 3
+   acceptance test below. *(Now.)*
+2. **Inventory.** Classify the ~20 existing readers into: list/kanban filters, analytics
+   aggregations, and single-lead display. *(Before step 3.)*
+3. **Replace by class.** Filters and aggregations move to joins on `SequenceEnrollment`, which
+   already carries `(status, nextActionAt)` and `nextActionAt` indexes from the automation
+   engine migration. Single-lead display reads the enrollment directly.
+4. **Narrow the writers.** Once no consumer reads it, the ~25 write sites collapse into the
+   domain services of §4.2 as a single cache refresh.
+5. **Drop the column.** Expand-contract: stop writing, verify, then remove.
+
+Until step 5, treat any disagreement between the two as *the enrollment being right*.
+
+### 4.2 Transitions go through domain services, never field writes
+
+Operating state changes through named services. No route, no tool, and no worker writes the
+column directly. Each service owns **every** consequence of the transition — the operating
+state, the `Activity` record, any `Task`, `Notification` or `WorkOrder`, and the
+`Lead.sequenceStatus` compatibility refresh — so a transition cannot be half-applied by a
+caller that forgot a step.
+
+| Service | Transition | Owns |
+|---|---|---|
+| `handoffProspectToHuman()` | `ai_managed` → `human_attention` | pauses the enrollment via `pauseSequence`, builds the handoff package, urgent SDR task, notification, SLA `handoffCreatedAt`, activity |
+| `markReengagementEligible()` | `waiting_for_prospect` → `reengagement_eligible` | eligibility flag, activity, surfacing to the SDR. **Creates no sequence, no enrollment, no external action.** |
+| `handbackProspectToAI()` | `reengagement_eligible` → (pending) | validates CRM state and permissions, creates the re-engagement **work order**, routes it for approval. Does not start outreach. |
+| `startAIReengagement()` | (approved) → `ai_reengagement` → `ai_managed` | activates the approved follow-up through the normal enrollment path, activity, work-order state |
+
+Two rules these encode:
+
+- **`markReengagementEligible` is inert.** It is a recommendation and a badge. The name is a
+  warning: eligibility reads like something to act on, and acting on it is the defect.
+- **Handback does not restart the old cold sequence.** `startAIReengagement` activates a *new*
+  approved follow-up workflow built from the actual conversation. Re-enrolling the original
+  cadence is prohibited.
+
+### 4.3 What `human_managed` blocks
+
+`human_managed` blocks **autonomous prospect-facing action**, nothing else. AI assistance to the
+SDR stays fully available throughout: summaries, reply drafts into the SDR's composer, objection
+handling, call prep, meeting prep, research, recommendations. The line is whether the prospect
+receives something the SDR did not send.
 
 ## 4a. The ownership cycle
 

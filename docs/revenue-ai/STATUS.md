@@ -6,7 +6,7 @@
 |---|---|
 | Phase | **0 complete.** Next: Phase 1 — cost attribution + the AI-optional test |
 | Branch | `feat/revenue-ai-foundation` |
-| Blockers | None. One decision owed before Phase 3 (see below). |
+| Blockers | **None.** The Phase 3 state-model decision is made — see below. |
 | Restrictions | No external users, no real client data, sending off, email dry-run |
 
 ## Gates — verified 2026-08-09, local
@@ -56,17 +56,29 @@ The type, the labels and the normalizer live in one file so the next divergence 
 `normalizePausedReason` runs at the single write site, which is what makes an in-flight BullMQ
 job carrying the old payload harmless.
 
-## Decision owed before Phase 3
+## Phase 3 state-model decision — settled 2026-08-09
 
-`ProspectOperatingState` would be the fourth state field on one path: `Lead.stage`,
-`Lead.sequenceStatus`, `SequenceEnrollment.status`, plus the new one. `Lead.sequenceStatus`
-already mirrors `SequenceEnrollment.status` by hand — every mutation path in
-[`../automation-engine/DOMAIN_MAP.md`](../automation-engine/DOMAIN_MAP.md) §1–2 writes both,
-with no constraint keeping them honest.
+**`SequenceEnrollment` is authoritative for sequence execution state.** Full record in
+[ARCHITECTURE §4](ARCHITECTURE.md). Summary:
 
-Either make the lead column derived, or declare the enrollment authoritative and the column an
-explicitly-refreshed cache. Adding a fourth field first multiplies the drift surface instead of
-reducing it. **The decision, not the implementation, is what blocks Phase 3.**
+- Three distinct axes: `Lead.stage` (sales lifecycle) · `SequenceEnrollment.status` +
+  `nextActionAt` / `pausedReason` / `currentStep` (execution lifecycle) ·
+  `ProspectOperatingState` (who or what is responsible now). None derivable from another.
+- `Lead.sequenceStatus` is **legacy compatibility cache**, not truth. It survives because the
+  current CRM depends on it: 15 files, ~25 write sites, ~20 read sites, nothing constraining it
+  to agree with the enrollment. Where the two disagree, the enrollment is right.
+- **No new reader, no new writer** of `Lead.sequenceStatus`. Phase 3 acceptance test 6 is a
+  ratchet on the reader count, not a demand to rewrite the existing ones.
+- Deprecation path is five steps and documented; it is not scheduled, deliberately. Step 3
+  benefits from the `(status, nextActionAt)` index the automation engine already added.
+- Transitions run through four domain services — `handoffProspectToHuman`,
+  `markReengagementEligible`, `handbackProspectToAI`, `startAIReengagement` — each owning its
+  Task, Notification, Activity, WorkOrder and cache-refresh consequences. No route, tool or
+  worker writes the state column.
+- `markReengagementEligible` is **inert by design**: a badge and a recommendation. Acceptance
+  test 3 spies on sequence, enrollment, task, outbound and queue writes and requires zero.
+- Handback creates a **new** approved follow-up workflow. Restarting the prior cold sequence is
+  prohibited (acceptance test 4).
 
 ## Sequencing rationale
 

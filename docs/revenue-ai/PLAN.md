@@ -87,19 +87,34 @@ deny what they denied before.
 
 ---
 
-## Phase 3 — State model: collapse the mirror, then add operating state
+## Phase 3 — State model
 
-**The decision blocks this phase, not the implementation.** See ARCHITECTURE §4.
+**Decision made — see [ARCHITECTURE §4](ARCHITECTURE.md).** `SequenceEnrollment` is
+authoritative for execution state; `Lead.sequenceStatus` is a legacy compatibility cache with a
+documented deprecation path; `ProspectOperatingState` is a separate axis for responsibility.
 
-- [ ] Decide: `Lead.sequenceStatus` becomes derived, or the enrollment is authoritative and the
-      column is an explicitly-refreshed cache. Write the decision down.
-- [ ] Then add `ProspectOperatingState` with the ten states, defaulted from existing data
-- [ ] One transition function. It writes an `Activity` (existing table) on every change; no path
-      updates the column directly
-- [ ] `human_managed` never transitions to an AI-owned state except through the Phase 8 handback
+- [ ] `ProspectOperatingState` with the ten states, defaulted from existing data
+      (`ai_managed` where an active enrollment exists, `human_attention` where a lead is at
+      stage `replied` with a paused enrollment, `unassigned` otherwise)
+- [ ] The four domain services of ARCHITECTURE §4.2 — `handoffProspectToHuman`,
+      `markReengagementEligible`, `handbackProspectToAI`, `startAIReengagement` — each owning
+      its Task / Notification / Activity / WorkOrder / cache consequences
+- [ ] Transitions write an `Activity` (existing table, no new audit log)
+- [ ] The compatibility refresh of `Lead.sequenceStatus` happens **only** inside these services
+      and `lib/sequences/engine.ts`
 
-**Acceptance:** every transition is reconstructible from the activity feed. A test asserts no
-code path can move a lead out of `human_managed` without an explicit SDR action.
+### Acceptance tests
+
+| # | Assertion |
+|---|---|
+| 1 | Every operating-state transition is reconstructible from the activity feed alone. |
+| 2 | No code path moves a lead out of `human_managed` without an explicit SDR action. |
+| 3 | `markReengagementEligible` creates **no** sequence, enrollment, task, outbound message or BullMQ job. Asserted by spying on all five, not by inspecting the result. |
+| 4 | `startAIReengagement` never re-enrolls the lead's prior cold sequence — the enrollment it creates references the new re-engagement sequence. |
+| 5 | `handbackProspectToAI` refuses when CRM state or permissions disallow it, and creates the work order in a state requiring approval rather than an active one. |
+| 6 | Every new query about execution state reads `SequenceEnrollment`. A repo-level check asserts the count of `Lead.sequenceStatus` readers does not grow — a ratchet, not a rewrite. |
+| 7 | With an enrollment paused and `Lead.sequenceStatus` deliberately set to a disagreeing value, all new logic follows the enrollment. |
+| 8 | During `human_managed`, an assistance capability (summarize, draft, objection help, meeting prep) succeeds while every prospect-facing capability is refused. |
 
 ---
 
@@ -209,13 +224,16 @@ The core of the operating model. Everything before this was scaffolding.
 
 ### 8d — Ghost, then handback
 
-- [ ] Ghost eligibility from the playbook threshold for that situation; produces a badge and a
-      recommendation, **never an enrollment**
+- [ ] Ghost eligibility from the playbook threshold for that situation, via
+      `markReengagementEligible()` — a badge and a recommendation, **never an enrollment**
 - [ ] AI proposes a re-engagement plan reading prior interest, the objection, the unanswered
       question, the last human message, meeting history and any promised follow-up
-- [ ] SDR hands the lead back with one action; that action is what activates the plan
-- [ ] Activation runs through `createTaskForStep` / the normal enrollment path — a re-engagement
-      sequence is a sequence
+- [ ] SDR action ("Resume AI Follow-up") calls `handbackProspectToAI()`: validate CRM state and
+      permissions → create a re-engagement work order → route for approval
+- [ ] `startAIReengagement()` activates the approved workflow through `createTaskForStep` /
+      the normal enrollment path — a re-engagement sequence is a sequence
+- [ ] **The prior cold sequence is never restarted.** The new workflow is built from the
+      conversation that actually happened
 
 **Acceptance:** an OOO creates no SDR task; a pricing question creates an urgent one. No code
 path enrolls a `human_managed` lead. "Just following up" cannot be produced — a re-engagement

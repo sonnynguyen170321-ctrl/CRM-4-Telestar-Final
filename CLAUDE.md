@@ -223,7 +223,18 @@ manage exceptions and performance, the CRM keeps everything connected and contro
 - Anything deciding *when* an automated step runs calls `lib/automation/scheduling.ts`. An agent
   proposing "resume after the OOO date" emits an intent; the engine computes the timestamp.
 
-> `ProspectOperatingState` is **not** cleared to ship. It would be the fourth state field on one
-> path, and `Lead.sequenceStatus` already mirrors `SequenceEnrollment.status` by hand with no
-> constraint. Collapse that mirror, or declare one side authoritative, first. STATUS.md tracks
-> the open decision.
+**State model (decided — `ARCHITECTURE.md` §4):** three distinct axes. `Lead.stage` = sales
+lifecycle. `SequenceEnrollment.status` + `nextActionAt` / `pausedReason` / `currentStep` =
+**authoritative** execution lifecycle. `ProspectOperatingState` = who or what is responsible now.
+
+> ⚠️ **`Lead.sequenceStatus` is legacy compatibility cache, not truth.** It stays only because
+> 15 files already use it (~25 writes, ~20 reads, no constraint keeping it honest). **Add no new
+> reader and no new writer** — new logic branches on `SequenceEnrollment`. Where the two
+> disagree, the enrollment is right. Deprecation path in `ARCHITECTURE.md` §4.1.
+
+Operating-state transitions go through four domain services — `handoffProspectToHuman`,
+`markReengagementEligible`, `handbackProspectToAI`, `startAIReengagement` — each owning its
+Task, Notification, Activity, WorkOrder and cache-refresh consequences. No route, tool or worker
+writes the state column directly. `markReengagementEligible` is **inert**: badge and
+recommendation only, never a sequence, enrollment or external action. Handback builds a **new**
+approved follow-up; restarting the prior cold sequence is prohibited.
