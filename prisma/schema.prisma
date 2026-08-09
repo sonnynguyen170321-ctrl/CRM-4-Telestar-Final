@@ -503,6 +503,8 @@ model Lead {
   @@index([campaignId, stage])
   @@index([campaignId, assignedToId])
   @@index([tenantId, archivedAt])
+  @@index([operatingState])
+  @@index([tenantId, operatingState])
   @@index([tenantId, campaignId, normalizedEmail])
   @@index([tenantId, importListName])
 }
@@ -1632,6 +1634,8 @@ model ProspectTransition {
   @@unique([tenantId, transitionKey])
   @@index([leadId, createdAt])
   @@index([tenantId, kind])
+  /// Finding unfinished work is the resume path's main query.
+  @@index([status, createdAt])
 }
 
 // ─── Agent Capability Autonomy ───────────────────────────────────────────────
