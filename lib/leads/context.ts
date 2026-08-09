@@ -35,15 +35,8 @@ export async function loadAuthorizedLeadContext(
           name: true,
           description: true,
           client: { select: { name: true } },
-          playbookVersions: {
-            where: {
-              status: 'active',
-              activationStartAt: { lte: new Date() },
-              OR: [{ activationEndAt: null }, { activationEndAt: { gt: new Date() } }],
-            },
-            take: 1,
-            orderBy: { activationStartAt: 'desc' },
-            select: { id: true },
+          playbook: {
+            select: { currentVersionId: true },
           },
         },
       },
@@ -70,6 +63,6 @@ export async function loadAuthorizedLeadContext(
     campaignName: lead.campaign?.name || null,
     campaignDescription: lead.campaign?.description || null,
     clientName: lead.campaign?.client?.name || null,
-    playbookVersionId: lead.campaign?.playbookVersions[0]?.id || null,
+    playbookVersionId: lead.campaign?.playbook?.currentVersionId || null,
   };
 }
