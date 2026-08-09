@@ -46,6 +46,69 @@ and matches `authVersion`. It also returns **403** for a role failure; the old c
 
 ---
 
+### PW-AUDIT-007 — the public client-report share link was dead in production
+
+| | |
+|---|---|
+| **Severity** | **P1** — a shipped feature was completely non-functional for its only audience |
+| **Status** | **Fixed.** Regression tests green. |
+| **Files** | `lib/client-reports/shareLinks.ts` |
+| **Test** | `e2e/reports/client-report-share.spec.ts` |
+
+Every share token resolved to `{"error":"Invalid or expired report link"}`. Not some tokens —
+every one, immediately after being minted.
+
+The share endpoint is the only route in the product that answers with no session: `proxy.ts`
+excludes `api/client-reports/public` because the recipient is the customer, not Telestar staff.
+No session means no tenant context, and the extension in `lib/prisma.ts:86-93` **fails closed**
+for reads in production — `find*` returns `null` rather than risk a cross-tenant read. So the
+lookup returned nothing and the route reported the token as unknown.
+
+Proven rather than reasoned: the token presented hashed to `1b40e5c6…`, a row with exactly that
+`tokenHash` sat in `ClientReportShareLink` under `pw-audit-tenant-a`, unrevoked and unexpired,
+and an unextended client found it immediately while the extended client returned `NULL`.
+
+**It only reproduces on a production build.** In development `isLocalOrScript` is true, so the
+same queries bypass and succeed — which is why the feature looked healthy in every local
+check, and why the existing e2e suite (which runs against `next dev` by default) never saw it.
+
+### The first fix did not work, and why that matters
+
+The obvious repair is to wrap the lookup in `tenantStorage.run({ bypassRls: true })` — the
+pattern `getSessionUser` uses for exactly this situation. It was applied, it compiled, and the
+emitted bundle contains it:
+
+```js
+a.tenantStorage.run({tenantId:"system",bypassRls:!0},()=>r.prisma.clientReportShareLink.findUnique
+```
+
+The read still returned null. The `AsyncLocalStorage` the caller enters is not the instance the
+extension reads — Next splits them across chunks (`a.` and `r.` are different module
+namespaces in the output above). Worth recording because the wrapper *looks* correct in review
+and in the source, and only an end-to-end check catches that it does nothing.
+
+**The fix that works** is an unextended, module-scoped `PrismaClient` used solely for resolving
+a share token. Safe because the token *is* the credential — 32 random bytes, stored only as a
+SHA-256 hash, revocable and expirable, validated before anything is returned — and
+`toClientSafeSnapshot` still governs what a customer may see. One extra pool per process, not
+per request.
+
+### Three of my own assertions were wrong here too
+
+Recorded because each looked like a finding:
+
+- **"the public report leaked lead data"** — it contained prospect company names. That is what a
+  client report is *for*. The real checks are staff addresses, credential material and internal
+  cuids, none of which appear.
+- **"a password-protected report returned its contents"** — an unauthenticated GET returns
+  `{requiresPassword: true, title, clientName}` by design; the recipient needs to know what they
+  are unlocking and already holds the link. The contract is that `snapshot` stays null, which it
+  does.
+- **revoke "failed"** — the route takes `linkId` from the **query string**, not the body. Sent as
+  JSON it answers 400 and revokes nothing, which would have looked like a working test.
+
+---
+
 ### PW-AUDIT-005 — sign-out did not end the session (supersedes PW-AUDIT-003)
 
 | | |
@@ -196,7 +259,7 @@ reproduced on a production build. Tracked with the CSP enforcement work in
 ## Coverage so far
 
 Run against a production build (`next build` + `next start -p 3000`).
-**113 tests, 112 passing, 1 `fixme` (PW-AUDIT-005).**
+**124 tests, all passing, none skipped.**
 
 | Batch | Scope | Result |
 |---|---|---|
@@ -209,6 +272,7 @@ Run against a production build (`next build` + `next start -p 3000`).
 | 7b | §31–§33 meeting → outcome → opportunity → handoff, incl. concurrent double-submit | green |
 | 7c | §16 campaign-member impact gate (both doors) and pod-orphaning guard | green |
 | 9a | §42 desktop gate at 1440 / 1024 / 900 | green |
+| 7d | §34 client reports, public share links, expiry, revocation, password, exports | green |
 
 ### What these confirmed working
 
