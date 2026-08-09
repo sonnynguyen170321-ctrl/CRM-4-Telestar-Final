@@ -119,6 +119,41 @@ describe('AI is an optional layer, not a CRM dependency', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('no Client Component imports a server-side AI module', () => {
+    // `next build` is the only gate that catches this, and it catches it as a wall of
+    // "Can't resolve 'async_hooks' / 'dns' / 'net'" — tsc and vitest both pass, because
+    // the problem is bundling, not types. provider.ts and usage.ts reach the database;
+    // tools.ts calls internal APIs. A "use client" file may import model constants from
+    // lib/ai/models.ts, which is import-free for exactly this reason.
+    const SERVER_ONLY_AI = ['@/lib/ai/provider', '@/lib/ai/usage', '@/lib/ai/tools'];
+    const offenders: string[] = [];
+
+    const clientFiles = [
+      ...walk(path.join(ROOT, 'components')),
+      ...walk(path.join(ROOT, 'app')),
+      ...walk(path.join(ROOT, 'context')),
+    ].map(relative);
+
+    for (const rel of clientFiles) {
+      const source = readFileSync(path.join(ROOT, rel), 'utf8');
+      if (!/^\s*['"]use client['"]/m.test(source)) continue;
+      for (const mod of SERVER_ONLY_AI) {
+        if (source.includes(`'${mod}'`) || source.includes(`"${mod}"`)) {
+          offenders.push(`${rel} imports ${mod}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('the client-safe model module stays import-free', () => {
+    // Its whole purpose is having no dependencies. One import and the boundary is gone.
+    const source = readFileSync(path.join(ROOT, 'lib', 'ai', 'models.ts'), 'utf8');
+    expect(source).not.toMatch(/^\s*import\s/m);
+    expect(source).not.toMatch(/\brequire\(/);
+  });
+
   it('AI usage recording is confined to the AI layer', () => {
     const offenders: string[] = [];
 

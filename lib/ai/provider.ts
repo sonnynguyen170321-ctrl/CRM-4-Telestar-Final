@@ -3,31 +3,14 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AI_TOOLS, executeTool } from './tools';
 import { recordAiCall, classifyFailure } from './usage';
 
-export type ModelId =
-  | 'llama-3.3-70b-versatile'    // ⚡ Smart & Balanced
-  | 'llama-3.1-8b-instant'        // 🚀 Ultra Fast
-  | 'gemma2-9b-it'                // ✍️ Email & Writing
-  | 'gemini-2.0-flash';           // 🎨 Creative & Polished
+// Re-exported so existing server-side imports of '@/lib/ai/provider' keep working. The
+// definitions live in the import-free leaf module because this file reaches the database
+// via usage.ts, and a Client Component that imported these from here would drag
+// async_hooks/dns/net into the browser bundle.
+export { MODEL_LABELS, MODEL_DESCRIPTIONS, DEFAULT_MODEL } from './models';
+export type { ModelId } from './models';
 
-export const MODEL_LABELS: Record<ModelId, string> = {
-  'llama-3.3-70b-versatile': '⚡ Smart & Balanced',
-  'llama-3.1-8b-instant': '🚀 Ultra Fast',
-  'gemma2-9b-it': '✍️ Email & Writing',
-  'gemini-2.0-flash': '🎨 Creative & Polished',
-};
-
-export const MODEL_DESCRIPTIONS: Record<ModelId, string> = {
-  'llama-3.3-70b-versatile':
-    'Best overall quality. Use for coaching, objection handling, research, and morning briefings.',
-  'llama-3.1-8b-instant':
-    'Replies in under 1 second. Best for quick questions and creating tasks on the fly.',
-  'gemma2-9b-it':
-    'Great at following instructions. Best for writing cold emails and LinkedIn messages.',
-  'gemini-2.0-flash':
-    'Google\'s latest model. Best for creative writing, subject lines, and brainstorming.',
-};
-
-export const DEFAULT_MODEL: ModelId = 'llama-3.3-70b-versatile';
+import type { ModelId } from './models';
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
