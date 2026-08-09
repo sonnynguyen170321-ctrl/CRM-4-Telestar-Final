@@ -4,10 +4,14 @@
 
 | | |
 |---|---|
-| Phase | **0 complete.** Next: Phase 1 — cost attribution + the AI-optional test |
-| Branch | `feat/revenue-ai-foundation` |
+| Phase | **0 and 1 complete.** Next: Phase 2 — capability-based autonomy |
+| Branch | `feat/ai-cost-attribution` |
 | Blockers | **None.** The Phase 3 state-model decision is made — see below. |
 | Restrictions | No external users, no real client data, sending off, email dry-run |
+
+> **No write-capable agent tools until Phase 2 lands.** Phase 1 added no tool and no capability;
+> the only new writes are `AiCall` accounting rows. The four existing tools are unchanged, and
+> `create_task` — the one that writes — predates this initiative and stays as it was.
 
 ## Gates — verified 2026-08-09, local
 
@@ -15,8 +19,35 @@
 |---|---|
 | `tsc --noEmit` | 0 errors |
 | `eslint app components lib context tests` | 0 errors, 0 warnings |
-| `vitest run` | 793 passed, 5 skipped, 63 files |
-| `prisma migrate status` | up to date, 27 migrations |
+| `vitest run` | 820 passed, 5 skipped, 66 files |
+| `prisma migrate status` | up to date, 28 migrations |
+
+## Phase 1 — what landed
+
+**Cost fields recorded per provider round trip** (`AiCall`): `tenantId`, `userId`, `leadId`,
+`workOrderId`, `operation`, `provider`, `model`, `promptTokens`, `completionTokens`,
+`totalTokens`, `searchCredits`, `latencyMs`, `estimatedCostUsd` (Decimal 12,6), `status`,
+`errorCode`, `createdAt`.
+
+Three design choices worth keeping:
+
+- **One row per round trip, not per exchange.** A tool-calling conversation spends its tokens
+  across several calls; aggregating at write time would lose which one spent them.
+- **Failures are recorded, and rate limiting is its own status.** A failed call still cost
+  latency, and `rate_limited` is a budget signal rather than a bug.
+- **Recording never throws and never invents a tenant.** `usage.ts` runs inside the AI request
+  path, so a throw would surface as a broken answer; a row with no tenant is worse than a gap
+  because it looks like data.
+
+**The AI-optional guarantee is asserted twice, deliberately.** `tests/ai-optional.test.ts` is
+structural — no core CRM module may import `lib/ai` or a provider SDK — and covers paths nobody
+has written yet. `tests/ai-down-resilience.test.ts` is behavioural: keys removed, outbound HTTP
+refusing, and the named subsystems still run. The structural test is the stronger one; a
+property held only by accident is one a single import statement removes silently.
+
+Writing it surfaced a real misfiling: `lib/ai/scoring.ts` had no imports and no provider
+references — deterministic CRM logic living under the AI tree, making two lead routes look
+AI-dependent. Moved to `lib/leads/scoring.ts` rather than allowlisted.
 
 ## What exists today
 

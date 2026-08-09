@@ -1,6 +1,7 @@
 import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AI_TOOLS, executeTool } from './tools';
+import { recordAiCall, classifyFailure } from './usage';
 
 export type ModelId =
   | 'llama-3.3-70b-versatile'    // ⚡ Smart & Balanced
@@ -40,6 +41,28 @@ interface StreamOptions {
   userId: string;
   leadId?: string;
   today: string;
+  /**
+   * Attribution context (Revenue AI Phase 1). Optional so a caller that has not been
+   * updated still works — an unattributed call is a reporting gap, not a broken feature.
+   * `recordAiCall` skips the write when there is no tenant, since a row that cannot be
+   * scoped to a tenant is one no tenant-scoped query would ever return.
+   */
+  tenantId?: string;
+  /** What this call is for: 'chat', 'briefing', 'research', … Defaults to 'chat'. */
+  operation?: string;
+  /** Set once typed work orders exist (Phase 6). */
+  workOrderId?: string;
+}
+
+/** Attribution fields pulled off StreamOptions for the usage recorder. */
+function attributionOf(opts: StreamOptions) {
+  return {
+    tenantId: opts.tenantId,
+    userId: opts.userId,
+    leadId: opts.leadId ?? null,
+    workOrderId: opts.workOrderId ?? null,
+    operation: opts.operation ?? 'chat',
+  };
 }
 
 // Unified streaming interface — returns an async generator of text chunks
@@ -96,6 +119,7 @@ async function* streamGroq(opts: StreamOptions): AsyncGenerator<string> {
     iterations++;
 
     let response: Awaited<ReturnType<typeof groq.chat.completions.create>>;
+    const startedAt = Date.now();
     try {
       response = await groq.chat.completions.create({
         model: opts.modelId,
@@ -105,18 +129,51 @@ async function* streamGroq(opts: StreamOptions): AsyncGenerator<string> {
         max_tokens: 800,
         stream: false,
       });
+      // One row per round trip, not one per exchange: a tool-calling conversation spends
+      // its tokens across several calls and cost review needs to see which.
+      await recordAiCall({
+        ...attributionOf(opts),
+        provider: 'groq',
+        model: opts.modelId,
+        promptTokens: response.usage?.prompt_tokens ?? null,
+        completionTokens: response.usage?.completion_tokens ?? null,
+        totalTokens: response.usage?.total_tokens ?? null,
+        latencyMs: Date.now() - startedAt,
+        status: 'ok',
+      });
     } catch (err: unknown) {
+      await recordAiCall({
+        ...attributionOf(opts),
+        provider: 'groq',
+        model: opts.modelId,
+        latencyMs: Date.now() - startedAt,
+        status: classifyFailure(err),
+        errorCode: (err as { status?: number })?.status?.toString() ?? null,
+      });
       // Groq rejects malformed tool calls (old XML format from some model versions).
       // Retry once without tools to get a plain-text response.
       const isToolError =
         err instanceof Error &&
         (err.message.includes('tool_use_failed') || err.message.includes('tool call validation'));
       if (isToolError) {
+        const retryStartedAt = Date.now();
         const fallback = await groq.chat.completions.create({
           model: opts.modelId,
           messages: loopMessages,
           max_tokens: 800,
           stream: false,
+        });
+        // The tool-less retry is a second billable call. Recording it under the same
+        // operation is what makes "why did this answer cost double" answerable.
+        await recordAiCall({
+          ...attributionOf(opts),
+          provider: 'groq',
+          model: opts.modelId,
+          promptTokens: fallback.usage?.prompt_tokens ?? null,
+          completionTokens: fallback.usage?.completion_tokens ?? null,
+          totalTokens: fallback.usage?.total_tokens ?? null,
+          latencyMs: Date.now() - retryStartedAt,
+          status: 'ok',
         });
         const content = fallback.choices[0]?.message?.content || '';
         const words = content.split(' ');
@@ -144,6 +201,9 @@ async function* streamGroq(opts: StreamOptions): AsyncGenerator<string> {
           userId: opts.userId,
           leadId: opts.leadId,
           today: opts.today,
+          tenantId: opts.tenantId,
+          operation: opts.operation ?? 'chat',
+          workOrderId: opts.workOrderId,
         });
 
         loopMessages.push({
@@ -194,9 +254,44 @@ async function* streamGemini(opts: StreamOptions): AsyncGenerator<string> {
   const lastMessage = opts.messages[opts.messages.length - 1];
   const chat = model.startChat({ history });
 
-  const result = await chat.sendMessageStream(lastMessage.content);
+  const startedAt = Date.now();
+  let result: Awaited<ReturnType<typeof chat.sendMessageStream>>;
+  try {
+    result = await chat.sendMessageStream(lastMessage.content);
+  } catch (err) {
+    await recordAiCall({
+      ...attributionOf(opts),
+      provider: 'gemini',
+      model: 'gemini-2.0-flash',
+      latencyMs: Date.now() - startedAt,
+      status: classifyFailure(err),
+      errorCode: (err as { status?: number })?.status?.toString() ?? null,
+    });
+    throw err;
+  }
+
   for await (const chunk of result.stream) {
     const text = chunk.text();
     if (text) yield text;
+  }
+
+  // Gemini reports usage only once the stream is drained, so the row is written here
+  // rather than at call time. Recording must not break a response that already streamed
+  // successfully — the reader has the answer regardless of whether accounting lands.
+  try {
+    const aggregated = await result.response;
+    const usage = aggregated.usageMetadata;
+    await recordAiCall({
+      ...attributionOf(opts),
+      provider: 'gemini',
+      model: 'gemini-2.0-flash',
+      promptTokens: usage?.promptTokenCount ?? null,
+      completionTokens: usage?.candidatesTokenCount ?? null,
+      totalTokens: usage?.totalTokenCount ?? null,
+      latencyMs: Date.now() - startedAt,
+      status: 'ok',
+    });
+  } catch (err) {
+    console.error('[ai/provider] gemini usage capture failed:', err);
   }
 }

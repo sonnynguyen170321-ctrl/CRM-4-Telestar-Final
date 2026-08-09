@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, canAccessUser, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
-import { scoreLead } from '@/lib/ai/scoring';
+import { scoreLead } from '@/lib/leads/scoring';
 import { unenrollLead, pauseSequence } from '@/lib/sequences/engine';
 import { parseBody } from '@/lib/validation/core';
 import { updateLeadSchema } from '@/lib/validation/schemas';

@@ -51,17 +51,29 @@ Prerequisite: the pause vocabulary the whole lifecycle reads had diverged three 
 
 ---
 
-## Phase 1 — Cost attribution + proof that AI is optional
+## Phase 1 — Cost attribution + proof that AI is optional ✅ complete
 
-Prerequisite for every budget and every cost figure, and for rule 4 above.
+- [x] `AiCall` model + `20260810000000_ai_call_attribution` — tenant, user, lead, work order,
+      operation, provider, model, prompt/completion/total tokens, search credits, latency,
+      estimated cost, status, error code
+- [x] `lib/ai/pricing.ts` — one rate table, per-model and per-call. Unknown model returns
+      `null` rather than a guess
+- [x] `lib/ai/usage.ts` — the only writer of `AiCall`. Never throws into the caller; skips the
+      write when there is no tenant rather than inventing a placeholder
+- [x] Instrumented every provider round trip: the Groq tool-calling loop (one row per
+      iteration), the Groq tool-less retry, Gemini (recorded after the stream drains, where its
+      usage metadata appears), Tavily and Jina
+- [x] `tests/ai-optional.test.ts` — structural: no core CRM module imports `lib/ai`, no core
+      module imports a provider SDK, `recordAiCall` is confined to the AI layer
+- [x] `tests/ai-down-resilience.test.ts` — behavioural: every provider key removed and outbound
+      HTTP refusing; scheduling, eligibility, reply pause, due-date computation and lead scoring
+      all still execute, with no outbound request attempted
+- [x] `lib/ai/scoring.ts` → `lib/leads/scoring.ts` — deterministic CRM logic that was misfiled
+      under the AI tree and made two lead routes look AI-dependent
 
-- [ ] `provider.ts` records tokens in/out, model, latency, computed cost per call
-- [ ] `AiCall`: tenant, user, purpose, model, tokens, cost, `workOrderId?`, `createdAt`
-- [ ] A test asserting sequence execution, reply processing, email send and task completion all
-      pass with the AI subsystem unavailable
-
-**Acceptance:** cost is queryable by tenant, user and purpose. Disabling AI fails no CRM test.
-No new reporting pipeline — costs surface through `client-reports`/`analytics` in Phase 10.
+**Acceptance met:** cost is queryable by tenant, user, operation, provider and work order.
+The CRM has no static dependency on `lib/ai` and none can be added without failing a test. No
+new reporting pipeline — these rows feed `client-reports` in Phase 10.
 
 ---
 

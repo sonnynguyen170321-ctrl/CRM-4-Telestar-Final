@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scoreLead } from '@/lib/ai/scoring';
+import { scoreLead } from '@/lib/leads/scoring';
 
 const base = {
   id: 'l1',
