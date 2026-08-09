@@ -104,6 +104,35 @@ export async function enqueue<T extends JobType>(
 }
 
 /**
+ * Re-schedule a job whose payload does not change between attempts.
+ *
+ * A plain `enqueue` cannot do this. Identical payload → identical dedupeKey → identical
+ * JobRun.id → identical BullMQ jobId, and both `queue.add` and the deduplication window
+ * drop the second job, so the reschedule silently never happens and the work stalls. The
+ * deferral paths (send window, quota, mailbox pause) and the maintenance repairs all
+ * re-issue the same payload, so they mix a discriminator into the dedupe key to get a
+ * fresh JobRun + jobId.
+ *
+ * The discriminator must be derived from the *target* of the reschedule (usually the new
+ * due timestamp), not from the clock: two workers deferring the same task to the same
+ * moment then collapse to one job, which is exactly the dedupe behaviour we still want.
+ */
+export async function enqueueReschedule<T extends JobType>(
+  jobType: T,
+  payload: JobPayload[T],
+  opts: { tenantId?: string; delay?: number; discriminator: string },
+): Promise<string> {
+  const tenantId = opts.tenantId || 'default-tenant';
+  const base = buildDedupeKey(tenantId, jobType, payload as Record<string, unknown>);
+  const dedupeKey = crypto
+    .createHash('sha256')
+    .update(`${base}:${opts.discriminator}`)
+    .digest('hex');
+
+  return enqueue(jobType, payload, { tenantId, delay: opts.delay, dedupeKey });
+}
+
+/**
  * Force a job to run immediately, fast-forwarding any job already scheduled for the same
  * payload. Used by "Send Now" / run-now.
  *

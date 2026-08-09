@@ -82,6 +82,7 @@ enum ActivityType {
   sequence_enrolled
   sequence_completed
   sequence_unenrolled
+  sequence_deferred
   email_task_completed
   lead_reassigned
   email_replied
@@ -501,20 +502,24 @@ model Sequence {
 }
 
 model SequenceStep {
-  id           String    @id @default(cuid())
-  sequenceId   String
-  sequence     Sequence  @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
-  order        Int
-  channel      Channel
-  delayDays    Int       @default(1)
-  delayHours   Int       @default(0)
-  templateId   String?
-  template     Template? @relation(fields: [templateId], references: [id])
-  instructions String?
-  autoComplete Boolean   @default(false)
-  version      Int       @default(1)
-  tenantId     String
-  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                     String    @id @default(cuid())
+  sequenceId             String
+  sequence               Sequence  @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  order                  Int
+  channel                Channel
+  delayDays              Int       @default(1)
+  delayHours             Int       @default(0)
+  templateId             String?
+  template               Template? @relation(fields: [templateId], references: [id])
+  instructions           String?
+  autoComplete           Boolean   @default(false)
+  version                Int       @default(1)
+  // Send window: minutes since midnight in the lead's resolved timezone.
+  // null = no window restriction (send anytime the cadence allows).
+  sendWindowStartMinutes Int?
+  sendWindowEndMinutes   Int?
+  tenantId               String
+  tenant                 Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([sequenceId, order])
   @@index([sequenceId])
@@ -867,22 +872,29 @@ model SuppressionEntry {
 // ─── Sequence Enrollments ────────────────────────────────────────────────────
 
 model SequenceEnrollment {
-  id          String                   @id @default(cuid())
-  leadId      String
-  lead        Lead                     @relation(fields: [leadId], references: [id])
-  sequenceId  String
-  sequence    Sequence                 @relation(fields: [sequenceId], references: [id])
-  status      SequenceEnrollmentStatus @default(active)
-  currentStep Int                      @default(1)
-  startedAt   DateTime                 @default(now())
-  completedAt DateTime?
-  tenantId    String
-  tenant      Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id               String                   @id @default(cuid())
+  leadId           String
+  lead             Lead                     @relation(fields: [leadId], references: [id])
+  sequenceId       String
+  sequence         Sequence                 @relation(fields: [sequenceId], references: [id])
+  status           SequenceEnrollmentStatus @default(active)
+  currentStep      Int                      @default(1)
+  startedAt        DateTime                 @default(now())
+  completedAt      DateTime?
+  // Automation runtime fields (Phase 3)
+  nextActionAt     DateTime?                // When the next automated action is scheduled
+  pausedReason     String?                  // reply|hard_bounce|soft_bounce|meeting_booked|manual|email_health|campaign_paused|mailbox_unavailable
+  lastTransitionAt DateTime?                // Last time status/state changed
+  lastEvaluatedAt  DateTime?                // Last time eligibility was evaluated
+  tenantId         String
+  tenant           Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([leadId])
   @@index([sequenceId])
   @@index([status])
   @@index([tenantId])
+  @@index([nextActionAt])                   // For maintenance worker scheduling queries
+  @@index([status, nextActionAt])           // Active enrollments due for action
 }
 
 // ─── Import ──────────────────────────────────────────────────────────────────

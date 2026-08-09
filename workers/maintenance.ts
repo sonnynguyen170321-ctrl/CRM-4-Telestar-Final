@@ -3,12 +3,18 @@ import { createAppWorker } from '@/lib/bullmq';
 import { JobType } from '@/lib/bullmq/types';
 import type { MaintenanceRepairPayload } from '@/lib/bullmq/types';
 import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
+import { enqueueReschedule } from '@/lib/bullmq/enqueue';
+import { createTaskForStep } from '@/lib/sequences/engine';
 
 const STALE_SENDING_THRESHOLD_MS = 30 * 60 * 1000;
 const STUCK_RUNNING_THRESHOLD_MS = 15 * 60 * 1000;
 /** How long an ambiguous send may wait for delivery evidence before we give up on it. */
 const RECONCILE_GRACE_MS = 24 * 60 * 60 * 1000;
 const RECONCILE_BATCH = 200;
+/** Grace period before a claimable outbound with no live job counts as stalled. */
+const STALE_PENDING_OUTBOUND_MS = 60 * 60 * 1000;
+/** Re-drive ceiling — matches the send worker's own deferral cap. */
+const MAX_OUTBOUND_REDRIVES = 5;
 
 async function repairOrphanTasks(): Promise<{ fixed: number; details: string[] }> {
   const details: string[] = [];
@@ -116,8 +122,134 @@ async function repairMissingDelayed(): Promise<{ fixed: number; details: string[
       where: { id: task.id },
       data: { lockedAt: now },
     });
-    details.push(`task:${task.id} -> locked for re-enqueue (due ${task.dueDate.toISOString()})`);
+    try {
+      // The original job's dedupe key still resolves to this same payload, so a plain
+      // enqueue would be swallowed and the repair would report success while restoring
+      // nothing. The due date is the discriminator: repeated repair passes over the same
+      // overdue task collapse to one job instead of stacking.
+      await enqueueReschedule(
+        JobType.SEQUENCE_EXECUTE_TASK,
+        { taskId: task.id },
+        {
+          delay: 0,
+          tenantId: task.tenantId,
+          discriminator: `repair:${task.dueDate.toISOString()}`,
+        }
+      );
+      details.push(`task:${task.id} -> re-enqueued BullMQ job (due ${task.dueDate.toISOString()})`);
+    } catch (err) {
+      details.push(`task:${task.id} -> locked for re-enqueue, enqueue failed: ${err}`);
+    }
     fixed++;
+  }
+
+  return { fixed, details };
+}
+
+async function repairEnrollmentScheduleDrift(): Promise<{ fixed: number; details: string[] }> {
+  const details: string[] = [];
+  let fixed = 0;
+  const now = new Date();
+
+  const driftEnrollments = await prisma.sequenceEnrollment.findMany({
+    where: {
+      status: 'active',
+      nextActionAt: { lt: now },
+    },
+    include: {
+      lead: { select: { id: true, assignedToId: true, crmPriorityScore: true } },
+      sequence: { select: { id: true, name: true } },
+    },
+    take: 100,
+  });
+
+  for (const enr of driftEnrollments) {
+    const existingTask = await prisma.task.findFirst({
+      where: { leadId: enr.leadId, sequenceId: enr.sequenceId, sequenceStep: enr.currentStep, status: 'pending' },
+    });
+
+    if (!existingTask) {
+      const step = await prisma.sequenceStep.findFirst({
+        where: { sequenceId: enr.sequenceId, order: enr.currentStep },
+      });
+      if (step) {
+        // The step is already overdue, so the replacement task must land now — not a
+        // further delayDays out. createTaskForStep measures the cadence from the base it
+        // is handed, so backdating the base by exactly that cadence yields a due date of
+        // ~now, still subject to the send window and weekend policy.
+        const cadenceMs = step.delayDays * 86_400_000 + step.delayHours * 3_600_000;
+        const base = new Date(now.getTime() - cadenceMs);
+
+        await createTaskForStep(enr.lead, enr.sequence, step, base);
+        fixed++;
+        details.push(`enrollment:${enr.id} -> recreated task for step ${enr.currentStep}`);
+      }
+    }
+  }
+
+  return { fixed, details };
+}
+
+/**
+ * Re-drive claimable outbound messages that no longer have a job behind them.
+ *
+ * A message goes back to `pending` when a send is deferred (quota) and the worker
+ * re-enqueues it. If that enqueue was lost — Redis flushed, the process died between the
+ * status write and the enqueue — the row is claimable but nothing will ever claim it.
+ * This is the database-side half of the invariant that BullMQ is never the only source of
+ * truth. `sending` and `reconciliation_required` are deliberately excluded: their provider
+ * outcome is unknown and re-driving them could double-send.
+ */
+async function repairStalePendingOutbound(): Promise<{ fixed: number; details: string[] }> {
+  const details: string[] = [];
+  let fixed = 0;
+  const cutoff = new Date(Date.now() - STALE_PENDING_OUTBOUND_MS);
+
+  const stalled = await prisma.outboundMessage.findMany({
+    where: {
+      status: OUTBOUND_STATUS.PENDING,
+      createdAt: { lt: cutoff },
+      sentAt: null,
+    },
+    take: RECONCILE_BATCH,
+  });
+
+  for (const msg of stalled) {
+    if (msg.attemptCount >= MAX_OUTBOUND_REDRIVES) {
+      await prisma.outboundMessage.update({
+        where: { id: msg.id },
+        data: {
+          status: OUTBOUND_STATUS.FAILED,
+          errorMessage: `Abandoned after ${msg.attemptCount} attempts without a successful send`,
+        },
+      });
+      details.push(`outbound:${msg.id} -> failed after ${msg.attemptCount} attempts`);
+      fixed++;
+      continue;
+    }
+
+    try {
+      await enqueueReschedule(
+        JobType.EMAIL_SEND,
+        {
+          outboundMessageId: msg.id,
+          accountId: msg.accountId,
+          to: msg.to,
+          subject: msg.subject ?? '',
+          body: msg.body ?? '',
+          leadId: msg.leadId,
+        },
+        {
+          tenantId: msg.tenantId,
+          delay: 0,
+          discriminator: `redrive:${msg.attemptCount}`,
+        }
+      );
+      details.push(`outbound:${msg.id} -> re-enqueued EMAIL_SEND`);
+      fixed++;
+    } catch (err) {
+      details.push(`outbound:${msg.id} -> re-enqueue failed: ${err}`);
+    }
   }
 
   return { fixed, details };
@@ -311,6 +443,8 @@ const REPAIR_FN: Record<string, () => Promise<{ fixed: number; details: string[]
   'stuck-running': repairStuckRunning,
   'missing-delayed': repairMissingDelayed,
   'reassignment-drift': repairReassignmentDrift,
+  'enrollment-schedule-drift': repairEnrollmentScheduleDrift,
+  'stale-pending-outbound': repairStalePendingOutbound,
   'audit-prune': repairAuditPrune,
 };
 

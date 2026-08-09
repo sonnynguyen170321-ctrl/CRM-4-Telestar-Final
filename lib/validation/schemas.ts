@@ -125,6 +125,8 @@ const sequenceStepSchema = z.object({
   templateId: id.nullish().optional(),
   instructions: nullableLongText.optional(),
   autoComplete: z.boolean().optional(),
+  sendWindowStartMinutes: z.number().int().min(0).max(1439).nullish().optional(),
+  sendWindowEndMinutes: z.number().int().min(0).max(1439).nullish().optional(),
 });
 
 export const createSequenceSchema = z.object({

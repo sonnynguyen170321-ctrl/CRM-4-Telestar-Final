@@ -6,6 +6,7 @@ import { parseBody } from '@/lib/validation/core';
 import { createSequenceSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
 import { cacheGet, cacheSet, listKey, invalidateList } from '@/lib/cache';
+import { assertSendWindowPermission } from '@/lib/sequences/permissions';
 
 const CACHE_TTL = 60;
 
@@ -52,6 +53,21 @@ export async function POST(req: NextRequest) {
   if (parsed.error) return parsed.error;
   const body = parsed.data;
 
+  // A new sequence has no stored steps, so every window on it counts as a change.
+  const windowViolations = assertSendWindowPermission(user.role, body.steps ?? []);
+  if (windowViolations.length > 0) {
+    const forbidden = windowViolations.some((v) => v.reason === 'forbidden_role');
+    return NextResponse.json(
+      {
+        error: forbidden
+          ? 'Only a Director or Floor Manager can set a step send window'
+          : 'A send window needs both a start and an end, with the end after the start',
+        steps: windowViolations,
+      },
+      { status: forbidden ? 403 : 400 }
+    );
+  }
+
   try {
     const sequence = await prisma.sequence.create({
       data: {
@@ -68,6 +84,8 @@ export async function POST(req: NextRequest) {
             templateId: step.templateId ?? null,
             instructions: step.instructions,
             autoComplete: step.autoComplete ?? false,
+            sendWindowStartMinutes: step.sendWindowStartMinutes ?? null,
+            sendWindowEndMinutes: step.sendWindowEndMinutes ?? null,
             tenantId: user.tenantId!,
           })),
         },

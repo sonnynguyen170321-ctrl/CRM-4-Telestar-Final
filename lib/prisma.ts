@@ -38,7 +38,7 @@ const getTenantIdFromSession = cache(async function getTenantIdFromSession(): Pr
     // a DB error — must surface: returning null here would silently widen into a
     // cross-tenant read via the local bypass path, which is never acceptable.
     const message = err instanceof Error ? err.message : String(err);
-    if (!/headers|cookies|outside of a request|request scope|draft mode/i.test(message)) {
+    if (!/headers|cookies|outside of a request|request scope|draft mode|next\/server|ERR_MODULE_NOT_FOUND|Cannot find module/i.test(message)) {
       throw err;
     }
     return null;

@@ -244,14 +244,14 @@ export default function AutomationDashboard() {
               <div className="space-y-1">
                 <h2 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
                   <Cpu className="w-4.5 h-4.5 text-brand-orange-text" />
-                  Sequence Automation Engine
+                  Outreach Automation Workers
                 </h2>
                 <p className="text-[11px] text-text-secondary leading-relaxed">
-                  Processes and automatically sends outgoing sequence emails. Distributes scheduling hourly windows.
+                  Automated sequence emails execute continuously in background BullMQ workers. Click below to run a manual maintenance cycle.
                 </p>
               </div>
             </div>
-            
+
             {isManager && (
             <>
             <button
@@ -266,12 +266,12 @@ export default function AutomationDashboard() {
               {isTriggeringSequence ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  Processing Sends...
+                  Running Maintenance Check...
                 </>
               ) : (
                 <>
                   <Play className="w-4 h-4 fill-current" />
-                  Run Sequence Engine
+                  Run Maintenance & Repair Check
                 </>
               )}
             </button>
@@ -284,7 +284,7 @@ export default function AutomationDashboard() {
               }`}>
                 <div className="font-semibold mb-1 flex items-center gap-1.5">
                   {sequenceResult.error ? <AlertCircle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                  {sequenceResult.error ? 'Execution Failed' : 'Execution Complete'}
+                  {sequenceResult.error ? 'Maintenance Execution Failed' : 'Maintenance Execution Complete'}
                 </div>
                 {sequenceResult.error ? (
                   <p className="font-mono text-[10px] text-red-300">{sequenceResult.error}</p>
@@ -303,16 +303,16 @@ export default function AutomationDashboard() {
             )}
           </div>
 
-          {/* Action Card: Inbox Synchronization */}
+          {/* Action Card: Inbox Synchronization (Spec §34) */}
           <div className="glass-card rounded-2xl p-5 space-y-4">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
                 <h2 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
                   <RefreshCw className="w-4.5 h-4.5 text-brand-gold-text" />
-                  Inbox Sync Engine
+                  Async Inbox Sync Queue
                 </h2>
                 <p className="text-[11px] text-text-secondary leading-relaxed">
-                  Fetches recent inbox replies. Flags email bounces (NDR) and auto-unenrolls leads who have replied.
+                  Queues background inbox sync jobs across all active SDR mailboxes to process replies and bounces asynchronously.
                 </p>
               </div>
             </div>
@@ -331,12 +331,12 @@ export default function AutomationDashboard() {
               {isTriggeringInbox ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  Syncing Inboxes...
+                  Queueing Sync Jobs...
                 </>
               ) : (
                 <>
                   <RefreshCw className="w-4 h-4" />
-                  Run Inbox Sync
+                  Queue Inbox Sync Jobs
                 </>
               )}
             </button>
@@ -349,17 +349,14 @@ export default function AutomationDashboard() {
               }`}>
                 <div className="font-semibold mb-1 flex items-center gap-1.5">
                   {inboxResult.error ? <AlertCircle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                  {inboxResult.error ? 'Sync Failed' : 'Sync Complete'}
+                  {inboxResult.error ? 'Queueing Failed' : 'Sync Jobs Queued'}
                 </div>
                 {inboxResult.error ? (
                   <p className="font-mono text-[10px] text-red-300">{inboxResult.error}</p>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2 mt-2 font-mono text-[10px]">
-                    <div>Active Mailboxes: <span className="font-semibold text-text-primary">{inboxResult.accounts}</span></div>
-                    <div>Replies Detected: <span className="font-semibold text-text-primary">{inboxResult.replies}</span></div>
-                    <div>Bounces Detected: <span className="font-semibold text-text-primary">{inboxResult.bounces}</span></div>
-                    <div>Failed Syncs: <span className="font-semibold text-text-primary">{inboxResult.failedAccounts}</span></div>
-                  </div>
+                  <p className="font-mono text-[10px] text-green-300">
+                    Mailboxes selected: <span className="font-bold">{inboxResult.queued ?? inboxResult.enqueued ?? emailAccounts.length}</span> · Sync jobs queued in background.
+                  </p>
                 )}
               </div>
             )}

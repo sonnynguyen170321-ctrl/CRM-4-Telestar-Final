@@ -146,6 +146,8 @@ export interface MaintenanceRepairPayload {
     | 'stuck-running'
     | 'missing-delayed'
     | 'reassignment-drift'
+    | 'enrollment-schedule-drift'
+    | 'stale-pending-outbound'
     | 'audit-prune'
   )[];
 }

@@ -11,6 +11,7 @@ const mockLeadUpdate = vi.fn();
 const mockActivityCreate = vi.fn();
 const mockExecuteRaw = vi.fn();
 const mockServiceSend = vi.fn();
+const mockEnqueueReschedule = vi.fn();
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -54,6 +55,10 @@ vi.mock('@/lib/tenant-context', () => ({
   },
 }));
 
+vi.mock('@/lib/bullmq/enqueue', () => ({
+  enqueueReschedule: (...args: unknown[]) => mockEnqueueReschedule(...args),
+}));
+
 const { handleEmailSend, evaluateSendBlock } = await import('@/workers/email');
 
 const TENANT_ID = 'default-tenant';
@@ -68,6 +73,7 @@ function mockOutboundMessage(overrides: Record<string, unknown> = {}) {
     body: 'World',
     status: 'pending',
     providerMessageId: null,
+    attemptCount: 0,
     tenantId: TENANT_ID,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -191,18 +197,60 @@ describe('handleEmailSend', () => {
     });
   });
 
-  it('skips if quota exhausted', async () => {
+  it('defers to the next quota window instead of failing when quota is exhausted', async () => {
     mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
     mockSuppressionFindFirst.mockResolvedValueOnce(null);
     mockExecuteRaw.mockResolvedValueOnce(0);
 
     const result = await handleEmailSend(buildPayload());
 
-    expect(result).toEqual({ skipped: true, reason: 'quota_exhausted' });
+    expect(result).toMatchObject({ deferred: true, skipped: true, reason: 'quota_exhausted' });
     expect(mockServiceSend).not.toHaveBeenCalled();
     expect(mockOutboundUpdate).toHaveBeenCalledWith({
       where: { id: 'msg-1' },
-      data: { status: 'failed', errorMessage: 'Daily send limit reached' },
+      data: {
+        status: 'pending',
+        errorMessage: expect.stringContaining('Daily send limit reached — deferred to'),
+      },
+    });
+  });
+
+  // Returning the row to `pending` only helps if something will claim it again. Without
+  // this re-enqueue the message is claimable with no job behind it, which stalls silently
+  // — strictly worse than the `failed` this replaced.
+  it('re-enqueues the deferred send so a quota-blocked message is not stranded', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockSuppressionFindFirst.mockResolvedValueOnce(null);
+    mockExecuteRaw.mockResolvedValueOnce(0);
+
+    await handleEmailSend(buildPayload());
+
+    expect(mockEnqueueReschedule).toHaveBeenCalledTimes(1);
+    const [jobType, payload, opts] = mockEnqueueReschedule.mock.calls[0];
+    expect(jobType).toBe('email.send');
+    expect(payload).toMatchObject({ outboundMessageId: 'msg-1', accountId: 'acc-1' });
+    expect(opts).toMatchObject({ tenantId: TENANT_ID });
+    expect(opts.delay).toBeGreaterThan(0);
+    // A payload-only dedupe key would collide with the job currently running and be
+    // dropped by BullMQ, so the reschedule must carry a discriminator.
+    expect(opts.discriminator).toMatch(/^quota:/);
+  });
+
+  it('fails the message once it has exhausted the deferral budget', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage({ attemptCount: 4 }));
+    mockSuppressionFindFirst.mockResolvedValueOnce(null);
+    mockExecuteRaw.mockResolvedValueOnce(0);
+
+    const result = await handleEmailSend(buildPayload());
+
+    expect(result).toEqual({ skipped: true, reason: 'quota_exhausted_max_deferrals' });
+    expect(mockEnqueueReschedule).not.toHaveBeenCalled();
+    expect(mockOutboundUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: {
+        status: 'failed',
+        errorMessage: expect.stringContaining('Daily send limit reached on 5'),
+      },
     });
   });
 

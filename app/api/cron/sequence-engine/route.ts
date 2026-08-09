@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, tenantStorage } from '@/lib/prisma';
 import { EmailService } from '@/lib/email/EmailService';
+import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 import { isAutosendEnabled } from '@/lib/emailSafety';
 import { auth } from '@/auth';
 
@@ -158,16 +159,29 @@ export async function GET(req: NextRequest) {
 
         try {
           await tenantStorage.run({ tenantId }, async () => {
-            const service = await EmailService.fromAccount(account);
-            await service.send({
-              from: account.email,
+            const outbound = await createOutboundMessage({
+              source: { kind: 'task', taskId: task.id },
+              leadId: task.lead.id,
+              accountId: account.id,
               to: task.lead.email,
               subject: task.title,
-              text: task.description ?? '',
+              body: task.description ?? '',
+              tenantId,
             });
+            await enqueueEmailSendWorkflow(
+              {
+                outboundMessageId: outbound.id,
+                accountId: account.id,
+                to: task.lead.email,
+                subject: task.title,
+                body: task.description ?? '',
+                leadId: task.lead.id,
+              },
+              tenantId
+            );
           });
         } catch (sendErr) {
-          console.error(`[sequence-engine] Failed to send email for task ${task.id}:`, sendErr);
+          console.error(`[sequence-engine] Failed to enqueue email for task ${task.id}:`, sendErr);
           await prisma.task.update({ where: { id: task.id }, data: { lockedAt: null } });
           result.errors.push(task.id);
           continue;
