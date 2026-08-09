@@ -12,6 +12,8 @@ const mockLeadFindUnique = vi.fn();
 const mockLeadUpdate = vi.fn();
 const mockTransitionFindUnique = vi.fn();
 const mockTransitionCreate = vi.fn();
+const mockTransitionUpdate = vi.fn();
+const mockTransitionUpdateMany = vi.fn();
 const mockActivityCreate = vi.fn();
 const mockTaskCreate = vi.fn();
 const mockNotificationCreate = vi.fn();
@@ -29,6 +31,8 @@ vi.mock('@/lib/prisma', () => ({
     prospectTransition: {
       findUnique: (...a: unknown[]) => mockTransitionFindUnique(...a),
       create: (...a: unknown[]) => mockTransitionCreate(...a),
+      update: (...a: unknown[]) => mockTransitionUpdate(...a),
+      updateMany: (...a: unknown[]) => mockTransitionUpdateMany(...a),
     },
     activity: { create: (...a: unknown[]) => mockActivityCreate(...a) },
     task: { create: (...a: unknown[]) => mockTaskCreate(...a) },
@@ -71,6 +75,9 @@ beforeEach(() => {
   seedLead();
   mockTransitionFindUnique.mockResolvedValue(null);
   mockTransitionCreate.mockResolvedValue({ id: 'transition-1' });
+  mockTransitionUpdate.mockResolvedValue({});
+  // Every effect claim succeeds unless a test says otherwise.
+  mockTransitionUpdateMany.mockResolvedValue({ count: 1 });
   mockLeadUpdate.mockResolvedValue({});
   mockActivityCreate.mockResolvedValue({});
   mockTaskCreate.mockResolvedValue({});
@@ -131,14 +138,16 @@ describe('rule 3 — meaningful engagement may hand off automatically', () => {
 });
 
 describe('rule 7 + idempotency — a retry produces no duplicates', () => {
-  it('a redelivered event creates no second task, notification, activity or ledger row', async () => {
-    mockTransitionFindUnique.mockResolvedValue({ id: 'transition-1', toState: 'human_attention' });
+  it('a completed occurrence is inert on redelivery', async () => {
+    mockTransitionFindUnique.mockResolvedValue({
+      id: 'transition-1', status: 'completed', appliedEffects: ['activity', 'task', 'notification'],
+    });
 
     const result = await handoffProspectToHuman({
       leadId: 'lead-1', tenantId: 't1', eventId: 'msg-1', reason: 'replied',
     });
 
-    expect(result.applied).toBe(false);
+    expect(result).toMatchObject({ applied: false, status: 'completed' });
     expect(mockTransitionCreate).not.toHaveBeenCalled();
     expect(mockTaskCreate).not.toHaveBeenCalled();
     expect(mockNotificationCreate).not.toHaveBeenCalled();
@@ -146,19 +155,37 @@ describe('rule 7 + idempotency — a retry produces no duplicates', () => {
     expect(mockLeadUpdate).not.toHaveBeenCalled();
   });
 
-  it('a concurrent duplicate loses the unique-constraint race and reports a no-op', async () => {
+  it('a concurrent duplicate whose winner already completed is a safe no-op', async () => {
     mockTransitionCreate.mockRejectedValue(Object.assign(new Error('dup'), { code: 'P2002' }));
     mockTransitionFindUnique
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 'transition-1' });
+      .mockResolvedValueOnce({ id: 'transition-1', status: 'completed', appliedEffects: ['activity', 'task', 'notification'] });
 
     const result = await handoffProspectToHuman({
       leadId: 'lead-1', tenantId: 't1', eventId: 'msg-1', reason: 'replied',
     });
 
-    // The constraint is the arbiter. The loser must not fail the job.
-    expect(result.applied).toBe(false);
+    expect(result).toMatchObject({ applied: false, status: 'completed' });
     expect(mockTaskCreate).not.toHaveBeenCalled();
+    expect(mockNotificationCreate).not.toHaveBeenCalled();
+  });
+
+  it('a concurrent duplicate cannot re-run a consequence the winner already claimed', async () => {
+    mockTransitionCreate.mockRejectedValue(Object.assign(new Error('dup'), { code: 'P2002' }));
+    mockTransitionFindUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'transition-1', status: 'state_applied', appliedEffects: ['activity'] });
+    // The winner is mid-flight and has already claimed the task; this caller's claim loses.
+    mockTransitionUpdateMany.mockImplementation(async (args: { data?: { appliedEffects?: { push?: string } } }) =>
+      args?.data?.appliedEffects?.push === 'task' ? { count: 0 } : { count: 1 }
+    );
+
+    await handoffProspectToHuman({ leadId: 'lead-1', tenantId: 't1', eventId: 'msg-1', reason: 'replied' });
+
+    // At most once: the task is the winner's to create. The notification was unclaimed, so
+    // this caller finishes it — the occurrence converges rather than stalling.
+    expect(mockTaskCreate).not.toHaveBeenCalled();
+    expect(mockNotificationCreate).toHaveBeenCalledOnce();
   });
 
   it('a genuinely new event later is still allowed', async () => {
@@ -169,6 +196,66 @@ describe('rule 7 + idempotency — a retry produces no duplicates', () => {
     });
     expect(second.applied).toBe(true);
     expect(mockTaskCreate).toHaveBeenCalledOnce();
+  });
+
+  it('resumes when a crash left the claim written but the state unchanged', async () => {
+    // The failure the resumable ledger exists for. Under the old design every retry said
+    // "already applied" while the lead had never moved, and only manual repair could finish it.
+    mockTransitionFindUnique.mockResolvedValue({
+      id: 'transition-1', status: 'pending', appliedEffects: [],
+    });
+
+    const result = await handoffProspectToHuman({
+      leadId: 'lead-1', tenantId: 't1', eventId: 'msg-1', reason: 'replied',
+    });
+
+    expect(result).toMatchObject({ applied: true, resumed: true, status: 'completed' });
+    expect(mockTransitionCreate).not.toHaveBeenCalled();
+    expect(mockLeadUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ operatingState: 'human_attention' }) })
+    );
+    expect(mockTaskCreate).toHaveBeenCalledOnce();
+    expect(mockNotificationCreate).toHaveBeenCalledOnce();
+    expect(mockTransitionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'completed' }) })
+    );
+  });
+
+  it('resumes the missing consequences without repeating the state change or the done ones', async () => {
+    // Crashed after the state moved and after the activity and task were written.
+    mockTransitionFindUnique.mockResolvedValue({
+      id: 'transition-1', status: 'state_applied', appliedEffects: ['activity', 'task'],
+    });
+    mockTransitionUpdateMany.mockImplementation(async (args: { data?: { appliedEffects?: { push?: string } } }) =>
+      ['activity', 'task'].includes(args?.data?.appliedEffects?.push ?? '') ? { count: 0 } : { count: 1 }
+    );
+
+    const result = await handoffProspectToHuman({
+      leadId: 'lead-1', tenantId: 't1', eventId: 'msg-1', reason: 'replied',
+    });
+
+    expect(result).toMatchObject({ applied: true, resumed: true, status: 'completed' });
+    // State already moved — must not be written again.
+    expect(mockLeadUpdate).not.toHaveBeenCalled();
+    expect(mockActivityCreate).not.toHaveBeenCalled();
+    expect(mockTaskCreate).not.toHaveBeenCalled();
+    // The one unfinished consequence is completed.
+    expect(mockNotificationCreate).toHaveBeenCalledOnce();
+  });
+
+  it('a resume does not re-check the from-state guard', async () => {
+    // The lead has already moved, so re-running the guard would turn recovery into a permanent
+    // error — the opposite of converging.
+    seedLead('ai_reengagement');
+    mockTransitionFindUnique.mockResolvedValue({
+      id: 'transition-9', status: 'pending', appliedEffects: [],
+    });
+
+    const result = await handbackProspectToAI({
+      leadId: 'lead-1', tenantId: 't1', requestId: 'req-1', actorUserId: 'sdr-1',
+    });
+
+    expect(result).toMatchObject({ applied: true, resumed: true, status: 'completed' });
   });
 
   it('handoff idempotency does not depend on Lead.stage', async () => {
@@ -219,7 +306,9 @@ describe('rule 5 — markReengagementEligible is inert', () => {
 
   it('re-running ghost detection in the same episode is inert', async () => {
     seedLead('reengagement_eligible');
-    mockTransitionFindUnique.mockResolvedValue({ id: 't-1', toState: 'reengagement_eligible' });
+    mockTransitionFindUnique.mockResolvedValue({
+      id: 't-1', status: 'completed', appliedEffects: ['activity'],
+    });
 
     const result = await markReengagementEligible({
       leadId: 'lead-1', tenantId: 't1', episodeId: 'ep-1', reason: 'ghosted', actorUserId: 'sdr-1',

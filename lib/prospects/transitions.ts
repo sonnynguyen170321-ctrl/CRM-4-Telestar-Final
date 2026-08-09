@@ -6,25 +6,48 @@ import { buildTransitionKey, type TransitionOccurrence } from './keys';
  * The transition primitive (Revenue AI Phase 3).
  *
  * Every operating-state change goes through here, and here owns **all** of the state part of
- * the change: the idempotency ledger row, the `Lead.operatingState` write and the `Activity`.
- * A caller cannot half-apply a transition by forgetting one of them.
+ * the change: the ledger claim, the `Lead.operatingState` write and the `Activity`. A caller
+ * cannot half-apply a transition by forgetting one of them.
  *
- * Callers add only their own consequences — a task, a notification, a work order — and do so
- * *inside* the `onApplied` callback, so those consequences run exactly when the transition is
- * genuinely new. A retry of the same event never reaches them.
+ * `Lead.operatingState` is written **only** here. No route, tool or worker updates it directly.
  *
- * `Lead.operatingState` is written **only** here. No route, tool or worker updates the column
- * directly.
+ * ## Ledger-first, but existence is not completion
+ *
+ * The row is a durable *claim* on one occurrence, not proof that the occurrence finished:
+ *
+ *   1. insert the claim as `pending`
+ *   2. apply the state transition → `state_applied`
+ *   3. run each consequence, each claimed individually
+ *   4. mark `completed`
+ *
+ * A retry that finds a non-completed row **resumes** from wherever it stopped rather than
+ * reporting a permanent no-op. The earlier design treated the row's existence as success, so a
+ * crash between step 1 and step 2 stranded the prospect: every retry said "already applied"
+ * while the lead had never moved, and only manual repair could finish it. Manual repair is for
+ * genuinely irreconcilable data, not for an ordinary crash window.
+ *
+ * The invariant: **each business consequence runs at most once, and an interrupted occurrence
+ * always converges to completion.** Consequences are claimed by a conditional array append
+ * before they run, which is what gives at-most-once. The residual window — a crash between a
+ * claim and its effect — leaves that one consequence unperformed while the transition still
+ * converges; that case, and only that case, is what the repair path is for.
  */
 
+export type TransitionStatus = 'pending' | 'state_applied' | 'completed';
+
 export interface TransitionResult {
-  /** False when this exact occurrence had already been applied. */
+  /** True when this call performed work — a first run or a resume that finished one. */
   applied: boolean;
-  /** The state the lead is in after this call, applied or not. */
+  /** True when the work was picked up from an interrupted earlier attempt. */
+  resumed: boolean;
+  /** The state the lead is in after this call. */
   state: ProspectOperatingState;
-  /** The ledger row id. Doubles as the episode identifier for a handoff. */
+  status: TransitionStatus;
   transitionId: string;
 }
+
+/** Claim-then-run helper handed to callers so their consequences are at-most-once. */
+export type RunEffect = (effectKey: string, fn: () => Promise<void>) => Promise<void>;
 
 export interface ApplyTransitionInput {
   leadId: string;
@@ -37,19 +60,19 @@ export interface ApplyTransitionInput {
   activityDescription: string;
   activityMetadata?: Record<string, unknown>;
   /**
-   * Required: `Activity.userId` is a non-null FK, so there is no such thing as an
-   * actor-less activity in this CRM. For a system-driven transition — an inbound reply — the
-   * actor is the lead's assigned SDR, which `Lead.assignedToId` guarantees is present.
-   * `systemInitiated` records that no human chose it, rather than faking a null actor.
+   * Required: `Activity.userId` is a non-null FK, so there is no such thing as an actor-less
+   * activity in this CRM. For a system-driven transition — an inbound reply — the actor is the
+   * lead's assigned SDR, which `Lead.assignedToId` guarantees is present. `systemInitiated`
+   * records that no human chose it, rather than faking a null actor.
    */
   actorUserId: string;
   systemInitiated?: boolean;
   workOrderId?: string | null;
   /**
-   * Side effects that must happen exactly once, with the ledger row already written. Runs only
-   * on a genuinely new transition.
+   * Consequences that must happen at most once. Each must be wrapped in `runEffect` with a
+   * stable key — an unwrapped write would repeat on every resume.
    */
-  onApplied?: (result: { transitionId: string }) => Promise<void>;
+  onApplied?: (ctx: { transitionId: string; runEffect: RunEffect }) => Promise<void>;
 }
 
 export class TransitionNotAllowedError extends Error {
@@ -63,6 +86,8 @@ export class TransitionNotAllowedError extends Error {
   }
 }
 
+const ACTIVITY_EFFECT = 'activity';
+
 export async function applyTransition(input: ApplyTransitionInput): Promise<TransitionResult> {
   const transitionKey = buildTransitionKey(input.occurrence);
 
@@ -72,25 +97,39 @@ export async function applyTransition(input: ApplyTransitionInput): Promise<Tran
   });
   if (!lead) throw new Error(`Prospect ${input.leadId} not found`);
 
-  // Idempotency first. A retry must not re-run the guard either: by the time the first attempt
-  // finished, the lead has already moved, so a `fromStates` check would now fail and turn a
-  // duplicate delivery into an error instead of a no-op.
   const existing = await prisma.prospectTransition.findUnique({
     where: { tenantId_transitionKey: { tenantId: input.tenantId, transitionKey } },
-    select: { id: true, toState: true },
+    select: { id: true, status: true, appliedEffects: true },
   });
+
   if (existing) {
-    return { applied: false, state: lead.operatingState, transitionId: existing.id };
+    // Completed is the only status that means "nothing to do".
+    if (existing.status === 'completed') {
+      return {
+        applied: false,
+        resumed: false,
+        state: lead.operatingState,
+        status: 'completed',
+        transitionId: existing.id,
+      };
+    }
+    return finish({
+      input,
+      transitionKey,
+      transitionId: existing.id,
+      currentStatus: existing.status as TransitionStatus,
+      appliedEffects: existing.appliedEffects,
+      leadStateBefore: lead.operatingState,
+      resumed: true,
+    });
   }
 
+  // The guard runs only on a first attempt. A resume must not re-check it: by then the lead has
+  // already moved, so the check would now fail and turn recovery into a permanent error.
   if (input.fromStates?.length && !input.fromStates.includes(lead.operatingState)) {
     throw new TransitionNotAllowedError(input.leadId, lead.operatingState, input.toState);
   }
 
-  // The ledger row is written before the state change on purpose: if the process dies between
-  // the two, a retry finds the row and reports `applied: false` with the lead still in its old
-  // state — visibly inconsistent and repairable. The reverse order would let a retry re-run
-  // every side effect against an already-moved lead.
   let transitionId: string;
   try {
     const row = await prisma.prospectTransition.create({
@@ -103,51 +142,133 @@ export async function applyTransition(input: ApplyTransitionInput): Promise<Tran
         toState: input.toState,
         actorUserId: input.systemInitiated ? null : input.actorUserId,
         workOrderId: input.workOrderId ?? null,
+        status: 'pending',
       },
       select: { id: true },
     });
     transitionId = row.id;
   } catch (err) {
-    // Two concurrent deliveries of the same event race here. The unique constraint is the
-    // arbiter; the loser reports a no-op rather than failing the job.
-    if (isUniqueViolation(err)) {
-      const winner = await prisma.prospectTransition.findUnique({
-        where: { tenantId_transitionKey: { tenantId: input.tenantId, transitionKey } },
-        select: { id: true },
-      });
+    if (!isUniqueViolation(err)) throw err;
+
+    // Two concurrent deliveries of the same event. The unique constraint is the arbiter; the
+    // loser inspects the winner's row rather than assuming it finished — the winner may still
+    // be mid-flight, or may have died between its claim and its state write.
+    const winner = await prisma.prospectTransition.findUnique({
+      where: { tenantId_transitionKey: { tenantId: input.tenantId, transitionKey } },
+      select: { id: true, status: true, appliedEffects: true },
+    });
+    if (!winner) throw err;
+
+    if (winner.status === 'completed') {
       return {
         applied: false,
+        resumed: false,
         state: lead.operatingState,
-        transitionId: winner?.id ?? '',
+        status: 'completed',
+        transitionId: winner.id,
       };
     }
-    throw err;
+
+    // Not finished: converge it. Every step below is individually claimed, so the winner and
+    // this caller cannot both perform the same consequence.
+    return finish({
+      input,
+      transitionKey,
+      transitionId: winner.id,
+      currentStatus: winner.status as TransitionStatus,
+      appliedEffects: winner.appliedEffects,
+      leadStateBefore: lead.operatingState,
+      resumed: true,
+    });
   }
 
-  await prisma.lead.update({
-    where: { id: input.leadId },
-    data: { operatingState: input.toState, operatingStateAt: new Date() },
+  return finish({
+    input,
+    transitionKey,
+    transitionId,
+    currentStatus: 'pending',
+    appliedEffects: [],
+    leadStateBefore: lead.operatingState,
+    resumed: false,
   });
+}
 
-  await prisma.activity.create({
-    data: {
-      userId: input.actorUserId,
-      leadId: input.leadId,
-      type: input.activityType,
-      description: input.activityDescription,
-      metadata: {
-        ...(input.activityMetadata ?? {}),
-        from: lead.operatingState,
-        to: input.toState,
-        transitionKey,
-        ...(input.systemInitiated ? { auto: true } : {}),
+/**
+ * Drive an claimed occurrence to `completed` from wherever it stopped.
+ *
+ * Every step is guarded so it is safe to enter with any status and any subset of effects
+ * already done.
+ */
+async function finish(args: {
+  input: ApplyTransitionInput;
+  transitionKey: string;
+  transitionId: string;
+  currentStatus: TransitionStatus;
+  appliedEffects: string[];
+  leadStateBefore: ProspectOperatingState;
+  resumed: boolean;
+}): Promise<TransitionResult> {
+  const { input, transitionId } = args;
+  const claimed = new Set(args.appliedEffects);
+
+  if (args.currentStatus === 'pending') {
+    await prisma.lead.update({
+      where: { id: input.leadId },
+      data: { operatingState: input.toState, operatingStateAt: new Date() },
+    });
+    await prisma.prospectTransition.update({
+      where: { id: transitionId },
+      data: { status: 'state_applied' },
+    });
+  }
+
+  const runEffect: RunEffect = async (effectKey, fn) => {
+    if (claimed.has(effectKey)) return;
+
+    // Claim before running. Two racing resumes cannot both pass this, which is what makes a
+    // consequence at-most-once rather than at-least-once.
+    const claim = await prisma.prospectTransition.updateMany({
+      where: { id: transitionId, NOT: { appliedEffects: { has: effectKey } } },
+      data: { appliedEffects: { push: effectKey } },
+    });
+    if (claim.count !== 1) return;
+
+    claimed.add(effectKey);
+    await fn();
+  };
+
+  await runEffect(ACTIVITY_EFFECT, async () => {
+    await prisma.activity.create({
+      data: {
+        userId: input.actorUserId,
+        leadId: input.leadId,
+        type: input.activityType,
+        description: input.activityDescription,
+        metadata: {
+          ...(input.activityMetadata ?? {}),
+          from: args.leadStateBefore,
+          to: input.toState,
+          transitionKey: args.transitionKey,
+          ...(input.systemInitiated ? { auto: true } : {}),
+        },
       },
-    },
+    });
   });
 
-  if (input.onApplied) await input.onApplied({ transitionId });
+  if (input.onApplied) await input.onApplied({ transitionId, runEffect });
 
-  return { applied: true, state: input.toState, transitionId };
+  await prisma.prospectTransition.update({
+    where: { id: transitionId },
+    data: { status: 'completed', completedAt: new Date() },
+  });
+
+  return {
+    applied: true,
+    resumed: args.resumed,
+    state: input.toState,
+    status: 'completed',
+    transitionId,
+  };
 }
 
 function isUniqueViolation(err: unknown): boolean {

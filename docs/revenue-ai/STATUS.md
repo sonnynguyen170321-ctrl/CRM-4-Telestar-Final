@@ -21,8 +21,8 @@
 | `next build` | exit 0 |
 | `tsc --noEmit` | 0 errors |
 | `eslint app components lib context tests` | 0 errors, 0 warnings |
-| `vitest run` | 887 passed, 5 skipped, 69 files |
-| `prisma migrate status` | up to date, 30 migrations |
+| `vitest run` | 891 passed, 5 skipped, 69 files |
+| `prisma migrate status` | up to date, 31 migrations |
 
 ## Phase 3 — what landed, and the one narrow exception
 
@@ -41,6 +41,14 @@ readers stay scheduled for the deprecation, and nothing downstream re-interprets
 A reply from a prospect with no active sequence is still a real handoff, so `no_sequence` must
 not read as failure — while a genuine database error still throws rather than being inferred
 from a missing side effect.
+
+**The ledger claims, it does not certify.** `pending → state_applied → completed`, and a retry
+that finds a non-completed row resumes rather than reporting a permanent no-op. The earlier
+design treated the row's existence as success, which meant a crash between the insert and the
+state write stranded the prospect with manual repair the only way out. Each consequence is
+claimed individually before it runs, so racing resumes cannot both perform one. A resume skips
+the `fromStates` guard — the lead has already moved, and re-checking would turn recovery into a
+permanent error.
 
 **Not solved, and not claimed:** reply dedupe remains stage-based and coarse (ARCHITECTURE
 §4.2b). Handoff idempotency is independent of `Lead.stage` by design.

@@ -1613,7 +1613,21 @@ model ProspectTransition {
   /// Set once typed work orders exist (Phase 6). No FK until the model does.
   workOrderId String?
 
-  createdAt DateTime @default(now())
+  /// 'pending' | 'state_applied' | 'completed'
+  ///
+  /// The row is a durable *claim* on the occurrence, not proof that it finished. A retry that
+  /// finds a non-completed row resumes the transition instead of reporting a permanent no-op —
+  /// otherwise a crash between the insert and the state write would strand the prospect and
+  /// need manual repair, which is not an acceptable normal recovery path.
+  status String @default("pending")
+
+  /// Which consequences have already been claimed, so a resume finishes the missing ones
+  /// without repeating the done ones. Each entry is claimed by a conditional update before its
+  /// effect runs, which is what makes a consequence at-most-once.
+  appliedEffects String[] @default([])
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
 
   @@unique([tenantId, transitionKey])
   @@index([leadId, createdAt])

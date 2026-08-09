@@ -202,13 +202,32 @@ would never hear about the second real reply.
 | handback | the SDR's request id (a work order once Phase 6 exists) |
 | ai_reengagement_started | the approved re-engagement work order |
 
-The ledger row is written **before** the state change. If the process dies between them, a
-retry finds the row and reports `applied: false` with the lead still in its old state —
-visibly inconsistent and repairable. The reverse order would let a retry re-run every side
-effect against an already-moved lead.
+### The ledger claims, it does not certify
 
-Two concurrent deliveries of the same event race at the unique constraint; the loser reports a
-no-op rather than failing its job.
+The row is written **before** the state change — but its existence is not proof the transition
+finished. It carries execution status:
+
+```text
+pending → state_applied → completed
+```
+
+A retry that finds a non-completed row **resumes** from wherever it stopped. Treating existence
+as success is a trap: a crash between the insert and the state write would strand the prospect,
+every retry answering "already applied" while the lead never moved, with manual repair the only
+way out. Manual repair is for genuinely irreconcilable data, not for an ordinary crash window.
+
+Each consequence is claimed individually in `appliedEffects` by a conditional array append
+*before* it runs, so two racing resumes cannot both perform the same one. A resume also skips
+the `fromStates` guard: by then the lead has already moved, and re-checking would turn recovery
+into a permanent error.
+
+**Invariant: each business consequence runs at most once, and an interrupted occurrence always
+converges to completion.** The residual window — a crash between a claim and its effect —
+leaves that single consequence unperformed while the transition still completes. That case, and
+only that case, is what the repair path is for.
+
+Two concurrent deliveries race at the unique constraint. The loser inspects the winner's row
+rather than assuming it finished: `completed` is a safe no-op, anything else is converged.
 
 ### 4.2b Pre-existing lifecycle debt, not solved here
 

@@ -56,27 +56,33 @@ export async function handoffProspectToHuman(input: HandoffInput): Promise<Trans
     activityMetadata: { reason: input.reason },
     actorUserId: lead.assignedToId,
     systemInitiated: true,
-    onApplied: async () => {
-      await prisma.task.create({
-        data: {
-          leadId: input.leadId,
-          userId: lead.assignedToId,
-          type: 'manual',
-          title: `Handle reply from ${lead.firstName} ${lead.lastName}`,
-          description: input.summary ?? `Replied to your outreach. Respond while it's warm.`,
-          dueDate: new Date(),
-          priority: 'high',
-        },
+    // Each consequence is claimed separately, so a resume after a crash mid-handoff creates the
+    // notification without creating a second task.
+    onApplied: async ({ runEffect }) => {
+      await runEffect('task', async () => {
+        await prisma.task.create({
+          data: {
+            leadId: input.leadId,
+            userId: lead.assignedToId,
+            type: 'manual',
+            title: `Handle reply from ${lead.firstName} ${lead.lastName}`,
+            description: input.summary ?? `Replied to your outreach. Respond while it's warm.`,
+            dueDate: new Date(),
+            priority: 'high',
+          },
+        });
       });
 
-      await prisma.notification.create({
-        data: {
-          userId: lead.assignedToId,
-          type: 'lead_replied',
-          title: 'Lead Replied!',
-          text: `${lead.firstName} ${lead.lastName} (${lead.company}) replied — ${input.reason}`,
-          linkTo: `/leads/${input.leadId}`,
-        },
+      await runEffect('notification', async () => {
+        await prisma.notification.create({
+          data: {
+            userId: lead.assignedToId,
+            type: 'lead_replied',
+            title: 'Lead Replied!',
+            text: `${lead.firstName} ${lead.lastName} (${lead.company}) replied — ${input.reason}`,
+            linkTo: `/leads/${input.leadId}`,
+          },
+        });
       });
     },
   });
