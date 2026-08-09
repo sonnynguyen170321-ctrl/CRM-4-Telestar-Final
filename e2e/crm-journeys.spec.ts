@@ -13,13 +13,50 @@ const LOGIN_TIMEOUT = process.env.BASE_URL ? 45_000 : 15_000;
 // as E2E_PASSWORD, so hardcoding it made every persona login fail — and with one worker
 // and no retries, six serial failures walked the job into its timeout.
 //
-// The fallback keeps existing local workflows working against an older seeded database.
-const PASSWORD = process.env.E2E_PASSWORD || 'telestar2026';
+// **No fallback.** This used to default to the literal `telestar2026` when the variable was
+// unset. That string is published in this repository and is still the password on every
+// non-Director demo account on the live box, so a default silently authenticated with a
+// credential anyone can read — and §1 of the audit brief forbids reusing it. Failing loudly is
+// better than quietly signing in with a published password.
+function requiredPassword(): string {
+  const value = process.env.E2E_PASSWORD;
+  if (!value) {
+    throw new Error(
+      'E2E_PASSWORD is required. Pass the password for the seeded demo accounts explicitly; ' +
+        'there is deliberately no default.'
+    );
+  }
+  return value;
+}
+const PASSWORD = requiredPassword();
+
+
+/**
+ * Open a route and assert it actually rendered.
+ *
+ * §48 of the audit brief asks which assertions would still pass if the feature were broken.
+ * For this file the answer was "most of them": of 29 assertions, **24 were `toHaveURL`** — they
+ * confirm the browser navigated, and nothing else. A route whose every API call returned 500,
+ * or which rendered Next's error boundary, satisfied every one of them.
+ *
+ * Every route in the CRM paints exactly one `<h1>` (`.claude/rules/brand-design.md` makes that
+ * a rule, and it was verified across all 18 routes before this helper was written), so
+ * requiring a visible heading and the absence of an error boundary turns a navigation check
+ * into a render check without coupling the test to any particular page's content.
+ */
+async function gotoRendered(page: import('@playwright/test').Page, route: string, urlPattern: RegExp | string) {
+  await page.goto(route, { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(urlPattern);
+  await expect(
+    page.locator('text=/Application error|Unhandled Runtime Error|500 - Internal/i').first(),
+    `${route} rendered an error boundary`
+  ).toHaveCount(0);
+  await expect(page.locator('h1').first(), `${route} painted no heading`).toBeVisible();
+}
 
 test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
   test('Unauthenticated user is redirected to login', async ({ page }) => {
-    await page.goto('/');
-    await expect(page).toHaveURL(/.*login/);
+    await gotoRendered(page, '/', /.*login/);
     await expect(page.locator('text=Telestar CRM')).toBeVisible();
     await expect(page.locator('input[type="password"]')).toBeVisible();
   });
@@ -45,24 +82,19 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
       await expect(page.locator('h1', { hasText: 'Director Cockpit' })).toBeVisible();
 
       // Step 2: Team View & Floor Leaderboard
-      await page.goto('/team');
-      await expect(page).toHaveURL(/.*team/);
+      await gotoRendered(page, '/team', /.*team/);
 
       // Step 3: Opportunities & Revenue Forecasting
-      await page.goto('/opportunities');
-      await expect(page).toHaveURL(/.*opportunities/);
+      await gotoRendered(page, '/opportunities', /.*opportunities/);
 
       // Step 4: Client Performance Reports
-      await page.goto('/client-reports');
-      await expect(page).toHaveURL(/.*client-reports/);
+      await gotoRendered(page, '/client-reports', /.*client-reports/);
 
       // Step 5: Deliverability & Email Health
-      await page.goto('/email-health');
-      await expect(page).toHaveURL(/.*email-health/);
+      await gotoRendered(page, '/email-health', /.*email-health/);
 
       // Step 6: Leadgen Manager Hub
-      await page.goto('/leadgen-manager');
-      await expect(page).toHaveURL(/.*leadgen-manager/);
+      await gotoRendered(page, '/leadgen-manager', /.*leadgen-manager/);
     });
   });
 
@@ -83,24 +115,19 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
 
     test('Floor Manager accesses team supervision, meetings, and deliverability', async ({ page }) => {
       // Step 1: Team Floor Hub
-      await page.goto('/team');
-      await expect(page).toHaveURL(/.*team/);
+      await gotoRendered(page, '/team', /.*team/);
 
       // Step 2: Leads Pipeline Oversight
-      await page.goto('/leads');
-      await expect(page).toHaveURL(/.*leads/);
+      await gotoRendered(page, '/leads', /.*leads/);
 
       // Step 3: Meetings & Quality Control
-      await page.goto('/meetings');
-      await expect(page).toHaveURL(/.*meetings/);
+      await gotoRendered(page, '/meetings', /.*meetings/);
 
       // Step 4: Deliverability Management
-      await page.goto('/email-health');
-      await expect(page).toHaveURL(/.*email-health/);
+      await gotoRendered(page, '/email-health', /.*email-health/);
 
       // Step 5: Leadgen Manager Data Pool
-      await page.goto('/leadgen-manager');
-      await expect(page).toHaveURL(/.*leadgen-manager/);
+      await gotoRendered(page, '/leadgen-manager', /.*leadgen-manager/);
     });
   });
 
@@ -121,20 +148,16 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
 
     test('Team Lead supervises pod tasks and sequence executions', async ({ page }) => {
       // Step 1: Daily Task Board
-      await page.goto('/');
-      await expect(page).toHaveURL('/');
+      await gotoRendered(page, '/', '/');
 
       // Step 2: Leads pipeline
-      await page.goto('/leads');
-      await expect(page).toHaveURL(/.*leads/);
+      await gotoRendered(page, '/leads', /.*leads/);
 
       // Step 3: Sequences cadences
-      await page.goto('/sequences');
-      await expect(page).toHaveURL(/.*sequences/);
+      await gotoRendered(page, '/sequences', /.*sequences/);
 
       // Step 4: Meetings
-      await page.goto('/meetings');
-      await expect(page).toHaveURL(/.*meetings/);
+      await gotoRendered(page, '/meetings', /.*meetings/);
     });
   });
 
@@ -155,20 +178,16 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
 
     test('SDR executes focused daily task queue and is gated from executive hubs', async ({ page }) => {
       // Step 1: Task Dashboard
-      await page.goto('/');
-      await expect(page).toHaveURL('/');
+      await gotoRendered(page, '/', '/');
 
       // Step 2: Leads pipeline
-      await page.goto('/leads');
-      await expect(page).toHaveURL(/.*leads/);
+      await gotoRendered(page, '/leads', /.*leads/);
 
       // Step 3: Meetings view
-      await page.goto('/meetings');
-      await expect(page).toHaveURL(/.*meetings/);
+      await gotoRendered(page, '/meetings', /.*meetings/);
 
       // Step 4: Unified Inbox
-      await page.goto('/inbox');
-      await expect(page).toHaveURL(/.*inbox/);
+      await gotoRendered(page, '/inbox', /.*inbox/);
 
       // Step 5: Director Cockpit Gated
       await page.goto('/director');
@@ -197,8 +216,7 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
 
     test('Leadgen Specialist auto-routes to /leadgen prospecting workbench', async ({ page }) => {
       // Step 1: Navigating to / auto-redirects to /leadgen
-      await page.goto('/');
-      await expect(page).toHaveURL(/.*leadgen/);
+      await gotoRendered(page, '/', /.*leadgen/);
 
       // Step 2: Gated from manager ecosystem
       await page.goto('/leadgen-manager');
@@ -222,8 +240,7 @@ test.describe('Role-Based E2E Persona Journeys & Navigation', () => {
     });
 
     test('Leadgen Manager has access to 7-tab database ecosystem', async ({ page }) => {
-      await page.goto('/leadgen-manager');
-      await expect(page).toHaveURL(/.*leadgen-manager/);
+      await gotoRendered(page, '/leadgen-manager', /.*leadgen-manager/);
 
       // Mirrors the TABS array in app/leadgen-manager/page.tsx. Importing is a
       // header action ("Import to Internal DB") that opens a modal, not a tab —

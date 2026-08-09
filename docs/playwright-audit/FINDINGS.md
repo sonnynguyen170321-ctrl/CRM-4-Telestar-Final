@@ -226,6 +226,38 @@ foreign id rather than by reading more code.
 
 ---
 
+## §48 — review of the pre-existing specs
+
+Asked of every assertion: *would this still pass if the feature were broken?*
+
+**`crm-journeys.spec.ts` — 29 assertions, 24 of them `toHaveURL`.** Eighty-three per cent of
+the file confirmed only that the browser navigated. A route whose every API call returned 500,
+or which rendered Next's error boundary, satisfied all of them; the file was a routing test
+wearing a persona-journey costume. Twenty-one of those navigations now go through
+`gotoRendered`, which additionally requires a visible `<h1>` and the absence of an error
+boundary. Safe to require: every route paints exactly one `<h1>` per
+`.claude/rules/brand-design.md`, verified across all 18 before the change.
+
+**`deep-smoke.spec.ts` — the comment and the assertion disagreed.** *"Every route should paint a
+heading"* sat above `expect(page.locator('body')).not.toBeEmpty()`, which the sidebar alone
+satisfies, so a route whose content died quietly still passed. It now asserts the heading it
+always claimed to.
+
+That change produced its own negative control by accident: sampling `isVisible()` once,
+immediately after `domcontentloaded`, reported five personas as broken because these pages
+fetch data client-side and the heading lands a beat later. Worth keeping — it proves the new
+assertion can actually fail, which is the whole question §48 asks.
+
+**Both files defaulted `E2E_PASSWORD` to `telestar2026`.** That string is published in this
+repository and is still live on every non-Director demo account on the deployed box, so a bare
+`npx playwright test` silently authenticated with a credential anyone can read — precisely what
+§1 forbids. The default is gone; both now fail loudly if the variable is unset.
+
+**`user-flow-31step.spec.ts` needed nothing** — 49 assertions, only 4 URL-only. It was rewritten
+under BUG-003 and is genuinely assertive.
+
+---
+
 ## Not defects — recorded so they are not re-investigated
 
 **The login form submits stale credentials when driven at machine speed.** Filling both fields
@@ -280,6 +312,7 @@ Run against a production build (`next build` + `next start -p 3000`).
 | 9a | §42 desktop gate at 1440 / 1024 / 900 | green |
 | 7d | §34 client reports, public share links, expiry, revocation, password, exports | green |
 | 7e | §16 work transfer (idempotent replay, concurrent, role gate) · §36 audit trail | green |
+| 9b | §48 review of the three pre-existing specs | 2 weaknesses fixed |
 
 ### What these confirmed working
 
