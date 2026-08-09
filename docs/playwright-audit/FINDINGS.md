@@ -250,6 +250,12 @@ Worth naming because both are the exact traps §48 warns about:
   (`lib/validation/schemas.ts:8`), so `parseBody` returned 400 *before* the authorization check
   ran. Accepting that 400 would have been a green test over a code path never exercised.
 
+**A vacuous audit-log test, caught by the failure of its neighbour.** `/api/admin/audit-log`
+projects `userId` to **`actorId`** in its response. Two tests read `userId`: the actor assertion
+failed loudly, but the cross-tenant leak check compared `undefined` against a set of ids and
+passed while checking nothing. It now asserts that rows exist *and* that at least one carries an
+`actorId`, so the same projection change cannot make it silently vacuous again.
+
 **CSP `script-src` reports `eval` on `/login` under `next dev`** — dev-mode source maps. Not
 reproduced on a production build. Tracked with the CSP enforcement work in
 `docs/pre-domain-hardening/STATUS.md` Task 8.
@@ -259,7 +265,7 @@ reproduced on a production build. Tracked with the CSP enforcement work in
 ## Coverage so far
 
 Run against a production build (`next build` + `next start -p 3000`).
-**124 tests, all passing, none skipped.**
+**131 tests, all passing, none skipped.**
 
 | Batch | Scope | Result |
 |---|---|---|
@@ -273,6 +279,7 @@ Run against a production build (`next build` + `next start -p 3000`).
 | 7c | §16 campaign-member impact gate (both doors) and pod-orphaning guard | green |
 | 9a | §42 desktop gate at 1440 / 1024 / 900 | green |
 | 7d | §34 client reports, public share links, expiry, revocation, password, exports | green |
+| 7e | §16 work transfer (idempotent replay, concurrent, role gate) · §36 audit trail | green |
 
 ### What these confirmed working
 
@@ -290,6 +297,10 @@ verified:
 - an SDR cannot approve their own client handoff; a director can
 - the "must not regress" 409 impact gate holds on **both** `/api/campaigns/[id]/members` and
   `/api/admin/assignments`, and deactivating a manager with active reports is refused
+- work transfer moves ownership, is genuinely idempotent on `requestId` replay, survives two
+  concurrent transfers without splitting the work, and refuses an SDR
+- admin mutations write an audit row naming actor, action, entity and timestamp; SDRs and Team
+  Leads cannot read the audit log; no tenant B activity appears in tenant A's
 - archive is a soft delete and the row restores
 
 ### Still to do
