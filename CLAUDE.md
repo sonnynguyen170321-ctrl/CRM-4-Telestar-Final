@@ -188,3 +188,53 @@ and `DOMAIN_MAP.md` in that directory.
 > The `audit` project's `testMatch` only covers those; the `chromium` project runs a hardcoded
 > three-file list. A spec at the `e2e/` root matches no project and silently never runs — which
 > is exactly what happened to `automation-journeys.spec.ts` before it moved.
+
+## 🔵 Telestar Revenue AI — ACTIVE initiative
+
+One shared agent runtime serving every role, not five AI systems. **Read
+`docs/revenue-ai/STATUS.md` first**, then execute the next unchecked item in
+`docs/revenue-ai/PLAN.md`. `ARCHITECTURE.md` there is the contract.
+
+Phase 0 (vocabulary normalization) is done. Next is Phase 1 — cost attribution plus a test that
+the CRM survives the AI subsystem being down.
+
+The operating model: **AI does the repetitive prospecting work, SDRs do the selling, managers
+manage exceptions and performance, the CRM keeps everything connected and controlled.**
+
+**Invariants that must not regress:**
+
+- The CRM owns truth; AI owns interpretation. No agent tool holds a Prisma client — every
+  mutation goes through a domain service that already enforces tenancy, permissions and audit.
+- **No second system.** One CRM, one sequence engine, one email pipeline, one permission model,
+  one tenancy mechanism, one audit trail, one reporting layer. `ARCHITECTURE.md` §9 is the reuse
+  map. A capability that seems to need its own path means the existing service needs a
+  parameter, not a twin.
+- **AI down must never mean CRM down.** True today only because nothing in the CRM calls
+  `lib/ai/`. Phase 1 makes it a tested property.
+- **Handoff to the SDR is automatic; handback to AI is not.** A meaningful reply moves a lead to
+  `human_attention` on its own. Nothing moves it out of `human_managed` except an explicit SDR
+  action — ghost detection produces eligibility and a recommendation, never an enrollment.
+- `human_managed` means "AI may not touch the prospect", not "AI off". Summaries, reply drafts,
+  objection help and meeting prep stay available to the SDR throughout.
+- Autonomy is **per capability**, never a scalar level, and lands before any write-capable tool.
+  `prospect_reply` is `human_only` at every setting.
+- The AI recommends, policy validates, automation executes. No agent rewrites the rules it runs
+  under — observation → recommendation → human approval → a new playbook *version*.
+- Anything deciding *when* an automated step runs calls `lib/automation/scheduling.ts`. An agent
+  proposing "resume after the OOO date" emits an intent; the engine computes the timestamp.
+
+**State model (decided — `ARCHITECTURE.md` §4):** three distinct axes. `Lead.stage` = sales
+lifecycle. `SequenceEnrollment.status` + `nextActionAt` / `pausedReason` / `currentStep` =
+**authoritative** execution lifecycle. `ProspectOperatingState` = who or what is responsible now.
+
+> ⚠️ **`Lead.sequenceStatus` is legacy compatibility cache, not truth.** It stays only because
+> 15 files already use it (~25 writes, ~20 reads, no constraint keeping it honest). **Add no new
+> reader and no new writer** — new logic branches on `SequenceEnrollment`. Where the two
+> disagree, the enrollment is right. Deprecation path in `ARCHITECTURE.md` §4.1.
+
+Operating-state transitions go through four domain services — `handoffProspectToHuman`,
+`markReengagementEligible`, `handbackProspectToAI`, `startAIReengagement` — each owning its
+Task, Notification, Activity, WorkOrder and cache-refresh consequences. No route, tool or worker
+writes the state column directly. `markReengagementEligible` is **inert**: badge and
+recommendation only, never a sequence, enrollment or external action. Handback builds a **new**
+approved follow-up; restarting the prior cold sequence is prohibited.

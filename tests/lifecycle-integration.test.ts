@@ -45,7 +45,7 @@ describe('Lifecycle Integration Tests (Phase 13 / Spec §35–39)', () => {
     mockEnrollmentUpdateMany.mockResolvedValue({ count: 1 });
     mockTaskUpdateMany.mockResolvedValue({ count: 1 });
 
-    await pauseSequence('lead-1', 'replied', 'user-1');
+    await pauseSequence('lead-1', 'reply', 'user-1');
 
     expect(mockLeadUpdate).toHaveBeenCalledWith({
       where: { id: 'lead-1' },
@@ -55,12 +55,35 @@ describe('Lifecycle Integration Tests (Phase 13 / Spec §35–39)', () => {
       where: { leadId: 'lead-1', sequenceId: 'seq-1', status: 'active' },
       data: expect.objectContaining({
         status: 'paused',
-        pausedReason: 'replied',
+        pausedReason: 'reply',
       }),
     });
   });
 
-  it('2. Hard bounce pauses active sequence run with pausedReason = bounced', async () => {
+  it('1b. Legacy reason from an in-flight job is normalized, not stored raw', async () => {
+    mockLeadFindUnique.mockResolvedValue({
+      id: 'lead-1b',
+      sequenceId: 'seq-1',
+      firstName: 'Alice',
+      lastName: 'Smith',
+    });
+    mockSequenceFindUnique.mockResolvedValue({ name: 'Outreach Cadence' });
+    mockLeadUpdate.mockResolvedValue({});
+    mockEnrollmentUpdateMany.mockResolvedValue({ count: 1 });
+    mockTaskUpdateMany.mockResolvedValue({ count: 1 });
+
+    // A SEQUENCE_PAUSE job queued before the vocabularies were collapsed still carries
+    // 'replied'. Storing it raw is what made the lead panel print the token instead of a
+    // label, so the write site has to translate rather than trust the caller.
+    await pauseSequence('lead-1b', 'replied', 'user-1');
+
+    expect(mockEnrollmentUpdateMany).toHaveBeenCalledWith({
+      where: { leadId: 'lead-1b', sequenceId: 'seq-1', status: 'active' },
+      data: expect.objectContaining({ pausedReason: 'reply' }),
+    });
+  });
+
+  it('2. Hard bounce pauses active sequence run with pausedReason = hard_bounce', async () => {
     mockLeadFindUnique.mockResolvedValue({
       id: 'lead-2',
       sequenceId: 'seq-1',
@@ -72,14 +95,34 @@ describe('Lifecycle Integration Tests (Phase 13 / Spec §35–39)', () => {
     mockEnrollmentUpdateMany.mockResolvedValue({ count: 1 });
     mockTaskUpdateMany.mockResolvedValue({ count: 1 });
 
-    await pauseSequence('lead-2', 'bounced', 'system');
+    await pauseSequence('lead-2', 'hard_bounce', 'system');
 
     expect(mockEnrollmentUpdateMany).toHaveBeenCalledWith({
       where: { leadId: 'lead-2', sequenceId: 'seq-1', status: 'active' },
       data: expect.objectContaining({
         status: 'paused',
-        pausedReason: 'bounced',
+        pausedReason: 'hard_bounce',
       }),
+    });
+  });
+
+  it('2b. Soft bounce is stored distinctly from a hard bounce', async () => {
+    mockLeadFindUnique.mockResolvedValue({
+      id: 'lead-2b',
+      sequenceId: 'seq-1',
+      firstName: 'Bob',
+      lastName: 'Jones',
+    });
+    mockSequenceFindUnique.mockResolvedValue({ name: 'Outreach Cadence' });
+    mockLeadUpdate.mockResolvedValue({});
+    mockEnrollmentUpdateMany.mockResolvedValue({ count: 1 });
+    mockTaskUpdateMany.mockResolvedValue({ count: 1 });
+
+    await pauseSequence('lead-2b', 'soft_bounce', 'system');
+
+    expect(mockEnrollmentUpdateMany).toHaveBeenCalledWith({
+      where: { leadId: 'lead-2b', sequenceId: 'seq-1', status: 'active' },
+      data: expect.objectContaining({ pausedReason: 'soft_bounce' }),
     });
   });
 

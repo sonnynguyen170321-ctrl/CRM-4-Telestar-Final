@@ -42,7 +42,12 @@ export interface SequenceAdvancePayload {
 
 export interface SequencePausePayload {
   leadId: string;
-  reason: 'replied' | 'bounced' | 'meeting_booked';
+  /**
+   * A `PausedReason` from `@/lib/automation/types`. Typed as `string` because jobs queued
+   * before the vocabularies were collapsed still carry `replied` / `bounced`; `pauseSequence`
+   * normalizes at the write site rather than rejecting them.
+   */
+  reason: string;
   userId: string;
 }
 

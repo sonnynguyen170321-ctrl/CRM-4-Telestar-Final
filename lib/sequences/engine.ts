@@ -1,5 +1,10 @@
 import { prisma } from '@/lib/prisma';
 import type { Lead, Sequence, SequenceStep, Task } from '@prisma/client';
+import {
+  PAUSED_REASON_LABELS,
+  normalizePausedReason,
+  type PausedReason,
+} from '@/lib/automation/types';
 import { enqueue } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
 
@@ -187,14 +192,11 @@ export async function advanceSequence(
   }
 }
 
-export type PauseReason = 'replied' | 'bounced' | 'meeting_booked' | 'manual';
-
-const PAUSE_DESCRIPTIONS: Record<PauseReason, string> = {
-  replied: 'lead replied',
-  bounced: 'email bounced',
-  meeting_booked: 'meeting booked',
-  manual: 'manually paused',
-};
+/**
+ * @deprecated Use `PausedReason` from `@/lib/automation/types`. Retained only so callers
+ * that still import this name keep compiling; it is the same type.
+ */
+export type PauseReason = PausedReason;
 
 /**
  * Pause a lead's sequence run: mark paused, skip its pending sequence tasks,
@@ -202,9 +204,13 @@ const PAUSE_DESCRIPTIONS: Record<PauseReason, string> = {
  */
 export async function pauseSequence(
   leadId: string,
-  reason: PauseReason,
+  reason: PausedReason | string,
   actorUserId: string
 ): Promise<void> {
+  // Single write site for pausedReason, so a legacy caller or an in-flight BullMQ job
+  // carrying the old payload shape still lands on a token the UI can render.
+  const pausedReason = normalizePausedReason(reason);
+
   const lead = await prisma.lead.findUnique({
     where: { id: leadId },
     select: { id: true, sequenceId: true, firstName: true, lastName: true },
@@ -220,7 +226,7 @@ export async function pauseSequence(
     where: { leadId, sequenceId: lead.sequenceId, status: 'active' },
     data: {
       status: 'paused',
-      pausedReason: reason,
+      pausedReason,
       lastTransitionAt: new Date(),
     },
   });
@@ -242,8 +248,8 @@ export async function pauseSequence(
       userId: actorUserId,
       leadId,
       type: 'sequence_unenrolled',
-      description: `Sequence "${sequence?.name ?? lead.sequenceId}" paused — ${PAUSE_DESCRIPTIONS[reason]}`,
-      metadata: { sequenceId: lead.sequenceId, reason, paused: true },
+      description: `Sequence "${sequence?.name ?? lead.sequenceId}" paused — ${PAUSED_REASON_LABELS[pausedReason]}`,
+      metadata: { sequenceId: lead.sequenceId, reason: pausedReason, paused: true },
     },
   });
 }
@@ -257,6 +263,12 @@ export async function pauseSequence(
  *
  * Locked tasks are left alone: the send cron has claimed them and is mid-flight.
  * The count of those is returned so the caller can tell the admin to re-run.
+ *
+ * `reason` here is the admin's free-text justification and lands on `Task.outcome`. The
+ * enrollment's `pausedReason` is `manual` regardless: an operator removing a campaign member
+ * is a manual pause whatever they typed in the box. Leaving it null — as this did until the
+ * vocabularies were collapsed — made bulk-paused runs the only ones the lead panel could not
+ * explain.
  */
 export async function pauseSequencesBulk(
   leadIds: string[],
@@ -291,7 +303,7 @@ export async function pauseSequencesBulk(
 
     await prisma.sequenceEnrollment.updateMany({
       where: { leadId: { in: chunk }, status: 'active' },
-      data: { status: 'paused' },
+      data: { status: 'paused', pausedReason: 'manual', lastTransitionAt: new Date() },
     });
   }
 

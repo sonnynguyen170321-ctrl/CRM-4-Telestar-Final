@@ -180,7 +180,7 @@ export async function PUT(
 
       if (body.stage === 'replied') {
         if (!isCurrentlyPaused) {
-          writes.push(pauseSequence(id, 'replied', user.id));
+          writes.push(pauseSequence(id, 'reply', user.id));
           if (existing.assignedToId) {
             writes.push(
               prisma.notification.create({

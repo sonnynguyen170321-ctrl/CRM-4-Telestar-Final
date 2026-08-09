@@ -219,7 +219,7 @@ export async function handleApplyReply(payload: EmailApplyReplyPayload) {
     data: { stage: 'replied', emailReplyCount: { increment: 1 } },
   });
 
-  await pauseSequence(leadId, 'replied', lead.assignedToId ?? accountId);
+  await pauseSequence(leadId, 'reply', lead.assignedToId ?? accountId);
 
   // Two activities on purpose: `stage_changed` drives the pipeline views, while
   // `email_replied` is the channel-level signal that reporting aggregates on.
@@ -335,7 +335,7 @@ export async function handleApplyBounce(payload: EmailApplyBouncePayload) {
   }
 
   if (lead.sequenceId) {
-    await pauseSequence(leadId, 'bounced', lead.assignedToId ?? accountId);
+    await pauseSequence(leadId, isHard ? 'hard_bounce' : 'soft_bounce', lead.assignedToId ?? accountId);
   }
 
   await prisma.notification.create({
