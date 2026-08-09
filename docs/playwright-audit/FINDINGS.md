@@ -179,15 +179,43 @@ reproduced on a production build. Tracked with the CSP enforcement work in
 
 ## Coverage so far
 
+Run against a production build (`next build` + `next start -p 3000`).
+**113 tests, 112 passing, 1 `fixme` (PW-AUDIT-005).**
+
 | Batch | Scope | Result |
 |---|---|---|
-| 0 | Harness: 9 storage states, recorders, fixture, config | 9/9 |
+| 0 | Harness: 9 storage states, recorders, two-tenant fixture, config | green |
 | 1 | §6 authentication — 6 roles, invalid login, enumeration, logout, unauthenticated access | green |
 | 1b | §6 session revocation — deactivate, sign-out-all, role change, password reset | green |
 | 2 | §7 RBAC — admin edge gate, pool roles, import/export, manager reads (UI **and** API) | green |
 | 3 | §8 IDOR between two SDRs, §9 tenant isolation across two tenants | green |
+| 7a | §13/§47 lead CRUD, notes, reminders, reassignment scope, soft-delete, §46 create race | green |
+| 7b | §31–§33 meeting → outcome → opportunity → handoff, incl. concurrent double-submit | green |
+| 7c | §16 campaign-member impact gate (both doors) and pod-orphaning guard | green |
+| 9a | §42 desktop gate at 1440 / 1024 / 900 | green |
 
-**91 tests, 90 passing, 1 `fixme` (PW-AUDIT-005), run against a production build.**
+### What these confirmed working
 
-Not yet run: §10, §13–§18, §30–§36 (CRUD surfaces), §40–§48 (cross-cutting).
+Worth stating positively, because an audit that only lists defects reads as if nothing was
+verified:
+
+- an SDR cannot read, edit, note, task or remind on a teammate's lead in a **shared campaign**,
+  while their team lead can reach both — the account axis is a manager privilege and does not
+  widen an SDR
+- tenant A cannot read or mutate tenant B leads, users, campaigns or mailboxes by direct id
+- `authVersion` revocation works for deactivation, sign-out-all, role change and password reset
+- Team Lead is correctly excluded from import/export while an SDR is not
+- a qualified meeting creates **exactly one** opportunity, and neither re-logging nor two
+  concurrent submissions duplicate it — the chain BUG-003 found untested
+- an SDR cannot approve their own client handoff; a director can
+- the "must not regress" 409 impact gate holds on **both** `/api/campaigns/[id]/members` and
+  `/api/admin/assignments`, and deactivating a manager with active reports is refused
+- archive is a soft delete and the row restores
+
+### Still to do
+
+Not blocked on anything: §10 dashboard KPI verification, §15 campaigns/clients, §16 work
+transfer, §34 client reports and share links, §36 audit log, §40 filters and pagination,
+§41 dialog accessibility, §48 the review of the pre-existing specs.
+
 Blocked on Redis: §19, §20, §23, §25–§29, §37–§39 and journeys C/H.
