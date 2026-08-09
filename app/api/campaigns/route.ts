@@ -126,6 +126,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Client is required' }, { status: 400 });
   }
 
+  // `clientId` is caller-supplied and nothing else checks it. Without this, a manager in one
+  // tenant could name another tenant's client and the campaign was created — verified before
+  // the fix: a tenant A floor manager posting tenant B's client id got **201**, and the row
+  // landed with `tenantId` of tenant A and `clientId` of tenant B.
+  //
+  // Nothing leaked back to the attacker (the new campaign has no members, so it never appears
+  // in their own scoped list), but tenant B then saw a foreign campaign listed under their own
+  // client — records injected across the boundary, and any per-client aggregate quietly mixing
+  // two tenants.
+  //
+  // The read below is tenant-scoped by the extension in `lib/prisma.ts`, so a client belonging
+  // to anyone else simply does not resolve. 404 rather than 403 on purpose: whether an id
+  // exists in another tenant is itself information.
+  const clientInTenant = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { id: true },
+  });
+  if (!clientInTenant) {
+    return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+  }
+
   try {
     const campaign = await prisma.campaign.create({
       data: {

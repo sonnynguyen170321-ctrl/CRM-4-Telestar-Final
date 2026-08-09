@@ -109,6 +109,46 @@ Recorded because each looked like a finding:
 
 ---
 
+### PW-AUDIT-008 — a campaign could be created against another tenant's client
+
+| | |
+|---|---|
+| **Severity** | **P1** — cross-tenant write; records injected into another tenant's view |
+| **Status** | **Fixed.** Regression test green. |
+| **Files** | `app/api/campaigns/route.ts` |
+| **Test** | `e2e/admin/clients-and-campaigns.spec.ts` → *a campaign cannot be created against another tenant client* |
+
+`POST /api/campaigns` takes `clientId` from the caller and nothing checked it. A tenant A floor
+manager posting tenant B's client id got **201**, and the row landed with `tenantId` of tenant A
+and `clientId` of tenant B:
+
+```
+create against tenant B client -> 201
+created campaign id: cmslpjsku05pb… clientId: pw-audit-client-b tenantId: pw-audit-tenant-a
+```
+
+**The leak runs in the direction that is easy to miss.** Nothing came back to the attacker — the
+new campaign has no members, so `getVisibleCampaignIds` correctly keeps it out of their own
+list, and a test that only checked the attacker's view would have called this clean. The damage
+shows up on the victim's side: tenant B reading *their own client* saw campaigns they never
+created listed under it.
+
+```
+campaigns listed: ['PW_AUDIT_CAMPAIGN_B', 'PW_AUDIT_CROSS_1786274199389953', 'PW_AUDIT_CROSS_1786274219064']
+```
+
+So the boundary held for reads and failed for writes, and any per-client aggregate — a client
+report being the obvious one — was quietly summing across two tenants.
+
+**Fix:** resolve the client through the tenant-scoped client before creating the campaign; a
+client belonging to anyone else simply does not resolve. **404 rather than 403** deliberately —
+whether an id exists in another tenant is itself information.
+
+The regression test asserts from **both** sides: the create is refused, *and* the victim tenant's
+client does not list the attempted campaign. Status alone was never the property.
+
+---
+
 ### PW-AUDIT-005 — sign-out did not end the session (supersedes PW-AUDIT-003)
 
 | | |
@@ -297,7 +337,7 @@ reproduced on a production build. Tracked with the CSP enforcement work in
 ## Coverage so far
 
 Run against a production build (`next build` + `next start -p 3000`).
-**146 tests, all passing, none skipped.**
+**154 tests, all passing, none skipped.**
 
 | Batch | Scope | Result |
 |---|---|---|
@@ -315,6 +355,7 @@ Run against a production build (`next build` + `next start -p 3000`).
 | 9b | §48 review of the three pre-existing specs | 2 weaknesses fixed |
 | 9c | §40 filters, search, limits — scope containment and combination | green |
 | 10 | §10 dashboard counters verified against the records behind them | green |
+| 11 | §15 clients and campaigns — write gates, read scoping, cross-tenant write | **1 P1 found** |
 
 ### What these confirmed working
 
@@ -350,7 +391,7 @@ verified:
 
 ### Still to do
 
-Not blocked on anything: §15 campaigns/clients, §41 dialog accessibility, and the remaining
-lead-detail quick actions in §14.
+Not blocked on anything: §41 dialog accessibility, and the remaining lead-detail quick actions
+in §14.
 
 Blocked on Redis: §19, §20, §23, §25–§29, §37–§39 and journeys C/H.
