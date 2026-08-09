@@ -2,110 +2,140 @@
 
 > Contract: [`ARCHITECTURE.md`](ARCHITECTURE.md). Resume pointer: [`STATUS.md`](STATUS.md).
 
-Ten phases, reshaped from a twenty-item proposal. The reshaping is deliberate: phases 13–20 of
-the original list all depended on 3–12 landing correctly, and none of them was independently
-shippable or independently testable. Each phase below ends in something a user can use or a
-test can assert.
+## The model this plan builds
 
-**Every phase must leave the gates green** — `tsc --noEmit`, `eslint app components lib context
-tests`, `vitest run`, and the automation E2E specs.
+```text
+AI          does the repetitive prospecting work
+SDR         does the selling
+Managers    manage exceptions and performance
+CRM         keeps everything connected and controlled
+Automation  schedules and sends, safely
+```
+
+Ownership changes hands twice per prospect, and only one of those transitions is automatic:
+a meaningful reply moves a lead to the SDR; **only the SDR moves it back.** The full loop is
+[ARCHITECTURE §4a](ARCHITECTURE.md).
+
+Ten phases, reshaped from a twenty-item proposal, because phases 13–20 of that list all
+depended on 3–12 landing and none was independently shippable. Each phase below ends in
+something a user can use or a test can assert.
+
+## Rules that bind every phase
+
+1. **Gates stay green** — `tsc --noEmit`, `eslint app components lib context tests`,
+   `vitest run`, and the automation E2E specs.
+2. **Nothing gets a twin.** Each phase's acceptance includes: the capability is wired to a
+   service in the [reuse map](ARCHITECTURE.md) and adds no parallel CRM, sequence, email,
+   permission, tenancy, audit or reporting path.
+3. **Existing behaviour is preserved.** Tenant boundaries, role permissions, the campaign-member
+   impact gate, suppression, quota and mailbox-health guards, and the current SDR workflows
+   keep working exactly as they do now. A phase that changes one of them is a bug in the phase.
+4. **AI is additive.** Every phase must leave the CRM fully functional with the AI subsystem
+   switched off.
 
 ---
 
 ## Phase 0 — Vocabulary normalization ✅ complete
 
-The paused-reason vocabularies had diverged three ways and one of them was user-visible.
+Prerequisite: the pause vocabulary the whole lifecycle reads had diverged three ways.
 
-- [x] One `PausedReason` type, one `PAUSED_REASON_LABELS` map, one `normalizePausedReason`
-      at the single write site — [`lib/automation/types.ts`](../../lib/automation/types.ts)
-- [x] `pauseSequence` normalizes whatever a caller passes, so an in-flight BullMQ job carrying
-      the old payload cannot reintroduce an unrenderable token
+- [x] One `PausedReason`, one `PAUSED_REASON_LABELS`, one `normalizePausedReason` at the single
+      write site — [`lib/automation/types.ts`](../../lib/automation/types.ts)
 - [x] Bounce callers distinguish `hard_bounce` from `soft_bounce`
-- [x] `pauseSequencesBulk` writes `pausedReason: 'manual'` — it previously wrote none, making
-      bulk-paused runs the only ones the lead panel could not explain
-- [x] `LeadDetailPanel` renders the shared map instead of its own copy
-- [x] `20260809230000_normalize_paused_reason` remaps existing rows
+- [x] `pauseSequencesBulk` writes `pausedReason: 'manual'` (it previously wrote none)
+- [x] `LeadDetailPanel` renders the shared map; `20260809230000_normalize_paused_reason` remaps
+      existing rows
 
-**Acceptance:** a reply-paused enrollment renders "Paused — prospect replied", not
-"Paused — replied". Pinned by `tests/lifecycle-integration.test.ts` cases 1, 1b, 2, 2b.
+**Acceptance:** a reply-paused enrollment renders "Paused — prospect replied". Pinned by
+`tests/lifecycle-integration.test.ts` 1, 1b, 2, 2b.
 
 ---
 
-## Phase 1 — Cost attribution and the AI-optional test
+## Phase 1 — Cost attribution + proof that AI is optional
 
-Prerequisite for every budget, every cost report, and invariant 2.
+Prerequisite for every budget and every cost figure, and for rule 4 above.
 
-- [ ] `provider.ts` records tokens in, tokens out, model, latency and computed cost per call
-- [ ] `AiCall` table: tenant, user, purpose, model, tokens, cost, `workOrderId?`, `createdAt`
-- [ ] A test asserting the CRM's core paths — sequence execution, reply processing, email send,
-      task completion — run to green with the AI subsystem unavailable
+- [ ] `provider.ts` records tokens in/out, model, latency, computed cost per call
+- [ ] `AiCall`: tenant, user, purpose, model, tokens, cost, `workOrderId?`, `createdAt`
+- [ ] A test asserting sequence execution, reply processing, email send and task completion all
+      pass with the AI subsystem unavailable
 
-**Acceptance:** cost per call is queryable by tenant, user and purpose; disabling AI fails no
-CRM test.
+**Acceptance:** cost is queryable by tenant, user and purpose. Disabling AI fails no CRM test.
+No new reporting pipeline — costs surface through `client-reports`/`analytics` in Phase 10.
 
 ---
 
 ## Phase 2 — Capability-based autonomy
 
-Before any write-capable agent tool exists. Retrofitting permissions onto tools that already
-write is how a policy flag ends up ignored by four code paths.
+Lands **before** any write-capable tool. Retrofitting permissions onto tools that already write
+is how a policy flag ends up ignored by four code paths.
 
-- [ ] `AgentCapability` enum: `research`, `notes`, `tasks`, `reminders`, `sequence_draft`,
-      `sequence_enroll`, `send_window_change`, `prospect_reply`, `reengagement`, …
+- [ ] `AgentCapability`: `research`, `notes`, `tasks`, `reminders`, `summarize`, `draft_reply`,
+      `objection_help`, `meeting_prep`, `sequence_draft`, `sequence_enroll`,
+      `send_window_change`, `reengagement_propose`, `reengagement_activate`, `prospect_reply`
 - [ ] `AutonomyPolicy` per tenant × role × capability →
       `auto | approval | manager_approval | human_only`
-- [ ] Defaults: research/notes/tasks/reminders `auto`; `sequence_enroll` `approval`;
-      `send_window_change` `manager_approval`; `prospect_reply` `human_only`
-- [ ] Enforcement in one place, on the pattern of
-      [`lib/sequences/permissions.ts`](../../lib/sequences/permissions.ts)
+- [ ] Defaults: research/notes/tasks/reminders/summarize/`draft_reply`/`objection_help`/
+      `meeting_prep` → `auto`; `sequence_enroll` and `reengagement_activate` → `approval`;
+      `send_window_change` → `manager_approval`; `prospect_reply` → `human_only`
+- [ ] Enforcement in one place, on the pattern of `lib/sequences/permissions.ts`, layered
+      **on top of** existing role checks — never replacing them
 
-**Acceptance:** a tool call whose capability resolves to `approval` cannot write; it produces a
-pending approval. Covered per capability, not once.
+**Acceptance:** a capability resolving to `approval` cannot write; it produces a pending
+approval. `prospect_reply` is unreachable at every autonomy setting. Existing role gates still
+deny what they denied before.
 
 ---
 
 ## Phase 3 — State model: collapse the mirror, then add operating state
 
-**Do not add the field before resolving the mirror.** See ARCHITECTURE §4.
+**The decision blocks this phase, not the implementation.** See ARCHITECTURE §4.
 
-- [ ] Decide: make `Lead.sequenceStatus` a derived read of `SequenceEnrollment.status`, or
-      declare the enrollment authoritative and the lead column a cache with a stated refresh
-      point. Write the decision down.
-- [ ] Then add `ProspectOperatingState` with the ten states, defaulting from existing data
-- [ ] Transition function — states change through one function that writes an Activity, never
-      by an ad-hoc `update`
+- [ ] Decide: `Lead.sequenceStatus` becomes derived, or the enrollment is authoritative and the
+      column is an explicitly-refreshed cache. Write the decision down.
+- [ ] Then add `ProspectOperatingState` with the ten states, defaulted from existing data
+- [ ] One transition function. It writes an `Activity` (existing table) on every change; no path
+      updates the column directly
+- [ ] `human_managed` never transitions to an AI-owned state except through the Phase 8 handback
 
-**Acceptance:** every operating-state transition is reconstructible from the activity feed;
-no path writes the field directly.
+**Acceptance:** every transition is reconstructible from the activity feed. A test asserts no
+code path can move a lead out of `human_managed` without an explicit SDR action.
 
 ---
 
 ## Phase 4 — CampaignPlaybook + versioning
 
-The highest-leverage item in the proposal, and the cheapest to start: rows can be authored and
-read by humans before any agent consumes them.
+Highest leverage, cheapest start: rows can be authored and read by humans before any agent
+consumes them.
 
 - [ ] `CampaignPlaybook`: ICP, personas, value prop, research depth, allowed channels, sequence
       strategy, personalization policy, allowed CTAs, send-window policy, reply handling, OOO
-      handling, ghost thresholds, reengagement strategy, handoff SLA
+      handling, **ghost thresholds per situation**, reengagement strategy, handoff SLA
 - [ ] `CampaignPlaybookVersion`: version, rules, `createdBy`, `approvedBy`, `createdAt`
 - [ ] Every agent action records the playbook version it ran under
+- [ ] Ghost thresholds are policy, never constants: positive reply waiting ≠ proposal sent ≠
+      meeting no-show ≠ post-demo
 
-**Acceptance:** "did reply rate improve after v4?" is answerable by query, not by memory.
+**Acceptance:** "did reply rate improve after v4?" is a query. No playbook version exists
+without an `approvedBy`. Send-window policy in a playbook is applied *by the automation engine*,
+not by an agent.
 
 ---
 
 ## Phase 5 — Agent runtime, typed tools, idempotent actions
 
-- [ ] Runtime resolves role → capabilities → tool subset; composes the prompt per
-      ARCHITECTURE §6
-- [ ] Tools are business-level and encode CRM semantics: `handoff_lead_to_sdr()`, not
-      `updateLead()` + `createTask()` + `createNotification()`. No `raw_prisma_query`.
+- [ ] Runtime resolves role → capabilities → tool subset; composes the prompt per ARCHITECTURE §6
+- [ ] Tools encode CRM semantics — `handoff_lead_to_sdr()`, not `updateLead()` +
+      `createTask()` + `createNotification()`. No `raw_prisma_query`. **No tool holds a Prisma
+      client**; each calls a domain service from the reuse map.
 - [ ] Every mutation carries `actionKey` (e.g. `workOrder:123:lead:456:create-initial-call`);
       a retry finds the prior success
-- [ ] `agent` queue with SLA priorities; bulk research cannot delay a handoff
+- [ ] `agent` queue on the existing BullMQ setup with SLA priorities — prospect reply and
+      meeting request outrank an interactive SDR command, which outranks work-order execution,
+      which outranks bulk research
 
-**Acceptance:** replaying any agent job produces no duplicate CRM rows.
+**Acceptance:** replaying any agent job creates no duplicate CRM rows. Bulk research never
+delays a handoff. A grep for `prisma.` inside the tool layer returns nothing.
 
 ---
 
@@ -113,98 +143,146 @@ read by humans before any agent consumes them.
 
 - [ ] Types: `prospect_batch`, `research_batch`, `sequence_design`, `outreach_launch`,
       `followup`, `reengagement`, `reply_review`, `campaign_analysis`, `lead_quality_analysis`
-- [ ] Each type declares its allowed capabilities — the type is what bounds tool access
-- [ ] Budgets per ARCHITECTURE §9; exhaustion pauses and reports partial completion
-- [ ] Concurrency rule: a lead cannot be under two competing work orders. Check active agent
-      work, current sequence, and operating state before activation.
+- [ ] The type declares allowed capabilities — the type is what bounds tool access
+- [ ] Budgets: `researchBudget`, `tokenBudget`, `maxToolCalls`, `maxExecutionDuration`.
+      Exhaustion pauses and reports partial completion; never a silent overspend
+- [ ] Concurrency: a lead cannot sit under two competing work orders. Check active agent work,
+      current sequence, and operating state before activation
 - [ ] Agent lease (`workOrderId`, `leadId`, `mode`, `claimedAt`, `expiresAt`) — execution
-      protection only, never sales ownership
+      protection only. **Not sales ownership**; assignment stays `Lead.assignedToId`
 
-**Acceptance:** activating a conflicting work order is refused with the conflict named.
+**Acceptance:** activating a conflicting work order is refused with the conflict named. A lease
+never changes who the CRM says owns the lead.
 
 ---
 
 ## Phase 7 — Knowledge retrieval and structured research
 
 - [ ] Split `lib/ai/sdr-skills.md` into `skills/{cold-email,cold-call,qualification,
-      objection-handling,meeting-booking,research,personalization,reengagement}.md`
-- [ ] Retrieve by relevance; never load the whole set
-- [ ] `CompanySignal` / `AccountPainHypothesis` / `PersonalizationHook` with source,
+      objection-handling,meeting-booking,research,personalization,reengagement}.md`;
+      retrieve by relevance, never load the set
+- [ ] `CompanySignal` / `AccountPainHypothesis` / `PersonalizationHook`, each with source,
       `observedAt`, confidence
-- [ ] Account-level research cache keyed on `Account`; contact research separate
+- [ ] Account-level research cache keyed on the existing `Account` model; contact research
+      separate on `Contact`
 
 **Acceptance:** 20 leads at one account trigger one account research pass. Generated copy cites
-stored evidence rows.
+stored evidence rows rather than recalling facts.
 
 ---
 
-## Phase 8 — Read-only agents: Leadgen and SDR research
+## Phase 8 — The prospecting loop
 
-First user-facing agents. No writes beyond `auto` capabilities.
+The core of the operating model. Everything before this was scaffolding.
 
-- [ ] Leadgen: company/contact research, qualification, dedup detection, ICP evaluation
-- [ ] SDR: research, prioritization, notes, tasks, reminders
-- [ ] Hybrid prioritization — deterministic scoring first
-      ([`lib/ai/scoring.ts`](../../lib/ai/scoring.ts) already exists), AI explains and refines
-      the top slice rather than rating every lead
+### 8a — AI does the repetitive work (`ai_managed`)
 
-**Acceptance:** an SDR can run a full day without the agent writing anything requiring approval.
+- [ ] Leadgen agent: company/contact research, qualification, dedup, ICP evaluation — reading
+      and writing through `lib/leadgen/*`
+- [ ] SDR agent: research, prioritization, notes, tasks, reminders
+- [ ] Hybrid prioritization — deterministic scoring first (`lib/ai/scoring.ts` already exists),
+      AI explains and refines the top slice rather than rating every lead
+- [ ] Personalization drafts sequence content; **activation goes through the existing approval
+      path and the automation engine sends**
+
+### 8b — Handoff on a meaningful reply
+
+- [ ] Reply classes A–D (ARCHITECTURE §5) routed inside `handleApplyReply` — the single existing
+      chokepoint, not a new listener
+- [ ] Class A stops and suppresses via the existing `SuppressionEntry` path, no SDR interrupt
+- [ ] Class B proposes a dated resume; the date comes from `calculateNextActionAt`
+- [ ] Class C → `human_attention` + handoff package: why AI contacted them, campaign, messages
+      sent, the reply, AI's reading, research, recommended objective, suggested response,
+      suggested call questions
+- [ ] Class D → human review; low confidence never drives automation
+- [ ] SLA timestamps `handoffCreatedAt`, `humanOpenedAt`, `humanFirstActionAt`
+
+### 8c — AI assists while the SDR owns the conversation (`human_managed`)
+
+`human_managed` means "AI may not touch the prospect", not "AI off".
+
+- [ ] Thread summarization
+- [ ] Reply drafting — always into the SDR's composer, never sent
+- [ ] Objection handling support, grounded in the objection actually raised
+- [ ] Call prep and meeting prep from account + contact intelligence
+- [ ] Automatic CRM note capture after logged calls and meetings
+
+### 8d — Ghost, then handback
+
+- [ ] Ghost eligibility from the playbook threshold for that situation; produces a badge and a
+      recommendation, **never an enrollment**
+- [ ] AI proposes a re-engagement plan reading prior interest, the objection, the unanswered
+      question, the last human message, meeting history and any promised follow-up
+- [ ] SDR hands the lead back with one action; that action is what activates the plan
+- [ ] Activation runs through `createTaskForStep` / the normal enrollment path — a re-engagement
+      sequence is a sequence
+
+**Acceptance:** an OOO creates no SDR task; a pricing question creates an urgent one. No code
+path enrolls a `human_managed` lead. "Just following up" cannot be produced — a re-engagement
+draft with no cited prior context is rejected. Median handoff response time is queryable.
 
 ---
 
-## Phase 9 — Reply classification and the handoff experience
+## Phase 9 — Role surfaces, exception-driven
 
-- [ ] Classes A–D per ARCHITECTURE §5, routed inside `handleApplyReply` — the single chokepoint
-- [ ] Class B resume dates go through `calculateNextActionAt`
-- [ ] Handoff package: why AI contacted them, campaign, messages sent, the reply, AI's reading,
-      research, recommended objective, suggested response, suggested call questions
-- [ ] Handoff SLA timestamps: `handoffCreatedAt`, `humanOpenedAt`, `humanFirstActionAt`
+Each role gets support scoped to what that role is responsible for. All four read existing
+metrics modules; none gets its own query layer.
 
-**Acceptance:** an OOO reply creates no SDR task; a pricing question creates an urgent one.
-Median handoff response time is queryable.
+- [ ] **SDR** — managed count, what needs you (replies, calls, objections), what AI did today,
+      risks. No queue or worker vocabulary anywhere in it.
+- [ ] **Team Lead** — exceptions only: untouched positive replies past SLA, overdue calls, stuck
+      prospects, follow-up gaps, coaching candidates
+- [ ] **Floor Manager** — campaign health, capacity variance ("expected 610, sent 432" with the
+      deferral/health/window/suppression breakdown, all of which the automation engine already
+      records), mailbox health, bottlenecks
+- [ ] **Leadgen Manager** — supply quality: ICP adherence, duplicate rate, enrichment quality,
+      contactability, rejection reasons with the source-vs-behaviour split
+- [ ] **Director** — prospects worked, replies, meetings, opportunities, AI cost, cost per
+      meeting, campaigns at risk
+
+**Acceptance:** every surface lists exceptions, not healthy volume. Every number traces to
+`client-reports`, `sequences/analytics`, `email-health` or `leadgen/metrics`. Role scoping uses
+the existing pod/permission helpers — a Team Lead sees their pod and no more.
 
 ---
 
-## Phase 10 — Management surfaces and approved learning
+## Phase 10 — Approved learning
 
-- [ ] Team Lead: exception list — untouched positive replies, overdue calls, stuck prospects,
-      follow-up gaps, coaching candidates
-- [ ] Floor Manager: campaign health, capacity variance ("expected 610, sent 432, here is the
-      breakdown"), mailbox health, bottlenecks
-- [ ] Director: prospects worked, replies, meetings, opportunities, AI cost, cost per meeting,
-      campaigns at risk
-- [ ] Learning: outcomes collected as evidence; periodic **proposals** to change a playbook,
-      approved by a manager, creating a new version. Never a silent rewrite.
+- [ ] Outcome signals collected as evidence: draft accepted, draft heavily edited, prospect
+      replied, meeting booked, lead rejected, research marked irrelevant
+- [ ] Periodic **proposals** — "operational-efficiency hooks produced 17% higher positive reply
+      rate for logistics CFOs; suggested playbook change" — approved by a manager, creating a
+      new playbook version
+- [ ] Sequence-version awareness in reporting: variants are not aggregated as if identical
 
-**Acceptance:** every management surface lists exceptions, not healthy volume. No playbook
-version exists without an `approvedBy`.
+**Acceptance:** no playbook version exists without an `approvedBy`. No agent writes its own
+policy.
 
 ---
 
 ## Golden E2E journey
 
-The eventual defining test, once phases 1–10 land:
+The defining test once 1–10 land:
 
 ```text
 Leadgen sources lead → AI verifies ICP → qualified → SDR receives → AI researches
 → AI proposes outreach → approved → automation executes cadence → prospect replies
 → cold outreach stops → AI classifies → SDR handoff → SDR responds → prospect ghosts
-→ reengagement eligible → SDR approves AI follow-up → new sequence → meeting booked
-→ automation ends → opportunity created
+→ reengagement eligible → SDR hands back → AI plans follow-up → new sequence
+→ meeting booked → automation ends → opportunity created
 ```
 
-Evaluation must assert business behaviour, not classifier accuracy alone: did cold outreach
-stop, did the right SDR get the right task, was duplicate work avoided, were tenant boundaries
-held, was the correct playbook version applied.
+Assert business behaviour, not classifier accuracy: did cold outreach stop, did the right SDR
+get the right task, was duplicate work avoided, were tenant boundaries held, was the correct
+playbook version applied, did anything enroll a human-managed lead.
 
 ---
 
 ## Operating restrictions
 
-Inherited and still in force for this whole initiative:
-
 - No external users, no real client data, live sequence sending off, email in dry-run
 - Manual Cloud SQL backup before every migration
 - Never `prisma migrate reset` or a destructive seed against a remote database
-- Level 4 autonomy (AI-managed two-way prospect conversations) is **out of scope**. Not a
-  later phase of this plan — a separate decision with its own risk review.
+- **Level 4 autonomy — AI-managed two-way prospect conversations — is out of scope.** Not a
+  later phase of this plan; a separate decision with its own risk review. `prospect_reply`
+  stays `human_only` throughout.

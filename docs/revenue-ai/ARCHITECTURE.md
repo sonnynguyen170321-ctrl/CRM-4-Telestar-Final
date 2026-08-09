@@ -79,6 +79,16 @@ client of its own.
    `lib/automation/scheduling.ts`. An agent proposing "resume after the OOO return date" emits
    an intent; the engine computes the timestamp.
 
+8. **No second system.** There is one CRM, one sequence engine, one email pipeline, one
+   permission model, one tenancy mechanism, one audit trail, one reporting layer. The agent
+   layer calls them. It does not get an "AI sequence", an "AI send path", an "AI role check",
+   an "AI activity log", or an "AI dashboard fed by its own queries". A capability that seems
+   to need one is a signal that the existing service needs a parameter, not a twin. See §9.
+
+9. **AI never takes a lead back on its own.** Once a prospect reaches `human_managed`, only the
+   SDR returns it to AI. Ghost detection makes a lead *eligible* for re-engagement and says so;
+   it does not re-enroll anyone. The transition out of human ownership is always a human action.
+
 ## 4. Operating state vs sales stage
 
 `Lead.stage` answers **"where is this prospect in the sales process?"**
@@ -100,6 +110,52 @@ Proposed states: `unassigned`, `researching`, `ready_for_outreach`, `ai_managed`
 > hand — every mutation path in [`../automation-engine/DOMAIN_MAP.md`](../automation-engine/DOMAIN_MAP.md)
 > §1–2 writes both, with no constraint keeping them consistent. Adding a fourth field before
 > collapsing that mirror multiplies the drift surface rather than reducing it. See PLAN Phase 3.
+
+## 4a. The ownership cycle
+
+The operating model in one loop. AI does the repetitive work, the SDR does the selling, and
+ownership changes hands at two well-defined moments.
+
+```text
+        ready_for_outreach
+                │
+                ▼
+          ai_managed ─────────────── AI: research, personalize, enroll,
+                │                    follow up, handle admin replies
+                │  meaningful reply (Class C)
+                ▼
+        human_attention ──────────── handoff package delivered, SLA clock starts
+                │
+                │  SDR opens / acts
+                ▼
+        human_managed ────────────── SDR sells. AI assists on request:
+                │                    summaries, reply drafts, objection help,
+                │                    call prep, meeting prep. AI writes nothing
+                │                    to the prospect.
+                │  SDR sends, prospect goes quiet
+                ▼
+      waiting_for_prospect
+                │
+                │  playbook ghost threshold reached
+                ▼
+     reengagement_eligible ────────── AI proposes a follow-up plan grounded in the
+                │                     actual conversation. It does not act.
+                │  ◀── SDR hands the lead back (explicit action)
+                ▼
+        ai_reengagement ────────────► back to ai_managed
+```
+
+Three properties this encodes:
+
+- **Handoff to human is automatic; handback to AI is not.** Invariant 9. A ghost threshold
+  produces a recommendation and a badge, never an enrollment.
+- **AI stays useful during human ownership.** `human_managed` is not "AI off". It is "AI may
+  not touch the prospect". Research, summarization, drafting, objection preparation and
+  meeting prep all remain available — they are assistance to the SDR, not outreach.
+- **Re-engagement is context-aware or it does not happen.** A follow-up plan reads the prior
+  interest, the objection raised, the question left unanswered, the last human message, the
+  meeting history and any promised follow-up. "Just following up" is a failure of the feature,
+  not an acceptable output.
 
 ## 5. Reply classification
 
@@ -147,7 +203,34 @@ attention. Surface the 3 positive replies, the 2 stuck workflows, the mailbox ne
 This is a product principle, not a UI preference: it is what makes the Team Lead and Floor
 Manager surfaces worth opening.
 
-## 9. Cost and reliability
+## 9. Do not rebuild — the reuse map
+
+Invariant 8 made concrete. Everything below exists, is tested, and enforces rules the agent
+layer must not reimplement. An agent capability is wired to the left column or it is wrong.
+
+| Concern | Reuse this | Never build |
+|---|---|---|
+| Tenancy | `lib/prisma.ts` (`tenantStorage`, `$extends`), `lib/tenant-context.ts`, `lib/tenant-inject.ts` | an agent-side tenant filter |
+| Permissions | `lib/permissions.ts`, `lib/podScoping.ts`, `lib/sequences/permissions.ts` | an "AI role matrix" |
+| Sequence lifecycle | `lib/sequences/engine.ts` — `createTaskForStep`, `advanceSequence`, `pauseSequence`, `unenrollLead` | an AI enrollment path |
+| Scheduling / eligibility | `lib/automation/{scheduling,eligibility,timezone,jitter}.ts` | agent-computed send times |
+| Sending | `lib/workflows/email.ts` (`createOutboundMessage`, `enqueueEmailSendWorkflow`), `workers/email.ts` | a direct provider call from a tool |
+| Deliverability | suppression checks, quota reservation and the mailbox preflight already inside `workers/email.ts` | an AI-side send guard |
+| Inbound | `workers/sync.ts` — `handleApplyReply`, `handleApplyBounce` | a second inbox reader |
+| Queues + durability | `lib/bullmq/*`, `JobRun` | an agent-only job store |
+| Audit | `lib/audit.ts`, `Activity`, `AuditLog` | an AI activity log |
+| Tasks / notifications | `Task`, `Notification`, `lib/notifications/prefs.ts` | AI-specific task or alert tables |
+| Meetings | `lib/meetings/meetingLifecycle.ts`, `bookingLinks.ts` | agent-side booking |
+| Opportunities | `lib/opportunities/{service,lifecycle,access}.ts` | agent-side deal writes |
+| Leadgen pool | `lib/leadgen/{pool,requirements,assignableReps}.ts` | a parallel qualification store |
+| Reporting | `lib/client-reports/*`, `lib/sequences/analytics.ts`, `lib/email-health/*` | an AI dashboard on its own queries |
+| Work-ownership safety | `lib/admin/campaignMembers.ts` impact gate (409 unless a handling mode is named) | an agent bypass |
+
+The management surfaces in PLAN Phase 10 are **presentations of these metrics**, not new
+pipelines. If a Director number cannot be sourced from `client-reports` or `analytics`, the fix
+is to extend that module.
+
+## 10. Cost and reliability
 
 - Per work order: `researchBudget`, `tokenBudget`, `maxToolCalls`, `maxExecutionDuration`.
   Exhaustion pauses the work order and reports partial completion — never a silent overspend.

@@ -78,4 +78,20 @@ Two phases are ordered earlier than the original proposal had them, on purpose:
   already write is how a policy flag ends up ignored by four code paths.
 
 Level 4 autonomy — AI-managed two-way prospect conversations — is out of scope for this plan
-entirely, not a later phase of it.
+entirely, not a later phase of it. `prospect_reply` stays `human_only` throughout.
+
+## The two rules most likely to be violated by accident
+
+**Handback is a human action.** Handoff to the SDR happens automatically on a Class C reply;
+the return trip does not. Ghost detection makes a lead *eligible* and says so — it never
+enrolls anyone. Any code path that can move a lead out of `human_managed` without an explicit
+SDR action is a defect, and Phase 3 carries a test for exactly that.
+
+**No capability gets a twin.** [ARCHITECTURE §9](ARCHITECTURE.md) is the reuse map: tenancy,
+permissions, sequence lifecycle, scheduling, sending, deliverability, inbound, queues, audit,
+tasks, meetings, opportunities, leadgen pool, reporting and the campaign-member impact gate all
+already exist and already enforce rules. An agent capability wires to one of them or it is
+wrong. When a capability appears to need its own path, the existing service needs a parameter —
+not a second implementation. The management surfaces in Phase 9 are presentations of
+`client-reports`, `sequences/analytics`, `email-health` and `leadgen/metrics`; if a number
+cannot be sourced there, extend that module.
