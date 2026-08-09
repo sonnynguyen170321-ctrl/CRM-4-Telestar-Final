@@ -6,6 +6,7 @@ import { ToastProvider } from "@/context/ToastContext";
 import { Providers } from "./providers";
 import DashboardShell from "@/components/DashboardShell";
 import ClientLayoutAddons from "@/components/ClientLayoutAddons";
+import SessionSentinel from "@/components/SessionSentinel";
 
 export const metadata: Metadata = {
   title: {
@@ -35,6 +36,8 @@ export default function RootLayout({
           <AppProvider>
             <ToastProvider>
               <Providers>
+                {/* Inside SessionProvider so it sees the same session the app does. */}
+                <SessionSentinel />
                 <DashboardShell>
                   {children}
                 </DashboardShell>

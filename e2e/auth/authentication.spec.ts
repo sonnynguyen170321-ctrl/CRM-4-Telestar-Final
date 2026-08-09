@@ -6,6 +6,7 @@
  */
 import { test, expect } from '../support/test';
 import { fixture, fixturePassword, type RoleKey } from '../support/fixture';
+import { apiAs } from '../support/api';
 
 /** Roles that live in tenant A and should reach the app. */
 const TENANT_A_ROLES: RoleKey[] = [
@@ -59,6 +60,41 @@ async function formLogin(page: import('@playwright/test').Page, email: string, p
   await expect(passwordInput).toHaveValue(password);
   await passwordInput.blur();
   await page.click('button[type="submit"]');
+}
+
+
+/**
+ * A throwaway account for the sign-out tests.
+ *
+ * Signing out now bumps `User.authVersion` (see `app/api/auth/revoke-self/route.ts`), which
+ * invalidates **every** token for that user — including the storage state the setup project
+ * minted for it. Signing out as a fixture role would therefore break every later spec that
+ * relies on that role's stored session. A disposable identity per test keeps the fixture
+ * roles untouched.
+ */
+async function disposableUser(baseURL: string) {
+  const s = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const email = `pw.signout.${s}@audit.test`;
+  const admin = await apiAs('director', baseURL);
+  const res = await admin.post('/api/users', {
+    data: {
+      email,
+      password: fixturePassword(),
+      firstName: 'PW',
+      lastName: `SignOut${s}`,
+      role: 'sdr',
+      managerId: fixture().users.teamLead.id,
+    },
+  });
+  expect(res.status(), 'disposable user create failed').toBeLessThan(300);
+  const id = ((await res.json()) as { id: string }).id;
+  return {
+    email,
+    async cleanUp() {
+      await admin.put(`/api/users/${id}`, { data: { isActive: false } });
+      await admin.dispose();
+    },
+  };
 }
 
 // Storage state must not leak into these tests — they are about signing in from nothing.
@@ -179,8 +215,8 @@ test.describe('logout', () => {
     await expect(page.getByRole('menuitem', { name: /sign out/i })).toBeVisible();
   }
 
-  test('signing out drops the session and protected routes redirect', async ({ page }) => {
-    const user = fixture().users.sdrA;
+  test('signing out drops the session and protected routes redirect', async ({ page, baseURL }) => {
+    const user = await disposableUser(baseURL!);
     await formLogin(page, user.email, fixturePassword());
     await page.waitForURL((url) => !url.pathname.includes('/login'), { waitUntil: 'commit' });
     // Let the post-login session refetch land before signing out. Without this the test
@@ -198,10 +234,12 @@ test.describe('logout', () => {
 
     await page.goto('/leads', { waitUntil: 'domcontentloaded' });
     expect(new URL(page.url()).pathname).toContain('/login');
+
+    await user.cleanUp();
   });
 
-  test('the back button does not restore protected content after signing out', async ({ page }) => {
-    const user = fixture().users.sdrA;
+  test('the back button does not restore protected content after signing out', async ({ page, baseURL }) => {
+    const user = await disposableUser(baseURL!);
     await formLogin(page, user.email, fixturePassword());
     await page.waitForURL((url) => !url.pathname.includes('/login'), { waitUntil: 'commit' });
     await settleAfterLogin(page);
@@ -242,6 +280,8 @@ test.describe('logout', () => {
     expect(restored, "the previous session's lead data must not be repainted").not.toContain(
       'PW_AUDIT_CO'
     );
+
+    await user.cleanUp();
   });
 });
 
@@ -272,19 +312,19 @@ test.describe('unauthenticated direct access', () => {
 /**
  * PW-AUDIT-005 — signing out immediately after signing in can leave the session alive.
  *
- * Marked `fixme` because it documents a defect that is **not fixed**, not because it is
- * unreliable: on a production build this sequence left `authjs.session-token` in place and
- * `GET /api/leads` answering 200 in one run out of three. Under `next dev` — where React
- * StrictMode and dev-mode session polling widen the same window — it failed 3/3.
+ * Before the fix this left `authjs.session-token` in place with `GET /api/leads` answering 200
+ * in one run out of three on a production build, and 3/3 under `next dev` where StrictMode and
+ * dev-mode polling widen the window. `lib/auth/clientSignOut.ts` closes it by verifying the
+ * session is gone before navigating, and by leaving via a full document navigation so nothing
+ * from the old page can re-establish it.
  *
- * Delete the `fixme` the day the client stops racing itself; the assertions below are the
- * contract and need no change.
+ * Deliberately keeps no settle: the absence of one is the whole test.
  */
-test.describe('known defect', () => {
-  test.fixme(
-    'PW-AUDIT-005: sign-out immediately after sign-in must still end the session',
-    async ({ page }) => {
-      const user = fixture().users.sdrA;
+test.describe('sign-out race', () => {
+  test(
+    'PW-AUDIT-005: sign-out immediately after sign-in still ends the session',
+    async ({ page, baseURL }) => {
+      const user = await disposableUser(baseURL!);
       await formLogin(page, user.email, fixturePassword());
       await page.waitForURL((url) => !url.pathname.includes('/login'), { waitUntil: 'commit' });
 
@@ -296,6 +336,8 @@ test.describe('known defect', () => {
       await expect
         .poll(async () => (await page.request.get('/api/leads')).status())
         .toBe(401);
+
+      await user.cleanUp();
     }
   );
 });

@@ -10,7 +10,10 @@ path has been exercised yet.
 
 ---
 
-## Open
+## Fixed in this audit
+
+Nothing is left open. Each entry keeps the wrong turns that preceded it, because in
+every case the first explanation was plausible and wrong.
 
 ### PW-AUDIT-001 — `/api/automation/accounts/[id]/cap` authorized from the token, not the database
 
@@ -43,86 +46,99 @@ and matches `authVersion`. It also returns **403** for a role failure; the old c
 
 ---
 
-### PW-AUDIT-004 — `/api/auth/session` keeps reporting a revoked user
-
-| | |
-|---|---|
-| **Severity** | P3 — degraded UI state, not an access-control failure |
-| **Status** | Open, no fix attempted |
-
-After a deactivation, sign-out-all, role change or password reset, every protected endpoint
-correctly answers 401 — but `/api/auth/session` still returns the old user object. It is
-NextAuth's own route: it decodes the JWT and reports its claims, and never calls
-`getSessionUser`.
-
-So the authorization boundary holds. What breaks is the client's belief: the app shell renders
-as signed in while every data call 401s, which presents as "the CRM is broken" rather than
-"you have been signed out". Worth a client-side treatment (treat a 401 from any data call as a
-sign-out) rather than a change to the auth route.
-
-Recorded because it cost a round of failing tests: an early assertion treated this endpoint as
-the boundary and failed a security control that was working correctly.
-
----
-
-### PW-AUDIT-005 — sign-out races next-auth's own session refetch (supersedes PW-AUDIT-003)
+### PW-AUDIT-005 — sign-out did not end the session (supersedes PW-AUDIT-003)
 
 | | |
 |---|---|
 | **Severity** | P2 |
-| **Status** | Open. Reproduced on a **production build**. No fix attempted. |
-| **Test** | `e2e/auth/authentication.spec.ts` → *known defect › PW-AUDIT-005*, marked `fixme` |
+| **Status** | **Fixed.** Regression test green, 0 failures in 6 measured runs. |
+| **Files** | `app/api/auth/revoke-self/route.ts` (new), `lib/auth/clientSignOut.ts` (new), `components/Topbar.tsx` |
+| **Test** | `e2e/auth/authentication.spec.ts` → *sign-out race › PW-AUDIT-005* |
 
-Clicking **Sign Out** shortly after a navigation can leave the session alive: the cookie
-survives, `/leads` renders and `GET /api/leads` returns 200.
+### The root cause was not a race in the client
 
-Measured on `next build` + `next start -p 3000`:
+The first three theories were all wrong, which is worth recording because each was plausible
+and each was disproved by looking rather than reasoning:
+
+1. *"Sign-out is cosmetic"* — filed as a **P0** off a 3/3 reproduction under `next dev`.
+2. *"Development-only"* — after a production run appeared clean. That run was on port 3100
+   while `NEXTAUTH_URL` pins `localhost:3000`, so `signOut()`'s callback pointed at a dead port
+   and the flow never completed. It proved nothing.
+3. *"A race with next-auth's session refetch"* — closer, but still wrong about the mechanism,
+   and the fix it implied (verify the session is gone, then navigate) made things **worse**:
+   every second spent verifying was another second for the real cause to act.
+
+Tracing `set-cookie` on every response showed what actually happens:
 
 ```
-immediate  run1: GET /api/leads=401 cookiePresent=false
-immediate  run2: GET /api/leads=200 cookiePresent=true     <-- sign-out did nothing
-immediate  run3: GET /api/leads=401 cookiePresent=false
-settled2s  run1..3: GET /api/leads=401 cookiePresent=false
+POST /api/auth/signout        200 ["authjs.session-token=CLEARED"]
+GET  /meetings?_rsc=…         200 ["authjs.session-token=SET"]      <- RSC prefetch, already in flight
+GET  /api/notifications       200 ["authjs.session-token=SET"]
+GET  /api/leads               200 ["authjs.session-token=SET"]
 ```
 
-**Two corrections are folded in here, both worth keeping.**
+**`proxy.ts` wraps every matched request in NextAuth's `auth()`, which re-issues the session
+cookie on the response.** Any request that left the browser before sign-out cleared the cookie
+comes back and puts it straight back — and because the sidebar prefetches its links, a CRM page
+always has something in flight. With the client-only fix in place this failed **6 times out of
+6**: clearing a cookie cannot win against the server re-minting it.
 
-*First*, this was originally filed as PW-AUDIT-003, a **P0** — "sign-out is cosmetic" — on the
-strength of a 3/3 reproduction under `next dev`. *Second*, an attempt to confirm it on a
-production build appeared to reproduce 3/3 and was reported as confirming P0. That run was
-invalid: it used port 3100 while `NEXTAUTH_URL` pins `localhost:3000`, so `signOut()`'s
-`callbackUrl` pointed at a dead port and the flow never completed. Re-run on port 3000,
-sign-out was clean 3/3 and the finding was downgraded to "development-only".
+### The fix
 
-That downgrade was also wrong. The narrower experiment above shows the race is real in
-production — it just needs the sign-out to land while a session refetch is in flight, which
-`next dev` (StrictMode + dev polling) makes near-certain and a production build makes
-roughly one-in-three when sign-out immediately follows a navigation.
+Revocation has to invalidate the **token**, not the cookie. `User.authVersion` already exists
+for exactly this and `getSessionUser` checks it on every protected request, so
+`POST /api/auth/revoke-self` bumps it before `signOut()` runs. A cookie re-minted a moment
+later now carries a token the server rejects. **0 failures in 6 runs** after the change.
 
-**Why P2 and not P0.** The server is not at fault: driven directly, `POST /api/auth/signout`
-emits `authjs.session-token=; Max-Age=0` in both its 302 and 200 shapes. Losing the race
-requires signing out within about a second of a page load, which is not what a user leaving a
-shared machine does — they work first, then leave. But when it does happen, the failure is
-silent and total: the user is shown `/login` and believes they signed out.
+**The trade-off, stated rather than buried:** `authVersion` is per user, not per session, so
+signing out now ends that user's sessions on every device. That is a real behavioural change.
+It is the right default for an internal CRM — "I signed out and I'm still logged in" is a worse
+failure than "signing out here also signed me out on my phone" — but per-device revocation
+would need a server-side session store, i.e. giving up stateless JWTs, which is far larger than
+this defect warrants. Flagging it as a product decision worth confirming.
 
-The fix belongs on the client — have `signOut()` win against, or invalidate, an in-flight
-session fetch.
+**Test-infrastructure consequence.** Because sign-out now bumps `authVersion`, signing out as a
+fixture role would invalidate that role's stored session for every later spec. The sign-out
+tests create a disposable account each run instead.
 
-### PW-AUDIT-006 — after sign-out, Back parks the user on a CRM shell that loads forever
+---
+
+### PW-AUDIT-006 — after sign-out, Back parked the user on a CRM shell that loaded forever
 
 | | |
 |---|---|
-| **Severity** | P3 — cosmetic; **no data is exposed** |
-| **Status** | Open |
+| **Severity** | P3 — cosmetic; no data was ever exposed |
+| **Status** | **Fixed** as a side effect of PW-AUDIT-005 |
 
-Pressing Back after signing out leaves the URL at `/leads` instead of redirecting to `/login`.
-The page paints the sidebar and a permanent "Loading…".
+Pressing Back after signing out left the URL at `/leads` showing sidebar chrome and a permanent
+"Loading…". No protected content was restored — `/api/leads` answered 401 and the previous
+user's rows were absent — so §6's actual property always held; what was missing was the
+redirect.
 
-**No protected content is restored** — that is the §6 property, and it holds: `/api/leads`
-answers 401 and the previous user's rows are absent from the DOM (asserted in
-`e2e/auth/authentication.spec.ts`). What is missing is the redirect, so a signed-out user is
-left staring at a CRM frame that never resolves. Related to PW-AUDIT-004: the client still
-believes it holds a session.
+`hardSignOut` now leaves via `window.location.replace`, which keeps the signed-in page out of
+history, and `SessionSentinel` turns any 401 from a data call into a sign-out. Covered by the
+back-button assertions in `e2e/auth/authentication.spec.ts`.
+
+---
+
+### PW-AUDIT-004 — the client kept believing it was signed in after revocation
+
+| | |
+|---|---|
+| **Severity** | P3 |
+| **Status** | **Fixed** (`components/SessionSentinel.tsx`) |
+
+After a deactivation, sign-out-all, role change or password reset, every protected endpoint
+correctly answered 401 while `/api/auth/session` still returned the old user — it decodes the
+JWT and reports its claims and never calls `getSessionUser`. The authorization boundary was
+never in question; what broke was the client's belief, so the user saw a CRM where nothing
+loaded rather than "you have been signed out".
+
+There is no shared client fetch helper to hook — 58 call sites use `fetch` directly — so
+`SessionSentinel` patches `window.fetch` once, narrowly: same-origin `/api/…` only,
+`/api/auth/*` excluded, response passed through untouched. A 401 from a data call now triggers
+`hardSignOut()`. Monkey-patching is not a casual choice; it earns its place because the
+alternative is 58 edits that a 59th call site would silently escape.
 
 ---
 
