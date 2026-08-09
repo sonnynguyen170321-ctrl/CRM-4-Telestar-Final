@@ -4,6 +4,9 @@ import { AI_TOOLS } from './tools';
 import { recordAiCall, classifyFailure } from './usage';
 import type { SessionUser } from '@/lib/auth';
 import { executeAgentAction } from '@/lib/agent/runtime';
+import { capabilityForTool } from '@/lib/agent/toolCapabilities';
+import { WRITE_CAPABILITIES } from '@/lib/agent/capabilities';
+import { newExecutionId } from './executionId';
 
 // Re-exported so existing server-side imports of '@/lib/ai/provider' keep working. The
 // definitions live in the import-free leaf module because this file reaches the database
@@ -28,9 +31,29 @@ interface StreamOptions {
   operation?: string;
   workOrderId?: string;
   sessionUser: SessionUser;
-  executionId: string;
+  /**
+   * The caller's logical turn. Absent when the client sent nothing valid — the turn then
+   * has no durable idempotency namespace, so no write-capable tool may run under it.
+   */
+  executionId?: string;
   playbookVersionId?: string;
 }
+
+/**
+ * A tool call is refused outright when the turn has no durable execution id and the tool
+ * writes. Read-only research still runs, under a namespace marked as what it is: valid for
+ * this process only, never a claim that a retry would be recognised.
+ */
+function requiresDurableExecution(toolName: string): boolean {
+  const capability = capabilityForTool(toolName);
+  // An unregistered tool is refused by the runtime anyway; treating it as write-capable
+  // here keeps the stricter answer in both places.
+  return !capability || WRITE_CAPABILITIES.has(capability);
+}
+
+const NO_EXECUTION_ID_REFUSAL =
+  'That action needs a durable execution id and this conversation turn has none, so nothing was written. ' +
+  'Ask the SDR to send the message again — do not describe the action as done.';
 
 /** Attribution fields pulled off StreamOptions for the usage recorder. */
 function attributionOf(opts: StreamOptions) {
@@ -89,10 +112,17 @@ async function* streamGroq(opts: StreamOptions): AsyncGenerator<string> {
     ...opts.messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content } as GMsg)),
   ];
 
-  // Tool calling loop — Groq may call a tool before giving the final answer
+  // Tool calling loop — Groq may call a tool before giving the final answer.
+  // `toolOrdinal` is declared here, outside the loop, so it counts every tool call in the
+  // whole execution rather than restarting per iteration: two iterations each calling
+  // `create_task` must produce two distinct action keys, not the same one twice.
   let iterations = 0;
   let toolOrdinal = 0;
   const MAX_TOOL_ITERATIONS = 3;
+
+  // Only used when the turn has no durable execution id, and only for read-only tools.
+  // Named so a row written under it can never be mistaken for a retry-safe one.
+  const executionNamespace = opts.executionId ?? `ephemeral-${newExecutionId()}`;
 
   while (iterations < MAX_TOOL_ITERATIONS) {
     iterations++;
@@ -177,18 +207,25 @@ async function* streamGroq(opts: StreamOptions): AsyncGenerator<string> {
       for (let i = 0; i < choice.message.tool_calls.length; i++) {
         const toolCall = choice.message.tool_calls[i];
         const args = JSON.parse(toolCall.function.arguments || '{}');
-        const actionKey = `agent:${opts.executionId}:tool:${toolOrdinal}:${toolCall.function.name}`;
+        // The provider's `toolCall.id` is correlation only — it changes on every retry, so
+        // it cannot be the idempotency authority. The ordinal is.
+        const actionKey = `agent:${executionNamespace}:tool:${toolOrdinal}:${toolCall.function.name}`;
         toolOrdinal++;
 
-        const result = await executeAgentAction({
-          actionKey,
-          toolName: toolCall.function.name,
-          args,
-          sessionUser: opts.sessionUser,
-          leadId: opts.leadId,
-          playbookVersionId: opts.playbookVersionId,
-          workOrderId: opts.workOrderId,
-        });
+        const blockedForMissingExecutionId =
+          !opts.executionId && requiresDurableExecution(toolCall.function.name);
+
+        const result = blockedForMissingExecutionId
+          ? { status: 'refused' as const, error: NO_EXECUTION_ID_REFUSAL }
+          : await executeAgentAction({
+              actionKey,
+              toolName: toolCall.function.name,
+              args,
+              sessionUser: opts.sessionUser,
+              leadId: opts.leadId,
+              playbookVersionId: opts.playbookVersionId,
+              workOrderId: opts.workOrderId,
+            });
 
         loopMessages.push({
           role: 'tool' as const,

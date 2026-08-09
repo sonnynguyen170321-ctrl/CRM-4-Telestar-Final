@@ -245,18 +245,33 @@ playbook, version and drift detection · unknown keys rejected.
 
 ## Phase 5 — Agent runtime, typed tools, idempotent actions
 
-- [ ] Runtime resolves role → capabilities → tool subset; composes the prompt per ARCHITECTURE §6
-- [ ] Tools encode CRM semantics — `handoff_lead_to_sdr()`, not `updateLead()` +
-      `createTask()` + `createNotification()`. No `raw_prisma_query`. **No tool holds a Prisma
-      client**; each calls a domain service from the reuse map.
-- [ ] Every mutation carries `actionKey` (e.g. `workOrder:123:lead:456:create-initial-call`);
-      a retry finds the prior success
+- [x] `executeAgentAction` ([`lib/agent/runtime.ts`](../../lib/agent/runtime.ts)) is the only
+      path from a provider tool call to a CRM mutation: capability authorization, then the
+      `AgentAction` ledger, then the tool. `executeTool` has exactly one caller.
+- [x] Tenancy, user and role are derived from the authenticated `SessionUser` and from nowhere
+      else. A session with no tenant is **refused before the ledger is read** — no default
+      tenant, no `!`, so no ledger row can exist without proven tenancy.
+- [x] Tools call domain services. `lib/tasks/service.ts` now owns task create/list and both
+      `/api/tasks` and the agent tool call it, which retires the internal-HTTP debt recorded in
+      ARCHITECTURE §12. **No tool holds a Prisma client**; no `raw_prisma_query`.
+- [x] Every mutation carries `actionKey` = `agent:{executionId}:tool:{ordinal}:{toolName}`.
+      The executionId belongs to the SDR's turn and is carried by the client, so resending the
+      same message retries rather than duplicates; the ordinal is execution-wide across the
+      whole tool loop. A turn with no valid execution id may not run a write-capable tool.
+- [x] Authoritative lead context ([`lib/leads/context.ts`](../../lib/leads/context.ts)) —
+      lead, campaign, client and the active playbook version are read server-side through
+      `canAccessLead`. The browser's copy of those facts is never trusted, and the model
+      cannot choose the playbook version its action is attributed to.
 - [ ] `agent` queue on the existing BullMQ setup with SLA priorities — prospect reply and
       meeting request outrank an interactive SDR command, which outranks work-order execution,
-      which outranks bulk research
+      which outranks bulk research.
+      **Not built.** Nothing enqueues agent work yet: the runtime is called inline from the
+      chat request. The first producer is Phase 6's work-order execution, and a queue with no
+      producer is a guess at the payload shape. Deferred to Phase 6 with the work orders.
 
-**Acceptance:** replaying any agent job creates no duplicate CRM rows. Bulk research never
-delays a handoff. A grep for `prisma.` inside the tool layer returns nothing.
+**Acceptance:** replaying a turn creates no duplicate CRM rows. A grep for `prisma.` inside the
+tool layer returns nothing. SLA priority ordering is unproven until the queue lands with its
+first producer.
 
 ---
 

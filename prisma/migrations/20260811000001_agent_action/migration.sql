@@ -1,4 +1,4 @@
-﻿-- AlterTable
+-- AlterTable
 ALTER TABLE "AiCall" ADD COLUMN     "agentActionId" TEXT;
 
 -- CreateTable

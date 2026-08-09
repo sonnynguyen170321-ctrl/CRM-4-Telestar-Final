@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { streamChat, DEFAULT_MODEL } from '@/lib/ai/provider';
 import type { ModelId } from '@/lib/ai/provider';
 import { loadAuthorizedLeadContext } from '@/lib/leads/context';
+import { isValidExecutionId } from '@/lib/ai/executionId';
 import { readFileSync } from 'fs';
 import path from 'path';
 
@@ -23,10 +24,6 @@ interface ChatContext {
    * accounting row — it grants nothing and is never read for authorization, so it is
    * bounded rather than verified. `sanitizeLeadId` drops anything that is not id-shaped.
    */
-  leadId?: string;
-  userName?: string;
-  userRole?: string;
-  overdueTasks?: number;
   leadId?: string;
   userName?: string;
   userRole?: string;
@@ -93,7 +90,6 @@ export async function POST(req: NextRequest) {
       if (leadContext.leadStage) contextLines.push(`Pipeline stage: ${leadContext.leadStage}`);
       if (leadContext.leadDaysSinceContact != null) contextLines.push(`Days since last contact: ${leadContext.leadDaysSinceContact}`);
       if (leadContext.campaignName) contextLines.push(`Campaign: ${leadContext.campaignName}`);
-      if (leadContext.campaignDescription) contextLines.push(`Campaign pitch: ${leadContext.campaignDescription}`);
       if (leadContext.clientName) contextLines.push(`Client: ${leadContext.clientName}`);
       
       if (leadContext.playbookVersionId) {
@@ -133,9 +129,11 @@ IMPORTANT REMINDERS:
           operation: 'chat',
           leadId: sanitizeLeadId(context?.leadId),
           sessionUser: user,
-          executionId: clientExecutionId || Array.from(crypto.getRandomValues(new Uint8Array(16)))
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join(''),
+          // Never invented server-side. A generated id would be unique per request, which
+          // is precisely what idempotency must not be: a retry would get a fresh namespace
+          // and write a second CRM row. Absent or malformed means write-capable tools are
+          // refused for this turn — see `streamChat`.
+          executionId: isValidExecutionId(clientExecutionId) ? clientExecutionId : undefined,
           playbookVersionId,
         });
 

@@ -7,11 +7,19 @@ import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { X, Send, Copy, ThumbsUp, ThumbsDown, ChevronDown } from 'lucide-react';
 import { MODEL_LABELS, MODEL_DESCRIPTIONS, DEFAULT_MODEL } from '@/lib/ai/models';
 import type { ModelId } from '@/lib/ai/models';
+import { resolveTurnExecutionId, type FailedTurn } from '@/lib/ai/executionId';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   feedback?: 'up' | 'down';
+  /**
+   * The idempotency namespace for this turn, set once when the user message is created.
+   * Assistant messages carry none. Resending the same message after a failure reuses it,
+   * which is what lets a retried tool call find its prior `AgentAction` instead of writing
+   * a second one.
+   */
+  executionId?: string;
 }
 
 const MODELS = Object.keys(MODEL_LABELS) as ModelId[];
@@ -168,6 +176,8 @@ export default function AiAssistant() {
   const modelMenuRef = useRef<HTMLDivElement>(null);
   // Prevents React StrictMode from double-firing the memory fetch in dev
   const memoryFetchedRef = useRef(false);
+  /** The turn that failed mid-stream, so resending the same message retries it rather than duplicating it. */
+  const failedTurnRef = useRef<FailedTurn | null>(null);
   // How many times the validator has rejected an answer for a given setup step
   const rejectionsRef = useRef<Record<number, number>>({});
 
@@ -472,8 +482,10 @@ export default function AiAssistant() {
       return;
     }
 
-    const executionId = crypto.randomUUID().replace(/-/g, '').substring(0, 32);
-    const userMsg: Message & { executionId?: string } = { role: 'user', content, executionId };
+    // One id per logical turn, minted here rather than inside the fetch: a retry of the
+    // same message must reuse it, and anything generated per network attempt cannot.
+    const executionId = resolveTurnExecutionId(content, failedTurnRef.current);
+    const userMsg: Message = { role: 'user', content, executionId };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
 
@@ -507,9 +519,6 @@ export default function AiAssistant() {
     setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
 
     try {
-      // The executionId of the latest user message represents this turn
-      const turnExecutionId = newMessages[newMessages.length - 1]?.executionId;
-
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -517,7 +526,7 @@ export default function AiAssistant() {
           messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
           modelId,
           context: injectedContext,
-          executionId: turnExecutionId,
+          executionId,
         }),
       });
 
@@ -540,11 +549,16 @@ export default function AiAssistant() {
         });
       }
 
+      // The turn completed, so a later message with the same text is a new turn, not a retry.
+      failedTurnRef.current = null;
+
       // Detect if AI says it will remember something and save it
       if (/i.?ll remember|noted|got it|i.?ve saved/i.test(assistantContent) && detectMemoryIntent(content)) {
         // Already saved above
       }
     } catch (err) {
+      // Keep the namespace so resending the same message retries this turn.
+      failedTurnRef.current = { content, executionId };
       const msg = err instanceof Error ? err.message : 'Something went wrong.';
       setMessages((prev) => {
         const updated = [...prev];

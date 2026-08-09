@@ -381,7 +381,7 @@ async function getMyTasks(
           `• ${t.type.toUpperCase()} — ${t.title}${t.lead ? ` (${t.lead.firstName} ${t.lead.lastName})` : ''} — due ${new Date(t.dueDate).toLocaleString()}`
       )
       .join('\n');
-  } catch (err) {
+  } catch {
     return 'Could not fetch tasks.';
   }
 }

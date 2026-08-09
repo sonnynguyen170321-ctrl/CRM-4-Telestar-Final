@@ -9,7 +9,6 @@ export interface AuthoritativeLeadContext {
   leadDaysSinceContact: number | null;
   campaignId: string | null;
   campaignName: string | null;
-  campaignDescription: string | null;
   clientName: string | null;
   playbookVersionId: string | null;
 }
@@ -33,7 +32,9 @@ export async function loadAuthorizedLeadContext(
         select: {
           id: true,
           name: true,
-          description: true,
+          // No campaign description: `Campaign` has no such field, and `targetVertical` /
+          // `targetGeo` mean something else. A pitch the model can quote needs a real
+          // source-of-truth column before it belongs in authoritative context.
           client: { select: { name: true } },
           playbook: {
             select: { currentVersionId: true },
@@ -61,7 +62,6 @@ export async function loadAuthorizedLeadContext(
     leadDaysSinceContact: daysSinceContact,
     campaignId: lead.campaign?.id || null,
     campaignName: lead.campaign?.name || null,
-    campaignDescription: lead.campaign?.description || null,
     clientName: lead.campaign?.client?.name || null,
     playbookVersionId: lead.campaign?.playbook?.currentVersionId || null,
   };

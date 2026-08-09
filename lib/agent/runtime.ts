@@ -1,7 +1,7 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { authorizeCapability, type AuthorizationOutcome } from '@/lib/agent/authorization';
 import { capabilityForTool } from '@/lib/agent/toolCapabilities';
-import type { AgentCapability } from '@/lib/agent/capabilities';
 import type { SessionUser } from '@/lib/auth';
 import { executeTool } from '@/lib/ai/tools';
 
@@ -35,10 +35,25 @@ export async function executeAgentAction(input: ExecuteActionInput): Promise<Exe
     return { status: 'failed', error: `Tool "${input.toolName}" is not registered for use.` };
   }
 
+  // Tenancy is derived from the authenticated session and from nowhere else. There is no
+  // caller-supplied tenant to fall back to, and a default would be worse than a refusal: it
+  // would write a ledger row — and possibly a CRM mutation — under a tenant nobody proved.
+  // Refuse before the lookup, so a session with no tenant cannot even read another's row.
+  const tenantId = input.sessionUser.tenantId;
+  if (!tenantId) {
+    return {
+      status: 'refused',
+      error:
+        'This action cannot run because the authenticated session has no tenant context. No changes were made.',
+    };
+  }
+  const userId = input.sessionUser.id;
+  const role = input.sessionUser.role;
+
   // Idempotency: Check if this action already ran/is running.
   const existingAction = await prisma.agentAction.findUnique({
     where: {
-      tenantId_actionKey: { tenantId: input.sessionUser.tenantId, actionKey: input.actionKey },
+      tenantId_actionKey: { tenantId, actionKey: input.actionKey },
     },
   });
 
@@ -53,22 +68,19 @@ export async function executeAgentAction(input: ExecuteActionInput): Promise<Exe
     // to not be permanently stranded.
   }
 
-  const authorization = await authorizeCapability(
-    { role: input.sessionUser.role, tenantId: input.sessionUser.tenantId },
-    capability
-  );
+  const authorization = await authorizeCapability({ role, tenantId }, capability);
 
   const status = authorization.outcome === 'ALLOW' ? 'running' : 'refused';
 
   const action = await prisma.agentAction.upsert({
     where: {
-      tenantId_actionKey: { tenantId: input.sessionUser.tenantId, actionKey: input.actionKey },
+      tenantId_actionKey: { tenantId, actionKey: input.actionKey },
     },
     create: {
       actionKey: input.actionKey,
-      tenantId: input.sessionUser.tenantId,
-      userId: input.sessionUser.id,
-      role: input.sessionUser.role,
+      tenantId,
+      userId,
+      role,
       capability,
       tool: input.toolName,
       status,
@@ -89,7 +101,7 @@ export async function executeAgentAction(input: ExecuteActionInput): Promise<Exe
       campaignId: input.campaignId,
       attemptCount: { increment: 1 },
       startedAt: new Date(),
-      error: null as any,
+      error: Prisma.DbNull,
     },
   });
 
@@ -104,11 +116,11 @@ export async function executeAgentAction(input: ExecuteActionInput): Promise<Exe
 
   try {
     const result = await executeTool(input.toolName, input.args, {
-      userId: input.sessionUser.id,
+      userId,
       leadId: input.leadId,
       today: new Date().toISOString(),
-      tenantId: input.sessionUser.tenantId,
-      role: input.sessionUser.role,
+      tenantId,
+      role,
       sessionUser: input.sessionUser,
       workOrderId: input.workOrderId,
       agentActionId: action.id, // passing this down for AiCall linkage

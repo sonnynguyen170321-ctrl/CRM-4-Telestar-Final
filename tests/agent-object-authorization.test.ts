@@ -125,14 +125,13 @@ describe('agent tools call domain services, not our own HTTP API', () => {
    * operation and invites the worst possible fix — a bypass header, a forwarded token, a
    * service account.
    *
-   * `create_task` and `get_my_tasks` predate the rule and are listed here on purpose. They
-   * fetch `/api/tasks` with no session cookie and therefore 401 today: fail-closed, so a
-   * functional defect rather than a security one. The exception list keeps that debt visible
-   * and makes any *new* violation fail immediately, instead of the existing two becoming
-   * precedent for a third.
+   * The list is **empty, and staying that way is the point**. `create_task` and `get_my_tasks`
+   * used to sit in it: they fetched `/api/tasks` with no session cookie and 401'd — fail-closed,
+   * a functional defect rather than a security one. Phase 5 extracted `lib/tasks/service.ts`,
+   * which the route and both tools now call, so the debt is repaid rather than tracked.
    *
-   * Removing these entries is the acceptance criterion for the repair — a domain-service
-   * extraction where the route and the tool both call `lib/tasks/*`.
+   * Re-adding an entry means a tool has started calling this application over HTTP again. The
+   * repair is always the domain-service extraction, never an exception.
    */
   const KNOWN_INTERNAL_HTTP_TOOLS: string[] = [];
 
@@ -281,5 +280,9 @@ describe('an allowed tool still delegates to the domain service', () => {
     // The agent reports the refusal rather than inventing success.
     expect(result).toMatch(/permission/i);
     expect(result).not.toMatch(/task created/i);
+
+    // And it reached the domain service directly: no hop through this app's own HTTP API,
+    // which is what would invite a bypass header or a forwarded token (ARCHITECTURE §12).
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
