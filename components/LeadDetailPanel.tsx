@@ -23,6 +23,7 @@ import MailComposerModal from '@/components/MailComposerModal';
 import MeetingBookingModal from '@/components/meetings/MeetingBookingModal';
 import MeetingOutcomeModal from '@/components/meetings/MeetingOutcomeModal';
 import MeetingStatusBadge from '@/components/meetings/MeetingStatusBadge';
+import { PAUSED_REASON_LABELS, normalizePausedReason } from '@/lib/automation/types';
 import dynamic from 'next/dynamic';
 
 const CallDialerModal = dynamic(() => import('@/components/CallDialerModal'), { ssr: false });
@@ -1558,16 +1559,9 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                         {lead.sequenceStatus === 'paused'
                           ? (lead as any).pausedReason
                             ? `Paused — ${
-                                {
-                                  reply: 'prospect replied',
-                                  hard_bounce: 'hard bounce',
-                                  soft_bounce: 'soft bounce',
-                                  meeting_booked: 'meeting booked',
-                                  manual: 'manually paused',
-                                  email_health: 'mailbox health',
-                                  campaign_paused: 'campaign paused',
-                                  mailbox_unavailable: 'mailbox unavailable',
-                                }[(lead as any).pausedReason as string] ?? (lead as any).pausedReason
+                                PAUSED_REASON_LABELS[
+                                  normalizePausedReason((lead as any).pausedReason as string)
+                                ]
                               }`
                             : 'Paused'
                           : 'Active'}

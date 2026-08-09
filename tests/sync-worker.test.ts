@@ -103,7 +103,7 @@ describe('handleApplyReply', () => {
       where: { id: 'lead-1' },
       data: { stage: 'replied', emailReplyCount: { increment: 1 } },
     });
-    expect(pauseSequence).toHaveBeenCalledWith('lead-1', 'replied', 'user-1');
+    expect(pauseSequence).toHaveBeenCalledWith('lead-1', 'reply', 'user-1');
     expect(mockActivityCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         leadId: 'lead-1', type: 'stage_changed', channel: 'email',
@@ -225,7 +225,7 @@ describe('handleApplyBounce', () => {
     expect(mockSuppressionCreate).toHaveBeenCalledWith({
       data: { email: 'john@acme.com', reason: 'hard_bounce', tenantId: 'tenant-1' },
     });
-    expect(pauseSequence).toHaveBeenCalledWith('lead-1', 'bounced', 'user-1');
+    expect(pauseSequence).toHaveBeenCalledWith('lead-1', 'hard_bounce', 'user-1');
     expect(mockNotificationCreate).toHaveBeenCalled();
   });
 
@@ -239,7 +239,10 @@ describe('handleApplyBounce', () => {
     expect(result).toEqual({ success: true, leadId: 'lead-1', bounceType: 'soft', providerMessageId: 'msg-1' });
     expect(mockLeadUpdate).not.toHaveBeenCalled();
     expect(mockSuppressionCreate).not.toHaveBeenCalled();
-    expect(pauseSequence).toHaveBeenCalled();
+    // A soft bounce pauses for a different reason than a hard one, and the enrollment has to
+    // record which: 'bounced' collapsed both into a token that suppression semantics do not
+    // apply to.
+    expect(pauseSequence).toHaveBeenCalledWith('lead-1', 'soft_bounce', 'user-1');
     expect(mockNotificationCreate).toHaveBeenCalled();
   });
 
