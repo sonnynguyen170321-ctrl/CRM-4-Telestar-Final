@@ -107,7 +107,7 @@ export async function executeAgentAction(input: ExecuteActionInput): Promise<Exe
       userId: input.sessionUser.id,
       leadId: input.leadId,
       today: new Date().toISOString(),
-      tenantId: input.tenantId,
+      tenantId: input.sessionUser.tenantId,
       role: input.sessionUser.role,
       sessionUser: input.sessionUser,
       workOrderId: input.workOrderId,
