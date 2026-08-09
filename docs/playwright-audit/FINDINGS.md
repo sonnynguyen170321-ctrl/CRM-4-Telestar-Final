@@ -297,7 +297,7 @@ reproduced on a production build. Tracked with the CSP enforcement work in
 ## Coverage so far
 
 Run against a production build (`next build` + `next start -p 3000`).
-**131 tests, all passing, none skipped.**
+**146 tests, all passing, none skipped.**
 
 | Batch | Scope | Result |
 |---|---|---|
@@ -313,6 +313,8 @@ Run against a production build (`next build` + `next start -p 3000`).
 | 7d | §34 client reports, public share links, expiry, revocation, password, exports | green |
 | 7e | §16 work transfer (idempotent replay, concurrent, role gate) · §36 audit trail | green |
 | 9b | §48 review of the three pre-existing specs | 2 weaknesses fixed |
+| 9c | §40 filters, search, limits — scope containment and combination | green |
+| 10 | §10 dashboard counters verified against the records behind them | green |
 
 ### What these confirmed working
 
@@ -332,14 +334,23 @@ verified:
   `/api/admin/assignments`, and deactivating a manager with active reports is refused
 - work transfer moves ownership, is genuinely idempotent on `requestId` replay, survives two
   concurrent transfers without splitting the work, and refuses an SDR
+- **no filter, search term or `userId` narrowing widens role or tenant scope** — the BUG-001
+  invariant holds: an SDR filtering by a teammate's id, or searching a foreign lead's exact
+  company name, gets nothing back, and a director filtering by a tenant B campaign gets nothing
+- filters AND rather than OR (a contradictory pair returns nothing), invalid enum filters are
+  refused with 400 rather than silently dropped, `limit` is clamped at 500, and a nonsensical
+  `limit` does not empty the list
+- an SDR cannot retrieve archived leads even by passing `archived=true`
+- dashboard tabs put each task in the right bucket by timezone-derived day boundaries, drop
+  completed work from Overdue, contain only the rep's own tasks, and refuse a manager narrowing
+  to someone outside their pod
 - admin mutations write an audit row naming actor, action, entity and timestamp; SDRs and Team
   Leads cannot read the audit log; no tenant B activity appears in tenant A's
 - archive is a soft delete and the row restores
 
 ### Still to do
 
-Not blocked on anything: §10 dashboard KPI verification, §15 campaigns/clients, §16 work
-transfer, §34 client reports and share links, §36 audit log, §40 filters and pagination,
-§41 dialog accessibility, §48 the review of the pre-existing specs.
+Not blocked on anything: §15 campaigns/clients, §41 dialog accessibility, and the remaining
+lead-detail quick actions in §14.
 
 Blocked on Redis: §19, §20, §23, §25–§29, §37–§39 and journeys C/H.
