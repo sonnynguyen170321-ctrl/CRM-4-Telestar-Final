@@ -195,8 +195,23 @@ One shared agent runtime serving every role, not five AI systems. **Read
 `docs/revenue-ai/STATUS.md` first**, then execute the next unchecked item in
 `docs/revenue-ai/PLAN.md`. `ARCHITECTURE.md` there is the contract.
 
-Phases 0–5 are done except the `agent` BullMQ queue, which waits for its first producer in
-Phase 6. Next is Phase 6 — typed work orders.
+**Phases 0–6 are done and merged to `main`.** Next is **Phase 7 — knowledge retrieval and
+structured research**. Start from a fresh branch off `main`; there is no Phase 6 branch left.
+
+> Phase 6 shipped in two reviewed halves: **6a** the typed `WorkOrder` domain (PR #59, `3e2bfd5`)
+> and **6b** queue execution, durable approvals and budget enforcement (PR #60, `7a6ec4c`). The
+> `agent` BullMQ queue deferred from Phase 5 now exists, with work order execution as its first
+> producer.
+>
+> **`lib/workorders/plan.ts` returns an empty plan on purpose** — it is the seam Phase 7
+> implements. Deciding *which* tools a work order runs is Phase 7/8; Phase 6 built the machinery
+> that runs a plan safely and stopped there. Nothing else needs to change to make a work order do
+> real work.
+>
+> **Approval is a recorded decision, never a stored permission.** `resumeApprovedAction`
+> re-derives authorization on every resume — a tightened policy, a `human_only` capability, a
+> cancelled order, an expired approval, or an approval granted at a level the policy now exceeds
+> each still refuse. Do not add a path that reads the approved flag and executes.
 
 The operating model: **AI does the repetitive prospecting work, SDRs do the selling, managers
 manage exceptions and performance, the CRM keeps everything connected and controlled.**
