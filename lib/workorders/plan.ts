@@ -1,23 +1,51 @@
+import { prisma } from '@/lib/prisma';
 import type { WorkOrder } from '@prisma/client';
 import type { PlannedToolCall } from './execution';
 
 /**
- * What a work order intends to do — the seam, not the planner (Revenue AI Phase 6b).
+ * Plans tool calls for a WorkOrder (Phase 7 Knowledge Architecture & Research Engine).
  *
- * **This deliberately returns nothing yet.** Deciding which tools a work order should run is
- * Phase 7 (knowledge retrieval and structured research) and Phase 8 (the prospecting loop).
- * Phase 6b's job is the machinery that runs a plan safely — budgets, authorization, approvals,
- * provenance, idempotency, partial completion — and that machinery is complete and tested
- * against explicit step lists.
+ * **Constraint**: `research_batch` is the ONLY WorkOrder type that produces Phase 7 research steps.
+ * Non-research_batch WorkOrders return `[]` and perform no research side-effects.
  *
- * Writing a planner here to have something to execute would be exactly the speculative
- * generality this initiative keeps refusing, and worse: a placeholder planner that enrolled or
- * researched anything would be autonomous prospect work shipped under a phase whose scope
- * explicitly excludes it. An empty plan completes immediately and touches nothing, which is the
- * correct behaviour for a system that has not yet been told what to do.
- *
- * The seam exists so Phase 7/8 has one function to implement and the worker needs no change.
+ * This function ONLY returns planned tool calls. It does NOT directly execute tools, write
+ * evidence, or call Tavily/Jina. Execution passes through the standard path:
+ * `planWorkOrderSteps` -> `executeWorkOrder` -> `executeAgentAction` -> registered tool.
  */
-export async function planWorkOrderSteps(_order: WorkOrder): Promise<PlannedToolCall[]> {
-  return [];
+export async function planWorkOrderSteps(order: WorkOrder): Promise<PlannedToolCall[]> {
+  if (order.type !== 'research_batch') {
+    return [];
+  }
+
+  const steps: PlannedToolCall[] = [];
+
+  let targetAccountId: string | null = null;
+  let targetContactId: string | null = null;
+
+  if (order.leadId) {
+    const lead = await prisma.lead.findUnique({
+      where: { id: order.leadId },
+      select: { tenantId: true, accountId: true, contactId: true },
+    });
+    if (lead && lead.tenantId === order.tenantId) {
+      if (lead.accountId) targetAccountId = lead.accountId;
+      if (lead.contactId) targetContactId = lead.contactId;
+    }
+  }
+
+  if (targetAccountId) {
+    steps.push({
+      toolName: 'research_account',
+      args: { accountId: targetAccountId, depth: 'standard' },
+    });
+  }
+
+  if (targetContactId) {
+    steps.push({
+      toolName: 'research_contact',
+      args: { contactId: targetContactId, depth: 'standard' },
+    });
+  }
+
+  return steps;
 }

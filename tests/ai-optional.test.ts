@@ -24,6 +24,7 @@ const ROOT = process.cwd();
 const AI_ALLOWED_PREFIXES = [
   path.join('lib', 'ai'),
   path.join('lib', 'agent'),
+  path.join('lib', 'research'),
   path.join('app', 'api', 'ai'),
   path.join('components', 'AiAssistant.tsx'),
   path.join('tests', 'ai-'),

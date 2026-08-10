@@ -6,16 +6,7 @@ import { streamChat, DEFAULT_MODEL } from '@/lib/ai/provider';
 import type { ModelId } from '@/lib/ai/provider';
 import { loadAuthorizedLeadContext } from '@/lib/leads/context';
 import { isValidExecutionId } from '@/lib/ai/executionId';
-import { readFileSync } from 'fs';
-import path from 'path';
-
-// Read the SDR skills file once at module load
-let SDR_SKILLS: string;
-try {
-  SDR_SKILLS = readFileSync(path.join(process.cwd(), 'lib/ai/sdr-skills.md'), 'utf-8');
-} catch {
-  SDR_SKILLS = 'SDR knowledge base unavailable.';
-}
+import { retrieveRelevantSkills } from '@/lib/ai/skill-retriever';
 
 interface ChatContext {
   page?: string;
@@ -102,10 +93,21 @@ export async function POST(req: NextRequest) {
     ? `\n\n[Live CRM context]\n${contextLines.join('\n')}`
     : '';
 
+  const inferredChannel = context?.page?.includes('phone') || context?.page?.includes('dialer')
+    ? 'phone'
+    : context?.page?.includes('whatsapp')
+    ? 'whatsapp'
+    : context?.page?.includes('linkedin')
+    ? 'linkedin'
+    : 'email';
+
+  const lastUserMessage = messages.filter((m) => m.role === 'user').pop()?.content || '';
+  const relevantSkills = retrieveRelevantSkills({ channel: inferredChannel, operation: 'chat', topicText: lastUserMessage });
+
   const systemPrompt = `You are the AI SDR Assistant for ${user.firstName} ${user.lastName} (${user.role} at Telestar).
 Today's date: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.${memoryBlock}${contextBlock}
 
-${SDR_SKILLS}
+${relevantSkills}
 
 IMPORTANT REMINDERS:
 - Always address the SDR by their first name: ${user.firstName}

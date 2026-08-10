@@ -140,14 +140,14 @@ describe('recordAiCall', () => {
 
   it('skips the write when there is no tenant rather than inventing one', async () => {
     // A row no tenant-scoped query can return is worse than a gap: it looks like data.
-    const cost = await recordAiCall({
+    const cost = (await recordAiCall({
       ...base,
       tenantId: undefined,
       provider: 'groq',
       model: 'llama-3.3-70b-versatile',
       promptTokens: 100,
       completionTokens: 100,
-    });
+    })).estimatedCostUsd;
 
     expect(mockAiCallCreate).not.toHaveBeenCalled();
     expect(cost).toBeGreaterThan(0);

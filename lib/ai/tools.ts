@@ -1,12 +1,11 @@
 // AI tool definitions for Groq/Gemini function calling
-
-import { recordAiCall } from './usage';
 import { authorizeCapability, type AuthorizationOutcome } from '@/lib/agent/authorization';
 import { capabilityForTool } from '@/lib/agent/toolCapabilities';
 import { WRITE_CAPABILITIES } from '@/lib/agent/capabilities';
 import type { SessionUser } from '@/lib/auth';
 import { createTask as serviceCreateTask, getTasks } from '@/lib/tasks/service';
 import { TaskType, TaskPriority } from '@prisma/client';
+import { RetryableResearchError } from '@/lib/research/error';
 
 /** What the model is told when a capability is not cleanly allowed. */
 function refusalMessage(outcome: AuthorizationOutcome): string {
@@ -133,6 +132,36 @@ export const AI_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'research_account',
+      description: 'Executes account-level research to gather growth signals and pain hypotheses.',
+      parameters: {
+        type: 'object',
+        properties: {
+          accountId: { type: 'string', description: 'Account ID to research' },
+          depth: { type: 'string', description: 'Depth of research: light, standard, or deep', enum: ['light', 'standard', 'deep'] },
+        },
+        required: ['accountId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'research_contact',
+      description: 'Executes contact-level research to extract personalization hooks and role angles.',
+      parameters: {
+        type: 'object',
+        properties: {
+          contactId: { type: 'string', description: 'Contact ID to research' },
+          depth: { type: 'string', description: 'Depth of research: light, standard, or deep', enum: ['light', 'standard', 'deep'] },
+        },
+        required: ['contactId'],
+      },
+    },
+  },
 ];
 
 /**
@@ -170,13 +199,11 @@ export interface ToolContext {
  * weaker copy that drifts from the real one.
  *
  * Authorization sits here rather than inside each tool so a new tool cannot invent its own
- * rule, and so the refusal text is uniform. Three fail-closed positions:
- *
- *   - a tool absent from `TOOL_CAPABILITY` is refused, not allowed
- *   - a write capability with no role in context is refused, because "unknown role" must
- *     not resolve more permissively than a known one
- *   - anything other than a clean `ALLOW` stops the call and explains itself to the model,
- *     so the agent tells the SDR what needs approving instead of implying it happened
+ * rules or bypass them.
+ */
+
+/**
+ * Execute a tool call by name. Wraps capability check & domain execution.
  */
 export async function executeTool(
   toolName: string,
@@ -210,6 +237,12 @@ export async function executeTool(
     case 'visit_page':
       return visitPage(args.url, context);
 
+    case 'research_account':
+      return runResearchAccount(args.accountId, args.depth, context);
+
+    case 'research_contact':
+      return runResearchContact(args.contactId, args.depth, context);
+
     case 'create_task':
       return createTask(args, context.userId, context.leadId, context.sessionUser);
 
@@ -222,110 +255,22 @@ export async function executeTool(
 }
 
 async function searchWeb(query: string, ctx: ToolContext): Promise<string> {
-  const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) return 'Search unavailable — TAVILY_API_KEY not configured.';
-
-  const startedAt = Date.now();
-  const record = (status: 'ok' | 'error' | 'unavailable', errorCode?: string) =>
-    recordAiCall({
-      tenantId: ctx.tenantId,
-      userId: ctx.userId,
-      leadId: ctx.leadId ?? null,
-      workOrderId: ctx.workOrderId ?? null,
-      agentActionId: ctx.agentActionId ?? null,
-      operation: ctx.operation ?? 'research',
-      provider: 'tavily',
-      // Tavily bills per search, not per token. One call, one credit.
-      searchCredits: 1,
-      latencyMs: Date.now() - startedAt,
-      status,
-      errorCode: errorCode ?? null,
-    });
-
-  try {
-    const res = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: apiKey,
-        query,
-        search_depth: 'basic',
-        max_results: 4,
-        include_answer: true,
-      }),
-    });
-
-    // A rejected search still consumed a request against the plan, so it is recorded.
-    if (!res.ok) {
-      await record('error', String(res.status));
-      return `Search failed: ${res.status}`;
-    }
-
-    const data = await res.json();
-    await record('ok');
-    const results = data.results
-      ?.slice(0, 4)
-      .map(
-        (r: { title: string; url: string; content: string }) =>
-          `[${r.title}](${r.url})\n${r.content?.slice(0, 300)}`
-      )
-      .join('\n\n');
-
-    return data.answer
-      ? `Summary: ${data.answer}\n\nSources:\n${results}`
-      : results || 'No results found.';
-  } catch (err) {
-    // Unreachable provider is 'unavailable', not 'error' — it is the signal the
-    // AI-optional guarantee is being exercised, and it reads differently in a cost review.
-    await record('unavailable', err instanceof Error ? err.name : undefined);
-    return 'Search temporarily unavailable.';
+  const { performTavilySearch } = await import('./providers');
+  const res = await performTavilySearch(query, ctx);
+  if (!res.success) {
+    if (res.status === 'unavailable') return 'Search temporarily unavailable.';
+    return 'No results found.';
   }
+  return res.data;
 }
 
 async function visitPage(url: string, ctx: ToolContext): Promise<string> {
-  if (!url.startsWith('https://') && !url.startsWith('http://')) {
-    return 'Invalid URL — must start with https://';
+  const { performJinaFetch } = await import('./providers');
+  const res = await performJinaFetch(url, ctx);
+  if (!res.success) {
+    return 'Could not access that page. LinkedIn may have blocked access — using search results instead.';
   }
-
-  const startedAt = Date.now();
-  const record = (status: 'ok' | 'error' | 'unavailable', errorCode?: string) =>
-    recordAiCall({
-      tenantId: ctx.tenantId,
-      userId: ctx.userId,
-      leadId: ctx.leadId ?? null,
-      workOrderId: ctx.workOrderId ?? null,
-      agentActionId: ctx.agentActionId ?? null,
-      operation: ctx.operation ?? 'research',
-      provider: 'jina',
-      searchCredits: 1,
-      latencyMs: Date.now() - startedAt,
-      status,
-      errorCode: errorCode ?? null,
-    });
-
-  try {
-    const jinaUrl = `https://r.jina.ai/${url}`;
-    const res = await fetch(jinaUrl, {
-      headers: {
-        Accept: 'text/plain',
-        'X-Return-Format': 'markdown',
-      },
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (!res.ok) {
-      await record('error', String(res.status));
-      return `Could not access that page (${res.status}). LinkedIn may have blocked access — using search results instead.`;
-    }
-
-    const text = await res.text();
-    await record('ok');
-    // Trim to reasonable size to avoid massive token usage
-    return text.slice(0, 3000) + (text.length > 3000 ? '\n\n[Content truncated for brevity]' : '');
-  } catch (err) {
-    await record('unavailable', err instanceof Error ? err.name : undefined);
-    return 'Could not read that page — it may be behind a login or blocked by the site.';
-  }
+  return res.data;
 }
 
 async function createTask(
@@ -383,5 +328,89 @@ async function getMyTasks(
       .join('\n');
   } catch {
     return 'Could not fetch tasks.';
+  }
+}
+
+async function runResearchAccount(
+  accountId: string | undefined,
+  depth: string | undefined,
+  ctx: ToolContext
+): Promise<string> {
+  // Fail closed, and *loudly*. Returning a string here would be recorded by the runtime as a
+  // completed AgentAction whose result happens to read like a refusal — an action that never
+  // ran, marked done. A thrown non-retryable error records `failed` instead.
+  if (!accountId) throw new Error('research_account refused: accountId is required.');
+  if (!ctx.tenantId) throw new Error('research_account refused: tenant context is missing.');
+  if (!ctx.sessionUser || !ctx.leadId) {
+    throw new Error(
+      'research_account refused: an authenticated session and lead context are required.'
+    );
+  }
+
+  try {
+    const { executeAccountResearch } = await import('@/lib/research/engine');
+    const result = await executeAccountResearch({
+      tenantId: ctx.tenantId,
+      accountId,
+      leadId: ctx.leadId,
+      workOrderId: ctx.workOrderId ?? null,
+      agentActionId: ctx.agentActionId ?? null,
+      userId: ctx.userId,
+      sessionUser: ctx.sessionUser,
+      depth: (depth as 'light' | 'standard' | 'deep') || 'standard',
+    });
+
+    if (result.status === 'in_progress' || result.status === 'pending') {
+      throw new RetryableResearchError('Research is currently in progress by another worker.');
+    }
+    if (result.status === 'failed') {
+      throw new Error('Research failed during execution.');
+    }
+
+    return `Account research completed for ${accountId}. Status: ${result.status}, ClaimToken: ${result.claimToken}`;
+  } catch (err) {
+    if (err instanceof RetryableResearchError) throw err;
+    throw new Error(`Account research failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+async function runResearchContact(
+  contactId: string | undefined,
+  depth: string | undefined,
+  ctx: ToolContext
+): Promise<string> {
+  // Same rule as `runResearchAccount`: refuse by throwing, never by returning prose.
+  if (!contactId) throw new Error('research_contact refused: contactId is required.');
+  if (!ctx.tenantId) throw new Error('research_contact refused: tenant context is missing.');
+  if (!ctx.sessionUser || !ctx.leadId) {
+    throw new Error(
+      'research_contact refused: an authenticated session and lead context are required.'
+    );
+  }
+
+  try {
+    const { executeContactResearch } = await import('@/lib/research/engine');
+    const result = await executeContactResearch({
+      tenantId: ctx.tenantId,
+      contactId,
+      leadId: ctx.leadId,
+      workOrderId: ctx.workOrderId ?? null,
+      agentActionId: ctx.agentActionId ?? null,
+      userId: ctx.userId,
+      sessionUser: ctx.sessionUser,
+      depth: (depth as 'light' | 'standard' | 'deep') || 'standard',
+    });
+
+    if (result.status === 'in_progress' || result.status === 'pending') {
+      throw new RetryableResearchError('Research is currently in progress by another worker.');
+    }
+    if (result.status === 'failed') {
+      throw new Error('Research failed during execution.');
+    }
+
+    return `Contact research completed for ${contactId}. Status: ${result.status}, ClaimToken: ${result.claimToken}`;
+  } catch (err) {
+    if (err instanceof RetryableResearchError) throw err;
+    throw new Error(`Contact research failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }

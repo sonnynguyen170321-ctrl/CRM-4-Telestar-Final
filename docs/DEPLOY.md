@@ -529,3 +529,20 @@ of that old number.
   or in a follow-up once nonces are wired.
 - **Row-Level Security**: app-layer tenant scoping is the isolation layer. To additionally
   enforce Postgres RLS, apply `supabase/rls.sql` and set `DB_RLS_ENFORCED=true`.
+
+  > ⚠️ **RLS-enabled deployments must reapply `supabase/rls.sql` after every Prisma migration
+  > that adds a table.** Prisma migrations deliberately contain no `ENABLE`/`FORCE ROW LEVEL
+  > SECURITY` and no `CREATE POLICY` — a migration-authored policy would vanish the moment
+  > someone regenerated that migration from the datamodel, and the same statements would then
+  > break every non-RLS deployment. `rls.sql` derives its table list from the catalog (every
+  > table carrying a `tenantId` column), so reapplying it is what brings new tables under
+  > `tenant_isolation`. It is idempotent — rerunning is always safe.
+  >
+  > ```bash
+  > node node_modules/prisma/build/index.js migrate deploy
+  > psql "$DIRECT_URL" -f supabase/rls.sql      # required on RLS-enabled deployments
+  > ```
+  >
+  > Until it is reapplied, a newly migrated table has **no** database-level policy and is
+  > protected only by the application layer. `node scripts/verify-rls.mjs` proves enforcement
+  > against a throwaway database and a non-superuser role.
