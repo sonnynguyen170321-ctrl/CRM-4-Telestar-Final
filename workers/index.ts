@@ -9,6 +9,7 @@ import { createNotificationWorker } from './notification';
 import { createMaintenanceWorker } from './maintenance';
 import { createSyncWorker } from './sync';
 import { createImportWorker } from './import';
+import { createAgentWorker } from './agent';
 
 const workers: Worker[] = [];
 
@@ -45,6 +46,10 @@ function registerWorkers(): void {
   const importWorker = createImportWorker();
   workers.push(importWorker);
   console.log('[worker] registered: import');
+
+  const agent = createAgentWorker();
+  workers.push(agent);
+  console.log('[worker] registered: agent');
 }
 
 function attachSignals(): void {

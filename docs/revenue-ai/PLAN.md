@@ -322,24 +322,30 @@ holder can neither renew, release, nor present itself as the holder. Two concurr
 claimants resolve to one winner and one named refusal, never a raw unique violation. Budgets are
 bounded on both sides. Tenant isolation holds against a known id.
 
-### Phase 6b — Queue execution + approval requests
+### Phase 6b — Queue execution + approval requests ✅
 
-- [ ] The `agent` BullMQ queue on the existing infrastructure and `JobRun` durability — no
-      agent-specific job store. Work order execution is its first real producer.
-- [ ] One SLA priority vocabulary, declared and tested now even where producers do not yet
+- [x] The `agent` BullMQ queue on the existing infrastructure and `JobRun` durability — no
+      agent-specific job store. `createAppWorker`/`wrapProcessor` give the durable mirror, tenant
+      resolution and lifecycle for free ([`workers/agent.ts`](../../workers/agent.ts)).
+- [x] One SLA priority vocabulary, declared and tested now even where producers do not yet
       exist: prospect reply / meeting request > interactive SDR command > work order execution
-      > bulk research
-- [ ] Durable approval requests, so `REQUIRE_USER_APPROVAL` and `REQUIRE_MANAGER_APPROVAL` stop
-      being terminal refusals. Records tenant, work order, action intent, requester, required
-      level, approver, `pending | approved | rejected | expired`, timestamps, playbook version.
-- [ ] **Approval does not bypass authorization.** On resume, every capability, role, tenant,
-      object, work order and state check runs again against authoritative state — something
-      approved twenty minutes ago is not proof it is still safe now.
-- [ ] Incremental budget enforcement: check remaining research, tokens, tool calls and duration
-      *before* each operation. Exhaustion pauses durably and reports partial completion; never a
-      silent overspend, and never a completion that was really a stop.
-- [ ] Execution runs through the Phase 5 `AgentRuntime` — no second WorkOrder-specific CRM path
-- [ ] Services, queue/worker and API routes only. **No work order or approval UI in Phase 6.**
+      > bulk research ([`lib/agent/priorities.ts`](../../lib/agent/priorities.ts))
+- [x] Durable approval requests, so `REQUIRE_USER_APPROVAL` and `REQUIRE_MANAGER_APPROVAL` stop
+      being terminal refusals. `AgentApprovalRequest` records tenant, work order, action intent
+      (capability + tool + exact args), requester, required level, approver,
+      `pending | approved | rejected | expired`, timestamps and playbook version.
+      **One request per action, by unique constraint on `(tenantId, actionKey)`.**
+- [x] **Approval does not bypass authorization.** `resumeApprovedAction` re-derives the decision
+      from current policy every time; nothing is read from the request but *which action* it was
+      about. A tightened policy, a `human_only` capability, a cancelled work order, an expired
+      approval, or an approval granted at a level the policy now exceeds each still refuse.
+- [x] Incremental budget enforcement before each operation, with `budget_exhausted` a pause
+      carrying partial completion ([`lib/workorders/budgets.ts`](../../lib/workorders/budgets.ts))
+- [x] Execution runs through the Phase 5 `AgentRuntime` — no second WorkOrder-specific CRM path.
+      Proved by the `AgentAction` rows, not by a mock.
+- [x] Services, queue/worker and API routes only. **No work order or approval UI.**
+- [x] Structural client/server boundary guard — a *transitive* import-graph walk, since the
+      realistic failure is a Client Component reaching `leases.ts` two hops down a helper.
 
 **Acceptance:** activation enqueues through the existing BullMQ system at the declared priority.
 A duplicate enqueue cannot duplicate a CRM mutation. An approval-required action creates exactly

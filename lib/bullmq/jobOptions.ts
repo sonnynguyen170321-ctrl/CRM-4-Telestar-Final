@@ -84,4 +84,13 @@ export const JOB_OPTIONS: Partial<Record<JobType, JobsOptions>> = {
     removeOnComplete: { age: 86400, count: 100 },
     removeOnFail: { age: 86400 * 3, count: 50 },
   },
+  [JobType.AGENT_EXECUTE_WORK_ORDER]: {
+    // Safe to retry: every CRM mutation goes through `executeAgentAction`, whose `actionKey` is
+    // derived from the work order and a stable ordinal, so a replayed attempt finds the
+    // completed `AgentAction` and returns its recorded result instead of acting again.
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5000 },
+    removeOnComplete: { age: 86400 * 3, count: 500 },
+    removeOnFail: { age: 86400 * 7, count: 200 },
+  },
 };

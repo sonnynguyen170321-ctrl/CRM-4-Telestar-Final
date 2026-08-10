@@ -4,10 +4,16 @@
 
 | | |
 |---|---|
-| Phase | **0–5 and 6a complete.** Next: **Phase 6b** — the `agent` queue, approval requests, incremental budget enforcement |
-| Branch | `feat/phase-6a-work-orders`, off `main` at the Phase 5 merge (`52bff31`) |
+| Phase | **0–6 complete** (6a merged in PR #59, 6b on branch). Next: **Phase 7** — knowledge retrieval and structured research |
+| Branch | `feat/phase-6b-agent-execution`, off `main` at the 6a merge (`3e2bfd5`) |
 | Blockers | **None.** |
 | Restrictions | No external users, no real client data, sending off, email dry-run |
+
+> **Nothing in Phase 6 plans agent work.** `lib/workorders/plan.ts` returns an empty plan by
+> design — deciding *which* tools a work order should run is Phase 7 and Phase 8. Phase 6b built
+> the machinery that runs a plan safely and stopped there, because a placeholder planner that
+> researched or enrolled anything would be autonomous prospect work shipped under a phase whose
+> scope excludes it.
 
 > **Phase 6 is one architectural phase reviewed in two parts.** 6a is the durable domain — the
 > `WorkOrder` model, the type-declared capability bounds, conflict detection and the execution
@@ -18,6 +24,107 @@
 > pre-existing write-capable tool — is mapped to `tasks` and enforced, not grandfathered.
 > `executeTool` fails closed on an unregistered tool, on a write capability with no role in
 > context, and on anything short of a clean allow.
+
+## Gates — Phase 6b, `feat/phase-6b-agent-execution`
+
+| Gate | Result |
+|---|---|
+| `tsc --noEmit` | 0 errors |
+| `eslint app components lib context tests workers` | 0 errors, 0 warnings |
+| `vitest run` | **1081 passed, 5 skipped**, 81 files |
+| Phase 6b targeted suites | 65 passed (13 SLA · 18 execution · 20 approvals · 9 dispatch · 5 boundary) |
+| All work order suites (6a + 6b) | 149 passed |
+| `next build` | exit 0 |
+| `prisma migrate status` | up to date, **36 migrations** |
+| `migrate diff --exit-code` | `No difference detected`, exit 0 |
+| Fresh replay into an empty shadow database | clean |
+
+1081 is exactly 65 above `main`'s 1016 — the whole delta is this phase.
+
+### The fixture defect the full suite caught
+
+The Phase 6b suites passed individually and the *full* run failed:
+
+```
+Foreign key constraint violated: `AgentAction_userId_fkey (index)`
+  at tests/helpers/workOrderFixture.ts → prisma.user.deleteMany
+```
+
+`setupWorkOrderFixture` deleted users without first deleting `AgentAction` and
+`AgentApprovalRequest`, both of which hold FKs to `User` with **no cascade**. Phase 6a's suites
+never created agent rows, so the gap did not exist until 6b's execution and approval suites
+started writing them — and it only bites on a run where a *previous* run left rows behind, which
+is why every isolated run passed.
+
+This is the same shape as the `bullmq.test.ts` / `rls.test.ts` failures that made CI red while
+developer machines stayed green: **a suite that cleans up less than it creates passes until
+something runs before it.** Fixed by deleting approvals → actions → AI calls → policies before
+users, and re-verified by re-running all eight work order suites against the dirty database the
+failed run left behind.
+
+## Phase 6b — what landed, and the two rules that shaped it
+
+**1. Approval is a recorded decision, never a stored permission.** The obvious implementation —
+mark the request approved, then let the worker check the flag — turns an approval into a bearer
+token for an action whose world has moved on. `resumeApprovedAction` instead re-derives
+authorization from scratch on every resume and reads nothing from the request but *which action*
+it was about. Five distinct things can still refuse an approved action:
+
+| Refusal | What changed between the click and the run |
+|---|---|
+| `authorization_changed` | policy tightened to `human_only`, or the role lost the right |
+| `insufficient_approval_level` | policy went `approval` → `manager_approval`; a user-level signature no longer covers it |
+| `work_order_not_executable` | the order was cancelled, completed or failed |
+| `expired` | approval does not stop the clock |
+| `rejected` | a human said no |
+
+The level check is the one most likely to be dropped by a future edit, and it is the one that
+matters most: an SDR's signature must stop counting the moment the tenant decides that action
+needs a manager.
+
+**2. The runtime is the only path to a CRM mutation.** `execution.ts` holds no domain service.
+Every step goes through `executeAgentAction`, which is what writes the `AgentAction` ledger,
+resolves the capability and enforces idempotency — and the tests assert the *ledger rows*, not a
+mock, because a second CRM path would still have called the tool and simply left nothing behind.
+
+The action key is `workorder:{id}:step:{ordinal}:{tool}` — derived from the work order and the
+step's position, never the clock. That is what makes three BullMQ retries safe: a redelivered job
+finds the completed `AgentAction` and returns its recorded result. A test runs the same plan
+twice and asserts the tool was called once.
+
+### The budget guarantee, stated exactly
+
+The check runs *before* each operation and asks "is there anything left", not "will this one
+fit" — it cannot ask the second question, because a model call's token cost is unknown until it
+returns.
+
+```text
+guaranteed   no operation STARTS once a budget is exhausted
+not claimed  no operation EXCEEDS the budget
+```
+
+A work order can overshoot by at most one operation. That is bounded, visible in the counters,
+and the honest description of a pre-flight check on an unknown cost. Reserving a worst-case spend
+per call instead would make every budget silently far smaller than the number an operator typed.
+
+A **failed** tool call still spends `maxToolCalls`. Counting only successes would let a retry loop
+run unbounded inside its budget, which is the case the limit exists for.
+
+### The boundary guard is transitive
+
+Phase 6a's `next build` proved nothing about `lib/workorders/*` because nothing imported it.
+6b gives it routes, so the guard now walks the whole import graph from every `"use client"` file
+rather than checking each component's own imports — the realistic failure is
+`"use client" panel → @/lib/some-helper → @/lib/workorders/leases`, inherited two hops down.
+
+Two details that make it a real test rather than a green tick:
+
+- **It ignores `import type`.** Its first run reported `types.ts` as a hazard through
+  `capabilities.ts → lib/auth → @/lib/prisma` — all type-only imports, erased at build. A
+  structural test that cries wolf gets deleted, so the walker now strips erased imports.
+- **It carries a control.** One case asserts the walk *does* reach a server-only module from the
+  dispatch route. Without it, a resolver silently failing on every specifier would report zero
+  offenders and look like success.
 
 ## Gates — Phase 6a, `feat/phase-6a-work-orders`
 

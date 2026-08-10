@@ -4,6 +4,8 @@ export const QUEUES = {
   IMPORT: 'import',
   SYNC: 'sync',
   MAINTENANCE: 'maintenance',
+  /** Agent work (Revenue AI Phase 6b). Priorities are SLA-derived — see lib/agent/priorities.ts. */
+  AGENT: 'agent',
 } as const;
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
@@ -26,6 +28,7 @@ export enum JobType {
   DIGEST_DAILY = 'digest.daily',
   MAINTENANCE_HEALTHCHECK = 'maintenance.healthcheck',
   MAINTENANCE_REPAIR = 'maintenance.repair',
+  AGENT_EXECUTE_WORK_ORDER = 'agent.execute-work-order',
 }
 
 export interface SequenceEnrollPayload {
@@ -157,6 +160,22 @@ export interface MaintenanceRepairPayload {
   )[];
 }
 
+/**
+ * Execute one typed work order (Revenue AI Phase 6b).
+ *
+ * Carries no capability, no lead and no playbook version: all three are read from the
+ * `WorkOrder` row at execution time. A payload that carried them would let a job queued before
+ * a policy change execute under the policy that existed when it was enqueued — the queue is a
+ * transport, and the database is the truth it transports a pointer to.
+ */
+export interface AgentExecuteWorkOrderPayload {
+  workOrderId: string;
+  /** Whose authority the agent acts under. `AgentAction.userId` is a non-null FK. */
+  actorUserId: string;
+  /** The lease token this execution holds, when the order is lead-scoped and exclusive. */
+  claimToken?: string;
+}
+
 export type JobPayload = {
   [JobType.SEQUENCE_ENROLL]: SequenceEnrollPayload;
   [JobType.SEQUENCE_ADVANCE]: SequenceAdvancePayload;
@@ -175,9 +194,11 @@ export type JobPayload = {
   [JobType.DIGEST_DAILY]: DigestDailyPayload;
   [JobType.MAINTENANCE_HEALTHCHECK]: MaintenanceHealthcheckPayload;
   [JobType.MAINTENANCE_REPAIR]: MaintenanceRepairPayload;
+  [JobType.AGENT_EXECUTE_WORK_ORDER]: AgentExecuteWorkOrderPayload;
 };
 
 export function jobQueue(jobType: JobType): QueueName {
+  if (jobType.startsWith('agent.')) return QUEUES.AGENT;
   if (jobType.startsWith('sequence.')) return QUEUES.SEQUENCE;
   if (jobType === JobType.EMAIL_SEND) return QUEUES.EMAIL;
   if (jobType.startsWith('email.')) return QUEUES.SYNC;

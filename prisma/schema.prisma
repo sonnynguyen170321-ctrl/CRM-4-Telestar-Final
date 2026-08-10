@@ -280,6 +280,8 @@ model User {
   healthSnapshots          EmailHealthSnapshot[]
   AgentAction              AgentAction[]
   workOrdersCreated        WorkOrder[]               @relation("WorkOrdersCreated")
+  approvalsRequested       AgentApprovalRequest[]    @relation("ApprovalRequestedBy")
+  approvalsDecided         AgentApprovalRequest[]    @relation("ApprovalDecidedBy")
 
   @@index([tenantId])
   @@index([tenantId, managerId])
@@ -1593,6 +1595,7 @@ model Tenant {
   AgentAction              AgentAction[]
   workOrders               WorkOrder[]
   workOrderLeases          WorkOrderLease[]
+  approvalRequests         AgentApprovalRequest[]
 }
 
 // ─── Campaign Playbooks ──────────────────────────────────────────────────────
@@ -1672,9 +1675,10 @@ model CampaignPlaybookVersion {
   activatedAt  DateTime?
   supersededAt DateTime?
 
-  currentFor  CampaignPlaybook? @relation("CurrentVersion")
-  AgentAction AgentAction[]
-  workOrders  WorkOrder[]
+  currentFor       CampaignPlaybook?      @relation("CurrentVersion")
+  AgentAction      AgentAction[]
+  workOrders       WorkOrder[]
+  approvalRequests AgentApprovalRequest[]
 
   @@unique([playbookId, versionNumber])
   @@index([tenantId])
@@ -1804,7 +1808,8 @@ model AgentAction {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  aiCalls AiCall[]
+  aiCalls          AiCall[]
+  approvalRequests AgentApprovalRequest[]
 
   @@unique([tenantId, actionKey])
   @@index([tenantId])
@@ -1937,6 +1942,20 @@ model WorkOrder {
   /// Wall-clock seconds from `activatedAt`.
   maxExecutionDuration Int
 
+  /// Consumption, incremented as the work order runs (Phase 6b). Units are fixed in
+  /// `lib/workorders/types.ts` and must not drift from what the budgets above mean:
+  /// research operations, prompt+completion tokens, and tool invocations *including failures*.
+  ///
+  /// Denormalised on purpose. The authoritative records are `AiCall` and `AgentAction`, and
+  /// `reconcileConsumption` recomputes these from them — but the enforcement check runs before
+  /// every tool call, and two aggregate queries per call is a cost the hot path should not pay.
+  /// Where they disagree, the ledgers are right.
+  ///
+  /// There is no counter for duration: it is derived from `activatedAt` and needs no column.
+  researchUsed  Int @default(0)
+  tokensUsed    Int @default(0)
+  toolCallsUsed Int @default(0)
+
   /// Set once, at the first activation. A pause/resume cycle does not restart it, because
   /// `maxExecutionDuration` is measured from here and a resumed order must not get a fresh clock.
   activatedAt DateTime?
@@ -1947,10 +1966,11 @@ model WorkOrder {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  leases       WorkOrderLease[]
-  agentActions AgentAction[]
-  aiCalls      AiCall[]
-  transitions  ProspectTransition[]
+  leases           WorkOrderLease[]
+  agentActions     AgentAction[]
+  aiCalls          AiCall[]
+  transitions      ProspectTransition[]
+  approvalRequests AgentApprovalRequest[]
 
   @@unique([tenantId, requestKey])
   @@index([tenantId])
@@ -2020,6 +2040,77 @@ model WorkOrderLease {
   @@unique([tenantId, leadId])
   @@index([tenantId, expiresAt])
   @@index([workOrderId])
+}
+
+/// A durable request for a human to approve one specific agent action (Phase 6b).
+///
+/// Phase 2 gave `REQUIRE_USER_APPROVAL` and `REQUIRE_MANAGER_APPROVAL` a stable vocabulary but
+/// no queue, so both stopped execution as if they were refusals. This is that queue. The
+/// authorization rules did not change to accommodate it — `lib/agent/authorization.ts` is
+/// untouched.
+///
+/// ## Approval is not a stored decision to execute
+///
+/// A row here records that a human said yes **at a moment**. It is not a token that bypasses
+/// anything: resuming re-runs capability, role, tenant, object, work order and state checks
+/// against current truth. A lead reassigned, a policy tightened, a playbook superseded or a
+/// prospect handed to a human between approval and resume must still be able to refuse. Storing
+/// the decision rather than the permission is what makes that possible.
+///
+/// `actionKey` is the same stable identity `AgentAction` uses, so "exactly one request per
+/// action" is a unique constraint rather than a convention — a retried job finds the pending
+/// row instead of asking a second human the same question.
+model AgentApprovalRequest {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// The action this approves, identified exactly as `AgentAction.actionKey` identifies it.
+  actionKey String
+
+  workOrderId String?
+  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  /// The ledger row that was refused, once one exists. Null when the request was raised before
+  /// the action was ever attempted.
+  agentActionId String?
+  agentAction   AgentAction? @relation(fields: [agentActionId], references: [id])
+
+  /// The intent, in enough detail for a human to judge it: which capability, which tool, and
+  /// the exact arguments that would run. Stored rather than re-derived — a human approves what
+  /// they were shown, and re-deriving it later could show them something else.
+  capability String
+  toolName   String
+  args       Json
+
+  leadId            String?
+  campaignId        String?
+  playbookVersionId String?
+  playbookVersion   CampaignPlaybookVersion? @relation(fields: [playbookVersionId], references: [id])
+
+  /// 'user' | 'manager' — from the `AuthorizationOutcome` that raised this.
+  requiredLevel String
+  /// 'pending' | 'approved' | 'rejected' | 'expired'
+  status        String @default("pending")
+
+  requestedById String
+  requestedBy   User   @relation("ApprovalRequestedBy", fields: [requestedById], references: [id])
+
+  approvedById String?
+  approvedBy   User?   @relation("ApprovalDecidedBy", fields: [approvedById], references: [id])
+  /// Why it was rejected, or any note the approver left.
+  decisionReason String?
+
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+  /// Past this instant the request is dead. An approval nobody acted on must not sit pending
+  /// forever and then execute against a world that moved on months ago.
+  expiresAt  DateTime
+
+  @@unique([tenantId, actionKey])
+  @@index([tenantId, status])
+  @@index([workOrderId])
+  @@index([tenantId, status, expiresAt])
 }
 
 model Attachment {
