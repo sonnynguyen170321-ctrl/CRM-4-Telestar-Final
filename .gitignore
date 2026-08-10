@@ -114,3 +114,6 @@ gitleaks.log
 # Playwright deep audit — generated, never committed
 playwright/.auth/
 e2e/.fixture.json
+
+# Per-machine setup notes — see docs/LOCAL_SETUP.example.md
+docs/LOCAL_SETUP.md

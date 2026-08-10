@@ -45,46 +45,67 @@ Reference: `docs/deliverability/PLAN.md` and `docs/deliverability/STATUS.md`.
 > An earlier note here claimed 117 `tsc` errors and 11 failing tests. That was stale —
 > the P7a repair had already landed. Re-run the gates before trusting any status doc.
 
-> ⚠️ **Windows env trap — this IS biting.** The checkout path is
-> `C:\Users\admin\Desktop\Sonny & AI\clone-CRM-4-U-migration-main`. The `&` breaks every
-> npm/npx `.bin` shim (`npx tsc` resolves to `C:\Users\admin\Desktop\typescript\bin\tsc`).
-> An earlier note here claimed "the current path has no `&`, so npm scripts work here" —
-> that was wrong. Call entry scripts through node directly:
+## 🖥️ Your machine — run `npm run doctor` first
+
+```bash
+npm run doctor
+```
+
+Ten checks in about five seconds: Node against `.nvmrc`, which env file was found, required and
+optional variables, Postgres reachability, Prisma client, applied migrations, migration ordering,
+the shadow database, Redis, and `gh`. Each failure prints its fix. **It exits non-zero only on a
+required check**, so a missing AI key or Redis never blocks you.
+
+> **This file states only what is true on every machine.** Anything that varies — how Postgres is
+> installed, whether the path contains a space or an `&`, which env file you use — lives in
+> `docs/LOCAL_SETUP.md`, gitignored, one per machine. Start from
+> [`docs/LOCAL_SETUP.example.md`](docs/LOCAL_SETUP.example.md).
 >
-> ```bash
-> node node_modules/typescript/bin/tsc --noEmit
-> node node_modules/vitest/vitest.mjs run
-> node node_modules/eslint/bin/eslint.js .
-> node node_modules/prisma/build/index.js migrate deploy
-> node ./node_modules/next/dist/bin/next dev
-> ```
->
-> `scripts/build.cjs` already does this. **`tsc` and `next build` also need
-> `NODE_OPTIONS=--max-old-space-size=8192`** or they die with
-> `FATAL ERROR: Ineffective mark-compacts near heap limit` (exit 134) — a heap limit, not a
-> type error.
+> This split exists because it kept going wrong the other way. Machine specifics were asserted
+> here as universal, so whoever edited the file described their own box and it was wrong on the
+> other one — three separate "an earlier note here claimed X — that was wrong" corrections came
+> from exactly that. `npm run doctor` checks reality instead of trusting any document.
+
+**True everywhere:**
+
+- **`tsc` and `next build` need `NODE_OPTIONS=--max-old-space-size=8192`**, or they die with
+  `FATAL ERROR: Ineffective mark-compacts near heap limit` (exit 134) — a heap limit, not a type
+  error. `scripts/build.cjs` already sets it.
+- **A `&` anywhere in the checkout path breaks every npm/npx `.bin` shim** (`npx tsc` resolves to
+  something else entirely). `scripts/build.cjs` calls entry scripts through node directly for this
+  reason, and you can too:
+
+  ```bash
+  node node_modules/typescript/bin/tsc --noEmit
+  node node_modules/vitest/vitest.mjs run
+  node node_modules/eslint/bin/eslint.js .
+  ```
+
+- **The Prisma CLI does not read `.env.local`** — only Next.js does. Use the `npm run db:*`
+  scripts, which go through `scripts/with-env.mjs` and load `.env.local` then `.env`, so the same
+  command works whichever file your machine has. Running `prisma` directly on a `.env.local`-only
+  machine fails with `P1012 Environment variable not found: DIRECT_URL`.
+
+```bash
+npm run db:status     # migrate status
+npm run db:deploy     # migrate deploy
+npm run db:generate   # prisma generate
+npm run db:drift      # the migration drift gate
+```
 
 ## Local development database
 
-PostgreSQL 16 runs as the Windows service **`postgresql-x64-16`**, binaries at
-`C:\Program Files\PostgreSQL\16\bin`. It matches the Cloud SQL major version.
+`DATABASE_URL=postgresql://postgres:postgres@localhost:5432/telestar_crm` — the DSN
+`vitest.config.ts` already defaults to. `.env.local` (gitignored) holds the local values;
+`.env.example` lists every key, including `SHADOW_DATABASE_URL` for the drift gate.
 
-```bash
-# state
-Get-Service postgresql-x64-16
-# psql
-& 'C:\Program Files\PostgreSQL\16\bin\psql.exe' -U postgres -h 127.0.0.1 -d telestar_crm
-```
+PostgreSQL 16 to match the Cloud SQL major version. **How it is installed differs per machine** —
+a Windows service on one, a portable `pg_ctl` install on another — so record yours in
+`docs/LOCAL_SETUP.md` and let `npm run doctor` tell you whether it is reachable.
 
 > Pass SQL to `psql` with `-f file.sql`, not `-c "..."` — PowerShell strips the double
 > quotes around identifiers, so `"CampaignLeadRequirement"` arrives lowercased and the
 > statement fails with `relation ... does not exist`.
-
-> An earlier note here described a portable install at `C:\Users\admin\pgsql-local` driven
-> by `pg_ctl`. That path does not exist on this machine; the service above is what runs.
-
-`DATABASE_URL=postgresql://postgres:postgres@localhost:5432/telestar_crm` — the DSN
-`vitest.config.ts` already defaults to. `.env.local` (gitignored) holds the local values.
 
 **`npm run db:seed` is destructive** — 17 unfiltered `deleteMany()` calls, including
 `tenant` and `user`. `package.json` also sets `prisma.seed`, so `prisma migrate dev` and
@@ -311,12 +332,14 @@ each required check successful; a watcher exiting 0 is not evidence.
 SQL. Run locally before pushing:
 
 ```bash
-npm run check:migration-order          # fast: catches a mis-sorted new migration
-node node_modules/prisma/build/index.js migrate status
-node node_modules/prisma/build/index.js migrate diff \
-  --from-migrations ./prisma/migrations --to-schema-datamodel ./prisma/schema.prisma \
-  --shadow-database-url "postgresql://postgres:postgres@127.0.0.1:5432/telestar_shadow" --exit-code
+npm run check:migration-order   # fast: catches a mis-sorted new migration
+npm run db:status               # migrations applied?
+npm run db:drift                # replay from empty + fail on drift
 ```
+
+`db:drift` reads `SHADOW_DATABASE_URL` from your env file rather than hardcoding a database name,
+because the two machines had drifted onto different names and the previously documented command
+therefore failed on one of them. Create it once: `CREATE DATABASE telestar_shadow;`
 
 > ⚠️ **Prisma stamps a migration with generation time, not dependency position.** On a branch
 > whose earlier migrations were authored with dates ahead of the wall clock, a newly generated

@@ -1,1 +1,33 @@
+# Line endings are part of "the same checkout on every machine".
+#
+# Committed blobs are already LF, but `core.autocrlf=true` — the Git for Windows default —
+# rewrites them to CRLF on checkout. So the same commit produces different bytes depending on the
+# machine's git config, which is exactly the drift `npm run doctor` exists to catch and this file
+# exists to prevent.
+#
+# It is not cosmetic. `tests/migration-order.test.ts` failed to parse at all —
+# `SyntaxError: Invalid or unexpected token`, zero tests run — because Vitest's transform met a
+# shebang terminated by `\r\n` in `scripts/check-migration-order.mjs`. Node imported the same file
+# without complaint, so it looked like a test-runner bug rather than a line-ending one.
+#
+# `eol=lf` wins over whatever `core.autocrlf` each machine has, so neither of us has to remember
+# to configure git the same way.
+* text=auto eol=lf
+
+# Binary — never touch these.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+*.node binary
+
+# Shell scripts must stay LF or the shebang breaks on the deploy box.
 *.sh text eol=lf
