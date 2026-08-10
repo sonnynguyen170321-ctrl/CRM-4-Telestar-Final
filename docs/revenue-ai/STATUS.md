@@ -4,10 +4,41 @@
 
 | | |
 |---|---|
-| Phase | **0–6 complete** (6a merged in PR #59, 6b on branch). Next: **Phase 7** — knowledge retrieval and structured research |
-| Branch | `feat/phase-6b-agent-execution`, off `main` at the 6a merge (`3e2bfd5`) |
+| Phase | **0–6 complete and merged to `main`.** Next: **Phase 7** — knowledge retrieval and structured research |
+| Branch | none — start Phase 7 from a fresh branch off `main` |
 | Blockers | **None.** |
 | Restrictions | No external users, no real client data, sending off, email dry-run |
+
+## Resume here
+
+Phase 6 is closed. `main` carries all of it, and every Phase 6 branch has been deleted:
+
+```text
+838fd4d  PR #61  migration-order preflight (CI hardening)
+7a6ec4c  PR #60  Phase 6b — queue execution, approvals, budget enforcement
+3e2bfd5  PR #59  Phase 6a — typed work orders
+```
+
+To start Phase 7:
+
+```bash
+git checkout main
+git pull --ff-only origin main
+git checkout -b feat/phase-7-knowledge-retrieval
+```
+
+Then execute the next unchecked item in [`PLAN.md`](PLAN.md) → Phase 7. Read
+[`ARCHITECTURE.md`](ARCHITECTURE.md) §6 (knowledge is retrieved, not concatenated) and §7
+(research is structured and cached per account) first — they are the contract Phase 7 implements.
+
+**The seam Phase 7 plugs into already exists.** `lib/workorders/plan.ts` returns an empty plan
+and is the single function Phase 7 implements; the worker, budgets, approvals, authorization and
+provenance around it are built and tested. Nothing else needs to change to make a work order do
+real work.
+
+**Gate reminder for the first migration you generate.** Run `npm run check:migration-order`
+before applying it. Prisma stamps generation time, not dependency position, and got this wrong
+three times running in Phase 6 — see the migration drift gate section in `CLAUDE.md`.
 
 > **Nothing in Phase 6 plans agent work.** `lib/workorders/plan.ts` returns an empty plan by
 > design — deciding *which* tools a work order should run is Phase 7 and Phase 8. Phase 6b built
@@ -25,7 +56,7 @@
 > `executeTool` fails closed on an unregistered tool, on a write capability with no role in
 > context, and on anything short of a clean allow.
 
-## Gates — Phase 6b, `feat/phase-6b-agent-execution`
+## Gates — Phase 6b, merged as `7a6ec4c` (PR #60)
 
 | Gate | Result |
 |---|---|
@@ -126,7 +157,7 @@ Two details that make it a real test rather than a green tick:
   dispatch route. Without it, a resolver silently failing on every specifier would report zero
   offenders and look like success.
 
-## Gates — Phase 6a, `feat/phase-6a-work-orders`
+## Gates — Phase 6a, merged as `3e2bfd5` (PR #59)
 
 Every row re-run after the fencing work; the earlier `next build` was measured before it and is
 void.
