@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import type { JobsOptions } from 'bullmq';
 import { jobQueue, type JobPayload, type JobType } from './types';
 import { DEFAULT_JOB_OPTIONS, JOB_OPTIONS } from './jobOptions';
-import { sequenceQueue, emailQueue, importQueue, syncQueue, maintenanceQueue } from './queues';
+import { sequenceQueue, emailQueue, importQueue, syncQueue, maintenanceQueue, agentQueue } from './queues';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { tenantStorage } from '@/lib/tenant-context';
@@ -15,6 +15,7 @@ function resolveQueue(jobType: JobType) {
     case 'import': return importQueue();
     case 'sync': return syncQueue();
     case 'maintenance': return maintenanceQueue();
+    case 'agent': return agentQueue();
   }
 }
 

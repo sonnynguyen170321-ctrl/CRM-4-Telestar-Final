@@ -63,6 +63,16 @@ export async function setupWorkOrderFixture(prefix: string): Promise<WorkOrderFi
 
   const ids = await runSystem(async () => {
     for (const t of [tenantId, otherTenantId]) {
+      // Agent rows first, and this order is not cosmetic. `AgentAction.userId` and
+      // `AgentApprovalRequest.requestedById` are FKs to `User` with **no cascade**, so leaving
+      // them behind makes the `user.deleteMany` below fail with
+      // `Foreign key constraint violated: AgentAction_userId_fkey`. Phase 6a's suites never
+      // created agent rows and so never hit this; Phase 6b's execution and approval suites do,
+      // which means the second run against a database is the one that breaks.
+      await prisma.agentApprovalRequest.deleteMany({ where: { tenantId: t } });
+      await prisma.agentAction.deleteMany({ where: { tenantId: t } });
+      await prisma.aiCall.deleteMany({ where: { tenantId: t } });
+      await prisma.autonomyPolicy.deleteMany({ where: { tenantId: t } });
       await prisma.workOrderLease.deleteMany({ where: { tenantId: t } });
       await prisma.workOrder.deleteMany({ where: { tenantId: t } });
       await prisma.sequenceEnrollment.deleteMany({ where: { tenantId: t } });

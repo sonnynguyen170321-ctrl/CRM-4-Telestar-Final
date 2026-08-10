@@ -18,6 +18,7 @@ export const emailQueue = () => getQueue(QUEUES.EMAIL);
 export const importQueue = () => getQueue(QUEUES.IMPORT);
 export const syncQueue = () => getQueue(QUEUES.SYNC);
 export const maintenanceQueue = () => getQueue(QUEUES.MAINTENANCE);
+export const agentQueue = () => getQueue(QUEUES.AGENT);
 
 export async function closeAllQueues(): Promise<void> {
   const results = await Promise.allSettled(
