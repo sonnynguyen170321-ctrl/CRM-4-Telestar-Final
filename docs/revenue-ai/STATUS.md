@@ -4,8 +4,8 @@
 
 | | |
 |---|---|
-| Phase | **0–4 complete.** Next: Phase 5 — agent runtime, typed tools, idempotent actions |
-| Branch | `feat/campaign-playbook` |
+| Phase | **0–5 complete**, except the `agent` BullMQ queue — see PLAN Phase 5. Next: Phase 6 — typed work orders |
+| Branch | `phase-5-agent-runtime`, rebased onto `main` at the Phase 4 merge |
 | Blockers | **None.** The Phase 3 state-model decision is made — see below. |
 | Restrictions | No external users, no real client data, sending off, email dry-run |
 
@@ -14,15 +14,42 @@
 > `executeTool` fails closed on an unregistered tool, on a write capability with no role in
 > context, and on anything short of a clean allow.
 
-## Gates — verified 2026-08-09, local
+## Gates — regenerated 2026-08-10 at the rebased Phase 5 HEAD
+
+Every row below was re-run after the rebase. The previous table in this file was measured on
+`feat/campaign-playbook` and did **not** describe the Phase 5 branch: at the rebased HEAD the
+branch had 16 `tsc` errors and a migration that could not replay. Both are fixed here.
 
 | Gate | Result |
 |---|---|
 | `next build` | exit 0 |
 | `tsc --noEmit` | 0 errors |
 | `eslint app components lib context tests` | 0 errors, 0 warnings |
-| `vitest run` | 918 passed, 5 skipped, 70 files |
-| `prisma migrate status` | up to date, 32 migrations |
+| `vitest run` | 932 passed, 5 skipped, 73 files |
+| `prisma migrate status` | up to date, 33 migrations |
+| `migrate diff --from-migrations --to-schema-datamodel --exit-code` | `No difference detected`, exit 0 |
+
+## Phase 5 — what the rebase verification found
+
+Four defects, none introduced by the rebase — the branch had never compiled against a `main`
+carrying Phase 4:
+
+- **A duplicated block in `ChatContext`** (`leadId`/`userName`/`userRole`/`overdueTasks` declared
+  twice) — 8 of the 16 errors.
+- **`campaign.description` does not exist.** The authoritative-context select asked for it, which
+  invalidated the whole select and cascaded into 5 more errors. Removed rather than synthesised
+  from `targetVertical`/`targetGeo`: those mean something else, and handing the model a
+  "campaign pitch" assembled from the wrong columns is worse than having none.
+- **`SessionUser.tenantId` is optional**, and the ledger key is not. Resolved by refusing before
+  the lookup — a default tenant would have written an `AgentAction` row, and possibly a CRM
+  mutation, under a tenant nobody proved.
+- **`Message` carried no `executionId`** though the send path read one, so the idempotency
+  namespace was never actually client-carried. The field is on the type now, minted once per
+  logical turn and reused when the same message is resent after a failure.
+
+Plus a **UTF-8 BOM** on `20260811000001_agent_action/migration.sql`: Postgres rejected the first
+statement with `syntax error at or near "﻿"`, so the migration could not replay into a fresh
+database. Local `migrate status` was clean throughout — replay is the only gate that sees this.
 
 ## Phase 3 — what landed, and the one narrow exception
 

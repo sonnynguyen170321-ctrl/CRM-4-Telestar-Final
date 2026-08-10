@@ -12,6 +12,11 @@ import { decideCapability, resolveMode } from '@/lib/agent/authorization';
 import { TOOL_CAPABILITY, capabilityForTool } from '@/lib/agent/toolCapabilities';
 import { AI_TOOLS } from '@/lib/ai/tools';
 
+vi.mock('@/lib/auth', () => ({
+  canAccessLead: vi.fn().mockResolvedValue(true),
+  canAccessUser: vi.fn().mockResolvedValue(true),
+}));
+
 /**
  * Capability-based autonomy (Revenue AI Phase 2).
  *
@@ -62,6 +67,21 @@ describe('prospect_reply is unreachable at every setting', () => {
   it('denies for every role', () => {
     for (const role of ['director', 'floor_manager', 'team_lead', 'sdr', 'leadgen_manager', 'leadgen'] as const) {
       expect(decideCapability({ role }, 'prospect_reply', 'auto').outcome).toBe('DENY');
+    }
+  });
+});
+
+describe('place_call is unreachable at every setting', () => {
+  it.each(ALL_MODES)('stored mode %s still denies', (mode) => {
+    // Telephony is not executable by the Agent. It is completely blocked at the ceiling.
+    const decision = decideCapability(DIRECTOR, 'place_call', mode);
+    expect(decision.outcome).toBe('DENY');
+    expect(decision.reason).toBe('capability_is_human_only');
+  });
+
+  it('denies for every role even with auto', () => {
+    for (const role of ['director', 'floor_manager', 'team_lead', 'sdr', 'leadgen_manager', 'leadgen'] as const) {
+      expect(decideCapability({ role }, 'place_call', 'auto').outcome).toBe('DENY');
     }
   });
 });

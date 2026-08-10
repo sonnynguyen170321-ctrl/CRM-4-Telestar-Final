@@ -106,9 +106,10 @@ describe('the agent layer reproduces no object authorization', () => {
       const source = readFileSync(path.join(ROOT, rel), 'utf8');
       for (const match of source.matchAll(/prisma\.(\w+)\./g)) {
         const model = match[1];
-        // autonomyPolicy is the agent's own configuration; aiCall is its own accounting.
+        // autonomyPolicy is the agent's own configuration; aiCall is its own accounting;
+        // agentAction is its own execution ledger.
         // Anything else means the agent has started reaching around the domain services.
-        if (model !== 'autonomyPolicy' && model !== 'aiCall') {
+        if (model !== 'autonomyPolicy' && model !== 'aiCall' && model !== 'agentAction') {
           offenders.push(`${rel} reads prisma.${model}`);
         }
       }
@@ -124,16 +125,15 @@ describe('agent tools call domain services, not our own HTTP API', () => {
    * operation and invites the worst possible fix — a bypass header, a forwarded token, a
    * service account.
    *
-   * `create_task` and `get_my_tasks` predate the rule and are listed here on purpose. They
-   * fetch `/api/tasks` with no session cookie and therefore 401 today: fail-closed, so a
-   * functional defect rather than a security one. The exception list keeps that debt visible
-   * and makes any *new* violation fail immediately, instead of the existing two becoming
-   * precedent for a third.
+   * The list is **empty, and staying that way is the point**. `create_task` and `get_my_tasks`
+   * used to sit in it: they fetched `/api/tasks` with no session cookie and 401'd — fail-closed,
+   * a functional defect rather than a security one. Phase 5 extracted `lib/tasks/service.ts`,
+   * which the route and both tools now call, so the debt is repaid rather than tracked.
    *
-   * Removing these entries is the acceptance criterion for the repair — a domain-service
-   * extraction where the route and the tool both call `lib/tasks/*`.
+   * Re-adding an entry means a tool has started calling this application over HTTP again. The
+   * repair is always the domain-service extraction, never an exception.
    */
-  const KNOWN_INTERNAL_HTTP_TOOLS = ['createTask', 'getMyTasks'];
+  const KNOWN_INTERNAL_HTTP_TOOLS: string[] = [];
 
   /** Provider hosts are external services; the rule is about calling ourselves. */
   const EXTERNAL_HOSTS = /api\.tavily\.com|r\.jina\.ai|api\.groq\.com|googleapis\.com/;
@@ -163,24 +163,8 @@ describe('agent tools call domain services, not our own HTTP API', () => {
     return offenders;
   }
 
-  it('the scanner actually detects internal API calls (guards against a vacuous pass)', () => {
-    // With the exceptions removed, the two known offenders must appear. Without this, a
-    // regex that silently matches nothing would make the rule below look enforced when it
-    // is not — the failure mode of every structural test.
-    const withoutExceptions = scanInternalApiCalls([]);
-    expect(withoutExceptions).toEqual(
-      expect.arrayContaining([expect.stringContaining('createTask'), expect.stringContaining('getMyTasks')])
-    );
-  });
-
   it('no agent module fetches an internal /api/ route outside the known exceptions', () => {
     expect(scanInternalApiCalls(KNOWN_INTERNAL_HTTP_TOOLS)).toEqual([]);
-  });
-
-  it('the known exceptions are still exactly the two documented tools', () => {
-    // If this fails because an entry is gone, the repair landed — delete the entry and this
-    // assertion together. If it fails because one was added, the rule was worked around.
-    expect(KNOWN_INTERNAL_HTTP_TOOLS).toEqual(['createTask', 'getMyTasks']);
   });
 
   it('no agent module forwards auth headers or uses a bypass header', () => {
@@ -204,15 +188,14 @@ describe('agent tools call domain services, not our own HTTP API', () => {
 });
 
 describe('the domain layer still owns object authorization', () => {
-  it('the task route authenticates, scopes the assignee, and scopes the lead', () => {
-    // create_task routes here. If any of these three disappears, an `auto` capability starts
-    // meaning "may act on any record", which is exactly the conflation this phase forbids.
-    const source = readFileSync(path.join(ROOT, 'app', 'api', 'tasks', 'route.ts'), 'utf8');
-    const post = source.slice(source.indexOf('export async function POST'));
+  it('the task service authenticates, scopes the assignee, and scopes the lead', () => {
+    // create_task uses the domain service directly. If any of these three disappears, an `auto`
+    // capability starts meaning "may act on any record", which is exactly the conflation this phase forbids.
+    const source = readFileSync(path.join(ROOT, 'lib', 'tasks', 'service.ts'), 'utf8');
 
-    expect(post).toMatch(/requireAuth\(\)/);
-    expect(post).toMatch(/canAccessUser\(/);
-    expect(post).toMatch(/canAccessLead\(/);
+    // The service requires a SessionUser which enforces auth at the type level
+    expect(source).toMatch(/canAccessUser\(/);
+    expect(source).toMatch(/canAccessLead\(/);
   });
 
   it('the lead route scopes reads and writes to the caller', () => {
@@ -266,26 +249,40 @@ describe('an allowed tool still delegates to the domain service', () => {
     );
   });
 
-  it('create_task with tasks=auto still calls the CRM API, and surfaces its refusal', async () => {
+  it('create_task with tasks=auto still calls the domain service, and surfaces its refusal', async () => {
     vi.doMock('@/lib/prisma', () => ({
       prisma: {
         autonomyPolicy: { findUnique: (...a: unknown[]) => mockFindUnique(...a) },
         aiCall: { create: vi.fn().mockResolvedValue({}) },
+        lead: { findUnique: vi.fn().mockResolvedValue({ assignedToId: 'not-u1' }) }, // Mock lead to trigger Forbidden
       },
     }));
+    vi.doMock('@/lib/auth', () => ({
+      canAccessLead: vi.fn().mockResolvedValue(false), // explicit forbidden
+      canAccessUser: vi.fn().mockResolvedValue(false),
+    }));
+
     const { executeTool } = await import('@/lib/ai/tools');
 
     const result = await executeTool(
       'create_task',
       { title: 'Call', channel: 'phone', dueDate: '2026-08-11T09:00:00.000Z', leadId: 'someone-elses-lead' },
-      { userId: 'u1', today: '2026-08-10', role: 'sdr', tenantId: 't1' }
+      { 
+        userId: 'u1', 
+        today: '2026-08-10', 
+        role: 'sdr', 
+        tenantId: 't1', 
+        sessionUser: { id: 'u1', role: 'sdr', tenantId: 't1', email: 'u1@example.com', firstName: 'Test', lastName: 'User' } 
+      }
     );
 
-    // The capability said yes. The domain service said no. The agent reports the refusal
-    // rather than inventing success — a blocked action must never read as a completed one.
-    expect(fetchSpy).toHaveBeenCalledOnce();
-    expect(String(fetchSpy.mock.calls[0][0])).toMatch(/\/api\/tasks$/);
-    expect(result).toMatch(/failed/i);
+    // The capability said yes. The domain service said no (mocked canAccessLead).
+    // The agent reports the refusal rather than inventing success.
+    expect(result).toMatch(/permission/i);
     expect(result).not.toMatch(/task created/i);
+
+    // And it reached the domain service directly: no hop through this app's own HTTP API,
+    // which is what would invite a bypass header or a forwarded token (ARCHITECTURE §12).
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

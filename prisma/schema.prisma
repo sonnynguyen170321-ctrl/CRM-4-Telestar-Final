@@ -226,28 +226,28 @@ enum OpportunityActivityType {
 // ─── Users ───────────────────────────────────────────────────────────────────
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  firstName String
-  lastName  String
-  role      Role     @default(sdr)
-  managerId String?
-  manager   User?    @relation("UserReports", fields: [managerId], references: [id])
-  reports   User[]   @relation("UserReports")
-  avatarUrl String?
-  timezone  String   @default("UTC")
-  isActive  Boolean  @default(true)
+  id          String   @id @default(cuid())
+  email       String   @unique
+  password    String
+  firstName   String
+  lastName    String
+  role        Role     @default(sdr)
+  managerId   String?
+  manager     User?    @relation("UserReports", fields: [managerId], references: [id])
+  reports     User[]   @relation("UserReports")
+  avatarUrl   String?
+  timezone    String   @default("UTC")
+  isActive    Boolean  @default(true)
   /// Bumped whenever a change must invalidate every existing session — password change,
   /// admin reset, deactivate/reactivate, role change, tenant move, or an explicit
   /// "sign out all sessions". The JWT carries the value it was minted with; `getSessionUser`
   /// rejects any token whose value no longer matches. Sessions are stateless JWTs, so this
   /// counter is the only revocation mechanism available.
-  authVersion Int    @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  authVersion Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   assignedLeads            Lead[]                    @relation("LeadAssignee")
   tasks                    Task[]
@@ -278,6 +278,7 @@ model User {
   reportExports            ClientReportExport[]
   reportShareLinks         ClientReportShareLink[]
   healthSnapshots          EmailHealthSnapshot[]
+  AgentAction              AgentAction[]
 
   @@index([tenantId])
   @@index([tenantId, managerId])
@@ -476,17 +477,17 @@ model Lead {
   operatingState   ProspectOperatingState @default(unassigned)
   operatingStateAt DateTime?
 
-  tasks               Task[]
-  notes               Note[]
-  activities          Activity[]
-  reminders           Reminder[]
-  outboundMessages    OutboundMessage[]
-  inboundMessages     InboundMessage[]
-  sequenceEnrollments SequenceEnrollment[]
-  importRows          ImportRow[]
-  meetings            Meeting[]
-  opportunities       Opportunity[]
-  poolSources         LeadPoolItem[]       @relation("LeadPoolConverted")
+  tasks                Task[]
+  notes                Note[]
+  activities           Activity[]
+  reminders            Reminder[]
+  outboundMessages     OutboundMessage[]
+  inboundMessages      InboundMessage[]
+  sequenceEnrollments  SequenceEnrollment[]
+  importRows           ImportRow[]
+  meetings             Meeting[]
+  opportunities        Opportunity[]
+  poolSources          LeadPoolItem[]       @relation("LeadPoolConverted")
   operatingTransitions ProspectTransition[]
 
   @@index([stage])
@@ -847,9 +848,13 @@ model OutboundMessage {
   // is ever resent — see workers/email.ts.
   status            String       @default("pending")
   errorMessage      String?
-  /** Set by the compare-and-set claim that moves pending/failed -> sending. */
+  /**
+   * Set by the compare-and-set claim that moves pending/failed -> sending.
+   */
   claimedAt         DateTime?
-  /** Incremented by the claim, so a repeatedly-ambiguous send is visible to an operator. */
+  /**
+   * Incremented by the claim, so a repeatedly-ambiguous send is visible to an operator.
+   */
   attemptCount      Int          @default(0)
   sentAt            DateTime?
   openedAt          DateTime? // NOTE: no writer exists — there is no open-tracking pixel route.
@@ -914,10 +919,10 @@ model SequenceEnrollment {
   startedAt        DateTime                 @default(now())
   completedAt      DateTime?
   // Automation runtime fields (Phase 3)
-  nextActionAt     DateTime?                // When the next automated action is scheduled
-  pausedReason     String?                  // reply|hard_bounce|soft_bounce|meeting_booked|manual|email_health|campaign_paused|mailbox_unavailable
-  lastTransitionAt DateTime?                // Last time status/state changed
-  lastEvaluatedAt  DateTime?                // Last time eligibility was evaluated
+  nextActionAt     DateTime? // When the next automated action is scheduled
+  pausedReason     String? // reply|hard_bounce|soft_bounce|meeting_booked|manual|email_health|campaign_paused|mailbox_unavailable
+  lastTransitionAt DateTime? // Last time status/state changed
+  lastEvaluatedAt  DateTime? // Last time eligibility was evaluated
   tenantId         String
   tenant           Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -925,8 +930,8 @@ model SequenceEnrollment {
   @@index([sequenceId])
   @@index([status])
   @@index([tenantId])
-  @@index([nextActionAt])                   // For maintenance worker scheduling queries
-  @@index([status, nextActionAt])           // Active enrollments due for action
+  @@index([nextActionAt]) // For maintenance worker scheduling queries
+  @@index([status, nextActionAt]) // Active enrollments due for action
 }
 
 // ─── Import ──────────────────────────────────────────────────────────────────
@@ -1581,6 +1586,7 @@ model Tenant {
   prospectTransitions      ProspectTransition[]
   campaignPlaybooks        CampaignPlaybook[]
   playbookVersions         CampaignPlaybookVersion[]
+  AgentAction              AgentAction[]
 }
 
 // ─── Campaign Playbooks ──────────────────────────────────────────────────────
@@ -1660,7 +1666,8 @@ model CampaignPlaybookVersion {
   activatedAt  DateTime?
   supersededAt DateTime?
 
-  currentFor CampaignPlaybook? @relation("CurrentVersion")
+  currentFor  CampaignPlaybook? @relation("CurrentVersion")
+  AgentAction AgentAction[]
 
   @@unique([playbookId, versionNumber])
   @@index([tenantId])
@@ -1691,7 +1698,7 @@ model ProspectTransition {
   lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   /// 'handoff' | 'reengagement_eligible' | 'handback' | 'ai_reengagement_started'
-  kind String
+  kind          String
   /// Identifies this occurrence. Unique per tenant — a retry of the same event finds this row.
   transitionKey String
 
@@ -1757,6 +1764,42 @@ model AutonomyPolicy {
   @@index([tenantId])
 }
 
+// ─── Agent Actions (Phase 5) ────────────────────────────────────────────────
+
+model AgentAction {
+  id                   String                   @id @default(cuid())
+  actionKey            String
+  tenantId             String
+  tenant               Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId               String
+  user                 User                     @relation(fields: [userId], references: [id])
+  role                 Role
+  capability           String
+  tool                 String
+  status               String                   @default("pending") // pending | running | completed | failed | refused
+  authorizationOutcome String // ALLOW | REQUIRE_USER_APPROVAL | REQUIRE_MANAGER_APPROVAL | DENY
+  playbookVersionId    String?
+  playbookVersion      CampaignPlaybookVersion? @relation(fields: [playbookVersionId], references: [id])
+  workOrderId          String? // Nullable until Phase 6
+  leadId               String?
+  campaignId           String?
+  result               Json?
+  error                Json?
+
+  attemptCount Int       @default(0)
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  aiCalls AiCall[]
+
+  @@unique([tenantId, actionKey])
+  @@index([tenantId])
+  @@index([userId])
+  @@index([leadId])
+}
+
 // ─── AI Usage Attribution ────────────────────────────────────────────────────
 
 /// One row per outbound call to an AI or research provider.
@@ -1769,15 +1812,19 @@ model AutonomyPolicy {
 /// rather than one aggregate. Aggregating at write time would lose which iteration
 /// spent the tokens, which is the question cost review actually asks.
 model AiCall {
-  id        String @id @default(cuid())
-  tenantId  String
-  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userId    String?
+  id          String  @id @default(cuid())
+  tenantId    String
+  tenant      Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId      String?
   /// Prospect this call was about, when there is one. No FK: an AiCall is an
   /// accounting record and must outlive an archived or deleted lead.
-  leadId    String?
+  leadId      String?
   /// Set once typed work orders exist (Phase 6). No FK until the model does.
   workOrderId String?
+
+  /// Linkage back to the executing AgentAction
+  agentActionId String?
+  agentAction   AgentAction? @relation(fields: [agentActionId], references: [id])
 
   /// What the call was for — 'chat', 'briefing', 'research', 'draft_reply', …
   operation String
@@ -1792,7 +1839,7 @@ model AiCall {
   /// Billable units for non-token providers (one search, one page fetch).
   searchCredits    Int?
 
-  latencyMs Int
+  latencyMs        Int
   /// Estimated, not billed: computed from lib/ai/pricing.ts rates at call time.
   estimatedCostUsd Decimal? @db.Decimal(12, 6)
 

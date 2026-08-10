@@ -195,8 +195,8 @@ One shared agent runtime serving every role, not five AI systems. **Read
 `docs/revenue-ai/STATUS.md` first**, then execute the next unchecked item in
 `docs/revenue-ai/PLAN.md`. `ARCHITECTURE.md` there is the contract.
 
-Phase 0 (vocabulary normalization) is done. Next is Phase 1 — cost attribution plus a test that
-the CRM survives the AI subsystem being down.
+Phases 0–5 are done except the `agent` BullMQ queue, which waits for its first producer in
+Phase 6. Next is Phase 6 — typed work orders.
 
 The operating model: **AI does the repetitive prospecting work, SDRs do the selling, managers
 manage exceptions and performance, the CRM keeps everything connected and controlled.**
@@ -256,11 +256,11 @@ lifecycle. `SequenceEnrollment.status` + `nextActionAt` / `pausedReason` / `curr
    shared domain service can own. Never a bypass header, a forwarded cookie, a bearer token or
    a service account. External provider calls (Groq, Gemini, Tavily, Jina) are unaffected.
 
-> **Known debt:** `create_task` / `get_my_tasks` fetch `/api/tasks` with no session cookie and
-> return 401 — fail-closed, so a functional defect, not a security one. They sit in a named
-> exception list in `tests/agent-object-authorization.test.ts`; any *new* internal-HTTP call
-> fails the build. The repair is a `lib/tasks/*` extraction that the route and the tool both
-> call, scoped to the tool/domain-service phase.
+> **Repaid in Phase 5.** `create_task` / `get_my_tasks` used to `fetch` this app's `/api/tasks`
+> with no session cookie and return 401. `lib/tasks/service.ts` now owns task create and list,
+> and both the route and the tools call it — so there is no internal-HTTP exception list left to
+> grandfather. `tests/agent-object-authorization.test.ts` still fails the build on any *new*
+> internal-HTTP call from the agent layer.
 
 > ⚠️ **Capability authorization is not object authorization** (`ARCHITECTURE.md` §11).
 > `tasks = auto` means "may create tasks at all", *not* "may act on this lead". Object scope —
