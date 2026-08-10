@@ -153,6 +153,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The preflight compares against the base branch, and `checkout` is shallow by default,
+      # so `origin/main` would not otherwise exist. Depth 1 is enough: only main's tip tree is
+      # read. Without this the check degrades to format-only and silently stops catching order.
+      - name: Fetch base branch for the migration preflight
+        run: git fetch --no-tags --depth=1 origin main
+        shell: bash
+
+      # Runs before the replay on purpose. Prisma stamps a migration with generation time rather
+      # than dependency position, which has produced three migrations sorting before the tables
+      # they alter. Replay catches it, but only after building a database; this names the file in
+      # about a second. Replay below remains the correctness authority — a migration can sort
+      # correctly and still be wrong.
+      - name: Migration order preflight
+        run: node scripts/check-migration-order.mjs origin/main
+        shell: bash
+
       - name: Create shadow database
         run: PGPASSWORD=postgres psql -h localhost -U postgres -c 'CREATE DATABASE telestar_shadow;'
         shell: bash

@@ -296,11 +296,25 @@ each required check successful; a watcher exiting 0 is not evidence.
 SQL. Run locally before pushing:
 
 ```bash
+npm run check:migration-order          # fast: catches a mis-sorted new migration
 node node_modules/prisma/build/index.js migrate status
 node node_modules/prisma/build/index.js migrate diff \
   --from-migrations ./prisma/migrations --to-schema-datamodel ./prisma/schema.prisma \
   --shadow-database-url "postgresql://postgres:postgres@127.0.0.1:5432/telestar_shadow" --exit-code
 ```
+
+> ⚠️ **Prisma stamps a migration with generation time, not dependency position.** On a branch
+> whose earlier migrations were authored with dates ahead of the wall clock, a newly generated
+> migration sorts *before* the tables it alters. It then applies fine to your database — which
+> already has those tables — and `migrate status` stays green. **Only a replay from empty sees
+> it.** This has happened three times (`work_order_phase6a`, `work_order_lease_fencing`,
+> `agent_execution_phase6b`, all renamed to `202608110[123]0000`).
+>
+> `npm run check:migration-order` now fails in about a second when a new migration sorts before
+> the existing tail, and runs in CI ahead of the replay. It is a **speed** gate only —
+> `migrate diff --from-migrations` against an empty shadow database remains the correctness
+> authority, because a migration can sort correctly and still be wrong. **Always check a
+> generated migration's name against the tail of `prisma/migrations/` before applying it.**
 
 A **migration-only index or constraint is not acceptable** unless the datamodel represents the
 same final schema — it survives only until someone regenerates a migration from the schema,
