@@ -277,18 +277,76 @@ first producer.
 
 ## Phase 6 — Typed work orders
 
-- [ ] Types: `prospect_batch`, `research_batch`, `sequence_design`, `outreach_launch`,
-      `followup`, `reengagement`, `reply_review`, `campaign_analysis`, `lead_quality_analysis`
-- [ ] The type declares allowed capabilities — the type is what bounds tool access
-- [ ] Budgets: `researchBudget`, `tokenBudget`, `maxToolCalls`, `maxExecutionDuration`.
-      Exhaustion pauses and reports partial completion; never a silent overspend
-- [ ] Concurrency: a lead cannot sit under two competing work orders. Check active agent work,
-      current sequence, and operating state before activation
-- [ ] Agent lease (`workOrderId`, `leadId`, `mode`, `claimedAt`, `expiresAt`) — execution
-      protection only. **Not sales ownership**; assignment stays `Lead.assignedToId`
+**One architectural phase, split into 6a and 6b for review.** 6a is the durable domain — the
+model, the bounds, the conflict rules and the lease. 6b is what executes it: the `agent` queue,
+approval requests, and incremental budget enforcement. The split is a review boundary, not a
+design boundary; 6b assumes 6a's vocabulary and adds no second one.
 
-**Acceptance:** activating a conflicting work order is refused with the conflict named. A lease
-never changes who the CRM says owns the lead.
+### Phase 6a — Typed WorkOrder domain foundation ✅
+
+- [x] Types: `prospect_batch`, `research_batch`, `sequence_design`, `outreach_launch`,
+      `followup`, `reengagement`, `reply_review`, `campaign_analysis`, `lead_quality_analysis`
+      ([`lib/workorders/types.ts`](../../lib/workorders/types.ts))
+- [x] The type declares allowed capabilities — the type is what bounds tool access. The set is
+      an **additional ceiling only**; the composition in
+      [`lib/workorders/authorization.ts`](../../lib/workorders/authorization.ts) has no branch
+      that constructs an `ALLOW`, so it can subtract and cannot add.
+- [x] Budgets `researchBudget` / `tokenBudget` / `maxToolCalls` / `maxExecutionDuration`
+      **validated and bounded** at the domain boundary, with `budget_exhausted` a first-class
+      pause reason. *Incremental enforcement is 6b* — and so are the consumption counters, since
+      a column nothing writes is not worth adding early.
+- [x] Concurrency: a lead cannot sit under two competing work orders. Four independent sources
+      checked and each reported by name — active work order, live lease, authoritative
+      `SequenceEnrollment`, `ProspectOperatingState`
+      ([`lib/workorders/conflicts.ts`](../../lib/workorders/conflicts.ts))
+- [x] Agent lease (`workOrderId`, `leadId`, `mode`, `claimToken`, `claimedAt`, `expiresAt`) —
+      execution protection only. **Not sales ownership**; assignment stays `Lead.assignedToId`
+      ([`lib/workorders/leases.ts`](../../lib/workorders/leases.ts))
+- [x] **Fencing.** `claimToken` is minted on every claim and reclaim, preserved across renewals,
+      and required by `renewLease` / `releaseLease` / `holdsLease`. `workOrderId` alone cannot
+      fence *two attempts at the same order* — the case where a stalled worker wakes after its
+      lease expired and a retry reclaimed it.
+- [x] Exact `CampaignPlaybookVersion` provenance, pinned once at activation — the writer the
+      Phase 4 column was waiting for
+- [x] `AgentAction`, `AiCall` and `ProspectTransition` carry real foreign keys to `WorkOrder`
+      instead of loose text columns
+
+**Acceptance (all proved):** activating a conflicting work order is refused with the conflict
+named, and nothing is cancelled or replaced. A lease never changes who the CRM says owns the
+lead, nor its operating state, nor writes a `ProspectTransition`. Every type has an explicit
+capability set and every *capability* an explicit prospect-effect classification; no type
+declares a `human_only` capability; the composed decision is no more permissive than the agent
+policy alone across all **4,320** combinations — 9 types × 16 capabilities × 6 roles × 5 stored
+modes, where the fifth mode is `null`, "this tenant has stored no policy". A superseded lease
+holder can neither renew, release, nor present itself as the holder. Two concurrent exclusive
+claimants resolve to one winner and one named refusal, never a raw unique violation. Budgets are
+bounded on both sides. Tenant isolation holds against a known id.
+
+### Phase 6b — Queue execution + approval requests
+
+- [ ] The `agent` BullMQ queue on the existing infrastructure and `JobRun` durability — no
+      agent-specific job store. Work order execution is its first real producer.
+- [ ] One SLA priority vocabulary, declared and tested now even where producers do not yet
+      exist: prospect reply / meeting request > interactive SDR command > work order execution
+      > bulk research
+- [ ] Durable approval requests, so `REQUIRE_USER_APPROVAL` and `REQUIRE_MANAGER_APPROVAL` stop
+      being terminal refusals. Records tenant, work order, action intent, requester, required
+      level, approver, `pending | approved | rejected | expired`, timestamps, playbook version.
+- [ ] **Approval does not bypass authorization.** On resume, every capability, role, tenant,
+      object, work order and state check runs again against authoritative state — something
+      approved twenty minutes ago is not proof it is still safe now.
+- [ ] Incremental budget enforcement: check remaining research, tokens, tool calls and duration
+      *before* each operation. Exhaustion pauses durably and reports partial completion; never a
+      silent overspend, and never a completion that was really a stop.
+- [ ] Execution runs through the Phase 5 `AgentRuntime` — no second WorkOrder-specific CRM path
+- [ ] Services, queue/worker and API routes only. **No work order or approval UI in Phase 6.**
+
+**Acceptance:** activation enqueues through the existing BullMQ system at the declared priority.
+A duplicate enqueue cannot duplicate a CRM mutation. An approval-required action creates exactly
+one durable request and does not execute; approving resumes through current authorization;
+rejected and expired requests never execute; state changed after approval can still refuse.
+Budget exhaustion pauses with partial progress. A provider outage does not break the CRM. Stale
+lease recovery is deterministic. `place_call` remains impossible.
 
 ---
 

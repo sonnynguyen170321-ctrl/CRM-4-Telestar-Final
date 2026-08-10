@@ -279,6 +279,7 @@ model User {
   reportShareLinks         ClientReportShareLink[]
   healthSnapshots          EmailHealthSnapshot[]
   AgentAction              AgentAction[]
+  workOrdersCreated        WorkOrder[]               @relation("WorkOrdersCreated")
 
   @@index([tenantId])
   @@index([tenantId, managerId])
@@ -335,6 +336,7 @@ model Campaign {
   assignedPoolItems  LeadPoolItem[]
   clientReports      ClientReport[]
   emailHealthAlerts  EmailHealthAlert[]
+  workOrders         WorkOrder[]
 
   @@index([tenantId])
 }
@@ -489,6 +491,8 @@ model Lead {
   opportunities        Opportunity[]
   poolSources          LeadPoolItem[]       @relation("LeadPoolConverted")
   operatingTransitions ProspectTransition[]
+  workOrders           WorkOrder[]
+  workOrderLeases      WorkOrderLease[]
 
   @@index([stage])
   @@index([assignedToId])
@@ -1587,6 +1591,8 @@ model Tenant {
   campaignPlaybooks        CampaignPlaybook[]
   playbookVersions         CampaignPlaybookVersion[]
   AgentAction              AgentAction[]
+  workOrders               WorkOrder[]
+  workOrderLeases          WorkOrderLease[]
 }
 
 // ─── Campaign Playbooks ──────────────────────────────────────────────────────
@@ -1668,6 +1674,7 @@ model CampaignPlaybookVersion {
 
   currentFor  CampaignPlaybook? @relation("CurrentVersion")
   AgentAction AgentAction[]
+  workOrders  WorkOrder[]
 
   @@unique([playbookId, versionNumber])
   @@index([tenantId])
@@ -1707,8 +1714,10 @@ model ProspectTransition {
 
   /// Who caused it. Null for system-driven transitions such as an inbound reply.
   actorUserId String?
-  /// Set once typed work orders exist (Phase 6). No FK until the model does.
+  /// The work order whose execution caused this transition, when one did. Phase 6a is the
+  /// model this column was waiting for, so it carries a real FK now.
   workOrderId String?
+  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
 
   /// 'pending' | 'state_applied' | 'completed'
   ///
@@ -1780,7 +1789,10 @@ model AgentAction {
   authorizationOutcome String // ALLOW | REQUIRE_USER_APPROVAL | REQUIRE_MANAGER_APPROVAL | DENY
   playbookVersionId    String?
   playbookVersion      CampaignPlaybookVersion? @relation(fields: [playbookVersionId], references: [id])
-  workOrderId          String? // Nullable until Phase 6
+  /// The work order this action executed under, when it ran inside one. Null for interactive
+  /// chat, which is a real producer and not a gap to be filled.
+  workOrderId          String?
+  workOrder            WorkOrder?               @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
   leadId               String?
   campaignId           String?
   result               Json?
@@ -1819,8 +1831,13 @@ model AiCall {
   /// Prospect this call was about, when there is one. No FK: an AiCall is an
   /// accounting record and must outlive an archived or deleted lead.
   leadId      String?
-  /// Set once typed work orders exist (Phase 6). No FK until the model does.
+  /// The work order this spend belongs to, when it ran inside one.
+  ///
+  /// `onDelete: SetNull` rather than cascade, deliberately: an `AiCall` is an accounting record
+  /// and must outlive the work order it was spent on, for the same reason `leadId` carries no
+  /// FK at all. Losing the row would silently reduce reported spend.
   workOrderId String?
+  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
 
   /// Linkage back to the executing AgentAction
   agentActionId String?
@@ -1853,6 +1870,155 @@ model AiCall {
   @@index([tenantId, operation])
   @@index([tenantId, provider])
   @@index([userId, createdAt])
+  @@index([workOrderId])
+}
+
+// ─── Typed Work Orders (Phase 6a) ────────────────────────────────────────────
+
+/// A bounded unit of agent work.
+///
+/// The **type** is what bounds tool access — `lib/workorders/types.ts` maps each of the nine
+/// types to the capabilities it may exercise, and that set is an *additional ceiling only*.
+/// A work order can forbid what agent autonomy would have allowed; it can never permit what
+/// autonomy forbids. `lib/workorders/authorization.ts` is the single composition point.
+///
+/// Stored as text rather than enums for `type`, `status` and `pausedReason`, matching
+/// `AutonomyPolicy`: adding a work order type should be a code change and a test, not an enum
+/// migration coordinated with a deploy.
+///
+/// ## What this model deliberately does not carry
+///
+/// Consumption counters (`researchUsed`, `tokensUsed`, `toolCallsUsed`) are **not here**.
+/// Phase 6b enforces budgets incrementally and is what will write them; a column nothing writes
+/// is not worth adding early — the same reasoning that kept `playbookVersionId` off
+/// `CampaignPlaybookVersion`'s dependants until work orders existed to write it.
+model WorkOrder {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// A `WorkOrderType` from `lib/workorders/types.ts`.
+  type String
+  /// A `WorkOrderStatus`: draft | active | paused | completed | cancelled | failed.
+  status String @default("draft")
+  /// A `WorkOrderPausedReason` when `status` is `paused`. `budget_exhausted` is a first-class
+  /// reason rather than a failure — exhausting a budget is the budget working.
+  pausedReason String?
+
+  /// Idempotency for activation. Two deliveries of the same request find the same row instead
+  /// of creating a second order against one lead, which the conflict check would then refuse.
+  requestKey String
+
+  /// Scope. A batch order is campaign-scoped with no lead; a followup or reply review is
+  /// lead-scoped. Both may be set — a lead-scoped order still belongs to its campaign.
+  leadId     String?
+  lead       Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  /// **Exact** provenance, resolved once at activation and never recomputed.
+  ///
+  /// Phase 4 attributed outcomes by activation window because nothing wrote an id. This is the
+  /// writer that column was waiting for. Time inference and a stored id must not both be
+  /// authorities: where they disagree — a version activated mid-execution — the stored id is
+  /// what this order actually ran under.
+  playbookVersionId String?
+  playbookVersion   CampaignPlaybookVersion? @relation(fields: [playbookVersionId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("WorkOrdersCreated", fields: [createdById], references: [id])
+
+  /// Budgets, validated against `BUDGET_BOUNDS` at the domain boundary. Four separate limits
+  /// because they fail differently: tokens and research are money at different rates, tool
+  /// calls bound blast radius, and duration bounds a stuck run.
+  researchBudget       Int
+  tokenBudget          Int
+  maxToolCalls         Int
+  /// Wall-clock seconds from `activatedAt`.
+  maxExecutionDuration Int
+
+  /// Set once, at the first activation. A pause/resume cycle does not restart it, because
+  /// `maxExecutionDuration` is measured from here and a resumed order must not get a fresh clock.
+  activatedAt DateTime?
+  pausedAt    DateTime?
+  /// When the order reached a terminal status — `completed`, `cancelled` **or** `failed`. It is
+  /// "ended at" rather than "succeeded at"; `status` is what says which.
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  leases       WorkOrderLease[]
+  agentActions AgentAction[]
+  aiCalls      AiCall[]
+  transitions  ProspectTransition[]
+
+  @@unique([tenantId, requestKey])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  /// The conflict check's main query: is this lead already held by live work?
+  @@index([tenantId, leadId, status])
+  @@index([campaignId, status])
+}
+
+/// An execution lease on a lead. **Not sales ownership.**
+///
+/// `Lead.assignedToId` is who the CRM says owns the prospect and this never touches it;
+/// `ProspectOperatingState` is who or what is responsible right now and this never touches that
+/// either. A lease answers only "which work order may execute against this lead at this
+/// instant", and the three concepts stay independent on purpose — a lease expiring must not
+/// reassign anybody, and a reassignment must not interrupt a running order.
+///
+/// ## One row per lead, and why
+///
+/// `@@unique([tenantId, leadId])` is what makes exclusivity a *constraint* rather than a check.
+/// Two concurrent claimants cannot both read "free" and both insert; the database picks one and
+/// the loser inspects the winner's row. A service-side check with no constraint behind it would
+/// be a race under exactly the conditions leases exist for.
+///
+/// Only `exclusive`-mode work orders claim. A `shared`-mode order — assistance work that
+/// observes and annotates — takes no lease and is blocked by none, because it does not compete:
+/// blocking a summary while an SDR works the lead is the opposite of useful. `mode` is stored
+/// on the row so the recovery and observability queries can say what class of hold it is
+/// without joining back through the order to its type.
+model WorkOrderLease {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  /// A `LeaseMode` from `lib/workorders/types.ts`.
+  mode String
+
+  /// Fencing identity. Minted fresh on **every** claim and reclaim, preserved across renewals.
+  ///
+  /// `workOrderId` alone is not enough to fence a stale holder. The dangerous case is not two
+  /// different orders — it is *two attempts at the same order*: worker 1 claims for order X and
+  /// stalls, the lease expires, worker 2 retries order X and reclaims, then worker 1 wakes. Its
+  /// `workOrderId` still matches, so a `workOrderId`-only predicate would let it renew or
+  /// release a lease it no longer holds. The token does not match, so it cannot.
+  ///
+  /// `renew` and `release` both require it. `releaseLeasesForWorkOrder` deliberately does not —
+  /// that is the order-ending unwind, where the order reaching a terminal status is authoritative
+  /// no matter which attempt currently holds the row.
+  claimToken String
+
+  claimedAt DateTime  @default(now())
+  renewedAt DateTime?
+  /// A lease past this instant is reclaimable by anyone. Expiry is the recovery path for a
+  /// worker that died holding it — there is no other way to release a lease whose holder is
+  /// gone, and a lease that outlives its process forever is a permanently stuck lead.
+  expiresAt DateTime
+  /// Set on a clean release. A released row stays for the audit trail and is reclaimable
+  /// immediately, rather than being deleted and losing the record that work happened.
+  releasedAt DateTime?
+
+  @@unique([tenantId, leadId])
+  @@index([tenantId, expiresAt])
   @@index([workOrderId])
 }
 

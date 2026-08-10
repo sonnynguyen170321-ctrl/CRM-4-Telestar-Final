@@ -4,15 +4,223 @@
 
 | | |
 |---|---|
-| Phase | **0–5 complete**, except the `agent` BullMQ queue — see PLAN Phase 5. Next: Phase 6 — typed work orders |
-| Branch | `phase-5-agent-runtime`, rebased onto `main` at the Phase 4 merge |
-| Blockers | **None.** The Phase 3 state-model decision is made — see below. |
+| Phase | **0–5 and 6a complete.** Next: **Phase 6b** — the `agent` queue, approval requests, incremental budget enforcement |
+| Branch | `feat/phase-6a-work-orders`, off `main` at the Phase 5 merge (`52bff31`) |
+| Blockers | **None.** |
 | Restrictions | No external users, no real client data, sending off, email dry-run |
+
+> **Phase 6 is one architectural phase reviewed in two parts.** 6a is the durable domain — the
+> `WorkOrder` model, the type-declared capability bounds, conflict detection and the execution
+> lease. 6b is what executes it. The split is a review boundary, not a design boundary: 6b adds
+> no second vocabulary and no second execution path.
 
 > **Every agent tool now runs under capability authorization.** `create_task` — the one
 > pre-existing write-capable tool — is mapped to `tasks` and enforced, not grandfathered.
 > `executeTool` fails closed on an unregistered tool, on a write capability with no role in
 > context, and on anything short of a clean allow.
+
+## Gates — Phase 6a, `feat/phase-6a-work-orders`
+
+Every row re-run after the fencing work; the earlier `next build` was measured before it and is
+void.
+
+| Gate | Result |
+|---|---|
+| `tsc --noEmit` | 0 errors |
+| `eslint app components lib context tests` | 0 errors, 0 warnings |
+| `vitest run` | **1016 passed, 5 skipped**, 76 files |
+| Phase 6a targeted suites | 84 passed — 33 `work-order-bounds` · 24 `work-order-lifecycle` · 27 `work-order-leases` |
+| `next build` | exit 0 |
+| `prisma migrate status` | up to date, **35 migrations** |
+| `migrate diff --from-migrations --to-schema-datamodel --exit-code` | `No difference detected`, exit 0 |
+| Fresh replay into an empty shadow database | clean |
+
+1016 is exactly 84 above `main`'s 932 — the whole delta is this phase's tests, so nothing
+existing regressed and nothing was quietly skipped. The 5 skips are `tests/redis-integration.test.ts`,
+which needs a real Redis and is expected to skip locally.
+
+> **`next build` proves less here than it usually does.** Nothing in `app/`, `components/` or
+> `context/` imports `lib/workorders/` yet — 6a is domain services only — so the build exercises
+> none of this code's client/server boundary. `leases.ts` imports `node:crypto`, which would fail
+> a client bundle. That risk arrives with 6b's API routes, and the build gate only becomes
+> meaningful for these modules at that point.
+
+## Phase 6a — what landed, and the three decisions that shaped it
+
+Five modules under `lib/workorders/`, two models, one migration.
+
+**1. The work order bound subtracts and cannot add.** `decideWorkOrderCapability` has exactly
+one permitting branch, and all it does is return `decideCapability`'s answer verbatim — there is
+no path in that file that constructs an `ALLOW`. So "a work order can never widen agent
+autonomy" is a property of the control flow rather than a rule someone has to remember.
+
+The test checks it exhaustively over **4,320** combinations:
+
+```text
+9 work order types × 16 AgentCapabilities × 6 CRM roles × 5 stored modes = 4,320
+```
+
+Five modes, not four: `null` — "this tenant has stored no policy" — sits alongside `auto`,
+`approval`, `manager_approval` and `human_only`, and it is the state every tenant starts in. No
+capability is excluded from the matrix; `place_call`, `prospect_reply` and `call_assistance` are
+in it precisely because the subtractive property is strongest where the capability is forbidden.
+The iteration-count assertion multiplies the four vocabulary lengths rather than naming a
+number, so any of them growing widens the matrix instead of leaving a hole in it.
+
+> **Correction.** An earlier revision of this file said 2,700. That figure was never computed —
+> the assertion in the test was always derived from the vocabularies and always covered all four
+> axes in full. Only the prose was wrong.
+
+`prospect_reply` and `place_call` are locked twice over: they appear in no type's set, *and*
+`CAPABILITY_CEILING` pins them to `human_only`. The set of forbidden capabilities is derived
+from the ceiling rather than restated, so raising something to `human_only` in
+`lib/agent/capabilities.ts` bars it from every work order type automatically.
+
+**Every capability now carries an explicit prospect-effect classification.**
+`CAPABILITY_PROSPECT_EFFECT` is a total `Record<AgentCapability, ProspectEffect>`, so adding a
+capability **fails the build** until it is classified. The previous shape was a `Set` of the
+touching ones, which silently defaulted every future capability to `internal` — failing *open*,
+on the classification that decides whether a human-owned prospect may be touched. Writing it out
+also corrected one: `place_call` is `touches_prospect` (the prospect's phone rings), while
+`call_assistance` stays internal. `PROSPECT_TOUCHING_CAPABILITIES` is derived from the
+classification, and `isProspectTouching(type)` from that — one source, two derivations, no
+hand-maintained second list.
+
+**2. "Competing" is narrower than "both running".** Blocking any second order on a lead would
+make `human_managed` mean "AI off", which ARCHITECTURE §4.3 says it does not. Two orders compete
+only when **both can reach the prospect** — so a `reply_review` summarising a thread runs happily
+alongside an `outreach_launch`, on an actively enrolled lead, and on a human-managed prospect.
+`isProspectTouching` is derived from the capability set rather than declared as a second list:
+a hand-maintained list would eventually disagree with the sets, and it would disagree by failing
+*open*, on the check that decides whether a human-owned prospect can be touched.
+
+**3. Exclusivity is a constraint, and holds are fenced.** `WorkOrderLease` carries
+`@@unique([tenantId, leadId])`, so two concurrent claimants cannot both observe "free" and both
+insert — the second's compare-and-set re-evaluates against the first's committed row. A
+service-side check with no constraint behind it would be a race under exactly the conditions
+leases exist for. The losing claimant is caught at `P2002` and returned as `held_by_other` with
+the holder named, so a race never surfaces as a raw Prisma error. Only `exclusive`-mode orders
+claim; assistance work takes no lease and is blocked by none.
+
+**`claimToken` fences a superseded holder.** Minted fresh on every claim and reclaim, preserved
+across renewals, and required by `renewLease`, `releaseLease` and `holdsLease`. `workOrderId`
+alone is not sufficient, and the case it misses is not two different orders — it is **two
+attempts at the same order**:
+
+```text
+worker 1 claims for order X   →   stalls   →   lease expires
+worker 2 retries order X      →   reclaims
+worker 1 wakes up             →   its workOrderId still matches
+```
+
+A `workOrderId`-only predicate would let worker 1 renew or release a lease it no longer holds,
+and report itself as the holder. Both stale-holder cases carry regression tests — cross-order
+and same-order-retry — asserting all three verbs fail for the superseded token while the
+successor's still works. Re-activating an already-active order rotates the token too, so a
+restarted worker supersedes its own prior attempt rather than sharing a hold with it.
+
+`releaseLeasesForWorkOrder` is deliberately the one unfenced writer: it is the order-ending
+unwind, and once an order reaches a terminal status no attempt at it may still execute, so
+"which attempt holds the row" stops being a question. Fencing exists to stop a superseded worker
+acting — not to stop the order itself from ending.
+
+**Still not claimed: that the previous holder has stopped working.** A partitioned process can
+be mid-tool-call when its lease expires. Fencing stops it touching the lease; it does not undo a
+tool call already in flight. Durable idempotency in `AgentAction`, not the lease, is what stops a
+CRM mutation happening twice.
+
+**What a lease is not.** Nothing in `lib/workorders/leases.ts` reads or writes
+`Lead.assignedToId` or `Lead.operatingState`, and the tests assert the lead row is byte-identical
+before, during and after a full claim → release → complete cycle, and that no `ProspectTransition`
+is written. CRM ownership, operating responsibility and execution ownership stay three
+independent things.
+
+**Not claimed: exactly-once.** A lease is a time-bounded hold with a deterministic recovery rule
+(`live ⟺ releasedAt IS NULL AND expiresAt > now`, applied identically by the claim path, the
+conflict check and the sweep). It does not prove the previous holder has stopped — a partitioned
+process can still be mid-tool-call when its lease expires. Durable idempotency in `AgentAction`,
+not the lease, is what stops a CRM mutation happening twice.
+
+### The migration ordering defect replay caught
+
+The generated migration was timestamped `20260810053420`, which sorts **before**
+`20260810180000_prospect_operating_state` and `20260811000001_agent_action` — the tables its new
+foreign keys reference. It applied cleanly to the local database, where those tables already
+existed, and `migrate status` stayed green throughout. A fresh replay failed immediately:
+
+```
+Migration `20260810053420_work_order_phase6a` failed to apply cleanly to the shadow database.
+Error code: P1014
+The underlying table for model `ProspectTransition` does not exist.
+```
+
+Renamed to `20260811010000_work_order_phase6a`. This is the same lesson as the Phase 5 BOM:
+**replay is the only gate that sees migration-ordering and migration-encoding faults**, and
+neither `migrate status` nor `tsc` nor Vitest can substitute for it.
+
+Prisma made the same mistake a second time when generating the fencing migration
+(`20260810055927`, again sorting before the table it alters). Renamed to
+`20260811020000_work_order_lease_fencing`. **Prisma timestamps a migration when you generate it,
+not relative to the migrations already on disk** — so any branch whose migrations were authored
+with dates ahead of the wall clock will keep producing this, and every generated migration on
+this repository needs its name checked against the tail of `prisma/migrations/` before it is
+applied.
+
+**Migration count is 35, not 34.** The fencing work adds one.
+
+### Why the migration clears legacy `workOrderId` values
+
+`20260811010000` nulls `ProspectTransition.workOrderId`, `AgentAction.workOrderId` and
+`AiCall.workOrderId` before adding the foreign keys, and this is intentional rather than
+incidental cleanup.
+
+Those three columns were introduced in Phases 3, 5 and 1 as loose nullable `TEXT`, each
+explicitly annotated *"set once typed work orders exist (Phase 6). No FK until the model does."*
+**There has never been a `WorkOrder` table**, so no value any of them holds can denote a valid
+`WorkOrder` reference — the table they would point into is created by this same migration, empty.
+Every existing value is dangling by construction, and each `ALTER TABLE … ADD CONSTRAINT` fails
+with a foreign key violation without the cleanup.
+
+No production data is affected: nothing outside test fixtures ever wrote those columns, and the
+fixtures used placeholder ids such as `wo-1`. Phase 6a is the first real producer.
+
+The fencing migration adds `claimToken` nullable, backfills with `gen_random_uuid()`, then sets
+`NOT NULL` — rather than `ADD COLUMN … NOT NULL` in one step, which fails on any non-empty table.
+`WorkOrderLease` is empty in every deployed environment, but a migration that only replays
+against an empty table is one that fails the first time it meets a developer's database.
+
+### The budget contract 6b must implement against
+
+6a validates and stores the four budgets; 6b enforces them and writes the counters. The units are
+fixed **now**, in `lib/workorders/types.ts`, so 6b does not get to invent them — a counter that
+measures a different quantity than the limit was set against is a budget that silently does not
+work.
+
+| Field | Unit | Counted as | Consumption source in 6b |
+|---|---|---|---|
+| `researchBudget` | billable research operations | 1 per web search, 1 per page fetch | `AiCall.searchCredits` summed over the work order |
+| `tokenBudget` | provider tokens | `promptTokens + completionTokens` per round trip | `AiCall.totalTokens` summed over the work order |
+| `maxToolCalls` | tool invocations | 1 per `executeTool` entry, **success or failure** | `AgentAction` rows for the work order |
+| `maxExecutionDuration` | **seconds** | wall clock from `WorkOrder.activatedAt` | `now − activatedAt` |
+
+Three readings that would be wrong:
+
+- **A failed tool call still spends `maxToolCalls`.** Counting only successes would let a retry
+  loop run unbounded — the exact case the limit exists for.
+- **Tokens are per provider round trip, not per SDR exchange.** One tool-calling conversation
+  produces several `AiCall` rows by design (Phase 1); the budget sums them.
+- **Duration is wall clock from first activation, not accumulated running time.** A pause/resume
+  cycle does not refund it, which is why `activatedAt` is set once.
+
+### Deliberately not built in 6a
+
+- **Consumption counters** (`researchUsed`, `tokensUsed`, `toolCallsUsed`). 6b enforces budgets
+  incrementally and is what will write them; a column nothing writes is not worth adding early —
+  the same reasoning that kept `playbookVersionId` off its dependants until Phase 6 existed to
+  write it. 6b adds them in its own migration.
+- **API routes and UI.** 6a is domain services only. Routes land with 6b's execution path.
+- **Anything that enqueues.** The `agent` queue is 6b's, with work order execution as its first
+  real producer.
 
 ## Gates — regenerated 2026-08-10 at the rebased Phase 5 HEAD
 
