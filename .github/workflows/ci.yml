@@ -25,9 +25,6 @@ permissions:
   contents: read
 
 env:
-  # Matches node:24-bookworm-slim in the Dockerfile. Drifting from the production image
-  # means CI can pass on a runtime nobody deploys.
-  NODE_VERSION: '24'
   # The seed guard requires a database name containing dev/development/test/local; this
   # name is what makes the CI database seedable at all. See lib/seed-guard.ts.
   CI_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/telestar_crm_test
@@ -74,8 +71,13 @@ jobs:
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: '.nvmrc'
           cache: npm
+
+      - name: Verify runtime
+        run: |
+          test "$(node --version)" = "v24.18.0"
+          test "$(npm --version)" = "11.16.0"
 
       - name: Install dependencies
         run: npm ci
@@ -147,8 +149,13 @@ jobs:
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: '.nvmrc'
           cache: npm
+
+      - name: Verify runtime
+        run: |
+          test "$(node --version)" = "v24.18.0"
+          test "$(npm --version)" = "11.16.0"
 
       - name: Install dependencies
         run: npm ci
@@ -227,8 +234,13 @@ jobs:
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: '.nvmrc'
           cache: npm
+
+      - name: Verify runtime
+        run: |
+          test "$(node --version)" = "v24.18.0"
+          test "$(npm --version)" = "11.16.0"
 
       - name: Install dependencies
         run: npm ci

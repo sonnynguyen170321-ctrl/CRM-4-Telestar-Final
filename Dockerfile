@@ -1,8 +1,4 @@
-ARG NPM_VERSION=11.13.0
-
-FROM node:24-bookworm-slim AS deps
-
-ARG NPM_VERSION
+FROM node:24.18.0-bookworm-slim AS deps
 
 WORKDIR /app
 
@@ -11,10 +7,9 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
-RUN npm install -g npm@${NPM_VERSION} \
-  && npm ci
+RUN npm ci
 
-FROM node:24-bookworm-slim AS builder
+FROM node:24.18.0-bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -37,9 +32,7 @@ ENV DATABASE_URL="postgresql://crm:crm@postgres:5432/telestar_crm" \
 
 RUN npm run build
 
-FROM node:24-bookworm-slim AS runner
-
-ARG NPM_VERSION
+FROM node:24.18.0-bookworm-slim AS runner
 
 # Release provenance, baked into the image so the running container can name the commit it
 # was built from. `unknown` is the honest default for a local build: lib/release.ts treats
@@ -79,8 +72,7 @@ RUN apt-get update \
 
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
-RUN npm install -g npm@${NPM_VERSION} \
-  && npm ci --omit=dev \
+RUN npm ci --omit=dev \
   && npx prisma generate \
   && npm cache clean --force
 

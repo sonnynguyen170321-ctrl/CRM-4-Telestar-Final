@@ -1,5 +1,10 @@
 import { parseEnvFile } from './prod-env';
 import { describeMutableImageRef } from '@/lib/release';
+import {
+  placeholderPattern,
+  parseUrl,
+  isLocalHost,
+} from '@/lib/env-contract';
 
 type Level = 'PASS' | 'WARN' | 'FAIL';
 type Check = { level: Level; message: string };
@@ -24,23 +29,9 @@ const requiredKeys = [
   'SEQUENCE_AUTOSEND_ENABLED',
 ];
 
-const placeholderPattern = /<[^>]+>|replace|change-me|todo|localhost|example\.com/i;
-
 const add = (checks: Check[], level: Level, message: string) => {
   checks.push({ level, message });
 };
-
-const parseUrl = (value: string | undefined): URL | null => {
-  if (!value) return null;
-  try {
-    return new URL(value);
-  } catch {
-    return null;
-  }
-};
-
-const isLocalHost = (host: string): boolean =>
-  ['localhost', '127.0.0.1', '::1', 'postgres'].includes(host.toLowerCase());
 
 const validate = (): Check[] => {
   const checks: Check[] = [];
