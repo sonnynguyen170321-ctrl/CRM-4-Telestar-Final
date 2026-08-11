@@ -4,47 +4,113 @@
 
 | | |
 |---|---|
-| Phase | **0–6 complete and merged to `main`.** Next: **Phase 7** — knowledge retrieval and structured research |
-| Branch | none — start Phase 7 from a fresh branch off `main` |
+| Phase | **0–7 complete and merged to `main`.** Next: **Phase 8** — the prospecting loop |
+| Branch | none — start Phase 8 from a fresh branch off `main` |
 | Blockers | **None.** |
 | Restrictions | No external users, no real client data, sending off, email dry-run |
 
 ## Resume here
 
-Phase 6 is closed. `main` carries all of it, and every Phase 6 branch has been deleted:
+Phase 7 is closed. `main` carries all of it, and the Phase 7 branch has been deleted:
 
 ```text
+6aeeb1f  PR #65  merge commit
+3c8a801  PR #65  Phase 7 — knowledge architecture and research engine
+c587c9e  PR #64  reproducible dev environment
 838fd4d  PR #61  migration-order preflight (CI hardening)
 7a6ec4c  PR #60  Phase 6b — queue execution, approvals, budget enforcement
 3e2bfd5  PR #59  Phase 6a — typed work orders
 ```
 
-To start Phase 7:
+To start Phase 8:
 
 ```bash
 git checkout main
 git pull --ff-only origin main
-git checkout -b feat/phase-7-knowledge-retrieval
+git checkout -b feat/phase-8-prospecting-loop
 ```
 
-Then execute the next unchecked item in [`PLAN.md`](PLAN.md) → Phase 7. Read
-[`ARCHITECTURE.md`](ARCHITECTURE.md) §6 (knowledge is retrieved, not concatenated) and §7
-(research is structured and cached per account) first — they are the contract Phase 7 implements.
+Then execute the next unchecked item in [`PLAN.md`](PLAN.md) → Phase 8, starting at **8a**. Read
+[`ARCHITECTURE.md`](ARCHITECTURE.md) §4 (the three state axes) and §5 (reply classes A–D) first —
+they are the contract Phase 8 implements.
 
-**The seam Phase 7 plugs into already exists.** `lib/workorders/plan.ts` returns an empty plan
-and is the single function Phase 7 implements; the worker, budgets, approvals, authorization and
-provenance around it are built and tested. Nothing else needs to change to make a work order do
-real work.
+**Deferred, and still deferred: the Revenue AI → Telestar AI Architecture rename.** Do not start
+it as part of Phase 8. It is a separate, mechanical change and mixing it into feature work makes
+both unreviewable.
 
 **Gate reminder for the first migration you generate.** Run `npm run check:migration-order`
 before applying it. Prisma stamps generation time, not dependency position, and got this wrong
 three times running in Phase 6 — see the migration drift gate section in `CLAUDE.md`.
 
-> **Nothing in Phase 6 plans agent work.** `lib/workorders/plan.ts` returns an empty plan by
-> design — deciding *which* tools a work order should run is Phase 7 and Phase 8. Phase 6b built
-> the machinery that runs a plan safely and stopped there, because a placeholder planner that
-> researched or enrolled anything would be autonomous prospect work shipped under a phase whose
-> scope excludes it.
+> **Phase 7 plans `research_batch` and nothing else.** `lib/workorders/plan.ts` returns `[]` for
+> every other work order type, asserted exhaustively over `ALL_WORK_ORDER_TYPES`. Deciding what
+> `prospect_batch`, `sequence_design`, `outreach_launch`, `followup` and the rest plan is Phase 8
+> — that is where the empty branches get filled, one type at a time.
+
+## Phase 7 — merged as `3c8a801` (PR #65), merge commit `6aeeb1f`
+
+Knowledge retrieval and structured research. Five new models, one migration
+(`20260811040000_phase7_knowledge_architecture`), the first real producer of planned tool calls.
+
+| Gate | Result on `3c8a801` |
+|---|---|
+| `tsc --noEmit` | 0 errors |
+| `eslint app components lib context tests` | 0 errors, 0 warnings |
+| `vitest run` (local) | **1141 passed, 5 skipped**, 82 files |
+| `tests/phase-7-knowledge.test.ts` | 27 passed |
+| All work order suites + AI suites | 165 passed |
+| `next build` | exit 0 |
+| `prisma migrate status` | up to date, **37 migrations** |
+| `migrate diff --exit-code` vs empty shadow | `No difference detected`, exit 0 |
+| CI — lint/types/tests · migrations · Playwright · Docker · CodeQL · Advanced Security · secret scan · dependency review | all green |
+
+### The five rules Phase 7 added, each with a test that fails if it regresses
+
+**1. One research pass per account, whatever the concurrency.** The claim protocol coalesces:
+20 concurrent runs → one provider call, one claim token, one evidence set. A loser waits on the
+winner rather than paying again.
+
+**2. A heartbeat that actually fences, and a stop that actually stops.** One shared serialized
+lifecycle in `lib/research/heartbeat.ts` — the account and contact copies had already drifted,
+and the contact one blocked for a full 60s interval on shutdown. A run that loses ownership
+mid-flight does not report completed, and its rows are neither served by `getEvidenceForLead`
+nor citable.
+
+**3. Null is not a wildcard — in either direction.** Object authorization requires the requested
+account/contact to be *exactly* the one the authorized lead points at, so a lead with a null link
+authorizes nothing; `validateEvidenceCitations` mirrors it, so a target scope with no account
+authorizes no account evidence. The tests use a *same-tenant* walled lead, not the cross-tenant
+case, because cross-tenant was never the hard part.
+
+**4. Retryable and permanent provider failures are different things.** 429, transient 5xx,
+network and timeout faults become `RetryableResearchError` and reach the **existing**
+Agent/BullMQ boundary; a missing API key or a permanent 4xx fails outright instead of burning
+three identical retries. No second queue, no second runtime.
+
+**5. A retryable failure is charged before it is retried.** Consumption is settled from the
+`AiCall` / `AgentAction` ledgers *before* the error leaves `executeWorkOrder`, so a paid 429 is
+on the work order when the retry starts. **`maxToolCalls` counts logical planned tool actions**
+— `AgentAction` rows, stable across retries because the action key is positional — while
+research and token spend is charged **per provider attempt**. An exhausted research budget stops
+the next attempt before it can pay twice.
+
+> **RLS-enabled deployments must reapply `supabase/rls.sql` after any migration that adds a
+> tenant-owned table.** Prisma migrations carry no `ENABLE`/`FORCE`/`CREATE POLICY` on purpose: a
+> policy authored in a migration vanishes when that migration is regenerated from the datamodel,
+> and the same statements break deployments that do not run RLS. `rls.sql` derives its table list
+> from the catalog, so reapplying it is what brings new tables under `tenant_isolation`. See
+> `docs/DEPLOY.md` §9.
+
+> **`sourceUrl` is a real supporting URL or `null`.** Never a placeholder. An earlier revision
+> stored the literal string `tavily_search_result`, which is provenance that documents nothing.
+
+### One CI finding, one flake
+
+CodeQL failed the first PR head on `js/incomplete-url-substring-sanitization` — the test's fetch
+stub routed on `url.includes('tavily.com')`, which also matches `tavily.com.evil.test`. Fixed by
+parsing the URL and comparing the host exactly. `Build · Playwright` then failed once on a
+`/login` static-asset 404 and passed on rerun with byte-identical application code; the only diff
+between the two heads was a Vitest file Playwright never loads.
 
 > **Phase 6 is one architectural phase reviewed in two parts.** 6a is the durable domain — the
 > `WorkOrder` model, the type-declared capability bounds, conflict detection and the execution

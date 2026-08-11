@@ -358,16 +358,23 @@ lease recovery is deterministic. `place_call` remains impossible.
 
 ## Phase 7 — Knowledge retrieval and structured research
 
-- [ ] Split `lib/ai/sdr-skills.md` into `skills/{cold-email,cold-call,qualification,
+**Complete — merged to `main` as `3c8a801` via PR #65 (merge commit `6aeeb1f`), 2026-08-11.**
+
+- [x] Split `lib/ai/sdr-skills.md` into `skills/{cold-email,cold-call,qualification,
       objection-handling,meeting-booking,research,personalization,reengagement}.md`;
       retrieve by relevance, never load the set
-- [ ] `CompanySignal` / `AccountPainHypothesis` / `PersonalizationHook`, each with source,
+- [x] `CompanySignal` / `AccountPainHypothesis` / `PersonalizationHook`, each with source,
       `observedAt`, confidence
-- [ ] Account-level research cache keyed on the existing `Account` model; contact research
+- [x] Account-level research cache keyed on the existing `Account` model; contact research
       separate on `Contact`
 
 **Acceptance:** 20 leads at one account trigger one account research pass. Generated copy cites
-stored evidence rows rather than recalling facts.
+stored evidence rows rather than recalling facts. — **met.** 20 concurrent runs against one
+account produce exactly one provider invocation, one claim token and one set of evidence;
+`validateEvidenceCitations` fails closed on anything not tied to the active completed run.
+
+`lib/workorders/plan.ts` now plans `research_batch` and only `research_batch`; every other work
+order type still returns `[]`. Deciding what the other types plan is Phase 8.
 
 ---
 
