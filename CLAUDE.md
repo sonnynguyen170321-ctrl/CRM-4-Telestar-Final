@@ -195,18 +195,37 @@ One shared agent runtime serving every role, not five AI systems. **Read
 `docs/revenue-ai/STATUS.md` first**, then execute the next unchecked item in
 `docs/revenue-ai/PLAN.md`. `ARCHITECTURE.md` there is the contract.
 
-**Phases 0–6 are done and merged to `main`.** Next is **Phase 7 — knowledge retrieval and
-structured research**. Start from a fresh branch off `main`; there is no Phase 6 branch left.
+**Phases 0–7 are done and merged to `main`.** Next is **Phase 8 — the prospecting loop**. Start
+from a fresh branch off `main`; there is no Phase 7 branch left.
 
-> Phase 6 shipped in two reviewed halves: **6a** the typed `WorkOrder` domain (PR #59, `3e2bfd5`)
-> and **6b** queue execution, durable approvals and budget enforcement (PR #60, `7a6ec4c`). The
-> `agent` BullMQ queue deferred from Phase 5 now exists, with work order execution as its first
-> producer.
+> Phase 7 shipped as one commit — knowledge architecture and the research engine (PR #65,
+> `3c8a801`, merge commit `6aeeb1f`). The monolithic `lib/ai/sdr-skills.md` became eight
+> retrievable modules, five evidence/cache models landed, and `lib/workorders/plan.ts` produces
+> real planned tool calls for the first time.
 >
-> **`lib/workorders/plan.ts` returns an empty plan on purpose** — it is the seam Phase 7
-> implements. Deciding *which* tools a work order runs is Phase 7/8; Phase 6 built the machinery
-> that runs a plan safely and stopped there. Nothing else needs to change to make a work order do
-> real work.
+> **`research_batch` is the only work order type Phase 7 plans.** Every other type still returns
+> `[]`, asserted exhaustively over `ALL_WORK_ORDER_TYPES`. Filling those branches is Phase 8.
+>
+> **The deferred Revenue AI → Telestar AI Architecture rename is still deferred.** Do not fold it
+> into Phase 8.
+
+> **Research spend rules.** Retryable provider failures (429, transient 5xx, network/timeout,
+> coalesced live `in_progress`) become `RetryableResearchError` and reach the **existing**
+> Agent/BullMQ retry boundary — there is no second queue. Consumption is settled from the
+> `AiCall`/`AgentAction` ledgers *before* that error leaves `executeWorkOrder`, so a paid 429 is
+> charged before the retry starts. **`maxToolCalls` counts logical planned tool actions**
+> (`AgentAction` rows, stable across retries via the positional action key); research and token
+> spend is charged **per provider attempt**.
+
+> **Null is not a wildcard.** A requested account or contact must be *exactly* the one the
+> authorized lead points at, so a lead with a null link authorizes nothing —
+> `validateEvidenceCitations` enforces the same rule for evidence, so a target scope with no
+> account authorizes no account evidence. Research tools refuse by **throwing**; a returned
+> refusal string would be recorded as a completed `AgentAction` for an action that never ran.
+
+> **RLS-enabled deployments must reapply `supabase/rls.sql` after any migration that adds a
+> tenant-owned table.** Prisma migrations deliberately contain no `ENABLE`/`FORCE`/`CREATE
+> POLICY`. See `docs/DEPLOY.md` §9.
 >
 > **Approval is a recorded decision, never a stored permission.** `resumeApprovedAction`
 > re-derives authorization on every resume — a tightened policy, a `human_only` capability, a
