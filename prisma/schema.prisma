@@ -34,6 +34,12 @@ enum Priority {
   cold
 }
 
+enum ResearchStatus {
+  pending
+  completed
+  failed
+}
+
 enum Channel {
   email
   phone
@@ -375,9 +381,13 @@ model Account {
   tenantId        String
   tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  leads         Lead[]
-  opportunities Opportunity[]
-  poolItems     LeadPoolItem[]
+  leads                 Lead[]
+  opportunities         Opportunity[]
+  poolItems             LeadPoolItem[]
+  researchCache         AccountResearchCache?
+  companySignals        CompanySignal[]
+  accountPainHypotheses AccountPainHypothesis[]
+  personalizationHooks  PersonalizationHook[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -414,9 +424,11 @@ model Contact {
   tenantId                 String
   tenant                   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  leadAssignments Lead[]
-  opportunities   Opportunity[]
-  poolItems       LeadPoolItem[]
+  leadAssignments      Lead[]
+  opportunities        Opportunity[]
+  poolItems            LeadPoolItem[]
+  researchCache        ContactResearchCache?
+  personalizationHooks PersonalizationHook[]
 
   @@unique([tenantId, normalizedEmail])
   @@index([tenantId])
@@ -495,6 +507,7 @@ model Lead {
   operatingTransitions ProspectTransition[]
   workOrders           WorkOrder[]
   workOrderLeases      WorkOrderLease[]
+  personalizationHooks PersonalizationHook[]
 
   @@index([stage])
   @@index([assignedToId])
@@ -1596,6 +1609,11 @@ model Tenant {
   workOrders               WorkOrder[]
   workOrderLeases          WorkOrderLease[]
   approvalRequests         AgentApprovalRequest[]
+  accountResearchCaches    AccountResearchCache[]
+  contactResearchCaches    ContactResearchCache[]
+  companySignals           CompanySignal[]
+  accountPainHypotheses    AccountPainHypothesis[]
+  personalizationHooks     PersonalizationHook[]
 }
 
 // ─── Campaign Playbooks ──────────────────────────────────────────────────────
@@ -1871,6 +1889,10 @@ model AiCall {
 
   createdAt DateTime @default(now())
 
+  companySignals        CompanySignal[]
+  accountPainHypotheses AccountPainHypothesis[]
+  personalizationHooks  PersonalizationHook[]
+
   @@index([tenantId, createdAt])
   @@index([tenantId, operation])
   @@index([tenantId, provider])
@@ -1966,10 +1988,13 @@ model WorkOrder {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  leases           WorkOrderLease[]
-  agentActions     AgentAction[]
-  aiCalls          AiCall[]
-  transitions      ProspectTransition[]
+  leases                WorkOrderLease[]
+  agentActions          AgentAction[]
+  aiCalls               AiCall[]
+  transitions           ProspectTransition[]
+  companySignals        CompanySignal[]
+  accountPainHypotheses AccountPainHypothesis[]
+  personalizationHooks  PersonalizationHook[]
   approvalRequests AgentApprovalRequest[]
 
   @@unique([tenantId, requestKey])
@@ -2297,4 +2322,147 @@ model EmailHealthAlert {
   @@index([campaignId])
   @@index([domain])
   @@index([accountId, type, status])
+}
+
+// ─── Phase 7 Knowledge Architecture & Research Engine ───────────────────────
+
+model AccountResearchCache {
+  id          String         @id @default(cuid())
+  tenantId    String
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  accountId   String         @unique
+  account     Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  status      ResearchStatus @default(pending)
+  claimedBy   String?
+  claimToken  String?
+  claimedAt   DateTime?
+  completedAt DateTime?
+  expiresAt   DateTime?
+  version     Int            @default(1)
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  companySignals        CompanySignal[]
+  accountPainHypotheses AccountPainHypothesis[]
+
+  @@unique([tenantId, accountId])
+  @@index([tenantId])
+  @@index([tenantId, status, expiresAt])
+}
+
+model ContactResearchCache {
+  id          String         @id @default(cuid())
+  tenantId    String
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId   String         @unique
+  contact     Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  status      ResearchStatus @default(pending)
+  claimedBy   String?
+  claimToken  String?
+  claimedAt   DateTime?
+  completedAt DateTime?
+  expiresAt   DateTime?
+  version     Int            @default(1)
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  personalizationHooks PersonalizationHook[]
+
+  @@unique([tenantId, contactId])
+  @@index([tenantId])
+  @@index([tenantId, status, expiresAt])
+}
+
+model CompanySignal {
+  id                   String                @id @default(cuid())
+  tenantId             String
+  tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  accountId            String
+  account              Account               @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  cacheId              String?
+  accountResearchCache AccountResearchCache? @relation(fields: [cacheId], references: [id], onDelete: SetNull)
+  accountResearchRunId String?
+  workOrderId          String?
+  workOrder            WorkOrder?            @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  aiCallId             String?
+  aiCall               AiCall?               @relation(fields: [aiCallId], references: [id], onDelete: SetNull)
+
+  signalType           String
+  summary              String
+  sourceUrl            String?
+  sourceType           String
+  observedAt           DateTime              @default(now())
+  confidence           Float                 @default(1.0)
+  rawMetadata          Json?
+  createdAt            DateTime              @default(now())
+
+  @@index([tenantId])
+  @@index([tenantId, accountId])
+  @@index([tenantId, accountResearchRunId])
+  @@index([tenantId, signalType])
+}
+
+model AccountPainHypothesis {
+  id                   String                @id @default(cuid())
+  tenantId             String
+  tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  accountId            String
+  account              Account               @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  cacheId              String?
+  accountResearchCache AccountResearchCache? @relation(fields: [cacheId], references: [id], onDelete: SetNull)
+  accountResearchRunId String?
+  workOrderId          String?
+  workOrder            WorkOrder?            @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  aiCallId             String?
+  aiCall               AiCall?               @relation(fields: [aiCallId], references: [id], onDelete: SetNull)
+
+  painType             String
+  hypothesis           String
+  evidenceSummary      String
+  sourceUrl            String?
+  sourceType           String
+  observedAt           DateTime              @default(now())
+  confidence           Float                 @default(1.0)
+  createdAt            DateTime              @default(now())
+
+  @@index([tenantId])
+  @@index([tenantId, accountId])
+  @@index([tenantId, accountResearchRunId])
+}
+
+model PersonalizationHook {
+  id                   String                @id @default(cuid())
+  tenantId             String
+  tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId            String?
+  contact              Contact?              @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  accountId            String?
+  account              Account?              @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  leadId               String?
+  lead                 Lead?                 @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  cacheId              String?
+  contactResearchCache ContactResearchCache? @relation(fields: [cacheId], references: [id], onDelete: SetNull)
+  contactResearchRunId String?
+  workOrderId          String?
+  workOrder            WorkOrder?            @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  aiCallId             String?
+  aiCall               AiCall?               @relation(fields: [aiCallId], references: [id], onDelete: SetNull)
+
+  hookType             String
+  angle                String
+  sourceUrl            String?
+  sourceType           String
+  observedAt           DateTime              @default(now())
+  confidence           Float                 @default(1.0)
+  createdAt            DateTime              @default(now())
+
+  @@index([tenantId])
+  @@index([tenantId, contactId])
+  @@index([tenantId, accountId])
+  @@index([tenantId, leadId])
+  @@index([tenantId, contactResearchRunId])
 }

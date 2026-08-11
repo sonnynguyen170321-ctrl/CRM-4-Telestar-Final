@@ -223,26 +223,33 @@ export async function executeWorkOrder(
       return finish('paused', 'awaiting_approval');
     }
 
-    const result = await executeAgentAction({
-      actionKey: workOrderActionKey(input.workOrderId, ordinal, step.toolName),
-      toolName: step.toolName,
-      args: step.args,
-      sessionUser: actor,
-      leadId: order.leadId ?? undefined,
-      campaignId: order.campaignId ?? undefined,
-      // Provenance flows into the ledger and every AiCall the tool makes. The version is the one
-      // pinned at activation, not whatever is active now.
-      playbookVersionId: order.playbookVersionId ?? undefined,
-      workOrderId: input.workOrderId,
-    });
+    let result: Awaited<ReturnType<typeof executeAgentAction>>;
+    try {
+      result = await executeAgentAction({
+        actionKey: workOrderActionKey(input.workOrderId, ordinal, step.toolName),
+        toolName: step.toolName,
+        args: step.args,
+        sessionUser: actor,
+        leadId: order.leadId ?? undefined,
+        campaignId: order.campaignId ?? undefined,
+        // Provenance flows into the ledger and every AiCall the tool makes. The version is the one
+        // pinned at activation, not whatever is active now.
+        playbookVersionId: order.playbookVersionId ?? undefined,
+        workOrderId: input.workOrderId,
+      });
+    } catch (err) {
+      // A retryable failure still spent money. `executeAgentAction` rethrows it so the BullMQ
+      // boundary can retry the job, and leaving before reconciliation would send the retry in
+      // against counters that predate the AiCall the provider already wrote — a paid 429 would
+      // cost a research credit the budget never saw, once per attempt. Settle the ledgers first,
+      // then let the error continue to the retry boundary unchanged.
+      await settleConsumption(input.tenantId, input.workOrderId);
+      throw err;
+    }
 
     // Debited whatever happened. A failed tool call still consumed an invocation, and counting
     // only successes would let a retry loop run unbounded inside its budget.
-    await recordConsumption(input.tenantId, input.workOrderId, { toolCalls: 1 });
-    // Tokens and research credits are only knowable after the fact, from the AiCall rows the
-    // provider wrote during the call. The pre-flight check reads the cheap counters; this is
-    // what keeps them true.
-    await reconcileConsumption(input.tenantId, input.workOrderId);
+    await settleConsumption(input.tenantId, input.workOrderId);
 
     if (result.status === 'completed') {
       completedSteps += 1;
@@ -267,6 +274,37 @@ export async function executeWorkOrder(
   });
 
   return finish('completed');
+}
+
+/**
+ * Settle the counters against the ledgers after a step — however that step ended.
+ *
+ * Called on the normal path *and* from the catch that precedes a rethrow, so the two can never
+ * drift apart: whatever the provider already spent is on the work order before anything else
+ * happens, including before a retryable error reaches the queue.
+ *
+ * ## What `maxToolCalls` counts — logical tool actions, not physical attempts
+ *
+ * `reconcileConsumption` derives `toolCallsUsed` from the number of `AgentAction` rows for the
+ * work order, and an action's key is `workorder:<id>:step:<ordinal>:<tool>` — stable across
+ * retries. A retried step therefore *updates* its row (incrementing `attemptCount`) rather than
+ * inserting another, so `toolCallsUsed` stays at one per planned step no matter how many times
+ * the job is retried. The `recordConsumption` increment below is the cheap in-flight estimate;
+ * the reconcile that follows immediately corrects it back to the row count.
+ *
+ * This is deliberate. `maxToolCalls` bounds *how much work a plan may do* — how many prospects
+ * it touches, how many drafts it writes — and a transient 429 does not change the size of the
+ * plan. Retry pressure is bounded by BullMQ's attempt limit, which is the mechanism that exists
+ * for it. Spend, unlike plan size, *is* per attempt: `researchUsed` and `tokensUsed` sum the
+ * `AiCall` rows, so every retried provider round trip is charged again and an exhausted budget
+ * stops the next attempt before it can pay a second time.
+ */
+async function settleConsumption(tenantId: string, workOrderId: string): Promise<void> {
+  await recordConsumption(tenantId, workOrderId, { toolCalls: 1 });
+  // Tokens and research credits are only knowable after the fact, from the AiCall rows the
+  // provider wrote during the call. The pre-flight check reads the cheap counters; this is
+  // what keeps them true.
+  await reconcileConsumption(tenantId, workOrderId);
 }
 
 /**

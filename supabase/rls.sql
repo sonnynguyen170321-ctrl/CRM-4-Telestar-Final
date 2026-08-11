@@ -21,6 +21,12 @@
 --     psql "$DIRECT_URL" -f supabase/rls.sql
 -- Re-running is safe — it is idempotent (drops + recreates each policy).
 --
+-- REAPPLY THIS AFTER EVERY MIGRATION THAT ADDS A TABLE. Prisma migrations carry no RLS
+-- statements on purpose: a policy authored inside a migration vanishes as soon as that
+-- migration is regenerated from the datamodel, and would break deployments that do not run
+-- RLS. Until this file is reapplied, a newly migrated table has no database-level policy.
+-- See docs/DEPLOY.md §9.
+--
 -- ---------------------------------------------------------------------------
 -- WHY THE TABLE LIST IS A QUERY AND NOT AN ARRAY
 -- ---------------------------------------------------------------------------

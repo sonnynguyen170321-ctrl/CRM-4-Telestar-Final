@@ -15,6 +15,8 @@ import type { AgentCapability } from './capabilities';
 export const TOOL_CAPABILITY: Record<string, AgentCapability> = {
   search_web: 'research',
   visit_page: 'research',
+  research_account: 'research',
+  research_contact: 'research',
   create_task: 'tasks',
   get_my_tasks: 'research',
 };

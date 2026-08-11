@@ -4,6 +4,7 @@ import { authorizeCapability, type AuthorizationOutcome } from '@/lib/agent/auth
 import { capabilityForTool } from '@/lib/agent/toolCapabilities';
 import type { SessionUser } from '@/lib/auth';
 import { executeTool } from '@/lib/ai/tools';
+import { RetryableResearchError } from '@/lib/research/error';
 
 export interface ExecuteActionInput {
   actionKey: string;
@@ -138,6 +139,11 @@ export async function executeAgentAction(input: ExecuteActionInput): Promise<Exe
       where: { id: action.id },
       data: { status: 'failed', error: errorStr, completedAt: new Date() },
     });
+
+    if (err instanceof RetryableResearchError) {
+      throw err; // Rethrow to reach the worker retry boundary
+    }
+
     return { status: 'failed', error: errorStr };
   }
 }

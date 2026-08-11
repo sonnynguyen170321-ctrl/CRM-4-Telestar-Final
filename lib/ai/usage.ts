@@ -42,23 +42,26 @@ export interface AiCallRecord {
   errorCode?: string | null;
 }
 
+export interface RecordAiCallOutcome {
+  estimatedCostUsd: number | null;
+  aiCallId: string | null;
+}
+
 /**
  * Persist one provider round trip.
- *
- * Returns the estimated cost so a caller can accumulate against a budget without a
- * second query — `null` when the model or provider has no rate, which is a visible gap
- * rather than a fabricated number.
  */
-export async function recordAiCall(record: AiCallRecord): Promise<number | null> {
+export async function recordAiCall(record: AiCallRecord): Promise<RecordAiCallOutcome> {
   const estimatedCostUsd = estimateCost(record);
 
   if (!record.tenantId) {
     console.warn(`[ai/usage] unattributed ${record.provider} call (${record.operation}) — no tenant`);
-    return estimatedCostUsd;
+    return { estimatedCostUsd, aiCallId: null };
   }
 
+  let aiCallId: string | null = null;
+
   try {
-    await prisma.aiCall.create({
+    const created = await prisma.aiCall.create({
       data: {
         tenantId: record.tenantId,
         userId: record.userId ?? null,
@@ -78,13 +81,12 @@ export async function recordAiCall(record: AiCallRecord): Promise<number | null>
         errorCode: record.errorCode ?? null,
       },
     });
+    aiCallId = created.id;
   } catch (err) {
-    // Rule 1. A missing accounting row is a reporting gap; a thrown error here would be
-    // a failed answer to a user who asked a question.
     console.error('[ai/usage] failed to record AiCall:', err);
   }
 
-  return estimatedCostUsd;
+  return { estimatedCostUsd, aiCallId };
 }
 
 function estimateCost(record: AiCallRecord): number | null {
