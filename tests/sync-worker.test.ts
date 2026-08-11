@@ -16,12 +16,16 @@ const mockInboundFindUnique = vi.fn();
 const mockInboundCreate = vi.fn();
 const mockOutboundFindFirst = vi.fn();
 const mockOutboundUpdate = vi.fn();
+const mockLeadUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+const mockTaskUpdateManyOcc = vi.fn().mockResolvedValue({ count: 0 });
 const mockEnrollmentFindFirst = vi.fn();
+const mockEnrollmentUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 const mockHandoff = vi.fn();
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     lead: {
+      updateMany: (...a: unknown[]) => mockLeadUpdateMany(...a),
       findUnique: (...args: unknown[]) => mockLeadFindUnique(...args),
       findFirst: (...args: unknown[]) => mockLeadFindFirst(...args),
       findMany: (...args: unknown[]) => mockLeadFindMany(...args),
@@ -38,6 +42,7 @@ vi.mock('@/lib/prisma', () => ({
       create: (...args: unknown[]) => mockActivityCreate(...args),
     },
     task: {
+      updateMany: (...a: unknown[]) => mockTaskUpdateManyOcc(...a),
       create: (...args: unknown[]) => mockTaskCreate(...args),
     },
     suppressionEntry: {
@@ -54,6 +59,9 @@ vi.mock('@/lib/prisma', () => ({
     },
     sequenceEnrollment: {
       findFirst: (...args: unknown[]) => mockEnrollmentFindFirst(...args),
+      // The reply/bounce paths pause the exact occurrence they resolved, which is a conditional
+      // updateMany rather than a lead-scoped helper.
+      updateMany: (...args: unknown[]) => mockEnrollmentUpdateMany(...args),
     },
   },
 }));
@@ -75,6 +83,11 @@ vi.mock('@/lib/sequences/engine', () => ({
   pauseSequence: vi.fn(),
 }));
 
+vi.mock('@/lib/sequences/lifecycle', () => ({
+  pauseEnrollmentOccurrence: vi.fn(),
+  resumeEnrollmentOccurrence: vi.fn(),
+}));
+
 vi.mock('@/lib/email/bounceDetection', () => ({
   isBounceMessage: vi.fn(),
   isAutoReply: vi.fn(),
@@ -88,7 +101,7 @@ vi.mock('@/lib/tenant-context', () => ({
 }));
 
 const { handleApplyReply, handleApplyBounce, handleEmailSync } = await import('@/workers/sync');
-const { pauseSequence } = await import('@/lib/sequences/engine');
+const { pauseEnrollmentOccurrence } = await import('@/lib/sequences/lifecycle');
 const { isBounceMessage, isAutoReply, extractBouncedRecipient } = await import('@/lib/email/bounceDetection');
 const { EmailService } = await import('@/lib/email/EmailService');
 
@@ -103,7 +116,7 @@ describe('handleApplyReply', () => {
     mockHandoff.mockResolvedValue({ applied: true, state: 'human_attention', transitionId: 'tr-1' });
     // clearAllMocks resets recorded calls but not implementations, so a rejection set in one
     // test would leak into every test after it. Re-establish the default each time.
-    (pauseSequence as unknown as ReturnType<typeof vi.fn>).mockResolvedValue('paused');
+    (pauseEnrollmentOccurrence as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
   });
 
   const baseLead = {
@@ -113,7 +126,7 @@ describe('handleApplyReply', () => {
 
   it('pauses the sequence, records the reply, and hands the prospect to the SDR', async () => {
     mockLeadFindUnique.mockResolvedValue(baseLead);
-    (pauseSequence as unknown as ReturnType<typeof vi.fn>).mockResolvedValue('paused');
+    (pauseEnrollmentOccurrence as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
 
     const result = await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' });
 
@@ -128,7 +141,9 @@ describe('handleApplyReply', () => {
       where: { id: 'lead-1' },
       data: { stage: 'replied', emailReplyCount: { increment: 1 } },
     });
-    expect(pauseSequence).toHaveBeenCalledWith('lead-1', 'reply', 'user-1');
+    expect(pauseEnrollmentOccurrence).toHaveBeenCalledWith(
+      expect.objectContaining({ leadId: 'lead-1', reason: 'reply', actorUserId: 'user-1' })
+    );
     expect(mockActivityCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         leadId: 'lead-1', type: 'stage_changed', channel: 'email',
@@ -147,17 +162,17 @@ describe('handleApplyReply', () => {
   it('still hands off when there was no active sequence to pause', async () => {
     // `no_sequence` is not a failed handoff. The prospect engaged; the SDR still needs them.
     mockLeadFindUnique.mockResolvedValue(baseLead);
-    (pauseSequence as unknown as ReturnType<typeof vi.fn>).mockResolvedValue('no_sequence');
+    (pauseEnrollmentOccurrence as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, refusal: 'not_active' });
 
     const result = await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' });
 
-    expect(result).toMatchObject({ success: true, pauseOutcome: 'no_sequence', handoffApplied: true });
+    expect(result).toMatchObject({ success: true, pauseOutcome: 'not_active', handoffApplied: true });
     expect(mockHandoff).toHaveBeenCalledOnce();
   });
 
   it('lets a pause failure surface instead of swallowing it', async () => {
     mockLeadFindUnique.mockResolvedValue(baseLead);
-    (pauseSequence as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('db down'));
+    (pauseEnrollmentOccurrence as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('db down'));
 
     await expect(
       handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' })
@@ -171,7 +186,7 @@ describe('handleApplyReply', () => {
 
     expect(result).toEqual({ skipped: true, reason: 'lead_not_found' });
     expect(mockLeadUpdate).not.toHaveBeenCalled();
-    expect(pauseSequence).not.toHaveBeenCalled();
+    expect(pauseEnrollmentOccurrence).not.toHaveBeenCalled();
   });
 
   it('skips if lead already replied', async () => {
@@ -282,7 +297,9 @@ describe('handleApplyBounce', () => {
     expect(mockSuppressionCreate).toHaveBeenCalledWith({
       data: { email: 'john@acme.com', reason: 'hard_bounce', tenantId: 'tenant-1' },
     });
-    expect(pauseSequence).toHaveBeenCalledWith('lead-1', 'hard_bounce', 'user-1');
+    expect(pauseEnrollmentOccurrence).toHaveBeenCalledWith(
+      expect.objectContaining({ leadId: 'lead-1', reason: 'hard_bounce', actorUserId: 'user-1' })
+    );
     expect(mockNotificationCreate).toHaveBeenCalled();
   });
 
@@ -299,7 +316,9 @@ describe('handleApplyBounce', () => {
     // A soft bounce pauses for a different reason than a hard one, and the enrollment has to
     // record which: 'bounced' collapsed both into a token that suppression semantics do not
     // apply to.
-    expect(pauseSequence).toHaveBeenCalledWith('lead-1', 'soft_bounce', 'user-1');
+    expect(pauseEnrollmentOccurrence).toHaveBeenCalledWith(
+      expect.objectContaining({ leadId: 'lead-1', reason: 'soft_bounce', actorUserId: 'user-1' })
+    );
     expect(mockNotificationCreate).toHaveBeenCalled();
   });
 
@@ -655,7 +674,7 @@ describe('handleEmailSync', () => {
       data: expect.objectContaining({ isReply: true, leadId: 'lead-1' }),
     });
     expect(result).toEqual({ success: true, accountId: 'acct-1', messagesProcessed: 1, replies: 0, bounces: 0 });
-    expect(pauseSequence).not.toHaveBeenCalled();
+    expect(pauseEnrollmentOccurrence).not.toHaveBeenCalled();
   });
 
   it('does not count inbound mail from a non-lead as a reply', async () => {

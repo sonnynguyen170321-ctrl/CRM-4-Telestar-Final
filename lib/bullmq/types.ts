@@ -46,6 +46,13 @@ export interface SequenceAdvancePayload {
 export interface SequencePausePayload {
   leadId: string;
   /**
+   * The enrollment occurrence to pause (Phase 8a). Optional only for jobs queued before this
+   * existed; the worker refuses those rather than pausing whichever cadence is current, because
+   * by the time an old pause job runs the enrollment may have been replaced.
+   */
+  enrollmentId?: string;
+  sequenceId?: string;
+  /**
    * A `PausedReason` from `@/lib/automation/types`. Typed as `string` because jobs queued
    * before the vocabularies were collapsed still carry `replied` / `bounced`; `pauseSequence`
    * normalizes at the write site rather than rejecting them.
@@ -66,6 +73,15 @@ export interface SequenceRebuildPayload {
 /** Delayed execution of an automated sequence email task at its due date. */
 export interface SequenceExecuteTaskPayload {
   taskId: string;
+  /**
+   * The enrollment occurrence this job was scheduled for (Phase 8a).
+   *
+   * Optional for compatibility: jobs enqueued before this existed carry no id and keep the
+   * legacy lead+sequence matching. When present the worker requires *that* enrollment to still
+   * be the active occupying one, so a task from an ended cadence can never execute under the
+   * enrollment that replaced it.
+   */
+  expectedEnrollmentId?: string;
 }
 
 export interface EmailSendPayload {

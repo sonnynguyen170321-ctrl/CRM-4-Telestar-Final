@@ -5,7 +5,7 @@ import type { EmailSyncPayload, EmailApplyReplyPayload, EmailApplyBouncePayload 
 import { EmailService } from '@/lib/email/EmailService';
 import type { InboxMessage } from '@/lib/email/EmailService';
 import { isBounceMessage, isAutoReply, extractBouncedRecipient } from '@/lib/email/bounceDetection';
-import { pauseSequence } from '@/lib/sequences/engine';
+import { pauseEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
 import { handoffProspectToHuman } from '@/lib/prospects/ownership';
 
 const SOFT_BOUNCE_RE = /temporarily|try again later|mailbox full|over quota|too large|try again/i;
@@ -233,9 +233,23 @@ export async function handleApplyReply(payload: EmailApplyReplyPayload) {
     data: { stage: 'replied', emailReplyCount: { increment: 1 } },
   });
 
-  // A `no_sequence` or `already_paused_or_stopped` outcome is not a failed reply: the prospect
-  // still engaged and the SDR still needs them. Only a thrown error stops the handler.
-  const pauseOutcome = await pauseSequence(leadId, 'reply', lead.assignedToId ?? accountId);
+  // Pause the *exact* enrollment this reply was resolved against, never "the lead's current
+  // sequence". If it was replaced between the read and this write the pause simply refuses —
+  // pausing the replacement would stop a cadence the reply says nothing about.
+  //
+  // A refusal is not a failed reply either: the prospect still engaged, so the stage change,
+  // the activity and the handoff below all continue regardless.
+  const pauseResult = activeEnrollment
+    ? await pauseEnrollmentOccurrence({
+        enrollmentId: activeEnrollment.id,
+        leadId,
+        sequenceId: activeEnrollment.sequenceId,
+        reason: 'reply',
+        actorUserId: lead.assignedToId ?? accountId,
+      })
+    : { ok: false, refusal: 'not_active' as const };
+  // Same vocabulary the lead-scoped helper reported, so the handler's result shape is unchanged.
+  const pauseOutcome = pauseResult.ok ? 'paused' : (pauseResult.refusal ?? 'not_paused');
 
   // Two activities on purpose: `stage_changed` drives the pipeline views, while
   // `email_replied` is the channel-level signal that reporting aggregates on.
@@ -346,7 +360,19 @@ export async function handleApplyBounce(payload: EmailApplyBouncePayload) {
   }
 
   if (lead.sequenceId) {
-    await pauseSequence(leadId, isHard ? 'hard_bounce' : 'soft_bounce', lead.assignedToId ?? accountId);
+    const bounced = await prisma.sequenceEnrollment.findFirst({
+      where: { leadId, status: 'active' },
+      select: { id: true, sequenceId: true },
+    });
+    if (bounced) {
+      await pauseEnrollmentOccurrence({
+        enrollmentId: bounced.id,
+        leadId,
+        sequenceId: bounced.sequenceId,
+        reason: isHard ? 'hard_bounce' : 'soft_bounce',
+        actorUserId: lead.assignedToId ?? accountId,
+      });
+    }
   }
 
   await prisma.notification.create({

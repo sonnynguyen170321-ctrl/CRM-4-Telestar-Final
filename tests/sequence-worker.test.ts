@@ -16,6 +16,7 @@ const mockActivityCreate = vi.fn();
 const mockCreateTaskForStep = vi.fn();
 const mockAdvanceSequence = vi.fn();
 const mockPauseSequence = vi.fn();
+const mockPauseOccurrence = vi.fn();
 const mockUnenrollLead = vi.fn();
 
 vi.mock('@/lib/prisma', () => ({
@@ -51,6 +52,11 @@ vi.mock('@/lib/tenant-context', () => ({
   tenantStorage: {
     run: (_: unknown, fn: () => unknown) => fn(),
   },
+}));
+
+vi.mock('@/lib/sequences/lifecycle', () => ({
+  pauseEnrollmentOccurrence: (...args: unknown[]) => mockPauseOccurrence(...args),
+  resumeEnrollmentOccurrence: vi.fn(),
 }));
 
 const { handleEnroll, handleAdvance, handlePause, handleUnenroll, handleRebuild } = await import('@/workers/sequence');
@@ -242,33 +248,51 @@ describe('handleAdvance', () => {
 });
 
 describe('handlePause', () => {
-  const payload: SequencePausePayload = { leadId: 'lead-1', reason: 'replied', userId: 'user-1' };
+  // Occurrence-scoped: the job names the enrollment it means, so a replacement cadence can never
+  // be paused by a job queued for the one it replaced.
+  const payload: SequencePausePayload = {
+    leadId: 'lead-1',
+    enrollmentId: 'enrollment-1',
+    sequenceId: 'seq-1',
+    reason: 'replied',
+    userId: 'user-1',
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('pauses active enrollment and delegates to engine', async () => {
-    mockFindFirst.mockResolvedValue({ id: 'enrollment-1', sequenceId: 'seq-1' });
-    mockUpdate.mockResolvedValue({});
+  it('pauses the named enrollment occurrence', async () => {
+    mockPauseOccurrence.mockResolvedValue({ ok: true });
 
     const result = await handlePause(payload);
 
     expect(result).toEqual({ success: true, leadId: 'lead-1', sequenceId: 'seq-1', reason: 'replied' });
-    expect(mockPauseSequence).toHaveBeenCalledWith('lead-1', 'replied', 'user-1');
-    expect(mockUpdate).toHaveBeenCalledWith({
-      where: { id: 'enrollment-1' },
-      data: { status: 'paused' },
+    expect(mockPauseOccurrence).toHaveBeenCalledWith({
+      enrollmentId: 'enrollment-1',
+      leadId: 'lead-1',
+      sequenceId: 'seq-1',
+      reason: 'replied',
+      actorUserId: 'user-1',
     });
   });
 
-  it('skips if no active enrollment', async () => {
-    mockFindFirst.mockResolvedValue(null);
+  it('refuses when the occurrence is no longer active', async () => {
+    mockPauseOccurrence.mockResolvedValue({ ok: false, refusal: 'not_active' });
 
     const result = await handlePause(payload);
 
-    expect(result).toEqual({ skipped: true, reason: 'no_active_enrollment' });
-    expect(mockPauseSequence).not.toHaveBeenCalled();
+    expect(result).toEqual({ skipped: true, reason: 'not_active' });
+  });
+
+  it('fails closed on a legacy payload with no occurrence identity', async () => {
+    const result = await handlePause({ leadId: 'lead-1', reason: 'replied', userId: 'user-1' });
+
+    expect(result).toEqual({
+      skipped: true,
+      reason: 'legacy_pause_payload_not_occurrence_scoped',
+    });
+    expect(mockPauseOccurrence).not.toHaveBeenCalled();
   });
 });
 

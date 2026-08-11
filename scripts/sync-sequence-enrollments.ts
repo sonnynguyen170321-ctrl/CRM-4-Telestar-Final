@@ -1,4 +1,5 @@
 import { PrismaClient, SequenceEnrollmentStatus } from '@prisma/client';
+import { occupancyFor } from '@/lib/sequences/occupancy';
 
 const prisma = new PrismaClient();
 
@@ -42,7 +43,11 @@ async function main() {
       if (existing.status !== targetStatus || existing.currentStep !== targetStep) {
         await prisma.sequenceEnrollment.update({
           where: { id: existing.id },
-          data: { status: targetStatus, currentStep: targetStep },
+          data: {
+            status: targetStatus,
+            currentStep: targetStep,
+            occupancyKey: occupancyFor(targetStatus, lead.tenantId, lead.id),
+          },
         });
         updatedCount++;
       }
@@ -54,6 +59,7 @@ async function main() {
           status: targetStatus,
           currentStep: targetStep,
           tenantId: lead.tenantId,
+          occupancyKey: occupancyFor(targetStatus, lead.tenantId, lead.id),
         },
       });
       createdCount++;

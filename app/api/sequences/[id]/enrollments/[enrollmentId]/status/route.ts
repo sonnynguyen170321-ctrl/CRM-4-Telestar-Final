@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { pauseEnrollmentOccurrence, resumeEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
-import { pauseSequence, createTaskForStep } from '@/lib/sequences/engine';
 
 export async function PATCH(
   req: NextRequest,
@@ -34,18 +34,44 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // The route acts on one *occurrence*. A historical row that happens to share the lead is not
+    // it, and neither is a row belonging to a different sequence.
+    if (enrollment.sequenceId !== sequenceId) {
+      return NextResponse.json(
+        { error: 'Enrollment does not belong to this sequence' },
+        { status: 409 }
+      );
+    }
+
     if (status === 'paused') {
       if (enrollment.status === 'paused') {
         return NextResponse.json({ error: 'Already paused' }, { status: 400 });
       }
+      // active → paused is the only pause there is. A completed or unenrolled occurrence used to
+      // reach `pauseSequence`, which acts on the lead's *current* cadence — pausing whatever is
+      // live now and only then failing on the historical row.
+      if (enrollment.status !== 'active') {
+        return NextResponse.json(
+          {
+            error: `Enrollment is ${enrollment.status} and cannot be paused. Only an active enrollment can be paused.`,
+          },
+          { status: 409 }
+        );
+      }
 
-      // 1. Pause sequence using engine (skips pending tasks, sets status in DB)
-      await pauseSequence(enrollment.leadId, 'manual', user.id);
+      const paused = await pauseEnrollmentOccurrence({
+        enrollmentId,
+        leadId: enrollment.leadId,
+        sequenceId,
+        reason: 'manual',
+        actorUserId: user.id,
+      });
+      if (!paused.ok) {
+        return NextResponse.json({ error: paused.detail }, { status: 409 });
+      }
 
-      // 2. Set enrollment status
-      const updated = await prisma.sequenceEnrollment.update({
+      const updated = await prisma.sequenceEnrollment.findUniqueOrThrow({
         where: { id: enrollmentId },
-        data: { status: 'paused' },
         include: {
           lead: {
             select: {
@@ -64,55 +90,44 @@ export async function PATCH(
 
       return NextResponse.json(updated);
     } else {
-      // Resume
-      if (enrollment.status === 'active') {
+      // Resume. Only a *paused* occurrence may come back: a completed or unenrolled enrollment
+      // is terminal, its occupancy was released, and reactivating it would resurrect a cadence
+      // somebody deliberately ended.
+      //
+      // An **active** row is deliberately not rejected here. A resume whose process died after
+      // the status flip leaves exactly that shape, and short-circuiting on the status alone made
+      // the repair unreachable. Only the lifecycle service can tell a healthy cadence from an
+      // interrupted resume, so the decision belongs to it.
+      if (enrollment.status !== 'paused' && enrollment.status !== 'active') {
+        return NextResponse.json(
+          {
+            error: `Enrollment is ${enrollment.status} and cannot be resumed. Enroll the lead again to start a new sequence run.`,
+          },
+          { status: 409 }
+        );
+      }
+
+      const resumed = await resumeEnrollmentOccurrence({
+        enrollmentId,
+        leadId: enrollment.leadId,
+        sequenceId,
+        tenantId: enrollment.tenantId,
+      });
+      if (!resumed.ok) {
+        return NextResponse.json({ error: resumed.detail }, { status: 409 });
+      }
+      // Nothing needed doing: the cadence was already fully active, bookkeeping and all.
+      if (resumed.outcome === 'already_active') {
         return NextResponse.json({ error: 'Already active' }, { status: 400 });
       }
 
-      // 1. Set lead status active
-      await prisma.lead.update({
-        where: { id: enrollment.leadId },
-        data: { sequenceStatus: 'active' },
-      });
-
-      // 2. Set enrollment active
-      await prisma.sequenceEnrollment.update({
-        where: { id: enrollmentId },
-        data: { status: 'active' },
-      });
-
-      // 3. Find the sequence step
-      const sequence = await prisma.sequence.findUnique({
-        where: { id: sequenceId },
-        include: { steps: true },
-      });
-
-      const step = sequence?.steps.find((s) => s.order === enrollment.currentStep);
-      
-      if (step && sequence) {
-        // Re-create the task for the current step (due relative to now)
-        await createTaskForStep(enrollment.lead, sequence, step, new Date());
-      }
-
-      const updated = await prisma.sequenceEnrollment.findUnique({
+      const refreshed = await prisma.sequenceEnrollment.findUniqueOrThrow({
         where: { id: enrollmentId },
         include: {
-          lead: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              company: true,
-              tasks: {
-                where: { sequenceId, status: 'pending' },
-                select: { id: true, dueDate: true, type: true }
-              }
-            }
-          }
-        }
+          lead: { select: { id: true, firstName: true, lastName: true, company: true } },
+        },
       });
-
-      return NextResponse.json(updated);
+      return NextResponse.json(refreshed);
     }
   } catch (error) {
     console.error('[sequence-status-patch] Error:', error);

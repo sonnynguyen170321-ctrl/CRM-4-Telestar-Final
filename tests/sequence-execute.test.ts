@@ -11,6 +11,7 @@ const mockLeadUpdate = vi.fn();
 
 const mockEnrollmentFindFirst = vi.fn();
 const mockEnrollmentUpdate = vi.fn();
+const mockEnrollmentUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 const mockSuppressionFindFirst = vi.fn();
 const mockActivityCreate = vi.fn();
 
@@ -25,7 +26,9 @@ vi.mock('@/lib/prisma', () => ({
     emailAccount: { findFirst: (...a: unknown[]) => mockAccountFindFirst(...a) },
     sequenceEnrollment: {
       findFirst: (...a: unknown[]) => mockEnrollmentFindFirst(...a),
+      findUnique: (...a: unknown[]) => mockEnrollmentFindFirst(...a),
       update: (...a: unknown[]) => mockEnrollmentUpdate(...a),
+      updateMany: (...a: unknown[]) => mockEnrollmentUpdateMany(...a),
     },
     suppressionEntry: { findFirst: (...a: unknown[]) => mockSuppressionFindFirst(...a) },
     activity: { create: (...a: unknown[]) => mockActivityCreate(...a) },
@@ -331,6 +334,86 @@ describe('handleExecuteTask — deferral (Phase 6)', () => {
         metadata: expect.objectContaining({ reason: 'before_send_window' }),
       }),
     });
+  });
+
+  // =========================================================================
+  // Pre-send occurrence revalidation (Phase 8a)
+  //
+  // The check near the top of the handler is several awaits old by the time the send happens —
+  // mailbox, suppression and eligibility all run in between — and a human can replace the cadence
+  // in that window. With no transaction available (Neon HTTP has none), ownership is re-checked as
+  // close to the prospect-facing write as it can be.
+  // =========================================================================
+  const owningEnrollment = {
+    id: 'enr-1',
+    leadId: 'lead-1',
+    sequenceId: 'seq-1',
+    status: 'active',
+    currentStep: 1,
+    occupancyKey: `${TENANT_ID}:lead-1`,
+  };
+
+  it('refuses at the send boundary when the occurrence lost ownership after the lock', async () => {
+    arrangeEligible();
+    mockEnrollmentFindFirst
+      .mockResolvedValueOnce(owningEnrollment) // entry validation: still ours
+      .mockResolvedValueOnce({ ...owningEnrollment, status: 'unenrolled', occupancyKey: null });
+
+    const result = await handleExecuteTask({ taskId: 'task-1', expectedEnrollmentId: 'enr-1' });
+
+    expect(result).toEqual({
+      status: 'skipped',
+      reason: 'occurrence_no_longer_active',
+      taskId: 'task-1',
+    });
+    expect(mockCreateOutbound).not.toHaveBeenCalled();
+    expect(mockEnqueueSend).not.toHaveBeenCalled();
+    expect(mockAdvance).not.toHaveBeenCalled();
+    // The execution lock is released rather than stranding the task claimed.
+    expect(mockTaskUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'task-1', status: 'pending' },
+      data: { lockedAt: null },
+    });
+  });
+
+  it('refuses at the send boundary when the same occurrence advanced past this step', async () => {
+    arrangeEligible();
+    mockEnrollmentFindFirst
+      .mockResolvedValueOnce(owningEnrollment) // entry check: on step 1, eligible
+      .mockResolvedValueOnce({ ...owningEnrollment, currentStep: 2 }); // advanced meanwhile
+
+    const result = await handleExecuteTask({ taskId: 'task-1', expectedEnrollmentId: 'enr-1' });
+
+    expect(result).toEqual({
+      status: 'skipped',
+      reason: 'occurrence_step_changed',
+      taskId: 'task-1',
+    });
+    expect(mockCreateOutbound).not.toHaveBeenCalled();
+    expect(mockEnqueueSend).not.toHaveBeenCalled();
+  });
+
+  it('refuses at the send boundary when the occupancy moved to another cadence', async () => {
+    arrangeEligible();
+    mockEnrollmentFindFirst
+      .mockResolvedValueOnce(owningEnrollment)
+      .mockResolvedValueOnce({ ...owningEnrollment, occupancyKey: `${TENANT_ID}:other-lead` });
+
+    const result = await handleExecuteTask({ taskId: 'task-1', expectedEnrollmentId: 'enr-1' });
+
+    expect((result as { reason?: string }).reason).toBe('occurrence_no_longer_active');
+    expect(mockCreateOutbound).not.toHaveBeenCalled();
+  });
+
+  it('sends and advances the same occurrence when ownership holds at both checks', async () => {
+    arrangeEligible();
+    mockEnrollmentFindFirst.mockResolvedValue(owningEnrollment);
+
+    const result = await handleExecuteTask({ taskId: 'task-1', expectedEnrollmentId: 'enr-1' });
+
+    expect(result).toEqual({ status: 'completed', taskId: 'task-1' });
+    expect(mockCreateOutbound).toHaveBeenCalledTimes(1);
+    expect(mockAdvance).toHaveBeenCalledWith(expect.anything(), 'user-1', 'enr-1');
   });
 
   it('does not send when the mailbox is paused, and defers instead', async () => {

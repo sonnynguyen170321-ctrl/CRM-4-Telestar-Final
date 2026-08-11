@@ -2,6 +2,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 const mockTaskFindMany = vi.fn();
 const mockTaskUpdate = vi.fn();
+const mockTaskUpdateMany = vi.fn();
 const mockLeadFindUnique = vi.fn();
 const mockUserFindUnique = vi.fn();
 const mockOutboundFindMany = vi.fn();
@@ -17,6 +18,7 @@ vi.mock('@/lib/prisma', () => ({
     task: {
       findMany: (...args: unknown[]) => mockTaskFindMany(...args),
       update: (...args: unknown[]) => mockTaskUpdate(...args),
+      updateMany: (...args: unknown[]) => mockTaskUpdateMany(...args),
     },
     lead: {
       findUnique: (...args: unknown[]) => mockLeadFindUnique(...args),
@@ -46,6 +48,15 @@ vi.mock('@/lib/tenant-context', () => ({
   tenantStorage: {
     run: (_: unknown, fn: () => unknown) => fn(),
   },
+}));
+
+// Without this the repairs reach a real BullMQ queue and every enqueue throws, so a sweep's
+// success path could never be asserted.
+const mockEnqueueReschedule = vi.fn().mockResolvedValue('job-1');
+vi.mock('@/lib/bullmq/enqueue', () => ({
+  enqueue: vi.fn(),
+  enqueueImmediate: vi.fn(),
+  enqueueReschedule: (...args: unknown[]) => mockEnqueueReschedule(...args),
 }));
 
 const { handleRepair } = await import('@/workers/maintenance');
@@ -239,16 +250,24 @@ describe('handleRepair — stuck-running', () => {
 describe('handleRepair — missing-delayed', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
-  it('locks pending email tasks past due with no lock', async () => {
+  it('claims pending email tasks past due with a compare-and-set, then releases the claim', async () => {
     const pastDate = new Date(Date.now() - 3600000);
     mockTaskFindMany.mockResolvedValue([{ id: 'task-1', dueDate: pastDate }]);
+    mockTaskUpdateMany.mockResolvedValue({ count: 1 });
 
     const result = await handleRepair({ types: ['missing-delayed'] });
 
     expect(result['missing-delayed'].fixed).toBe(1);
-    expect(mockTaskUpdate).toHaveBeenCalledWith({
-      where: { id: 'task-1' },
+    // `lockedAt: null` in the claim makes two simultaneous sweeps mutually exclusive.
+    expect(mockTaskUpdateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: 'task-1', status: 'pending', lockedAt: null },
       data: { lockedAt: expect.any(Date) },
+    });
+    // The claim is always released: the sweep's own query filters `lockedAt: null`, and so does
+    // the sequence worker's execution lock.
+    expect(mockTaskUpdateMany).toHaveBeenLastCalledWith({
+      where: { id: 'task-1', status: 'pending' },
+      data: { lockedAt: null },
     });
   });
 });

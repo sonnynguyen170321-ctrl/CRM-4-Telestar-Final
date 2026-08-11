@@ -1,4 +1,5 @@
 import { prisma, tenantStorage } from '@/lib/prisma';
+import { occupancyKeyFor } from '@/lib/sequences/occupancy';
 import { activateVersion, approveVersion, createDraftVersion } from '@/lib/playbooks/versions';
 
 /**
@@ -223,6 +224,9 @@ export async function setupWorkOrderFixture(prefix: string): Promise<WorkOrderFi
         status: 'active',
         currentStep: 2,
         tenantId,
+        // The occupancy invariant is a database CHECK now: an active enrollment must carry its
+        // own lead's key. A fixture that skips it is a forgotten writer like any other.
+        occupancyKey: occupancyKeyFor(tenantId, ids.enrolledLeadId),
       },
     });
     await prisma.lead.update({

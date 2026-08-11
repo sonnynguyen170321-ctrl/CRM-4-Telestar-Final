@@ -81,6 +81,14 @@ export interface ApplyTransitionInput {
   systemInitiated?: boolean;
   workOrderId?: string | null;
   /**
+   * An extra condition on the lead at the moment the state is written.
+   *
+   * A caller that checked ownership and then wrote would still be racing; this makes the write
+   * itself conditional, so a prospect whose cadence was replaced between the check and the
+   * write is not moved. Zero rows updated is a refusal, not a retry.
+   */
+  stateGuard?: Record<string, unknown>;
+  /**
    * Consequences that must happen at most once. Each must be wrapped in `runEffect` with a
    * stable key — an unwrapped write would repeat on every resume.
    */
@@ -224,10 +232,22 @@ async function finish(args: {
   const claimed = new Set(args.appliedEffects);
 
   if (args.currentStatus === 'pending') {
-    await prisma.lead.update({
-      where: { id: input.leadId },
-      data: { operatingState: input.toState, operatingStateAt: new Date() },
-    });
+    if (input.stateGuard) {
+      // Conditional form only for callers that supplied a guard, so the unguarded transitions —
+      // handoff, handback, re-engagement — keep their existing single-row write untouched.
+      const applied = await prisma.lead.updateMany({
+        where: { id: input.leadId, ...input.stateGuard },
+        data: { operatingState: input.toState, operatingStateAt: new Date() },
+      });
+      if (applied.count !== 1) {
+        throw new TransitionNotAllowedError(input.leadId, args.leadStateBefore, input.toState);
+      }
+    } else {
+      await prisma.lead.update({
+        where: { id: input.leadId },
+        data: { operatingState: input.toState, operatingStateAt: new Date() },
+      });
+    }
     await prisma.prospectTransition.update({
       where: { id: transitionId },
       data: { status: 'state_applied' },

@@ -97,6 +97,9 @@ enum ActivityType {
   prospect_reengagement_eligible
   prospect_handed_back
   prospect_ai_reengagement_started
+  prospect_research_started
+  prospect_ready_for_outreach
+  prospect_ai_managed
 }
 
 /// Who or what should be acting on this prospect right now.
@@ -528,6 +531,7 @@ model Lead {
   @@index([tenantId, operatingState])
   @@index([tenantId, campaignId, normalizedEmail])
   @@index([tenantId, importListName])
+  sequenceLaunches   SequenceLaunch[]
 }
 
 // ─── Sequences ───────────────────────────────────────────────────────────────
@@ -547,6 +551,7 @@ model Sequence {
 
   steps               SequenceStep[]
   leads               Lead[]
+  sequenceLaunches    SequenceLaunch[]
   activities          Activity[]
   sequenceEnrollments SequenceEnrollment[]
 
@@ -934,6 +939,11 @@ model SequenceEnrollment {
   sequenceId       String
   sequence         Sequence                 @relation(fields: [sequenceId], references: [id])
   status           SequenceEnrollmentStatus @default(active)
+  /// "<tenantId>:<leadId>" while this enrollment occupies the lead (active or paused); null once
+  /// it reaches a terminal status. The unique index below is what makes "one occupying
+  /// enrollment per lead" a database fact. Normal UNIQUE semantics allow many NULLs, so terminal
+  /// rows never collide — see lib/sequences/occupancy.ts.
+  occupancyKey     String?                  @unique
   currentStep      Int                      @default(1)
   startedAt        DateTime                 @default(now())
   completedAt      DateTime?
@@ -1614,6 +1624,7 @@ model Tenant {
   companySignals           CompanySignal[]
   accountPainHypotheses    AccountPainHypothesis[]
   personalizationHooks     PersonalizationHook[]
+  sequenceLaunches SequenceLaunch[]
 }
 
 // ─── Campaign Playbooks ──────────────────────────────────────────────────────
@@ -1989,6 +2000,7 @@ model WorkOrder {
   updatedAt   DateTime  @updatedAt
 
   leases                WorkOrderLease[]
+  sequenceLaunches      SequenceLaunch[]
   agentActions          AgentAction[]
   aiCalls               AiCall[]
   transitions           ProspectTransition[]
@@ -2465,4 +2477,45 @@ model PersonalizationHook {
   @@index([tenantId, accountId])
   @@index([tenantId, leadId])
   @@index([tenantId, contactResearchRunId])
+}
+
+/// One AI outreach launch attempt, owned by exactly one WorkOrder (Revenue AI Phase 8a).
+///
+/// Two jobs, both of which need durable state rather than inference:
+///
+///  1. **Provenance.** An active enrollment on a lead proves nothing about *who* created it —
+///     the authenticated `POST /api/sequences/[id]/enroll` route calls the same domain service.
+///     A resume must prove the enrollment belongs to this work order's launch, and this row is
+///     that proof: `@@unique([tenantId, workOrderId])` plus the enrollment id it created.
+///  2. **Convergence.** A launch is a sequence of writes that cannot share a transaction (Neon
+///     HTTP has no interactive transactions). `stage` records how far it got, so a retry after a
+///     crash resumes instead of guessing from the existence of a Task.
+model SequenceLaunch {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  sequenceId String
+  sequence   Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  /// The work order that owns this launch. One launch per order, enforced below.
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  /// Set once the enrollment exists. This is the association a resume checks.
+  enrollmentId String?
+  /// Set once the first step's task exists. Its id is derived from this row, so the Task
+  /// primary key is what makes concurrent finalizers collide instead of duplicating.
+  taskId       String?
+
+  /// 'claimed' | 'enrolled' | 'state_applied' | 'task_created' | 'completed'
+  stage     String   @default("claimed")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, workOrderId])
+  @@index([tenantId])
+  @@index([tenantId, leadId])
+  @@index([tenantId, leadId, sequenceId])
 }

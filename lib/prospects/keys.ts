@@ -21,7 +21,10 @@ export type TransitionKind =
   | 'handoff'
   | 'reengagement_eligible'
   | 'handback'
-  | 'ai_reengagement_started';
+  | 'ai_reengagement_started'
+  | 'research_started'
+  | 'ready_for_outreach'
+  | 'ai_managed_started';
 
 export type TransitionOccurrence =
   /**
@@ -39,7 +42,15 @@ export type TransitionOccurrence =
   /** The SDR asked for the lead to go back to AI. `requestId` is the work order once one exists. */
   | { kind: 'handback'; leadId: string; requestId: string }
   /** An approved re-engagement plan was activated. */
-  | { kind: 'ai_reengagement_started'; leadId: string; workOrderId: string };
+  | { kind: 'ai_reengagement_started'; leadId: string; workOrderId: string }
+  /**
+   * The AI-managed prospecting transitions (Phase 8a), all keyed on the **work order** that
+   * caused them. A retried work order step re-enters the same occurrence and is inert; a
+   * genuinely new order researching the same lead later is its own occurrence.
+   */
+  | { kind: 'research_started'; leadId: string; workOrderId: string }
+  | { kind: 'ready_for_outreach'; leadId: string; workOrderId: string }
+  | { kind: 'ai_managed_started'; leadId: string; workOrderId: string };
 
 /**
  * Build the durable key.
@@ -58,6 +69,12 @@ export function buildTransitionKey(occurrence: TransitionOccurrence): string {
       return join('handback', occurrence.leadId, 'request', occurrence.requestId);
     case 'ai_reengagement_started':
       return join('reengage-start', occurrence.leadId, 'workorder', occurrence.workOrderId);
+    case 'research_started':
+      return join('research-started', occurrence.leadId, 'workorder', occurrence.workOrderId);
+    case 'ready_for_outreach':
+      return join('ready-for-outreach', occurrence.leadId, 'workorder', occurrence.workOrderId);
+    case 'ai_managed_started':
+      return join('ai-managed', occurrence.leadId, 'workorder', occurrence.workOrderId);
   }
 }
 

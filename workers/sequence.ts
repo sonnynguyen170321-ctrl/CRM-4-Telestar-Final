@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { occupancyKeyFor, releaseOccupancy } from '@/lib/sequences/occupancy';
 import { createAppWorker } from '@/lib/bullmq';
 import { JobType } from '@/lib/bullmq/types';
 import type {
@@ -12,9 +13,10 @@ import type {
 import {
   createTaskForStep,
   advanceSequence,
-  pauseSequence,
   unenrollLead,
 } from '@/lib/sequences/engine';
+import { pauseEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
+import { enrollmentStepTaskId } from '@/lib/sequences/identity';
 import { renderTemplate } from '@/lib/templates/render';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 import { evaluateAutomationEligibility } from '@/lib/automation/eligibility';
@@ -62,14 +64,15 @@ export async function handleEnroll(payload: SequenceEnrollPayload) {
   // Close any prior active enrollments
   await prisma.sequenceEnrollment.updateMany({
     where: { leadId, status: 'active' },
-    data: { status: 'unenrolled', completedAt: new Date() },
+    data: { status: 'unenrolled', completedAt: new Date(), ...releaseOccupancy() },
   });
 
   // Create new enrollment
-  await prisma.sequenceEnrollment.create({
+  const enrollment = await prisma.sequenceEnrollment.create({
     data: {
       leadId, sequenceId,
       status: 'active', currentStep: 1,
+      occupancyKey: occupancyKeyFor(lead.tenantId, leadId),
       tenantId: lead.tenantId,
     },
   });
@@ -85,7 +88,13 @@ export async function handleEnroll(payload: SequenceEnrollPayload) {
     { id: leadId, assignedToId: freshLead?.assignedToId ?? lead.assignedToId, crmPriorityScore: freshLead?.crmPriorityScore ?? lead.crmPriorityScore },
     sequence,
     sequence.steps[0],
-    new Date()
+    new Date(),
+    // This handler *created* the enrollment, so the occurrence is known here — discarding it
+    // would hand the executor an anonymous task and a legacy-shaped job for a brand new cadence.
+    {
+      taskId: enrollmentStepTaskId(enrollment.id, sequence.steps[0].order),
+      expectedEnrollmentId: enrollment.id,
+    }
   );
 
   // Update lead
@@ -145,7 +154,7 @@ export async function handleAdvance(payload: SequenceAdvancePayload) {
     // Engine completed the sequence (cleared lead fields)
     await prisma.sequenceEnrollment.update({
       where: { id: enrollment.id },
-      data: { status: 'completed', currentStep, completedAt: new Date() },
+      data: { status: 'completed', currentStep, completedAt: new Date(), ...releaseOccupancy() },
     });
     return { status: 'completed', leadId, sequenceId };
   }
@@ -159,22 +168,26 @@ export async function handleAdvance(payload: SequenceAdvancePayload) {
 }
 
 export async function handlePause(payload: SequencePausePayload) {
-  const { leadId, reason, userId } = payload;
+  const { leadId, reason, userId, enrollmentId, sequenceId } = payload;
 
-  const enrollment = await prisma.sequenceEnrollment.findFirst({
-    where: { leadId, status: 'active' },
-    select: { id: true, sequenceId: true },
-  });
-  if (!enrollment) {
-    return { skipped: true, reason: 'no_active_enrollment' };
+  // Fail closed on a legacy payload. Pausing "whichever cadence is current" is exactly the
+  // behaviour this phase removed: by the time an old job runs, the enrollment it was queued for
+  // may have been replaced, and the replacement is somebody else's live cadence.
+  if (!enrollmentId || !sequenceId) {
+    return { skipped: true, reason: 'legacy_pause_payload_not_occurrence_scoped' };
   }
 
-  await pauseSequence(leadId, reason, userId);
-
-  await prisma.sequenceEnrollment.update({
-    where: { id: enrollment.id },
-    data: { status: 'paused' },
+  const paused = await pauseEnrollmentOccurrence({
+    enrollmentId,
+    leadId,
+    sequenceId,
+    reason,
+    actorUserId: userId,
   });
+  if (!paused.ok) {
+    return { skipped: true, reason: paused.refusal ?? 'pause_refused' };
+  }
+  const enrollment = { id: enrollmentId, sequenceId };
 
   return { success: true, leadId, sequenceId: enrollment.sequenceId, reason };
 }
@@ -184,7 +197,7 @@ export async function handleUnenroll(payload: SequenceUnenrollPayload) {
 
   await prisma.sequenceEnrollment.updateMany({
     where: { leadId, sequenceId, status: { in: ['active', 'paused'] } },
-    data: { status: 'unenrolled', completedAt: new Date() },
+    data: { status: 'unenrolled', completedAt: new Date(), ...releaseOccupancy() },
   });
 
   await unenrollLead(leadId, sequenceId);
@@ -214,7 +227,7 @@ export async function handleRebuild(payload: SequenceRebuildPayload) {
  * writes scoped to the right tenant without any manual tenantStorage juggling.
  */
 export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
-  const { taskId } = payload;
+  const { taskId, expectedEnrollmentId } = payload;
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
@@ -241,10 +254,27 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     include: { template: { include: { abVariants: true } } },
   });
 
-  // Fetch enrollment
-  const enrollment = await prisma.sequenceEnrollment.findFirst({
-    where: { leadId: task.leadId, sequenceId: task.sequenceId!, status: 'active' },
-  });
+  // Fetch enrollment. With an occurrence id the job names *which* enrollment it belongs to, and
+  // no other one may answer for it — correlation on lead+sequence would let this task run under
+  // whatever cadence happens to be active now.
+  const enrollment = expectedEnrollmentId
+    ? await prisma.sequenceEnrollment.findUnique({ where: { id: expectedEnrollmentId } })
+    : await prisma.sequenceEnrollment.findFirst({
+        where: { leadId: task.leadId, sequenceId: task.sequenceId!, status: 'active' },
+      });
+
+  if (expectedEnrollmentId) {
+    const owns =
+      enrollment &&
+      enrollment.id === expectedEnrollmentId &&
+      enrollment.leadId === task.leadId &&
+      enrollment.sequenceId === task.sequenceId &&
+      enrollment.status === 'active' &&
+      enrollment.occupancyKey === `${task.tenantId}:${task.leadId}`;
+    if (!owns) {
+      return { status: 'skipped', reason: 'occurrence_no_longer_active', taskId: task.id };
+    }
+  }
 
   // Fetch mailbox
   const account = await prisma.emailAccount.findFirst({
@@ -305,7 +335,9 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     // with nothing scheduled to pick it up.
     await enqueueReschedule(
       JobType.SEQUENCE_EXECUTE_TASK,
-      { taskId: task.id },
+      // The occurrence travels with every reschedule. Dropping it here would strip the
+      // protection on the first deferral and send the second execution back to correlation.
+      { taskId: task.id, expectedEnrollmentId },
       { delay, tenantId: task.tenantId, discriminator: `defer:${nextActionAt.toISOString()}` }
     );
 
@@ -370,8 +402,12 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
   const leadEmail = task.lead.email;
 
   // CAS concurrency lock — only one runner proceeds past here.
+  //
+  // `lockedAt: null` is the part that makes it a lock rather than an annotation. Without it, two
+  // workers racing on the same still-`pending` row both matched and both got `count === 1`, so the
+  // "lock" excluded nobody and the send, the counters and the advancement could all happen twice.
   const lock = await prisma.task.updateMany({
-    where: { id: task.id, status: 'pending' },
+    where: { id: task.id, status: 'pending', lockedAt: null },
     data: { lockedAt: new Date() },
   });
   if (lock.count !== 1) return { status: 'ignored', reason: 'concurrency_lock_failed' };
@@ -399,6 +435,36 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
   } else {
     subject = renderTemplate(template.subject ?? '', task.lead, task.lead.assignedTo);
     body = renderTemplate(template.body, task.lead, task.lead.assignedTo);
+  }
+
+  // Re-check ownership at the send-intent boundary. The validation near the top of this handler
+  // is now several awaits old — mailbox, suppression and eligibility all ran since — and a human
+  // may have replaced the cadence in that window. There is no transaction to lean on (Neon HTTP
+  // has none), so the next best thing is to check as close to the prospect-facing write as
+  // possible: after the execution lock, immediately before the OutboundMessage exists.
+  if (expectedEnrollmentId) {
+    const live = await prisma.sequenceEnrollment.findUnique({ where: { id: expectedEnrollmentId } });
+    const stillOwns =
+      live &&
+      live.leadId === task.leadId &&
+      live.sequenceId === task.sequenceId &&
+      live.status === 'active' &&
+      live.occupancyKey === `${task.tenantId}:${task.leadId}`;
+    // The same occurrence advancing is a different failure from losing it: eligibility checked the
+    // step order several awaits ago, and a step-1 task must not send once the cadence is on step 2.
+    const sameStep = live && live.currentStep === task.sequenceStep;
+    if (!stillOwns || !sameStep) {
+      // Release the lock so the task is not stranded claimed by an execution that refused.
+      await prisma.task.updateMany({
+        where: { id: task.id, status: 'pending' },
+        data: { lockedAt: null },
+      });
+      return {
+        status: 'skipped',
+        reason: stillOwns ? 'occurrence_step_changed' : 'occurrence_no_longer_active',
+        taskId: task.id,
+      };
+    }
   }
 
   // OutboundMessage (idempotent) + enqueue the actual provider send.
@@ -441,7 +507,8 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     where: { id: task.leadId },
     data: { emailSentCount: { increment: 1 } },
   });
-  await advanceSequence(task, task.lead.assignedToId);
+  // The occurrence continues into the next step's task and its delayed job.
+  await advanceSequence(task, task.lead.assignedToId, expectedEnrollmentId);
 
   return { status: 'completed', taskId: task.id };
 }
