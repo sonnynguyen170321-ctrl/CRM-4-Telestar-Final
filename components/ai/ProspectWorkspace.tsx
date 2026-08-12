@@ -2,6 +2,7 @@ import React from 'react';
 import {
   ArrowUpRight, FileSearch, Loader2, Mail, MessageSquare, Sparkles, Target,
 } from 'lucide-react';
+import Link from 'next/link';
 import OperatingStateBadge from '@/components/operating/OperatingStateBadge';
 import PriorityIndicator from '@/components/operating/PriorityIndicator';
 import StatusBadge from '@/components/operating/StatusBadge';
@@ -72,6 +73,14 @@ export default function ProspectWorkspace({
       <section className="rounded-xl border border-card-border bg-card-bg px-5 py-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <Link
+                href="/inbox"
+                className="text-[11px] font-bold text-text-secondary hover:text-brand-red flex items-center gap-1 transition-colors"
+              >
+                <span>← Back to Inbox</span>
+              </Link>
+            </div>
             <h2 className="type-section">{pkg.prospect.name}</h2>
             <p className="type-meta text-text-secondary mt-0.5">
               {[pkg.prospect.title, pkg.prospect.company, pkg.account?.industry].filter(Boolean).join(' · ') || '—'}

@@ -23,6 +23,7 @@ const REPLIES: Array<{ key: string; label: string; body: string; auto: boolean }
   { key: 'pricing', label: 'Pricing question', body: 'How much does this cost?', auto: false },
   { key: 'ooo', label: 'Out of office', body: "I'm out of office until next Monday.", auto: true },
   { key: 'unsubscribe', label: 'Unsubscribe', body: 'Please unsubscribe me.', auto: false },
+  { key: 'ambiguous', label: 'Ambiguous reply', body: 'Thanks for reaching out. We are evaluating multiple vendors and might discuss this next quarter.', auto: false },
 ];
 
 export default function DemoReplyControls({
