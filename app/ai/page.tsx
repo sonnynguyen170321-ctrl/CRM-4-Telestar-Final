@@ -1,6 +1,6 @@
 import AiConsoleView from '@/components/ai/AiConsoleView';
 
-export const metadata = { title: 'AI Console — Telestar' };
+export const metadata = { title: 'AI Command Center — Telestar' };
 
 /**
  * The operating-model board (Revenue AI Phase 9).

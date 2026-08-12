@@ -42,7 +42,15 @@ export interface HandoffPackage {
   };
   account: { id: string; name: string; domain: string | null; industry: string | null } | null;
   campaign: { id: string; name: string; clientName: string | null } | null;
-  sequence: { id: string; name: string; currentStep: number | null; status: string | null } | null;
+  sequence: {
+    id: string;
+    name: string;
+    currentStep: number | null;
+    status: string | null;
+    /** When the engine will act next. Computed by `lib/automation/scheduling.ts`, never here. */
+    nextActionAt: Date | null;
+    pausedReason: string | null;
+  } | null;
   /** Why AI contacted them at all — the evidence the outreach was grounded in. */
   whyContacted: HandoffEvidenceItem[];
   /** What was sent, and what came back. Oldest first. */
@@ -156,7 +164,10 @@ export async function buildHandoffPackage(
     prisma.sequenceEnrollment.findFirst({
       where: { tenantId, leadId, status: { in: ['active', 'paused'] } },
       orderBy: { startedAt: 'desc' },
-      select: { currentStep: true, status: true },
+      // `nextActionAt` and `pausedReason` come from the enrollment because the enrollment is the
+      // authoritative execution lifecycle (ARCHITECTURE §4). The workspace shows "what happens
+      // next" from this value rather than composing a plausible-looking time of its own.
+      select: { currentStep: true, status: true, nextActionAt: true, pausedReason: true },
     }),
   ]);
 
@@ -229,6 +240,8 @@ export async function buildHandoffPackage(
           name: lead.sequence.name,
           currentStep: enrollment?.currentStep ?? null,
           status: enrollment?.status ?? null,
+          nextActionAt: enrollment?.nextActionAt ?? null,
+          pausedReason: enrollment?.pausedReason ?? null,
         }
       : null,
     whyContacted,

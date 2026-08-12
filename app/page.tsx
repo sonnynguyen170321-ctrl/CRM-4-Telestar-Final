@@ -26,6 +26,7 @@ import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 import { readApiError } from '@/lib/api/client';
+import CommandCenterStrip from '@/components/dashboard/CommandCenterStrip';
 
 // Slide-over loads on demand — its chunk fetches the first time a task's lead is opened.
 const LeadDetailPanel = dynamic(() => import('@/components/LeadDetailPanel'), { ssr: false });
@@ -59,6 +60,17 @@ interface Task {
  * date for older ones so a reverse-chron feed that spans days doesn't read as if
  * the times were out of order (e.g. "10:18" sitting above "Jun 21 · 17:20").
  */
+/**
+ * Module-level so the clock read is not a direct impure call in the render body — the same reason
+ * `daysOverdueFrom` lives outside the component in the leads page.
+ */
+function timeOfDayGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 function formatActivityTimestamp(dateStr: string): string {
   const date = new Date(dateStr);
   const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -73,7 +85,7 @@ function formatActivityTimestamp(dateStr: string): string {
 }
 
 export default function DashboardPage() {
-  const { isManager, currentRole, isSessionLoading } = useAppContext();
+  const { isManager, currentRole, isSessionLoading, currentUser } = useAppContext();
   const { showToast } = useToast();
   const router = useRouter();
 
@@ -662,11 +674,17 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 flex-1 flex flex-col">
       {/* Header */}
-      <div className="page-hero flex flex-row items-center justify-between gap-4">
+      <div className="page-hero flex flex-row items-start justify-between gap-4">
         <div>
-          <h1 className="font-display font-extrabold text-2xl text-text-primary tracking-tight">
-            {!isManager ? 'My Daily Tasks' : 'Team Tasks Dashboard'}
+          <h1>
+            {timeOfDayGreeting()}
+            {currentUser?.firstName ? `, ${currentUser.firstName}` : ''}
           </h1>
+          <p className="type-meta text-text-muted mt-1.5">
+            {isManager
+              ? "Here's what the team and the AI are working on right now."
+              : "Here's what needs your attention today."}
+          </p>
         </div>
         <div className="flex items-center gap-2 self-auto">
           {isManager && sdrUsers.length > 0 && (
@@ -702,28 +720,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Slim stat bar */}
-      <div className="glass-card rounded-xl px-4 py-2.5 flex flex-wrap items-center gap-3 text-sm font-medium">
-        <span className="text-text-primary font-semibold">
-          Today {completedTodayCount + pendingTodayCount} tasks
-        </span>
-        <span className="text-text-muted">·</span>
-        <span className="text-text-primary">{completedTodayCount} done</span>
-        <span className="text-text-muted">·</span>
-        {overdueTasks.length > 0 ? (
-          <span className="text-brand-red font-semibold">{overdueTasks.length} overdue</span>
-        ) : (
-          <span className="text-emerald-500">No overdue</span>
-        )}
-        {yesterdayTasks.length > 0 && (
-          <>
-            <span className="text-text-muted">·</span>
-            <span className="text-text-muted">
-              Yesterday {yesterdayTasks.filter((t) => t.status === 'completed').length}/{yesterdayTasks.length}
-            </span>
-          </>
-        )}
-      </div>
+      {/* The operating model, above the task list: what needs a person, and what AI is doing. */}
+      <CommandCenterStrip
+        tasksToday={completedTodayCount + pendingTodayCount}
+        tasksDone={completedTodayCount}
+      />
 
       {/* Main Layout */}
       <div className={`grid gap-6 flex-1 items-start ${showStats ? 'grid-cols-3' : 'grid-cols-1'}`}>
