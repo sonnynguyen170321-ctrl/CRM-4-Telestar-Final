@@ -412,105 +412,114 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
   });
   if (lock.count !== 1) return { status: 'ignored', reason: 'concurrency_lock_failed' };
 
-  // Deterministic A/B variant selection (spec §42)
-  let subject: string;
-  let body: string;
-  let selectedVariantId: string | null = null;
-  const variantA = template.abVariants?.find((v) => v.version === 'A');
-  const variantB = template.abVariants?.find((v) => v.version === 'B');
+  try {
+    // Deterministic A/B variant selection (spec §42)
+    let subject: string;
+    let body: string;
+    let selectedVariantId: string | null = null;
+    const variantA = template.abVariants?.find((v) => v.version === 'A');
+    const variantB = template.abVariants?.find((v) => v.version === 'B');
 
-  if (variantA && variantB) {
-    const seed = buildJitterSeed({
-      tenantId: task.tenantId,
-      sequenceId: task.sequenceId ?? undefined,
-      sequenceStepId: stepInfo?.id,
-      leadId: task.leadId,
-    });
-    const choice = deterministicOffset(seed, 2);
-    const selected = choice === 0 ? variantA : variantB;
-
-    subject = renderTemplate(selected.subject ?? template.subject ?? '', task.lead, task.lead.assignedTo);
-    body = renderTemplate(selected.body ?? template.body, task.lead, task.lead.assignedTo);
-    selectedVariantId = selected.id;
-  } else {
-    subject = renderTemplate(template.subject ?? '', task.lead, task.lead.assignedTo);
-    body = renderTemplate(template.body, task.lead, task.lead.assignedTo);
-  }
-
-  // Re-check ownership at the send-intent boundary. The validation near the top of this handler
-  // is now several awaits old — mailbox, suppression and eligibility all ran since — and a human
-  // may have replaced the cadence in that window. There is no transaction to lean on (Neon HTTP
-  // has none), so the next best thing is to check as close to the prospect-facing write as
-  // possible: after the execution lock, immediately before the OutboundMessage exists.
-  if (expectedEnrollmentId) {
-    const live = await prisma.sequenceEnrollment.findUnique({ where: { id: expectedEnrollmentId } });
-    const stillOwns =
-      live &&
-      live.leadId === task.leadId &&
-      live.sequenceId === task.sequenceId &&
-      live.status === 'active' &&
-      live.occupancyKey === `${task.tenantId}:${task.leadId}`;
-    // The same occurrence advancing is a different failure from losing it: eligibility checked the
-    // step order several awaits ago, and a step-1 task must not send once the cadence is on step 2.
-    const sameStep = live && live.currentStep === task.sequenceStep;
-    if (!stillOwns || !sameStep) {
-      // Release the lock so the task is not stranded claimed by an execution that refused.
-      await prisma.task.updateMany({
-        where: { id: task.id, status: 'pending' },
-        data: { lockedAt: null },
+    if (variantA && variantB) {
+      const seed = buildJitterSeed({
+        tenantId: task.tenantId,
+        sequenceId: task.sequenceId ?? undefined,
+        sequenceStepId: stepInfo?.id,
+        leadId: task.leadId,
       });
-      return {
-        status: 'skipped',
-        reason: stillOwns ? 'occurrence_step_changed' : 'occurrence_no_longer_active',
-        taskId: task.id,
-      };
+      const choice = deterministicOffset(seed, 2);
+      const selected = choice === 0 ? variantA : variantB;
+
+      subject = renderTemplate(selected.subject ?? template.subject ?? '', task.lead, task.lead.assignedTo);
+      body = renderTemplate(selected.body ?? template.body, task.lead, task.lead.assignedTo);
+      selectedVariantId = selected.id;
+    } else {
+      subject = renderTemplate(template.subject ?? '', task.lead, task.lead.assignedTo);
+      body = renderTemplate(template.body, task.lead, task.lead.assignedTo);
     }
-  }
 
-  // OutboundMessage (idempotent) + enqueue the actual provider send.
-  const outbound = await createOutboundMessage({
-    source: { kind: 'task', taskId: task.id },
-    leadId: task.lead.id,
-    accountId: account!.id,
-    templateId: template.id,
-    to: leadEmail,
-    subject,
-    body,
-    tenantId: task.tenantId,
-  });
+    // Re-check ownership at the send-intent boundary. The validation near the top of this handler
+    // is now several awaits old — mailbox, suppression and eligibility all ran since — and a human
+    // may have replaced the cadence in that window. There is no transaction to lean on (Neon HTTP
+    // has none), so the next best thing is to check as close to the prospect-facing write as
+    // possible: after the execution lock, immediately before the OutboundMessage exists.
+    if (expectedEnrollmentId) {
+      const live = await prisma.sequenceEnrollment.findUnique({ where: { id: expectedEnrollmentId } });
+      const stillOwns =
+        live &&
+        live.leadId === task.leadId &&
+        live.sequenceId === task.sequenceId &&
+        live.status === 'active' &&
+        live.occupancyKey === `${task.tenantId}:${task.leadId}`;
+      // The same occurrence advancing is a different failure from losing it: eligibility checked the
+      // step order several awaits ago, and a step-1 task must not send once the cadence is on step 2.
+      const sameStep = live && live.currentStep === task.sequenceStep;
+      if (!stillOwns || !sameStep) {
+        // Release the lock so the task is not stranded claimed by an execution that refused.
+        await prisma.task.updateMany({
+          where: { id: task.id, status: 'pending' },
+          data: { lockedAt: null },
+        });
+        return {
+          status: 'skipped',
+          reason: stillOwns ? 'occurrence_step_changed' : 'occurrence_no_longer_active',
+          taskId: task.id,
+        };
+      }
+    }
 
-  await enqueueEmailSendWorkflow(
-    {
-      outboundMessageId: outbound.id,
+    // OutboundMessage (idempotent) + enqueue the actual provider send.
+    const outbound = await createOutboundMessage({
+      source: { kind: 'task', taskId: task.id },
+      leadId: task.lead.id,
       accountId: account!.id,
+      templateId: template.id,
       to: leadEmail,
       subject,
       body,
-      leadId: task.lead.id,
-      templateId: template.id,
-    },
-    task.tenantId,
-  );
-
-  // Complete the task, bump counters, advance the sequence.
-  await prisma.task.update({
-    where: { id: task.id },
-    data: { status: 'completed', completedAt: new Date() },
-  });
-  if (selectedVariantId) {
-    await prisma.abTestVariant.update({
-      where: { id: selectedVariantId },
-      data: { sentCount: { increment: 1 } },
+      tenantId: task.tenantId,
     });
-  }
-  await prisma.lead.update({
-    where: { id: task.leadId },
-    data: { emailSentCount: { increment: 1 } },
-  });
-  // The occurrence continues into the next step's task and its delayed job.
-  await advanceSequence(task, task.lead.assignedToId, expectedEnrollmentId);
 
-  return { status: 'completed', taskId: task.id };
+    await enqueueEmailSendWorkflow(
+      {
+        outboundMessageId: outbound.id,
+        accountId: account!.id,
+        to: leadEmail,
+        subject,
+        body,
+        leadId: task.lead.id,
+        templateId: template.id,
+      },
+      task.tenantId,
+    );
+
+    // Complete the task, bump counters, advance the sequence.
+    await prisma.task.update({
+      where: { id: task.id },
+      data: { status: 'completed', completedAt: new Date() },
+    });
+    if (selectedVariantId) {
+      await prisma.abTestVariant.update({
+        where: { id: selectedVariantId },
+        data: { sentCount: { increment: 1 } },
+      });
+    }
+    await prisma.lead.update({
+      where: { id: task.leadId },
+      data: { emailSentCount: { increment: 1 } },
+    });
+    // The occurrence continues into the next step's task and its delayed job.
+    await advanceSequence(task, task.lead.assignedToId, expectedEnrollmentId);
+
+    return { status: 'completed', taskId: task.id };
+  } catch (err) {
+    // Release the lock on exception so the task is not permanently stranded pending + locked
+    await prisma.task.updateMany({
+      where: { id: task.id, status: 'pending' },
+      data: { lockedAt: null },
+    });
+    throw err;
+  }
 }
 
 export function createSequenceWorker() {

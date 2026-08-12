@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { createAppWorker } from '@/lib/bullmq';
 import { JobType } from '@/lib/bullmq/types';
-import { enrollmentIdFromStepTaskId } from '@/lib/sequences/identity';
+import { enrollmentIdFromStepTaskId, enrollmentStepTaskId } from '@/lib/sequences/identity';
 import type { MaintenanceRepairPayload } from '@/lib/bullmq/types';
 import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
 import { enqueueReschedule } from '@/lib/bullmq/enqueue';
@@ -184,9 +184,22 @@ async function repairEnrollmentScheduleDrift(): Promise<{ fixed: number; details
   });
 
   for (const enr of driftEnrollments) {
-    const existingTask = await prisma.task.findFirst({
-      where: { leadId: enr.leadId, sequenceId: enr.sequenceId, sequenceStep: enr.currentStep, status: 'pending' },
+    const expectedTaskId = enrollmentStepTaskId(enr.id, enr.currentStep);
+    let existingTask = await prisma.task.findFirst({
+      where: { id: expectedTaskId, status: 'pending' },
     });
+
+    if (!existingTask) {
+      const legacyTask = await prisma.task.findFirst({
+        where: { leadId: enr.leadId, sequenceId: enr.sequenceId, sequenceStep: enr.currentStep, status: 'pending' },
+      });
+      if (legacyTask) {
+        const legacyEnrollmentId = enrollmentIdFromStepTaskId(legacyTask.id);
+        if (!legacyEnrollmentId || legacyEnrollmentId === enr.id) {
+          existingTask = legacyTask;
+        }
+      }
+    }
 
     if (!existingTask) {
       const step = await prisma.sequenceStep.findFirst({

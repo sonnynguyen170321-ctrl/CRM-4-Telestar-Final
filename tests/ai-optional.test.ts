@@ -43,7 +43,6 @@ const AI_ALLOWED_PREFIXES = [
   path.join('app', 'api', 'ai'),
   path.join('components', 'AiAssistant.tsx'),
   path.join('components', 'ai'),
-  path.join('components', 'dashboard', 'CommandCenterStrip.tsx'),
   path.join('tests', 'ai-'),
 ];
 
@@ -83,7 +82,7 @@ function stripComments(source: string): string {
 }
 
 /** Matches `from '@/lib/ai/...'`, `from './ai/...'`, `require('@/lib/ai/...')`. */
-const AI_IMPORT = /(?:from\s+|require\()\s*['"]([^'"]*\/ai\/[^'"]*|@\/lib\/ai[^'"]*)['"]/g;
+const AI_IMPORT = /(?:from\s+|require\()\s*['"]([^'"]*\/lib\/ai(?:\/[^'"]*)?|@\/lib\/ai(?:\/[^'"]*)?)['"]/g;
 
 describe('AI is an optional layer, not a CRM dependency', () => {
   const coreFiles = CORE_DIRS.flatMap((dir) => walk(path.join(ROOT, dir)))

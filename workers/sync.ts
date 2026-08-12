@@ -178,9 +178,10 @@ async function handleEmailSync(payload: EmailSyncPayload) {
     // cadence and record why — and routing them anywhere else would be the second inbound
     // listener the architecture forbids.
     if (!c.isReply && !c.isAutoReply) continue;
-    // Sequence side effects only apply to leads mid-sequence. The reply itself is
-    // already recorded on InboundMessage above, so metrics see it either way.
-    if (!c.lead.sequenceId || c.lead.sequenceStatus !== 'active') continue;
+    // Sequence side effects only apply to leads with a sequenceId. The authoritative gate
+    // inside handleApplyReply checks SequenceEnrollment.status === 'active' so a stale
+    // Lead.sequenceStatus legacy cache value never drops a real reply (S3).
+    if (!c.lead.sequenceId) continue;
 
     await handleApplyReply({
       providerMessageId: c.msg.providerMessageId,
@@ -223,11 +224,15 @@ export async function handleApplyReply(payload: EmailApplyReplyPayload) {
   });
   if (!lead) return { skipped: true, reason: 'lead_not_found' };
 
-  // Pre-existing dedupe, unchanged: a lead already at stage `replied` is skipped entirely.
-  // It is coarse — a later legitimate reply from the same prospect is suppressed too — and it
-  // is separate lifecycle debt, not something Phase 3 claims to fix. Handoff idempotency is
-  // keyed on the inbound event and does not depend on this guard.
-  if (lead.stage === 'replied') return { skipped: true, reason: 'already_replied' };
+  const inbound = await prisma.inboundMessage.findUnique({
+    where: { providerMessageId },
+    select: { id: true, subject: true, body: true, isReply: true, classifiedAt: true },
+  });
+
+  // Redelivery deduplication (S4): if this exact provider message was already classified, skip.
+  if (inbound?.classifiedAt) {
+    return { skipped: true, reason: 'already_processed' };
+  }
 
   // The authoritative gate. This used to read `Lead.sequenceStatus`, the legacy compatibility
   // cache; a stale value there could drop a real reply before the handoff was ever reached.
@@ -239,11 +244,6 @@ export async function handleApplyReply(payload: EmailApplyReplyPayload) {
   if (!activeEnrollment) {
     return { skipped: true, reason: 'sequence_not_active' };
   }
-
-  const inbound = await prisma.inboundMessage.findUnique({
-    where: { providerMessageId },
-    select: { id: true, subject: true, body: true, isReply: true },
-  });
 
   // Classification decides everything below it. It never throws and never guesses: with no
   // provider it returns class D and a human reads the reply.

@@ -245,12 +245,13 @@ describe('handleApplyReply', () => {
     expect(pauseEnrollmentOccurrence).not.toHaveBeenCalled();
   });
 
-  it('skips if lead already replied', async () => {
+  it('skips if provider message already processed', async () => {
     mockLeadFindUnique.mockResolvedValue({ ...baseLead, stage: 'replied' });
+    mockInboundFindUnique.mockResolvedValue({ id: 'inb-1', classifiedAt: new Date() });
 
     const result = await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' });
 
-    expect(result).toEqual({ skipped: true, reason: 'already_replied' });
+    expect(result).toEqual({ skipped: true, reason: 'already_processed' });
     expect(mockLeadUpdate).not.toHaveBeenCalled();
   });
 
