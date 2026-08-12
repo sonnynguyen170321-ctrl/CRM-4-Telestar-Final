@@ -1490,14 +1490,29 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                             ? '💼'
                             : '💬'}
                         </span>
-                        <div className="min-w-0">
-                          <p
-                            className={`font-semibold truncate ${
-                              task.status === 'completed' ? 'line-through text-text-muted' : 'text-text-primary'
-                            }`}
-                          >
-                            {task.title}
-                          </p>
+                        <div className="min-w-0 text-left">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p
+                              className={`font-semibold truncate ${
+                                task.status === 'completed' ? 'line-through text-text-muted' : 'text-text-primary'
+                              }`}
+                            >
+                              {task.title}
+                            </p>
+                            {task.title.toLowerCase().includes('handoff') || task.title.toLowerCase().includes('reply') ? (
+                              <span className="text-[9px] font-bold text-amber-700 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
+                                AI Handoff
+                              </span>
+                            ) : task.title.toLowerCase().includes('re-engagement') || task.title.toLowerCase().includes('ghost') ? (
+                              <span className="text-[9px] font-bold text-blue-700 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded">
+                                Re-engagement
+                              </span>
+                            ) : task.sequenceStep != null ? (
+                              <span className="text-[9px] font-bold text-purple-700 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded">
+                                Sequence Step
+                              </span>
+                            ) : null}
+                          </div>
                           <p className="text-[10px] text-text-muted font-mono mt-0.5 flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             <span>{new Date(task.dueDate).toLocaleDateString()}</span>

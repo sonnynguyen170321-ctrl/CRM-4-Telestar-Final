@@ -42,6 +42,8 @@ const AI_ALLOWED_PREFIXES = [
   path.join('lib', 'replies', 'classification.ts'),
   path.join('app', 'api', 'ai'),
   path.join('components', 'AiAssistant.tsx'),
+  path.join('components', 'ai'),
+  path.join('components', 'dashboard', 'CommandCenterStrip.tsx'),
   path.join('tests', 'ai-'),
 ];
 

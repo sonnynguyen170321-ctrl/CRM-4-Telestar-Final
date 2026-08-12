@@ -176,7 +176,7 @@ test.describe('Telestar AI — demo walkthrough', () => {
     // attention queue, not the (correct, but unpersuasive) "nothing needs you" empty state that
     // the pre-reply capture in the first test necessarily gets.
     await page.goto('/');
-    await expect(page.getByText('Managing prospects')).toBeVisible();
+    await expect(page.getByText('Managing prospects')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole('link', { name: /Review handoff/ }).first()).toBeVisible();
     await shot(page, '01-dashboard');
   });

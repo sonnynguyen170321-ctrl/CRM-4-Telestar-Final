@@ -35,6 +35,10 @@ interface Message {
   isRead: boolean;
   isSpam: boolean;
   isTrash: boolean;
+  replyClass?: string | null;
+  replyKind?: string | null;
+  replyConfidence?: number | null;
+  classificationSource?: string | null;
 }
 
 interface Thread {
@@ -45,6 +49,7 @@ interface Thread {
     firstName: string;
     lastName: string;
     company: string;
+    operatingState?: string | null;
   } | null;
   messages: Message[];
   latestMessageAt: string;
@@ -377,9 +382,26 @@ export default function InboxPage() {
                         {latestMsg?.body || '(Empty email body)'}
                       </p>
                       {thread.lead && (
-                        <span className="text-xs font-semibold text-brand-orange-text border border-brand-orange/20 bg-brand-orange/5 px-1.5 py-0.5 rounded font-mono block w-fit mt-1">
-                          {thread.lead.company}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                          <span className="text-[10px] font-semibold text-brand-orange-text border border-brand-orange/20 bg-brand-orange/5 px-1.5 py-0.5 rounded font-mono">
+                            {thread.lead.company}
+                          </span>
+                          {thread.lead.operatingState === 'human_attention' && (
+                            <span className="text-[9px] font-bold text-amber-700 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
+                              Needs Attention
+                            </span>
+                          )}
+                          {thread.lead.operatingState === 'ai_managed' && (
+                            <span className="text-[9px] font-bold text-blue-700 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded">
+                              AI Managing
+                            </span>
+                          )}
+                          {thread.lead.operatingState === 'waiting_for_prospect' && (
+                            <span className="text-[9px] font-bold text-gray-700 bg-gray-500/10 border border-gray-500/20 px-1.5 py-0.5 rounded">
+                              Waiting
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -475,6 +497,52 @@ export default function InboxPage() {
                             {new Date(msg.date).toLocaleString()}
                           </span>
                         </div>
+
+                        {/* AI Reply Classification Banner (Phase 8b Integration) */}
+                        {!isOutbound && msg.replyClass && (
+                          <div className="p-2.5 rounded-xl border text-xs space-y-1 text-left bg-[#fcfcfc] border-card-border">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-bold text-[10px] text-text-muted uppercase">AI Classification:</span>
+                                {msg.replyClass === 'A' && (
+                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-red-500/10 text-red-600 border border-red-500/20">
+                                    Class A · Opt-Out / Stop
+                                  </span>
+                                )}
+                                {msg.replyClass === 'B' && (
+                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-gray-500/10 text-gray-700 border border-gray-500/20">
+                                    Class B · Administrative (OOO)
+                                  </span>
+                                )}
+                                {msg.replyClass === 'C' && (
+                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-500/10 text-emerald-700 border border-emerald-500/20">
+                                    Class C · Sales Engagement
+                                  </span>
+                                )}
+                                {msg.replyClass === 'D' && (
+                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-500/10 text-amber-700 border border-amber-500/20">
+                                    Class D · Human Review Required
+                                  </span>
+                                )}
+                              </div>
+                              {selectedThread.lead && (msg.replyClass === 'C' || msg.replyClass === 'D') && (
+                                <button
+                                  type="button"
+                                  onClick={() => router.push(`/ai?leadId=${selectedThread.lead!.id}`)}
+                                  className="text-[10px] font-bold text-brand-red hover:underline flex items-center gap-1 ml-auto"
+                                >
+                                  <span>Review Handoff Workspace</span>
+                                  <span>→</span>
+                                </button>
+                              )}
+                            </div>
+                            {(msg.replyKind || msg.classificationSource) && (
+                              <p className="text-[10px] text-text-secondary leading-snug">
+                                {msg.replyKind ? `Kind: ${msg.replyKind}` : ''} {msg.classificationSource ? `· Source: ${msg.classificationSource}` : ''} {msg.replyConfidence != null ? `· Confidence: ${Math.round(msg.replyConfidence * 100)}%` : ''}
+                              </p>
+                            )}
+                          </div>
+                        )}
 
                         {/* Email Body Content — inbound HTML is attacker-controlled, sanitize before render */}
                         {msg.bodyHtml ? (
