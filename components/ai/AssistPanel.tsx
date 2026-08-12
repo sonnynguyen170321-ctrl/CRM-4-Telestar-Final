@@ -1,5 +1,7 @@
-import React from 'react';
-import { Copy, FileText, HelpCircle, Loader2, PhoneCall, PlugZap, Sparkles } from 'lucide-react';
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { Check, Copy, FileText, HelpCircle, Loader2, PhoneCall, PlugZap, Sparkles } from 'lucide-react';
 import type { AssistResult } from './types';
 
 /**
@@ -21,13 +23,58 @@ const SECONDARY: Array<{ kind: string; label: string; icon: React.ComponentType<
 ];
 
 export default function AssistPanel({
-  assist, busy, onAssist,
+  leadId, assist, busy, onAssist,
 }: {
+  leadId: string;
   assist: AssistResult | null;
   busy: string | null;
   onAssist: (kind: string) => void;
 }) {
   const disabled = busy !== null;
+
+  // The draft as the rep has edited it. Controlled, because the difference between what AI wrote
+  // and what the rep is actually going to send is the entire signal (Phase 10).
+  const [edited, setEdited] = useState('');
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+
+  useEffect(() => {
+    setEdited(assist?.text ?? '');
+    setFeedback(null);
+  }, [assist?.text, assist?.kind]);
+
+  /**
+   * "I used this."
+   *
+   * Records how much of the draft survived and nothing else. It sends no mail — the rep still
+   * sends the message themselves, which is what `prospect_reply` being `human_only` means in
+   * practice rather than in policy.
+   */
+  const recordUse = async () => {
+    setRecording(true);
+    try {
+      const res = await fetch('/api/ai/draft-outcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId,
+          draft: assist?.text ?? '',
+          sent: edited,
+          occurrenceKey: `${assist?.kind ?? 'draft'}:${(assist?.text ?? '').length}`,
+        }),
+      });
+      const body = await res.json();
+      setFeedback(
+        res.ok
+          ? 'Thanks — recorded how much of the draft you kept. Nothing was sent.'
+          : (body.error ?? 'Could not record that.')
+      );
+    } catch {
+      setFeedback('Could not record that. Nothing was sent either way.');
+    } finally {
+      setRecording(false);
+    }
+  };
 
   return (
     <section className="rounded-xl border border-card-border bg-card-bg px-5 py-4">
@@ -84,24 +131,38 @@ export default function AssistPanel({
             <div className="rounded-lg border border-card-border overflow-hidden">
               <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-card-border bg-gray-50">
                 <span className="type-meta text-text-secondary">{assist.label}</span>
-                <button
-                  type="button"
-                  onClick={() => { void navigator.clipboard?.writeText(assist.text ?? ''); }}
-                  className="inline-flex items-center gap-1.5 type-micro text-text-secondary hover:text-text-primary focus-ring rounded px-1"
-                >
-                  <Copy className="w-3 h-3" aria-hidden="true" /> Copy
-                </button>
+                <span className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { void navigator.clipboard?.writeText(edited); }}
+                    className="inline-flex items-center gap-1.5 type-micro text-text-secondary hover:text-text-primary focus-ring rounded px-1"
+                  >
+                    <Copy className="w-3 h-3" aria-hidden="true" /> Copy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void recordUse(); }}
+                    disabled={recording}
+                    className="inline-flex items-center gap-1.5 type-micro text-text-secondary hover:text-text-primary focus-ring rounded px-1 disabled:opacity-50"
+                    title="Records how much of the draft you kept. Sends nothing."
+                    data-testid="assist-used"
+                  >
+                    <Check className="w-3 h-3" aria-hidden="true" /> I used this
+                  </button>
+                </span>
               </div>
               <textarea
-                readOnly={false}
-                defaultValue={assist.text ?? ''}
-                // Keyed on the text so a fresh generation replaces the buffer rather than being
-                // swallowed by the uncontrolled default.
-                key={assist.text ?? assist.kind}
+                value={edited}
+                onChange={(e) => setEdited(e.target.value)}
                 rows={9}
                 aria-label={`${assist.label} draft`}
                 className="w-full px-4 py-3 type-body text-text-primary bg-card-bg resize-y focus:outline-none"
               />
+              {feedback && (
+                <p className="px-4 py-2 type-micro text-text-secondary border-t border-card-border bg-gray-50" data-testid="assist-feedback">
+                  {feedback}
+                </p>
+              )}
             </div>
           ) : (
             <div className="rounded-lg border border-card-border bg-gray-50 px-4 py-4">

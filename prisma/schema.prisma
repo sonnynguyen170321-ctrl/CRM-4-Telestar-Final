@@ -1625,6 +1625,8 @@ model Tenant {
   accountPainHypotheses    AccountPainHypothesis[]
   personalizationHooks     PersonalizationHook[]
   sequenceLaunches SequenceLaunch[]
+  outcomeSignals           OutcomeSignal[]
+  playbookProposals        PlaybookProposal[]
 }
 
 // ─── Campaign Playbooks ──────────────────────────────────────────────────────
@@ -1651,6 +1653,7 @@ model CampaignPlaybook {
   currentVersion   CampaignPlaybookVersion? @relation("CurrentVersion", fields: [currentVersionId], references: [id])
 
   versions CampaignPlaybookVersion[] @relation("PlaybookVersions")
+  proposals PlaybookProposal[]
 
   createdById String
   createdAt   DateTime @default(now())
@@ -1708,6 +1711,11 @@ model CampaignPlaybookVersion {
   AgentAction      AgentAction[]
   workOrders       WorkOrder[]
   approvalRequests AgentApprovalRequest[]
+  /// The proposal whose approval produced this version, when one did. At most one — a proposal
+  /// creates exactly one draft, and a draft is created by at most one proposal.
+  fromProposal     PlaybookProposal?      @relation("ProposalCreatedVersion")
+  /// Proposals written against this version as their starting point.
+  proposalsBasedOn PlaybookProposal[]     @relation("ProposalBaseVersion")
 
   @@unique([playbookId, versionNumber])
   @@index([tenantId])
@@ -2533,4 +2541,167 @@ model SequenceLaunch {
   @@index([tenantId])
   @@index([tenantId, leadId])
   @@index([tenantId, leadId, sequenceId])
+}
+
+// ─── Approved learning (Revenue AI Phase 10) ─────────────────────────────────
+
+/// What a signal says about the thing that produced it.
+///
+/// Every value here is something the CRM can already observe. There is deliberately no
+/// `model_confidence` or `quality_score`: a signal must be a fact someone could argue with by
+/// looking at a row, not an opinion the system formed about itself.
+enum OutcomeSignalKind {
+  /// An AI draft was sent essentially as written.
+  draft_accepted
+  /// An AI draft was sent after substantial rewriting — the draft was not good enough.
+  draft_edited
+  /// The prospect replied, and the reply was a sales conversation.
+  positive_reply
+  /// A meeting was booked with this prospect.
+  meeting_booked
+  /// A sourced contact was rejected before outreach.
+  lead_rejected
+  /// A human marked research evidence as not worth using.
+  research_irrelevant
+  /// The prospect raised an objection.
+  objection_raised
+  /// A re-engagement follow-up produced a reply.
+  reengagement_reply
+}
+
+/// One observed outcome, durable and attributable.
+///
+/// This is the evidence layer under Phase 10. A proposal that cannot point at rows here is an
+/// opinion, and a manager approving an opinion is not an approval process.
+///
+/// ## Why the ids carry no foreign keys
+///
+/// Same reasoning as `AiCall`: a signal is a *record of something that happened*, and it must
+/// outlive an archived lead, a deleted sequence or a campaign that ended. A cascade would quietly
+/// reduce the evidence behind an already-approved playbook version, which is the one thing this
+/// table exists to prevent. `tenantId` is the exception — a deleted tenant takes its data with it.
+model OutcomeSignal {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// Identifies the real-world occurrence, so collection is idempotent. A second pass over the
+  /// same reply finds this row instead of inflating the count behind a proposal.
+  signalKey String
+
+  kind OutcomeSignalKind
+
+  /// +1 this worked, -1 this did not, 0 observed without a verdict. Bounded by the writer.
+  direction Int @default(0)
+
+  /// Loose ids, deliberately. See the note above.
+  leadId            String?
+  campaignId        String?
+  sequenceId        String?
+  /// Which policy was in force when it happened — the join that makes "did v4 do better" real.
+  playbookVersionId String?
+  /// The human involved, when one was. AI-observed signals have none.
+  actorUserId       String?
+
+  /// One sentence a person can read, written by the collector that produced the row.
+  detail   String? @db.Text
+  metadata Json?
+
+  occurredAt DateTime
+  createdAt  DateTime @default(now())
+
+  evidenceFor PlaybookProposalEvidence[]
+
+  @@unique([tenantId, signalKey])
+  @@index([tenantId, kind, occurredAt])
+  @@index([tenantId, campaignId, occurredAt])
+  @@index([tenantId, playbookVersionId])
+}
+
+enum PlaybookProposalStatus {
+  proposed
+  approved
+  rejected
+  /// A newer proposal about the same pattern replaced this one before anyone decided.
+  superseded
+}
+
+/// A change the system would like permission to make.
+///
+/// **Approving one never edits a playbook.** It creates a new *draft* version through
+/// `lib/playbooks/versions.ts`, which a human still has to approve and activate. The active
+/// version is immutable and stays untouched — `createdVersionId` records the draft that was
+/// produced so the trail from evidence to policy is a stored fact rather than an inference.
+///
+/// No agent may write `status`. Review is a human decision recorded with the reviewer's id.
+model PlaybookProposal {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  playbookId String
+  playbook   CampaignPlaybook @relation(fields: [playbookId], references: [id], onDelete: Cascade)
+  /// Denormalised for the manager surfaces, which filter by campaign far more than by playbook.
+  campaignId String
+
+  /// The version the proposal was written against. Null when the campaign has no approved policy
+  /// yet — the proposal then describes a first draft rather than a change to one.
+  basedOnVersionId String?
+  basedOnVersion   CampaignPlaybookVersion? @relation("ProposalBaseVersion", fields: [basedOnVersionId], references: [id], onDelete: SetNull)
+
+  /// Identifies the pattern, so a second run updates this row instead of filing a duplicate.
+  proposalKey String
+
+  title           String
+  /// What the system thinks it is seeing.
+  observation     String @db.Text
+  /// What it is asking for, in a manager's language.
+  suggestedChange String @db.Text
+
+  /// The partial policy override an approval would apply, validated against the playbook
+  /// contract before it is stored. It cannot contain ICP — the contract is `.strict()` and ICP
+  /// belongs to `CampaignLeadRequirement`.
+  proposedRules Json
+
+  /// How many signals stand behind it. Denormalised from the evidence rows for sorting.
+  supportCount Int @default(0)
+
+  status PlaybookProposalStatus @default(proposed)
+
+  /// The draft this proposal produced when it was approved. Never an active version.
+  createdVersionId String?                  @unique
+  createdVersion   CampaignPlaybookVersion? @relation("ProposalCreatedVersion", fields: [createdVersionId], references: [id], onDelete: SetNull)
+
+  /// The human who decided. A proposal with `status != proposed` and no reviewer is a defect.
+  reviewedById String?
+  reviewedAt   DateTime?
+  decisionNote String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  evidence PlaybookProposalEvidence[]
+
+  @@unique([tenantId, proposalKey])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, campaignId])
+}
+
+/// Which observed outcomes a proposal rests on.
+///
+/// A join table rather than an id array so the evidence behind an approved change cannot drift
+/// into naming rows that no longer exist.
+model PlaybookProposalEvidence {
+  id String @id @default(cuid())
+
+  proposalId String
+  proposal   PlaybookProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  signalId String
+  signal   OutcomeSignal @relation(fields: [signalId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([proposalId, signalId])
+  @@index([signalId])
 }

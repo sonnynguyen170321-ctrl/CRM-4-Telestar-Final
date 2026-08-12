@@ -1,17 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  AlertTriangle, Clock, RefreshCw, RotateCcw, ShieldAlert, Sparkles, Stethoscope, UserCheck,
-} from 'lucide-react';
-import MetricCard from '@/components/operating/MetricCard';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Clock, RefreshCw, ShieldAlert, Stethoscope } from 'lucide-react';
 import SectionHeader from '@/components/operating/SectionHeader';
 import EmptyState from '@/components/operating/EmptyState';
 import { SkeletonMetricRow, SkeletonPanel } from '@/components/operating/Skeleton';
 import OperatingLoop from './OperatingLoop';
+import RoleSurface from './RoleSurface';
 import ProspectQueue from './ProspectQueue';
 import ProspectWorkspace, { WorkspaceLoading, WorkspacePlaceholder } from './ProspectWorkspace';
-import PlaybookInsights from './PlaybookInsights';
+import PlaybookProposals from './PlaybookProposals';
 import DemoReplyControls from './DemoReplyControls';
 import type { AssistResult, ConsoleData, HandoffPackage } from './types';
 import { relativeTime } from './types';
@@ -55,7 +53,19 @@ export default function AiConsoleView() {
 
   useEffect(() => { void load(); }, [load]);
 
+  /**
+   * Which package load is the current one.
+   *
+   * Two can overlap: a handback reloads the prospect it just acted on, and the user is free to
+   * click a prospect while that is in flight. Without a token the slower response wins the panel
+   * and the earlier `finally` clears the spinner for a load that is still running — which is
+   * exactly how the workspace ends up stuck on "Loading prospect intelligence…" while its data
+   * has already arrived.
+   */
+  const packageRequest = useRef(0);
+
   const openProspect = useCallback(async (leadId: string) => {
+    const token = ++packageRequest.current;
     setSelected(leadId);
     setPkg(null);
     setAssist(null);
@@ -63,12 +73,15 @@ export default function AiConsoleView() {
     setBusy('package');
     try {
       const res = await fetch(`/api/prospects/${leadId}/handoff`);
-      if (res.ok) setPkg(await res.json());
+      const body = res.ok ? await res.json() : null;
+      // A superseded load neither paints nor clears: whatever replaced it owns both.
+      if (token !== packageRequest.current) return;
+      if (body) setPkg(body);
       else setError('Could not load prospect intelligence.');
     } catch {
-      setError('Could not load prospect intelligence.');
+      if (token === packageRequest.current) setError('Could not load prospect intelligence.');
     } finally {
-      setBusy(null);
+      if (token === packageRequest.current) setBusy(null);
     }
   }, []);
 
@@ -123,13 +136,6 @@ export default function AiConsoleView() {
     await openProspect(selected);
     setResultMsg(message);
   }, [selected, load, openProspect]);
-
-  /** Bucket key → count, for the metric row and the queue tabs. */
-  const counts = useMemo(() => {
-    const out: Record<string, number> = {};
-    for (const b of data?.buckets ?? []) out[b.key] = b.count;
-    return out;
-  }, [data]);
 
   /**
    * Operating-state enum → count, for the loop stepper. Tallied from the prospects the buckets
@@ -201,53 +207,12 @@ export default function AiConsoleView() {
         </p>
       )}
 
-      {/* ─── the five numbers ─── */}
+      {/* ─── your responsibility, as exceptions ───
+          Role-aware and server-decided: the surface is built from the session's role and the
+          CRM's own pod scoping, so an SDR reads their conversations and a Director reads
+          outcomes and cost. There is no client-side role switch to get another one's view. */}
       {isLoading && <SkeletonMetricRow count={5} />}
-      {!isLoading && data && (
-        <section className="grid grid-cols-5 gap-3" aria-label="Operating model totals">
-          <MetricCard
-            label="AI managing"
-            value={counts.ai_managed ?? 0}
-            tone="ai"
-            icon={Sparkles}
-            hint="Research, outreach and follow-up running"
-            testId="total-ai-managed"
-          />
-          <MetricCard
-            label="Needs human"
-            value={data.totals.needsAttention}
-            tone="attention"
-            icon={AlertTriangle}
-            hint="Replied — AI has stopped"
-            emphasis={data.totals.needsAttention > 0}
-            testId="total-needs-attention"
-          />
-          <MetricCard
-            label="SDR managing"
-            value={counts.human_managed ?? 0}
-            tone="human"
-            icon={UserCheck}
-            hint="A person owns the conversation"
-            testId="total-human-owned"
-          />
-          <MetricCard
-            label="Waiting"
-            value={counts.waiting ?? 0}
-            tone="waiting"
-            icon={Clock}
-            hint="Sent, no reply yet"
-            testId="total-waiting"
-          />
-          <MetricCard
-            label="Re-engagement"
-            value={counts.reengagement_eligible ?? 0}
-            tone="eligible"
-            icon={RotateCcw}
-            hint="Eligible — needs an explicit handback"
-            testId="total-reengagement"
-          />
-        </section>
-      )}
+      {!isLoading && data?.surface && <RoleSurface surface={data.surface} />}
 
       {/* ─── the loop ─── */}
       {!isLoading && data && (
@@ -315,7 +280,7 @@ export default function AiConsoleView() {
             </>
           )}
 
-          {data && <PlaybookInsights insights={data.insights} />}
+          {data && <PlaybookProposals />}
 
           {/* ─── what happened ─── */}
           {isLoading && <SkeletonPanel lines={4} />}

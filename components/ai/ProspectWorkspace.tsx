@@ -254,7 +254,7 @@ export default function ProspectWorkspace({
       </div>
 
       {/* ─── AI assistance ─── */}
-      <AssistPanel assist={assist} busy={busy} onAssist={onAssist} />
+      <AssistPanel leadId={pkg.leadId} assist={assist} busy={busy} onAssist={onAssist} />
     </div>
   );
 }

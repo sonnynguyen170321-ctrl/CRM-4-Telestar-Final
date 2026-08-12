@@ -39,16 +39,47 @@ export interface WorkItem {
   at: string;
 }
 
-export interface Insight {
-  leadId: string;
-  prospectName: string;
-  company: string | null;
-  outcome: string;
-  supportingEvidence: string[];
-  observation: string;
-  suggestedChange: string;
-  status: string;
-  approvalRequired: string;
+export interface SurfaceMetric {
+  key: string;
+  label: string;
+  value: string;
+  raw: number | null;
+  hint?: string;
+  tone?: string;
+}
+
+export interface SurfaceItem {
+  id: string;
+  primary: string;
+  secondary: string;
+  meta?: string;
+  href?: string;
+  leadId?: string | null;
+  ownerName?: string | null;
+  ageHours?: number | null;
+  /** The operating-state enum, for tests and diagnostics. Never rendered. */
+  state?: string | null;
+}
+
+export interface SurfaceGroup {
+  key: string;
+  title: string;
+  description: string;
+  severity: string;
+  items: SurfaceItem[];
+  healthyMessage: string;
+  total?: number;
+}
+
+/** The viewer's role surface — what this person is responsible for, as exceptions. */
+export interface RoleSurfaceData {
+  key: string;
+  title: string;
+  focus: string;
+  scope: string;
+  metrics: SurfaceMetric[];
+  groups: SurfaceGroup[];
+  sources: string[];
 }
 
 export interface ConsoleData {
@@ -58,7 +89,7 @@ export interface ConsoleData {
   blocked: WorkItem[];
   timeline: Array<{ at: string; leadId: string | null; type: string; description: string }>;
   totals: { aiManaged: number; humanOwned: number; needsAttention: number; blocked: number };
-  insights: Insight[];
+  surface: RoleSurfaceData;
 }
 
 export interface HandoffPackage {

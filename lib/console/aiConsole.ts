@@ -2,7 +2,6 @@ import { prisma } from '@/lib/prisma';
 import type { SessionUser } from '@/lib/auth';
 import { computeVisibleUserIds } from '@/lib/podScoping';
 import { CLASS_LABEL, KIND_LABEL, type ReplyClass, type ReplyKind } from '@/lib/replies/types';
-import { buildOutcomeInsights, type OutcomeInsight } from './outcomeInsight';
 
 /**
  * The operating model, as one readable board (Revenue AI Phase 9).
@@ -77,8 +76,6 @@ export interface AiConsole {
   /** Recent AI/CRM events, newest first — the "what happened" column. */
   timeline: Array<{ at: Date; leadId: string | null; type: string; description: string }>;
   totals: { aiManaged: number; humanOwned: number; needsAttention: number; blocked: number };
-  /** Phase 10 demo minimum: outcomes with a proposed playbook change, never an applied one. */
-  insights: OutcomeInsight[];
 }
 
 const BUCKET_META: Record<BucketKey, { label: string; hint: string }> = {
@@ -185,7 +182,7 @@ export async function buildAiConsole(user: SessionUser): Promise<AiConsole> {
     }
   }
 
-  const [pendingApprovals, blockedOrders, activities, insights] = await Promise.all([
+  const [pendingApprovals, blockedOrders, activities] = await Promise.all([
     prisma.agentApprovalRequest.findMany({
       where: { tenantId, status: 'pending' },
       orderBy: { createdAt: 'desc' },
@@ -214,7 +211,6 @@ export async function buildAiConsole(user: SessionUser): Promise<AiConsole> {
       take: 40,
       select: { createdAt: true, leadId: true, type: true, description: true },
     }),
-    buildOutcomeInsights(tenantId),
   ]);
 
   const approvals: ConsoleWorkItem[] = pendingApprovals.map((a) => ({
@@ -269,6 +265,5 @@ export async function buildAiConsole(user: SessionUser): Promise<AiConsole> {
       needsAttention: (byBucket.get('needs_attention') ?? []).length,
       blocked: blocked.length,
     },
-    insights,
   };
 }
