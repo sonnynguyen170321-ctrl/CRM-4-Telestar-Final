@@ -15,7 +15,7 @@ import {
  * ```text
  * unambiguous phrase match      → deterministic, confidence 1
  * otherwise, model available    → ai, confidence from the model
- * model unavailable / unusable  → fallback → class D, human review
+ * model unavailable / unusable  → high-precision phrase fallback, else class D
  * ```
  *
  * The order is not a cost optimisation. "Please unsubscribe me" has one correct answer and no
@@ -25,10 +25,16 @@ import {
  *
  * ## It never throws, and never guesses
  *
- * The CRM must keep processing inbound mail when the AI is down — so every failure path returns a
- * usable classification, and the one it returns is **D**. Falling back to C would manufacture
- * urgent SDR tasks out of provider outages; falling back to A would silently stop real
- * conversations. D costs a human ten seconds and is recoverable.
+ * The CRM must keep processing inbound mail when the AI is down. A model result that is missing,
+ * unparseable, unrecognised or low-confidence therefore resolves to **D** — falling back to C would
+ * manufacture urgent SDR tasks out of provider outages, and falling back to A would silently stop
+ * real conversations. D costs a human ten seconds and is recoverable.
+ *
+ * The one exception is a provider that never answered at all. Sending "How much does this cost?"
+ * to human review because an API key is missing is technically safe and practically wrong, so a
+ * narrow set of high-precision phrases (`ENGAGEMENT_FALLBACK`) is consulted first in that case.
+ * It is *not* consulted when the model did answer — a model that said "unclear" has made a
+ * judgement, and a keyword list must not overrule it.
  */
 
 export interface ClassifyInput {
@@ -120,6 +126,72 @@ export function classifyDeterministic(input: {
   return null;
 }
 
+/**
+ * High-precision sales-engagement phrases, used **only when no model answered**.
+ *
+ * Without these, a provider outage sent "How much does this cost?" to human review alongside a
+ * genuinely unreadable reply — technically safe, practically wrong, and it makes the whole feature
+ * depend on an API being up. These are narrow on purpose: each is a phrase whose *intent* is
+ * unambiguous even though its *nuance* is not, which is why they carry a lower confidence than the
+ * A/B rules and are never consulted while the model is reachable.
+ *
+ * Anything not matched here still falls to D. The fallback narrows human review; it does not
+ * replace it.
+ */
+const ENGAGEMENT_FALLBACK: readonly Rule[] = [
+  {
+    kind: 'pricing',
+    pattern: /\b(how much (does|would|is)|what('| i)?s the (cost|price|pricing)|pricing (info|details|page)|what does (it|this) cost|ballpark (figure|price)|budget for this)\b/i,
+    rationale: 'Asks about cost or commercial terms.',
+  },
+  {
+    kind: 'meeting_request',
+    pattern: /\b(book a (call|meeting|demo)|set up a (call|meeting|time)|schedule a (call|meeting|demo)|happy to (chat|talk|meet)|(does|would) (next |this )?(week|monday|tuesday|wednesday|thursday|friday) work)\b/i,
+    rationale: 'Proposes or accepts a meeting.',
+  },
+  {
+    kind: 'interest',
+    pattern: /\b(this is interesting|sounds interesting|(send|share) (me )?(more|further) (detail|info)|tell me more|keen to (learn|hear) more|we('| a)re (actually )?(reviewing|looking at|evaluating))\b/i,
+    rationale: 'Expresses interest and asks for more.',
+  },
+  {
+    kind: 'referral',
+    pattern: /\b((the )?(right|best) person (is|would be)|you should (speak|talk) (to|with)|(cc|copying|looping) in\b|forwarded (this )?to)\b/i,
+    rationale: 'Points to a different person.',
+  },
+  {
+    kind: 'rejection',
+    pattern: /\b(not interested|no thanks|we('| a)re (all )?(set|good|covered)|not a (fit|priority) (for us|right now)|please stop)\b/i,
+    rationale: 'Declines.',
+  },
+];
+
+/**
+ * The answer to give when no model did.
+ *
+ * `fallback` as a source, so the audit trail never claims a model classified something it did not.
+ */
+function classifyWithoutModel(input: ClassifyInput, reason: string): ReplyClassification {
+  const text = `${input.subject ?? ''}\n${input.body ?? ''}`;
+  const hit = ENGAGEMENT_FALLBACK.find((rule) => rule.pattern.test(text));
+  if (hit) {
+    return {
+      replyClass: KIND_CLASS[hit.kind],
+      kind: hit.kind,
+      // Below 1 deliberately: this is a phrase match standing in for judgement, and the number
+      // shown to the SDR should say so.
+      confidence: 0.7,
+      source: 'fallback',
+      rationale: `${hit.rationale} (${reason})`,
+    };
+  }
+  return {
+    ...HUMAN_REVIEW,
+    source: 'fallback',
+    rationale: `${reason} — routed to human review.`,
+  };
+}
+
 const SYSTEM_PROMPT = `You classify replies that B2B sales prospects send to outbound emails.
 
 Answer with JSON only, no prose, in exactly this shape:
@@ -170,11 +242,7 @@ export async function classifyReply(input: ClassifyInput): Promise<ReplyClassifi
   if (deterministic) return deterministic;
 
   if (input.disableAi || !isGenerationAvailable()) {
-    return {
-      ...HUMAN_REVIEW,
-      source: 'fallback',
-      rationale: 'No classifier available — routed to human review.',
-    };
+    return classifyWithoutModel(input, 'no classifier available');
   }
 
   const outcome = await generateStructured(
@@ -194,9 +262,7 @@ export async function classifyReply(input: ClassifyInput): Promise<ReplyClassifi
 
   if (!outcome.available || !outcome.data) {
     return {
-      ...HUMAN_REVIEW,
-      source: 'fallback',
-      rationale: `Classifier unavailable (${outcome.reason ?? 'unknown'}) — routed to human review.`,
+      ...classifyWithoutModel(input, `classifier unavailable: ${outcome.reason ?? 'unknown'}`),
       aiCallId: outcome.aiCallId,
     };
   }

@@ -20,11 +20,26 @@ import path from 'node:path';
 
 const ROOT = process.cwd();
 
-/** Where AI code is allowed to live or be imported from. */
+/**
+ * Where AI code is allowed to live or be imported from.
+ *
+ * Two Phase 8b/8c entries are narrower than they look and are worth stating:
+ *
+ * - `lib/replies/classification.ts` — the classifier itself. It sits on the inbound path, so the
+ *   *degradation* contract matters more here than anywhere else, and it is asserted behaviourally
+ *   in `tests/phase-8b-replies.test.ts`: with `isGenerationAvailable()` false, or a provider that
+ *   fails, replies are still processed and the cadence still pauses. Its sibling
+ *   `lib/replies/handling.ts` — which performs the CRM writes — is deliberately **not** listed and
+ *   must never import the AI layer.
+ * - `lib/assist/` — SDR assistance. It produces text a human reads; nothing in the CRM depends on
+ *   it returning anything.
+ */
 const AI_ALLOWED_PREFIXES = [
   path.join('lib', 'ai'),
   path.join('lib', 'agent'),
   path.join('lib', 'research'),
+  path.join('lib', 'assist'),
+  path.join('lib', 'replies', 'classification.ts'),
   path.join('app', 'api', 'ai'),
   path.join('components', 'AiAssistant.tsx'),
   path.join('tests', 'ai-'),
@@ -92,6 +107,14 @@ describe('AI is an optional layer, not a CRM dependency', () => {
     // preference — it means a provider outage can now reach sequence execution, reply
     // processing or sending. Move the logic behind a domain service instead.
     expect(offenders).toEqual([]);
+  });
+
+  it('the reply handler that writes CRM state is free of AI imports', () => {
+    // `classification.ts` may reach the model; `handling.ts` may not. It is what pauses the
+    // cadence, suppresses an unsubscribe and hands the prospect to an SDR — a provider outage must
+    // not be able to reach any of it, whatever the classifier returned.
+    const source = stripComments(readFileSync(path.join(ROOT, 'lib/replies/handling.ts'), 'utf8'));
+    expect([...source.matchAll(AI_IMPORT)].map((m) => m[1])).toEqual([]);
   });
 
   it('the automation engine and its workers are free of AI imports', () => {

@@ -264,6 +264,35 @@ describe('Phase 8b — reply classification and handoff', () => {
     expect(result).toMatchObject({ replyClass: 'D', source: 'fallback' });
   });
 
+  it('uses high-precision phrases when no provider ever answered', async () => {
+    mockIsGenerationAvailable.mockReturnValue(false);
+
+    const pricing = await classifyReply({ subject: 'Re:', body: 'How much does this cost?', tenantId });
+    const interest = await classifyReply({
+      subject: 'Re:', body: 'This is interesting — can you send more details?', tenantId,
+    });
+
+    // Routing these to human review because an API key is missing is technically safe and
+    // practically wrong. The source stays `fallback`, so the trail never claims a model answered.
+    expect(pricing).toMatchObject({ replyClass: 'C', kind: 'pricing', source: 'fallback' });
+    expect(interest).toMatchObject({ replyClass: 'C', kind: 'interest', source: 'fallback' });
+    expect(pricing.confidence).toBeLessThan(1);
+  });
+
+  it('still routes an unmatched reply to human review with no provider', async () => {
+    mockIsGenerationAvailable.mockReturnValue(false);
+    const result = await classifyReply({ subject: 'Re:', body: 'ok sure maybe', tenantId });
+    expect(result).toMatchObject({ replyClass: 'D', kind: 'unclear', source: 'fallback' });
+  });
+
+  it('does not let the phrase fallback overrule a model that answered', async () => {
+    // The model said "unclear" about a message containing a pricing phrase. That is a judgement,
+    // and a keyword list must not overturn it.
+    modelSays('unclear', 0.95);
+    const result = await classifyReply({ subject: 'Re:', body: 'How much does this cost, roughly?', tenantId });
+    expect(result).toMatchObject({ replyClass: 'D', source: 'ai' });
+  });
+
   it('demotes a low-confidence answer to human review', async () => {
     modelSays('pricing', 0.3);
     const result = await classifyReply({ subject: 'Re:', body: 'maybe?', tenantId });

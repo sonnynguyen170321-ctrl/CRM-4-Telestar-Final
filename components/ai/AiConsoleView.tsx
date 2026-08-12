@@ -180,13 +180,14 @@ export default function AiConsoleView() {
         body: JSON.stringify({ reason: 'SDR resumed AI follow-up' }),
       });
       const body = await res.json();
+      await load();
+      await openProspect(selected);
+      // Set *after* the reload: `openProspect` clears this line, so writing it first wipes it.
       setHandbackMsg(
         res.ok
           ? `Re-engagement work order ${String(body.workOrderId).slice(0, 8)} opened — awaiting an approved plan. No outreach has started.`
           : `Could not hand back: ${body.error ?? res.status}`
       );
-      await load();
-      await openProspect(selected);
     } finally {
       setBusy(null);
     }
@@ -402,6 +403,53 @@ export default function AiConsoleView() {
                     {busy === 'handback' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                     Resume AI follow-up
                   </button>
+                </div>
+
+                {/* Demo control: delivers a controlled inbound reply through the real chokepoint.
+                    The endpoint refuses outside the demo tenant, so this is inert elsewhere. */}
+                <div className="mt-3 pt-3 border-t border-card-border">
+                  <p className="type-micro text-text-muted">
+                    Demo — deliver a controlled inbound reply. Goes through the same sync chokepoint
+                    as real mail.
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {[
+                      { key: 'interest', label: 'Interested reply', body: "This is interesting. We're actually reviewing this problem right now. Can you send me more detail on how the implementation works?", auto: false },
+                      { key: 'pricing', label: 'Pricing question', body: 'How much does this cost?', auto: false },
+                      { key: 'ooo', label: 'Out of office', body: "I'm out of office until next Monday.", auto: true },
+                      { key: 'unsubscribe', label: 'Unsubscribe', body: 'Please unsubscribe me.', auto: false },
+                    ].map((r) => (
+                      <button
+                        key={r.key}
+                        disabled={busy !== null}
+                        onClick={async () => {
+                          if (!selected) return;
+                          setBusy(`reply-${r.key}`);
+                          try {
+                            const res = await fetch('/api/demo/inbound-reply', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ leadId: selected, body: r.body, autoReply: r.auto }),
+                            });
+                            const out = await res.json();
+                            await load();
+                            await openProspect(selected);
+                            setHandbackMsg(
+                              res.ok
+                                ? `Reply delivered — class ${out.replyClass} (${out.replyKind}), ${out.handoffApplied ? 'handed to the SDR' : 'no SDR interrupt'}.`
+                                : `Could not deliver: ${out.error ?? res.status}`
+                            );
+                          } finally {
+                            setBusy(null);
+                          }
+                        }}
+                        className="px-3 py-1.5 border border-card-border rounded-md type-micro hover:bg-hover-bg transition-colors disabled:opacity-50"
+                        data-testid={`demo-reply-${r.key}`}
+                      >
+                        {busy === `reply-${r.key}` ? 'Delivering…' : r.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {handbackMsg && (

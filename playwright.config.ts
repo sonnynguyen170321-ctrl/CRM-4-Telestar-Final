@@ -61,6 +61,18 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
     {
+      // The demo walkthrough. Its own project because the audit's testMatch does not cover
+      // `e2e/demo`, and a spec matched by no project silently never runs — which is exactly
+      // what happened to automation-journeys.spec.ts before it moved.
+      //
+      // No `setup` dependency on purpose: the demo tenant has its own users, seeded by
+      // `npm run demo:seed`, and the spec signs in over the API itself. Depending on the audit
+      // fixture would make the walkthrough fail for a reason that has nothing to do with the demo.
+      name: 'demo',
+      testMatch: /e2e[\\/]demo[\\/].*\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
       // Pre-existing suite, untouched. Kept at its original 1280x800 deliberately: these
       // specs pass today and CI gates on them, so the audit does not get to change the
       // conditions under which they were verified.
