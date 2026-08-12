@@ -252,6 +252,9 @@ async function seedDemoTenant(): Promise<void> {
       crmPriorityScore: 'hot', stage: 'sequence_active',
       operatingState: 'ai_managed', operatingStateAt: new Date(now - 6 * DAY),
       sequenceId: sequence.id, sequenceStep: 1, sequenceStatus: 'active',
+      // Matches the outbound message seeded below. Without it the leads table showed "—" under
+      // Last Touch for a prospect the console reports as touched five days ago.
+      lastContactedAt: new Date(now - 5 * DAY),
       timezone: 'Europe/Amsterdam',
     },
   });
@@ -324,6 +327,7 @@ async function seedDemoTenant(): Promise<void> {
       // Seeded already waiting, with a last touch far enough back to be eligible. The threshold
       // itself is untouched — only this prospect's history is dated.
       operatingState: 'waiting_for_prospect', operatingStateAt: new Date(now - 21 * DAY),
+      lastContactedAt: new Date(now - 21 * DAY),
       timezone: 'Europe/Oslo',
     },
   });
