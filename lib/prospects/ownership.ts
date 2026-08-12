@@ -125,6 +125,38 @@ export async function stopProspectOutreach(input: StopProspectInput): Promise<Tr
   });
 }
 
+export interface WaitingInput {
+  leadId: string;
+  tenantId: string;
+  /** The SDR's outbound message or logged touch that started the wait. Keys idempotency. */
+  eventId: string;
+  actorUserId: string;
+  reason?: string;
+}
+
+/**
+ * `human_attention` / `human_managed` → `waiting_for_prospect` (Phase 8d).
+ *
+ * The SDR has sent something and is now waiting. This is what starts the silence clock that ghost
+ * detection later measures — without it, "gone quiet" would have to be inferred from activity
+ * timestamps, which cannot tell waiting-for-a-reply from nobody-has-touched-this.
+ *
+ * It takes no action of its own: no task, no notification, no sequence.
+ */
+export async function markWaitingForProspect(input: WaitingInput): Promise<TransitionResult> {
+  return applyTransition({
+    leadId: input.leadId,
+    tenantId: input.tenantId,
+    occurrence: { kind: 'handoff', leadId: input.leadId, eventId: `waiting:${input.eventId}` },
+    toState: 'waiting_for_prospect',
+    fromStates: ['human_attention', 'human_managed'],
+    activityType: 'prospect_handed_off',
+    activityDescription: `Waiting for the prospect${input.reason ? ` — ${input.reason}` : ''}`,
+    activityMetadata: { reason: input.reason ?? null, waiting: true },
+    actorUserId: input.actorUserId,
+  });
+}
+
 export interface ReengagementEligibleInput {
   leadId: string;
   tenantId: string;

@@ -100,6 +100,8 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
         ]
       : [
           { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+          // The operating-model board: what AI is doing, what needs a human, what happens next.
+          { name: 'AI Console', href: '/ai', icon: Cpu },
           ...(userRole === 'director' ? [{ name: 'Director', href: '/director', icon: Briefcase }] : []),
           ...(userRole === 'director' || userRole === 'floor_manager' ? [{ name: 'Admin', href: '/admin', icon: Shield }] : []),
           { name: 'Leads', href: '/leads', icon: Users },
