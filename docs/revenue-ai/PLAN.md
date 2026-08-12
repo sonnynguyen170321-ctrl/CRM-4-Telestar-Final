@@ -433,40 +433,68 @@ draft with no cited prior context is rejected. Median handoff response time is q
 
 ---
 
-## Phase 9 — Role surfaces, exception-driven
+## Phase 9 — Role surfaces, exception-driven ✅ complete
 
-Each role gets support scoped to what that role is responsible for. All four read existing
-metrics modules; none gets its own query layer.
+Each role gets support scoped to what that role is responsible for. All five read existing
+metrics modules; none gets its own query layer. `lib/console/surfaces/` composes; it does not
+compute a metric another module owns.
 
-- [ ] **SDR** — managed count, what needs you (replies, calls, objections), what AI did today,
+- [x] **SDR** — managed count, what needs you (replies, calls, objections), what AI did today,
       risks. No queue or worker vocabulary anywhere in it.
-- [ ] **Team Lead** — exceptions only: untouched positive replies past SLA, overdue calls, stuck
+- [x] **Team Lead** — exceptions only: untouched positive replies past SLA, overdue calls, stuck
       prospects, follow-up gaps, coaching candidates
-- [ ] **Floor Manager** — campaign health, capacity variance ("expected 610, sent 432" with the
+- [x] **Floor Manager** — campaign health, capacity variance ("expected 610, sent 432" with the
       deferral/health/window/suppression breakdown, all of which the automation engine already
       records), mailbox health, bottlenecks
-- [ ] **Leadgen Manager** — supply quality: ICP adherence, duplicate rate, enrichment quality,
-      contactability, rejection reasons with the source-vs-behaviour split
-- [ ] **Director** — prospects worked, replies, meetings, opportunities, AI cost, cost per
+- [x] **Leadgen Manager** — supply quality: duplicate rate, enrichment quality, contactability,
+      rejection reasons with the source-vs-behaviour split
+- [x] **Director** — prospects worked, replies, meetings, opportunities, AI cost, cost per
       meeting, campaigns at risk
 
-**Acceptance:** every surface lists exceptions, not healthy volume. Every number traces to
-`client-reports`, `sequences/analytics`, `email-health` or `leadgen/metrics`. Role scoping uses
-the existing pod/permission helpers — a Team Lead sees their pod and no more.
+**Acceptance — met.** Every group renders its `healthyMessage` instead of an empty table, so a
+surface with nothing wrong is one green line. Numbers come from `email-health/queries`,
+`leadgen/metrics`, the `AiCall` ledger and the CRM's own `Lead`/`Task`/`Activity` rows. Role
+scoping is `computeVisibleUserIds` — the same pod walk the rest of the product uses.
+
+> **One acceptance clause is only partly met, deliberately.** *"ICP adherence"* on the Leadgen
+> Manager surface is reported as **contactability, duplicate rate, missing required fields and
+> rejection reasons** — not as a percentage of delivered contacts matching
+> `CampaignLeadRequirement`. Computing that number needs a comparison the leadgen module does not
+> expose today, and inventing it inside `lib/console` is exactly the second analytics backend this
+> phase is not allowed to create. Extending `lib/leadgen/metrics.ts` is the correct fix and is
+> **deferred**, listed in `STABILIZATION_BACKLOG.md`.
 
 ---
 
-## Phase 10 — Approved learning
+## Phase 10 — Approved learning ✅ complete
 
-- [ ] Outcome signals collected as evidence: draft accepted, draft heavily edited, prospect
-      replied, meeting booked, lead rejected, research marked irrelevant
-- [ ] Periodic **proposals** — "operational-efficiency hooks produced 17% higher positive reply
-      rate for logistics CFOs; suggested playbook change" — approved by a manager, creating a
-      new playbook version
+- [x] Outcome signals collected as durable evidence (`OutcomeSignal`): positive reply,
+      re-engagement reply, objection raised, meeting booked, lead rejected, draft accepted,
+      draft rewritten, research marked irrelevant
+- [x] **Proposals** (`PlaybookProposal`) built deterministically from that evidence, reviewed by a
+      manager, and — on approval — producing a **new draft playbook version**
 - [ ] Sequence-version awareness in reporting: variants are not aggregated as if identical
+      — **deferred**, see below
 
-**Acceptance:** no playbook version exists without an `approvedBy`. No agent writes its own
-policy.
+**Acceptance — met.** Approval calls `createDraftVersion`; no path in `lib/learning/` writes
+`rules` on an existing version, stamps `approved` on a version, or touches
+`CampaignPlaybook.currentVersionId`. The reviewer is resolved as a `User` row and role-checked, so
+an agent — which has no user row — cannot present anything at the door.
+
+Signals are attributed to the playbook version in force when the outcome happened, via the Phase 4
+activation window. **Sequence-*variant* separation in reporting is not built**: attribution is at
+playbook-version granularity, and A/B variant rollups still aggregate. That is the remaining
+Phase 10 bullet and it is deferred rather than quietly claimed.
+
+### Where the signals come from
+
+Collection **reads** the rows the CRM already writes rather than hooking the services that write
+them. A hook in the reply chokepoint or the meeting service would put Phase 10 inside code paths
+owned by other parts of the system, and give a provider outage a route into them. Learning is the
+most optional thing in the product; it observes, and it cannot break what it observes.
+
+The two signals with no CRM row behind them — a draft being used as written or rewritten — are
+recorded by the SDR's own action in the assistance panel. That button **sends nothing**.
 
 ---
 

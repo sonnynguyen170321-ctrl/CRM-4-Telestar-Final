@@ -127,6 +127,15 @@ test.describe('Telestar AI — demo walkthrough', () => {
     await expect(page.getByTestId('console-buckets')).toBeVisible();
     await expect(page.getByTestId('operating-loop')).toBeVisible();
     await expect(page.getByTestId('bucket-ai_managed-count')).not.toHaveText('0');
+
+    // Phase 9: the SDR reads the SDR surface. Chosen server-side from the session — there is no
+    // client-side switch, and the same URL gives a Director something else entirely.
+    await expect(page.getByTestId('role-surface')).toHaveAttribute('data-surface', 'sdr');
+    await expect(page.getByRole('heading', { name: 'Your prospects' })).toBeVisible();
+    await expect(page.getByTestId('surface-metric-ai_managed')).not.toHaveText('0');
+    // Cost and campaign risk belong to the Director. An SDR is not shown them.
+    await expect(page.getByTestId('surface-metric-ai_spend')).toHaveCount(0);
+    await expect(page.getByTestId('surface-group-campaigns_at_risk')).toHaveCount(0);
     await shot(page, '06-ai-command-center');
 
     // ---------------------------------------------------------------- the prospect
@@ -203,20 +212,74 @@ test.describe('Telestar AI — demo walkthrough', () => {
     await expect(page.getByTestId('operating-state')).toHaveAttribute('data-state', 'ai_reengagement');
   });
 
-  test('the manager view: totals, timeline and a proposed playbook change', async ({ page, baseURL }) => {
+  test('the manager view: business outcomes, AI cost, and a different surface entirely', async ({ page, baseURL }) => {
     await signIn(page, baseURL!, DIRECTOR_EMAIL);
     await page.goto('/ai');
 
     await expect(page.getByRole('heading', { name: 'AI Command Center' })).toBeVisible();
-    await expect(page.getByTestId('total-ai-managed')).toBeVisible();
-    await expect(page.getByTestId('total-human-owned')).toBeVisible();
     await expect(page.getByTestId('timeline')).toBeVisible();
 
-    // Phase 10, demo minimum: an outcome, its evidence, and a change that requires a human.
-    await expect(page.getByTestId('insights')).toBeVisible();
-    await expect(page.getByTestId('insights')).toContainText('Positive reply');
-    await expect(page.getByTestId('insights')).toContainText('manager approval required');
+    // Same route, same session mechanism, different responsibility. This is the Phase 9 claim
+    // being tested rather than asserted: one product, five perspectives.
+    await expect(page.getByTestId('role-surface')).toHaveAttribute('data-surface', 'director');
+    await expect(page.getByRole('heading', { name: 'Business outcomes' })).toBeVisible();
+    await expect(page.getByTestId('surface-metric-meetings')).toBeVisible();
+    await expect(page.getByTestId('surface-metric-ai_spend')).toBeVisible();
+    // Spend is real: the demo tenant's seeded AiCall ledger, divided by meetings actually booked.
+    await expect(page.getByTestId('surface-metric-ai_spend')).not.toHaveText('$0');
+    await expect(page.getByTestId('surface-metric-cost_per_meeting')).not.toHaveText('—');
+    // The SDR's conversation queue is not a Director's job.
+    await expect(page.getByTestId('surface-group-needs_you')).toHaveCount(0);
+  });
+
+  test('approved learning: evidence, a proposal, and an approval that changes nothing yet', async ({ page, baseURL }) => {
+    await signIn(page, baseURL!, DIRECTOR_EMAIL);
+    await page.goto('/ai');
+
+    // ---------------------------------------------------------------- build from real outcomes
+    // Nothing is precomputed. This scans the CRM's own rows — the four prospects who were handed
+    // back and then replied — records them as durable evidence, and files a proposal from them.
+    await page.getByTestId('proposals-rebuild').click();
+    await expect(page.getByTestId('proposal-result')).toContainText('No policy was changed', {
+      timeout: 45_000,
+    });
+
+    // `li`, not the prefix alone: the result banner is also a `proposal-*` testid and renders
+    // above the list.
+    const proposal = page.getByTestId('insights').locator('li[data-testid^="proposal-"]').first();
+    await expect(proposal).toBeVisible();
+    // The seven questions a manager needs, on the row itself.
+    await expect(proposal).toContainText('supporting outcomes');
+    await expect(proposal).toContainText('Evidence');
+    await expect(proposal).toContainText('Proposed change');
+    await expect(proposal).toContainText('If you approve');
+    await expect(proposal).toContainText('If you reject');
+    await expect(proposal).toContainText('Manager approval required');
     await shot(page, '08-manager-insight', 'insights');
+
+    // ---------------------------------------------------------------- approve
+    const approve = page.getByTestId('insights').locator('[data-testid^="proposal-approve-"]').first();
+    await expect(approve).toBeVisible();
+    await approve.click();
+
+    // The wording is the assertion. "Approved" must not be readable as "applied": a draft was
+    // created, the version in force is untouched, and nothing sends differently.
+    await expect(page.getByTestId('proposal-result')).toContainText('Draft version', { timeout: 45_000 });
+    await expect(page.getByTestId('proposal-result')).toContainText('unchanged');
+    await expect(page.getByTestId('insights')).toContainText('draft version');
+  });
+
+  test('an SDR cannot decide a playbook proposal, whatever the client believes', async ({ page, baseURL }) => {
+    await signIn(page, baseURL!, SDR_EMAIL);
+    await page.goto('/ai');
+
+    // No decision controls are offered…
+    await expect(page.getByTestId('proposals-rebuild')).toHaveCount(0);
+    await expect(page.getByTestId('insights').locator('[data-testid^="proposal-approve-"]')).toHaveCount(0);
+
+    // …and the API refuses the same thing directly, because the UI is not the gate.
+    const res = await page.request.post('/api/ai/proposals');
+    expect(res.status()).toBe(403);
   });
 
   test('the diagnostic escape hatch answers what the prospect actually is', async ({ page, baseURL }) => {

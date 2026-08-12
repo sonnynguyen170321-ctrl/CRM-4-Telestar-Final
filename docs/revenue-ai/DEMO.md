@@ -22,20 +22,33 @@ and no `TRUNCATE`.
 
 ## The story
 
-1. **The board.** Eight states. AI managed, needs attention, waiting, re-engagement eligible,
-   approvals, blocked. Totals across the top.
+1. **The board.** Sign in as the SDR. The top of `/ai` is **their** surface: what AI is handling
+   as one number, then only the things needing a person. Below it, the operating loop and the
+   prospect queue across eight states.
 2. **The prospect.** Click Dana. Why AI contacted her — the Rotterdam hub signal, the
    operational-cost pain hypothesis, the role hook. This is the grounding for the outreach.
 3. **The reply.** *Interested reply* under the demo controls. It goes through the same
    `handleApplyReply` chokepoint as real mail: classified, cadence paused, ownership moved.
    Operating state flips `ai_managed → human_attention`, a high-priority task appears.
-4. **AI assists.** *Draft reply* / *Summarise thread*. Nothing sends — the SDR copies and edits.
+4. **AI assists.** *Draft reply* / *Summarise thread*. Nothing sends — the SDR edits in place and
+   sends it themselves. *I used this* records how much of the draft survived; that is a Phase 10
+   signal, and it sends nothing either.
 5. **The other classes.** *Out of office* pauses with a dated reminder and **no** SDR interrupt;
    *Unsubscribe* stops, suppresses and unenrolls with no task and no notification.
 6. **The loop.** Marcus is waiting and eligible. *Resume AI follow-up* opens a re-engagement
    work order — and starts no outreach.
-7. **The manager view.** Sign in as the Director: totals, timeline, and an outcome with its
-   evidence and a **proposed** playbook change requiring manager approval.
+7. **The manager view.** Sign in as the Director. Same URL, **different surface**: prospects
+   worked, replies, meetings, opportunities, AI spend and cost per meeting — no task queues, no
+   deferral reasons. That is the Phase 9 claim, visible in one click.
+8. **Approved learning.** *Review outcomes* on the playbook proposals panel. It scans the CRM's
+   own rows — four prospects who were handed back and then replied — records them as durable
+   evidence and files one proposal: *follow up after 6 business days instead of 10*.
+   Each row shows the evidence, the change, and what approving and rejecting each do.
+   **Approve** creates **draft version 2**. The version in force is still version 1, still says
+   ten days, and nothing sends differently. Show that: it is the whole point.
+
+An SDR signed in at the same screen has no *Review outcomes* button and no decision buttons — and
+the API refuses them directly, because the UI is not the gate.
 
 ## Email safety
 

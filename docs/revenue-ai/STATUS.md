@@ -4,48 +4,121 @@
 
 | | |
 |---|---|
-| Phase | **0–7 complete and merged to `main`.** Next: **Phase 8** — the prospecting loop |
-| Branch | none — start Phase 8 from a fresh branch off `main` |
-| Blockers | **None.** |
+| Phase | **0–8 complete.** **9 and 10 complete** on `feat/phase-9-10-productization`, not yet merged |
+| Branch | `feat/phase-9-10-productization`, off `feat/phase-8-prospecting-loop` (`7e73b78`) |
+| Blockers | **Integration only** — see "Resume here" |
 | Restrictions | No external users, no real client data, sending off, email dry-run |
 
 ## Resume here
 
-Phase 7 is closed. `main` carries all of it, and the Phase 7 branch has been deleted:
+Three branches exist and none has been merged. **Integration is the next task**, in this order:
 
 ```text
-6aeeb1f  PR #65  merge commit
-3c8a801  PR #65  Phase 7 — knowledge architecture and research engine
-c587c9e  PR #64  reproducible dev environment
-838fd4d  PR #61  migration-order preflight (CI hardening)
-7a6ec4c  PR #60  Phase 6b — queue execution, approvals, budget enforcement
-3e2bfd5  PR #59  Phase 6a — typed work orders
+feat/phase-8-prospecting-loop        7e73b78   the Phase 8 loop + demo (integration base)
+fix/phase-8-runtime-stabilization    6fe1032   runtime correctness (workers, reply recovery)
+feat/phase-9-10-productization       (this)    role surfaces + approved learning
 ```
 
-To start Phase 8:
+The two branches off Phase 8 were built in parallel and **touch different files by design** —
+runtime stabilization owns `workers/*`, reply handling and recovery; productization owns `app/ai`,
+`components/ai`, `lib/console`, `lib/learning` and the demo. The one overlap is
+`tests/ai-optional.test.ts`, and it resolves in stabilization's favour: see the note below.
 
-```bash
-git checkout main
-git pull --ff-only origin main
-git checkout -b feat/phase-8-prospecting-loop
-```
+Then start the **golden E2E journey** in [`PLAN.md`](PLAN.md) — the end-to-end assertion that
+spans leadgen → qualification → research → approved outreach → reply → handoff → ghost → handback
+→ meeting. Everything it needs now exists.
 
-Then execute the next unchecked item in [`PLAN.md`](PLAN.md) → Phase 8, starting at **8a**. Read
-[`ARCHITECTURE.md`](ARCHITECTURE.md) §4 (the three state axes) and §5 (reply classes A–D) first —
-they are the contract Phase 8 implements.
+**Deferred, and still deferred: the Revenue AI → Telestar AI Architecture rename.** It is a
+separate, mechanical change and mixing it into feature work makes both unreviewable.
 
-**Deferred, and still deferred: the Revenue AI → Telestar AI Architecture rename.** Do not start
-it as part of Phase 8. It is a separate, mechanical change and mixing it into feature work makes
-both unreviewable.
+## Phase 9 + 10 — what landed on `feat/phase-9-10-productization`
 
-**Gate reminder for the first migration you generate.** Run `npm run check:migration-order`
-before applying it. Prisma stamps generation time, not dependency position, and got this wrong
-three times running in Phase 6 — see the migration drift gate section in `CLAUDE.md`.
+| | |
+|---|---|
+| **complete** | Role surfaces for all five roles · durable outcome signals · playbook proposals with manager review · approval producing a new draft version · demo journey covering both |
+| **partial** | *ICP adherence* on the Leadgen Manager surface is reported as contactability / duplicates / missing fields / rejection reasons, not as a percentage against `CampaignLeadRequirement` |
+| **deferred** | Sequence-**variant** separation in reporting (attribution is per playbook version, A/B variants still aggregate) · the Revenue AI → Telestar AI rename |
+| **not built** | Any background job that files proposals on its own. Rebuilding the queue is a manager action, on purpose |
 
-> **Phase 7 plans `research_batch` and nothing else.** `lib/workorders/plan.ts` returns `[]` for
-> every other work order type, asserted exhaustively over `ALL_WORK_ORDER_TYPES`. Deciding what
-> `prospect_batch`, `sequence_design`, `outreach_launch`, `followup` and the rest plan is Phase 8
-> — that is where the empty branches get filled, one type at a time.
+### The four rules Phase 10 is built to hold
+
+**1. The AI cannot change the policy it runs under.** Not "must not" — there is no code path in
+`lib/learning/` that writes `rules` on an existing version, sets `status: 'approved'` on a version,
+or touches `CampaignPlaybook.currentVersionId`. Approving a proposal calls `createDraftVersion`.
+The result is a **draft**, which still needs the same human approval and human activation every
+version has always needed. A test asserts the active pointer and the active version are untouched
+across an approval.
+
+**2. The reviewer is a person with the authority.** `reviewProposal` resolves the reviewer as a
+`User` row and checks the role. An agent has no user row, so "no AI approves its own
+recommendation" is structural rather than a flag someone can forget.
+
+**3. Evidence is durable and does not inflate.** `OutcomeSignal.signalKey` identifies the
+occurrence, so re-running collection finds the same row. Evidence links are `skipDuplicates`. A
+proposal whose support count grows because someone refreshed a page is not evidence.
+
+**4. A decided proposal stays decided.** Rebuilding never re-raises something a manager rejected.
+
+### The one thing a reader will get wrong
+
+"Approved" reads as "applied". It is not, and the wording says so at every level — the API
+response, the confirmation line and the row itself all state that a draft was created and that
+nothing sends differently yet. The demo E2E asserts that wording, not just the status.
+
+### Phase 9's shape, and why
+
+A surface is a short row of numbers and then **groups of things that are wrong**. An empty group
+renders its own sentence ("No calls are overdue in your pod") instead of an empty table, so a Team
+Lead whose pod is on top of everything reads the screen in four seconds and closes it. Healthy
+automation produces no rows anywhere.
+
+`tests/phase-9-role-surfaces.test.ts` asserts mechanically that **no engineering vocabulary**
+reaches a user-visible string on any of the five surfaces — no queue, worker, lease, work order,
+or operating-state enum. The enum still travels in `ExceptionItem.state` for tests and
+diagnostics; it is never rendered. That test exists because this is the property most likely to
+decay: a future contributor titling a group "blocked work orders" would be making a locally
+reasonable choice and quietly breaking the product's promise.
+
+### One correction made while building it
+
+`getAiSpend` was first written as `lib/ai/spend.ts` and `tests/ai-optional.test.ts` was right to
+fail the build for it: a Director surface importing `lib/ai/*` makes cost reporting look like a
+CRM dependency on the AI layer. It contains no provider call, no model and no key — only
+arithmetic over the `AiCall` ledger — so it moved to `lib/reporting/aiSpend.ts`. Same correction
+as `lib/ai/scoring.ts` → `lib/leads/scoring.ts` in Phase 1.
+
+### Gates — `feat/phase-9-10-productization`
+
+| Gate | Result |
+|---|---|
+| `tsc --noEmit` | 0 errors |
+| `eslint app components lib` | 0 errors, 0 warnings |
+| `vitest run` (full) | **1391 passed**, 5 skipped · 2 failing tests, both pre-existing (below) |
+| `tests/phase-9-role-surfaces.test.ts` | 25 passed |
+| `tests/phase-10-approved-learning.test.ts` | 24 passed |
+| `next build` | exit 0 |
+| `npm run check:migration-order` | ok — 42 migrations |
+| `migrate diff --from-migrations --to-schema-datamodel --exit-code` | `No difference detected` |
+| Fresh replay into an empty database | clean (43 migrations into a new database) |
+| Playwright `--project=demo` | **7/7 passed** |
+| Playwright role access + tenant isolation (`e2e/roles`) | **67/67 passed** |
+
+**Two pre-existing Vitest failures, neither introduced here and neither mine to fix:**
+
+- `tests/ai-optional.test.ts` — `components/dashboard/CommandCenterStrip.tsx` imports
+  `@/components/ai/types`, a **type-only** module. Present at the base commit `7e73b78`, and
+  already fixed on `fix/phase-8-runtime-stabilization`, which narrows the import pattern to
+  `lib/ai` and allowlists `components/ai`. It resolves on integration.
+- `tests/migration-order.test.ts` — cannot load locally: `SyntaxError`, caused by the `&` in the
+  checkout path. Green in CI. Recorded as S6 in `STABILIZATION_BACKLOG.md`.
+
+> ⚠️ **The local Postgres is shared between worktrees, and that bites.** The Phase 10 tables were
+> dropped twice by something running against a branch whose schema does not have them — a
+> `db push`-shaped operation from another checkout is the only thing that does this. Phase 9/10's
+> demo and E2E runs therefore use their own databases (`telestar_p910`, `telestar_p910_test`).
+> If `PlaybookProposalEvidence` goes missing again while `migrate status` reports clean, the
+> repair is: delete the ledger row for `20260814000000_phase10_approved_learning` and re-run
+> `migrate deploy`.
 
 ## Phase 7 — merged as `3c8a801` (PR #65), merge commit `6aeeb1f`
 

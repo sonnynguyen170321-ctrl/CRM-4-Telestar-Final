@@ -62,6 +62,39 @@ because class B replies deliberately do **not** set that stage.
 
 ---
 
+## S7 — ICP adherence is not measured, only approximated
+
+**Where:** `lib/console/surfaces/leadgenManager.ts`.
+
+The Phase 9 acceptance list names *ICP adherence*. What the surface reports is contactability,
+duplicate rate, missing required fields and rejection reasons — all real, none of them a
+percentage of delivered contacts that actually match the campaign's `CampaignLeadRequirement`
+(target titles, countries, industries, company size).
+
+Computing that needs a comparison `lib/leadgen/metrics.ts` does not expose, and building it inside
+`lib/console` would be the second analytics backend Phase 9 exists to avoid.
+
+**Fix shape:** extend `getLeadgenMetrics` with a per-campaign requirement-match rate, and read it
+from the surface. The requirement row and the pool item both already carry everything needed.
+
+---
+
+## S8 — reporting does not separate sequence variants
+
+**Where:** Phase 10 attribution generally.
+
+Outcome signals carry `playbookVersionId`, so "did version 4 do better" is answerable. They do not
+carry the sequence **variant**, so an A/B test's two arms aggregate as if identical — which is the
+one comparison an A/B test exists to make.
+
+`OutcomeSignal.sequenceId` is populated; the variant is not, because the signal is derived from a
+reply and the reply does not record which variant produced the message it answers.
+
+**Fix shape:** carry the variant on `OutcomeMessage`/`OutboundMessage` at send time, then resolve
+it when collecting. Do not infer it from timing.
+
+---
+
 ## S5 — deferred rename
 
 Revenue AI → Telestar AI Architecture. Still deferred, on purpose.

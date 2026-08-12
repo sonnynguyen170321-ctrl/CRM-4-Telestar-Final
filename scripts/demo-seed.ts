@@ -47,7 +47,36 @@ export const DEMO_IDS = {
   mailbox: 'demo-mailbox',
   ghostAccount: 'demo-account-halden',
   ghostLead: 'demo-lead-marcus',
+  playbook: 'demo-playbook-eu-logistics',
+  playbookVersion: 'demo-playbook-version-1',
 } as const;
+
+/**
+ * The approved policy the campaign is running under.
+ *
+ * It exists so the Phase 10 loop has something real to propose a change *to*. The ghost threshold
+ * is deliberately slack — ten business days before a quiet prospect is offered a follow-up — which
+ * is what the seeded evidence then argues against.
+ */
+const DEMO_PLAYBOOK_RULES = {
+  personas: ['VP Operations', 'Head of Logistics'],
+  valueProposition:
+    'Cut empty-mile and idle-time cost for EU fleet operators without replacing their TMS.',
+  allowedCtas: ['Book 20 minutes', 'Share the two-operator benchmark'],
+  personalizationPolicy:
+    'Ground the opening in one verifiable operational signal about the account — a new hub, a new route, a published expansion.',
+  researchDepth: 'standard' as const,
+  allowedChannels: ['email' as const, 'linkedin' as const],
+  ghostThresholdsBusinessDays: {
+    positive_reply_waiting: 10,
+    proposal_sent: 5,
+    meeting_no_show: 2,
+    post_demo: 7,
+  },
+  handoffSlaMinutes: 240,
+  sendWindow: { startMinutes: 480, endMinutes: 1020, businessDaysOnly: true },
+  replyHandling: { autoHandleAdministrative: true, oooResumeBufferDays: 1 },
+};
 
 /** The reply the presenter delivers live. */
 export const DEMO_REPLY_BODY =
@@ -66,6 +95,16 @@ async function resetDemoTenant(): Promise<void> {
   const t = DEMO_TENANT_ID;
   const leadIds = (await prisma.lead.findMany({ where: { tenantId: t }, select: { id: true } })).map((l) => l.id);
 
+  // Phase 10 first: evidence links point at signals, and proposals point at versions.
+  await prisma.playbookProposalEvidence.deleteMany({ where: { proposal: { tenantId: t } } });
+  await prisma.playbookProposal.deleteMany({ where: { tenantId: t } });
+  await prisma.outcomeSignal.deleteMany({ where: { tenantId: t } });
+  // The playbook's pointer has to let go of the version before the version can be deleted.
+  await prisma.campaignPlaybook.updateMany({ where: { tenantId: t }, data: { currentVersionId: null } });
+  await prisma.campaignPlaybookVersion.deleteMany({ where: { tenantId: t } });
+  await prisma.campaignPlaybook.deleteMany({ where: { tenantId: t } });
+
+  await prisma.meeting.deleteMany({ where: { tenantId: t } });
   await prisma.prospectTransition.deleteMany({ where: { tenantId: t } });
   await prisma.agentApprovalRequest.deleteMany({ where: { tenantId: t } });
   await prisma.agentAction.deleteMany({ where: { tenantId: t } });
@@ -352,6 +391,114 @@ async function seedDemoTenant(): Promise<void> {
       fromState: 'ai_managed', toState: 'human_attention',
       actorUserId: sdr.id, createdAt: new Date(now - 24 * DAY),
     },
+  });
+
+  // ---------------------------------------------------------------- the approved policy
+  //
+  // The campaign runs under a real, approved, activated playbook version. Phase 10 needs one:
+  // a proposal is a change *to* something, and approving it produces the next draft of it.
+  const playbook = await prisma.campaignPlaybook.create({
+    data: {
+      id: DEMO_IDS.playbook, tenantId: t, campaignId: campaign.id,
+      name: 'Vertex EU Logistics — outreach policy', createdById: director.id,
+    },
+  });
+  const version = await prisma.campaignPlaybookVersion.create({
+    data: {
+      id: DEMO_IDS.playbookVersion, tenantId: t, playbookId: playbook.id,
+      versionNumber: 1, status: 'approved', rules: DEMO_PLAYBOOK_RULES,
+      createdById: director.id,
+      approvedById: director.id, approvedAt: new Date(now - 28 * DAY),
+      activatedAt: new Date(now - 28 * DAY),
+    },
+  });
+  await prisma.campaignPlaybook.update({
+    where: { id: playbook.id },
+    data: { currentVersionId: version.id },
+  });
+
+  // ---------------------------------------------------------------- the evidence behind learning
+  //
+  // Four prospects who went quiet, were explicitly handed back by an SDR, and then answered the
+  // follow-up. This is the outcome the Phase 10 proposal argues from — and it is seeded as real
+  // CRM rows (a handback transition, then a classified reply) rather than as signals, so the
+  // collector has to derive the evidence the same way it does in production.
+  const priorWins = [
+    { id: 'demo-lead-win-1', first: 'Ines', last: 'Barros', company: 'Iberia Cold Chain', days: 30 },
+    { id: 'demo-lead-win-2', first: 'Tomas', last: 'Nowak', company: 'Vistula Haulage', days: 24 },
+    { id: 'demo-lead-win-3', first: 'Greta', last: 'Lindqvist', company: 'Nord Route Group', days: 17 },
+    { id: 'demo-lead-win-4', first: 'Pieter', last: 'Klaassen', company: 'Delta Bulk Transport', days: 11 },
+  ];
+
+  for (const win of priorWins) {
+    const won = await prisma.lead.create({
+      data: {
+        id: win.id, tenantId: t, firstName: win.first, lastName: win.last,
+        title: 'Head of Operations', email: `${win.first.toLowerCase()}@${win.company.toLowerCase().replace(/[^a-z]/g, '')}.demo`,
+        company: win.company, assignedToId: sdr.id, campaignId: campaign.id,
+        crmPriorityScore: 'warm', stage: 'meeting_booked',
+        operatingState: 'human_managed', operatingStateAt: new Date(now - (win.days - 2) * DAY),
+        lastContactedAt: new Date(now - (win.days - 2) * DAY),
+      },
+    });
+
+    // The SDR handed them back for follow-up…
+    await prisma.prospectTransition.create({
+      data: {
+        tenantId: t, leadId: won.id, kind: 'handback', transitionKey: `demo:handback:${won.id}`,
+        status: 'completed', fromState: 'reengagement_eligible', toState: 'ai_reengagement',
+        actorUserId: sdr.id, createdAt: new Date(now - win.days * DAY),
+      },
+    });
+    // …the follow-up went out…
+    await prisma.outboundMessage.create({
+      data: {
+        tenantId: t, leadId: won.id, accountId: DEMO_IDS.mailbox, to: won.email,
+        subject: 'Picking this back up', body: 'Circling back on the routing question you raised.',
+        status: 'sent', sentAt: new Date(now - (win.days - 1) * DAY),
+        idempotencyKey: `demo-outbound-${win.id}`,
+      },
+    });
+    // …and they answered it.
+    await prisma.inboundMessage.create({
+      data: {
+        tenantId: t, leadId: won.id, accountId: DEMO_IDS.mailbox,
+        providerMessageId: `demo-inbound-${win.id}`, isReply: true,
+        fromEmail: won.email, to: 'maya@telestar.demo', subject: 'Re: Picking this back up',
+        body: 'Good timing — we are looking at this again. What would the first month look like?',
+        date: new Date(now - (win.days - 2) * DAY),
+        replyClass: 'C', replyKind: 'question', replyConfidence: 0.9,
+        classificationSource: 'deterministic', classifiedAt: new Date(now - (win.days - 2) * DAY),
+      },
+    });
+    await prisma.activity.create({
+      data: {
+        tenantId: t, userId: sdr.id, leadId: won.id, type: 'prospect_handed_back',
+        description: `Re-engagement follow-up answered by ${win.first}`,
+        createdAt: new Date(now - (win.days - 2) * DAY),
+      },
+    });
+  }
+
+  // One booked meeting, so the Director surface has a real cost-per-meeting rather than a dash.
+  await prisma.meeting.create({
+    data: {
+      tenantId: t, leadId: priorWins[0].id, clientId: client.id, campaignId: campaign.id,
+      sdrId: sdr.id, title: 'Iberia Cold Chain — routing review',
+      status: 'scheduled', scheduledAt: new Date(now + 3 * DAY), durationMins: 30,
+      createdAt: new Date(now - 20 * DAY),
+    },
+  });
+
+  // Recorded AI spend. Every row is an accounting record the Phase 1 ledger already defines; the
+  // Director surface reads them and divides. Small numbers, because the demo tenant did small work.
+  await prisma.aiCall.createMany({
+    data: [
+      { tenantId: t, userId: sdr.id, leadId: lead.id, operation: 'research', provider: 'tavily', searchCredits: 4, estimatedCostUsd: 0.04, status: 'ok', latencyMs: 1200, createdAt: new Date(now - 7 * DAY) },
+      { tenantId: t, userId: sdr.id, leadId: lead.id, operation: 'personalization', provider: 'groq', model: 'llama-3.3-70b-versatile', promptTokens: 3200, completionTokens: 400, totalTokens: 3600, estimatedCostUsd: 0.11, status: 'ok', latencyMs: 900, createdAt: new Date(now - 6 * DAY) },
+      { tenantId: t, userId: sdr.id, leadId: ghost.id, operation: 'research', provider: 'tavily', searchCredits: 3, estimatedCostUsd: 0.03, status: 'ok', latencyMs: 1100, createdAt: new Date(now - 25 * DAY) },
+      { tenantId: t, userId: sdr.id, leadId: priorWins[0].id, operation: 'reengagement_plan', provider: 'groq', model: 'llama-3.3-70b-versatile', promptTokens: 2800, completionTokens: 350, totalTokens: 3150, estimatedCostUsd: 0.09, status: 'ok', latencyMs: 850, createdAt: new Date(now - 30 * DAY) },
+    ],
   });
 }
 
