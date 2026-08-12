@@ -88,6 +88,43 @@ export async function handoffProspectToHuman(input: HandoffInput): Promise<Trans
   });
 }
 
+export interface StopProspectInput {
+  leadId: string;
+  tenantId: string;
+  /** The inbound event that caused the stop. Keys idempotency, so redelivery is inert. */
+  eventId: string;
+  reason: string;
+}
+
+/**
+ * Any AI-owned state → `completed`. The prospect asked to be left alone (Phase 8b, class A).
+ *
+ * Deliberately creates **no task and no notification**. An unsubscribe is not an opportunity, and
+ * interrupting an SDR to announce one teaches them to skim the same queue that carries pricing
+ * questions. The activity and the state change are the whole record.
+ */
+export async function stopProspectOutreach(input: StopProspectInput): Promise<TransitionResult> {
+  const lead = await prisma.lead.findUnique({
+    where: { id: input.leadId },
+    select: { assignedToId: true },
+  });
+  if (!lead) throw new Error(`Prospect ${input.leadId} not found`);
+
+  return applyTransition({
+    leadId: input.leadId,
+    tenantId: input.tenantId,
+    occurrence: { kind: 'handoff', leadId: input.leadId, eventId: `stop:${input.eventId}` },
+    toState: 'completed',
+    // No `fromStates`: a stop is valid from wherever the prospect happens to be, including states
+    // the CRM never moved them out of. Refusing one would keep contacting someone who said no.
+    activityType: 'prospect_handed_off',
+    activityDescription: `Outreach stopped — ${input.reason}`,
+    activityMetadata: { reason: input.reason, stopped: true },
+    actorUserId: lead.assignedToId,
+    systemInitiated: true,
+  });
+}
+
 export interface ReengagementEligibleInput {
   leadId: string;
   tenantId: string;

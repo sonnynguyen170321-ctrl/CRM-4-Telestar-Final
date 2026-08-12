@@ -2188,6 +2188,19 @@ model InboundMessage {
   isReply           Boolean      @default(false)
   bounceType        String? // hard | soft — only set when isBounce
   bouncedRecipient  String? // address that bounced, parsed from the DSN body
+  /// Reply classification (Phase 8b). Stored on the message itself rather than in a second
+  /// conversation store — the inbound row already *is* the conversation record, and a parallel
+  /// table would immediately need reconciling with it.
+  /// A = deterministic stop · B = administrative · C = sales engagement · D = ambiguous.
+  replyClass        String?
+  /// The specific reason inside the class: unsubscribe, ooo, pricing, … See lib/replies/types.ts.
+  replyKind         String?
+  /// 0–1. Low confidence must never drive aggressive automation, so it is persisted, not derived.
+  replyConfidence   Float?
+  /// deterministic | ai | fallback — `fallback` means the model was unavailable and the reply
+  /// was routed to human review rather than guessed at.
+  classificationSource String?
+  classifiedAt      DateTime?
   tenantId          String
   tenant            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt         DateTime     @default(now())
@@ -2196,6 +2209,8 @@ model InboundMessage {
   @@index([leadId])
   @@index([providerMessageId])
   @@index([tenantId])
+  // Manager surface: "reply handoffs" by class within a tenant.
+  @@index([tenantId, replyClass])
   // Deliverability rollups: per-inbox windowed reply/bounce/spam counts.
   @@index([accountId, date])
   @@index([tenantId, date])

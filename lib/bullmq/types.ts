@@ -102,6 +102,13 @@ export interface EmailApplyReplyPayload {
   providerMessageId: string;
   leadId: string;
   accountId: string;
+  /**
+   * The message was a provider-flagged auto-responder (Phase 8b).
+   *
+   * It still travels the ordinary reply chokepoint — there is no second inbound listener — but it
+   * must not be counted as a sales reply, so the flag rides along rather than being re-derived.
+   */
+  autoReply?: boolean;
 }
 
 export interface EmailApplyBouncePayload {

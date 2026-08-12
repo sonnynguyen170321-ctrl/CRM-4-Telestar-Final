@@ -6,7 +6,8 @@ import { EmailService } from '@/lib/email/EmailService';
 import type { InboxMessage } from '@/lib/email/EmailService';
 import { isBounceMessage, isAutoReply, extractBouncedRecipient } from '@/lib/email/bounceDetection';
 import { pauseEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
-import { handoffProspectToHuman } from '@/lib/prospects/ownership';
+import { classifyReply } from '@/lib/replies/classification';
+import { applyReplyClassification } from '@/lib/replies/handling';
 
 const SOFT_BOUNCE_RE = /temporarily|try again later|mailbox full|over quota|too large|try again/i;
 const DEFAULT_SYNC_LOOKBACK_MS = 24 * 60 * 60 * 1000;
@@ -37,6 +38,8 @@ type ClassifiedMessage = {
   bounceType: 'hard' | 'soft' | null;
   bouncedRecipient: string | null;
   isReply: boolean;
+  /** Provider-flagged auto-responder. Not a sales reply, but still routed to the chokepoint. */
+  isAutoReply: boolean;
   lead: MatchedLead | undefined;
 };
 
@@ -108,6 +111,7 @@ async function handleEmailSync(payload: EmailSyncPayload) {
       // A reply only counts when it comes from a known lead — otherwise ordinary
       // inbound mail would inflate the deliverability reply rate.
       isReply: !p.isBounce && !auto && Boolean(p.msg.fromEmail) && Boolean(lead),
+      isAutoReply: auto,
       lead,
     };
   });
@@ -152,6 +156,7 @@ async function handleEmailSync(payload: EmailSyncPayload) {
 
   let replies = 0;
   let bounces = 0;
+  let autoReplies = 0;
 
   for (const c of classified) {
     if (!c.isBounce || !c.lead) continue;
@@ -167,7 +172,12 @@ async function handleEmailSync(payload: EmailSyncPayload) {
   }
 
   for (const c of classified) {
-    if (!c.isReply || !c.lead) continue;
+    if (c.isBounce || !c.lead) continue;
+    // Auto-responders reach the same chokepoint as ordinary replies (Phase 8b). They are stored
+    // with `isReply: false`, so reply-rate reporting is untouched, but they still have to pause a
+    // cadence and record why — and routing them anywhere else would be the second inbound
+    // listener the architecture forbids.
+    if (!c.isReply && !c.isAutoReply) continue;
     // Sequence side effects only apply to leads mid-sequence. The reply itself is
     // already recorded on InboundMessage above, so metrics see it either way.
     if (!c.lead.sequenceId || c.lead.sequenceStatus !== 'active') continue;
@@ -176,8 +186,10 @@ async function handleEmailSync(payload: EmailSyncPayload) {
       providerMessageId: c.msg.providerMessageId,
       leadId: c.lead.id,
       accountId,
+      autoReply: c.isAutoReply,
     });
-    replies++;
+    if (c.isReply) replies++;
+    else autoReplies++;
   }
 
   await prisma.emailAccount.update({
@@ -185,9 +197,23 @@ async function handleEmailSync(payload: EmailSyncPayload) {
     data: { lastSyncAt: now },
   });
 
-  return { success: true, accountId, messagesProcessed: messages.length, replies, bounces };
+  return { success: true, accountId, messagesProcessed: messages.length, replies, bounces, autoReplies };
 }
 
+/**
+ * The single inbound chokepoint (Phase 8b).
+ *
+ * Every reply — a pricing question, an out-of-office auto-responder, an unsubscribe — arrives
+ * here, is classified once, and diverges in `applyReplyClassification`. There is no second
+ * listener and no second place a reply changes CRM state.
+ *
+ * ## What class B does *not* do
+ *
+ * An administrative reply is not a sales reply. It does not move the lead to `replied`, does not
+ * increment `emailReplyCount`, does not attribute itself to the originating send and writes no
+ * `email_replied` activity — so an inbox full of out-of-office responders cannot inflate reply
+ * rate. It still pauses the cadence and still records what happened.
+ */
 export async function handleApplyReply(payload: EmailApplyReplyPayload) {
   const { providerMessageId, leadId, accountId } = payload;
 
@@ -214,84 +240,116 @@ export async function handleApplyReply(payload: EmailApplyReplyPayload) {
     return { skipped: true, reason: 'sequence_not_active' };
   }
 
-  // Attribute the reply to the send that earned it, so reply rate is computable
-  // per inbox. Picking the newest un-replied sent message keeps this idempotent.
-  const originating = await prisma.outboundMessage.findFirst({
-    where: { leadId, accountId, status: 'sent', repliedAt: null },
-    orderBy: { sentAt: 'desc' },
-    select: { id: true },
+  const inbound = await prisma.inboundMessage.findUnique({
+    where: { providerMessageId },
+    select: { id: true, subject: true, body: true, isReply: true },
   });
-  if (originating) {
-    await prisma.outboundMessage.update({
-      where: { id: originating.id },
-      data: { repliedAt: new Date() },
+
+  // Classification decides everything below it. It never throws and never guesses: with no
+  // provider it returns class D and a human reads the reply.
+  const classification = await classifyReply({
+    subject: inbound?.subject ?? null,
+    body: inbound?.body ?? null,
+    // `isReply: false` on a message that reached this handler means sync recognised an
+    // auto-responder and routed it here anyway (Phase 8b) rather than to a second listener.
+    isAutoReply: payload.autoReply ?? (inbound ? !inbound.isReply : false),
+    tenantId: lead.tenantId,
+    leadId,
+  });
+
+  if (inbound) {
+    await prisma.inboundMessage.update({
+      where: { id: inbound.id },
+      data: {
+        replyClass: classification.replyClass,
+        replyKind: classification.kind,
+        replyConfidence: classification.confidence,
+        classificationSource: classification.source,
+        classifiedAt: new Date(),
+      },
     });
   }
 
-  await prisma.lead.update({
-    where: { id: leadId },
-    data: { stage: 'replied', emailReplyCount: { increment: 1 } },
-  });
+  const actorUserId = lead.assignedToId ?? accountId;
+  const isSalesReply = classification.replyClass === 'C' || classification.replyClass === 'D';
 
-  // Pause the *exact* enrollment this reply was resolved against, never "the lead's current
-  // sequence". If it was replaced between the read and this write the pause simply refuses —
-  // pausing the replacement would stop a cadence the reply says nothing about.
-  //
-  // A refusal is not a failed reply either: the prospect still engaged, so the stage change,
-  // the activity and the handoff below all continue regardless.
-  const pauseResult = activeEnrollment
-    ? await pauseEnrollmentOccurrence({
-        enrollmentId: activeEnrollment.id,
+  if (isSalesReply) {
+    // Attribute the reply to the send that earned it, so reply rate is computable
+    // per inbox. Picking the newest un-replied sent message keeps this idempotent.
+    const originating = await prisma.outboundMessage.findFirst({
+      where: { leadId, accountId, status: 'sent', repliedAt: null },
+      orderBy: { sentAt: 'desc' },
+      select: { id: true },
+    });
+    if (originating) {
+      await prisma.outboundMessage.update({
+        where: { id: originating.id },
+        data: { repliedAt: new Date() },
+      });
+    }
+
+    await prisma.lead.update({
+      where: { id: leadId },
+      data: { stage: 'replied', emailReplyCount: { increment: 1 } },
+    });
+
+    // Two activities on purpose: `stage_changed` drives the pipeline views, while
+    // `email_replied` is the channel-level signal that reporting aggregates on.
+    await prisma.activity.create({
+      data: {
+        userId: actorUserId,
         leadId,
-        sequenceId: activeEnrollment.sequenceId,
-        reason: 'reply',
-        actorUserId: lead.assignedToId ?? accountId,
-      })
-    : { ok: false, refusal: 'not_active' as const };
-  // Same vocabulary the lead-scoped helper reported, so the handler's result shape is unchanged.
-  const pauseOutcome = pauseResult.ok ? 'paused' : (pauseResult.refusal ?? 'not_paused');
+        type: 'stage_changed',
+        channel: 'email',
+        description: `Reply received from ${lead.firstName} ${lead.lastName} — moved to Replied`,
+        metadata: { from: lead.stage, to: 'replied', providerMessageId, auto: true },
+      },
+    });
 
-  // Two activities on purpose: `stage_changed` drives the pipeline views, while
-  // `email_replied` is the channel-level signal that reporting aggregates on.
-  await prisma.activity.create({
-    data: {
-      userId: lead.assignedToId ?? accountId,
-      leadId,
-      type: 'stage_changed',
-      channel: 'email',
-      description: `Reply received from ${lead.firstName} ${lead.lastName} — moved to Replied`,
-      metadata: { from: lead.stage, to: 'replied', providerMessageId, auto: true },
-    },
-  });
+    await prisma.activity.create({
+      data: {
+        userId: actorUserId,
+        leadId,
+        type: 'email_replied',
+        channel: 'email',
+        description: `${lead.firstName} ${lead.lastName} replied by email`,
+        metadata: {
+          providerMessageId,
+          accountId,
+          outboundMessageId: originating?.id ?? null,
+          replyClass: classification.replyClass,
+          replyKind: classification.kind,
+          auto: true,
+        },
+      },
+    });
+  }
 
-  await prisma.activity.create({
-    data: {
-      userId: lead.assignedToId ?? accountId,
-      leadId,
-      type: 'email_replied',
-      channel: 'email',
-      description: `${lead.firstName} ${lead.lastName} replied by email`,
-      metadata: { providerMessageId, accountId, outboundMessageId: originating?.id ?? null, auto: true },
-    },
-  });
-
-  // Ownership moves to the SDR. The transition service owns the task, the notification, the
-  // ledger row and the activity, so this handler cannot half-apply the handoff by creating one
-  // and forgetting the other. Keyed on the provider message, so redelivery is inert.
-  const handoff = await handoffProspectToHuman({
+  // Pause/stop the *exact* enrollment this reply was resolved against, never "the lead's current
+  // sequence". If it was replaced between the read and this write the pause simply refuses —
+  // pausing the replacement would stop a cadence the reply says nothing about. A refusal is not a
+  // failed reply either: the prospect still engaged, so everything else continues regardless.
+  const outcome = await applyReplyClassification({
     leadId,
     tenantId: lead.tenantId,
+    enrollment: activeEnrollment,
     eventId: providerMessageId,
-    reason: 'replied to your outreach',
-    summary: `Replied to your outreach email. Respond while it's warm.`,
+    actorUserId,
+    classification,
+    leadName: lead.company ?? `${lead.firstName} ${lead.lastName}`,
   });
 
   return {
     success: true,
     leadId,
     providerMessageId,
-    pauseOutcome,
-    handoffApplied: handoff.applied,
+    // Same vocabulary the lead-scoped helper reported, so the handler's result shape is unchanged.
+    pauseOutcome: outcome.cadence === 'no_enrollment' ? 'not_active' : outcome.cadence,
+    handoffApplied: outcome.handedOff,
+    replyClass: classification.replyClass,
+    replyKind: classification.kind,
+    classificationSource: classification.source,
+    resumeAt: outcome.resumeAt ?? null,
   };
 }
 
