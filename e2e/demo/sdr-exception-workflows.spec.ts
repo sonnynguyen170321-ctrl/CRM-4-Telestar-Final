@@ -25,7 +25,7 @@ async function openProspect(page: Page, leadId: string): Promise<void> {
   await expect(page.getByTestId('handoff-package')).toBeVisible({ timeout: 45_000 });
 }
 
-test.describe('SDR Exception Workflows (Reply Classes A, B, D)', () => {
+test.describe('SDR Exception Workflows (Reply Classes A, B, D & Tasks)', () => {
   test.describe.configure({ mode: 'serial', timeout: 180_000 });
 
   test.beforeEach(async ({ page, baseURL }) => {
@@ -50,12 +50,16 @@ test.describe('SDR Exception Workflows (Reply Classes A, B, D)', () => {
     await expect(page.getByText(/Class B/i).first()).toBeVisible({ timeout: 45_000 });
   });
 
-  test('Reply Class D (Human Review Required) operational workflow', async ({ page }) => {
+  test('Reply Class D (Human Review Required) & Task navigation workflow', async ({ page }) => {
     await openProspect(page, DANA);
     await page.getByTestId('demo-reply-ambiguous').click();
 
     await page.goto('/inbox');
     await expect(page.getByText('Unified Inbox')).toBeVisible({ timeout: 45_000 });
     await expect(page.getByText(/Class D/i).first()).toBeVisible({ timeout: 45_000 });
+
+    // Check Task hub rendering AI Handoff origin tag on Dashboard
+    await page.goto('/');
+    await expect(page.getByText(/AI Handoff|Needs attention/i).first()).toBeVisible({ timeout: 45_000 });
   });
 });

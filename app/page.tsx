@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 import { readApiError } from '@/lib/api/client';
@@ -1049,6 +1050,32 @@ export default function DashboardPage() {
                             <PhoneOff className="w-3.5 h-3.5" /> DNC
                           </span>
                         )}
+                        {/* Task Origin Badge */}
+                        {(() => {
+                          const text = `${task.title} ${task.description || ''}`.toLowerCase();
+                          if (text.includes('handoff') || text.includes('reply') || text.includes('human_attention') || text.includes('classified')) {
+                            return (
+                              <span className="text-[9px] font-bold text-red-700 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded font-mono">
+                                AI Handoff
+                              </span>
+                            );
+                          }
+                          if (text.includes('re-engagement') || text.includes('reengagement') || text.includes('ghosted') || text.includes('waiting')) {
+                            return (
+                              <span className="text-[9px] font-bold text-blue-700 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded font-mono">
+                                Re-engagement
+                              </span>
+                            );
+                          }
+                          if (text.includes('step') || text.includes('sequence') || text.includes('cadence')) {
+                            return (
+                              <span className="text-[9px] font-bold text-gray-700 bg-gray-500/10 border border-gray-500/20 px-1.5 py-0.5 rounded font-mono">
+                                Sequence Step
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                       <p className="text-xs text-text-secondary truncate flex items-center gap-2">
                         {task.title}
@@ -1063,6 +1090,37 @@ export default function DashboardPage() {
                           </span>
                         )}
                       </p>
+                      {/* Context-aware task navigation CTA */}
+                      {task.lead?.id && (() => {
+                        const text = `${task.title} ${task.description || ''}`.toLowerCase();
+                        if (text.includes('handoff') || text.includes('reply') || text.includes('human_attention')) {
+                          return (
+                            <div className="pt-1">
+                              <Link
+                                href={`/ai?leadId=${task.lead.id}`}
+                                className="text-[10px] font-bold text-brand-red hover:underline bg-brand-red/10 px-2 py-0.5 rounded-md border border-brand-red/20 inline-flex items-center gap-1"
+                              >
+                                <span>Open Handoff Workspace</span>
+                                <span>→</span>
+                              </Link>
+                            </div>
+                          );
+                        }
+                        if (text.includes('re-engagement') || text.includes('reengagement') || text.includes('ghosted')) {
+                          return (
+                            <div className="pt-1">
+                              <Link
+                                href={`/ai?leadId=${task.lead.id}`}
+                                className="text-[10px] font-bold text-blue-700 hover:underline bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 inline-flex items-center gap-1"
+                              >
+                                <span>Review Re-engagement</span>
+                                <span>→</span>
+                              </Link>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
 

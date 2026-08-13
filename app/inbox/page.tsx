@@ -380,7 +380,7 @@ export default function InboxPage() {
                     : 'text-text-secondary hover:bg-[#f5f5f5]'
                 }`}
               >
-                <span>Class C · Sales</span>
+                <span>Sales Engagement (Class C)</span>
                 <span className="text-[10px] font-mono px-1 bg-emerald-100 rounded text-emerald-800">
                   {threads.filter((t) => t.messages.some((m) => m.replyClass === 'C')).length}
                 </span>
@@ -394,7 +394,7 @@ export default function InboxPage() {
                     : 'text-text-secondary hover:bg-[#f5f5f5]'
                 }`}
               >
-                <span>Class D · Review</span>
+                <span>Human Review Required (Class D)</span>
                 <span className="text-[10px] font-mono px-1 bg-amber-100 rounded text-amber-800">
                   {threads.filter((t) => t.messages.some((m) => m.replyClass === 'D')).length}
                 </span>
@@ -408,7 +408,7 @@ export default function InboxPage() {
                     : 'text-text-secondary hover:bg-[#f5f5f5]'
                 }`}
               >
-                <span>Class B · Admin/OOO</span>
+                <span>Administrative / OOO (Class B)</span>
                 <span className="text-[10px] font-mono px-1 bg-gray-100 rounded text-gray-800">
                   {threads.filter((t) => t.messages.some((m) => m.replyClass === 'B')).length}
                 </span>
@@ -422,7 +422,7 @@ export default function InboxPage() {
                     : 'text-text-secondary hover:bg-[#f5f5f5]'
                 }`}
               >
-                <span>Class A · Opt-Out</span>
+                <span>Opt-Out / Stop (Class A)</span>
                 <span className="text-[10px] font-mono px-1 bg-red-100 rounded text-red-800">
                   {threads.filter((t) => t.messages.some((m) => m.replyClass === 'A')).length}
                 </span>
