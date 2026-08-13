@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requirePoolManager } from '@/app/api/leadgen-pool/guard';
 import { convertPoolToLeads } from '@/lib/leadgen/pool';
 import { canAssignToRep } from '@/lib/leadgen/assignableReps';
+import { requireTenantId } from '@/lib/api/tenant';
 
 const convertSchema = z.object({
   ids: z.array(z.string().min(1)).min(1).max(500),
@@ -37,7 +38,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const tenantId = user.tenantId || 'default-tenant';
+  const tenantId = requireTenantId(user);
+  if (tenantId instanceof NextResponse) return tenantId;
   const result = await convertPoolToLeads({
     itemIds: ids,
     campaignId,

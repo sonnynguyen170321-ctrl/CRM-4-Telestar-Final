@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requirePoolManager } from '@/app/api/leadgen-pool/guard';
 import { deleteRequirement, updateRequirement, type RequirementInput } from '@/lib/leadgen/requirements';
+import { requireTenantId } from '@/lib/api/tenant';
 
 const requirementPatchSchema = z
   .object({
@@ -36,7 +37,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Invalid requirement', details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const tenantId = user.tenantId || 'default-tenant';
+  const tenantId = requireTenantId(user);
+  if (tenantId instanceof NextResponse) return tenantId;
   const updated = await updateRequirement({
     id,
     input: parsed.data as Partial<RequirementInput>,
@@ -54,7 +56,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (user instanceof NextResponse) return user;
 
   const { id } = await params;
-  const tenantId = user.tenantId || 'default-tenant';
+  const tenantId = requireTenantId(user);
+  if (tenantId instanceof NextResponse) return tenantId;
   const ok = await deleteRequirement(id, tenantId);
   if (!ok) {
     return NextResponse.json({ error: 'Requirement not found' }, { status: 404 });

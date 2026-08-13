@@ -4,6 +4,7 @@ import { requirePoolUser } from '@/app/api/leadgen-pool/guard';
 import { enrichPoolItem } from '@/lib/leadgen/pool';
 import { prisma } from '@/lib/prisma';
 import { logLeadgenActivity } from '@/lib/leadgen/pool';
+import { requireTenantId } from '@/lib/api/tenant';
 
 const patchSchema = z.object({
   firstName: z.string().optional(),
@@ -39,7 +40,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Invalid patch', details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const tenantId = user.tenantId || 'default-tenant';
+  const tenantId = requireTenantId(user);
+  if (tenantId instanceof NextResponse) return tenantId;
   const updated = await enrichPoolItem({ id, patch: parsed.data, actor: user, tenantId });
   if (!updated) {
     return NextResponse.json({ error: 'Pool item not found' }, { status: 404 });
@@ -53,7 +55,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (user instanceof NextResponse) return user;
 
   const { id } = await params;
-  const tenantId = user.tenantId || 'default-tenant';
+  const tenantId = requireTenantId(user);
+  if (tenantId instanceof NextResponse) return tenantId;
   const existing = await prisma.leadPoolItem.findFirst({
     where: { id, tenantId },
     select: { id: true },
