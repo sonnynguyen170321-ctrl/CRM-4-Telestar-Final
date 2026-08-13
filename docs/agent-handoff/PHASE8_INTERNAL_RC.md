@@ -1,19 +1,18 @@
-# Phase 8 — internal release candidate
-
-**Read this first.** It is the resume pointer for the internal RC branch: what it is, what has been
-proven, and the exact next command.
-
 | | |
 |---|---|
 | Branch | `feat/phase-8-internal-rc` (pushed, tracking `origin/feat/phase-8-internal-rc`) |
-| HEAD | `f84ecc2` — `fix(leadgen): refuse a request with no tenant instead of defaulting it to one` |
+| HEAD | `93d8028` — `fix(test): assert the RLS suite's database is never the shared one` |
 | Base | `feat/phase-8-sdr-operations-ui` (`73973a2`) |
 | Cherry-picked | `6fe1032` from `fix/phase-8-runtime-stabilization` (landed as `dc09042`) |
-| Status | **Integrated, green on the full suite, database gates passed.** Not merged anywhere. Not production-approved. |
+| Status | **RC1 — ready for deep internal QA.** Two consecutive green full runs, all gates passed. Not merged. Not production-approved. |
 
 ## Commits on this branch
 
 ```text
+93d8028  fix(test): assert the RLS suite's database is never the shared one
+a7a3b7e  fix(tenant): remove remaining implicit tenant fallbacks
+f3ab112  docs(handoff): record the browser gate results and the next defect to close
+65d891f  docs(handoff): record the RC gate results, the leadgen finding, and the next command
 f84ecc2  fix(leadgen): refuse a request with no tenant instead of defaulting it to one
 c2a8699  fix(test): assert RLS coverage of our models, not equality with a shared database
 713f202  docs(handoff): record the Phase 8 internal RC and how its one conflict was resolved
@@ -59,33 +58,48 @@ Nothing else is in it. The Class D **review API** and the sales-attribution guar
 no longer needed, so keeping it would have widened the allowlist for no reason. The resolution makes
 the test *stricter*, not weaker: one fewer file is exempt from the "AI is optional" rule.
 
-## Gates at `f84ecc2`
+## Gates at RC1 (`93d8028`)
 
-| Gate | Result |
-|---|---|
-| Targeted Phase 8 (`phase-8-stabilization`, `sync-worker`, `ai-optional`) | **50 passed**, 0 failed |
-| `vitest run` (full) | **1385 passed, 5 skipped**, 0 failed — 97 files |
-| `tsc --noEmit` | 0 errors |
-| `eslint app components lib workers` | 0 errors, 0 warnings |
-| `git diff --check` | clean |
-| `next build` (via `scripts/build.cjs`) | exit 0 |
-| `npm run check:migration-order` | ok — 41 migrations, 4 new |
-| `prisma validate` | valid |
-| `prisma migrate status` | up to date |
-| `migrate diff --from-migrations` vs fresh shadow | `No difference detected`, exit 0 |
-| `tests/rls-policy-coverage.test.ts` | 6 passed |
-| Leadgen (`leadgen`, `leadgen-redesign`, `leadgen-tenant-context`) | **20 passed** |
-| Playwright `--project=demo` | **8/8 passed** (5 walkthrough + 3 SDR exception workflows) |
-| Playwright role access + tenant isolation (`e2e/roles`) | **67/67 passed** |
+Every gate below was re-run on this exact code state, after the tenant and harness work.
 
-### One flake worth recognising, not chasing
+| Gate | Command | Result |
+|---|---|---|
+| Full Vitest — **run 1** | `node node_modules/vitest/vitest.mjs run` | exit 0 · **1385 passed, 5 skipped, 0 failed** · 97 files · 306s |
+| Full Vitest — **run 2** | same, no code change between | exit 0 · **1385 passed, 5 skipped, 0 failed** · 97 files · 188s |
+| TypeScript | `tsc --noEmit` | exit 0, 0 errors |
+| ESLint | `eslint app components lib workers` | exit 0, 0 errors, 0 warnings |
+| Whitespace | `git diff --check` | clean |
+| Production build | `node scripts/build.cjs` | exit 0 |
+| Migration order | `npm run check:migration-order` | ok — **41 migrations**, 4 new |
+| Prisma validate | `prisma validate` | valid |
+| Migrate status | `prisma migrate status` | up to date |
+| Drift vs fresh shadow | `migrate diff --from-migrations … --exit-code` | **No difference detected**, exit 0 |
+| RLS coverage | `vitest run tests/rls-policy-coverage.test.ts` | 6 passed |
+| Tenant context | `vitest run tests/tenant-context.test.ts` | 5 passed |
+| Playwright demo | `--project=demo` | **8/8** (5 walkthrough + 3 SDR exception workflows) |
+| Playwright roles / tenant isolation | `--project=audit e2e/roles` | **67/67** |
 
-The first full run reported 59 failed files. A rerun with no code change reported one. The suites
-share a single local Postgres and one of them creates a throwaway database and applies the whole
-schema to it; under that load the pool exhausts and unrelated suites fail on connections. Its
-teardown terminates backends **only for its own `datname`**, so it is not killing other suites'
-connections directly. If a run comes back with dozens of failures spread across unrelated files,
-rerun before investigating.
+Two earlier full runs on `a7a3b7e` were also green, so four consecutive green full runs stand.
+
+## The test-harness flake — investigated, and the standing theory was wrong
+
+The harness had twice produced dozens of unrelated failures that vanished on a rerun. The theory on
+file was PostgreSQL connection-pool exhaustion from the suite that creates a throwaway database.
+
+**Measured, not assumed:** sampling `pg_stat_activity` every 3s across a full run peaks at
+**33 of 100** connections. Exhaustion is not the cause. Do not re-chase it.
+
+What does match the symptom is what that suite *applies*: `supabase/rls.sql` ENABLEs and FORCEs
+row-level security on every tenant-owned table. Pointed at the shared database — a misread
+`ADMIN_DATABASE_URL`, a future edit to `urlFor` — every row would become invisible to every suite
+running beside it, failing dozens of files at once and then passing on the next run because the
+database is dropped in teardown. The separation was correct but assumed; `93d8028` asserts it
+before anything is created (target database ≠ admin database, name carries the throwaway prefix).
+
+The residual risk is **two full suites run against the same database at once** — several DB suites
+call `deleteMany()` in `beforeEach`, so they wipe each other's rows. That is a property of the
+shared local Postgres, not of this branch. Run one suite at a time, or point `DATABASE_URL` at your
+own database.
 
 ## What was fixed after the cherry-pick
 
@@ -137,41 +151,43 @@ was the defect.
 
 ## Unresolved failures
 
-None.
+None. No known defect is outstanding on this branch.
 
 ## Uncommitted changes
 
-None. Working tree clean at `f84ecc2`.
+None. Working tree clean at `93d8028`.
+
+## Known remaining work (not defects)
+
+- **Leadgen AI gap** — `LeadPoolItem → research/enrichment → deterministic dedupe → campaign ICP
+  assessment → qualification recommendation → controlled promotion → CRM Lead → prospect work
+  order`. A deliberate follow-on workstream, explicitly **after** internal QA. Do not start it
+  during hardening.
+- **Class D review API** and sales-attribution guardrails live on `integrate/runtime-safety-73973a`,
+  Phase 9/10 on `integrate/productization-73973a`. Neither is part of this RC.
 
 ## Exact next action
 
-Every gate in the list above has passed. The RC is stable and pushed; nothing is in flight.
+RC1 is stable. The next task is the **deep Playwright role/process internal QA audit** — moving the
+question from "does it pass tests?" to "can a real Telestar user operate the CRM end to end?".
 
-The next piece of work is the remaining `|| 'default-tenant'` sites, which are the same defect
-class the Leadgen audit found, one surface over:
+Cover, per role (Director, Floor Manager, Team Lead, SDR, Leadgen Manager, Leadgen): navigation,
+visibility, permissions, mutations, ownership, assignment, queues, dashboard data, empty states and
+forbidden actions — plus the leadgen intake chain, the SDR reply/handoff loop, sequence timing and
+recovery, and cross-tenant refusal on every id-bearing endpoint.
 
-```text
-app/api/client-reports/route.ts   lines 35 and 110
-app/api/leads/import/route.ts     1 occurrence
-```
-
-**Exact next command:**
+**Exact next command** (start the app, then write the first role spec under `e2e/roles/`):
 
 ```bash
-grep -rn "|| 'default-tenant'" app/api/client-reports/route.ts app/api/leads/import/route.ts
+node node_modules/tsx/dist/cli.mjs scripts/demo-seed.ts --reset
+node node_modules/next/dist/bin/next start -p 3300 &
+ALLOW_E2E_FIXTURE=1 E2E_PASSWORD='PwAudit!2026' node node_modules/tsx/dist/cli.mjs scripts/e2e-audit-fixture.ts
+BASE_URL=http://localhost:3300 E2E_PASSWORD='PwAudit!2026'   node node_modules/@playwright/test/cli.js test --project=audit e2e/roles
 ```
 
-Then apply the same treatment: `requireTenantId(user)` in a route, `tenantIdOrThrow(actor)` in a
-service, or drop the field entirely where `lib/prisma.ts` already stamps it. Extend the directory
-list in `tests/leadgen-tenant-context.test.ts` (or add a sibling test) so the new surface is
-guarded too, then run:
-
-```bash
-node node_modules/vitest/vitest.mjs run tests/leadgen-tenant-context.test.ts tests/client-reports.test.ts
-```
-
-Also still open, and deliberately not started: **Phase 9/10 stays out of this branch**, and this
-branch is not merged anywhere.
+Rules for that pass: reproduce a defect, find the root cause, add regression coverage, fix, re-run
+the workflow, commit small, push, update this file. **Email stays in dry-run.** Do not merge to
+main, do not start Phase 9/10.
 
 ### Re-running the browser gates
 
