@@ -68,13 +68,30 @@ async function upsertJobRun(
   });
 }
 
+/**
+ * The tenant a job belongs to.
+ *
+ * No fallback. `tenantId` becomes the `JobRun` row's tenant, and `workerUtils` reads it back to
+ * decide which tenant the job *executes* as — so a fabricated one here is not a labelling mistake,
+ * it is a job running against the wrong org's data. It also seeds the dedupe key, where a shared
+ * default means two tenants' identical jobs collide and one is silently dropped.
+ *
+ * Every call site already passes it; this makes that a rule instead of a habit.
+ */
+function requireJobTenant(tenantId: string | undefined, jobType: JobType): string {
+  if (!tenantId) {
+    throw new Error(`enqueue(${jobType}) requires a tenantId: refusing to queue work for an unknown tenant`);
+  }
+  return tenantId;
+}
+
 export async function enqueue<T extends JobType>(
   jobType: T,
   payload: JobPayload[T],
   opts: EnqueueOptions = {},
 ): Promise<string> {
   const queue = resolveQueue(jobType);
-  const tenantId = opts.tenantId || 'default-tenant';
+  const tenantId = requireJobTenant(opts.tenantId, jobType);
   const dedupeKey = opts.dedupeKey || buildDedupeKey(tenantId, jobType, payload as Record<string, unknown>);
 
   const jobOptions: JobsOptions = {
@@ -123,7 +140,7 @@ export async function enqueueReschedule<T extends JobType>(
   payload: JobPayload[T],
   opts: { tenantId?: string; delay?: number; discriminator: string },
 ): Promise<string> {
-  const tenantId = opts.tenantId || 'default-tenant';
+  const tenantId = requireJobTenant(opts.tenantId, jobType);
   const base = buildDedupeKey(tenantId, jobType, payload as Record<string, unknown>);
   const dedupeKey = crypto
     .createHash('sha256')
@@ -155,7 +172,7 @@ export async function enqueueImmediate<T extends JobType>(
   opts: { tenantId?: string } = {},
 ): Promise<string> {
   const queue = resolveQueue(jobType);
-  const tenantId = opts.tenantId || 'default-tenant';
+  const tenantId = requireJobTenant(opts.tenantId, jobType);
   const dedupeKey = buildDedupeKey(tenantId, jobType, payload as Record<string, unknown>);
 
   const attempts = (JOB_OPTIONS[jobType]?.attempts as number) ?? (DEFAULT_JOB_OPTIONS.attempts as number) ?? 3;

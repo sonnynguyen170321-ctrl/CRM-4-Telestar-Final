@@ -8,6 +8,21 @@ import { handleApiError } from '@/lib/api/errors';
 import { canCreateClientReport, canViewClientReport, getClientReportScope } from '@/lib/client-reports/access';
 import { buildReportMetrics } from '@/lib/client-reports/metrics';
 import { mergeNarrativeIntoSnapshot } from '@/lib/client-reports/snapshot';
+import { requireTenantId } from '@/lib/api/tenant';
+
+/**
+ * The tenant this request acts for.
+ *
+ * Client reports are the one surface where the session is not always the whole story — a report
+ * can be opened by a user whose token predates the tenant claim — so the stored `User.tenantId` is
+ * consulted as a second source. What is *not* consulted is a hardcoded name: both sources failing
+ * means the caller has no tenant, and the request stops there.
+ */
+async function resolveTenantId(user: SessionUser): Promise<string | NextResponse> {
+  if (user.tenantId) return user.tenantId;
+  const stored = await prisma.user.findUnique({ where: { id: user.id }, select: { tenantId: true } });
+  return requireTenantId({ tenantId: stored?.tenantId ?? undefined });
+}
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -32,7 +47,11 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const tenantId = user.tenantId || (await prisma.user.findUnique({ where: { id: user.id }, select: { tenantId: true } }))?.tenantId || 'default-tenant';
+    // The session's tenant, or the stored one if the session did not carry it. No literal
+    // fallback: a user with no tenant on either has no tenant, and writing reports into a real
+    // tenant named `default-tenant` is worse than refusing.
+    const tenantId = await resolveTenantId(user);
+    if (tenantId instanceof NextResponse) return tenantId;
 
     const reports = await prisma.clientReport.findMany({
       take: limit,
@@ -107,7 +126,11 @@ export async function POST(req: NextRequest) {
   const body = parsed.data;
 
   try {
-    const tenantId = user.tenantId || (await prisma.user.findUnique({ where: { id: user.id }, select: { tenantId: true } }))?.tenantId || 'default-tenant';
+    // The session's tenant, or the stored one if the session did not carry it. No literal
+    // fallback: a user with no tenant on either has no tenant, and writing reports into a real
+    // tenant named `default-tenant` is worse than refusing.
+    const tenantId = await resolveTenantId(user);
+    if (tenantId instanceof NextResponse) return tenantId;
     const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email.split('@')[0];
 
     const periodStartDate = new Date(body.periodStart);

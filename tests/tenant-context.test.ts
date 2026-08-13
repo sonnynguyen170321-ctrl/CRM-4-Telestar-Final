@@ -43,12 +43,25 @@ describe('requireTenantId', () => {
   });
 });
 
-describe('the leadgen surface never invents a tenant', () => {
-  const dirs = ['app/api/leadgen', 'app/api/leadgen-pool', 'lib/leadgen'];
-  const files = dirs.flatMap((dir) => walk(path.join(ROOT, dir)));
+describe('production code never invents a tenant', () => {
+  /**
+   * The whole request/auth/data-access surface, not just leadgen.
+   *
+   * `lib/prisma.ts` is the one legitimate use of the literal: it runs the session lookup itself
+   * inside a bypass context, because the tenant is exactly what that call is trying to discover.
+   * It is excluded by path rather than by pattern so the exemption is visible.
+   */
+  const dirs = ['app/api', 'lib', 'workers'];
+  const EXEMPT = [
+    path.join('lib', 'prisma.ts'),        // resolves the session; the placeholder never scopes data
+    path.join('lib', 'bullmq', 'workerUtils.ts'), // same, for the JobRun lookup that finds the tenant
+  ];
+  const files = dirs
+    .flatMap((dir) => walk(path.join(ROOT, dir)))
+    .filter((file) => !EXEMPT.some((exempt) => file.endsWith(exempt)));
 
-  it('reads more than a handful of files, or it is proving nothing', () => {
-    expect(files.length).toBeGreaterThan(8);
+  it('reads the whole surface, or it is proving nothing', () => {
+    expect(files.length).toBeGreaterThan(200);
   });
 
   it('contains no `|| \'default-tenant\'` fallback', () => {

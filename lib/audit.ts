@@ -40,8 +40,13 @@ export const auditExtension = Prisma.defineExtension((client) => {
             
             const tenantId = (result as any).tenantId || 
                              (args.data as any).tenantId || 
-                             tenantStorage.getStore()?.tenantId || 
-                             'default-tenant';
+                             tenantStorage.getStore()?.tenantId;
+            if (!tenantId) {
+              // Never guess. An audit row filed against a fabricated tenant is worse than a
+              // missing one: it is evidence that points at the wrong org.
+              console.error(`[auditExtension] No tenant resolved for ${model}; audit row skipped`);
+              return result;
+            }
             await (client as any).auditLog.create({
               data: {
                 userId: userId || null,
@@ -97,8 +102,13 @@ export const auditExtension = Prisma.defineExtension((client) => {
               const tenantId = currentData?.tenantId || 
                                (result as any).tenantId || 
                                (args.data as any).tenantId || 
-                               tenantStorage.getStore()?.tenantId || 
-                               'default-tenant';
+                               tenantStorage.getStore()?.tenantId;
+              if (!tenantId) {
+                // Never guess. An audit row filed against a fabricated tenant is worse than a
+                // missing one: it is evidence that points at the wrong org.
+                console.error(`[auditExtension] No tenant resolved for ${model}; audit row skipped`);
+                return result;
+              }
               await (client as any).auditLog.create({
                 data: {
                   userId: userId || null,
@@ -136,8 +146,13 @@ export const auditExtension = Prisma.defineExtension((client) => {
                            null;
             
             const tenantId = currentData?.tenantId || 
-                             tenantStorage.getStore()?.tenantId || 
-                             'default-tenant';
+                             tenantStorage.getStore()?.tenantId;
+            if (!tenantId) {
+              // Never guess. An audit row filed against a fabricated tenant is worse than a
+              // missing one: it is evidence that points at the wrong org.
+              console.error(`[auditExtension] No tenant resolved for ${model}; audit row skipped`);
+              return result;
+            }
             await (client as any).auditLog.create({
               data: {
                 userId: userId || null,

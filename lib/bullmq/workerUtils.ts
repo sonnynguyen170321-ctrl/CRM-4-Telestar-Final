@@ -24,18 +24,24 @@ export function wrapProcessor<T = any, R = any>(
       return processor(job);
     }
 
-    // Resolve tenantId by reading the JobRun record
-    let tenantId = 'default-tenant';
+    // Resolve tenantId by reading the JobRun record.
+    //
+    // The lookup itself runs with RLS bypassed because the tenant is precisely what is unknown at
+    // this point — that placeholder is a context for one read, never the tenant the job runs as.
+    // If the row cannot be read, the job stops: executing it under a fabricated tenant would run
+    // real work against whichever org happens to own that name.
+    let tenantId: string;
     try {
-      // We must bypass RLS when looking up the JobRun, since we don't know the tenant yet
       const jobRun = await tenantStorage.run({ tenantId: 'default-tenant', bypassRls: true }, () =>
         prisma.jobRun.findUnique({ where: { id: jobRunId } })
       );
-      if (jobRun) {
-        tenantId = jobRun.tenantId;
+      if (!jobRun) {
+        throw new Error(`JobRun ${jobRunId} not found`);
       }
+      tenantId = jobRun.tenantId;
     } catch (err) {
       console.error(`[worker] Failed to resolve tenant for job ${job.id}:`, err);
+      throw err;
     }
 
     // Run lifecycle updates & execution in the context of the job's tenant

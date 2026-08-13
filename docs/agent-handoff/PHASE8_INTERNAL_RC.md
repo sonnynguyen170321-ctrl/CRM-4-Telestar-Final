@@ -104,12 +104,36 @@ tenant named `default-tenant` instead of failing. Routes now use `requireTenantI
 and let the `lib/prisma.ts` extension stamp it. `tests/leadgen-tenant-context.test.ts` walks the
 leadgen surface and fails if the pattern returns.
 
-The same pattern still exists outside the audited surface and is **not** fixed here:
+## Repo-wide tenant-fallback audit — complete
 
-```text
-app/api/client-reports/route.ts   (2 occurrences)
-app/api/leads/import/route.ts     (1 occurrence)
-```
+Every `default-tenant` occurrence in the repository, classified. Production request/auth/data-access
+code is the only category that mattered; fixtures, seeds and docs legitimately name the tenant.
+
+| Location | Class | Note |
+|---|---|---|
+| `app/api/leadgen*/**` (9 files), `lib/leadgen/pool.ts` | **FIXED** (`f84ecc2`) | `requireTenantId` / `tenantIdOrThrow` / dropped where the extension stamps |
+| `app/api/client-reports/route.ts` ×2 | **FIXED** | session tenant, then stored `User.tenantId`, then **403** — no literal |
+| `app/api/leads/import/route.ts` | **FIXED** | `requireTenantId` → 403 |
+| `lib/cache.ts` | **FIXED** | a fallback key is a *shared* namespace: two tenantless callers read each other's cached lists. Now throws |
+| `lib/audit.ts` ×3 | **FIXED** | audit rows are evidence; an unresolvable tenant now skips the row and logs, never misattributes |
+| `lib/bullmq/enqueue.ts` ×3 | **FIXED** | `tenantId` becomes the `JobRun` tenant the worker *executes* as, and seeds the dedupe key. Now required |
+| `lib/bullmq/workerUtils.ts` | **FIXED** | a job whose `JobRun` cannot be read now fails instead of running as `default-tenant` |
+| `lib/prisma.ts:30` | **SAFE** | bypass context for the session lookup that *discovers* the tenant; never scopes data |
+| `vitest.config.ts`, `tests/**`, `tests/setup/db-baseline.ts` | **TEST/DEMO ONLY** | the tenant row the suites write against |
+| `prisma/seed-demo.ts`, `scripts/create-user.ts`, `create-admin.ts`, `list-users.ts` | **TEST/DEMO ONLY** | explicit local seeding |
+| `prisma/migrations/**` | **SAFE** | historical `DEFAULT 'default-tenant'` on old columns, since removed by a later migration |
+| `docs/**` | **DOCUMENTATION ONLY** | — |
+
+**NEEDS REVIEW: none remaining.**
+
+`tests/tenant-context.test.ts` (renamed from `leadgen-tenant-context`) now walks `app/api`, `lib`
+and `workers` — 200+ files — and fails if the pattern returns. `lib/prisma.ts` and
+`lib/bullmq/workerUtils.ts` are exempted **by path**, so the two legitimate uses are visible rather
+than pattern-matched away.
+
+One existing test asserted the old behaviour (`falls back to default-tenant when tenantId is
+undefined`). It was inverted, not deleted: it now asserts the refusal, because the thing it pinned
+was the defect.
 
 ## Unresolved failures
 
