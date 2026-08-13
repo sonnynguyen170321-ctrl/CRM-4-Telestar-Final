@@ -5,11 +5,21 @@ proven, and the exact next command.
 
 | | |
 |---|---|
-| Branch | `feat/phase-8-internal-rc` |
-| HEAD | `dc09042` — `fix(runtime): stabilize phase 8 sequence and reply recovery` |
+| Branch | `feat/phase-8-internal-rc` (pushed, tracking `origin/feat/phase-8-internal-rc`) |
+| HEAD | `f84ecc2` — `fix(leadgen): refuse a request with no tenant instead of defaulting it to one` |
 | Base | `feat/phase-8-sdr-operations-ui` (`73973a2`) |
-| Cherry-picked | `6fe1032` from `fix/phase-8-runtime-stabilization` |
-| Status | **Integrated and green on targeted tests.** Not merged anywhere. Not production-approved. |
+| Cherry-picked | `6fe1032` from `fix/phase-8-runtime-stabilization` (landed as `dc09042`) |
+| Status | **Integrated, green on the full suite, database gates passed.** Not merged anywhere. Not production-approved. |
+
+## Commits on this branch
+
+```text
+f84ecc2  fix(leadgen): refuse a request with no tenant instead of defaulting it to one
+c2a8699  fix(test): assert RLS coverage of our models, not equality with a shared database
+713f202  docs(handoff): record the Phase 8 internal RC and how its one conflict was resolved
+dc09042  fix(runtime): stabilize phase 8 sequence and reply recovery   ← cherry-picked 6fe1032
+73973a2  feat(sdr-ops): task context origin navigation and human-first reply taxonomy  ← base
+```
 
 ## What this branch is
 
@@ -49,54 +59,85 @@ Nothing else is in it. The Class D **review API** and the sales-attribution guar
 no longer needed, so keeping it would have widened the allowlist for no reason. The resolution makes
 the test *stricter*, not weaker: one fewer file is exempt from the "AI is optional" rule.
 
-## Test results at `dc09042`
+## Gates at `f84ecc2`
+
+| Gate | Result |
+|---|---|
+| Targeted Phase 8 (`phase-8-stabilization`, `sync-worker`, `ai-optional`) | **50 passed**, 0 failed |
+| `vitest run` (full) | **1385 passed, 5 skipped**, 0 failed — 97 files |
+| `tsc --noEmit` | 0 errors |
+| `eslint app components lib workers` | 0 errors, 0 warnings |
+| `git diff --check` | clean |
+| `next build` (via `scripts/build.cjs`) | exit 0 |
+| `npm run check:migration-order` | ok — 41 migrations, 4 new |
+| `prisma validate` | valid |
+| `prisma migrate status` | up to date |
+| `migrate diff --from-migrations` vs fresh shadow | `No difference detected`, exit 0 |
+| `tests/rls-policy-coverage.test.ts` | 6 passed |
+| Leadgen (`leadgen`, `leadgen-redesign`, `leadgen-tenant-context`) | **20 passed** |
+
+### One flake worth recognising, not chasing
+
+The first full run reported 59 failed files. A rerun with no code change reported one. The suites
+share a single local Postgres and one of them creates a throwaway database and applies the whole
+schema to it; under that load the pool exhausts and unrelated suites fail on connections. Its
+teardown terminates backends **only for its own `datname`**, so it is not killing other suites'
+connections directly. If a run comes back with dozens of failures spread across unrelated files,
+rerun before investigating.
+
+## What was fixed after the cherry-pick
+
+**`tests/rls-policy-coverage.test.ts`** asserted set equality between the schema's tenant-owned
+models and every `tenantId`-carrying table in the live catalog. The local Postgres is shared between
+worktrees, so a Phase 10 branch's applied migrations left two tables behind and the equality failed
+for a reason unrelated to this branch. It now asserts that every tenant-owned model of *ours* is
+covered, naming any offender; "no unknown extras" belongs to the migration drift gate, which runs
+against a fresh shadow database where a stray table cannot exist.
+
+**The Leadgen audit found a blind tenant default in eleven places** — `user.tenantId ||
+'default-tenant'` across nine route files and `lib/leadgen/pool.ts`. It never fires in normal
+operation, which is the danger: a session without a tenant would have read and written a real
+tenant named `default-tenant` instead of failing. Routes now use `requireTenantId` (403);
+`lib/leadgen/pool.ts` uses `tenantIdOrThrow`; the two writes that only needed the column drop it
+and let the `lib/prisma.ts` extension stamp it. `tests/leadgen-tenant-context.test.ts` walks the
+leadgen surface and fails if the pattern returns.
+
+The same pattern still exists outside the audited surface and is **not** fixed here:
 
 ```text
-tests/phase-8-stabilization.test.ts   passed
-tests/sync-worker.test.ts             passed
-tests/ai-optional.test.ts             passed
-                                      50 passed, 0 failed
+app/api/client-reports/route.ts   (2 occurrences)
+app/api/leads/import/route.ts     (1 occurrence)
 ```
-
-Command used:
-
-```bash
-node node_modules/vitest/vitest.mjs run \
-  tests/phase-8-stabilization.test.ts tests/sync-worker.test.ts tests/ai-optional.test.ts
-```
-
-No regressions were found, so nothing was fixed and no test was modified beyond the conflict
-resolution above.
 
 ## Unresolved failures
 
-None on the targeted suites.
+None.
 
 ## Uncommitted changes
 
-None. Working tree clean at the checkpoint.
+None. Working tree clean at `f84ecc2`.
 
 ## Exact next action
 
-Run the wider gates against this branch, then the database gates, then the Leadgen audit. In order:
+Run the Playwright suites against this branch. Everything else in the gate list has passed.
+
+**Exact next command** (the demo project needs a seeded demo tenant and a server on a free port —
+3000/3100 are usually held by other lanes):
 
 ```bash
-# 1. full suite + types + lint
-node node_modules/vitest/vitest.mjs run
-NODE_OPTIONS=--max-old-space-size=8192 node node_modules/typescript/bin/tsc --noEmit
-node node_modules/eslint/bin/eslint.js app components lib workers
-
-# 2. database gates (non-destructive)
-npm run check:migration-order
-node node_modules/prisma/build/index.js validate
-node node_modules/prisma/build/index.js migrate status
-node node_modules/prisma/build/index.js migrate diff \
-  --from-migrations ./prisma/migrations --to-schema-datamodel ./prisma/schema.prisma \
-  --shadow-database-url "postgresql://postgres:postgres@127.0.0.1:5432/telestar_shadow" --exit-code
-
-# 3. RLS coverage
-node node_modules/vitest/vitest.mjs run tests/rls-policy-coverage.test.ts
+node node_modules/tsx/dist/cli.mjs scripts/demo-seed.ts --reset
+node node_modules/next/dist/bin/next start -p 3300 &
+BASE_URL=http://localhost:3300 node node_modules/@playwright/test/cli.js test --project=demo
 ```
+
+Then, in order:
+
+1. `BASE_URL=http://localhost:3300 node node_modules/@playwright/test/cli.js test --project=audit e2e/roles`
+   — role access and tenant isolation. Needs the audit fixture first:
+   `ALLOW_E2E_FIXTURE=1 E2E_PASSWORD='<strong>' node node_modules/tsx/dist/cli.mjs scripts/e2e-audit-fixture.ts`
+2. Decide whether the two remaining `|| 'default-tenant'` sites (`client-reports`, `leads/import`)
+   are in scope for this RC. They are the same defect class, outside the audited surface.
+3. Do **not** start Phase 9/10, and do not merge this branch anywhere.
 
 ## Environment notes that cost time if unknown
 
