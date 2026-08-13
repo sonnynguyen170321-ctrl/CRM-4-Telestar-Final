@@ -140,6 +140,19 @@ describe.skipIf(!isolatedRlsEnabled)('supabase/rls.sql applied to an isolated da
         return u.toString();
       };
 
+      // The one thing this test must never do.
+      //
+      // It applies `supabase/rls.sql`, which ENABLEs and FORCEs row-level security on every
+      // tenant-owned table. Against the *shared* database that would make every row invisible to
+      // every other suite running beside it — which looks exactly like the symptom this harness
+      // has shown before: dozens of unrelated files failing at once, then passing on a rerun.
+      //
+      // A misread env var or a future edit to `urlFor` is all it would take, so the separation is
+      // asserted rather than assumed.
+      const targetUrl = urlFor(dbName);
+      expect(new URL(targetUrl).pathname).not.toBe(new URL(adminUrl).pathname);
+      expect(dbName).toMatch(/^crm_rls_cover_/);
+
       const admin = new PrismaClient({ datasources: { db: { url: adminUrl } } });
       try {
         await admin.$executeRawUnsafe(`CREATE DATABASE "${dbName}"`);
@@ -147,7 +160,7 @@ describe.skipIf(!isolatedRlsEnabled)('supabase/rls.sql applied to an isolated da
         await admin.$disconnect();
       }
 
-      const target = new PrismaClient({ datasources: { db: { url: urlFor(dbName) } } });
+      const target = new PrismaClient({ datasources: { db: { url: targetUrl } } });
       try {
         // Schema straight from the datamodel — the same source the migrations converge on,
         // and the same technique scripts/verify-rls.mjs uses.
