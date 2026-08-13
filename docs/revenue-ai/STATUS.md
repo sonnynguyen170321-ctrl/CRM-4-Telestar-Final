@@ -4,29 +4,42 @@
 
 | | |
 |---|---|
-| Phase | **0–8 complete.** **9 and 10 complete** on `feat/phase-9-10-productization`, not yet merged |
-| Branch | `feat/phase-9-10-productization`, off `feat/phase-8-prospecting-loop` (`7e73b78`) |
-| Blockers | **Integration only** — see "Resume here" |
+| Phase | **0–8 complete.** **9 and 10 complete** and now integrated onto `integrate/phase-8-10-final` |
+| Branch | `integrate/phase-8-10-final` @ `62e9056`, off `feat/phase-8-internal-rc` (`349e495`) |
+| Blockers | **None.** Waiting on the Email Automation lane before `main` |
 | Restrictions | No external users, no real client data, sending off, email dry-run |
 
 ## Resume here
 
-Three branches exist and none has been merged. **Integration is the next task**, in this order:
+**Phase 8 RC + Phase 9 + Phase 10 are integrated and green on one branch.** The full record —
+conflicts, resolutions, gates, role-by-role QA and the one defect fixed — is in
+[`../agent-handoff/PHASE8_10_FINAL_INTEGRATION.md`](../agent-handoff/PHASE8_10_FINAL_INTEGRATION.md).
+Read it before touching this lane.
 
-```text
-feat/phase-8-prospecting-loop        7e73b78   the Phase 8 loop + demo (integration base)
-fix/phase-8-runtime-stabilization    6fe1032   runtime correctness (workers, reply recovery)
-feat/phase-9-10-productization       (this)    role surfaces + approved learning
-```
+The next task is **not** in this document: the Email Automation lane is being built in parallel and
+must be integrated **into `integrate/phase-8-10-final`**, not into `main` and not into the Phase 8
+RC. Re-check migration ordering when it lands — this branch's tail is
+`20260814000000_phase10_approved_learning`.
 
-The two branches off Phase 8 were built in parallel and **touch different files by design** —
-runtime stabilization owns `workers/*`, reply handling and recovery; productization owns `app/ai`,
-`components/ai`, `lib/console`, `lib/learning` and the demo. The one overlap is
-`tests/ai-optional.test.ts`, and it resolves in stabilization's favour: see the note below.
+**This system is not complete.** Nothing here should be marked done until Email Automation is
+integrated and the full gate set is re-run on the combined branch.
 
-Then start the **golden E2E journey** in [`PLAN.md`](PLAN.md) — the end-to-end assertion that
-spans leadgen → qualification → research → approved outreach → reply → handoff → ghost → handback
-→ meeting. Everything it needs now exists.
+The **golden journey** is covered in the browser by the demo walkthrough: research → reply →
+classification → handoff → assistance → waiting → re-engagement eligible → explicit handback →
+manager surface → proposal → approval, with email dry-run asserted by `deep-smoke`. What remains is
+extending it back through leadgen sourcing and qualification into the same single assertion.
+
+### Superseded branches
+
+`integrate/phase-8-10-unified` and `integrate/productization-73973a` were an earlier attempt at this
+integration and are **superseded** by `integrate/phase-8-10-final`. Do not build on them. One thing
+on them is still worth taking: migration `20260815000000_phase10_proposal_draft_guard`, which makes
+"one proposal produces at most one draft" a database fact. See follow-on 1 in the handoff.
+
+> ⚠️ The shared local `telestar_crm` database has that migration **applied** and therefore carries a
+> schema this branch does not have (`PlaybookProposal.createdVersionId` dropped). Browser QA against
+> it fails with a P2022 that looks like a Phase 10 defect and is not one. Use a database migrated
+> from empty — §11 of the handoff has the recipe.
 
 **Deferred, and still deferred: the Revenue AI → Telestar AI Architecture rename.** It is a
 separate, mechanical change and mixing it into feature work makes both unreviewable.
