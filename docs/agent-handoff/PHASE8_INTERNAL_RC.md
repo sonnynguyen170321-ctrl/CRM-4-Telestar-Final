@@ -75,6 +75,8 @@ the test *stricter*, not weaker: one fewer file is exempt from the "AI is option
 | `migrate diff --from-migrations` vs fresh shadow | `No difference detected`, exit 0 |
 | `tests/rls-policy-coverage.test.ts` | 6 passed |
 | Leadgen (`leadgen`, `leadgen-redesign`, `leadgen-tenant-context`) | **20 passed** |
+| Playwright `--project=demo` | **8/8 passed** (5 walkthrough + 3 SDR exception workflows) |
+| Playwright role access + tenant isolation (`e2e/roles`) | **67/67 passed** |
 
 ### One flake worth recognising, not chasing
 
@@ -119,25 +121,45 @@ None. Working tree clean at `f84ecc2`.
 
 ## Exact next action
 
-Run the Playwright suites against this branch. Everything else in the gate list has passed.
+Every gate in the list above has passed. The RC is stable and pushed; nothing is in flight.
 
-**Exact next command** (the demo project needs a seeded demo tenant and a server on a free port —
-3000/3100 are usually held by other lanes):
+The next piece of work is the remaining `|| 'default-tenant'` sites, which are the same defect
+class the Leadgen audit found, one surface over:
+
+```text
+app/api/client-reports/route.ts   lines 35 and 110
+app/api/leads/import/route.ts     1 occurrence
+```
+
+**Exact next command:**
+
+```bash
+grep -rn "|| 'default-tenant'" app/api/client-reports/route.ts app/api/leads/import/route.ts
+```
+
+Then apply the same treatment: `requireTenantId(user)` in a route, `tenantIdOrThrow(actor)` in a
+service, or drop the field entirely where `lib/prisma.ts` already stamps it. Extend the directory
+list in `tests/leadgen-tenant-context.test.ts` (or add a sibling test) so the new surface is
+guarded too, then run:
+
+```bash
+node node_modules/vitest/vitest.mjs run tests/leadgen-tenant-context.test.ts tests/client-reports.test.ts
+```
+
+Also still open, and deliberately not started: **Phase 9/10 stays out of this branch**, and this
+branch is not merged anywhere.
+
+### Re-running the browser gates
 
 ```bash
 node node_modules/tsx/dist/cli.mjs scripts/demo-seed.ts --reset
-node node_modules/next/dist/bin/next start -p 3300 &
+node node_modules/next/dist/bin/next start -p 3300 &      # 3000/3100 are usually held by other lanes
 BASE_URL=http://localhost:3300 node node_modules/@playwright/test/cli.js test --project=demo
+
+ALLOW_E2E_FIXTURE=1 E2E_PASSWORD='PwAudit!2026' node node_modules/tsx/dist/cli.mjs scripts/e2e-audit-fixture.ts
+BASE_URL=http://localhost:3300 E2E_PASSWORD='PwAudit!2026' \
+  node node_modules/@playwright/test/cli.js test --project=audit e2e/roles
 ```
-
-Then, in order:
-
-1. `BASE_URL=http://localhost:3300 node node_modules/@playwright/test/cli.js test --project=audit e2e/roles`
-   — role access and tenant isolation. Needs the audit fixture first:
-   `ALLOW_E2E_FIXTURE=1 E2E_PASSWORD='<strong>' node node_modules/tsx/dist/cli.mjs scripts/e2e-audit-fixture.ts`
-2. Decide whether the two remaining `|| 'default-tenant'` sites (`client-reports`, `leads/import`)
-   are in scope for this RC. They are the same defect class, outside the audited surface.
-3. Do **not** start Phase 9/10, and do not merge this branch anywhere.
 
 ## Environment notes that cost time if unknown
 
