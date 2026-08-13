@@ -360,6 +360,20 @@ export async function reviewProposal(input: ReviewInput): Promise<ReviewResult> 
     );
   }
 
+  // Claim the decision *before* building anything.
+  //
+  // Everything above this line is a read or a pure validation, so losing the race here costs
+  // nothing. Creating the draft first was the bug: two managers approving at once both passed the
+  // `status === 'proposed'` read above, both created a version, and only then did one lose the
+  // compare-and-set — leaving the loser's draft behind, numbered off a decision the database says
+  // never happened and attributed to a reviewer who was told they were too late.
+  await claim(proposal.id, {
+    status: 'approved',
+    reviewedById: reviewer.id,
+    reviewedAt: new Date(),
+    decisionNote: input.note ?? null,
+  });
+
   const draft = await createDraftVersion({
     playbookId: proposal.playbookId,
     tenantId: input.tenantId,
@@ -367,12 +381,11 @@ export async function reviewProposal(input: ReviewInput): Promise<ReviewResult> 
     rules: validated,
   });
 
-  const approved = await claim(proposal.id, {
-    status: 'approved',
-    reviewedById: reviewer.id,
-    reviewedAt: new Date(),
-    decisionNote: input.note ?? null,
-    createdVersionId: draft.id,
+  // The claim already fixed the status, so this row belongs to this call and nobody else is
+  // competing for it — an unconditional update rather than a second compare-and-set.
+  const approved = await prisma.playbookProposal.update({
+    where: { id: proposal.id },
+    data: { createdVersionId: draft.id },
   });
 
   return { proposal: approved, createdVersionId: draft.id, createdVersionNumber: draft.versionNumber };
@@ -382,7 +395,8 @@ export async function reviewProposal(input: ReviewInput): Promise<ReviewResult> 
  * Compare-and-set on `status`, so two managers clicking at once produce one decision.
  *
  * The loser is told the proposal was already reviewed rather than silently overwriting the first
- * decision — and, critically, only the winner's branch has already created a draft.
+ * decision. Callers must claim *before* creating anything a lost race would strand: this is the
+ * only point at which a decision becomes this caller's to act on.
  */
 async function claim(
   id: string,

@@ -161,11 +161,17 @@ describe('the AI never changes the policy it runs under', () => {
     // The number the confirmation quotes has to be the draft's, or a manager reads "approved" and
     // believes the campaign is already behaving differently.
     expect(result.createdVersionNumber).toBe(2);
-    // The proposal is stamped with the decision, the reviewer and the draft it produced.
+    // The proposal is stamped with the decision, the reviewer and the draft it produced. That
+    // happens across two writes rather than one: the compare-and-set has to settle who owns the
+    // approval before a draft exists to point at, so the claim carries the decision and the
+    // follow-up carries the link.
     expect((mockProposalUpdateMany.mock.calls[0]![0] as any).data).toMatchObject({
       status: 'approved',
       reviewedById: 'fm-1',
-      createdVersionId: 'new-draft-1',
+    });
+    expect((mockProposalUpdate.mock.calls[0]![0] as any)).toMatchObject({
+      where: { id: 'p-1' },
+      data: { createdVersionId: 'new-draft-1' },
     });
   });
 
@@ -253,6 +259,38 @@ describe('a person decides, and it is a person with the authority', () => {
     await expect(
       reviewProposal({ tenantId: 't1', proposalId: 'p-1', reviewerId: 'fm-1', decision: 'reject' })
     ).rejects.toMatchObject({ code: 'already_reviewed' });
+  });
+
+  it('an approval that loses the race creates no draft at all', async () => {
+    // The case above only covers `reject`, whose branch never reaches `createDraftVersion` — so it
+    // proves nothing about the branch that does. Approval used to build the draft *before* claiming
+    // the proposal, so two managers approving at once both passed the `status === 'proposed'` read,
+    // both created a version, and only then did one lose the compare-and-set. The loser's draft
+    // survived: a version numbered off a decision the database says never happened, attributed to a
+    // reviewer who was told they were too late.
+    //
+    // The claim has to come first. A draft is a consequence of winning, not of trying.
+    db.claimCount = 0;
+
+    await expect(
+      reviewProposal({ tenantId: 't1', proposalId: 'p-1', reviewerId: 'fm-1', decision: 'approve' })
+    ).rejects.toMatchObject({ code: 'already_reviewed' });
+
+    expect(mockVersionCreate).not.toHaveBeenCalled();
+  });
+
+  it('a refused change is refused before anything is written', async () => {
+    // Validation must stay ahead of the claim now that the claim moved ahead of the draft —
+    // otherwise an invalid proposal would be marked approved and then fail to produce a version,
+    // leaving an approval pointing at nothing.
+    db.proposal = proposal({ proposedRules: { handoffSlaMinutes: -5 } });
+
+    await expect(
+      reviewProposal({ tenantId: 't1', proposalId: 'p-1', reviewerId: 'fm-1', decision: 'approve' })
+    ).rejects.toMatchObject({ code: 'invalid_change' });
+
+    expect(mockProposalUpdateMany).not.toHaveBeenCalled();
+    expect(mockVersionCreate).not.toHaveBeenCalled();
   });
 
   it('rejection closes the proposal and creates no version', async () => {
