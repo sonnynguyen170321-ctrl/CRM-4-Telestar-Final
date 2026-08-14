@@ -60,8 +60,25 @@ const nameCompanyKey = (row: Pick<NormalizedImportLeadRow, 'firstName' | 'lastNa
 const buildLeadSummary = (lead: Pick<ExistingLead, 'firstName' | 'lastName' | 'company' | 'email'>) =>
   `${lead.firstName} ${lead.lastName} - ${lead.company}${lead.email ? ` (${lead.email})` : ''}`;
 
-const isUniqueConstraintViolation = (err: unknown): boolean =>
-  (err as { code?: string })?.code === 'P2002';
+/**
+ * Strip blank/null/undefined keys, leaving only what the row actually supplied.
+ *
+ * The shape a Prisma `upsert`'s `create`/`update` payload needs is different from what
+ * `accountData`/`contactData` return: those force every optional field to `null` so a plain
+ * `create()` clears nothing it shouldn't, but that same object is unsafe as an `update` payload —
+ * it would null out a field a previous row already populated. Stripping blanks makes one object
+ * safe for both halves of an upsert: an omitted key writes nothing, on create *or* update, which
+ * is what `fill()` computes from a prior read for the plain-update paths elsewhere in this file.
+ * `upsert` takes no prior read, so it needs this instead.
+ */
+const nonBlank = <T extends Record<string, unknown>>(data: T): Partial<T> => {
+  const out: Partial<T> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value === '' || value === null || value === undefined) continue;
+    out[key as keyof T] = value as T[keyof T];
+  }
+  return out;
+};
 
 const fill = (
   existing: Record<string, unknown> | null | undefined,
@@ -678,62 +695,35 @@ async function handleImportChunk(payload: ImportChunkPayload) {
 
     try {
       const createdLead = await prisma.$transaction(async (tx) => {
-        // find-then-create is a TOCTOU race, not merely a style choice: two chunk jobs for the
-        // same batch run under `{ concurrency: 3 }` (below), and a redelivered/stalled job can
-        // overlap its own prior attempt. Two rows sharing a company or normalized email then both
-        // see "no account"/"no contact" and both try to create it — one wins, one throws P2002 on
-        // `tenantId_name` / `tenantId_normalizedEmail`, uncaught, which aborted this row entirely.
-        // The fallback re-reads and merges exactly as the "found existing" branch already does,
-        // so a raced create converges to the same row an unraced one would have found.
-        let account = await tx.account.findUnique({
+        // `upsert`, not find-then-create-with-a-catch. This file used to catch a raced create's
+        // P2002 and re-read inside the *same* interactive transaction — which cannot work:
+        // Postgres aborts an entire transaction the instant one statement inside it errors, so
+        // the very next statement on that connection — including the recovery read — fails too,
+        // with "current transaction is aborted", not a P2002, so the catch's own guard rejected
+        // it and the row still ended up `error`. Confirmed against a live CI run: the account
+        // race was still there, identically, after that fix landed.
+        //
+        // `upsert` does not have this problem because it never throws on the conflict it targets
+        // — a single `INSERT ... ON CONFLICT DO UPDATE` is what Postgres executes, and Postgres
+        // itself serializes two upserts racing the same key rather than one of them failing.
+        //
+        // `nonBlank(...)` is what makes one payload safe as *both* halves of the upsert: `create`
+        // needs every field the row supplied, `update` must touch only what this row actually has
+        // so a blank incoming field can never null out a value an earlier row already filled in —
+        // which `fill()` used to compute from a prior read that an upsert has no chance to take.
+        const account = await tx.account.upsert({
           where: { tenantId_name: { tenantId, name: data.company } },
+          create: accountData(data, tenantId),
+          update: nonBlank(accountData(data, tenantId)),
         });
-        if (account) {
-          const patch = fill(account, accountData(data, tenantId));
-          if (Object.keys(patch).length > 0) {
-            account = await tx.account.update({ where: { id: account.id }, data: patch });
-          }
-        } else {
-          try {
-            account = await tx.account.create({ data: accountData(data, tenantId) });
-          } catch (err) {
-            if (!isUniqueConstraintViolation(err)) throw err;
-            account = await tx.account.findUniqueOrThrow({
-              where: { tenantId_name: { tenantId, name: data.company } },
-            });
-            const patch = fill(account, accountData(data, tenantId));
-            if (Object.keys(patch).length > 0) {
-              account = await tx.account.update({ where: { id: account.id }, data: patch });
-            }
-          }
-        }
 
-        let contact = normalizedEmail
-          ? await tx.contact.findUnique({
+        const contact = normalizedEmail
+          ? await tx.contact.upsert({
               where: { tenantId_normalizedEmail: { tenantId, normalizedEmail } },
+              create: contactData(data, tenantId),
+              update: nonBlank(contactData(data, tenantId)),
             })
-          : null;
-        if (contact) {
-          const patch = fill(contact, contactData(data, tenantId));
-          if (Object.keys(patch).length > 0) {
-            contact = await tx.contact.update({ where: { id: contact.id }, data: patch });
-          }
-        } else if (normalizedEmail) {
-          try {
-            contact = await tx.contact.create({ data: contactData(data, tenantId) });
-          } catch (err) {
-            if (!isUniqueConstraintViolation(err)) throw err;
-            contact = await tx.contact.findUniqueOrThrow({
-              where: { tenantId_normalizedEmail: { tenantId, normalizedEmail } },
-            });
-            const patch = fill(contact, contactData(data, tenantId));
-            if (Object.keys(patch).length > 0) {
-              contact = await tx.contact.update({ where: { id: contact.id }, data: patch });
-            }
-          }
-        } else {
-          contact = await tx.contact.create({ data: contactData(data, tenantId) });
-        }
+          : await tx.contact.create({ data: contactData(data, tenantId) });
 
         const leadNormalizedEmail = data.forceDuplicateLead ? null : normalizedEmail || null;
         const lead = await tx.lead.create({
