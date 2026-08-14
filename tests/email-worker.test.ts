@@ -519,6 +519,41 @@ describe('handleEmailSend — exactly-once delivery', () => {
     });
   });
 
+  /**
+   * A timeout is the ambiguous failure that matters most: the provider may have accepted the
+   * message and simply not answered in time. Treating it as an ordinary failure would put the
+   * row back in the claimable pool and the BullMQ retry would deliver a second copy.
+   */
+  it('never turns a provider timeout into a resend', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockServiceSend.mockRejectedValueOnce(new Error('ETIMEDOUT: request timed out after 30000ms'));
+
+    await expect(handleEmailSend(buildPayload())).rejects.toThrow('ETIMEDOUT');
+
+    expect(mockOutboundUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: {
+        status: 'reconciliation_required',
+        errorMessage: expect.stringContaining('ETIMEDOUT'),
+      },
+    });
+    // Explicitly not the claimable status — that is the bug this guards.
+    expect(mockOutboundUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'failed' }) })
+    );
+
+    // The retry BullMQ schedules finds the parked row and stops before the provider.
+    mockServiceSend.mockClear();
+    mockOutboundFindUnique.mockResolvedValueOnce(
+      mockOutboundMessage({ status: 'reconciliation_required' })
+    );
+
+    const retry = await handleEmailSend(buildPayload());
+
+    expect(retry).toMatchObject({ skipped: true, reason: 'awaiting_reconciliation' });
+    expect(mockServiceSend).not.toHaveBeenCalled();
+  });
+
   it('returns a definitively rejected message to the claimable pool', async () => {
     mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
     mockServiceSend.mockRejectedValueOnce(new Error('550 5.1.1 message rejected'));
