@@ -4,12 +4,49 @@
 
 | | |
 |---|---|
-| Phase | **0–8 complete.** **9 and 10 complete** and now integrated onto `integrate/phase-8-10-final` |
-| Branch | `integrate/phase-8-10-final` @ `62e9056`, off `feat/phase-8-internal-rc` (`349e495`) |
-| Blockers | **None.** Waiting on the Email Automation lane before `main` |
+| Phase | **0–10 complete**, integrated and converged on `integrate/phase-8-10-final` |
+| Branch | `integrate/phase-8-10-final` @ `e222657` (base `26f545f`) |
+| Blockers | **None in the product.** Three infrastructure items block *production*, not this branch — see below |
 | Restrictions | No external users, no real client data, sending off, email dry-run |
 
 ## Resume here
+
+### 2026-08-14 — final convergence: the release candidate is `e222657`
+
+Everything the Email Automation lane was waiting on is in, plus the two Phase 9/10 follow-ons that
+were carried as known gaps, plus one whole-business regression test.
+
+| Work | Status | Commit |
+|---|---|---|
+| Approved personalized-copy hand-off | **COMPLETE** | `0511e25`, `1318a6d` |
+| Human **edit** at approval time | **COMPLETE** | `b552ecd` |
+| One-proposal-one-draft + recovery | **COMPLETE** | `bcb64c7`, `ed4c801` |
+| Auth / session revocation hardening | **COMPLETE** | `7845f8e` |
+| Historical `nextActionAt` repair | **COMPLETE** | `dda7377` |
+| ICP adherence measurement | **COMPLETE** | `1f457ac` |
+| A/B variant attribution | **COMPLETE** | `7d65dfb` |
+| Extended RLS verification | **COMPLETE** | `f9f12d0`, repaired in `4a2533a` |
+| CI gates all four Playwright projects | **COMPLETE** | `f7248e6` |
+| Leadgen → Revenue AI → SDR golden journey | **COMPLETE, 14/14** | `e222657` |
+
+**The approval is now editable, and the edit is what sends.** `approveRequest` rewrites
+`args.approvedCopy` in the same compare-and-set that stamps the decision — args and decision have
+to move together, because execution replays the args and a retry landing between two writes would
+send wording nobody signed. `aiGenerated` is derived by diffing against the draft, never taken
+from the caller.
+
+**Two defects were found in delivered work during convergence, both in gates rather than in the
+product.** The extended RLS verifier never ran — every new INSERT named columns the schema does
+not have — while the CI change landing beside it made that script a *required* check. And `tsc`
+was failing while every reported gate said 0, because its output was piped through `tail` and the
+exit code belonged to `tail`. Both fixed; gates now capture the compiler's own exit code.
+
+**The golden journey found no product defect.** All three of its initial failures were test
+defects, and one is worth remembering: `workers/sequence.ts` reads approved copy through
+`expectedEnrollmentId`, which arrives in the **job payload**. A call that omits it correctly falls
+back to the shared template — and looks exactly like "personalization silently doesn't work".
+
+Still true and unchanged: no external users, no real client data, live sending off, email dry-run.
 
 ### 2026-08-14 — the approved-copy hand-off is wired, and two follow-ons are closed
 

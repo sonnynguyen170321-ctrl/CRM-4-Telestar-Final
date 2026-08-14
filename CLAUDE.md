@@ -195,8 +195,31 @@ One shared agent runtime serving every role, not five AI systems. **Read
 `docs/revenue-ai/STATUS.md` first**, then execute the next unchecked item in
 `docs/revenue-ai/PLAN.md`. `ARCHITECTURE.md` there is the contract.
 
-**Phases 0–7 are done and merged to `main`.** Next is **Phase 8 — the prospecting loop**. Start
-from a fresh branch off `main`; there is no Phase 7 branch left.
+**Phases 0–10 are complete and converged on `integrate/phase-8-10-final` @ `e222657`.** That
+branch is the release candidate; **it is not merged to `main`**, and `main` is still at the
+Phase 7 line. Read `docs/revenue-ai/STATUS.md` before assuming anything below is current.
+
+> **Everything the lane was waiting on has landed**, including the two follow-ons carried as known
+> gaps. ICP adherence is measured (`lib/leadgen/icpAdherence.ts`), A/B variants are attributed at
+> send time (`OutboundMessage.abVariantId`), the approved-copy hand-off is wired **and editable by
+> the approver**, the one-proposal-one-draft rule is a database constraint with a runnable repair,
+> `create-user` revokes sessions, and the RLS verifier covers the AI/learning/sequence models.
+>
+> **`tests/golden-journey.test.ts` is the whole business in one test** — sourced record →
+> ICP qualification → delivery → CRM lead → evidence → draft → human edit → approval → durable
+> `SequenceStepCopy` → launch → the exact approved wording in `OutboundMessage` → reply → the
+> exact enrollment pauses → SDR ownership → explicit handback → outcome signal → proposal →
+> exactly one draft policy. It mocks **only** the BullMQ transport, and configures no AI provider
+> on purpose. Break the chain and it fails.
+>
+> **A trap it already caught:** the sequence worker reads approved copy through
+> `expectedEnrollmentId`, which arrives in the **job payload**, not from the task. A caller that
+> omits it correctly falls back to the shared template — which looks exactly like
+> "personalization silently doesn't work". It is not.
+
+> **Never report a gate from a piped command.** `tsc --noEmit | tail` reports `tail`'s exit code.
+> A full session of green gates was hiding a real type error this way. Capture the tool's own
+> exit code, and record counts rather than "PASS".
 
 > Phase 7 shipped as one commit — knowledge architecture and the research engine (PR #65,
 > `3c8a801`, merge commit `6aeeb1f`). The monolithic `lib/ai/sdr-skills.md` became eight

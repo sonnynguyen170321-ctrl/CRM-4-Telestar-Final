@@ -9,6 +9,15 @@ staging target, Docker, or a browser — see **Outstanding — needs an environm
 below.
 **Blockers:** none in the repo.
 
+> **2026-08-14 — the create-user session-revocation item is CLOSED.** `scripts/create-user.ts`
+> now increments `authVersion` whenever a change governs access — password, role, or active state
+> — and leaves it alone for a rename. `--deactivate` exists and is mutually exclusive with
+> `--activate`. Landed as `7845f8e` on `integrate/phase-8-10-final` (originally PR #44).
+>
+> **Rotating the published demo password on any live box remains ENVIRONMENT-ONLY.** The tool that
+> does it safely now exists; whether it has been *run* against a deployment cannot be established
+> from this repository.
+
 > ⚠️ **`main` is protected as of 2026-08-08. You can no longer push to it.** Every change —
 > including documentation — goes through a branch and a pull request, and cannot merge until
 > `CI required checks` is green. This applies to the repository owner too (`enforce_admins`

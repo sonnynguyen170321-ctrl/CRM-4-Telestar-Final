@@ -7,7 +7,28 @@ Frozen Phase 8a SHA: `0bf623ec1e59da60589abe856a1a9b935a8e6c0b` (parent `2046b76
 
 ---
 
-## S1 — a post-lock exception can strand a locked task
+## Status as of 2026-08-14 — `integrate/phase-8-10-final` @ `e222657`
+
+Nothing below is deleted. Each item now carries what actually became of it.
+
+| Item | Status | Where it was closed |
+|---|---|---|
+| S1 post-lock strand | **CLOSED** | `workers/sequence.ts` releases the claim in the `catch` before rethrowing |
+| S2 occurrence-aware drift | **OPEN** | not addressed |
+| S3 `Lead.sequenceStatus` legacy cache | **DEFERRED** | still compatibility-only; add no reader, no writer |
+| S4 coarse `already_replied` dedupe | **OPEN** | not addressed |
+| S5 Revenue AI → Telestar AI rename | **DEFERRED** | deliberately, unchanged |
+| S6 `migration-order.test.ts` local run | **ENVIRONMENT-ONLY** | the `&` in the checkout path; green in CI |
+| S7 ICP adherence not measured | **CLOSED** | `lib/leadgen/icpAdherence.ts` (`1f457ac`) |
+| S8 variants aggregate as identical | **CLOSED** | `OutboundMessage.abVariantId` + `OutcomeSignal.abVariantId` (`7d65dfb`) |
+
+The post-demo test debt at the bottom of this file is **partly closed**: the golden journey
+(`tests/golden-journey.test.ts`) now covers the durable chain end to end. The deep crash-injection
+matrix and the full concurrency permutations remain open.
+
+---
+
+## S1 — a post-lock exception can strand a locked task — **CLOSED**
 
 **Where:** `workers/sequence.ts`, `handleExecuteTask`.
 
@@ -62,7 +83,7 @@ because class B replies deliberately do **not** set that stage.
 
 ---
 
-## S7 — ICP adherence is not measured, only approximated
+## S7 — ICP adherence is not measured, only approximated — **CLOSED 2026-08-14**
 
 **Where:** `lib/console/surfaces/leadgenManager.ts`.
 
@@ -77,9 +98,15 @@ Computing that needs a comparison `lib/leadgen/metrics.ts` does not expose, and 
 **Fix shape:** extend `getLeadgenMetrics` with a per-campaign requirement-match rate, and read it
 from the surface. The requirement row and the pool item both already carry everything needed.
 
+> **Closed exactly that way.** `lib/leadgen/icpAdherence.ts` reads `CampaignLeadRequirement`
+> through `matchRequirement` — the same matcher behind the per-lead assessment, exported rather
+> than duplicated — and `getLeadgenMetrics` returns it as `icpAdherence`. Missing data reports as
+> `unknown` rather than as a match, and a campaign with no criteria reads "not measured" instead
+> of 0%.
+
 ---
 
-## S8 — reporting does not separate sequence variants
+## S8 — reporting does not separate sequence variants — **CLOSED 2026-08-14**
 
 **Where:** Phase 10 attribution generally.
 
@@ -92,6 +119,12 @@ reply and the reply does not record which variant produced the message it answer
 
 **Fix shape:** carry the variant on `OutcomeMessage`/`OutboundMessage` at send time, then resolve
 it when collecting. Do not infer it from timing.
+
+> **Closed exactly that way.** `OutboundMessage.abVariantId` is written in the same statement that
+> records the send (migration `20260816000000`), the collector resolves it from the last
+> variant-carrying send at or before the outcome, and `OutcomeSignal.abVariantId` keeps it as a
+> **separate axis** from `playbookVersionId`. Approved per-prospect copy attributes to no variant:
+> the approval overrode selection, so nothing was on trial.
 
 ---
 

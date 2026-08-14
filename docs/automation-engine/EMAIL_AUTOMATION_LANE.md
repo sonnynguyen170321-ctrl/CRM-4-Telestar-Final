@@ -84,6 +84,14 @@ durable, and the sequence worker never asks a model what to say.**
 - `tests/sequence-step-copy.test.ts` enforces the boundary structurally: no file in the send path
   and no file under `lib/sequences/` may import the AI layer.
 
+## 2026-08-14 — closed, and covered by the golden journey
+
+Two things changed after the entry below was written. A reviewer can now **edit** the draft while
+approving, and the edit is what sends (`approveRequest` rewrites `args.approvedCopy` inside the
+same compare-and-set that records the decision). And the whole chain is asserted end to end
+against a real database in `tests/golden-journey.test.ts` — approved wording reaching
+`OutboundMessage.subject`/`body` with every provider unreachable.
+
 ## The hand-off, now wired end to end
 
 The gap described below is **closed**. The decision it was waiting on — *where an approval is

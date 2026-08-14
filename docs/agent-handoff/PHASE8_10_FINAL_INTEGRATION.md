@@ -5,6 +5,23 @@ branch, gated and browser-tested. The branch is ready to receive the Email Autom
 
 **Not merged to main. Do not merge to main.**
 
+> ## Superseded as a resume pointer — 2026-08-14
+>
+> Everything below is the record of the Phase 8+9+10 convergence and is accurate as of `62e9056`.
+> It is **no longer the current state**. The branch has since taken the Email Automation
+> follow-ons, the two Phase 9/10 gaps, Agent B's CI and RLS work, and the golden journey.
+>
+> | | |
+> |---|---|
+> | Current candidate | `integrate/phase-8-10-final` @ `e222657` |
+> | Current status | [`../revenue-ai/STATUS.md`](../revenue-ai/STATUS.md) |
+> | Final acceptance | [`FINAL_CRM_RELEASE_READINESS.md`](FINAL_CRM_RELEASE_READINESS.md) |
+>
+> §10 below ("integrate the Email Automation lane next") is **CLOSED** — that lane landed, and
+> its own doc records the wiring. The non-blocking follow-ons in §9 are all closed too: the
+> schema-level draft guard shipped, the approved-with-no-draft repair is runnable, and item 4's
+> ICP-adherence and A/B-variant gaps are both measured now.
+
 ---
 
 ## 1. Branch
