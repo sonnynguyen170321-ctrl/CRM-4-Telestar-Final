@@ -43,13 +43,11 @@ vi.mock('@/lib/prisma', () => ({
         findUnique: (...args: unknown[]) => mockContactFindUnique(...args),
         create: (...args: unknown[]) => mockContactCreate(...args),
         update: (...args: unknown[]) => mockContactUpdate(...args),
-        upsert: (...args: unknown[]) => mockContactUpsert(...args),
       },
       account: {
         findUnique: (...args: unknown[]) => mockAccountFindUnique(...args),
         create: (...args: unknown[]) => mockAccountCreate(...args),
         update: (...args: unknown[]) => mockAccountUpdate(...args),
-        upsert: (...args: unknown[]) => mockAccountUpsert(...args),
       },
     }),
     importBatch: {
@@ -80,11 +78,13 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: (...args: unknown[]) => mockContactFindUnique(...args),
       create: (...args: unknown[]) => mockContactCreate(...args),
       update: (...args: unknown[]) => mockContactUpdate(...args),
+      upsert: (...args: unknown[]) => mockContactUpsert(...args),
     },
     account: {
       findUnique: (...args: unknown[]) => mockAccountFindUnique(...args),
       create: (...args: unknown[]) => mockAccountCreate(...args),
       update: (...args: unknown[]) => mockAccountUpdate(...args),
+      upsert: (...args: unknown[]) => mockAccountUpsert(...args),
     },
   },
 }));

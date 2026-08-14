@@ -694,37 +694,41 @@ async function handleImportChunk(payload: ImportChunkPayload) {
     const normalizedLinkedIn = normalizeLinkedIn(data.linkedIn);
 
     try {
+      // Resolved on the bare client, *before* the transaction opens — not a style choice.
+      // Postgres's native `INSERT ... ON CONFLICT DO UPDATE` is what makes an upsert race-safe,
+      // and Prisma does not take that path for a call made through an interactive transaction's
+      // `tx` client: verified directly against a live CI failure, where the Postgres server's own
+      // STATEMENT log for the error showed a plain `INSERT`, no `ON CONFLICT` clause at all —
+      // proof Prisma had decomposed the upsert into separate steps on that connection. Once one
+      // of those steps errors, Postgres aborts the whole transaction, so nothing issued
+      // afterward on `tx` can recover, no matter how the retry is written; an earlier version of
+      // this fix learned that the hard way against the same live symptom, twice.
+      //
+      // Called on `prisma` instead, each upsert gets its own connection and Prisma's native path,
+      // so two rows racing the same company name are resolved by Postgres itself rather than by
+      // either of them. `account`/`contact` are idempotent, reusable rows independent of any one
+      // lead, so resolving them ahead of the transaction that creates the lead is not a
+      // consistency loss — the transaction below still makes the lead, the import-row status and
+      // the activity atomic together, which is the part that actually has to be.
+      //
+      // `nonBlank(...)` is what makes one payload safe as *both* halves of the upsert: `create`
+      // needs every field the row supplied, `update` must touch only what this row actually has
+      // so a blank incoming field can never null out a value an earlier row already filled in.
+      const account = await prisma.account.upsert({
+        where: { tenantId_name: { tenantId, name: data.company } },
+        create: accountData(data, tenantId),
+        update: nonBlank(accountData(data, tenantId)),
+      });
+
+      const contact = normalizedEmail
+        ? await prisma.contact.upsert({
+            where: { tenantId_normalizedEmail: { tenantId, normalizedEmail } },
+            create: contactData(data, tenantId),
+            update: nonBlank(contactData(data, tenantId)),
+          })
+        : await prisma.contact.create({ data: contactData(data, tenantId) });
+
       const createdLead = await prisma.$transaction(async (tx) => {
-        // `upsert`, not find-then-create-with-a-catch. This file used to catch a raced create's
-        // P2002 and re-read inside the *same* interactive transaction — which cannot work:
-        // Postgres aborts an entire transaction the instant one statement inside it errors, so
-        // the very next statement on that connection — including the recovery read — fails too,
-        // with "current transaction is aborted", not a P2002, so the catch's own guard rejected
-        // it and the row still ended up `error`. Confirmed against a live CI run: the account
-        // race was still there, identically, after that fix landed.
-        //
-        // `upsert` does not have this problem because it never throws on the conflict it targets
-        // — a single `INSERT ... ON CONFLICT DO UPDATE` is what Postgres executes, and Postgres
-        // itself serializes two upserts racing the same key rather than one of them failing.
-        //
-        // `nonBlank(...)` is what makes one payload safe as *both* halves of the upsert: `create`
-        // needs every field the row supplied, `update` must touch only what this row actually has
-        // so a blank incoming field can never null out a value an earlier row already filled in —
-        // which `fill()` used to compute from a prior read that an upsert has no chance to take.
-        const account = await tx.account.upsert({
-          where: { tenantId_name: { tenantId, name: data.company } },
-          create: accountData(data, tenantId),
-          update: nonBlank(accountData(data, tenantId)),
-        });
-
-        const contact = normalizedEmail
-          ? await tx.contact.upsert({
-              where: { tenantId_normalizedEmail: { tenantId, normalizedEmail } },
-              create: contactData(data, tenantId),
-              update: nonBlank(contactData(data, tenantId)),
-            })
-          : await tx.contact.create({ data: contactData(data, tenantId) });
-
         const leadNormalizedEmail = data.forceDuplicateLead ? null : normalizedEmail || null;
         const lead = await tx.lead.create({
           data: {
