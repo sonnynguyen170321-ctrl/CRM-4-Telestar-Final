@@ -37,8 +37,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Prospect not found' }, { status: 404 });
     }
 
-    const [enrollments, tasks, workOrders, actions, approvals, inbound, jobRuns, activities, transitions] =
-      await Promise.all([
+    const [
+      enrollments,
+      tasks,
+      workOrders,
+      actions,
+      approvals,
+      inbound,
+      jobRuns,
+      activities,
+      transitions,
+      outbound,
+      stepCopy,
+      draft,
+      poolItem,
+      evidence,
+    ] = await Promise.all([
         prisma.sequenceEnrollment.findMany({
           where: { tenantId, leadId },
           orderBy: { startedAt: 'desc' },
@@ -98,6 +112,50 @@ export async function GET(req: NextRequest) {
           orderBy: { createdAt: 'desc' },
           select: { kind: true, fromState: true, toState: true, status: true, createdAt: true },
         }),
+        // The send record. `subject`/`body` are included deliberately: the one question a
+        // personalized cadence has to answer is whether the words a human approved are the words
+        // that went out, and no other surface exposes what was actually rendered.
+        prisma.outboundMessage.findMany({
+          where: { tenantId, leadId },
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true, status: true, subject: true, body: true, to: true, templateId: true,
+            abVariantId: true, sequenceId: true, sequenceStepOrder: true, sentAt: true,
+            repliedAt: true, bouncedAt: true, createdAt: true,
+          },
+        }),
+        // Approved per-occurrence copy, so "durable before executable" is observable rather than
+        // inferred from the message that happened to be sent.
+        prisma.sequenceStepCopy.findMany({
+          where: { tenantId, enrollment: { leadId } },
+          orderBy: { stepOrder: 'asc' },
+          select: {
+            id: true, enrollmentId: true, stepOrder: true, subject: true, body: true,
+            aiGenerated: true, approvedById: true, approvedAt: true, citedEvidenceIds: true,
+          },
+        }),
+        prisma.sequenceDraftRecord.findUnique({
+          where: { tenantId_leadId: { tenantId, leadId } },
+          select: {
+            id: true, channel: true, steps: true, grounded: true, groundingReason: true,
+            aiGenerated: true, citedEvidenceIds: true, workOrderId: true, updatedAt: true,
+          },
+        }),
+        // Where this prospect came from. Null for a lead that never went through the pool.
+        prisma.leadPoolItem.findFirst({
+          where: { tenantId, convertedLeadId: leadId },
+          select: {
+            id: true, status: true, qualification: true, sourceType: true, sourceName: true,
+            assignedCampaignId: true, assignedSdrId: true, qualifiedById: true, qualifiedAt: true,
+            convertedLeadId: true, createdAt: true, updatedAt: true,
+          },
+        }),
+        prisma.companySignal.findMany({
+          where: { tenantId, account: { leads: { some: { id: leadId } } } },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+          select: { id: true, signalType: true, summary: true, sourceUrl: true, observedAt: true },
+        }),
       ]);
 
     const eligibility = await evaluateReengagementEligibility({ tenantId, leadId });
@@ -113,6 +171,11 @@ export async function GET(req: NextRequest) {
       jobRuns,
       activities,
       transitions,
+      outboundMessages: outbound,
+      stepCopy,
+      sequenceDraft: draft,
+      poolItem,
+      evidence,
       reengagementEligibility: eligibility,
     });
   } catch (err) {

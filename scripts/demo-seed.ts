@@ -31,6 +31,8 @@ export const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? 'TelestarDemo!2026';
 
 export const DEMO_DIRECTOR_EMAIL = 'demo.director@telestar.demo';
 export const DEMO_SDR_EMAIL = 'demo.sdr@telestar.demo';
+export const DEMO_LEADGEN_MANAGER_EMAIL = 'demo.leadgen.manager@telestar.demo';
+export const DEMO_LEADGEN_EMAIL = 'demo.leadgen@telestar.demo';
 
 /** Stable ids, so the walkthrough and the reset can both name exactly the same rows. */
 export const DEMO_IDS = {
@@ -49,6 +51,13 @@ export const DEMO_IDS = {
   ghostLead: 'demo-lead-marcus',
   playbook: 'demo-playbook-eu-logistics',
   playbookVersion: 'demo-playbook-version-1',
+  leadgenManager: 'demo-user-leadgen-manager',
+  leadgen: 'demo-user-leadgen',
+  requirement: 'demo-requirement-eu-logistics',
+  /** Sourced, unreviewed, and inside the campaign's ICP. The journey qualifies and converts it. */
+  poolOnIcp: 'demo-pool-on-icp',
+  /** Sourced and clearly outside it. Present so "100% adherence" has to be earned, not assumed. */
+  poolOffIcp: 'demo-pool-off-icp',
 } as const;
 
 /**
@@ -103,6 +112,12 @@ async function resetDemoTenant(): Promise<void> {
   await prisma.campaignPlaybook.updateMany({ where: { tenantId: t }, data: { currentVersionId: null } });
   await prisma.campaignPlaybookVersion.deleteMany({ where: { tenantId: t } });
   await prisma.campaignPlaybook.deleteMany({ where: { tenantId: t } });
+
+  // Pool rows before the leads they converted into, and before the requirement that scopes them.
+  await prisma.leadPoolItem.deleteMany({ where: { tenantId: t } });
+  await prisma.campaignLeadRequirement.deleteMany({ where: { tenantId: t } });
+  await prisma.sequenceStepCopy.deleteMany({ where: { tenantId: t } });
+  await prisma.sequenceDraftRecord.deleteMany({ where: { tenantId: t } });
 
   await prisma.meeting.deleteMany({ where: { tenantId: t } });
   await prisma.prospectTransition.deleteMany({ where: { tenantId: t } });
@@ -164,6 +179,23 @@ async function seedDemoTenant(): Promise<void> {
     },
   });
 
+  // The leadgen floor. A separate branch of the org from the SDR floor — leadgen_manager routes
+  // sourced records into campaigns, and has no SDRs beneath them (see lib/leadgen/assignableReps).
+  const leadgenManager = await prisma.user.create({
+    data: {
+      id: DEMO_IDS.leadgenManager, tenantId: t, email: DEMO_LEADGEN_MANAGER_EMAIL,
+      firstName: 'Thu', lastName: 'Pham', role: 'leadgen_manager', password, isActive: true,
+      managerId: director.id, timezone: 'UTC',
+    },
+  });
+  await prisma.user.create({
+    data: {
+      id: DEMO_IDS.leadgen, tenantId: t, email: DEMO_LEADGEN_EMAIL,
+      firstName: 'Bao', lastName: 'Tran', role: 'leadgen', password, isActive: true,
+      managerId: leadgenManager.id, timezone: 'UTC',
+    },
+  });
+
   const client = await prisma.client.create({
     data: {
       id: DEMO_IDS.client, tenantId: t, name: 'Vertex Fleet Systems', industry: 'Supply chain software',
@@ -175,6 +207,52 @@ async function seedDemoTenant(): Promise<void> {
       id: DEMO_IDS.campaign, tenantId: t, clientId: client.id,
       name: 'Vertex — EU Logistics Q3', startDate: new Date(now - 30 * DAY), status: 'active',
     },
+  });
+
+  // What the client actually asked for. This is the ICP — it lives here and nowhere else; the
+  // playbook contract is `.strict()` and rejects an `icp` key outright.
+  await prisma.campaignLeadRequirement.create({
+    data: {
+      id: DEMO_IDS.requirement, tenantId: t, campaignId: campaign.id,
+      requiredCount: 25,
+      targetTitles: ['VP Operations', 'Head of Logistics', 'Operations Director'],
+      targetCountries: ['Netherlands'],
+      targetIndustries: ['Logistics'],
+      companySizeMin: 50, companySizeMax: 5000,
+      requiredFields: ['email'],
+      notes: 'EU logistics operators running their own fleet.',
+      status: 'open',
+      createdById: leadgenManager.id,
+    },
+  });
+
+  // Two sourced records, neither reviewed. The journey qualifies and routes them through the real
+  // endpoints rather than writing the CRM leads directly — the front half of the funnel is part of
+  // what is being tested, not a precondition of it.
+  //
+  // The off-ICP record exists so adherence has to be earned: a fixture with only matching rows
+  // would report 100% no matter what the matcher did.
+  await prisma.leadPoolItem.createMany({
+    data: [
+      {
+        id: DEMO_IDS.poolOnIcp, tenantId: t,
+        firstName: 'Ilse', lastName: 'Bakker', company: 'Rotterdam Freight Group',
+        title: 'Head of Logistics', email: 'ilse.bakker@rotterdamfreight.demo',
+        country: 'Netherlands', industry: 'Logistics', website: 'rotterdamfreight.demo',
+        sourceType: 'csv_import', sourceName: 'EU fleet list Q3',
+        status: 'imported', qualification: 'unreviewed',
+        emailValidation: 'valid', emailScore: 100,
+      },
+      {
+        id: DEMO_IDS.poolOffIcp, tenantId: t,
+        firstName: 'Georg', lastName: 'Keller', company: 'Alpine Dental Supplies',
+        title: 'Office Manager', email: 'georg.keller@alpinedental.demo',
+        country: 'Austria', industry: 'Medical devices', website: 'alpinedental.demo',
+        sourceType: 'csv_import', sourceName: 'EU fleet list Q3',
+        status: 'imported', qualification: 'unreviewed',
+        emailValidation: 'valid', emailScore: 90,
+      },
+    ],
   });
 
   await prisma.emailAccount.create({
