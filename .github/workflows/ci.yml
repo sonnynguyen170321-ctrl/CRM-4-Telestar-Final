@@ -167,6 +167,10 @@ jobs:
         run: git fetch --no-tags --depth=1 origin main
         shell: bash
 
+      - name: Validate Prisma schema
+        run: npx prisma validate
+        shell: bash
+
       # Runs before the replay on purpose. Prisma stamps a migration with generation time rather
       # than dependency position, which has produced three migrations sorting before the tables
       # they alter. Replay catches it, but only after building a database; this names the file in
@@ -193,6 +197,12 @@ jobs:
             --shadow-database-url postgresql://postgres:postgres@localhost:5432/telestar_shadow \
             --exit-code
         shell: bash
+
+      - name: Verify PostgreSQL RLS tenant isolation
+        run: node scripts/verify-rls.mjs
+        shell: bash
+        env:
+          ADMIN_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 
   # ── Production build + end-to-end journeys against it ─────────────────────
   e2e:
@@ -292,11 +302,9 @@ jobs:
           exit 1
         shell: bash
 
-      # The two suites CLAUDE.md tracks as the gate. `user-flow-31step.spec.ts` is
-      # deliberately excluded: it is not part of the documented 20/20 and has never been
-      # run green in CI, so requiring it would block merges on an unknown.
+      # Mandatory end-to-end gating across all projects: setup, audit, demo, chromium.
       - name: Playwright
-        run: set -o pipefail; npx playwright test crm-journeys deep-smoke 2>&1 | tee playwright.log
+        run: set -o pipefail; npx playwright test 2>&1 | tee playwright.log
         shell: bash
         env:
           BASE_URL: http://localhost:3000
