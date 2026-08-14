@@ -1,11 +1,21 @@
-import type { PrismaClient } from '@prisma/client';
 import { prisma as defaultPrisma } from '@/lib/prisma';
 import { resolveOccurrenceTask } from './occurrenceTask';
+
+/**
+ * The application's client, not a bare `PrismaClient`.
+ *
+ * `lib/prisma.ts` returns an `$extends`-wrapped client whose model methods have narrower result
+ * types, so it is not assignable to `PrismaClient` — the script that passes it in did not compile.
+ * Typing the option as "whatever `lib/prisma` exports" keeps the seam injectable for tests while
+ * making the only real caller type-check, and it means a repair can never quietly run on a client
+ * that skips the tenant extension.
+ */
+type AppPrismaClient = typeof defaultPrisma;
 
 export interface BackfillOptions {
   dryRun?: boolean;
   tenantId?: string;
-  client?: PrismaClient;
+  client?: AppPrismaClient;
 }
 
 export interface UnmatchedEnrollment {
