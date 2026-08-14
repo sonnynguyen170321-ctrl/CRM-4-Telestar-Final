@@ -60,6 +60,9 @@ const nameCompanyKey = (row: Pick<NormalizedImportLeadRow, 'firstName' | 'lastNa
 const buildLeadSummary = (lead: Pick<ExistingLead, 'firstName' | 'lastName' | 'company' | 'email'>) =>
   `${lead.firstName} ${lead.lastName} - ${lead.company}${lead.email ? ` (${lead.email})` : ''}`;
 
+const isUniqueConstraintViolation = (err: unknown): boolean =>
+  (err as { code?: string })?.code === 'P2002';
+
 const fill = (
   existing: Record<string, unknown> | null | undefined,
   data: Record<string, unknown>
@@ -675,6 +678,13 @@ async function handleImportChunk(payload: ImportChunkPayload) {
 
     try {
       const createdLead = await prisma.$transaction(async (tx) => {
+        // find-then-create is a TOCTOU race, not merely a style choice: two chunk jobs for the
+        // same batch run under `{ concurrency: 3 }` (below), and a redelivered/stalled job can
+        // overlap its own prior attempt. Two rows sharing a company or normalized email then both
+        // see "no account"/"no contact" and both try to create it — one wins, one throws P2002 on
+        // `tenantId_name` / `tenantId_normalizedEmail`, uncaught, which aborted this row entirely.
+        // The fallback re-reads and merges exactly as the "found existing" branch already does,
+        // so a raced create converges to the same row an unraced one would have found.
         let account = await tx.account.findUnique({
           where: { tenantId_name: { tenantId, name: data.company } },
         });
@@ -684,7 +694,18 @@ async function handleImportChunk(payload: ImportChunkPayload) {
             account = await tx.account.update({ where: { id: account.id }, data: patch });
           }
         } else {
-          account = await tx.account.create({ data: accountData(data, tenantId) });
+          try {
+            account = await tx.account.create({ data: accountData(data, tenantId) });
+          } catch (err) {
+            if (!isUniqueConstraintViolation(err)) throw err;
+            account = await tx.account.findUniqueOrThrow({
+              where: { tenantId_name: { tenantId, name: data.company } },
+            });
+            const patch = fill(account, accountData(data, tenantId));
+            if (Object.keys(patch).length > 0) {
+              account = await tx.account.update({ where: { id: account.id }, data: patch });
+            }
+          }
         }
 
         let contact = normalizedEmail
@@ -696,6 +717,19 @@ async function handleImportChunk(payload: ImportChunkPayload) {
           const patch = fill(contact, contactData(data, tenantId));
           if (Object.keys(patch).length > 0) {
             contact = await tx.contact.update({ where: { id: contact.id }, data: patch });
+          }
+        } else if (normalizedEmail) {
+          try {
+            contact = await tx.contact.create({ data: contactData(data, tenantId) });
+          } catch (err) {
+            if (!isUniqueConstraintViolation(err)) throw err;
+            contact = await tx.contact.findUniqueOrThrow({
+              where: { tenantId_normalizedEmail: { tenantId, normalizedEmail } },
+            });
+            const patch = fill(contact, contactData(data, tenantId));
+            if (Object.keys(patch).length > 0) {
+              contact = await tx.contact.update({ where: { id: contact.id }, data: patch });
+            }
           }
         } else {
           contact = await tx.contact.create({ data: contactData(data, tenantId) });

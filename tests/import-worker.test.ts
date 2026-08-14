@@ -18,8 +18,10 @@ const mockContactFindUnique = vi.fn();
 const mockContactCreate = vi.fn();
 const mockContactUpdate = vi.fn();
 const mockAccountFindUnique = vi.fn();
+const mockAccountFindUniqueOrThrow = vi.fn();
 const mockAccountCreate = vi.fn();
 const mockAccountUpdate = vi.fn();
+const mockContactFindUniqueOrThrow = vi.fn();
 const mockRowCreate = vi.fn();
 const mockRowCreateMany = vi.fn();
 
@@ -39,11 +41,13 @@ vi.mock('@/lib/prisma', () => ({
       },
       contact: {
         findUnique: (...args: unknown[]) => mockContactFindUnique(...args),
+        findUniqueOrThrow: (...args: unknown[]) => mockContactFindUniqueOrThrow(...args),
         create: (...args: unknown[]) => mockContactCreate(...args),
         update: (...args: unknown[]) => mockContactUpdate(...args),
       },
       account: {
         findUnique: (...args: unknown[]) => mockAccountFindUnique(...args),
+        findUniqueOrThrow: (...args: unknown[]) => mockAccountFindUniqueOrThrow(...args),
         create: (...args: unknown[]) => mockAccountCreate(...args),
         update: (...args: unknown[]) => mockAccountUpdate(...args),
       },
@@ -394,6 +398,80 @@ describe('handleImportChunk', () => {
     mockRowFindMany.mockResolvedValue([]);
     const result = await handleImportChunk(CHUNK_PAYLOAD);
     expect(result).toEqual({ skipped: true, reason: 'no_rows_found' });
+  });
+
+  /**
+   * Confirmed against a live CI run, verbatim from the Postgres server itself, not inferred:
+   *
+   *   ERROR:  duplicate key value violates unique constraint "Account_tenantId_name_key"
+   *   STATEMENT: INSERT INTO "public"."Account" ...
+   *
+   * find-then-create is a TOCTOU race: two chunk jobs for the same batch run under
+   * `{ concurrency: 3 }`, and a stalled/redelivered job can overlap its own prior attempt. Two
+   * rows resolving the same account or contact both see "not found" and both try to create it —
+   * one wins, one used to throw P2002 uncaught, which failed that row (or, under a wider
+   * overlap, every row racing the same target). The fix falls back to a find-and-merge on the
+   * exact conflict rather than losing the row.
+   */
+  it('recovers when two rows race to create the same account', async () => {
+    mockRowFindMany.mockResolvedValue([
+      makeRow('row-1', 1, { firstName: 'A', lastName: 'B', company: 'Acme', email: 'a@b.com' }),
+    ]);
+    mockAccountFindUnique.mockResolvedValueOnce(null); // this row's own read: nothing yet
+    const conflict = Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
+    mockAccountCreate.mockRejectedValueOnce(conflict); // a concurrent row won the race
+    mockAccountFindUniqueOrThrow.mockResolvedValue({ id: 'account-1', name: 'Acme', tenantId: 't1' });
+    mockLeadCreate.mockResolvedValue({ id: 'lead-1' });
+
+    const result = await handleImportChunk(CHUNK_PAYLOAD);
+
+    expect(result.created).toBe(1);
+    expect(result.errors).toBe(0);
+    expect(mockAccountFindUniqueOrThrow).toHaveBeenCalledWith({
+      where: { tenantId_name: { tenantId: 'tenant-1', name: 'Acme' } },
+    });
+    // The row still gets the winner's account, not a second one.
+    expect(mockLeadCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ accountId: 'account-1' }),
+    });
+  });
+
+  it('recovers when two rows race to create the same contact', async () => {
+    mockRowFindMany.mockResolvedValue([
+      makeRow('row-1', 1, { firstName: 'A', lastName: 'B', company: 'Acme', email: 'a@b.com' }),
+    ]);
+    mockContactFindUnique.mockResolvedValueOnce(null);
+    const conflict = Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
+    mockContactCreate.mockRejectedValueOnce(conflict);
+    mockContactFindUniqueOrThrow.mockResolvedValue({
+      id: 'contact-1', firstName: 'A', lastName: 'B', email: 'a@b.com', tenantId: 't1',
+    });
+    mockLeadCreate.mockResolvedValue({ id: 'lead-1' });
+
+    const result = await handleImportChunk(CHUNK_PAYLOAD);
+
+    expect(result.created).toBe(1);
+    expect(result.errors).toBe(0);
+    expect(mockContactFindUniqueOrThrow).toHaveBeenCalledWith({
+      where: { tenantId_normalizedEmail: { tenantId: 'tenant-1', normalizedEmail: 'a@b.com' } },
+    });
+    expect(mockLeadCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ contactId: 'contact-1' }),
+    });
+  });
+
+  it('still fails the row when the create error is not a unique-constraint conflict', async () => {
+    mockRowFindMany.mockResolvedValue([
+      makeRow('row-1', 1, { firstName: 'A', lastName: 'B', company: 'Acme', email: 'a@b.com' }),
+    ]);
+    mockAccountFindUnique.mockResolvedValueOnce(null);
+    mockAccountCreate.mockRejectedValueOnce(new Error('connection reset'));
+
+    const result = await handleImportChunk(CHUNK_PAYLOAD);
+
+    expect(result.created).toBe(0);
+    expect(result.errors).toBe(1);
+    expect(mockAccountFindUniqueOrThrow).not.toHaveBeenCalled();
   });
 });
 
