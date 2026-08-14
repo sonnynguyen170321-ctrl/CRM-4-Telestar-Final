@@ -4,17 +4,29 @@ import { authorizeCapability, type AuthorizationOutcome } from '@/lib/agent/auth
 import { capabilityForTool } from '@/lib/agent/toolCapabilities';
 import type { SessionUser } from '@/lib/auth';
 import { executeTool } from '@/lib/ai/tools';
+import { resumeApprovedAction } from '@/lib/workorders/approvals';
 import { RetryableResearchError } from '@/lib/research/error';
 
 export interface ExecuteActionInput {
   actionKey: string;
   toolName: string;
-  args: Record<string, string>;
+  /** Parsed JSON. Structured values are legitimate — see `PlannedToolCall.args`. */
+  args: Record<string, unknown>;
   sessionUser: SessionUser;
   leadId?: string;
   campaignId?: string;
   playbookVersionId?: string;
   workOrderId?: string;
+  /**
+   * The approval this action is running under, when a human has already decided it.
+   *
+   * Deliberately an **id, not a flag**. The runtime re-derives the decision from this request on
+   * every attempt — a tightened policy, an expired approval, a rejection or a level that no longer
+   * covers the action all still refuse here. Passing `approved: true` would turn an approval into
+   * a bearer token for an action whose world has moved on, which is the one thing
+   * `resumeApprovedAction` exists to prevent.
+   */
+  approvalRequestId?: string;
 }
 
 export interface ExecuteActionResult {
@@ -71,7 +83,22 @@ export async function executeAgentAction(input: ExecuteActionInput): Promise<Exe
 
   const authorization = await authorizeCapability({ role, tenantId }, capability);
 
-  const status = authorization.outcome === 'ALLOW' ? 'running' : 'refused';
+  // An action that needs approval may run when a human has already granted one — but only after
+  // that approval is re-derived here, from the request, against current policy. This is the second
+  // independent check, not a hand-off: `executeWorkOrder` resumed the same request to decide
+  // whether to call at all, and neither side trusts the other's answer.
+  let approvalCleared = false;
+  if (authorization.outcome !== 'ALLOW' && authorization.outcome !== 'DENY' && input.approvalRequestId) {
+    const resume = await resumeApprovedAction({
+      requestId: input.approvalRequestId,
+      tenantId,
+      actor: { role, tenantId },
+    });
+    approvalCleared = resume.status === 'proceed';
+  }
+
+  const permitted = authorization.outcome === 'ALLOW' || approvalCleared;
+  const status = permitted ? 'running' : 'refused';
 
   const action = await prisma.agentAction.upsert({
     where: {
@@ -106,7 +133,7 @@ export async function executeAgentAction(input: ExecuteActionInput): Promise<Exe
     },
   });
 
-  if (authorization.outcome !== 'ALLOW') {
+  if (!permitted) {
     const errorMsg = refusalMessage(authorization.outcome);
     await prisma.agentAction.update({
       where: { id: action.id },
@@ -125,6 +152,7 @@ export async function executeAgentAction(input: ExecuteActionInput): Promise<Exe
       sessionUser: input.sessionUser,
       workOrderId: input.workOrderId,
       agentActionId: action.id, // passing this down for AiCall linkage
+      approvalRequestId: input.approvalRequestId,
     });
 
     await prisma.agentAction.update({

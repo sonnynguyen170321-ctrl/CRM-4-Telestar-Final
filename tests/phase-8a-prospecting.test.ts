@@ -73,6 +73,7 @@ import {
   COLD_LAUNCH_STATES,
   launchEnrollmentId,
 } from '@/lib/prospects/outreach';
+import { approveRequest } from '@/lib/workorders/approvals';
 import { prepareProspectOutreach } from '@/lib/research/prospectOutreach';
 import { executeAccountResearch } from '@/lib/research/engine';
 import { markProspectAIManaged } from '@/lib/prospects/prospecting';
@@ -620,6 +621,40 @@ describe('Phase 8a — AI-managed prospecting', () => {
         ).rejects.toBeInstanceOf(SequenceDraftAccessError);
       });
     });
+
+    /**
+     * The draft has to outlive the call that produced it, because the work order that *sends* it
+     * is a different order run at a different time — and the planner that assembles that order
+     * calls no provider by contract. A draft returned only in memory is one the launch can never
+     * be planned from, which is why every cadence used its shared template before this.
+     */
+    it('persists the draft so a later launch can be planned from it', async () => {
+      await inTenantA(async () => {
+        const draft = await draftSequenceForLead(userA, { tenantId: tenantA, leadId: leadA });
+
+        const stored = await prisma.sequenceDraftRecord.findUniqueOrThrow({
+          where: { tenantId_leadId: { tenantId: tenantA, leadId: leadA } },
+        });
+
+        expect(stored.channel).toBe('email');
+        expect(stored.grounded).toBe(draft.grounded);
+        expect(stored.aiGenerated).toBe(draft.aiGenerated);
+        expect((stored.steps as { order: number; body: string }[]).map((s) => s.body)).toEqual(
+          draft.steps.map((s) => s.body)
+        );
+      });
+    }, 60_000);
+
+    it('re-drafting replaces the current draft rather than accumulating them', async () => {
+      await inTenantA(async () => {
+        await draftSequenceForLead(userA, { tenantId: tenantA, leadId: leadA });
+        await draftSequenceForLead(userA, { tenantId: tenantA, leadId: leadA });
+
+        expect(
+          await prisma.sequenceDraftRecord.count({ where: { tenantId: tenantA, leadId: leadA } })
+        ).toBe(1);
+      });
+    }, 60_000);
   });
 
   // =========================================================================
@@ -655,6 +690,176 @@ describe('Phase 8a — AI-managed prospecting', () => {
         expect(lead.operatingState).not.toBe('ai_managed');
       });
     }, 60_000);
+
+    /**
+     * The hand-off from the draft to the send, and the reason it goes through the planner's args
+     * rather than anywhere else: `requestApproval` stores `step.args` verbatim, so the words in
+     * these args are the words a human is shown, the words the approval row keeps, and the words
+     * execution replays. Approved copy and sent copy are one object rather than two that agree.
+     */
+    describe('approved copy reaches the launch through the planned args', () => {
+      async function storedDraft() {
+        await prisma.lead.update({
+          where: { id: leadA },
+          data: { sequenceId: sequenceA, operatingState: 'ready_for_outreach' },
+        });
+        return draftSequenceForLead(userA, { tenantId: tenantA, leadId: leadA });
+      }
+
+      it('carries the stored draft into the launch args', async () => {
+        await inTenantA(async () => {
+          process.env.SEQUENCE_AI_PERSONALIZATION = 'true';
+          try {
+            const draft = await storedDraft();
+            const order = await makeOrder('outreach_launch', leadA);
+
+            const steps = await planWorkOrderSteps(order);
+
+            expect(steps.map((s) => s.toolName)).toEqual(['enroll_lead_in_sequence']);
+            const copy = steps[0].args.approvedCopy as { stepOrder: number; body: string }[];
+            expect(copy.map((c) => c.stepOrder)).toEqual([1]);
+            expect(copy.map((c) => c.body)).toEqual(draft.steps.map((s) => s.body));
+          } finally {
+            delete process.env.SEQUENCE_AI_PERSONALIZATION;
+          }
+        });
+      }, 60_000);
+
+      it('plans no copy when personalization is off, so the cadence uses its templates', async () => {
+        await inTenantA(async () => {
+          delete process.env.SEQUENCE_AI_PERSONALIZATION;
+          await storedDraft();
+          const order = await makeOrder('outreach_launch', leadA);
+
+          const steps = await planWorkOrderSteps(order);
+
+          expect(steps.map((s) => s.toolName)).toEqual(['enroll_lead_in_sequence']);
+          expect(steps[0].args.approvedCopy).toBeUndefined();
+        });
+      }, 60_000);
+
+      it('plans no copy when the lead has no stored draft', async () => {
+        await inTenantA(async () => {
+          process.env.SEQUENCE_AI_PERSONALIZATION = 'true';
+          try {
+            await prisma.lead.update({
+              where: { id: leadA },
+              data: { sequenceId: sequenceA, operatingState: 'ready_for_outreach' },
+            });
+            const order = await makeOrder('outreach_launch', leadA);
+
+            const steps = await planWorkOrderSteps(order);
+
+            expect(steps[0].args.approvedCopy).toBeUndefined();
+          } finally {
+            delete process.env.SEQUENCE_AI_PERSONALIZATION;
+          }
+        });
+      }, 60_000);
+
+      /**
+       * All-or-nothing on purpose. Personalizing the steps that happen to line up and letting the
+       * rest fall back to their templates is the silent substitution this lane keeps refusing: the
+       * prospect would receive a personalized opener and a generic follow-up, and nothing would
+       * record that half the approval was not used.
+       */
+      it('plans no copy when the draft does not line up with the sequence it would send', async () => {
+        await inTenantA(async () => {
+          process.env.SEQUENCE_AI_PERSONALIZATION = 'true';
+          try {
+            await storedDraft();
+
+            // The draft is a single email; give the cadence a second step it cannot cover.
+            await prisma.sequenceStep.create({
+              data: {
+                tenantId: tenantA,
+                sequenceId: sequenceA,
+                order: 2,
+                channel: 'email',
+                delayDays: 3,
+                instructions: 'Follow-up touch',
+              },
+            });
+
+            const order = await makeOrder('outreach_launch', leadA);
+            const steps = await planWorkOrderSteps(order);
+
+            expect(steps.map((s) => s.toolName)).toEqual(['enroll_lead_in_sequence']);
+            expect(steps[0].args.approvedCopy).toBeUndefined();
+          } finally {
+            delete process.env.SEQUENCE_AI_PERSONALIZATION;
+          }
+        });
+      }, 60_000);
+    });
+
+    /**
+     * What a human signed is what sends.
+     *
+     * The dangerous shape is not a malicious edit — it is a perfectly ordinary re-plan. The order
+     * pauses for approval, someone re-drafts the lead in the meantime, and the retry plans fresh
+     * args. Executing those would send words nobody approved while the approval row sat there
+     * recording different ones, and every status surface would call it approved.
+     */
+    it('an approved request executes the approved words, not a fresher draft', async () => {
+      await inTenantA(async () => {
+        process.env.SEQUENCE_AI_PERSONALIZATION = 'true';
+        try {
+          await prisma.lead.update({
+            where: { id: leadA },
+            data: { sequenceId: sequenceA, operatingState: 'ready_for_outreach' },
+          });
+          const draft = await draftSequenceForLead(userA, { tenantId: tenantA, leadId: leadA });
+          const approvedBody = draft.steps[0].body;
+
+          const order = await makeOrder('outreach_launch', leadA);
+          const firstPass = await executeWorkOrder({
+            workOrderId: order.id,
+            tenantId: tenantA,
+            actorUserId: userA.id,
+            steps: await planWorkOrderSteps(order),
+          });
+          expect(firstPass.pausedReason).toBe('awaiting_approval');
+
+          const request = await prisma.agentApprovalRequest.findFirstOrThrow({
+            where: { tenantId: tenantA, workOrderId: order.id },
+          });
+          const recorded = (request.args as { approvedCopy?: { body: string }[] }).approvedCopy;
+          expect(recorded?.map((c) => c.body)).toEqual([approvedBody]);
+
+          await approveRequest({
+            requestId: request.id,
+            tenantId: tenantA,
+            approver: { id: userA.id, role: userA.role },
+          });
+
+          // The draft moves on after the human signed. What sends must not.
+          await prisma.sequenceDraftRecord.update({
+            where: { tenantId_leadId: { tenantId: tenantA, leadId: leadA } },
+            data: { steps: [{ ...draft.steps[0], body: 'Rewritten after the approval' }] },
+          });
+
+          await activateWorkOrder({ workOrderId: order.id, tenantId: tenantA });
+          const second = await executeWorkOrder({
+            workOrderId: order.id,
+            tenantId: tenantA,
+            actorUserId: userA.id,
+            steps: await planWorkOrderSteps(order),
+          });
+          expect(second.status).toBe('completed');
+
+          const enrollment = await prisma.sequenceEnrollment.findFirstOrThrow({
+            where: { tenantId: tenantA, leadId: leadA, status: 'active' },
+          });
+          const copy = await prisma.sequenceStepCopy.findUniqueOrThrow({
+            where: { enrollmentId_stepOrder: { enrollmentId: enrollment.id, stepOrder: 1 } },
+          });
+          expect(copy.body).toBe(approvedBody);
+        } finally {
+          delete process.env.SEQUENCE_AI_PERSONALIZATION;
+        }
+      });
+    }, 90_000);
 
     it('enrolls through the domain service and marks the prospect AI-managed', async () => {
       await inTenantA(async () => {

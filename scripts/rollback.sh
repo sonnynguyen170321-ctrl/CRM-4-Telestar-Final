@@ -16,7 +16,7 @@
 set -euo pipefail
 
 ENV_FILE="${ENV_FILE:-.env.production}"
-COMPOSE_FILES="${COMPOSE_FILES:--f docker-compose.yml -f docker-compose.aws.yml}"
+COMPOSE_FILES="${COMPOSE_FILES:--f docker-compose.yml}"
 RECORD_FILE="${RECORD_FILE:-deployments.ndjson}"
 DOCKER="${DOCKER:-sudo docker}"
 

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { canAccessLead, type SessionUser } from '@/lib/auth';
 import { selectSkillModules, loadSkillModule, BASE_SDR_HEADER } from '@/lib/ai/skill-retriever';
@@ -206,7 +207,7 @@ export async function draftSequenceForLead(
     (step, index) => ({ ...step, order: index + 1 })
   );
 
-  return {
+  const draft: SequenceDraft = {
     leadId: lead.id,
     tenantId: input.tenantId,
     steps,
@@ -217,6 +218,46 @@ export async function draftSequenceForLead(
     aiGenerated: !!generated,
     aiCallId,
   };
+
+  // The draft has to outlive this call. The work order that *sends* it is a different order run
+  // later, and the planner that assembles it calls no provider by contract — so a draft returned
+  // only in memory is one the launch can never be planned from.
+  //
+  // Keyed by lead, so re-drafting replaces the current proposal rather than accumulating
+  // candidates. This row is a proposal, not a record of what was sent: the durable record of
+  // approved wording is the `AgentApprovalRequest.args` a human signed, and then
+  // `SequenceStepCopy` on the enrollment.
+  await prisma.sequenceDraftRecord.upsert({
+    where: { tenantId_leadId: { tenantId: input.tenantId, leadId: lead.id } },
+    update: {
+      channel,
+      steps: draft.steps as unknown as Prisma.InputJsonValue,
+      grounded,
+      groundingReason: groundingReason ?? null,
+      aiGenerated: draft.aiGenerated,
+      skillModules,
+      citedEvidenceIds: draft.citedEvidenceIds,
+      aiCallId: aiCallId ?? null,
+      workOrderId: input.workOrderId ?? null,
+      draftedById: user.id,
+    },
+    create: {
+      tenantId: input.tenantId,
+      leadId: lead.id,
+      channel,
+      steps: draft.steps as unknown as Prisma.InputJsonValue,
+      grounded,
+      groundingReason: groundingReason ?? null,
+      aiGenerated: draft.aiGenerated,
+      skillModules,
+      citedEvidenceIds: draft.citedEvidenceIds,
+      aiCallId: aiCallId ?? null,
+      workOrderId: input.workOrderId ?? null,
+      draftedById: user.id,
+    },
+  });
+
+  return draft;
 }
 
 /**

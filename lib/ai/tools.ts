@@ -21,6 +21,19 @@ function refusalMessage(outcome: AuthorizationOutcome): string {
   }
 }
 
+/**
+ * One parameter in a tool's JSON Schema. Recursive, because a parameter may be an array of
+ * objects — approved outreach copy is the first, and it is the shape an approver reads.
+ */
+export interface ToolParameterSchema {
+  type: string;
+  description?: string;
+  enum?: string[];
+  items?: ToolParameterSchema;
+  properties?: Record<string, ToolParameterSchema>;
+  required?: string[];
+}
+
 export interface ToolDefinition {
   type: 'function';
   function: {
@@ -28,7 +41,7 @@ export interface ToolDefinition {
     description: string;
     parameters: {
       type: string;
-      properties: Record<string, { type: string; description: string; enum?: string[] }>;
+      properties: Record<string, ToolParameterSchema>;
       required: string[];
     };
   };
@@ -224,6 +237,25 @@ export const AI_TOOLS: ToolDefinition[] = [
         properties: {
           leadId: { type: 'string', description: 'Lead ID to enroll.' },
           sequenceId: { type: 'string', description: 'Sequence ID to enroll into.' },
+          approvedCopy: {
+            type: 'array',
+            description:
+              'Approved per-prospect copy for this cadence. These arguments are what an approver is shown and what execution replays, so this is the exact wording that will reach the prospect. Omit it and every step uses the sequence template.',
+            items: {
+              type: 'object',
+              properties: {
+                stepOrder: { type: 'number', description: 'Sequence step order, starting at 1.' },
+                subject: { type: 'string', description: 'Subject line for this step.' },
+                body: { type: 'string', description: 'Body for this step.' },
+                citedEvidenceIds: {
+                  type: 'array',
+                  description: 'Evidence rows this copy is grounded in.',
+                  items: { type: 'string' },
+                },
+              },
+              required: ['stepOrder', 'body'],
+            },
+          },
         },
         required: ['leadId', 'sequenceId'],
       },
@@ -253,6 +285,14 @@ export interface ToolContext {
   sessionUser?: SessionUser;
   /** Linkage back to the executing AgentAction for AI calls */
   agentActionId?: string;
+  /**
+   * The approval this call runs under, when a human has already decided it.
+   *
+   * An id rather than a flag, and re-derived here independently of the runtime's own check —
+   * see `ExecuteActionInput.approvalRequestId`. Absent for interactive chat, where a capability
+   * needing approval is still refused outright.
+   */
+  approvalRequestId?: string;
 }
 
 /**
@@ -272,9 +312,51 @@ export interface ToolContext {
 /**
  * Execute a tool call by name. Wraps capability check & domain execution.
  */
+/**
+ * Read a tool argument that must be a string.
+ *
+ * Arguments arrive as parsed JSON — from a model, or from a planner that now sends structured
+ * values too — so `unknown` is what they actually are. Anything non-string reads as absent, which
+ * every tool below already treats as a refusal rather than a default.
+ */
+function stringArg(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+/**
+ * Does a human's approval already cover this call?
+ *
+ * `DENY` is never cleared — an approval cannot widen authority, only satisfy a requirement for it.
+ * With no approval id in context the answer is no, so interactive chat is unaffected: a capability
+ * set to `approval` is still refused there, because nobody has approved anything.
+ */
+async function approvalClears(
+  outcome: AuthorizationOutcome,
+  context: ToolContext
+): Promise<boolean> {
+  if (outcome === 'DENY' || !context.approvalRequestId || !context.tenantId || !context.role) {
+    return false;
+  }
+
+  const { resumeApprovedAction } = await import('@/lib/workorders/approvals');
+  const resume = await resumeApprovedAction({
+    requestId: context.approvalRequestId,
+    tenantId: context.tenantId,
+    actor: { role: context.role, tenantId: context.tenantId },
+  });
+  return resume.status === 'proceed';
+}
+
+/** Narrow the string-only subset of a tool's arguments, for helpers that only ever want strings. */
+function stringArgs(args: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(args).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+  );
+}
+
 export async function executeTool(
   toolName: string,
-  args: Record<string, string>,
+  args: Record<string, unknown>,
   context: ToolContext
 ): Promise<string> {
   const capability = capabilityForTool(toolName);
@@ -292,48 +374,62 @@ export async function executeTool(
       capability
     );
 
-    if (decision.outcome !== 'ALLOW') {
+    if (decision.outcome !== 'ALLOW' && !(await approvalClears(decision.outcome, context))) {
       return refusalMessage(decision.outcome);
     }
   }
 
   switch (toolName) {
     case 'search_web':
-      return searchWeb(args.query, context);
+      return searchWeb(stringArg(args.query), context);
 
     case 'visit_page':
-      return visitPage(args.url, context);
+      return visitPage(stringArg(args.url), context);
 
     case 'research_account':
-      return runResearchAccount(args.accountId, args.depth, context);
+      return runResearchAccount(stringArg(args.accountId), stringArg(args.depth), context);
 
     case 'research_contact':
-      return runResearchContact(args.contactId, args.depth, context);
+      return runResearchContact(stringArg(args.contactId), stringArg(args.depth), context);
 
     case 'prioritize_leads':
-      return runPrioritizeLeads(args, context);
+      return runPrioritizeLeads(stringArgs(args), context);
 
     case 'evaluate_lead_quality':
-      return runEvaluateLeadQuality(args.leadId, context);
+      return runEvaluateLeadQuality(stringArg(args.leadId), context);
 
     case 'draft_sequence':
-      return runDraftSequence(args.leadId, args.channel, context);
+      return runDraftSequence(stringArg(args.leadId), stringArg(args.channel), context);
 
     case 'enroll_lead_in_sequence':
-      return runEnrollLeadInSequence(args.leadId, args.sequenceId, context);
+      return runEnrollLeadInSequence(
+        stringArg(args.leadId),
+        stringArg(args.sequenceId),
+        args.approvedCopy,
+        context
+      );
 
     case 'create_task':
-      return createTask(args, context.userId, context.leadId, context.sessionUser);
+      return createTask(stringArgs(args), context.userId, context.leadId, context.sessionUser);
 
     case 'get_my_tasks':
-      return getMyTasks(args.filter, parseInt(args.limit || '10'), context.userId, context.today, context.sessionUser);
+      return getMyTasks(
+        stringArg(args.filter) ?? '',
+        parseInt(stringArg(args.limit) || '10'),
+        context.userId,
+        context.today,
+        context.sessionUser
+      );
 
     default:
       return `Unknown tool: ${toolName}`;
   }
 }
 
-async function searchWeb(query: string, ctx: ToolContext): Promise<string> {
+async function searchWeb(query: string | undefined, ctx: ToolContext): Promise<string> {
+  // Refuse rather than call the provider with nothing. The previous string-typed argument map hid
+  // this: a call with no query reached Tavily as `undefined` and was billed for the round trip.
+  if (!query?.trim()) throw new Error('search_web refused: query is required.');
   const { performTavilySearch } = await import('./providers');
   const res = await performTavilySearch(query, ctx);
   if (!res.success) {
@@ -343,7 +439,8 @@ async function searchWeb(query: string, ctx: ToolContext): Promise<string> {
   return res.data;
 }
 
-async function visitPage(url: string, ctx: ToolContext): Promise<string> {
+async function visitPage(url: string | undefined, ctx: ToolContext): Promise<string> {
+  if (!url?.trim()) throw new Error('visit_page refused: url is required.');
   const { performJinaFetch } = await import('./providers');
   const res = await performJinaFetch(url, ctx);
   if (!res.success) {
@@ -557,9 +654,18 @@ async function runDraftSequence(
   return `${header}\n${body}`;
 }
 
+/**
+ * Enrollment, carrying the copy an approver signed off on.
+ *
+ * The arguments are the approval record: `AgentApprovalRequest.args` stores them verbatim, and a
+ * resume replays them rather than re-deriving anything. Carrying the copy here therefore makes
+ * "approved words" and "sent words" the same object — no model is consulted at send time, and a
+ * provider outage cannot change what a prospect reads.
+ */
 async function runEnrollLeadInSequence(
   leadId: string | undefined,
   sequenceId: string | undefined,
+  approvedCopy: unknown,
   ctx: ToolContext
 ): Promise<string> {
   if (!leadId) throw new Error('enroll_lead_in_sequence refused: leadId is required.');
@@ -572,15 +678,28 @@ async function runEnrollLeadInSequence(
     throw new Error('enroll_lead_in_sequence refused: a work order context is required.');
   }
 
+  // Validated before anything is claimed. Malformed copy is a refusal, never a silent fallback to
+  // the template — that would send generic words to a prospect a human personalized for.
+  const { parseApprovedCopy } = await import('@/lib/sequences/stepCopy');
+  const copy =
+    approvedCopy === undefined || approvedCopy === null
+      ? undefined
+      : parseApprovedCopy(approvedCopy);
+
   const { launchAIOutreach } = await import('@/lib/prospects/outreach');
   const result = await launchAIOutreach(ctx.sessionUser, {
     tenantId: ctx.tenantId,
     leadId,
     sequenceId,
     workOrderId: ctx.workOrderId,
+    approvedCopy: copy,
   });
 
-  return `Enrolled lead ${leadId} in "${result.enrollment.sequenceName}" (enrollment ${result.enrollment.enrollmentId}). Prospect state: ${result.state}. The automation engine schedules the steps; nothing was sent by this action.`;
+  const copyNote = copy
+    ? ` ${copy.length} step(s) use approved per-prospect copy.`
+    : ' Every step uses the sequence template.';
+
+  return `Enrolled lead ${leadId} in "${result.enrollment.sequenceName}" (enrollment ${result.enrollment.enrollmentId}). Prospect state: ${result.state}.${copyNote} The automation engine schedules the steps; nothing was sent by this action.`;
 }
 
 async function runResearchContact(

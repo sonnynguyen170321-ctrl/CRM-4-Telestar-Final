@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import type { WorkOrder } from '@prisma/client';
 import { assessLaunchEligibility } from '@/lib/prospects/outreach';
+import { isPersonalizationEnabled, type ApprovedStepCopy } from '@/lib/sequences/stepCopy';
 import type { WorkOrderType } from './types';
 import type { PlannedToolCall } from './execution';
 
@@ -156,9 +157,83 @@ async function planOutreachLaunch(order: WorkOrder): Promise<PlannedToolCall[]> 
   });
   if (eligibility.mode === 'refused') return [];
 
+  const approvedCopy = await approvedCopyForLaunch(order.tenantId, order.leadId, sequence.id);
+
   return [
-    { toolName: 'enroll_lead_in_sequence', args: { leadId: order.leadId, sequenceId: sequence.id } },
+    {
+      toolName: 'enroll_lead_in_sequence',
+      args: {
+        leadId: order.leadId,
+        sequenceId: sequence.id,
+        ...(approvedCopy ? { approvedCopy } : {}),
+      },
+    },
   ];
+}
+
+/**
+ * The stored draft, if it can stand as this cadence's approved copy — otherwise nothing.
+ *
+ * Reading, never generating: this function calls no provider, which is what lets the draft reach
+ * the launch at all. `draftSequenceForLead` produced it under an earlier `sequence_design` order
+ * and persisted it precisely so this read is possible.
+ *
+ * **All or nothing.** A draft that covers only some of the cadence's steps is not used at all.
+ * Personalizing the steps that happen to line up and letting the rest fall back to their templates
+ * would send a prospect a personalized opener and a generic follow-up, with nothing recording that
+ * half the approval went unused — the silent substitution this whole path exists to prevent.
+ */
+async function approvedCopyForLaunch(
+  tenantId: string,
+  leadId: string,
+  sequenceId: string
+): Promise<ApprovedStepCopy[] | null> {
+  // Writing personalized copy is opt-in per deployment. With it off, `launchAIOutreach` refuses a
+  // launch that carries copy, so planning any here would turn every launch into a refusal.
+  if (!isPersonalizationEnabled()) return null;
+
+  const draft = await prisma.sequenceDraftRecord.findUnique({
+    where: { tenantId_leadId: { tenantId, leadId } },
+    select: { steps: true, aiGenerated: true },
+  });
+  if (!draft) return null;
+
+  const steps = Array.isArray(draft.steps) ? (draft.steps as unknown as DraftStepShape[]) : [];
+  if (steps.length === 0) return null;
+
+  const cadence = await prisma.sequenceStep.findMany({
+    where: { sequenceId, tenantId },
+    select: { order: true, channel: true },
+    orderBy: { order: 'asc' },
+  });
+  if (cadence.length !== steps.length) return null;
+
+  const byOrder = new Map(steps.map((step) => [step.order, step]));
+  const copy: ApprovedStepCopy[] = [];
+
+  for (const step of cadence) {
+    const drafted = byOrder.get(step.order);
+    if (!drafted || drafted.channel !== step.channel || !drafted.body?.trim()) return null;
+
+    copy.push({
+      stepOrder: step.order,
+      subject: drafted.subject ?? null,
+      body: drafted.body,
+      citedEvidenceIds: drafted.citedEvidenceIds ?? [],
+      aiGenerated: draft.aiGenerated,
+    });
+  }
+
+  return copy;
+}
+
+/** The persisted shape of a `SequenceDraftStep`, as it comes back out of the `steps` JSON column. */
+interface DraftStepShape {
+  order: number;
+  channel: string;
+  subject?: string | null;
+  body: string;
+  citedEvidenceIds?: string[];
 }
 
 async function hasFreshAccountResearch(tenantId: string, accountId: string): Promise<boolean> {

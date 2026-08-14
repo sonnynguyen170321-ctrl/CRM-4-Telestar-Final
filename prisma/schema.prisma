@@ -268,6 +268,7 @@ model User {
   sequences                Sequence[]
   templates                Template[]
   approvedStepCopies       SequenceStepCopy[]
+  draftedSequences         SequenceDraftRecord[]
   campaignSdrs             CampaignSdr[]
   auditLogs                AuditLog[]
   aiMemories               AiMemory[]
@@ -512,6 +513,7 @@ model Lead {
   workOrders           WorkOrder[]
   workOrderLeases      WorkOrderLease[]
   personalizationHooks PersonalizationHook[]
+  sequenceDraftRecords SequenceDraftRecord[]
 
   @@index([stage])
   @@index([assignedToId])
@@ -996,6 +998,49 @@ model SequenceStepCopy {
   tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([enrollmentId, stepOrder])
+  @@index([tenantId])
+}
+
+/// The structured outreach draft produced at `sequence_design` time, kept so the launch that
+/// sends it can be planned from it later.
+///
+/// `planWorkOrderSteps` calls no provider by contract — it reads the database and returns planned
+/// tool calls. A draft that lived only in the return value of `draftSequenceForLead` was therefore
+/// unreachable by the order that sends it, which is why every cadence used its shared template.
+///
+/// Keyed by lead, not by occurrence: this is the *current* proposal for a prospect, not a record
+/// of what was sent. Re-drafting replaces it. The durable record of approved wording is the
+/// `AgentApprovalRequest.args` a human signed, and then `SequenceStepCopy` on the enrollment.
+model SequenceDraftRecord {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leadId   String
+  lead     Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  /// A `DraftChannel` from `lib/research/sequenceDrafts.ts`.
+  channel String
+  /// `SequenceDraftStep[]` — order, channel, delayDays, subject, body, citedEvidenceIds.
+  steps   Json
+
+  /// True only when every claim in every step is backed by valid, in-run evidence.
+  grounded        Boolean
+  groundingReason String?
+  /// False when the deterministic evidence-only fallback produced this draft.
+  aiGenerated     Boolean  @default(true)
+  skillModules    String[]
+  citedEvidenceIds String[]
+
+  /// Provenance, for cost attribution and for tracing a draft back to the run that made it.
+  aiCallId    String?
+  workOrderId String?
+
+  draftedById String?
+  draftedBy   User?    @relation(fields: [draftedById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, leadId])
   @@index([tenantId])
 }
 
@@ -1630,6 +1675,7 @@ model Tenant {
   suppressionEntries       SuppressionEntry[]
   sequenceEnrollments      SequenceEnrollment[]
   sequenceStepCopies       SequenceStepCopy[]
+  sequenceDraftRecords     SequenceDraftRecord[]
   importBatches            ImportBatch[]
   importRows               ImportRow[]
   attachments              Attachment[]

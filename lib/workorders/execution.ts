@@ -3,7 +3,7 @@ import { executeAgentAction } from '@/lib/agent/runtime';
 import { capabilityForTool } from '@/lib/agent/toolCapabilities';
 import type { SessionUser } from '@/lib/auth';
 import { budgetSnapshot, describeExhaustion, recordConsumption, reconcileConsumption } from './budgets';
-import { levelForOutcome, requestApproval } from './approvals';
+import { levelForOutcome, requestApproval, resumeApprovedAction } from './approvals';
 import { authorizeWorkOrderCapability, workOrderRefusalMessage } from './authorization';
 import { finishWorkOrder, pauseWorkOrder, requireWorkOrder } from './service';
 import type { WorkOrderType } from './types';
@@ -48,7 +48,13 @@ import type { WorkOrderType } from './types';
 
 export interface PlannedToolCall {
   toolName: string;
-  args: Record<string, string>;
+  /**
+   * Parsed JSON, not a string map: a planned call may carry structured values — approved outreach
+   * copy is the first — and `AgentApprovalRequest.args` already stores `Record<string, unknown>`.
+   * Narrowing here would only force the planner to smuggle structure through an encoded string,
+   * which is exactly what makes an approval record unreadable to the human signing it.
+   */
+  args: Record<string, unknown>;
 }
 
 export type ExecutionStatus = 'completed' | 'paused' | 'refused';
@@ -185,6 +191,11 @@ export async function executeWorkOrder(
       return finish('refused');
     }
 
+    // The arguments this step actually executes with. Normally the planned ones — but once a human
+    // has approved a specific set, those are what run. See the approval branch below.
+    let effectiveArgs = step.args;
+    let approvalRequestId: string | undefined;
+
     const level = levelForOutcome(decision.outcome);
     if (level) {
       const actionKey = workOrderActionKey(input.workOrderId, ordinal, step.toolName);
@@ -202,25 +213,53 @@ export async function executeWorkOrder(
         playbookVersionId: order.playbookVersionId,
         now,
       });
-      approvalRequestIds.push(request.id);
-      steps.push({
-        ordinal,
-        toolName: step.toolName,
-        status: 'awaiting_approval',
-        detail: `approval request ${request.id} (${level} level)`,
-      });
 
-      // The lease is kept: this order is still the one working this lead, and letting another
-      // take over while a human decides is how an approval gets granted for work that has since
-      // been superseded.
-      await pauseWorkOrder({
-        workOrderId: input.workOrderId,
+      // A retry of an order that already has a decision must not simply re-pause. `requestApproval`
+      // returns the existing row, so without this the approval a human granted could never take
+      // effect and the order would pause forever.
+      const resume = await resumeApprovedAction({
+        requestId: request.id,
         tenantId: input.tenantId,
-        reason: 'awaiting_approval',
-        keepLease: true,
+        actor: { role: actor.role, tenantId: input.tenantId },
         now,
       });
-      return finish('paused', 'awaiting_approval');
+
+      if (resume.status !== 'proceed') {
+        // Only "nobody has decided yet" is a wait. Rejected, expired, a tightened policy or an
+        // approval below the level now required are all outcomes — pausing on them would leave the
+        // order waiting on a decision that has already been made.
+        const stillWaiting = resume.reason === 'still_pending';
+        steps.push({
+          ordinal,
+          toolName: step.toolName,
+          status: stillWaiting ? 'awaiting_approval' : 'refused',
+          detail: stillWaiting
+            ? `approval request ${request.id} (${level} level)`
+            : `approval request ${request.id} cannot execute: ${resume.detail}`,
+        });
+
+        if (!stillWaiting) return finish('refused');
+
+        approvalRequestIds.push(request.id);
+        // The lease is kept: this order is still the one working this lead, and letting another
+        // take over while a human decides is how an approval gets granted for work that has since
+        // been superseded.
+        await pauseWorkOrder({
+          workOrderId: input.workOrderId,
+          tenantId: input.tenantId,
+          reason: 'awaiting_approval',
+          keepLease: true,
+          now,
+        });
+        return finish('paused', 'awaiting_approval');
+      }
+
+      // Approved — and what a human approved is what runs. The planned args are discarded here on
+      // purpose: an order can be re-planned between the approval and the retry that executes it,
+      // and executing the fresher plan would send a prospect words nobody signed off on while the
+      // approval row recorded different ones.
+      effectiveArgs = (request.args ?? {}) as Record<string, unknown>;
+      approvalRequestId = request.id;
     }
 
     let result: Awaited<ReturnType<typeof executeAgentAction>>;
@@ -228,7 +267,7 @@ export async function executeWorkOrder(
       result = await executeAgentAction({
         actionKey: workOrderActionKey(input.workOrderId, ordinal, step.toolName),
         toolName: step.toolName,
-        args: step.args,
+        args: effectiveArgs,
         sessionUser: actor,
         leadId: order.leadId ?? undefined,
         campaignId: order.campaignId ?? undefined,
@@ -236,6 +275,7 @@ export async function executeWorkOrder(
         // pinned at activation, not whatever is active now.
         playbookVersionId: order.playbookVersionId ?? undefined,
         workOrderId: input.workOrderId,
+        approvalRequestId,
       });
     } catch (err) {
       // A retryable failure still spent money. `executeAgentAction` rethrows it so the BullMQ

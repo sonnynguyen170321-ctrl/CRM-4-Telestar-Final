@@ -15,7 +15,7 @@ set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost}"
 ENV_FILE="${ENV_FILE:-.env.production}"
-COMPOSE_FILES="${COMPOSE_FILES:--f docker-compose.yml -f docker-compose.aws.yml}"
+COMPOSE_FILES="${COMPOSE_FILES:--f docker-compose.yml}"
 DOCKER="${DOCKER:-sudo docker}"
 DC="$DOCKER compose --env-file $ENV_FILE $COMPOSE_FILES"
 
