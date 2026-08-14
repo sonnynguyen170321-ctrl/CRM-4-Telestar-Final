@@ -7,20 +7,30 @@ Frozen Phase 8a SHA: `0bf623ec1e59da60589abe856a1a9b935a8e6c0b` (parent `2046b76
 
 ---
 
-## Status as of 2026-08-14 — `integrate/phase-8-10-final` @ `e222657`
+## Status as of 2026-08-14 — `integrate/phase-8-10-final`, candidate after `4a60031`
 
 Nothing below is deleted. Each item now carries what actually became of it.
 
 | Item | Status | Where it was closed |
 |---|---|---|
 | S1 post-lock strand | **CLOSED** | `workers/sequence.ts` releases the claim in the `catch` before rethrowing |
-| S2 occurrence-aware drift | **OPEN** | not addressed |
-| S3 `Lead.sequenceStatus` legacy cache | **DEFERRED** | still compatibility-only; add no reader, no writer |
-| S4 coarse `already_replied` dedupe | **OPEN** | not addressed |
+| S2 occurrence-aware drift | **CLOSED** | `workers/maintenance.ts` matches on `enrollmentStepTaskId` first |
+| S3 `Lead.sequenceStatus` reply gate | **CLOSED** | `workers/sync.ts` gates on `SequenceEnrollment.status`, not the cache |
+| S4 coarse `already_replied` dedupe | **CLOSED** | dedupe is per provider message, via `InboundMessage.classifiedAt` |
 | S5 Revenue AI → Telestar AI rename | **DEFERRED** | deliberately, unchanged |
 | S6 `migration-order.test.ts` local run | **ENVIRONMENT-ONLY** | the `&` in the checkout path; green in CI |
 | S7 ICP adherence not measured | **CLOSED** | `lib/leadgen/icpAdherence.ts` (`1f457ac`) |
 | S8 variants aggregate as identical | **CLOSED** | `OutboundMessage.abVariantId` + `OutcomeSignal.abVariantId` (`7d65dfb`) |
+
+> **Correction.** An earlier revision of this table listed S2 and S4 as OPEN and S3 as DEFERRED.
+> That was wrong, and wrong in a specific way worth naming: the labels were written from the age
+> of the item rather than from the code. All three had already been fixed in the runtime. Verified
+> against `workers/maintenance.ts`, `workers/sync.ts` and `handleApplyReply` before this edit.
+> A backlog that guesses is worse than one that is out of date, because it reads as evidence.
+
+> **`Lead.sequenceStatus` itself is still a legacy compatibility cache** and is still deprecated:
+> add no new reader and no new writer, branch on `SequenceEnrollment`. What closed in S3 is the
+> *reply gate* that used to consult it — not the column.
 
 The post-demo test debt at the bottom of this file is **partly closed**: the golden journey
 (`tests/golden-journey.test.ts`) now covers the durable chain end to end. The deep crash-injection
@@ -45,7 +55,7 @@ a stale-lock cutoff like `app/api/cron/sequence-engine/route.ts` already uses.
 
 ---
 
-## S2 — schedule-drift detection is not occurrence-aware
+## S2 — schedule-drift detection is not occurrence-aware — **CLOSED**
 
 **Where:** `workers/maintenance.ts`, `repairEnrollmentScheduleDrift`.
 
@@ -62,9 +72,17 @@ as "this one has a task", and the drifted occurrence is skipped.
 **Fix shape:** probe `enrollmentStepTaskId(enr.id, enr.currentStep)` first and treat the generic
 lookup as the documented pre-Phase-8a fallback only.
 
+> **CLOSED — implemented exactly as proposed.** `repairEnrollmentScheduleDrift` computes
+> `expectedTaskId = enrollmentStepTaskId(enr.id, enr.currentStep)` and looks that up first. The
+> generic lead+sequence+step lookup survives only as the documented legacy fallback, and it now
+> validates what it finds before accepting it: a recovered task is used only when
+> `enrollmentIdFromStepTaskId(legacyTask.id)` is absent (a genuinely pre-Phase-8a row) or equals
+> this enrollment. A pending task belonging to a *different* occurrence of the same lead and
+> sequence is therefore no longer mistaken for this one.
+
 ---
 
-## S3 — `Lead.sequenceStatus` remains a legacy cache
+## S3 — `Lead.sequenceStatus` remains a legacy cache — **reply gate CLOSED**
 
 Unchanged from `ARCHITECTURE.md` §4.1. `handleEmailSync` still gates reply processing on
 `sequenceStatus === 'active'` before the authoritative enrollment is consulted inside
@@ -73,13 +91,29 @@ Unchanged from `ARCHITECTURE.md` §4.1. `handleEmailSync` still gates reply proc
 **Fix shape:** gate the sync loop on the enrollment, or drop the pre-filter entirely and let the
 chokepoint decide.
 
+> **CLOSED — the second option was taken.** The sync loop no longer gates on
+> `Lead.sequenceStatus`; it requires only that the lead has a `sequenceId`, and the authoritative
+> decision is made inside `handleApplyReply` against `SequenceEnrollment.status === 'active'`.
+> A stale cache can no longer drop a real reply before the chokepoint sees it.
+>
+> **The column is still deprecated.** What closed here is the *gate*, not `Lead.sequenceStatus`
+> itself — that remains a legacy compatibility cache with no constraint keeping it honest. Add no
+> new reader and no new writer; branch on `SequenceEnrollment`. See `ARCHITECTURE.md` §4.1.
+
 ---
 
-## S4 — coarse `already_replied` dedupe
+## S4 — coarse `already_replied` dedupe — **CLOSED**
 
 `handleApplyReply` skips any lead already at stage `replied`, so a second genuine reply from the
 same prospect is suppressed. Pre-existing, pre-dates Phase 8b, and now slightly more visible
 because class B replies deliberately do **not** set that stage.
+
+> **CLOSED.** Dedupe is per *message*, not per prospect: `handleApplyReply` skips only when the
+> exact `InboundMessage` — identified by its provider message id — already carries a
+> `classifiedAt`. A second genuine reply arrives as a different provider message with no
+> classification timestamp, so it is processed on its merits. The lead's stage no longer
+> suppresses anything, which is what makes an ongoing conversation possible rather than a single
+> recorded reply per prospect.
 
 ---
 
