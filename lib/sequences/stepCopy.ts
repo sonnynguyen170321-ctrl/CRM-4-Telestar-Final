@@ -128,6 +128,100 @@ export async function materializeApprovedCopy(input: MaterializeCopyInput): Prom
 }
 
 /**
+ * Bounds on a single approval payload. Long enough for real outreach, short enough that a
+ * malformed or hostile caller cannot write an unbounded body into the send path.
+ */
+const MAX_STEPS = 25;
+const MAX_BODY_LENGTH = 20_000;
+const MAX_SUBJECT_LENGTH = 500;
+
+/**
+ * Validate copy that arrived from outside this module — an approval payload, an agent tool call,
+ * an API body — into the typed shape `materializeApprovedCopy` consumes.
+ *
+ * It **throws** rather than dropping bad entries, and that is the whole design. This value becomes
+ * the words a prospect reads, so "mostly parsed" is the wrong outcome: a silently discarded step
+ * would send the shared template to someone a human believed they had personalized for, and
+ * nothing would record the substitution.
+ *
+ * A duplicate `stepOrder` is refused for the same reason. `materializeApprovedCopy` upserts, so a
+ * duplicate would quietly resolve to whichever entry happened to be written last.
+ */
+export function parseApprovedCopy(input: unknown): ApprovedStepCopy[] {
+  if (!Array.isArray(input)) {
+    throw new StepCopyRefusedError('Approved copy must be an array of steps.');
+  }
+  if (input.length === 0) {
+    throw new StepCopyRefusedError('Approved copy was empty; omit it entirely to use the template.');
+  }
+  if (input.length > MAX_STEPS) {
+    throw new StepCopyRefusedError(
+      `Approved copy has ${input.length} steps; the limit is ${MAX_STEPS}.`
+    );
+  }
+
+  const seen = new Set<number>();
+
+  return input.map((raw, index) => {
+    if (raw === null || typeof raw !== 'object') {
+      throw new StepCopyRefusedError(`Approved copy entry ${index} is not an object.`);
+    }
+    const entry = raw as Record<string, unknown>;
+
+    const stepOrder = entry.stepOrder;
+    if (typeof stepOrder !== 'number' || !Number.isInteger(stepOrder) || stepOrder < 1) {
+      throw new StepCopyRefusedError(
+        `Approved copy entry ${index} needs an integer stepOrder of 1 or more.`
+      );
+    }
+    if (seen.has(stepOrder)) {
+      throw new StepCopyRefusedError(`Approved copy names step ${stepOrder} more than once.`);
+    }
+    seen.add(stepOrder);
+
+    const body = entry.body;
+    if (typeof body !== 'string' || !body.trim()) {
+      throw new StepCopyRefusedError(`Approved copy for step ${stepOrder} has no body.`);
+    }
+    if (body.length > MAX_BODY_LENGTH) {
+      throw new StepCopyRefusedError(
+        `Approved copy for step ${stepOrder} is ${body.length} characters; the limit is ${MAX_BODY_LENGTH}.`
+      );
+    }
+
+    const subject = entry.subject;
+    if (subject !== undefined && subject !== null && typeof subject !== 'string') {
+      throw new StepCopyRefusedError(
+        `Approved copy for step ${stepOrder} has a non-string subject.`
+      );
+    }
+    if (typeof subject === 'string' && subject.length > MAX_SUBJECT_LENGTH) {
+      throw new StepCopyRefusedError(
+        `Approved copy subject for step ${stepOrder} exceeds ${MAX_SUBJECT_LENGTH} characters.`
+      );
+    }
+
+    const citedEvidenceIds = entry.citedEvidenceIds;
+    if (
+      citedEvidenceIds !== undefined &&
+      (!Array.isArray(citedEvidenceIds) || citedEvidenceIds.some((id) => typeof id !== 'string'))
+    ) {
+      throw new StepCopyRefusedError(
+        `Approved copy for step ${stepOrder} has a malformed citedEvidenceIds list.`
+      );
+    }
+
+    return {
+      stepOrder,
+      subject: typeof subject === 'string' ? subject : null,
+      body,
+      citedEvidenceIds: (citedEvidenceIds as string[] | undefined) ?? [],
+      aiGenerated: entry.aiGenerated === true,
+    };
+  });
+}
+
+/**
  * The approved copy for one step of one occurrence, or null to fall back to the shared template.
  *
  * Null is the normal case for every cadence that predates personalization, which is why the

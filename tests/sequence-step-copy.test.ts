@@ -25,8 +25,13 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
-const { materializeApprovedCopy, getApprovedStepCopy, isPersonalizationEnabled, StepCopyRefusedError } =
-  await import('@/lib/sequences/stepCopy');
+const {
+  materializeApprovedCopy,
+  getApprovedStepCopy,
+  isPersonalizationEnabled,
+  parseApprovedCopy,
+  StepCopyRefusedError,
+} = await import('@/lib/sequences/stepCopy');
 
 const TENANT = 'tenant-1';
 const ENROLLMENT = 'enr-1';
@@ -107,6 +112,104 @@ describe('materializeApprovedCopy', () => {
         steps: [{ stepOrder: 1, body: '   ' }],
       })
     ).rejects.toBeInstanceOf(StepCopyRefusedError);
+  });
+});
+
+/**
+ * Validation of copy that arrived from outside the module — an approval payload, an agent tool
+ * call, an API body. `materializeApprovedCopy` takes a typed `ApprovedStepCopy[]`; nothing
+ * produces that type from untrusted input until this function does.
+ *
+ * Every case below asserts a **refusal**, never a repair. That is the whole point: a parser that
+ * dropped the malformed entry and kept going would send the shared template to a prospect a human
+ * believed they had personalized for, and no row anywhere would record the substitution. A refusal
+ * is loud and recoverable; a silent fallback is neither.
+ */
+describe('parseApprovedCopy', () => {
+  it('normalizes a valid payload into the shape materializeApprovedCopy consumes', () => {
+    const parsed = parseApprovedCopy([
+      { stepOrder: 1, subject: 'Hello', body: 'Body one', citedEvidenceIds: ['ev-1'], aiGenerated: true },
+      { stepOrder: 2, body: 'Body two' },
+    ]);
+
+    expect(parsed).toEqual([
+      { stepOrder: 1, subject: 'Hello', body: 'Body one', citedEvidenceIds: ['ev-1'], aiGenerated: true },
+      { stepOrder: 2, subject: null, body: 'Body two', citedEvidenceIds: [], aiGenerated: false },
+    ]);
+  });
+
+  it('refuses a payload that is not an array', () => {
+    expect(() => parseApprovedCopy({ stepOrder: 1, body: 'Body' })).toThrow(StepCopyRefusedError);
+    expect(() => parseApprovedCopy('Body')).toThrow(StepCopyRefusedError);
+  });
+
+  it('refuses an empty array, because omitting the field is what means "use the template"', () => {
+    expect(() => parseApprovedCopy([])).toThrow(StepCopyRefusedError);
+  });
+
+  it('refuses an entry that is not an object', () => {
+    expect(() => parseApprovedCopy(['Body'])).toThrow(StepCopyRefusedError);
+    expect(() => parseApprovedCopy([null])).toThrow(StepCopyRefusedError);
+  });
+
+  it('refuses a duplicate stepOrder rather than letting the upsert pick a winner', () => {
+    expect(() =>
+      parseApprovedCopy([
+        { stepOrder: 1, body: 'First body' },
+        { stepOrder: 1, body: 'Second body' },
+      ])
+    ).toThrow(StepCopyRefusedError);
+  });
+
+  it('refuses a stepOrder that is not a positive integer', () => {
+    for (const stepOrder of [0, -1, 1.5, '1', null, undefined]) {
+      expect(() => parseApprovedCopy([{ stepOrder, body: 'Body' }])).toThrow(StepCopyRefusedError);
+    }
+  });
+
+  it('refuses a missing or blank body rather than approving a blank email', () => {
+    expect(() => parseApprovedCopy([{ stepOrder: 1 }])).toThrow(StepCopyRefusedError);
+    expect(() => parseApprovedCopy([{ stepOrder: 1, body: '   ' }])).toThrow(StepCopyRefusedError);
+    expect(() => parseApprovedCopy([{ stepOrder: 1, body: 42 }])).toThrow(StepCopyRefusedError);
+  });
+
+  it('accepts an omitted or null subject, and refuses a non-string one', () => {
+    expect(parseApprovedCopy([{ stepOrder: 1, body: 'Body', subject: null }])[0].subject).toBeNull();
+    expect(() => parseApprovedCopy([{ stepOrder: 1, body: 'Body', subject: 7 }])).toThrow(
+      StepCopyRefusedError
+    );
+  });
+
+  it('refuses a citedEvidenceIds that is not a list of strings', () => {
+    expect(() =>
+      parseApprovedCopy([{ stepOrder: 1, body: 'Body', citedEvidenceIds: 'ev-1' }])
+    ).toThrow(StepCopyRefusedError);
+    expect(() =>
+      parseApprovedCopy([{ stepOrder: 1, body: 'Body', citedEvidenceIds: ['ev-1', 2] }])
+    ).toThrow(StepCopyRefusedError);
+  });
+
+  it('bounds step count, body length and subject length', () => {
+    const oneStep = (over: Record<string, unknown>) => [{ stepOrder: 1, body: 'Body', ...over }];
+
+    expect(() =>
+      parseApprovedCopy(Array.from({ length: 26 }, (_, i) => ({ stepOrder: i + 1, body: 'Body' })))
+    ).toThrow(StepCopyRefusedError);
+    expect(() => parseApprovedCopy(oneStep({ body: 'x'.repeat(20_001) }))).toThrow(
+      StepCopyRefusedError
+    );
+    expect(() => parseApprovedCopy(oneStep({ subject: 'x'.repeat(501) }))).toThrow(
+      StepCopyRefusedError
+    );
+  });
+
+  it('names the offending step in the refusal, so an operator can fix the right one', () => {
+    expect(() =>
+      parseApprovedCopy([
+        { stepOrder: 1, body: 'Fine' },
+        { stepOrder: 4, body: '' },
+      ])
+    ).toThrow(/step 4/);
   });
 });
 

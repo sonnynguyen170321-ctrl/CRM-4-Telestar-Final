@@ -72,7 +72,9 @@ export type LaunchRefusalReason =
   | 'operating_state_not_launchable'
   | 'active_enrollment_exists'
   | 'paused_enrollment_exists'
-  | 'enrollment_not_owned_by_work_order';
+  | 'enrollment_not_owned_by_work_order'
+  /** Approved copy was supplied to a deployment that has personalization switched off. */
+  | 'personalization_disabled';
 
 export class LaunchNotAllowedError extends Error {
   constructor(
@@ -238,6 +240,17 @@ export async function launchAIOutreach(
     throw new Error('launchAIOutreach refused: requested actor is not the authenticated user.');
   }
 
+  // A caller that supplied approved copy on a deployment that cannot store it is refused here —
+  // with the other caller errors, before eligibility and before the launch row is claimed, so
+  // nothing is left behind to unwind. Falling through would launch the shared template to a
+  // prospect a human approved specific words for, and report success while doing it.
+  if (input.approvedCopy?.length && !isPersonalizationEnabled()) {
+    throw new LaunchNotAllowedError(
+      'personalization_disabled',
+      'Outreach launch refused — approved per-prospect copy was supplied but SEQUENCE_AI_PERSONALIZATION is not enabled on this deployment.'
+    );
+  }
+
   const eligibility = await assessLaunchEligibility({
     tenantId,
     leadId: input.leadId,
@@ -274,7 +287,11 @@ export async function launchAIOutreach(
   // cadence rather than a cadence with no copy.
   //
   // Idempotent, so the resume path re-runs it harmlessly.
-  if (input.approvedCopy?.length && isPersonalizationEnabled()) {
+  //
+  // No flag check here: the personalization guard ran at the top, before anything was claimed.
+  // Re-testing the flag at this point would silently skip the write on a launch already past the
+  // point of refusal, which is the one outcome this whole path exists to prevent.
+  if (input.approvedCopy?.length) {
     await materializeApprovedCopy({
       enrollmentId: enrollment.enrollmentId,
       tenantId,

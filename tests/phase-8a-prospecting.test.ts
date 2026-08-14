@@ -1493,6 +1493,65 @@ describe('Phase 8a — AI-managed prospecting', () => {
       });
     }, 60_000);
 
+    /**
+     * Approved copy is the words a prospect reads. A deployment that cannot store it must refuse
+     * the launch outright — quietly launching the shared template instead would send generic copy
+     * to someone a human personalized for, and report success while doing it.
+     *
+     * The refusal belongs with the tenant/actor checks, before eligibility and before the launch
+     * is claimed: this is a caller error, not a race, so it must leave nothing behind to unwind.
+     */
+    it('refuses approved copy when personalization is off, before any side effect', async () => {
+      await inTenantA(async () => {
+        const order = await readyOrder();
+        delete process.env.SEQUENCE_AI_PERSONALIZATION;
+
+        await expect(
+          launchAIOutreach(userA, {
+            leadId: leadA,
+            sequenceId: sequenceA,
+            workOrderId: order.id,
+            approvedCopy: [{ stepOrder: 1, body: 'Personalized body' }],
+          })
+        ).rejects.toBeInstanceOf(LaunchNotAllowedError);
+
+        expect(
+          await prisma.sequenceLaunch.count({ where: { tenantId: tenantA, workOrderId: order.id } })
+        ).toBe(0);
+        expect(
+          await prisma.sequenceEnrollment.count({ where: { tenantId: tenantA, leadId: leadA } })
+        ).toBe(0);
+        expect(await prisma.task.count({ where: { tenantId: tenantA, leadId: leadA } })).toBe(0);
+      });
+    }, 60_000);
+
+    it('writes the approved copy for the occurrence when personalization is on', async () => {
+      await inTenantA(async () => {
+        const order = await readyOrder();
+        process.env.SEQUENCE_AI_PERSONALIZATION = 'true';
+
+        try {
+          const result = await launchAIOutreach(userA, {
+            leadId: leadA,
+            sequenceId: sequenceA,
+            workOrderId: order.id,
+            approvedCopy: [{ stepOrder: 1, subject: 'Acme expansion', body: 'Personalized body' }],
+          });
+
+          const copy = await prisma.sequenceStepCopy.findUniqueOrThrow({
+            where: {
+              enrollmentId_stepOrder: { enrollmentId: result.enrollment.enrollmentId, stepOrder: 1 },
+            },
+          });
+          expect(copy.body).toBe('Personalized body');
+          expect(copy.subject).toBe('Acme expansion');
+          expect(copy.approvedById).toBe(userA.id);
+        } finally {
+          delete process.env.SEQUENCE_AI_PERSONALIZATION;
+        }
+      });
+    }, 60_000);
+
     it('finalizeFirstStep is idempotent and re-applies scheduling on its own', async () => {
       await inTenantA(async () => {
         await prisma.lead.update({
