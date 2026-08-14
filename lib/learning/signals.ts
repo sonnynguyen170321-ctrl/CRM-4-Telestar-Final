@@ -32,6 +32,8 @@ export interface RecordSignalInput {
   campaignId?: string | null;
   sequenceId?: string | null;
   playbookVersionId?: string | null;
+  /** The A/B variant the prospect was answering, when the outcome traces to one. */
+  abVariantId?: string | null;
   actorUserId?: string | null;
   detail?: string | null;
   metadata?: Record<string, unknown> | null;
@@ -57,6 +59,7 @@ export async function recordOutcomeSignal(input: RecordSignalInput): Promise<Out
       campaignId: input.campaignId ?? null,
       sequenceId: input.sequenceId ?? null,
       playbookVersionId: input.playbookVersionId ?? null,
+      abVariantId: input.abVariantId ?? null,
       actorUserId: input.actorUserId ?? null,
       detail: input.detail ?? null,
       metadata: (input.metadata ?? undefined) as never,
@@ -64,6 +67,10 @@ export async function recordOutcomeSignal(input: RecordSignalInput): Promise<Out
     update: {
       detail: input.detail ?? null,
       playbookVersionId: input.playbookVersionId ?? null,
+      // Refreshed with the other descriptive fields: an early pass can run before the send that
+      // caused the outcome has been matched to it, and the attribution is not part of the row's
+      // identity the way `signalKey`, `kind` and `occurredAt` are.
+      abVariantId: input.abVariantId ?? null,
       metadata: (input.metadata ?? undefined) as never,
     },
   });

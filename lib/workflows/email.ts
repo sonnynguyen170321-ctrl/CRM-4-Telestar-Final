@@ -29,6 +29,18 @@ export async function createOutboundMessage(params: {
   subject: string;
   body: string;
   tenantId: string;
+  /**
+   * Which A/B variant produced this wording, and which cadence step it belongs to.
+   *
+   * Attribution, and it belongs on the row that records the send rather than being recomputed
+   * later: the selection is deterministic from the seed inputs, so recomputing would quietly
+   * change the historical answer whenever those inputs, the variant set or the tie-break changed.
+   * Omitted for every send with no A/B pair and for approved per-prospect copy, which overrides
+   * variant selection entirely.
+   */
+  abVariantId?: string | null;
+  sequenceId?: string | null;
+  sequenceStepOrder?: number | null;
 }) {
   const idempotencyKey = buildIdempotencyKey(params.source);
   return prisma.outboundMessage.upsert({
@@ -41,6 +53,12 @@ export async function createOutboundMessage(params: {
       to: params.to,
       subject: params.subject,
       body: params.body,
+      // Written on create only, with the rest of the row. The empty update branch is what makes
+      // a retry keep the first attempt's identity — a re-derived send must not be able to
+      // re-attribute an in-flight message to a different variant.
+      abVariantId: params.abVariantId ?? null,
+      sequenceId: params.sequenceId ?? null,
+      sequenceStepOrder: params.sequenceStepOrder ?? null,
       idempotencyKey,
       status: OUTBOUND_STATUS.PENDING,
       tenantId: params.tenantId,

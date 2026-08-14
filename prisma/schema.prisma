@@ -654,11 +654,16 @@ model AbTestVariant {
   subject    String?
   body       String?
   version    String // "A" | "B"
+  /// Running counters, incremented at send. Kept because existing surfaces read them, but they
+  /// are a cache: `OutboundMessage.abVariantId` is what a variant's real performance is derived
+  /// from, and nothing reconciles these two.
   sentCount  Int      @default(0)
   replyCount Int      @default(0)
   createdAt  DateTime @default(now())
   tenantId   String
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  sends OutboundMessage[]
 
   @@index([templateId])
   @@index([tenantId])
@@ -862,6 +867,22 @@ model OutboundMessage {
   account           EmailAccount @relation(fields: [accountId], references: [id])
   templateId        String?
   template          Template?    @relation(fields: [templateId], references: [id])
+
+  /// Which A/B variant produced these words, recorded at send time.
+  ///
+  /// Selection is deterministic (`buildJitterSeed` + `deterministicOffset`), so it *could* be
+  /// recomputed — and that is exactly why it is stored instead. Recomputation would silently
+  /// change the historical answer the day the seed inputs, the variant set or the tie-break
+  /// change, and re-deciding what an already-sent message was is not reporting. Null covers
+  /// every send with no A/B pair, and every send whose copy was approved per prospect — an
+  /// approval overrides variant selection, so attributing it to a variant would be a lie.
+  abVariantId       String?
+  abVariant         AbTestVariant? @relation(fields: [abVariantId], references: [id], onDelete: SetNull)
+  /// The cadence and step this send belongs to, denormalised so variant reporting does not have
+  /// to walk back through the task that may since have been completed, reassigned or deleted.
+  sequenceId        String?
+  sequenceStepOrder Int?
+
   to                String
   subject           String?
   body              String?
@@ -906,6 +927,10 @@ model OutboundMessage {
   @@index([accountId, to, status])
   // Reconciliation pass: ambiguous or stale sends, scanned by status then age.
   @@index([status, claimedAt])
+  // Variant reporting: every send of one variant, and the per-lead lookup that attributes an
+  // outcome back to the message the prospect was answering.
+  @@index([tenantId, abVariantId])
+  @@index([leadId, sentAt])
 }
 
 // ─── Suppression Entries ─────────────────────────────────────────────────────
@@ -2686,6 +2711,12 @@ model OutcomeSignal {
   sequenceId        String?
   /// Which policy was in force when it happened — the join that makes "did v4 do better" real.
   playbookVersionId String?
+  /// Which A/B variant the prospect was answering, when the outcome traces to a send that had
+  /// one. A **different axis** from `playbookVersionId`, not a finer grain of it: a playbook
+  /// version is the policy the cadence ran under, a variant is which of two wordings this
+  /// prospect received under that policy. Both can move independently, and collapsing them
+  /// would make "variant B wins" and "the new playbook wins" the same claim.
+  abVariantId       String?
   /// The human involved, when one was. AI-observed signals have none.
   actorUserId       String?
 
@@ -2702,6 +2733,7 @@ model OutcomeSignal {
   @@index([tenantId, kind, occurredAt])
   @@index([tenantId, campaignId, occurredAt])
   @@index([tenantId, playbookVersionId])
+  @@index([tenantId, abVariantId, kind])
 }
 
 enum PlaybookProposalStatus {

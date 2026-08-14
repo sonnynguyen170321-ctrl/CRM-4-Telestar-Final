@@ -77,6 +77,16 @@ export async function setupWorkOrderFixture(prefix: string): Promise<WorkOrderFi
       await prisma.workOrderLease.deleteMany({ where: { tenantId: t } });
       await prisma.workOrder.deleteMany({ where: { tenantId: t } });
       await prisma.sequenceEnrollment.deleteMany({ where: { tenantId: t } });
+      // Messaging rows before the template, mailbox and users they point at. Same reasoning as
+      // the agent rows above: `Template.createdById` and `EmailAccount.userId` are FKs with no
+      // cascade, so a suite that creates a template fails on its *second* run — the first pass
+      // has nothing to clean up and looks fine.
+      await prisma.outcomeSignal.deleteMany({ where: { tenantId: t } });
+      await prisma.inboundMessage.deleteMany({ where: { tenantId: t } });
+      await prisma.outboundMessage.deleteMany({ where: { tenantId: t } });
+      await prisma.abTestVariant.deleteMany({ where: { tenantId: t } });
+      await prisma.template.deleteMany({ where: { tenantId: t } });
+      await prisma.emailAccount.deleteMany({ where: { tenantId: t } });
       await prisma.campaignPlaybookVersion.deleteMany({ where: { tenantId: t } });
       await prisma.campaignPlaybook.deleteMany({ where: { tenantId: t } });
       await prisma.sequence.deleteMany({ where: { tenantId: t } });

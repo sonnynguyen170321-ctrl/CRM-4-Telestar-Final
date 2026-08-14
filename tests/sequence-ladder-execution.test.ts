@@ -716,3 +716,96 @@ describe('three-step ladder — scheduler agreement', () => {
     expect(step2Task.dueDate.getTime()).toBeLessThanOrEqual(high.getTime());
   });
 });
+
+/**
+ * Durable A/B variant attribution (Task 9).
+ *
+ * Selection was already deterministic; what was missing is that the *choice* was thrown away
+ * after the send. A running `sentCount` says how many messages went out under a variant and can
+ * never say which prospect got which wording, so no reply, meeting or bounce could be attributed
+ * back to it. These assert the identity is on the outbound row — the record of the send — not
+ * recomputed later, because a recomputation changes its answer the day the seed inputs or the
+ * variant set change and would quietly rewrite history.
+ */
+describe('A/B variant attribution at send time', () => {
+  const VARIANTS = [
+    { id: 'var-a', version: 'A', subject: 'Subject A', body: 'Body A' },
+    { id: 'var-b', version: 'B', subject: 'Subject B', body: 'Body B' },
+  ];
+
+  function seedWithVariants(): void {
+    seedLadder();
+    store.steps = [
+      stepFixture(1, {
+        template: {
+          id: 'tmpl-1',
+          subject: 'Subject 1',
+          body: 'Body 1',
+          abVariants: VARIANTS,
+        },
+      }),
+      stepFixture(2, { delayDays: 3 }),
+      stepFixture(3, { delayDays: 4 }),
+    ];
+  }
+
+  beforeEach(() => {
+    seedWithVariants();
+  });
+
+  it('records which variant produced the words that were sent', async () => {
+    await executeStep(1);
+
+    const sent = store.outbound[0];
+    expect(VARIANTS.map((v) => v.id)).toContain(sent.abVariantId);
+    // The recorded variant is the one whose wording actually went out, not merely a variant.
+    const chosen = VARIANTS.find((v) => v.id === sent.abVariantId)!;
+    expect(sent.subject).toBe(chosen.subject);
+    expect(sent.body).toBe(chosen.body);
+  });
+
+  it('records the cadence and step alongside it, so a send can be grouped without the task', async () => {
+    await executeStep(1);
+
+    expect(store.outbound[0].sequenceId).toBe(SEQUENCE_ID);
+    expect(store.outbound[0].sequenceStepOrder).toBe(1);
+  });
+
+  it('attributes a retry to the same variant — one send, one identity', async () => {
+    store.failTaskCompletions = 1;
+
+    await expect(executeStep(1)).rejects.toThrow();
+    const afterCrash = store.outbound[0].abVariantId;
+    await executeStep(1);
+
+    expect(store.outbound).toHaveLength(1);
+    expect(store.outbound[0].abVariantId).toBe(afterCrash);
+  });
+
+  it('attributes no variant when approved copy decided the wording', async () => {
+    store.approvedCopy = [
+      {
+        enrollmentId: ENROLLMENT_ID,
+        stepOrder: 1,
+        subject: 'Approved for this prospect',
+        body: 'Approved body',
+        aiGenerated: true,
+      },
+    ];
+
+    await executeStep(1);
+
+    // Not "variant A by default". The approval overrode selection, so no variant was on trial —
+    // counting this send toward one would put messages the experiment never sent into its result.
+    expect(store.outbound[0].abVariantId).toBeNull();
+    expect(store.outbound[0].subject).toBe('Approved for this prospect');
+  });
+
+  it('attributes no variant when the step has no pair', async () => {
+    await executeStep(1);
+    await executeStep(2);
+
+    expect(store.outbound[1].abVariantId).toBeNull();
+    expect(store.outbound[1].sequenceStepOrder).toBe(2);
+  });
+});

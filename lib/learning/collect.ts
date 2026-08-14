@@ -60,6 +60,29 @@ export async function collectOutcomeSignals(
     return version?.id ?? null;
   };
 
+  /**
+   * The A/B variant the prospect was answering, or null.
+   *
+   * The message they were replying to is the last one actually sent to them at or before the
+   * outcome — `InboundMessage` carries no reference to the outbound it answers, and adding a
+   * threading store to satisfy a report would be the second system this initiative keeps
+   * refusing. Recency within the lead is the same correlation a human reading the thread would
+   * make, and it degrades honestly: a send with no variant attributes to none, and a lead with no
+   * variant-carrying send attributes to none rather than to a guess.
+   *
+   * This is a *read* of what the send path already recorded. Nothing here recomputes the
+   * selection — a recomputed variant would be this pass's opinion, not what was sent.
+   */
+  const variantFor = async (leadId: string | null | undefined, at: Date): Promise<string | null> => {
+    if (!leadId) return null;
+    const send = await prisma.outboundMessage.findFirst({
+      where: { tenantId, leadId, abVariantId: { not: null }, sentAt: { not: null, lte: at } },
+      orderBy: { sentAt: 'desc' },
+      select: { abVariantId: true },
+    });
+    return send?.abVariantId ?? null;
+  };
+
   const record = async (
     kind: SignalKind,
     direction: SignalDirection,
@@ -81,6 +104,7 @@ export async function collectOutcomeSignals(
       direction,
       occurredAt,
       playbookVersionId: await versionFor(fields.campaignId ?? null, occurredAt),
+      abVariantId: await variantFor(fields.leadId, occurredAt),
       ...fields,
     });
     result.recorded += 1;

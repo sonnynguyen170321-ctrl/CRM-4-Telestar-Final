@@ -491,6 +491,12 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
       subject,
       body,
       tenantId: task.tenantId,
+      // Null when approved copy won, and that is the honest answer: the approval decided this
+      // prospect's wording, so no variant was on trial here and counting it toward one would
+      // pollute the comparison with messages the experiment never sent.
+      abVariantId: selectedVariantId,
+      sequenceId: task.sequenceId,
+      sequenceStepOrder: task.sequenceStep,
     });
 
     await enqueueEmailSendWorkflow(
