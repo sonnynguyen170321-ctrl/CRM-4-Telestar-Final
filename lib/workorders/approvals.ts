@@ -3,6 +3,7 @@ import type { AgentApprovalRequest } from '@prisma/client';
 import { canApproveAsManager, type AuthorizationOutcome } from '@/lib/agent/authorization';
 import type { AgentCapability } from '@/lib/agent/capabilities';
 import type { SessionUser } from '@/lib/auth';
+import { parseApprovedCopy, type ApprovedStepCopy } from '@/lib/sequences/stepCopy';
 import {
   authorizeWorkOrderCapability,
   type WorkOrderCapabilityDecision,
@@ -144,6 +145,7 @@ export class ApprovalError extends Error {
       | 'not_pending'
       | 'expired'
       | 'approver_not_permitted'
+      | 'edit_not_supported'
   ) {
     super(message);
     this.name = 'ApprovalError';
@@ -158,6 +160,28 @@ export interface DecideApprovalInput {
   now?: Date;
 }
 
+export interface ApproveRequestInput extends DecideApprovalInput {
+  /**
+   * The approver's own wording, replacing the drafted copy this request carries.
+   *
+   * Unvalidated on the way in — `parseApprovedCopy` is what turns it into steps, and it throws
+   * rather than dropping malformed entries, because a silently discarded step would send the
+   * shared template to a prospect a human believed they had personalized for.
+   */
+  editedCopy?: unknown;
+}
+
+/**
+ * The one argument an approver may rewrite.
+ *
+ * Editing is deliberately not a general "change the args" facility. A human reviewing an outreach
+ * launch is judging *the words a prospect will read*; letting the same form alter `leadId` or
+ * `sequenceId` would turn an approval into a way to redirect the action at something nobody
+ * planned, and the planner's own gates (`Lead.sequenceId`, `assessLaunchEligibility`) would never
+ * see the substitution.
+ */
+const EDITABLE_ARG = 'approvedCopy';
+
 /**
  * Approve a pending request.
  *
@@ -165,8 +189,19 @@ export interface DecideApprovalInput {
  * same predicate the rest of the agent layer uses. Deliberately **no self-approval ban**: the
  * "requester" here is the agent acting on an SDR's behalf, and Telestar runs single-manager
  * pods where forbidding it would make manager-level capabilities unusable rather than safer.
+ *
+ * ## An edit made while approving is what sends
+ *
+ * `editedCopy` rewrites the request's `approvedCopy` argument **in the same statement that stamps
+ * the decision**. That is the whole reason it lives here rather than in a separate "revise" call:
+ * execution replays `AgentApprovalRequest.args`, so args and decision must move together or a
+ * retry between the two would execute words nobody approved. Two writes could also land either
+ * side of a concurrent approval; one compare-and-set cannot.
+ *
+ * The AI's original draft is untouched — it stays in `SequenceDraftRecord`, so the edit is legible
+ * afterwards as the difference between what a model proposed and what a human signed.
  */
-export async function approveRequest(input: DecideApprovalInput): Promise<AgentApprovalRequest> {
+export async function approveRequest(input: ApproveRequestInput): Promise<AgentApprovalRequest> {
   const now = input.now ?? new Date();
   const request = await requirePendingRequest(input.requestId, input.tenantId, now);
 
@@ -177,6 +212,10 @@ export async function approveRequest(input: DecideApprovalInput): Promise<AgentA
     );
   }
 
+  const args = (request.args ?? {}) as Record<string, unknown>;
+  const editedArgs =
+    input.editedCopy === undefined ? null : { ...args, [EDITABLE_ARG]: applyCopyEdit(args, input.editedCopy) };
+
   // Compare-and-set on status: two approvers clicking at once cannot both stamp a decision.
   const claimed = await prisma.agentApprovalRequest.updateMany({
     where: { id: request.id, tenantId: input.tenantId, status: 'pending' },
@@ -185,6 +224,7 @@ export async function approveRequest(input: DecideApprovalInput): Promise<AgentA
       approvedById: input.approver.id,
       decisionReason: input.reason ?? null,
       resolvedAt: now,
+      ...(editedArgs ? { args: editedArgs as object } : {}),
     },
   });
   if (claimed.count !== 1) {
@@ -192,6 +232,48 @@ export async function approveRequest(input: DecideApprovalInput): Promise<AgentA
   }
 
   return requireRequest(request.id, input.tenantId);
+}
+
+/**
+ * Validate the approver's wording against the copy the request already carries.
+ *
+ * Two rules, both about not letting an edit become something other than an edit:
+ *
+ * - **A request with no `approvedCopy` cannot acquire one.** Personalization is opt-in per
+ *   deployment, and `launchAIOutreach` refuses copy when it is off. Injecting copy into a launch
+ *   the planner deliberately left plain would turn an approval into a refusal at execution time,
+ *   long after the human was told it was approved.
+ * - **`aiGenerated` is derived, never taken from the caller.** A step whose subject and body are
+ *   byte-identical to the draft keeps the draft's provenance; a step whose wording changed is the
+ *   approver's, so it records `false`. Trusting the client here would let a human edit be filed
+ *   as model output, or the reverse.
+ */
+function applyCopyEdit(args: Record<string, unknown>, editedCopy: unknown): ApprovedStepCopy[] {
+  const original = args[EDITABLE_ARG];
+  if (!Array.isArray(original) || original.length === 0) {
+    throw new ApprovalError(
+      'This request carries no per-prospect copy, so there is nothing to edit.',
+      'edit_not_supported'
+    );
+  }
+
+  const drafted = new Map(
+    parseApprovedCopy(original).map((step) => [step.stepOrder, step] as const)
+  );
+
+  return parseApprovedCopy(editedCopy).map((step) => {
+    const before = drafted.get(step.stepOrder);
+    const unchanged =
+      !!before && before.body === step.body && (before.subject ?? null) === (step.subject ?? null);
+
+    return {
+      ...step,
+      // Citations belong to the evidence the draft actually used. An approver rewriting a
+      // sentence does not get to restate which evidence backs it.
+      citedEvidenceIds: before?.citedEvidenceIds ?? [],
+      aiGenerated: unchanged ? (before?.aiGenerated ?? false) : false,
+    };
+  });
 }
 
 /** Reject a pending request. A rejected request never executes and is never revived. */

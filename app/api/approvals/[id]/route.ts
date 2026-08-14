@@ -9,6 +9,7 @@ import {
   rejectRequest,
   resumeApprovedAction,
 } from '@/lib/workorders/approvals';
+import { StepCopyRefusedError } from '@/lib/sequences/stepCopy';
 
 /**
  * Decide one agent approval request (Revenue AI Phase 6b).
@@ -23,10 +24,18 @@ import {
  * in one step would make the approval a permission token, and the whole point of storing the
  * decision instead is that a lead reassigned, a policy tightened or a playbook superseded
  * between the click and the run must still be able to refuse.
+ *
+ * ## Approving with an edit
+ *
+ * `approvedCopy` on an `approve` is the reviewer's own wording for a personalized cadence, and it
+ * replaces the drafted copy in the same statement that records the decision. Shape checking is
+ * left to `parseApprovedCopy` rather than duplicated in zod: it is the same validation the launch
+ * and the agent tool run, so an edit accepted here cannot be one the launch would later refuse.
  */
 const decisionSchema = z.object({
   decision: z.enum(['approve', 'reject']),
   reason: z.string().max(2000).optional(),
+  approvedCopy: z.unknown().optional(),
 });
 
 export async function POST(
@@ -64,6 +73,9 @@ export async function POST(
       tenantId: user.tenantId,
       approver: user,
       reason: parsed.data.reason,
+      // `undefined` means "approve what was drafted". An omitted field and an edit are different
+      // intents, so the absent case must not collapse into an empty edit.
+      editedCopy: 'approvedCopy' in parsed.data ? parsed.data.approvedCopy : undefined,
     });
 
     // Report whether it would be permitted now. Informational: the executing worker re-runs this
@@ -82,9 +94,19 @@ export async function POST(
         : {}),
     });
   } catch (err) {
+    // A malformed edit is the caller's mistake, not a conflict: it never reached the decision.
+    if (err instanceof StepCopyRefusedError) {
+      return NextResponse.json({ error: err.message, code: 'invalid_copy' }, { status: 400 });
+    }
     if (err instanceof ApprovalError) {
       const status =
-        err.code === 'not_found' ? 404 : err.code === 'approver_not_permitted' ? 403 : 409;
+        err.code === 'not_found'
+          ? 404
+          : err.code === 'approver_not_permitted'
+            ? 403
+            : err.code === 'edit_not_supported'
+              ? 400
+              : 409;
       return NextResponse.json({ error: err.message, code: err.code }, { status });
     }
     return handleApiError('approvals/decide', err);

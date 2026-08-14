@@ -552,3 +552,182 @@ describe.skipIf(!hasDb)('expiry', () => {
     });
   });
 });
+
+/**
+ * An edit made while approving (Task 1 — the approved-copy hand-off).
+ *
+ * The dangerous version of this feature is a "revise" endpoint separate from the decision: the
+ * args and the decision would then be two writes, and a retry landing between them would execute
+ * wording nobody signed. So the edit rides the same compare-and-set that stamps the approval, and
+ * these tests assert the durable row rather than a return value — execution replays `args`, so
+ * `args` is what has to be right.
+ */
+describe.skipIf(!hasDb)('approving with an edit', () => {
+  const DRAFTED = [
+    {
+      stepOrder: 1,
+      subject: 'Your Q3 hiring push',
+      body: 'Saw the 12 SDR openings in Da Nang.',
+      citedEvidenceIds: ['ev-1'],
+      aiGenerated: true,
+    },
+    {
+      stepOrder: 2,
+      subject: 'Following up',
+      body: 'Circling back on the hiring push.',
+      citedEvidenceIds: ['ev-1'],
+      aiGenerated: true,
+    },
+  ];
+
+  async function pendingLaunchRequest(actionKey: string, args: Record<string, unknown>) {
+    const order = await activeOrder(`appr-edit-${actionKey}`, 'outreach_launch');
+    const { request } = await requestApproval({
+      tenantId: fx.tenantId,
+      actionKey,
+      workOrderId: order.id,
+      capability: 'sequence_enroll',
+      toolName: 'enroll_lead_in_sequence',
+      args,
+      requiredLevel: 'user',
+      requestedById: fx.directorId,
+    });
+    return request;
+  }
+
+  const approve = (requestId: string, editedCopy?: unknown) =>
+    approveRequest({
+      requestId,
+      tenantId: fx.tenantId,
+      approver: { id: fx.directorId, role: 'director' },
+      ...(editedCopy === undefined ? {} : { editedCopy }),
+    });
+
+  it('stores the human wording, not the model draft, as what will execute', async () => {
+    await run(async () => {
+      const request = await pendingLaunchRequest('edit-wins', {
+        leadId: fx.idleLeadId,
+        sequenceId: 'seq-1',
+        approvedCopy: DRAFTED,
+      });
+
+      await approve(request.id, [
+        { stepOrder: 1, subject: 'Da Nang hiring', body: 'Noticed you are hiring SDRs.' },
+        { stepOrder: 2, subject: 'Following up', body: 'Circling back on the hiring push.' },
+      ]);
+
+      const stored = await prisma.agentApprovalRequest.findUniqueOrThrow({
+        where: { id: request.id },
+      });
+      const copy = (stored.args as { approvedCopy: Array<Record<string, unknown>> }).approvedCopy;
+
+      expect(stored.status).toBe('approved');
+      expect(copy[0].body).toBe('Noticed you are hiring SDRs.');
+      expect(copy[0].subject).toBe('Da Nang hiring');
+      // The rest of the args are the planner's and stay exactly as planned — an approval form is
+      // not a way to point the launch at a different lead or a different cadence.
+      expect((stored.args as { leadId: string }).leadId).toBe(fx.idleLeadId);
+      expect((stored.args as { sequenceId: string }).sequenceId).toBe('seq-1');
+    });
+  });
+
+  it('records a rewritten step as the human\'s and an untouched one as the model\'s', async () => {
+    await run(async () => {
+      const request = await pendingLaunchRequest('edit-provenance', {
+        leadId: fx.idleLeadId,
+        approvedCopy: DRAFTED,
+      });
+
+      // Step 2 is resubmitted byte-identical, and claims to be human-written; step 1 is genuinely
+      // rewritten but claims to be model output. Both claims are ignored — provenance is derived.
+      await approve(request.id, [
+        { stepOrder: 1, subject: 'Da Nang hiring', body: 'Rewritten by a human.', aiGenerated: true },
+        { stepOrder: 2, subject: 'Following up', body: 'Circling back on the hiring push.' },
+      ]);
+
+      const stored = await prisma.agentApprovalRequest.findUniqueOrThrow({
+        where: { id: request.id },
+      });
+      const copy = (stored.args as { approvedCopy: Array<Record<string, unknown>> }).approvedCopy;
+
+      expect(copy[0].aiGenerated).toBe(false);
+      expect(copy[1].aiGenerated).toBe(true);
+      // Citations describe the evidence the draft used. Rewriting a sentence does not restate it.
+      expect(copy[0].citedEvidenceIds).toEqual(['ev-1']);
+    });
+  });
+
+  it('leaves the draft alone when no edit is supplied', async () => {
+    await run(async () => {
+      const request = await pendingLaunchRequest('edit-absent', {
+        leadId: fx.idleLeadId,
+        approvedCopy: DRAFTED,
+      });
+
+      await approve(request.id);
+
+      const stored = await prisma.agentApprovalRequest.findUniqueOrThrow({
+        where: { id: request.id },
+      });
+      expect(stored.args).toEqual({ leadId: fx.idleLeadId, approvedCopy: DRAFTED });
+    });
+  });
+
+  it('refuses to inject copy into a request that carries none', async () => {
+    await run(async () => {
+      // Personalization off means the planner attached nothing. Accepting an edit here would
+      // record an approval the launch then refuses — approved in the UI, dead at execution.
+      const request = await pendingLaunchRequest('edit-inject', {
+        leadId: fx.idleLeadId,
+        sequenceId: 'seq-1',
+      });
+
+      await expect(
+        approve(request.id, [{ stepOrder: 1, body: 'Copy nobody planned.' }])
+      ).rejects.toMatchObject({ code: 'edit_not_supported' });
+
+      const stored = await prisma.agentApprovalRequest.findUniqueOrThrow({
+        where: { id: request.id },
+      });
+      // Refused before the decision, so the request is still awaiting one.
+      expect(stored.status).toBe('pending');
+    });
+  });
+
+  it('refuses a malformed edit without deciding the request', async () => {
+    await run(async () => {
+      const request = await pendingLaunchRequest('edit-malformed', {
+        leadId: fx.idleLeadId,
+        approvedCopy: DRAFTED,
+      });
+
+      await expect(approve(request.id, [{ stepOrder: 1, body: '   ' }])).rejects.toThrow();
+
+      const stored = await prisma.agentApprovalRequest.findUniqueOrThrow({
+        where: { id: request.id },
+      });
+      expect(stored.status).toBe('pending');
+      expect(stored.args).toEqual({ leadId: fx.idleLeadId, approvedCopy: DRAFTED });
+    });
+  });
+
+  it('cannot edit a request someone else already decided', async () => {
+    await run(async () => {
+      const request = await pendingLaunchRequest('edit-raced', {
+        leadId: fx.idleLeadId,
+        approvedCopy: DRAFTED,
+      });
+
+      await approve(request.id);
+      await expect(
+        approve(request.id, [{ stepOrder: 1, body: 'Too late.' }])
+      ).rejects.toBeInstanceOf(ApprovalError);
+
+      const stored = await prisma.agentApprovalRequest.findUniqueOrThrow({
+        where: { id: request.id },
+      });
+      const copy = (stored.args as { approvedCopy: Array<Record<string, unknown>> }).approvedCopy;
+      expect(copy[0].body).toBe(DRAFTED[0].body);
+    });
+  });
+});
