@@ -67,7 +67,29 @@ export function isSupportedRequiredField(field: string): field is SupportedRequi
   return (SUPPORTED_REQUIRED_FIELDS as readonly string[]).includes(field);
 }
 
-type LeadForQuality = Prisma.LeadGetPayload<{
+/**
+ * Everything `matchRequirement` needs to read, as one selection.
+ *
+ * Exported so ICP adherence reporting queries exactly what the matcher reads. A report that
+ * assembled its own `select` would drift the moment a criterion started reading a new column, and
+ * the failure would be silent: a missing column reads as `unknown`, so the report would quietly
+ * start calling matched leads unresolved.
+ */
+export const LEAD_QUALITY_INCLUDE = {
+  account: {
+    select: {
+      industry: true,
+      country: true,
+      size: true,
+      staffCountMin: true,
+      staffCountMax: true,
+      website: true,
+    },
+  },
+  contact: { select: { title: true, country: true, phone: true, linkedIn: true, whatsApp: true } },
+} as const;
+
+export type LeadForQuality = Prisma.LeadGetPayload<{
   include: {
     account: {
       select: {
@@ -120,19 +142,7 @@ export async function evaluateLeadQuality(
 ): Promise<LeadQualityAssessment> {
   const lead = (await prisma.lead.findUnique({
     where: { id: input.leadId },
-    include: {
-      account: {
-        select: {
-          industry: true,
-          country: true,
-          size: true,
-          staffCountMin: true,
-          staffCountMax: true,
-          website: true,
-        },
-      },
-      contact: { select: { title: true, country: true, phone: true, linkedIn: true, whatsApp: true } },
-    },
+    include: LEAD_QUALITY_INCLUDE,
   })) as LeadForQuality | null;
 
   if (!lead || lead.tenantId !== input.tenantId) throw new LeadQualityAccessError(input.leadId);
@@ -167,7 +177,14 @@ export async function evaluateLeadQuality(
   };
 }
 
-function matchRequirement(
+/**
+ * Judge one lead against one requirement. The single definition of "does this match the ICP".
+ *
+ * Exported so `lib/leadgen/icpAdherence.ts` measures adherence with the same rules the per-lead
+ * assessment uses. A percentage computed by a second implementation would eventually disagree
+ * with the assessment shown next to it, and there would be no way to say which was right.
+ */
+export function matchRequirement(
   lead: LeadForQuality,
   req: {
     id: string;

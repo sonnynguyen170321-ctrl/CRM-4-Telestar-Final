@@ -23,8 +23,50 @@ type Metrics = {
     delivered: number;
     status: string;
   }[];
+  icpAdherence: {
+    campaigns: {
+      campaignId: string;
+      campaignName: string;
+      hasCriteria: boolean;
+      delivered: number;
+      evaluated: number;
+      matched: number;
+      mismatched: number;
+      unknown: number;
+      unevaluated: number;
+      matchRate: number | null;
+      topMismatchReasons: { criterion: string; count: number }[];
+    }[];
+    totals: {
+      evaluated: number;
+      matched: number;
+      mismatched: number;
+      unknown: number;
+      matchRate: number | null;
+      topMismatchReasons: { criterion: string; count: number }[];
+    };
+  };
   avgDaysToQualification: number;
 };
+
+/**
+ * Criterion names as the matcher reports them, in a manager's language.
+ *
+ * `requiredField:phone` is how `matchRequirement` names a missing mandatory field, and showing
+ * that string to a Leadgen Manager would be engineering vocabulary on a business surface.
+ */
+function criterionLabel(criterion: string): string {
+  if (criterion.startsWith('requiredField:')) {
+    return `missing ${criterion.slice('requiredField:'.length)}`;
+  }
+  const named: Record<string, string> = {
+    title: 'job title',
+    industry: 'industry',
+    country: 'country',
+    companySize: 'company size',
+  };
+  return named[criterion] ?? criterion;
+}
 
 const STAT_CARDS = [
   { key: 'importedWeek', label: 'Imported (7d)', icon: Upload, color: 'text-blue-400' },
@@ -80,6 +122,8 @@ export default function OverviewTab() {
   const topMembers = metrics.qualifiedByMember.slice(0, 6);
   const maxSource = Math.max(1, ...topSources.map((s) => s.count));
   const maxMember = Math.max(1, ...topMembers.map((m) => m.count));
+  // Campaigns with no criteria configured are not shown as 0% — there is nothing to adhere to.
+  const measuredCampaigns = metrics.icpAdherence.campaigns.filter((c) => c.hasCriteria);
 
   return (
     <div className="space-y-6">
@@ -132,6 +176,70 @@ export default function OverviewTab() {
                 </div>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      {/* ICP adherence — a different question from delivery volume above. A campaign can be
+          fully delivered and badly off-brief, and this is the number that says so. */}
+      <div className="space-y-3">
+        <div className="flex items-baseline justify-between">
+          <h2 className="font-display font-extrabold text-sm text-text-primary">ICP Adherence</h2>
+          {metrics.icpAdherence.totals.matchRate !== null && (
+            <span className="text-xs text-text-muted">
+              <span className="font-mono font-bold text-text-primary">
+                {metrics.icpAdherence.totals.matchRate}%
+              </span>{' '}
+              of {metrics.icpAdherence.totals.evaluated} evaluated delivered leads match
+            </span>
+          )}
+        </div>
+        {measuredCampaigns.length === 0 ? (
+          <div className="bg-card-bg border border-card-border rounded-2xl p-6 text-center text-xs text-text-muted italic">
+            <p className="prose-measure mx-auto">
+              No campaign requirement defines target titles, industries, countries, company size or
+              mandatory fields yet, so there is nothing to measure delivered leads against.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {measuredCampaigns.map((c) => (
+              <div key={c.campaignId} className="bg-card-bg border border-card-border rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-text-primary">{c.campaignName}</p>
+                  <span className="text-[10px] font-mono text-text-muted">
+                    {/* Never "0%" for a campaign nothing could be judged on — an unmeasured
+                        campaign and a failing one must not read the same. */}
+                    {c.matchRate === null ? 'not measured' : `${c.matchRate}% on ICP`}
+                  </span>
+                </div>
+                {c.evaluated > 0 && (
+                  <div className="flex h-2 rounded-full overflow-hidden border border-card-border bg-bg-main">
+                    <div className="h-full bg-emerald-500" style={{ width: `${(c.matched / c.evaluated) * 100}%` }} />
+                    <div className="h-full bg-brand-red" style={{ width: `${(c.mismatched / c.evaluated) * 100}%` }} />
+                    <div className="h-full bg-amber-400" style={{ width: `${(c.unknown / c.evaluated) * 100}%` }} />
+                  </div>
+                )}
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-text-muted">
+                  <span><span className="font-mono text-emerald-400">{c.matched}</span> match</span>
+                  <span><span className="font-mono text-brand-red">{c.mismatched}</span> off-ICP</span>
+                  {/* Missing data is its own number. Folding it into either side would either
+                      flatter the rate or blame the floor for gaps in enrichment. */}
+                  <span><span className="font-mono text-amber-400">{c.unknown}</span> unknown</span>
+                  {c.unevaluated > 0 && (
+                    <span><span className="font-mono">{c.unevaluated}</span> not yet in CRM</span>
+                  )}
+                </div>
+                {c.topMismatchReasons.length > 0 && (
+                  <p className="mt-2 text-[10px] text-text-muted">
+                    Most common misses:{' '}
+                    {c.topMismatchReasons
+                      .map((r) => `${criterionLabel(r.criterion)} (${r.count})`)
+                      .join(', ')}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
