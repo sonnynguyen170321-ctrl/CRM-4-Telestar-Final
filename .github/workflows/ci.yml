@@ -276,6 +276,27 @@ jobs:
           ALLOW_DESTRUCTIVE_SEED: I_UNDERSTAND_THIS_DELETES_ALL_DATA
           DEMO_SEED_PASSWORD: ${{ env.E2E_PASSWORD }}
 
+      # `npm run db:seed` above builds the legacy dataset the `chromium` specs sign in to. The
+      # other two projects have their own fixtures, and widening the Playwright gate to all four
+      # projects without creating them is what made every `setup` and `demo` test fail: the audit
+      # suite aborts with "Audit fixture missing at e2e/.fixture.json", and the demo walkthrough
+      # signs in to a tenant that does not exist and lands on the marketing page.
+      #
+      # Both run after the destructive seed, never before — `prisma/seed-demo.ts` clears tenants,
+      # so seeding in the other order would delete exactly what these two just created.
+      - name: Build the audit fixture (setup + audit projects)
+        run: set -o pipefail; npx tsx scripts/e2e-audit-fixture.ts 2>&1 | tee fixture.log
+        shell: bash
+        env:
+          ALLOW_E2E_FIXTURE: '1'
+          E2E_PASSWORD: ${{ env.E2E_PASSWORD }}
+
+      # No DEMO_PASSWORD override: the walkthrough falls back to the same documented default when
+      # the variable is unset, so seeding with it is what keeps the two halves agreeing.
+      - name: Seed the demo tenant (demo project)
+        run: set -o pipefail; npx tsx scripts/demo-seed.ts --reset 2>&1 | tee demo-seed.log
+        shell: bash
+
       - name: Production build
         run: set -o pipefail; npm run build 2>&1 | tee build.log
         shell: bash
@@ -315,7 +336,7 @@ jobs:
           {
             echo "## Build · Playwright — failure"
             echo
-            for f in seed.log build.log playwright.log server.log; do
+            for f in seed.log fixture.log demo-seed.log build.log playwright.log server.log; do
               [ -f "$f" ] || continue
               echo "### ${f}"
               echo
