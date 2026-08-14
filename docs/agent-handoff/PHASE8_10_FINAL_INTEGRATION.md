@@ -294,6 +294,14 @@ dry-run holds), never redesigned.
 
 ### Non-blocking follow-ons
 
+> **Status 2026-08-14: 1 and 2 are done**, as one change — the version-side unique key is both the
+> guard and what makes the repair safe. `CampaignPlaybookVersion.fromProposalId` is unique,
+> `PlaybookProposal.createdVersionId` is gone, and `completeApprovedProposal` finishes an approval
+> whose draft never got created without retaking the decision. Migration
+> `20260815000000_phase10_proposal_draft_guard`, reusing the name below as instructed, with the
+> backfill ordered before the drop. **3 is superseded**: the branch schema now matches what the
+> shared database already carried, so the two agree; the remaining test debris is cosmetic.
+
 1. **Adopt the schema-level draft guard.** Move the proposal→version link onto
    `CampaignPlaybookVersion.fromProposalId` (unique) as
    `integrate/phase-8-10-unified` did, so the database refuses a duplicate draft rather than relying

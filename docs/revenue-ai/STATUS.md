@@ -11,6 +11,45 @@
 
 ## Resume here
 
+### 2026-08-14 — the approved-copy hand-off is wired, and two follow-ons are closed
+
+The Email Automation lane's one remaining gap is closed, end to end: a `sequence_design` draft is
+now durable (`SequenceDraftRecord`), the `outreach_launch` planner reads it into the tool args, the
+approval row stores those args verbatim, and execution **replays the approved args rather than
+re-planning**. Full account in [`../automation-engine/EMAIL_AUTOMATION_LANE.md`](../automation-engine/EMAIL_AUTOMATION_LANE.md).
+
+Handoff follow-ons **1 and 2 are done** — they turned out to be one change. The proposal→draft link
+moved to `CampaignPlaybookVersion.fromProposalId` (unique), which is both the database-level guard
+against a duplicate draft *and* what makes the repair safe: `completeApprovedProposal` finishes an
+approval whose draft never got created, without retaking the decision.
+
+**One defect found that was on no list: an approved action never executed.** `executeWorkOrder`
+re-paused unconditionally, so an approved order paused forever. Three layers now re-derive the
+approval independently by id — never a flag — through `resumeApprovedAction`.
+
+| Gate | Result |
+|---|---|
+| `tsc --noEmit` | 0 errors |
+| `eslint app components lib context tests workers` | 0 errors, 0 warnings |
+| `vitest run` | **1533 passed**, 5 skipped, 104 files |
+| `npm run check:migration-order` | ok — **45 migrations** |
+| `migrate diff --from-migrations` vs empty shadow | `No difference detected` |
+| `next build` | exit 0 |
+
+Two new migrations: `20260814020000_sequence_draft_record` and
+`20260815000000_phase10_proposal_draft_guard` — the latter reusing the name the superseded lane
+had, as §10 of the handoff instructed, with the backfill ordered *before* the old column is
+dropped so an existing deployment carries its links across.
+
+> **Correction to the warning below.** The shared local `telestar_crm` really did carry the
+> superseded lane's schema — `fromProposalId` present, `createdVersionId` already dropped — and
+> **`migrate status` reported "up to date" throughout**, because the branch's own schema still
+> declared the old column. The phase-10 suite did not catch it either: it mocks Prisma entirely.
+> The branch has now caught up to that schema deliberately, so the two agree. Treat a green
+> `migrate status` as evidence of nothing when a superseded lane has touched the same database.
+
+Still true and still next: the Email Automation lane is integrated here, not on `main`.
+
 **Phase 8 RC + Phase 9 + Phase 10 are integrated and green on one branch.** The full record —
 conflicts, resolutions, gates, role-by-role QA and the one defect fixed — is in
 [`../agent-handoff/PHASE8_10_FINAL_INTEGRATION.md`](../agent-handoff/PHASE8_10_FINAL_INTEGRATION.md).

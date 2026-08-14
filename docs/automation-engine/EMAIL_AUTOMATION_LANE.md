@@ -84,7 +84,54 @@ durable, and the sequence worker never asks a model what to say.**
 - `tests/sequence-step-copy.test.ts` enforces the boundary structurally: no file in the send path
   and no file under `lib/sequences/` may import the AI layer.
 
-## The gap that remains, and it is the important one
+## The hand-off, now wired end to end
+
+The gap described below is **closed**. The decision it was waiting on — *where an approval is
+recorded* — is answered by the approval row that already existed: `AgentApprovalRequest.args`.
+
+```text
+draft_sequence    draftSequenceForLead writes SequenceDraftRecord   durable, keyed by lead
+outreach_launch   planWorkOrderSteps reads it into the tool args    no provider call
+approval          requestApproval stores those args verbatim        what the human is shown
+execution         the approved args are replayed, not re-planned    what the prospect reads
+enrollment        materializeApprovedCopy writes SequenceStepCopy   durable before executable
+```
+
+Five rules hold it together, each with a test that fails if it stops being true:
+
+- **The planner reads; it never drafts.** `planWorkOrderSteps` calls no provider — its stated
+  contract, and the reason the draft had to become durable first. `SequenceDraftRecord`
+  (`20260814020000_sequence_draft_record`) is keyed by lead, so re-drafting replaces the current
+  proposal rather than accumulating candidates.
+- **All or nothing.** Copy is attached only when the draft's steps line up one-for-one with the
+  target sequence by order *and* channel. Personalizing the steps that happen to match and letting
+  the rest fall back to templates would send a personalized opener and a generic follow-up, with
+  nothing recording that half the approval went unused.
+- **Approved words are the words that send.** Execution replays `AgentApprovalRequest.args` and
+  discards the freshly planned ones. The dangerous case is not a malicious edit — it is an ordinary
+  re-plan between the approval and the retry that executes it.
+- **The approval is re-derived, never trusted.** `executeWorkOrder`, `executeAgentAction` and
+  `executeTool` each resolve it independently, by **id**, through `resumeApprovedAction`. None
+  accepts a flag. A tightened policy, an expired approval, a rejection or a level that no longer
+  covers the action still refuses at all three.
+- **Copy with personalization off is a refusal, not a fallback.** `launchAIOutreach` refuses before
+  eligibility and before the launch is claimed, under its own reason code
+  `personalization_disabled`, so nothing is left behind to unwind.
+
+`SEQUENCE_AI_PERSONALIZATION` still defaults off, and with it off the planner attaches no copy —
+so every cadence uses its shared template exactly as before.
+
+### One defect this uncovered, which was not on any list
+
+**An approved action never executed.** `executeWorkOrder` re-paused unconditionally on any step
+requiring approval, and `requestApproval` returns the existing row rather than a fresh one — so an
+order a human had approved paused again, forever, and nothing in production re-ran it. Rejected,
+expired and now-insufficient approvals are refusals rather than pauses too: pausing on a decision
+that has already been made is a wait for something that will never arrive.
+
+---
+
+## The gap as it stood before that (kept for the record)
 
 **Nothing yet hands an approved draft to the launch.** `prepareProspectOutreach` still returns
 its grounded draft in memory and advances the prospect to `ready_for_outreach`; the copy is
