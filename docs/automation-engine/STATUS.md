@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| Phase | All phases in `PLAN.md` complete |
+| Phase | All phases in `PLAN.md` complete. **Email Automation lane (Plan 1) landed on `integrate/phase-8-10-final`** — see [`EMAIL_AUTOMATION_LANE.md`](EMAIL_AUTOMATION_LANE.md) |
 | Branch | `feat/automation-engine-pr` (merged forward from the deleted `feat/automation-engine`) |
 | Base commit | `bd018c1 feat(automation): complete automation engine upgrade (Phases 0-15)` |
 | Next task | None in this initiative. Three non-blocking follow-ups listed at the bottom of `PLAN.md`. |
