@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 /**
  * The three-step ladder, executed (Plan 1 §A2).
@@ -336,6 +336,24 @@ async function executeStep(order: number) {
     expectedEnrollmentId: ENROLLMENT_ID,
   });
 }
+
+// The eligibility check's send-window step (`lib/automation/eligibility.ts`, "Schedule / Send
+// window check") defers to the next business day under `businessDayPolicy: 'skip_weekends'`
+// regardless of the hour, because every step fixture here carries null send-window minutes —
+// "no configured window" still has a business-day policy applied to it. Every step in this file
+// read real wall-clock time via `new Date()` at `workers/sequence.ts`'s `now: new Date()`, so a
+// CI run landing in the Saturday/Sunday window in `Asia/Ho_Chi_Minh` (the fixture lead's
+// timezone) deferred every send instead of completing it — 29/29 failures, all fast, all
+// `status: 'deferred'` where `'completed'` was expected. Same pattern and instant as
+// `tests/sequence-execute.test.ts`: a fixed Monday, so the file's outcome no longer depends on
+// which day it happens to run.
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-08-10T10:00:00Z')); // Monday 10:00 UTC
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('three-step ladder — durable execution state', () => {
   beforeEach(() => {

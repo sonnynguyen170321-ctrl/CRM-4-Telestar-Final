@@ -337,13 +337,21 @@ jobs:
         run: |
           node scripts/worker-start.cjs > worker.log 2>&1 &
           worker_pid=$!
-          sleep 2
-          if ! kill -0 "$worker_pid" 2>/dev/null; then
-            echo "::error::Worker process exited immediately"
-            cat worker.log
-            exit 1
-          fi
-          echo "worker running (pid $worker_pid)"
+          for i in $(seq 1 30); do
+            if ! kill -0 "$worker_pid" 2>/dev/null; then
+              echo "::error::Worker process exited before becoming ready"
+              cat worker.log
+              exit 1
+            fi
+            if grep -q '\[worker\] ready' worker.log 2>/dev/null; then
+              echo "worker ready after ${i}s (pid $worker_pid)"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Worker did not log [worker] ready within 30s"
+          cat worker.log
+          exit 1
         shell: bash
 
       # Mandatory end-to-end gating across all projects: setup, audit, demo, chromium.
