@@ -215,4 +215,38 @@ describe('Workflows Enqueuing Helpers', () => {
     });
     expect(jobRun?.jobName).toBe(JobType.EMAIL_SEND);
   });
+
+  it('should resolve worker job tenant via bootstrap resolver without ambient tenant context', async () => {
+    const payload = { startedAt: new Date().toISOString() };
+    const jobId = await enqueue(JobType.MAINTENANCE_HEALTHCHECK, payload, { tenantId });
+
+    // Call resolveWorkerJobTenant directly outside of any tenantStorage context
+    const resolvedTenant = await (await import('@/lib/prisma')).resolveWorkerJobTenant(jobId);
+    expect(resolvedTenant).toBe(tenantId);
+
+    // Call wrapProcessor on job without pre-setting tenant context
+    const mockProcessor = wrapProcessor(async (_job) => {
+      // Inside processor, verify ambient tenant context is properly established
+      const activeStore = (await import('@/lib/prisma')).tenantStorage.getStore();
+      expect(activeStore?.tenantId).toBe(tenantId);
+      expect(activeStore?.bypassRls).toBe(true);
+      return { handled: true };
+    });
+
+    const mockJob: any = {
+      id: jobId,
+      attemptsMade: 1,
+      client: null,
+      updateProgress: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const res = await mockProcessor(mockJob);
+    expect(res).toEqual({ handled: true });
+
+    const jobRun = await (await import('@/lib/prisma')).tenantStorage.run({ tenantId, bypassRls: true }, async () => {
+      return prisma.jobRun.findUnique({ where: { id: jobId } });
+    });
+    expect(jobRun?.status).toBe('completed');
+    expect(jobRun?.result).toEqual({ handled: true });
+  });
 });
