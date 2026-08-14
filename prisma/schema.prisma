@@ -267,6 +267,7 @@ model User {
   reminders                Reminder[]
   sequences                Sequence[]
   templates                Template[]
+  approvedStepCopies       SequenceStepCopy[]
   campaignSdrs             CampaignSdr[]
   auditLogs                AuditLog[]
   aiMemories               AiMemory[]
@@ -955,12 +956,47 @@ model SequenceEnrollment {
   tenantId         String
   tenant           Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  stepCopies SequenceStepCopy[]
+
   @@index([leadId])
   @@index([sequenceId])
   @@index([status])
   @@index([tenantId])
   @@index([nextActionAt]) // For maintenance worker scheduling queries
   @@index([status, nextActionAt]) // Active enrollments due for action
+}
+
+/// Approved, prospect-facing copy for one step of one enrollment occurrence.
+///
+/// Personalization is prepared and approved at **design** time and stored here; execution reads
+/// it. The sequence worker therefore never asks a model what to say, and an AI provider being
+/// down cannot change what an already-approved cadence sends. Absent a row, the step falls back
+/// to its shared `Template` — so this is additive and no existing cadence changes behaviour.
+///
+/// Keyed by the occurrence rather than the lead: a replacement cadence is a different
+/// conversation and must not inherit the copy approved for the one it replaced.
+model SequenceStepCopy {
+  id           String             @id @default(cuid())
+  enrollmentId String
+  enrollment   SequenceEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  /// Matches `SequenceStep.order`, not a step id: the builder reconciles steps by id but the
+  /// cadence position is what an enrollment's `currentStep` names.
+  stepOrder    Int
+  subject      String?
+  body         String
+  /// Evidence rows this copy cites, carried from the grounded draft for audit.
+  citedEvidenceIds String[]
+  /// False when the deterministic evidence-only fallback produced this copy.
+  aiGenerated  Boolean            @default(false)
+  approvedAt   DateTime           @default(now())
+  approvedById String?
+  approvedBy   User?              @relation(fields: [approvedById], references: [id])
+  createdAt    DateTime           @default(now())
+  tenantId     String
+  tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, stepOrder])
+  @@index([tenantId])
 }
 
 // ─── Import ──────────────────────────────────────────────────────────────────
@@ -1593,6 +1629,7 @@ model Tenant {
   inboundMessages          InboundMessage[]
   suppressionEntries       SuppressionEntry[]
   sequenceEnrollments      SequenceEnrollment[]
+  sequenceStepCopies       SequenceStepCopy[]
   importBatches            ImportBatch[]
   importRows               ImportRow[]
   attachments              Attachment[]

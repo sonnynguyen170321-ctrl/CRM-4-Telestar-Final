@@ -20,6 +20,7 @@ import { enrollmentStepTaskId } from '@/lib/sequences/identity';
 import { renderTemplate } from '@/lib/templates/render';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 import { evaluateAutomationEligibility } from '@/lib/automation/eligibility';
+import { getApprovedStepCopy } from '@/lib/sequences/stepCopy';
 import { deterministicOffset, buildJitterSeed } from '@/lib/automation/jitter';
 import { enqueueReschedule } from '@/lib/bullmq/enqueue';
 
@@ -413,6 +414,15 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
   if (lock.count !== 1) return { status: 'ignored', reason: 'concurrency_lock_failed' };
 
   try {
+    // Approved per-occurrence copy, when this cadence has any.
+    //
+    // This is a *read* of durable, already-approved content — never a generation. Personalization
+    // happens at design time (see `lib/sequences/stepCopy.ts`); if it were done here, the same
+    // approved cadence would send different words depending on whether a provider answered, and a
+    // retry would re-generate before the outbound row existed. A/B selection is skipped when
+    // approved copy exists: the approval already decided what this prospect receives.
+    const approved = await getApprovedStepCopy(expectedEnrollmentId, task.sequenceStep);
+
     // Deterministic A/B variant selection (spec §42)
     let subject: string;
     let body: string;
@@ -420,7 +430,10 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     const variantA = template.abVariants?.find((v) => v.version === 'A');
     const variantB = template.abVariants?.find((v) => v.version === 'B');
 
-    if (variantA && variantB) {
+    if (approved) {
+      subject = renderTemplate(approved.subject ?? template.subject ?? '', task.lead, task.lead.assignedTo);
+      body = renderTemplate(approved.body, task.lead, task.lead.assignedTo);
+    } else if (variantA && variantB) {
       const seed = buildJitterSeed({
         tenantId: task.tenantId,
         sequenceId: task.sequenceId ?? undefined,

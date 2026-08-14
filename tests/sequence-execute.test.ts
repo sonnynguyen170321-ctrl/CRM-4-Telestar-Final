@@ -14,6 +14,7 @@ const mockEnrollmentUpdate = vi.fn();
 const mockEnrollmentUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 const mockSuppressionFindFirst = vi.fn();
 const mockActivityCreate = vi.fn();
+const mockStepCopyFindUnique = vi.fn().mockResolvedValue(null);
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -31,6 +32,9 @@ vi.mock('@/lib/prisma', () => ({
       updateMany: (...a: unknown[]) => mockEnrollmentUpdateMany(...a),
     },
     suppressionEntry: { findFirst: (...a: unknown[]) => mockSuppressionFindFirst(...a) },
+    // No approved per-occurrence copy in these fixtures: every step here falls back to its
+    // shared template, which is the path this file has always exercised.
+    sequenceStepCopy: { findUnique: (...a: unknown[]) => mockStepCopyFindUnique(...a) },
     activity: { create: (...a: unknown[]) => mockActivityCreate(...a) },
     jobRun: { upsert: vi.fn().mockResolvedValue({}) },
     abTestVariant: { update: (...a: unknown[]) => mockAbVariantUpdate(...a) },

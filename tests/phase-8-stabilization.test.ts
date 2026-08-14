@@ -93,6 +93,11 @@ vi.mock('@/lib/prisma', () => ({
     abTestVariant: {
       update: vi.fn().mockResolvedValue({}),
     },
+    // These cadences have no approved per-occurrence copy, so the send path uses the shared
+    // template exactly as it did before personalization existed.
+    sequenceStepCopy: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
   },
 }));
 

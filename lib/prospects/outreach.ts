@@ -7,6 +7,11 @@ import {
   type EnrollLeadResult,
 } from '@/lib/sequences/enrollment';
 import { markProspectAIManaged } from './prospecting';
+import {
+  materializeApprovedCopy,
+  isPersonalizationEnabled,
+  type ApprovedStepCopy,
+} from '@/lib/sequences/stepCopy';
 
 /**
  * Cold outreach activation (Phase 8a).
@@ -83,6 +88,15 @@ export interface LaunchOutreachInput {
   leadId: string;
   sequenceId: string;
   workOrderId: string;
+  /**
+   * Approved, prospect-facing copy for this cadence — plain strings the approval already
+   * resolved, never a request to generate any.
+   *
+   * Written between the enrollment and the first task, so by the time anything is executable the
+   * content is durable. Omit it and every step falls back to its shared template, which is what
+   * every cadence did before personalization existed.
+   */
+  approvedCopy?: ApprovedStepCopy[];
   /**
    * Optional cross-check only. Tenant and actor come from the authenticated session; a value
    * that disagrees is a refusal rather than an override.
@@ -253,6 +267,21 @@ export async function launchAIOutreach(
   });
 
   await advanceLaunch(launch.id, 'enrolled', { enrollmentId: enrollment.enrollmentId });
+
+  // Approved copy lands here on purpose: after the enrollment exists, and before
+  // `finalizeFirstStep` creates the task and its delayed job. Anything executable therefore has
+  // its prospect-facing content already durable, and a crash between the two leaves copy with no
+  // cadence rather than a cadence with no copy.
+  //
+  // Idempotent, so the resume path re-runs it harmlessly.
+  if (input.approvedCopy?.length && isPersonalizationEnabled()) {
+    await materializeApprovedCopy({
+      enrollmentId: enrollment.enrollmentId,
+      tenantId,
+      steps: input.approvedCopy,
+      approvedById: user.id,
+    });
+  }
 
   // Between the enrollment and the state change, a human may have replaced the cadence. Marking
   // the prospect AI-managed on a cadence the agent no longer owns is the write this guards.
