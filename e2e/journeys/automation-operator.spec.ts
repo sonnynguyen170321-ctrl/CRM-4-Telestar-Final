@@ -90,7 +90,7 @@ test.describe('Automation operator surface', () => {
 });
 
 test.describe('Automation operator surface — SDR scope', () => {
-  test.use({ storageState: storageStatePath('sdr') as string });
+  test.use({ storageState: storageStatePath('sdrA') as string });
 
   test('an SDR sees the panel but only their own prospects', async ({ page }) => {
     await page.goto('/automation', { waitUntil: 'domcontentloaded' });
