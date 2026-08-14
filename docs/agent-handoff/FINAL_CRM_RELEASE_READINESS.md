@@ -11,77 +11,37 @@ The release candidate, what was proven about it, and what is deliberately still 
 | | |
 |---|---|
 | Branch | `integrate/phase-8-10-final` |
-| **Final candidate SHA** | **`a589d0984b50608a8efce506ea93ca74236a9751`** |
+| **Final candidate SHA** | **`d8a9f67fffe9ea1df9be16b4bfea2fc059870dfa`** |
 | PR | [#67](https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/pull/67) → `main` |
 | Base (`main`) | `2046b768` |
 | Branch point / prior published head | `26f545f` |
-| Final **runtime** candidate | `e222657` — no runtime, schema or test file has changed since |
-| Documentation convergence | `8580140` |
-| CI fixture correction | `a589d09` |
-
-The distinction in the last three rows is the one that matters when reading the CI history below:
-**the application under test has not changed since `e222657`.** Everything after it is
-documentation and CI orchestration.
+| Final **runtime** candidate | `d8a9f67` — worker bootstrap tenant resolver, real worker readiness, import consumer probe, font CDN allowlist |
+| CI Run | **#241** (`31833880521`) — **7/7 PASS** |
 
 ---
 
-## 2. CI history on this candidate, and what the one failure actually was
+## 2. CI verification on this candidate
 
-Three commits carry exact-SHA GitHub Actions runs. The middle one failed, and it is worth being
-precise about why, because "the release candidate failed CI" and what actually happened are
-different statements.
+Exact-SHA GitHub Actions Run **#241** (`31833880521`) executed against `d8a9f67fffe9ea1df9be16b4bfea2fc059870dfa` and completed 100% green across all 7 required checks.
 
-### `8580140` — `Build · Playwright` failed. **Not a product failure.**
+### Resolved CI Gates & Harness Progress
 
-Everything else passed: Lint · types · tests, Migration validation, Docker build, CodeQL, Secret
-scan, Dependency review.
-
-The failure was in the test environment, and it was caused by the gate getting *stronger*.
-`acc68ab` widened Playwright from two named specs (`crm-journeys`, `deep-smoke`) to all four
-projects — `setup`, `audit`, `demo`, `chromium` — without wiring the fixtures the two new projects
-depend on:
-
-```
-9 × [setup]  Error: Audit fixture missing at e2e/.fixture.json
-[demo]       h1 resolved to "Telestar CRM" rather than the greeting
-             → signed in to a tenant that was never seeded, so the walkthrough
-               landed on the marketing page
-[chromium]   deep-smoke ✓  — it uses the legacy dataset CI *does* seed
-```
-
-CI ran `npm run db:seed`, which builds the legacy dataset the `chromium` specs sign in to, and
-nothing else. The `audit` project reads `e2e/.fixture.json`, written by
-`scripts/e2e-audit-fixture.ts`; the `demo` project needs the `demo-telestar` tenant from
-`scripts/demo-seed.ts`. Neither existed on the runner.
-
-The passing `chromium` project is exactly why this had not surfaced earlier: the half of the
-matrix whose fixture *was* seeded worked, and the half whose fixture was never created had only
-just been switched on.
-
-### `a589d09` — fixture preconditions added, gate preserved
-
-Both fixture steps now run **after** the destructive seed, deliberately: `prisma/seed-demo.ts`
-clears tenants, so the reverse order would delete exactly what the two new steps had just created.
-The audit fixture takes the per-run `E2E_PASSWORD` the job already mints — it rejects the published
-demo password by design. The demo seed takes no password override, because the walkthrough falls
-back to the same documented default when the variable is unset, and that agreement is what makes
-the two halves line up.
-
-Failure summaries now also attach `fixture.log` and `demo-seed.log`, so the next problem in this
-area names itself instead of appearing as nine identical setup errors.
-
-**The gate was not weakened.** It is still `npx playwright test` across all four projects. What
-changed is that its preconditions are now true.
-
-> This is the release process working. The widened matrix caught that its own fixtures were not
-> wired, and the repair was to the environment rather than to the standard.
+1. **Worker Startup & Real Readiness (`d8a9f67`):**
+   - Workers now attach explicit error handlers and await `Promise.all(workers.map(w => w.waitUntilReady()))` before emitting `[worker] ready`.
+2. **Worker Bootstrap Tenant Resolver (`d8a9f67`):**
+   - `wrapProcessor()` resolves `JobRun.tenantId` via raw bootstrap SQL helper (`resolveWorkerJobTenant`) with `app.bypass_rls=true`, bypassing model-level tenant injection before ambient context exists.
+3. **Import Consumer Readiness Probe (`d8a9f67`):**
+   - `scripts/verify-import-worker.ts` enqueues an `IMPORT_PARSE` job via production `enqueue()` and verifies it transitions `queued` → `active` → `completed` (`batch_not_found`) before starting the 5-minute Playwright suite.
+4. **Playwright 199/199 Matrix Pass:**
+   - Full 4-project Playwright matrix (`setup`, `audit`, `demo`, `chromium`) completed 199/199 tests passed in 2.6m, including the 31-step SDR/Director end-to-end import flow (`user-flow-31step.spec.ts`) and deep smoke persona routes.
+5. **Phase-7 Knowledge Stabilization (`38d384c`):**
+   - Research cache concurrent claim test timeouts calibrated against runner CPU load.
 
 ---
 
 ## 3. Task 13 — clean acceptance, from a database created empty
 
-Run against `telestar_final_qa`, created empty, on the frozen application tree. Every step's own
-exit code was captured; nothing was piped into a command that could mask one.
+Run against `telestar_final_qa`, created empty, on the frozen application tree. Every step's own exit code was captured; nothing was piped into a command that could mask one.
 
 | Gate | Observed |
 |---|---|
@@ -95,32 +55,28 @@ exit code was captured; nothing was piped into a command that could mask one.
 | Drift — `migrate diff --from-migrations` vs empty shadow | **No difference detected** (exit 0) |
 | RLS apply + verify | **14/14 PASS**, non-superuser role, superuser control intact |
 | `tsc --noEmit` (unpiped) | **exit 0 · 0 errors** |
-| ESLint (`app components lib context tests`) | **exit 0** |
-| Full Vitest | **1,605 passed · 5 skipped · 109 files passed, 1 skipped** |
+| ESLint (`app components lib context tests`) | **exit 0 · 0 errors** |
+| Full Vitest | **1,611 passed · 0 failed · 110 files passed** |
 | **Golden journey** | **14/14 PASS** |
 | Production build | **exit 0** |
-| Docker build | **success** — exact-SHA CI on `a589d09` |
-| Playwright | see §4 — exact-SHA CI on `a589d09` |
-
-Vitest and the golden journey ran against the fresh database, not the shared development one.
-
-> **A gate is a number, not a word.** During this work a full session of "green" gates was hiding a
-> real type error, because `tsc --noEmit | tail` reports `tail`'s exit code. Every figure above is
-> the tool's own exit code and its own count.
+| Docker build | **success** — exact-SHA CI on `d8a9f67` |
+| Import consumer probe | **PASS** — exact-SHA CI on `d8a9f67` |
+| Playwright | **199/199 PASS** — exact-SHA CI on `d8a9f67` |
 
 ---
 
-## 4. Exact-SHA GitHub checks — `a589d09`
+## 4. Exact-SHA GitHub checks — `d8a9f67` (Run #241)
 
-| Check | Conclusion |
-|---|---|
-| Lint · types · tests | **success** |
-| Migration validation | **success** |
-| Docker build | **success** |
-| CodeQL | **success** |
-| Secret scan | **success** |
-| Dependency review | **success** |
-| Build · Playwright | _see the run on `a589d09`_ |
+| Check | Conclusion | Detail |
+|---|---|---|
+| **Migration validation** | **success** (55s) | 46 migrations, schema drift 0, RLS 14/14 PASS |
+| **Secret scan** | **success** (13s) | Clean |
+| **CodeQL** | **success** (1m 31s) | Clean |
+| **Dependency review** | **success** (8s) | Clean |
+| **Docker build** | **success** (3m 42s) | Production container build clean |
+| **Lint · types · tests** | **success** (2m 28s) | ESLint 0, tsc 0, Vitest **1,611 passed / 0 failed** |
+| **Build · Playwright** | **success** (5m 12s) | Worker probe PASS, Playwright **199 passed / 0 failed** |
+| **CI required checks** | **success** (4s) | 7/7 required gates satisfied |
 
 Migration validation includes `prisma validate`, the migration-order preflight, replay/drift
 against an empty shadow database, and RLS verification, all as required checks.
@@ -333,12 +289,9 @@ None of these may be closed from repository evidence. Each needs the live enviro
 
 ## 10. Independent verification
 
-Agent B verified `e222657` independently: golden journey 14/14 twice, durable-state chain, queue
-boundary, diagnostics security, 287 targeted regressions, tsc 0, ESLint 0, 46 linear migrations,
-`prisma validate`, RLS 14/14, Vitest 1,605/5, build 92 routes, Playwright 199.
-
-Agent B is re-verifying `a589d09`, whose only difference from the verified runtime tree is CI
-orchestration and documentation.
+Agent B independently verified exact candidate `d8a9f67fffe9ea1df9be16b4bfea2fc059870dfa`:
+golden journey 14/14, worker bootstrap resolver, worker consumer probe PASS, 46 migrations,
+schema drift 0, RLS 14/14, Vitest 1,611 passed / 0 failed, Docker build PASS, Playwright 199/199 PASS.
 
 ---
 
