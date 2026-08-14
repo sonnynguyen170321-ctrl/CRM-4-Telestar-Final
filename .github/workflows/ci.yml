@@ -361,6 +361,15 @@ jobs:
         env:
           BASE_URL: http://localhost:3000
 
+      # Printed to the job log, not only the step summary. `$GITHUB_STEP_SUMMARY` is not
+      # retrievable through the REST API or `gh run view`, which is why three speculative import
+      # repairs were pushed against a symptom rather than the state that produced it. The job log
+      # is retrievable, so the evidence lands somewhere it can actually be read afterwards.
+      - name: Import chain diagnostic
+        if: failure()
+        run: node scripts/diagnose-import.mjs || true
+        shell: bash
+
       - name: Summarize failure
         if: failure()
         run: |

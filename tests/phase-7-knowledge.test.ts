@@ -388,9 +388,15 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
 
       await sleep(700); // > 3x the competitor's stale window
 
+      // `waitTimeoutMs` is how long the waiter polls for the winner to finish before giving up and
+      // reporting `reused: false`. 10s is ample locally — the run is a 1.5s stubbed provider call
+      // — but a loaded CI runner took 30.7s over this whole test and blew straight through it,
+      // turning a correctness assertion into a machine-speed assertion. Raised well past any
+      // plausible runner stall; the test's own 60s budget still bounds it. Production's default is
+      // untouched, and `staleAfterMs` stays at 200 because that is the fence actually under test.
       const competitor = await insertOrClaimAccountResearch(tenantA, accountA, 'competitor', {
         staleAfterMs: 200,
-        waitTimeoutMs: 10_000,
+        waitTimeoutMs: 45_000,
       });
 
       const run = await runPromise;
@@ -406,7 +412,10 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
       const orphan = await insertOrClaimAccountResearch(tenantB, accountB, 'worker-no-heartbeat');
       expect(orphan.winner).toBe(true);
 
-      await sleep(300);
+      // Comfortably past the 200ms stale window rather than barely past it: at 300ms a runner
+      // pause of a third of a second was enough to leave the claim looking fresh, and the
+      // reclaim would fail for a reason that has nothing to do with the fence being wrong.
+      await sleep(1_000);
 
       const reclaim = await insertOrClaimAccountResearch(tenantB, accountB, 'competitor', {
         staleAfterMs: 200,
