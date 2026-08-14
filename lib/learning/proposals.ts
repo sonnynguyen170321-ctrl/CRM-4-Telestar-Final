@@ -367,7 +367,7 @@ export async function reviewProposal(input: ReviewInput): Promise<ReviewResult> 
   // `status === 'proposed'` read above, both created a version, and only then did one lose the
   // compare-and-set — leaving the loser's draft behind, numbered off a decision the database says
   // never happened and attributed to a reviewer who was told they were too late.
-  await claim(proposal.id, {
+  const approved = await claim(proposal.id, {
     status: 'approved',
     reviewedById: reviewer.id,
     reviewedAt: new Date(),
@@ -379,16 +379,95 @@ export async function reviewProposal(input: ReviewInput): Promise<ReviewResult> 
     tenantId: input.tenantId,
     createdById: reviewer.id,
     rules: validated,
-  });
-
-  // The claim already fixed the status, so this row belongs to this call and nobody else is
-  // competing for it — an unconditional update rather than a second compare-and-set.
-  const approved = await prisma.playbookProposal.update({
-    where: { id: proposal.id },
-    data: { createdVersionId: draft.id },
+    // The link lives on the version, under a unique key, so a second draft for this proposal is
+    // refused by the database rather than by the order these statements happen to run in.
+    fromProposalId: proposal.id,
   });
 
   return { proposal: approved, createdVersionId: draft.id, createdVersionNumber: draft.versionNumber };
+}
+
+export interface CompleteApprovedInput {
+  tenantId: string;
+  proposalId: string;
+}
+
+/**
+ * Finish an approval whose draft never got created.
+ *
+ * The residual failure mode this closes: `createDraftVersion` throws *after* the claim wins, so the
+ * proposal reads `approved` with no draft — and `reviewProposal` will not re-enter, because the
+ * status is no longer `proposed`. That guard is correct and stays; this is a different operation.
+ * It **finishes** a decision rather than retaking one: no claim, no reviewer change, no status
+ * change. A proposal nobody approved is refused.
+ *
+ * Safe to call repeatedly. The existing draft is found by the same unique key that would refuse a
+ * duplicate, so two concurrent repairs converge on one version instead of racing to create two.
+ */
+export async function completeApprovedProposal(input: CompleteApprovedInput): Promise<ReviewResult> {
+  const proposal = await prisma.playbookProposal.findUnique({ where: { id: input.proposalId } });
+  if (!proposal) throw new ProposalError('Proposal not found', 'not_found');
+  if (proposal.tenantId !== input.tenantId) {
+    throw new ProposalError('Proposal belongs to another tenant', 'wrong_tenant');
+  }
+  if (proposal.status !== 'approved') {
+    throw new ProposalError(
+      `Only an approved proposal can be completed; this one is ${proposal.status}`,
+      'already_reviewed'
+    );
+  }
+  // An approved proposal with no reviewer is a defect, not a case to paper over: the draft has to
+  // be attributed to the person who decided, and there is nobody else to attribute it to.
+  if (!proposal.reviewedById) {
+    throw new ProposalError(
+      'This proposal is approved but records no reviewer, so its draft cannot be attributed',
+      'reviewer_not_found'
+    );
+  }
+
+  const existing = await prisma.campaignPlaybookVersion.findFirst({
+    where: { fromProposalId: proposal.id, tenantId: input.tenantId },
+    select: { id: true, versionNumber: true },
+  });
+  if (existing) {
+    return {
+      proposal,
+      createdVersionId: existing.id,
+      createdVersionNumber: existing.versionNumber,
+    };
+  }
+
+  const base = proposal.basedOnVersionId
+    ? await prisma.campaignPlaybookVersion.findUnique({ where: { id: proposal.basedOnVersionId } })
+    : null;
+  if (!base) {
+    throw new ProposalError(
+      'This campaign has no approved playbook version to base a change on. Create and approve a first version before applying proposals.',
+      'incomplete_policy'
+    );
+  }
+
+  const merged = { ...(base.rules as object), ...((proposal.proposedRules ?? {}) as object) };
+  let validated: PlaybookRules;
+  try {
+    validated = parsePlaybookRules(merged);
+  } catch (err) {
+    throw new ProposalError(
+      `The proposed change does not produce a valid policy: ${(err as Error).message}`,
+      'invalid_change'
+    );
+  }
+
+  const draft = await createDraftVersion({
+    playbookId: proposal.playbookId,
+    tenantId: input.tenantId,
+    // The person who decided still owns the draft. This repair introduces no new author.
+    createdById: proposal.reviewedById,
+    rules: validated,
+    fromProposalId: proposal.id,
+  });
+
+  return { proposal, createdVersionId: draft.id, createdVersionNumber: draft.versionNumber };
 }
 
 /**

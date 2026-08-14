@@ -65,8 +65,14 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
-const { reviewProposal, ProposalError, buildProposals, canReviewProposals, MIN_SUPPORT } =
-  await import('@/lib/learning/proposals');
+const {
+  reviewProposal,
+  completeApprovedProposal,
+  ProposalError,
+  buildProposals,
+  canReviewProposals,
+  MIN_SUPPORT,
+} = await import('@/lib/learning/proposals');
 const { draftRetention, DRAFT_ACCEPTED_THRESHOLD } = await import('@/lib/learning/signals');
 
 const RULES: PlaybookRules = {
@@ -128,6 +134,75 @@ beforeEach(() => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * "One proposal produces at most one draft" as a fact the database keeps, not an ordering the
+ * service happens to get right.
+ *
+ * The link lives on the **version** (`fromProposalId`, unique) rather than on the proposal. A
+ * pointer on the proposal cannot express the rule: setting it twice simply overwrites, leaving the
+ * first draft orphaned — numbered, attributed, and belonging to nothing.
+ *
+ * That same key is what makes the repair safe. Until now, a `createDraftVersion` that threw after
+ * the claim won left the proposal reading `approved` with no draft, and `reviewProposal` refused to
+ * re-enter because the status was no longer `proposed`. Completing it is now a distinct operation
+ * that finishes the decision rather than retaking it.
+ */
+describe('one proposal produces at most one draft, and the database is what says so', () => {
+  it('stamps the draft with the proposal it came from', async () => {
+    await reviewProposal({ tenantId: 't1', proposalId: 'p-1', reviewerId: 'fm-1', decision: 'approve' });
+
+    expect(mockVersionCreate.mock.calls[0][0].data.fromProposalId).toBe('p-1');
+  });
+
+  it('completes an approval whose draft never got created, without re-deciding it', async () => {
+    db.proposal = proposal({ status: 'approved', reviewedById: 'fm-1' });
+    mockVersionFindFirst.mockImplementation(async (args: any) =>
+      args?.where?.fromProposalId ? null : { versionNumber: 1 }
+    );
+
+    const result = await completeApprovedProposal({ tenantId: 't1', proposalId: 'p-1' });
+
+    expect(result.createdVersionId).toBe('new-draft-1');
+    // The decision itself is untouched: no second claim, and the original reviewer still owns it.
+    expect(mockProposalUpdateMany).not.toHaveBeenCalled();
+    expect(result.proposal.reviewedById).toBe('fm-1');
+    expect(result.proposal.status).toBe('approved');
+  });
+
+  it('is a no-op when the draft already exists', async () => {
+    db.proposal = proposal({ status: 'approved', reviewedById: 'fm-1' });
+    mockVersionFindFirst.mockImplementation(async (args: any) =>
+      args?.where?.fromProposalId
+        ? { id: 'existing-draft', versionNumber: 2 }
+        : { versionNumber: 2 }
+    );
+
+    const result = await completeApprovedProposal({ tenantId: 't1', proposalId: 'p-1' });
+
+    expect(result.createdVersionId).toBe('existing-draft');
+    expect(mockVersionCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses to complete a proposal nobody approved', async () => {
+    db.proposal = proposal({ status: 'proposed' });
+
+    await expect(
+      completeApprovedProposal({ tenantId: 't1', proposalId: 'p-1' })
+    ).rejects.toBeInstanceOf(ProposalError);
+    expect(mockVersionCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses to complete another tenant’s proposal', async () => {
+    db.proposal = proposal({ status: 'approved', reviewedById: 'fm-1' });
+
+    await expect(
+      completeApprovedProposal({ tenantId: 'other-tenant', proposalId: 'p-1' })
+    ).rejects.toBeInstanceOf(ProposalError);
+    expect(mockVersionCreate).not.toHaveBeenCalled();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 describe('the AI never changes the policy it runs under', () => {
   it('approval creates a NEW draft version and leaves the active one untouched', async () => {
     const result = await reviewProposal({
@@ -161,18 +236,16 @@ describe('the AI never changes the policy it runs under', () => {
     // The number the confirmation quotes has to be the draft's, or a manager reads "approved" and
     // believes the campaign is already behaving differently.
     expect(result.createdVersionNumber).toBe(2);
-    // The proposal is stamped with the decision, the reviewer and the draft it produced. That
-    // happens across two writes rather than one: the compare-and-set has to settle who owns the
-    // approval before a draft exists to point at, so the claim carries the decision and the
-    // follow-up carries the link.
+    // One write to the proposal, not two. The compare-and-set carries the decision; the link to
+    // the draft lives on the version, under a unique key. The old shape wrote the link back to the
+    // proposal afterwards, which is precisely what could not express "at most one draft" — and
+    // what left an approved proposal pointing at nothing when the second write never happened.
     expect((mockProposalUpdateMany.mock.calls[0]![0] as any).data).toMatchObject({
       status: 'approved',
       reviewedById: 'fm-1',
     });
-    expect((mockProposalUpdate.mock.calls[0]![0] as any)).toMatchObject({
-      where: { id: 'p-1' },
-      data: { createdVersionId: 'new-draft-1' },
-    });
+    expect(mockProposalUpdate).not.toHaveBeenCalled();
+    expect((mockVersionCreate.mock.calls[0]![0] as any).data.fromProposalId).toBe('p-1');
   });
 
   it('merges the proposed change over the base policy and validates the result', async () => {

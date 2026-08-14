@@ -38,6 +38,13 @@ export interface CreateDraftInput {
   tenantId: string;
   createdById: string;
   rules: unknown;
+  /**
+   * The proposal whose approval produced this draft, when one did.
+   *
+   * Unique on the version, so a second draft for the same proposal is refused by the database
+   * rather than by whichever statement happened to run first.
+   */
+  fromProposalId?: string | null;
 }
 
 /**
@@ -64,6 +71,7 @@ export async function createDraftVersion(input: CreateDraftInput): Promise<Campa
       status: 'draft',
       rules: rules as unknown as object,
       createdById: input.createdById,
+      fromProposalId: input.fromProposalId ?? null,
     },
   });
 }

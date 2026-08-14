@@ -1796,7 +1796,10 @@ model CampaignPlaybookVersion {
   approvalRequests AgentApprovalRequest[]
   /// The proposal whose approval produced this version, when one did. At most one — a proposal
   /// creates exactly one draft, and a draft is created by at most one proposal.
-  fromProposal     PlaybookProposal?      @relation("ProposalCreatedVersion")
+  /// Unique, and that is the whole point: the database refuses a second draft for a proposal
+  /// rather than leaving the service's statement ordering as the only thing preventing one.
+  fromProposalId   String?                @unique
+  fromProposal     PlaybookProposal?      @relation("ProposalCreatedVersion", fields: [fromProposalId], references: [id], onDelete: SetNull)
   /// Proposals written against this version as their starting point.
   proposalsBasedOn PlaybookProposal[]     @relation("ProposalBaseVersion")
 
@@ -2751,9 +2754,11 @@ model PlaybookProposal {
 
   status PlaybookProposalStatus @default(proposed)
 
-  /// The draft this proposal produced when it was approved. Never an active version.
-  createdVersionId String?                  @unique
-  createdVersion   CampaignPlaybookVersion? @relation("ProposalCreatedVersion", fields: [createdVersionId], references: [id], onDelete: SetNull)
+  /// The draft this proposal produced, if any. The link itself lives on the **version** —
+  /// `CampaignPlaybookVersion.fromProposalId`, unique — because that is where the rule "one
+  /// proposal produces at most one draft" can actually be enforced. A pointer on this side can
+  /// only be overwritten, which orphans the first draft rather than refusing the second.
+  createdVersion CampaignPlaybookVersion? @relation("ProposalCreatedVersion")
 
   /// The human who decided. A proposal with `status != proposed` and no reviewer is a defect.
   reviewedById String?
