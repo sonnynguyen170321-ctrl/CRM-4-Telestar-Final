@@ -137,6 +137,26 @@ async function main() {
           `INSERT INTO "Lead" (id,"firstName","lastName",company,email,stage,"assignedToId","campaignId","tenantId","createdAt","updatedAt")
            VALUES ('lead-${t}','L','${t.toUpperCase()}','Co ${t}','l${t}@example.test','new','user-${t}','camp-${t}','tenant-${t}',now(),now())`
         );
+        await c.$executeRawUnsafe(
+          `INSERT INTO "Meeting" (id,"leadId","title","scheduledAt","status","tenantId","createdAt","updatedAt")
+           VALUES ('meet-${t}','lead-${t}','Discovery ${t}',now(),'scheduled','tenant-${t}',now(),now())`
+        );
+        await c.$executeRawUnsafe(
+          `INSERT INTO "Opportunity" (id,"leadId","campaignId","title","value","stage","tenantId","createdAt","updatedAt")
+           VALUES ('opp-${t}','lead-${t}','camp-${t}','Deal ${t}',10000,'discovery','tenant-${t}',now(),now())`
+        );
+        await c.$executeRawUnsafe(
+          `INSERT INTO "CampaignPlaybook" (id,"campaignId","status","tenantId","createdAt","updatedAt")
+           VALUES ('pb-${t}','camp-${t}','active','tenant-${t}',now(),now())`
+        );
+        await c.$executeRawUnsafe(
+          `INSERT INTO "PlaybookProposal" (id,"playbookId","type","status","confidence","rationale","tenantId","createdAt","updatedAt")
+           VALUES ('prop-${t}','pb-${t}','step_wording_change','pending_review',0.9,'Evidence ${t}','tenant-${t}',now(),now())`
+        );
+        await c.$executeRawUnsafe(
+          `INSERT INTO "OutcomeSignal" (id,"leadId","campaignId","channel","kind","occurredAt","tenantId","createdAt")
+           VALUES ('sig-${t}','lead-${t}','camp-${t}','email','reply_positive',now(),'tenant-${t}',now())`
+        );
       }
     });
 
@@ -167,6 +187,19 @@ async function main() {
       byId.length === 0
         ? pass('cannot read another tenant\'s row by direct id')
         : fail('LEAKED tenant B row via direct id lookup');
+
+      // Check newer models: Meeting, Opportunity, PlaybookProposal, OutcomeSignal
+      for (const [tbl, id] of [
+        ['Meeting', 'meet-b'],
+        ['Opportunity', 'opp-b'],
+        ['PlaybookProposal', 'prop-b'],
+        ['OutcomeSignal', 'sig-b'],
+      ]) {
+        const check = await asTenantA(`SELECT id FROM "${tbl}" WHERE id = '${id}'`);
+        check.length === 0
+          ? pass(`cannot read tenant B ${tbl} by direct id`)
+          : fail(`LEAKED tenant B ${tbl} row via direct id lookup`);
+      }
 
       const updated = await asTenantA(
         `WITH u AS (UPDATE "Lead" SET company='hijacked' WHERE id='lead-b' RETURNING 1) SELECT count(*)::int AS n FROM u`
