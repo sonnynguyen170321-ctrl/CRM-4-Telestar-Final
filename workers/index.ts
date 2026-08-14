@@ -19,37 +19,24 @@ function registerWorkers(): void {
   // operator sees it without shelling into the container.
   console.log(`[worker] ${describeRelease(readReleaseInfo())}`);
 
-  const healthcheck = createHealthcheckWorker();
-  workers.push(healthcheck);
-  console.log('[worker] registered: healthcheck');
+  const list = [
+    { name: 'healthcheck', worker: createHealthcheckWorker() },
+    { name: 'sequence', worker: createSequenceWorker() },
+    { name: 'email', worker: createEmailWorker() },
+    { name: 'notification', worker: createNotificationWorker() },
+    { name: 'maintenance', worker: createMaintenanceWorker() },
+    { name: 'sync', worker: createSyncWorker() },
+    { name: 'import', worker: createImportWorker() },
+    { name: 'agent', worker: createAgentWorker() },
+  ];
 
-  const sequence = createSequenceWorker();
-  workers.push(sequence);
-  console.log('[worker] registered: sequence');
-
-  const email = createEmailWorker();
-  workers.push(email);
-  console.log('[worker] registered: email');
-
-  const notification = createNotificationWorker();
-  workers.push(notification);
-  console.log('[worker] registered: notification');
-
-  const maintenance = createMaintenanceWorker();
-  workers.push(maintenance);
-  console.log('[worker] registered: maintenance');
-
-  const sync = createSyncWorker();
-  workers.push(sync);
-  console.log('[worker] registered: sync');
-
-  const importWorker = createImportWorker();
-  workers.push(importWorker);
-  console.log('[worker] registered: import');
-
-  const agent = createAgentWorker();
-  workers.push(agent);
-  console.log('[worker] registered: agent');
+  for (const { name, worker } of list) {
+    worker.on('error', (err) => {
+      console.error(`[worker] ${name} error:`, err);
+    });
+    workers.push(worker);
+    console.log(`[worker] registered: ${name}`);
+  }
 }
 
 function attachSignals(): void {
@@ -77,6 +64,13 @@ async function main(): Promise<void> {
   getConnection();
   registerWorkers();
   attachSignals();
+
+  await Promise.all(
+    workers.map(async (worker) => {
+      await worker.waitUntilReady();
+      console.log(`[worker] ready: ${worker.name}`);
+    })
+  );
 
   console.log('[worker] ready');
 }

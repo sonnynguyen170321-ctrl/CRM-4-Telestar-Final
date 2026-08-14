@@ -354,6 +354,11 @@ jobs:
           exit 1
         shell: bash
 
+      # Prove BullMQ worker consumes from Redis before spending ~5m on Playwright.
+      - name: Verify import worker consumer readiness
+        run: npx tsx scripts/verify-import-worker.ts
+        shell: bash
+
       # Mandatory end-to-end gating across all projects: setup, audit, demo, chromium.
       - name: Playwright
         run: set -o pipefail; npx playwright test 2>&1 | tee playwright.log

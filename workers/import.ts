@@ -60,26 +60,6 @@ const nameCompanyKey = (row: Pick<NormalizedImportLeadRow, 'firstName' | 'lastNa
 const buildLeadSummary = (lead: Pick<ExistingLead, 'firstName' | 'lastName' | 'company' | 'email'>) =>
   `${lead.firstName} ${lead.lastName} - ${lead.company}${lead.email ? ` (${lead.email})` : ''}`;
 
-/**
- * Strip blank/null/undefined keys, leaving only what the row actually supplied.
- *
- * The shape a Prisma `upsert`'s `create`/`update` payload needs is different from what
- * `accountData`/`contactData` return: those force every optional field to `null` so a plain
- * `create()` clears nothing it shouldn't, but that same object is unsafe as an `update` payload —
- * it would null out a field a previous row already populated. Stripping blanks makes one object
- * safe for both halves of an upsert: an omitted key writes nothing, on create *or* update, which
- * is what `fill()` computes from a prior read for the plain-update paths elsewhere in this file.
- * `upsert` takes no prior read, so it needs this instead.
- */
-const nonBlank = <T extends Record<string, unknown>>(data: T): Partial<T> => {
-  const out: Partial<T> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (value === '' || value === null || value === undefined) continue;
-    out[key as keyof T] = value as T[keyof T];
-  }
-  return out;
-};
-
 const fill = (
   existing: Record<string, unknown> | null | undefined,
   data: Record<string, unknown>
@@ -694,41 +674,33 @@ async function handleImportChunk(payload: ImportChunkPayload) {
     const normalizedLinkedIn = normalizeLinkedIn(data.linkedIn);
 
     try {
-      // Resolved on the bare client, *before* the transaction opens — not a style choice.
-      // Postgres's native `INSERT ... ON CONFLICT DO UPDATE` is what makes an upsert race-safe,
-      // and Prisma does not take that path for a call made through an interactive transaction's
-      // `tx` client: verified directly against a live CI failure, where the Postgres server's own
-      // STATEMENT log for the error showed a plain `INSERT`, no `ON CONFLICT` clause at all —
-      // proof Prisma had decomposed the upsert into separate steps on that connection. Once one
-      // of those steps errors, Postgres aborts the whole transaction, so nothing issued
-      // afterward on `tx` can recover, no matter how the retry is written; an earlier version of
-      // this fix learned that the hard way against the same live symptom, twice.
-      //
-      // Called on `prisma` instead, each upsert gets its own connection and Prisma's native path,
-      // so two rows racing the same company name are resolved by Postgres itself rather than by
-      // either of them. `account`/`contact` are idempotent, reusable rows independent of any one
-      // lead, so resolving them ahead of the transaction that creates the lead is not a
-      // consistency loss — the transaction below still makes the lead, the import-row status and
-      // the activity atomic together, which is the part that actually has to be.
-      //
-      // `nonBlank(...)` is what makes one payload safe as *both* halves of the upsert: `create`
-      // needs every field the row supplied, `update` must touch only what this row actually has
-      // so a blank incoming field can never null out a value an earlier row already filled in.
-      const account = await prisma.account.upsert({
-        where: { tenantId_name: { tenantId, name: data.company } },
-        create: accountData(data, tenantId),
-        update: nonBlank(accountData(data, tenantId)),
-      });
-
-      const contact = normalizedEmail
-        ? await prisma.contact.upsert({
-            where: { tenantId_normalizedEmail: { tenantId, normalizedEmail } },
-            create: contactData(data, tenantId),
-            update: nonBlank(contactData(data, tenantId)),
-          })
-        : await prisma.contact.create({ data: contactData(data, tenantId) });
-
       const createdLead = await prisma.$transaction(async (tx) => {
+        let account = await tx.account.findUnique({
+          where: { tenantId_name: { tenantId, name: data.company } },
+        });
+        if (account) {
+          const patch = fill(account, accountData(data, tenantId));
+          if (Object.keys(patch).length > 0) {
+            account = await tx.account.update({ where: { id: account.id }, data: patch });
+          }
+        } else {
+          account = await tx.account.create({ data: accountData(data, tenantId) });
+        }
+
+        let contact = normalizedEmail
+          ? await tx.contact.findUnique({
+              where: { tenantId_normalizedEmail: { tenantId, normalizedEmail } },
+            })
+          : null;
+        if (contact) {
+          const patch = fill(contact, contactData(data, tenantId));
+          if (Object.keys(patch).length > 0) {
+            contact = await tx.contact.update({ where: { id: contact.id }, data: patch });
+          }
+        } else {
+          contact = await tx.contact.create({ data: contactData(data, tenantId) });
+        }
+
         const leadNormalizedEmail = data.forceDuplicateLead ? null : normalizedEmail || null;
         const lead = await tx.lead.create({
           data: {

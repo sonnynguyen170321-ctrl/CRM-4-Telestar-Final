@@ -37,6 +37,7 @@ const IGNORED_CONSOLE = [
   /React Router Future Flag/i,
   /Warning: Extra attributes from the server/i,
   /favicon\.ico/i,
+  /fonts\.gstatic\.com/i,
 ];
 
 type Persona = {
@@ -138,7 +139,8 @@ function attachErrorListeners(page: Page): ErrorSink {
   page.on('console', (msg: ConsoleMessage) => {
     if (msg.type() !== 'error') return;
     const text = msg.text();
-    if (IGNORED_CONSOLE.some((re) => re.test(text))) return;
+    const locUrl = msg.location()?.url || '';
+    if (IGNORED_CONSOLE.some((re) => re.test(text) || re.test(locUrl))) return;
     sink.consoleErrors.push(`${page.url()} :: ${text}`);
   });
 

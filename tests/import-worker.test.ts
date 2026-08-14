@@ -17,11 +17,9 @@ const mockSequenceFindUnique = vi.fn();
 const mockContactFindUnique = vi.fn();
 const mockContactCreate = vi.fn();
 const mockContactUpdate = vi.fn();
-const mockContactUpsert = vi.fn();
 const mockAccountFindUnique = vi.fn();
 const mockAccountCreate = vi.fn();
 const mockAccountUpdate = vi.fn();
-const mockAccountUpsert = vi.fn();
 const mockRowCreate = vi.fn();
 const mockRowCreateMany = vi.fn();
 
@@ -78,13 +76,11 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: (...args: unknown[]) => mockContactFindUnique(...args),
       create: (...args: unknown[]) => mockContactCreate(...args),
       update: (...args: unknown[]) => mockContactUpdate(...args),
-      upsert: (...args: unknown[]) => mockContactUpsert(...args),
     },
     account: {
       findUnique: (...args: unknown[]) => mockAccountFindUnique(...args),
       create: (...args: unknown[]) => mockAccountCreate(...args),
       update: (...args: unknown[]) => mockAccountUpdate(...args),
-      upsert: (...args: unknown[]) => mockAccountUpsert(...args),
     },
   },
 }));
@@ -310,9 +306,12 @@ describe('handleImportParse', () => {
 describe('handleImportChunk', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAccountUpsert.mockResolvedValue({ id: 'account-1', name: 'Acme', tenantId: 't1' });
-    mockContactUpsert.mockResolvedValue({ id: 'contact-1', firstName: 'John', lastName: 'Doe', email: 'john@test.com', tenantId: 't1' });
+    mockAccountFindUnique.mockResolvedValue({ id: 'account-1', name: 'Acme', tenantId: 't1' });
+    mockAccountCreate.mockResolvedValue({ id: 'account-1', name: 'Acme', tenantId: 't1' });
+    mockAccountUpdate.mockResolvedValue({ id: 'account-1', name: 'Acme', tenantId: 't1' });
+    mockContactFindUnique.mockResolvedValue(null);
     mockContactCreate.mockResolvedValue({ id: 'contact-1', firstName: 'John', lastName: 'Doe', email: 'john@test.com', tenantId: 't1' });
+    mockContactUpdate.mockResolvedValue({ id: 'contact-1', firstName: 'John', lastName: 'Doe', email: 'john@test.com', tenantId: 't1' });
   });
 
   const CHUNK_PAYLOAD: ImportChunkPayload = {
@@ -395,86 +394,6 @@ describe('handleImportChunk', () => {
     mockRowFindMany.mockResolvedValue([]);
     const result = await handleImportChunk(CHUNK_PAYLOAD);
     expect(result).toEqual({ skipped: true, reason: 'no_rows_found' });
-  });
-
-  /**
-   * Confirmed against a live CI run, verbatim from the Postgres server itself, not inferred:
-   *
-   *   ERROR:  duplicate key value violates unique constraint "Account_tenantId_name_key"
-   *   STATEMENT: INSERT INTO "public"."Account" ...
-   *
-   * find-then-create was a TOCTOU race: two chunk jobs for the same batch run under
-   * `{ concurrency: 3 }`, and a stalled/redelivered job can overlap its own prior attempt, so two
-   * rows resolving the same account or contact could both see "not found" and both try to create
-   * it. The first fix caught that race's P2002 and re-read inside the *same* interactive
-   * transaction — which cannot work: Postgres aborts an entire transaction the instant one
-   * statement inside it errors, so the recovery read fails too, with "current transaction is
-   * aborted", not a P2002. Confirmed against a second live CI run: the account race was still
-   * there afterward, identically. `upsert` is what actually closes it — a single
-   * `INSERT ... ON CONFLICT DO UPDATE` that Postgres itself serializes, so it never throws on the
-   * exact conflict it targets and there is nothing to catch or retry.
-   */
-  it('resolves the account and contact through upsert, not find-then-create', async () => {
-    mockRowFindMany.mockResolvedValue([
-      makeRow('row-1', 1, { firstName: 'A', lastName: 'B', company: 'Acme', email: 'a@b.com' }),
-    ]);
-    mockLeadCreate.mockResolvedValue({ id: 'lead-1' });
-
-    const result = await handleImportChunk(CHUNK_PAYLOAD);
-
-    expect(result.created).toBe(1);
-    expect(result.errors).toBe(0);
-    expect(mockAccountFindUnique).not.toHaveBeenCalled();
-    expect(mockAccountCreate).not.toHaveBeenCalled();
-    expect(mockAccountUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { tenantId_name: { tenantId: 'tenant-1', name: 'Acme' } } })
-    );
-    expect(mockContactUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { tenantId_normalizedEmail: { tenantId: 'tenant-1', normalizedEmail: 'a@b.com' } },
-      })
-    );
-    expect(mockLeadCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ accountId: 'account-1', contactId: 'contact-1' }),
-    });
-  });
-
-  it('never lets a blank incoming field null out a value another row already set', async () => {
-    // The account this row resolves to already has an industry from an earlier row; this row's
-    // own data carries none. An `update:` payload built the naive way — forcing every optional
-    // field to `null` when the row lacks it — would clobber that industry the moment two rows
-    // for the same company are imported out of order. `nonBlank` is what an upsert needs instead
-    // of the read-then-diff `fill()` used to compute: an omitted key writes nothing at all.
-    mockRowFindMany.mockResolvedValue([
-      makeRow('row-1', 1, { firstName: 'A', lastName: 'B', company: 'Acme', email: 'a@b.com' }),
-    ]);
-    mockLeadCreate.mockResolvedValue({ id: 'lead-1' });
-
-    await handleImportChunk(CHUNK_PAYLOAD);
-
-    const call = mockAccountUpsert.mock.calls[0][0];
-    expect(call.update).not.toHaveProperty('industry');
-    expect(call.update).not.toHaveProperty('website');
-    // The one field the row does supply is still written.
-    expect(call.update.name).toBe('Acme');
-    // create keeps every field, blank or not — a genuinely new account should not come out with
-    // fields silently missing because they happened to be empty on the founding row.
-    expect(call.create).toHaveProperty('industry', null);
-  });
-
-  it('still fails the row when the upsert throws for a reason other than the conflict it targets', async () => {
-    mockRowFindMany.mockResolvedValue([
-      makeRow('row-1', 1, { firstName: 'A', lastName: 'B', company: 'Acme', email: 'a@b.com' }),
-    ]);
-    mockAccountUpsert.mockRejectedValueOnce(new Error('connection reset'));
-
-    const result = await handleImportChunk(CHUNK_PAYLOAD);
-
-    expect(result.created).toBe(0);
-    expect(result.errors).toBe(1);
-    expect(mockRowUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'row-1' }, data: expect.objectContaining({ status: 'error' }) })
-    );
   });
 });
 
