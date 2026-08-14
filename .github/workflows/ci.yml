@@ -323,6 +323,29 @@ jobs:
           exit 1
         shell: bash
 
+      # `e2e/user-flow-31step.spec.ts` imports a lead through the real CSV pipeline and polls
+      # for it to appear — the import is asynchronous, materialised by `workers/import.ts`'
+      # BullMQ worker, not by the API route that enqueues it. The `redis` service container has
+      # run since job start, but nothing before this line has ever consumed it: the app process
+      # is `next start`, not `workers/index.ts`. The spec's own failure names the cause —
+      # "Is the BullMQ import worker running?" — and until now the honest answer was no.
+      #
+      # `worker-start.cjs` requires REDIS_URL and DIRECT_URL, both already in this job's `env:`.
+      # Backgrounded, with a liveness check rather than a readiness endpoint: the worker exposes
+      # none, so "the process is still running two seconds later" is the check available.
+      - name: Start the background worker (BullMQ)
+        run: |
+          node scripts/worker-start.cjs > worker.log 2>&1 &
+          worker_pid=$!
+          sleep 2
+          if ! kill -0 "$worker_pid" 2>/dev/null; then
+            echo "::error::Worker process exited immediately"
+            cat worker.log
+            exit 1
+          fi
+          echo "worker running (pid $worker_pid)"
+        shell: bash
+
       # Mandatory end-to-end gating across all projects: setup, audit, demo, chromium.
       - name: Playwright
         run: set -o pipefail; npx playwright test 2>&1 | tee playwright.log
@@ -336,7 +359,7 @@ jobs:
           {
             echo "## Build · Playwright — failure"
             echo
-            for f in seed.log fixture.log demo-seed.log build.log playwright.log server.log; do
+            for f in seed.log fixture.log demo-seed.log build.log playwright.log server.log worker.log; do
               [ -f "$f" ] || continue
               echo "### ${f}"
               echo
