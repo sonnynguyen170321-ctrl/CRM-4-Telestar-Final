@@ -132,6 +132,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@telestar.vn"
+                  autoComplete="username"
                   required
                   className="w-full pl-9 pr-4 py-2.5 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red transition-colors"
                 />
@@ -149,6 +150,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
+                  autoComplete="current-password"
                   required
                   className="w-full pl-9 pr-4 py-2.5 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red transition-colors"
                 />

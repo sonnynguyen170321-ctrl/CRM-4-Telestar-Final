@@ -68,7 +68,7 @@ export default function Sidebar(props: SidebarProps) {
 function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { currentUser, isManager, isLeadgenManager } = useAppContext();
+  const { currentUser, isManager, isLeadgenManager, isSessionLoading } = useAppContext();
 
   const [expanded, setExpanded] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
@@ -98,6 +98,15 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
   };
 
   const fullPath = pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : '');
+
+  // `userRole` falls back to 'sdr' until the session resolves, so the footer used to announce
+  // "Current role: sdr" to a Director mid-load, and print "sdr" under "Loading...". Claim
+  // nothing about the role until the session has actually answered.
+  const footerAriaLabel = currentUser
+    ? `Logged in as ${[currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ')}, role: ${userRole}`
+    : isSessionLoading
+      ? 'Loading account'
+      : `Current role: ${userRole}`;
 
   const navGroups: NavGroup[] = isLeadgenUser(userRole)
     ? [
@@ -286,11 +295,7 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
       {/* User Footer */}
       <div
         className="p-3 border-t border-sidebar-border flex items-center gap-3 overflow-hidden"
-        aria-label={
-          currentUser
-            ? `Logged in as ${[currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ')}, role: ${userRole}`
-            : `Current role: ${userRole}`
-        }
+        aria-label={footerAriaLabel}
       >
         {/* Tinted rather than grey: the orange initials measured 4.18:1 on the
             grey chip, just under AA. On this near-white tint they clear 5.2:1,
@@ -298,6 +303,8 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
         <div className="w-9 h-9 rounded-full bg-brand-orange/10 flex items-center justify-center font-bold text-xs text-brand-orange-text uppercase flex-shrink-0">
           {currentUser
             ? `${currentUser.firstName[0] || ''}${currentUser.lastName[0] || ''}`
+            : isSessionLoading
+            ? ''
             : userRole === 'director'
             ? 'SN'
             : '??'}
@@ -310,7 +317,11 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
                 : 'Loading...'}
             </span>
             <span className="text-[10px] text-sidebar-text-muted tracking-tighter truncate uppercase">
-              {isLeadgenManager ? 'leadgen manager' : userRole.replace('_', ' ')}
+              {isSessionLoading && !currentUser
+                ? ' '
+                : isLeadgenManager
+                ? 'leadgen manager'
+                : userRole.replace('_', ' ')}
             </span>
           </div>
         )}
