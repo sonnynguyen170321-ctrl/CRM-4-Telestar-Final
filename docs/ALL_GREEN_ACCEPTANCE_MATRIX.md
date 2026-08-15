@@ -2472,3 +2472,77 @@ not, and it is downgraded on the evidence rather than defended.
 `POST /api/leads/import` (§17.3) remains **RED-candidate, unmeasured** — reproducing it needs the
 import worker and therefore Redis. Its reasoning is the same shape as this one's, and it deserves
 the same scepticism until someone measures it.
+
+---
+
+# 18. The nested-include disclosure, closed — and §15.4 overturned
+
+## 18.1 §15.4 was wrong, and the reason matters more than the row
+
+§15.4 reported an attempt at the systemic fix that "compiled, passed all 1,662 tests, and did
+nothing", and reverted it. That conclusion is **withdrawn**. The fix was never exercised: the
+script proving it ran the wrong code path.
+
+Traced directly, by instrumenting the extension:
+
+```
+[TRACE] op BookingLink findMany store= undefined NODE_ENV= undefined
+```
+
+The reproduction ran `tenantStorage.run({ tenantId }, () => prisma.bookingLink.findMany(…))` — a
+bare arrow returning the promise. The AsyncLocalStorage context did not reach the extension, the
+store arrived `undefined`, and the query took the **bypass** path, which discloses the relation for
+a reason that has nothing to do with this defect. It printed `leaked = true` and proved nothing.
+
+With an `async` callback that awaits inside, the same trace reads
+`store= {"tenantId":"repro-nested-a","bypassRls":false}` — the scoped path — and the disclosure is
+still there. That is a valid reproduction, and the same fix then turns it green.
+
+**So the auditor published, and handed over, a broken measurement** (`eab5e05`), and then used it to
+declare a fix ineffective. Both errors are corrected in `0d30bef` rather than quietly amended. The
+original §14.14 disclosure is unaffected — that was measured through the real route handler with a
+session, which establishes the scoped path correctly.
+
+The instructive part: the test suite could detect neither the defect nor the broken proof. Ten lines
+of instrumentation detected both in a single run. When a measurement and a suite disagree about
+whether code ran, instrument before theorising.
+
+## 18.2 The fix
+
+`0d30bef` on `fix/nested-include-tenant-scoping`, based on `634e147`, pushed.
+
+`lib/tenant-includes.ts` (new) · `lib/prisma.ts` (wired into the scoped path) ·
+`tests/tenant-includes.test.ts` (new) · `scripts/repro-nested-include-leak.ts` (corrected).
+
+Two mechanisms, because Prisma accepts a `where` on a **to-many** include and not on a **to-one**:
+
+- to-many → `where: { tenantId }` injected, so foreign rows never leave the database;
+- to-one → `tenantId` forced into the selection, the relation nulled when it belongs elsewhere, and
+  the forced field removed again so the response shape is exactly what the caller asked for.
+
+The relation is withheld, never the parent row. A relation whose `tenantId` was not selected is
+left alone rather than guessed at — nulling on a guess is a visible product break, while the
+disclosure needs a row that already points across the boundary.
+
+**This closes the property for all 30 include-routes**, not the two patched by hand.
+
+| Gate | Result |
+|---|---|
+| `scripts/repro-nested-include-leak.ts` | `leaked = true` → **`leaked = false`**, exit 0 |
+| `tests/tenant-includes.test.ts` with the fix | 6 passed |
+| same test, `lib/prisma.ts` reverted | **1 failed** — `expected '…' not to contain 'TINCL-TENANT-B-CLIENT'` |
+| `tsc --noEmit` | exit 0 |
+| `eslint` | exit 0 |
+| Full suite | **exit 0** — `Tests 1678 passed \| 5 skipped (1683)`, the 1,672 baseline plus this file's six |
+
+## 18.3 Row changes
+
+| Row | Before | Now |
+|---|---|---|
+| Nested-include disclosure, 28 remaining routes | **RED** | **GREEN (pending review)** — closed at the isolation layer, red-green verified |
+| §15.4 "systemic fix had no effect" | recorded as fact | **withdrawn** — the proof was broken, not necessarily the code |
+| `eab5e05` reproduction script | handed over as the driver | **superseded** by the corrected version in `0d30bef` |
+
+"Pending review" is deliberate: this is the auditor's own code, in the isolation layer every query
+passes through, and §15 already records that this auditor cannot certify it. It wants a reviewer
+who did not write it.
