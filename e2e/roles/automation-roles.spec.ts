@@ -5,8 +5,7 @@
  * or trigger global maintenance checks, while Managers (Director / Floor Manager) have full access.
  */
 import { test, expect } from '../support/test';
-import { apiAs, readJson } from '../support/api';
-import { storageStatePath, type RoleKey } from '../support/fixture';
+import { storageStatePath } from '../support/fixture';
 
 test.describe('Automation Role Matrix UI & API Security (Spec §40)', () => {
 

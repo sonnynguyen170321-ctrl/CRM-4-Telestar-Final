@@ -11,7 +11,7 @@
     "dev": "next dev",
     "build": "node scripts/build.cjs",
     "start": "next start",
-    "lint": "eslint app components lib context tests",
+    "lint": "eslint app components lib context tests workers scripts e2e",
     "test": "vitest run",
     "setup:dev": "node scripts/setup-dev.mjs",
     "doctor": "node scripts/doctor.mjs",

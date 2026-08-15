@@ -37,8 +37,10 @@ async function run() {
     else throw e;
   }
 
-  // 4. Populate Account from existing leads
-  const created = await prisma.$executeRawUnsafe(`
+  // 4. Populate Account from existing leads.
+  // The affected-row count is not read: `ON CONFLICT DO NOTHING` makes it a poor progress
+  // signal (a re-run legitimately reports 0), and the migration is verified by the checks below.
+  await prisma.$executeRawUnsafe(`
     INSERT INTO "Account" ("id", "name", "createdAt", "updatedAt", "tenantId")
     SELECT gen_random_uuid()::text, subq.company, NOW(), NOW(), subq."tenantId"
     FROM (SELECT DISTINCT "company", "tenantId" FROM "Lead" WHERE "company" IS NOT NULL AND "company" != '') subq
