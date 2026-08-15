@@ -100,8 +100,22 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
+      # Runs *before* the suite: a missing DATABASE_URL or REDIS_URL means 49 database suites
+      # and the only real-Redis suite would skip themselves, and a broken service container
+      # would be reported as a pass. Also fails on any `.only` / `.skip` / `.todo` that is not
+      # in the reviewed allowlist.
+      - name: Test discipline
+        run: node scripts/check-test-discipline.mjs --ci
+        shell: bash
+
       - name: Tests
-        run: set -o pipefail; npm test 2>&1 | tee vitest.log
+        run: set -o pipefail; npm test -- --reporter=default --reporter=json --outputFile.json=vitest-results.json 2>&1 | tee vitest.log
+        shell: bash
+
+      # The static scan cannot see a suite that skipped itself at runtime for a reason no grep
+      # predicts. This reads what actually executed.
+      - name: No test was skipped
+        run: node scripts/check-test-discipline.mjs --ci --results vitest-results.json
         shell: bash
 
       - name: Summarize failure

@@ -115,3 +115,6 @@ gitleaks.log
 playwright/.auth/
 e2e/.fixture.json
 playwright/demo-shots/
+
+# Vitest JSON report consumed by scripts/check-test-discipline.mjs
+vitest-results.json
