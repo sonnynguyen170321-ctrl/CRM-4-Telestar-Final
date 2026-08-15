@@ -31,6 +31,8 @@ const TENANT_B = 'refint-tenant-b';
 const SDR_A = 'refint-sdr-a';
 const CAMPAIGN_A = 'refint-campaign-a';
 const CAMPAIGN_B = 'refint-campaign-b';
+/** Same tenant as the caller, but the caller is not a member of it. */
+const CAMPAIGN_A_WALLED = 'refint-campaign-a-walled';
 
 const sdrA: SessionUser = {
   id: SDR_A,
@@ -128,6 +130,20 @@ describe.skipIf(!hasDb)('a caller-supplied campaignId cannot cross a tenant boun
       });
     }
 
+    // A second campaign inside the caller's own tenant that the caller has no membership in.
+    // This is the axis a tenant check alone cannot see.
+    await runAs(TENANT_A, () =>
+      prisma.campaign.create({
+        data: {
+          id: CAMPAIGN_A_WALLED,
+          tenantId: TENANT_A,
+          clientId: 'refint-client-a',
+          name: 'Campaign A (walled)',
+          startDate: new Date('2026-08-12T00:00:00Z'),
+        },
+      })
+    );
+
     // The SDR is a member of their own campaign, so the positive control is genuinely allowed.
     await runAs(TENANT_A, () =>
       prisma.campaignSdr.create({
@@ -181,6 +197,29 @@ describe.skipIf(!hasDb)('a caller-supplied campaignId cannot cross a tenant boun
     );
 
     expect(res.status).toBe(404);
+    expect(await sideEffectCounts(TENANT_A)).toEqual(before);
+  });
+
+  it('refuses an in-tenant campaign the caller is not a member of with 403, creating nothing', async () => {
+    // The authorization half. The campaign is real and in the caller's own tenant, so a check
+    // that only compared tenants would let this through — and an SDR would be able to attach
+    // prospects to any campaign in the company, including another client's.
+    //
+    // 403 rather than 404 on purpose: the caller is entitled to know this campaign exists, so
+    // hiding it would be misleading. Only *foreign* existence has to stay concealed.
+    const before = await sideEffectCounts(TENANT_A);
+
+    const res = await runAs(TENANT_A, () =>
+      post({
+        firstName: 'Nosy',
+        lastName: 'Neighbour',
+        company: 'REFINT_WALLED_CO',
+        email: 'nosy@refint-spoof.test',
+        campaignId: CAMPAIGN_A_WALLED,
+      })
+    );
+
+    expect(res.status).toBe(403);
     expect(await sideEffectCounts(TENANT_A)).toEqual(before);
   });
 
