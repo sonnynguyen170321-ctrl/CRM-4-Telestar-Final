@@ -496,6 +496,16 @@ body[data-theme="light"] .glass-sidebar {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
+/* …and so does the top bar. At 72% opacity, page content scrolling underneath showed through
+   the header as ghost text — legible enough to read, which on a projector reads as a rendering
+   fault rather than a material. The sidebar and cards were already made solid here for the same
+   reason; the header was the one that got left translucent. */
+body[data-theme="light"] .glass-topbar {
+  background: var(--topbar-bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid var(--topbar-border);
+}
 .glass-topbar {
   background: color-mix(in srgb, var(--topbar-bg) 72%, transparent);
   backdrop-filter: blur(20px) saturate(200%);

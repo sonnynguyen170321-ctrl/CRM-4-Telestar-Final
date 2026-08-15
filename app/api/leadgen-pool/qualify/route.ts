@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requirePoolUser } from '@/app/api/leadgen-pool/guard';
 import { qualifyPoolItems } from '@/lib/leadgen/pool';
+import { requireTenantId } from '@/lib/api/tenant';
 
 const qualifySchema = z.object({
   ids: z.array(z.string().min(1)).min(1).max(500),
@@ -26,7 +27,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid qualify request', details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const tenantId = user.tenantId || 'default-tenant';
+  const tenantId = requireTenantId(user);
+  if (tenantId instanceof NextResponse) return tenantId;
   const result = await qualifyPoolItems({
     itemIds: parsed.data.ids,
     qualification: parsed.data.qualification,

@@ -33,10 +33,29 @@ interface SidebarProps {
 }
 
 const EXPANDED_KEY = 'telestar-sidebar-expanded';
-const W_EXPANDED = '192px';
+/** 216px, not 192px: "AI Command Center" and "Re-engagement" both truncated at the old width. */
+const W_EXPANDED = '216px';
 const W_COLLAPSED = '56px';
 
 const isLeadgenUser = (role: string) => role === 'leadgen' || role === 'leadgen_manager';
+
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>;
+}
+
+/**
+ * Navigation is grouped by what the user is *doing*, not by which module a route belongs to.
+ *
+ * The flat sixteen-item list this replaced gave Dashboard, Templates and Email Health identical
+ * visual weight, so nothing read as the starting point. Grouping costs no routing change — every
+ * href below is exactly the one that was there before.
+ */
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
 
 export default function Sidebar(props: SidebarProps) {
   return (
@@ -80,47 +99,89 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
 
   const fullPath = pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : '');
 
-  const navItems =
-    isLeadgenUser(userRole)
-      ? [
-          { name: 'Leadgen Workspace', href: '/leadgen', icon: Target },
-          ...(isLeadgenManager
-            ? [
-                { name: 'Internal Database', href: '/leadgen-manager?tab=pool', icon: Database },
-                { name: 'Import Center', href: '/leadgen-manager?tab=import', icon: Upload },
-                { name: 'Qualification Queue', href: '/leadgen-manager?tab=qualify', icon: Target },
-                { name: 'Campaign Routing', href: '/leadgen-manager?tab=routing', icon: Route },
-                { name: 'Export Center', href: '/leadgen-manager?tab=export', icon: FileText },
-                { name: 'Team Performance', href: '/leadgen-manager?tab=team', icon: TrendingUp },
-                { name: 'Source Performance', href: '/leadgen-manager?tab=sources', icon: BarChart3 },
-                { name: 'Client Reports', href: '/client-reports', icon: FileBarChart },
-                { name: 'Settings', href: '/settings', icon: Settings },
-              ]
-            : [{ name: 'Settings', href: '/settings', icon: Settings }]),
-        ]
-      : [
-          { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-          ...(userRole === 'director' ? [{ name: 'Director', href: '/director', icon: Briefcase }] : []),
-          ...(userRole === 'director' || userRole === 'floor_manager' ? [{ name: 'Admin', href: '/admin', icon: Shield }] : []),
-          { name: 'Leads', href: '/leads', icon: Users },
-          { name: 'Meetings', href: '/meetings', icon: CalendarDays },
-          { name: 'Opportunities', href: '/opportunities', icon: Funnel },
-          { name: 'Client Reports', href: '/client-reports', icon: FileBarChart },
-          { name: 'Inbox', href: '/inbox', icon: Inbox },
-          { name: 'Sequences', href: '/sequences', icon: Repeat },
-          { name: 'Performance', href: '/sequences/performance', icon: TrendingUp },
-          { name: 'Templates', href: '/templates', icon: FileText },
-          ...(isManager ? [{ name: 'Team View', href: '/team', icon: BarChart3 }] : []),
-          { name: 'Automation', href: '/automation', icon: Cpu },
-          // Everyone gets a link: managers see their whole pod, SDRs see only
-          // their own mailbox (read-only) — the API scopes it either way.
-          { name: 'Email Health', href: '/email-health', icon: ShieldCheck },
-          { name: 'Settings', href: '/settings', icon: Settings },
-        ];
+  const navGroups: NavGroup[] = isLeadgenUser(userRole)
+    ? [
+        {
+          label: 'Leadgen',
+          items: [
+            { name: 'Leadgen Workspace', href: '/leadgen', icon: Target },
+            ...(isLeadgenManager
+              ? [
+                  { name: 'Internal Database', href: '/leadgen-manager?tab=pool', icon: Database },
+                  { name: 'Import Center', href: '/leadgen-manager?tab=import', icon: Upload },
+                  { name: 'Qualification Queue', href: '/leadgen-manager?tab=qualify', icon: Target },
+                  { name: 'Campaign Routing', href: '/leadgen-manager?tab=routing', icon: Route },
+                  { name: 'Export Center', href: '/leadgen-manager?tab=export', icon: FileText },
+                ]
+              : []),
+          ],
+        },
+        ...(isLeadgenManager
+          ? [
+              {
+                label: 'Insights',
+                items: [
+                  { name: 'Team Performance', href: '/leadgen-manager?tab=team', icon: TrendingUp },
+                  { name: 'Source Performance', href: '/leadgen-manager?tab=sources', icon: BarChart3 },
+                  { name: 'Client Reports', href: '/client-reports', icon: FileBarChart },
+                ],
+              },
+            ]
+          : []),
+        { label: 'System', items: [{ name: 'Settings', href: '/settings', icon: Settings }] },
+      ]
+    : [
+        {
+          label: 'Overview',
+          items: [
+            { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+            // The operating-model board: what AI is doing, what needs a human, what happens next.
+            { name: 'AI Command Center', href: '/ai', icon: Cpu },
+          ],
+        },
+        {
+          label: 'Revenue',
+          items: [
+            { name: 'Leads', href: '/leads', icon: Users },
+            { name: 'Opportunities', href: '/opportunities', icon: Funnel },
+            { name: 'Meetings', href: '/meetings', icon: CalendarDays },
+            { name: 'Sequences', href: '/sequences', icon: Repeat },
+          ],
+        },
+        {
+          label: 'Work',
+          items: [
+            { name: 'Inbox', href: '/inbox', icon: Inbox },
+            { name: 'Templates', href: '/templates', icon: FileText },
+            { name: 'Automation', href: '/automation', icon: Cpu },
+          ],
+        },
+        {
+          label: 'Insights',
+          items: [
+            { name: 'Performance', href: '/sequences/performance', icon: TrendingUp },
+            { name: 'Client Reports', href: '/client-reports', icon: FileBarChart },
+            ...(isManager ? [{ name: 'Team View', href: '/team', icon: BarChart3 }] : []),
+          ],
+        },
+        {
+          label: 'System',
+          items: [
+            ...(userRole === 'director' ? [{ name: 'Director', href: '/director', icon: Briefcase }] : []),
+            ...(userRole === 'director' || userRole === 'floor_manager'
+              ? [{ name: 'Admin', href: '/admin', icon: Shield }]
+              : []),
+            // Everyone gets a link: managers see their whole pod, SDRs see only
+            // their own mailbox (read-only) — the API scopes it either way.
+            { name: 'Email Health', href: '/email-health', icon: ShieldCheck },
+            { name: 'Settings', href: '/settings', icon: Settings },
+          ],
+        },
+      ];
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-20 flex flex-col glass-sidebar border-r border-sidebar-border text-sidebar-text sidebar-transition ${expanded ? 'w-48' : 'w-14'}`}
+      className={`fixed inset-y-0 left-0 z-20 flex flex-col glass-sidebar border-r border-sidebar-border text-sidebar-text sidebar-transition ${expanded ? 'w-[216px]' : 'w-14'}`}
     >
       {/* Brand Header */}
       <div className="flex items-center gap-3 px-3 py-5 border-b border-sidebar-border h-16 overflow-hidden">
@@ -153,45 +214,61 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
       </div>
 
       {/* Navigation List */}
-      <nav className="flex-1 px-2 py-4 space-y-1.5 overflow-y-auto overflow-x-hidden">
-        {navItems.map((item) => {
-          const isActive = fullPath === item.href || (item.href === '/leadgen-manager' && pathname === '/leadgen-manager');
-          const Icon = item.icon;
-
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              aria-current={isActive ? 'page' : undefined}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative focus-ring ${
-                isActive
-                  ? 'bg-brand-red text-white font-semibold'
-                  : 'text-sidebar-text-muted hover:bg-sidebar-border hover:text-sidebar-text'
-              }`}
-            >
-              {isActive && <span className="sidebar-beam-indicator" aria-hidden="true" />}
-              <Icon
-                aria-hidden="true"
-                className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${
-                  isActive
-                    ? 'text-white'
-                    : 'text-sidebar-text-muted group-hover:text-sidebar-text'
-                }`}
-              />
-
+      <nav className="flex-1 px-2 py-3 overflow-y-auto overflow-x-hidden">
+        {navGroups
+          .filter((group) => group.items.length > 0)
+          .map((group, groupIndex) => (
+            <div key={group.label} className={groupIndex === 0 ? '' : 'mt-5'}>
+              {/* Collapsed, a rule carries the grouping that the label carries when expanded. */}
               {expanded ? (
-                <span className="truncate">{item.name}</span>
+                <p className="px-3 pb-1.5 type-micro text-sidebar-text-muted uppercase tracking-wider">
+                  {group.label}
+                </p>
               ) : (
-                <div
-                  role="tooltip"
-                  className="absolute left-14 hidden group-hover:flex bg-brand-dark text-white text-xs py-1 px-2.5 rounded border border-sidebar-border whitespace-nowrap shadow-md z-30 pointer-events-none"
-                >
-                  {item.name}
-                </div>
+                groupIndex > 0 && <hr className="mx-3 mb-2 border-sidebar-border" />
               )}
-            </Link>
-          );
-        })}
+
+              <div className="space-y-1">
+                {group.items.map((item) => {
+                  const isActive =
+                    fullPath === item.href || (item.href === '/leadgen-manager' && pathname === '/leadgen-manager');
+                  const Icon = item.icon;
+
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg type-meta transition-colors group relative focus-ring ${
+                        isActive
+                          ? 'bg-brand-red text-white'
+                          : 'text-sidebar-text-muted hover:bg-sidebar-border hover:text-sidebar-text'
+                      }`}
+                    >
+                      {isActive && <span className="sidebar-beam-indicator" aria-hidden="true" />}
+                      <Icon
+                        aria-hidden="true"
+                        className={`w-[18px] h-[18px] flex-shrink-0 ${
+                          isActive ? 'text-white' : 'text-sidebar-text-muted group-hover:text-sidebar-text'
+                        }`}
+                      />
+
+                      {expanded ? (
+                        <span className="truncate">{item.name}</span>
+                      ) : (
+                        <span
+                          role="tooltip"
+                          className="absolute left-14 hidden group-hover:flex items-center bg-brand-dark text-white type-micro py-1 px-2.5 rounded border border-sidebar-border whitespace-nowrap shadow-md z-30 pointer-events-none"
+                        >
+                          {item.name}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
       </nav>
 
       {/* Collapse toggle */}

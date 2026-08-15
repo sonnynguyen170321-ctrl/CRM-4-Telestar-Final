@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { getIcpAdherence } from './icpAdherence';
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
@@ -7,7 +8,7 @@ export async function getLeadgenMetrics(tenantId: string) {
   const weekStart = startOfDay(now);
   weekStart.setDate(weekStart.getDate() - 7);
 
-  const [importedWeek, qualifiedWeek, disqualifiedWeek, totalItems, duplicateItems, assignedCampaign, assignedSdr, qualifiedAll, requirementProgress] =
+  const [importedWeek, qualifiedWeek, disqualifiedWeek, totalItems, duplicateItems, assignedCampaign, assignedSdr, qualifiedAll, requirementProgress, icpAdherence] =
     await Promise.all([
       prisma.leadPoolItem.count({
         where: { tenantId, createdAt: { gte: weekStart }, sourceType: { not: 'manual' } },
@@ -29,6 +30,10 @@ export async function getLeadgenMetrics(tenantId: string) {
         select: { id: true, sourceType: true, sourceName: true, qualifiedById: true, qualifiedAt: true, createdAt: true, emailValidation: true, emailScore: true },
       }),
       listRequirementProgress(tenantId),
+      // Volume against target and adherence to the ICP are different questions, so they are
+      // different fields: a campaign can be fully delivered and badly off-brief, and only the
+      // second number predicts the client complaint.
+      getIcpAdherence(tenantId),
     ]);
 
   const emailValidCount = qualifiedAll.filter(
@@ -73,6 +78,7 @@ export async function getLeadgenMetrics(tenantId: string) {
     qualifiedBySource: [...bySource.entries()].map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count),
     qualifiedByMember: [...byMember.entries()].map(([id, count]) => ({ id, name: memberNames.get(id) ?? id, count })).sort((a, b) => b.count - a.count),
     requirementProgress,
+    icpAdherence,
     avgDaysToQualification: Math.round(avgQualifyMs / 86_400_000 * 10) / 10,
   };
 }

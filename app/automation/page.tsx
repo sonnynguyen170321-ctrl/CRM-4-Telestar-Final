@@ -8,9 +8,10 @@ import {
   Mail, 
   Layers, 
   CheckCircle2, 
-  Activity, 
+  Activity,
   AlertCircle,
-  ShieldCheck
+  ShieldCheck,
+  Clock
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -58,6 +59,25 @@ interface StatsMetrics {
   totalActiveSequences: number;
   totalPendingOutbound: number;
   totalActiveAccounts: number;
+  needsAttention: number;
+}
+
+/**
+ * One in-flight cadence and the reason it has not sent yet.
+ *
+ * The reason is derived server-side by `lib/automation/operatorState.ts` — this component
+ * renders it and never re-derives it, so the page cannot drift from the engine's own answer.
+ */
+interface WaitingCadence {
+  enrollmentId: string;
+  lead: { id: string; firstName: string; lastName: string; company: string | null };
+  sequenceName: string | null;
+  currentStep: number;
+  reasonCode: string;
+  reasonLabel: string;
+  detail: string;
+  nextActionAt: string | null;
+  needsAttention: boolean;
 }
 
 export default function AutomationDashboard() {
@@ -69,9 +89,11 @@ export default function AutomationDashboard() {
     totalActiveSequences: 0,
     totalPendingOutbound: 0,
     totalActiveAccounts: 0,
+    needsAttention: 0,
   });
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
+  const [waiting, setWaiting] = useState<WaitingCadence[]>([]);
   
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isTriggeringSequence, setIsTriggeringSequence] = useState<boolean>(false);
@@ -89,6 +111,7 @@ export default function AutomationDashboard() {
         setMetrics(data.metrics);
         setEmailAccounts(data.emailAccounts);
         setActivities(data.activities);
+        setWaiting(data.waiting ?? []);
       } else {
         showToast('Failed to load automation stats', 'error');
       }
@@ -158,6 +181,8 @@ export default function AutomationDashboard() {
         return { label: 'Completed', color: 'bg-green-500/10 text-green-400 border-green-500/25' };
       case 'sequence_unenrolled':
         return { label: 'Paused/Stopped', color: 'bg-amber-500/10 text-amber-400 border-amber-500/25' };
+      case 'sequence_deferred':
+        return { label: 'Rescheduled', color: 'bg-amber-500/10 text-amber-400 border-amber-500/25' };
       case 'stage_changed':
         return { label: 'Stage Switch', color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/25' };
       default:
@@ -420,11 +445,107 @@ export default function AutomationDashboard() {
 
       </div>
 
+      {/*
+        Why nothing has sent yet.
+
+        This panel exists because the page could previously show that work was scheduled but
+        never why it had not happened — answering "why did this prospect not get Email 2 today?"
+        meant opening the lead. Every reason here is derived server-side from the enrollment's
+        own state, and deliberately says nothing about queues, jobs or workers.
+      */}
+      <div className="glass-card rounded-2xl p-5 space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <h2 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
+              <Clock className="w-4.5 h-4.5 text-brand-orange-text" />
+              What Each Prospect Is Waiting On
+            </h2>
+            <p className="text-[11px] text-text-secondary prose-measure">
+              Every sequence currently in flight, and the reason its next email has not gone out.
+            </p>
+          </div>
+          {metrics.needsAttention > 0 && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-amber-500/25 bg-amber-500/10 text-amber-400 shrink-0">
+              <AlertCircle className="w-3.5 h-3.5" />
+              {metrics.needsAttention} need attention
+            </span>
+          )}
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-card-border text-[10px] uppercase text-text-secondary tracking-wider font-semibold">
+                <th className="py-2.5">Prospect</th>
+                <th className="py-2.5">Sequence</th>
+                <th className="py-2.5">Status</th>
+                <th className="py-2.5">What Happens Next</th>
+                <th className="py-2.5">Expected</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-card-border/50">
+              {waiting.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-text-muted">
+                    No sequences are currently in flight.
+                  </td>
+                </tr>
+              ) : (
+                waiting.map((row) => (
+                  <tr key={row.enrollmentId} className="hover:bg-card-bg/20 transition-colors">
+                    <td className="py-3">
+                      <button
+                        type="button"
+                        onClick={() => openLeadSlideOver(router, row.lead.id)}
+                        className="font-semibold text-brand-orange-text hover:underline block text-left"
+                      >
+                        {row.lead.firstName} {row.lead.lastName}
+                        <span className="font-normal text-[10px] text-text-secondary block">
+                          {row.lead.company}
+                        </span>
+                      </button>
+                    </td>
+                    <td className="py-3 text-text-secondary">
+                      {row.sequenceName ?? '—'}
+                      <span className="block text-[10px] text-text-muted">Step {row.currentStep}</span>
+                    </td>
+                    <td className="py-3">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-semibold border ${
+                          row.needsAttention
+                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/25'
+                            : 'bg-blue-500/10 text-blue-400 border-blue-500/25'
+                        }`}
+                      >
+                        {row.reasonLabel}
+                      </span>
+                    </td>
+                    <td className="py-3 text-text-secondary max-w-[320px] break-words">{row.detail}</td>
+                    <td className="py-3 font-mono text-[10px] text-text-secondary">
+                      {row.nextActionAt
+                        ? new Date(row.nextActionAt).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Live System Activity Feed */}
       <div className="glass-card rounded-2xl p-5 space-y-4">
         <div className="space-y-1">
           <h2 className="font-display font-extrabold text-sm text-text-primary flex items-center gap-2">
-            <Activity className="w-4.5 h-4.5 text-brand-red animate-pulse" />
+            {/* No `animate-pulse`: an idle icon that moves is decoration, and the brand rules
+                reserve motion for reporting state. */}
+            <Activity className="w-4.5 h-4.5 text-brand-red" />
             Live Automation Activity Feed
           </h2>
           <p className="text-[11px] text-text-secondary prose-measure">

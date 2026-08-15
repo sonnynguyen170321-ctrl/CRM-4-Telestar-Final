@@ -5,6 +5,7 @@ import type { SessionUser } from '@/lib/auth';
 import { handleApiError } from '@/lib/api/errors';
 import { enqueueImmediate } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
+import { enrollmentIdFromStepTaskId } from '@/lib/sequences/identity';
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -41,9 +42,17 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     // Enqueue immediate execution — promotes the already-scheduled delayed job so the
     // send actually fast-forwards (a plain enqueue would collide with it and be dropped).
+    //
+    // The payload must be *identical* to the delayed one, occurrence and all: the dedupe key is
+    // built from the payload, so omitting `expectedEnrollmentId` would resolve to a different job
+    // identity — manufacturing a second, legacy-shaped execution beside the original instead of
+    // promoting it. The task's own id carries the occurrence, so this is proof, not correlation.
     await enqueueImmediate(
       JobType.SEQUENCE_EXECUTE_TASK,
-      { taskId: task.id },
+      {
+        taskId: task.id,
+        expectedEnrollmentId: enrollmentIdFromStepTaskId(task.id) ?? undefined,
+      },
       { tenantId: user.tenantId! }
     );
 

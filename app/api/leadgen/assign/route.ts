@@ -41,13 +41,17 @@ export async function POST(req: NextRequest) {
       select: { id: true, firstName: true, lastName: true },
     });
 
+    // No `tenantId` here on purpose. The client extension in `lib/prisma.ts` stamps it onto every
+    // write, including each row of a `createMany`. Passing it by hand meant carrying a
+    // `|| 'default-tenant'` fallback, and a session that somehow arrived without a tenant would
+    // then write audit rows into a tenant nobody owns rather than failing — the blind tenant
+    // default the runtime rules forbid.
     await prisma.activity.createMany({
       data: leads.map((l) => ({
         userId: user.id,
         leadId: l.id,
-        type: 'stage_changed',
+        type: 'stage_changed' as const,
         description: `Lead reassigned by Leadgen Manager`,
-        tenantId: (user as any).tenantId || 'default-tenant',
       })),
     });
 

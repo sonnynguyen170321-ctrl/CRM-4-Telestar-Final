@@ -42,6 +42,10 @@ const CONSOLE_ALLOWLIST: { pattern: RegExp; reason: string }[] = [
     pattern: /\[Fast Refresh\]/i,
     reason: 'next dev hot-reload chatter; absent from a built app',
   },
+  {
+    pattern: /fonts\.gstatic\.com/i,
+    reason: 'External Google Fonts CDN slice 404, not an application defect',
+  },
 ];
 
 /** Requests whose failure says nothing about the page under test. */
@@ -49,6 +53,10 @@ const NETWORK_ALLOWLIST: { pattern: RegExp; reason: string }[] = [
   {
     pattern: /\/_next\/static\/.*\.hot-update\./i,
     reason: 'dev-server hot-update probe races the navigation and 404s harmlessly',
+  },
+  {
+    pattern: /fonts\.gstatic\.com/i,
+    reason: 'External Google Fonts CDN request',
   },
 ];
 
@@ -81,7 +89,8 @@ function attach(page: Page): Recorder {
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return;
     const text = msg.text();
-    if (CONSOLE_ALLOWLIST.some((a) => a.pattern.test(text))) return;
+    const locUrl = msg.location()?.url || '';
+    if (CONSOLE_ALLOWLIST.some((a) => a.pattern.test(text) || a.pattern.test(locUrl))) return;
     rec.consoleErrors.push({ at: new Date().toISOString(), url: page.url(), type: 'error', text: text.slice(0, 2000) });
   });
 
@@ -116,6 +125,7 @@ function fmt(entries: (ConsoleEntry | NetworkEntry)[]): string {
 export const test = base.extend<{ recorder: Recorder }>({
   recorder: async ({ page }, use) => {
     const rec = attach(page);
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(rec);
     rec.assertClean('teardown');
   },

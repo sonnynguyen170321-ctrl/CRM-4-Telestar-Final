@@ -129,14 +129,20 @@ machine. It sits between them, as the second layer of `ARCHITECTURE.md`.
 
 ## Follow-ups not in this phase set
 
-Deliberately left undone. None of them block the engine.
+- [x] **The `/automation` operator dashboard does not surface deferral state.** Closed by the
+      Email Automation lane (Plan 1 §A6). [`lib/automation/operatorState.ts`](../../lib/automation/operatorState.ts)
+      derives one reason per in-flight cadence from state the engine already stores —
+      `SequenceEnrollment.status`, `nextActionAt`, `pausedReason`, the current step's task and
+      the mailbox row — and `/api/automation/stats` returns it as a machine-stable `reasonCode`
+      plus an operator-facing `reasonLabel` and `detail`. `sequence_deferred` is also in the
+      activity feed's filter now; it was written to the database and filtered out of the only
+      page an operator watches, which made every deferral invisible.
 
-- **The `/automation` operator dashboard does not surface deferral state.** It renames its
-  panels and lists the activity feed, but `nextActionAt`, `pausedReason` and pending deferrals
-  appear only on the lead panel. An operator asking "why has nothing sent for three hours" still
-  has to open a lead.
-- **`Activity` icon on `/automation` uses `animate-pulse`.** `.claude/rules/brand-design.md`
-  bans decorative motion; a pulsing idle icon is not state reporting.
-- **No backfill for `nextActionAt` on enrollments created before the migration.** They are
-  scheduled from `Task.dueDate` as before, which is correct but means the new column is null for
-  historical rows and cannot be used as a sole query key until a backfill runs.
+      No new column. A stored "reason" would be a second source of truth that could disagree
+      with the enrollment; where the two ever differ, the engine is right.
+- [x] **`Activity` icon on `/automation` uses `animate-pulse`.** Removed. An
+      `e2e/journeys/automation-operator.spec.ts` case asserts the class does not come back.
+- [ ] **No backfill for `nextActionAt` on enrollments created before the migration.** Still open.
+      They are scheduled from `Task.dueDate` as before, which is correct but means the column is
+      null for historical rows and cannot be used as a sole query key until a backfill runs. The
+      operator surface handles this by falling back to the task's due date.

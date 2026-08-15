@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requirePoolUser } from '@/app/api/leadgen-pool/guard';
 import { buildPoolWhere, poolItemsToCsv } from '@/lib/leadgen/pool';
 import { prisma } from '@/lib/prisma';
+import { requireTenantId } from '@/lib/api/tenant';
 
 export async function GET(req: NextRequest) {
   const user = await requirePoolUser();
   if (user instanceof NextResponse) return user;
 
   const sp = req.nextUrl.searchParams;
-  const tenantId = user.tenantId || 'default-tenant';
+  const tenantId = requireTenantId(user);
+  if (tenantId instanceof NextResponse) return tenantId;
 
   const where = buildPoolWhere(
     {

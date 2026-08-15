@@ -97,6 +97,9 @@ enum ActivityType {
   prospect_reengagement_eligible
   prospect_handed_back
   prospect_ai_reengagement_started
+  prospect_research_started
+  prospect_ready_for_outreach
+  prospect_ai_managed
 }
 
 /// Who or what should be acting on this prospect right now.
@@ -264,6 +267,8 @@ model User {
   reminders                Reminder[]
   sequences                Sequence[]
   templates                Template[]
+  approvedStepCopies       SequenceStepCopy[]
+  draftedSequences         SequenceDraftRecord[]
   campaignSdrs             CampaignSdr[]
   auditLogs                AuditLog[]
   aiMemories               AiMemory[]
@@ -508,6 +513,7 @@ model Lead {
   workOrders           WorkOrder[]
   workOrderLeases      WorkOrderLease[]
   personalizationHooks PersonalizationHook[]
+  sequenceDraftRecords SequenceDraftRecord[]
 
   @@index([stage])
   @@index([assignedToId])
@@ -528,6 +534,7 @@ model Lead {
   @@index([tenantId, operatingState])
   @@index([tenantId, campaignId, normalizedEmail])
   @@index([tenantId, importListName])
+  sequenceLaunches   SequenceLaunch[]
 }
 
 // ─── Sequences ───────────────────────────────────────────────────────────────
@@ -547,6 +554,7 @@ model Sequence {
 
   steps               SequenceStep[]
   leads               Lead[]
+  sequenceLaunches    SequenceLaunch[]
   activities          Activity[]
   sequenceEnrollments SequenceEnrollment[]
 
@@ -646,11 +654,16 @@ model AbTestVariant {
   subject    String?
   body       String?
   version    String // "A" | "B"
+  /// Running counters, incremented at send. Kept because existing surfaces read them, but they
+  /// are a cache: `OutboundMessage.abVariantId` is what a variant's real performance is derived
+  /// from, and nothing reconciles these two.
   sentCount  Int      @default(0)
   replyCount Int      @default(0)
   createdAt  DateTime @default(now())
   tenantId   String
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  sends OutboundMessage[]
 
   @@index([templateId])
   @@index([tenantId])
@@ -854,6 +867,22 @@ model OutboundMessage {
   account           EmailAccount @relation(fields: [accountId], references: [id])
   templateId        String?
   template          Template?    @relation(fields: [templateId], references: [id])
+
+  /// Which A/B variant produced these words, recorded at send time.
+  ///
+  /// Selection is deterministic (`buildJitterSeed` + `deterministicOffset`), so it *could* be
+  /// recomputed — and that is exactly why it is stored instead. Recomputation would silently
+  /// change the historical answer the day the seed inputs, the variant set or the tie-break
+  /// change, and re-deciding what an already-sent message was is not reporting. Null covers
+  /// every send with no A/B pair, and every send whose copy was approved per prospect — an
+  /// approval overrides variant selection, so attributing it to a variant would be a lie.
+  abVariantId       String?
+  abVariant         AbTestVariant? @relation(fields: [abVariantId], references: [id], onDelete: SetNull)
+  /// The cadence and step this send belongs to, denormalised so variant reporting does not have
+  /// to walk back through the task that may since have been completed, reassigned or deleted.
+  sequenceId        String?
+  sequenceStepOrder Int?
+
   to                String
   subject           String?
   body              String?
@@ -898,6 +927,10 @@ model OutboundMessage {
   @@index([accountId, to, status])
   // Reconciliation pass: ambiguous or stale sends, scanned by status then age.
   @@index([status, claimedAt])
+  // Variant reporting: every send of one variant, and the per-lead lookup that attributes an
+  // outcome back to the message the prospect was answering.
+  @@index([tenantId, abVariantId])
+  @@index([leadId, sentAt])
 }
 
 // ─── Suppression Entries ─────────────────────────────────────────────────────
@@ -934,6 +967,11 @@ model SequenceEnrollment {
   sequenceId       String
   sequence         Sequence                 @relation(fields: [sequenceId], references: [id])
   status           SequenceEnrollmentStatus @default(active)
+  /// "<tenantId>:<leadId>" while this enrollment occupies the lead (active or paused); null once
+  /// it reaches a terminal status. The unique index below is what makes "one occupying
+  /// enrollment per lead" a database fact. Normal UNIQUE semantics allow many NULLs, so terminal
+  /// rows never collide — see lib/sequences/occupancy.ts.
+  occupancyKey     String?                  @unique
   currentStep      Int                      @default(1)
   startedAt        DateTime                 @default(now())
   completedAt      DateTime?
@@ -945,12 +983,90 @@ model SequenceEnrollment {
   tenantId         String
   tenant           Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  stepCopies SequenceStepCopy[]
+
   @@index([leadId])
   @@index([sequenceId])
   @@index([status])
   @@index([tenantId])
   @@index([nextActionAt]) // For maintenance worker scheduling queries
   @@index([status, nextActionAt]) // Active enrollments due for action
+}
+
+/// Approved, prospect-facing copy for one step of one enrollment occurrence.
+///
+/// Personalization is prepared and approved at **design** time and stored here; execution reads
+/// it. The sequence worker therefore never asks a model what to say, and an AI provider being
+/// down cannot change what an already-approved cadence sends. Absent a row, the step falls back
+/// to its shared `Template` — so this is additive and no existing cadence changes behaviour.
+///
+/// Keyed by the occurrence rather than the lead: a replacement cadence is a different
+/// conversation and must not inherit the copy approved for the one it replaced.
+model SequenceStepCopy {
+  id           String             @id @default(cuid())
+  enrollmentId String
+  enrollment   SequenceEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  /// Matches `SequenceStep.order`, not a step id: the builder reconciles steps by id but the
+  /// cadence position is what an enrollment's `currentStep` names.
+  stepOrder    Int
+  subject      String?
+  body         String
+  /// Evidence rows this copy cites, carried from the grounded draft for audit.
+  citedEvidenceIds String[]
+  /// False when the deterministic evidence-only fallback produced this copy.
+  aiGenerated  Boolean            @default(false)
+  approvedAt   DateTime           @default(now())
+  approvedById String?
+  approvedBy   User?              @relation(fields: [approvedById], references: [id])
+  createdAt    DateTime           @default(now())
+  tenantId     String
+  tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, stepOrder])
+  @@index([tenantId])
+}
+
+/// The structured outreach draft produced at `sequence_design` time, kept so the launch that
+/// sends it can be planned from it later.
+///
+/// `planWorkOrderSteps` calls no provider by contract — it reads the database and returns planned
+/// tool calls. A draft that lived only in the return value of `draftSequenceForLead` was therefore
+/// unreachable by the order that sends it, which is why every cadence used its shared template.
+///
+/// Keyed by lead, not by occurrence: this is the *current* proposal for a prospect, not a record
+/// of what was sent. Re-drafting replaces it. The durable record of approved wording is the
+/// `AgentApprovalRequest.args` a human signed, and then `SequenceStepCopy` on the enrollment.
+model SequenceDraftRecord {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leadId   String
+  lead     Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  /// A `DraftChannel` from `lib/research/sequenceDrafts.ts`.
+  channel String
+  /// `SequenceDraftStep[]` — order, channel, delayDays, subject, body, citedEvidenceIds.
+  steps   Json
+
+  /// True only when every claim in every step is backed by valid, in-run evidence.
+  grounded        Boolean
+  groundingReason String?
+  /// False when the deterministic evidence-only fallback produced this draft.
+  aiGenerated     Boolean  @default(true)
+  skillModules    String[]
+  citedEvidenceIds String[]
+
+  /// Provenance, for cost attribution and for tracing a draft back to the run that made it.
+  aiCallId    String?
+  workOrderId String?
+
+  draftedById String?
+  draftedBy   User?    @relation(fields: [draftedById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, leadId])
+  @@index([tenantId])
 }
 
 // ─── Import ──────────────────────────────────────────────────────────────────
@@ -1583,6 +1699,8 @@ model Tenant {
   inboundMessages          InboundMessage[]
   suppressionEntries       SuppressionEntry[]
   sequenceEnrollments      SequenceEnrollment[]
+  sequenceStepCopies       SequenceStepCopy[]
+  sequenceDraftRecords     SequenceDraftRecord[]
   importBatches            ImportBatch[]
   importRows               ImportRow[]
   attachments              Attachment[]
@@ -1614,6 +1732,9 @@ model Tenant {
   companySignals           CompanySignal[]
   accountPainHypotheses    AccountPainHypothesis[]
   personalizationHooks     PersonalizationHook[]
+  sequenceLaunches SequenceLaunch[]
+  outcomeSignals           OutcomeSignal[]
+  playbookProposals        PlaybookProposal[]
 }
 
 // ─── Campaign Playbooks ──────────────────────────────────────────────────────
@@ -1640,6 +1761,7 @@ model CampaignPlaybook {
   currentVersion   CampaignPlaybookVersion? @relation("CurrentVersion", fields: [currentVersionId], references: [id])
 
   versions CampaignPlaybookVersion[] @relation("PlaybookVersions")
+  proposals PlaybookProposal[]
 
   createdById String
   createdAt   DateTime @default(now())
@@ -1697,6 +1819,14 @@ model CampaignPlaybookVersion {
   AgentAction      AgentAction[]
   workOrders       WorkOrder[]
   approvalRequests AgentApprovalRequest[]
+  /// The proposal whose approval produced this version, when one did. At most one — a proposal
+  /// creates exactly one draft, and a draft is created by at most one proposal.
+  /// Unique, and that is the whole point: the database refuses a second draft for a proposal
+  /// rather than leaving the service's statement ordering as the only thing preventing one.
+  fromProposalId   String?                @unique
+  fromProposal     PlaybookProposal?      @relation("ProposalCreatedVersion", fields: [fromProposalId], references: [id], onDelete: SetNull)
+  /// Proposals written against this version as their starting point.
+  proposalsBasedOn PlaybookProposal[]     @relation("ProposalBaseVersion")
 
   @@unique([playbookId, versionNumber])
   @@index([tenantId])
@@ -1989,6 +2119,7 @@ model WorkOrder {
   updatedAt   DateTime  @updatedAt
 
   leases                WorkOrderLease[]
+  sequenceLaunches      SequenceLaunch[]
   agentActions          AgentAction[]
   aiCalls               AiCall[]
   transitions           ProspectTransition[]
@@ -2176,6 +2307,19 @@ model InboundMessage {
   isReply           Boolean      @default(false)
   bounceType        String? // hard | soft — only set when isBounce
   bouncedRecipient  String? // address that bounced, parsed from the DSN body
+  /// Reply classification (Phase 8b). Stored on the message itself rather than in a second
+  /// conversation store — the inbound row already *is* the conversation record, and a parallel
+  /// table would immediately need reconciling with it.
+  /// A = deterministic stop · B = administrative · C = sales engagement · D = ambiguous.
+  replyClass        String?
+  /// The specific reason inside the class: unsubscribe, ooo, pricing, … See lib/replies/types.ts.
+  replyKind         String?
+  /// 0–1. Low confidence must never drive aggressive automation, so it is persisted, not derived.
+  replyConfidence   Float?
+  /// deterministic | ai | fallback — `fallback` means the model was unavailable and the reply
+  /// was routed to human review rather than guessed at.
+  classificationSource String?
+  classifiedAt      DateTime?
   tenantId          String
   tenant            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt         DateTime     @default(now())
@@ -2184,6 +2328,8 @@ model InboundMessage {
   @@index([leadId])
   @@index([providerMessageId])
   @@index([tenantId])
+  // Manager surface: "reply handoffs" by class within a tenant.
+  @@index([tenantId, replyClass])
   // Deliverability rollups: per-inbox windowed reply/bounce/spam counts.
   @@index([accountId, date])
   @@index([tenantId, date])
@@ -2465,4 +2611,217 @@ model PersonalizationHook {
   @@index([tenantId, accountId])
   @@index([tenantId, leadId])
   @@index([tenantId, contactResearchRunId])
+}
+
+/// One AI outreach launch attempt, owned by exactly one WorkOrder (Revenue AI Phase 8a).
+///
+/// Two jobs, both of which need durable state rather than inference:
+///
+///  1. **Provenance.** An active enrollment on a lead proves nothing about *who* created it —
+///     the authenticated `POST /api/sequences/[id]/enroll` route calls the same domain service.
+///     A resume must prove the enrollment belongs to this work order's launch, and this row is
+///     that proof: `@@unique([tenantId, workOrderId])` plus the enrollment id it created.
+///  2. **Convergence.** A launch is a sequence of writes that cannot share a transaction (Neon
+///     HTTP has no interactive transactions). `stage` records how far it got, so a retry after a
+///     crash resumes instead of guessing from the existence of a Task.
+model SequenceLaunch {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  sequenceId String
+  sequence   Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  /// The work order that owns this launch. One launch per order, enforced below.
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  /// Set once the enrollment exists. This is the association a resume checks.
+  enrollmentId String?
+  /// Set once the first step's task exists. Its id is derived from this row, so the Task
+  /// primary key is what makes concurrent finalizers collide instead of duplicating.
+  taskId       String?
+
+  /// 'claimed' | 'enrolled' | 'state_applied' | 'task_created' | 'completed'
+  stage     String   @default("claimed")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, workOrderId])
+  @@index([tenantId])
+  @@index([tenantId, leadId])
+  @@index([tenantId, leadId, sequenceId])
+}
+
+// ─── Approved learning (Revenue AI Phase 10) ─────────────────────────────────
+
+/// What a signal says about the thing that produced it.
+///
+/// Every value here is something the CRM can already observe. There is deliberately no
+/// `model_confidence` or `quality_score`: a signal must be a fact someone could argue with by
+/// looking at a row, not an opinion the system formed about itself.
+enum OutcomeSignalKind {
+  /// An AI draft was sent essentially as written.
+  draft_accepted
+  /// An AI draft was sent after substantial rewriting — the draft was not good enough.
+  draft_edited
+  /// The prospect replied, and the reply was a sales conversation.
+  positive_reply
+  /// A meeting was booked with this prospect.
+  meeting_booked
+  /// A sourced contact was rejected before outreach.
+  lead_rejected
+  /// A human marked research evidence as not worth using.
+  research_irrelevant
+  /// The prospect raised an objection.
+  objection_raised
+  /// A re-engagement follow-up produced a reply.
+  reengagement_reply
+}
+
+/// One observed outcome, durable and attributable.
+///
+/// This is the evidence layer under Phase 10. A proposal that cannot point at rows here is an
+/// opinion, and a manager approving an opinion is not an approval process.
+///
+/// ## Why the ids carry no foreign keys
+///
+/// Same reasoning as `AiCall`: a signal is a *record of something that happened*, and it must
+/// outlive an archived lead, a deleted sequence or a campaign that ended. A cascade would quietly
+/// reduce the evidence behind an already-approved playbook version, which is the one thing this
+/// table exists to prevent. `tenantId` is the exception — a deleted tenant takes its data with it.
+model OutcomeSignal {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// Identifies the real-world occurrence, so collection is idempotent. A second pass over the
+  /// same reply finds this row instead of inflating the count behind a proposal.
+  signalKey String
+
+  kind OutcomeSignalKind
+
+  /// +1 this worked, -1 this did not, 0 observed without a verdict. Bounded by the writer.
+  direction Int @default(0)
+
+  /// Loose ids, deliberately. See the note above.
+  leadId            String?
+  campaignId        String?
+  sequenceId        String?
+  /// Which policy was in force when it happened — the join that makes "did v4 do better" real.
+  playbookVersionId String?
+  /// Which A/B variant the prospect was answering, when the outcome traces to a send that had
+  /// one. A **different axis** from `playbookVersionId`, not a finer grain of it: a playbook
+  /// version is the policy the cadence ran under, a variant is which of two wordings this
+  /// prospect received under that policy. Both can move independently, and collapsing them
+  /// would make "variant B wins" and "the new playbook wins" the same claim.
+  abVariantId       String?
+  /// The human involved, when one was. AI-observed signals have none.
+  actorUserId       String?
+
+  /// One sentence a person can read, written by the collector that produced the row.
+  detail   String? @db.Text
+  metadata Json?
+
+  occurredAt DateTime
+  createdAt  DateTime @default(now())
+
+  evidenceFor PlaybookProposalEvidence[]
+
+  @@unique([tenantId, signalKey])
+  @@index([tenantId, kind, occurredAt])
+  @@index([tenantId, campaignId, occurredAt])
+  @@index([tenantId, playbookVersionId])
+  @@index([tenantId, abVariantId, kind])
+}
+
+enum PlaybookProposalStatus {
+  proposed
+  approved
+  rejected
+  /// A newer proposal about the same pattern replaced this one before anyone decided.
+  superseded
+}
+
+/// A change the system would like permission to make.
+///
+/// **Approving one never edits a playbook.** It creates a new *draft* version through
+/// `lib/playbooks/versions.ts`, which a human still has to approve and activate. The active
+/// version is immutable and stays untouched — `createdVersionId` records the draft that was
+/// produced so the trail from evidence to policy is a stored fact rather than an inference.
+///
+/// No agent may write `status`. Review is a human decision recorded with the reviewer's id.
+model PlaybookProposal {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  playbookId String
+  playbook   CampaignPlaybook @relation(fields: [playbookId], references: [id], onDelete: Cascade)
+  /// Denormalised for the manager surfaces, which filter by campaign far more than by playbook.
+  campaignId String
+
+  /// The version the proposal was written against. Null when the campaign has no approved policy
+  /// yet — the proposal then describes a first draft rather than a change to one.
+  basedOnVersionId String?
+  basedOnVersion   CampaignPlaybookVersion? @relation("ProposalBaseVersion", fields: [basedOnVersionId], references: [id], onDelete: SetNull)
+
+  /// Identifies the pattern, so a second run updates this row instead of filing a duplicate.
+  proposalKey String
+
+  title           String
+  /// What the system thinks it is seeing.
+  observation     String @db.Text
+  /// What it is asking for, in a manager's language.
+  suggestedChange String @db.Text
+
+  /// The partial policy override an approval would apply, validated against the playbook
+  /// contract before it is stored. It cannot contain ICP — the contract is `.strict()` and ICP
+  /// belongs to `CampaignLeadRequirement`.
+  proposedRules Json
+
+  /// How many signals stand behind it. Denormalised from the evidence rows for sorting.
+  supportCount Int @default(0)
+
+  status PlaybookProposalStatus @default(proposed)
+
+  /// The draft this proposal produced, if any. The link itself lives on the **version** —
+  /// `CampaignPlaybookVersion.fromProposalId`, unique — because that is where the rule "one
+  /// proposal produces at most one draft" can actually be enforced. A pointer on this side can
+  /// only be overwritten, which orphans the first draft rather than refusing the second.
+  createdVersion CampaignPlaybookVersion? @relation("ProposalCreatedVersion")
+
+  /// The human who decided. A proposal with `status != proposed` and no reviewer is a defect.
+  reviewedById String?
+  reviewedAt   DateTime?
+  decisionNote String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  evidence PlaybookProposalEvidence[]
+
+  @@unique([tenantId, proposalKey])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, campaignId])
+}
+
+/// Which observed outcomes a proposal rests on.
+///
+/// A join table rather than an id array so the evidence behind an approved change cannot drift
+/// into naming rows that no longer exist.
+model PlaybookProposalEvidence {
+  id String @id @default(cuid())
+
+  proposalId String
+  proposal   PlaybookProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  signalId String
+  signal   OutcomeSignal @relation(fields: [signalId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([proposalId, signalId])
+  @@index([signalId])
 }

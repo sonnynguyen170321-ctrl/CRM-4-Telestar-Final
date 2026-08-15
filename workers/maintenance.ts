@@ -1,10 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { createAppWorker } from '@/lib/bullmq';
 import { JobType } from '@/lib/bullmq/types';
+import { enrollmentIdFromStepTaskId, enrollmentStepTaskId } from '@/lib/sequences/identity';
 import type { MaintenanceRepairPayload } from '@/lib/bullmq/types';
 import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
 import { enqueueReschedule } from '@/lib/bullmq/enqueue';
-import { createTaskForStep } from '@/lib/sequences/engine';
+import { ensureOccurrenceStepTask } from '@/lib/sequences/occurrenceTask';
 
 const STALE_SENDING_THRESHOLD_MS = 30 * 60 * 1000;
 const STUCK_RUNNING_THRESHOLD_MS = 15 * 60 * 1000;
@@ -118,10 +119,15 @@ async function repairMissingDelayed(): Promise<{ fixed: number; details: string[
   });
 
   for (const task of missing) {
-    await prisma.task.update({
-      where: { id: task.id },
+    // Compare-and-set the repair claim, so two sweeps cannot both re-enqueue the same task. The
+    // execution lock in the sequence worker now requires `lockedAt: null`, which makes this claim
+    // genuinely exclusive — and makes releasing it below mandatory.
+    const claimed = await prisma.task.updateMany({
+      where: { id: task.id, status: 'pending', lockedAt: null },
       data: { lockedAt: now },
     });
+    if (claimed.count !== 1) continue;
+
     try {
       // The original job's dedupe key still resolves to this same payload, so a plain
       // enqueue would be swallowed and the repair would report success while restoring
@@ -129,7 +135,13 @@ async function repairMissingDelayed(): Promise<{ fixed: number; details: string[
       // overdue task collapse to one job instead of stacking.
       await enqueueReschedule(
         JobType.SEQUENCE_EXECUTE_TASK,
-        { taskId: task.id },
+        // A repair must carry the occurrence too. The task's deterministic id names the
+        // enrollment it belongs to, so this is recovered rather than guessed; a pre-Phase-8a
+        // task has none, and only then does the worker use legacy lead+sequence matching.
+        {
+          taskId: task.id,
+          expectedEnrollmentId: enrollmentIdFromStepTaskId(task.id) ?? undefined,
+        },
         {
           delay: 0,
           tenantId: task.tenantId,
@@ -137,10 +149,18 @@ async function repairMissingDelayed(): Promise<{ fixed: number; details: string[
         }
       );
       details.push(`task:${task.id} -> re-enqueued BullMQ job (due ${task.dueDate.toISOString()})`);
+      fixed++;
     } catch (err) {
-      details.push(`task:${task.id} -> locked for re-enqueue, enqueue failed: ${err}`);
+      details.push(`task:${task.id} -> re-enqueue failed: ${err}`);
+    } finally {
+      // Always release. The repair claim exists only to serialise sweeps; leaving it set would
+      // make the task invisible to the next sweep (this query filters `lockedAt: null`) *and*
+      // unclaimable by the worker's execution lock — pending, unlocked by nobody, and unrunnable.
+      await prisma.task.updateMany({
+        where: { id: task.id, status: 'pending' },
+        data: { lockedAt: null },
+      });
     }
-    fixed++;
   }
 
   return { fixed, details };
@@ -164,9 +184,22 @@ async function repairEnrollmentScheduleDrift(): Promise<{ fixed: number; details
   });
 
   for (const enr of driftEnrollments) {
-    const existingTask = await prisma.task.findFirst({
-      where: { leadId: enr.leadId, sequenceId: enr.sequenceId, sequenceStep: enr.currentStep, status: 'pending' },
+    const expectedTaskId = enrollmentStepTaskId(enr.id, enr.currentStep);
+    let existingTask = await prisma.task.findFirst({
+      where: { id: expectedTaskId, status: 'pending' },
     });
+
+    if (!existingTask) {
+      const legacyTask = await prisma.task.findFirst({
+        where: { leadId: enr.leadId, sequenceId: enr.sequenceId, sequenceStep: enr.currentStep, status: 'pending' },
+      });
+      if (legacyTask) {
+        const legacyEnrollmentId = enrollmentIdFromStepTaskId(legacyTask.id);
+        if (!legacyEnrollmentId || legacyEnrollmentId === enr.id) {
+          existingTask = legacyTask;
+        }
+      }
+    }
 
     if (!existingTask) {
       const step = await prisma.sequenceStep.findFirst({
@@ -180,9 +213,24 @@ async function repairEnrollmentScheduleDrift(): Promise<{ fixed: number; details
         const cadenceMs = step.delayDays * 86_400_000 + step.delayHours * 3_600_000;
         const base = new Date(now.getTime() - cadenceMs);
 
-        await createTaskForStep(enr.lead, enr.sequence, step, base);
-        fixed++;
-        details.push(`enrollment:${enr.id} -> recreated task for step ${enr.currentStep}`);
+        try {
+          // The exact enrollment is in hand, so its identity must survive into the task id and
+          // the execution payload. Creating an anonymous task here would hand the worker a
+          // legacy-shaped job and reopen lead+sequence correlation for a Phase 8a cadence.
+          await ensureOccurrenceStepTask({
+            enrollment: enr,
+            lead: enr.lead,
+            sequence: enr.sequence,
+            step,
+            baseDate: base,
+          });
+          fixed++;
+          details.push(`enrollment:${enr.id} -> recreated task for step ${enr.currentStep}`);
+        } catch (err) {
+          // Strict scheduling refused: the occurrence stopped owning the lead between the query
+          // above and now. Fail closed — no executable job for a replaced cadence.
+          details.push(`enrollment:${enr.id} -> repair refused: ${err}`);
+        }
       }
     }
   }

@@ -1,7 +1,6 @@
 import { Worker, type Job, type Processor, type ConnectionOptions } from 'bullmq';
 import { Prisma } from '@prisma/client';
-import { prisma } from '@/lib/prisma';
-import { tenantStorage } from '@/lib/tenant-context';
+import { prisma, tenantStorage, resolveWorkerJobTenant } from '@/lib/prisma';
 import { getConnection } from './connection';
 
 /**
@@ -24,18 +23,17 @@ export function wrapProcessor<T = any, R = any>(
       return processor(job);
     }
 
-    // Resolve tenantId by reading the JobRun record
-    let tenantId = 'default-tenant';
+    // Resolve tenantId by reading the JobRun record via raw bootstrap resolver.
+    let tenantId: string;
     try {
-      // We must bypass RLS when looking up the JobRun, since we don't know the tenant yet
-      const jobRun = await tenantStorage.run({ tenantId: 'default-tenant', bypassRls: true }, () =>
-        prisma.jobRun.findUnique({ where: { id: jobRunId } })
-      );
-      if (jobRun) {
-        tenantId = jobRun.tenantId;
+      const resolvedTenant = await resolveWorkerJobTenant(jobRunId);
+      if (!resolvedTenant) {
+        throw new Error(`JobRun ${jobRunId} not found`);
       }
+      tenantId = resolvedTenant;
     } catch (err) {
       console.error(`[worker] Failed to resolve tenant for job ${job.id}:`, err);
+      throw err;
     }
 
     // Run lifecycle updates & execution in the context of the job's tenant

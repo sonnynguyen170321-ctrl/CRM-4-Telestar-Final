@@ -137,6 +137,41 @@ async function main() {
           `INSERT INTO "Lead" (id,"firstName","lastName",company,email,stage,"assignedToId","campaignId","tenantId","createdAt","updatedAt")
            VALUES ('lead-${t}','L','${t.toUpperCase()}','Co ${t}','l${t}@example.test','new','user-${t}','camp-${t}','tenant-${t}',now(),now())`
         );
+        // Meeting requires its own client, campaign and SDR — all NOT NULL, all tenant-local.
+        await c.$executeRawUnsafe(
+          `INSERT INTO "Meeting" (id,"leadId","clientId","campaignId","sdrId","title","scheduledAt",status,"tenantId","createdAt","updatedAt")
+           VALUES ('meet-${t}','lead-${t}','client-${t}','camp-${t}','user-${t}','Discovery ${t}',now(),'scheduled','tenant-${t}',now(),now())`
+        );
+        await c.$executeRawUnsafe(
+          `INSERT INTO "Opportunity" (id,"leadId","clientId","campaignId",title,company,"ownerId","createdById",value,stage,"tenantId","createdAt","updatedAt")
+           VALUES ('opp-${t}','lead-${t}','client-${t}','camp-${t}','Deal ${t}','Co ${t}','user-${t}','user-${t}',10000,'pending_client_review','tenant-${t}',now(),now())`
+        );
+        await c.$executeRawUnsafe(
+          `INSERT INTO "CampaignPlaybook" (id,"campaignId",name,"createdById","tenantId","createdAt","updatedAt")
+           VALUES ('pb-${t}','camp-${t}','Playbook ${t}','user-${t}','tenant-${t}',now(),now())`
+        );
+        await c.$executeRawUnsafe(
+          `INSERT INTO "PlaybookProposal" (id,"playbookId","campaignId","proposalKey",title,observation,"suggestedChange","proposedRules",status,"tenantId","createdAt","updatedAt")
+           VALUES ('prop-${t}','pb-${t}','camp-${t}','wait-longer-${t}','Wait longer','Replies arrive late.','Raise the threshold.','{}'::jsonb,'proposed','tenant-${t}',now(),now())`
+        );
+        await c.$executeRawUnsafe(
+          `INSERT INTO "OutcomeSignal" (id,"signalKey",kind,direction,"leadId","campaignId","occurredAt","tenantId","createdAt")
+           VALUES ('sig-${t}','reply-${t}','positive_reply',1,'lead-${t}','camp-${t}',now(),'tenant-${t}',now())`
+        );
+        // The approved-copy row is the prospect-facing content itself, so a leak here would be a
+        // leak of another tenant's outreach wording. It needs an enrollment to hang off.
+        await c.$executeRawUnsafe(
+          `INSERT INTO "Sequence" (id,name,"isActive","isArchived","createdById","tenantId","createdAt","updatedAt")
+           VALUES ('seq-${t}','Sequence ${t}',true,false,'user-${t}','tenant-${t}',now(),now())`
+        );
+        await c.$executeRawUnsafe(
+          `INSERT INTO "SequenceEnrollment" (id,"leadId","sequenceId",status,"currentStep","occupancyKey","tenantId","startedAt")
+           VALUES ('enr-${t}','lead-${t}','seq-${t}','active',1,'tenant-${t}:lead-${t}','tenant-${t}',now())`
+        );
+        await c.$executeRawUnsafe(
+          `INSERT INTO "SequenceStepCopy" (id,"enrollmentId","stepOrder",subject,body,"citedEvidenceIds","aiGenerated","approvedAt","tenantId","createdAt")
+           VALUES ('copy-${t}','enr-${t}',1,'Subject ${t}','Approved body ${t}',ARRAY[]::text[],true,now(),'tenant-${t}',now())`
+        );
       }
     });
 
@@ -167,6 +202,24 @@ async function main() {
       byId.length === 0
         ? pass('cannot read another tenant\'s row by direct id')
         : fail('LEAKED tenant B row via direct id lookup');
+
+      // The models added after the original matrix was written. `SequenceStepCopy` matters most
+      // of all: it holds the approved prospect-facing wording, so a leak there is a leak of
+      // another tenant's outreach copy rather than of a name and a company.
+      for (const [tbl, id] of [
+        ['Meeting', 'meet-b'],
+        ['Opportunity', 'opp-b'],
+        ['CampaignPlaybook', 'pb-b'],
+        ['PlaybookProposal', 'prop-b'],
+        ['OutcomeSignal', 'sig-b'],
+        ['SequenceEnrollment', 'enr-b'],
+        ['SequenceStepCopy', 'copy-b'],
+      ]) {
+        const check = await asTenantA(`SELECT id FROM "${tbl}" WHERE id = '${id}'`);
+        check.length === 0
+          ? pass(`cannot read tenant B ${tbl} by direct id`)
+          : fail(`LEAKED tenant B ${tbl} row via direct id lookup`);
+      }
 
       const updated = await asTenantA(
         `WITH u AS (UPDATE "Lead" SET company='hijacked' WHERE id='lead-b' RETURNING 1) SELECT count(*)::int AS n FROM u`

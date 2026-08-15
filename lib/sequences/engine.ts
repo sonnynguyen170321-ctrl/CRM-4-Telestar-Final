@@ -1,4 +1,6 @@
 import { prisma } from '@/lib/prisma';
+import { occupancyKeyFor, releaseOccupancy } from './occupancy';
+import { enrollmentStepTaskId } from './identity';
 import type { Lead, Sequence, SequenceStep, Task } from '@prisma/client';
 import {
   PAUSED_REASON_LABELS,
@@ -6,6 +8,7 @@ import {
   type PausedReason,
 } from '@/lib/automation/types';
 import { enqueue } from '@/lib/bullmq/enqueue';
+import { ensureJob } from '@/lib/bullmq/ensureJob';
 import { JobType } from '@/lib/bullmq/types';
 
 /**
@@ -43,12 +46,26 @@ export function computeStepDueDate(
   return sched.dueAtUtc;
 }
 
-/** Create the task for one sequence step and update the lead's nextTaskDue. */
+/**
+ * Create the task for one sequence step and update the lead's nextTaskDue.
+ *
+ * `options.taskId` lets a caller supply a **deterministic** primary key derived from its own
+ * durable identity. Two concurrent finalizers of the same launch then collide on the Task
+ * primary key — the database refuses the second — instead of a `findFirst` → `create` pair
+ * racing past each other and scheduling the cadence twice. The loser reuses the winner's row.
+ * Callers with no such identity omit it and get the usual generated id.
+ */
 export async function createTaskForStep(
   lead: Pick<Lead, 'id' | 'assignedToId' | 'crmPriorityScore'>,
   sequence: Pick<Sequence, 'id' | 'name'>,
   step: SequenceStep,
-  baseDate: Date
+  baseDate: Date,
+  options?: {
+    taskId?: string;
+    strictScheduling?: boolean;
+    deferScheduling?: boolean;
+    expectedEnrollmentId?: string;
+  }
 ): Promise<Task> {
   const leadFull = await prisma.lead.findUnique({
     where: { id: lead.id },
@@ -66,49 +83,157 @@ export async function createTaskForStep(
   const dueDate = computeStepDueDate(baseDate, step, { timezone: tz, seed });
   const channelLabel = step.channel.charAt(0).toUpperCase() + step.channel.slice(1);
 
-  const task = await prisma.task.create({
-    data: {
-      leadId: lead.id,
-      userId: lead.assignedToId,
-      type: step.channel,
-      title: `Step ${step.order}: ${channelLabel} — ${sequence.name}`,
-      description: step.instructions ?? null,
-      dueDate,
-      sequenceId: sequence.id,
-      sequenceStep: step.order,
-      priority: PRIORITY_MAP[lead.crmPriorityScore],
+  const task = await createOrReuseTask({
+    id: options?.taskId,
+    leadId: lead.id,
+    userId: lead.assignedToId,
+    type: step.channel,
+    title: `Step ${step.order}: ${channelLabel} — ${sequence.name}`,
+    description: step.instructions ?? null,
+    dueDate,
+    sequenceId: sequence.id,
+    sequenceStep: step.order,
+    priority: PRIORITY_MAP[lead.crmPriorityScore],
+  });
+
+  // A caller that records durable progress between the row and its schedule asks for the two to
+  // be separate; it calls `applyStepScheduling` itself.
+  if (!options?.deferScheduling) {
+    await applyStepScheduling(task, sequence.id, step, dueDate, {
+      strict: options?.strictScheduling,
+      expectedEnrollmentId: options?.expectedEnrollmentId,
+    });
+  }
+
+  return task;
+}
+
+async function createOrReuseTask(data: {
+  id?: string;
+  leadId: string;
+  userId: string;
+  type: SequenceStep['channel'];
+  title: string;
+  description: string | null;
+  dueDate: Date;
+  sequenceId: string;
+  sequenceStep: number;
+  priority: Task['priority'];
+}): Promise<Task> {
+  try {
+    return await prisma.task.create({ data: { ...data, id: data.id } });
+  } catch (err) {
+    // A supplied deterministic id that already exists means another finalizer won the race, or
+    // this one is being retried. Either way the row is the one to use.
+    const isDuplicate =
+      data.id && (err as { code?: string })?.code === 'P2002';
+    if (!isDuplicate) throw err;
+    return prisma.task.findUniqueOrThrow({ where: { id: data.id as string } });
+  }
+}
+
+/**
+ * The scheduling half of creating a step's task: the lead's next-due cache, the enrollment's
+ * runtime state, and the delayed execution job.
+ *
+ * Separated and exported because a crash between the Task row and this work leaves a task
+ * nothing will execute, and a resuming caller must be able to re-apply it. Every write here is
+ * idempotent — the two updates are last-write-wins with the same computed value, and `enqueue`
+ * derives its dedupe key from `(tenantId, jobType, payload)`, so re-enqueuing the same task
+ * resolves to the same `JobRun` and the same BullMQ job id rather than a second delivery.
+ */
+export async function applyStepScheduling(
+  task: Task,
+  sequenceId: string,
+  step: Pick<SequenceStep, 'autoComplete'>,
+  dueDate: Date,
+  options?: { strict?: boolean; expectedEnrollmentId?: string }
+): Promise<void> {
+  // An occurrence-scoped caller names the enrollment it means. Without that, this targets
+  // "whichever active enrollment matches lead+sequence", which after a human replacement is
+  // somebody else's cadence.
+  const scheduled = await prisma.sequenceEnrollment.updateMany({
+    where: {
+      ...(options?.expectedEnrollmentId ? { id: options.expectedEnrollmentId } : {}),
+      leadId: task.leadId,
+      sequenceId,
+      status: 'active',
     },
-  });
-
-  await prisma.lead.update({
-    where: { id: lead.id },
-    data: { nextTaskDue: dueDate },
-  });
-
-  // Update active enrollment runtime scheduling state
-  await prisma.sequenceEnrollment.updateMany({
-    where: { leadId: lead.id, sequenceId: sequence.id, status: 'active' },
     data: {
       nextActionAt: dueDate,
       lastEvaluatedAt: new Date(),
     },
   });
 
-  // Schedule delayed execution on the BullMQ SEQUENCE queue for automated email steps.
-  if (task.type === 'email' && step.autoComplete) {
-    try {
-      const delay = Math.max(0, dueDate.getTime() - Date.now());
-      await enqueue(
-        JobType.SEQUENCE_EXECUTE_TASK,
-        { taskId: task.id },
-        { delay, tenantId: task.tenantId },
-      );
-    } catch (err) {
-      console.error(`[createTaskForStep] Failed to schedule execution for task ${task.id}:`, err);
-    }
+  // Strict callers must have updated exactly their own enrollment. Zero means it stopped being
+  // the active occupying one while this ran — refuse *before* a job reaches the prospect.
+  if (options?.strict && options.expectedEnrollmentId && scheduled.count !== 1) {
+    // Thrown *before* the lead's cache is touched: a launch that lost its cadence must not
+    // rewrite the replacement's `nextTaskDue` on its way out.
+    throw new Error(
+      `Refusing to schedule: enrollment ${options.expectedEnrollmentId} is no longer the active enrollment for lead ${task.leadId}`
+    );
   }
 
-  return task;
+  await prisma.lead.update({
+    where: { id: task.leadId },
+    data: { nextTaskDue: dueDate },
+  });
+
+  // Schedule delayed execution on the BullMQ SEQUENCE queue for automated email steps. A manual
+  // step needs no execution job at all — its absence is not a failure.
+  if (task.type !== 'email' || !step.autoComplete) return;
+
+  const delay = Math.max(0, dueDate.getTime() - Date.now());
+
+  // `strict` is for a caller whose own completion depends on the job existing — the AI launch.
+  // It uses `ensureJob`, which never rewrites a JobRun that is already running or finished, and
+  // it lets the error propagate so the launch stays resumable instead of reporting success with
+  // nothing scheduled.
+  // A resumed cadence does not come through here: it needs the existing delayed job *moved*
+  // rather than a second one added beside it — see `lib/bullmq/rescheduleSequenceTask.ts`.
+  if (options?.strict) {
+    // The occurrence travels with the job. Without it the worker falls back to matching on
+    // lead+sequence, and an old task can execute under a later enrollment.
+    await ensureJob(
+      JobType.SEQUENCE_EXECUTE_TASK,
+      { taskId: task.id, expectedEnrollmentId: options.expectedEnrollmentId },
+      { tenantId: task.tenantId, delay }
+    );
+    return;
+  }
+
+  try {
+    await enqueue(
+      JobType.SEQUENCE_EXECUTE_TASK,
+      // The occurrence rides along here too, so step 2 and beyond keep the protection step 1 has.
+      { taskId: task.id, expectedEnrollmentId: options?.expectedEnrollmentId },
+      { delay, tenantId: task.tenantId },
+    );
+  } catch (err) {
+    console.error(`[applyStepScheduling] Failed to schedule execution for task ${task.id}:`, err);
+  }
+}
+
+/** Recompute a step's due date the same way `createTaskForStep` did, for a resumed finalizer. */
+export async function computeStepDueDateForLead(
+  leadId: string,
+  sequenceId: string,
+  step: SequenceStep,
+  baseDate: Date
+): Promise<Date> {
+  const leadFull = await prisma.lead.findUnique({
+    where: { id: leadId },
+    select: { timezone: true, tenantId: true, assignedTo: { select: { timezone: true } } },
+  });
+  const tz = resolveTimezone(leadFull?.timezone, leadFull?.assignedTo?.timezone);
+  const seed = buildJitterSeed({
+    tenantId: leadFull?.tenantId,
+    sequenceId,
+    sequenceStepId: step.id,
+    leadId,
+  });
+  return computeStepDueDate(baseDate, step, { timezone: tz, seed });
 }
 
 /**
@@ -118,9 +243,28 @@ export async function createTaskForStep(
  */
 export async function advanceSequence(
   task: Pick<Task, 'leadId' | 'sequenceId' | 'sequenceStep'>,
-  actorUserId: string
+  actorUserId: string,
+  /**
+   * The enrollment occurrence this cadence belongs to (Phase 8a).
+   *
+   * Carried through so the *next* step's task and delayed job stay bound to the same occurrence.
+   * Without it the protection would end at step 1 and step 2 would go back to matching on
+   * lead+sequence, which is what lets an old job execute under a later enrollment.
+   */
+  expectedEnrollmentId?: string
 ): Promise<void> {
   if (!task.sequenceId || task.sequenceStep === null || task.sequenceStep === undefined) return;
+
+  // With an occurrence id the caller names *which* cadence completed a step. Correlating on
+  // lead+sequence here would let a stale execution belonging to enrollment A advance — or
+  // terminalize — enrollment B, which is the replacement race the payload identity exists to close.
+  if (expectedEnrollmentId) {
+    return advanceOccurrence(
+      { ...task, sequenceId: task.sequenceId, sequenceStep: task.sequenceStep },
+      actorUserId,
+      expectedEnrollmentId
+    );
+  }
 
   const lead = await prisma.lead.findUnique({
     where: { id: task.leadId },
@@ -151,7 +295,9 @@ export async function advanceSequence(
     });
     await prisma.sequenceEnrollment.updateMany({
       where: { leadId: lead.id, sequenceId: task.sequenceId, status: { in: ['active', 'paused'] } },
-      data: { status: 'completed', completedAt: new Date() },
+      // Occupancy released in the same statement as the terminal status: a crash between the two
+      // would leave the lead occupied by a finished cadence and un-enrollable forever.
+      data: { status: 'completed', completedAt: new Date(), ...releaseOccupancy() },
     });
     await prisma.activity.create({
       data: {
@@ -190,6 +336,123 @@ export async function advanceSequence(
   if (nextStep) {
     await createTaskForStep(lead, sequence, nextStep, new Date());
   }
+}
+
+/**
+ * Advance the **exact** enrollment occurrence that completed a step.
+ *
+ * Every state write names the enrollment by primary key and is conditioned on it still being the
+ * active, occupying cadence sitting on the step just completed. If that compare-and-set matches
+ * nothing, this stops entirely: no lead cache write, no next task, no next job. A stale execution
+ * therefore cannot advance, complete, or clear the cache of the cadence that replaced it.
+ */
+async function advanceOccurrence(
+  task: { leadId: string; sequenceId: string; sequenceStep: number },
+  actorUserId: string,
+  expectedEnrollmentId: string
+): Promise<void> {
+  const completedStep = task.sequenceStep;
+
+  const lead = await prisma.lead.findUnique({
+    where: { id: task.leadId },
+    select: {
+      id: true, tenantId: true, sequenceId: true, sequenceStep: true,
+      assignedToId: true, firstName: true, lastName: true, crmPriorityScore: true,
+    },
+  });
+  if (!lead) return;
+
+  const enrollment = await prisma.sequenceEnrollment.findUnique({
+    where: { id: expectedEnrollmentId },
+  });
+  const owns =
+    enrollment &&
+    enrollment.leadId === task.leadId &&
+    enrollment.sequenceId === task.sequenceId &&
+    enrollment.status === 'active' &&
+    enrollment.currentStep === completedStep &&
+    enrollment.occupancyKey === occupancyKeyFor(lead.tenantId, task.leadId);
+  if (!owns) return;
+
+  const sequence = await prisma.sequence.findUnique({
+    where: { id: task.sequenceId },
+    include: { steps: { orderBy: { order: 'asc' } } },
+  });
+  if (!sequence) return;
+
+  const totalSteps = sequence.steps.length;
+  const nextStepOrder = completedStep + 1;
+
+  if (nextStepOrder > totalSteps) {
+    // Terminalize this occurrence only. The lead-and-sequence form used by the legacy path would
+    // complete a replacement enrollment that happens to share both.
+    const finished = await prisma.sequenceEnrollment.updateMany({
+      where: {
+        id: expectedEnrollmentId,
+        leadId: task.leadId,
+        sequenceId: task.sequenceId,
+        status: 'active',
+        currentStep: completedStep,
+      },
+      data: { status: 'completed', completedAt: new Date(), ...releaseOccupancy() },
+    });
+    if (finished.count !== 1) return;
+
+    // Conditional on the cache still pointing at this cadence, so a lead already switched to a
+    // replacement keeps its own sequence fields.
+    await prisma.lead.updateMany({
+      where: { id: lead.id, sequenceId: task.sequenceId },
+      data: { sequenceId: null, sequenceStep: null, sequenceStatus: null },
+    });
+    await prisma.activity.create({
+      data: {
+        userId: actorUserId,
+        leadId: lead.id,
+        type: 'sequence_completed',
+        description: `Completed all ${totalSteps} steps of "${sequence.name}"`,
+        metadata: { sequenceName: sequence.name, totalSteps, enrollmentId: expectedEnrollmentId },
+      },
+    });
+    if (lead.assignedToId) {
+      await prisma.notification.create({
+        data: {
+          userId: lead.assignedToId,
+          type: 'sequence_completed',
+          title: 'Sequence Completed',
+          text: `${lead.firstName} ${lead.lastName} completed all ${totalSteps} steps in "${sequence.name}".`,
+          linkTo: `/leads/${lead.id}`,
+        },
+      });
+    }
+    return;
+  }
+
+  const advanced = await prisma.sequenceEnrollment.updateMany({
+    where: {
+      id: expectedEnrollmentId,
+      leadId: task.leadId,
+      sequenceId: task.sequenceId,
+      status: 'active',
+      currentStep: completedStep,
+    },
+    data: { currentStep: nextStepOrder },
+  });
+  if (advanced.count !== 1) return;
+
+  await prisma.lead.updateMany({
+    where: { id: lead.id, sequenceId: task.sequenceId },
+    data: { sequenceStep: nextStepOrder },
+  });
+
+  const nextStep = sequence.steps.find((s) => s.order === nextStepOrder);
+  if (!nextStep) return;
+
+  // The next step stays bound to the same occurrence, so its task id and its delayed job carry
+  // the identity too — otherwise the protection would end after step 1.
+  await createTaskForStep(lead, sequence, nextStep, new Date(), {
+    taskId: enrollmentStepTaskId(expectedEnrollmentId, nextStep.order),
+    expectedEnrollmentId,
+  });
 }
 
 /**
@@ -358,6 +621,6 @@ export async function unenrollLead(leadId: string, sequenceId: string): Promise<
   });
   await prisma.sequenceEnrollment.updateMany({
     where: { leadId, sequenceId, status: { in: ['active', 'paused'] } },
-    data: { status: 'unenrolled', completedAt: new Date() },
+    data: { status: 'unenrolled', completedAt: new Date(), ...releaseOccupancy() },
   });
 }

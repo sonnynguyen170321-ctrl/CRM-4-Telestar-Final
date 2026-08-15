@@ -530,6 +530,13 @@ of that old number.
 - **Row-Level Security**: app-layer tenant scoping is the isolation layer. To additionally
   enforce Postgres RLS, apply `supabase/rls.sql` and set `DB_RLS_ENFORCED=true`.
 
+  > **2026-08-14:** `scripts/verify-rls.mjs` now covers the AI, learning and sequence models as
+  > well — `Meeting`, `Opportunity`, `CampaignPlaybook`, `PlaybookProposal`, `OutcomeSignal`,
+  > `SequenceEnrollment` and `SequenceStepCopy` — and runs as a **required CI check**. 14 checks,
+  > against a throwaway database, connected as a non-superuser. `SequenceStepCopy` matters most:
+  > it holds approved prospect-facing wording, so a leak there discloses another tenant's outreach
+  > copy rather than a name and a company.
+  >
   > ⚠️ **RLS-enabled deployments must reapply `supabase/rls.sql` after every Prisma migration
   > that adds a table.** Prisma migrations deliberately contain no `ENABLE`/`FORCE ROW LEVEL
   > SECURITY` and no `CREATE POLICY` — a migration-authored policy would vanish the moment

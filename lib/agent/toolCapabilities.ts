@@ -19,6 +19,14 @@ export const TOOL_CAPABILITY: Record<string, AgentCapability> = {
   research_contact: 'research',
   create_task: 'tasks',
   get_my_tasks: 'research',
+  // Phase 8a. `prioritize_leads` and `evaluate_lead_quality` read and analyse, so they map to
+  // `research`; `draft_sequence` produces words a human reads, so `sequence_draft`; only
+  // `enroll_lead_in_sequence` reaches the prospect, and it maps to the capability the ceiling
+  // caps at `approval`.
+  prioritize_leads: 'research',
+  evaluate_lead_quality: 'research',
+  draft_sequence: 'sequence_draft',
+  enroll_lead_in_sequence: 'sequence_enroll',
 };
 
 /** Undefined for an unregistered tool — callers must treat that as a refusal. */

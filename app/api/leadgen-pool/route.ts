@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requirePoolUser } from '@/app/api/leadgen-pool/guard';
 import { createPoolItem, listPoolItems } from '@/lib/leadgen/pool';
+import { requireTenantId } from '@/lib/api/tenant';
 
 const createPoolItemSchema = z.object({
   firstName: z.string().optional(),
@@ -30,7 +31,8 @@ export async function GET(req: NextRequest) {
     return value ? Number(value) : undefined;
   };
 
-  const tenantId = user.tenantId || 'default-tenant';
+  const tenantId = requireTenantId(user);
+  if (tenantId instanceof NextResponse) return tenantId;
   const result = await listPoolItems(
     {
       status: sp.get('status') ?? undefined,

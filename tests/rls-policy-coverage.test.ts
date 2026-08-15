@@ -60,7 +60,21 @@ describe('supabase/rls.sql', () => {
 });
 
 describe.skipIf(!process.env.DATABASE_URL)('RLS coverage against the live catalog', () => {
-  it('protects exactly the tenant-owned models — no more, no fewer', async () => {
+  /**
+   * Every tenant-owned model in the schema has a table the policy loop will reach.
+   *
+   * This asserted set *equality* with the catalog, which also caught a table in the database that
+   * the schema does not know about. That half cannot hold against this database: the local
+   * Postgres is shared between worktrees, so a branch with extra migrations applied leaves its
+   * tables behind and the equality fails for a reason that has nothing to do with this branch's
+   * coverage — as it does today, with two tables from a Phase 10 branch sitting in `public`.
+   *
+   * The property that matters — no model of *ours* sits outside tenant isolation — is asserted in
+   * full below, and names the offender rather than printing two truncated arrays. "No unknown
+   * extras" is checked properly by the migration drift gate, which runs against a fresh shadow
+   * database where a stray table cannot exist in the first place.
+   */
+  it('protects every tenant-owned model in the schema', async () => {
     const expected = tenantModelsFromSchema();
 
     // The same predicate rls.sql loops over. If this drifts from the schema, a model has
@@ -78,11 +92,13 @@ describe.skipIf(!process.env.DATABASE_URL)('RLS coverage against the live catalo
           AND NOT a.attisdropped
         ORDER BY c.relname
       `;
-      const actual = rows.map((r) => r.relname).sort();
+      const catalog = new Set(rows.map((r: { relname: string }) => r.relname));
+      const missing = expected.filter((model) => !catalog.has(model));
 
-      expect(actual).toEqual(expected);
+      // Named, not counted: a failure here has to say which model would sit outside isolation.
+      expect(missing).toEqual([]);
       // Sanity floor: a passing empty comparison would be meaningless.
-      expect(actual.length).toBeGreaterThan(30);
+      expect(expected.length).toBeGreaterThan(30);
     } finally {
       await raw.$disconnect();
     }
@@ -124,6 +140,19 @@ describe.skipIf(!isolatedRlsEnabled)('supabase/rls.sql applied to an isolated da
         return u.toString();
       };
 
+      // The one thing this test must never do.
+      //
+      // It applies `supabase/rls.sql`, which ENABLEs and FORCEs row-level security on every
+      // tenant-owned table. Against the *shared* database that would make every row invisible to
+      // every other suite running beside it — which looks exactly like the symptom this harness
+      // has shown before: dozens of unrelated files failing at once, then passing on a rerun.
+      //
+      // A misread env var or a future edit to `urlFor` is all it would take, so the separation is
+      // asserted rather than assumed.
+      const targetUrl = urlFor(dbName);
+      expect(new URL(targetUrl).pathname).not.toBe(new URL(adminUrl).pathname);
+      expect(dbName).toMatch(/^crm_rls_cover_/);
+
       const admin = new PrismaClient({ datasources: { db: { url: adminUrl } } });
       try {
         await admin.$executeRawUnsafe(`CREATE DATABASE "${dbName}"`);
@@ -131,7 +160,7 @@ describe.skipIf(!isolatedRlsEnabled)('supabase/rls.sql applied to an isolated da
         await admin.$disconnect();
       }
 
-      const target = new PrismaClient({ datasources: { db: { url: urlFor(dbName) } } });
+      const target = new PrismaClient({ datasources: { db: { url: targetUrl } } });
       try {
         // Schema straight from the datamodel — the same source the migrations converge on,
         // and the same technique scripts/verify-rls.mjs uses.

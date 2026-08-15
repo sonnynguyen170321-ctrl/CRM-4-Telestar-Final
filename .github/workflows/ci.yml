@@ -167,6 +167,10 @@ jobs:
         run: git fetch --no-tags --depth=1 origin main
         shell: bash
 
+      - name: Validate Prisma schema
+        run: npx prisma validate
+        shell: bash
+
       # Runs before the replay on purpose. Prisma stamps a migration with generation time rather
       # than dependency position, which has produced three migrations sorting before the tables
       # they alter. Replay catches it, but only after building a database; this names the file in
@@ -193,6 +197,12 @@ jobs:
             --shadow-database-url postgresql://postgres:postgres@localhost:5432/telestar_shadow \
             --exit-code
         shell: bash
+
+      - name: Verify PostgreSQL RLS tenant isolation
+        run: node scripts/verify-rls.mjs
+        shell: bash
+        env:
+          ADMIN_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 
   # ── Production build + end-to-end journeys against it ─────────────────────
   e2e:
@@ -266,6 +276,27 @@ jobs:
           ALLOW_DESTRUCTIVE_SEED: I_UNDERSTAND_THIS_DELETES_ALL_DATA
           DEMO_SEED_PASSWORD: ${{ env.E2E_PASSWORD }}
 
+      # `npm run db:seed` above builds the legacy dataset the `chromium` specs sign in to. The
+      # other two projects have their own fixtures, and widening the Playwright gate to all four
+      # projects without creating them is what made every `setup` and `demo` test fail: the audit
+      # suite aborts with "Audit fixture missing at e2e/.fixture.json", and the demo walkthrough
+      # signs in to a tenant that does not exist and lands on the marketing page.
+      #
+      # Both run after the destructive seed, never before — `prisma/seed-demo.ts` clears tenants,
+      # so seeding in the other order would delete exactly what these two just created.
+      - name: Build the audit fixture (setup + audit projects)
+        run: set -o pipefail; npx tsx scripts/e2e-audit-fixture.ts 2>&1 | tee fixture.log
+        shell: bash
+        env:
+          ALLOW_E2E_FIXTURE: '1'
+          E2E_PASSWORD: ${{ env.E2E_PASSWORD }}
+
+      # No DEMO_PASSWORD override: the walkthrough falls back to the same documented default when
+      # the variable is unset, so seeding with it is what keeps the two halves agreeing.
+      - name: Seed the demo tenant (demo project)
+        run: set -o pipefail; npx tsx scripts/demo-seed.ts --reset 2>&1 | tee demo-seed.log
+        shell: bash
+
       - name: Production build
         run: set -o pipefail; npm run build 2>&1 | tee build.log
         shell: bash
@@ -292,14 +323,57 @@ jobs:
           exit 1
         shell: bash
 
-      # The two suites CLAUDE.md tracks as the gate. `user-flow-31step.spec.ts` is
-      # deliberately excluded: it is not part of the documented 20/20 and has never been
-      # run green in CI, so requiring it would block merges on an unknown.
+      # `e2e/user-flow-31step.spec.ts` imports a lead through the real CSV pipeline and polls
+      # for it to appear — the import is asynchronous, materialised by `workers/import.ts`'
+      # BullMQ worker, not by the API route that enqueues it. The `redis` service container has
+      # run since job start, but nothing before this line has ever consumed it: the app process
+      # is `next start`, not `workers/index.ts`. The spec's own failure names the cause —
+      # "Is the BullMQ import worker running?" — and until now the honest answer was no.
+      #
+      # `worker-start.cjs` requires REDIS_URL and DIRECT_URL, both already in this job's `env:`.
+      # Backgrounded, with a liveness check rather than a readiness endpoint: the worker exposes
+      # none, so "the process is still running two seconds later" is the check available.
+      - name: Start the background worker (BullMQ)
+        run: |
+          node scripts/worker-start.cjs > worker.log 2>&1 &
+          worker_pid=$!
+          for i in $(seq 1 30); do
+            if ! kill -0 "$worker_pid" 2>/dev/null; then
+              echo "::error::Worker process exited before becoming ready"
+              cat worker.log
+              exit 1
+            fi
+            if grep -q '\[worker\] ready' worker.log 2>/dev/null; then
+              echo "worker ready after ${i}s (pid $worker_pid)"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Worker did not log [worker] ready within 30s"
+          cat worker.log
+          exit 1
+        shell: bash
+
+      # Prove BullMQ worker consumes from Redis before spending ~5m on Playwright.
+      - name: Verify import worker consumer readiness
+        run: npx tsx scripts/verify-import-worker.ts
+        shell: bash
+
+      # Mandatory end-to-end gating across all projects: setup, audit, demo, chromium.
       - name: Playwright
-        run: set -o pipefail; npx playwright test crm-journeys deep-smoke 2>&1 | tee playwright.log
+        run: set -o pipefail; npx playwright test 2>&1 | tee playwright.log
         shell: bash
         env:
           BASE_URL: http://localhost:3000
+
+      # Printed to the job log, not only the step summary. `$GITHUB_STEP_SUMMARY` is not
+      # retrievable through the REST API or `gh run view`, which is why three speculative import
+      # repairs were pushed against a symptom rather than the state that produced it. The job log
+      # is retrievable, so the evidence lands somewhere it can actually be read afterwards.
+      - name: Import chain diagnostic
+        if: failure()
+        run: node scripts/diagnose-import.mjs || true
+        shell: bash
 
       - name: Summarize failure
         if: failure()
@@ -307,7 +381,7 @@ jobs:
           {
             echo "## Build · Playwright — failure"
             echo
-            for f in seed.log build.log playwright.log server.log; do
+            for f in seed.log fixture.log demo-seed.log build.log playwright.log server.log worker.log; do
               [ -f "$f" ] || continue
               echo "### ${f}"
               echo

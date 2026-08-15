@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       },
       include: {
         lead: {
-          select: { id: true, firstName: true, lastName: true, company: true },
+          select: { id: true, firstName: true, lastName: true, company: true, operatingState: true },
         },
       },
       orderBy: { date: 'desc' },
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
       },
       include: {
         lead: {
-          select: { id: true, firstName: true, lastName: true, company: true },
+          select: { id: true, firstName: true, lastName: true, company: true, operatingState: true },
         },
         account: {
           select: { email: true },
@@ -73,6 +73,10 @@ export async function GET(req: NextRequest) {
         isRead: msg.isRead,
         isSpam: msg.isSpam,
         isTrash: msg.isTrash,
+        replyClass: msg.replyClass,
+        replyKind: msg.replyKind,
+        replyConfidence: msg.replyConfidence,
+        classificationSource: msg.classificationSource,
         lead: msg.lead,
       })),
       ...outbound.map((msg) => ({

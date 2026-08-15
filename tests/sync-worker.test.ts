@@ -16,12 +16,20 @@ const mockInboundFindUnique = vi.fn();
 const mockInboundCreate = vi.fn();
 const mockOutboundFindFirst = vi.fn();
 const mockOutboundUpdate = vi.fn();
+const mockLeadUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+const mockTaskUpdateManyOcc = vi.fn().mockResolvedValue({ count: 0 });
 const mockEnrollmentFindFirst = vi.fn();
+const mockEnrollmentUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 const mockHandoff = vi.fn();
+
+const mockInboundUpdate = vi.fn();
+const mockClassifyReply = vi.fn();
+const mockApplyClassification = vi.fn();
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     lead: {
+      updateMany: (...a: unknown[]) => mockLeadUpdateMany(...a),
       findUnique: (...args: unknown[]) => mockLeadFindUnique(...args),
       findFirst: (...args: unknown[]) => mockLeadFindFirst(...args),
       findMany: (...args: unknown[]) => mockLeadFindMany(...args),
@@ -38,6 +46,7 @@ vi.mock('@/lib/prisma', () => ({
       create: (...args: unknown[]) => mockActivityCreate(...args),
     },
     task: {
+      updateMany: (...a: unknown[]) => mockTaskUpdateManyOcc(...a),
       create: (...args: unknown[]) => mockTaskCreate(...args),
     },
     suppressionEntry: {
@@ -47,6 +56,7 @@ vi.mock('@/lib/prisma', () => ({
     inboundMessage: {
       findUnique: (...args: unknown[]) => mockInboundFindUnique(...args),
       create: (...args: unknown[]) => mockInboundCreate(...args),
+      update: (...args: unknown[]) => mockInboundUpdate(...args),
     },
     outboundMessage: {
       findFirst: (...args: unknown[]) => mockOutboundFindFirst(...args),
@@ -54,6 +64,9 @@ vi.mock('@/lib/prisma', () => ({
     },
     sequenceEnrollment: {
       findFirst: (...args: unknown[]) => mockEnrollmentFindFirst(...args),
+      // The reply/bounce paths pause the exact occurrence they resolved, which is a conditional
+      // updateMany rather than a lead-scoped helper.
+      updateMany: (...args: unknown[]) => mockEnrollmentUpdateMany(...args),
     },
   },
 }));
@@ -65,6 +78,17 @@ vi.mock('@/lib/prospects/ownership', () => ({
   handoffProspectToHuman: (...args: unknown[]) => mockHandoff(...args),
 }));
 
+// Classification and its consequences have their own suite (tests/phase-8b-replies.test.ts).
+// Here they are stubbed so these tests assert what sync *routes*, not what a class does.
+vi.mock('@/lib/replies/classification', () => ({
+  classifyReply: (...args: unknown[]) => mockClassifyReply(...args),
+  classifyDeterministic: vi.fn(),
+}));
+
+vi.mock('@/lib/replies/handling', () => ({
+  applyReplyClassification: (...args: unknown[]) => mockApplyClassification(...args),
+}));
+
 vi.mock('@/lib/email/EmailService', () => ({
   EmailService: {
     fromAccount: vi.fn(),
@@ -73,6 +97,11 @@ vi.mock('@/lib/email/EmailService', () => ({
 
 vi.mock('@/lib/sequences/engine', () => ({
   pauseSequence: vi.fn(),
+}));
+
+vi.mock('@/lib/sequences/lifecycle', () => ({
+  pauseEnrollmentOccurrence: vi.fn(),
+  resumeEnrollmentOccurrence: vi.fn(),
 }));
 
 vi.mock('@/lib/email/bounceDetection', () => ({
@@ -88,7 +117,7 @@ vi.mock('@/lib/tenant-context', () => ({
 }));
 
 const { handleApplyReply, handleApplyBounce, handleEmailSync } = await import('@/workers/sync');
-const { pauseSequence } = await import('@/lib/sequences/engine');
+const { pauseEnrollmentOccurrence } = await import('@/lib/sequences/lifecycle');
 const { isBounceMessage, isAutoReply, extractBouncedRecipient } = await import('@/lib/email/bounceDetection');
 const { EmailService } = await import('@/lib/email/EmailService');
 
@@ -101,9 +130,15 @@ describe('handleApplyReply', () => {
     // The authoritative gate: an active enrollment, not the legacy Lead.sequenceStatus cache.
     mockEnrollmentFindFirst.mockResolvedValue({ id: 'enr-1', sequenceId: 'seq-1' });
     mockHandoff.mockResolvedValue({ applied: true, state: 'human_attention', transitionId: 'tr-1' });
+    // Default: an ordinary sales reply that hands the prospect to the SDR.
+    mockClassifyReply.mockResolvedValue({
+      replyClass: 'C', kind: 'interest', confidence: 0.9, source: 'ai', rationale: 'Interested.',
+    });
+    mockApplyClassification.mockResolvedValue({ cadence: 'paused', handedOff: true });
+    mockInboundUpdate.mockResolvedValue({});
     // clearAllMocks resets recorded calls but not implementations, so a rejection set in one
     // test would leak into every test after it. Re-establish the default each time.
-    (pauseSequence as unknown as ReturnType<typeof vi.fn>).mockResolvedValue('paused');
+    (pauseEnrollmentOccurrence as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
   });
 
   const baseLead = {
@@ -111,53 +146,89 @@ describe('handleApplyReply', () => {
     assignedToId: 'user-1', firstName: 'John', lastName: 'Doe', company: 'Acme',
   };
 
-  it('pauses the sequence, records the reply, and hands the prospect to the SDR', async () => {
+  it('records a sales reply and hands the classified prospect onward', async () => {
     mockLeadFindUnique.mockResolvedValue(baseLead);
-    (pauseSequence as unknown as ReturnType<typeof vi.fn>).mockResolvedValue('paused');
 
     const result = await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       success: true,
       leadId: 'lead-1',
       providerMessageId: 'msg-1',
       pauseOutcome: 'paused',
       handoffApplied: true,
+      replyClass: 'C',
+      replyKind: 'interest',
     });
     expect(mockLeadUpdate).toHaveBeenCalledWith({
       where: { id: 'lead-1' },
       data: { stage: 'replied', emailReplyCount: { increment: 1 } },
     });
-    expect(pauseSequence).toHaveBeenCalledWith('lead-1', 'reply', 'user-1');
     expect(mockActivityCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         leadId: 'lead-1', type: 'stage_changed', channel: 'email',
         metadata: expect.objectContaining({ to: 'replied', providerMessageId: 'msg-1' }),
       }),
     });
-    // The task and notification are the transition service's to own now, keyed on the provider
-    // message so a redelivered reply cannot produce a second of either.
-    expect(mockHandoff).toHaveBeenCalledWith(
-      expect.objectContaining({ leadId: 'lead-1', tenantId: 'tenant-1', eventId: 'msg-1' })
+    // The exact occurrence travels to the class handler; nothing downstream re-reads
+    // `Lead.sequenceId` to decide what to pause.
+    expect(mockApplyClassification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        leadId: 'lead-1',
+        tenantId: 'tenant-1',
+        eventId: 'msg-1',
+        enrollment: { id: 'enr-1', sequenceId: 'seq-1' },
+      })
     );
     expect(mockTaskCreate).not.toHaveBeenCalled();
     expect(mockNotificationCreate).not.toHaveBeenCalled();
   });
 
-  it('still hands off when there was no active sequence to pause', async () => {
-    // `no_sequence` is not a failed handoff. The prospect engaged; the SDR still needs them.
+  it('persists the classification onto the inbound message', async () => {
     mockLeadFindUnique.mockResolvedValue(baseLead);
-    (pauseSequence as unknown as ReturnType<typeof vi.fn>).mockResolvedValue('no_sequence');
+    mockInboundFindUnique.mockResolvedValue({ id: 'inb-1', subject: 'Re:', body: 'hi', isReply: true });
+
+    await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' });
+
+    // The inbound row *is* the conversation record — there is no second store to reconcile.
+    expect(mockInboundUpdate).toHaveBeenCalledWith({
+      where: { id: 'inb-1' },
+      data: expect.objectContaining({ replyClass: 'C', replyKind: 'interest', classificationSource: 'ai' }),
+    });
+  });
+
+  it('does not count an administrative reply as a sales reply', async () => {
+    mockLeadFindUnique.mockResolvedValue(baseLead);
+    mockClassifyReply.mockResolvedValue({
+      replyClass: 'B', kind: 'out_of_office', confidence: 1, source: 'deterministic', rationale: 'OOO.',
+    });
+    mockApplyClassification.mockResolvedValue({ cadence: 'paused', handedOff: false, resumeAt: new Date() });
+
+    const result = await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1', autoReply: true });
+
+    expect(result).toMatchObject({ replyClass: 'B', handoffApplied: false });
+    // No stage move, no reply counter, no attribution to the originating send: an inbox full of
+    // out-of-office responders must not move reply rate.
+    expect(mockLeadUpdate).not.toHaveBeenCalled();
+    expect(mockOutboundUpdate).not.toHaveBeenCalled();
+    expect(mockActivityCreate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ type: 'email_replied' }) })
+    );
+  });
+
+  it('still reports the outcome when there was no active cadence to pause', async () => {
+    mockLeadFindUnique.mockResolvedValue(baseLead);
+    mockApplyClassification.mockResolvedValue({ cadence: 'no_enrollment', handedOff: true });
 
     const result = await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' });
 
-    expect(result).toMatchObject({ success: true, pauseOutcome: 'no_sequence', handoffApplied: true });
-    expect(mockHandoff).toHaveBeenCalledOnce();
+    // Not a failed handoff: the prospect engaged, so the SDR still needs them.
+    expect(result).toMatchObject({ success: true, pauseOutcome: 'not_active', handoffApplied: true });
   });
 
-  it('lets a pause failure surface instead of swallowing it', async () => {
+  it('lets a handling failure surface instead of swallowing it', async () => {
     mockLeadFindUnique.mockResolvedValue(baseLead);
-    (pauseSequence as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('db down'));
+    mockApplyClassification.mockRejectedValueOnce(new Error('db down'));
 
     await expect(
       handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' })
@@ -171,15 +242,16 @@ describe('handleApplyReply', () => {
 
     expect(result).toEqual({ skipped: true, reason: 'lead_not_found' });
     expect(mockLeadUpdate).not.toHaveBeenCalled();
-    expect(pauseSequence).not.toHaveBeenCalled();
+    expect(pauseEnrollmentOccurrence).not.toHaveBeenCalled();
   });
 
-  it('skips if lead already replied', async () => {
+  it('skips if provider message already processed', async () => {
     mockLeadFindUnique.mockResolvedValue({ ...baseLead, stage: 'replied' });
+    mockInboundFindUnique.mockResolvedValue({ id: 'inb-1', classifiedAt: new Date() });
 
     const result = await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' });
 
-    expect(result).toEqual({ skipped: true, reason: 'already_replied' });
+    expect(result).toEqual({ skipped: true, reason: 'already_processed' });
     expect(mockLeadUpdate).not.toHaveBeenCalled();
   });
 
@@ -203,7 +275,7 @@ describe('handleApplyReply', () => {
     const result = await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' });
 
     expect(result).toMatchObject({ success: true });
-    expect(mockHandoff).toHaveBeenCalledOnce();
+    expect(mockApplyClassification).toHaveBeenCalledOnce();
 
     // And the reply path must not read the cache at all any more.
     const selected = JSON.stringify(mockLeadFindUnique.mock.calls[0][0]);
@@ -282,7 +354,9 @@ describe('handleApplyBounce', () => {
     expect(mockSuppressionCreate).toHaveBeenCalledWith({
       data: { email: 'john@acme.com', reason: 'hard_bounce', tenantId: 'tenant-1' },
     });
-    expect(pauseSequence).toHaveBeenCalledWith('lead-1', 'hard_bounce', 'user-1');
+    expect(pauseEnrollmentOccurrence).toHaveBeenCalledWith(
+      expect.objectContaining({ leadId: 'lead-1', reason: 'hard_bounce', actorUserId: 'user-1' })
+    );
     expect(mockNotificationCreate).toHaveBeenCalled();
   });
 
@@ -299,7 +373,9 @@ describe('handleApplyBounce', () => {
     // A soft bounce pauses for a different reason than a hard one, and the enrollment has to
     // record which: 'bounced' collapsed both into a token that suppression semantics do not
     // apply to.
-    expect(pauseSequence).toHaveBeenCalledWith('lead-1', 'soft_bounce', 'user-1');
+    expect(pauseEnrollmentOccurrence).toHaveBeenCalledWith(
+      expect.objectContaining({ leadId: 'lead-1', reason: 'soft_bounce', actorUserId: 'user-1' })
+    );
     expect(mockNotificationCreate).toHaveBeenCalled();
   });
 
@@ -465,7 +541,7 @@ describe('handleEmailSync', () => {
 
     const result = await handleEmailSync({ accountId: 'acct-1' });
 
-    expect(result).toEqual({ success: true, accountId: 'acct-1', messagesProcessed: 1, replies: 0, bounces: 1 });
+    expect(result).toEqual({ success: true, accountId: 'acct-1', messagesProcessed: 1, replies: 0, bounces: 1, autoReplies: 0 });
     expect(mockLeadUpdate).toHaveBeenCalled();
     expect(mockSuppressionCreate).toHaveBeenCalled();
     expect(mockAccountUpdate).toHaveBeenCalled();
@@ -492,7 +568,7 @@ describe('handleEmailSync', () => {
 
     const result = await handleEmailSync({ accountId: 'acct-1' });
 
-    expect(result).toEqual({ success: true, accountId: 'acct-1', messagesProcessed: 1, replies: 1, bounces: 0 });
+    expect(result).toEqual({ success: true, accountId: 'acct-1', messagesProcessed: 1, replies: 1, bounces: 0, autoReplies: 0 });
     expect(mockLeadUpdate).toHaveBeenCalledWith({
       where: { id: 'lead-1' },
       data: { stage: 'replied', emailReplyCount: { increment: 1 } },
@@ -500,7 +576,7 @@ describe('handleEmailSync', () => {
     expect(mockAccountUpdate).toHaveBeenCalled();
   });
 
-  it('skips auto-reply messages', async () => {
+  it('routes an auto-reply through the same chokepoint without counting it as a reply', async () => {
     const mockMsg = {
       providerMessageId: 'gmail-3',
       fromEmail: 'lead@acme.com',
@@ -513,11 +589,31 @@ describe('handleEmailSync', () => {
     });
     (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(false);
     (isAutoReply as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    mockLeadFindMany.mockResolvedValue([{
+      id: 'lead-1', email: 'lead@acme.com', sequenceId: 'seq-1',
+      sequenceStatus: 'active', emailInvalid: false,
+    }]);
+    mockLeadFindUnique.mockResolvedValue({
+      id: 'lead-1', stage: 'contacted', tenantId: 'tenant-1', assignedToId: 'user-1',
+      firstName: 'John', lastName: 'Doe', company: 'Acme',
+    });
+    mockEnrollmentFindFirst.mockResolvedValue({ id: 'enr-1', sequenceId: 'seq-1' });
+    mockInboundFindUnique.mockResolvedValue(null);
+    mockInboundCreate.mockResolvedValue({ id: 'inbound-1' });
+    mockClassifyReply.mockResolvedValue({
+      replyClass: 'B', kind: 'out_of_office', confidence: 1, source: 'deterministic', rationale: 'OOO.',
+    });
+    mockApplyClassification.mockResolvedValue({ cadence: 'paused', handedOff: false });
 
     const result = await handleEmailSync({ accountId: 'acct-1' });
 
-    expect(result).toEqual({ success: true, accountId: 'acct-1', messagesProcessed: 1, replies: 0, bounces: 0 });
-    expect(mockLeadFindFirst).not.toHaveBeenCalled();
+    // It reaches the chokepoint — routing it anywhere else would be the second inbound listener
+    // the architecture forbids — but it is counted separately, so reply rate is untouched.
+    expect(result).toEqual({ success: true, accountId: 'acct-1', messagesProcessed: 1, replies: 0, bounces: 0, autoReplies: 1 });
+    expect(mockInboundCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ isReply: false }),
+    });
+    expect(mockClassifyReply).toHaveBeenCalledWith(expect.objectContaining({ isAutoReply: true }));
   });
 
   // --- P0 deliverability data capture ---
@@ -654,8 +750,8 @@ describe('handleEmailSync', () => {
     expect(mockInboundCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ isReply: true, leadId: 'lead-1' }),
     });
-    expect(result).toEqual({ success: true, accountId: 'acct-1', messagesProcessed: 1, replies: 0, bounces: 0 });
-    expect(pauseSequence).not.toHaveBeenCalled();
+    expect(result).toEqual({ success: true, accountId: 'acct-1', messagesProcessed: 1, replies: 0, bounces: 0, autoReplies: 0 });
+    expect(pauseEnrollmentOccurrence).not.toHaveBeenCalled();
   });
 
   it('does not count inbound mail from a non-lead as a reply', async () => {

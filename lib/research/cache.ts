@@ -42,41 +42,49 @@ export async function insertOrClaimAccountResearch(
   const token = randomUUID();
   const now = new Date();
 
-  // Step A: Attempt initial CREATE for missing cache row
-  try {
-    const created = await prisma.accountResearchCache.create({
-      data: {
-        tenantId,
-        accountId,
-        status: 'pending',
-        claimToken: token,
-        claimedBy: claimedBy ?? 'worker',
-        claimedAt: now,
-        version: 1,
-      },
-    });
+  // Step A: Check if cache row already exists before attempting CREATE
+  const initialExisting = await prisma.accountResearchCache.findUnique({
+    where: { tenantId_accountId: { tenantId, accountId } },
+  });
 
-    return {
-      winner: true,
-      cacheId: created.id,
-      claimToken: created.claimToken!,
-      version: created.version,
-      status: 'pending',
-      reused: false,
-    };
-  } catch (err: unknown) {
-    // Only catch Prisma P2002 (Unique constraint failed) as expected race
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      // Expected race — row was created concurrently
-    } else {
-      throw err;
+  if (!initialExisting) {
+    try {
+      const created = await prisma.accountResearchCache.create({
+        data: {
+          tenantId,
+          accountId,
+          status: 'pending',
+          claimToken: token,
+          claimedBy: claimedBy ?? 'worker',
+          claimedAt: now,
+          version: 1,
+        },
+      });
+
+      return {
+        winner: true,
+        cacheId: created.id,
+        claimToken: created.claimToken!,
+        version: created.version,
+        status: 'pending',
+        reused: false,
+      };
+    } catch (err: unknown) {
+      // Only catch Prisma P2002 (Unique constraint failed) as expected race
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        // Expected race — row was created concurrently
+      } else {
+        throw err;
+      }
     }
   }
 
   // Step B: Row exists — query current state
-  const existing = await prisma.accountResearchCache.findUnique({
-    where: { tenantId_accountId: { tenantId, accountId } },
-  });
+  const existing =
+    initialExisting ??
+    (await prisma.accountResearchCache.findUnique({
+      where: { tenantId_accountId: { tenantId, accountId } },
+    }));
 
   if (!existing) {
     return { winner: false, cacheId: '', claimToken: '', version: 0, status: 'failed', reused: false };
@@ -277,38 +285,46 @@ export async function insertOrClaimContactResearch(
   const token = randomUUID();
   const now = new Date();
 
-  try {
-    const created = await prisma.contactResearchCache.create({
-      data: {
-        tenantId,
-        contactId,
-        status: 'pending',
-        claimToken: token,
-        claimedBy: claimedBy ?? 'worker',
-        claimedAt: now,
-        version: 1,
-      },
-    });
+  const initialExisting = await prisma.contactResearchCache.findUnique({
+    where: { tenantId_contactId: { tenantId, contactId } },
+  });
 
-    return {
-      winner: true,
-      cacheId: created.id,
-      claimToken: created.claimToken!,
-      version: created.version,
-      status: 'pending',
-      reused: false,
-    };
-  } catch (err: unknown) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      // Expected race — row exists
-    } else {
-      throw err;
+  if (!initialExisting) {
+    try {
+      const created = await prisma.contactResearchCache.create({
+        data: {
+          tenantId,
+          contactId,
+          status: 'pending',
+          claimToken: token,
+          claimedBy: claimedBy ?? 'worker',
+          claimedAt: now,
+          version: 1,
+        },
+      });
+
+      return {
+        winner: true,
+        cacheId: created.id,
+        claimToken: created.claimToken!,
+        version: created.version,
+        status: 'pending',
+        reused: false,
+      };
+    } catch (err: unknown) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        // Expected race — row exists
+      } else {
+        throw err;
+      }
     }
   }
 
-  const existing = await prisma.contactResearchCache.findUnique({
-    where: { tenantId_contactId: { tenantId, contactId } },
-  });
+  const existing =
+    initialExisting ??
+    (await prisma.contactResearchCache.findUnique({
+      where: { tenantId_contactId: { tenantId, contactId } },
+    }));
 
   if (!existing) {
     return { winner: false, cacheId: '', claimToken: '', version: 0, status: 'failed', reused: false };

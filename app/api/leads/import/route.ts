@@ -17,6 +17,7 @@ import {
   type NormalizedImportLeadRow,
 } from '@/lib/leads/importRows';
 import { normalizeEmail, normalizePhone, normalizeLinkedIn } from '@/lib/leads/normalize';
+import { requireTenantId } from '@/lib/api/tenant';
 
 const importResolution = z.enum(['skip', 'update', 'import']);
 const emailQualityMode = z.enum(['recommended', 'strict', 'aggressive']);
@@ -300,7 +301,8 @@ export async function POST(req: NextRequest) {
   const contextError = await validateContext(body, user);
   if (contextError) return contextError;
 
-  const tenantId = user.tenantId || 'default-tenant';
+  const tenantId = requireTenantId(user);
+  if (tenantId instanceof NextResponse) return tenantId;
   if (body.dryRun) {
     return NextResponse.json(await buildDryRun(body, tenantId));
   }

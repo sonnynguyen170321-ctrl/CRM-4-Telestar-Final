@@ -14,6 +14,12 @@ export interface Lead {
   linkedIn?: string;
   stage: 'new' | 'sequence_active' | 'replied' | 'meeting_booked' | 'won' | 'lost';
   priority: 'hot' | 'warm' | 'cold';
+  /**
+   * Who or what is responsible for the prospect right now — a different axis from `stage` (sales
+   * lifecycle) and from the enrollment (execution lifecycle). Already returned by `/api/leads`,
+   * which spreads every Lead scalar; this only names it.
+   */
+  operatingState?: string | null;
   source?: string;
   importListName?: string | null;
   emailValidation?: string | null;

@@ -11,8 +11,16 @@ import {
   Phone,
   Upload,
   ChevronDown,
+  AlertTriangle,
+  Users,
 } from 'lucide-react';
 import Linkedin from '@/components/icons/Linkedin';
+import ProspectIdentity from '@/components/operating/ProspectIdentity';
+import OperatingStateBadge from '@/components/operating/OperatingStateBadge';
+import OwnerBadge from '@/components/operating/OwnerBadge';
+import PriorityIndicator from '@/components/operating/PriorityIndicator';
+import EmptyState from '@/components/operating/EmptyState';
+import { SkeletonBlock } from '@/components/operating/Skeleton';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 import { canImportExport } from '@/lib/permissions';
@@ -212,7 +220,9 @@ export default function LeadsPage() {
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
   };
-  const { data: leads = [] } = useLeads(filters);
+  // `isLoading` matters for more than polish: without it the table rendered its "no prospects
+  // match" empty state during the very first fetch, which reads as "this account has no leads".
+  const { data: leads = [], isLoading: isLoadingLeads } = useLeads(filters);
   const { data: users = [] } = useUsers();
   const { data: sequences = [] } = useSequences();
   const queryClient = useQueryClient();
@@ -376,24 +386,8 @@ export default function LeadsPage() {
     return map;
   }, [leads]);
 
-  const stageBadgeClass = (stage: Lead['stage']) => {
-    switch (stage) {
-      case 'sequence_active': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
-      case 'replied': return 'bg-brand-orange/10 text-brand-orange-text border-brand-orange/20';
-      case 'meeting_booked': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
-      case 'won': return 'bg-green-500/10 text-green-500 border-green-500/20';
-      case 'lost': return 'bg-brand-red/10 text-brand-red border-brand-red/20';
-      default: return 'bg-gray-500/10 text-gray-500 border-gray-500/20';
-    }
-  };
-
-  const priorityBadgeClass = (priority: Lead['priority']) => {
-    switch (priority) {
-      case 'hot': return 'bg-brand-red/10 text-brand-red border-brand-red/20';
-      case 'warm': return 'bg-brand-gold/10 text-brand-gold-text border-brand-gold/20';
-      default: return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
-    }
-  };
+  // Stage and priority chips in the table are now `OperatingStateBadge` / `PriorityIndicator`,
+  // which resolve their own colours from the shared status system in `components/operating`.
 
   const sdrUsers = users.filter((u) => u.role === 'sdr');
 
@@ -766,20 +760,44 @@ export default function LeadsPage() {
                       aria-label="Select all leads"
                     />
                   </th>
-                  {renderSortTh('name', 'Name')}
+                  {renderSortTh('name', 'Prospect')}
                   {renderSortTh('company', 'Company')}
-                  {renderSortTh('stage', 'Stage')}
                   {renderSortTh('priority', 'Priority')}
-                  {renderSortTh('assignedTo', 'Assigned')}
-                  {renderSortTh('lastContacted', 'Last Contact')}
+                  {renderSortTh('assignedTo', 'Owner')}
+                  <th className="p-3">Operating State</th>
+                  {renderSortTh('lastContacted', 'Last Touch')}
+                  <th className="p-3">Next Action</th>
                   <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-card-border text-text-secondary">
-                {leads.length === 0 ? (
+                {isLoadingLeads ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={`skeleton-${i}`} className="table-row-dense" aria-hidden="true">
+                      <td className="p-3"><SkeletonBlock className="h-3.5 w-3.5" /></td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-3">
+                          <SkeletonBlock className="w-8 h-8 rounded-full" />
+                          <SkeletonBlock className="h-3 w-32" />
+                        </div>
+                      </td>
+                      <td className="p-3"><SkeletonBlock className="h-3 w-28" /></td>
+                      <td className="p-3"><SkeletonBlock className="h-3 w-16" /></td>
+                      <td className="p-3"><SkeletonBlock className="h-3 w-24" /></td>
+                      <td className="p-3"><SkeletonBlock className="h-5 w-28 rounded-full" /></td>
+                      <td className="p-3"><SkeletonBlock className="h-3 w-14" /></td>
+                      <td className="p-3"><SkeletonBlock className="h-3 w-16" /></td>
+                      <td className="p-3"><SkeletonBlock className="h-3 w-12 ml-auto" /></td>
+                    </tr>
+                  ))
+                ) : leads.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-text-muted">
-                      No leads match the active search or filters.
+                    <td colSpan={9} className="p-0">
+                      <EmptyState
+                        title="No prospects match the active search or filters."
+                        description="Clear a filter, or import a list to start building the pipeline."
+                        icon={Users}
+                      />
                     </td>
                   </tr>
                 ) : (
@@ -787,7 +805,7 @@ export default function LeadsPage() {
                     <tr
                       key={lead.id}
                       onClick={() => setSelectedLeadId(lead.id)}
-                      className={`hover:bg-bg-main/40 cursor-pointer table-row-dense ${selectedLeads.has(lead.id) ? 'bg-brand-red/[0.025]' : ''}`}
+                      className={`cursor-pointer table-row-dense transition-colors hover:bg-brand-red/[0.03] ${selectedLeads.has(lead.id) ? 'bg-brand-red/[0.05]' : ''}`}
                     >
                       <td className="p-3" onClick={(e) => e.stopPropagation()}>
                         <input
@@ -798,37 +816,63 @@ export default function LeadsPage() {
                           aria-label={`Select ${lead.firstName} ${lead.lastName}`}
                         />
                       </td>
-                      <td className="p-3 font-semibold text-text-primary whitespace-nowrap">
-                        {lead.firstName} {lead.lastName}
-                        {lead.atRisk && (
-                          <span
-                            className="ml-1.5 text-xs font-bold text-amber-500"
-                            title="Sequence task overdue 3+ days"
-                          >
-                            ⚠
-                          </span>
-                        )}
+                      <td className="p-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <ProspectIdentity
+                            name={`${lead.firstName} ${lead.lastName}`}
+                            title={lead.title}
+                          />
+                          {lead.atRisk && (
+                            <span
+                              className="text-brand-orange-text shrink-0"
+                              title="Sequence task overdue 3+ days"
+                              aria-label="Sequence task overdue by three days or more"
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="p-3 font-semibold">{lead.company}</td>
                       <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-xs font-bold border ${stageBadgeClass(lead.stage)}`}>
+                        <span className="type-body text-text-primary">{lead.company}</span>
+                        <span className="block type-micro text-text-muted">
                           {lead.stage.replace(/_/g, ' ')}
                         </span>
                       </td>
                       <td className="p-3">
-                        <span className={`px-1.5 py-0.5 rounded text-xs font-bold border ${priorityBadgeClass(lead.priority)}`}>
-                          {lead.priority}
-                        </span>
+                        <PriorityIndicator priority={lead.priority} />
                       </td>
-                      <td className="p-3 text-xs text-text-muted">
-                        {lead.assignedTo
-                          ? `${lead.assignedTo.firstName}${lead.assignedTo.lastName ? ` ${lead.assignedTo.lastName[0]}.` : ''}`
-                          : <span className="text-text-muted/50 italic">Unassigned</span>}
+                      <td className="p-3">
+                        <OwnerBadge
+                          operatingState={lead.operatingState}
+                          ownerName={
+                            lead.assignedTo
+                              ? `${lead.assignedTo.firstName} ${lead.assignedTo.lastName}`.trim()
+                              : null
+                          }
+                        />
                       </td>
-                      <td className="p-3 font-mono text-xs text-text-muted">
+                      <td className="p-3">
+                        <OperatingStateBadge state={lead.operatingState} />
+                      </td>
+                      <td className="p-3 font-mono type-meta text-text-muted whitespace-nowrap">
                         {lead.lastContactedAt
                           ? new Date(lead.lastContactedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })
-                          : <span className="text-text-muted/50 italic">—</span>}
+                          : <span className="text-text-muted">—</span>}
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        {lead.nextTaskDue ? (
+                          <>
+                            <span className="type-meta text-text-primary capitalize">
+                              {(lead.nextTaskType ?? 'task').replace(/_/g, ' ')}
+                            </span>
+                            <span className="block type-micro text-text-muted font-mono">
+                              {new Date(lead.nextTaskDue).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="type-meta text-text-muted">—</span>
+                        )}
                       </td>
                       <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-1.5 justify-end">

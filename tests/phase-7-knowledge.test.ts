@@ -388,9 +388,15 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
 
       await sleep(700); // > 3x the competitor's stale window
 
+      // `waitTimeoutMs` is how long the waiter polls for the winner to finish before giving up and
+      // reporting `reused: false`. 10s is ample locally — the run is a 1.5s stubbed provider call
+      // — but a loaded CI runner took 30.7s over this whole test and blew straight through it,
+      // turning a correctness assertion into a machine-speed assertion. Raised well past any
+      // plausible runner stall; the test's own 60s budget still bounds it. Production's default is
+      // untouched, and `staleAfterMs` stays at 200 because that is the fence actually under test.
       const competitor = await insertOrClaimAccountResearch(tenantA, accountA, 'competitor', {
         staleAfterMs: 200,
-        waitTimeoutMs: 10_000,
+        waitTimeoutMs: 45_000,
       });
 
       const run = await runPromise;
@@ -406,7 +412,10 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
       const orphan = await insertOrClaimAccountResearch(tenantB, accountB, 'worker-no-heartbeat');
       expect(orphan.winner).toBe(true);
 
-      await sleep(300);
+      // Comfortably past the 200ms stale window rather than barely past it: at 300ms a runner
+      // pause of a third of a second was enough to leave the claim looking fresh, and the
+      // reclaim would fail for a reason that has nothing to do with the fence being wrong.
+      await sleep(1_000);
 
       const reclaim = await insertOrClaimAccountResearch(tenantB, accountB, 'competitor', {
         staleAfterMs: 200,
@@ -860,11 +869,25 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
   // =========================================================================
   // I. Planner — every real non-research work order type
   // =========================================================================
-  it('returns [] from planWorkOrderSteps for all non-research_batch WorkOrder types', async () => {
-    const nonResearchTypes = ALL_WORK_ORDER_TYPES.filter((t) => t !== 'research_batch');
-    expect(nonResearchTypes.length).toBeGreaterThan(0);
+  /**
+   * Phase 7 planned `research_batch` alone. Phase 8a filled four more branches, so the types
+   * asserted empty here are the ones **still** unplanned — 8b and 8d work. The exhaustive
+   * planned/unplanned split lives in `tests/phase-8a-prospecting.test.ts`, which checks the two
+   * lists cover `ALL_WORK_ORDER_TYPES` exactly once; this one keeps Phase 7's own guarantee that
+   * a type nobody has designed plans nothing.
+   */
+  it('returns [] from planWorkOrderSteps for every work order type still unplanned', async () => {
+    const plannedTypes = new Set([
+      'research_batch',
+      'prospect_batch',
+      'lead_quality_analysis',
+      'sequence_design',
+      'outreach_launch',
+    ]);
+    const unplannedTypes = ALL_WORK_ORDER_TYPES.filter((t) => !plannedTypes.has(t));
+    expect(unplannedTypes.length).toBeGreaterThan(0);
 
-    for (const type of nonResearchTypes) {
+    for (const type of unplannedTypes) {
       const order = await prisma.workOrder.create({
         data: {
           tenantId: tenantA,

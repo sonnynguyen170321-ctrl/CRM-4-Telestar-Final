@@ -36,7 +36,7 @@ async function main() {
   const envCheck = spawnSync(
     process.platform === 'win32' ? 'npm.cmd' : 'npm',
     ['run', 'prod:check-env'],
-    { encoding: 'utf8' }
+    { encoding: 'utf8', shell: true }
   );
   if (envCheck.status === 0) record('PASS', 'required env validation passed');
   else record('FAIL', 'required env validation failed');
@@ -53,7 +53,7 @@ async function main() {
     const migrate = spawnSync(
       process.platform === 'win32' ? 'npx.cmd' : 'npx',
       ['prisma', 'migrate', 'status'],
-      { encoding: 'utf8' }
+      { encoding: 'utf8', shell: true }
     );
     if (migrate.status === 0) record('PASS', 'Prisma migration status ok');
     else record('WARN', 'Prisma migration status returned warnings or failed');

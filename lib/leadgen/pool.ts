@@ -4,6 +4,7 @@ import type { SessionUser } from '@/lib/auth';
 import type { LeadgenActivityType, LeadPoolItem, LeadSourceType } from '@prisma/client';
 import { buildTermClauses } from '@/lib/search/terms';
 import { findAccentInsensitiveIds, POOL_SEARCH_COLUMNS } from '@/lib/search/accentSearch';
+import { tenantIdOrThrow } from '@/lib/api/tenant';
 
 // ─── Duplicate detection ─────────────────────────────────────────────────────
 
@@ -61,7 +62,9 @@ export async function logLeadgenActivity(params: {
       poolItemId: params.poolItemId ?? null,
       description: params.description ?? null,
       metadata: (params.metadata ?? null) as never,
-      tenantId: params.actor.tenantId || 'default-tenant',
+      // `tenantId` is stamped by the client extension in `lib/prisma.ts`. Passing it here meant
+      // carrying a `|| 'default-tenant'` fallback, which writes into a real tenant nobody owns
+      // rather than failing.
     },
   });
 }
@@ -161,7 +164,7 @@ export async function createPoolItem(params: {
   skipDuplicateCheck?: boolean;
 }) {
   const { input, actor } = params;
-  const tenantId = actor.tenantId || 'default-tenant';
+  const tenantId = tenantIdOrThrow(actor);
   const duplicateKey = buildPoolDuplicateKey(input);
 
   const item = await prisma.leadPoolItem.create({

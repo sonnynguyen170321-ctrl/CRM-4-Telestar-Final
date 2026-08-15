@@ -174,3 +174,21 @@ const basePrisma = globalForPrisma.prisma ?? createPrismaClient();
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = basePrisma;
 
 export const prisma = basePrisma as unknown as TenantOptionalClient<PrismaClient>;
+
+/**
+ * Bootstrap helper for resolving the tenantId of a JobRun record.
+ * Bypasses model-level tenant extension and queries JobRun directly
+ * inside a raw transaction with app.bypass_rls=true.
+ */
+export async function resolveWorkerJobTenant(jobRunId: string): Promise<string | null> {
+  return (basePrisma as PrismaClient).$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.bypass_rls', 'true', true)`;
+    const rows = await tx.$queryRaw<Array<{ tenantId: string }>>`
+      SELECT "tenantId"
+      FROM "JobRun"
+      WHERE "id" = ${jobRunId}
+      LIMIT 1
+    `;
+    return rows[0]?.tenantId ?? null;
+  });
+}

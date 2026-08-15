@@ -4,11 +4,23 @@
 
 | | |
 |---|---|
-| Phase | All phases in `PLAN.md` complete |
+| Phase | All phases in `PLAN.md` complete. **Email Automation lane (Plan 1) landed on `integrate/phase-8-10-final`** — see [`EMAIL_AUTOMATION_LANE.md`](EMAIL_AUTOMATION_LANE.md) |
 | Branch | `feat/automation-engine-pr` (merged forward from the deleted `feat/automation-engine`) |
 | Base commit | `bd018c1 feat(automation): complete automation engine upgrade (Phases 0-15)` |
 | Next task | None in this initiative. Three non-blocking follow-ups listed at the bottom of `PLAN.md`. |
 | Blockers | None |
+
+## 2026-08-14 — the lane is closed out on `integrate/phase-8-10-final` @ `e222657`
+
+The gap this lane tracked — *nothing hands an approved draft to the launch* — is closed end to
+end, and now has a whole-business regression test behind it
+(`tests/golden-journey.test.ts`, 14/14): a human edits the model's draft while approving, the
+edit becomes durable `SequenceStepCopy` before the first step is executable, and the
+`OutboundMessage` carries those exact words with no AI provider configured.
+
+The gates below are the 2026-08-09 run against `feat/automation-engine-pr` and are kept for the
+record. Current candidate gates live in
+[`../revenue-ai/STATUS.md`](../revenue-ai/STATUS.md) and the final acceptance report.
 
 ## Gates — verified 2026-08-09, local, against `feat/automation-engine-pr`
 

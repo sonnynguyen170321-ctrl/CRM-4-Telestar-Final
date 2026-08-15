@@ -1,5 +1,4 @@
-import Groq from 'groq-sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { shouldFallbackToGemini, createGroqClient, createGeminiClient } from './providerRouting';
 import { AI_TOOLS } from './tools';
 import { recordAiCall, classifyFailure } from './usage';
 import type { SessionUser } from '@/lib/auth';
@@ -82,18 +81,14 @@ export async function* streamChat(opts: StreamOptions): AsyncGenerator<string> {
   try {
     yield* streamGroq(opts);
   } catch (err) {
-    if (isRateLimitError(err) && process.env.GEMINI_API_KEY) {
+    // One place decides failover, shared with `generateStructured`. A second expression of the
+    // policy here is how the two modes drifted apart the first time.
+    if (shouldFallbackToGemini('groq', err)) {
       yield* streamGemini({ ...opts, modelId: 'gemini-2.0-flash' });
       return;
     }
     throw err;
   }
-}
-
-function isRateLimitError(err: unknown): boolean {
-  if ((err as { status?: number })?.status === 429) return true;
-  const msg = err instanceof Error ? err.message : String(err);
-  return /rate.?limit|\b429\b|tokens per day|\bTPD\b|quota/i.test(msg);
 }
 
 async function* streamGroq(opts: StreamOptions): AsyncGenerator<string> {
@@ -103,7 +98,7 @@ async function* streamGroq(opts: StreamOptions): AsyncGenerator<string> {
     return;
   }
 
-  const groq = new Groq({ apiKey });
+  const groq = createGroqClient();
 
   // Use Groq's own message param type so tool/assistant messages are accepted
   type GMsg = Parameters<typeof groq.chat.completions.create>[0]['messages'][number];
@@ -255,7 +250,7 @@ async function* streamGemini(opts: StreamOptions): AsyncGenerator<string> {
     return;
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
+  const genAI = createGeminiClient();
   // systemInstruction belongs on the model, not on startChat(). Passing it to
   // startChat() sends an invalid Content and Gemini rejects it with a 400.
   const model = genAI.getGenerativeModel({

@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { unenrollLead } from '@/lib/sequences/engine';
+import { releaseOccupancy } from '@/lib/sequences/occupancy';
+import { pauseEnrollmentOccurrence, resumeEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
+import { resolveOccurrenceTask } from '@/lib/sequences/occurrenceTask';
 import { requireRole } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { enqueueImmediate } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
-import { pauseSequence, unenrollLead, createTaskForStep } from '@/lib/sequences/engine';
 
 export async function POST(
   req: NextRequest,
@@ -32,63 +35,50 @@ export async function POST(
   for (const enr of enrollments) {
     try {
       if (action === 'run-now' && enr.status === 'active') {
-        const task = await prisma.task.findFirst({
-          where: { leadId: enr.leadId, sequenceId: id, status: 'pending' }
-        });
-        if (task && task.type === 'email') {
+        // The occurrence's own task, and the occurrence identity its payload must carry: an
+        // enqueue of `{ taskId }` alone hashes to a different job than the delayed one, so it
+        // promotes nothing and the worker falls back to lead+sequence matching.
+        const resolved = await resolveOccurrenceTask(enr);
+        if (resolved && resolved.task.type === 'email') {
+          const { task, expectedEnrollmentId } = resolved;
           // Fast forward task
           await prisma.task.update({
             where: { id: task.id },
             data: { dueDate: new Date() }
           });
-          await enqueueImmediate(JobType.SEQUENCE_EXECUTE_TASK, { taskId: task.id }, { tenantId: user.tenantId });
+          await enqueueImmediate(
+            JobType.SEQUENCE_EXECUTE_TASK,
+            { taskId: task.id, expectedEnrollmentId },
+            { tenantId: user.tenantId }
+          );
           processedCount++;
         }
       } else if (action === 'pause' && enr.status === 'active') {
-        await pauseSequence(enr.leadId, 'manual', user.id);
-        await prisma.sequenceEnrollment.update({
-          where: { id: enr.id },
-          data: { status: 'paused' }
+        // Same domain service the single route uses — one lifecycle state machine, and the
+        // snapshot from `findMany` never decides anything on its own.
+        const paused = await pauseEnrollmentOccurrence({
+          enrollmentId: enr.id,
+          leadId: enr.leadId,
+          sequenceId: id,
+          reason: 'manual',
+          actorUserId: user.id,
         });
+        if (!paused.ok) continue;
         processedCount++;
       } else if (action === 'resume' && enr.status === 'paused') {
-        // To resume, we update status to active and create the next task if missing
-        await prisma.sequenceEnrollment.update({
-          where: { id: enr.id },
-          data: { status: 'active' }
+        const resumed = await resumeEnrollmentOccurrence({
+          enrollmentId: enr.id,
+          leadId: enr.leadId,
+          sequenceId: id,
+          tenantId: enr.tenantId,
         });
-        await prisma.lead.update({
-          where: { id: enr.leadId },
-          data: { sequenceStatus: 'active' }
-        });
-        const sequence = await prisma.sequence.findUnique({
-          where: { id },
-          include: { steps: { orderBy: { order: 'asc' } } }
-        });
-        const currentStep = sequence?.steps.find(s => s.order === enr.currentStep);
-        if (currentStep) {
-          // recreate task
-          await createTaskForStep(
-            { id: enr.leadId, assignedToId: enr.lead.assignedToId, crmPriorityScore: enr.lead.crmPriorityScore },
-            { id: sequence!.id, name: sequence!.name },
-            currentStep,
-            new Date()
-          );
-        }
-        await prisma.activity.create({
-          data: {
-            userId: user.id, leadId: enr.leadId, type: 'sequence_enrolled',
-            description: `Sequence resumed`,
-            metadata: { sequenceId: id, resumed: true },
-            tenantId: user.tenantId
-          }
-        });
+        if (!resumed.ok) continue;
         processedCount++;
       } else if (action === 'unenroll') {
         await unenrollLead(enr.leadId, id);
         await prisma.sequenceEnrollment.update({
           where: { id: enr.id },
-          data: { status: 'unenrolled', completedAt: new Date() }
+          data: { status: 'unenrolled', completedAt: new Date(), ...releaseOccupancy() }
         });
         await prisma.activity.create({
           data: {

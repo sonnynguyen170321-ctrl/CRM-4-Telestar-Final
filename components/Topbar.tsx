@@ -17,6 +17,7 @@ import { hardSignOut } from '@/lib/auth/clientSignOut';
 import { useAppContext } from '@/context/AppContext';
 import { readNotifPrefs, isMuted, NOTIF_PREFS_EVENT } from '@/lib/notifications/prefs';
 import { openLeadSlideOver } from '@/lib/leads/openLead';
+import EnvironmentBadge from '@/components/operating/EnvironmentBadge';
 
 interface Notification {
   id: string;
@@ -324,6 +325,9 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
 
       {/* Global Actions */}
       <div className="flex items-center gap-4">
+        {/* Demo tenant + send-safety reassurance. Renders nothing outside the demo tenant. */}
+        <EnvironmentBadge />
+
         {/* + New Button */}
         <div className="relative">
           <button

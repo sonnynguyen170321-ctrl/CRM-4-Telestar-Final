@@ -71,12 +71,25 @@ export async function cacheDel(prefix: string): Promise<void> {
 // tenant*, so keys must be tenant-scoped to avoid cross-tenant reads. `listKey` builds
 // the read key and `invalidateList` clears the whole tenant+resource prefix on writes —
 // defining the prefix in one place so reads and invalidations can never drift apart.
-const TENANT_FALLBACK = 'default-tenant';
+/**
+ * The cache namespace for a tenant's list endpoint.
+ *
+ * There is deliberately no fallback tenant. A key built without one is not "unscoped" — it is a
+ * *shared* namespace, so two tenants that both arrived without a tenant id would read each
+ * other's cached campaign, sequence and template lists. That is a cross-tenant read produced by a
+ * cache, which is the hardest kind to notice: the database was never asked.
+ */
+function tenantNamespace(tenantId: string | undefined): string {
+  if (!tenantId) {
+    throw new Error('Cache key requires a tenant: refusing to build a shared cache namespace');
+  }
+  return tenantId;
+}
 
 export function listKey(tenantId: string | undefined, resource: string, variant: string): string {
-  return `${tenantId ?? TENANT_FALLBACK}:${resource}:${variant}`;
+  return `${tenantNamespace(tenantId)}:${resource}:${variant}`;
 }
 
 export async function invalidateList(tenantId: string | undefined, resource: string): Promise<void> {
-  await cacheDel(`${tenantId ?? TENANT_FALLBACK}:${resource}:`);
+  await cacheDel(`${tenantNamespace(tenantId)}:${resource}:`);
 }
