@@ -212,6 +212,38 @@ export async function canReferenceCampaign(
   return visible.includes(campaignId) ? 'ok' : 'forbidden';
 }
 
+/**
+ * Whether the caller may *reference* a client supplied in a request body.
+ *
+ * The contract is not invented here — it is the one `app/api/clients/route.ts` already applies
+ * when listing clients: *"you see a client if you can see at least one of its campaigns"*,
+ * resolved through `getVisibleCampaignIds`. Writing a different rule for references than for
+ * reads would mean a caller could attach records to a client the product will not show them.
+ *
+ * Same three outcomes as `canReferenceCampaign`, for the same reason: a foreign-tenant or
+ * missing client is `'not_found'` so foreign existence is never confirmable, while a real
+ * in-tenant client the caller cannot see is `'forbidden'`.
+ */
+export async function canReferenceClient(
+  viewer: SessionUser,
+  clientId: string
+): Promise<ReferenceCheck> {
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, tenantId: viewer.tenantId ?? undefined },
+    select: { id: true },
+  });
+  if (!client) return 'not_found';
+
+  const visible = await getVisibleCampaignIds(viewer);
+  if (visible === null) return 'ok'; // director / leadgen manager — unrestricted within the tenant
+
+  const reachable = await prisma.campaign.findFirst({
+    where: { clientId, id: { in: visible } },
+    select: { id: true },
+  });
+  return reachable ? 'ok' : 'forbidden';
+}
+
 /** Build a Prisma `where` clause that scopes leads/tasks to the user's role. */
 export function buildRoleScope(user: SessionUser) {
   switch (user.role) {

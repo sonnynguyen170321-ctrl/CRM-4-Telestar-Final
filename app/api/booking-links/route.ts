@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, requireRole } from '@/lib/auth';
+import { requireAuth, requireRole, canReferenceClient, canReferenceCampaign } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { parseBody, capLimit } from '@/lib/validation/core';
 import { createBookingLinkSchema } from '@/lib/validation/schemas';
@@ -48,11 +48,57 @@ export async function POST(req: NextRequest) {
   if (parsed.error) return parsed.error;
   const body = parsed.data;
 
+  // Every reference is validated before any write. A booking link is the URL a prospect is sent
+  // to book a meeting, so one attached to the wrong client sends a prospect into another
+  // company's calendar — and a tenant-A manager naming tenant B's client used to get a 201, with
+  // the response echoing tenant B's client and campaign names back.
+  const clientCheck = await canReferenceClient(user, body.clientId);
+  if (clientCheck === 'not_found') {
+    // Foreign tenant and nonexistent answer identically, or the status code confirms the
+    // existence of other tenants' clients to anyone guessing ids.
+    return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+  }
+  if (clientCheck === 'forbidden') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  if (body.campaignId) {
+    const campaignCheck = await canReferenceCampaign(user, body.campaignId);
+    if (campaignCheck === 'not_found') {
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+    }
+    if (campaignCheck === 'forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Relational consistency, not authorization: both references are in-tenant and the caller is
+    // entitled to name each one. The *pair* is incoherent — a link claiming client A whose
+    // campaign belongs to client B describes two different hierarchies, and every report walking
+    // `lead -> campaign -> client` would disagree with it. 422 because nothing is forbidden here;
+    // the request is malformed.
+    const campaign = await prisma.campaign.findFirst({
+      where: { id: body.campaignId },
+      select: { clientId: true },
+    });
+    if (campaign && campaign.clientId !== body.clientId) {
+      return NextResponse.json(
+        { error: 'The campaign does not belong to the supplied client' },
+        { status: 422 }
+      );
+    }
+  }
+
   try {
     // If isDefault=true, unset other defaults for the same scope.
     if (body.isDefault) {
       await prisma.bookingLink.updateMany({
         where: {
+          // Defence in depth. `applyScopedTenant` already injects this, proven by a raw-SQL
+          // experiment in which a tenant-A request left tenant B's default untouched — so this
+          // is not fixing a reproduced cross-tenant bug. It is here because a security-critical
+          // bulk write should state its own tenant boundary rather than rely on a wrapper being
+          // read correctly by the next person.
+          tenantId: user.tenantId!,
           clientId: body.clientId,
           campaignId: body.campaignId ?? null,
           isDefault: true,
