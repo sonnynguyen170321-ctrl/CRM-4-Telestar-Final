@@ -173,21 +173,27 @@ describe.skipIf(!hasDb)('work order request-supplied relations', () => {
   });
 
   // ── authorization axis: not resolveScope's job, and asserted on purpose ────
-  it('records what happens when the lead is in-tenant but the caller cannot access it', async () => {
+  it('refuses an in-tenant lead the caller cannot access, and leaks nothing by doing so', async () => {
+    // Previously 201, recorded as deliberate on the reasoning that a work order is draft-only.
+    // That reasoning does not survive the detail: a real-but-hidden lead answered 201 while a
+    // nonexistent one answered 422, so the status code alone told a caller whether a guessed id
+    // exists. An existence oracle over another rep's prospects is a disclosure, however inert the
+    // row it creates.
+    //
+    // `canAccessLead` is already the CRM's object authority — dispatch uses it too — so applying
+    // it here is the existing rule reaching one boundary earlier, not a second permission model.
     const before = await counts(T_A);
-    const res = await runAs(T_A, () => post({ type: 'research_batch', leadId: LEAD_WALLED }));
+    const walled = await runAs(T_A, () => post({ type: 'research_batch', leadId: LEAD_WALLED }));
+    expect(walled.status, 'created a work order against a peer hidden lead').toBe(403);
+    expect(await counts(T_A), 'a refused create wrote durable rows').toEqual(before);
 
-    // `resolveScope` checks tenancy only, so this is expected to succeed today. It is asserted
-    // rather than assumed so the behaviour is a recorded decision: a work order is an internal
-    // orchestration record with no prospect-facing effect at creation, `createdById` is taken
-    // from the session and cannot be spoofed, and activation runs its own authorization. If that
-    // ever stops being true, this test is where it surfaces.
-    expect(res.status, 'creating a work order for an in-tenant lead').toBe(201);
-
-    const after = await counts(T_A);
-    expect(after.workOrders).toBe(before.workOrders + 1);
-    // Creation alone must not have executed anything.
-    expect(after.agentActions).toBe(before.agentActions);
+    // The refusal must be indistinguishable from the one a guessed id produces, or the oracle
+    // survives the fix.
+    const missing = await runAs(T_A, () => post({ type: 'research_batch', leadId: 'worefint-no-such-lead-2' }));
+    expect(
+      missing.status,
+      'a hidden lead and a nonexistent one answer differently — the status still reveals existence'
+    ).toBe(walled.status);
   });
 
   it('creates for the caller own lead', async () => {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, canAccessLead, canReferenceCampaign } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { handleApiError } from '@/lib/api/errors';
 import { createWorkOrder, WorkOrderValidationError } from '@/lib/workorders/service';
@@ -66,6 +66,32 @@ export async function POST(req: NextRequest) {
         { error: 'Invalid request', details: parsed.error.flatten() },
         { status: 400 }
       );
+    }
+
+    // Object authorization for the *request* boundary. `createWorkOrder` deliberately keeps only
+    // tenancy (`resolveScope`), because internal callers — `handbackProspectToAI`, the agent
+    // runtime — reach it having already run their own authorization, and adding a session-shaped
+    // check inside the domain service would either duplicate theirs or block them.
+    //
+    // What this closes is an existence oracle. A real-but-hidden lead answered 201 while a
+    // nonexistent one answered 422, so the status code told a caller whether a guessed id exists.
+    // `canAccessLead` is the same authority dispatch uses, applied one boundary earlier; the
+    // refusal is deliberately shaped like the not-found one so the oracle does not survive it.
+    if (parsed.data.leadId) {
+      const lead = await prisma.lead.findFirst({
+        where: { id: parsed.data.leadId, tenantId: user.tenantId },
+        select: { assignedToId: true, campaignId: true },
+      });
+      if (!lead || !(await canAccessLead(user, lead))) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
+
+    if (parsed.data.campaignId) {
+      const campaignCheck = await canReferenceCampaign(user, parsed.data.campaignId);
+      if (campaignCheck !== 'ok') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
 
     const order = await createWorkOrder({

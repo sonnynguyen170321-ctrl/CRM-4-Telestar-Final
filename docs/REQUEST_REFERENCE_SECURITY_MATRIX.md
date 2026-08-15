@@ -41,8 +41,8 @@ either run each side inside its own tenant context, or be built with raw SQL —
 | `/api/leads` | POST | `tenantId` | — | ignored, session wins | n/a | n/a | ✅ | n/a | n/a | ✅ | n/a | **GREEN** | `5d6eadf` |
 | `/api/leads` | POST | `assignedToId` | User | via `canAccessUser` | ✅ 403 | n/a | ✅ | ✅ | — | ✅ | n/a | **GREEN** | `5d6eadf` |
 | `/api/leads` | POST | `campaignId` | Campaign | `canReferenceCampaign` | ✅ 403 | — | ✅ 404 | ✅ 403 | ✅ 404 | ✅ | n/a | **GREEN** | `5d6eadf` |
-| `/api/work-orders` | POST | `leadId` | Lead | `resolveScope` | ❌ **open** | n/a | ✅ | ❌ | ✅ | ✅ | n/a | **YELLOW** | `5d6eadf` |
-| `/api/work-orders` | POST | `campaignId` | Campaign | `resolveScope` | ❌ **open** | n/a | ✅ | ❌ | ✅ | ✅ | n/a | **YELLOW** | `5d6eadf` |
+| `/api/work-orders` | POST | `leadId` | Lead | `resolveScope` + `canAccessLead` | ✅ 403 | n/a | ✅ | ✅ 403 | ✅ | ✅ | n/a | **GREEN** | `HEAD` |
+| `/api/work-orders` | POST | `campaignId` | Campaign | `resolveScope` + `canReferenceCampaign` | ✅ 403 | n/a | ✅ | ✅ 403 | ✅ | ✅ | n/a | **GREEN** | `HEAD` |
 | `/api/work-orders` | POST | `tenantId`, `createdById` | — | ignored, session wins | n/a | n/a | ✅ | n/a | n/a | ✅ | n/a | **GREEN** | `5d6eadf` |
 | `/api/work-orders/[id]/dispatch` | POST | order target | Lead / Campaign | `assertActorMayDispatch` | ✅ 403 | n/a | ✅ | ✅ | ✅ | ✅ no job, no lease | n/a | **GREEN**, audit pending | `5d6eadf` |
 | `/api/work-orders` | GET | — | — | tenant only | ❌ unscoped | n/a | — | recorded | — | n/a | n/a | **YELLOW** | `5d6eadf` |
@@ -51,7 +51,10 @@ either run each side inside its own tenant context, or be built with raw SQL —
 | `/api/booking-links` | POST | `tenantId`, `createdById` | — | ignored, session wins | n/a | n/a | ✅ | n/a | n/a | ✅ | n/a | **GREEN** | `f8c635f` |
 | `/api/booking-links` | POST | `isDefault` clear | BookingLink | ✅ scoped by extension | n/a | n/a | ✅ **proven** | n/a | n/a | ✅ | ✅ advisory lock | **GREEN** | `HEAD` |
 | `/api/booking-links` | GET | `client`, `campaign`, `createdBy` includes | Client / Campaign / User | ✅ relation guard | n/a | n/a | ✅ **was RED** | n/a | n/a | n/a | n/a | **GREEN** | `HEAD` |
-| `/api/sequences/preview` | POST | `sequenceId`, `leadId` | — | not dereferenced | n/a | n/a | — | — | — | — | n/a | **PENDING** | — |
+| `/api/client-reports` | POST | `clientId` | Client | `canReferenceClient` | ✅ 403 | ✅ 422 | ✅ 404 | ✅ 403 | ✅ 404 | ✅ | n/a | **GREEN** | `HEAD` |
+| `/api/client-reports` | POST | `campaignId` | Campaign | `canReferenceCampaign` | ✅ 403 | ✅ 422 | ✅ 404 | ✅ 403 | ✅ 404 | ✅ | n/a | **GREEN** | `HEAD` |
+| `/api/client-reports` | POST | `tenantId`, `generatedById` | — | ignored, session wins | n/a | n/a | ✅ | n/a | n/a | ✅ | n/a | **GREEN** | `HEAD` |
+| `/api/sequences/preview` | POST | `sequenceId`, `leadId` | — | never dereferenced | n/a | n/a | ✅ proven | n/a | ✅ proven | ✅ no writes | n/a | **N/A — opaque seed** | `HEAD` |
 
 ## Booking links — raw-SQL probe, classification B
 
@@ -172,6 +175,58 @@ could quietly move a real client's booking link to the wrong company.
 Proven against a live database rather than asserted: on first run it found **4 real inconsistent
 rows** — leftovers from the discarded classification probe — printed them with their tenant ids,
 and exited 1. After those rows were removed it reports 0 and exits 0.
+
+## Client reports — was RED across the board, fixed
+
+`canCreateClientReport` admits **sdr** upward, so the widest exposure was an ordinary rep, and
+`clientId` / `campaignId` arrived unvalidated in the body. Measured before changing anything:
+
+    foreign client            201  ->  404
+    foreign campaign          201  ->  404
+    nonexistent client        500  ->  404
+    nonexistent campaign      500  ->  404
+    in-tenant invisible client    201  ->  403
+    in-tenant invisible campaign  201  ->  403
+    campaign of another client    201  ->  422
+
+Worse than the booking-link shape in one respect, which is why the checks run *before*
+`buildReportMetrics`: that call computes aggregates over whatever client was named, so an
+unchecked foreign reference does not merely mislabel a row — it pulls another tenant's numbers
+into the stored snapshot and the response. Every negative case asserts the response body carries
+no foreign identifier, not just that the status is right.
+
+`tenantId` and `generatedById` were already session-derived and remain so.
+
+## Work order CREATE — was an existence oracle, fixed
+
+Previously an in-tenant lead the caller could not access returned **201**, and I recorded that as
+deliberate on the reasoning that a work order is draft-only. That reasoning does not survive the
+detail: a real-but-hidden lead answered 201 while a nonexistent one answered 422, so the status
+code alone told a caller whether a guessed id exists. An oracle over another rep's prospects is a
+disclosure however inert the row it creates.
+
+`canAccessLead` — the same authority dispatch uses — now runs at the route, one boundary earlier,
+and the refusal is deliberately shaped like the not-found answer so the oracle does not survive
+the fix. Verified by asserting the two statuses are equal, not merely that each is a refusal.
+
+Placed at the route rather than in `createWorkOrder` on purpose: internal callers
+(`handbackProspectToAI`, the agent runtime) reach the service having already run their own
+authorization, so a session-shaped check inside the domain would either duplicate theirs or block
+them. `resolveScope` keeps tenancy, which is genuinely the domain's job.
+
+## Sequence preview — N/A, opaque seed input
+
+`sequenceId` and `leadId` look like foreign keys and are not. Neither is ever resolved to a row:
+both reach `buildJitterSeed()` and nothing else, so the response is a schedule computed from
+strings.
+
+Proven rather than asserted — ids matching no row answer 200 normally, a foreign-looking id and
+an invented one are indistinguishable in status and response shape, and the same seed with a
+fixed `startAt` reproduces the same schedule. A route that dereferenced them could not do any of
+that.
+
+Deliberately **no** `canAccessLead` here. It would look prudent, protect nothing, and imply to
+the next reader that a row exists behind these fields.
 
 ## Open work, in order
 
