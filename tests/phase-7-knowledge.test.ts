@@ -16,10 +16,51 @@ vi.mock('@/auth', () => ({
 // ---------------------------------------------------------------------------
 let tavilyCalls = 0;
 let jinaCalls = 0;
-let tavilyDelayMs = 0;
 let tavilyMode: 'ok' | 'http-429' | 'http-400' | 'network' = 'ok';
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * Holds the provider call open until the test explicitly releases it.
+ *
+ * This replaces a `setTimeout` delay, and the difference is the whole point: with a timer,
+ * "the winner is still running when the competitor claims" was a bet on the winner being
+ * slower than the test — a bet a loaded CI runner loses, turning a correctness assertion into
+ * an assertion about machine speed. With a barrier it is a fact. Nothing here waits on the
+ * clock; the test releases the provider when the state it needs is *observed*.
+ */
+let tavilyGate: { promise: Promise<void>; release: () => void } | null = null;
+
+function openTavilyGate(): void {
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  tavilyGate = { promise, release };
+}
+
+function releaseTavilyGate(): void {
+  tavilyGate?.release();
+  tavilyGate = null;
+}
+
+/**
+ * Polls a predicate until it holds. Deterministic on any machine: a slow runner takes longer
+ * to satisfy the condition, it does not fail. `timeoutMs` exists only so a genuinely broken
+ * condition reports what it was waiting for instead of hanging until the suite budget expires.
+ */
+async function waitUntil(
+  predicate: () => boolean | Promise<boolean>,
+  label: string,
+  timeoutMs = 30_000
+): Promise<void> {
+  const start = Date.now();
+  for (;;) {
+    if (await predicate()) return;
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`waitUntil timed out after ${timeoutMs}ms waiting for: ${label}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
 
 const TAVILY_SOURCE_URL = 'https://news.example.com/acme-expansion';
 
@@ -44,7 +85,7 @@ vi.stubGlobal(
 
     if (host === 'api.tavily.com') {
       tavilyCalls += 1;
-      if (tavilyDelayMs > 0) await sleep(tavilyDelayMs);
+      if (tavilyGate) await tavilyGate.promise;
       if (tavilyMode === 'network') {
         const err = new Error('fetch failed');
         err.name = 'TypeError';
@@ -137,7 +178,7 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
     process.env.JINA_API_KEY = 'mock-key';
     tavilyCalls = 0;
     jinaCalls = 0;
-    tavilyDelayMs = 0;
+    releaseTavilyGate();
     tavilyMode = 'ok';
 
     tenantA = `test-tenant-a-${randomUUID()}`;
@@ -325,22 +366,35 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
   it(
     'coalesces 20 concurrent runs — exactly ONE provider call, one claim, no stolen token',
     async () => {
-      // Longer than the default 10s wait window, so the losers are genuinely waiting on a live
-      // claim rather than racing a run that finished before they looked.
-      tavilyDelayMs = 11_000;
+      // The provider is held open rather than made slow, so the losers are genuinely waiting on
+      // a live claim instead of racing a run that may or may not have finished before they
+      // looked. Previously this was an 11s timer against a 10s wait window — the losers only
+      // waited because the winner happened to be slower than they were patient.
+      openTavilyGate();
 
-      const results = await inTenantA(() =>
+      const settled = inTenantA(() =>
         Promise.all(
           Array.from({ length: 20 }, () =>
             executeAccountResearch({
               tenantId: tenantA,
               accountId: accountA,
               userId: userA.id,
-              claimOptions: { waitTimeoutMs: 30_000 },
             })
           )
         )
       );
+
+      // The winner is inside the provider call and cannot leave it. Every other caller is now
+      // looking at a live, heartbeat-fresh `pending` claim.
+      await waitUntil(() => tavilyCalls === 1, 'the winner to reach the provider');
+      const inFlight = await prisma.accountResearchCache.findUnique({
+        where: { tenantId_accountId: { tenantId: tenantA, accountId: accountA } },
+      });
+      expect(inFlight?.status).toBe('pending');
+      expect(inFlight?.version).toBe(1);
+
+      releaseTavilyGate();
+      const results = await settled;
 
       expect(tavilyCalls).toBe(1);
 
@@ -362,7 +416,7 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
       });
       expect(signals).toBe(1);
     },
-    90_000
+    60_000
   );
 
   // =========================================================================
@@ -371,11 +425,11 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
   it(
     'heartbeat holds a claim past the stale window; a stopped run becomes reclaimable',
     async () => {
-      // The staleness window is compressed rather than the clock advanced: the cache fence
-      // compares stored `claimedAt` against the database's own wall clock, so a fake timer
-      // would move the test and not the fence. A 200ms window against a 50ms heartbeat is
-      // the same relationship as 5 minutes against 60 seconds.
-      tavilyDelayMs = 1_500;
+      // The staleness window is compressed rather than the clock advanced: the fence compares
+      // stored `claimedAt` against wall time, so a fake timer would move the test and not the
+      // fence. A 200ms window against a 50ms heartbeat is the same relationship as 5 minutes
+      // against 60 seconds. `staleAfterMs: 200` is the thing under test and does not move.
+      openTavilyGate();
 
       const runPromise = inTenantA(() =>
         executeAccountResearch({
@@ -386,21 +440,42 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
         })
       );
 
-      await sleep(700); // > 3x the competitor's stale window
+      const key = { tenantId_accountId: { tenantId: tenantA, accountId: accountA } };
+      const readRow = () => prisma.accountResearchCache.findUnique({ where: key });
 
-      // `waitTimeoutMs` is how long the waiter polls for the winner to finish before giving up and
-      // reporting `reused: false`. 10s is ample locally — the run is a 1.5s stubbed provider call
-      // — but a loaded CI runner took 30.7s over this whole test and blew straight through it,
-      // turning a correctness assertion into a machine-speed assertion. Raised well past any
-      // plausible runner stall; the test's own 60s budget still bounds it. Production's default is
-      // untouched, and `staleAfterMs` stays at 200 because that is the fence actually under test.
-      const competitor = await insertOrClaimAccountResearch(tenantA, accountA, 'competitor', {
+      // Wait for the *state* the assertion depends on rather than for a duration: the claim
+      // exists, the heartbeat has renewed `claimedAt` at least once, and the original claim is
+      // now older than the stale window. On a slow machine this takes longer and still holds;
+      // the old `sleep(700)` merely hoped all three had happened.
+      await waitUntil(async () => (await readRow())?.status === 'pending', 'the winner to claim');
+      const claimedAtFirst = (await readRow())!.claimedAt!;
+      await waitUntil(async () => {
+        const row = await readRow();
+        const renewed = !!row?.claimedAt && row.claimedAt.getTime() > claimedAtFirst.getTime();
+        const pastWindow = Date.now() - claimedAtFirst.getTime() > 200;
+        return renewed && pastWindow;
+      }, 'the heartbeat to renew a claim that is already older than the stale window');
+
+      // The competitor now enters the waiter path against a live claim. Detecting that it is
+      // actually *in* the poll loop — rather than assuming it got there — is what lets the
+      // provider be released afterwards, which is what makes `reused: true` structural.
+      const reads = vi.spyOn(prisma.accountResearchCache, 'findUnique');
+      const readsBefore = reads.mock.calls.length;
+      const competitorPromise = insertOrClaimAccountResearch(tenantA, accountA, 'competitor', {
         staleAfterMs: 200,
-        waitTimeoutMs: 45_000,
       });
+      // Call 1 is the waiter's initial read, call 2 is its first poll tick: it is in the loop.
+      await waitUntil(
+        () => reads.mock.calls.length >= readsBefore + 2,
+        'the competitor to enter the waiter poll loop'
+      );
 
+      releaseTavilyGate();
       const run = await runPromise;
       expect(run.status).toBe('completed');
+
+      const competitor = await competitorPromise;
+      reads.mockRestore();
 
       // Could not reclaim: the heartbeat kept `claimedAt` inside the window the whole time.
       expect(competitor.winner).toBe(false);
@@ -412,10 +487,15 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
       const orphan = await insertOrClaimAccountResearch(tenantB, accountB, 'worker-no-heartbeat');
       expect(orphan.winner).toBe(true);
 
-      // Comfortably past the 200ms stale window rather than barely past it: at 300ms a runner
-      // pause of a third of a second was enough to leave the claim looking fresh, and the
-      // reclaim would fail for a reason that has nothing to do with the fence being wrong.
-      await sleep(1_000);
+      // Age the claim by moving `claimedAt`, not by waiting. `claimedAt` is written by the
+      // application (`new Date()` in the heartbeat and claim paths) and compared against wall
+      // time, so a backdated row is indistinguishable from one abandoned that long ago — which
+      // is precisely the condition the fence exists to detect. The previous `sleep(1_000)` bought
+      // nothing but a second of runtime and a race with runner pauses.
+      await prisma.accountResearchCache.update({
+        where: { tenantId_accountId: { tenantId: tenantB, accountId: accountB } },
+        data: { claimedAt: new Date(Date.now() - 10_000) },
+      });
 
       const reclaim = await insertOrClaimAccountResearch(tenantB, accountB, 'competitor', {
         staleAfterMs: 200,
@@ -433,7 +513,7 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
   it(
     'a run that loses ownership does not complete, and its evidence is neither served nor citable',
     async () => {
-      tavilyDelayMs = 1_200;
+      openTavilyGate();
 
       const runPromise = inTenantA(() =>
         executeAccountResearch({
@@ -445,7 +525,9 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
         })
       );
 
-      await sleep(400);
+      // "Mid-flight" is established, not estimated: the run is provably inside the provider
+      // call and cannot leave it until the gate opens.
+      await waitUntil(() => tavilyCalls === 1, 'the run to reach the provider');
 
       // A competing claimant fences the run out mid-flight.
       await prisma.accountResearchCache.update({
@@ -453,6 +535,7 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
         data: { claimToken: `competitor-${randomUUID()}`, version: { increment: 1 } },
       });
 
+      releaseTavilyGate();
       const run = await runPromise;
       expect(run.status).not.toBe('completed');
 
