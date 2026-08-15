@@ -2546,3 +2546,39 @@ disclosure needs a row that already points across the boundary.
 "Pending review" is deliberate: this is the auditor's own code, in the isolation layer every query
 passes through, and §15 already records that this auditor cannot certify it. It wants a reviewer
 who did not write it.
+
+## 18.4 The two remaining §14.5 client-report cases, closed
+
+### Spoofed actor — GREEN by construction
+
+`createClientReportSchema` accepts `clientId`, `campaignId` and report content. It does **not**
+declare `generatedById` or `approvedById`, so those never survive `parseBody`, and the route sets
+`generatedById: user.id` from the session at both write sites. There is no path by which a body
+field becomes the recorded actor. No probe was written, because the field cannot reach the query —
+this is a shape guarantee, not a runtime one.
+
+### Share-token isolation — GREEN, measured
+
+`POST /api/client-reports/[id]/share` reads `prisma.clientReport.findUnique({ where: { id } })`,
+which the extension scopes, and passes `tenantId: user.tenantId` explicitly into `createShareLink`.
+Measured as a tenant A director against a **confirmed-present** tenant B report:
+
+```
+fixture readback (as tenant B): {"id":"zzs3-reportb","tenantId":"zzs3-b"}
+foreign  : 404 {"error":"Report not found"}
+invented : 404 {"error":"Report not found"}
+identical: true
+```
+
+No share link is created for a foreign report, and a real foreign id is byte-identical to an
+invented one — no existence oracle.
+
+**A measurement discarded on the way, recorded because it nearly wasn't.** An earlier run of this
+probe produced the same two 404s and looked conclusive. Its cleanup check then read
+`B report status after: null`, which meant the auditor could not confirm the foreign report had
+existed when the call was made — so both 404s might have been the trivial "no such row". The result
+was thrown away and the probe rewritten to read the fixture back **before** exercising the route.
+Two identical 404s mean nothing without evidence that one of them had something to find.
+
+This is the same class as §17.8 and §18.1: a green-looking result whose setup was never verified.
+Three times now, in this audit alone.
