@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 
 /**
  * The whole Telestar business, once, against a real database (Task 7).
@@ -133,7 +133,27 @@ const managerSession = () => ({
   tenantId: T,
 });
 
+/**
+ * The journey runs on a pinned business-day clock.
+ *
+ * `lib/automation/eligibility.ts` hardcodes `businessDayPolicy: 'skip_weekends'`, so step 8's
+ * send is refused with `DEFER / weekend_adjustment` whenever CI happens to run on a Saturday or
+ * Sunday — and steps 9-11 then assert against a message that was never sent. This is exactly how
+ * the tree certified as PR #67 on a Friday failed on merged `main` the next morning. The whole
+ * journey shares one clock so that every row it creates and every schedule it computes agree.
+ *
+ * Only `Date` is faked: timers stay real, because this suite does real database I/O and must not
+ * have its driver's timeouts frozen. `shouldAdvanceTime` keeps the pinned clock ticking forward
+ * in step with real time rather than freezing it at one instant.
+ *
+ * Production scheduling is untouched — skipping weekends is the correct behaviour, and this test
+ * is about the wording that reaches the prospect, not about which day of the week CI ran.
+ */
+const JOURNEY_CLOCK = new Date('2026-08-12T10:00:00Z'); // Wednesday, 10:00 UTC
+
 beforeAll(async () => {
+  vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true });
+  vi.setSystemTime(JOURNEY_CLOCK);
   if (!hasDb) return;
   // Each tenant's cleanup runs inside *that tenant's* context, not `system`. The extension in
   // `lib/prisma.ts` stamps `tenantId` onto every write even under bypass, so an `updateMany` run
@@ -693,4 +713,8 @@ describe.skipIf(!hasDb)('the Telestar golden journey', () => {
         .ghostThresholdsBusinessDays.positive_reply_waiting).toBe(10);
     });
   });
+});
+
+afterAll(() => {
+  vi.useRealTimers();
 });
