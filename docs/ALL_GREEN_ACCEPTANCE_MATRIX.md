@@ -2582,3 +2582,88 @@ Two identical 404s mean nothing without evidence that one of them had something 
 
 This is the same class as §17.8 and §18.1: a green-looking result whose setup was never verified.
 Three times now, in this audit alone.
+
+---
+
+# 19. Full browser gate executed — lane G confirmed running
+
+Run against a production build at `634e147` **plus** both auditor branches
+(`0d30bef` nested-include scoping, `078c404` fixture isolation), in `C:\awt8` with its own
+`node_modules`, on the private database `telestar_audit_e2e_test`.
+
+| Step | Result |
+|---|---|
+| `npm ci` | exit 0, 0 vulnerabilities |
+| `npm run build` | **exit 0** |
+| `migrate deploy` · `db:seed` | exit 0 · exit 0 |
+| `scripts/e2e-audit-fixture.ts` | exit 0 — *"9 users across 2 tenants"* |
+| `scripts/demo-seed.ts --reset` | exit 0 |
+| **`npx playwright test` (every project)** | **exit 0 — 207 passed, 0 failed** |
+
+Projects executed: `audit` 167 · `chromium` 21 · `demo` 10 · `setup` 9.
+
+**`next build` matters here beyond the count.** The change in `0d30bef` is in `lib/prisma.ts`,
+which every route imports, and this repository's own rules name `next build` as the gate that
+catches what tsc and Vitest structurally cannot. It passes.
+
+## 19.1 Lane G — executes, confirmed by execution
+
+Previous revisions could only say the promoted spec sat in a directory the `audit` project's
+`testMatch` covers. It now appears in a passing run:
+
+```
+e2e\admin\member-removal-dialog.spec.ts:114:7
+e2e\admin\member-removal-dialog.spec.ts:155:7
+```
+
+Both tests ran and passed. The impact-dialog half of the no-silent-removal rule — *"shows non-zero
+owned work, keeps Confirm inert, and Cancel changes nothing"*, verified through a page **reload**
+rather than a re-query — is now asserted by code that executes. That row has been open since
+revision 2. **Closed.**
+
+## 19.2 A false failure, caught for the fourth time
+
+The first attempt at this run returned **11 failed / 21 passed**: nine `[setup] authenticate
+<persona>` failures and two `demo` failures. Cause:
+
+```
+Error: Audit fixture missing at C:\awt8\e2e\.fixture.json. Create it first:
+  ALLOW_E2E_FIXTURE=1 E2E_PASSWORD='…' node node_modules/tsx/dist/cli.mjs scripts/e2e-audit-fixture.ts
+```
+
+The auditor had run `db:seed` and skipped the two steps CI runs after it — the audit fixture and the
+demo-tenant seed. `.github/workflows/ci.yml` says so in a comment written for exactly this mistake:
+*"widening the Playwright gate to all four projects without creating them is what made every setup
+and demo test fail"*.
+
+Not a product defect. Not reported as one. This is the fourth environmental false failure in this
+audit — §17.8, §18.1, §18.4, and now this — and the pattern is consistent enough to state as a
+rule: **a failure that hits every persona at once is almost always the harness, and a green result
+whose setup was never verified is worth nothing.** Both directions of the same discipline.
+
+## 19.3 A build failure that was also the harness
+
+Before the successful build, `npm run build` failed with:
+
+```
+Error [TurbopackInternalError]: Symlink [project]/node_modules is invalid,
+it points out of the filesystem root
+```
+
+`C:\awt8` junctioned its `node_modules` from `C:\awt3` to save disk. Turbopack refuses a symlink
+pointing outside the project root. Nothing to do with the code under test — a private `npm ci`
+fixed it. Recorded because "the build broke after my change" was the obvious and wrong reading, and
+the diff between obvious and correct was one line of the error message.
+
+Also recorded: while junctioned, `prisma generate` wrote into `..\awt3\node_modules\@prisma\client`.
+The schema is identical across these SHAs so the generated client is the same, but a worktree
+sharing `node_modules` by junction is not as isolated as it looks.
+
+## 19.4 Row changes
+
+| Row | Before | Now |
+|---|---|---|
+| Lane G actually executes | provisional, directory-matched only | **GREEN — observed executing and passing** |
+| Playwright `audit` / `demo` projects | never executed by the auditor | **GREEN — 167 + 10 passing** |
+| `next build` with the nested-include change | not run | **GREEN — exit 0** |
+| Full browser gate at head + auditor branches | unknown | **GREEN — 207 passed, 0 failed** |
