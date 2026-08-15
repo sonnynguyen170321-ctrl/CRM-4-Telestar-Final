@@ -283,6 +283,48 @@ database models" would have omitted ~39 models including `SequenceEnrollment` an
 
 **No source data was migrated or reconciled.** The Telestar source dataset was not available.
 
+## Phase 18 — Cutover verdict made runnable, and two operational defects found
+
+The verdict conditions existed only as prose, so nothing could check them. `npm run
+cutover:preflight` (`scripts/cutover-preflight.ts`) now asserts the ones nothing covered — HTTPS,
+TLS expiry, HSTS, Secure cookie, published-demo-password usability, a recorded pre-cutover backup,
+migration currency, both email safety flags as the running process sees them, a real queue round
+trip, Redis persistence and eviction policy, CSP mode. It names `prod:audit`,
+`post-deploy-smoke.sh` and `check:relational-integrity` rather than reimplementing them.
+
+The decision is a pure function (`evaluateCutover`), unit-tested at **31/31** without a
+deployment. Every fact is nullable and null is treated as failure — an unreachable host can never
+produce a GO.
+
+**Defect 1 — found in the preflight by its own tests.** `computeVerdict` enumerated `FAIL | SKIP`
+for blocking checks and `WARN | SKIP` for the rest, so a *non-blocking FAIL* (missing HSTS)
+returned a clean `GO`. Both arms are now "not PASS".
+
+**Defect 2 — `npm run worker:healthcheck` could never have worked.** It was an inline `tsx -e`
+that died at `MODULE_NOT_FOUND` before running anything, and had it loaded, `enqueue` would have
+thrown `requires a tenantId` because the call passed no options. **Phase 7 of this directive names
+that command as the proof that the queue is healthy.** It had never once succeeded, so that proof
+has never been obtained on any environment. Replaced by `scripts/worker-healthcheck.ts`, which
+resolves a tenant (explicit, or the only one, refusing to guess between several), enqueues, and
+waits for the `JobRun` to reach `completed`. The preflight imports the same function.
+
+Verified locally: preflight reports **NO-GO with seven blocking failures** — the correct answer for
+a workstation with no HTTPS, no backup and no Redis.
+
+| Gate | Exit | Result |
+| --- | --- | --- |
+| `tests/cutover-preflight.test.ts` | 0 | 31 passed |
+| Vitest (full, after this work) | 0 | **1727 passed · 5 skipped · 0 failed** |
+| tsc / eslint | 0 / 0 | clean |
+
+## Open items
+
+Consolidated and prioritised in
+[`CUTOVER_OPEN_ITEMS_2026-08-17.md`](CUTOVER_OPEN_ITEMS_2026-08-17.md): 11 blockers, 5 declared
+exceptions, 6 repository follow-ups, plus the environment limits of this session. **A4 — no
+verified deploy or rollback command — should be closed first**, since until it is, nothing else is
+safely reversible.
+
 ## Phases 9–14 — NOT EXECUTED
 
 Rehearsal, production cutover, per-role smoke, golden journey, email acceptance and scheduler
@@ -383,7 +425,7 @@ Leadgen:            NOT EXECUTED
 GOLDEN JOURNEY:     NOT EXECUTED on a deployment
                     (tests/golden-journey.test.ts passes in the suite — CI evidence, not deployment evidence)
 
-KNOWN DEBT:
+KNOWN DEBT:  (full list: docs/CUTOVER_OPEN_ITEMS_2026-08-17.md)
 1.  Sequence references in POST /api/leads/import are scoped by tenant but not by visibility.
     No canReferenceSequence helper exists and inventing one would be new policy, not reuse.
 2.  CSP remains report-only.
@@ -404,6 +446,11 @@ BLOCKERS:
 7.  No image digest exists for the candidate SHA, and CI has not run on it.
 8.  check:test-discipline --ci cannot pass without REDIS_URL; must be green in CI on the
     release SHA.
+9.  The queue has never been proven end to end anywhere: the documented Phase 7 command
+    (npm run worker:healthcheck) could not run at all until it was repaired in this session.
+
+    Run `npm run cutover:preflight` on the target — it mechanically decides blockers 2, 4, 5,
+    6 and 8 above and exits non-zero on any of them.
 
 FINAL VERDICT:
 NO-GO — for deployment on 2026-08-17 as of this session.
