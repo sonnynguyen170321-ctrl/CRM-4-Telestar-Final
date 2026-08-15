@@ -53,16 +53,18 @@ import { enqueue, enqueueImmediate } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
+import { RUN_NOW_TEST_TENANT_ID } from './setup/db-baseline';
 
 describe('enqueueImmediate (Send Now / run-now fast-forward)', () => {
-  const tenantId = 'default-tenant';
+  const tenantId = RUN_NOW_TEST_TENANT_ID;
 
   beforeEach(async () => {
     jobStore.clear();
     await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
-      // Scoped: under `bypassRls` no tenant filter is injected, so an unfiltered delete here
-      // removes every JobRun row in the database — including rows a suite running in parallel
-      // has just written and is about to read.
+      // Scoped to a tenant this suite owns alone: under `bypassRls` no tenant filter is
+      // injected, so an unfiltered delete here removes every JobRun row in the database —
+      // including rows a suite running in parallel has just written and is about to read.
+      // Scoping to `default-tenant` was not sufficient, because `bullmq.test.ts` used it too.
       await prisma.jobRun.deleteMany({ where: { tenantId } });
     });
   });
