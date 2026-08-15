@@ -42,10 +42,6 @@ const CONSOLE_ALLOWLIST: { pattern: RegExp; reason: string }[] = [
     pattern: /\[Fast Refresh\]/i,
     reason: 'next dev hot-reload chatter; absent from a built app',
   },
-  {
-    pattern: /fonts\.gstatic\.com/i,
-    reason: 'External Google Fonts CDN slice 404, not an application defect',
-  },
 ];
 
 /** Requests whose failure says nothing about the page under test. */
@@ -53,10 +49,6 @@ const NETWORK_ALLOWLIST: { pattern: RegExp; reason: string }[] = [
   {
     pattern: /\/_next\/static\/.*\.hot-update\./i,
     reason: 'dev-server hot-update probe races the navigation and 404s harmlessly',
-  },
-  {
-    pattern: /fonts\.gstatic\.com/i,
-    reason: 'External Google Fonts CDN request',
   },
 ];
 

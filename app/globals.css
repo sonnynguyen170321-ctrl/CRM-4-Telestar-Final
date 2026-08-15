@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 /* ─── TYPOGRAPHY ─── */
@@ -73,9 +72,15 @@
   --channel-whatsapp: #10B981;
 
   /* Fonts */
-  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'IBM Plex Sans Condensed', 'IBM Plex Sans', sans-serif;
-  --font-mono: 'IBM Plex Mono', SFMono-Regular, Consolas, monospace;
+  /* The families are self-hosted by `next/font` (see app/fonts.ts), which sets these
+     `--font-plex-*` variables on <html>. They were loaded from the Google Fonts CDN through a
+     render-blocking `@import` here, which cost a round trip to a third party on every page
+     load, failed in CI, and had to be excused by an E2E allowlist. The literal family names
+     stay as the fallback so a build that somehow ships without the variables still resolves a
+     locally installed Plex before dropping to the system stack. */
+  --font-sans: var(--font-plex-sans), 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: var(--font-plex-condensed), 'IBM Plex Sans Condensed', var(--font-plex-sans), 'IBM Plex Sans', sans-serif;
+  --font-mono: var(--font-plex-mono), 'IBM Plex Mono', SFMono-Regular, Consolas, monospace;
 }
 
 /* LIGHT THEME — the only theme. `data-theme="light"` is set statically on <body>

@@ -37,7 +37,6 @@ const IGNORED_CONSOLE = [
   /React Router Future Flag/i,
   /Warning: Extra attributes from the server/i,
   /favicon\.ico/i,
-  /fonts\.gstatic\.com/i,
 ];
 
 type Persona = {

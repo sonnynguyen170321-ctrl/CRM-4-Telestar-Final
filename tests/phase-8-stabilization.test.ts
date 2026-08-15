@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // --- Mocks ---
 const mockTaskFindUnique = vi.fn();
@@ -163,6 +163,22 @@ describe('Phase 8 Stabilization Backlog (S1-S4)', () => {
 
   // --- S1: Stranded locked task & exception recovery ---
   describe('S1: Stranded locked task exception handling', () => {
+    // `lib/automation/eligibility.ts` hardcodes `businessDayPolicy: 'skip_weekends'`, so on a
+    // Saturday or Sunday the send-window check returns DEFER and `handleExecuteTask` never
+    // reaches the send path these tests are asserting about. That made the suite green five
+    // days a week: the exact tree that passed as PR #67 on Friday failed on merged main on
+    // Saturday, with `reason: 'weekend_adjustment'`. The clock is pinned to a business-hours
+    // weekday so the assertion is about lock release, not about which day CI ran.
+    // Production scheduling is untouched — skipping weekends is correct behaviour.
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.setSystemTime(new Date('2026-08-12T10:00:00Z')); // Wednesday, 10:00 UTC
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     const baseTask = {
       id: 'task-s1',
       status: 'pending',

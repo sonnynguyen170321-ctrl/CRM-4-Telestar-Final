@@ -111,13 +111,16 @@ describe('listKey / invalidateList — tenant scoping', () => {
     expect(listKey('t1', 'templates', 'email:hi')).toBe('t1:templates:email:hi');
   });
 
-  it('refuses to build a key with no tenant, rather than sharing a namespace', () => {
+  it('refuses to build a key with no tenant, rather than sharing a namespace', async () => {
     // This used to return `default-tenant:sequences:false`. That is not an unscoped key — it is a
     // *shared* one, so two callers that both arrived without a tenant would read each other's
     // cached lists. A cross-tenant read served from cache is the hardest kind to notice, because
     // the database was never asked.
     expect(() => listKey(undefined, 'sequences', 'false')).toThrow(/requires a tenant/i);
-    expect(invalidateList(undefined, 'sequences')).rejects.toThrow(/requires a tenant/i);
+    // Awaited deliberately: an unawaited `.rejects` currently passes on a rejection Vitest
+    // happens to catch for us, and would stop doing so — silently turning a cross-tenant cache
+    // assertion into no assertion at all.
+    await expect(invalidateList(undefined, 'sequences')).rejects.toThrow(/requires a tenant/i);
   });
 
   it('invalidateList clears the exact tenant+resource prefix that listKey writes under', async () => {
