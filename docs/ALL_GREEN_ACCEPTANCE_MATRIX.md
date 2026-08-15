@@ -2667,3 +2667,88 @@ sharing `node_modules` by junction is not as isolated as it looks.
 | Playwright `audit` / `demo` projects | never executed by the auditor | **GREEN — 167 + 10 passing** |
 | `next build` with the nested-include change | not run | **GREEN — exit 0** |
 | Full browser gate at head + auditor branches | unknown | **GREEN — 207 passed, 0 failed** |
+
+---
+
+# 20. PR #69 merged — and it merged without the two security fixes
+
+`main` is now `1be7bea`, the merge of `all-green/wave-3-feature-security` at `634e147`. Everything
+§16 verified is in main: work-order creation object-RBAC, client-report reference validation, the
+sequence-preview classification, the booking-link POST checks, the default-concurrency lock, and
+`4e90e07`'s read-side fix for `GET /api/booking-links`.
+
+**Two defects this audit measured are not.** Checked against `origin/main` directly, not assumed:
+
+| Check on `origin/main` | Result |
+|---|---|
+| `lib/tenant-includes.ts` present | **ABSENT** |
+| `canReferenceCampaign` in `app/api/booking-links/[id]/route.ts` | **0 occurrences** |
+| `fix/nested-include-tenant-scoping` merged | **NOT MERGED** |
+| `fix/booking-link-patch-reference-security` merged | **NOT MERGED** |
+
+So as of `1be7bea`:
+
+1. **`PATCH /api/booking-links/[id]` accepts a cross-tenant `campaignId`.** Measured at HTTP 200
+   with the write landing — the tenant A link's `campaignId` was tenant B's campaign afterwards.
+   This is the vector that creates exactly the poisoned row `4e90e07` was written to defend the read
+   side against, so the two halves are now out of step in the direction that matters.
+2. **The nested-include disclosure remains open on 29 routes.** `GET /api/booking-links` is guarded
+   by hand; the rest are not.
+
+Neither is a regression introduced by PR #69 — both predate it — and neither is failing CI, because
+no test in the repository exercised them until this audit wrote some. That is the whole point of the
+row: **a green pipeline is not evidence about a defect nothing tests.**
+
+## 20.1 Opened for review
+
+| PR | Branch | Contents |
+|---|---|---|
+| **#70** | `fix/booking-link-patch-reference-security` | `495ab2b` PATCH reference validation + regression test · `eab5e05` the reproduction script |
+| **#71** | `fix/nested-include-tenant-scoping` | `0d30bef` isolation-layer nested scoping + tests · `078c404` per-suite tenants for the two JobRun suites |
+
+Both merge into `1be7bea` with **zero conflicts**, verified by `git merge-tree`.
+
+Both carry an explicit request for a reviewer who did not write them. §15 records why: this auditor
+became an implementer at the operator's instruction and cannot certify its own code. #71 in
+particular changes `lib/prisma.ts`, the isolation layer every query passes through.
+
+## 20.2 Open pull requests — reclassified against `1be7bea`
+
+The dependabot PRs were re-run against the new main and **three of five changed status**, which
+retires the rev-2 reading that all five were real incompatibilities.
+
+| PR | `CI required checks` | Classification | Change |
+|---|---|---|---|
+| **#70** | pending | **READY-TO-MERGE** (pending review) | new |
+| **#71** | pending | **READY-TO-MERGE** (pending review) | new |
+| #54 `groq-sdk` 1.2.1 → 1.5.0 | **SUCCESS** | **READY-TO-MERGE** | was ISOLATED-UPGRADE |
+| #55 `nodemailer` 9.0.1 → 9.0.5 | **SUCCESS** | **READY-TO-MERGE** | was ISOLATED-UPGRADE |
+| #56 `isomorphic-dompurify` 3.21.0 → 3.22.0 | **SUCCESS** | **READY-TO-MERGE** | was ISOLATED-UPGRADE |
+| #57 `typescript` 5.9.3 → 7.0.2 | **FAILURE** | **ISOLATED-UPGRADE** | unchanged — major compiler version |
+| #58 `@prisma/client` 6.2.1 → 7.9.1 | **FAILURE** | **ISOLATED-UPGRADE** | unchanged — major ORM version, and `lib/prisma.ts` is the most upgrade-sensitive file here |
+| #63 dev environment | SUCCESS but **CONFLICTING** | **CLOSE-SUPERSEDED** | unchanged |
+| #44 create-user revokes sessions | SUCCESS | **CLOSE-SUPERSEDED** | unchanged — content already in main |
+
+**A correction to revision 1 and 2.** Both recorded all five dependabot PRs as failing, and rev 2
+went further: *"The rebase removes 'stale base' as an explanation: these are real
+incompatibilities, not drift."* Three of them now pass unchanged against a newer main. That
+inference was wrong — the base had moved again since, and the failures were partly drift after all.
+Recorded rather than edited, on the same principle as §17.8 and §18.1.
+
+## 20.3 What remains, and why none of it is reachable here
+
+Nothing is failing. Every gate this host can run is green at `634e147` plus both auditor branches:
+`tsc` 0, `eslint` 0, Vitest 1,678 passed / 5 skipped, `next build` 0, Playwright 207 passed / 0
+failed, migration replay 0.
+
+| Item | Blocker | Status |
+|---|---|---|
+| `POST /api/leads/import` cross-tenant campaign | needs the import worker, therefore Redis | **RED-candidate, unmeasured** (§17.3) |
+| Docker image gate | no container runtime on this host | UNVERIFIED |
+| **LIVE managed / durable Redis** | a real broker: TLS/auth, durability, restart survival, worker reconnect, JobRun reconciliation, eviction, queue depth, failed-job visibility | **RED — the sole remaining one** |
+| CSP | an enforcing `Content-Security-Policy` header observed on a running build | **YELLOW ×4** |
+| Skipped-test re-enumeration | trivial; belongs at a freeze, not mid-flight | pending |
+
+The first four are infrastructure, not code. No amount of further work in this environment closes
+them, and reporting them as anything other than open would be the substitution this matrix exists to
+refuse.
