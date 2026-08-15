@@ -51,6 +51,9 @@ either run each side inside its own tenant context, or be built with raw SQL —
 | `/api/booking-links` | POST | `tenantId`, `createdById` | — | ignored, session wins | n/a | n/a | ✅ | n/a | n/a | ✅ | n/a | **GREEN** | `f8c635f` |
 | `/api/booking-links` | POST | `isDefault` clear | BookingLink | ✅ scoped by extension | n/a | n/a | ✅ **proven** | n/a | n/a | ✅ | ✅ advisory lock | **GREEN** | `HEAD` |
 | `/api/booking-links` | GET | `client`, `campaign`, `createdBy` includes | Client / Campaign / User | ✅ relation guard | n/a | n/a | ✅ **was RED** | n/a | n/a | n/a | n/a | **GREEN** | `HEAD` |
+| `/api/client-reports` | POST | `clientId` | Client | `canReferenceClient` | ✅ 403 | ✅ 422 | ✅ 404 | ✅ 403 | ✅ 404 | ✅ | n/a | **GREEN** | `HEAD` |
+| `/api/client-reports` | POST | `campaignId` | Campaign | `canReferenceCampaign` | ✅ 403 | ✅ 422 | ✅ 404 | ✅ 403 | ✅ 404 | ✅ | n/a | **GREEN** | `HEAD` |
+| `/api/client-reports` | POST | `tenantId`, `generatedById` | — | ignored, session wins | n/a | n/a | ✅ | n/a | n/a | ✅ | n/a | **GREEN** | `HEAD` |
 | `/api/sequences/preview` | POST | `sequenceId`, `leadId` | — | not dereferenced | n/a | n/a | — | — | — | — | n/a | **PENDING** | — |
 
 ## Booking links — raw-SQL probe, classification B
@@ -172,6 +175,27 @@ could quietly move a real client's booking link to the wrong company.
 Proven against a live database rather than asserted: on first run it found **4 real inconsistent
 rows** — leftovers from the discarded classification probe — printed them with their tenant ids,
 and exited 1. After those rows were removed it reports 0 and exits 0.
+
+## Client reports — was RED across the board, fixed
+
+`canCreateClientReport` admits **sdr** upward, so the widest exposure was an ordinary rep, and
+`clientId` / `campaignId` arrived unvalidated in the body. Measured before changing anything:
+
+    foreign client            201  ->  404
+    foreign campaign          201  ->  404
+    nonexistent client        500  ->  404
+    nonexistent campaign      500  ->  404
+    in-tenant invisible client    201  ->  403
+    in-tenant invisible campaign  201  ->  403
+    campaign of another client    201  ->  422
+
+Worse than the booking-link shape in one respect, which is why the checks run *before*
+`buildReportMetrics`: that call computes aggregates over whatever client was named, so an
+unchecked foreign reference does not merely mislabel a row — it pulls another tenant's numbers
+into the stored snapshot and the response. Every negative case asserts the response body carries
+no foreign identifier, not just that the status is right.
+
+`tenantId` and `generatedById` were already session-derived and remain so.
 
 ## Open work, in order
 
