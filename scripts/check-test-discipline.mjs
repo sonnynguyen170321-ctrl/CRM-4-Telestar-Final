@@ -41,14 +41,15 @@ const SCAN_DIRS = ['tests', 'e2e'];
  */
 const ALLOWED_DISABLED = [
   {
-    file: 'e2e/qa/laneC.spec.ts',
+    file: 'e2e/qa/laneC.qa.ts',
     line: 987,
     reason:
       'No lane-owned lead is visible to the leadgen member, so the assertion has nothing to ' +
-      'act on. This is a product finding (QA C5/C7), not a flaky test. Owned by the leadgen ' +
-      'visibility work in the RBAC/browser phases; the exemption is removed when a lane-owned ' +
-      'lead is visible to that role. Note the acceptance matrix is maintained by the ' +
-      'independent auditor, so this entry deliberately does not claim a status in it.',
+      'act on. This is a product finding (QA C5/C7), not a flaky test. It sits in exploratory ' +
+      'scaffolding that no Playwright project executes (see e2e/qa/README.md), and the finding ' +
+      'is owned by the leadgen visibility work in the RBAC/browser phases — the exemption goes ' +
+      'when a lane-owned lead is visible to that role. The acceptance matrix is maintained by ' +
+      'the independent auditor, so this entry deliberately claims no status in it.',
   },
 ];
 
@@ -157,6 +158,87 @@ function checkRequiredEnv() {
   return REQUIRED_CI_ENV.filter((dep) => !process.env[dep.name]);
 }
 
+/**
+ * Every `e2e/**\/*.spec.ts` must be matched by a Playwright project.
+ *
+ * A spec matched by no project does not fail, warn, or appear anywhere — it silently never
+ * runs, and it looks exactly like coverage. `e2e/qa/` held eight such files, one of which
+ * (`laneG`) was the only browser assertion anywhere on the no-silent-removal dialog, and it had
+ * never executed. `automation-journeys.spec.ts` hit the same trap earlier and is called out in
+ * CLAUDE.md.
+ *
+ * Support files, fixtures and deliberately non-executable material are fine — they simply must
+ * not be named `.spec.ts`, which is the thing that reads as "this runs".
+ */
+function checkEverySpecIsExecuted() {
+  const configPath = join(ROOT, 'playwright.config.ts');
+  if (!existsSync(configPath)) return [];
+
+  const config = readFileSync(configPath, 'utf8');
+
+  // `testMatch:` entries, in either form the config uses: a RegExp literal or a glob array
+  // built from a file list. Both are read as text — importing the config would need a TS
+  // loader, and this check has to run before anything else in CI.
+  const regexMatchers = [];
+  for (const m of config.matchAll(/testMatch:\s*\//g)) {
+    // Read the literal by hand. A `matchAll` pattern cannot do this: the config's own matchers
+    // contain `[\\/]`, and the `/` inside that character class terminates any naive scan — which
+    // is exactly the bug the first version of this check shipped with, reporting every spec in
+    // the repository as unexecuted.
+    let i = m.index + m[0].length; // first char of the pattern body
+    let inClass = false;
+    let body = '';
+    for (; i < config.length; i++) {
+      const ch = config[i];
+      if (ch === '\\') {
+        body += ch + config[i + 1];
+        i++;
+        continue;
+      }
+      if (ch === '[') inClass = true;
+      else if (ch === ']') inClass = false;
+      else if (ch === '/' && !inClass) break;
+      else if (ch === '\n') break; // unterminated — give up on this one
+      body += ch;
+    }
+    let flags = '';
+    for (let j = i + 1; j < config.length && /[gimsuy]/.test(config[j]); j++) flags += config[j];
+    try {
+      regexMatchers.push(new RegExp(body, flags));
+    } catch {
+      /* an unparseable matcher is reported below as "no project matched" */
+    }
+  }
+
+  // The `chromium` project matches a hardcoded list of legacy filenames.
+  const legacy = new Set();
+  const legacyBlock = config.match(/LEGACY_SPECS\s*=\s*\[([\s\S]*?)\]/);
+  if (legacyBlock) {
+    for (const f of legacyBlock[1].matchAll(/['"`]([^'"`]+)['"`]/g)) legacy.add(f[1]);
+  }
+
+  const e2eDir = join(ROOT, 'e2e');
+  if (!existsSync(e2eDir)) return [];
+
+  const orphans = [];
+  for (const file of walk(e2eDir)) {
+    const rel = relative(ROOT, file).split(sep).join('/');
+    if (!rel.endsWith('.spec.ts')) continue;
+
+    const base = rel.slice('e2e/'.length);
+    const matched =
+      legacy.has(base) ||
+      regexMatchers.some((re) => {
+        re.lastIndex = 0;
+        // Playwright tests both separators; the config's own patterns allow either.
+        return re.test(rel) || re.test(rel.replace(/\//g, '\\'));
+      });
+
+    if (!matched) orphans.push(rel);
+  }
+  return orphans;
+}
+
 function checkResults(path) {
   if (!existsSync(path)) {
     return [`Vitest result file not found: ${path}`];
@@ -229,6 +311,18 @@ if (stale.length > 0) {
   console.error('\nStale allowlist entries — the exemption no longer describes the code:\n');
   for (const s of stale) console.error(`  ${s}`);
   console.error('');
+}
+
+const orphanSpecs = checkEverySpecIsExecuted();
+if (orphanSpecs.length > 0) {
+  failed = true;
+  console.error('\nPlaywright specs that no project executes:\n');
+  for (const s of orphanSpecs) console.error(`  ${s}`);
+  console.error(
+    '\nA spec matched by no project never runs and never complains — it is dead surface that\n' +
+      'looks like coverage. Either add it to a project in playwright.config.ts, or rename it so\n' +
+      'it does not end in .spec.ts.\n'
+  );
 }
 
 if (ciMode) {
