@@ -222,10 +222,31 @@ routes both commits touch.
 
 | | |
 | --- | --- |
-| Candidate SHA | recorded at freeze — see `git rev-parse HEAD` on `release/internal-cutover-2026-08-17` |
-| Tag `internal-rc-2026-08-17` | **NOT CREATED** — the branch has not been pushed; tagging and the image digest belong to the operator with push rights |
-| Image digest | **UNKNOWN** — no Docker locally and no published image for this SHA |
-| Base moved during work? | No — `origin/main` still `1bb0336` |
+| **Gated candidate SHA** | **`d00dcaa96be9032ab6f9fdbb6a6877b21f7c8aa4`** |
+| Branch | `release/internal-cutover-2026-08-17` |
+| Base moved during work? | **No** — `origin/main` re-fetched at freeze, still `1bb0336`. No rebase, no gate re-run needed. |
+| Tag `internal-rc-2026-08-17` | **NOT CREATED** — branch not pushed; tagging and the image digest belong to an operator with push rights |
+| Image digest | **UNKNOWN** — no Docker locally, no published image for this SHA |
+| Pushed to origin? | **No** |
+
+Every gate in the Phase 2 table was run against the tree at `d00dcaa`. The final verification pass
+after the documentation commit reported lint exit 0, `tsc` exit 0, and Vitest exit 0 with
+**1696 passed / 5 skipped / 0 failed** — unchanged, which matters because several suites assert on
+repository documentation.
+
+Commits, in order:
+
+```
+d00dcaa  docs: cutover runbook, evidence, migration inventory, six stale claims corrected
+9f650a4  test(admin): give the import fixture the campaign membership it always needed
+ff09dce  fix(security): validate the imported campaign before the batch exists
+15d0885  fix(security): validate report-preview references before the metrics are built
+fb6f40a  fix(ui,security): sidebar role during session load; dead font origins out of CSP
+1bb0336  (origin/main)
+```
+
+Any commit made after `d00dcaa` — including one that records this SHA — is documentation only and
+does not change the built artifact. Re-run the gates anyway before tagging if code is touched.
 
 **A digest is mandatory before deploying.** `docker-compose.yml` declares `${CRM_IMAGE:?…}` with
 no default so a tag cannot drift under a running deployment.
@@ -300,8 +321,9 @@ Historical findings were marked superseded with links, never deleted.
 # FINAL ACCEPTANCE REPORT
 
 ```text
-RELEASE SHA:        release/internal-cutover-2026-08-17 (candidate; not tagged, not pushed)
-                    base 1bb033648d0c099df694e3f2e7b852f13df6212a + fb6f40a, 15d0885, ff09dce
+RELEASE SHA:        d00dcaa96be9032ab6f9fdbb6a6877b21f7c8aa4
+                    branch release/internal-cutover-2026-08-17 — not tagged, not pushed
+                    base 1bb033648d0c099df694e3f2e7b852f13df6212a (unmoved at freeze)
 IMAGE/DIGEST:       UNKNOWN — not built (no Docker); no published image for this SHA
 DEPLOYED AT:        NOT DEPLOYED
 DATABASE:           local PostgreSQL 16 only; production Cloud SQL not accessed
