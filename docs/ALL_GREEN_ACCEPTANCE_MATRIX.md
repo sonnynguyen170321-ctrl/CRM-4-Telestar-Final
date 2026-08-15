@@ -2241,3 +2241,75 @@ its tests and change nothing, exactly as §15.4's did.
 | Nested-include disclosure, remaining 28 routes | **RED — open**, with a runnable reproduction |
 | PR #69 certification by this auditor | **Forfeit** — §15 |
 | CI Redis | GREEN · **LIVE managed Redis** RED · **CSP** YELLOW |
+
+---
+
+# 16. Verifications at `634e147`
+
+Pinned at `C:\awt8`, `PRE_HEAD` = `POST_HEAD` = `634e147`, clean throughout. Private database.
+Full suite: **exit 0**, `Test Files 118 passed | 1 skipped (119)`, `Tests 1672 passed | 5 skipped (1677)`.
+
+Three items the auditor had left open are closed by measurement rather than by reading.
+
+## 16.1 Work Order creation object-RBAC — §14.8 flag closed
+
+`634e147` adds to `POST /api/work-orders`, before `createWorkOrder` is reached:
+
+```ts
+const lead = await prisma.lead.findFirst({ where: { id: parsed.data.leadId, tenantId: user.tenantId }, … });
+if (!lead || !(await canAccessLead(user, lead))) return 403;
+if (parsed.data.campaignId) { const c = await canReferenceCampaign(user, parsed.data.campaignId); if (c !== 'ok') return 403; }
+```
+
+That is object-level authorization, which is exactly what §14.8 said was missing: `resolveScope`
+checked tenancy explicitly and well, and never asked whether *this caller* could reference *this
+lead*.
+
+Red-green: reverting the route to `a1bc035` → **1 failed / 5 passed**, the failure being
+`refuses an in-tenant lead the caller cannot access, and leaks nothing by doing so`. Restored →
+9 passed. The one discriminating test is the right one, and the "leaks nothing" half matters —
+a 404 would have distinguished a peer's lead from a nonexistent id.
+
+**Row: PROVISIONAL GREEN.**
+
+## 16.2 Client Reports reference security — §14.5 plan executed by the implementation
+
+`a1bc035` validates `clientId` and `campaignId` on `POST /api/client-reports` before metrics are
+computed. Red-green: reverting the route → **6 failed**, and the six are almost case-for-case the
+matrix the auditor registered in §14.5 before any of this existed:
+
+- refuses a client in another tenant
+- refuses a campaign in another tenant
+- refuses a client that does not exist
+- refuses a campaign that does not exist
+- refuses an in-tenant client the caller cannot see
+- refuses an in-tenant campaign the caller cannot see
+
+Restored → 9 passed.
+
+**Row: PROVISIONAL GREEN**, with two cases from §14.5 still unasserted and carried: a **spoofed
+actor** (`generatedById` / `approvedById` supplied in the body must lose to the session) and
+**share-token isolation** across tenants.
+
+## 16.3 Sequence preview — classified N/A, on the criteria set in advance
+
+§14.10 said this was a classification question, not a presumed vulnerability, and named three
+conditions for marking it **N/A — opaque seed input**: no object disclosure from foreign or random
+ids, no durable mutation, and output varying only as deterministic scheduling seed material.
+`tests/sequence-preview-opaque-ids.test.ts` asserts all three, including the one that actually
+settles it:
+
+> `does not distinguish an id from another tenant from one that does not exist` — same status, same
+> response keys.
+
+An endpoint that never dereferences an id cannot disclose anything by being handed one, and
+demanding authorization there would protect nothing while implying the id had meaning.
+
+**Row: N/A — opaque seed input.** No authorization is required and none should be added.
+
+## 16.4 Record preserved
+
+`docs/ALL_GREEN_ACCEPTANCE_MATRIX.md` was untracked — 2,243 lines existing only in one working
+copy. Committed as `985c6f8` on branch `docs/all-green-acceptance-matrix`, cut from `origin/main`
+and pushed. The audit record now survives the machine it was written on, which it previously
+did not.
