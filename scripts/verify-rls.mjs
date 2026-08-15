@@ -191,17 +191,25 @@ async function main() {
       console.log('Connected as an unprivileged role holding tenant A context:\n');
 
       const own = await asTenantA(`SELECT id FROM "Lead" WHERE "tenantId" = 'tenant-a'`);
-      own.length === 1 ? pass('reads its own tenant\'s rows') : fail(`expected 1 own row, saw ${own.length}`);
+      if (own.length === 1) {
+        pass('reads its own tenant\'s rows');
+      } else {
+        fail(`expected 1 own row, saw ${own.length}`);
+      }
 
       const other = await asTenantA(`SELECT id FROM "Lead" WHERE "tenantId" = 'tenant-b'`);
-      other.length === 0
-        ? pass('cannot read another tenant\'s rows')
-        : fail(`LEAKED ${other.length} row(s) from tenant B`);
+      if (other.length === 0) {
+        pass('cannot read another tenant\'s rows');
+      } else {
+        fail(`LEAKED ${other.length} row(s) from tenant B`);
+      }
 
       const byId = await asTenantA(`SELECT id FROM "Lead" WHERE id = 'lead-b'`);
-      byId.length === 0
-        ? pass('cannot read another tenant\'s row by direct id')
-        : fail('LEAKED tenant B row via direct id lookup');
+      if (byId.length === 0) {
+        pass('cannot read another tenant\'s row by direct id');
+      } else {
+        fail('LEAKED tenant B row via direct id lookup');
+      }
 
       // The models added after the original matrix was written. `SequenceStepCopy` matters most
       // of all: it holds the approved prospect-facing wording, so a leak there is a leak of
@@ -216,24 +224,30 @@ async function main() {
         ['SequenceStepCopy', 'copy-b'],
       ]) {
         const check = await asTenantA(`SELECT id FROM "${tbl}" WHERE id = '${id}'`);
-        check.length === 0
-          ? pass(`cannot read tenant B ${tbl} by direct id`)
-          : fail(`LEAKED tenant B ${tbl} row via direct id lookup`);
+        if (check.length === 0) {
+          pass(`cannot read tenant B ${tbl} by direct id`);
+        } else {
+          fail(`LEAKED tenant B ${tbl} row via direct id lookup`);
+        }
       }
 
       const updated = await asTenantA(
         `WITH u AS (UPDATE "Lead" SET company='hijacked' WHERE id='lead-b' RETURNING 1) SELECT count(*)::int AS n FROM u`
       );
-      Number(updated[0].n) === 0
-        ? pass('cannot update another tenant\'s row')
-        : fail('UPDATED a tenant B row');
+      if (Number(updated[0].n) === 0) {
+        pass('cannot update another tenant\'s row');
+      } else {
+        fail('UPDATED a tenant B row');
+      }
 
       const deleted = await asTenantA(
         `WITH d AS (DELETE FROM "Lead" WHERE id='lead-b' RETURNING 1) SELECT count(*)::int AS n FROM d`
       );
-      Number(deleted[0].n) === 0
-        ? pass('cannot delete another tenant\'s row')
-        : fail('DELETED a tenant B row');
+      if (Number(deleted[0].n) === 0) {
+        pass('cannot delete another tenant\'s row');
+      } else {
+        fail('DELETED a tenant B row');
+      }
 
       try {
         await asTenantA(
@@ -249,9 +263,11 @@ async function main() {
       await appClient.$executeRawUnsafe(`SELECT set_config('app.current_tenant_id','',false)`);
       await appClient.$executeRawUnsafe(`SELECT set_config('app.bypass_rls','false',false)`);
       const noCtx = await appClient.$queryRawUnsafe(`SELECT id FROM "Lead"`);
-      noCtx.length === 0
-        ? pass('fails closed with no tenant context')
-        : fail(`returned ${noCtx.length} row(s) with no tenant context — fails OPEN`);
+      if (noCtx.length === 0) {
+        pass('fails closed with no tenant context');
+      } else {
+        fail(`returned ${noCtx.length} row(s) with no tenant context — fails OPEN`);
+      }
     } finally {
       await appClient.$disconnect();
     }
@@ -267,11 +283,13 @@ async function main() {
       await c.$executeRawUnsafe(`SELECT set_config('app.current_tenant_id','tenant-a',false)`);
       await c.$executeRawUnsafe(`SELECT set_config('app.bypass_rls','false',false)`);
       const rows = await c.$queryRawUnsafe(`SELECT id FROM "Lead"`);
-      rows.length === 2
-        ? pass(`superuser sees both tenants (${rows.length} rows) — RLS does not apply to superusers`)
-        : fail(
-            `expected a superuser to see 2 rows, saw ${rows.length} — the checks above may be passing vacuously`
-          );
+      if (rows.length === 2) {
+        pass(`superuser sees both tenants (${rows.length} rows) — RLS does not apply to superusers`);
+      } else {
+        fail(
+          `expected a superuser to see 2 rows, saw ${rows.length} — the checks above may be passing vacuously`
+        );
+      }
     });
   } finally {
     // ── Teardown ────────────────────────────────────────────────────────────

@@ -777,7 +777,7 @@ test('C5 campaign routing: assign then convert qualified records into working le
   const convertCount = pickedForConvert.rows;
   await shot(page, LANE, 'c5-selected-for-convert');
 
-  let convertRepsChosen: string[] = [];
+  const convertRepsChosen: string[] = [];
   if (pickedForConvert.selected > 0) {
     await page.getByRole('button', { name: /Convert to Leads/i }).click();
     await expect(page.getByRole('heading', { name: 'Convert to Leads' })).toBeVisible();

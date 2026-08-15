@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, canReferenceClient, canReferenceCampaign } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { parseBody, capLimit } from '@/lib/validation/core';
 import { createClientReportSchema, reportStatus, reportAudience } from '@/lib/validation/schemas';
@@ -45,7 +45,6 @@ export async function GET(req: NextRequest) {
     const check = reportAudience.safeParse(audienceFilter);
     if (!check.success) return NextResponse.json({ error: 'Invalid audience filter' }, { status: 400 });
   }
-
   try {
     // The session's tenant, or the stored one if the session did not carry it. No literal
     // fallback: a user with no tenant on either has no tenant, and writing reports into a real
@@ -124,6 +123,45 @@ export async function POST(req: NextRequest) {
   const parsed = await parseBody(req, createClientReportSchema);
   if (parsed.error) return parsed.error;
   const body = parsed.data;
+
+  // Validated before `buildReportMetrics` runs. That call computes aggregates over whatever
+  // client was named, so an unchecked foreign reference does not merely mislabel the row — it
+  // pulls another tenant's numbers into the stored snapshot and the response. Measured before
+  // this existed: an ordinary SDR naming another tenant's client got 201, and the body carried
+  // that client back.
+  const clientCheck = await canReferenceClient(user, body.clientId);
+  if (clientCheck === 'not_found') {
+    // Foreign and nonexistent answer alike, so the status never confirms that a client exists
+    // somewhere else. Both previously surfaced as 500 from a raw foreign-key failure.
+    return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+  }
+  if (clientCheck === 'forbidden') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  if (body.campaignId) {
+    const campaignCheck = await canReferenceCampaign(user, body.campaignId);
+    if (campaignCheck === 'not_found') {
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+    }
+    if (campaignCheck === 'forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Relational consistency rather than authorization: both references are in-tenant and the
+    // caller may name each. A report headed with one client while its campaign belongs to
+    // another is simply incoherent, and it is the artefact a customer receives.
+    const campaign = await prisma.campaign.findFirst({
+      where: { id: body.campaignId },
+      select: { clientId: true },
+    });
+    if (campaign && campaign.clientId !== body.clientId) {
+      return NextResponse.json(
+        { error: 'The campaign does not belong to the supplied client' },
+        { status: 422 }
+      );
+    }
+  }
 
   try {
     // The session's tenant, or the stored one if the session did not carry it. No literal

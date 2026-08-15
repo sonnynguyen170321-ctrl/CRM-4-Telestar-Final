@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { handleApiError } from '@/lib/api/errors';
-import { dispatchWorkOrder } from '@/lib/workorders/dispatch';
+import { dispatchWorkOrder, WorkOrderAccessError } from '@/lib/workorders/dispatch';
 import { WorkOrderConflictError } from '@/lib/workorders/conflicts';
 import { WorkOrderNotFoundError, WorkOrderStateError } from '@/lib/workorders/service';
 
@@ -44,6 +44,12 @@ export async function POST(
       leaseHeld: result.leaseHeld,
     });
   } catch (err) {
+    if (err instanceof WorkOrderAccessError) {
+      // 403, not 404: the order is in the caller's own tenant and they are entitled to know it
+      // exists. Only foreign-tenant existence has to stay concealed, and a foreign order never
+      // reaches here — `dispatchWorkOrder` is already tenant-scoped.
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     if (err instanceof WorkOrderConflictError) {
       return NextResponse.json(
         { error: err.message, conflicts: err.conflicts },
