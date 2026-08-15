@@ -2313,3 +2313,115 @@ demanding authorization there would protect nothing while implying the id had me
 copy. Committed as `985c6f8` on branch `docs/all-green-acceptance-matrix`, cut from `origin/main`
 and pushed. The audit record now survives the machine it was written on, which it previously
 did not.
+
+---
+
+# 17. Completeness check — independent inventory vs `REQUEST_REFERENCE_SECURITY_MATRIX.md`
+
+Compared at `634e147`. The auditor's inventory (§14.2, corrected in §14.8) was built from route
+source before the implementation's matrix existed and without reading it. This is the diff.
+
+| | count |
+|---|---|
+| Routes in the implementation's matrix | **6** (17 field rows) |
+| Routes in the auditor's inventory accepting a request-controlled relational id | **21** |
+| Overlap | **5** |
+
+`/api/leads` · `/api/booking-links` · `/api/client-reports` · `/api/work-orders` ·
+`/api/sequences/preview`.
+
+## 17.1 Missing from the implementation's matrix — 16 routes
+
+`booking-links/[id]` · `client-reports/preview` · `leads/[id]` · `leads/import` · `activities` ·
+`ai/draft-outcome` · `email/send` · `meetings` · `notes` · `reminders` · `tasks/bulk` · `tasks` ·
+`campaigns` · `campaigns/[id]/members` · `admin/transfer-work` · `demo/inbound-reply`
+
+Absence is not the same as exposure, and most of these are fine. Five were **cleared by the auditor
+in §14.8** — `tasks`, `campaigns/[id]/members`, `demo/inbound-reply`, `admin/transfer-work`, and
+`booking-links/[id]` (cleared by being fixed in `495ab2b`). Eight more call a guard visible in the
+route itself: `activities`, `ai/draft-outcome`, `email/send`, `meetings`, `notes`, `reminders`,
+`tasks/bulk`, `leads/[id]` all call `canAccessLead` or `canAccessUser`, and `campaigns` calls
+`getVisibleCampaignIds`. None of those has a *negative test*, but none is unguarded.
+
+**Two are neither documented nor guarded, and both are the same defect class already fixed on a
+sibling route.** That is the finding this diff exists to produce.
+
+## 17.2 `POST /api/client-reports/preview` — unguarded, and its sibling was just hardened
+
+```ts
+const userOrRes = await requireAuth();            // …and nothing else
+const snapshot = await buildReportMetrics({
+  clientId: body.clientId,
+  campaignId: body.campaignId,
+  …
+});
+return NextResponse.json({ snapshot });
+```
+
+`POST /api/client-reports` gained `canReferenceClient` + `canReferenceCampaign` in `a1bc035`, with
+six red-green tests. `preview` takes **the same two fields**, computes **the same metrics** through
+the same `buildReportMetrics`, and checks neither. This is the identical asymmetry as
+booking-links `POST` fixed / `PATCH` open: one door closed, the adjacent one left standing.
+
+What is at stake here is worse than a leaked name — the payload is a *metrics snapshot*: meetings
+booked, contacts touched, sequence performance for a client and campaign the caller names.
+
+**Honest mitigation, stated because it probably prevents disclosure today:** the queries inside
+`buildReportMetrics` go through the Prisma extension, which scopes top-level reads by `tenantId`,
+so a foreign `clientId` most likely yields an empty snapshot rather than another tenant's numbers.
+That is exactly the reliance `canReferenceCampaign`'s own comment warns against — *"a reference
+check that depends on an ambient behaviour is one refactor away from silently passing"*. It also
+still answers, which distinguishes a real foreign id from an invented one unless the empty result
+is identical for both.
+
+**Status: RED-candidate, needs measurement.** The auditor has not measured this one; saying so is
+the difference between this row and §14.14, which was reproduced before it was reported.
+
+## 17.3 `POST /api/leads/import` — capability checked, reference not
+
+```ts
+if (!canImportExport(user.role)) return 403;      // capability, not object
+…
+campaignId: isPool ? null : body.campaignId!,     // straight from the body, unvalidated
+```
+
+`POST /api/leads` refuses a cross-tenant `campaignId` — reproduced at **HTTP 201** before
+`canReferenceCampaign` existed, per that function's own docblock. The import path creates leads
+with `campaignId` taken from the body and never checks it. A database foreign key enforces
+*existence*, not *tenancy*, so nothing below this line stops the attachment.
+
+This is the same defect, on the path that creates leads in bulk.
+
+**Status: RED-candidate, needs measurement.** Measuring it needs the import worker, so it wants
+Redis — which is why it is reported rather than reproduced.
+
+## 17.4 Extra in the implementation's matrix — none
+
+Every route it lists appears in the auditor's inventory. No phantom coverage.
+
+## 17.5 Same route, different classification
+
+One, and it is benign: the matrix carries `tenantId` rows for `/api/leads`, `/api/booking-links`,
+`/api/client-reports` and `/api/work-orders` marked *"ignored, session wins"*. The auditor's
+inventory filtered `tenantId` out by construction, on the grounds that a field stamped from the
+session is not attack surface. Documenting it is defensible and arguably better — it records that
+the field was considered and neutralised, which an omission does not.
+
+## 17.6 Delegation claims — verified
+
+Every delegation the auditor asserted in §14.8 was traced to the module that owns the check, not
+assumed: `tasks` → `lib/tasks/service.ts` (translates `Forbidden` → 403, `Lead not found` → 404) ·
+`campaigns/[id]/members` → `getManageScope` / `canManage` · `admin/transfer-work` →
+`lib/admin/transferWork.ts`, which requires **both** users in scope and 403s on
+`scope.kind === 'none'` · `demo/inbound-reply` → hard-gated to `DEMO_TENANT_ID` · `sequences/preview`
+→ nothing to delegate, ids are never dereferenced (§16.3).
+
+**None rejected.**
+
+## 17.7 What the diff is worth
+
+A matrix covering 6 of 21 routes is not wrong, but it cannot support a completeness claim — and the
+two routes it omits that nobody guarded are both siblings of routes it *does* cover and that were
+fixed. The pattern is consistent and worth naming: **the fixes have been correct, and the misses
+have been adjacent.** A per-field matrix built from the routes already known to be interesting will
+keep reproducing that shape. Enumerating from the route surface first is what breaks it.
