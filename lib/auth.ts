@@ -168,6 +168,50 @@ export async function canAccessUser(viewer: SessionUser, ownerId: string): Promi
   return visible === null || visible.includes(ownerId);
 }
 
+/**
+ * Whether the caller may *reference* a campaign supplied in a request body.
+ *
+ * Reaching a row by id and naming one in a payload are different attacks with different
+ * defences. `canAccessLead` answers "may you touch this existing record"; this answers "may you
+ * point a new record at this campaign", which is what a client actually controls when it POSTs
+ * `campaignId`. `POST /api/leads` validated `assignedToId` and stamped `tenantId` from the
+ * session, then passed `campaignId` straight through — so a tenant A SDR could create a lead
+ * attached to tenant B's campaign, and did: reproduced at HTTP 201 in CI before this existed.
+ * `lead -> campaign -> client` is the chain every report and client-facing export walks.
+ *
+ * Two separate questions, deliberately not collapsed into one:
+ *
+ *   1. does the campaign belong to the caller's tenant?
+ *   2. is the caller allowed to reference it under the existing permission model?
+ *
+ * A campaign existing in your tenant does not mean every SDR may attach records to it, so the
+ * second question reuses `getVisibleCampaignIds` — the same scoping that decides which campaigns
+ * a caller can see — rather than inventing a parallel rule.
+ *
+ * The result distinguishes the two so routes can answer correctly without leaking existence:
+ * a foreign-tenant or missing campaign is `'not_found'` (404, indistinguishable from a typo,
+ * which is the convention `tenant-isolation.spec.ts` already accepts), while a real campaign the
+ * caller may not use is `'forbidden'` (403).
+ */
+export type ReferenceCheck = 'ok' | 'not_found' | 'forbidden';
+
+export async function canReferenceCampaign(
+  viewer: SessionUser,
+  campaignId: string
+): Promise<ReferenceCheck> {
+  // Tenant first, and explicitly: the Prisma extension scopes this read anyway, but a reference
+  // check that depends on an ambient behaviour is one refactor away from silently passing.
+  const campaign = await prisma.campaign.findFirst({
+    where: { id: campaignId, tenantId: viewer.tenantId ?? undefined },
+    select: { id: true },
+  });
+  if (!campaign) return 'not_found';
+
+  const visible = await getVisibleCampaignIds(viewer);
+  if (visible === null) return 'ok'; // director / leadgen manager — unrestricted within the tenant
+  return visible.includes(campaignId) ? 'ok' : 'forbidden';
+}
+
 /** Build a Prisma `where` clause that scopes leads/tasks to the user's role. */
 export function buildRoleScope(user: SessionUser) {
   switch (user.role) {

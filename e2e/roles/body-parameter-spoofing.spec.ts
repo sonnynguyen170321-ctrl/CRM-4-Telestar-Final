@@ -120,28 +120,67 @@ test.describe('the request body cannot choose an owner', () => {
 
 test.describe('the request body cannot choose a campaign', () => {
   test('a lead cannot be created into another tenant campaign', async ({ baseURL, recorder }) => {
-    recorder.expectFailures(400, 403, 404, 422);
+    recorder.expectFailures(403, 404);
     const s = stamp();
     const api = await apiAs('sdrA', baseURL!);
 
     // `lead -> campaign -> client` is the chain every report and client-facing export walks.
     // A lead stamped with tenant A but pointing at a tenant B campaign is a cross-tenant edge
-    // in that graph, created entirely from the request body.
+    // in that graph, created entirely from the request body. Reproduced at HTTP 201 before the
+    // check in `canReferenceCampaign` existed.
     const res = await readJson(
       await api.post('/api/leads', {
         data: leadPayload(s, { campaignId: fixture().campaignB }),
       })
     );
 
+    // 404, not 403: a foreign-tenant campaign must be indistinguishable from one that does not
+    // exist, or the error itself confirms foreign rows to anyone willing to guess ids.
     expect(
-      [400, 403, 404, 422],
-      `a tenant A SDR attached a lead to tenant B's campaign and got ${res.status}: ` +
-        JSON.stringify(res.body).slice(0, 200)
-    ).toContain(res.status);
+      res.status,
+      `a tenant A SDR attached a lead to tenant B's campaign: ${JSON.stringify(res.body).slice(0, 200)}`
+    ).toBe(404);
 
-    // If it was created anyway, clean up so the finding does not pollute later runs.
     const created = (res.body as { id?: string })?.id;
-    if (created) await api.delete(`/api/leads/${created}`).catch(() => {});
+    expect(created, 'no lead may be created by a refused request').toBeUndefined();
+    await api.dispose();
+  });
+
+  test('a refused campaign reference leaves no Account or Contact behind', async ({
+    baseURL,
+    recorder,
+  }) => {
+    recorder.expectFailures(403, 404);
+    const s = stamp();
+    const api = await apiAs('sdrA', baseURL!);
+
+    // The route creates or finds an Account and a Contact *before* it creates the Lead. Refusing
+    // only at `lead.create` would still return an error while leaving two durable rows behind —
+    // so a rejected request would quietly pollute the tenant with every attempt. The check has to
+    // run before any of that, and this is what proves it did.
+    const company = `PW_AUDIT_CO_SPOOF_${s}`;
+    const email = `pw.spoof.${s}@audit.test`;
+
+    const res = await readJson(
+      await api.post('/api/leads', {
+        data: leadPayload(s, { campaignId: fixture().campaignB, company, email }),
+      })
+    );
+    expect(res.status).toBe(404);
+
+    // Searching the caller's own tenant: if the side effects landed, they landed here.
+    const leads = await readJson(await api.get(`/api/leads?search=${encodeURIComponent(company)}`));
+    expect(leads.status).toBe(200);
+    const rows = (leads.body as { leads?: unknown[] })?.leads ?? (leads.body as unknown[]);
+    expect(
+      Array.isArray(rows) ? rows.length : 0,
+      'a refused request created a lead in the caller tenant'
+    ).toBe(0);
+
+    // The Account and Contact rows are not reachable over HTTP — there is no `/api/accounts` —
+    // so the durable half of this claim is asserted in `tests/lead-reference-integrity.test.ts`,
+    // which counts the rows directly. Checking them here through an endpoint that does not exist
+    // would produce an assertion that silently never runs, which is worse than no assertion.
     await api.dispose();
   });
 });

@@ -159,6 +159,54 @@ function checkRequiredEnv() {
 }
 
 /**
+ * No unscoped `deleteMany()` / `updateMany()` in test cleanup.
+ *
+ * Test suites run against one shared database and `bypassRls: true` deliberately injects **no**
+ * tenant filter — cross-tenant reads have to keep working so a worker can resolve its own JobRun
+ * before the tenant is known (`lib/prisma.ts`). A bulk write with no `where` therefore hits every
+ * row in the table, across every tenant, including fixtures a suite running in parallel is about
+ * to read.
+ *
+ * `bullmq.test.ts` and `run-now-immediate.test.ts` both did this to `JobRun` and wiped each
+ * other; the symptom was a row that had just been written reading back as null, intermittently,
+ * in whichever suite lost. That is expensive to diagnose and trivial to prevent.
+ *
+ * Only the provably unsafe form is flagged: a call with no `where` key at all. A `where` that is
+ * merely narrow (`{ id }`, `{ email }`, `{ batchId }`) is the suite's own business.
+ */
+function checkScopedCleanup() {
+  const findings = [];
+  for (const dir of SCAN_DIRS) {
+    const abs = join(ROOT, dir);
+    if (!existsSync(abs)) continue;
+
+    for (const file of walk(abs)) {
+      const rel = relative(ROOT, file).split(sep).join('/');
+      const src = stripComments(readFileSync(file, 'utf8'));
+
+      for (const m of src.matchAll(/\.(deleteMany|updateMany)\s*\(/g)) {
+        // Read the argument list to its matching paren so a multi-line `where` is seen.
+        let depth = 1;
+        let i = m.index + m[0].length;
+        for (; i < src.length && depth > 0; i++) {
+          if (src[i] === '(') depth++;
+          else if (src[i] === ')') depth--;
+        }
+        const args = src.slice(m.index + m[0].length, i - 1);
+        if (/\bwhere\b/.test(args)) continue;
+
+        findings.push({
+          file: rel,
+          line: src.slice(0, m.index).split('\n').length,
+          call: m[1],
+        });
+      }
+    }
+  }
+  return findings;
+}
+
+/**
  * Every `e2e/**\/*.spec.ts` must be matched by a Playwright project.
  *
  * A spec matched by no project does not fail, warn, or appear anywhere — it silently never
@@ -311,6 +359,18 @@ if (stale.length > 0) {
   console.error('\nStale allowlist entries — the exemption no longer describes the code:\n');
   for (const s of stale) console.error(`  ${s}`);
   console.error('');
+}
+
+const unscoped = checkScopedCleanup();
+if (unscoped.length > 0) {
+  failed = true;
+  console.error('\nBulk writes with no `where`, against a database every suite shares:\n');
+  for (const u of unscoped) console.error(`  ${u.file}:${u.line}  .${u.call}()`);
+  console.error(
+    '\n`bypassRls: true` injects no tenant filter, so these delete or update every row in the\n' +
+      'table across every tenant — including fixtures a suite running in parallel is about to\n' +
+      'read. Scope the call.\n'
+  );
 }
 
 const orphanSpecs = checkEverySpecIsExecuted();
