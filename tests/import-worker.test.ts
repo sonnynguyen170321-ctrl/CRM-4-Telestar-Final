@@ -20,6 +20,11 @@ const mockContactUpdate = vi.fn();
 const mockAccountFindUnique = vi.fn();
 const mockAccountCreate = vi.fn();
 const mockAccountUpdate = vi.fn();
+// Account and contact are resolved on the bare client, before the transaction opens — Prisma
+// does not take Postgres's native `INSERT ... ON CONFLICT DO UPDATE` path through an
+// interactive transaction's `tx`. These belong on `prisma`, not inside `$transaction`.
+const mockAccountUpsert = vi.fn();
+const mockContactUpsert = vi.fn();
 const mockRowCreate = vi.fn();
 const mockRowCreateMany = vi.fn();
 
@@ -36,16 +41,6 @@ vi.mock('@/lib/prisma', () => ({
       },
       importRow: {
         update: (...args: unknown[]) => mockRowUpdate(...args),
-      },
-      contact: {
-        findUnique: (...args: unknown[]) => mockContactFindUnique(...args),
-        create: (...args: unknown[]) => mockContactCreate(...args),
-        update: (...args: unknown[]) => mockContactUpdate(...args),
-      },
-      account: {
-        findUnique: (...args: unknown[]) => mockAccountFindUnique(...args),
-        create: (...args: unknown[]) => mockAccountCreate(...args),
-        update: (...args: unknown[]) => mockAccountUpdate(...args),
       },
     }),
     importBatch: {
@@ -76,11 +71,13 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: (...args: unknown[]) => mockContactFindUnique(...args),
       create: (...args: unknown[]) => mockContactCreate(...args),
       update: (...args: unknown[]) => mockContactUpdate(...args),
+      upsert: (...args: unknown[]) => mockContactUpsert(...args),
     },
     account: {
       findUnique: (...args: unknown[]) => mockAccountFindUnique(...args),
       create: (...args: unknown[]) => mockAccountCreate(...args),
       update: (...args: unknown[]) => mockAccountUpdate(...args),
+      upsert: (...args: unknown[]) => mockAccountUpsert(...args),
     },
   },
 }));
@@ -312,6 +309,8 @@ describe('handleImportChunk', () => {
     mockContactFindUnique.mockResolvedValue(null);
     mockContactCreate.mockResolvedValue({ id: 'contact-1', firstName: 'John', lastName: 'Doe', email: 'john@test.com', tenantId: 't1' });
     mockContactUpdate.mockResolvedValue({ id: 'contact-1', firstName: 'John', lastName: 'Doe', email: 'john@test.com', tenantId: 't1' });
+    mockAccountUpsert.mockResolvedValue({ id: 'account-1', name: 'Acme', tenantId: 't1' });
+    mockContactUpsert.mockResolvedValue({ id: 'contact-1', firstName: 'John', lastName: 'Doe', email: 'john@test.com', tenantId: 't1' });
   });
 
   const CHUNK_PAYLOAD: ImportChunkPayload = {
@@ -325,6 +324,65 @@ describe('handleImportChunk', () => {
     tenantId: 'tenant-1',
     initialStage: 'new',
   };
+
+  /** The row fixture every chunk test needs before `handleImportChunk` will do any work. */
+  const seedOneRow = () => {
+    mockRowFindMany.mockResolvedValue([
+      makeRow('row-1', 1, { firstName: 'John', lastName: 'Doe', email: 'john@test.com', company: 'Acme', phone: '555-0100' }),
+    ]);
+    mockLeadCreate.mockResolvedValue({ id: 'lead-1' });
+  };
+
+  it('resolves the account and contact through upsert, not find-then-create', async () => {
+    // The distinction this pins is not stylistic. Find-then-create loses a lead whenever two
+    // chunks race the same company, and `934bf05` reverted the upsert without anything failing.
+    seedOneRow();
+    await handleImportChunk(CHUNK_PAYLOAD);
+
+    expect(mockAccountUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tenantId_name: { tenantId: 'tenant-1', name: 'Acme' } } })
+    );
+    expect(mockAccountCreate).not.toHaveBeenCalled();
+    expect(mockContactUpsert).toHaveBeenCalled();
+    expect(mockContactCreate).not.toHaveBeenCalled();
+  });
+
+  it('never lets a blank incoming field null out a value another row already set', async () => {
+    seedOneRow();
+    await handleImportChunk(CHUNK_PAYLOAD);
+
+    // `create` may carry explicit nulls — it is establishing the row. `update` must not: every
+    // key it contains would overwrite whatever an earlier import already established.
+    const accountArgs = mockAccountUpsert.mock.calls[0][0] as {
+      update: Record<string, unknown>;
+    };
+    for (const [key, value] of Object.entries(accountArgs.update)) {
+      expect(value, `account update carried a blank '${key}'`).not.toBe(null);
+      expect(value, `account update carried an empty '${key}'`).not.toBe('');
+    }
+
+    const contactArgs = mockContactUpsert.mock.calls[0][0] as {
+      update: Record<string, unknown>;
+    };
+    for (const [key, value] of Object.entries(contactArgs.update)) {
+      expect(value, `contact update carried a blank '${key}'`).not.toBe(null);
+      expect(value, `contact update carried an empty '${key}'`).not.toBe('');
+    }
+  });
+
+  it('still fails the row when the upsert throws for a reason other than the conflict it targets', async () => {
+    // Convergence must not become "swallow every database error on this row".
+    seedOneRow();
+    mockAccountUpsert.mockRejectedValueOnce(new Error('connection terminated'));
+
+    const result = await handleImportChunk(CHUNK_PAYLOAD);
+
+    expect(result.errors).toBe(1);
+    expect(result.created).toBe(0);
+    expect(mockRowUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'error' }) })
+    );
+  });
 
   it('creates a lead with normalized fields', async () => {
     mockRowFindMany.mockResolvedValue([
