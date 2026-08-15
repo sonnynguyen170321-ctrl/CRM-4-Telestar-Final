@@ -449,9 +449,15 @@ actually running, not what a tag currently points at.
 Then the post-deploy gate, **from a workstation, not the VM**:
 
 ```bash
-BASE_URL=http://34.142.236.46 E2E_PASSWORD=telestar2026 \
+BASE_URL=http://34.142.236.46 E2E_PASSWORD='<run-scoped>' \
   node node_modules/@playwright/test/cli.js test e2e/crm-journeys.spec.ts e2e/deep-smoke.spec.ts
 ```
+
+> **`E2E_PASSWORD=telestar2026` is refused** — `e2e/support/fixture.ts:67` rejects the published
+> demo password, so every persona fails auth setup and the run reports failures that look like a
+> broken deployment. Seed a run-scoped fixture first:
+> `ALLOW_E2E_FIXTURE=1 E2E_PASSWORD='<run-scoped>' node node_modules/tsx/dist/cli.mjs scripts/e2e-audit-fixture.ts`
+> (additive and idempotent — no `deleteMany`, namespaced to `pw-audit` / `@audit.test`).
 
 20/20 is the pass mark. **Do not restart `web` while this runs** — it takes ~6 minutes against
 the remote, and a mid-run `up -d` shows up as a 502 on whichever test is in flight rather than

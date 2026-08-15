@@ -118,7 +118,10 @@ A production-grade, multi-tenant BPO SDR-as-a-Service CRM built with **Next.js 1
 ## 🚀 Getting Started
 
 ### 1. Prerequisites
-- Node.js 20+
+- Node.js **24.18.0** and npm **11.16.0** — pinned, not a floor. `package.json` `engines`,
+  `.nvmrc` and the Dockerfile all name 24.18.0, and CI asserts the exact string
+  (`test "$(node --version)" = "v24.18.0"`), so a different major fails the build rather than
+  degrading quietly. An earlier note here said "Node.js 20+"; that was never what CI ran.
 - PostgreSQL database
 - Redis instance (e.g., Upstash, Redis Cloud, or local Docker)
 
