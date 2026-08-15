@@ -322,6 +322,43 @@ describe.skipIf(!hasDb)('booking link request-supplied relations', () => {
     expect((await counts(T_A)).links).toBe(before.links + 1);
   });
 
+  it('keeps exactly one default per scope under concurrent requests', async () => {
+    // The route clears prior defaults and then creates the new one: two separate writes, with no
+    // database constraint enforcing "exactly one default" behind them. Two simultaneous requests
+    // can therefore both clear, then both create, and leave two defaults for one client — after
+    // which the link a prospect is sent to depends on ordering.
+    //
+    // Reproduced rather than assumed, and run over several rounds because a race that fires once
+    // in five looks like a pass in a single run.
+    const ROUNDS = 8;
+    const observed: number[] = [];
+
+    for (let round = 0; round < ROUNDS; round++) {
+      await runAs(T_A, () =>
+        prisma.bookingLink.deleteMany({ where: { tenantId: T_A, clientId: CLIENT_A } })
+      );
+
+      await runAs(T_A, () =>
+        Promise.all([
+          post({ clientId: CLIENT_A, campaignId: CAMPAIGN_A, isDefault: true }),
+          post({ clientId: CLIENT_A, campaignId: CAMPAIGN_A, isDefault: true }),
+        ])
+      );
+
+      const [row] = await prisma.$queryRaw<Array<{ count: bigint }>>`
+        SELECT COUNT(*) AS count FROM "BookingLink"
+        WHERE "tenantId" = ${T_A} AND "clientId" = ${CLIENT_A}
+          AND "campaignId" = ${CAMPAIGN_A} AND "isDefault" = TRUE
+      `;
+      observed.push(Number(row.count));
+    }
+
+    expect(
+      observed.filter((n) => n !== 1),
+      `rounds that did not end with exactly one default: ${JSON.stringify(observed)}`
+    ).toEqual([]);
+  }, 120_000);
+
   it('does not let the body choose the tenant or the creator', async () => {
     const res = await runAs(T_A, () =>
       post({ clientId: CLIENT_A, tenantId: T_B, createdById: 'someone-else' })

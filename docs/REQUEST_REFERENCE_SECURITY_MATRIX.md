@@ -49,7 +49,7 @@ either run each side inside its own tenant context, or be built with raw SQL —
 | `/api/booking-links` | POST | `clientId` | Client | `canReferenceClient` | ✅ 403 | ✅ 422 | ✅ 404 | ✅ 403 | ✅ 404 | ✅ | n/a | **GREEN** | `f8c635f` |
 | `/api/booking-links` | POST | `campaignId` | Campaign | `canReferenceCampaign` | ✅ 403 | ✅ 422 | ✅ 404 | ✅ 403 | ✅ 404 | ✅ | n/a | **GREEN** | `f8c635f` |
 | `/api/booking-links` | POST | `tenantId`, `createdById` | — | ignored, session wins | n/a | n/a | ✅ | n/a | n/a | ✅ | n/a | **GREEN** | `f8c635f` |
-| `/api/booking-links` | POST | `isDefault` clear | BookingLink | ✅ scoped by extension | n/a | n/a | ✅ **proven** | n/a | n/a | ✅ | ❌ **RED** | **RED** | see below |
+| `/api/booking-links` | POST | `isDefault` clear | BookingLink | ✅ scoped by extension | n/a | n/a | ✅ **proven** | n/a | n/a | ✅ | ✅ advisory lock | **GREEN** | `HEAD` |
 | `/api/sequences/preview` | POST | `sequenceId`, `leadId` | — | not dereferenced | n/a | n/a | — | — | — | — | n/a | **PENDING** | — |
 
 ## Booking links — raw-SQL probe, classification B
@@ -109,25 +109,33 @@ clear and then both create. Afterwards, which link a prospect is sent to depends
 The reproduction lives in `tests/booking-link-reference-integrity.test.ts` and is **deliberately
 uncommitted** while red, so CI is not broken by a known-open finding.
 
-### Why the fix is not written yet
+### Fixed with a transaction-scoped advisory lock
 
-Three designs, each with a consequence that is not mine to choose alone:
+Three designs were considered; two were ruled out on evidence rather than taste.
 
-1. **Partial unique index** — `("tenantId", "clientId", COALESCE("campaignId", '')) WHERE
-   "isDefault"`. `campaignId` is nullable and Postgres treats `NULL != NULL`, so a plain unique
-   index would not constrain the campaign-less scope at all; the `COALESCE` is required. But
-   Prisma's `@@unique` cannot express a functional or partial index, which would make this a
-   **migration-only constraint** — explicitly forbidden by `CLAUDE.md`, because it vanishes the
-   next time a migration is generated from the datamodel.
-2. **Interactive transaction + row locking** — correct on standard Postgres, but the runtime
-   rules record that the Neon HTTP driver has **no interactive transactions**, and this is a web
-   route rather than a worker with `DIRECT_URL`.
-3. **Advisory lock** (`pg_advisory_xact_lock` keyed on the scope) — race-safe with no schema
-   change and no drift risk, but still needs a transaction, so it inherits question 2.
+A **partial unique index** would need `COALESCE("campaignId", '')`, because `campaignId` is
+nullable and Postgres treats `NULL != NULL` — a plain unique index would not constrain the
+campaign-less scope at all. Prisma's `@@unique` cannot express a functional or partial index, so
+that lands as a **migration-only constraint**, which `CLAUDE.md` forbids: it disappears the next
+time a migration is generated from the datamodel.
 
-The measurement is the hard part and it is done. The choice depends on the production driver,
-and picking wrong yields something that looks atomic and is not — the same trap
-`lib/admin/transferWork.ts` documents.
+**Interactive transactions** were the open question, since the runtime rules note that the Neon
+HTTP driver has none. Settled by inspection rather than assumption: `package.json` carries no
+Neon, adapter or serverless dependency, and `lib/prisma.ts:57` builds a standard `PrismaClient`
+over TCP. Interactive transactions are available on this path. The Neon note describes a possible
+future deployment, not the current one — worth re-checking if that changes.
+
+So: `pg_advisory_xact_lock(hashtext(scope))` inside a `$transaction`, keyed on
+`tenant:client:campaign`. No schema change, nothing to drift, transaction-scoped so it releases
+on commit or rollback with no unlock path to forget, and it serializes one scope rather than the
+table.
+
+Result on the same test that failed seven of eight rounds: **24 concurrency rounds across three
+runs, every round ending with exactly one default.**
+
+`tenantId` is now also stated explicitly on the create. Inside `$transaction`, `tx` is the raw
+client rather than the `TenantOptionalClient` wrapper, so the type system requires it — and on a
+row whose entire purpose is client scoping, saying it out loud is an improvement.
 
 ## Open work, in order
 
