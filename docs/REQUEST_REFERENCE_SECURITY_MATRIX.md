@@ -46,11 +46,10 @@ either run each side inside its own tenant context, or be built with raw SQL —
 | `/api/work-orders` | POST | `tenantId`, `createdById` | — | ignored, session wins | n/a | n/a | ✅ | n/a | n/a | ✅ | n/a | **GREEN** | `5d6eadf` |
 | `/api/work-orders/[id]/dispatch` | POST | order target | Lead / Campaign | `assertActorMayDispatch` | ✅ 403 | n/a | ✅ | ✅ | ✅ | ✅ no job, no lease | n/a | **GREEN**, audit pending | `5d6eadf` |
 | `/api/work-orders` | GET | — | — | tenant only | ❌ unscoped | n/a | — | recorded | — | n/a | n/a | **YELLOW** | `5d6eadf` |
-| `/api/booking-links` | POST | `clientId` | Client | ❌ **none** | ❌ | ❌ | ❌ **201** | — | ❌ **500** | — | — | **RED** | probe below |
-| `/api/booking-links` | POST | `campaignId` | Campaign | ❌ **none** | ❌ | ❌ | ❌ **201** | — | — | — | — | **RED** | probe below |
-| `/api/booking-links` | POST | `campaign.clientId == clientId` | — | n/a | n/a | ❌ **untested** | — | — | — | — | — | **RED** | — |
-| `/api/booking-links` | POST | `tenantId`, `createdById` | — | ignored, session wins | n/a | n/a | ✅ | n/a | n/a | ✅ | n/a | **GREEN** | probe below |
-| `/api/booking-links` | POST | `isDefault` clear | BookingLink | ✅ scoped by extension | n/a | n/a | ✅ **proven** | n/a | n/a | — | ❌ untested | **YELLOW** | probe below |
+| `/api/booking-links` | POST | `clientId` | Client | `canReferenceClient` | ✅ 403 | ✅ 422 | ✅ 404 | ✅ 403 | ✅ 404 | ✅ | n/a | **GREEN** | `f8c635f` |
+| `/api/booking-links` | POST | `campaignId` | Campaign | `canReferenceCampaign` | ✅ 403 | ✅ 422 | ✅ 404 | ✅ 403 | ✅ 404 | ✅ | n/a | **GREEN** | `f8c635f` |
+| `/api/booking-links` | POST | `tenantId`, `createdById` | — | ignored, session wins | n/a | n/a | ✅ | n/a | n/a | ✅ | n/a | **GREEN** | `f8c635f` |
+| `/api/booking-links` | POST | `isDefault` clear | BookingLink | ✅ scoped by extension | n/a | n/a | ✅ **proven** | n/a | n/a | ✅ | ❌ **RED** | **RED** | see below |
 | `/api/sequences/preview` | POST | `sequenceId`, `leadId` | — | not dereferenced | n/a | n/a | — | — | — | — | n/a | **PENDING** | — |
 
 ## Booking links — raw-SQL probe, classification B
@@ -94,6 +93,41 @@ The 201 body returned foreign tenant data:
 The route `include`s the relations it just attached, so POST already discloses another tenant's
 client and campaign names. Validating POST closes this path; historical poisoned rows would still
 leak through GET, so the read-side test and the integrity diagnostic are still required.
+
+## Booking-link default concurrency — DATA-INTEGRITY RED, reproduced
+
+Two simultaneous authorized `isDefault: true` POSTs for one client+campaign scope, eight rounds:
+
+```
+defaults per scope after each round: [1, 2, 2, 2, 2, 2, 2, 2]
+```
+
+**Seven of eight rounds ended with two defaults.** Not a rare interleaving — the default path is
+`updateMany` (clear) then `create`, two separate writes with nothing behind them, so both requests
+clear and then both create. Afterwards, which link a prospect is sent to depends on row ordering.
+
+The reproduction lives in `tests/booking-link-reference-integrity.test.ts` and is **deliberately
+uncommitted** while red, so CI is not broken by a known-open finding.
+
+### Why the fix is not written yet
+
+Three designs, each with a consequence that is not mine to choose alone:
+
+1. **Partial unique index** — `("tenantId", "clientId", COALESCE("campaignId", '')) WHERE
+   "isDefault"`. `campaignId` is nullable and Postgres treats `NULL != NULL`, so a plain unique
+   index would not constrain the campaign-less scope at all; the `COALESCE` is required. But
+   Prisma's `@@unique` cannot express a functional or partial index, which would make this a
+   **migration-only constraint** — explicitly forbidden by `CLAUDE.md`, because it vanishes the
+   next time a migration is generated from the datamodel.
+2. **Interactive transaction + row locking** — correct on standard Postgres, but the runtime
+   rules record that the Neon HTTP driver has **no interactive transactions**, and this is a web
+   route rather than a worker with `DIRECT_URL`.
+3. **Advisory lock** (`pg_advisory_xact_lock` keyed on the scope) — race-safe with no schema
+   change and no drift risk, but still needs a transaction, so it inherits question 2.
+
+The measurement is the hard part and it is done. The choice depends on the production driver,
+and picking wrong yields something that looks atomic and is not — the same trap
+`lib/admin/transferWork.ts` documents.
 
 ## Open work, in order
 
