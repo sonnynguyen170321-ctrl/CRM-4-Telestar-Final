@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { fontVariables } from "./fonts";
 import { SessionProvider } from "next-auth/react";
 import { AppProvider } from "@/context/AppContext";
 import { ToastProvider } from "@/context/ToastContext";
@@ -30,7 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className={`h-full antialiased ${fontVariables}`}>
       <body className="min-h-full" data-theme="light" suppressHydrationWarning>
         <SessionProvider>
           <AppProvider>
