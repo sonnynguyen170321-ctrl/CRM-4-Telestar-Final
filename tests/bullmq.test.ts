@@ -7,6 +7,7 @@ import { tenantStorage } from '@/lib/tenant-context';
 import { startImportWorkflow } from '@/lib/workflows/import';
 import { startSequenceEnrollWorkflow, enqueueSequenceAdvanceWorkflow } from '@/lib/workflows/sequence';
 import { enqueueEmailSendWorkflow } from '@/lib/workflows/email';
+import { BULLMQ_TEST_TENANT_ID } from './setup/db-baseline';
 
 // Mock BullMQ Queue and Worker to avoid connecting to real Redis during tests
 vi.mock('bullmq', async (importOriginal) => {
@@ -31,15 +32,15 @@ vi.mock('bullmq', async (importOriginal) => {
 });
 
 describe('BullMQ Foundation & JobRun Tracking', () => {
-  const tenantId = 'default-tenant';
+  const tenantId = BULLMQ_TEST_TENANT_ID;
 
   beforeEach(async () => {
-    // Scoped to this tenant on purpose. `bypassRls: true` deliberately injects no WHERE filter
-    // (see lib/prisma.ts — cross-tenant reads have to keep working for the worker's own JobRun
-    // lookup), so an unfiltered `deleteMany()` here deletes every JobRun row in the database.
-    // Vitest runs files in parallel, and `run-now-immediate.test.ts` shares this tenant id, so
-    // two suites could wipe each other's rows mid-test — which surfaces as a JobRun that was
-    // just enqueued reading back as null.
+    // Scoped to a tenant this suite owns alone. `bypassRls: true` deliberately injects no WHERE
+    // filter (see lib/prisma.ts — cross-tenant reads have to keep working for the worker's own
+    // JobRun lookup), so an unfiltered `deleteMany()` here would delete every JobRun row in the
+    // database. Vitest runs files in parallel, and scoping to `default-tenant` was not enough:
+    // `run-now-immediate.test.ts` used that tenant too, so the two could still wipe each other's
+    // rows mid-test — which surfaces as a JobRun that was just enqueued reading back as null.
     await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
       await prisma.jobRun.deleteMany({ where: { tenantId } });
     });
@@ -166,7 +167,7 @@ describe('BullMQ Foundation & JobRun Tracking', () => {
 });
 
 describe('Workflows Enqueuing Helpers', () => {
-  const tenantId = 'default-tenant';
+  const tenantId = BULLMQ_TEST_TENANT_ID;
 
   beforeEach(async () => {
     // Belt and braces with the `finally` in the production-policy test below: a stubbed

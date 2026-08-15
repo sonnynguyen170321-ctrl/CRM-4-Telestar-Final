@@ -3,6 +3,13 @@ import { cache } from 'react';
 import { auditExtension } from './audit';
 import { tenantStorage } from './tenant-context';
 import { applyScopedTenant, applyBypassTenant } from './tenant-inject';
+import {
+  RELATION_SCOPED_OPS,
+  buildRelationMap,
+  forceTenantIdOnRelations,
+  scrubForeignRelations,
+  stripForcedFields,
+} from './tenant-includes';
 export { tenantStorage };
 
 // Whether Postgres-level Row-Level Security is actually enforced on the target DB
@@ -19,6 +26,10 @@ const MODELS_WITH_TENANT: ReadonlySet<string> = new Set(
     .filter((m) => m.fields.some((f) => f.name === 'tenantId'))
     .map((m) => m.name)
 );
+
+// Relations pointing at tenant-owned models, per model. Derived from the DMMF so it tracks the
+// schema automatically, exactly like MODELS_WITH_TENANT above.
+const RELATION_MAP = buildRelationMap(Prisma.dmmf.datamodel.models as any);
 
 const globalForPrisma = globalThis as unknown as { prisma: any };
 
@@ -117,18 +128,32 @@ function createPrismaClient() {
             applyScopedTenant(operation, args, tenantId);
           }
 
+          // 3b. Scope nested relations too. `applyScopedTenant` above only reaches the top-level
+          // `where`; an `include` follows its foreign key wherever it points, so a row pointing
+          // outside the tenant would otherwise disclose the foreign row's selected fields.
+          // Reproduced twice before this existed: through `GET /api/booking-links` with a
+          // session, and through `scripts/repro-nested-include-leak.ts` on this same path.
+          const scopeRelations = RELATION_SCOPED_OPS.has(operation);
+          const forced = scopeRelations
+            ? forceTenantIdOnRelations(model, args, tenantId, RELATION_MAP)
+            : [];
+          const finish = (value: any) =>
+            scopeRelations
+              ? stripForcedFields(scrubForeignRelations(model, value, tenantId, RELATION_MAP), forced)
+              : value;
+
           // 4. The app-layer tenantId injection above is the isolation layer. Only when
           // DB-level RLS is enforced do we also set the GUCs inside a transaction (the
           // secondary, defense-in-depth layer) — otherwise run a single HTTP query.
           if (!DB_RLS_ENFORCED) {
-            return query(args);
+            return finish(await query(args));
           }
           const [, , result] = await client.$transaction([
             client.$executeRaw`SELECT set_config('app.bypass_rls', 'false', true)`,
             client.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`,
             query(args),
           ] as any);
-          return result;
+          return finish(result);
         },
       },
     },
