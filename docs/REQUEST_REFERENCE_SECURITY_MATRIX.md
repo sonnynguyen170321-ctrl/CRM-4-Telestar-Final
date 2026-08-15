@@ -41,8 +41,8 @@ either run each side inside its own tenant context, or be built with raw SQL —
 | `/api/leads` | POST | `tenantId` | — | ignored, session wins | n/a | n/a | ✅ | n/a | n/a | ✅ | n/a | **GREEN** | `5d6eadf` |
 | `/api/leads` | POST | `assignedToId` | User | via `canAccessUser` | ✅ 403 | n/a | ✅ | ✅ | — | ✅ | n/a | **GREEN** | `5d6eadf` |
 | `/api/leads` | POST | `campaignId` | Campaign | `canReferenceCampaign` | ✅ 403 | — | ✅ 404 | ✅ 403 | ✅ 404 | ✅ | n/a | **GREEN** | `5d6eadf` |
-| `/api/work-orders` | POST | `leadId` | Lead | `resolveScope` | ❌ **open** | n/a | ✅ | ❌ | ✅ | ✅ | n/a | **YELLOW** | `5d6eadf` |
-| `/api/work-orders` | POST | `campaignId` | Campaign | `resolveScope` | ❌ **open** | n/a | ✅ | ❌ | ✅ | ✅ | n/a | **YELLOW** | `5d6eadf` |
+| `/api/work-orders` | POST | `leadId` | Lead | `resolveScope` + `canAccessLead` | ✅ 403 | n/a | ✅ | ✅ 403 | ✅ | ✅ | n/a | **GREEN** | `HEAD` |
+| `/api/work-orders` | POST | `campaignId` | Campaign | `resolveScope` + `canReferenceCampaign` | ✅ 403 | n/a | ✅ | ✅ 403 | ✅ | ✅ | n/a | **GREEN** | `HEAD` |
 | `/api/work-orders` | POST | `tenantId`, `createdById` | — | ignored, session wins | n/a | n/a | ✅ | n/a | n/a | ✅ | n/a | **GREEN** | `5d6eadf` |
 | `/api/work-orders/[id]/dispatch` | POST | order target | Lead / Campaign | `assertActorMayDispatch` | ✅ 403 | n/a | ✅ | ✅ | ✅ | ✅ no job, no lease | n/a | **GREEN**, audit pending | `5d6eadf` |
 | `/api/work-orders` | GET | — | — | tenant only | ❌ unscoped | n/a | — | recorded | — | n/a | n/a | **YELLOW** | `5d6eadf` |
@@ -54,7 +54,7 @@ either run each side inside its own tenant context, or be built with raw SQL —
 | `/api/client-reports` | POST | `clientId` | Client | `canReferenceClient` | ✅ 403 | ✅ 422 | ✅ 404 | ✅ 403 | ✅ 404 | ✅ | n/a | **GREEN** | `HEAD` |
 | `/api/client-reports` | POST | `campaignId` | Campaign | `canReferenceCampaign` | ✅ 403 | ✅ 422 | ✅ 404 | ✅ 403 | ✅ 404 | ✅ | n/a | **GREEN** | `HEAD` |
 | `/api/client-reports` | POST | `tenantId`, `generatedById` | — | ignored, session wins | n/a | n/a | ✅ | n/a | n/a | ✅ | n/a | **GREEN** | `HEAD` |
-| `/api/sequences/preview` | POST | `sequenceId`, `leadId` | — | not dereferenced | n/a | n/a | — | — | — | — | n/a | **PENDING** | — |
+| `/api/sequences/preview` | POST | `sequenceId`, `leadId` | — | never dereferenced | n/a | n/a | ✅ proven | n/a | ✅ proven | ✅ no writes | n/a | **N/A — opaque seed** | `HEAD` |
 
 ## Booking links — raw-SQL probe, classification B
 
@@ -196,6 +196,37 @@ into the stored snapshot and the response. Every negative case asserts the respo
 no foreign identifier, not just that the status is right.
 
 `tenantId` and `generatedById` were already session-derived and remain so.
+
+## Work order CREATE — was an existence oracle, fixed
+
+Previously an in-tenant lead the caller could not access returned **201**, and I recorded that as
+deliberate on the reasoning that a work order is draft-only. That reasoning does not survive the
+detail: a real-but-hidden lead answered 201 while a nonexistent one answered 422, so the status
+code alone told a caller whether a guessed id exists. An oracle over another rep's prospects is a
+disclosure however inert the row it creates.
+
+`canAccessLead` — the same authority dispatch uses — now runs at the route, one boundary earlier,
+and the refusal is deliberately shaped like the not-found answer so the oracle does not survive
+the fix. Verified by asserting the two statuses are equal, not merely that each is a refusal.
+
+Placed at the route rather than in `createWorkOrder` on purpose: internal callers
+(`handbackProspectToAI`, the agent runtime) reach the service having already run their own
+authorization, so a session-shaped check inside the domain would either duplicate theirs or block
+them. `resolveScope` keeps tenancy, which is genuinely the domain's job.
+
+## Sequence preview — N/A, opaque seed input
+
+`sequenceId` and `leadId` look like foreign keys and are not. Neither is ever resolved to a row:
+both reach `buildJitterSeed()` and nothing else, so the response is a schedule computed from
+strings.
+
+Proven rather than asserted — ids matching no row answer 200 normally, a foreign-looking id and
+an invented one are indistinguishable in status and response shape, and the same seed with a
+fixed `startAt` reproduces the same schedule. A route that dereferenced them could not do any of
+that.
+
+Deliberately **no** `canAccessLead` here. It would look prudent, protect nothing, and imply to
+the next reader that a row exists behind these fields.
 
 ## Open work, in order
 
