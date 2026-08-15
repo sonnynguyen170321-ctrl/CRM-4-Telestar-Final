@@ -19,12 +19,32 @@ import { PrismaClient } from '@prisma/client';
 /** The tenant id `lib/prisma.ts` falls back to when no session is present. */
 export const DEFAULT_TEST_TENANT_ID = 'default-tenant';
 
+/**
+ * Private tenants for the two suites that clear `JobRun` in `beforeEach`.
+ *
+ * Both used to run against `default-tenant`, so scoping their cleanup to a tenant did not
+ * separate them from each other — they shared the one they were scoped to, and could still
+ * delete rows the other had just written. Measured: with the scoping reverted, running the two
+ * files concurrently produced `expected 'cmsu1jm8u…' to be 'cmsu1jm8s…'`, a JobRun whose identity
+ * moved underneath the assertion.
+ *
+ * A tenant each makes the cleanup actually isolating. They are seeded here rather than in the
+ * suites because this file is the one place that may create a tenant without racing: `createMany`
+ * with `skipDuplicates` cannot collide, and nothing here deletes.
+ */
+export const BULLMQ_TEST_TENANT_ID = 'test-tenant-bullmq';
+export const RUN_NOW_TEST_TENANT_ID = 'test-tenant-run-now';
+
 // A bare client on purpose: the extended client in `lib/prisma.ts` resolves tenant context
 // per query, and this has to run before any context exists.
 const raw = new PrismaClient();
 
 await raw.tenant.createMany({
-  data: [{ id: DEFAULT_TEST_TENANT_ID, name: 'Default Test Tenant' }],
+  data: [
+    { id: DEFAULT_TEST_TENANT_ID, name: 'Default Test Tenant' },
+    { id: BULLMQ_TEST_TENANT_ID, name: 'BullMQ Suite Tenant' },
+    { id: RUN_NOW_TEST_TENANT_ID, name: 'Run-Now Suite Tenant' },
+  ],
   skipDuplicates: true,
 });
 
