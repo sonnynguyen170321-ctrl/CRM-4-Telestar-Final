@@ -45,9 +45,10 @@ const ALLOWED_DISABLED = [
     line: 987,
     reason:
       'No lane-owned lead is visible to the leadgen member, so the assertion has nothing to ' +
-      'act on. This is a product finding (QA C5/C7), not a flaky test: it is tracked as a RED ' +
-      'row in docs/ALL_GREEN_ACCEPTANCE_MATRIX.md and removed when Phase 4/5 resolves the ' +
-      'leadgen visibility gap.',
+      'act on. This is a product finding (QA C5/C7), not a flaky test. Owned by the leadgen ' +
+      'visibility work in the RBAC/browser phases; the exemption is removed when a lane-owned ' +
+      'lead is visible to that role. Note the acceptance matrix is maintained by the ' +
+      'independent auditor, so this entry deliberately does not claim a status in it.',
   },
 ];
 
@@ -168,8 +169,24 @@ function checkResults(path) {
   }
 
   const problems = [];
-  const pending = report.numPendingTests ?? 0;
-  const todo = report.numTodoTests ?? 0;
+
+  // Never `?? 0`. If the reporter's shape changes — a Vitest major bump renaming these keys, a
+  // different reporter wired in by mistake — a defaulted zero makes this gate silently pass
+  // everything while looking like it ran. Verified: fed `{"stats":{"skipped":7}}`, the defaulting
+  // version printed "0 skipped at runtime" and exited 0. An unrecognised shape is a failure.
+  const hasCounts =
+    typeof report.numPendingTests === 'number' && typeof report.numTodoTests === 'number';
+  if (!hasCounts) {
+    return [
+      `${path} does not carry numeric numPendingTests/numTodoTests.`,
+      '  The Vitest JSON reporter format this gate reads has changed, so it can no longer tell',
+      '  whether anything was skipped. Update checkResults() rather than defaulting to zero.',
+      `  Top-level keys present: ${Object.keys(report).join(', ') || '(none)'}`,
+    ];
+  }
+
+  const pending = report.numPendingTests;
+  const todo = report.numTodoTests;
 
   if (pending > 0 || todo > 0) {
     problems.push(`${pending} skipped and ${todo} todo test(s) ran as non-executed on CI.`);
