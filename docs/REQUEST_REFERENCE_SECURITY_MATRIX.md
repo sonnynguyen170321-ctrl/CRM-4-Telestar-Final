@@ -50,6 +50,7 @@ either run each side inside its own tenant context, or be built with raw SQL —
 | `/api/booking-links` | POST | `campaignId` | Campaign | `canReferenceCampaign` | ✅ 403 | ✅ 422 | ✅ 404 | ✅ 403 | ✅ 404 | ✅ | n/a | **GREEN** | `f8c635f` |
 | `/api/booking-links` | POST | `tenantId`, `createdById` | — | ignored, session wins | n/a | n/a | ✅ | n/a | n/a | ✅ | n/a | **GREEN** | `f8c635f` |
 | `/api/booking-links` | POST | `isDefault` clear | BookingLink | ✅ scoped by extension | n/a | n/a | ✅ **proven** | n/a | n/a | ✅ | ✅ advisory lock | **GREEN** | `HEAD` |
+| `/api/booking-links` | GET | `client`, `campaign`, `createdBy` includes | Client / Campaign / User | ✅ relation guard | n/a | n/a | ✅ **was RED** | n/a | n/a | n/a | n/a | **GREEN** | `HEAD` |
 | `/api/sequences/preview` | POST | `sequenceId`, `leadId` | — | not dereferenced | n/a | n/a | — | — | — | — | n/a | **PENDING** | — |
 
 ## Booking links — raw-SQL probe, classification B
@@ -136,6 +137,25 @@ runs, every round ending with exactly one default.**
 `tenantId` is now also stated explicitly on the create. Inside `$transaction`, `tx` is the raw
 client rather than the `TenantOptionalClient` wrapper, so the type system requires it — and on a
 row whose entire purpose is client scoping, saying it out loud is an improvement.
+
+## Booking-link GET disclosure — was RED, fixed
+
+A separate defect from the write path, and one that survives it. The root `BookingLink` is
+tenant-scoped by the extension, but a to-one relation reached through `include` is not — the
+`include` follows the foreign key wherever it points.
+
+Seeded a poisoned row with raw SQL (tenant A row, tenant B client and campaign — a shape POST can
+no longer produce), then listed as tenant A. The response carried tenant B's **client name**.
+
+Fixed by selecting `tenantId` on each included relation and withholding any that does not match
+the viewer. The relation is withheld rather than the row: the BookingLink belongs to this tenant,
+and hiding it would make a real record invisible with no way to notice. `null` is already the
+shape callers handle, since `campaign` and `createdBy` are optional — so this degrades to
+"unknown", not to a lie.
+
+This closes disclosure for historical rows without depending on a data repair. The read-only
+integrity diagnostic is still worth building, to prove whether any such rows exist in staging or
+production.
 
 ## Open work, in order
 

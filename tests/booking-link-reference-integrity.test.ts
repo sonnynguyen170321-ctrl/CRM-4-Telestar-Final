@@ -1,6 +1,6 @@
 import { vi, describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { POST as createBookingLink } from '@/app/api/booking-links/route';
+import { POST as createBookingLink, GET as listBookingLinks } from '@/app/api/booking-links/route';
 import { prisma, tenantStorage } from '@/lib/prisma';
 import { auth } from '@/auth';
 import type { SessionUser } from '@/lib/auth';
@@ -358,6 +358,32 @@ describe.skipIf(!hasDb)('booking link request-supplied relations', () => {
       `rounds that did not end with exactly one default: ${JSON.stringify(observed)}`
     ).toEqual([]);
   }, 120_000);
+
+  it('does not disclose foreign relation names through a historical poisoned row', async () => {
+    // POST can no longer create one of these, but rows written before the fix still can exist,
+    // and GET `include`s `client` and `campaign` with no tenant condition of its own. The root
+    // BookingLink is tenant-scoped by the extension; a to-one relation reached through it is not.
+    //
+    // Seeded with raw SQL precisely because the route now refuses to produce this shape.
+    const POISONED = 'blref-poisoned';
+    await prisma.$executeRaw`
+      INSERT INTO "BookingLink" (id,"clientId","campaignId",name,url,"isDefault","isActive","updatedAt","tenantId")
+      VALUES (${POISONED}, ${CLIENT_B}, ${CAMPAIGN_B}, 'poisoned', 'https://cal.example.test/poisoned', FALSE, TRUE, NOW(), ${T_A})
+      ON CONFLICT (id) DO NOTHING
+    `;
+
+    const res = await runAs(T_A, () =>
+      listBookingLinks(new NextRequest('http://localhost/api/booking-links'))
+    );
+    expect(res.status).toBe(200);
+    const body = JSON.stringify(await res.json());
+
+    // Tenant B's client and campaign are named `Client blref-tenant-b` / `Camp blref-tenant-b`.
+    expect(body, 'GET leaked a foreign client name').not.toContain('Client blref-tenant-b');
+    expect(body, 'GET leaked a foreign campaign name').not.toContain('Camp blref-tenant-b');
+
+    await prisma.$executeRaw`DELETE FROM "BookingLink" WHERE id = ${POISONED}`;
+  });
 
   it('does not let the body choose the tenant or the creator', async () => {
     const res = await runAs(T_A, () =>

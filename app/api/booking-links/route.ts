@@ -9,6 +9,7 @@ import { handleApiError } from '@/lib/api/errors';
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
+  const viewer = userOrRes as SessionUser;
 
   const { searchParams } = new URL(req.url);
   const clientId = searchParams.get('clientId') || undefined;
@@ -25,14 +26,36 @@ export async function GET(req: NextRequest) {
         ...(activeOnly ? { isActive: true } : {}),
       },
       include: {
-        client: { select: { id: true, name: true } },
-        campaign: { select: { id: true, name: true } },
-        createdBy: { select: { id: true, firstName: true, lastName: true } },
+        // `tenantId` is selected on each relation so the guard below can check it. The root
+        // BookingLink is tenant-scoped by the extension; a to-one relation reached *through* it
+        // is not, so an `include` follows the foreign key wherever it points.
+        client: { select: { id: true, name: true, tenantId: true } },
+        campaign: { select: { id: true, name: true, tenantId: true } },
+        createdBy: { select: { id: true, firstName: true, lastName: true, tenantId: true } },
       },
       orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
     });
 
-    return NextResponse.json(links);
+    // POST can no longer create a link pointing outside the tenant, but rows written before that
+    // check existed still can, and this endpoint would hand their client and campaign **names**
+    // to whoever asks. Measured: a poisoned row seeded with raw SQL returned tenant B's client
+    // name to a tenant A caller.
+    //
+    // The relation is withheld rather than the row. The BookingLink itself belongs to this
+    // tenant and hiding it would make a real record invisible with no way to notice; what must
+    // not cross is the foreign row's contents. `null` is already the shape a caller handles —
+    // `campaign` and `createdBy` are optional — so this degrades to "unknown", not to a lie.
+    const sameTenant = <T extends { tenantId: string } | null>(relation: T) =>
+      relation && relation.tenantId === viewer.tenantId ? relation : null;
+
+    const safe = links.map((link) => ({
+      ...link,
+      client: sameTenant(link.client),
+      campaign: sameTenant(link.campaign),
+      createdBy: sameTenant(link.createdBy),
+    }));
+
+    return NextResponse.json(safe);
   } catch (err) {
     return handleApiError('GET /api/booking-links', err);
   }
