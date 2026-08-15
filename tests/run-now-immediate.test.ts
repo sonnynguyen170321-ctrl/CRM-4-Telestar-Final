@@ -60,7 +60,10 @@ describe('enqueueImmediate (Send Now / run-now fast-forward)', () => {
   beforeEach(async () => {
     jobStore.clear();
     await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
-      await prisma.jobRun.deleteMany();
+      // Scoped: under `bypassRls` no tenant filter is injected, so an unfiltered delete here
+      // removes every JobRun row in the database — including rows a suite running in parallel
+      // has just written and is about to read.
+      await prisma.jobRun.deleteMany({ where: { tenantId } });
     });
   });
 

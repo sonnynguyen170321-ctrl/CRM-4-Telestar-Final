@@ -1,7 +1,18 @@
 import { enqueue } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
 import { priorityForSlaClass, slaClassForWorkOrderType, type AgentSlaClass } from '@/lib/agent/priorities';
+import { prisma } from '@/lib/prisma';
+import { canAccessLead, canReferenceCampaign } from '@/lib/auth';
+import type { SessionUser } from '@/lib/auth';
 import { activateWorkOrder, type ActivateResult } from './service';
+
+/** The actor may not act on the object this order targets. */
+export class WorkOrderAccessError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WorkOrderAccessError';
+  }
+}
 
 /**
  * Activation → queue (Revenue AI Phase 6b).
@@ -41,7 +52,64 @@ export interface DispatchInput {
  * before anything is enqueued — a refused activation must not leave a job behind to find a work
  * order that was never allowed to run.
  */
+/**
+ * The actor must be allowed to act on what the order targets, checked before activation.
+ *
+ * `lib/workorders/authorization.ts` documents object authorization as the domain services' job
+ * *at execution*, and that remains true for what the agent then does. It leaves a gap this
+ * closes: dispatch is not a read. It activates the order, can claim a lease, pins a playbook
+ * version and queues a job — and measurement showed an SDR dispatching a work order targeting a
+ * peer's lead at **HTTP 200 with a job queued**. "Execution will refuse eventually" is not an
+ * answer when the unauthorized caller has already committed a state transition and spent queue
+ * capacity; research is charged per provider attempt, so the refusal can arrive after the money.
+ *
+ * Reuses `canAccessLead` and `canReferenceCampaign` rather than adding a work-order permission
+ * model. The lead axis is the specific one: an order naming a lead is authorized by that lead,
+ * and only an order with no lead falls back to its campaign.
+ */
+async function assertActorMayDispatch(
+  workOrderId: string,
+  tenantId: string,
+  actorUserId: string
+): Promise<void> {
+  const order = await prisma.workOrder.findFirst({
+    where: { id: workOrderId, tenantId },
+    select: { leadId: true, campaignId: true },
+  });
+  // A missing order is `activateWorkOrder`'s error to raise, with its own not-found semantics.
+  if (!order) return;
+  if (!order.leadId && !order.campaignId) return; // tenant-wide order; nothing object-scoped to check
+
+  const actorRow = await prisma.user.findFirst({
+    where: { id: actorUserId, tenantId },
+    select: { id: true, email: true, firstName: true, lastName: true, role: true, tenantId: true, isActive: true },
+  });
+  // Read fresh, never from a session snapshot: a deactivated actor must not be able to dispatch
+  // on the strength of a token minted while they were still active.
+  if (!actorRow || !actorRow.isActive) {
+    throw new WorkOrderAccessError('The actor is not an active user in this tenant');
+  }
+  const actor = actorRow as unknown as SessionUser;
+
+  if (order.leadId) {
+    const lead = await prisma.lead.findFirst({
+      where: { id: order.leadId, tenantId },
+      select: { assignedToId: true, campaignId: true },
+    });
+    if (!lead || !(await canAccessLead(actor, lead))) {
+      throw new WorkOrderAccessError('The actor cannot act on the lead this work order targets');
+    }
+    return;
+  }
+
+  if ((await canReferenceCampaign(actor, order.campaignId!)) !== 'ok') {
+    throw new WorkOrderAccessError('The actor cannot act on the campaign this work order targets');
+  }
+}
+
 export async function dispatchWorkOrder(input: DispatchInput): Promise<DispatchResult> {
+  await assertActorMayDispatch(input.workOrderId, input.tenantId, input.actorUserId);
+
   const activation = await activateWorkOrder({
     workOrderId: input.workOrderId,
     tenantId: input.tenantId,

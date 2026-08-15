@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, canAccessUser, getLeadWhereScope } from '@/lib/auth';
+import { requireAuth, canAccessUser, canReferenceCampaign, getLeadWhereScope } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { parseBody, capLimit } from '@/lib/validation/core';
 import { createLeadSchema, leadStage, priority as prioritySchema } from '@/lib/validation/schemas';
@@ -152,6 +152,22 @@ export async function POST(req: NextRequest) {
   const targetAssignedToId = body.assignedToId ?? user.id;
   if (targetAssignedToId !== user.id && !(await canAccessUser(user, targetAssignedToId))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // Checked here, before the `try` below creates or updates an Account and a Contact.
+  // Validating only at `lead.create` would still refuse the lead, but the request would already
+  // have written two durable rows into the tenant on its way to failing — a rejected request
+  // must not leave partial state behind.
+  if (body.campaignId) {
+    const campaignCheck = await canReferenceCampaign(user, body.campaignId);
+    if (campaignCheck === 'not_found') {
+      // Same answer for "does not exist" and "belongs to another tenant": distinguishing them
+      // would confirm the existence of foreign rows to anyone willing to guess ids.
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+    }
+    if (campaignCheck === 'forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
   }
 
   try {

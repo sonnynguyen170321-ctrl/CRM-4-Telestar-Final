@@ -120,19 +120,18 @@ describe.skipIf(!process.env.DATABASE_URL)('import under sustained account conte
       prisma.importRow.count({ where: { batchId: batch.id, status: 'error' } })
     );
 
-    const { writeFileSync } = await import('node:fs');
-    writeFileSync(
-      'race-measure-result.txt',
-      `\nMEASUREMENT concurrency=${CONCURRENCY} rounds=${ROUNDS} attempts=${ROUNDS * CONCURRENCY}\n` +
-        `  chunk calls fulfilled = ${fulfilled}\n` +
-        `  chunk calls rejected  = ${rejected}\n` +
-        `  distinct accounts     = ${accounts} (expected ${ROUNDS})\n` +
-        `  leads created         = ${leads} (expected ${ROUNDS * CONCURRENCY})\n` +
-        `  import rows errored   = ${erroredRows} (dropped leads)\n`
-    );
+    // Every chunk call must resolve — a rejected call is a job BullMQ would retry, a different
+    // failure mode from the silent drop below but no more acceptable.
+    expect(rejected, 'chunk calls rejected').toBe(0);
+    expect(fulfilled, 'chunk calls fulfilled').toBe(ROUNDS * CONCURRENCY);
 
-    expect(accounts).toBe(ROUNDS);
-    expect(leads).toBe(ROUNDS * CONCURRENCY);
-    expect(erroredRows).toBe(0);
+    // One account per identity: convergence, not duplication.
+    expect(accounts, 'distinct accounts').toBe(ROUNDS);
+
+    // The assertion that matters. Every row is a real prospect; an errored row is one thrown
+    // away because another chunk happened to create the shared account first. Measured at 80 of
+    // 120 against the import path as it stood at `0e1986c`.
+    expect(erroredRows, 'import rows errored (silently dropped leads)').toBe(0);
+    expect(leads, 'leads created').toBe(ROUNDS * CONCURRENCY);
   }, 300_000);
 });

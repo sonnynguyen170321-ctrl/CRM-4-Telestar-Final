@@ -68,7 +68,6 @@ test('D0 — probe: what lan.pham actually owns', async ({ page }) => {
   rec.flush('D0-probe');
 });
 
-const taskRow = (page: Page) => page.locator('div.divide-y > div.p-4');
 const visibleCount = async (page: Page) =>
   (await page.locator('span.font-mono', { hasText: /^\d+ of \d+$/ }).first().innerText()).trim();
 

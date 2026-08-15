@@ -32,6 +32,20 @@ const eslintConfig = defineConfig([
       "react/no-unescaped-entities": "off",
       "react-hooks/set-state-in-effect": "off"
     }
+  },
+  {
+    // `.cjs` is CommonJS by definition — `require()` is the only import form the format has, so
+    // `no-require-imports` is not reporting a problem there, it is reporting the file extension.
+    // These are operational entry points (`scripts/build.cjs`, `scripts/worker-start.cjs`) that
+    // work and are deliberately not ESM; converting them for stylistic purity would change how
+    // production processes start, which is a real risk taken for no benefit.
+    //
+    // Narrow on purpose: this turns off exactly one rule for exactly the file type where it
+    // cannot apply, rather than excluding `scripts/` from linting.
+    files: ["**/*.cjs"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off"
+    }
   }
 ]);
 
