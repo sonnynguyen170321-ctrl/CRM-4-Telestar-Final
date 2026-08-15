@@ -2425,3 +2425,50 @@ two routes it omits that nobody guarded are both siblings of routes it *does* co
 fixed. The pattern is consistent and worth naming: **the fixes have been correct, and the misses
 have been adjacent.** A per-field matrix built from the routes already known to be interesting will
 keep reproducing that shape. Enumerating from the route surface first is what breaks it.
+
+## 17.8 `client-reports/preview` measured — downgraded from RED-candidate to YELLOW
+
+§17.2 flagged this as a RED-candidate and said explicitly that it had not been measured. It has
+now been, at `634e147`, through the real handler against real Postgres, as a tenant A director:
+
+| Request | Status | Body |
+|---|---|---|
+| own client (`tenant A`) | **200** | full snapshot, 3,008 bytes, `clientName: "TENANT-A-OWN-CLIENT"` |
+| **foreign client + campaign (`tenant B`)** | **500** | `{"error":"Internal server error"}`, 33 bytes |
+| invented client + campaign | **500** | `{"error":"Internal server error"}`, 33 bytes |
+
+```
+foreign leaks name    = false
+foreign === invented  = true
+```
+
+**The security outcome is correct.** No cross-tenant metrics are returned, no client or campaign
+name crosses, and a real foreign id is **byte-identical** to an invented one — so there is no
+existence oracle either. The mitigation §17.2 predicted does hold: the Prisma extension scopes the
+reads inside `buildReportMetrics`, the lookup yields nothing, and no foreign data is computed.
+
+**The mechanism is still wrong, which is why this is YELLOW and not GREEN.** The refusal is a
+**500**, not a 404 — an unhandled throw somewhere below a lookup that returned null. Three
+consequences, none of them a vulnerability:
+
+1. A client error is reported as a server error. The caller is told the server broke; it did not.
+2. Every mistyped id becomes an alert. Error monitoring cannot distinguish this from a real fault,
+   which is how real faults get tuned out.
+3. It is safe **by accident, not by design**. Nothing in that route decided to refuse; a downstream
+   throw did. The sibling route `POST /api/client-reports` refuses the same input deliberately,
+   with `canReferenceClient` / `canReferenceCampaign` and six tests. This one is one refactor away
+   from behaving differently, and nothing would catch it.
+
+**Recommendation:** add the same two reference checks for a deliberate 404, matching the sibling.
+It changes no security outcome today; it makes today's outcome intentional and testable.
+
+**Correction to §17.2, recorded rather than edited away.** That section reasoned from source that
+the payload at stake was "meetings booked, contacts touched, sequence performance for a client and
+campaign the caller names". Measurement says the caller gets 33 bytes of error. The reasoning was
+sound and the conclusion was too pessimistic — which is exactly why §17.2 labelled it *needs
+measurement* instead of asserting it. A flag that survives measurement is a finding; this one did
+not, and it is downgraded on the evidence rather than defended.
+
+`POST /api/leads/import` (§17.3) remains **RED-candidate, unmeasured** — reproducing it needs the
+import worker and therefore Redis. Its reasoning is the same shape as this one's, and it deserves
+the same scepticism until someone measures it.
