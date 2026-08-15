@@ -2752,3 +2752,72 @@ failed, migration replay 0.
 The first four are infrastructure, not code. No amount of further work in this environment closes
 them, and reporting them as anything other than open would be the substitution this matrix exists to
 refuse.
+
+---
+
+# 21. Verification of the fixes as they would actually land
+
+Both fixes were verified on their own base. That is not the same as verifying them **merged**, and
+checking the difference found a real problem.
+
+## 21.1 The two PRs conflicted with each other
+
+`git merge-tree` in §20.1 tested each branch against `main` **separately**. Both were clean, and
+that reading was incomplete: merging *both* produced
+
+```
+CONFLICT (add/add): Merge conflict in scripts/repro-nested-include-leak.ts
+```
+
+Both branches added that file — #70 carried the **broken** first version, #71 the corrected one.
+The consequence was worse than an inconvenience: had #70 landed first, `main` would have gained a
+reproduction script that reports `leaked = true` for a reason unrelated to the defect, and the next
+merge would have had to resolve a conflict in favour of the right copy. A misleading measurement in
+the repository is exactly the failure §18.1 already recorded once.
+
+**Fixed at source** in `4fcb6ef`: the script is removed from #70 and lives only on #71, with the
+change it actually drives. Re-checked afterwards — `conflict_markers=0` between the two branches.
+
+## 21.2 The merged state, measured
+
+`origin/main` (`1be7bea`) with **both** branches merged, in a preview worktree:
+
+| Check | Result |
+|---|---|
+| `lib/tenant-includes.ts` present | yes |
+| `canReferenceCampaign` in `booking-links/[id]` | 3 occurrences |
+| `scripts/repro-nested-include-leak.ts` | the corrected version — async callback, `bypassRls: false` |
+| Reproduction | **`leaked = false`** — *the foreign relation was withheld* |
+| `tsc --noEmit` | exit 0 |
+| `eslint lib scripts tests app` | exit 0 |
+| Full Vitest | **exit 0** — `Test Files 120 passed \| 1 skipped (121)`, `Tests 1680 passed \| 5 skipped (1685)` |
+
+Two more test files and eight more tests than the `1be7bea` baseline, which is the two regression
+suites the fixes bring with them.
+
+## 21.3 CI on the pull requests
+
+GitHub runs `pull_request` against the merge commit, so these are the gates against main, not
+against the branch base:
+
+| PR | Required checks | All checks |
+|---|---|---|
+| **#70** `4fcb6ef` | **SUCCESS** | Lint·types·tests · Migration validation · Build·Playwright · Docker build · Secret scan · Dependency review · CodeQL — all SUCCESS |
+| **#71** `078c404` | **SUCCESS** | same, all SUCCESS |
+
+**Docker build is SUCCESS on both.** That gate has been UNVERIFIED for this auditor since revision 1
+for want of a container runtime on this host — CI has now run it against both changes. It is
+recorded as CI evidence, which the charter accepts for *a specific change* while still refusing it
+as standalone proof of a capability; the D4 row stays as it was.
+
+## 21.4 What this round changes
+
+| Row | Before | Now |
+|---|---|---|
+| #70 / #71 mergeable together | assumed, never checked | **verified after a fix** — they were not |
+| Both fixes merged with current `main` | not tested | **GREEN** — 1,680 passed, repro `leaked = false` |
+| Docker build against the auditor's changes | UNVERIFIED | **SUCCESS in CI** on both PRs |
+
+The lesson is the same one this document keeps recording, in a new place: *each branch is clean
+against main* and *the branches are clean together* are different claims, and only one of them was
+tested.
