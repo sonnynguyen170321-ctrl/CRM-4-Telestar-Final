@@ -587,26 +587,69 @@ jobs:
       - uses: github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3
 
   # ── One check to require, so branch protection needs updating far less often ──
-  # `always()` plus an explicit result test is deliberate: without it a skipped or
-  # cancelled dependency reports success and this gate waves the merge through.
+  #
+  # `always()` plus an explicit result test is deliberate: without it a skipped or cancelled
+  # dependency reports success and this gate waves the merge through.
+  #
+  # Every job in this workflow is listed. It previously named five of seven, so `codeql` and
+  # `dependency-review` could go red while the one required check stayed green — the aggregate
+  # claimed to mean "CI passed" and meant "five sevenths of CI passed".
+  #
+  # Each job is checked against the results *it* is allowed to produce, rather than against a
+  # `contains(needs.*.result, …)` wildcard. That distinction is the whole point here:
+  # `dependency-review` only runs on pull requests and is legitimately `skipped` on a push to
+  # `main`, so a wildcard that treats every skip as a failure would fail every push, while one
+  # that tolerates skips everywhere would let a genuinely skipped gate through unnoticed.
   ci-required:
     name: CI required checks
     if: always()
-    needs: [quality, migrations, e2e, docker, secret-scan]
+    needs: [quality, migrations, e2e, docker, secret-scan, codeql, dependency-review]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Fail unless every required job succeeded
+      - name: Fail unless every required job produced an acceptable result
+        env:
+          QUALITY: ${{ needs.quality.result }}
+          MIGRATIONS: ${{ needs.migrations.result }}
+          E2E: ${{ needs.e2e.result }}
+          DOCKER: ${{ needs.docker.result }}
+          SECRET_SCAN: ${{ needs.secret-scan.result }}
+          CODEQL: ${{ needs.codeql.result }}
+          DEPENDENCY_REVIEW: ${{ needs.dependency-review.result }}
+          EVENT: ${{ github.event_name }}
         run: |
-          cat <<'RESULTS'
-          quality      : ${{ needs.quality.result }}
-          migrations   : ${{ needs.migrations.result }}
-          e2e          : ${{ needs.e2e.result }}
-          docker       : ${{ needs.docker.result }}
-          secret-scan  : ${{ needs.secret-scan.result }}
-          RESULTS
-          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" = "true" ]; then
-            echo "::error::A required job did not succeed."
+          set -u
+          failed=0
+
+          # $1 = label, $2 = actual result, $3.. = results this job may legitimately produce.
+          require() {
+            local label="$1" actual="$2"; shift 2
+            local allowed=" $* "
+            printf '%-20s %-10s (allowed:%s)\n' "$label" "$actual" "$allowed"
+            case "$allowed" in
+              *" $actual "*) ;;
+              *) echo "::error::${label} produced '${actual}', which is not an acceptable result."
+                 failed=1 ;;
+            esac
+          }
+
+          require "quality"           "$QUALITY"      success
+          require "migrations"        "$MIGRATIONS"   success
+          require "e2e"               "$E2E"          success
+          require "docker"            "$DOCKER"       success
+          require "secret-scan"       "$SECRET_SCAN"  success
+          require "codeql"            "$CODEQL"       success
+
+          # Runs only on pull requests; a push to `main` has no base ref to diff against.
+          if [ "$EVENT" = "pull_request" ]; then
+            require "dependency-review" "$DEPENDENCY_REVIEW" success
+          else
+            require "dependency-review" "$DEPENDENCY_REVIEW" skipped
+          fi
+
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::CI required checks failed."
             exit 1
           fi
+          echo "All required jobs produced acceptable results."
         shell: bash
