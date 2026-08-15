@@ -34,9 +34,14 @@ describe('BullMQ Foundation & JobRun Tracking', () => {
   const tenantId = 'default-tenant';
 
   beforeEach(async () => {
-    // Clear JobRuns before each test under the default tenant context
+    // Scoped to this tenant on purpose. `bypassRls: true` deliberately injects no WHERE filter
+    // (see lib/prisma.ts — cross-tenant reads have to keep working for the worker's own JobRun
+    // lookup), so an unfiltered `deleteMany()` here deletes every JobRun row in the database.
+    // Vitest runs files in parallel, and `run-now-immediate.test.ts` shares this tenant id, so
+    // two suites could wipe each other's rows mid-test — which surfaces as a JobRun that was
+    // just enqueued reading back as null.
     await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
-      await prisma.jobRun.deleteMany();
+      await prisma.jobRun.deleteMany({ where: { tenantId } });
     });
   });
 
@@ -168,8 +173,9 @@ describe('Workflows Enqueuing Helpers', () => {
     // `NODE_ENV=production` that survives one test makes every read in the next one return
     // `null`, which reads as several unrelated intermittent failures rather than as leakage.
     vi.unstubAllEnvs();
+    // Scoped — see the note in the suite above.
     await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
-      await prisma.jobRun.deleteMany();
+      await prisma.jobRun.deleteMany({ where: { tenantId } });
     });
   });
 
