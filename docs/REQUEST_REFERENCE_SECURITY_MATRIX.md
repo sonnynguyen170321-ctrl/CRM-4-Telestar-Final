@@ -153,9 +153,25 @@ and hiding it would make a real record invisible with no way to notice. `null` i
 shape callers handle, since `campaign` and `createdBy` are optional — so this degrades to
 "unknown", not to a lie.
 
-This closes disclosure for historical rows without depending on a data repair. The read-only
-integrity diagnostic is still worth building, to prove whether any such rows exist in staging or
-production.
+This closes disclosure for historical rows without depending on a data repair.
+
+## Read-only integrity diagnostic
+
+`scripts/check-relational-integrity.ts` (`npm run check:relational-integrity`, `--json` for
+machine output, exit 1 on any finding) answers the question the two write fixes cannot: whether
+rows written *before* them already carry a poisoned reference.
+
+Four checks — `Lead -> Campaign` tenancy, `BookingLink -> Client` tenancy, `BookingLink ->
+Campaign` tenancy, and the `campaign.clientId != clientId` hierarchy mismatch, which is not a
+tenancy fault at all.
+
+It reports ids and tenant ids only. **No repair, no deletion, no reassignment** — deciding which
+side of a poisoned reference is correct needs someone who knows the data, and an automatic fix
+could quietly move a real client's booking link to the wrong company.
+
+Proven against a live database rather than asserted: on first run it found **4 real inconsistent
+rows** — leftovers from the discarded classification probe — printed them with their tenant ids,
+and exited 1. After those rows were removed it reports 0 and exits 0.
 
 ## Open work, in order
 
