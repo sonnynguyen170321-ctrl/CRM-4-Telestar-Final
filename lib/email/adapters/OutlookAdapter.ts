@@ -79,6 +79,7 @@ export class OutlookAdapter implements EmailAdapter {
       html: options.html,
       text: options.text,
       replyTo: options.replyTo,
+      headers: options.headers,
       attachments: options.attachments,
     });
 

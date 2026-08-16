@@ -5,6 +5,7 @@ import { JobType } from '@/lib/bullmq/types';
 import type { EmailSendPayload } from '@/lib/bullmq/types';
 import { EmailService } from '@/lib/email/EmailService';
 import { isDryRun, isGlobalEmailPaused, isCanaryRecipientAllowed } from '@/lib/emailSafety';
+import { generateUnsubscribeToken, buildUnsubscribeHeaders } from '@/lib/email/unsubscribe';
 import { renderTemplate } from '@/lib/templates/render';
 import {
   CLAIMABLE_STATUSES,
@@ -387,6 +388,15 @@ async function handleEmailSend(payload: EmailSendPayload) {
       htmlPayload = `<div style="font-family: sans-serif; white-space: pre-wrap;">${bodyWithSig}</div>`;
     }
 
+    const baseUrl = process.env.NEXTAUTH_URL || `https://${process.env.CRM_DOMAIN || 'crm.telestar.cloud'}`;
+    const unsubToken = generateUnsubscribeToken({
+      tenantId: existing.tenantId,
+      email: to,
+      leadId: existing.leadId || undefined,
+      campaignId: existing.lead?.campaignId || undefined,
+    });
+    const headers = buildUnsubscribeHeaders(baseUrl, unsubToken);
+
     const emailService = await EmailService.fromAccount(account);
     providerMessageId = await emailService.send({
       from: account.email,
@@ -394,6 +404,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
       subject: finalSubject,
       text: textPayload,
       html: htmlPayload,
+      headers,
       attachments: mappedAttachments,
     });
   } catch (sendErr: unknown) {
