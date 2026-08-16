@@ -31,7 +31,7 @@ fail() { printf '\n\033[31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 # ── Resolve canonical topology from single authority ───────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILES="${COMPOSE_FILES:-$("${SCRIPT_DIR}/production-compose.sh" "$ENV_FILE")}"
-DEPLOY_TARGET=$(grep -E '^[[:space:]]*DEPLOY_TARGET=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"'"'"' | tr -d '[:space:]' || echo "gcp")
+DEPLOY_TARGET=$(grep -E '^[[:space:]]*DEPLOY_TARGET=' "$ENV_FILE" | head -1 | cut -d= -f2- | sed -e 's/["'\''[:space:]]//g' || echo "gcp")
 
 COMMIT="${1:-$(git rev-parse HEAD)}"
 if ! printf '%s' "$COMMIT" | grep -Eq '^[0-9a-f]{40}$'; then
