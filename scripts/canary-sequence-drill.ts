@@ -3,7 +3,7 @@ import { tenantStorage } from '@/lib/tenant-context';
 import { createTaskForStep } from '@/lib/sequences/engine';
 
 async function main() {
-  console.log('\n=== Phase C: Seeding Automated Sequence & Canary Lead via Prisma ===');
+  console.log('\n=== Phase C: Seeding Automated Sequence & Canary Lead ===');
 
   const tenantRows: any = await prisma.$queryRaw`SELECT id FROM "Tenant" LIMIT 1`;
   const tenantId = tenantRows[0].id;
@@ -28,8 +28,8 @@ async function main() {
       sequence = await prisma.sequence.create({
         data: {
           name: sequenceName,
-          tenant: { connect: { id: tenantId } },
-          createdBy: { connect: { id: userId } },
+          tenantId,
+          createdById: userId,
           steps: {
             create: [
               {
@@ -39,14 +39,14 @@ async function main() {
                 delayHours: 0,
                 instructions: 'Phase C Automated Canary Dispatch — Step 1',
                 autoComplete: true,
-                tenant: { connect: { id: tenantId } },
+                tenantId,
               },
             ],
           },
         },
         include: { steps: true },
       });
-      console.log('  + Created Sequence & Step 1 via Prisma');
+      console.log('  + Created Sequence & Step 1');
     }
 
     // 2. Create or Find Canary Lead
@@ -64,10 +64,10 @@ async function main() {
           email: canaryEmail,
           stage: 'new',
           crmPriorityScore: 'hot',
-          tenant: { connect: { id: tenantId } },
-          assignedTo: { connect: { id: userId } },
-          campaign: { connect: { id: campaignId } },
-        },
+          tenantId,
+          assignedToId: userId,
+          campaignId,
+        } as any,
       });
       console.log('  + Created Lead:', lead.email);
     }
