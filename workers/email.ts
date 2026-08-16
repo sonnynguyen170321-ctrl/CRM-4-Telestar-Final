@@ -4,7 +4,7 @@ import { enqueueReschedule } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
 import type { EmailSendPayload } from '@/lib/bullmq/types';
 import { EmailService } from '@/lib/email/EmailService';
-import { isDryRun } from '@/lib/emailSafety';
+import { isDryRun, isGlobalEmailPaused, isCanaryRecipientAllowed } from '@/lib/emailSafety';
 import { renderTemplate } from '@/lib/templates/render';
 import {
   CLAIMABLE_STATUSES,
@@ -184,6 +184,24 @@ async function handleEmailSend(payload: EmailSendPayload) {
   });
   if (claim.count !== 1) {
     return { skipped: true, reason: 'claim_lost' };
+  }
+
+  // ── Emergency Kill Switch ─────────────────────────────────────────────────
+  if (isGlobalEmailPaused()) {
+    await prisma.outboundMessage.update({
+      where: { id: outboundMessageId },
+      data: { status: OUTBOUND_STATUS.FAILED, errorMessage: 'Sending blocked: global email pause is active' },
+    });
+    return { skipped: true, reason: 'global_email_paused' };
+  }
+
+  // ── Canary Recipient Restriction ──────────────────────────────────────────
+  if (!isDryRun() && !isCanaryRecipientAllowed(to)) {
+    await prisma.outboundMessage.update({
+      where: { id: outboundMessageId },
+      data: { status: OUTBOUND_STATUS.FAILED, errorMessage: `Canary restriction: recipient ${to} is not in allowed list` },
+    });
+    return { skipped: true, reason: 'canary_recipient_blocked' };
   }
 
   // Check suppression

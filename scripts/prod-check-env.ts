@@ -108,11 +108,19 @@ const validate = (): Check[] => {
   if (env.CRON_SECRET && env.CRON_SECRET.length < 32) {
     add(checks, 'FAIL', 'CRON_SECRET should be at least 32 characters');
   }
-  if (env.EMAIL_SEND_DRY_RUN !== 'true') {
-    add(checks, 'FAIL', 'EMAIL_SEND_DRY_RUN must remain true for this deployment');
+  if (env.EMAIL_SEND_DRY_RUN === 'false') {
+    if (env.LIVE_EMAIL_CANARY_MODE !== 'true' && env.ALLOW_UNRESTRICTED_LIVE_EMAIL !== 'true') {
+      add(checks, 'FAIL', 'EMAIL_SEND_DRY_RUN cannot be false without LIVE_EMAIL_CANARY_MODE=true or ALLOW_UNRESTRICTED_LIVE_EMAIL=true');
+    }
+    if (env.LIVE_EMAIL_CANARY_MODE === 'true' && !env.LIVE_EMAIL_ALLOWED_RECIPIENTS) {
+      add(checks, 'FAIL', 'LIVE_EMAIL_CANARY_MODE=true requires LIVE_EMAIL_ALLOWED_RECIPIENTS to be configured');
+    }
+  } else if (env.EMAIL_SEND_DRY_RUN && env.EMAIL_SEND_DRY_RUN !== 'true') {
+    add(checks, 'FAIL', 'EMAIL_SEND_DRY_RUN must be "true" or "false"');
   }
-  if (env.SEQUENCE_AUTOSEND_ENABLED !== 'false') {
-    add(checks, 'FAIL', 'SEQUENCE_AUTOSEND_ENABLED must remain false for this deployment');
+
+  if (env.SEQUENCE_AUTOSEND_ENABLED && !['true', 'false'].includes(env.SEQUENCE_AUTOSEND_ENABLED)) {
+    add(checks, 'FAIL', 'SEQUENCE_AUTOSEND_ENABLED must be "true" or "false"');
   }
 
   if (!checks.some((check) => check.level === 'FAIL')) {

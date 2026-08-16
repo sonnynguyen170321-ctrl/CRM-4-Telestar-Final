@@ -635,6 +635,41 @@ describe('handleEmailSend — exactly-once delivery', () => {
     );
     expect(mockServiceSend).not.toHaveBeenCalled();
   });
+
+  it('blocks transmission when EMAIL_GLOBAL_PAUSE is true', async () => {
+    process.env.EMAIL_GLOBAL_PAUSE = 'true';
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+
+    const result = await handleEmailSend(buildPayload());
+
+    expect(result).toEqual({ skipped: true, reason: 'global_email_paused' });
+    expect(mockOutboundUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: { status: 'failed', errorMessage: 'Sending blocked: global email pause is active' },
+    });
+    expect(mockServiceSend).not.toHaveBeenCalled();
+    delete process.env.EMAIL_GLOBAL_PAUSE;
+  });
+
+  it('blocks transmission when in live mode and recipient is not on canary allowlist', async () => {
+    process.env.EMAIL_SEND_DRY_RUN = 'false';
+    process.env.LIVE_EMAIL_CANARY_MODE = 'true';
+    process.env.LIVE_EMAIL_ALLOWED_RECIPIENTS = 'allowed@telestar.cloud';
+
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+
+    const result = await handleEmailSend(buildPayload({ to: 'blocked@external.com' }));
+
+    expect(result).toEqual({ skipped: true, reason: 'canary_recipient_blocked' });
+    expect(mockOutboundUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: { status: 'failed', errorMessage: 'Canary restriction: recipient blocked@external.com is not in allowed list' },
+    });
+    expect(mockServiceSend).not.toHaveBeenCalled();
+    delete process.env.LIVE_EMAIL_CANARY_MODE;
+    delete process.env.LIVE_EMAIL_ALLOWED_RECIPIENTS;
+    process.env.EMAIL_SEND_DRY_RUN = 'true';
+  });
 });
 
 describe('evaluateSendBlock', () => {
