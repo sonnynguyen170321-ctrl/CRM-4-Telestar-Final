@@ -11,6 +11,10 @@ Companion to [`CUTOVER_2026-08-17.md`](CUTOVER_2026-08-17.md) (runbook) and
 
 ---
 
+> **Status 2026-08-16:** A8 and A10 are **cleared** — the candidate is merged, certified and
+> published as `29472e9` / `sha256:47cae338…`. **Nine blockers remain, all environmental.** The
+> verdict is unchanged: **NO-GO for deployment.**
+
 ## A. Blockers — each is a mandatory NO-GO until closed
 
 Run `npm run cutover:preflight` on the target once access exists; it mechanically checks A2, A4,
@@ -25,9 +29,9 @@ A5, A6, A7 and A9 and exits non-zero on any of them.
 | **A5** | **Production migrations not applied** | no production database | `migrate status` → `migrate deploy` → `migrate status` | `cutover:preflight` (`db.migrations`) |
 | **A6** | **No Telestar data migrated or reconciled** | source dataset never available to this session | build the transform against [`MIGRATION_INVENTORY_2026-08-17.md`](MIGRATION_INVENTORY_2026-08-17.md), rehearse on a clean DB, reconcile | `npm run check:relational-integrity` + the per-entity table |
 | **A7** | **Demo credentials not rotated** | no deployed database | rotate or deactivate every demo persona; confirm `authVersion` moved | `cutover:preflight` (`creds.demo`) |
-| **A8** | **No image digest, and CI has not run on the candidate** | branch not pushed; no Docker locally | push `release/internal-cutover-2026-08-17`, let CI + Docker Image build, capture the digest | `gh run list`, `docker buildx imagetools inspect` |
+| ~~**A8**~~ | ~~No image digest, and CI has not run on the candidate~~ | — | **CLEARED 2026-08-16.** PR #73 merged at `29472e9`; CI run 31936081884 success; Docker Image run 31936286444 published `sha256:47cae338…` via `workflow_run`. Digest re-resolved from the registry. | recorded in the evidence file |
 | **A9** | **Worker/queue never proven end to end** | no Redis in this environment | run the repaired healthcheck against the target | `npm run worker:healthcheck` — must print `completed` |
-| **A10** | **`check:test-discipline --ci` cannot pass locally** | requires `REDIS_URL`; refuses to let a Redis-less env report a pass | must be green **in CI** on the release SHA | CI |
+| ~~**A10**~~ | ~~`check:test-discipline --ci` cannot pass locally~~ | — | **CLEARED 2026-08-16.** Green in CI on the release SHA inside `Lint · types · tests` — the Redis-gated suite ran rather than skipped. | CI run 31936081884 |
 | **A11** | **Role smoke + golden journey not run on a deployment** | nothing deployed | runbook Phases 11–12, both directions per role | Playwright against the deployed `BASE_URL` |
 
 ### A4 is the one to do first
