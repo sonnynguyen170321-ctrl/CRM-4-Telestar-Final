@@ -19,13 +19,14 @@ async function createDailyNotifications(now: Date): Promise<number> {
   // task_overdue — one notification per SDR per day for all overdue pending tasks
   const overdueTasks = await prisma.task.findMany({
     where: { status: 'pending', dueDate: { lt: startOfDay } },
-    select: { userId: true },
+    select: { userId: true, tenantId: true },
   });
 
   if (overdueTasks.length > 0) {
-    const countByUser = new Map<string, number>();
+    const countByUser = new Map<string, { count: number; tenantId: string }>();
     for (const t of overdueTasks) {
-      countByUser.set(t.userId, (countByUser.get(t.userId) ?? 0) + 1);
+      const cur = countByUser.get(t.userId) ?? { count: 0, tenantId: t.tenantId };
+      countByUser.set(t.userId, { count: cur.count + 1, tenantId: t.tenantId });
     }
 
     const existing = await prisma.notification.findMany({
@@ -34,10 +35,11 @@ async function createDailyNotifications(now: Date): Promise<number> {
     });
     const alreadyNotified = new Set(existing.map((n) => n.userId));
 
-    for (const [userId, count] of countByUser.entries()) {
+    for (const [userId, { count, tenantId }] of countByUser.entries()) {
       if (alreadyNotified.has(userId)) continue;
       await prisma.notification.create({
         data: {
+          tenantId,
           userId,
           type: 'task_overdue',
           title: 'Overdue Tasks',
@@ -56,13 +58,14 @@ async function createDailyNotifications(now: Date): Promise<number> {
       sequenceId: { not: null },
       dueDate: { gte: startOfDay, lte: endOfDay },
     },
-    select: { userId: true },
+    select: { userId: true, tenantId: true },
   });
 
   if (seqTasksDueToday.length > 0) {
-    const seqCountByUser = new Map<string, number>();
+    const seqCountByUser = new Map<string, { count: number; tenantId: string }>();
     for (const t of seqTasksDueToday) {
-      seqCountByUser.set(t.userId, (seqCountByUser.get(t.userId) ?? 0) + 1);
+      const cur = seqCountByUser.get(t.userId) ?? { count: 0, tenantId: t.tenantId };
+      seqCountByUser.set(t.userId, { count: cur.count + 1, tenantId: t.tenantId });
     }
 
     const existingSeq = await prisma.notification.findMany({
@@ -71,10 +74,11 @@ async function createDailyNotifications(now: Date): Promise<number> {
     });
     const alreadyNotifiedSeq = new Set(existingSeq.map((n) => n.userId));
 
-    for (const [userId, count] of seqCountByUser.entries()) {
+    for (const [userId, { count, tenantId }] of seqCountByUser.entries()) {
       if (alreadyNotifiedSeq.has(userId)) continue;
       await prisma.notification.create({
         data: {
+          tenantId,
           userId,
           type: 'sequence_step_due',
           title: 'Sequence Steps Due Today',
