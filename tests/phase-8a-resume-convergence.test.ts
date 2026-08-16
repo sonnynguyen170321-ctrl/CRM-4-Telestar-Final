@@ -554,6 +554,8 @@ describe('Phase 8a — resume convergence', () => {
       const originalDelay = jobStore.get(originalId)!.delay;
       expect(jobStore.get(originalId)!.state).toBe('delayed');
 
+      await new Promise((r) => setTimeout(r, 50));
+
       const resumed = await resume(enrollmentId);
       expect(resumed.ok).toBe(true);
 
