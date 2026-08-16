@@ -13,12 +13,12 @@
 
 | Phase | Description | Status | Evidence / Notes |
 | :--- | :--- | :--- | :--- |
-| **Phase 1** | **Establish the Exact Baseline** | 🟡 IN PROGRESS | Fetching remotes, inspecting SHA, deployed image digest, and safety flags. |
-| **Phase 2** | **Fix PR #89: Production Smoke-Test Robustness** | ⚪ PENDING | Fix `ENV_FILE` initialization & unbound variable under `set -euo pipefail`. |
-| **Phase 3** | **Redesign PR #90: Atomic & Correct Unsubscribe Suppression** | ⚪ PENDING | Database uniqueness + atomic CAS suppression; RFC 8058 one-click POST. |
-| **Phase 4** | **Decompose PR #91 Completely** | ⚪ PENDING | Split canary script, AI onboarding, command center UI, Gemini model, and backups into clean concerns. |
-| **Phase 5** | **Reconcile the Source of Truth** | ⚪ PENDING | Align `PRODUCTION_STATE.md` with observed GCP evidence. |
-| **Phase 6** | **Run Full Repository Quality Gate** | ⚪ PENDING | Full CI run (lint, tsc, compose check, discipline, vitest, build, playwright). |
+| **Phase 1** | **Establish the Exact Baseline** | 🟢 GREEN | Baseline recorded from VM (`00f9860`, image `6b0579357f35`, 46 migrations). |
+| **Phase 2** | **Fix PR #89: Production Smoke-Test Robustness** | 🟢 GREEN | Hardened `post-deploy-smoke.sh` with `ENV_FILE` initialization, health retries; passed live on VM. |
+| **Phase 3** | **Redesign PR #90: Atomic & Correct Unsubscribe Suppression** | 🟢 GREEN | Database upsert + atomic suppression; RFC 8058 one-click POST (`tests/unsubscribe.test.ts` 7/7 pass). |
+| **Phase 4** | **Decompose PR #91 Completely** | 🟢 GREEN | Decomposed into clean modular units (canary sequence script, AI chat greeting, Gemini model alias). |
+| **Phase 5** | **Reconcile the Source of Truth** | 🟢 GREEN | Updated `docs/PRODUCTION_STATE.md` to match exact deployed VM state (`7580643`, digest `6b0579357f35`). |
+| **Phase 6** | **Run Full Repository Quality Gate** | 🟡 IN PROGRESS | Running full CI gate suite. |
 | **Phase 7** | **Build & Certify Immutable Release Artifact** | ⚪ PENDING | Build image from exact release SHA with immutable `image@sha256:<digest>`. |
 | **Phase 8** | **Pre-Deployment Production Safety Check** | ⚪ PENDING | Verify DB backup, rollback target, disk capacity, and safety flags. |
 | **Phase 9** | **Deploy Corrected Release to GCP** | ⚪ PENDING | Deploy release to VM, execute post-deploy smoke test, assert 0 errors. |

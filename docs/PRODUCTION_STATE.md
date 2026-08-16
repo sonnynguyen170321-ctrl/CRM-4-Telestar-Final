@@ -25,9 +25,9 @@
 
 | Component | Reference |
 | :--- | :--- |
-| **Application Git Commit** | `29472e90d2f561d3b9eca46e31d856b8697cce40` |
-| **Application Image Digest** | `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:47cae338dcb6c3a0197033570eb56937430a67092c72a57d9208b1a127b4266d` |
-| **Infrastructure Git Commit** | `0b17426` (on `main`) |
+| **Application Git Commit** | `7580643` |
+| **Application Image Digest** | `6b0579357f35` (web and worker on exact same digest) |
+| **Infrastructure Git Commit** | `7580643` (on `chore/canary-sequence-script`) |
 | **Deploy Target** | `gcp` (`-f docker-compose.yml -f docker-compose.gcp.yml`) |
 | **Database Migrations** | 46 total migrations applied (all schema models up to date) |
 
