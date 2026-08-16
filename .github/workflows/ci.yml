@@ -100,6 +100,12 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
+      # The GCP production topology override and deployment resolver must satisfy all
+      # architectural invariants (Cloud SQL wiring, disabled local postgres, no port exposure).
+      - name: Production topology validation
+        run: node scripts/check-production-compose.mjs
+        shell: bash
+
       # Runs *before* the suite: a missing DATABASE_URL or REDIS_URL means 49 database suites
       # and the only real-Redis suite would skip themselves, and a broken service container
       # would be reported as a pass. Also fails on any `.only` / `.skip` / `.todo` that is not

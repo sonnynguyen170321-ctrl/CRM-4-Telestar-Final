@@ -7,8 +7,8 @@
 #     ./scripts/deploy.sh                 # deploy the image built for HEAD
 #     ./scripts/deploy.sh <full-git-sha>  # deploy a specific commit's image
 #
-# What this exists to prevent: `IMAGE_TAG=latest` plus `docker compose up -d` is not a
-# deployment, it is a lottery. The tag can move between the pull and the restart, web and
+# What this exists to prevent: deploying mutable tags like `:latest` with `docker compose up -d`
+# is not a deployment, it is a lottery. The tag can move between the pull and the restart, web and
 # worker can end up on different content, and nothing anywhere records which bytes are
 # serving traffic. This script resolves the tag to a digest ONCE, deploys that digest to
 # both services, verifies them, and appends an immutable record.
@@ -20,7 +20,6 @@ set -euo pipefail
 REGISTRY="ghcr.io"
 IMAGE_NAME="sonnynguyen170321-ctrl/crm-4-telestar-final"
 ENV_FILE="${ENV_FILE:-.env.production}"
-COMPOSE_FILES="${COMPOSE_FILES:--f docker-compose.yml}"
 RECORD_FILE="${RECORD_FILE:-deployments.ndjson}"
 DOCKER="${DOCKER:-sudo docker}"
 
@@ -28,6 +27,11 @@ log()  { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 fail() { printf '\n\033[31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
 [ -f "$ENV_FILE" ] || fail "$ENV_FILE not found. Run this from the deployment root."
+
+# ── Resolve canonical topology from single authority ───────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMPOSE_FILES="${COMPOSE_FILES:-$("${SCRIPT_DIR}/production-compose.sh" "$ENV_FILE")}"
+DEPLOY_TARGET=$(grep -E '^[[:space:]]*DEPLOY_TARGET=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"'"'"' | tr -d '[:space:]' || echo "gcp")
 
 COMMIT="${1:-$(git rev-parse HEAD)}"
 if ! printf '%s' "$COMMIT" | grep -Eq '^[0-9a-f]{40}$'; then
@@ -49,6 +53,8 @@ printf '%s' "$DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$' \
 NEW_IMAGE="${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
 PREVIOUS_IMAGE=$(grep -E '^CRM_IMAGE=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' || true)
 
+echo "  target   : ${DEPLOY_TARGET}"
+echo "  compose  : ${COMPOSE_FILES}"
 echo "  previous : ${PREVIOUS_IMAGE:-<none>}"
 echo "  new      : ${NEW_IMAGE}"
 
@@ -58,24 +64,31 @@ if [ "$NEW_IMAGE" = "$PREVIOUS_IMAGE" ]; then
 fi
 
 # ── 2. Back up before any migration ─────────────────────────────────────────
-cat <<'REMINDER'
+BACKUP_ID="${DEPLOY_BACKUP_ID:-$(grep -E '^DEPLOY_BACKUP_ID=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' || true)}"
+BACKUP_AT="${DEPLOY_BACKUP_AT:-$(grep -E '^DEPLOY_BACKUP_AT=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' || true)}"
 
-  The operating restrictions require a manual Cloud SQL backup before every migration.
-  Run this from Cloud Shell, NOT the VM — the VM's service account lacks the sqladmin
-  scope and fails with ACCESS_TOKEN_SCOPE_INSUFFICIENT:
+if [ -z "$BACKUP_ID" ]; then
+  cat <<'REMINDER'
+
+  Operating restrictions require a pre-deploy backup.
+  Create one from Cloud Shell:
 
       gcloud sql backups create --instance=telestar-db --project=telestar-crm-final
 
 REMINDER
-read -r -p "  Backup taken? [y/N] " reply
-[ "$reply" = "y" ] || [ "$reply" = "Y" ] || fail "Aborted. Take the backup first."
+  read -r -p "  Enter Cloud SQL Backup ID: " BACKUP_ID
+  [ -n "$BACKUP_ID" ] || fail "Aborted. Backup ID is required."
+  BACKUP_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+fi
 
 DC="$DOCKER compose --env-file $ENV_FILE $COMPOSE_FILES"
 
 # ── 3. Migrate, using the NEW image ─────────────────────────────────────────
 # CRM_IMAGE is exported for this command so the one-off container is the same build that
-# is about to serve traffic — migrating with the old image then starting the new one is
-# how a deploy ends up half-applied.
+# is about to serve traffic.
+TOTAL_MIGRATIONS=$(ls -1 prisma/migrations | grep -E '^[0-9]{14}_' | wc -l | tr -d ' ')
+MIGRATION_LATEST=$(ls -1 prisma/migrations | grep -E '^[0-9]{14}_' | tail -1)
+
 log "Pending migrations"
 CRM_IMAGE="$NEW_IMAGE" $DC run --rm --no-deps web \
   node node_modules/prisma/build/index.js migrate status || true
@@ -84,12 +97,7 @@ log "Applying migrations"
 CRM_IMAGE="$NEW_IMAGE" $DC run --rm --no-deps web \
   node node_modules/prisma/build/index.js migrate deploy
 
-MIGRATION=$(ls -1 prisma/migrations | grep -E '^[0-9]{14}_' | tail -1)
-
 # ── 4. Write the digest into the env file, keeping the one it replaces ──────
-# PREVIOUS_CRM_IMAGE is what scripts/rollback.sh deploys. Retaining exactly one
-# known-good digest is deliberate: a longer history invites picking an arbitrary old
-# build, and the deployment record below is the real history.
 log "Pinning ${ENV_FILE} to the new digest"
 cp "$ENV_FILE" "${ENV_FILE}.bak"
 grep -v -E '^(CRM_IMAGE|PREVIOUS_CRM_IMAGE)=' "${ENV_FILE}.bak" > "$ENV_FILE"
@@ -99,10 +107,9 @@ grep -v -E '^(CRM_IMAGE|PREVIOUS_CRM_IMAGE)=' "${ENV_FILE}.bak" > "$ENV_FILE"
 } >> "$ENV_FILE"
 
 # ── 5. Swap the containers ──────────────────────────────────────────────────
-# Both services are named explicitly: a bare `up -d` also starts the unused postgres
-# service and needlessly recreates caddy and redis.
+# Recreate web and worker with new image digest
 log "Starting web and worker on the new digest"
-$DC up -d web worker
+$DC up -d --no-deps web worker
 $DC ps --format 'table {{.Name}}\t{{.Image}}\t{{.Status}}'
 
 # ── 6. Prove it ─────────────────────────────────────────────────────────────
@@ -113,19 +120,25 @@ if ! DEPLOYED_COMMIT="$COMMIT" DOCKER="$DOCKER" ENV_FILE="$ENV_FILE" \
 fi
 
 # ── 7. Record it ────────────────────────────────────────────────────────────
-# Append-only, one JSON object per line, outside git (the VM is a checkout and a tracked
-# file here would conflict on every `git pull`).
+# Append-only structured record in deployments.ndjson
 log "Recording the deployment in ${RECORD_FILE}"
 node -e '
-  const [commit, digest, image, previous, migration, operator] = process.argv.slice(1);
+  const [commit, digest, image, previous, migration, target, backupId, backupAt, totalMigrations, operator] = process.argv.slice(1);
   process.stdout.write(JSON.stringify({
-    at: new Date().toISOString(),
-    commit, digest, image,
+    deployedAt: new Date().toISOString(),
+    commit,
+    digest,
+    image,
     previousImage: previous || null,
-    migration, operator,
+    deployTarget: target,
+    backupId: backupId || null,
+    backupAt: backupAt || null,
+    totalMigrations: parseInt(totalMigrations, 10) || 0,
+    latestMigration: migration,
+    operator,
   }) + "\n");
-' "$COMMIT" "$DIGEST" "$NEW_IMAGE" "$PREVIOUS_IMAGE" "$MIGRATION" "$(whoami)@$(hostname)" \
+' "$COMMIT" "$DIGEST" "$NEW_IMAGE" "$PREVIOUS_IMAGE" "$MIGRATION_LATEST" "$DEPLOY_TARGET" "$BACKUP_ID" "$BACKUP_AT" "$TOTAL_MIGRATIONS" "$(whoami)@$(hostname)" \
   >> "$RECORD_FILE"
 
 tail -1 "$RECORD_FILE"
-log "Deployed ${COMMIT} (${DIGEST})"
+log "Successfully deployed ${COMMIT} (${DIGEST})"

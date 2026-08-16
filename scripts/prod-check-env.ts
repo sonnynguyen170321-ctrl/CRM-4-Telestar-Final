@@ -14,6 +14,7 @@ const envPath = process.argv.includes('--file')
   : '.env.production';
 
 const requiredKeys = [
+  'DEPLOY_TARGET',
   'CRM_IMAGE',
   'DATABASE_URL',
   'DIRECT_URL',
@@ -51,6 +52,10 @@ const validate = (): Check[] => {
     if (value && placeholderPattern.test(value)) {
       add(checks, 'FAIL', `${key} contains a placeholder or local/example value`);
     }
+  }
+
+  if (env.DEPLOY_TARGET && !['gcp', 'self-hosted'].includes(env.DEPLOY_TARGET)) {
+    add(checks, 'FAIL', 'DEPLOY_TARGET must be "gcp" or "self-hosted"');
   }
 
   if (env.CRM_IMAGE) {
