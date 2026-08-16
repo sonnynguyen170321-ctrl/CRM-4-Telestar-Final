@@ -1,11 +1,11 @@
 import { prisma } from '@/lib/prisma';
 
 async function main() {
-  console.log('\n=== Sequence Enrollment Status in DB ===');
+  console.log('\n=== Sequence Enrollment Record in DB ===');
   const enrollment = await prisma.$queryRaw`
-    SELECT id, "currentStep", status, "nextActionAt", "completedAt", "createdAt", "updatedAt"
-    FROM "SequenceEnrollment"
-    WHERE id = 'enr_canary_drill'
+    SELECT * FROM "SequenceEnrollment"
+    WHERE id = 'enr_canary_drill' OR "sequenceId" = 'seq_canary_drill'
+    LIMIT 5
   `;
   console.table(enrollment);
 
