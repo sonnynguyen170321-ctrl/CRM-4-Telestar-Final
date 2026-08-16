@@ -69,7 +69,7 @@ function attributionOf(opts: StreamOptions) {
 export async function* streamChat(opts: StreamOptions): AsyncGenerator<string> {
   const { modelId } = opts;
 
-  if (modelId === 'gemini-2.5-flash') {
+  if (modelId === 'gemini-flash-latest') {
     yield* streamGemini(opts);
     return;
   }
@@ -254,7 +254,7 @@ async function* streamGemini(opts: StreamOptions): AsyncGenerator<string> {
   // systemInstruction belongs on the model, not on startChat(). Passing it to
   // startChat() sends an invalid Content and Gemini rejects it with a 400.
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-flash-latest',
     systemInstruction: opts.systemPrompt,
   });
 
@@ -278,7 +278,7 @@ async function* streamGemini(opts: StreamOptions): AsyncGenerator<string> {
     await recordAiCall({
       ...attributionOf(opts),
       provider: 'gemini',
-      model: 'gemini-2.5-flash',
+      model: 'gemini-flash-latest',
       latencyMs: Date.now() - startedAt,
       status: classifyFailure(err),
       errorCode: (err as { status?: number })?.status?.toString() ?? null,
@@ -300,7 +300,7 @@ async function* streamGemini(opts: StreamOptions): AsyncGenerator<string> {
     await recordAiCall({
       ...attributionOf(opts),
       provider: 'gemini',
-      model: 'gemini-2.5-flash',
+      model: 'gemini-flash-latest',
       promptTokens: usage?.promptTokenCount ?? null,
       completionTokens: usage?.candidatesTokenCount ?? null,
       totalTokens: usage?.totalTokenCount ?? null,
