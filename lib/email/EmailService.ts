@@ -11,6 +11,7 @@ export interface SendEmailOptions {
   html?: string;
   text?: string;
   replyTo?: string;
+  headers?: Record<string, string>;
   attachments?: Array<{
     filename: string;
     content: string | Buffer;

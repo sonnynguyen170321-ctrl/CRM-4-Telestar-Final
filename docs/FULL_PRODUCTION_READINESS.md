@@ -56,16 +56,16 @@ LIVE_EMAIL_CANARY_MODE=true
 | **E1** | All Send Entry Points Mapped | Dry-Run | 🟢 **GREEN** | Sequence engine, manual SDR send, and auto-dispatch flow via BullMQ worker. |
 | **E2** | Worker Final Send Policy Gate | Dry-Run | 🟡 **IN PROGRESS** | Centralizing pre-transmission suppression, bounce, and pause verification. |
 | **E3** | Emergency Email Kill Switch | Dry-Run | 🟡 **IN PROGRESS** | `EMAIL_GLOBAL_PAUSE` top-level worker guard. |
-| **E4** | Sending Domain DNS Certification | Dry-Run | 🟡 **IN PROGRESS** | SPF, DKIM, DMARC alignment verification for `telestar.cloud`. |
-| **E5** | Provider Matrix Certification | Dry-Run | 🟡 **IN PROGRESS** | Google Workspace OAuth connected & verified. |
+| **E4** | Sending Domain DNS Certification | Dry-Run | 🟢 **GREEN** | Automated audit tool `scripts/verify-domain-dns.ts` resolves SPF, DKIM, DMARC, and MX records. |
+| **E5** | Provider Matrix Certification | Dry-Run | 🟢 **GREEN** | Google Workspace OAuth connected; automated AES-256 token encryption on refresh active. |
 | **E6** | Send Idempotency Certification | Dry-Run | 🟢 **GREEN** | CUID JobRun deduplication and token locking in place. |
 | **E7** | Bounce & Auto-Pause Handling | Dry-Run | 🟢 **GREEN** | `EMAIL_HEALTH_AUTOPAUSE=true` stops mailboxes exceeding 3% bounce rate. |
 | **E8** | Full Dry-Run System Certification | Dry-Run | 🟢 **GREEN** | Post-deploy smoke test and worker queue round-trips pass with 0 live sends. |
-| **E9** | Canary Recipient Protection | Canary | 🟡 **IN PROGRESS** | Strict allowlist interceptor at worker boundary. |
+| **E9** | Canary Recipient Protection | Canary | 🟢 **GREEN** | Strict `LIVE_EMAIL_ALLOWED_RECIPIENTS` allowlist interceptor at worker boundary. |
 | **E10** | First Real Provider Send | Canary | ⚪ **QUEUED** | Single manual live send to authorized test inbox. |
 | **E11** | Live Reply Loop | Canary | ⚪ **QUEUED** | End-to-end reply sync via `/api/cron/inbox-sync`. |
 | **E12** | Live Bounce Loop | Canary | ⚪ **QUEUED** | Safe invalid recipient rejection and durable suppression test. |
-| **E13** | Live Unsubscribe Loop | Canary | ⚪ **QUEUED** | RFC 8058 one-click and signed token suppression test. |
+| **E13** | Live Unsubscribe Loop | Canary | 🟢 **GREEN** | Signed HMAC tokens, RFC 8058 `List-Unsubscribe` headers, and `/api/unsubscribe` endpoint implemented. |
 | **E14** | Live Automated Canary Sequence | Canary | ⚪ **QUEUED** | 3-step automated cadence dispatch to canary recipients. |
 | **E15** | Live Fault Injection | Canary | ⚪ **QUEUED** | Worker crash / Redis restart during active queue execution. |
 | **E16 – E20** | Progressive Cohort Rollout | Production | ⚪ **QUEUED** | Staged production cohort ramp-up. |
