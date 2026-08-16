@@ -5,10 +5,10 @@ import { createTaskForStep } from '@/lib/sequences/engine';
 async function main() {
   console.log('\n=== Phase C: Seeding Automated Sequence & Canary Lead via Prisma ===');
 
-  const tenantRows = await prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Tenant" LIMIT 1`;
+  const tenantRows: any = await prisma.$queryRaw`SELECT id FROM "Tenant" LIMIT 1`;
   const tenantId = tenantRows[0].id;
 
-  const userRows = await prisma.$queryRaw<Array<{ id: string }>>`
+  const userRows: any = await prisma.$queryRaw`
     SELECT id FROM "User" WHERE role IN ('sdr', 'floor_manager', 'director') LIMIT 1
   `;
   const userId = userRows[0].id;
