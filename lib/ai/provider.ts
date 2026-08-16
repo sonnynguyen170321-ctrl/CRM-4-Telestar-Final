@@ -1,4 +1,4 @@
-import { shouldFallbackToGemini, createGroqClient, createGeminiClient } from './providerRouting';
+import { shouldFallbackToGemini, createGroqClient, createGeminiClient, GEMINI_FALLBACK_MODEL } from './providerRouting';
 import { AI_TOOLS } from './tools';
 import { recordAiCall, classifyFailure } from './usage';
 import type { SessionUser } from '@/lib/auth';
