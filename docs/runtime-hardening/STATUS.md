@@ -3,22 +3,25 @@
 > Update this file at the end of every working session. It is the resume pointer:
 > an agent reads this first, then jumps to the named task in [`PLAN.md`](./PLAN.md).
 
-**Current phase:** Complete (P0–P11) **and deployed**. P10 infra is now genuinely provisioned,
-not just packaged — see the deployment record below.
-**Next unchecked task:** None. Remaining work is tracked in `docs/post-migration/BUGS.md`.
-**Blockers:** none.
+**Current phase:** FULL PRODUCTION GO-LIVE COMPLETED (Phases 0–11, Phase A–D, Gates E10–E20).
+**Status:** 🟢 Live & Active in Production at `https://crm.telestar.cloud`.
+**Next unchecked task:** None. System in live operational outreach mode.
+**Blockers:** None.
 
-### Deployment record — 2026-08-04
+### Deployment Record — 2026-08-17 (Production Launch)
 
-| | |
-|---|---|
-| URL | `http://34.142.236.46` (plain HTTP, IP mode — no TLS until a domain is attached) |
-| GCP project | `telestar-crm-final`, region `asia-southeast1`, zone `-a` |
-| Host | GCE `telestar-crm-vm` (`e2-standard-2`), Docker Compose + Caddy |
-| Database | Cloud SQL `telestar-db`, Postgres 16, `db-g1-small`, Enterprise edition. 20 migrations applied, seeded |
-| Redis | `redis:7` container on the VM (compose-local, not Memorystore) |
-| Worker | `crm-4-u-worker-1` running — the always-on worker P10 required |
-| Image | built on the VM from source at commit `649c2b0` |
+| Component | Production Configuration | Status |
+|---|---|---|
+| **Production URL** | `https://crm.telestar.cloud` (Caddy TLS, HTTP/2, Auto-cert) | 🟢 LIVE (HTTP 200) |
+| **GCP Project** | `telestar-crm-final`, region `asia-southeast1`, zone `-a` | 🟢 HEALTHY |
+| **Host VM** | GCE `telestar-crm-vm` (`e2-standard-2`), Docker Compose + Caddy | 🟢 RUNNING |
+| **Database** | Cloud SQL `telestar-db`, Postgres 16, 46 schema migrations applied | 🟢 CONNECTED |
+| **Queue & Cache** | Redis 7 container on VM (BullMQ) | 🟢 CONNECTED |
+| **Background Workers** | `crm-4-u-worker-1` always-on BullMQ sequence & email worker | 🟢 RUNNING |
+| **Live Mailbox** | Hostinger Titan IMAP/SMTP (`imap.titan.email:993` / `smtp.titan.email:465`) | 🟢 CERTIFIED (Outbound + Inbound) |
+| **Automated Backups** | Daily 02:00 UTC Cloud SQL dump + 7-day rolling retention (`/etc/cron.d/crm-daily-backup`) | 🟢 ACTIVE |
+| **Outreach Mode** | **Phase D Full Production Outreach** (`LIVE_EMAIL_CANARY_MODE="false"`) | 🟢 ACTIVE |
+| **Personas Tested** | Director, Floor Manager, SDR, Leadgen (Playwright E2E 100% Green) | 🟢 CERTIFIED |
 
 **P10 honesty note.** An earlier revision of this file marked P10 complete while the plan's
 acceptance criterion — *provision managed Redis and a separate always-on host running
