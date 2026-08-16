@@ -199,17 +199,16 @@ node --max-old-space-size=4096 ./node_modules/next/dist/bin/next build
 ---
 
 ## 📖 Deployment & Production Runbook
+ 
+ The canonical production environment runs on **Google Cloud Platform (GCP)**:
+ - **Live URL:** [https://crm.telestar.cloud](https://crm.telestar.cloud)
+ - **Host:** GCE `telestar-crm-vm` with Docker Compose (`DEPLOY_TARGET=gcp`)
+ - **Database:** Google Cloud SQL PostgreSQL 16
+ - **Authority & Status:** See [`docs/PRODUCTION_STATE.md`](docs/PRODUCTION_STATE.md) for live state ledger.
+ 
+ For detailed operational runbooks and alternative topologies:
+ - [Production State Ledger](docs/PRODUCTION_STATE.md)
+ - [GCP Production Deployment Runbook](docs/DEPLOY.md)
+ - [Database Migration Runbook](docs/MIGRATION_RUNBOOK.md)
+ - [Alternative Docker Topologies](docs/DOCKER_DEPLOY.md)
 
-1. **Web Host (e.g. Vercel / AWS ECS / Docker)**:
-   - Build command: `npm run build`
-   - Output: Standalone Next.js application
-2. **Worker Host (e.g. AWS EC2 / Railway / Render)**:
-   - Dedicated Node.js instance running `npm run worker:start` connected to `REDIS_URL` and `DIRECT_URL`.
-3. **Database**:
-   - Connection pool for web app, direct connection for Prisma migrations and long-running workers.
-
-For comprehensive deployment & migration guides, refer to:
-- [Production Migration & Cutover Runbook](docs/MIGRATION_RUNBOOK.md)
-- [Docker Deployment Guide](docs/DOCKER_DEPLOY.md)
-- [AWS Deployment Guide](docs/AWS_DEPLOY.md)
-- [Meeting Module Architecture](docs/MEETING_MODULE_ARCHITECTURE.md)
