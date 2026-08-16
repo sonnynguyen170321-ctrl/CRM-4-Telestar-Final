@@ -1,36 +1,26 @@
 # Deploy Runbook — Telestar SDR CRM
 
-Production deployment to an **always-on host** (e.g. AWS EC2) with **managed Postgres**
-(RDS) and **managed Redis** (ElastiCache / Upstash). The app is DB- and host-agnostic —
-no Neon or Vercel coupling.
+Canonical production deployment to **Google Cloud Platform (GCP)**:
+- **Compute:** Google Compute Engine (GCE) `telestar-crm-vm`
+- **Database:** Google Cloud SQL PostgreSQL 16 (`telestar-db`)
+- **Queue/Cache:** Redis 7 container on private Docker network (`crm_internal`)
+- **Ingress & TLS:** Caddy 2 reverse proxy with automatic Let's Encrypt TLS & HSTS at [https://crm.telestar.cloud](https://crm.telestar.cloud)
+- **Authority:** See [`docs/PRODUCTION_STATE.md`](./PRODUCTION_STATE.md) for live environment state.
 
-> Runtime law: API routes record intent · workers execute it · the database is truth.
-> The web app and the BullMQ worker are **two processes** on the host (or two hosts).
+> **Note on alternative topologies:** Generic Docker Compose (`DEPLOY_TARGET=self-hosted`), AWS, and Hostinger VPS deployment recipes remain available as alternative configurations, but GCP is the authoritative production architecture.
 
-> ### What is actually deployed today (2026-08-04)
+---
+
+> ### Current Live Production State
 >
-> This runbook is written generically against AWS. The live system is **GCP**, so read the
-> nouns accordingly when working the §8 checklist:
->
-> | This runbook says | The live deployment is |
+> | Component | Canonical Live Configuration |
 > |---|---|
-> | AWS EC2 | GCE `telestar-crm-vm` (`e2-standard-2`), project `telestar-crm-final`, `asia-southeast1-a` |
-> | RDS | Cloud SQL `telestar-db`, Postgres 16, `db-g1-small` |
-> | ElastiCache / Upstash | a `redis:7` **container on the same VM** — not a managed service |
-> | DNS + TLS at a load balancer | Caddy on the VM, currently **plain HTTP on a bare IP** (`http://34.142.236.46`) |
->
-> Two consequences worth stating plainly:
->
-> - **Queue state does not survive loss of the VM.** Redis is compose-local. That satisfies
->   "always-on worker with a reachable queue" but not durability. Accepted for a demo;
->   revisit before real client data. BullMQ is rebuildable from the DB, so this is recoverable,
->   not fatal.
-> - **There is no TLS yet**, so the HSTS and secure-cookie assumptions below are inert and
->   credentials cross the network in cleartext. Tracked as UX-001 in
->   `docs/post-migration/UX-FEEDBACK.md`; §8's "log in over HTTPS" and "security headers"
->   items cannot be verified until a domain is attached.
->
-> Full record: `docs/runtime-hardening/STATUS.md`.
+> | Public URL | [https://crm.telestar.cloud](https://crm.telestar.cloud) (HTTPS / HSTS / TLS) |
+> | GCE Instance | `telestar-crm-vm` (`asia-southeast1-a`), project `telestar-crm-final` |
+> | Database | Cloud SQL `telestar-db` (`136.110.29.201`), PostgreSQL 16 |
+> | Queue | Redis 7 container on GCE VM (`redis:7-bookworm`) |
+> | Reverse Proxy | Caddy 2 with automated Let's Encrypt TLS |
+> | Deploy Target | `DEPLOY_TARGET=gcp` (`docker-compose.yml` + `docker-compose.gcp.yml`) |
 
 ---
 

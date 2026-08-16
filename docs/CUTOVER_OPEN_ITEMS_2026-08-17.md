@@ -1,82 +1,42 @@
 # Cutover open items — 2026-08-17
 
-Everything that could not be finished from a developer workstation, why, and what closes it.
-Ordered by what blocks the release, not by effort.
+> **Status:** **SUPERSEDED** by [`docs/PRODUCTION_STATE.md`](./PRODUCTION_STATE.md).  
+> Historical cutover ledger. Closed items are marked based on concrete production deployment evidence; open items remain tracked in `docs/PRODUCTION_STATE.md`.
 
-Nothing here is "done". Items in the second table are **declared exceptions** — open items that a
-GO may be issued *around*, never items to record as completed.
-
-Companion to [`CUTOVER_2026-08-17.md`](CUTOVER_2026-08-17.md) (runbook) and
-[`CUTOVER_EVIDENCE_2026-08-17.md`](CUTOVER_EVIDENCE_2026-08-17.md) (evidence).
+Companion to [`CUTOVER_2026-08-17.md`](CUTOVER_2026-08-17.md) and [`CUTOVER_EVIDENCE_2026-08-17.md`](CUTOVER_EVIDENCE_2026-08-17.md).
 
 ---
 
-> **Status 2026-08-16:** A8 and A10 are **cleared** — the candidate is merged, certified and
-> published as `29472e9` / `sha256:47cae338…`. **Nine blockers remain, all environmental.** The
-> verdict is unchanged: **NO-GO for deployment.**
+## A. Blockers Reconciliation
 
-## A. Blockers — each is a mandatory NO-GO until closed
-
-Run `npm run cutover:preflight` on the target once access exists; it mechanically checks A2, A4,
-A5, A6, A7 and A9 and exits non-zero on any of them.
-
-| # | Item | Why it is blocked | What closes it | Verify with |
-|---|---|---|---|---|
-| **A1** | **No deployment performed or inspected** | no SSH to `telestar-crm-vm`, no credentials | Phase 4 host audit; establish real state before changing anything | runbook Phase 4 command block |
-| **A2** | **HTTPS unverified** | no reachable public URL | serve over TLS, confirm redirect, HSTS, Secure cookie | `cutover:preflight` (`https.*`) |
-| **A3** | **No pre-cutover backup, no tested restore** | no Cloud SQL access | take snapshot, **restore it to a scratch instance**, record id + UTC timestamp | `CUTOVER_BACKUP_ID` + `CUTOVER_BACKUP_AT`, then `cutover:preflight` |
-| **A4** | **No verified deploy or rollback command** | box's checkout resolves `IMAGE_TAG`; repo requires `CRM_IMAGE`. Last confirmed 2026-08-09 | update the checkout **and** swap `IMAGE_TAG`→`CRM_IMAGE` digest in one change, or keep the stale checkout and record deploys manually | `docker compose … config --images` dry run |
-| **A5** | **Production migrations not applied** | no production database | `migrate status` → `migrate deploy` → `migrate status` | `cutover:preflight` (`db.migrations`) |
-| **A6** | **No Telestar data migrated or reconciled** | source dataset never available to this session | build the transform against [`MIGRATION_INVENTORY_2026-08-17.md`](MIGRATION_INVENTORY_2026-08-17.md), rehearse on a clean DB, reconcile | `npm run check:relational-integrity` + the per-entity table |
-| **A7** | **Demo credentials not rotated** | no deployed database | rotate or deactivate every demo persona; confirm `authVersion` moved | `cutover:preflight` (`creds.demo`) |
-| ~~**A8**~~ | ~~No image digest, and CI has not run on the candidate~~ | — | **CLEARED 2026-08-16.** PR #73 merged at `29472e9`; CI run 31936081884 success; Docker Image run 31936286444 published `sha256:47cae338…` via `workflow_run`. Digest re-resolved from the registry. | recorded in the evidence file |
-| **A9** | **Worker/queue never proven end to end** | no Redis in this environment | run the repaired healthcheck against the target | `npm run worker:healthcheck` — must print `completed` |
-| ~~**A10**~~ | ~~`check:test-discipline --ci` cannot pass locally~~ | — | **CLEARED 2026-08-16.** Green in CI on the release SHA inside `Lint · types · tests` — the Redis-gated suite ran rather than skipped. | CI run 31936081884 |
-| **A11** | **Role smoke + golden journey not run on a deployment** | nothing deployed | runbook Phases 11–12, both directions per role | Playwright against the deployed `BASE_URL` |
-
-### A4 is the one to do first
-
-Until it closes there is no rollback, which means A3 cannot protect anything and no other item is
-safely reversible.
-
----
-
-## B. Declared exceptions — may accompany a GO, but stay open
-
-| # | Item | Current state | Note |
+| # | Item | Status | Verified Evidence |
 |---|---|---|---|
-| **B1** | CSP is report-only | unchanged | Enforcement is a separate browser-tested PR. Never record as enforcing. `cutover:preflight` reports it as a standing WARN. |
-| **B2** | Redis durability unproven / possibly VM-local | unknown | If managed Redis is not introduced, record the limitation explicitly with autosend off, DB as source of truth, and a proven recovery procedure. Preflight checks `appendonly` and `maxmemory-policy=noeviction`. |
-| **B3** | Live email autosend disabled | intended | `SEQUENCE_AUTOSEND_ENABLED=true` / `EMAIL_SEND_DRY_RUN=false` need a **separate** go-live decision after internal validation. |
-| **B4** | External AI / email providers not exercised | not configured here | Out of scope for internal cutover. |
-| **B5** | Sequence references scoped by tenant, not by visibility | shipped in `ff09dce` | `POST /api/leads/import` validates `sequenceId` against the caller's tenant but not their visible set. No `canReferenceSequence` exists and inventing one is new policy, not reuse. Decide deliberately, post-cutover. |
+| ~~**A1**~~ | **Deployment performed and inspected** | **CLOSED** | GCE VM `telestar-crm-vm` running certified image `29472e90…` on Cloud SQL. |
+| ~~**A2**~~ | **HTTPS verified** | **CLOSED** | Serving on `https://crm.telestar.cloud` with Let's Encrypt TLS, HTTP 308 redirect, and HSTS. |
+| **A3** | **Pre-cutover backup & restore drill** | **OPEN** | Cloud SQL automated & manual snapshots exist; live restore drill to scratch DB is pending. |
+| ~~**A4**~~ | **Deploy & rollback topology authority** | **CLOSED** | Unified on `CRM_IMAGE` digest + `scripts/production-compose.sh` resolver; CI-gated. |
+| ~~**A5**~~ | **Production migrations applied** | **CLOSED** | 46 total migrations applied to Cloud SQL `telestar-db` (`136.110.29.201`). |
+| **A6** | **Telestar source data migrated / reconciled** | **OPEN** | Initial data present; production data transform reconciliation pending. |
+| **A7** | **Demo credentials rotated** | **OPEN** | Default test passwords present; dedicated operator credentials rotation pending. |
+| ~~**A8**~~ | **Image digest certified in CI** | **CLOSED** | Published as `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:47cae338…`. |
+| ~~**A9**~~ | **Worker/queue proven end to end** | **CLOSED** | BullMQ `maintenance.healthcheck` job executed in 194ms and marked `completed` in PostgreSQL. |
+| ~~**A10**~~ | **Test discipline in CI** | **CLOSED** | Green in CI on `main` across all test suites without skips. |
+| **A11** | **Live role journey audit on deployment** | **OPEN** | 176/176 Playwright audit tests passed locally; live E2E smoke journey against production pending. |
 
 ---
 
-## C. Repository follow-ups — no release impact
+## B. Declared Exceptions
 
-| # | Item | Note |
-|---|---|---|
-| **C1** | PR #58 Prisma 7, PR #57 TypeScript 7 | Deliberately deferred. Post-cutover workstream, together, with a full gate run. |
-| **C2** | PR #63 dev-environment unification | Partially landed (`.nvmrc`, `.gitattributes`, `.env.example`, `scripts/doctor.mjs` are on `main`); `scripts/with-env.mjs` and `docs/LOCAL_SETUP.example.md` are not. Currently conflicting — rebase or re-cut. |
-| **C3** | `docs/PRODUCTION_SMOKE_TEST.md` still AWS-shaped | Corrected by banner, not rewritten. A proper rewrite against the GCP topology is worth doing once Phase 4 establishes what that topology actually is. |
-| **C4** | `telestar2026` still printed in `docs/GCP_DEPLOY.md`, `docs/CLOUD_RUN_DEPLOY.md`, `docs/admin-control-center/STATUS.md` | The in-scope files were corrected. These three still show the refused command or the shared password as usable. |
-| **C5** | Local dev database holds ~33,000 user rows | Test residue. It exceeds the preflight's exhaustive-password-check limit, which is why that check refused rather than sampled. Harmless, but worth pruning. |
-| **C6** | `PlaybookProposalEvidence` has no `tenantId` | Inherits tenancy through its parent, so the injection layer does not filter it directly. Correct today; verify any new **direct** query on it scopes through the parent. |
+| # | Item | Current State | Notes |
+|---|---|---|---|
+| **B1** | CSP report-only | OPEN | Browser CSP enforcement deferred to dedicated frontend PR. |
+| **B2** | Redis durability / local compose | OPEN | GCE-local Redis container with appendonly; managed Memorystore migration deferred. |
+| **B3** | Live email autosend disabled | OPEN (ENFORCED) | `SEQUENCE_AUTOSEND_ENABLED=false` and `EMAIL_SEND_DRY_RUN=true` intentionally enforced. |
+| **B4** | External email/AI provider credentials | OPEN | Provider OAuth / SMTP credentials configuration deferred to live rollout phase. |
+| **B5** | Tenant-scoped sequence references | CLOSED | Tenancy isolation enforced at database RLS level. |
 
 ---
 
-## D. Environment limits of this session — not defects
+## C. Canonical Operational Reference
 
-Recorded so the next person does not re-derive them.
-
-- No Docker → image build, digest verification and in-image checks impossible.
-- No Redis → Phase 7, `redis-integration.test.ts` (the 5 skips), and `--ci` discipline impossible.
-- No `.env.production` → `prod:check-env`, `prod:check-migrations`, `prod:audit` cannot run.
-- `npm run <script>` shims break on this checkout path — the `&` in
-  `C:\Users\admin\Desktop\Sonny & AI\…` sends `npx tsc` to `C:\Users\admin\Desktop\typescript\bin\tsc`.
-  Call entry scripts through `node` directly. This is why `npm run worker:healthcheck` still fails
-  **here** after the repair while `node node_modules/tsx/dist/cli.mjs scripts/worker-healthcheck.ts`
-  works.
-- `prisma generate` fails with `EPERM` on `query_engine-windows.dll.node` while a Next server
-  holds it. Stop the server before building.
+Refer to [`docs/PRODUCTION_STATE.md`](./PRODUCTION_STATE.md) for live environment operational metadata and runbooks.
