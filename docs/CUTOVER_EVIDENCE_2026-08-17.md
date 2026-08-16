@@ -220,14 +220,20 @@ routes both commits touch.
 
 ## Phase 3 — Release candidate
 
+> **Superseded by the merge.** The branch was pushed, gated in CI, and merged. The official
+> candidate is the **merged `main` SHA**, not the pre-merge branch head. See
+> *"Released candidate — certified and published"* below. The table here is kept as the record of
+> what was gated locally before the branch left the workstation.
+
 | | |
 | --- | --- |
-| **Gated candidate SHA** | **`d00dcaa96be9032ab6f9fdbb6a6877b21f7c8aa4`** |
-| Branch | `release/internal-cutover-2026-08-17` |
+| Locally gated branch head | `bbb2617db2f7448259ca09d1a52addad788501ac` |
+| Branch | `release/internal-cutover-2026-08-17` (8 commits) |
 | Base moved during work? | **No** — `origin/main` re-fetched at freeze, still `1bb0336`. No rebase, no gate re-run needed. |
-| Tag `internal-rc-2026-08-17` | **NOT CREATED** — branch not pushed; tagging and the image digest belong to an operator with push rights |
-| Image digest | **UNKNOWN** — no Docker locally, no published image for this SHA |
-| Pushed to origin? | **No** |
+
+*(An earlier revision of this file named `d00dcaa` as the candidate and recorded the branch as
+unpushed with no image. Two documentation commits followed it on the same branch — `2a9ff38` and
+`bbb2617` — and then the branch was merged. `d00dcaa` was never the released artifact.)*
 
 Every gate in the Phase 2 table was run against the tree at `d00dcaa`. The final verification pass
 after the documentation commit reported lint exit 0, `tsc` exit 0, and Vitest exit 0 with
@@ -250,6 +256,88 @@ does not change the built artifact. Re-run the gates anyway before tagging if co
 
 **A digest is mandatory before deploying.** `docker-compose.yml` declares `${CRM_IMAGE:?…}` with
 no default so a tag cannot drift under a running deployment.
+
+---
+
+## Released candidate — certified and published
+
+```text
+RELEASE_SHA   29472e90d2f561d3b9eca46e31d856b8697cce40
+IMAGE         ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:47cae338dcb6c3a0197033570eb56937430a67092c72a57d9208b1a127b4266d
+IMMUTABLE TAG ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final:29472e90d2f561d3b9eca46e31d856b8697cce40
+CI RUN ID     31936081884   (CI on main @ 29472e9 — success)
+DOCKER RUN ID 31936286444   (Docker Image, workflow_run — success)
+DIGEST        sha256:47cae338dcb6c3a0197033570eb56937430a67092c72a57d9208b1a127b4266d
+```
+
+Deploy line, when the environment blockers clear:
+
+```bash
+CRM_IMAGE=ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:47cae338dcb6c3a0197033570eb56937430a67092c72a57d9208b1a127b4266d
+```
+
+### How it was certified
+
+| Step | Detail |
+| --- | --- |
+| Branch pushed | `release/internal-cutover-2026-08-17` @ `bbb2617`, exactly as gated — no commits added before pushing |
+| PR | **#73** into `main` |
+| PR CI | run **31935830088** on `bbb2617` — **success**, all 9 checks |
+| Tree confirmed before merge | PR head = local HEAD = remote branch = tested head = `bbb2617`, `mergeStateStatus: CLEAN` |
+| Merged | 2026-08-16T08:17:29Z by `sonnynguyen170321-ctrl`, merge commit **`29472e9`** |
+| CI on the merged SHA | run **31936081884** — **success** |
+| Image published | run **31936286444**, triggered by `workflow_run`, **not** manual dispatch |
+
+PR CI checks on `bbb2617` — every one green:
+
+| Check | Duration |
+| --- | --- |
+| Lint · types · tests | 2m17s |
+| Build · Playwright | 4m42s |
+| Docker build (validation) | 3m42s |
+| Migration validation | 59s |
+| CodeQL | 1m22s |
+| Secret scan | 11s |
+| Dependency review | 6s |
+| CI required checks | 4s |
+
+**`check:test-discipline --ci` passed in CI.** It is inside `Lint · types · tests` and could not run
+on the workstation for want of `REDIS_URL`. That closes the one repository gate this session could
+not satisfy locally — the Redis-gated suite ran rather than skipped.
+
+### Why the image was not dispatched manually
+
+`.github/workflows/docker-image.yml` guards the publish with
+`github.event.workflow_run.conclusion == 'success'` and checks out
+`github.event.workflow_run.head_sha` — the exact commit CI validated. The `workflow_dispatch` arm
+short-circuits that guard (`github.event_name == 'workflow_dispatch' || …`) and would check out
+`github.sha`, whatever `main` points at then. Manual dispatch would therefore publish `latest` from
+an uncertified tree. The published image here came only from the coupled `workflow_run` path.
+
+### Digest verified independently of the build log
+
+The build log reported the digest; it was then re-resolved straight from the registry rather than
+trusted:
+
+```
+tag 29472e90d2f561d3b9eca46e31d856b8697cce40 -> sha256:47cae338dcb6c3a0197033570eb56937430a67092c72a57d9208b1a127b4266d
+tag latest                                   -> sha256:47cae338dcb6c3a0197033570eb56937430a67092c72a57d9208b1a127b4266d
+```
+
+Three tags were pushed — `latest`, `sha-29472e9`, and the full SHA. **Deploy by digest.** `latest`
+happens to point at this image today and is not a version; the full-SHA tag and the digest are the
+only stable references. Base image: `node:24.18.0-bookworm-slim@sha256:6f7b03f7…`.
+
+`main` was confirmed still at `29472e9` after the publish. Any later commit — including the one
+recording this section — is documentation and does not change the published artifact, which is
+pinned by digest.
+
+### Still NO-GO
+
+This certifies and publishes an immutable candidate. It clears **one** open item (A8, no image
+digest) and closes A10 (`check:test-discipline --ci` green in CI). It clears no environment
+blocker: no deployment, no backup, no tested rollback, no migration, no credential rotation, no
+verified HTTPS. **Do not deploy.**
 
 ---
 
@@ -363,23 +451,27 @@ Historical findings were marked superseded with links, never deleted.
 # FINAL ACCEPTANCE REPORT
 
 ```text
-RELEASE SHA:        d00dcaa96be9032ab6f9fdbb6a6877b21f7c8aa4
-                    branch release/internal-cutover-2026-08-17 — not tagged, not pushed
-                    base 1bb033648d0c099df694e3f2e7b852f13df6212a (unmoved at freeze)
-IMAGE/DIGEST:       UNKNOWN — not built (no Docker); no published image for this SHA
-DEPLOYED AT:        NOT DEPLOYED
+RELEASE SHA:        29472e90d2f561d3b9eca46e31d856b8697cce40
+                    merge of PR #73 into main; base 1bb0336, branch head bbb2617
+IMAGE/DIGEST:       ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final
+                    @sha256:47cae338dcb6c3a0197033570eb56937430a67092c72a57d9208b1a127b4266d
+IMMUTABLE TAG:      …/crm-4-telestar-final:29472e90d2f561d3b9eca46e31d856b8697cce40
+CI RUN ID:          31936081884 (on the release SHA) · 31935830088 (on the PR head)
+DOCKER RUN ID:      31936286444 (workflow_run, not manual dispatch)
+DEPLOYED AT:        NOT DEPLOYED — deliberately
 DATABASE:           local PostgreSQL 16 only; production Cloud SQL not accessed
-REDIS:              NOT AVAILABLE in this environment
+REDIS:              NOT AVAILABLE on the workstation; exercised in CI
 PUBLIC/INTERNAL URL: not reachable
 
-CI:                 green on main (1bb0336); NOT RUN on the candidate SHA
+CI:                 PASS on the release SHA — run 31936081884 success;
+                    PR run 31935830088 success across all 9 required checks
 Lint:               PASS — exit 0, 0 errors
 TypeScript:         PASS — exit 0, 0 errors
 Vitest:             PASS — exit 0, 1696 passed / 5 skipped / 0 failed
 Playwright:         PASS — audit project exit 0, 176 passed (baseline 176/176), against a
                     production build; chromium and demo projects NOT EXECUTED
-Build:              PASS — exit 0
-Docker:             NOT EXECUTED — Docker not installed
+Build:              PASS — exit 0 locally, and in CI on the release SHA
+Docker:             PASS — validation build in CI; image published by run 31936286444
 Migration replay:   PASS — exit 0, "No difference detected" from empty, 46 migrations
 RLS verification:   PASS — exit 0 (policies enforce isolation; production RLS state unknown)
 Secret scan:        NOT EXECUTED locally — runs in CI
@@ -443,9 +535,11 @@ BLOCKERS:
 4.  No production migration applied; no Telestar data migrated or reconciled.
 5.  Demo credentials not rotated on any deployed database.
 6.  HTTPS not verified from a client.
-7.  No image digest exists for the candidate SHA, and CI has not run on it.
-8.  check:test-discipline --ci cannot pass without REDIS_URL; must be green in CI on the
-    release SHA.
+7.  ~~No image digest exists for the candidate SHA, and CI has not run on it.~~
+    CLEARED — CI run 31936081884 succeeded on 29472e9 and Docker Image run 31936286444
+    published sha256:47cae338…
+8.  ~~check:test-discipline --ci cannot pass without REDIS_URL.~~
+    CLEARED — green in CI on the release SHA, inside `Lint · types · tests`.
 9.  The queue has never been proven end to end anywhere: the documented Phase 7 command
     (npm run worker:healthcheck) could not run at all until it was repaired in this session.
 
