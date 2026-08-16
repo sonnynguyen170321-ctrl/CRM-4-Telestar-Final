@@ -88,6 +88,7 @@ export async function POST(req: NextRequest) {
 
   const account = await prisma.emailAccount.create({
     data: {
+      tenantId: user.tenantId,
       userId: user.id,
       email: body.email,
       provider: body.provider,

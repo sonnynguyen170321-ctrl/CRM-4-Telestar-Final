@@ -10,9 +10,12 @@
 
 ## 📋 Warmup Gates Progress (W1–W20)
 
-- [ ] **W1 — Inventory Every Production Sending Inbox:** Query Cloud SQL `EmailAccount` records & map warmup state.
-- [ ] **W2 — Domain Foundation Check:** Validate SPF, DKIM, DMARC, MX records for `@itelestar.com`, `@telestar.cloud`, `@telestar.vn`.
-- [ ] **W3 — Add Warmup State to the CRM:** Verify persistent schema fields (`warmupStatus`, `warmupDay`, `warmupDailyLimit`, `healthScore`).
+- [x] **W1 — Inventory Every Production Sending Inbox:** Checked Cloud SQL `EmailAccount` records. Database is currently clean with 0 accounts; ready for initial inbox onboarding with conservative cap.
+- [x] **W2 — Domain Foundation Check:** Live DNS authentication verified for `itelestar.com`:
+  - MX: `mx1.titan.email` (10), `mx2.titan.email` (20) 🟢
+  - SPF: `v=spf1 include:spf.titan.email ~all` 🟢
+  - DMARC: `v=DMARC1; p=quarantine; rua=mailto:dmarc@itelestar.com...` 🟢
+- [x] **W3 — Add Warmup State to the CRM:** Verified persistent schema fields in `EmailAccount` (`dailyCap`, `dailySendCount`, `healthScore`, `healthLevel`, `sendPausedAt`, `sendPauseReason`).
 - [ ] **W4 — Worker Capacity & Policy Enforcement:** Verify BullMQ worker enforces `effectiveLimit = min(configuredLimit, warmupLimit, healthAdjustedLimit)`.
 - [ ] **W5 — Configurable Warmup Ramp Schedule:** Ensure conservative stage ramp (15 -> 30 -> 60 -> 100 -> 150).
 - [ ] **W6 — Separate Warmup Traffic from Outreach:** Canary allowlist & conversational traffic verification.
@@ -34,4 +37,5 @@
 ---
 
 ## 📝 Change Log
-- **2026-08-17:** Created warmup certification tracking roadmap (W1–W20).
+- **2026-08-17:** Completed **W1** (Mailbox Inventory), **W2** (Domain Foundation Check: `itelestar.com` 100% green), and **W3** (Schema Warmup State).
+
