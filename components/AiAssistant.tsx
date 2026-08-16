@@ -34,44 +34,6 @@ function detectMemoryIntent(text: string): boolean {
   return MEMORY_TRIGGERS.some((t) => lower.includes(t));
 }
 
-const ONBOARDING_QUESTION_PROMPTS = [
-  `**Question 1 of 5:** What campaign or client are you currently working on?`,
-  `**Question 2 of 5:** Who is your ideal buyer — their job title and type of company?`,
-  `**Question 3 of 5:** In 1–2 sentences, what problem does your product or service solve for them?`,
-  `**Question 4 of 5:** What outreach channels do you use and in what order? (e.g., "LinkedIn first, then email, then WhatsApp")`,
-  `**Question 5 of 5:** Any personal preferences I should know about? (e.g., tone, things to avoid, how you like to work)`,
-];
-
-const ONBOARDING_MEMORY_KEYS = [
-  'campaign',
-  'target_buyer',
-  'value_prop',
-  'preferred_channels',
-  'preferences',
-];
-
-// After this many rejections on the same question we accept the answer and move on.
-// Without it a strict validator can trap the SDR on step 1 forever.
-const MAX_REJECTIONS_PER_STEP = 2;
-
-/**
- * How many setup questions are already answered, derived from saved memories.
- * Setup progress lives in the DB, not in component state — so a refresh mid-setup
- * resumes at the next unanswered question instead of restarting at question 1.
- */
-function countAnsweredOnboardingSteps(memories: string[]): number {
-  return ONBOARDING_MEMORY_KEYS.filter((key) =>
-    memories.some((m) => m.startsWith(`${key}: `))
-  ).length;
-}
-
-function buildOnboardingIntro(firstName: string, step: number): string {
-  if (step > 0) {
-    return `Welcome back, ${firstName}! We're ${step} of 5 questions into your setup — picking up where you left off.\n\n${ONBOARDING_QUESTION_PROMPTS[step]}`;
-  }
-  return `Hey ${firstName}! I'm your AI SDR Assistant. Before I can help you properly, I need to understand your work — just 5 quick questions.\n\n${ONBOARDING_QUESTION_PROMPTS[0]}`;
-}
-
 function getContextChips(page: string, hasLead: boolean): string[] {
   if (hasLead) return ['Best angle for this lead', 'Research this company', 'Prep me for a call', 'Write an opener'];
   if (page === '/') return ['Morning brief', 'What to focus on?', 'Summarize my day', 'Teach me SPIN'];
@@ -166,11 +128,6 @@ export default function AiAssistant() {
   const [feedbackPendingIdx, setFeedbackPendingIdx] = useState<number | null>(null);
   const [assistantName, setAssistantName] = useState('AI SDR Assistant');
 
-  // Onboarding state
-  const [isOnboarding, setIsOnboarding] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState(0);
-  const [setupComplete, setSetupComplete] = useState<boolean | null>(null);
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const modelMenuRef = useRef<HTMLDivElement>(null);
@@ -178,8 +135,6 @@ export default function AiAssistant() {
   const memoryFetchedRef = useRef(false);
   /** The turn that failed mid-stream, so resending the same message retries it rather than duplicating it. */
   const failedTurnRef = useRef<FailedTurn | null>(null);
-  // How many times the validator has rejected an answer for a given setup step
-  const rejectionsRef = useRef<Record<number, number>>({});
 
   const firstName = currentUser?.firstName || 'there';
 
@@ -200,7 +155,7 @@ export default function AiAssistant() {
     };
   }, [pathname, firstName, currentRole]);
 
-  // Load memories and setup state on mount — guarded against login page and StrictMode double-invoke
+  // Load memories and preferred model on mount
   useEffect(() => {
     if (!currentUserId || pathname === '/login') return;
     if (memoryFetchedRef.current) return;
@@ -217,14 +172,8 @@ export default function AiAssistant() {
         const saved = modelMem.replace('preferred_model: ', '') as ModelId;
         if (MODELS.includes(saved)) setModelId(saved);
       }
-
-      const isDone = mems.some((m) => m === 'setup_complete: true');
-      setSetupComplete(true);
-      // Onboarding is optional, not mandatory blocking
-      setIsOnboarding(false);
     }
 
-    // Serve from sessionStorage cache on repeat visits — avoids cold DB hit
     try {
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
@@ -236,27 +185,17 @@ export default function AiAssistant() {
     fetch('/api/ai/memory')
       .then((r) => (r.ok ? r.json() : []))
       .then((mems: unknown) => {
-        // A failed GET returns an error object, not an array — never cache or read that.
         const list = Array.isArray(mems) ? (mems as string[]) : [];
         try { sessionStorage.setItem(cacheKey, JSON.stringify(list)); } catch { /* ignore */ }
         applyMemories(list);
       })
-      .catch(() => setSetupComplete(true));
+      .catch(() => {});
   }, [currentUserId, pathname]);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // If the panel is open and onboarding is active but has no messages (race between
-  // memory fetch and click), inject the intro message so the SDR isn't staring at blank.
-  useEffect(() => {
-    if (isOpen && isOnboarding && messages.length === 0) {
-      setMessages([{ role: 'assistant', content: buildOnboardingIntro(firstName, onboardingStep) }]);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, isOnboarding, onboardingStep]);
 
   // Close model menu on outside click
   useEffect(() => {
@@ -336,13 +275,6 @@ export default function AiAssistant() {
     setTimeout(() => inputRef.current?.focus(), 100);
   }, [messages.length, firstName, fireMorningBriefing]);
 
-  function startOnboarding() {
-    setIsOnboarding(true);
-    setOnboardingStep(0);
-    rejectionsRef.current = {};
-    setMessages([{ role: 'assistant', content: buildOnboardingIntro(firstName, 0) }]);
-  }
-
   /** Replace the trailing placeholder bubble with real text. Never writes undefined. */
   function replaceLastAssistantMessage(content: string) {
     setMessages((prev) => {
@@ -352,133 +284,19 @@ export default function AiAssistant() {
     });
   }
 
-  /**
-   * Persist one setup answer. Returns false when the write failed so the caller can keep
-   * the SDR on the same question — silently advancing would lose the answer and send them
-   * back to question 1 on the next page load.
-   */
-  async function saveOnboardingMemory(memory: string): Promise<boolean> {
-    try {
-      const res = await fetch('/api/ai/memory', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memory }),
-      });
-      bustMemCache();
-      return res.ok;
-    } catch {
-      return false;
-    }
-  }
-
-  async function handleOnboardingAnswer(answer: string) {
-    const step = onboardingStep;
-    const questionKey = ONBOARDING_MEMORY_KEYS[step];
-
-    // Show user message + loading dots immediately
-    setMessages((prev) => [
-      ...prev,
-      { role: 'user', content: answer },
-      { role: 'assistant', content: '' },
-    ]);
-    setIsStreaming(true);
-
-    try {
-      let valid = true;
-      let message = 'Got it!';
-
-      try {
-        const res = await fetch('/api/ai/onboarding', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ questionKey, answer, firstName }),
-        });
-
-        // A non-OK response (or any shape other than { valid, message }) must not block
-        // setup — treat validation as unavailable and accept the answer.
-        if (res.ok) {
-          const data = await res.json() as { valid?: unknown; message?: unknown };
-          if (typeof data?.valid === 'boolean') valid = data.valid;
-          if (typeof data?.message === 'string' && data.message.trim()) message = data.message.trim();
-        }
-      } catch {
-        // Validator unreachable — accept the answer rather than trapping the SDR.
-      }
-
-      // Escape hatch: after repeated rejections, accept whatever they typed and move on.
-      if (!valid) {
-        const rejections = (rejectionsRef.current[step] ?? 0) + 1;
-        rejectionsRef.current[step] = rejections;
-        if (rejections > MAX_REJECTIONS_PER_STEP) {
-          valid = true;
-          message = "Alright — I'll take that as your answer and move on.";
-        }
-      }
-
-      if (!valid) {
-        replaceLastAssistantMessage(message);
-        return;
-      }
-
-      const saved = await saveOnboardingMemory(`${questionKey}: ${answer}`);
-      if (!saved) {
-        replaceLastAssistantMessage(
-          "I couldn't save that answer — the server rejected the write. Send it again and I'll retry."
-        );
-        return;
-      }
-
-      rejectionsRef.current[step] = 0;
-      const nextStep = step + 1;
-
-      if (nextStep >= ONBOARDING_QUESTION_PROMPTS.length) {
-        // All 5 questions answered — mark setup complete
-        const completed = await saveOnboardingMemory('setup_complete: true');
-        if (!completed) {
-          replaceLastAssistantMessage(
-            "I saved your last answer but couldn't finish setup — send anything to retry the final step."
-          );
-          return;
-        }
-
-        replaceLastAssistantMessage(
-          `${message}\n\n✅ All set! I've saved your campaign context, target buyer, value prop, preferred channels, and preferences. I'll use these in every response — no need to repeat yourself.\n\nYou can say "reset my setup" any time to change anything.\n\nWhat would you like help with first?`
-        );
-        setSetupComplete(true);
-        setIsOnboarding(false);
-        setOnboardingStep(0);
-        return;
-      }
-
-      // Advance to the next question, show AI confirmation + next prompt
-      replaceLastAssistantMessage(`${message}\n\n${ONBOARDING_QUESTION_PROMPTS[nextStep]}`);
-      setOnboardingStep(nextStep);
-    } finally {
-      setIsStreaming(false);
-    }
-  }
-
   async function sendMessage(text?: string) {
     const content = (text || input).trim();
     if (!content || isStreaming) return;
     setInput('');
 
-    // Detect reset/setup commands
+    // Detect reset commands
     const lower = content.toLowerCase();
-    if (lower.includes('reset my context') || lower.includes('redo my setup') || lower.includes('reset my setup')) {
+    if (lower.includes('reset my context') || lower.includes('clear memory')) {
       await fetch('/api/ai/memory', { method: 'DELETE' });
       bustMemCache();
       memoryFetchedRef.current = false;
-      setSetupComplete(false);
-      const resetMsg = { role: 'assistant' as const, content: `Memory cleared. Let's start fresh — I'll ask you the setup questions again.` };
+      const resetMsg = { role: 'assistant' as const, content: `Memory cleared. How can I help you today?` };
       setMessages((prev) => [...prev, { role: 'user', content }, resetMsg]);
-      setTimeout(() => startOnboarding(), 800);
-      return;
-    }
-
-    if (isOnboarding) {
-      setMessages((prev) => [...prev]);
-      await handleOnboardingAnswer(content);
       return;
     }
 
@@ -671,9 +489,9 @@ export default function AiAssistant() {
               <RobotIcon hasUnread={false} isThinking={isStreaming} />
               <div>
                 <div className="text-white font-semibold text-sm leading-tight">{assistantName}</div>
-                {isOnboarding && (
-                  <div className="text-[#F5A623] text-xs">Setup — Step {onboardingStep + 1} of 5</div>
-                )}
+                <div className="text-emerald-400 text-xs flex items-center gap-1.5 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Live Context Connected
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -793,20 +611,18 @@ export default function AiAssistant() {
           </div>
 
           {/* Quick action chips */}
-          {!isOnboarding && (
-            <div className="flex gap-2 px-4 pb-2 pt-1 overflow-x-auto" style={{ background: '#FAFAFA' }}>
-              {chips.map((chip) => (
-                <button
-                  key={chip}
-                  onClick={() => sendMessage(chip)}
-                  disabled={isStreaming}
-                  className="flex-shrink-0 text-xs px-3 py-1.5 rounded-full border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-[#D42B1E] hover:text-[#D42B1E] transition-colors whitespace-nowrap disabled:opacity-50"
-                >
-                  {chip}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex gap-2 px-4 pb-2 pt-1 overflow-x-auto" style={{ background: '#FAFAFA' }}>
+            {chips.map((chip) => (
+              <button
+                key={chip}
+                onClick={() => sendMessage(chip)}
+                disabled={isStreaming}
+                className="flex-shrink-0 text-xs px-3 py-1.5 rounded-full border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-[#D42B1E] hover:text-[#D42B1E] transition-colors whitespace-nowrap disabled:opacity-50"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
 
           {/* Input */}
           <div className="px-3 pb-3 pt-1 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#111]">
