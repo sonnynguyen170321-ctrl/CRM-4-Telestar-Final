@@ -2,7 +2,7 @@
 
 > **Status:** 🟢 **INTERNAL TEST ENVIRONMENT LIVE**  
 > **Canonical Record:** Single authoritative source of truth for the running live environment.  
-> **Last Verified:** 2026-08-16T13:20:00Z  
+> **Last Verified:** 2026-08-16T13:57:00Z  
 
 ---
 
@@ -27,7 +27,7 @@
 | :--- | :--- |
 | **Application Git Commit** | `29472e90d2f561d3b9eca46e31d856b8697cce40` |
 | **Application Image Digest** | `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:47cae338dcb6c3a0197033570eb56937430a67092c72a57d9208b1a127b4266d` |
-| **Infrastructure Git Commit** | `d978240` (on `main`) |
+| **Infrastructure Git Commit** | `761ba61` (on `main`) |
 | **Deploy Target** | `gcp` (`-f docker-compose.yml -f docker-compose.gcp.yml`) |
 | **Database Migrations** | 46 total migrations applied (all schema models up to date) |
 
