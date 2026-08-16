@@ -219,13 +219,9 @@ export default function AiAssistant() {
       }
 
       const isDone = mems.some((m) => m === 'setup_complete: true');
-      setSetupComplete(isDone);
-      if (!isDone) {
-        // Resume at the first unanswered question rather than restarting at 1.
-        const answered = countAnsweredOnboardingSteps(mems);
-        setOnboardingStep(Math.min(answered, ONBOARDING_QUESTION_PROMPTS.length - 1));
-        setIsOnboarding(true);
-      }
+      setSetupComplete(true);
+      // Onboarding is optional, not mandatory blocking
+      setIsOnboarding(false);
     }
 
     // Serve from sessionStorage cache on repeat visits — avoids cold DB hit
@@ -327,14 +323,18 @@ export default function AiAssistant() {
     setIsOpen(true);
     setHasUnread(false);
 
-    if (setupComplete === true && messages.length === 0) {
+    if (messages.length === 0) {
+      setMessages([
+        {
+          role: 'assistant',
+          content: `Hey ${firstName}! 👋 I'm your Telestar AI Assistant. I'm connected with live context on your leads, campaigns, and sequence tasks.\n\nHow can I help you today?`,
+        },
+      ]);
       fireMorningBriefing();
     }
-    // When setup is incomplete the intro effect injects the *current* question — calling
-    // startOnboarding() here would reset the step and re-ask question 1 (CRMTest F1).
 
     setTimeout(() => inputRef.current?.focus(), 100);
-  }, [setupComplete, messages.length, fireMorningBriefing]);
+  }, [messages.length, firstName, fireMorningBriefing]);
 
   function startOnboarding() {
     setIsOnboarding(true);
