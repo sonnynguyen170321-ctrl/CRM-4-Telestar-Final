@@ -123,36 +123,11 @@ fi
 # Append-only structured record in deployments.ndjson
 log "Recording the deployment in ${RECORD_FILE}"
 if command -v python3 >/dev/null 2>&1; then
-  python3 -c '
-import sys, json, datetime
-commit, digest, image, previous, migration, target, backupId, backupAt, totalMigrations, operator = sys.argv[1:]
-entry = {
-    "deployedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-    "commit": commit,
-    "digest": digest,
-    "image": image,
-    "previousImage": previous if previous else None,
-    "deployTarget": target,
-    "backupId": backupId if backupId else None,
-    "backupAt": backupAt if backupAt else None,
-    "totalMigrations": int(totalMigrations) if totalMigrations.isdigit() else 0,
-    "latestMigration": migration,
-    "operator": operator
-}
-print(json.dumps(entry))
-' "$COMMIT" "$DIGEST" "$NEW_IMAGE" "$PREVIOUS_IMAGE" "$MIGRATION_LATEST" "$DEPLOY_TARGET" "$BACKUP_ID" "$BACKUP_AT" "$TOTAL_MIGRATIONS" "$(whoami)@$(hostname)" \
-    >> "$RECORD_FILE"
+  python3 -c 'import sys, json, datetime; c, d, i, p, m, t, b_id, b_at, tot, op = sys.argv[1:]; print(json.dumps({"deployedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(), "commit": c, "digest": d, "image": i, "previousImage": p or None, "deployTarget": t, "backupId": b_id or None, "backupAt": b_at or None, "totalMigrations": int(tot) if tot.isdigit() else 0, "latestMigration": m, "operator": op}))' \
+    "$COMMIT" "$DIGEST" "$NEW_IMAGE" "$PREVIOUS_IMAGE" "$MIGRATION_LATEST" "$DEPLOY_TARGET" "$BACKUP_ID" "$BACKUP_AT" "$TOTAL_MIGRATIONS" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
 elif command -v node >/dev/null 2>&1; then
-  node -e '
-    const [commit, digest, image, previous, migration, target, backupId, backupAt, totalMigrations, operator] = process.argv.slice(1);
-    process.stdout.write(JSON.stringify({
-      deployedAt: new Date().toISOString(),
-      commit, digest, image, previousImage: previous || null, deployTarget: target,
-      backupId: backupId || null, backupAt: backupAt || null,
-      totalMigrations: parseInt(totalMigrations, 10) || 0, latestMigration: migration, operator
-    }) + "\n");
-  ' "$COMMIT" "$DIGEST" "$NEW_IMAGE" "$PREVIOUS_IMAGE" "$MIGRATION_LATEST" "$DEPLOY_TARGET" "$BACKUP_ID" "$BACKUP_AT" "$TOTAL_MIGRATIONS" "$(whoami)@$(hostname)" \
-    >> "$RECORD_FILE"
+  node -e 'const [c, d, i, p, m, t, b_id, b_at, tot, op] = process.argv.slice(1); console.log(JSON.stringify({deployedAt: new Date().toISOString(), commit: c, digest: d, image: i, previousImage: p || null, deployTarget: t, backupId: b_id || null, backupAt: b_at || null, totalMigrations: parseInt(tot, 10) || 0, latestMigration: m, operator: op}));' \
+    "$COMMIT" "$DIGEST" "$NEW_IMAGE" "$PREVIOUS_IMAGE" "$MIGRATION_LATEST" "$DEPLOY_TARGET" "$BACKUP_ID" "$BACKUP_AT" "$TOTAL_MIGRATIONS" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
 fi
 
 tail -1 "$RECORD_FILE"

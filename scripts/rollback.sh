@@ -74,31 +74,11 @@ DOCKER="$DOCKER" ENV_FILE="$ENV_FILE" COMPOSE_FILES="$COMPOSE_FILES" ./scripts/p
 
 log "Recording the rollback in ${RECORD_FILE}"
 if command -v python3 >/dev/null 2>&1; then
-  python3 -c '
-import sys, json, datetime
-image, previous, target, operator = sys.argv[1:]
-entry = {
-    "at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-    "kind": "rollback",
-    "image": image,
-    "previousImage": previous if previous else None,
-    "deployTarget": target,
-    "operator": operator
-}
-print(json.dumps(entry))
-' "$TARGET" "$CURRENT" "$DEPLOY_TARGET" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
+  python3 -c 'import sys, json, datetime; t, c, tgt, op = sys.argv[1:]; print(json.dumps({"at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "kind": "rollback", "image": t, "previousImage": c or None, "deployTarget": tgt, "operator": op}))' \
+    "$TARGET" "$CURRENT" "$DEPLOY_TARGET" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
 elif command -v node >/dev/null 2>&1; then
-  node -e '
-    const [image, previous, target, operator] = process.argv.slice(1);
-    process.stdout.write(JSON.stringify({
-      at: new Date().toISOString(),
-      kind: "rollback",
-      image,
-      previousImage: previous || null,
-      deployTarget: target,
-      operator,
-    }) + "\n");
-  ' "$TARGET" "$CURRENT" "$DEPLOY_TARGET" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
+  node -e 'const [t, c, tgt, op] = process.argv.slice(1); console.log(JSON.stringify({at: new Date().toISOString(), kind: "rollback", image: t, previousImage: c || null, deployTarget: tgt, operator: op}));' \
+    "$TARGET" "$CURRENT" "$DEPLOY_TARGET" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
 fi
 
 tail -1 "$RECORD_FILE"
