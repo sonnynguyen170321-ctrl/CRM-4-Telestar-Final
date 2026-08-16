@@ -12,7 +12,7 @@ COMPOSE_FLAGS=$(./scripts/production-compose.sh .env.production)
 sudo docker compose --env-file .env.production $COMPOSE_FLAGS up -d --no-deps web worker
 
 # 3. Seed Canary Sequence & Lead
-sudo docker compose --env-file .env.production $COMPOSE_FLAGS exec -T web node node_modules/tsx/dist/cli.mjs scripts/canary-sequence-drill.ts
+cat scripts/canary-sequence-drill.ts | sudo docker compose --env-file .env.production $COMPOSE_FLAGS exec -T web node node_modules/tsx/dist/cli.mjs -
 
 # 4. Trigger Sequence Engine Cron
 echo "==> Triggering Automated Sequence Engine Cron..."
@@ -20,4 +20,4 @@ echo "==> Triggering Automated Sequence Engine Cron..."
 
 # 5. Verify Progression in DB
 echo "==> Sequence State Audit in DB..."
-sudo docker compose --env-file .env.production $COMPOSE_FLAGS exec -T web node node_modules/tsx/dist/cli.mjs scripts/canary-verify-enrollment.ts
+cat scripts/canary-verify-enrollment.ts | sudo docker compose --env-file .env.production $COMPOSE_FLAGS exec -T web node node_modules/tsx/dist/cli.mjs -
