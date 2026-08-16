@@ -15,7 +15,8 @@ set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost}"
 ENV_FILE="${ENV_FILE:-.env.production}"
-COMPOSE_FILES="${COMPOSE_FILES:--f docker-compose.yml}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMPOSE_FILES="${COMPOSE_FILES:-$("${SCRIPT_DIR}/production-compose.sh" "$ENV_FILE" 2>/dev/null || echo "-f docker-compose.yml -f docker-compose.gcp.yml")}"
 DOCKER="${DOCKER:-sudo docker}"
 DC="$DOCKER compose --env-file $ENV_FILE $COMPOSE_FILES"
 

@@ -6,9 +6,7 @@
 #     ./scripts/rollback.sh ghcr.io/...@sha256:<digest>        # back to a specific digest
 #
 # scripts/deploy.sh writes PREVIOUS_CRM_IMAGE into the env file on every deploy, so the
-# last known-good image is always one command away. That is the point of retaining it: a
-# rollback that requires finding a tag, checking out a commit and rebuilding is not a
-# rollback, it is another deployment with its own risk.
+# last known-good image is always one command away.
 #
 # Migrations are NOT rolled back. Read the warning below before using this after a
 # schema change.
@@ -16,7 +14,6 @@
 set -euo pipefail
 
 ENV_FILE="${ENV_FILE:-.env.production}"
-COMPOSE_FILES="${COMPOSE_FILES:--f docker-compose.yml}"
 RECORD_FILE="${RECORD_FILE:-deployments.ndjson}"
 DOCKER="${DOCKER:-sudo docker}"
 
@@ -25,6 +22,11 @@ fail() { printf '\n\033[31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
 [ -f "$ENV_FILE" ] || fail "$ENV_FILE not found. Run this from the deployment root."
 
+# ── Resolve canonical topology from single authority ───────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMPOSE_FILES="${COMPOSE_FILES:-$("${SCRIPT_DIR}/production-compose.sh" "$ENV_FILE")}"
+DEPLOY_TARGET=$(grep -E '^[[:space:]]*DEPLOY_TARGET=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"'"'"' | tr -d '[:space:]' || echo "gcp")
+
 CURRENT=$(grep -E '^CRM_IMAGE=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' || true)
 TARGET="${1:-$(grep -E '^PREVIOUS_CRM_IMAGE=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' || true)}"
 
@@ -32,6 +34,8 @@ TARGET="${1:-$(grep -E '^PREVIOUS_CRM_IMAGE=' "$ENV_FILE" | head -1 | cut -d= -f
 printf '%s' "$TARGET" | grep -Eq '@sha256:[0-9a-f]{64}$|:[0-9a-f]{40}$' \
   || fail "Refusing to roll back to a mutable reference: ${TARGET}"
 
+echo "  target   : ${DEPLOY_TARGET}"
+echo "  compose  : ${COMPOSE_FILES}"
 echo "  current  : ${CURRENT:-<none>}"
 echo "  rollback : ${TARGET}"
 
@@ -58,13 +62,11 @@ cp "$ENV_FILE" "${ENV_FILE}.bak"
 grep -v -E '^(CRM_IMAGE|PREVIOUS_CRM_IMAGE)=' "${ENV_FILE}.bak" > "$ENV_FILE"
 {
   echo "CRM_IMAGE=${TARGET}"
-  # The image we just rolled off becomes the rollback target, so a bad rollback is itself
-  # reversible.
   echo "PREVIOUS_CRM_IMAGE=${CURRENT}"
 } >> "$ENV_FILE"
 
 log "Restarting web and worker"
-$DC up -d web worker
+$DC up -d --no-deps web worker
 $DC ps --format 'table {{.Name}}\t{{.Image}}\t{{.Status}}'
 
 log "Post-deploy smoke test"
@@ -72,15 +74,16 @@ DOCKER="$DOCKER" ENV_FILE="$ENV_FILE" COMPOSE_FILES="$COMPOSE_FILES" ./scripts/p
 
 log "Recording the rollback in ${RECORD_FILE}"
 node -e '
-  const [image, previous, operator] = process.argv.slice(1);
+  const [image, previous, target, operator] = process.argv.slice(1);
   process.stdout.write(JSON.stringify({
     at: new Date().toISOString(),
     kind: "rollback",
     image,
     previousImage: previous || null,
+    deployTarget: target,
     operator,
   }) + "\n");
-' "$TARGET" "$CURRENT" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
+' "$TARGET" "$CURRENT" "$DEPLOY_TARGET" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
 
 tail -1 "$RECORD_FILE"
 log "Rolled back to ${TARGET}"

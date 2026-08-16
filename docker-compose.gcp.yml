@@ -1,0 +1,33 @@
+# GCP production topology override.
+#
+# Applied on top of docker-compose.yml when DEPLOY_TARGET=gcp:
+#
+#     docker compose -f docker-compose.yml -f docker-compose.gcp.yml ...
+#
+# Difference from self-contained topology:
+# - Database: External Cloud SQL PostgreSQL 16 (DATABASE_URL / DIRECT_URL from .env.production).
+# - Local postgres service: Disabled via unused profile so it is never instantiated.
+# - Redis: Compose-local container (redis:7-bookworm on crm_internal network).
+# - Caddy: Fronts web on public 80 and 443 with automatic TLS.
+
+services:
+  # Park the local postgres service behind a disabled profile so it never boots on GCP.
+  postgres:
+    profiles:
+      - disabled
+
+  web:
+    environment:
+      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL is required for GCP production (Cloud SQL DSN)}"
+      DIRECT_URL: "${DIRECT_URL:-${DATABASE_URL}}"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    environment:
+      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL is required for GCP production (Cloud SQL DSN)}"
+      DIRECT_URL: "${DIRECT_URL:-${DATABASE_URL}}"
+    depends_on:
+      redis:
+        condition: service_healthy
