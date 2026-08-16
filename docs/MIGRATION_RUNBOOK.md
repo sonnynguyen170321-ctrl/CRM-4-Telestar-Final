@@ -1,5 +1,22 @@
 # Telestar CRM — Production Migration & Cutover Runbook
 
+> ## ⚠️ SUPERSEDED for the 2026-08-17 internal cutover — do not follow mechanically
+>
+> This runbook's entity list is stale. It says the schema has **23 models**; it has **62**, of
+> which 60 carry `tenantId`. A migration planned from the list below would silently omit ~39
+> models, including `SequenceEnrollment` (the authoritative execution state), `LeadPoolItem`,
+> `CampaignLeadRequirement`, `SuppressionEntry`, `InboundMessage`/`OutboundMessage`, the
+> `Opportunity` chain and every client-report table.
+>
+> **Use [`MIGRATION_INVENTORY_2026-08-17.md`](MIGRATION_INVENTORY_2026-08-17.md)** — regenerated
+> from `prisma/schema.prisma`, with load order, per-entity reconciliation columns, the required
+> exception-report format, and the schema-specific traps (`CampaignSdr` membership gating imports,
+> `SequenceStep` id stability, pool-vs-lead separation, the five FK-less attribution columns).
+>
+> Procedure and intent below remain broadly sound and are kept deliberately: the safety posture
+> (autosend off, dry-run on, backup before migrating, reconcile before acceptance) is unchanged
+> and correct. It is the **entity coverage** that must not be trusted.
+
 This document defines the production data migration, verification, and cutover procedures for the **Telestar SDR-as-a-Service Platform**.
 
 ---
@@ -7,7 +24,10 @@ This document defines the production data migration, verification, and cutover p
 ## 1. Purpose & Objectives
 
 1. Migrate existing client, campaign, lead, meeting, sequence, and pipeline data into the multi-tenant PostgreSQL schema.
-2. Ensure full referential integrity and tenant scoping (`tenantId`) across all 23 database models.
+2. Ensure full referential integrity and tenant scoping (`tenantId`) across all database models —
+   **62 as of 2026-08-17**, 60 of them tenant-owned. (This line read "23 database models"; that
+   count was already obsolete. Verify with `grep -c '^model ' prisma/schema.prisma` rather than
+   trusting any number written in a document.)
 3. Validate data deduplication, ownership assignments, and campaign requirement targets.
 4. Execute cutover with **zero accidental outbound email transmission** during migration.
 

@@ -95,6 +95,14 @@ None of these can be finished from a checkout. They are the whole remaining surf
    `deployments.ndjson` is never written. Details and the migration hazard are in
    [`docs/DEPLOY.md` §8b](../DEPLOY.md). Redis failover scenarios (Task 10) still need
    Docker or a VM.
+
+   > **Still open at the 2026-08-17 cutover, and still unverified.** The last recorded state is
+   > the `68acd49c` deploy of 2026-08-09; nobody has inspected the box since. The cutover
+   > session had no host access, so this was neither confirmed nor closed —
+   > [`CUTOVER_2026-08-17.md` Phase 4](../CUTOVER_2026-08-17.md) carries the commands to
+   > establish the current state and the decision it forces (update the checkout, or keep the
+   > stale one and record the deploy manually). Resolve it **before** changing the running image:
+   > until then there is no single documented deploy command and no working rollback command.
 5. ~~**Manual verification of Task 2**~~ — **done 2026-08-08**, during the password
    rotation. An already-open Director session was refused on its next request, which is the
    same revocation path a deactivation takes.

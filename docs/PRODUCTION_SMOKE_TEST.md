@@ -1,10 +1,19 @@
 # Production Smoke Test
 
+> ⚠️ **This file describes AWS (EC2 + RDS). That is not what runs.** The deployment recorded in
+> `docs/DEPLOY.md` is a **GCP VM (`telestar-crm-vm`, checkout at `/opt/crm-4-u`) against Cloud
+> SQL**, driven by `docker-compose.yml` + `docker-compose.aws.yml` with
+> `APP_ENV_FILE=.env.production`. Read "EC2" as the VM and "RDS" as Cloud SQL throughout, and
+> treat `docs/DEPLOY.md` as authoritative where the two disagree.
+>
+> For the 2026-08-17 internal cutover use [`CUTOVER_2026-08-17.md`](CUTOVER_2026-08-17.md);
+> the per-role and golden-journey acceptance steps live there.
+
 ## Pre-Deploy
 
-- Confirm `.env.production` exists only on EC2 and is not committed.
+- Confirm `.env.production` exists only on the deployment host and is not committed.
 - Run `npm run prod:check-env`.
-- Confirm RDS is reachable from EC2 and local Redis will run as `redis`.
+- Confirm the database (Cloud SQL) is reachable from the host and Redis is running.
 - Confirm `EMAIL_SEND_DRY_RUN=true` and `SEQUENCE_AUTOSEND_ENABLED=false`.
 
 ## Deploy

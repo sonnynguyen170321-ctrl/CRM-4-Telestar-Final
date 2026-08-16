@@ -110,6 +110,7 @@ beforeAll(async () => {
       },
     });
     await prisma.lead.deleteMany({ where: { tenantId } });
+    await prisma.campaignSdr.deleteMany({ where: { tenantId } });
     await prisma.campaign.deleteMany({ where: { tenantId } });
     await prisma.client.deleteMany({ where: { tenantId } });
     await prisma.user.deleteMany({
@@ -154,6 +155,17 @@ beforeAll(async () => {
       },
     });
     campaignId = campaign.id;
+
+    // Membership, so the floor manager can *reference* this campaign and not merely see that it
+    // exists. `getVisibleCampaignIds` returns null (unrestricted) only for director and leadgen
+    // manager; every other role resolves to the campaigns its visible users are assigned to, so a
+    // campaign with no members is one a floor manager may not file anything under. `POST
+    // /api/leads` has enforced that through `canReferenceCampaign` for some time and this fixture
+    // predates `POST /api/leads/import` adopting the same helper — it was asserting an import
+    // succeeds in a state single-lead creation already refused.
+    await prisma.campaignSdr.create({
+      data: { tenantId, campaignId: campaign.id, userId: floorManager.id },
+    });
   });
 });
 
@@ -172,6 +184,7 @@ afterAll(async () => {
       },
     });
     await prisma.lead.deleteMany({ where: { tenantId } });
+    await prisma.campaignSdr.deleteMany({ where: { tenantId } });
     await prisma.campaign.deleteMany({ where: { tenantId } });
     await prisma.client.deleteMany({ where: { tenantId } });
     await prisma.user.deleteMany({

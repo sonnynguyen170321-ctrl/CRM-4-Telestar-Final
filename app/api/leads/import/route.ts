@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, canImportExport, canAccessUser, getLeadgenScope } from '@/lib/auth';
+import { requireAuth, canImportExport, canAccessUser, canReferenceCampaign, getLeadgenScope } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { startImportWorkflow } from '@/lib/workflows/import';
 import { runImportInline, INLINE_IMPORT_MAX_ROWS } from '@/lib/workflows/importInline';
@@ -249,14 +249,36 @@ const validateContext = async (body: ImportBody, user: SessionUser) => {
     return NextResponse.json({ error: 'campaignId is required for lead imports' }, { status: 400 });
   }
 
+  // Every role reaches this, not just leadgen, and it runs before the batch exists.
+  //
+  // The foreign-key constraint is not a tenancy check: `Campaign` ids are unique globally, so
+  // another tenant's campaign satisfies it and the import was accepted at 202 — an ImportBatch
+  // owned by this tenant pointing at that one, with every imported Lead stamped to match.
+  // `canReferenceCampaign` is the same helper `POST /api/leads` and the work-order dispatcher
+  // already use, so the rule is not restated here: foreign or missing is 404 (existence is never
+  // confirmable), a real in-tenant campaign the caller may not use is 403.
+  if (body.targetType !== 'pool' && body.campaignId) {
+    const campaignCheck = await canReferenceCampaign(user, body.campaignId);
+    if (campaignCheck === 'not_found') {
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+    }
+    if (campaignCheck === 'forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  }
+
   const assignedToId = body.assignedToId || user.id;
   if (assignedToId !== user.id && !(await canAccessUser(user, assignedToId))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   if (body.sequenceId) {
-    const sequence = await prisma.sequence.findUnique({
-      where: { id: body.sequenceId },
+    // Scoped explicitly rather than leaning on the Prisma extension. The extension does inject
+    // `tenantId` here, but this id is dereferenced — it decides the initial stage and the
+    // enrollment every imported lead gets — and a reference check that depends on ambient
+    // behaviour is one refactor away from silently passing.
+    const sequence = await prisma.sequence.findFirst({
+      where: { id: body.sequenceId, tenantId: user.tenantId ?? undefined },
       select: { id: true, isActive: true },
     });
     if (!sequence || !sequence.isActive) {

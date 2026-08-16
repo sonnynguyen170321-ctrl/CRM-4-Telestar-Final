@@ -11,10 +11,16 @@
  * ---------------------------------------------------------------------------
  * Browser-facing, so they belong in the policy:
  *
- *   fonts.googleapis.com   the @import at the top of app/globals.css (stylesheet)
- *   fonts.gstatic.com      the font files that stylesheet then references
  *   images.unsplash.com    demo imagery
  *   login.microsoftonline.com   the Entra ID sign-in redirect
+ *
+ * Fonts are **not** listed and must not be re-added. `app/globals.css` used to open with an
+ * `@import` from fonts.googleapis.com, which then pulled files from fonts.gstatic.com, and both
+ * origins were allowed here purely to serve that. `app/fonts.ts` replaced it with
+ * `next/font/google`, which downloads the three IBM Plex cuts at **build** time and serves them
+ * from our own origin — so 'self' already covers them and the browser never contacts Google.
+ * Leaving the entries in would keep the policy wider than the app, and would silently permit a
+ * regression that reintroduces the render-blocking third-party @import.
  *
  * Server-side only, so they must NOT appear here — the browser never contacts them, and
  * listing them would widen the policy for no reason:
@@ -29,8 +35,6 @@
 /** Where violation reports are posted. Must stay unauthenticated — see the route. */
 export const CSP_REPORT_PATH = '/api/csp-report';
 
-const FONT_STYLESHEET = 'https://fonts.googleapis.com';
-const FONT_FILES = 'https://fonts.gstatic.com';
 const DEMO_IMAGES = 'https://images.unsplash.com';
 const ENTRA_ID = 'https://login.microsoftonline.com';
 
@@ -65,8 +69,9 @@ export function buildCsp({ nonce }: { nonce?: string } = {}): string {
 
     // Tailwind and Next both emit inline <style>. Hashing them is impractical while the
     // class set changes per build.
-    'style-src': ["'self'", "'unsafe-inline'", FONT_STYLESHEET],
-    'font-src': ["'self'", FONT_FILES, 'data:'],
+    'style-src': ["'self'", "'unsafe-inline'"],
+    // Self-hosted by next/font (see the header note). `data:` stays for inline icon fonts.
+    'font-src': ["'self'", 'data:'],
 
     // data: for inline SVG and generated avatars; blob: for client-side file previews on
     // the import screens.

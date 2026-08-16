@@ -93,8 +93,21 @@ Get-Service postgresql-x64-16
 ## E2E
 
 ```bash
-BASE_URL=http://localhost:3000 E2E_PASSWORD=telestar2026 npx playwright test
+# 1. Seed the audit fixture — additive and idempotent, no deleteMany, namespaced to
+#    `pw-audit` / `@audit.test` so it never touches seeded demo rows.
+ALLOW_E2E_FIXTURE=1 E2E_PASSWORD='<run-scoped>' \
+  node node_modules/tsx/dist/cli.mjs scripts/e2e-audit-fixture.ts
+
+# 2. Run against a built app (`next build` + `next start`), not `next dev`.
+BASE_URL=http://localhost:3000 E2E_PASSWORD='<run-scoped>' \
+  node node_modules/@playwright/test/cli.js test
 ```
+
+> ⚠️ **`E2E_PASSWORD=telestar2026` no longer works and has not for some time.**
+> `e2e/support/fixture.ts:67` refuses the published demo password outright — every persona in
+> `auth.setup.ts` fails and the whole run reports `9 failed, 167 did not run`, which looks like a
+> broken app and is not. Use a run-scoped value. This block previously documented the refused
+> command; `docs/automation-engine/STATUS.md` had already recorded the guard.
 
 `e2e/crm-journeys.spec.ts` asserts each persona reaches its routes; `e2e/deep-smoke.spec.ts`
 asserts nothing is broken once there — every permitted route for all 6 personas must render

@@ -40,11 +40,17 @@ describe('CSP — the directives that should be closed', () => {
 });
 
 describe('CSP — the origin inventory', () => {
-  it('allows the font stylesheet and the font files it references', () => {
-    // app/globals.css @imports from googleapis, which then loads from gstatic. Allowing
-    // one without the other yields a page with no fonts and a confusing report.
-    expect(directive('style-src')).toContain('https://fonts.googleapis.com');
-    expect(directive('font-src')).toContain('https://fonts.gstatic.com');
+  it('does not allow the Google font origins, because fonts are self-hosted', () => {
+    // `app/globals.css` used to `@import` from fonts.googleapis.com, which then loaded files
+    // from fonts.gstatic.com, and both were allowed here solely to serve that. `app/fonts.ts`
+    // now uses `next/font/google`, which downloads the faces at build time and serves them
+    // from our own origin, so 'self' covers them and the browser never contacts Google.
+    //
+    // Asserted as an absence on purpose: re-adding either origin is exactly what a regression
+    // to the render-blocking third-party @import would need, and this fails on it.
+    expect(directive('style-src')).not.toContain('https://fonts.googleapis.com');
+    expect(directive('font-src')).not.toContain('https://fonts.gstatic.com');
+    expect(directive('font-src')).toContain("'self'");
   });
 
   it('allows the Entra ID sign-in target as a form action', () => {
