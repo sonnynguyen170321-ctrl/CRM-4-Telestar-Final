@@ -27,32 +27,38 @@
 | :--- | :--- |
 | **Application Git Commit** | `29472e90d2f561d3b9eca46e31d856b8697cce40` |
 | **Application Image Digest** | `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:47cae338dcb6c3a0197033570eb56937430a67092c72a57d9208b1a127b4266d` |
-| **Infrastructure Git Commit** | `761ba61` (on `main`) |
+| **Infrastructure Git Commit** | `0b17426` (on `main`) |
 | **Deploy Target** | `gcp` (`-f docker-compose.yml -f docker-compose.gcp.yml`) |
 | **Database Migrations** | 46 total migrations applied (all schema models up to date) |
 
 ---
 
-## 3. Operational Safety Flags
+## 3. Operational Safety & Canary Controls
 
 | Flag | Value | Enforced Behavior |
 | :--- | :--- | :--- |
 | `EMAIL_SEND_DRY_RUN` | `true` | Outbound emails simulated; no live mail leaves the box. |
 | `SEQUENCE_AUTOSEND_ENABLED` | `false` | Automated sequence tasks queued but not dispatched automatically. |
 | `EMAIL_HEALTH_AUTOPAUSE` | `true` | Mailboxes exceeding bounce threshold auto-paused. |
+| `EMAIL_GLOBAL_PAUSE` | `false` | Emergency kill switch — when `true`, all outbound mail immediately blocked. |
+| `LIVE_EMAIL_CANARY_MODE` | `true` | When active, restricts live sending exclusively to `LIVE_EMAIL_ALLOWED_RECIPIENTS`. |
 
 ---
 
 ## 4. Canonical Runbooks & Operations
 
-| Operation | Canonical Command |
+| Operation | Canonical Reference / Command |
 | :--- | :--- |
-| **Deploy Exact Build** | `./scripts/deploy.sh <40-char-git-sha>` |
-| **Rollback to Previous** | `./scripts/rollback.sh` |
+| **Production Readiness Audit** | `npx tsx scripts/production-readiness-audit.ts` |
+| **DNS Deliverability Audit** | `npx tsx scripts/verify-domain-dns.ts telestar.cloud` |
+| **Email Incident Runbook** | [`docs/EMAIL_INCIDENT_RUNBOOK.md`](./EMAIL_INCIDENT_RUNBOOK.md) |
+| **Backup & Restore Drill** | [`docs/BACKUP_RESTORE_RUNBOOK.md`](./BACKUP_RESTORE_RUNBOOK.md) |
+| **Rollback Execution** | [`docs/ROLLBACK_RUNBOOK.md`](./ROLLBACK_RUNBOOK.md) / `./scripts/rollback.sh` |
 | **Smoke Test** | `./scripts/post-deploy-smoke.sh` |
 | **Topology Validation** | `npm run check:production-compose` |
 | **Worker Healthcheck** | `npm run worker:healthcheck` |
 | **Hourly Cron Dispatch** | `/opt/crm-4-u/bin/cron-call.sh <sequence-engine\|inbox-sync\|email-health>` |
+
 
 ---
 
