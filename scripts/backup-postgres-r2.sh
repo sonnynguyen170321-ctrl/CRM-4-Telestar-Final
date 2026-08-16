@@ -41,7 +41,15 @@ BACKUP_FILE="${BACKUP_LOCAL_DIR}/${POSTGRES_DB}-${STAMP}.sql.gz"
 cd "${ROOT_DIR}"
 
 BACKUP_DATABASE_URL="${BACKUP_DATABASE_URL:-${DIRECT_URL:-${DATABASE_URL:-}}}"
-CLEAN_DUMP_URL=$(echo "${BACKUP_DATABASE_URL}" | sed -E 's/[?&]schema=[^&]*//g')
+CLEAN_DUMP_URL="$(node -e '
+  try {
+    const u = new URL(process.argv[1]);
+    u.searchParams.delete("schema");
+    console.log(u.toString());
+  } catch (e) {
+    console.log(process.argv[1]);
+  }
+' "${BACKUP_DATABASE_URL}")"
 
 if [[ -n "${CLEAN_DUMP_URL}" && "${CLEAN_DUMP_URL}" != *"@postgres:"* ]]; then
   echo "[backup] dumping ${POSTGRES_DB} from Cloud SQL via ${POSTGRES_DUMP_IMAGE}"
