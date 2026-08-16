@@ -70,8 +70,11 @@ async function runReadinessAudit(): Promise<AuditItem[]> {
 
   // ── 3. Tenant Isolation & Relational Integrity ─────────────────────────────
   try {
-    const tenantCount = await prisma.tenant.count();
-    const userCount = await prisma.user.count();
+    const tenantRows = await prisma.$queryRaw<Array<{ count: bigint }>>`SELECT count(*) as count FROM "Tenant"`;
+    const userRows = await prisma.$queryRaw<Array<{ count: bigint }>>`SELECT count(*) as count FROM "User"`;
+    const tenantCount = Number(tenantRows[0]?.count ?? 0);
+    const userCount = Number(userRows[0]?.count ?? 0);
+
     items.push({
       category: 'DATA_INTEGRITY',
       gate: 'P9',
@@ -91,16 +94,16 @@ async function runReadinessAudit(): Promise<AuditItem[]> {
 
   // ── 4. Email Account Provider & Encryption Status ──────────────────────────
   try {
-    const accounts = await prisma.emailAccount.findMany({
-      select: {
-        id: true,
-        email: true,
-        provider: true,
-        isActive: true,
-        encAccessToken: true,
-        accessToken: true,
-      },
-    });
+    const accounts = await prisma.$queryRaw<Array<{
+      id: string;
+      email: string;
+      provider: string;
+      isActive: boolean;
+      encAccessToken: string | null;
+      accessToken: string | null;
+    }>>`
+      SELECT id, email, provider, "isActive", "encAccessToken", "accessToken" FROM "EmailAccount"
+    `;
 
     const unencrypted = accounts.filter((a) => Boolean(a.accessToken && !a.encAccessToken));
     items.push({
