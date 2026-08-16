@@ -41,11 +41,12 @@ BACKUP_FILE="${BACKUP_LOCAL_DIR}/${POSTGRES_DB}-${STAMP}.sql.gz"
 cd "${ROOT_DIR}"
 
 BACKUP_DATABASE_URL="${BACKUP_DATABASE_URL:-${DIRECT_URL:-${DATABASE_URL:-}}}"
+CLEAN_DUMP_URL=$(echo "${BACKUP_DATABASE_URL}" | sed -E 's/[?&]schema=[^&]*//g')
 
-if [[ -n "${BACKUP_DATABASE_URL}" && "${BACKUP_DATABASE_URL}" != *"@postgres:"* ]]; then
+if [[ -n "${CLEAN_DUMP_URL}" && "${CLEAN_DUMP_URL}" != *"@postgres:"* ]]; then
   echo "[backup] dumping ${POSTGRES_DB} from Cloud SQL via ${POSTGRES_DUMP_IMAGE}"
   $DOCKER run --rm "${POSTGRES_DUMP_IMAGE}" \
-    pg_dump "${BACKUP_DATABASE_URL}" --no-owner --no-acl \
+    pg_dump "${CLEAN_DUMP_URL}" --no-owner --no-acl \
     | gzip -9 > "${BACKUP_FILE}"
 else
   echo "[backup] dumping ${POSTGRES_DB} from postgres container"
