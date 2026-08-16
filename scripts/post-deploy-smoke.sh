@@ -13,6 +13,7 @@
 
 set -euo pipefail
 
+BASE_URL="${BASE_URL:-$(grep -E '^NEXT_PUBLIC_APP_URL=|^NEXTAUTH_URL=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\"' || true)}"
 BASE_URL="${BASE_URL:-http://localhost}"
 ENV_FILE="${ENV_FILE:-.env.production}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -40,10 +41,18 @@ extract_json_field() {
 
 echo "Post-deploy smoke test against ${BASE_URL}"
 
-# 1. The app is up and can reach the database.
-health=$(curl -fsS --max-time 20 "${BASE_URL}/api/health" 2>/dev/null || echo '')
+# 1. The app is up and can reach the database (readiness retry loop).
+health=""
+for i in $(seq 1 20); do
+  health=$(curl -fsSL -k --max-time 10 "${BASE_URL}/api/health" 2>/dev/null || echo '')
+  if [ -n "$health" ]; then
+    break
+  fi
+  sleep 1
+done
+
 if [ -z "$health" ]; then
-  fail "/api/health did not respond"
+  fail "/api/health did not respond after 20s"
 else
   ok=$(extract_json_field "$health" "ok")
   [ "$ok" = "true" ] && pass "/api/health ok (database reachable)" || fail "/api/health reported ok=${ok}"
@@ -60,14 +69,14 @@ if [ -n "${DEPLOYED_COMMIT:-}" ] && [ -n "$health" ]; then
 fi
 
 # 3. Auth still gates the admin console — a 404 here means the routes did not ship.
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${BASE_URL}/admin" || echo 000)
+code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 20 "${BASE_URL}/admin" || echo 000)
 case "$code" in
   30[0-9]) pass "/admin redirects unauthenticated callers (${code})" ;;
   *)       fail "/admin returned ${code}, expected a 3xx redirect" ;;
 esac
 
 # 4. The login page renders.
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${BASE_URL}/login" || echo 000)
+code=$(curl -sLk -o /dev/null -w '%{http_code}' --max-time 20 "${BASE_URL}/login" || echo 000)
 [ "$code" = "200" ] && pass "/login renders (200)" || fail "/login returned ${code}"
 
 # 5. Web and worker are the same image. This is the whole point of pinning by digest.
@@ -82,7 +91,16 @@ else
 fi
 
 # 6. The worker is actually processing, not just running.
-if $DC logs --tail 200 worker 2>/dev/null | grep -q '\[worker\] all workers registered\|\[worker\] registered:'; then
+worker_ready=0
+for i in $(seq 1 10); do
+  if $DC logs --tail 200 worker 2>/dev/null | grep -q '\[worker\] all workers registered\|\[worker\] registered:'; then
+    worker_ready=1
+    break
+  fi
+  sleep 1
+done
+
+if [ "$worker_ready" -eq 1 ]; then
   pass "worker registered its queues"
 else
   fail "worker did not log queue registration in its last 200 lines"
