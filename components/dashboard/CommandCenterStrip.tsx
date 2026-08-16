@@ -106,9 +106,9 @@ export default function CommandCenterStrip({
         </section>
       )}
 
-      <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-5 items-stretch">
         {/* ─── needs your attention ─── */}
-        <section className="rounded-xl border border-card-border bg-card-bg overflow-hidden">
+        <section className="rounded-xl border border-card-border bg-card-bg overflow-hidden flex flex-col h-full">
           <div className="px-5 py-3.5 border-b border-card-border">
             <SectionHeader
               title="Needs your attention"
@@ -127,11 +127,13 @@ export default function CommandCenterStrip({
           {isLoading && <SkeletonList rows={2} />}
 
           {!isLoading && attention.length === 0 && (
-            <EmptyState
-              title="No prospects need your attention."
-              description="AI is currently handling the active queue. A reply moves a prospect here automatically."
-              icon={CheckCircle2}
-            />
+            <div className="flex-1 flex items-center justify-center">
+              <EmptyState
+                title="No prospects need your attention."
+                description="AI is currently handling the active queue. A reply moves a prospect here automatically."
+                icon={CheckCircle2}
+              />
+            </div>
           )}
 
           {!isLoading && attention.length > 0 && (
