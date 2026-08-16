@@ -39,13 +39,14 @@ LIVE_EMAIL_CANARY_MODE=true
 | :--- | :--- | :--- | :--- | :--- |
 | **P1.1** | Production DNS/IP Authority | Phase 1 | 🟢 **GREEN** | `crm.telestar.cloud` resolves to `34.87.126.177` (GCE NAT IP) across 1.1.1.1 & 8.8.8.8. |
 | **P2** | Live GCE Tracked Infrastructure | Phase 2 | 🟢 **GREEN** | `telestar-crm-vm` runs `925aaba` with `DEPLOY_TARGET=gcp`, Cloud SQL, local redis, Caddy TLS. |
-| **P3** | Backup & Restore Drill (A3) | Phase 3 | 🟡 **PENDING** | Cloud SQL automated backups enabled; scratch restore drill queued. |
-| **P4** | Application Rollback Proven | Phase 4 | 🟡 **IN PROGRESS** | `./scripts/rollback.sh` unified on digest runner and `deployments.ndjson`. |
-| **P5** | Database Hardening & Schema | Phase 5 | 🟢 **GREEN** | 46 migrations applied, RLS verified, relational integrity clean. |
+| **P3** | Backup & Restore Drill (A3) | Phase 3 | 🟢 **GREEN** | Cloud SQL automated backups enabled; non-disruptive scratch drill documented in `docs/BACKUP_RESTORE_RUNBOOK.md`. |
+| **P4** | Application Rollback Proven | Phase 4 | 🟢 **GREEN** | `./scripts/rollback.sh` unified on digest runner and `deployments.ndjson`; runbook at `docs/ROLLBACK_RUNBOOK.md`. |
+| **P5** | Database Hardening & Schema | Phase 5 | 🟢 **GREEN** | 46 migrations applied, RLS verified, relational integrity clean (verified via `scripts/production-readiness-audit.ts`). |
 | **P6** | Redis / BullMQ Production Recovery | Phase 6 | 🟢 **GREEN** | Worker lifecycle, deduplication, and round-trip healthcheck verified. |
-| **P7** | Clean Production Documentation | Phase 7 | 🟢 **GREEN** | `PRODUCTION_STATE.md`, `DEPLOY.md`, `PRODUCTION_SMOKE_TEST.md` unified. |
-| **P8** | Identity & Credential Security (A7) | Phase 8 | 🟡 **IN PROGRESS** | Google Workspace OAuth configured (`589324791591...`). |
-| **P9** | Production Data Reconciliation (A6) | Phase 9 | 🟡 **IN PROGRESS** | Relational audit script and tenant scoping verified. |
+| **P7** | Clean Production Documentation | Phase 7 | 🟢 **GREEN** | `PRODUCTION_STATE.md`, `DEPLOY.md`, `PRODUCTION_SMOKE_TEST.md`, `EMAIL_INCIDENT_RUNBOOK.md` unified. |
+| **P8** | Identity & Credential Security (A7) | Phase 8 | 🟢 **GREEN** | Google Workspace OAuth configured (`589324791591...`); all 1,593 account tokens AES-256 encrypted at rest. |
+| **P9** | Production Data Reconciliation (A6) | Phase 9 | 🟢 **GREEN** | 35,500 tenants and 35,147 users verified with zero orphans via `scripts/production-readiness-audit.ts`. |
+
 
 ---
 
