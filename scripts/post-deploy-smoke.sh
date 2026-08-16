@@ -13,8 +13,12 @@
 
 set -euo pipefail
 
-BASE_URL="${BASE_URL:-http://localhost}"
 ENV_FILE="${ENV_FILE:-.env.production}"
+
+if [ -z "${BASE_URL:-}" ] && [ -f "$ENV_FILE" ]; then
+  BASE_URL="$(grep -E '^NEXT_PUBLIC_APP_URL=|^NEXTAUTH_URL=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d '\r' || true)"
+fi
+BASE_URL="${BASE_URL:-http://localhost}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILES="${COMPOSE_FILES:-$("${SCRIPT_DIR}/production-compose.sh" "$ENV_FILE" 2>/dev/null || echo "-f docker-compose.yml -f docker-compose.gcp.yml")}"
 DOCKER="${DOCKER:-sudo docker}"
@@ -40,10 +44,16 @@ extract_json_field() {
 
 echo "Post-deploy smoke test against ${BASE_URL}"
 
-# 1. The app is up and can reach the database.
-health=$(curl -fsS --max-time 20 "${BASE_URL}/api/health" 2>/dev/null || echo '')
+# 1. The app is up and can reach the database (with up to 5 retries for cold start)
+health=""
+for i in 1 2 3 4 5; do
+  health=$(curl -fsS --max-time 15 "${BASE_URL}/api/health" 2>/dev/null || echo '')
+  if [ -n "$health" ]; then break; fi
+  sleep 2
+done
+
 if [ -z "$health" ]; then
-  fail "/api/health did not respond"
+  fail "/api/health did not respond after 5 attempts"
 else
   ok=$(extract_json_field "$health" "ok")
   [ "$ok" = "true" ] && pass "/api/health ok (database reachable)" || fail "/api/health reported ok=${ok}"
