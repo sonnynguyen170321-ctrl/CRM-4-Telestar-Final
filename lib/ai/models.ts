@@ -14,13 +14,13 @@ export type ModelId =
   | 'llama-3.3-70b-versatile'    // ⚡ Smart & Balanced
   | 'llama-3.1-8b-instant'        // 🚀 Ultra Fast
   | 'gemma2-9b-it'                // ✍️ Email & Writing
-  | 'gemini-2.0-flash';           // 🎨 Creative & Polished
+  | 'gemini-1.5-flash';           // 🎨 Creative & Polished
 
 export const MODEL_LABELS: Record<ModelId, string> = {
   'llama-3.3-70b-versatile': '⚡ Smart & Balanced',
   'llama-3.1-8b-instant': '🚀 Ultra Fast',
   'gemma2-9b-it': '✍️ Email & Writing',
-  'gemini-2.0-flash': '🎨 Creative & Polished',
+  'gemini-1.5-flash': '🎨 Creative & Polished',
 };
 
 export const MODEL_DESCRIPTIONS: Record<ModelId, string> = {
@@ -30,8 +30,8 @@ export const MODEL_DESCRIPTIONS: Record<ModelId, string> = {
     'Replies in under 1 second. Best for quick questions and creating tasks on the fly.',
   'gemma2-9b-it':
     'Great at following instructions. Best for writing cold emails and LinkedIn messages.',
-  'gemini-2.0-flash':
-    'Google\'s latest model. Best for creative writing, subject lines, and brainstorming.',
+  'gemini-1.5-flash':
+    'Google\'s fast multimodal model. Best for creative writing, subject lines, and brainstorming.',
 };
 
 export const DEFAULT_MODEL: ModelId = 'llama-3.3-70b-versatile';
