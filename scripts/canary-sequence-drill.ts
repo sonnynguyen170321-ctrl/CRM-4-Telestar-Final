@@ -57,6 +57,7 @@ async function main() {
         data: {
           firstName: 'Sonny',
           lastName: 'Canary',
+          company: 'Telestar Canary Corp',
           email: canaryEmail,
           stage: 'new',
           crmPriorityScore: 'hot',
