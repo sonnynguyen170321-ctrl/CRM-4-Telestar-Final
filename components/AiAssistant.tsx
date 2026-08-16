@@ -526,7 +526,7 @@ export default function AiAssistant() {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ background: '#FAFAFA' }}>
-            {messages.length === 0 && !isOnboarding && (
+            {messages.length === 0 && (
               <div className="text-center text-zinc-400 text-sm mt-8">
                 <div className="mb-2">👋 Hey {firstName}!</div>
                 <div>Ask me anything about your leads, outreach, or pipeline.</div>
@@ -637,7 +637,7 @@ export default function AiAssistant() {
                     sendMessage();
                   }
                 }}
-                placeholder={isOnboarding ? 'Type your answer...' : 'Ask me anything...'}
+                placeholder="Ask me anything..."
                 rows={1}
                 disabled={isStreaming}
                 className="flex-1 bg-transparent text-sm text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 resize-none border-0 outline-none leading-snug"
