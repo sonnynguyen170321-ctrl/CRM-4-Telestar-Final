@@ -105,6 +105,10 @@ async function main() {
       });
     }
 
+    if (!sequence || !lead) {
+      throw new Error('Sequence or Lead setup failed');
+    }
+
     // 4. Enroll Lead via native Sequence Worker
     console.log('==> Enrolling Lead in Sequence via BullMQ Worker...');
     await handleEnroll({
