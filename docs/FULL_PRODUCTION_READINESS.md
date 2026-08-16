@@ -11,11 +11,11 @@
 
 | Property | Value | Evidence / Hash |
 | :--- | :--- | :--- |
-| **MAIN_HEAD** | `925aaba` | `925aaba21cd3b9a229b7c9dfc1983d3c2327bfd1` |
-| **RELEASE_HEAD** | `925aaba` | Branch `release/full-production-readiness` |
+| **MAIN_HEAD** | `0b17426` | `0b1742617f6946059d642354c41fe4ae2cfda270` |
+| **RELEASE_HEAD** | `0b17426` | Branch `release/full-production-readiness` |
 | **CURRENT_PRODUCTION_APP_SHA** | `29472e9` | Commit `29472e90d2f561d3b9eca46e31d856b8697cce40` |
 | **CURRENT_PRODUCTION_IMAGE_DIGEST** | `sha256:47cae338...` | `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:47cae338dcb6c3a0197033570eb56937430a67092c72a57d9208b1a127b4266d` |
-| **CURRENT_INFRA_SHA** | `925aaba` | Synchronized on `main` and VM `/opt/crm-4-u` |
+| **CURRENT_INFRA_SHA** | `0b17426` | Synchronized on `main` |
 | **CURRENT_GCE_SHA** | `925aaba` | Verified via `git rev-parse HEAD` on `telestar-crm-vm` |
 | **DATABASE_MIGRATION_STATUS** | 46 Applied | Replayed clean from shadow database |
 | **DEPLOY_TARGET** | `gcp` | `-f docker-compose.yml -f docker-compose.gcp.yml` |
