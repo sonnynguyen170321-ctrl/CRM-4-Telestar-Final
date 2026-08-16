@@ -82,7 +82,12 @@ export async function runWorkerHealthcheck(options: {
     // `bullJobId` is the queue's id and `enqueuedAt` is this model's clock — JobRun has no
     // `jobId` and no `createdAt`.
     const run = await prisma.jobRun.findFirst({
-      where: { bullJobId },
+      where: {
+        OR: [
+          { id: bullJobId },
+          { bullJobId },
+        ],
+      },
       select: { status: true, failedReason: true },
       orderBy: { enqueuedAt: 'desc' },
     });
