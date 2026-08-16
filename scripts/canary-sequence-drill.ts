@@ -40,7 +40,7 @@ async function main() {
 
     // 2. Create or Find Canary Sequence & Step
     const sequenceName = 'Phase C Live Canary Sequence';
-    let sequence = await prisma.sequence.findFirst({
+    let sequence: any = await prisma.sequence.findFirst({
       where: { name: sequenceName, tenantId },
       include: { steps: true },
     });
@@ -79,7 +79,7 @@ async function main() {
 
     // 3. Create or Find Canary Lead assigned to user with connected inbox
     const canaryEmail = 'sonny@itelestar.com';
-    let lead = await prisma.lead.findFirst({
+    let lead: any = await prisma.lead.findFirst({
       where: { email: canaryEmail, tenantId },
     });
 
@@ -119,7 +119,7 @@ async function main() {
     console.log('  + Lead enrolled and Step 1 Task generated.');
 
     // 5. Find Step 1 Task and trigger execution
-    const task = await prisma.task.findFirst({
+    const task: any = await prisma.task.findFirst({
       where: { leadId: lead.id, sequenceId: sequence.id, status: 'pending' },
       include: {
         lead: {
