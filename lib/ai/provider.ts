@@ -84,7 +84,7 @@ export async function* streamChat(opts: StreamOptions): AsyncGenerator<string> {
     // One place decides failover, shared with `generateStructured`. A second expression of the
     // policy here is how the two modes drifted apart the first time.
     if (shouldFallbackToGemini('groq', err)) {
-      yield* streamGemini({ ...opts, modelId: 'gemini-2.0-flash' });
+      yield* streamGemini({ ...opts, modelId: GEMINI_FALLBACK_MODEL });
       return;
     }
     throw err;

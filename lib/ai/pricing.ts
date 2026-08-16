@@ -20,6 +20,7 @@ const TOKEN_RATES: Record<string, TokenRate> = {
   'llama-3.1-8b-instant': { inputPerMillion: 0.05, outputPerMillion: 0.08 },
   'gemma2-9b-it': { inputPerMillion: 0.2, outputPerMillion: 0.2 },
   // Google.
+  'gemini-flash-latest': { inputPerMillion: 0.1, outputPerMillion: 0.4 },
   'gemini-2.0-flash': { inputPerMillion: 0.1, outputPerMillion: 0.4 },
 };
 
