@@ -14,27 +14,27 @@ async function handleUnsubscribe(token: string, source: 'one_click_header' | 'br
   const { tenantId, email, leadId, campaignId } = payload;
 
   return tenantStorage.run({ tenantId, bypassRls: true }, async () => {
-    // 1. Upsert suppression entry
+    // 1. Record suppression entry
     const recipientDomain = email.split('@')[1]?.toLowerCase();
-    await prisma.suppressionEntry.upsert({
+    const existing = await prisma.suppressionEntry.findFirst({
       where: {
-        tenantId_email_campaignId: {
-          tenantId,
-          email: email.toLowerCase(),
-          campaignId: campaignId || '',
-        },
-      },
-      create: {
         tenantId,
         email: email.toLowerCase(),
-        domain: recipientDomain,
-        reason: 'unsubscribe',
-        campaignId: campaignId || null,
-      },
-      update: {
-        reason: 'unsubscribe',
+        ...(campaignId ? { campaignId } : {}),
       },
     });
+
+    if (!existing) {
+      await prisma.suppressionEntry.create({
+        data: {
+          tenantId,
+          email: email.toLowerCase(),
+          domain: recipientDomain,
+          reason: 'unsubscribe',
+          campaignId: campaignId || null,
+        },
+      });
+    }
 
     // 2. If leadId was provided, update lead status & stop active sequence enrollments
     if (leadId) {

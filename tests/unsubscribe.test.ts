@@ -7,14 +7,16 @@ import {
 import { GET, POST } from '@/app/api/unsubscribe/route';
 import { NextRequest } from 'next/server';
 
-const mockUpsert = vi.fn();
+const mockFindFirst = vi.fn();
+const mockCreate = vi.fn();
 const mockUpdateMany = vi.fn();
 const mockActivityCreate = vi.fn();
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     suppressionEntry: {
-      upsert: (...args: unknown[]) => mockUpsert(...args),
+      findFirst: (...args: unknown[]) => mockFindFirst(...args),
+      create: (...args: unknown[]) => mockCreate(...args),
     },
     sequenceEnrollment: {
       updateMany: (...args: unknown[]) => mockUpdateMany(...args),
@@ -88,14 +90,12 @@ describe('Unsubscribe HMAC token and RFC 8058 handling', () => {
       const data = await res.json();
       expect(data.ok).toBe(true);
 
-      expect(mockUpsert).toHaveBeenCalledWith(
+      expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({
-            tenantId_email_campaignId: {
-              tenantId: 't-1',
-              email: 'prospect@acme.corp',
-              campaignId: '',
-            },
+          data: expect.objectContaining({
+            tenantId: 't-1',
+            email: 'prospect@acme.corp',
+            reason: 'unsubscribe',
           }),
         })
       );
