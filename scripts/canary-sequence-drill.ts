@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
-import { handleEnroll } from '@/workers/sequence';
-import { executeTask } from '@/workers/sequence';
+import { handleEnroll, handleExecuteTask } from '@/workers/sequence';
 
 async function main() {
   console.log('\n=== Phase C: Automated Sequence Canary Drill ===');
@@ -131,7 +130,7 @@ async function main() {
 
     if (task) {
       console.log('==> Executing Automated Step Task:', task.id);
-      const res = await executeTask({ taskId: task.id });
+      const res = await handleExecuteTask({ taskId: task.id });
       console.log('  + Execution Result:', JSON.stringify(res));
     }
 
