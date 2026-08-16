@@ -24,6 +24,20 @@ failures=0
 pass() { printf '  \033[32mPASS\033[0m  %s\n' "$*"; }
 fail() { printf '  \033[31mFAIL\033[0m  %s\n' "$*"; failures=$((failures + 1)); }
 
+extract_json_field() {
+  local json="$1"
+  local field="$2"
+  if command -v python3 >/dev/null 2>&1; then
+    printf '%s' "$json" | python3 -c "import sys, json; data=json.load(sys.stdin); val=data.get('${field}'); print(str(val).lower() if isinstance(val, bool) else (val or ''))" 2>/dev/null || echo ''
+  elif command -v node >/dev/null 2>&1; then
+    printf '%s' "$json" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{const j=JSON.parse(d);console.log(j.${field} ?? '')}catch{console.log('')}})"
+  elif command -v jq >/dev/null 2>&1; then
+    printf '%s' "$json" | jq -r ".${field} // empty" 2>/dev/null || echo ''
+  else
+    printf '%s' "$json" | grep -o "\"${field}\":[^,}]*" | cut -d: -f2- | tr -d '" ' || echo ''
+  fi
+}
+
 echo "Post-deploy smoke test against ${BASE_URL}"
 
 # 1. The app is up and can reach the database.
@@ -31,13 +45,13 @@ health=$(curl -fsS --max-time 20 "${BASE_URL}/api/health" 2>/dev/null || echo ''
 if [ -z "$health" ]; then
   fail "/api/health did not respond"
 else
-  ok=$(printf '%s' "$health" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{console.log(JSON.parse(d).ok)}catch{console.log("parse-error")}})')
+  ok=$(extract_json_field "$health" "ok")
   [ "$ok" = "true" ] && pass "/api/health ok (database reachable)" || fail "/api/health reported ok=${ok}"
 fi
 
 # 2. The build serving traffic is the one that was deployed.
 if [ -n "${DEPLOYED_COMMIT:-}" ] && [ -n "$health" ]; then
-  served=$(printf '%s' "$health" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{console.log(JSON.parse(d).commit||"")}catch{console.log("")}})')
+  served=$(extract_json_field "$health" "commit")
   if [ "$served" = "$DEPLOYED_COMMIT" ]; then
     pass "web reports commit ${served:0:7}"
   else
