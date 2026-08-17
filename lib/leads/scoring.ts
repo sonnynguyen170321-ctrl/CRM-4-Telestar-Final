@@ -1,183 +1,250 @@
-export interface AIScoreResult {
+export type LeadPriority = 'hot' | 'warm' | 'cold';
+
+export interface ScoreLeadResult {
   score: number;
-  label: 'hot' | 'warm' | 'cold';
+  label: LeadPriority;
   insights: string[];
   recommendation: string;
 }
 
-interface LeadScoringInput {
-  id: string;
-  firstName: string;
-  lastName: string;
-  company: string;
-  title?: string | null;
-  email: string;
+export interface ScoreLeadInput {
+  id?: string;
+  firstName?: string;
+  lastName?: string;
+  company?: string;
+  email?: string | null;
   phone?: string | null;
   linkedIn?: string | null;
   whatsApp?: string | null;
-  stage: string;
-  crmPriorityScore: string;
+  title?: string | null;
+  stage?: string;
+  crmPriorityScore?: string;
   source?: string | null;
+  lastContactedAt?: string | Date | null;
+  createdAt?: string | Date;
+  emailSentCount?: number;
+  emailOpenCount?: number;
+  emailReplyCount?: number;
+  emailInvalid?: boolean;
+  emailValidation?: string | null;
+  nextTaskDue?: string | Date | null;
   tags?: string[];
-  lastContactedAt?: string | null;
-  nextTaskDue?: string | null;
-  createdAt: string;
-  assignedTo?: string | { id: string; firstName: string; lastName: string } | null;
-  sequenceId?: string | null;
-  activities?: { type: string; createdAt: string }[];
-  tasks?: { status: string; dueDate: string }[];
+  tasks?: Array<{
+    status?: string;
+    dueDate?: string | Date | null;
+  }>;
+  meetings?: Array<{
+    id?: string;
+    status?: string;
+  }>;
+  [key: string]: any;
 }
 
-function daysSince(dateStr: string): number {
-  const d = new Date(dateStr);
-  const now = new Date();
-  return Math.floor((now.getTime() - d.getTime()) / 86400000);
-}
-
-function hasActivityType(activities: { type: string; createdAt: string }[], type: string, maxDays: number): boolean {
-  return activities.some(a => a.type === type && daysSince(a.createdAt) <= maxDays);
-}
-
-function getChannelScore(lead: LeadScoringInput): number {
-  let score = 0;
-  if (lead.email) score += 10;
-  if (lead.phone) score += 8;
-  if (lead.linkedIn) score += 6;
-  if (lead.whatsApp) score += 6;
-  return Math.min(score, 25);
-}
-
-function getStageScore(stage: string): number {
-  const map: Record<string, number> = {
-    meeting_booked: 25,
-    replied: 20,
-    sequence_active: 15,
-    new: 5,
-    won: 0,
-    lost: -10,
-  };
-  return map[stage] ?? 0;
-}
-
-function getRecencyScore(lastContactedAt?: string | null): number {
-  if (!lastContactedAt) return 0;
-  const d = daysSince(lastContactedAt);
-  if (d <= 1) return 20;
-  if (d <= 3) return 15;
-  if (d <= 7) return 10;
-  if (d <= 14) return 5;
-  return 0;
-}
-
-function getPriorityScore(priority: string): number {
-  const map: Record<string, number> = { hot: 15, warm: 10, cold: 5 };
-  return map[priority] ?? 5;
-}
-
-function getSourceScore(source?: string | null): number {
-  if (!source) return 0;
-  const s = source.toLowerCase();
-  if (s.includes('inbound') || s.includes('referral') || s.includes('form')) return 10;
-  if (s.includes('linkedin')) return 7;
-  if (s.includes('apollo') || s.includes('scrape')) return 5;
-  return 3;
-}
-
-function getEngagementScore(activities?: { type: string; createdAt: string }[]): number {
-  if (!activities || activities.length === 0) return 0;
-  let score = 0;
-  if (hasActivityType(activities, 'email_sent', 7)) score += 5;
-  if (hasActivityType(activities, 'call_made', 7) || hasActivityType(activities, 'call_logged', 7)) score += 5;
-  if (hasActivityType(activities, 'meeting_booked', 14)) score += 8;
-  if (hasActivityType(activities, 'stage_changed', 7)) score += 3;
-  return Math.min(score, 15);
-}
-
-function getPenaltyScore(lead: LeadScoringInput): number {
-  let penalty = 0;
-  if (lead.stage === 'lost') penalty -= 15;
-  if (!lead.title) penalty -= 3;
-  if (lead.tasks) {
-    const overdue = lead.tasks.filter(t => t.status === 'pending' && new Date(t.dueDate) < new Date());
-    penalty -= overdue.length * 4;
-  }
-  return penalty;
-}
-
-function generateInsights(lead: LeadScoringInput, _score: number): string[] {
+/**
+ * Canonical deterministic lead scorer (Phase 8a)
+ */
+export function scoreLead(lead: ScoreLeadInput): ScoreLeadResult {
+  let score = 20; // baseline
   const insights: string[] = [];
-  const stage = lead.stage.replace(/_/g, ' ');
-  insights.push(`Stage: ${stage} (${getStageScore(lead.stage)} pts)`);
 
+  // Stage evaluation
+  if (lead.stage === 'meeting_booked' || lead.stage === 'won') {
+    score += 40;
+    insights.push('High value conversion stage');
+  } else if (lead.stage === 'replied') {
+    score += 30;
+    insights.push('Prospect engaged / replied');
+  } else if (lead.stage === 'sequence_active') {
+    score += 15;
+    insights.push('Active in outreach sequence');
+  } else if (lead.stage === 'lost') {
+    score = Math.min(score, 10);
+    insights.push('Lead marked lost');
+  }
+
+  // Priority metadata bonus
+  if (lead.crmPriorityScore === 'hot') {
+    score += 20;
+    insights.push('SDR tagged as Hot priority');
+  } else if (lead.crmPriorityScore === 'warm') {
+    score += 10;
+  }
+
+  // Seniority & Title
+  const title = (lead.title || '').toLowerCase();
+  if (/chief|ceo|cfo|cto|cro|cmo|coo|founder|president|owner/i.test(title)) {
+    score += 20;
+    insights.push('C-Level / Executive Decision Maker');
+  } else if (/vp|vice president|director|head of/i.test(title)) {
+    score += 12;
+    insights.push('Director / VP Management Seniority');
+  }
+
+  // Contact completeness
+  let channels = 0;
+  if (lead.email && lead.email.includes('@') && !lead.emailInvalid) channels++;
+  if (lead.phone && lead.phone.trim().length > 3) channels++;
+  if (lead.linkedIn) channels++;
+  if (lead.whatsApp) channels++;
+
+  if (channels >= 3) {
+    score += 15;
+    insights.push('Multi-channel contact data verified');
+  } else if (channels >= 2) {
+    score += 8;
+  }
+
+  // Activity recency
   if (lead.lastContactedAt) {
-    const d = daysSince(lead.lastContactedAt);
-    if (d <= 1) insights.push('Contacted very recently');
-    else if (d <= 3) insights.push('Contacted this week');
-    else if (d <= 7) insights.push('No contact for a week');
-    else insights.push(`No contact for ${d} days — follow up needed`);
-  } else {
-    insights.push('Never contacted — prioritize initial outreach');
+    const hours = (Date.now() - new Date(lead.lastContactedAt).getTime()) / (1000 * 3600);
+    if (hours < 72) {
+      score += 10;
+      insights.push('Recently contacted (< 72h)');
+    }
   }
 
-  if (lead.title) insights.push(`Has valid title (${lead.title})`);
-  else insights.push('Missing title — try to research');
-
-  const channels = [];
-  if (lead.email) channels.push('email');
-  if (lead.phone) channels.push('phone');
-  if (lead.linkedIn) channels.push('LinkedIn');
-  if (lead.whatsApp) channels.push('WhatsApp');
-  insights.push(`${channels.length} outreach channels available (${channels.join(', ')})`);
-
-  if (lead.tasks) {
-    const overdue = lead.tasks.filter(t => t.status === 'pending' && new Date(t.dueDate) < new Date());
-    if (overdue.length > 0) insights.push(`${overdue.length} overdue task${overdue.length > 1 ? 's' : ''} — risk factor`);
+  // Deduct for overdue pending tasks (-4 each)
+  if (Array.isArray(lead.tasks)) {
+    const now = Date.now();
+    const overdueCount = lead.tasks.filter(
+      (t) => t.status === 'pending' && t.dueDate && new Date(t.dueDate).getTime() < now
+    ).length;
+    if (overdueCount > 0) {
+      const penalty = overdueCount * 4;
+      score -= penalty;
+      insights.push(`${overdueCount} overdue task(s) pending (-${penalty} pts)`);
+    }
   }
 
-  if (lead.activities && lead.activities.length > 3) {
-    insights.push('High engagement — multiple recorded activities');
+  // Clamping
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  // Label calculation
+  let label: LeadPriority = 'cold';
+  if (score >= 60) label = 'hot';
+  else if (score >= 35) label = 'warm';
+
+  // Recommendation text
+  let recommendation = 'Monitor for next sequence step or touchpoint.';
+  if (label === 'hot') {
+    recommendation = 'High priority: Execute direct phone follow-up or book demo.';
+  } else if (label === 'warm') {
+    recommendation = 'Warm engagement: Send targeted value-add email or case study.';
   }
 
-  return insights;
-}
-
-function generateRecommendation(score: number, stage: string, _priority: string): string {
-  if (stage === 'won') return 'Lead converted. Move to account management.';
-  if (stage === 'lost') return 'Lead lost. Review notes for future re-engagement.';
-
-  if (score >= 70) {
-    if (stage === 'meeting_booked') return 'High-value lead. Prioritize meeting preparation.';
-    if (stage === 'replied') return 'Strong interest. Reply immediately and push to book a meeting.';
-    return 'Hot prospect. Fast-track to sequence enrollment and prioritize outreach.';
-  }
-  if (score >= 45) {
-    if (stage === 'sequence_active') return 'On track. Continue current sequence. Consider increasing touch frequency.';
-    if (stage === 'new') return 'Moderate potential. Enroll in outreach sequence promptly.';
-    return 'Warm lead. Maintain regular cadence. Personalize next touchpoint.';
-  }
-  if (stage === 'sequence_active') return 'Low engagement signal. Consider re-qualifying or adjusting sequence approach.';
-  if (stage === 'new') return 'Low priority for now. Batch process with similar leads when bandwidth allows.';
-  return 'Low priority. Focus energy on higher-scoring leads first.';
-}
-
-export function scoreLead(lead: LeadScoringInput): AIScoreResult {
-  const scores = {
-    channels: getChannelScore(lead),
-    stage: getStageScore(lead.stage),
-    recency: getRecencyScore(lead.lastContactedAt),
-    priority: getPriorityScore(lead.crmPriorityScore),
-    source: getSourceScore(lead.source),
-    engagement: getEngagementScore(lead.activities),
-    penalty: getPenaltyScore(lead),
+  return {
+    score,
+    label,
+    insights,
+    recommendation,
   };
+}
 
-  const rawScore = Object.values(scores).reduce((sum, v) => sum + v, 0);
-  const score = Math.max(0, Math.min(100, Math.round(rawScore)));
+// ─── Custom Configurable Scoring Engine ──────────────────────────────────────
 
-  const label: 'hot' | 'warm' | 'cold' = score >= 60 ? 'hot' : score >= 35 ? 'warm' : 'cold';
+export interface LeadScoringRules {
+  titleCLevelWeight: number;
+  titleDirectorWeight: number;
+  emailOpenWeight: number;
+  emailReplyWeight: number;
+  meetingBookedWeight: number;
+  verifiedEmailWeight: number;
+  phonePresentWeight: number;
+  bouncedPenalty: number;
+  hotThreshold: number;
+  warmThreshold: number;
+}
 
-  const insights = generateInsights(lead, score);
-  const recommendation = generateRecommendation(score, lead.stage, lead.crmPriorityScore);
+export const DEFAULT_SCORING_RULES: LeadScoringRules = {
+  titleCLevelWeight: 25,
+  titleDirectorWeight: 15,
+  emailOpenWeight: 5,
+  emailReplyWeight: 30,
+  meetingBookedWeight: 40,
+  verifiedEmailWeight: 10,
+  phonePresentWeight: 10,
+  bouncedPenalty: -50,
+  hotThreshold: 65,
+  warmThreshold: 35,
+};
 
-  return { score, label, insights, recommendation };
+export interface LeadScoreInput {
+  title?: string | null;
+  emailSentCount?: number;
+  emailOpenCount?: number;
+  emailReplyCount?: number;
+  emailInvalid?: boolean;
+  emailValidation?: string | null;
+  phone?: string | null;
+  meetingCount?: number;
+}
+
+export interface CalculatedLeadScore {
+  score: number;
+  priority: LeadPriority;
+  breakdown: Array<{ factor: string; points: number }>;
+}
+
+export function calculateLeadScore(
+  lead: LeadScoreInput,
+  rules: LeadScoringRules = DEFAULT_SCORING_RULES
+): CalculatedLeadScore {
+  let score = 0;
+  const breakdown: Array<{ factor: string; points: number }> = [];
+
+  const title = (lead.title || '').toLowerCase();
+  if (/chief|ceo|cfo|cto|cro|cmo|coo|founder|co-founder|president|owner|partner/i.test(title)) {
+    score += rules.titleCLevelWeight;
+    breakdown.push({ factor: 'C-Level / Executive Title', points: rules.titleCLevelWeight });
+  } else if (/vp|vice president|director|head of|lead/i.test(title)) {
+    score += rules.titleDirectorWeight;
+    breakdown.push({ factor: 'Director / Management Title', points: rules.titleDirectorWeight });
+  }
+
+  const opens = Math.min(lead.emailOpenCount || 0, 4);
+  if (opens > 0) {
+    const openPoints = opens * rules.emailOpenWeight;
+    score += openPoints;
+    breakdown.push({ factor: `${opens} Email Open(s)`, points: openPoints });
+  }
+
+  if ((lead.emailReplyCount || 0) > 0) {
+    score += rules.emailReplyWeight;
+    breakdown.push({ factor: 'Inbound Email Reply Received', points: rules.emailReplyWeight });
+  }
+
+  if ((lead.meetingCount || 0) > 0) {
+    score += rules.meetingBookedWeight;
+    breakdown.push({ factor: 'Meeting Scheduled / Completed', points: rules.meetingBookedWeight });
+  }
+
+  if (lead.emailValidation === 'valid' || (!lead.emailInvalid && lead.emailValidation !== 'invalid')) {
+    score += rules.verifiedEmailWeight;
+    breakdown.push({ factor: 'Deliverable Email Verified', points: rules.verifiedEmailWeight });
+  }
+
+  if (lead.phone && lead.phone.trim().length > 5) {
+    score += rules.phonePresentWeight;
+    breakdown.push({ factor: 'Direct Phone Available', points: rules.phonePresentWeight });
+  }
+
+  if (lead.emailInvalid || lead.emailValidation === 'invalid' || lead.emailValidation === 'bounced') {
+    score += rules.bouncedPenalty;
+    breakdown.push({ factor: 'Email Bounced / Invalid', points: rules.bouncedPenalty });
+  }
+
+  const normalizedScore = Math.max(0, Math.min(100, score));
+
+  let priority: LeadPriority = 'cold';
+  if (normalizedScore >= rules.hotThreshold) {
+    priority = 'hot';
+  } else if (normalizedScore >= rules.warmThreshold) {
+    priority = 'warm';
+  }
+
+  return {
+    score: normalizedScore,
+    priority,
+    breakdown,
+  };
 }
