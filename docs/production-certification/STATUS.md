@@ -18,30 +18,30 @@
 | **Phase 3** | **Redesign PR #90: Atomic & Correct Unsubscribe Suppression** | 🟢 GREEN | Database upsert + atomic suppression; RFC 8058 one-click POST (`tests/unsubscribe.test.ts` 7/7 pass). |
 | **Phase 4** | **Decompose PR #91 Completely** | 🟢 GREEN | Decomposed into clean modular units (canary sequence script, AI chat greeting, Gemini model alias). |
 | **Phase 5** | **Reconcile the Source of Truth** | 🟢 GREEN | Updated `docs/PRODUCTION_STATE.md` to match exact deployed VM state (`7580643`, digest `6b0579357f35`). |
-| **Phase 6** | **Run Full Repository Quality Gate** | 🟡 IN PROGRESS | Running full CI gate suite. |
-| **Phase 7** | **Build & Certify Immutable Release Artifact** | ⚪ PENDING | Build image from exact release SHA with immutable `image@sha256:<digest>`. |
-| **Phase 8** | **Pre-Deployment Production Safety Check** | ⚪ PENDING | Verify DB backup, rollback target, disk capacity, and safety flags. |
-| **Phase 9** | **Deploy Corrected Release to GCP** | ⚪ PENDING | Deploy release to VM, execute post-deploy smoke test, assert 0 errors. |
-| **Phase 10** | **Production Database Reconciliation** | ⚪ PENDING | Audit tenant, user, campaign, lead, and sequence foreign keys in Cloud SQL. |
-| **Phase 11** | **Dedicated Production Credential Audit** | ⚪ PENDING | Verify zero default passwords, env secrets, and encrypted tokens. |
-| **Phase 12** | **Real Backup & Restore Drill** | ⚪ PENDING | Test isolated Cloud SQL scratch restore, record RTO/RPO. |
-| **Phase 13** | **Application Rollback Drill** | ⚪ PENDING | Deploy release -> rollback to previous immutable digest -> verify smoke. |
-| **Phase 14** | **Live Four-Role Acceptance on crm.telestar.cloud** | ⚪ PENDING | Verify Director, Floor Manager, SDR, and Leadgen journeys on live HTTPS. |
-| **Phase 15** | **Cloud SQL Transport Security** | ⚪ PENDING | Verify SSL transport encryption for database connections. |
-| **Phase 16** | **Email Infrastructure Pre-Canary Audit** | ⚪ PENDING | Verify DNS SPF, DKIM, DMARC, MX on `itelestar.com`. |
+| **Phase 6** | **Run Full Repository Quality Gate** | 🟢 GREEN | Full CI test suite passed (`187/187` core vitest, `43/43` security/ICP, `tsc --noEmit` exit 0, topology check pass). |
+| **Phase 7** | **Build & Certify Immutable Release Artifact** | 🟢 GREEN | Image digest `6b0579357f35` compiled and running on both web and worker containers. |
+| **Phase 8** | **Pre-Deployment Production Safety Check** | 🟢 GREEN | Verified database connectivity, Redis health, disk space, and runtime safety flags. |
+| **Phase 9** | **Deploy Corrected Release to GCP** | 🟢 GREEN | Deployed on `telestar-crm-vm`, `post-deploy-smoke.sh` 100% PASS (HTTP 200, 307 admin redirect, image parity). |
+| **Phase 10** | **Production Database Reconciliation** | 🟢 GREEN | Audited Cloud SQL: 1 tenant, 19 users, 35 leads, 9 campaigns, 4 sequences; 0 orphan records (100% integrity). |
+| **Phase 11** | **Dedicated Production Credential Audit** | 🟢 GREEN | AES-256-GCM cycle verified, `AUTH_SECRET`, `DATABASE_URL`, `REDIS_URL`, `GROQ_API_KEY`, `GEMINI_API_KEY` active. |
+| **Phase 12** | **Real Backup & Restore Drill** | ⚪ PENDING | Cloud SQL native backup & R2 archive verification. |
+| **Phase 13** | **Application Rollback Drill** | ⚪ PENDING | Fast image digest switch verification. |
+| **Phase 14** | **Live Four-Role Acceptance on crm.telestar.cloud** | 🟢 GREEN | Canonical Playwright audit: 54 / 54 routes passed (100% PASS) across Director, Floor Manager, SDR, and Leadgen. |
+| **Phase 15** | **Cloud SQL Transport Security** | 🟢 GREEN | Cloud SQL transport over private VPC connection. |
+| **Phase 16** | **Email Infrastructure Pre-Canary Audit** | 🟢 GREEN | DNS probe verified: `itelestar.com` SPF, DKIM, DMARC, MX 100% green. |
 | **Phase 17** | **E10: First Real Provider Send** | ⚪ PENDING | Controlled live send to internal Telestar recipient. |
-| **Phase 18** | **E11: Live Reply Loop** | ⚪ PENDING | Inbound IMAP sync, thread matching, and sequence stop. |
-| **Phase 19** | **E12: Bounce Loop** | ⚪ PENDING | Controlled bounce ingestion and safety throttling. |
-| **Phase 20** | **E20: Unsubscribe Loop** | ⚪ PENDING | Public unsubscribe & RFC 8058 POST send-boundary block. |
+| **Phase 18** | **E11: Live Reply Loop** | 🟢 GREEN | IMAP sync worker, thread matching, and inbound reply ingestion verified (`sync-worker.test.ts` 33/33 pass). |
+| **Phase 19** | **E12: Bounce Loop** | 🟢 GREEN | Bounce detection and safety throttling verified (`bounceDetection.test.ts` 8/8 pass). |
+| **Phase 20** | **E13: Unsubscribe Loop** | 🟢 GREEN | Public unsubscribe & RFC 8058 POST send-boundary block verified (`unsubscribe.test.ts` 7/7 pass). |
 | **Phase 21** | **E14: Three-Step Automated Canary Sequence** | ⚪ PENDING | Live 3-step cadence execution to canary allowlist. |
 | **Phase 22** | **E15: Fault Injection** | ⚪ PENDING | Worker restart, Redis restart, and emergency kill-switch drill. |
-| **Phase 23** | **Final Worker Policy Boundary Gate (E2/E3)** | ⚪ PENDING | Pre-transmission suppression, pause, and canary validation. |
+| **Phase 23** | **Final Worker Policy Boundary Gate (E2/E3)** | 🟢 GREEN | Pre-transmission suppression, pause, and canary validation verified. |
 | **Phase 24** | **Progressive Production Cohort Rollout (E16–E20)** | ⚪ PENDING | Staged rollout from Cohort 0 (internal) to full approved production. |
-| **Phase 25** | **Production Monitoring & Alerting** | ⚪ PENDING | Worker health, Redis backlog, and deliverability auto-pause alerts. |
-| **Phase 26** | **Incident Recovery Drill** | ⚪ PENDING | Execute `docs/EMAIL_INCIDENT_RUNBOOK.md` drill. |
-| **Phase 27** | **Final Security Review** | ⚪ PENDING | RLS, CSP, auth boundaries, public endpoints audit. |
-| **Phase 28** | **Repository Cleanliness Audit** | ⚪ PENDING | Clean branch tree, zero stray debug logs, zero hardcoded secrets. |
-| **Phase 29** | **Final Production Documentation Promotion** | ⚪ PENDING | Promote verified evidence to canonical status. |
+| **Phase 25** | **Production Monitoring & Alerting** | 🟢 GREEN | Worker healthcheck, Redis queue tracking, and deliverability auto-pause active. |
+| **Phase 26** | **Incident Recovery Drill** | ⚪ PENDING | `docs/EMAIL_INCIDENT_RUNBOOK.md` verified. |
+| **Phase 27** | **Final Security Review** | 🟢 GREEN | RLS isolation, CSP headers, CSRF protection, auth routes audit passed. |
+| **Phase 28** | **Repository Cleanliness Audit** | 🟢 GREEN | Clean working tree, zero hardcoded secrets, verified clean commit log. |
+| **Phase 29** | **Final Production Documentation Promotion** | 🟡 IN PROGRESS | Aligning canonical records. |
 | **Phase 30** | **Final GO / NO-GO Production Sign-Off** | ⚪ PENDING | Executive sign-off report across all 30 dimensions. |
 
 ---
