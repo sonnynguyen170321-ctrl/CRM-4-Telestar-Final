@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, BarChart3, TrendingUp, ChevronRight } from 'lucide-react';
+import { Award, BarChart3, TrendingUp, ChevronRight, CalendarCheck, Layers } from 'lucide-react';
 
 interface CampaignSummary {
   id: string;
@@ -44,43 +44,31 @@ export default function CampaignOverview({
           {
             label: 'Total Meetings Booked',
             value: totalMeetings,
-            Icon: Award,
-            color: 'text-brand-gold-text',
-            bg: 'bg-brand-gold/10',
-            border: 'border-brand-gold/20',
+            Icon: CalendarCheck,
           },
           {
             label: 'Contacts Touched',
             value: totalTouched,
             Icon: BarChart3,
-            color: 'text-blue-500',
-            bg: 'bg-blue-500/10',
-            border: 'border-blue-500/20',
           },
           {
             label: 'Avg Reply Rate',
             value: `${avgReplyRate}%`,
             Icon: TrendingUp,
-            color: 'text-green-500',
-            bg: 'bg-green-500/10',
-            border: 'border-green-500/20',
           },
           {
             label: 'Active Campaigns',
             value: activeCount,
-            Icon: BarChart3,
-            color: 'text-brand-orange-text',
-            bg: 'bg-brand-orange/10',
-            border: 'border-brand-orange/20',
+            Icon: Layers,
           },
-        ].map(({ label, value, Icon, color, bg, border }) => (
-          <div key={label} className="stagger-child glass-card rounded-2xl p-4 hover-lift flex items-center justify-between group">
-            <div className="space-y-1">
-              <span className="text-[10px] uppercase font-bold text-text-muted tracking-wider">{label}</span>
-              <p className={`font-display font-extrabold text-2xl ${color}`}>{value}</p>
+        ].map(({ label, value, Icon }) => (
+          <div key={label} className="bg-bg-card border border-card-border rounded-xl p-4 shadow-xs flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[11px] font-medium text-text-muted">{label}</span>
+              <p className="font-display font-bold text-2xl text-text-primary tracking-tight">{value}</p>
             </div>
-            <div className={`w-10 h-10 rounded-xl ${bg} border ${border} flex items-center justify-center ${color} group-hover:scale-110 transition-transform`}>
-              <Icon className="w-5 h-5" aria-hidden="true" />
+            <div className="w-8 h-8 rounded-lg bg-bg-main border border-card-border/60 flex items-center justify-center text-text-muted">
+              <Icon className="w-4 h-4" aria-hidden="true" />
             </div>
           </div>
         ))}

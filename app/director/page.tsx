@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CalendarCheck, ClipboardList, BarChart3, Users, ArrowRight, Clock } from 'lucide-react';
+import { CalendarCheck, ClipboardList, BarChart3, Users, ArrowRight, Clock, CheckCircle2 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 import MeetingsBoard from '@/components/team/MeetingsBoard';
 
@@ -93,7 +93,10 @@ export default function DirectorPage() {
           </Link>
         </div>
         {myTasks.length === 0 ? (
-          <p className="p-6 text-center text-sm text-text-muted">🎉 No open tasks — you&apos;re clear.</p>
+          <div className="p-6 text-center flex items-center justify-center gap-2 text-xs text-text-muted">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <span>All caught up — no pending tasks.</span>
+          </div>
         ) : (
           <ul className="divide-y divide-card-border">
             {myTasks.map((t) => {

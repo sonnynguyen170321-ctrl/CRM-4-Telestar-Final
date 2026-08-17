@@ -8,7 +8,9 @@ import {
   Award, 
   Users, 
   Zap, 
-  Activity 
+  Activity,
+  CheckCircle2,
+  Send,
 } from 'lucide-react';
 
 interface LiveFloorPulseProps {
@@ -35,7 +37,7 @@ export default function LiveFloorPulse({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-brand-red/10 border border-brand-red/20 flex items-center justify-center text-brand-red">
-              <Flame className="w-4 h-4 animate-pulse" />
+              <Flame className="w-4 h-4" />
             </div>
             <div>
               <h4 className="font-display font-bold text-xs text-text-primary">Daily Meeting Target</h4>
@@ -86,11 +88,19 @@ export default function LiveFloorPulse({
           {topReps.slice(0, 3).map((rep, idx) => (
             <div
               key={rep.name}
-              className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-bg-main/60 dark:bg-zinc-800/40 border border-card-border/30"
+              className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-bg-main/60 dark:bg-zinc-800/40 border border-card-border/30"
             >
               <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] font-bold text-text-muted w-3">
-                  {idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}
+                <span
+                  className={`font-mono text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ${
+                    idx === 0
+                      ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
+                      : idx === 1
+                      ? 'bg-zinc-400/20 text-zinc-300 border border-zinc-400/30'
+                      : 'bg-amber-700/20 text-amber-600 border border-amber-700/30'
+                  }`}
+                >
+                  {idx + 1}
                 </span>
                 <span className="font-semibold text-text-primary">{rep.name}</span>
               </div>
@@ -108,7 +118,7 @@ export default function LiveFloorPulse({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
-              <Activity className="w-4 h-4 animate-pulse" />
+              <Activity className="w-4 h-4" />
             </div>
             <div>
               <h4 className="font-display font-bold text-xs text-text-primary">Live Activity Pulse</h4>
@@ -116,17 +126,17 @@ export default function LiveFloorPulse({
             </div>
           </div>
           <span className="flex items-center gap-1 text-[10px] text-emerald-500 font-semibold">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" /> Live
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
           </span>
         </div>
 
         <div className="space-y-1.5 text-[11px] text-text-secondary">
-          <div className="py-1 px-2 rounded-lg bg-emerald-500/[0.06] border border-emerald-500/20 text-emerald-400 flex items-center gap-1.5">
-            <span>🎉</span>
-            <span className="truncate">Lan Pham booked a demo with Acme Technologies!</span>
+          <div className="py-1.5 px-2.5 rounded-lg bg-emerald-500/[0.06] border border-emerald-500/20 text-emerald-400 flex items-center gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="truncate">Lan Pham booked a demo with Acme Technologies</span>
           </div>
-          <div className="py-1 px-2 rounded-lg bg-bg-main/60 dark:bg-zinc-800/40 border border-card-border/30 text-text-muted flex items-center gap-1.5">
-            <span>✉️</span>
+          <div className="py-1.5 px-2.5 rounded-lg bg-bg-main/60 dark:bg-zinc-800/40 border border-card-border/30 text-text-muted flex items-center gap-2">
+            <Send className="w-3.5 h-3.5 text-blue-400 shrink-0" />
             <span className="truncate">Cold Outreach sequence dispatched to 14 leads</span>
           </div>
         </div>

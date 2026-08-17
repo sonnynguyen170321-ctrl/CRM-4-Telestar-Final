@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { X, Send, Copy, ThumbsUp, ThumbsDown, ChevronDown } from 'lucide-react';
+import { X, Send, Copy, ThumbsUp, ThumbsDown, ChevronDown, Sparkles, Bot } from 'lucide-react';
 import { MODEL_LABELS, MODEL_DESCRIPTIONS, DEFAULT_MODEL } from '@/lib/ai/models';
 import type { ModelId } from '@/lib/ai/models';
 import { resolveTurnExecutionId, type FailedTurn } from '@/lib/ai/executionId';
@@ -13,12 +13,6 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   feedback?: 'up' | 'down';
-  /**
-   * The idempotency namespace for this turn, set once when the user message is created.
-   * Assistant messages carry none. Resending the same message after a failure reuses it,
-   * which is what lets a retried tool call find its prior `AgentAction` instead of writing
-   * a second one.
-   */
   executionId?: string;
 }
 
@@ -42,72 +36,12 @@ function getContextChips(page: string, hasLead: boolean): string[] {
   return ['Cold email opener', 'Handle objection', 'After no reply', 'Book a meeting'];
 }
 
-// Robot character component
-function RobotIcon({ hasUnread, isThinking }: { hasUnread: boolean; isThinking: boolean }) {
+function CopilotIcon({ hasUnread, isThinking }: { hasUnread: boolean; isThinking: boolean }) {
   return (
-    <div className="relative flex flex-col items-center select-none" style={{ width: 52, height: 64 }}>
-      {/* Antenna */}
-      <div className="flex flex-col items-center mb-0.5">
-        <div style={{ width: 2, height: 14, background: '#E8611A', borderRadius: 2 }} />
-        <div style={{
-          width: 8, height: 8, borderRadius: '50%',
-          background: isThinking ? '#F5A623' : '#FEDD44',
-          marginTop: -4,
-          transition: 'all 0.3s',
-        }} />
-      </div>
-
-      {/* Head */}
-      <div style={{
-        width: 46, height: 36,
-        background: '#D42B1E',
-        borderRadius: 10,
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        gap: 0,
-        boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
-      }}>
-        {/* Eyes row */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 4 }}>
-          {[0, 1].map((i) => (
-            <div key={i} style={{
-              width: 10, height: 10, borderRadius: '50%',
-              background: 'white',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <div style={{
-                width: 5, height: 5, borderRadius: '50%',
-                background: hasUnread ? '#E8611A' : '#0A0A0A',
-                transition: 'background 0.3s',
-              }} />
-            </div>
-          ))}
-        </div>
-        {/* Mouth */}
-        <div style={{
-          width: 16, height: 4,
-          borderRadius: '0 0 8px 8px',
-          background: 'rgba(255,255,255,0.6)',
-        }} />
-      </div>
-
-      {/* Body/base */}
-      <div style={{
-        width: 30, height: 10,
-        background: '#C0271B',
-        borderRadius: '0 0 8px 8px',
-        marginTop: 2,
-      }} />
-
-      {/* Unread badge */}
+    <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-brand-red to-brand-orange text-white shadow-sm">
+      <Sparkles className={`w-4 h-4 ${isThinking ? 'animate-spin' : ''}`} />
       {hasUnread && (
-        <div style={{
-          position: 'absolute', top: 8, right: -4,
-          width: 16, height: 16, borderRadius: '50%',
-          background: '#F5A623', color: '#0A0A0A',
-          fontSize: 10, fontWeight: 700,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>!</div>
+        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 border-2 border-zinc-950" />
       )}
     </div>
   );
@@ -206,6 +140,18 @@ export default function AiAssistant() {
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // ⌘J / Ctrl+J global keyboard shortcut to toggle Copilot
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        setIsOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   // Morning briefing — fires once per day on first open
@@ -476,22 +422,24 @@ export default function AiAssistant() {
         .ai-message-content strong { font-weight: 600; }
       `}</style>
 
-      {/* Floating trigger button — glassmorphic glowing pill */}
+      {/* Floating trigger button — Linear-grade Copilot trigger */}
       {!isOpen && (
         <button
           onClick={handleOpen}
-          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-3.5 py-2.5 rounded-full bg-zinc-950/85 backdrop-blur-xl border border-zinc-700/60 shadow-2xl hover:border-rose-500/50 hover:shadow-rose-500/10 hover:scale-105 transition-all duration-200 cursor-pointer group select-none ${hasUnread ? 'ring-2 ring-rose-500 ring-offset-2 ring-offset-zinc-950' : ''}`}
-          title={`Open ${assistantName}`}
+          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-3 py-2 rounded-xl bg-zinc-950/90 dark:bg-zinc-900/90 backdrop-blur-xl border border-zinc-800 shadow-xl hover:border-brand-red/50 hover:shadow-brand-red/10 transition-all duration-150 cursor-pointer group select-none ${hasUnread ? 'ring-2 ring-brand-red ring-offset-2 ring-offset-zinc-950' : ''}`}
+          title={`Open ${assistantName} (⌘J)`}
           aria-label={`Open ${assistantName}`}
         >
-          <div className="relative flex items-center justify-center">
-            <RobotIcon hasUnread={hasUnread} isThinking={isStreaming} />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-zinc-950 animate-pulse"></span>
-          </div>
+          <CopilotIcon hasUnread={hasUnread} isThinking={isStreaming} />
           <div className="flex flex-col items-start pr-1">
-            <span className="text-xs font-bold text-white tracking-wide flex items-center gap-1 group-hover:text-rose-400 transition-colors">
-              AI Copilot
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-white tracking-wide group-hover:text-brand-orange-text transition-colors">
+                AI Copilot
+              </span>
+              <kbd className="text-[10px] font-mono bg-zinc-850 text-zinc-400 px-1 py-0.5 border border-zinc-700/60 rounded">
+                ⌘J
+              </kbd>
+            </div>
             <span className="text-[10px] text-zinc-400 font-medium leading-none">
               {isStreaming ? 'Thinking...' : 'Live Assistant'}
             </span>
@@ -502,16 +450,16 @@ export default function AiAssistant() {
       {/* Expanded chat panel */}
       {isOpen && (
         <div
-          className="ai-chat-panel fixed bottom-6 right-6 z-50 flex flex-col bg-white dark:bg-[#111] border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden"
+          className="ai-chat-panel fixed bottom-6 right-6 z-50 flex flex-col bg-white dark:bg-[#111] border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-2xl"
           style={{ width: 390, height: 560 }}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-[#0A0A0A] border-b border-zinc-800">
-            <div className="flex items-center gap-2">
-              <RobotIcon hasUnread={false} isThinking={isStreaming} />
+            <div className="flex items-center gap-2.5">
+              <CopilotIcon hasUnread={false} isThinking={isStreaming} />
               <div>
-                <div className="text-white font-semibold text-sm leading-tight">{assistantName}</div>
-                <div className="text-emerald-400 text-xs flex items-center gap-1.5 mt-0.5">
+                <div className="text-white font-semibold text-xs leading-tight">{assistantName}</div>
+                <div className="text-emerald-400 text-[10px] flex items-center gap-1.5 mt-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Live Context Connected
                 </div>
               </div>
