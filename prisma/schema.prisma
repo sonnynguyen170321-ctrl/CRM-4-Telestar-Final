@@ -293,6 +293,7 @@ model User {
   workOrdersCreated        WorkOrder[]               @relation("WorkOrdersCreated")
   approvalsRequested       AgentApprovalRequest[]    @relation("ApprovalRequestedBy")
   approvalsDecided         AgentApprovalRequest[]    @relation("ApprovalDecidedBy")
+  apiKeys                  ApiKey[]                  @relation("UserApiKeys")
 
   @@index([tenantId])
   @@index([tenantId, managerId])
@@ -1732,9 +1733,32 @@ model Tenant {
   companySignals           CompanySignal[]
   accountPainHypotheses    AccountPainHypothesis[]
   personalizationHooks     PersonalizationHook[]
-  sequenceLaunches SequenceLaunch[]
+  sequenceLaunches         SequenceLaunch[]
   outcomeSignals           OutcomeSignal[]
   playbookProposals        PlaybookProposal[]
+  apiKeys                  ApiKey[]
+}
+
+// ─── API Keys & Developer Access ─────────────────────────────────────────────
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  name        String
+  keyPrefix   String    // e.g. "tl_live_abc123" (displayed in UI)
+  keyHash     String    @unique // SHA-256 hex digest of secret token
+  scopes      String[]  @default(["leads:read", "leads:write", "calls:write", "activities:write", "enrich:write"])
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  isActive    Boolean   @default(true)
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User      @relation("UserApiKeys", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([keyHash])
 }
 
 // ─── Campaign Playbooks ──────────────────────────────────────────────────────

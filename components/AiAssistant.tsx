@@ -232,6 +232,7 @@ export default function AiAssistant() {
     };
     window.addEventListener('telestar:open-ai-assistant', handleCustomOpen);
     return () => window.removeEventListener('telestar:open-ai-assistant', handleCustomOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function sendMessage(text?: string) {

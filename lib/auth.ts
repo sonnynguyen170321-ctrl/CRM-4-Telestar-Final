@@ -1,9 +1,17 @@
 import { cache } from 'react';
 import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
+import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
 import { computeVisibleUserIds } from '@/lib/podScoping';
+
+export type ApiKeyContext = {
+  id: string;
+  name: string;
+  scopes: string[];
+};
 
 export type SessionUser = {
   id: string;
@@ -13,6 +21,7 @@ export type SessionUser = {
   role: 'director' | 'floor_manager' | 'team_lead' | 'sdr' | 'leadgen_manager' | 'leadgen';
   isManager?: boolean;
   tenantId?: string;
+  apiKey?: ApiKeyContext;
 };
 
 const MANAGER_ROLES: readonly SessionUser['role'][] = ['director', 'floor_manager', 'team_lead'];
@@ -28,27 +37,70 @@ export function isLeadgenManager(role: SessionUser['role']): boolean {
 }
 
 /**
- * The authenticated user, revalidated against the database.
- *
- * Sessions are stateless JWTs. The token is a claim about who the user *was* when it was
- * minted, not who they are now — a deactivated, demoted, tenant-moved or password-reset user
- * kept full access here until the token expired. Every protected request therefore re-reads
- * the row and rejects the token unless the user still exists, is still active, is still in the
- * same tenant, and still carries the same `authVersion`.
- *
- * **Authorization uses the database role, never the token's.** A director demoted to SDR keeps
- * `role: 'director'` in their cookie; honouring that is the whole bug this closes.
- *
- * Two implementation details that are load-bearing:
- *   - `cache()` scopes the extra query to one per request, matching `getTenantIdFromSession`.
- *   - The read runs inside a `tenantStorage` bypass. Without it the tenant extension in
- *     `lib/prisma.ts` would call `getTenantIdFromSession()`, which calls `auth()`, to resolve
- *     the scope for this very query.
- *
- * Returns `null` for every failure mode. Callers turn that into a bare 401 — deliberately not
- * saying whether the account was deactivated, demoted or the token simply aged out.
+ * The authenticated user, revalidated against the database or verified via API Key.
  */
 export const getSessionUser = cache(async function getSessionUser(): Promise<SessionUser | null> {
+  // 1. Check for API Key in Authorization header or x-api-key header
+  try {
+    const reqHeaders = await headers();
+    const authHeader = reqHeaders.get('authorization') || reqHeaders.get('x-api-key') || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : authHeader.trim();
+
+    if (token && (token.startsWith('tl_live_') || token.startsWith('tl_test_'))) {
+      const keyHash = crypto.createHash('sha256').update(token).digest('hex');
+
+      const apiKey = await tenantStorage.run({ tenantId: 'system', bypassRls: true }, () =>
+        prisma.apiKey.findUnique({
+          where: { keyHash },
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                role: true,
+                isActive: true,
+              },
+            },
+          },
+        })
+      );
+
+      if (apiKey && apiKey.isActive && (!apiKey.expiresAt || apiKey.expiresAt > new Date())) {
+        if (apiKey.createdBy && apiKey.createdBy.isActive) {
+          // Touch lastUsedAt asynchronously
+          tenantStorage.run({ tenantId: 'system', bypassRls: true }, () =>
+            prisma.apiKey.update({
+              where: { id: apiKey.id },
+              data: { lastUsedAt: new Date() },
+            }).catch(() => {})
+          );
+
+          const role = apiKey.createdBy.role as SessionUser['role'];
+          return {
+            id: apiKey.createdById,
+            email: apiKey.createdBy.email,
+            firstName: apiKey.createdBy.firstName,
+            lastName: apiKey.createdBy.lastName,
+            role,
+            isManager: true,
+            tenantId: apiKey.tenantId,
+            apiKey: {
+              id: apiKey.id,
+              name: apiKey.name,
+              scopes: apiKey.scopes,
+            },
+          };
+        }
+      }
+      return null;
+    }
+  } catch {
+    // Non-request context fallback
+  }
+
+  // 2. Fall back to standard session JWT authentication
   const session = await auth();
   const token = session?.user as (SessionUser & { authVersion?: number }) | undefined;
   if (!token?.id) return null;
@@ -74,8 +126,6 @@ export const getSessionUser = cache(async function getSessionUser(): Promise<Ses
   if (!dbUser.isActive) return null;     // deactivated
   if (token.tenantId && token.tenantId !== dbUser.tenantId) return null; // moved tenant
 
-  // Tokens minted before authVersion existed carry no claim; treat them as version 1, which
-  // is the column default, so this check does not sign out every existing session on deploy.
   const tokenVersion = token.authVersion ?? 1;
   if (tokenVersion !== dbUser.authVersion) return null;
 
@@ -96,6 +146,12 @@ export async function requireAuth(): Promise<SessionUser | NextResponse> {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   return user;
+}
+
+/** Check if current session user or API key has the required scope. */
+export function hasScope(user: SessionUser, requiredScope: string): boolean {
+  if (!user.apiKey) return true; // Full interactive user session
+  return user.apiKey.scopes.includes(requiredScope) || user.apiKey.scopes.includes('*');
 }
 
 /** Require a specific role (or above) in an API route handler. */

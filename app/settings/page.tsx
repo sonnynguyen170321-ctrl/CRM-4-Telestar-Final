@@ -13,6 +13,7 @@ import { useToast } from '@/context/ToastContext';
 import TeamAccountsPanel from '@/components/settings/TeamAccountsPanel';
 import EmailConnectionsPanel from '@/components/settings/EmailConnectionsPanel';
 import BookingLinkSettingsPanel from '@/components/meetings/BookingLinkSettingsPanel';
+import DeveloperApiKeysPanel from '@/components/settings/DeveloperApiKeysPanel';
 import { NOTIF_EVENTS, NOTIF_PREFS_KEY, NOTIF_PREFS_EVENT, readNotifPrefs } from '@/lib/notifications/prefs';
 import { readApiError } from '@/lib/api/client';
 
@@ -342,6 +343,9 @@ function SettingsPageInner() {
 
           {/* Email Account Connections */}
           <EmailConnectionsPanel />
+
+          {/* Developer API Keys & External Integrations */}
+          <DeveloperApiKeysPanel />
 
           {/* Booking Links (Director / Floor Manager / Team Lead) */}
           {(currentRole === 'director' || currentRole === 'floor_manager' || currentRole === 'team_lead') && (

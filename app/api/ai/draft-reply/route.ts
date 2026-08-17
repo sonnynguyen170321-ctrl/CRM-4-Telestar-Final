@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { threadId, leadId, messageText, subject, customInstructions } = body;
+    const { threadId: _threadId, leadId, messageText, subject, customInstructions } = body;
 
     return await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
       // 1. Resolve lead and conversation context
