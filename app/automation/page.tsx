@@ -97,9 +97,16 @@ const AVAILABLE_EVENTS: Array<{ key: WebhookEvent; label: string; desc: string }
 ];
 
 export default function AutomationDashboard() {
-  const { isManager } = useAppContext();
+  const { isManager, isSessionLoading } = useAppContext();
   const { showToast } = useToast();
   const router = useRouter();
+
+  // Role Gate: Automation Hub is restricted to Floor Managers and above
+  useEffect(() => {
+    if (!isSessionLoading && !isManager) {
+      router.replace('/');
+    }
+  }, [isSessionLoading, isManager, router]);
 
   const [activeTab, setActiveTab] = useState<'cadence' | 'webhooks' | 'scoring'>('cadence');
 
