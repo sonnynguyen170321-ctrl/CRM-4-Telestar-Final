@@ -26,7 +26,7 @@ export interface DailyBriefingResponse {
   }>;
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const sessionUser = userOrRes as SessionUser;

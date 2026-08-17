@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { X, Send, Copy, ThumbsUp, ThumbsDown, ChevronDown, Sparkles, Bot } from 'lucide-react';
+import { X, Send, Copy, ThumbsUp, ThumbsDown, ChevronDown, Sparkles } from 'lucide-react';
 import { MODEL_LABELS, MODEL_DESCRIPTIONS, DEFAULT_MODEL } from '@/lib/ai/models';
 import type { ModelId } from '@/lib/ai/models';
 import { resolveTurnExecutionId, type FailedTurn } from '@/lib/ai/executionId';
@@ -233,15 +233,6 @@ export default function AiAssistant() {
     window.addEventListener('telestar:open-ai-assistant', handleCustomOpen);
     return () => window.removeEventListener('telestar:open-ai-assistant', handleCustomOpen);
   }, []);
-
-  /** Replace the trailing placeholder bubble with real text. Never writes undefined. */
-  function replaceLastAssistantMessage(content: string) {
-    setMessages((prev) => {
-      const updated = [...prev];
-      updated[updated.length - 1] = { role: 'assistant', content: content || 'Got it.' };
-      return updated;
-    });
-  }
 
   async function sendMessage(text?: string) {
     const content = (text || input).trim();

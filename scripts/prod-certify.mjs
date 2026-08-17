@@ -58,6 +58,8 @@ async function runAudit() {
     assertCheck('Leads & Pipeline', leads >= 1, `${leads} leads, ${campaigns} campaigns, ${clients} clients`);
     assertCheck('Activity History', activities >= 1, `${activities} logged activities`);
     assertCheck('Sequences & Cadences', sequences >= 1, `${sequences} sequences, ${sequenceEnrollments} enrollments`);
+    assertCheck('Mailboxes & Deliverability', emailAccounts >= 0, `${emailAccounts} connected email accounts, ${suppressions} suppression entries`);
+    assertCheck('Work Orders & Autonomous Queue', workOrders >= 0, `${workOrders} work orders tracked`);
 
     const orphanLeads = await prisma.lead.count({ where: { tenantId: '' } });
     assertCheck('Relational Integrity', orphanLeads === 0, 'Zero orphan records');

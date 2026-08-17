@@ -1,6 +1,4 @@
 import crypto from 'crypto';
-import { prisma } from '@/lib/prisma';
-import { tenantStorage } from '@/lib/tenant-context';
 
 export type WebhookEvent = 
   | 'lead.created'

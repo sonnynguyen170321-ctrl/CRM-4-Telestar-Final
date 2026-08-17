@@ -3,11 +3,8 @@
 import React from 'react';
 import { 
   Flame, 
-  CalendarCheck, 
   TrendingUp, 
   Award, 
-  Users, 
-  Zap, 
   Activity,
   CheckCircle2,
   Send,

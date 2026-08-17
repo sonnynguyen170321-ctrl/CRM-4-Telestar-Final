@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, Keyboard, Command } from 'lucide-react';
+import { X, Keyboard } from 'lucide-react';
 import { useEscapeClose } from '@/hooks/useEscapeClose';
 
 interface Props {

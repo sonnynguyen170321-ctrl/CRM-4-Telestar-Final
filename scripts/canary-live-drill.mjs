@@ -63,6 +63,7 @@ async function main() {
   const autoSend = process.env.SEQUENCE_AUTOSEND_ENABLED === 'true';
 
   assertCheck('Global Email Kill-Switch', true, `EMAIL_GLOBAL_PAUSE=${globalPause} (Operational & Toggleable)`);
+  assertCheck('Dry Run Guard', true, `EMAIL_SEND_DRY_RUN=${dryRun}`);
   assertCheck('Canary Mode Guard', true, `LIVE_EMAIL_CANARY_MODE=${canaryMode}`);
   assertCheck('Autosend Cadence Dispatcher', true, `SEQUENCE_AUTOSEND_ENABLED=${autoSend}`);
 

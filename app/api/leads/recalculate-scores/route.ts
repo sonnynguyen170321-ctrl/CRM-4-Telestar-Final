@@ -7,7 +7,7 @@ import { calculateLeadScore, DEFAULT_SCORING_RULES, type LeadScoringRules } from
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(req: NextRequest) {
+export async function POST(_req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;

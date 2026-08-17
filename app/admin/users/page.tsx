@@ -34,7 +34,6 @@ const ROLES = [
 export default function AdminUsersPage() {
   const { showToast } = useToast();
   const { currentRole } = useAppContext();
-  const isDirector = currentRole === 'director';
   const canManageUsers = currentRole === 'director' || currentRole === 'floor_manager';
 
   const [data, setData] = useState<AdminUsersPayload | null>(null);

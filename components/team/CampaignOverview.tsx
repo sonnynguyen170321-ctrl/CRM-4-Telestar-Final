@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, BarChart3, TrendingUp, ChevronRight, CalendarCheck, Layers } from 'lucide-react';
+import { BarChart3, TrendingUp, ChevronRight, CalendarCheck, Layers } from 'lucide-react';
 
 interface CampaignSummary {
   id: string;

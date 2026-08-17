@@ -15,7 +15,6 @@ import {
   Users,
   Keyboard,
   Sparkles,
-  Zap,
 } from 'lucide-react';
 import Linkedin from '@/components/icons/Linkedin';
 import ProspectIdentity from '@/components/operating/ProspectIdentity';

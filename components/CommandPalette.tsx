@@ -2,13 +2,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useIsDesktop } from '@/hooks/useIsDesktop';
 import {
   Search,
   Users,
   Sparkles,
   ChevronRight,
-  Flame,
   LayoutDashboard,
   Bot,
   Mail,
@@ -18,14 +16,12 @@ import {
   Sliders,
   Settings,
   ShieldAlert,
-  PlusCircle,
   Zap,
   Target,
   BarChart3,
   PhoneCall,
   RefreshCw,
   Building,
-  UserCheck
 } from 'lucide-react';
 import LeadDetailPanel from './LeadDetailPanel';
 
@@ -50,7 +46,6 @@ interface CommandItem {
 
 export default function CommandPalette() {
   const router = useRouter();
-  const isDesktop = useIsDesktop();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);

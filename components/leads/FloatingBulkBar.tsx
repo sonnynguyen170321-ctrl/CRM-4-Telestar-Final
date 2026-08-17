@@ -1,15 +1,10 @@
 'use client';
 
-import React from 'react';
 import { 
-  Zap, 
   Sparkles, 
-  UserCheck, 
-  Layers, 
   X, 
   Check, 
-  Loader2,
-  Send
+  Loader2
 } from 'lucide-react';
 interface Sequence {
   id: string;

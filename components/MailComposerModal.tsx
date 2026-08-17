@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { Mail, Send, X, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
+import { Mail, Send, X, AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
 interface Task { id: string; type: string; title: string; description: string; dueDate: string; status: string; leadId: string; }

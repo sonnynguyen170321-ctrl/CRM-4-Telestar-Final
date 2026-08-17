@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     return await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
       // 1. Resolve lead and conversation context
       let leadInfo: any = null;
-      let threadHistory: Array<{ role: string; content: string }> = [];
+      const threadHistory: Array<{ role: string; content: string }> = [];
       let lastInboundMessage = messageText || '';
       let emailSubject = subject || 'Re: Following up';
 

@@ -8,26 +8,18 @@ import {
   Mail, 
   Layers, 
   CheckCircle2, 
-  Activity,
-  AlertCircle,
-  ShieldCheck,
-  Clock,
-  Webhook,
-  Sliders,
-  Plus,
-  Trash2,
-  Send,
-  Check,
-  Copy,
-  Sparkles,
-  TrendingUp,
-  Key,
-  Flame,
-  Zap,
+  AlertCircle, 
+  ShieldCheck, 
+  Webhook, 
+  Sliders, 
+  Plus, 
+  Trash2, 
+  Send, 
+  Check, 
+  Flame, 
+  Zap, 
 } from 'lucide-react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { openLeadSlideOver } from '@/lib/leads/openLead';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 import { DEFAULT_SCORING_RULES, type LeadScoringRules } from '@/lib/leads/scoring';
@@ -118,17 +110,12 @@ export default function AutomationDashboard() {
     needsAttention: 0,
   });
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
-  const [activities, setActivities] = useState<ActivityLog[]>([]);
-  const [waiting, setWaiting] = useState<WaitingCadence[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isTriggeringSequence, setIsTriggeringSequence] = useState<boolean>(false);
   const [isTriggeringInbox, setIsTriggeringInbox] = useState<boolean>(false);
   const [sequenceResult, setSequenceResult] = useState<any | null>(null);
-  const [inboxResult, setInboxResult] = useState<any | null>(null);
 
   // Webhooks State
   const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
-  const [loadingWebhooks, setLoadingWebhooks] = useState(false);
   const [showAddWebhook, setShowAddWebhook] = useState(false);
   const [newWebhookUrl, setNewWebhookUrl] = useState('');
   const [newWebhookSecret, setNewWebhookSecret] = useState('');
@@ -360,23 +347,6 @@ export default function AutomationDashboard() {
       showToast('Network error recalculating scores', 'error');
     } finally {
       setRecalculatingScores(false);
-    }
-  };
-
-  const formatActivityType = (type: string) => {
-    switch (type) {
-      case 'email_sent':
-        return { label: 'Outbound Email', color: 'bg-blue-500/10 text-blue-400 border-blue-500/25' };
-      case 'sequence_enrolled':
-        return { label: 'Enrolled', color: 'bg-purple-500/10 text-purple-400 border-purple-500/25' };
-      case 'sequence_completed':
-        return { label: 'Completed', color: 'bg-green-500/10 text-green-400 border-green-500/25' };
-      case 'meeting_booked':
-        return { label: 'Meeting Booked', color: 'bg-amber-500/10 text-amber-400 border-amber-500/25' };
-      case 'lead_created':
-        return { label: 'Lead Created', color: 'bg-brand-red/10 text-brand-orange-text border-brand-red/25' };
-      default:
-        return { label: type, color: 'bg-card-border/50 text-text-secondary border-card-border' };
     }
   };
 

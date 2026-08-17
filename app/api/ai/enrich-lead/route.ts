@@ -111,7 +111,7 @@ Output valid JSON matching this schema:
 - Company: ${company}
 - Industry: ${industry}
 - Campaign: ${lead.campaign?.name || 'General Outbound'}
-- Notes: ${lead.notes || 'None'}
+- Notes: ${notesSummary}
 ${customContext ? `- Additional Context: ${customContext}` : ''}
 
 Generate structured prospect research and 3 calibrated icebreakers in JSON now:`;

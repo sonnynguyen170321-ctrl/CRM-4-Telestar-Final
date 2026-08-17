@@ -58,12 +58,6 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
   const [bellOpen, setBellOpen] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<{ leads: any[]; templates: any[] }>({ leads: [], templates: [] });
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchRef] = [useRef<HTMLDivElement>(null)];
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
@@ -121,51 +115,6 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
       window.removeEventListener(NOTIF_PREFS_EVENT, syncPrefs);
       window.removeEventListener('crm:profile-updated', loadAvatar);
     };
-  }, []);
-
-  const runSearch = useCallback(async (q: string) => {
-    if (!q.trim()) { setSearchResults({ leads: [], templates: [] }); return; }
-    setSearchLoading(true);
-    try {
-      const [leadsRes, tplRes] = await Promise.all([
-        fetch(`/api/leads?search=${encodeURIComponent(q)}&limit=5`),
-        fetch(`/api/templates?search=${encodeURIComponent(q)}`),
-      ]);
-      const leads = leadsRes.ok ? await leadsRes.json() : [];
-      const templates = tplRes.ok ? await tplRes.json() : [];
-      setSearchResults({
-        leads: (Array.isArray(leads) ? leads : []).slice(0, 5),
-        templates: (Array.isArray(templates) ? templates : []).slice(0, 3),
-      });
-    } finally {
-      setSearchLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (!searchQuery.trim()) { setSearchResults({ leads: [], templates: [] }); return; }
-    searchTimer.current = setTimeout(() => runSearch(searchQuery), 300);
-    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
-  }, [searchQuery, runSearch]);
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setSearchOpen(false);
-      }
-    };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === '/' && !['INPUT','TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
-        e.preventDefault();
-        setSearchOpen(true);
-        searchRef.current?.querySelector('input')?.focus();
-      }
-      if (e.key === 'Escape') setSearchOpen(false);
-    };
-    document.addEventListener('mousedown', handleClick);
-    document.addEventListener('keydown', handleKey);
-    return () => { document.removeEventListener('mousedown', handleClick); document.removeEventListener('keydown', handleKey); };
   }, []);
 
   // Hide notification types the user muted in Settings (always-on events are never muted).

@@ -78,7 +78,6 @@ export default function InboxPage() {
   // AI 1-Click Draft Assistant states
   const [aiDraftsLoading, setAiDraftsLoading] = useState(false);
   const [aiDraftResult, setAiDraftResult] = useState<any>(null);
-  const [aiCustomInstruction, setAiCustomInstruction] = useState('');
   const [showAiDrafts, setShowAiDrafts] = useState(false);
 
   // Load threads
