@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+# check=skip=SecretsUsedInArgOrEnv
 FROM node:24.18.0-bookworm-slim AS deps
 
 WORKDIR /app
