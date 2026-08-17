@@ -32,8 +32,12 @@ Rules:
 - Yes: "Bug in auth middleware. Fix:"
 
 Switch level: /caveman lite|full|ultra|wenyan
-Stop: "stop caveman" or "normal mode"
-
-Auto-Clarity: drop caveman for security warnings, irreversible actions, user confused. Resume after.
-
 Boundaries: code/commits/PRs written normal.
+
+# Mandatory Rule — Zero-Tolerance Bug & Error Elimination
+Anytime ANY error, warning, permission failure, exception, or broken test is encountered during any command, script, test, deployment, or verification step:
+1. STOP immediately. Never bypass, ignore, or brush off the issue.
+2. Investigate exact root cause.
+3. Fix underlying cause completely in code, script, or configuration.
+4. Re-run verification until 100% clean green execution with zero errors before moving to next step.
+
