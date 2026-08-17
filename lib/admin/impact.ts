@@ -223,16 +223,21 @@ async function findSuggestedTargets(
     orderBy: [{ role: 'asc' }, { firstName: 'asc' }],
   });
 
-  const memberIds = campaignId
-    ? new Set(
-        (
-          await prisma.campaignSdr.findMany({
-            where: { campaignId, userId: { in: candidates.map((c) => c.id) } },
-            select: { userId: true },
-          })
-        ).map((r) => r.userId)
-      )
-    : new Set<string>();
+  const candidateIds = candidates.map((c) => c.id);
+  const memberIds = new Set<string>();
+  if (campaignId && candidateIds.length > 0) {
+    const CHUNK_SIZE = 5000;
+    for (let i = 0; i < candidateIds.length; i += CHUNK_SIZE) {
+      const chunk = candidateIds.slice(i, i + CHUNK_SIZE);
+      const rows = await prisma.campaignSdr.findMany({
+        where: { campaignId, userId: { in: chunk } },
+        select: { userId: true },
+      });
+      for (const r of rows) {
+        memberIds.add(r.userId);
+      }
+    }
+  }
 
   return candidates
     .filter((c) => canOwnSdrWork(c.role))

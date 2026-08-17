@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { X, Loader2, Copy, Check } from 'lucide-react';
 import { useEscapeClose } from '@/hooks/useEscapeClose';
 import { useToast } from '@/context/ToastContext';
+import { useAppContext } from '@/context/AppContext';
 import { readApiError } from '@/lib/api/client';
 
 export interface AdminUser {
@@ -31,7 +32,7 @@ interface Props {
   onSaved: () => void;
 }
 
-const ROLES = [
+const ALL_ROLES = [
   { value: 'sdr', label: 'SDR' },
   { value: 'team_lead', label: 'Team Lead' },
   { value: 'floor_manager', label: 'Floor Manager' },
@@ -52,8 +53,14 @@ const MANAGER_ROLES: Record<string, string[]> = {
 
 export default function UserFormModal({ user, managers, onClose, onSaved }: Props) {
   const { showToast } = useToast();
+  const { currentRole } = useAppContext();
   useEscapeClose(onClose);
   const isEdit = user !== null;
+
+  const allowedRoles = useMemo(() => {
+    if (currentRole === 'director') return ALL_ROLES;
+    return ALL_ROLES.filter((r) => r.value !== 'director' && r.value !== 'floor_manager');
+  }, [currentRole]);
 
   const [form, setForm] = useState({
     email: user?.email ?? '',
@@ -253,7 +260,7 @@ export default function UserFormModal({ user, managers, onClose, onSaved }: Prop
                     onChange={(e) => setForm((p) => ({ ...p, role: e.target.value, managerId: '' }))}
                     className={inputClass}
                   >
-                    {ROLES.map((r) => (
+                    {allowedRoles.map((r) => (
                       <option key={r.value} value={r.value}>
                         {r.label}
                       </option>

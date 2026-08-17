@@ -35,6 +35,7 @@ export default function AdminUsersPage() {
   const { showToast } = useToast();
   const { currentRole } = useAppContext();
   const isDirector = currentRole === 'director';
+  const canManageUsers = currentRole === 'director' || currentRole === 'floor_manager';
 
   const [data, setData] = useState<AdminUsersPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -235,31 +236,31 @@ export default function AdminUsersPage() {
       render: (u) => (
         <div className="flex items-center justify-end gap-1">
           <IconButton
-            title={isDirector ? 'Edit user' : 'Only a director can edit users'}
-            disabled={!isDirector}
+            title={canManageUsers ? 'Edit user' : 'Only managers can edit users'}
+            disabled={!canManageUsers}
             onClick={() => setEditing(u)}
           >
             <Pencil className="w-3.5 h-3.5" />
           </IconButton>
           <IconButton
-            title={isDirector ? 'Sign out of all sessions' : 'Only a director can revoke sessions'}
-            disabled={!isDirector}
+            title={canManageUsers ? 'Sign out of all sessions' : 'Only managers can revoke sessions'}
+            disabled={!canManageUsers}
             onClick={() => signOutAll(u)}
           >
             <LogOut className="w-3.5 h-3.5" />
           </IconButton>
           {u.isActive ? (
             <IconButton
-              title={isDirector ? 'Deactivate user' : 'Only a director can deactivate users'}
-              disabled={!isDirector}
+              title={canManageUsers ? 'Deactivate user' : 'Only managers can deactivate users'}
+              disabled={!canManageUsers}
               onClick={() => openDeactivate(u)}
             >
               <UserX className="w-3.5 h-3.5" />
             </IconButton>
           ) : (
             <IconButton
-              title={isDirector ? 'Reactivate user' : 'Only a director can reactivate users'}
-              disabled={!isDirector}
+              title={canManageUsers ? 'Reactivate user' : 'Only managers can reactivate users'}
+              disabled={!canManageUsers}
               onClick={() => reactivate(u)}
             >
               <UserCheck className="w-3.5 h-3.5" />
@@ -283,7 +284,7 @@ export default function AdminUsersPage() {
           <span className="type-meta font-normal text-text-muted font-mono">({rows.length})</span>
         </h2>
 
-        {isDirector && (
+        {canManageUsers && (
           <button
             type="button"
             onClick={() => setCreating(true)}

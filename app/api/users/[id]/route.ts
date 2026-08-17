@@ -76,33 +76,33 @@ export async function PUT(
 
   const updateData: any = {};
 
-  // Profile fields: only the user themselves or a director.
-  if (isSelf || isDirector) {
+  // Profile fields: user themselves, floor manager (within floor), or director.
+  if (isSelf || isDirector || fmCanManage) {
     if (body.firstName !== undefined) updateData.firstName = body.firstName;
     if (body.lastName !== undefined) updateData.lastName = body.lastName;
     if (body.timezone !== undefined) updateData.timezone = body.timezone;
     if (body.avatarUrl !== undefined) updateData.avatarUrl = body.avatarUrl;
   }
 
-  // Director-only fields
+  // Director-only fields (role, isActive, unassigning to null)
   if (isDirector) {
     if (body.role !== undefined) updateData.role = body.role;
     if (body.managerId !== undefined) updateData.managerId = body.managerId;
     if (body.isActive !== undefined) updateData.isActive = body.isActive;
   }
 
-  // Floor Manager — may reassign team membership (managerId) within their floor.
-  // Both the target (checked above) and the new manager must be inside the floor;
-  // null (orphaning the user) stays Director-only.
-  if (fmCanManage && body.managerId !== undefined && body.managerId !== null) {
-    if (!(await canAccessUser(currentUser, body.managerId))) {
-      return NextResponse.json({ error: 'Forbidden: manager outside your floor' }, { status: 403 });
+  // Floor Manager — may reassign team membership (managerId) within their floor
+  if (fmCanManage && !isDirector) {
+    if (body.managerId !== undefined && body.managerId !== null) {
+      if (!(await canAccessUser(currentUser, body.managerId))) {
+        return NextResponse.json({ error: 'Forbidden: manager outside your floor' }, { status: 403 });
+      }
+      updateData.managerId = body.managerId;
     }
-    updateData.managerId = body.managerId;
   }
 
-  // Password reset — directors only; regular users must use /api/settings/password
-  if (body.newPassword && currentUser.role === 'director') {
+  // Password reset — directors or floor managers (for their team members); regular users must use /api/settings/password
+  if (body.newPassword && (isDirector || fmCanManage)) {
     updateData.password = await hash(body.newPassword, 12);
   }
 

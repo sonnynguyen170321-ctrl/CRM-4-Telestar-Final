@@ -102,7 +102,7 @@ export async function GET() {
           name: c.name,
           clientName: c.client.name,
         })),
-        canCreateUsers: user.role === 'director',
+        canCreateUsers: user.role === 'director' || user.role === 'floor_manager',
       },
       // Pod-scoped: never let a shared or edge cache serve one viewer's scope
       // to another.

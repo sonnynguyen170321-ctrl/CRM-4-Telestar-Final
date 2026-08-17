@@ -49,7 +49,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const userOrRes = await requireRole('director');
+  const userOrRes = await requireRole('floor_manager');
   if (userOrRes instanceof NextResponse) return userOrRes;
   const currentUser = userOrRes as SessionUser;
   if (!currentUser.tenantId) {
@@ -60,6 +60,14 @@ export async function POST(req: NextRequest) {
   if (parsed.error) return parsed.error;
   const body = parsed.data;
   const email = body.email.trim().toLowerCase();
+
+  // Floor managers cannot create directors or other floor managers
+  if (currentUser.role === 'floor_manager' && (body.role === 'director' || body.role === 'floor_manager')) {
+    return NextResponse.json(
+      { error: 'Floor Managers may only create SDR, Team Lead, and Leadgen accounts' },
+      { status: 403 }
+    );
+  }
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing?.isActive) {
