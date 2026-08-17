@@ -92,11 +92,20 @@ else
 fi
 
 # 6. The worker is actually processing, not just running.
-worker_logs=$($DC logs --tail 200 worker 2>/dev/null || sudo docker logs --tail 200 crm-4-u-worker-1 2>/dev/null || echo '')
-if printf '%s' "$worker_logs" | grep -q '\[worker\] all workers registered\|\[worker\] registered:\|\[worker\] ready'; then
+worker_ready=false
+for i in $(seq 1 6); do
+  worker_logs=$($DC logs --tail 200 worker 2>/dev/null || sudo docker logs --tail 200 crm-4-u-worker-1 2>/dev/null || echo '')
+  if printf '%s' "$worker_logs" | grep -q '\[worker\] all workers registered\|\[worker\] registered:\|\[worker\] ready'; then
+    worker_ready=true
+    break
+  fi
+  sleep 2
+done
+
+if [ "$worker_ready" = "true" ]; then
   pass "worker registered its queues"
 else
-  fail "worker did not log queue registration in its last 200 lines"
+  fail "worker did not log queue registration in its last 200 lines after startup wait"
 fi
 
 echo
