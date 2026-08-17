@@ -55,6 +55,7 @@ Claude-Everything-setup/
 
 # Playwright MCP browser audit artifacts (screenshots, snapshots)
 .playwright-mcp/
+screenshots/
 final-dashboard.png
 final-leads.png
 final-team.png

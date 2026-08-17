@@ -56,34 +56,38 @@ async function main() {
     });
     const page = await context.newPage();
 
-    // 1. Authenticate
-    await page.goto('/login', { waitUntil: 'networkidle' });
-    await page.fill('input[type="email"], input[name="email"]', role.email);
-    await page.fill('input[type="password"], input[name="password"]', 'Telestar2026');
-    await page.click('button[type="submit"]');
-    await page.waitForTimeout(3500);
+    try {
+      // 1. Authenticate
+      await page.goto('/login', { waitUntil: 'domcontentloaded' });
+      await page.fill('input[type="email"], input[name="email"]', role.email);
+      await page.fill('input[type="password"], input[name="password"]', 'Telestar2026');
+      await page.click('button[type="submit"]');
+      await page.waitForTimeout(3000);
 
-    const currentUrl = page.url();
-    console.log(`   🔑 Login: SUCCESS (Redirected to: ${new URL(currentUrl).pathname})`);
+      const currentUrl = page.url();
+      console.log(`   🔑 Login: SUCCESS (Redirected to: ${new URL(currentUrl).pathname})`);
 
-    // 2. Test Authorized Access
-    for (const route of role.expectedNav) {
-      const resp = await page.goto(route, { waitUntil: 'domcontentloaded' });
-      const status = resp?.status();
-      const isOk = status === 200 || status === 304;
-      console.log(`   ✅ Authorized Route ${route.padEnd(20)}: ${isOk ? `🟢 200 OK` : `❌ status ${status}`}`);
+      // 2. Test Authorized Access
+      for (const route of role.expectedNav) {
+        const resp = await page.goto(route, { waitUntil: 'domcontentloaded' });
+        const status = resp?.status();
+        const isOk = status === 200 || status === 304;
+        console.log(`   ✅ Authorized Route ${route.padEnd(20)}: ${isOk ? `🟢 200 OK` : `❌ status ${status}`}`);
+      }
+
+      // 3. Test Negative / Restricted Access
+      for (const route of role.restrictedRoutes) {
+        await page.goto(route, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(1500);
+        const finalPath = new URL(page.url()).pathname;
+        const isBlocked = finalPath === '/' || finalPath === '/login' || finalPath !== route;
+        console.log(`   🔒 Restricted Route ${route.padEnd(20)}: ${isBlocked ? `🟢 BLOCKED / REDIRECTED to ${finalPath}` : `❌ ESCAPE (${finalPath})`}`);
+      }
+    } catch (err: any) {
+      console.error(`   ⚠️ Error during persona ${role.roleName}:`, err?.message || err);
+    } finally {
+      await context.close();
     }
-
-    // 3. Test Negative / Restricted Access
-    for (const route of role.restrictedRoutes) {
-      await page.goto(route, { waitUntil: 'networkidle' });
-      await page.waitForTimeout(2000);
-      const finalPath = new URL(page.url()).pathname;
-      const isBlocked = finalPath === '/' || finalPath === '/login' || finalPath !== route;
-      console.log(`   🔒 Restricted Route ${route.padEnd(20)}: ${isBlocked ? `🟢 BLOCKED / REDIRECTED to ${finalPath}` : `❌ ESCAPE (${finalPath})`}`);
-    }
-
-    await context.close();
   }
 
   // 4. Test API Negative Authorization (SDR attempting Admin API)

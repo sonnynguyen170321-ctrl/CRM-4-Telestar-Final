@@ -8,13 +8,13 @@ async function testSendAPI() {
   });
   const page = await context.newPage();
 
-  console.log('1. Logging in as sonny@itelestar.com...');
-  await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.fill('input[type="email"], input[name="email"]', 'sonny@itelestar.com');
+  console.log('1. Logging in as dean@telestar.vn...');
+  await page.goto('/login', { waitUntil: 'networkidle' });
+  await page.fill('input[type="email"], input[name="email"]', 'dean@telestar.vn');
   await page.fill('input[type="password"], input[name="password"]', 'Telestar2026');
   await page.click('button[type="submit"]');
-  await page.waitForTimeout(3000);
-  console.log('   🔑 Authentication: SUCCESS');
+  await page.waitForTimeout(3500);
+  console.log(`   🔑 Authentication: SUCCESS (Current URL: ${page.url()})`);
 
   console.log('2. Fetching accounts and leads from within browser context...');
   const testResult = await page.evaluate(async () => {
@@ -26,7 +26,7 @@ async function testSendAPI() {
     const leads = Array.isArray(leadsData) ? leadsData : leadsData.leads || [];
 
     const lead = leads[0];
-    const account = accounts[0];
+    const account = Array.isArray(accounts) ? accounts[0] : null;
 
     if (!account) return { error: 'No email account found', accounts, leadsCount: leads.length };
     if (!lead) return { error: 'No lead found', accounts, leadsCount: leads.length };
@@ -35,10 +35,9 @@ async function testSendAPI() {
     const payload = {
       accountId: account.id,
       to: lead.email || 'sonnynguyen170321@gmail.com',
-      subject: 'Test subject from live script',
-      body: 'Test body content for debugging send button',
+      subject: 'Test subject from live certification test',
+      body: 'Test body content for verifying send button functionality.',
       leadId: lead.id,
-      clientRequestId: 'test-req-' + Date.now(),
     };
 
     const sendRes = await fetch('/api/email/send', {
@@ -58,9 +57,8 @@ async function testSendAPI() {
     return {
       status: sendStatus,
       response: sendBody,
-      payload,
-      account,
-      lead,
+      sentTo: payload.to,
+      fromAccount: account.email,
     };
   });
 
@@ -68,4 +66,12 @@ async function testSendAPI() {
   await browser.close();
 }
 
-testSendAPI().catch(console.error);
+async function main() {
+  try {
+    await testSendAPI();
+  } catch (err: any) {
+    console.error('DIAGNOSE RUNTIME ERROR:', err?.message || err);
+  }
+}
+
+main();
