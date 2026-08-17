@@ -15,6 +15,10 @@ import {
   Underline,
   List,
   Reply,
+  Sparkles,
+  Wand2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import DOMPurify from 'isomorphic-dompurify';
@@ -70,6 +74,12 @@ export default function InboxPage() {
   const [replyBody, setReplyBody] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const replyEditorRef = useRef<HTMLDivElement>(null);
+
+  // AI 1-Click Draft Assistant states
+  const [aiDraftsLoading, setAiDraftsLoading] = useState(false);
+  const [aiDraftResult, setAiDraftResult] = useState<any>(null);
+  const [aiCustomInstruction, setAiCustomInstruction] = useState('');
+  const [showAiDrafts, setShowAiDrafts] = useState(false);
 
   // Load threads
   const loadThreads = useCallback(async () => {
@@ -234,6 +244,44 @@ export default function InboxPage() {
       document.execCommand(command, false, value);
       setReplyBody(replyEditorRef.current.innerHTML);
     }
+  };
+
+  const handleGenerateAiDrafts = async () => {
+    if (!selectedThread) return;
+    setAiDraftsLoading(true);
+    setShowAiDrafts(true);
+    try {
+      const res = await fetch('/api/ai/draft-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          threadId: selectedThread.id,
+          leadId: selectedThread.lead?.id,
+          subject: selectedThread.subject,
+          customInstructions: aiCustomInstruction || undefined,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAiDraftResult(data.data);
+      } else {
+        showToast('Failed to generate AI drafts', 'error');
+      }
+    } catch {
+      showToast('Network error generating AI drafts', 'error');
+    } finally {
+      setAiDraftsLoading(false);
+    }
+  };
+
+  const handleApplyAiDraft = (draftBody: string) => {
+    const formattedHtml = draftBody.replace(/\n/g, '<br/>');
+    setReplyBody(formattedHtml);
+    if (replyEditorRef.current) {
+      replyEditorRef.current.innerHTML = formattedHtml;
+      replyEditorRef.current.focus();
+    }
+    showToast('AI draft inserted into composer!', 'success');
   };
 
   const [classFilter, setClassFilter] = useState<'all' | 'needs_attention' | 'C' | 'D' | 'B' | 'A'>('all');
@@ -700,6 +748,90 @@ export default function InboxPage() {
                   })}
                 </div>
               </div>
+
+              {/* AI 1-Click Draft Copilot Banner */}
+              {selectedThread.lead && (
+                <div className="border-t border-card-border/60 bg-gradient-to-r from-brand-red/5 via-orange-500/5 to-amber-500/5 p-3 text-left">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 rounded-lg bg-brand-red/10 text-brand-red">
+                        <Sparkles className="w-4 h-4" />
+                      </span>
+                      <div>
+                        <p className="text-xs font-bold text-text-primary flex items-center gap-1.5">
+                          <span>AI Reply Copilot</span>
+                          {aiDraftResult?.intentLabel && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white border border-card-border shadow-xs text-text-secondary">
+                              {aiDraftResult.intentLabel} ({Math.round((aiDraftResult.confidence || 0.9) * 100)}%)
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-[10px] text-text-muted">
+                          {aiDraftResult?.summary || 'Analyze prospect reply and generate 3 calibrated response strategies.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleGenerateAiDrafts}
+                        disabled={aiDraftsLoading}
+                        className="px-3 py-1 bg-brand-red hover:bg-brand-red-hover text-white text-[11px] font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                      >
+                        {aiDraftsLoading ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Drafting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Wand2 className="w-3.5 h-3.5" />
+                            <span>{aiDraftResult ? 'Regenerate Drafts' : 'Generate 1-Click Drafts'}</span>
+                          </>
+                        )}
+                      </button>
+
+                      {aiDraftResult && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAiDrafts(!showAiDrafts)}
+                          className="p-1 text-text-muted hover:text-text-primary rounded"
+                        >
+                          {showAiDrafts ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Render 3 Calibrated Draft Options */}
+                  {showAiDrafts && aiDraftResult?.drafts && (
+                    <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-2 border-t border-card-border/40">
+                      {aiDraftResult.drafts.map((d: any) => (
+                        <div
+                          key={d.id}
+                          className="bg-white border border-card-border hover:border-brand-red/40 rounded-xl p-3 space-y-2 shadow-xs transition-all flex flex-col justify-between"
+                        >
+                          <div className="space-y-1">
+                            <p className="text-xs font-bold text-text-primary">{d.title}</p>
+                            <p className="text-[10px] text-text-muted leading-tight">{d.strategy}</p>
+                            <div className="bg-[#fafafa] p-2 rounded-lg text-[11px] text-text-secondary whitespace-pre-wrap leading-relaxed max-h-24 overflow-y-auto border border-card-border/30 text-left">
+                              {d.body}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleApplyAiDraft(d.body)}
+                            className="w-full py-1 text-[10px] font-bold text-brand-red bg-brand-red/5 hover:bg-brand-red/10 border border-brand-red/20 rounded-lg transition-colors text-center"
+                          >
+                            Insert into Composer →
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Reply Composer Editor */}
               {selectedThread.lead ? (

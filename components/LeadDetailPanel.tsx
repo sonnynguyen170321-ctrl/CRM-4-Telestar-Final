@@ -14,6 +14,9 @@ import {
   AlarmClock,
   Check,
   CalendarDays,
+  Sparkles,
+  Copy,
+  Wand2,
 } from 'lucide-react';
 import Linkedin from '@/components/icons/Linkedin';
 import { useToast } from '@/context/ToastContext';
@@ -187,6 +190,41 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
     user: { firstName: string; lastName: string };
   }>>([]);
   const [runningTask, setRunningTask] = useState<string | null>(null);
+
+  // AI Clay-Style Research & Icebreakers state
+  const [aiResearchLoading, setAiResearchLoading] = useState(false);
+  const [aiResearchResult, setAiResearchResult] = useState<any>(null);
+  const [copiedHookId, setCopiedHookId] = useState<string | null>(null);
+
+  const handleGenerateResearch = async () => {
+    if (!leadId) return;
+    setAiResearchLoading(true);
+    try {
+      const res = await fetch('/api/ai/enrich-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAiResearchResult(data.data);
+        showToast('AI research & icebreakers generated!', 'success');
+      } else {
+        showToast('Failed to generate AI research', 'error');
+      }
+    } catch {
+      showToast('Network error generating AI research', 'error');
+    } finally {
+      setAiResearchLoading(false);
+    }
+  };
+
+  const handleCopyHook = (hookText: string, hookId: string) => {
+    navigator.clipboard.writeText(hookText);
+    setCopiedHookId(hookId);
+    showToast('Icebreaker hook copied to clipboard!', 'success');
+    setTimeout(() => setCopiedHookId(null), 2500);
+  };
 
   const reloadLead = () => {
     if (leadId) {
@@ -1014,6 +1052,99 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                   )}
                 </div>
               )}
+
+              {/* AI Prospect Research & Icebreaker Generator */}
+              <div className="bg-gradient-to-br from-white to-orange-500/[0.03] border border-card-border hover:border-brand-red/30 rounded-xl p-4 space-y-3 transition-all text-left shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="p-1 rounded-md bg-brand-red/10 text-brand-red">
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </span>
+                    <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">
+                      Clay-Style AI Research & Icebreakers
+                    </h3>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleGenerateResearch}
+                    disabled={aiResearchLoading}
+                    className="px-2.5 py-1 bg-brand-red hover:bg-brand-red-hover text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1 shadow-xs disabled:opacity-50"
+                  >
+                    {aiResearchLoading ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>Researching...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="w-3 h-3" />
+                        <span>{aiResearchResult ? 'Refresh Hooks' : 'Generate Hooks'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {aiResearchResult ? (
+                  <div className="space-y-3 pt-1 border-t border-card-border/40">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-text-muted uppercase">Company Intelligence:</p>
+                      <p className="text-[11px] text-text-primary leading-relaxed bg-[#fafafa] p-2 rounded-lg border border-card-border/30">
+                        {aiResearchResult.companySummary}
+                      </p>
+                    </div>
+
+                    {aiResearchResult.keyPainPoints && (
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-text-muted uppercase">Key Friction Points:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {aiResearchResult.keyPainPoints.map((pain: string, idx: number) => (
+                            <span key={idx} className="text-[10px] bg-red-500/10 text-red-700 border border-red-500/20 px-2 py-0.5 rounded-md font-medium">
+                              ⚡ {pain}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-2 pt-1">
+                      <p className="text-[10px] font-bold text-text-muted uppercase">3 Tailored Outreach Hooks:</p>
+                      <div className="space-y-2">
+                        {aiResearchResult.icebreakers.map((ib: any) => (
+                          <div key={ib.id} className="bg-white border border-card-border rounded-xl p-2.5 space-y-1.5 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-text-primary">{ib.style}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyHook(ib.hook, ib.id)}
+                                className="text-[10px] font-bold text-brand-red hover:underline flex items-center gap-1"
+                              >
+                                {copiedHookId === ib.id ? (
+                                  <>
+                                    <Check className="w-3 h-3 text-emerald-600" />
+                                    <span className="text-emerald-600">Copied!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3 h-3" />
+                                    <span>Copy Hook</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                            <p className="text-[11px] text-text-secondary leading-snug italic">"{ib.hook}"</p>
+                            <p className="text-[9px] text-text-muted">💡 {ib.rationale}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-text-muted leading-tight">
+                    Click "Generate Hooks" to research {lead?.company || 'this prospect'} and synthesize 3 hyper-personalized cold outreach hooks.
+                  </p>
+                )}
+              </div>
 
               <div className="bg-bg-main/40 border border-card-border rounded-xl p-4 space-y-3.5">
                 <div className="flex items-center justify-between">

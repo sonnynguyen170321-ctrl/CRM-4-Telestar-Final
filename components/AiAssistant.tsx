@@ -527,9 +527,23 @@ export default function AiAssistant() {
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ background: '#FAFAFA' }}>
             {messages.length === 0 && (
-              <div className="text-center text-zinc-400 text-sm mt-8">
-                <div className="mb-2">👋 Hey {firstName}!</div>
-                <div>Ask me anything about your leads, outreach, or pipeline.</div>
+              <div className="text-center text-zinc-600 text-sm mt-4 space-y-3">
+                <div className="font-bold text-zinc-800 text-base">👋 Hey {firstName}!</div>
+                <div className="text-xs text-zinc-500">I'm your Telestar Sales Copilot. How can I accelerate your outreach today?</div>
+
+                <button
+                  type="button"
+                  onClick={() => sendMessage('Give me my 8:30 AM Daily Morning Briefing on top priority leads, tasks due today, and recommended messaging angles.')}
+                  className="w-full mx-auto max-w-xs p-2.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-brand-red/10 border border-orange-500/20 hover:border-brand-red/40 text-left transition-all shadow-xs flex items-center gap-2.5 group cursor-pointer"
+                >
+                  <span className="p-1.5 rounded-lg bg-orange-500/20 text-orange-600 group-hover:scale-105 transition-transform text-sm">
+                    🌅
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold text-zinc-900 group-hover:text-brand-red transition-colors">Daily Morning Briefing</p>
+                    <p className="text-[10px] text-zinc-500">Priority hot leads & cadence tasks due today</p>
+                  </div>
+                </button>
               </div>
             )}
             {messages.map((msg, idx) => (

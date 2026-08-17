@@ -42,7 +42,6 @@ async function main() {
 
   // Check leads with invalid campaignId
   const leadsWithCampaign = await prisma.lead.findMany({
-    where: { campaignId: { not: null } },
     select: { id: true, campaignId: true },
   });
   const campaignIds = new Set((await prisma.campaign.findMany({ select: { id: true } })).map((c) => c.id));
