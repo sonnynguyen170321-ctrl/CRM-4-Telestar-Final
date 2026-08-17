@@ -9,16 +9,40 @@ import {
   Sparkles,
   ChevronRight,
   Flame,
-  LayoutDashboard
+  LayoutDashboard,
+  Bot,
+  Mail,
+  Calendar,
+  Layers,
+  FileText,
+  Sliders,
+  Settings,
+  ShieldAlert,
+  PlusCircle,
+  Zap,
+  Target,
+  BarChart3,
+  PhoneCall,
+  RefreshCw,
+  Building,
+  UserCheck
 } from 'lucide-react';
-import { useAppContext } from '@/context/AppContext';
-interface Lead { id: string; firstName: string; lastName: string; company: string; }
 import LeadDetailPanel from './LeadDetailPanel';
+
+interface Lead {
+  id: string;
+  firstName: string;
+  lastName: string;
+  company: string;
+  title?: string | null;
+  stage?: string;
+  crmPriorityScore?: string;
+}
 
 interface CommandItem {
   id: string;
   name: string;
-  category: string;
+  category: 'Navigation' | 'Quick Actions' | 'AI Intelligence' | 'System';
   shortcut?: string;
   action: () => void;
   icon: React.ReactNode;
@@ -26,13 +50,13 @@ interface CommandItem {
 
 export default function CommandPalette() {
   const router = useRouter();
-  const { setRole } = useAppContext();
   const isDesktop = useIsDesktop();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [leadResults, setLeadResults] = useState<Lead[]>([]);
+  const [isSearchingLeads, setIsSearchingLeads] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -74,189 +98,262 @@ export default function CommandPalette() {
   }, [isOpen]);
 
   const commandItems: CommandItem[] = [
-    { id: 'go_dash', name: 'Go to Tasks Dashboard', category: 'Navigation', shortcut: 'G D', icon: <LayoutDashboard className="w-4 h-4 text-brand-red" />, action: () => router.push('/') },
-    { id: 'go_leads', name: 'Go to Leads Pipeline', category: 'Navigation', shortcut: 'G L', icon: <Users className="w-4 h-4 text-blue-500" />, action: () => router.push('/leads') },
-    { id: 'go_seq', name: 'Go to Drip Sequences', category: 'Navigation', shortcut: 'G S', icon: <Sparkles className="w-4 h-4 text-brand-orange-text" />, action: () => router.push('/sequences') },
-    { id: 'role_dir', name: 'Simulate Director Profile (Unlock Team)', category: 'Persona Scoping', icon: <Flame className="w-4 h-4 text-brand-red" />, action: () => setRole('director') },
-    { id: 'role_sdr', name: 'Simulate SDR Profile (Lock Team)', category: 'Persona Scoping', icon: <Flame className="w-4 h-4 text-brand-orange-text" />, action: () => setRole('sdr') },
+    // Navigation
+    { id: 'go_dash', name: 'Dashboard & Overview', category: 'Navigation', shortcut: 'G D', icon: <LayoutDashboard className="w-4 h-4 text-rose-500" />, action: () => { router.push('/'); setIsOpen(false); } },
+    { id: 'go_ai', name: 'AI Command Center', category: 'Navigation', shortcut: 'G A', icon: <Bot className="w-4 h-4 text-violet-500" />, action: () => { router.push('/ai'); setIsOpen(false); } },
+    { id: 'go_leads', name: 'Leads Pipeline & Pool', category: 'Navigation', shortcut: 'G L', icon: <Users className="w-4 h-4 text-blue-500" />, action: () => { router.push('/leads'); setIsOpen(false); } },
+    { id: 'go_opps', name: 'Opportunities Pipeline', category: 'Navigation', shortcut: 'G O', icon: <Target className="w-4 h-4 text-amber-500" />, action: () => { router.push('/opportunities'); setIsOpen(false); } },
+    { id: 'go_meetings', name: 'Meetings & Demos', category: 'Navigation', shortcut: 'G M', icon: <Calendar className="w-4 h-4 text-emerald-500" />, action: () => { router.push('/meetings'); setIsOpen(false); } },
+    { id: 'go_seq', name: 'Outreach Sequences', category: 'Navigation', shortcut: 'G S', icon: <Sparkles className="w-4 h-4 text-orange-500" />, action: () => { router.push('/sequences'); setIsOpen(false); } },
+    { id: 'go_inbox', name: 'Unified Inbox & AI Copilot', category: 'Navigation', shortcut: 'G I', icon: <Mail className="w-4 h-4 text-indigo-500" />, action: () => { router.push('/inbox'); setIsOpen(false); } },
+    { id: 'go_auto', name: 'Automation & Integrations Hub', category: 'Navigation', shortcut: 'G U', icon: <Sliders className="w-4 h-4 text-red-500" />, action: () => { router.push('/automation'); setIsOpen(false); } },
+    { id: 'go_perf', name: 'Sequence Performance Analytics', category: 'Navigation', shortcut: 'G P', icon: <BarChart3 className="w-4 h-4 text-cyan-500" />, action: () => { router.push('/sequences/performance'); setIsOpen(false); } },
+    { id: 'go_reports', name: 'Client Executive Reports', category: 'Navigation', shortcut: 'G R', icon: <FileText className="w-4 h-4 text-teal-500" />, action: () => { router.push('/client-reports'); setIsOpen(false); } },
+    { id: 'go_settings', name: 'Account & Workspace Settings', category: 'Navigation', shortcut: 'G ,', icon: <Settings className="w-4 h-4 text-zinc-500" />, action: () => { router.push('/settings'); setIsOpen(false); } },
+
+    // Quick Actions
+    { id: 'act_brief', name: 'Generate Morning Briefing (AI)', category: 'AI Intelligence', shortcut: '⌘ B', icon: <Zap className="w-4 h-4 text-amber-500" />, action: () => { window.dispatchEvent(new CustomEvent('telestar:open-ai-assistant', { detail: { action: 'briefing' } })); setIsOpen(false); } },
+    { id: 'act_recalc', name: 'Recalculate All Lead Scores', category: 'Quick Actions', shortcut: '⌘ R', icon: <RefreshCw className="w-4 h-4 text-rose-500" />, action: () => { router.push('/automation'); setIsOpen(false); } },
+    { id: 'act_dialer', name: 'Launch Cloud Dialer', category: 'Quick Actions', shortcut: '⌘ D', icon: <PhoneCall className="w-4 h-4 text-emerald-500" />, action: () => { window.dispatchEvent(new CustomEvent('telestar:open-dialer')); setIsOpen(false); } },
+    { id: 'act_webhook', name: 'Configure Outbound Webhooks', category: 'System', icon: <Layers className="w-4 h-4 text-violet-500" />, action: () => { router.push('/automation'); setIsOpen(false); } },
+    { id: 'act_health', name: 'Audit Email Deliverability', category: 'System', icon: <ShieldAlert className="w-4 h-4 text-sky-500" />, action: () => { router.push('/email-health'); setIsOpen(false); } }
   ];
 
-  // Search through commands and leads
-  const matchedCommands = commandItems.filter(item => 
-    item.name.toLowerCase().includes(query.toLowerCase()) || 
+  // Search through commands
+  const matchedCommands = commandItems.filter(item =>
+    item.name.toLowerCase().includes(query.toLowerCase()) ||
     item.category.toLowerCase().includes(query.toLowerCase())
   );
 
+  // Search through leads
   useEffect(() => {
-    if (query.trim().length < 2) { setLeadResults([]); return; }
+    if (query.trim().length < 2) {
+      setLeadResults([]);
+      setIsSearchingLeads(false);
+      return;
+    }
+    setIsSearchingLeads(true);
     const timer = setTimeout(() => {
       fetch(`/api/leads?search=${encodeURIComponent(query)}&limit=5`)
         .then((r) => (r.ok ? r.json() : []))
-        .then((data) => setLeadResults(Array.isArray(data) ? data.slice(0, 5) : []))
-        .catch(() => setLeadResults([]));
+        .then((data) => {
+          setLeadResults(Array.isArray(data) ? data.slice(0, 5) : []);
+          setIsSearchingLeads(false);
+        })
+        .catch(() => {
+          setLeadResults([]);
+          setIsSearchingLeads(false);
+        });
     }, 200);
     return () => clearTimeout(timer);
   }, [query]);
 
-  const matchedLeads = leadResults;
+  const totalItems = matchedCommands.length + leadResults.length;
 
-  const totalResults = [...matchedCommands, ...matchedLeads];
-
-  // Keyboard Navigation inside Command list
+  // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      if (totalResults.length > 0) setActiveIndex(prev => (prev + 1) % totalResults.length);
+      setActiveIndex((prev) => (prev + 1) % Math.max(1, totalItems));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      if (totalResults.length > 0) setActiveIndex(prev => (prev - 1 + totalResults.length) % totalResults.length);
+      setActiveIndex((prev) => (prev - 1 + Math.max(1, totalItems)) % Math.max(1, totalItems));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (totalResults[activeIndex]) {
-        executeResult(totalResults[activeIndex]);
+      if (activeIndex < matchedCommands.length) {
+        matchedCommands[activeIndex]?.action();
+      } else {
+        const leadIndex = activeIndex - matchedCommands.length;
+        const lead = leadResults[leadIndex];
+        if (lead) {
+          setSelectedLeadId(lead.id);
+          setIsOpen(false);
+        }
       }
     }
   };
-
-  const executeResult = (item: any) => {
-    if (item.action) {
-      // It is a command
-      item.action();
-    } else {
-      // It is a lead object
-      setSelectedLeadId((item as Lead).id);
-    }
-    setIsOpen(false);
-  };
-
-  // Scroll active item into view
-  useEffect(() => {
-    if (listRef.current) {
-      const activeEl = listRef.current.children[activeIndex] as HTMLElement;
-      if (activeEl) {
-        activeEl.scrollIntoView({ block: 'nearest' });
-      }
-    }
-  }, [activeIndex]);
-
-  // Desktop-only app: don't mount the command palette (or its slide-over host) on
-  // small screens, where the DesktopOnlyGate notice is showing instead of the app.
-  if (!isDesktop) return null;
 
   if (!isOpen) {
     return (
-      <LeadDetailPanel 
-        leadId={selectedLeadId} 
-        onClose={() => setSelectedLeadId(null)} 
-      />
+      <>
+        {selectedLeadId && (
+          <LeadDetailPanel leadId={selectedLeadId} onClose={() => setSelectedLeadId(null)} />
+        )}
+      </>
     );
   }
 
   return (
     <>
       {/* Backdrop */}
-      <div 
-        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity"
+      <div
+        className="fixed inset-0 bg-zinc-950/60 backdrop-blur-md z-50 transition-opacity animate-in fade-in duration-150"
         onClick={() => setIsOpen(false)}
       />
 
-      {/* Main Dialog container */}
-      <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 pointer-events-none">
-        <div 
+      {/* Palette Modal */}
+      <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 pointer-events-none">
+        <div
+          className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden pointer-events-auto flex flex-col max-h-[80vh] transition-all transform animate-in zoom-in-95 duration-150"
           onKeyDown={handleKeyDown}
-          className="pointer-events-auto w-full max-w-lg bg-card-bg/95 border border-card-border shadow-2xl rounded-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150 glassmorphism"
         >
-          {/* Input field */}
-          <div className="flex items-center gap-3 px-4 border-b border-card-border h-12.5 bg-bg-main/30">
-            <Search className="w-4.5 h-4.5 text-text-muted" />
+          {/* Search Header */}
+          <div className="flex items-center px-4 py-3.5 border-b border-zinc-100 dark:border-zinc-800 gap-3">
+            <Search className="w-5 h-5 text-zinc-400" />
             <input
               ref={inputRef}
               type="text"
-              placeholder="Search leads, commands, theme switchers..."
+              className="flex-1 bg-transparent border-none outline-none text-base text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 font-medium"
+              placeholder="Type a command, jump to page, or search leads... (ESC to close)"
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
                 setActiveIndex(0);
               }}
-              className="flex-1 bg-transparent border-0 text-xs text-text-primary placeholder-text-muted focus:outline-none h-full"
             />
-            <span className="inline-block px-1.5 py-0.5 border border-card-border bg-bg-main rounded text-[9px] font-mono text-text-muted">
-              ESC
-            </span>
+            <div className="flex items-center gap-1">
+              <kbd className="px-2 py-0.5 text-xs font-semibold text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md">
+                ESC
+              </kbd>
+            </div>
           </div>
 
-          {/* Results list */}
-          <div 
-            ref={listRef}
-            className="max-h-72 overflow-y-auto p-2 space-y-0.5 divide-y divide-card-border/10"
-          >
-            {totalResults.length === 0 ? (
-              <div className="p-6 text-center text-xs text-text-muted">
-                No matching commands or leads found.
-              </div>
-            ) : (
-              totalResults.map((item, idx) => {
-                const isActive = idx === activeIndex;
-                const isCommand = 'category' in item;
-
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => executeResult(item)}
-                    className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs transition-colors flex items-center justify-between gap-3 ${
-                      isActive ? 'bg-brand-red text-white' : 'text-text-primary hover:bg-bg-main'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center bg-card-border/30 ${
-                        isActive ? 'text-text-primary' : 'text-text-secondary'
-                      }`}>
-                        {isCommand ? item.icon : '👤'}
-                      </div>
-                      <div className="min-w-0">
-                        <p className={`font-semibold truncate ${isActive ? 'text-text-primary' : 'text-text-primary'}`}>
-                          {isCommand ? item.name : `${item.firstName} ${item.lastName}`}
-                        </p>
-                        <p className={`text-[9px] uppercase font-bold tracking-wider ${ isActive ? 'text-text-primary/80' : 'text-text-muted' }`}>
-                          {isCommand ? item.category : `Lead at ${item.company}`}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {isCommand && item.shortcut && (
-                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-mono ${
-                          isActive ? 'bg-white/20 text-text-primary' : 'bg-card-border/60 text-text-muted'
-                        }`}>
-                          {item.shortcut}
+          {/* Results List */}
+          <div ref={listRef} className="overflow-y-auto p-2 space-y-4 max-h-[60vh] scrollbar-thin">
+            {/* Matched Commands */}
+            {matchedCommands.length > 0 && (
+              <div className="space-y-1">
+                <div className="px-3 py-1.5 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                  Commands & Workspaces
+                </div>
+                {matchedCommands.map((cmd, idx) => {
+                  const isSelected = activeIndex === idx;
+                  return (
+                    <button
+                      key={cmd.id}
+                      onClick={cmd.action}
+                      onMouseEnter={() => setActiveIndex(idx)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all ${
+                        isSelected
+                          ? 'bg-rose-500/10 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 font-medium'
+                          : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200/50 dark:border-zinc-700/50">
+                          {cmd.icon}
+                        </div>
+                        <span className="text-sm font-medium">{cmd.name}</span>
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-400 font-normal">
+                          {cmd.category}
                         </span>
+                      </div>
+                      {cmd.shortcut && (
+                        <div className="flex items-center gap-1">
+                          {cmd.shortcut.split(' ').map((key, i) => (
+                            <kbd
+                              key={i}
+                              className="px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded"
+                            >
+                              {key}
+                            </kbd>
+                          ))}
+                        </div>
                       )}
-                      {isActive && <ChevronRight className="w-3.5 h-3.5 text-text-primary animate-pulse" />}
-                    </div>
-                  </button>
-                );
-              })
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Matched Leads */}
+            {leadResults.length > 0 && (
+              <div className="space-y-1 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                <div className="px-3 py-1.5 text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>Matching Leads</span>
+                  <span className="text-[11px] font-normal text-zinc-400">Jump directly to prospect</span>
+                </div>
+                {leadResults.map((lead, idx) => {
+                  const globalIdx = matchedCommands.length + idx;
+                  const isSelected = activeIndex === globalIdx;
+                  return (
+                    <button
+                      key={lead.id}
+                      onClick={() => {
+                        setSelectedLeadId(lead.id);
+                        setIsOpen(false);
+                      }}
+                      onMouseEnter={() => setActiveIndex(globalIdx)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all ${
+                        isSelected
+                          ? 'bg-blue-500/10 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 font-medium'
+                          : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 font-semibold text-xs flex items-center justify-center border border-blue-200 dark:border-blue-800">
+                          {lead.firstName?.[0] || 'L'}
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold flex items-center gap-2">
+                            {lead.firstName} {lead.lastName}
+                            {lead.crmPriorityScore === 'hot' && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-100 text-rose-600 font-bold">
+                                HOT
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-zinc-400 flex items-center gap-1.5">
+                            <Building className="w-3 h-3" />
+                            {lead.company} {lead.title ? `• ${lead.title}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-zinc-400" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Empty State */}
+            {matchedCommands.length === 0 && leadResults.length === 0 && !isSearchingLeads && (
+              <div className="py-12 text-center text-zinc-400 space-y-2">
+                <Search className="w-8 h-8 mx-auto text-zinc-300 dark:text-zinc-600 mb-1" />
+                <p className="text-sm font-medium">No commands or leads found for &quot;{query}&quot;</p>
+                <p className="text-xs text-zinc-400">Try searching for &quot;leads&quot;, &quot;briefing&quot;, &quot;webhooks&quot;, or a prospect name.</p>
+              </div>
             )}
           </div>
 
-          {/* Footer Guide bar */}
-          <div className="px-4 py-2 border-t border-card-border bg-bg-main/50 flex justify-between text-[9px] font-mono text-text-muted">
-            <div className="flex gap-2">
-              <span>↑↓ to navigate</span>
-              <span>·</span>
-              <span>↵ to select</span>
+          {/* Footer Controls */}
+          <div className="px-4 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between text-xs text-zinc-400">
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px]">
+                  ↑↓
+                </kbd>{' '}
+                Navigate
+              </span>
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px]">
+                  ↵
+                </kbd>{' '}
+                Select
+              </span>
             </div>
-            <span>Press Ctrl+K to close</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span className="text-[11px] font-medium text-zinc-500">Telestar Spotlight 2.0</span>
+            </div>
           </div>
-
         </div>
       </div>
 
-      {/* Detail Panel slide-over overlay (accessible after select) */}
-      <LeadDetailPanel 
-        leadId={selectedLeadId} 
-        onClose={() => setSelectedLeadId(null)} 
-      />
+      {/* Selected Lead Modal */}
+      {selectedLeadId && (
+        <LeadDetailPanel leadId={selectedLeadId} onClose={() => setSelectedLeadId(null)} />
+      )}
     </>
   );
 }

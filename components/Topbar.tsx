@@ -246,81 +246,22 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
       className="fixed top-0 right-0 z-10 flex items-center justify-between px-6 py-3 glass-topbar h-16"
       style={{ left: 'var(--sidebar-w, 56px)' }}
     >
-      {/* Global Search */}
-      <div className="flex-1 max-w-md relative" ref={searchRef}>
-        <div className="relative">
-          <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-text-muted">
-            <Search className="w-4 h-4" />
+      {/* Global Search — Click to open Spotlight Command Palette */}
+      <div className="flex-1 max-w-md relative">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('telestar:open-command-palette'))}
+          className="w-full pl-3.5 pr-3 py-2 text-xs bg-zinc-100/90 dark:bg-zinc-800/70 hover:bg-white dark:hover:bg-zinc-800 border border-zinc-200/80 dark:border-zinc-700/80 rounded-xl text-zinc-500 hover:border-rose-500/40 flex items-center justify-between transition-all duration-150 shadow-xs cursor-pointer text-left group"
+          title="Search leads, commands, actions (⌘K or /)"
+        >
+          <span className="flex items-center gap-2">
+            <Search className="w-3.5 h-3.5 text-zinc-400 group-hover:text-rose-500 transition-colors" />
+            <span className="font-medium text-zinc-500 dark:text-zinc-400">Search leads, commands, actions...</span>
           </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true); }}
-            onFocus={() => setSearchOpen(true)}
-            placeholder="Search leads, templates… (press /)"
-            className="w-full pl-9 pr-10 py-1.5 text-xs bg-bg-main border border-card-border rounded-lg text-text-primary placeholder-text-muted hover:border-brand-red/50 focus:outline-none focus:border-brand-red transition-all"
-          />
-          {searchQuery ? (
-            <button onClick={() => { setSearchQuery(''); setSearchResults({ leads: [], templates: [] }); }} className="absolute inset-y-0 right-2 flex items-center text-text-muted hover:text-text-primary">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          ) : (
-            <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
-              <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-card-border text-text-secondary rounded">/</kbd>
-            </span>
-          )}
-        </div>
-
-        {/* Results dropdown */}
-        {searchOpen && searchQuery.trim() && (
-          <div className="absolute top-full left-0 right-0 mt-1 glass-card border border-card-border rounded-xl shadow-xl z-50 overflow-hidden max-h-80 overflow-y-auto">
-            {searchLoading && (
-              <div className="p-4 text-center text-xs text-text-muted font-mono">Searching…</div>
-            )}
-            {!searchLoading && searchResults.leads.length === 0 && searchResults.templates.length === 0 && (
-              <div className="p-4 text-center text-xs text-text-muted">No results for "{searchQuery}"</div>
-            )}
-            {searchResults.leads.length > 0 && (
-              <div>
-                <div className="px-3 py-1.5 text-[9px] font-bold uppercase text-text-muted bg-bg-main/50 border-b border-card-border">Leads</div>
-                {searchResults.leads.map((lead: any) => (
-                  <button
-                    key={lead.id}
-                    className="w-full text-left px-4 py-2.5 hover:bg-brand-red/5 transition-colors flex items-center gap-3 border-b border-card-border/50 last:border-0"
-                    onClick={() => {
-                      // Was a bare dispatch with no navigation: the listener lives on
-                      // /leads, so picking a lead from global search did nothing at all
-                      // unless you were already there.
-                      openLeadSlideOver(router, lead.id);
-                      setSearchOpen(false); setSearchQuery('');
-                    }}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-text-primary truncate">{lead.firstName} {lead.lastName}</p>
-                      <p className="text-[10px] text-text-muted truncate font-mono">{lead.company} · {lead.stage?.replace(/_/g, ' ')}</p>
-                    </div>
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono flex-shrink-0 ${lead.priority === 'hot' ? 'bg-brand-red/10 text-brand-red' : lead.priority === 'warm' ? 'bg-brand-orange/10 text-brand-orange-text' : 'bg-card-border text-text-secondary'}`}>{lead.priority}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {searchResults.templates.length > 0 && (
-              <div>
-                <div className="px-3 py-1.5 text-[9px] font-bold uppercase text-text-muted bg-bg-main/50 border-b border-card-border">Templates</div>
-                {searchResults.templates.map((tpl: any) => (
-                  <button
-                    key={tpl.id}
-                    className="w-full text-left px-4 py-2.5 hover:bg-brand-red/5 transition-colors flex items-center gap-3 border-b border-card-border/50 last:border-0"
-                    onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
-                  >
-                    <p className="text-xs font-semibold text-text-primary truncate">{tpl.name}</p>
-                    <span className="text-[9px] font-mono text-text-muted ml-auto">{tpl.channel}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+          <span className="flex items-center gap-1">
+            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 text-zinc-400 dark:text-zinc-300 rounded-md">⌘K</kbd>
+          </span>
+        </button>
       </div>
 
       {/* Global Actions */}

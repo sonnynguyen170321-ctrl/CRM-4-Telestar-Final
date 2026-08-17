@@ -275,6 +275,19 @@ export default function AiAssistant() {
     setTimeout(() => inputRef.current?.focus(), 100);
   }, [messages.length, firstName, fireMorningBriefing]);
 
+  useEffect(() => {
+    const handleCustomOpen = (e: any) => {
+      setIsOpen(true);
+      if (e?.detail?.action === 'briefing') {
+        setTimeout(() => {
+          sendMessage('Give me my 8:30 AM Daily Morning Briefing on top priority leads, tasks due today, and recommended messaging angles.');
+        }, 150);
+      }
+    };
+    window.addEventListener('telestar:open-ai-assistant', handleCustomOpen);
+    return () => window.removeEventListener('telestar:open-ai-assistant', handleCustomOpen);
+  }, []);
+
   /** Replace the trailing placeholder bubble with real text. Never writes undefined. */
   function replaceLastAssistantMessage(content: string) {
     setMessages((prev) => {
@@ -463,17 +476,26 @@ export default function AiAssistant() {
         .ai-message-content strong { font-weight: 600; }
       `}</style>
 
-      {/* Collapsed robot */}
+      {/* Floating trigger button — glassmorphic glowing pill */}
       {!isOpen && (
         <button
           onClick={handleOpen}
-          className={`fixed bottom-6 right-6 z-50 flex flex-col items-center cursor-pointer border-0 bg-transparent p-0 ${hasUnread ? 'ai-robot-unread' : isStreaming ? 'ai-robot-thinking' : 'ai-robot-idle'}`}
+          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-3.5 py-2.5 rounded-full bg-zinc-950/85 backdrop-blur-xl border border-zinc-700/60 shadow-2xl hover:border-rose-500/50 hover:shadow-rose-500/10 hover:scale-105 transition-all duration-200 cursor-pointer group select-none ${hasUnread ? 'ring-2 ring-rose-500 ring-offset-2 ring-offset-zinc-950' : ''}`}
           title={`Open ${assistantName}`}
           aria-label={`Open ${assistantName}`}
-          style={{ outline: 'none' }}
         >
-          <RobotIcon hasUnread={hasUnread} isThinking={isStreaming} />
-          <span style={{ fontSize: 'var(--text-micro)', color: '#D42B1E', fontWeight: 600, marginTop: 2, letterSpacing: 0.5 }}>AI</span>
+          <div className="relative flex items-center justify-center">
+            <RobotIcon hasUnread={hasUnread} isThinking={isStreaming} />
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-zinc-950 animate-pulse"></span>
+          </div>
+          <div className="flex flex-col items-start pr-1">
+            <span className="text-xs font-bold text-white tracking-wide flex items-center gap-1 group-hover:text-rose-400 transition-colors">
+              AI Copilot
+            </span>
+            <span className="text-[10px] text-zinc-400 font-medium leading-none">
+              {isStreaming ? 'Thinking...' : 'Live Assistant'}
+            </span>
+          </div>
         </button>
       )}
 
