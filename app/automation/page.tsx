@@ -42,25 +42,6 @@ interface EmailAccount {
   };
 }
 
-interface ActivityLog {
-  id: string;
-  type: string;
-  description: string | null;
-  createdAt: string;
-  metadata: any;
-  lead: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    company: string;
-  } | null;
-  user: {
-    id: string;
-    firstName: string;
-    lastName: string;
-  };
-}
-
 interface StatsMetrics {
   totalActiveSequences: number;
   totalPendingOutbound: number;
@@ -68,17 +49,6 @@ interface StatsMetrics {
   needsAttention: number;
 }
 
-interface WaitingCadence {
-  enrollmentId: string;
-  lead: { id: string; firstName: string; lastName: string; company: string | null };
-  sequenceName: string | null;
-  currentStep: number;
-  reasonCode: string;
-  reasonLabel: string;
-  detail: string;
-  nextActionAt: string | null;
-  needsAttention: boolean;
-}
 
 const AVAILABLE_EVENTS: Array<{ key: WebhookEvent; label: string; desc: string }> = [
   { key: 'lead.created', label: 'Lead Created', desc: 'Fired when a new prospect is added to the CRM' },
@@ -141,20 +111,15 @@ export default function AutomationDashboard() {
         const data = await res.json();
         setMetrics(data.metrics);
         setEmailAccounts(data.emailAccounts);
-        setActivities(data.activities);
-        setWaiting(data.waiting ?? []);
       } else {
         showToast('Failed to load automation stats', 'error');
       }
     } catch {
       showToast('Network error loading automation stats', 'error');
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const fetchWebhooks = async () => {
-    setLoadingWebhooks(true);
     try {
       const res = await fetch('/api/webhooks');
       if (res.ok) {
@@ -163,8 +128,6 @@ export default function AutomationDashboard() {
       }
     } catch {
       showToast('Failed to load webhooks', 'error');
-    } finally {
-      setLoadingWebhooks(false);
     }
   };
 
@@ -211,20 +174,16 @@ export default function AutomationDashboard() {
 
   const handleTriggerInbox = async () => {
     setIsTriggeringInbox(true);
-    setInboxResult(null);
     try {
       const res = await fetch('/api/cron/inbox-sync');
       const data = await res.json();
       if (res.ok) {
-        setInboxResult(data);
         showToast('Inbox synchronization completed successfully!', 'success');
         fetchStats();
       } else {
-        setInboxResult({ error: data.error || 'Failed to sync inboxes' });
-        showToast('Inbox Sync failed', 'error');
+        showToast(data.error || 'Failed to sync inboxes', 'error');
       }
     } catch {
-      setInboxResult({ error: 'Network error synchronizing inboxes' });
       showToast('Inbox Sync trigger failed', 'error');
     } finally {
       setIsTriggeringInbox(false);
