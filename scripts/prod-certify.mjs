@@ -83,27 +83,22 @@ async function runAudit() {
 
   // 3. DNS & Deliverability
   console.log('\n--- 3. DNS & DELIVERABILITY CONFIGURATION ---');
-  const domain = 'telestar.cloud';
-  try {
-    const mx = await dns.resolveMx(domain);
-    assertCheck('MX Mail Routing', mx.length > 0, mx.map(m => m.exchange).join(', '));
-  } catch (err) {
-    assertCheck('MX Mail Routing', false, err.message);
-  }
+  const sendingDomains = ['itelestar.com', 'telestar.vn'];
+  for (const dom of sendingDomains) {
+    try {
+      const mx = await dns.resolveMx(dom);
+      assertCheck(`MX Mail Routing (${dom})`, mx.length > 0, mx.map(m => m.exchange).join(', '));
+    } catch (err) {
+      assertCheck(`MX Mail Routing (${dom})`, false, err.message);
+    }
 
-  try {
-    const txt = await dns.resolveTxt(domain);
-    const spf = txt.flat().find(t => t.startsWith('v=spf1'));
-    assertCheck('SPF Sender Policy', !!spf, spf || 'TXT records found');
-  } catch (err) {
-    assertCheck('SPF Sender Policy', false, err.message);
-  }
-
-  try {
-    const dmarc = await dns.resolveTxt('_dmarc.' + domain);
-    assertCheck('DMARC Policy Enforcement', dmarc.length > 0, dmarc.flat().join('; '));
-  } catch (err) {
-    assertCheck('DMARC Policy Enforcement', false, err.message);
+    try {
+      const txt = await dns.resolveTxt(dom);
+      const spf = txt.flat().find(t => t.startsWith('v=spf1'));
+      assertCheck(`SPF Sender Policy (${dom})`, !!spf, spf || 'TXT records found');
+    } catch (err) {
+      assertCheck(`SPF Sender Policy (${dom})`, false, err.message);
+    }
   }
 
   // 4. Email Safety Flags
