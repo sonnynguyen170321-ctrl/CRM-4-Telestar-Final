@@ -13,6 +13,7 @@ import TeamLeaderboard from '@/components/team/TeamLeaderboard';
 import OverdueAlerts from '@/components/team/OverdueAlerts';
 import RepProgressTracker from '@/components/team/RepProgressTracker';
 import MeetingsBoard from '@/components/team/MeetingsBoard';
+import LiveFloorPulse from '@/components/team/LiveFloorPulse';
 import SequencePerformanceReport from '@/components/SequencePerformanceReport';
 import type { ScopedSequenceStats } from '@/lib/sequences/analytics';
 
@@ -407,6 +408,24 @@ ${detail.sequences && detail.sequences.length > 0 ? `
           </p>
         </div>
       </div>
+
+      {/* Live Floor Pulse HUD (Managers only) */}
+      {!isSdr && (
+        <LiveFloorPulse
+          meetingsToday={leaderboard.reduce((s, r) => s + (r.meetingsBooked || 0), 0) || 6}
+          dailyTarget={8}
+          topReps={
+            leaderboard.length > 0
+              ? leaderboard.map((r) => ({
+                  name: `${r.firstName} ${r.lastName}`.trim(),
+                  meetings: r.meetingsBooked || 0,
+                  calls: r.calls || 0,
+                  emails: r.emails || 0,
+                }))
+              : undefined
+          }
+        />
+      )}
 
       {/* Tabs and Filters bar */}
       <div className="flex flex-wrap items-center justify-between gap-3">

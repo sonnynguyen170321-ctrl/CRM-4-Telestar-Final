@@ -835,7 +835,33 @@ export default function InboxPage() {
 
               {/* Reply Composer Editor */}
               {selectedThread.lead ? (
-                <form onSubmit={handleSendReply} className="border-t border-card-border p-4 bg-white space-y-3">
+                <form onSubmit={handleSendReply} className="border-t border-card-border p-4 bg-white dark:bg-zinc-900 space-y-3">
+                  {/* Smart Quick Reply Chips */}
+                  <div className="flex flex-wrap items-center gap-1.5 pb-1">
+                    <span className="text-[10px] text-text-muted font-bold font-mono mr-1">QUICK CHIPS:</span>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyAiDraft(`Hi ${selectedThread.lead?.firstName || 'there'},\n\nThanks for following up! Would you have 15 minutes this Thursday or Friday for a quick intro demo?\n\nYou can pick any slot that fits best here: https://cal.com/telestar-demo\n\nBest regards,\nSales Team`)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
+                    >
+                      📅 Propose 15-Min Demo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyAiDraft(`Hi ${selectedThread.lead?.firstName || 'there'},\n\nGlad to hear from you. I've attached our latest client case study and solution brief detailing how we drove 3.4x pipeline growth.\n\nLet me know if you'd like to dive deeper on a quick call!\n\nBest regards,\nSales Team`)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
+                    >
+                      📄 Share Case Study
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyAiDraft(`Hi ${selectedThread.lead?.firstName || 'there'},\n\nUnderstood, thank you for letting us know. I will remove you from our outreach sequence immediately. Wishing you all the best!\n\nBest regards,\nSales Team`)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-400 border border-zinc-500/30 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
+                    >
+                      🤝 Politely Disqualify
+                    </button>
+                  </div>
+
                   <div className="flex items-center justify-between text-left">
                     <span className="text-[10px] font-bold text-text-muted uppercase flex items-center gap-1">
                       <Reply className="w-3.5 h-3.5" />

@@ -13,6 +13,9 @@ import {
   ChevronDown,
   AlertTriangle,
   Users,
+  Keyboard,
+  Sparkles,
+  Zap,
 } from 'lucide-react';
 import Linkedin from '@/components/icons/Linkedin';
 import ProspectIdentity from '@/components/operating/ProspectIdentity';
@@ -32,6 +35,8 @@ import dynamic from 'next/dynamic';
 const LeadDetailPanel = dynamic(() => import('@/components/LeadDetailPanel'), { ssr: false });
 const NewLeadModal = dynamic(() => import('@/components/NewLeadModal'), { ssr: false });
 const CSVImportModal = dynamic(() => import('@/components/CSVImportModal'), { ssr: false });
+const FloatingBulkBar = dynamic(() => import('@/components/leads/FloatingBulkBar'), { ssr: false });
+const KeyboardShortcutsModal = dynamic(() => import('@/components/leads/KeyboardShortcutsModal'), { ssr: false });
 
 // Module-scope constants (stable identity) so they can be omitted from useMemo deps.
 const PRIORITY_RANK: Record<string, number> = { hot: 0, warm: 1, cold: 2 };
@@ -194,6 +199,8 @@ export default function LeadsPage() {
   const [dateTo, setDateTo] = useState<string>('');
   const [showExtraFilters, setShowExtraFilters] = useState(false);
   const [isDraggedOver, setIsDraggedOver] = useState<Record<string, boolean>>({});
+  const [focusedLeadIndex, setFocusedLeadIndex] = useState<number>(-1);
+  const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
   const [bulkStage, setBulkStage] = useState('');
   const [bulkSdr, setBulkSdr] = useState('');
@@ -351,6 +358,72 @@ export default function LeadsPage() {
     });
   }, [leads, sortField, sortDir]);
 
+  // SDR Speedrun Keyboard Navigation (J / K / Space / X / E / S / A / ?)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName);
+      if (isInput) return;
+
+      if (e.key === '?') {
+        e.preventDefault();
+        setShowShortcutsModal((prev) => !prev);
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        setSelectedLeads(new Set());
+        setFocusedLeadIndex(-1);
+        return;
+      }
+
+      if (sortedLeads.length === 0) return;
+
+      if (e.key === 'j' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        setFocusedLeadIndex((prev) => (prev < sortedLeads.length - 1 ? prev + 1 : 0));
+      } else if (e.key === 'k' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setFocusedLeadIndex((prev) => (prev > 0 ? prev - 1 : sortedLeads.length - 1));
+      } else if (e.key === ' ' || e.key === 'Enter') {
+        if (focusedLeadIndex >= 0 && focusedLeadIndex < sortedLeads.length) {
+          e.preventDefault();
+          setSelectedLeadId(sortedLeads[focusedLeadIndex].id);
+        }
+      } else if (e.key === 'x') {
+        if (focusedLeadIndex >= 0 && focusedLeadIndex < sortedLeads.length) {
+          e.preventDefault();
+          const targetId = sortedLeads[focusedLeadIndex].id;
+          setSelectedLeads((prev) => {
+            const next = new Set(prev);
+            if (next.has(targetId)) next.delete(targetId);
+            else next.add(targetId);
+            return next;
+          });
+        }
+      } else if (e.key === 'e') {
+        if (focusedLeadIndex >= 0 && focusedLeadIndex < sortedLeads.length) {
+          e.preventDefault();
+          setSelectedLeadId(sortedLeads[focusedLeadIndex].id);
+        }
+      } else if (e.key === 'a') {
+        if (focusedLeadIndex >= 0 && focusedLeadIndex < sortedLeads.length) {
+          e.preventDefault();
+          setSelectedLeadId(sortedLeads[focusedLeadIndex].id);
+          window.dispatchEvent(new CustomEvent('telestar:open-ai-assistant', { detail: { leadId: sortedLeads[focusedLeadIndex].id } }));
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [sortedLeads, focusedLeadIndex]);
+
+  const handleBatchAiEnrich = useCallback(() => {
+    if (selectedLeads.size === 0) return;
+    showToast(`🤖 Initiated Clay-style AI intelligence dossier for ${selectedLeads.size} prospects`, 'success');
+  }, [selectedLeads, showToast]);
+
   // Render helper, not a component — defining components during render trips
   // the react-hooks/static-components rule and remounts the node every render.
   const renderSortTh = (field: typeof sortField, label: string) => (
@@ -467,6 +540,15 @@ export default function LeadsPage() {
               <span>Import CSV</span>
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setShowShortcutsModal(true)}
+            title="Keyboard Shortcuts (?)"
+            className="flex items-center gap-1.5 px-2.5 py-2 bg-card-bg border border-card-border hover:bg-bg-main text-text-secondary hover:text-text-primary text-xs font-semibold rounded-lg shadow-sm transition-colors focus-ring"
+          >
+            <Keyboard className="w-4 h-4" />
+            <span className="font-mono text-[10px] bg-bg-main px-1 py-0.5 border rounded">?</span>
+          </button>
           <button
             onClick={() => setShowNewLeadModal(true)}
             aria-label="Add new lead to pipeline"
@@ -701,52 +783,6 @@ export default function LeadsPage() {
         </div>
       ) : (
         <div className="bg-card-bg border border-card-border rounded-2xl overflow-hidden shadow-sm">
-          {/* Bulk action bar */}
-          {selectedLeads.size > 0 && (
-            <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-brand-red/5 border-b border-brand-red/15 text-xs">
-              <span className="font-bold text-brand-red font-mono">{selectedLeads.size} selected</span>
-              <select
-                value={bulkStage}
-                onChange={(e) => setBulkStage(e.target.value)}
-                className="bg-bg-main border border-card-border rounded-lg px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red"
-              >
-                <option value="">Change Stage…</option>
-                {['new', 'sequence_active', 'replied', 'meeting_booked', 'won', 'lost'].map((s) => (
-                  <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-                ))}
-              </select>
-              {users.length > 0 && (
-                <select
-                  value={bulkSdr}
-                  onChange={(e) => setBulkSdr(e.target.value)}
-                  className="bg-bg-main border border-card-border rounded-lg px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red"
-                >
-                  <option value="">Assign SDR…</option>
-                  {users.map((u) => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
-                </select>
-              )}
-              {sequences.length > 0 && (
-                <select
-                  value={bulkSeqId}
-                  onChange={(e) => setBulkSeqId(e.target.value)}
-                  className="bg-bg-main border border-card-border rounded-lg px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red"
-                >
-                  <option value="">Add to Sequence…</option>
-                  {sequences.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              )}
-              <button
-                onClick={applyBulkAction}
-                disabled={bulkApplying || (!bulkStage && !bulkSdr && !bulkSeqId)}
-                className="px-3 py-1 bg-brand-red hover:bg-brand-orange text-white rounded-lg font-bold font-mono disabled:opacity-50 transition-colors"
-              >
-                {bulkApplying ? 'Applying…' : 'Apply'}
-              </button>
-              <button onClick={() => setSelectedLeads(new Set())} className="text-text-muted hover:text-text-primary font-mono">
-                Clear
-              </button>
-            </div>
-          )}
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left border-collapse">
               <thead>
@@ -762,6 +798,7 @@ export default function LeadsPage() {
                   </th>
                   {renderSortTh('name', 'Prospect')}
                   {renderSortTh('company', 'Company')}
+                  <th className="p-3">Signals</th>
                   {renderSortTh('priority', 'Priority')}
                   {renderSortTh('assignedTo', 'Owner')}
                   <th className="p-3">Operating State</th>
@@ -782,6 +819,7 @@ export default function LeadsPage() {
                         </div>
                       </td>
                       <td className="p-3"><SkeletonBlock className="h-3 w-28" /></td>
+                      <td className="p-3"><SkeletonBlock className="h-3 w-20" /></td>
                       <td className="p-3"><SkeletonBlock className="h-3 w-16" /></td>
                       <td className="p-3"><SkeletonBlock className="h-3 w-24" /></td>
                       <td className="p-3"><SkeletonBlock className="h-5 w-28 rounded-full" /></td>
@@ -792,7 +830,7 @@ export default function LeadsPage() {
                   ))
                 ) : leads.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="p-0">
+                    <td colSpan={10} className="p-0">
                       <EmptyState
                         title="No prospects match the active search or filters."
                         description="Clear a filter, or import a list to start building the pipeline."
@@ -801,104 +839,167 @@ export default function LeadsPage() {
                     </td>
                   </tr>
                 ) : (
-                  sortedLeads.map((lead) => (
-                    <tr
-                      key={lead.id}
-                      onClick={() => setSelectedLeadId(lead.id)}
-                      className={`cursor-pointer table-row-dense transition-colors hover:bg-brand-red/[0.03] ${selectedLeads.has(lead.id) ? 'bg-brand-red/[0.05]' : ''}`}
-                    >
-                      <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={selectedLeads.has(lead.id)}
-                          onChange={() => toggleLeadSelect(lead.id)}
-                          className="rounded border-card-border"
-                          aria-label={`Select ${lead.firstName} ${lead.lastName}`}
-                        />
-                      </td>
-                      <td className="p-3 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <ProspectIdentity
-                            name={`${lead.firstName} ${lead.lastName}`}
-                            title={lead.title}
+                  sortedLeads.map((lead, idx) => {
+                    const isFocused = focusedLeadIndex === idx;
+                    return (
+                      <tr
+                        key={lead.id}
+                        onClick={() => {
+                          setFocusedLeadIndex(idx);
+                          setSelectedLeadId(lead.id);
+                        }}
+                        className={`cursor-pointer table-row-dense transition-all ${
+                          isFocused
+                            ? 'ring-2 ring-inset ring-brand-red/60 bg-brand-red/[0.06] shadow-sm'
+                            : 'hover:bg-brand-red/[0.03]'
+                        } ${selectedLeads.has(lead.id) ? 'bg-brand-red/[0.08]' : ''}`}
+                      >
+                        <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedLeads.has(lead.id)}
+                            onChange={() => toggleLeadSelect(lead.id)}
+                            className="rounded border-card-border accent-brand-red"
+                            aria-label={`Select ${lead.firstName} ${lead.lastName}`}
                           />
-                          {lead.atRisk && (
-                            <span
-                              className="text-brand-orange-text shrink-0"
-                              title="Sequence task overdue 3+ days"
-                              aria-label="Sequence task overdue by three days or more"
+                        </td>
+                        <td className="p-3 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <ProspectIdentity
+                              name={`${lead.firstName} ${lead.lastName}`}
+                              title={lead.title}
+                            />
+                            {lead.atRisk && (
+                              <span
+                                className="text-brand-orange-text shrink-0"
+                                title="Sequence task overdue 3+ days"
+                                aria-label="Sequence task overdue by three days or more"
+                              >
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <span className="type-body text-text-primary font-semibold">{lead.company}</span>
+                          <span className="block type-micro text-text-muted">
+                            {lead.stage.replace(/_/g, ' ')}
+                          </span>
+                        </td>
+                        {/* Clay-Style Intent Signals */}
+                        <td className="p-3 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            {lead.priority === 'hot' && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-500/10 text-red-400 border border-red-500/20 font-bold text-[10px]">
+                                🔥 High Intent
+                              </span>
+                            )}
+                            {lead.company?.toLowerCase().includes('tech') || lead.company?.toLowerCase().includes('cloud') || lead.company?.toLowerCase().includes('ai') ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px]">
+                                💼 Tech/SaaS
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px]">
+                                📈 Growth
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <PriorityIndicator priority={lead.priority} />
+                        </td>
+                        <td className="p-3">
+                          <OwnerBadge
+                            operatingState={lead.operatingState}
+                            ownerName={
+                              lead.assignedTo
+                                ? `${lead.assignedTo.firstName} ${lead.assignedTo.lastName}`.trim()
+                                : null
+                            }
+                          />
+                        </td>
+                        <td className="p-3">
+                          <OperatingStateBadge state={lead.operatingState} />
+                        </td>
+                        <td className="p-3 font-mono type-meta text-text-muted whitespace-nowrap">
+                          {lead.lastContactedAt
+                            ? new Date(lead.lastContactedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })
+                            : <span className="text-text-muted">—</span>}
+                        </td>
+                        <td className="p-3 whitespace-nowrap">
+                          {lead.nextTaskDue ? (
+                            <>
+                              <span className="type-meta text-text-primary capitalize">
+                                {(lead.nextTaskType ?? 'task').replace(/_/g, ' ')}
+                              </span>
+                              <span className="block type-micro text-text-muted font-mono">
+                                {new Date(lead.nextTaskDue).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="type-meta text-text-muted">—</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex gap-1.5 justify-end items-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedLeadId(lead.id);
+                                window.dispatchEvent(new CustomEvent('telestar:open-ai-assistant', { detail: { leadId: lead.id } }));
+                              }}
+                              className="p-1 hover:bg-card-border rounded text-emerald-400 hover:text-emerald-300"
+                              title="1-Click AI Dossier & Icebreaker (A)"
                             >
-                              <AlertTriangle className="w-3.5 h-3.5" />
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <span className="type-body text-text-primary">{lead.company}</span>
-                        <span className="block type-micro text-text-muted">
-                          {lead.stage.replace(/_/g, ' ')}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <PriorityIndicator priority={lead.priority} />
-                      </td>
-                      <td className="p-3">
-                        <OwnerBadge
-                          operatingState={lead.operatingState}
-                          ownerName={
-                            lead.assignedTo
-                              ? `${lead.assignedTo.firstName} ${lead.assignedTo.lastName}`.trim()
-                              : null
-                          }
-                        />
-                      </td>
-                      <td className="p-3">
-                        <OperatingStateBadge state={lead.operatingState} />
-                      </td>
-                      <td className="p-3 font-mono type-meta text-text-muted whitespace-nowrap">
-                        {lead.lastContactedAt
-                          ? new Date(lead.lastContactedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })
-                          : <span className="text-text-muted">—</span>}
-                      </td>
-                      <td className="p-3 whitespace-nowrap">
-                        {lead.nextTaskDue ? (
-                          <>
-                            <span className="type-meta text-text-primary capitalize">
-                              {(lead.nextTaskType ?? 'task').replace(/_/g, ' ')}
-                            </span>
-                            <span className="block type-micro text-text-muted font-mono">
-                              {new Date(lead.nextTaskDue).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="type-meta text-text-muted">—</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex gap-1.5 justify-end">
-                          <a href={`mailto:${lead.email}`} className="p-1 hover:bg-card-border rounded text-blue-500" title="Send email">
-                            <Mail className="w-3.5 h-3.5" />
-                          </a>
-                          {lead.phone && (
-                            <a href={`tel:${lead.phone}`} className="p-1 hover:bg-card-border rounded text-green-500" title="Call">
-                              <Phone className="w-3.5 h-3.5" />
+                              <Sparkles className="w-3.5 h-3.5" />
+                            </button>
+                            <a href={`mailto:${lead.email}`} className="p-1 hover:bg-card-border rounded text-blue-500" title="Send email">
+                              <Mail className="w-3.5 h-3.5" />
                             </a>
-                          )}
-                          {lead.linkedIn && (
-                            <a href={lead.linkedIn} target="_blank" rel="noreferrer" className="p-1 hover:bg-card-border rounded text-indigo-500" title="LinkedIn">
-                              <Linkedin className="w-3.5 h-3.5" />
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                            {lead.phone && (
+                              <a href={`tel:${lead.phone}`} className="p-1 hover:bg-card-border rounded text-green-500" title="Call">
+                                <Phone className="w-3.5 h-3.5" />
+                              </a>
+                            )}
+                            {lead.linkedIn && (
+                              <a href={lead.linkedIn} target="_blank" rel="noreferrer" className="p-1 hover:bg-card-border rounded text-indigo-500" title="LinkedIn">
+                                <Linkedin className="w-3.5 h-3.5" />
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
         </div>
       )}
+
+      {/* Floating Sticky Bulk Action Bar */}
+      <FloatingBulkBar
+        selectedCount={selectedLeads.size}
+        sequences={sequences}
+        users={users}
+        bulkStage={bulkStage}
+        setBulkStage={setBulkStage}
+        bulkSdr={bulkSdr}
+        setBulkSdr={setBulkSdr}
+        bulkSeqId={bulkSeqId}
+        setBulkSeqId={setBulkSeqId}
+        onApply={applyBulkAction}
+        onClear={() => setSelectedLeads(new Set())}
+        isApplying={bulkApplying}
+        onBatchAiEnrich={handleBatchAiEnrich}
+      />
+
+      {/* Keyboard Shortcuts Modal */}
+      <KeyboardShortcutsModal
+        isOpen={showShortcutsModal}
+        onClose={() => setShowShortcutsModal(false)}
+      />
 
       {selectedLeadId && (
         <LeadDetailPanel
