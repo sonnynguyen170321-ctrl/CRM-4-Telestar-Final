@@ -51,8 +51,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Recipient is suppressed' }, { status: 403 });
   }
 
+  const isManager = user.role === 'director' || user.role === 'floor_manager';
   const account = await prisma.emailAccount.findFirst({
-    where: { id: body.accountId, userId: user.id },
+    where: {
+      id: body.accountId,
+      tenantId,
+      isActive: true,
+      ...(isManager ? {} : { userId: user.id }),
+    },
   });
   if (!account) {
     return NextResponse.json({ error: 'Email account not found' }, { status: 404 });
@@ -61,22 +67,23 @@ export async function POST(req: NextRequest) {
   let subject: string = body.subject ?? '';
   let text: string = body.text ?? body.body ?? '';
 
-  // When sending from a template, render merge fields server-side with real lead data
-  if (body.templateId && body.leadId) {
-    const [template, lead] = await Promise.all([
-      prisma.template.findUnique({ where: { id: body.templateId } }),
-      prisma.lead.findUnique({ where: { id: body.leadId } }),
-    ]);
-    if (!template || !lead) {
-      return NextResponse.json({ error: 'Template or lead not found' }, { status: 404 });
-    }
-    subject = renderTemplate(body.subject ?? template.subject ?? '', lead, user);
-    text = renderTemplate(body.body ?? template.body, lead, user);
-  } else if (body.leadId) {
+  // Render merge fields with real lead and user data
+  if (body.leadId) {
     const lead = await prisma.lead.findUnique({ where: { id: body.leadId } });
     if (lead) {
-      subject = renderTemplate(subject, lead, user);
-      text = renderTemplate(text, lead, user);
+      if (body.templateId) {
+        const template = await prisma.template.findUnique({ where: { id: body.templateId } });
+        if (template && !subject.trim() && !text.trim()) {
+          subject = renderTemplate(template.subject ?? '', lead, user);
+          text = renderTemplate(template.body, lead, user);
+        } else {
+          subject = renderTemplate(subject, lead, user);
+          text = renderTemplate(text, lead, user);
+        }
+      } else {
+        subject = renderTemplate(subject, lead, user);
+        text = renderTemplate(text, lead, user);
+      }
     }
   }
 

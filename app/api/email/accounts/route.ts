@@ -10,8 +10,13 @@ export async function GET(_req: NextRequest) {
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
+  const isManager = user.role === 'director' || user.role === 'floor_manager';
   const accounts = await prisma.emailAccount.findMany({
-    where: { userId: user.id, isActive: true },
+    where: {
+      tenantId: user.tenantId,
+      isActive: true,
+      ...(isManager ? {} : { userId: user.id }),
+    },
     select: {
       id: true,
       email: true,
@@ -21,6 +26,7 @@ export async function GET(_req: NextRequest) {
       signature: true,
       createdAt: true,
     },
+    orderBy: { createdAt: 'asc' },
   });
 
   return NextResponse.json(accounts);
