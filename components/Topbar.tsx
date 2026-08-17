@@ -12,6 +12,8 @@ import {
   AlarmClock,
   X,
   LogOut,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { hardSignOut } from '@/lib/auth/clientSignOut';
 import { useAppContext } from '@/context/AppContext';
@@ -60,8 +62,24 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
   const [searchResults, setSearchResults] = useState<{ leads: any[]; templates: any[] }>({ leads: [], templates: [] });
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
+  const [searchRef] = [useRef<HTMLDivElement>(null)];
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  useEffect(() => {
+    const savedTheme = (localStorage.getItem('telestar_theme') as 'light' | 'dark') || 'light';
+    setTheme(savedTheme);
+    document.body.setAttribute('data-theme', savedTheme);
+    document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(nextTheme);
+    localStorage.setItem('telestar_theme', nextTheme);
+    document.body.setAttribute('data-theme', nextTheme);
+    document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+  };
 
   const fetchBellData = () => {
     fetch('/api/notifications?unreadOnly=true')
@@ -324,6 +342,16 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
             </>
           )}
         </div>
+
+        {/* Theme Mode Switcher */}
+        <button
+          onClick={toggleTheme}
+          aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          className="p-2 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all duration-150 cursor-pointer"
+          title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
+        >
+          {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4 text-amber-400" />}
+        </button>
 
         {/* Notifications Bell */}
         <div className="relative">

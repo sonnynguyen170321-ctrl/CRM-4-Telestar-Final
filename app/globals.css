@@ -96,15 +96,32 @@ body[data-theme="light"] {
   --sidebar-text-muted: #6B7280;
   --text-primary: #111827;
   --text-secondary: #4B5563;
-  /* #9CA3AF measured 2.54:1 on white — below the 4.5:1 WCAG AA floor, and the
-     single source of every "low contrast text" finding. #6B7280 is 4.83:1 and
-     matches --sidebar-text-muted, so muted text is now one colour app-wide. */
   --text-muted: #6B7280;
   --topbar-bg: #FFFFFF;
   --topbar-border: #E5E7EB;
   --header-glow: rgba(0, 0, 0, 0.01);
   --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* DARK THEME */
+body[data-theme="dark"], html.dark body {
+  --background: #09090b;
+  --foreground: #f4f4f5;
+  --card-bg: #121215;
+  --card-border: #27272a;
+  --sidebar-bg: #09090b;
+  --sidebar-border: #27272a;
+  --sidebar-text: #f4f4f5;
+  --sidebar-text-muted: #a1a1aa;
+  --text-primary: #f4f4f5;
+  --text-secondary: #d4d4d8;
+  --text-muted: #a1a1aa;
+  --topbar-bg: #09090b;
+  --topbar-border: #27272a;
+  --header-glow: rgba(225, 29, 72, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
 }
 
 /* ─── TAILWIND 4 EXTENSIONS ─── */
