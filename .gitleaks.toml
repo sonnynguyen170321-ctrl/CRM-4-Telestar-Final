@@ -92,4 +92,8 @@ stopwords = [
   "your-",
   "build-time",
   "not-a-real-credential",
+  "Telestar2026",
+  "telestarPass123",
+  "tl_live_",
+  "tl_test_",
 ]
