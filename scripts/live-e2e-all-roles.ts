@@ -26,25 +26,25 @@ const ROLES: RoleTestConfig[] = [
     specificPages: ['/', '/leads', '/tasks', '/sequences', '/campaigns'],
   },
   {
-    roleName: 'team_lead',
+    roleName: 'floor_manager_alayna',
+    email: 'alayna@itelestar.com',
+    password: 'Telestar2026',
+    expectedGreeting: 'Alayna',
+    specificPages: ['/', '/leads', '/tasks', '/sequences', '/campaigns'],
+  },
+  {
+    roleName: 'team_lead_brandon',
     email: 'branndon@itelestar.com',
     password: 'Telestar2026',
     expectedGreeting: 'Brandon',
     specificPages: ['/', '/leads', '/tasks', '/campaigns'],
   },
   {
-    roleName: 'sdr',
-    email: 'lan.pham@itelestar.com',
+    roleName: 'team_lead_jackie',
+    email: 'jackie@itelestar.com',
     password: 'Telestar2026',
-    expectedGreeting: 'Lan',
-    specificPages: ['/', '/tasks', '/leads', '/inbox'],
-  },
-  {
-    roleName: 'leadgen_manager',
-    email: 'dominic@itelestar.com',
-    password: 'Telestar2026',
-    expectedGreeting: 'Dominic',
-    specificPages: ['/', '/leads', '/leads/import'],
+    expectedGreeting: 'Jackie',
+    specificPages: ['/', '/leads', '/tasks', '/campaigns'],
   },
 ];
 
