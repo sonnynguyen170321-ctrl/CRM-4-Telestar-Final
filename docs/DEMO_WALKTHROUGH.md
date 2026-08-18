@@ -12,7 +12,7 @@
 | :--- | :--- | :--- | :--- |
 | **Director** | `dean@telestar.vn` | `Telestar2026` | Executive Brief, Campaign ROI, Revenue Health |
 | **Floor Manager** | `sonny@itelestar.com` | `Telestar2026` | SDR Attention Matrix, Workload Reassignment |
-| **Team Lead** | `brandon@itelestar.com` | `Telestar2026` | 1-on-1 Coaching, Queue Management |
+| **Team Lead** | `branndon@itelestar.com` | `Telestar2026` | 1-on-1 Coaching, Queue Management |
 | **SDR** | `lan.pham@itelestar.com` | `Telestar2026` | AI Copilot, 1-Click Dialing, Icebreaker Generator |
 | **Leadgen Manager** | `dominic@itelestar.com` | `Telestar2026` | Lead Pool, ICP Adherence, Batch Conversion |
 

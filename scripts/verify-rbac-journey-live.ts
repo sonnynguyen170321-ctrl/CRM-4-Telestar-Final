@@ -22,7 +22,7 @@ const ROLES_TO_TEST: RoleCheck[] = [
   },
   {
     roleName: 'Team Lead',
-    email: 'brandon@itelestar.com',
+    email: 'branndon@itelestar.com',
     expectedNav: ['/team', '/leads', '/sequences'],
     restrictedRoutes: ['/director'],
   },

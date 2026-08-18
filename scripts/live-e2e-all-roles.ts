@@ -27,7 +27,7 @@ const ROLES: RoleTestConfig[] = [
   },
   {
     roleName: 'team_lead',
-    email: 'brandon@itelestar.com',
+    email: 'branndon@itelestar.com',
     password: 'Telestar2026',
     expectedGreeting: 'Brandon',
     specificPages: ['/', '/leads', '/tasks', '/campaigns'],

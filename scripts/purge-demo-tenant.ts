@@ -95,8 +95,14 @@ async function main() {
     },
   }).catch(() => ({ count: 0 }));
 
-  if (deletedStrayUsers.count > 0) {
-    console.log(`🧹 Removed ${deletedStrayUsers.count} stray test/demo user accounts.`);
+  // Update Brandon's login email to branndon@itelestar.com
+  const updatedBrandon = await prisma.user.updateMany({
+    where: { email: 'brandon@itelestar.com' },
+    data: { email: 'branndon@itelestar.com' },
+  }).catch(() => ({ count: 0 }));
+
+  if (updatedBrandon.count > 0) {
+    console.log(`✏️ Updated Brandon email login to: branndon@itelestar.com`);
   }
 
   // 9. Display Active Production Inventory
