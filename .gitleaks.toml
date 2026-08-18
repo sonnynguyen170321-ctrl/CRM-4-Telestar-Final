@@ -52,7 +52,11 @@ regexes = [
   # within a test process. It has never protected stored data. Left in place rather than
   # regenerated: some suites encrypt and decrypt within a single run, and rotating a
   # constant that guards nothing would be motion without benefit.
-  '''6d64c7c6eea90808d36288f23843bf9d9f472c558deaa00c731107030a5b717b''',
+  # ── Test credentials & mock tokens ──────────────────────────────────────────
+  '''Telestar2026''',
+  '''telestarPass123''',
+  '''tl_live_[A-Za-z0-9_]+''',
+  '''tl_test_[A-Za-z0-9_]+''',
 ]
 
 paths = [
@@ -82,18 +86,4 @@ paths = [
 
   # This file, which necessarily contains the patterns it allows.
   '''^\.gitleaks\.toml$''',
-]
-
-stopwords = [
-  "change-me",
-  "replace",
-  "placeholder",
-  "example",
-  "your-",
-  "build-time",
-  "not-a-real-credential",
-  "Telestar2026",
-  "telestarPass123",
-  "tl_live_",
-  "tl_test_",
 ]
