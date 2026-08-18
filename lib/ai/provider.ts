@@ -154,11 +154,15 @@ async function* streamGroq(opts: StreamOptions): AsyncGenerator<string> {
         status: classifyFailure(err),
         errorCode: (err as { status?: number })?.status?.toString() ?? null,
       });
-      // Groq rejects malformed tool calls (old XML format from some model versions).
+      // Groq rejects malformed tool calls (old XML format from some model versions or prompt edge cases).
       // Retry once without tools to get a plain-text response.
       const isToolError =
         err instanceof Error &&
-        (err.message.includes('tool_use_failed') || err.message.includes('tool call validation'));
+        (err.message.includes('tool_use_failed') ||
+         err.message.includes('tool call validation') ||
+         err.message.includes('Failed to call a function') ||
+         err.message.includes('failed_generation') ||
+         (err as { status?: number })?.status === 400);
       if (isToolError) {
         const retryStartedAt = Date.now();
         const fallback = await groq.chat.completions.create({
@@ -254,7 +258,7 @@ async function* streamGemini(opts: StreamOptions): AsyncGenerator<string> {
   // systemInstruction belongs on the model, not on startChat(). Passing it to
   // startChat() sends an invalid Content and Gemini rejects it with a 400.
   const model = genAI.getGenerativeModel({
-    model: 'gemini-flash-latest',
+    model: 'gemini-1.5-flash',
     systemInstruction: opts.systemPrompt,
   });
 

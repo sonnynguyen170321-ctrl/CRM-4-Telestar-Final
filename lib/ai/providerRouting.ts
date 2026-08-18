@@ -17,14 +17,14 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export type AiProviderId = 'groq' | 'gemini';
 
-export const GEMINI_FALLBACK_MODEL = 'gemini-flash-latest';
+export const GEMINI_FALLBACK_MODEL = 'gemini-1.5-flash';
 
 export function hasGroq(): boolean {
-  return !!process.env.GROQ_API_KEY;
+  return !!process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim().length > 0;
 }
 
 export function hasGemini(): boolean {
-  return !!process.env.GEMINI_API_KEY;
+  return !!process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim().length > 0;
 }
 
 /** True when at least one provider is configured. */
@@ -47,9 +47,6 @@ export function primaryProvider(): AiProviderId | null {
 /**
  * Rate limiting is the one failure class worth separating: it is a budget signal, not a bug, and
  * it is the condition under which Gemini's separate quota is worth trying.
- *
- * Shared so the chat path and the background path cannot disagree about what "rate limited"
- * means — `provider.ts` had its own copy of this predicate.
  */
 export function isRateLimitError(err: unknown): boolean {
   if ((err as { status?: number })?.status === 429) return true;
@@ -58,20 +55,24 @@ export function isRateLimitError(err: unknown): boolean {
 }
 
 /**
- * Whether a failed attempt on `provider` should be retried on the other one.
+ * Whether a failed attempt on `provider` should be retried on Gemini.
  *
- * The established policy, stated once: only a rate limit falls back, and only from Groq, and
- * only when Gemini is actually configured. A malformed request or a bad key fails on Gemini too,
- * and retrying it just spends a second call to produce the same error.
+ * Falls back on rate limits (429), provider outages (5xx), tool calling parse errors (400),
+ * auth rejections (401), and timeouts when Gemini is available.
  */
 export function shouldFallbackToGemini(provider: AiProviderId, err: unknown): boolean {
-  return provider === 'groq' && isRateLimitError(err) && hasGemini();
+  if (provider !== 'groq' || !hasGemini()) return false;
+  if (isRateLimitError(err)) return true;
+  const status = (err as { status?: number })?.status;
+  if (status && (status >= 400 || status === 401 || status === 403)) return true;
+  const msg = err instanceof Error ? err.message : String(err);
+  return /tool|function|failed_generation|timeout|fetch failed|network|econnrefused|400|401|500|502|503/i.test(msg);
 }
 
 export function createGroqClient(): Groq {
-  return new Groq({ apiKey: process.env.GROQ_API_KEY });
+  return new Groq({ apiKey: (process.env.GROQ_API_KEY || '').trim() });
 }
 
 export function createGeminiClient(): GoogleGenerativeAI {
-  return new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
+  return new GoogleGenerativeAI((process.env.GEMINI_API_KEY || '').trim());
 }
