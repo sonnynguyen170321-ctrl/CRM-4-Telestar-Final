@@ -36,8 +36,8 @@ async function createLead(api: APIRequestContext) {
 }
 
 test.describe('Commercial Intelligence Engine E2E Flows', () => {
-  test('1. Database health diagnostics returns structured metrics and actionable health score', async ({ playwright }) => {
-    const api = await apiAs(playwright, 'admin');
+  test('1. Database health diagnostics returns structured metrics and actionable health score', async ({ baseURL }) => {
+    const api = await apiAs('director', baseURL!);
     const { status, body } = await readJson(await api.get('/api/leadgen/health'));
 
     expect(status).toBe(200);
@@ -55,10 +55,11 @@ test.describe('Commercial Intelligence Engine E2E Flows', () => {
     expect(health.healthScore).toBeLessThanOrEqual(100);
     expect(health.qualityBreakdown).toBeDefined();
     expect(health.reuseStatusBreakdown).toBeDefined();
+    await api.dispose();
   });
 
-  test('2. Logs meeting outcome with structured commercial persona & decision-maker capture', async ({ playwright }) => {
-    const api = await apiAs(playwright, 'sdrA');
+  test('2. Logs meeting outcome with structured commercial persona & decision-maker capture', async ({ baseURL }) => {
+    const api = await apiAs('sdrA', baseURL!);
     const leadId = await createLead(api);
 
     // Book meeting
@@ -102,10 +103,13 @@ test.describe('Commercial Intelligence Engine E2E Flows', () => {
     const res = outcomeBody as { meeting: { status: string; outcome: string }; opportunity?: { id: string } };
     expect(res.meeting.status).toBe('completed');
     expect(res.meeting.outcome).toBe('qualified_opportunity');
+
+    await api.delete(`/api/leads/${leadId}`);
+    await api.dispose();
   });
 
-  test('3. Evaluates SDR Next Best Action grounded in commercial intelligence', async ({ playwright }) => {
-    const api = await apiAs(playwright, 'sdrA');
+  test('3. Evaluates SDR Next Best Action grounded in commercial intelligence', async ({ baseURL }) => {
+    const api = await apiAs('sdrA', baseURL!);
     const leadId = await createLead(api);
 
     const { status, body } = await readJson(await api.get(`/api/ai/nba?leadId=${leadId}`));
@@ -123,5 +127,8 @@ test.describe('Commercial Intelligence Engine E2E Flows', () => {
     expect(nba.action).toBeDefined();
     expect(nba.reason.length).toBeGreaterThan(0);
     expect(nba.confidence).toBeGreaterThan(0);
+
+    await api.delete(`/api/leads/${leadId}`);
+    await api.dispose();
   });
 });
