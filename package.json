@@ -37,6 +37,7 @@
     "verify:rls": "node scripts/verify-rls.mjs",
     "demo:seed": "tsx scripts/demo-seed.ts",
     "demo:reset": "tsx scripts/demo-seed.ts --reset",
+    "purge:demo": "tsx scripts/purge-demo-tenant.ts",
     "repair:approved-proposals": "tsx scripts/repair-approved-proposals.ts",
     "backfill:next-action": "tsx scripts/backfill-next-action-at.ts",
     "check:test-discipline": "node scripts/check-test-discipline.mjs",
