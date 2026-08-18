@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { resolveBookingLink } from './bookingLinks';
 import type { SessionUser } from '@/lib/auth';
 import type { MeetingStatus, MeetingOutcome } from '@prisma/client';
+import { onMeetingOutcomeLogged } from '@/lib/contact-intelligence/events';
 
 /**
  * Book a meeting for a lead. Handles:
@@ -271,6 +272,19 @@ export async function logMeetingOutcome(input: {
       },
     });
   }
+
+  // Hook Contact Intelligence evidence
+  await onMeetingOutcomeLogged({
+    meetingId,
+    leadId: meeting.leadId,
+    status,
+    outcome,
+    outcomeNotes,
+    painPoints,
+    nextStep,
+    userId: user.id,
+    tenantId,
+  });
 
   return meeting;
 }

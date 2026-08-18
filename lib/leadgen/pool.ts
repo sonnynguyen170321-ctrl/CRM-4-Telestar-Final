@@ -5,6 +5,7 @@ import type { LeadgenActivityType, LeadPoolItem, LeadSourceType } from '@prisma/
 import { buildTermClauses } from '@/lib/search/terms';
 import { findAccentInsensitiveIds, POOL_SEARCH_COLUMNS } from '@/lib/search/accentSearch';
 import { tenantIdOrThrow } from '@/lib/api/tenant';
+import { onLeadgenItemQualified } from '@/lib/contact-intelligence/events';
 
 // ─── Duplicate detection ─────────────────────────────────────────────────────
 
@@ -303,15 +304,23 @@ export async function qualifyPoolItems(params: {
   });
 
   await Promise.all(
-    items.map((item) =>
-      logLeadgenActivity({
+    items.map(async (item) => {
+      await logLeadgenActivity({
         actor,
         type: isQualified ? 'qualified' : 'disqualified',
         poolItemId: item.id,
         description: `${isQualified ? 'Qualified' : 'Disqualified'} ${item.firstName || ''} ${item.lastName || ''} (${item.company})`,
         metadata: { qualification, reason: reason ?? null },
-      })
-    )
+      });
+      await onLeadgenItemQualified({
+        poolItemId: item.id,
+        qualification,
+        actorId: actor.id,
+        tenantId,
+        reason,
+        qaNotes,
+      });
+    })
   );
 
   return { count: foundIds.length };

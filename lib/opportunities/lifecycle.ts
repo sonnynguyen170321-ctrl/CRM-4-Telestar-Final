@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import type { SessionUser } from '@/lib/auth';
+import { onOpportunityStageChanged } from '@/lib/contact-intelligence/events';
 
 /**
  * Opportunity lifecycle transitions. Single source of truth for stage moves and
@@ -107,6 +108,18 @@ export async function moveStage(input: {
       data: { stage: input.stage },
     });
   }
+
+  // Hook Contact Intelligence evidence
+  await onOpportunityStageChanged({
+    opportunityId,
+    stage: input.stage,
+    prevStage,
+    handoffStatus: data.handoffStatus as string | undefined,
+    value: input.value,
+    userId: user.id,
+    tenantId,
+    note: input.note,
+  });
 
   return updated;
 }
@@ -226,6 +239,17 @@ export async function decideHandoff(input: {
       data: { stage: 'lost' },
     });
   }
+
+  // Hook Contact Intelligence evidence
+  await onOpportunityStageChanged({
+    opportunityId,
+    stage: updated?.stage || (decision === 'accepted' ? 'accepted_by_client' : 'lost'),
+    prevStage: opp.stage,
+    handoffStatus: decision === 'accepted' ? 'accepted' : decision === 'rejected' ? 'rejected' : 'needs_more_info',
+    userId: user.id,
+    tenantId,
+    note: input.clientFeedback,
+  });
 
   return updated;
 }

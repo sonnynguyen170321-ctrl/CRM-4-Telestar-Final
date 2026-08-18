@@ -5,6 +5,7 @@ import { pauseEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
 import { unenrollLead } from '@/lib/sequences/engine';
 import { handoffProspectToHuman, stopProspectOutreach } from '@/lib/prospects/ownership';
 import { CLASS_LABEL, KIND_LABEL, type ReplyClassification } from './types';
+import { onActivityLogged, onSuppressionOrArchive } from '@/lib/contact-intelligence/events';
 
 /**
  * What each reply class *does* (Phase 8b, ARCHITECTURE §5).
@@ -254,15 +255,45 @@ async function applyHumanHandoff(input: ReplyHandlingInput): Promise<ReplyHandli
 export async function applyReplyClassification(
   input: ReplyHandlingInput
 ): Promise<ReplyHandlingOutcome> {
+  let outcome: ReplyHandlingOutcome;
   switch (input.classification.replyClass) {
     case 'A':
-      return applyStop(input);
+      outcome = await applyStop(input);
+      break;
     case 'B':
-      return applyAdministrative(input);
+      outcome = await applyAdministrative(input);
+      break;
     case 'C':
     case 'D':
-      return applyHumanHandoff(input);
+      outcome = await applyHumanHandoff(input);
+      break;
   }
+
+  // Hook Contact Intelligence evidence
+  await onActivityLogged({
+    leadId: input.leadId,
+    type: 'reply_received',
+    channel: 'email',
+    metadata: {
+      replyClass: input.classification.replyClass,
+      sentiment: input.classification.replyClass === 'C' ? 'positive' : input.classification.replyClass === 'A' ? 'negative' : 'neutral',
+      kind: input.classification.kind,
+      confidence: input.classification.confidence,
+    },
+    userId: input.actorUserId,
+    tenantId: input.tenantId,
+  });
+
+  if (outcome.suppressed) {
+    await onSuppressionOrArchive({
+      leadId: input.leadId,
+      reason: 'unsubscribe',
+      tenantId: input.tenantId,
+      actorId: input.actorUserId,
+    });
+  }
+
+  return outcome;
 }
 
 export { CLASS_LABEL, KIND_LABEL };

@@ -6,6 +6,7 @@ import { scoreLead } from '@/lib/leads/scoring';
 import { unenrollLead, pauseSequence } from '@/lib/sequences/engine';
 import { parseBody } from '@/lib/validation/core';
 import { updateLeadSchema } from '@/lib/validation/schemas';
+import { onSuppressionOrArchive } from '@/lib/contact-intelligence/events';
 
 export async function GET(
   _req: NextRequest,
@@ -289,7 +290,7 @@ export async function DELETE(
 
   const lead = await prisma.lead.findUnique({
     where: { id },
-    select: { assignedToId: true, campaignId: true, sequenceId: true },
+    select: { assignedToId: true, campaignId: true, sequenceId: true, tenantId: true },
   });
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
@@ -318,6 +319,14 @@ export async function DELETE(
       archivedById: user.id,
       archiveReason: reason,
     },
+  });
+
+  // Hook Contact Intelligence evidence
+  await onSuppressionOrArchive({
+    leadId: id,
+    reason: 'archived',
+    tenantId: lead.tenantId || user.tenantId || '',
+    actorId: user.id,
   });
 
   return NextResponse.json({ success: true });

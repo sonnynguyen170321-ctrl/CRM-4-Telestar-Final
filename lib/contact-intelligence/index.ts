@@ -6,3 +6,4 @@ export * from './reuse';
 export * from './evidence';
 export * from './explainability';
 export * from './service';
+export * from './events';

@@ -441,4 +441,71 @@ describe('Contact Classification Engines', () => {
       expect(explainability.recommendedAction).toBeDefined();
     });
   });
+
+  describe('Phase 2 Event Pipeline Evidence Hooks', () => {
+    it('correctly maps positive replies and meeting evidence to high engagement', () => {
+      const engagement = calculateEngagementScore({
+        touchCount: 3,
+        replyCount: 1,
+        meaningfulReplyCount: 1,
+        positiveReplyCount: 1,
+        meetingBookedCount: 1,
+        referralGivenCount: 0,
+        hasUnsubscribedOrDnc: false,
+      });
+
+      expect(engagement.score).toBeGreaterThanOrEqual(70);
+      expect(engagement.factors.some((f) => f.label === 'Positive Replies')).toBe(true);
+      expect(engagement.factors.some((f) => f.label === 'Meetings Booked')).toBe(true);
+    });
+
+    it('correctly maps opportunity win and completed meetings to strong relationship score', () => {
+      const relationship = calculateRelationshipScore({
+        hasOwner: true,
+        relationshipStrength: 'strong',
+        relationshipType: 'champion',
+        meetingCompletedCount: 2,
+        acceptedOpportunityCount: 1,
+        wonOpportunityCount: 1,
+      });
+
+      expect(relationship.score).toBe(100);
+      expect(relationship.factors.some((f) => f.label === 'Closed Deals')).toBe(true);
+      expect(relationship.factors.some((f) => f.label === 'Completed Meetings')).toBe(true);
+    });
+
+    it('immediately forces zero engagement and suppressed state on unsubscribe or DNC', () => {
+      const engagement = calculateEngagementScore({
+        touchCount: 5,
+        replyCount: 2,
+        meaningfulReplyCount: 2,
+        positiveReplyCount: 1,
+        meetingBookedCount: 1,
+        referralGivenCount: 0,
+        hasUnsubscribedOrDnc: true,
+      });
+
+      expect(engagement.score).toBe(0);
+      expect(engagement.factors.some((f) => f.label === 'Suppression / Opt-Out')).toBe(true);
+
+      const lifecycle = resolveContactLifecycleState({
+        isArchived: false,
+        isSuppressed: true,
+        hasActiveOpportunity: false,
+        isClientControlled: false,
+        hasActiveMeeting: false,
+        hasActiveRelationship: false,
+        hasPositiveReply: false,
+        isCurrentlyWorking: false,
+        isNurture: false,
+        isQualified: true,
+        isVerified: true,
+        freshnessScore: 100,
+        lastContactedAt: new Date(),
+        cooldownUntil: null,
+      });
+
+      expect(lifecycle).toBe('suppressed');
+    });
+  });
 });

@@ -6,6 +6,7 @@ import { parseBody, capLimit } from '@/lib/validation/core';
 import { createActivitySchema } from '@/lib/validation/schemas';
 import { nextBusinessDay } from '@/lib/dates/businessDays';
 import { handleApiError } from '@/lib/api/errors';
+import { onActivityLogged } from '@/lib/contact-intelligence/events';
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -103,6 +104,18 @@ export async function POST(req: NextRequest) {
           dueDate: nextBusinessDay(new Date()),
           priority: 'high',
         },
+      });
+    }
+
+    if (body.leadId) {
+      await onActivityLogged({
+        activityId: activity.id,
+        leadId: body.leadId,
+        type: body.type,
+        channel: body.channel,
+        metadata: body.metadata as Record<string, unknown> | undefined,
+        userId: user.id,
+        tenantId: lead?.tenantId || user.tenantId || '',
       });
     }
 
