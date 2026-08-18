@@ -30,13 +30,16 @@ Last Updated: 2026-08-18 (Phase 0 Kickoff)
 | **P1.3** | Floor Pulse & Director Executive Brief | 🟢 **DONE** | `2d812f8` |
 | **P1.4** | Multi-Step Root Cause Investigation Engine | 🟢 **DONE** | `2d812f8` |
 | **P1.5** | Email Intelligence & Reply Classifier | 🟢 **DONE** | `2d812f8` |
-| **P2.1** | Team Lead Coaching Engine | 🟢 **DONE** | Local |
-| **P2.2** | Campaign Diagnostic Engine | 🟢 **DONE** | Local |
-| **P2.3** | Workload & Safe Work-Transfer Planner | 🟢 **DONE** | Local |
-| **P2.4** | Onboarding & Role-Change Readiness Preview | 🟢 **DONE** | Local |
-| **P3.1** | Autonomy Levels 0–4 & Action Risk Model | 🟢 **DONE** | Local |
-| **P3.2** | Idempotent Write Tool Registry & Verifier | 🟢 **DONE** | Local |
-| **P3.3** | Anti-Injection & Secret Exclusion Guards | 🟢 **DONE** | Local |
-| **P4.1** | Golden Scenario Suite (EN & VI) | 🟢 **DONE** | Local |
-| **P4.2** | Automated Quality & Critical Failure Evals | 🟢 **DONE** | Local |
-| **P4.3** | Master Foundation Certification Report | 🟢 **DONE** | Local |
+| **P2.1** | Team Lead Coaching Engine | 🟢 **DONE** | `57a9ae0` |
+| **P2.2** | Campaign Diagnostic Engine | 🟢 **DONE** | `57a9ae0` |
+| **P2.3** | Workload & Safe Work-Transfer Planner | 🟢 **DONE** | `57a9ae0` |
+| **P2.4** | Onboarding & Role-Change Readiness Preview | 🟢 **DONE** | `57a9ae0` |
+| **P3.1** | Autonomy Levels 0–4 & Action Risk Model | 🟢 **DONE** | `57a9ae0` |
+| **P3.2** | Idempotent Write Tool Registry & Verifier | 🟢 **DONE** | `57a9ae0` |
+| **P3.3** | Anti-Injection & Secret Exclusion Guards | 🟢 **DONE** | `57a9ae0` |
+| **P4.1** | Golden Scenario Suite (EN & VI) | 🟢 **DONE** | `57a9ae0` |
+| **P4.2** | Automated Quality & Critical Failure Evals | 🟢 **DONE** | `57a9ae0` |
+| **P4.3** | Master Foundation Certification Report | 🟢 **DONE** | `57a9ae0` |
+| **P5.1** | Role-Aware Attention Banner UI (`AttentionBanner.tsx`) | 🟢 **DONE** | `0ace628` |
+| **P5.2** | SDR Next Best Action Drawer Card (`NextBestActionCard.tsx`) | 🟢 **DONE** | `0ace628` |
+| **P5.3** | UI Integration Routes (`/api/ai/attention`, `/api/ai/nba`) | 🟢 **DONE** | `0ace628` |
