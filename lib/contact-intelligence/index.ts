@@ -11,3 +11,5 @@ export * from './health';
 export * from './matching';
 export * from './assignment';
 export * from './relationshipGuards';
+export * from './aiSignalExtraction';
+export * from './contactMemory';
