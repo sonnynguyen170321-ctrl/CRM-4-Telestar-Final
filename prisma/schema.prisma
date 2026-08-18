@@ -232,6 +232,154 @@ enum OpportunityActivityType {
   closed_lost
 }
 
+// ─── Commercial Intelligence Enums ──────────────────────────────────────────
+
+enum ContactLifecycleState {
+  discovered
+  verified
+  qualified
+  ready
+  working
+  engaged
+  responsive
+  relationship
+  meeting
+  opportunity
+  client_controlled
+  nurture
+  reactivatable
+  stale
+  suppressed
+  archived
+}
+
+enum ContactQualityClass {
+  proven
+  promising
+  untested
+  weak
+  invalid
+}
+
+enum ContactDataStatus {
+  verified
+  partial
+  needs_refresh
+  invalid
+}
+
+enum ContactEngagementStatus {
+  never_contacted
+  no_response
+  responded
+  positive
+  meeting
+  relationship
+  nurture
+}
+
+enum ContactReuseStatus {
+  ready
+  reverify_first
+  cooldown
+  relationship_only
+  client_locked
+  conflict_review
+  do_not_contact
+  archived
+}
+
+enum RelationshipStrength {
+  weak
+  normal
+  strong
+  champion
+}
+
+enum RelationshipType {
+  standard
+  champion
+  connector
+  blocker
+  referrer
+}
+
+enum ContactEvidenceType {
+  identity_verified
+  employment_verified
+  employment_changed
+  email_verified
+  email_invalid
+  phone_verified
+  linkedin_verified
+  icp_match
+  icp_mismatch
+  contacted
+  no_response
+  reply
+  positive_reply
+  negative_reply
+  not_now
+  not_interested
+  wrong_person
+  referral_given
+  competitor_mentioned
+  topic_interest
+  pain_point
+  technology_used
+  vendor_used
+  timing_signal
+  budget_signal
+  authority_signal
+  meeting_booked
+  meeting_completed
+  meeting_no_show
+  opportunity_created
+  client_accepted
+  client_rejected
+  opportunity_won
+  opportunity_lost
+  opportunity_nurture
+  relationship_strengthened
+  relationship_weakened
+  relationship_owner_changed
+  job_change
+  promotion
+  suppressed
+  unsubscribed
+  dnc
+}
+
+enum EvidenceSourceType {
+  leadgen
+  sdr_manual
+  prospect_message
+  email
+  call
+  linkedin
+  whatsapp
+  meeting
+  opportunity
+  client_feedback
+  import
+  vendor_enrichment
+  system
+  ai_extraction
+}
+
+enum EvidenceOwnershipScope {
+  telestar
+  client
+  shared
+}
+
+enum EvidenceReuseScope {
+  internal_only
+  same_client_only
+  cross_campaign_allowed
+  restricted
+}
+
 // ─── Users ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -294,6 +442,8 @@ model User {
   approvalsRequested       AgentApprovalRequest[]    @relation("ApprovalRequestedBy")
   approvalsDecided         AgentApprovalRequest[]    @relation("ApprovalDecidedBy")
   apiKeys                  ApiKey[]                  @relation("UserApiKeys")
+  ownedContactRelationships ContactIntelligence[]   @relation("ContactRelationshipOwner")
+  capturedEvidence          ContactEvidence[]       @relation("EvidenceCapturedBy")
 
   @@index([tenantId])
   @@index([tenantId, managerId])
@@ -351,6 +501,7 @@ model Campaign {
   clientReports      ClientReport[]
   emailHealthAlerts  EmailHealthAlert[]
   workOrders         WorkOrder[]
+  contactEvidence    ContactEvidence[]
 
   @@index([tenantId])
 }
@@ -435,11 +586,148 @@ model Contact {
   poolItems            LeadPoolItem[]
   researchCache        ContactResearchCache?
   personalizationHooks PersonalizationHook[]
+  intelligence         ContactIntelligence?
+  evidence             ContactEvidence[]
 
   @@unique([tenantId, normalizedEmail])
   @@index([tenantId])
   @@index([tenantId, country])
   @@index([tenantId, emailValidation])
+}
+
+// ─── Contact Intelligence (Permanent Derived Asset) ─────────────────────────
+
+model ContactIntelligence {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  contactId String  @unique
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  lifecycleState   ContactLifecycleState   @default(discovered)
+  qualityClass     ContactQualityClass     @default(untested)
+  dataStatus       ContactDataStatus       @default(partial)
+  engagementStatus ContactEngagementStatus @default(never_contacted)
+  reuseStatus      ContactReuseStatus      @default(ready)
+
+  intrinsicQualityScore Int?
+  dataConfidenceScore   Int?
+  engagementScore       Int?
+  relationshipScore     Int?
+  freshnessScore        Int?
+
+  relationshipOwnerId String?
+  relationshipOwner   User?   @relation("ContactRelationshipOwner", fields: [relationshipOwnerId], references: [id], onDelete: SetNull)
+
+  relationshipStrength RelationshipStrength?
+  relationshipType     RelationshipType?
+  relationshipSince    DateTime?
+  lastMeaningfulAt     DateTime?
+  nextRelationshipAt   DateTime?
+
+  campaignCount            Int @default(0)
+  touchCount               Int @default(0)
+  replyCount               Int @default(0)
+  meaningfulReplyCount     Int @default(0)
+  positiveReplyCount       Int @default(0)
+  meetingBookedCount       Int @default(0)
+  meetingCompletedCount    Int @default(0)
+  acceptedOpportunityCount Int @default(0)
+  wonOpportunityCount      Int @default(0)
+  referralGivenCount       Int @default(0)
+
+  preferredChannel   String?
+  lastVerifiedAt     DateTime?
+  lastContactedAt    DateTime?
+  lastRepliedAt      DateTime?
+  lastMeetingAt      DateTime?
+  lastCommercialAt   DateTime?
+  lastIntelligenceAt DateTime?
+
+  cooldownUntil   DateTime?
+  restrictedUntil DateTime?
+  reuseReason     String?
+
+  relationshipSummary String? @db.Text
+  commercialSummary   String? @db.Text
+  intelligenceSummary String? @db.Text
+
+  scoringVersion String?
+  calculatedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([lifecycleState])
+  @@index([qualityClass])
+  @@index([reuseStatus])
+  @@index([relationshipOwnerId])
+  @@index([lastVerifiedAt])
+  @@index([tenantId, qualityClass])
+  @@index([tenantId, reuseStatus])
+}
+
+// ─── Contact Evidence Ledger (Append-Only Historical Facts) ─────────────────
+
+model ContactEvidence {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  evidenceType ContactEvidenceType
+
+  key       String
+  valueJson Json?
+  summary   String? @db.Text
+
+  sourceType  EvidenceSourceType
+  sourceId    String?
+  sourceModel String?
+
+  clientId      String?
+  campaignId    String?
+  campaign      Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  leadId        String?
+  lead          Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  meetingId     String?
+  meeting       Meeting?     @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  activityId    String?
+  activity      Activity?    @relation(fields: [activityId], references: [id], onDelete: SetNull)
+
+  capturedById String?
+  capturedBy   User?   @relation("EvidenceCapturedBy", fields: [capturedById], references: [id], onDelete: SetNull)
+
+  confidence     Int?
+  humanConfirmed Boolean @default(false)
+  aiGenerated    Boolean @default(false)
+
+  ownershipScope EvidenceOwnershipScope @default(telestar)
+  reuseScope     EvidenceReuseScope     @default(cross_campaign_allowed)
+
+  observedAt DateTime
+  validFrom  DateTime?
+  validUntil DateTime?
+
+  supersedesId String?
+  supersedes   ContactEvidence?  @relation("EvidenceSupersedes", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy ContactEvidence[] @relation("EvidenceSupersedes")
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, contactId])
+  @@index([evidenceType])
+  @@index([campaignId])
+  @@index([observedAt])
+  @@index([tenantId, observedAt])
 }
 
 // ─── Leads (assignment-level) — Premium Data Model (P8) ─────────────────────
@@ -515,6 +803,7 @@ model Lead {
   workOrderLeases      WorkOrderLease[]
   personalizationHooks PersonalizationHook[]
   sequenceDraftRecords SequenceDraftRecord[]
+  contactEvidence      ContactEvidence[]
 
   @@index([stage])
   @@index([assignedToId])
@@ -726,6 +1015,7 @@ model Activity {
   createdAt   DateTime     @default(now())
   tenantId    String
   tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactEvidence ContactEvidence[]
 
   @@index([userId])
   @@index([leadId])
@@ -1212,6 +1502,7 @@ model Meeting {
   tenant                  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   opportunity Opportunity?
+  contactEvidence ContactEvidence[]
 
   @@index([tenantId])
   @@index([leadId])
@@ -1296,6 +1587,7 @@ model Opportunity {
   closedAt  DateTime?
 
   activities OpportunityActivity[]
+  contactEvidence ContactEvidence[]
 
   @@index([tenantId])
   @@index([clientId])
@@ -1737,6 +2029,8 @@ model Tenant {
   outcomeSignals           OutcomeSignal[]
   playbookProposals        PlaybookProposal[]
   apiKeys                  ApiKey[]
+  contactIntelligences     ContactIntelligence[]
+  contactEvidence          ContactEvidence[]
 }
 
 // ─── API Keys & Developer Access ─────────────────────────────────────────────
