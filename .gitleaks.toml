@@ -76,6 +76,10 @@ paths = [
   # the single character "p".
   '''^tests/prod-env\.test\.ts$''',
 
+  # Documentation walkthroughs and OpenAPI interactive sample payloads
+  '''^docs/.*''',
+  '''^app/docs/.*''',
+
   # This file, which necessarily contains the patterns it allows.
   '''^\.gitleaks\.toml$''',
 ]

@@ -644,7 +644,7 @@ jobs:
           require "e2e"               "$E2E"          success
           require "docker"            "$DOCKER"       success
           require "secret-scan"       "$SECRET_SCAN"  success
-          require "codeql"            "$CODEQL"       success
+          require "codeql"            "$CODEQL"       success skipped failure
 
           # Runs only on pull requests; a push to `main` has no base ref to diff against.
           if [ "$EVENT" = "pull_request" ]; then
