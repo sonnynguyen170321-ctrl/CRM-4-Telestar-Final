@@ -209,6 +209,22 @@ export const AI_TOOLS: ToolDefinition[] = [
   {
     type: 'function',
     function: {
+      name: 'get_contact_intelligence',
+      description:
+        'Fetch structured commercial intelligence, asset tier, buyer persona, relationship memory, competitor mentions, and reuse safety status for a lead or contact.',
+      parameters: {
+        type: 'object',
+        properties: {
+          leadId: { type: 'string', description: 'Optional Lead ID.' },
+          contactId: { type: 'string', description: 'Optional Contact ID.' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'draft_sequence',
       description:
         'Draft outreach copy for a lead, grounded in stored research evidence. Produces a proposal only — it does not enroll the lead or send anything.',
@@ -397,6 +413,9 @@ export async function executeTool(
 
     case 'evaluate_lead_quality':
       return runEvaluateLeadQuality(stringArg(args.leadId), context);
+
+    case 'get_contact_intelligence':
+      return runGetContactIntelligence(stringArg(args.leadId), stringArg(args.contactId), context);
 
     case 'draft_sequence':
       return runDraftSequence(stringArg(args.leadId), stringArg(args.channel), context);
@@ -741,4 +760,84 @@ async function runResearchContact(
     if (err instanceof RetryableResearchError) throw err;
     throw new Error(`Contact research failed: ${err instanceof Error ? err.message : String(err)}`);
   }
+}
+
+async function runGetContactIntelligence(
+  leadId: string | undefined,
+  contactId: string | undefined,
+  ctx: ToolContext
+): Promise<string> {
+  if (!ctx.tenantId) throw new Error('get_contact_intelligence refused: tenant context is missing.');
+
+  const { prisma } = await import('@/lib/prisma');
+  let targetContactId = contactId;
+  if (!targetContactId && leadId) {
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadId },
+      select: { contactId: true },
+    });
+    targetContactId = lead?.contactId || undefined;
+  }
+
+  if (!targetContactId && ctx.leadId) {
+    const lead = await prisma.lead.findUnique({
+      where: { id: ctx.leadId },
+      select: { contactId: true },
+    });
+    targetContactId = lead?.contactId || undefined;
+  }
+
+  if (!targetContactId) {
+    return 'No contact found for intelligence evaluation.';
+  }
+
+  const contact = await prisma.contact.findUnique({
+    where: { id: targetContactId },
+    include: {
+      intelligence: true,
+      evidence: {
+        where: { tenantId: ctx.tenantId },
+        take: 5,
+        orderBy: { observedAt: 'desc' },
+      },
+    },
+  });
+
+  if (!contact || !contact.intelligence) {
+    return 'No commercial intelligence recorded yet for this contact.';
+  }
+
+  const intel = contact.intelligence;
+  return JSON.stringify(
+    {
+      contact: {
+        name: `${contact.firstName} ${contact.lastName}`,
+        title: contact.title,
+        company: contact.company,
+        email: contact.email,
+      },
+      qualityClass: intel.qualityClass,
+      reuseStatus: intel.reuseStatus,
+      relationshipStrength: intel.relationshipStrength,
+      scores: {
+        intrinsicQuality: intel.intrinsicQualityScore,
+        dataConfidence: intel.dataConfidenceScore,
+        engagement: intel.engagementScore,
+        relationship: intel.relationshipScore,
+        freshness: intel.freshnessScore,
+      },
+      summaries: {
+        relationship: intel.relationshipSummary,
+        commercial: intel.commercialSummary,
+        intelligence: intel.intelligenceSummary,
+      },
+      topSignals: contact.evidence.map((e) => ({
+        type: e.evidenceType,
+        summary: e.summary,
+        observedAt: e.observedAt,
+      })),
+    },
+    null,
+    2
+  );
 }

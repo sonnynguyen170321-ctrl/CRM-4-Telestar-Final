@@ -25,6 +25,7 @@ export const TOOL_CAPABILITY: Record<string, AgentCapability> = {
   // caps at `approval`.
   prioritize_leads: 'research',
   evaluate_lead_quality: 'research',
+  get_contact_intelligence: 'research',
   draft_sequence: 'sequence_draft',
   enroll_lead_in_sequence: 'sequence_enroll',
 };

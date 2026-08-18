@@ -89,6 +89,19 @@ export default function NextBestActionCard({ leadId, onExecuteAction }: NextBest
         </button>
       </div>
 
+      {data.sourceEvidence && data.sourceEvidence.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {data.sourceEvidence.slice(0, 2).map((ev, i) => (
+            <span
+              key={i}
+              className="inline-block rounded bg-card-border/40 px-1.5 py-0.5 text-[10px] text-muted-text/90 font-mono truncate max-w-full"
+            >
+              {ev}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="mt-2.5 flex items-center justify-between border-t border-card-border/50 pt-2 text-[11px] text-muted-text">
         <div className="flex items-center gap-3">
           <span className="inline-flex items-center gap-1">

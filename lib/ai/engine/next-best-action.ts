@@ -48,6 +48,16 @@ export async function calculateNextBestAction(params: {
       emailInvalid: true,
       lastContactedAt: true,
       nextTaskDue: true,
+      contact: {
+        include: {
+          intelligence: true,
+          evidence: {
+            take: 5,
+            orderBy: { observedAt: 'desc' },
+            select: { evidenceType: true, summary: true, key: true },
+          },
+        },
+      },
       activities: {
         take: 3,
         orderBy: { createdAt: 'desc' },
@@ -63,50 +73,99 @@ export async function calculateNextBestAction(params: {
     `Lead stage is '${lead.stage}' with priority '${lead.crmPriorityScore}'.`,
   ];
 
-  // 1. Suppressed or invalid email
-  if (lead.emailInvalid) {
-    if (lead.phone) {
+  const intel = lead.contact?.intelligence;
+  const evidenceList = lead.contact?.evidence || [];
+
+  if (intel) {
+    sourceEvidence.push(`Commercial Asset Tier: ${intel.qualityClass.toUpperCase()} (Confidence: ${intel.dataConfidenceScore}%, Quality: ${intel.intrinsicQualityScore}%).`);
+    if (intel.relationshipStrength) {
+      sourceEvidence.push(`Relationship Strength: ${intel.relationshipStrength.toUpperCase()}.`);
+    }
+  }
+
+  // 1. Commercial Intelligence Suppression / DNC check
+  if (intel?.reuseStatus === 'do_not_contact' || lead.emailInvalid) {
+    if (lead.phone && !intel?.reuseStatus?.includes('do_not_contact')) {
       return {
         action: 'CALL',
         leadId: lead.id,
         leadName: `${lead.firstName} ${lead.lastName}`.trim(),
         company: lead.company,
         priority: 'warm',
-        reason: 'Email is suppressed/invalidated. Phone is available for direct calling outreach.',
+        reason: 'Email is invalidated. Direct phone number is available for high-touch calling.',
         deadline: new Date(now.getTime() + 24 * 60 * 60 * 1000),
         confidence: 0.95,
-        sourceEvidence: [...sourceEvidence, `Email marked invalid. Phone ${lead.phone} present.`],
+        sourceEvidence: [...sourceEvidence, `Direct phone ${lead.phone} verified.`],
       };
     }
     return {
-      action: 'RESEARCH',
+      action: 'DO_NOT_CONTACT',
       leadId: lead.id,
       leadName: `${lead.firstName} ${lead.lastName}`.trim(),
       company: lead.company,
       priority: 'cold',
-      reason: 'Email is invalid and no phone number exists. Re-enrich prospect contact data.',
-      deadline: new Date(now.getTime() + 48 * 60 * 60 * 1000),
-      confidence: 0.9,
-      sourceEvidence: [...sourceEvidence, 'Missing valid phone and email.'],
+      reason: intel?.reuseStatus === 'do_not_contact'
+        ? 'Contact is suppressed or opted out from outreach.'
+        : 'Email is invalid and no direct phone exists. Exclude from active outreach.',
+      deadline: new Date(now.getTime() + 72 * 60 * 60 * 1000),
+      confidence: 0.99,
+      sourceEvidence: [...sourceEvidence, 'Suppression / DNC guard enforced.'],
     };
   }
 
-  // 2. Replied / Engaged
+  // 2. Client Locked or Cooldown
+  if (intel?.reuseStatus === 'client_locked') {
+    return {
+      action: 'REVIEW',
+      leadId: lead.id,
+      leadName: `${lead.firstName} ${lead.lastName}`.trim(),
+      company: lead.company,
+      priority: 'warm',
+      reason: 'Contact is locked in an active deal with another client. Review account exclusivity.',
+      deadline: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+      confidence: 0.95,
+      sourceEvidence: [...sourceEvidence, 'Client lock safety guard active.'],
+    };
+  }
+
+  if (intel?.reuseStatus === 'cooldown') {
+    return {
+      action: 'WAIT',
+      leadId: lead.id,
+      leadName: `${lead.firstName} ${lead.lastName}`.trim(),
+      company: lead.company,
+      priority: 'cold',
+      reason: `Contact under outreach cooldown until ${intel.cooldownUntil ? new Date(intel.cooldownUntil).toLocaleDateString() : 'expiry'}.`,
+      deadline: intel.cooldownUntil || new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
+      confidence: 0.9,
+      sourceEvidence: [...sourceEvidence, 'Outreach cooldown window in effect.'],
+    };
+  }
+
+  // 3. Replied / Engaged
   if (lead.stage === 'replied') {
+    const competitorEvidence = evidenceList.find((e) => e.evidenceType === 'competitor_mentioned');
+    const painEvidence = evidenceList.find((e) => e.evidenceType === 'pain_point');
+    const reasonDetail = competitorEvidence
+      ? `Prospect replied (${competitorEvidence.summary}). Craft tailored counter-positioning reply.`
+      : painEvidence
+      ? `Prospect replied (${painEvidence.summary}). Align response directly with expressed friction.`
+      : 'Prospect replied to outreach. Immediate response converts 3x higher.';
+
     return {
       action: 'REPLY',
       leadId: lead.id,
       leadName: `${lead.firstName} ${lead.lastName}`.trim(),
       company: lead.company,
       priority: 'hot',
-      reason: 'Prospect replied to outreach. Immediate response converts 3x higher.',
+      reason: reasonDetail,
       deadline: new Date(now.getTime() + 2 * 60 * 60 * 1000), // 2 hours SLA
       confidence: 0.98,
       sourceEvidence: [...sourceEvidence, 'Stage is replied.'],
     };
   }
 
-  // 3. Meeting Booked
+  // 4. Meeting Booked
   if (lead.stage === 'meeting_booked') {
     return {
       action: 'REVIEW',
@@ -114,14 +173,29 @@ export async function calculateNextBestAction(params: {
       leadName: `${lead.firstName} ${lead.lastName}`.trim(),
       company: lead.company,
       priority: 'hot',
-      reason: 'Meeting is scheduled. Review prospect background, company pain points, and agenda.',
+      reason: intel?.relationshipSummary || 'Meeting is scheduled. Review prospect background, company pain points, and agenda.',
       deadline: lead.nextTaskDue || new Date(now.getTime() + 24 * 60 * 60 * 1000),
       confidence: 0.95,
       sourceEvidence: [...sourceEvidence, 'Meeting booked stage active.'],
     };
   }
 
-  // 4. Standard Sequence Active
+  // 5. Proven Champion / Executive Ready for Warm Contact
+  if (intel?.qualityClass === 'proven' && lead.stage === 'new') {
+    return {
+      action: 'CALL',
+      leadId: lead.id,
+      leadName: `${lead.firstName} ${lead.lastName}`.trim(),
+      company: lead.company,
+      priority: 'hot',
+      reason: 'Proven executive champion asset. High-priority direct call or personalized VIP touch recommended.',
+      deadline: new Date(now.getTime() + 8 * 60 * 60 * 1000),
+      confidence: 0.96,
+      sourceEvidence: [...sourceEvidence, 'Classified as proven high-value asset.'],
+    };
+  }
+
+  // 6. Standard Sequence Active
   if (lead.stage === 'sequence_active') {
     return {
       action: 'WAIT',
@@ -136,14 +210,14 @@ export async function calculateNextBestAction(params: {
     };
   }
 
-  // 5. Default New Prospect
+  // 7. Default New Prospect
   return {
     action: 'FOLLOW_UP',
     leadId: lead.id,
     leadName: `${lead.firstName} ${lead.lastName}`.trim(),
     company: lead.company,
-    priority: lead.crmPriorityScore === 'hot' ? 'hot' : 'warm',
-    reason: 'New prospect ready for outbound sequence enrollment or manual first touch.',
+    priority: lead.crmPriorityScore === 'hot' || intel?.qualityClass === 'promising' ? 'hot' : 'warm',
+    reason: intel?.intelligenceSummary || 'New prospect ready for outbound sequence enrollment or manual first touch.',
     deadline: new Date(now.getTime() + 24 * 60 * 60 * 1000),
     confidence: 0.9,
     sourceEvidence: [...sourceEvidence, 'Stage is new.'],
