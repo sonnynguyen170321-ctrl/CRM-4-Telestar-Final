@@ -26,11 +26,11 @@
 
 | Component | Reference |
 | :--- | :--- |
-| **Release Candidate SHA** | `b2b09ca` (branch `release/final-production-certification`) |
-| **Production Image Digest** | `sha256:526f837ca926ccaf48f6fdfe4360b5c7312a74678346ececceb159eb8fb72261` |
+| **Active Commit SHA** | `473799a` (branch `main`) |
 | **Deploy Target** | `gcp` (`-f docker-compose.yml -f docker-compose.gcp.yml`) |
-| **Database Migrations** | 46 total migrations applied (100% relational & FK integrity) |
-| **Active Test Suite** | 1,752 / 1,752 vitest tests passing (0 failures) |
+| **Database Migrations** | 47 total migrations applied (100% relational & FK integrity) |
+| **Active Team Roster** | 10 Core Authorized Team Members (Dean, Sonny, Alayna, Branndon, Jackie, Vie, Meixi, Hayden, Kim, Selina) |
+| **AI Copilot Engine** | Dual Groq + Google Gemini Flash with automatic plain-text tool error retry |
 | **TypeScript Checks** | 0 compilation errors (`tsc --noEmit` exit 0) |
 
 ---
