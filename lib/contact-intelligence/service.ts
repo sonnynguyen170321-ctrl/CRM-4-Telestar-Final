@@ -412,3 +412,72 @@ export async function getContactIntelligenceWithExplainability(
 
   return { intelligence, explainability };
 }
+
+export async function getContactIntelligenceForAgent(
+  leadId: string | undefined,
+  contactId: string | undefined,
+  tenantId: string
+): Promise<string> {
+  let targetContactId = contactId;
+  if (!targetContactId && leadId) {
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadId },
+      select: { contactId: true },
+    });
+    targetContactId = lead?.contactId || undefined;
+  }
+
+  if (!targetContactId) {
+    return 'No contact found for intelligence evaluation.';
+  }
+
+  const contact = await prisma.contact.findUnique({
+    where: { id: targetContactId },
+    include: {
+      intelligence: true,
+      evidence: {
+        where: { tenantId },
+        take: 5,
+        orderBy: { observedAt: 'desc' },
+      },
+    },
+  });
+
+  if (!contact || !contact.intelligence) {
+    return 'No commercial intelligence recorded yet for this contact.';
+  }
+
+  const intel = contact.intelligence;
+  return JSON.stringify(
+    {
+      contact: {
+        name: `${contact.firstName} ${contact.lastName}`,
+        title: contact.title,
+        company: contact.company,
+        email: contact.email,
+      },
+      qualityClass: intel.qualityClass,
+      reuseStatus: intel.reuseStatus,
+      relationshipStrength: intel.relationshipStrength,
+      scores: {
+        intrinsicQuality: intel.intrinsicQualityScore,
+        dataConfidence: intel.dataConfidenceScore,
+        engagement: intel.engagementScore,
+        relationship: intel.relationshipScore,
+        freshness: intel.freshnessScore,
+      },
+      summaries: {
+        relationship: intel.relationshipSummary,
+        commercial: intel.commercialSummary,
+        intelligence: intel.intelligenceSummary,
+      },
+      topSignals: contact.evidence.map((e) => ({
+        type: e.evidenceType,
+        summary: e.summary,
+        observedAt: e.observedAt,
+      })),
+    },
+    null,
+    2
+  );
+}

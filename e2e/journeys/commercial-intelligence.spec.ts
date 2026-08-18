@@ -8,10 +8,10 @@
  * 4. AI 3-tiered contact memory generation.
  * 5. SDR Next Best Action grounding.
  */
-import { test, expect } from './support/test';
-import { apiAs, readJson } from './support/api';
-import { fixture } from './support/fixture';
-import { uniqueSuffix } from './support/ids';
+import { test, expect } from '../support/test';
+import { apiAs, readJson } from '../support/api';
+import { fixture } from '../support/fixture';
+import { uniqueSuffix } from '../support/ids';
 import type { APIRequestContext } from '@playwright/test';
 
 const stamp = () => `${Date.now()}${uniqueSuffix()}`;
