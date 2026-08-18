@@ -84,14 +84,32 @@ async function main() {
     console.log(`✅ Demo tenant "${t}" completely purged from database.`);
   }
 
-  // Also remove any stray demo user accounts or e2e test accounts
-  const strayUsers = await prisma.user.findMany({
+  // 1. Update Brandon's login email to branndon@itelestar.com first
+  await prisma.user.updateMany({
+    where: { email: 'brandon@itelestar.com' },
+    data: { email: 'branndon@itelestar.com' },
+  }).catch(() => {});
+
+  // 2. Define the exact 10 approved team members to retain
+  const ALLOWED_EMAILS = [
+    'dean@telestar.vn',
+    'sonny@itelestar.com',
+    'alayna@itelestar.com',
+    'jackie@itelestar.com',
+    'vie@itelestar.com',
+    'branndon@itelestar.com',
+    'meixi@itelestar.com',
+    'hayden@itelestar.com',
+    'kim@itelestar.com',
+    'selina@itelestar.com',
+  ];
+
+  // 3. Find all users to purge (all users NOT in ALLOWED_EMAILS)
+  const usersToPurge = await prisma.user.findMany({
     where: {
-      OR: [
-        { email: { endsWith: '@telestar.demo' } },
-        { email: { startsWith: 'sdr.e2e.' } },
-        { email: { startsWith: 'test.' } },
-      ],
+      email: {
+        notIn: ALLOWED_EMAILS,
+      },
     },
     select: { id: true, email: true },
   });
@@ -99,11 +117,11 @@ async function main() {
   const dean = await prisma.user.findUnique({ where: { email: 'dean@telestar.vn' } });
   const fallbackUserId = dean?.id ?? null;
 
-  for (const u of strayUsers) {
+  for (const u of usersToPurge) {
     // 1. Unbind / reassign all leads
     const assignedLeads = await prisma.lead.findMany({ where: { assignedToId: u.id }, select: { id: true, email: true } }).catch(() => []);
     for (const lead of assignedLeads) {
-      if (lead.email.includes('e2e') || lead.email.includes('test')) {
+      if (lead.email.includes('e2e') || lead.email.includes('test') || lead.email.endsWith('@telestar.demo')) {
         await prisma.activity.deleteMany({ where: { leadId: lead.id } }).catch(() => {});
         await prisma.task.deleteMany({ where: { leadId: lead.id } }).catch(() => {});
         await prisma.note.deleteMany({ where: { leadId: lead.id } }).catch(() => {});
@@ -115,7 +133,7 @@ async function main() {
       }
     }
 
-    // 2. Unbind all meetings & opportunities
+    // 2. Unbind all meetings, opportunities, links, batches
     await prisma.meeting.updateMany({ where: { sdrId: u.id }, data: { sdrId: fallbackUserId } }).catch(() => {});
     await prisma.meeting.updateMany({ where: { outcomeLoggedById: u.id }, data: { outcomeLoggedById: fallbackUserId } }).catch(() => {});
     await prisma.opportunity.updateMany({ where: { ownerId: u.id }, data: { ownerId: fallbackUserId } }).catch(() => {});
@@ -145,17 +163,7 @@ async function main() {
     
     // 4. Delete user
     await prisma.user.delete({ where: { id: u.id } }).catch((err) => console.error(`Failed deleting ${u.email}:`, err.message));
-    console.log(`🧹 Purged stray test user: ${u.email}`);
-  }
-
-  // Update Brandon's login email to branndon@itelestar.com
-  const updatedBrandon = await prisma.user.updateMany({
-    where: { email: 'brandon@itelestar.com' },
-    data: { email: 'branndon@itelestar.com' },
-  }).catch(() => ({ count: 0 }));
-
-  if (updatedBrandon.count > 0) {
-    console.log(`✏️ Updated Brandon email login to: branndon@itelestar.com`);
+    console.log(`🧹 Purged user: ${u.email}`);
   }
 
   // 9. Display Active Production Inventory
