@@ -66,7 +66,7 @@
 ## 5. Deployed Feature Capabilities
 
 1. **Enterprise Core CRM:**
-   * Multi-role RBAC: Director (`dean@telestar.vn`), Floor Manager (`sonny@itelestar.com`), Team Lead (`branndon@itelestar.com`), SDR (`lan.pham@itelestar.com`), Leadgen Manager (`dominic@itelestar.com`).
+   * Multi-role RBAC (10 Core Team Members): Director (`dean@telestar.vn`), Floor Managers (`sonny@itelestar.com`, `alayna@itelestar.com`), Team Leads (`branndon@itelestar.com`, `jackie@itelestar.com`, `vie@itelestar.com`, `meixi@itelestar.com`, `hayden@itelestar.com`, `kim@itelestar.com`, `selina@itelestar.com`).
    * Lead Pool, Sequence Engine, Cadence Scheduler, Inbox Sync, Meeting Bookings, Opportunities, Client Reports.
 2. **Next-Gen AI Copilot:**
    * Inbound Email Intent Classification (`/inbox`) & 1-Click Draft Generator.
