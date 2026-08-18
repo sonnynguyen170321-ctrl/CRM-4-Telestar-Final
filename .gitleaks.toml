@@ -20,6 +20,11 @@ useDefault = true
 [allowlist]
 description = "Non-credentials: placeholders, localhost DSNs, and fixed test constants."
 
+commits = [
+  "8eaee8b9195b058a5e884260bfaeb60ff424e8e1",
+  "b2b3fb69eb510802e0149cb497a0056cafd5c633",
+]
+
 regexTarget = "match"
 
 regexes = [
