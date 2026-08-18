@@ -99,12 +99,27 @@ async function main() {
   for (const u of strayUsers) {
     await prisma.activity.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.task.deleteMany({ where: { assignedToId: u.id } }).catch(() => {});
+    await prisma.note.deleteMany({ where: { userId: u.id } }).catch(() => {});
+    await prisma.notification.deleteMany({ where: { userId: u.id } }).catch(() => {});
+    await prisma.reminder.deleteMany({ where: { userId: u.id } }).catch(() => {});
+    await prisma.emailAccount.deleteMany({ where: { userId: u.id } }).catch(() => {});
+    await prisma.campaignSdr.deleteMany({ where: { sdrId: u.id } }).catch(() => {});
+    await prisma.auditLog.deleteMany({ where: { userId: u.id } }).catch(() => {});
+    await prisma.aiMemory.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.lead.updateMany({ where: { assignedToId: u.id }, data: { assignedToId: null } }).catch(() => {});
+    await prisma.meeting.updateMany({ where: { sdrId: u.id }, data: { sdrId: null } }).catch(() => {});
+    await prisma.meeting.updateMany({ where: { outcomeLoggedById: u.id }, data: { outcomeLoggedById: null } }).catch(() => {});
+    await prisma.opportunity.updateMany({ where: { ownerId: u.id }, data: { ownerId: null } }).catch(() => {});
+    await prisma.opportunity.updateMany({ where: { createdById: u.id }, data: { createdById: null } }).catch(() => {});
+    await prisma.bookingLink.updateMany({ where: { createdById: u.id }, data: { createdById: null } }).catch(() => {});
+    await prisma.importBatch.updateMany({ where: { uploadedById: u.id }, data: { uploadedById: null } }).catch(() => {});
+    await prisma.user.updateMany({ where: { managerId: u.id }, data: { managerId: null } }).catch(() => {});
     await prisma.prospectTransition.deleteMany({ where: { actorUserId: u.id } }).catch(() => {});
     await prisma.agentAction.deleteMany({ where: { actorUserId: u.id } }).catch(() => {});
     await prisma.agentApprovalRequest.deleteMany({ where: { requestedById: u.id } }).catch(() => {});
-    await prisma.meeting.deleteMany({ where: { sdrId: u.id } }).catch(() => {});
-    await prisma.user.delete({ where: { id: u.id } }).catch(() => {});
+    await prisma.aiCall.deleteMany({ where: { userId: u.id } }).catch(() => {});
+    
+    await prisma.user.delete({ where: { id: u.id } }).catch((err) => console.error(`Failed deleting ${u.email}:`, err.message));
     console.log(`🧹 Purged stray test user: ${u.email}`);
   }
 
