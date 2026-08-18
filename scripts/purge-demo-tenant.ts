@@ -97,29 +97,29 @@ async function main() {
   });
 
   for (const u of strayUsers) {
-    await prisma.activity.deleteMany({ where: { userId: u.id } }).catch(() => {});
-    await prisma.task.deleteMany({ where: { assignedToId: u.id } }).catch(() => {});
-    await prisma.note.deleteMany({ where: { userId: u.id } }).catch(() => {});
-    await prisma.notification.deleteMany({ where: { userId: u.id } }).catch(() => {});
-    await prisma.reminder.deleteMany({ where: { userId: u.id } }).catch(() => {});
-    await prisma.emailAccount.deleteMany({ where: { userId: u.id } }).catch(() => {});
-    await prisma.campaignSdr.deleteMany({ where: { sdrId: u.id } }).catch(() => {});
-    await prisma.auditLog.deleteMany({ where: { userId: u.id } }).catch(() => {});
-    await prisma.aiMemory.deleteMany({ where: { userId: u.id } }).catch(() => {});
-    await prisma.lead.updateMany({ where: { assignedToId: u.id }, data: { assignedToId: null } }).catch(() => {});
-    await prisma.meeting.updateMany({ where: { sdrId: u.id }, data: { sdrId: null } }).catch(() => {});
-    await prisma.meeting.updateMany({ where: { outcomeLoggedById: u.id }, data: { outcomeLoggedById: null } }).catch(() => {});
-    await prisma.opportunity.updateMany({ where: { ownerId: u.id }, data: { ownerId: null } }).catch(() => {});
-    await prisma.opportunity.updateMany({ where: { createdById: u.id }, data: { createdById: null } }).catch(() => {});
-    await prisma.bookingLink.updateMany({ where: { createdById: u.id }, data: { createdById: null } }).catch(() => {});
-    await prisma.importBatch.updateMany({ where: { uploadedById: u.id }, data: { uploadedById: null } }).catch(() => {});
-    await prisma.user.updateMany({ where: { managerId: u.id }, data: { managerId: null } }).catch(() => {});
-    await prisma.prospectTransition.deleteMany({ where: { actorUserId: u.id } }).catch(() => {});
-    await prisma.agentAction.deleteMany({ where: { actorUserId: u.id } }).catch(() => {});
-    await prisma.agentApprovalRequest.deleteMany({ where: { requestedById: u.id } }).catch(() => {});
-    await prisma.aiCall.deleteMany({ where: { userId: u.id } }).catch(() => {});
+    await prisma.$executeRawUnsafe(`UPDATE "Lead" SET "assignedToId" = NULL WHERE "assignedToId" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`UPDATE "Meeting" SET "sdrId" = NULL WHERE "sdrId" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`UPDATE "Meeting" SET "outcomeLoggedById" = NULL WHERE "outcomeLoggedById" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`UPDATE "Opportunity" SET "ownerId" = NULL WHERE "ownerId" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`UPDATE "Opportunity" SET "createdById" = NULL WHERE "createdById" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`UPDATE "BookingLink" SET "createdById" = NULL WHERE "createdById" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`UPDATE "ImportBatch" SET "uploadedById" = NULL WHERE "uploadedById" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`UPDATE "User" SET "managerId" = NULL WHERE "managerId" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`DELETE FROM "Activity" WHERE "userId" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`DELETE FROM "Task" WHERE "assignedToId" = '${u.id}' OR "createdById" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`DELETE FROM "Note" WHERE "userId" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`DELETE FROM "Notification" WHERE "userId" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`DELETE FROM "Reminder" WHERE "userId" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`DELETE FROM "EmailAccount" WHERE "userId" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`DELETE FROM "CampaignSdr" WHERE "sdrId" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`DELETE FROM "AuditLog" WHERE "userId" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`DELETE FROM "AiMemory" WHERE "userId" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`DELETE FROM "ProspectTransition" WHERE "actorUserId" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`DELETE FROM "AgentAction" WHERE "actorUserId" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`DELETE FROM "AgentApprovalRequest" WHERE "requestedById" = '${u.id}'`).catch(() => {});
+    await prisma.$executeRawUnsafe(`DELETE FROM "AiCall" WHERE "userId" = '${u.id}'`).catch(() => {});
     
-    await prisma.user.delete({ where: { id: u.id } }).catch((err) => console.error(`Failed deleting ${u.email}:`, err.message));
+    await prisma.$executeRawUnsafe(`DELETE FROM "User" WHERE id = '${u.id}'`);
     console.log(`🧹 Purged stray test user: ${u.email}`);
   }
 
