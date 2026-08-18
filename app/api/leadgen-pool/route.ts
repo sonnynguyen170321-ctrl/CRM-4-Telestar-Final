@@ -37,6 +37,9 @@ export async function GET(req: NextRequest) {
     {
       status: sp.get('status') ?? undefined,
       qualification: sp.get('qualification') ?? undefined,
+      qualityClass: sp.get('qualityClass') ?? undefined,
+      reuseStatus: sp.get('reuseStatus') ?? undefined,
+      dataStatus: sp.get('dataStatus') ?? undefined,
       search: sp.get('search') ?? undefined,
       sourceType: sp.get('sourceType') ?? undefined,
       assignedCampaignId: sp.get('campaignId') ?? undefined,

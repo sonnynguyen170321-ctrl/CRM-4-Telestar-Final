@@ -31,6 +31,8 @@ import dynamic from 'next/dynamic';
 
 const CallDialerModal = dynamic(() => import('@/components/CallDialerModal'), { ssr: false });
 import NextBestActionCard from '@/components/ai/NextBestActionCard';
+import ContactIntelligenceBadge from '@/components/intelligence/ContactIntelligenceBadge';
+import ContactIntelligenceDrawer from '@/components/intelligence/ContactIntelligenceDrawer';
 
 interface MeetingItem {
   id: string;
@@ -84,6 +86,7 @@ interface LeadDetail {
   campaign?: { id: string; name: string; client?: { id: string; name: string } } | null;
   assignedTo?: { id: string; firstName: string; lastName: string } | null;
   contact?: {
+    id?: string;
     fullName?: string | null;
     department?: string | null;
     seniority?: string | null;
@@ -92,6 +95,13 @@ interface LeadDetail {
     emailValidation?: string | null;
     emailScore?: number | null;
     alternateEmail?: string | null;
+    intelligence?: {
+      qualityClass?: any;
+      reuseStatus?: any;
+      intrinsicQualityScore?: number;
+      dataConfidenceScore?: number;
+      lifecycleState?: any;
+    } | null;
   } | null;
   account?: {
     website?: string | null;
@@ -196,6 +206,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
   const [aiResearchLoading, setAiResearchLoading] = useState(false);
   const [aiResearchResult, setAiResearchResult] = useState<any>(null);
   const [copiedHookId, setCopiedHookId] = useState<string | null>(null);
+  const [showIntelligenceDrawer, setShowIntelligenceDrawer] = useState(false);
 
   const handleGenerateResearch = async () => {
     if (!leadId) return;
@@ -853,6 +864,14 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               <span className={`px-2 py-0.5 rounded text-[10px] font-bold border capitalize ${priorityColors[lead.priority]}`}>
                 {lead.priority} Priority
               </span>
+              {lead.contact?.intelligence && (
+                <ContactIntelligenceBadge
+                  qualityClass={lead.contact.intelligence.qualityClass}
+                  reuseStatus={lead.contact.intelligence.reuseStatus}
+                  score={lead.contact.intelligence.intrinsicQualityScore}
+                  onClick={() => setShowIntelligenceDrawer(true)}
+                />
+              )}
             </div>
             <h2 className="font-display font-bold text-base text-text-primary mt-1.5 leading-tight">
               {lead.firstName} {lead.lastName}
@@ -2193,6 +2212,15 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
             reloadLead();
             setOutcomeMeeting(null);
           }}
+        />
+      )}
+
+      {lead && (
+        <ContactIntelligenceDrawer
+          contactId={lead.contact?.id || (lead as any).contactId || null}
+          contactName={`${lead.firstName} ${lead.lastName}`}
+          isOpen={showIntelligenceDrawer}
+          onClose={() => setShowIntelligenceDrawer(false)}
         />
       )}
     </div>

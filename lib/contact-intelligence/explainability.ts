@@ -5,6 +5,7 @@ export type ContactIntelligenceExplainability = {
   keyStrengths: string[];
   riskFactors: string[];
   recommendedAction: string;
+  reuseReasons: string[];
   scoringBreakdowns: {
     intrinsicQuality: ContactScoreBreakdown;
     dataConfidence: ContactScoreBreakdown;
@@ -76,6 +77,7 @@ export function buildContactExplainability(params: {
     keyStrengths: keyStrengths.length > 0 ? keyStrengths : ['Basic contact information recorded.'],
     riskFactors: riskFactors.length > 0 ? riskFactors : ['No major operational risks identified.'],
     recommendedAction,
+    reuseReasons: params.reuseReasons,
     scoringBreakdowns: {
       intrinsicQuality: params.qualityBreakdown,
       dataConfidence: params.confidenceBreakdown,

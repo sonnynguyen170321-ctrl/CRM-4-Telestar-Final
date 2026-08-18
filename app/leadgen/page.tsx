@@ -17,11 +17,13 @@ import {
   Tag,
   Shuffle,
   FileSpreadsheet,
+  ShieldCheck,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 import LeadgenTeamProgress from '@/components/leadgen/LeadgenTeamProgress';
+import DatabaseHealthSummary from '@/components/leadgen/DatabaseHealthSummary';
 import SequencePerformanceReport from '@/components/SequencePerformanceReport';
 import type { ScopedSequenceStats } from '@/lib/sequences/analytics';
 
@@ -87,7 +89,7 @@ export default function LeadgenPage() {
   // Leadgen Manager custom states
   const [scope, setScope] = useState<{ kind: 'manager' | 'member'; campaignIds?: string[] } | null>(null);
   const [seqStats, setSeqStats] = useState<ScopedSequenceStats | null>(null);
-  const [managerTab, setManagerTab] = useState<'assign' | 'enrich' | 'outcomes' | 'intake' | 'progress'>('assign');
+  const [managerTab, setManagerTab] = useState<'assign' | 'enrich' | 'outcomes' | 'intake' | 'progress' | 'intelligence'>('assign');
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
   const [routeCampaignId, setRouteCampaignId] = useState('');
   const [routeSdrId, setRouteSdrId] = useState('');
@@ -311,6 +313,7 @@ export default function LeadgenPage() {
           <div className="px-6 py-2 border-b border-card-border bg-bg-main flex items-center gap-2 flex-shrink-0">
             {[
               { id: 'assign', label: 'Route & Assign', icon: Shuffle },
+              { id: 'intelligence', label: 'Commercial Assets & Health', icon: ShieldCheck },
               { id: 'enrich', label: 'Enrich & Intent Board', icon: Tag },
               { id: 'outcomes', label: 'Outcomes & Reports', icon: CheckCircle2 },
               { id: 'progress', label: 'Leadgen Team Progress', icon: Users },
@@ -642,6 +645,18 @@ export default function LeadgenPage() {
             {/* T5: Leadgen Team Progress */}
             {managerTab === 'progress' && (
               <LeadgenTeamProgress />
+            )}
+
+            {/* T6: Commercial Intelligence Assets & Database Health */}
+            {managerTab === 'intelligence' && (
+              <div className="space-y-6">
+                <DatabaseHealthSummary
+                  onApplyFilter={(k, v) => {
+                    setSearch(`${k}:${v}`);
+                    setManagerTab('assign');
+                  }}
+                />
+              </div>
             )}
           </div>
         </div>

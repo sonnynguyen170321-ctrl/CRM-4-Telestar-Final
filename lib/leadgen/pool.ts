@@ -73,6 +73,9 @@ export async function logLeadgenActivity(params: {
 export type PoolListQuery = {
   status?: string;
   qualification?: string;
+  qualityClass?: string;
+  reuseStatus?: string;
+  dataStatus?: string;
   search?: string;
   sourceType?: string;
   assignedCampaignId?: string;
@@ -92,13 +95,26 @@ const POOL_SEARCH_FIELDS = [
   'sourceName',
 ] as const;
 
-export function buildPoolWhere(query: Pick<PoolListQuery, 'status' | 'qualification' | 'search' | 'sourceType' | 'assignedCampaignId' | 'assignedSdrId'>, tenantId: string) {
+export function buildPoolWhere(query: Pick<PoolListQuery, 'status' | 'qualification' | 'qualityClass' | 'reuseStatus' | 'dataStatus' | 'search' | 'sourceType' | 'assignedCampaignId' | 'assignedSdrId'>, tenantId: string) {
   const where: Record<string, unknown> = { tenantId };
   if (query.status) where.status = query.status;
   if (query.qualification) where.qualification = query.qualification;
   if (query.sourceType) where.sourceType = query.sourceType;
   if (query.assignedCampaignId) where.assignedCampaignId = query.assignedCampaignId;
   if (query.assignedSdrId) where.assignedSdrId = query.assignedSdrId;
+
+  // Commercial Intelligence Asset Filters
+  const contactWhere: Record<string, unknown> = {};
+  const intelWhere: Record<string, unknown> = {};
+  if (query.qualityClass) intelWhere.qualityClass = query.qualityClass;
+  if (query.reuseStatus) intelWhere.reuseStatus = query.reuseStatus;
+  if (query.dataStatus) intelWhere.dataStatus = query.dataStatus;
+
+  if (Object.keys(intelWhere).length > 0) {
+    contactWhere.intelligence = intelWhere;
+    where.contact = contactWhere;
+  }
+
   if (query.search) {
     // One AND-ed clause per whitespace-separated term, not the whole raw string against
     // each column. "Marcus Webb" used to return nothing because no single column holds
@@ -146,6 +162,11 @@ export async function listPoolItems(query: PoolListQuery, tenantId: string) {
         assignedCampaign: { select: { id: true, name: true } },
         assignedSdr: { select: { id: true, firstName: true, lastName: true } },
         convertedLead: { select: { id: true, firstName: true, lastName: true, stage: true } },
+        contact: {
+          include: {
+            intelligence: true,
+          },
+        },
       },
     }),
     prisma.leadPoolItem.count({ where: where as never }),
