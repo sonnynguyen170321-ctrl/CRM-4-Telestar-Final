@@ -84,17 +84,19 @@ async function main() {
     console.log(`✅ Demo tenant "${t}" completely purged from database.`);
   }
 
-  // Also remove any stray demo user accounts
+  // Also remove any stray demo user accounts or e2e test accounts
   const deletedStrayUsers = await prisma.user.deleteMany({
     where: {
-      email: {
-        endsWith: '@telestar.demo',
-      },
+      OR: [
+        { email: { endsWith: '@telestar.demo' } },
+        { email: { startsWith: 'sdr.e2e.' } },
+        { email: { startsWith: 'test.' } },
+      ],
     },
   }).catch(() => ({ count: 0 }));
 
   if (deletedStrayUsers.count > 0) {
-    console.log(`🧹 Removed ${deletedStrayUsers.count} stray @telestar.demo user accounts.`);
+    console.log(`🧹 Removed ${deletedStrayUsers.count} stray test/demo user accounts.`);
   }
 
   // 9. Display Active Production Inventory
