@@ -136,16 +136,21 @@ async function main() {
     // 2. Unbind all meetings, opportunities, links, batches
     await prisma.meeting.updateMany({ where: { sdrId: u.id }, data: { sdrId: fallbackUserId } }).catch(() => {});
     await prisma.meeting.updateMany({ where: { outcomeLoggedById: u.id }, data: { outcomeLoggedById: fallbackUserId } }).catch(() => {});
+    await prisma.opportunityActivity.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.opportunity.updateMany({ where: { ownerId: u.id }, data: { ownerId: fallbackUserId } }).catch(() => {});
     await prisma.opportunity.updateMany({ where: { createdById: u.id }, data: { createdById: fallbackUserId } }).catch(() => {});
     await prisma.bookingLink.updateMany({ where: { createdById: u.id }, data: { createdById: fallbackUserId } }).catch(() => {});
     await prisma.importBatch.updateMany({ where: { uploadedById: u.id }, data: { uploadedById: fallbackUserId } }).catch(() => {});
+    await prisma.clientReport.updateMany({ where: { createdById: u.id }, data: { createdById: fallbackUserId } }).catch(() => {});
+    await prisma.leadPoolItem.updateMany({ where: { assignedToId: u.id }, data: { assignedToId: fallbackUserId } }).catch(() => {});
+    await prisma.workOrder.updateMany({ where: { createdById: u.id }, data: { createdById: fallbackUserId } }).catch(() => {});
     await prisma.user.updateMany({ where: { managerId: u.id }, data: { managerId: null } }).catch(() => {});
 
     // 3. Delete user's own operational records
     await prisma.activity.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.task.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.note.deleteMany({ where: { userId: u.id } }).catch(() => {});
+    await prisma.note.deleteMany({ where: { createdById: u.id } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.reminder.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.emailAccount.deleteMany({ where: { userId: u.id } }).catch(() => {});
