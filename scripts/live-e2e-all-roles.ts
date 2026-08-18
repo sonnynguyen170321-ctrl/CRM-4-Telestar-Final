@@ -12,32 +12,46 @@ interface RoleTestConfig {
 
 const ROLES: RoleTestConfig[] = [
   {
+    roleName: 'director',
+    email: 'dean@telestar.vn',
+    password: 'Telestar2026',
+    expectedGreeting: 'Dean',
+    specificPages: ['/', '/leads', '/campaigns', '/sequences', '/tasks'],
+  },
+  {
     roleName: 'floor_manager',
-    email: 'sonny@telestar.vn',
+    email: 'sonny@itelestar.com',
     password: 'Telestar2026',
     expectedGreeting: 'Sonny',
     specificPages: ['/', '/leads', '/tasks', '/sequences', '/campaigns'],
   },
   {
-    roleName: 'sdr',
-    email: 'carlos.reyes@telestar.vn',
+    roleName: 'floor_manager_alayna',
+    email: 'alayna@itelestar.com',
     password: 'Telestar2026',
-    expectedGreeting: 'Carlos',
-    specificPages: ['/', '/tasks', '/leads', '/inbox'],
+    expectedGreeting: 'Alayna',
+    specificPages: ['/', '/leads', '/tasks', '/sequences', '/campaigns'],
   },
   {
-    roleName: 'leadgen_manager',
-    email: 'dominic@telestar.vn',
+    roleName: 'team_lead_brandon',
+    email: 'branndon@itelestar.com',
     password: 'Telestar2026',
-    expectedGreeting: 'Dominic',
-    specificPages: ['/', '/leads', '/leads/import'],
+    expectedGreeting: 'Brandon',
+    specificPages: ['/', '/leads', '/tasks', '/campaigns'],
+  },
+  {
+    roleName: 'team_lead_jackie',
+    email: 'jackie@itelestar.com',
+    password: 'Telestar2026',
+    expectedGreeting: 'Jackie',
+    specificPages: ['/', '/leads', '/tasks', '/campaigns'],
   },
 ];
 
 async function main() {
   console.log('🚀 Starting Multi-Role Production Playwright Verification Suite on https://crm.telestar.cloud...\n');
 
-  const artifactDir = 'C:\\Users\\admin\\.gemini\\antigravity-ide\\brain\\ed05b21f-cfdf-40f6-a1cd-a361d0d60c8d';
+  const artifactDir = 'C:\\Users\\admin\\.gemini\\antigravity-ide\\brain\\8f8094d8-37ac-4474-ab32-1162b26a9e94';
   const baseScreenshotDir = path.join(artifactDir, 'screenshots', 'roles');
   if (!fs.existsSync(baseScreenshotDir)) {
     fs.mkdirSync(baseScreenshotDir, { recursive: true });

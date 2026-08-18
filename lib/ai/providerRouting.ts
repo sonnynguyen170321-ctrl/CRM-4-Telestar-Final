@@ -15,16 +15,18 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
  * here, and both modes import them.
  */
 
+import { type ModelId } from './models';
+
 export type AiProviderId = 'groq' | 'gemini';
 
-export const GEMINI_FALLBACK_MODEL = 'gemini-flash-latest';
+export const GEMINI_FALLBACK_MODEL: ModelId = 'gemini-flash-latest';
 
 export function hasGroq(): boolean {
-  return !!process.env.GROQ_API_KEY;
+  return !!process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim().length > 0;
 }
 
 export function hasGemini(): boolean {
-  return !!process.env.GEMINI_API_KEY;
+  return !!process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim().length > 0;
 }
 
 /** True when at least one provider is configured. */
@@ -47,9 +49,6 @@ export function primaryProvider(): AiProviderId | null {
 /**
  * Rate limiting is the one failure class worth separating: it is a budget signal, not a bug, and
  * it is the condition under which Gemini's separate quota is worth trying.
- *
- * Shared so the chat path and the background path cannot disagree about what "rate limited"
- * means — `provider.ts` had its own copy of this predicate.
  */
 export function isRateLimitError(err: unknown): boolean {
   if ((err as { status?: number })?.status === 429) return true;
@@ -69,9 +68,9 @@ export function shouldFallbackToGemini(provider: AiProviderId, err: unknown): bo
 }
 
 export function createGroqClient(): Groq {
-  return new Groq({ apiKey: process.env.GROQ_API_KEY });
+  return new Groq({ apiKey: (process.env.GROQ_API_KEY || '').trim() });
 }
 
 export function createGeminiClient(): GoogleGenerativeAI {
-  return new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
+  return new GoogleGenerativeAI((process.env.GEMINI_API_KEY || '').trim());
 }

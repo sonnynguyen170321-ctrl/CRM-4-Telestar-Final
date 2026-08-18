@@ -65,7 +65,10 @@ function createPrismaClient() {
 
   const log: Prisma.LogLevel[] = process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'];
 
-  const client = new PrismaClient({ datasources: { db: { url: connectionString } }, log });
+  const client = new PrismaClient({
+    ...(connectionString ? { datasources: { db: { url: connectionString } } } : {}),
+    log,
+  });
 
   return client.$extends(auditExtension).$extends({
     query: {

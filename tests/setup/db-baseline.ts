@@ -39,13 +39,17 @@ export const RUN_NOW_TEST_TENANT_ID = 'test-tenant-run-now';
 // per query, and this has to run before any context exists.
 const raw = new PrismaClient();
 
-await raw.tenant.createMany({
-  data: [
-    { id: DEFAULT_TEST_TENANT_ID, name: 'Default Test Tenant' },
-    { id: BULLMQ_TEST_TENANT_ID, name: 'BullMQ Suite Tenant' },
-    { id: RUN_NOW_TEST_TENANT_ID, name: 'Run-Now Suite Tenant' },
-  ],
-  skipDuplicates: true,
-});
-
-await raw.$disconnect();
+try {
+  await raw.tenant.createMany({
+    data: [
+      { id: DEFAULT_TEST_TENANT_ID, name: 'Default Test Tenant' },
+      { id: BULLMQ_TEST_TENANT_ID, name: 'BullMQ Suite Tenant' },
+      { id: RUN_NOW_TEST_TENANT_ID, name: 'Run-Now Suite Tenant' },
+    ],
+    skipDuplicates: true,
+  });
+} catch {
+  // Gracefully continue so mocked/isolated unit suites execute. Suites requiring live DB will fail on their own queries.
+} finally {
+  await raw.$disconnect().catch(() => {});
+}
