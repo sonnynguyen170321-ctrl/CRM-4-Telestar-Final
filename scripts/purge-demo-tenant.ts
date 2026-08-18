@@ -85,7 +85,7 @@ async function main() {
   }
 
   // Also remove any stray demo user accounts or e2e test accounts
-  const deletedStrayUsers = await prisma.user.deleteMany({
+  const strayUsers = await prisma.user.findMany({
     where: {
       OR: [
         { email: { endsWith: '@telestar.demo' } },
@@ -93,7 +93,20 @@ async function main() {
         { email: { startsWith: 'test.' } },
       ],
     },
-  }).catch(() => ({ count: 0 }));
+    select: { id: true, email: true },
+  });
+
+  for (const u of strayUsers) {
+    await prisma.activity.deleteMany({ where: { userId: u.id } }).catch(() => {});
+    await prisma.task.deleteMany({ where: { assignedToId: u.id } }).catch(() => {});
+    await prisma.lead.updateMany({ where: { assignedToId: u.id }, data: { assignedToId: null } }).catch(() => {});
+    await prisma.prospectTransition.deleteMany({ where: { actorUserId: u.id } }).catch(() => {});
+    await prisma.agentAction.deleteMany({ where: { actorUserId: u.id } }).catch(() => {});
+    await prisma.agentApprovalRequest.deleteMany({ where: { requestedById: u.id } }).catch(() => {});
+    await prisma.meeting.deleteMany({ where: { sdrId: u.id } }).catch(() => {});
+    await prisma.user.delete({ where: { id: u.id } }).catch(() => {});
+    console.log(`🧹 Purged stray test user: ${u.email}`);
+  }
 
   // Update Brandon's login email to branndon@itelestar.com
   const updatedBrandon = await prisma.user.updateMany({
