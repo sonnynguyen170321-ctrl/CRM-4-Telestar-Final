@@ -15,9 +15,11 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
  * here, and both modes import them.
  */
 
+import { type ModelId } from './models';
+
 export type AiProviderId = 'groq' | 'gemini';
 
-export const GEMINI_FALLBACK_MODEL = 'gemini-1.5-flash';
+export const GEMINI_FALLBACK_MODEL: ModelId = 'gemini-flash-latest';
 
 export function hasGroq(): boolean {
   return !!process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim().length > 0;

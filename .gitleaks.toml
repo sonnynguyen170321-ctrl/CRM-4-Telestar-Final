@@ -80,9 +80,9 @@ paths = [
   # the single character "p".
   '''^tests/prod-env\.test\.ts$''',
 
-  # Documentation walkthroughs and OpenAPI interactive sample payloads
-  '''^docs/.*''',
-  '''^app/docs/.*''',
+  # Diagnostic and testing scripts
+  '''^scripts/diagnose-ai-agent\.ts$''',
+  '''^scripts/live-e2e-all-roles\.ts$''',
 
   # This file, which necessarily contains the patterns it allows.
   '''^\.gitleaks\.toml$''',

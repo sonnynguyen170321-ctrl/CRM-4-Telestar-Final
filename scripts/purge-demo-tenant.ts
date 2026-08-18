@@ -129,27 +129,25 @@ async function main() {
       } else if (fallbackUserId) {
         await prisma.lead.update({ where: { id: lead.id }, data: { assignedToId: fallbackUserId } }).catch(() => {});
       } else {
-        await prisma.lead.update({ where: { id: lead.id }, data: { assignedToId: null } }).catch(() => {});
+        await prisma.lead.update({ where: { id: lead.id }, data: { assignedToId: undefined } }).catch(() => {});
       }
     }
 
     // 2. Unbind all meetings, opportunities, links, batches
-    await prisma.meeting.updateMany({ where: { sdrId: u.id }, data: { sdrId: fallbackUserId } }).catch(() => {});
-    await prisma.meeting.updateMany({ where: { outcomeLoggedById: u.id }, data: { outcomeLoggedById: fallbackUserId } }).catch(() => {});
+    if (fallbackUserId) {
+      await prisma.meeting.updateMany({ where: { sdrId: u.id }, data: { sdrId: fallbackUserId } }).catch(() => {});
+      await prisma.meeting.updateMany({ where: { outcomeLoggedById: u.id }, data: { outcomeLoggedById: fallbackUserId } }).catch(() => {});
+      await prisma.opportunity.updateMany({ where: { ownerId: u.id }, data: { ownerId: fallbackUserId } }).catch(() => {});
+      await prisma.opportunity.updateMany({ where: { createdById: u.id }, data: { createdById: fallbackUserId } }).catch(() => {});
+      await prisma.bookingLink.updateMany({ where: { createdById: u.id }, data: { createdById: fallbackUserId } }).catch(() => {});
+      await prisma.workOrder.updateMany({ where: { createdById: u.id }, data: { createdById: fallbackUserId } }).catch(() => {});
+    }
     await prisma.opportunityActivity.deleteMany({ where: { userId: u.id } }).catch(() => {});
-    await prisma.opportunity.updateMany({ where: { ownerId: u.id }, data: { ownerId: fallbackUserId } }).catch(() => {});
-    await prisma.opportunity.updateMany({ where: { createdById: u.id }, data: { createdById: fallbackUserId } }).catch(() => {});
-    await prisma.bookingLink.updateMany({ where: { createdById: u.id }, data: { createdById: fallbackUserId } }).catch(() => {});
-    await prisma.importBatch.updateMany({ where: { uploadedById: u.id }, data: { uploadedById: fallbackUserId } }).catch(() => {});
-    await prisma.clientReport.updateMany({ where: { createdById: u.id }, data: { createdById: fallbackUserId } }).catch(() => {});
-    await prisma.leadPoolItem.updateMany({ where: { assignedToId: u.id }, data: { assignedToId: fallbackUserId } }).catch(() => {});
-    await prisma.workOrder.updateMany({ where: { createdById: u.id }, data: { createdById: fallbackUserId } }).catch(() => {});
     await prisma.user.updateMany({ where: { managerId: u.id }, data: { managerId: null } }).catch(() => {});
 
     // 3. Delete user's own operational records
     await prisma.activity.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.task.deleteMany({ where: { userId: u.id } }).catch(() => {});
-    await prisma.note.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.note.deleteMany({ where: { createdById: u.id } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.reminder.deleteMany({ where: { userId: u.id } }).catch(() => {});
@@ -161,8 +159,7 @@ async function main() {
     await prisma.template.deleteMany({ where: { createdById: u.id } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.aiMemory.deleteMany({ where: { userId: u.id } }).catch(() => {});
-    await prisma.prospectTransition.deleteMany({ where: { actorUserId: u.id } }).catch(() => {});
-    await prisma.agentAction.deleteMany({ where: { actorUserId: u.id } }).catch(() => {});
+    await prisma.agentAction.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.agentApprovalRequest.deleteMany({ where: { requestedById: u.id } }).catch(() => {});
     await prisma.aiCall.deleteMany({ where: { userId: u.id } }).catch(() => {});
     
