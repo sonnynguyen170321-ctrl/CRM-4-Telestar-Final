@@ -57,6 +57,8 @@ regexes = [
   '''telestarPass123''',
   '''tl_live_[A-Za-z0-9_]+''',
   '''tl_test_[A-Za-z0-9_]+''',
+  '''ghp_123456789012345678901234567890123456''',
+  '''postgresql://crm:SuperSecret@10\.0\.0\.1:5432/telestar_crm''',
 ]
 
 paths = [
