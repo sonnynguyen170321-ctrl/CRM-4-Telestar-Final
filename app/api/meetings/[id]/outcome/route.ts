@@ -35,6 +35,10 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
       painPoints: body.painPoints,
       nextStep: body.nextStep,
       followUpAt: body.followUpAt,
+      decisionMakerRole: body.decisionMakerRole,
+      relationshipStrength: body.relationshipStrength,
+      budgetAuthority: body.budgetAuthority,
+      competitiveContext: body.competitiveContext,
     });
 
     // Auto-create an opportunity only when the meeting completed as qualified

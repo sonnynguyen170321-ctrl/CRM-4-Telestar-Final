@@ -198,10 +198,15 @@ export async function logMeetingOutcome(input: {
   painPoints?: string | null;
   nextStep?: string | null;
   followUpAt?: Date | null;
+  decisionMakerRole?: string | null;
+  relationshipStrength?: 'weak' | 'developing' | 'strong' | 'advocate' | null;
+  budgetAuthority?: string | null;
+  competitiveContext?: string | null;
 }) {
   const {
     meetingId, user, tenantId, status, outcome,
     outcomeNotes, painPoints, nextStep, followUpAt,
+    decisionMakerRole, relationshipStrength, budgetAuthority, competitiveContext,
   } = input;
 
   // Update the meeting
@@ -282,6 +287,10 @@ export async function logMeetingOutcome(input: {
     outcomeNotes,
     painPoints,
     nextStep,
+    decisionMakerRole,
+    relationshipStrength,
+    budgetAuthority,
+    competitiveContext,
     userId: user.id,
     tenantId,
   });

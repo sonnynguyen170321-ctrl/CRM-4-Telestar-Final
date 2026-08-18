@@ -554,4 +554,38 @@ describe('Contact Classification Engines', () => {
       expect(evalResult.reasons.some((r) => r.includes('locked in an active opportunity'))).toBe(true);
     });
   });
+
+  describe('Phase 5 Relationship Retention & Meeting Intelligence', () => {
+    it('accurately evaluates relationship strength and owner protection', () => {
+      const relationship = calculateRelationshipScore({
+        hasOwner: true,
+        wonOpportunityCount: 1,
+        acceptedOpportunityCount: 2,
+        meetingCompletedCount: 3,
+        relationshipStrength: 'champion',
+        relationshipType: 'champion',
+      });
+
+      expect(relationship.score).toBe(100);
+      expect(relationship.factors.some((f) => f.label === 'Champion Advocate')).toBe(true);
+    });
+
+    it('requires warm routing when contact has a different relationship owner', () => {
+      const evalResult = evaluateContactReuseEligibility({
+        isSuppressed: false,
+        isArchived: false,
+        isDataInvalid: false,
+        dataStatus: 'verified',
+        hasActiveOpportunity: false,
+        isCurrentlyEnrolled: false,
+        hasRelationshipOwner: true,
+        relationshipOwnerId: 'sdr-original-owner',
+        lastContactedAt: new Date(Date.now() - 60 * 86400000),
+        freshnessScore: 95,
+      });
+
+      expect(evalResult.requiresWarmRouting).toBe(true);
+      expect(evalResult.recommendedOwnerId).toBe('sdr-original-owner');
+    });
+  });
 });

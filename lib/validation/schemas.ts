@@ -380,6 +380,11 @@ export const logMeetingOutcomeSchema = z.object({
   painPoints: nullableLongText.optional(),
   nextStep: nullableLongText.optional(),
   followUpAt: isoDate.nullish().optional(),
+  // Commercial Intelligence fields
+  decisionMakerRole: z.string().optional(),
+  relationshipStrength: z.enum(['weak', 'developing', 'strong', 'advocate']).optional(),
+  budgetAuthority: z.string().optional(),
+  competitiveContext: nullableLongText.optional(),
   // Opportunity creation (only honored when outcome === 'qualified_opportunity')
   createOpportunity: z.boolean().optional(),
   opportunityValue: z.coerce.number().min(0).nullish().optional(),

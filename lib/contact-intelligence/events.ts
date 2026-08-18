@@ -206,6 +206,10 @@ export async function onMeetingOutcomeLogged(params: {
   outcomeNotes?: string | null;
   painPoints?: string | null;
   nextStep?: string | null;
+  decisionMakerRole?: string | null;
+  relationshipStrength?: 'weak' | 'developing' | 'strong' | 'advocate' | null;
+  budgetAuthority?: string | null;
+  competitiveContext?: string | null;
   userId: string;
   tenantId: string;
 }): Promise<void> {
@@ -247,6 +251,10 @@ export async function onMeetingOutcomeLogged(params: {
         notes: params.outcomeNotes ?? null,
         painPoints: params.painPoints ?? null,
         nextStep: params.nextStep ?? null,
+        decisionMakerRole: params.decisionMakerRole ?? null,
+        relationshipStrength: params.relationshipStrength ?? null,
+        budgetAuthority: params.budgetAuthority ?? null,
+        competitiveContext: params.competitiveContext ?? null,
       },
     });
 
@@ -257,7 +265,7 @@ export async function onMeetingOutcomeLogged(params: {
         contactId,
         evidenceType: 'relationship_strengthened',
         key: 'meeting_outcome_positive',
-        summary: `Relationship strengthened via completed meeting`,
+        summary: `Relationship strengthened via completed meeting (${params.relationshipStrength || 'developing'})`,
         sourceType: 'meeting',
         sourceId: params.meetingId,
         sourceModel: 'Meeting',
@@ -266,6 +274,24 @@ export async function onMeetingOutcomeLogged(params: {
         capturedById: params.userId,
         confidence: 90,
       });
+
+      if (params.decisionMakerRole === 'champion' || params.decisionMakerRole === 'economic_buyer') {
+        await emitContactEvidence({
+          tenantId: params.tenantId,
+          contactId,
+          evidenceType: 'authority_signal',
+          key: `role_${params.decisionMakerRole}`,
+          summary: `Confirmed decision maker role: ${params.decisionMakerRole}`,
+          sourceType: 'meeting',
+          sourceId: params.meetingId,
+          sourceModel: 'Meeting',
+          clientId: lead.campaign.clientId,
+          campaignId: lead.campaignId,
+          capturedById: params.userId,
+          confidence: 95,
+          humanConfirmed: true,
+        });
+      }
     }
 
     await recalculateContactIntelligence(contactId, params.tenantId);

@@ -10,6 +10,7 @@ import {
 } from './engine';
 import { occupancyKeyFor, releaseOccupancy } from './occupancy';
 import { enrollmentActivityId, enrollmentStepTaskId } from './identity';
+import { checkContactRelationshipGuard } from '@/lib/contact-intelligence/relationshipGuards';
 
 export { enrollmentActivityId, enrollmentStepTaskId } from './identity';
 
@@ -169,6 +170,19 @@ export async function prepareEnrollment(
     throw new SequenceEnrollmentError(
       'prospect_human_owned',
       `Prospect is in operating state "${lead.operatingState}" — a human is responsible for this conversation and it may not be enrolled`
+    );
+  }
+
+  // Commercial Intelligence: Relationship owner protection & cooldown guards
+  const relGuard = await checkContactRelationshipGuard({
+    leadId: input.leadId,
+    user,
+    isManagerOverride: user.role === 'director' || user.role === 'floor_manager',
+  });
+  if (!relGuard.allowed) {
+    throw new SequenceEnrollmentError(
+      'forbidden',
+      relGuard.reason || 'Contact is currently protected from automated sequence outreach.'
     );
   }
 

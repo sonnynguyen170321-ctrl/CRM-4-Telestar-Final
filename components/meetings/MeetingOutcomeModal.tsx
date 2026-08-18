@@ -50,6 +50,10 @@ export default function MeetingOutcomeModal({
   const [opportunityClientOwnerName, setOpportunityClientOwnerName] = useState('');
   const [opportunityClientOwnerEmail, setOpportunityClientOwnerEmail] = useState('');
   const [qualificationSummary, setQualificationSummary] = useState('');
+  const [decisionMakerRole, setDecisionMakerRole] = useState<'champion' | 'economic_buyer' | 'technical_evaluator' | 'influencer' | 'blocker' | 'gatekeeper' | ''>('champion');
+  const [relationshipStrength, setRelationshipStrength] = useState<'weak' | 'developing' | 'strong' | 'advocate'>('developing');
+  const [budgetAuthority, setBudgetAuthority] = useState<string>('confirmed');
+  const [competitiveContext, setCompetitiveContext] = useState<string>('');
 
   const willCreateOpportunity =
     createOpportunity && status === 'completed' && outcome === 'qualified_opportunity';
@@ -83,6 +87,10 @@ export default function MeetingOutcomeModal({
           painPoints: painPoints || undefined,
           nextStep: nextStep || undefined,
           createOpportunity: willCreateOpportunity,
+          decisionMakerRole: status === 'completed' ? decisionMakerRole || undefined : undefined,
+          relationshipStrength: status === 'completed' ? relationshipStrength : undefined,
+          budgetAuthority: status === 'completed' ? budgetAuthority || undefined : undefined,
+          competitiveContext: status === 'completed' ? competitiveContext || undefined : undefined,
           opportunityValue: opportunityValue ? Number(opportunityValue) : undefined,
           opportunityCurrency: opportunityCurrency || undefined,
           opportunityClientOwnerName: opportunityClientOwnerName || undefined,
@@ -181,6 +189,70 @@ export default function MeetingOutcomeModal({
               ))}
             </select>
           </div>
+
+          {/* Commercial Intelligence & Relationship Retention */}
+          {status === 'completed' && (
+            <div className="space-y-3 rounded-xl border border-purple-500/25 bg-purple-500/5 p-4">
+              <span className="text-xs font-bold text-purple-300 uppercase tracking-wide">
+                Commercial Intelligence & Persona Capture
+              </span>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-text-muted mb-1.5">Decision Maker Role</label>
+                  <select
+                    value={decisionMakerRole}
+                    onChange={e => setDecisionMakerRole(e.target.value as any)}
+                    className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:ring-1 focus:ring-purple-500/50 outline-none"
+                  >
+                    <option value="champion">Champion / Advocate</option>
+                    <option value="economic_buyer">Economic Buyer (Budget Owner)</option>
+                    <option value="technical_evaluator">Technical Evaluator</option>
+                    <option value="influencer">Influencer / Stakeholder</option>
+                    <option value="gatekeeper">Gatekeeper</option>
+                    <option value="blocker">Blocker</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-text-muted mb-1.5">Relationship Strength</label>
+                  <select
+                    value={relationshipStrength}
+                    onChange={e => setRelationshipStrength(e.target.value as any)}
+                    className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:ring-1 focus:ring-purple-500/50 outline-none"
+                  >
+                    <option value="advocate">Advocate (Top Sponsor)</option>
+                    <option value="strong">Strong (High Trust)</option>
+                    <option value="developing">Developing (Engaged)</option>
+                    <option value="weak">Weak (Initial / Guarded)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-text-muted mb-1.5">Budget Authority</label>
+                  <select
+                    value={budgetAuthority}
+                    onChange={e => setBudgetAuthority(e.target.value)}
+                    className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary focus:ring-1 focus:ring-purple-500/50 outline-none"
+                  >
+                    <option value="confirmed">Confirmed Budget Available</option>
+                    <option value="unconfirmed">Evaluating / Unconfirmed</option>
+                    <option value="no_budget">No Budget Allocated</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-text-muted mb-1.5">Competitor Mentioned</label>
+                  <input
+                    type="text"
+                    value={competitiveContext}
+                    onChange={e => setCompetitiveContext(e.target.value)}
+                    placeholder="e.g. Outreach, Salesforce"
+                    className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-xs text-text-primary placeholder:text-text-muted/50 focus:ring-1 focus:ring-purple-500/50 outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Opportunity creation — only for completed + qualified */}
           {status === 'completed' && outcome === 'qualified_opportunity' && (
