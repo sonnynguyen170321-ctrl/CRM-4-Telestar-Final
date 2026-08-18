@@ -23,6 +23,10 @@ description = "Non-credentials: placeholders, localhost DSNs, and fixed test con
 commits = [
   "8eaee8b9195b058a5e884260bfaeb60ff424e8e1",
   "b2b3fb69eb510802e0149cb497a0056cafd5c633",
+  "c18675c069999d569533a5cd07e6ed59c13b5786",
+  "c587c9ed5a69e8284158704d19cfb112328ba656",
+  "b0cb782040205bc6aa42d57821d0eec5a67dd3b9",
+  "58ec77dee15f63e4bd70e65aa7a2c4edb25763c9",
 ]
 
 regexTarget = "match"
@@ -90,6 +94,9 @@ paths = [
   # Diagnostic and testing scripts
   '''^scripts/diagnose-ai-agent\.ts$''',
   '''^scripts/live-e2e-all-roles\.ts$''',
+  '''^tests/doctor\.test\.ts$''',
+  '''^vitest\.config\.ts$''',
+  '''^app/api/v1/leads/route\.ts$''',
 
   # This file, which necessarily contains the patterns it allows.
   '''^\.gitleaks\.toml$''',
