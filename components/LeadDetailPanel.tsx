@@ -30,6 +30,7 @@ import { PAUSED_REASON_LABELS, normalizePausedReason } from '@/lib/automation/ty
 import dynamic from 'next/dynamic';
 
 const CallDialerModal = dynamic(() => import('@/components/CallDialerModal'), { ssr: false });
+import NextBestActionCard from '@/components/ai/NextBestActionCard';
 
 interface MeetingItem {
   id: string;
@@ -918,6 +919,24 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
             </div>
           </div>
         )}
+
+        {/* SDR Next Best Action Intelligence Card */}
+        <div className="px-4 py-2.5 border-b border-card-border bg-bg-main/30">
+          <NextBestActionCard
+            leadId={lead.id}
+            onExecuteAction={(action) => {
+              if (action === 'REPLY' || action === 'FOLLOW_UP') {
+                setShowComposer(true);
+              } else if (action === 'CALL') {
+                if (lead.phone) setShowDialer(true);
+              } else if (action === 'SCHEDULE') {
+                setShowBookingModal(true);
+              } else if (action === 'REVIEW') {
+                setActiveTab('info');
+              }
+            }}
+          />
+        </div>
 
         {/* Tabs */}
         <div className="flex border-b border-card-border bg-bg-main/20 px-2 overflow-x-auto">

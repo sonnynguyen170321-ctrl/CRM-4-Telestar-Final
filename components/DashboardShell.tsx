@@ -13,6 +13,8 @@ const NewReminderModal = dynamic(() => import('./NewReminderModal'), { ssr: fals
 const NewCampaignModal = dynamic(() => import('./NewCampaignModal'), { ssr: false });
 import { useAppContext } from '@/context/AppContext';
 
+import AttentionBanner from './ai/AttentionBanner';
+
 // Keep the Neon DB warm while the app is actively in use. Pinging every 4 minutes
 // stays under the free-tier 5-minute auto-suspend window, so the first query after
 // idle doesn't pay a cold-start penalty. Only fires while the tab is visible, so a
@@ -61,8 +63,11 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           onNewAction={(type) => setActiveNewModal(type as any)}
         />
 
-        <main className="flex-1 pt-16 p-6 min-h-[calc(100vh-4rem)] flex flex-col aurora-bg">
-          {children}
+        <main className="flex-1 pt-16 min-h-[calc(100vh-4rem)] flex flex-col aurora-bg">
+          <AttentionBanner />
+          <div className="p-6 flex-1 flex flex-col">
+            {children}
+          </div>
         </main>
       </div>
 
