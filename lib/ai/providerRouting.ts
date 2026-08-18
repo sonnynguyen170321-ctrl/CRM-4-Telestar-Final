@@ -57,18 +57,14 @@ export function isRateLimitError(err: unknown): boolean {
 }
 
 /**
- * Whether a failed attempt on `provider` should be retried on Gemini.
+ * Whether a failed attempt on `provider` should be retried on the other one.
  *
- * Falls back on rate limits (429), provider outages (5xx), tool calling parse errors (400),
- * auth rejections (401), and timeouts when Gemini is available.
+ * The established policy, stated once: only a rate limit falls back, and only from Groq, and
+ * only when Gemini is actually configured. A malformed request or a bad key fails on Gemini too,
+ * and retrying it just spends a second call to produce the same error.
  */
 export function shouldFallbackToGemini(provider: AiProviderId, err: unknown): boolean {
-  if (provider !== 'groq' || !hasGemini()) return false;
-  if (isRateLimitError(err)) return true;
-  const status = (err as { status?: number })?.status;
-  if (status && (status >= 400 || status === 401 || status === 403)) return true;
-  const msg = err instanceof Error ? err.message : String(err);
-  return /tool|function|failed_generation|timeout|fetch failed|network|econnrefused|400|401|500|502|503/i.test(msg);
+  return provider === 'groq' && isRateLimitError(err) && hasGemini();
 }
 
 export function createGroqClient(): Groq {
