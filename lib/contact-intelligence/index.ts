@@ -8,3 +8,5 @@ export * from './explainability';
 export * from './service';
 export * from './events';
 export * from './health';
+export * from './matching';
+export * from './assignment';

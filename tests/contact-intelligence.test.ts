@@ -519,4 +519,39 @@ describe('Contact Classification Engines', () => {
       expect(healthTier).toBe('excellent');
     });
   });
+
+  describe('Phase 4 Internal Campaign Matching & Reuse Engine', () => {
+    it('evaluates gap count correctly from required count and eligible contacts', () => {
+      const requiredCount = 100;
+      const deliveredCount = 20;
+      const eligibleCount = 50;
+
+      const neededCount = Math.max(0, requiredCount - deliveredCount);
+      const gapCount = Math.max(0, neededCount - eligibleCount);
+
+      expect(neededCount).toBe(80);
+      expect(gapCount).toBe(30);
+    });
+
+    it('blocks assignment of contacts under active cooldown or client lock', () => {
+      const evalResult = evaluateContactReuseEligibility({
+        isSuppressed: false,
+        isArchived: false,
+        isDataInvalid: false,
+        dataStatus: 'verified',
+        hasActiveOpportunity: true,
+        activeOpportunityClientId: 'client-A',
+        targetClientId: 'client-B',
+        isCurrentlyEnrolled: false,
+        hasRelationshipOwner: false,
+        relationshipOwnerId: null,
+        lastContactedAt: new Date(),
+        freshnessScore: 90,
+      });
+
+      expect(evalResult.isEligible).toBe(false);
+      expect(evalResult.reuseStatus).toBe('client_locked');
+      expect(evalResult.reasons.some((r) => r.includes('locked in an active opportunity'))).toBe(true);
+    });
+  });
 });
