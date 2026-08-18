@@ -1,9 +1,9 @@
-import { hasGroq, hasGemini, primaryProvider } from '../lib/ai/providerRouting';
-import { DEFAULT_MODEL } from '../lib/ai/provider';
-import { compileConstitutionalPrompt, TELESTAR_AI_CONSTITUTION } from '../lib/ai/behavior/telestar-ai-constitution';
-import { detectPromptInjection, scrubSecrets } from '../lib/ai/engine/security-guards';
-import { classifyIntent } from '../lib/ai/engine/intent-engine';
-import { retrieveRelevantSkills, selectSkillModules } from '../lib/ai/skill-retriever';
+import { hasGroq, hasGemini, primaryProvider } from '@/lib/ai/providerRouting';
+import { DEFAULT_MODEL } from '@/lib/ai/provider';
+import { compileConstitutionalPrompt, TELESTAR_AI_CONSTITUTION } from '@/lib/ai/behavior/telestar-ai-constitution';
+import { detectPromptInjection, scrubSecrets } from '@/lib/ai/engine/security-guards';
+import { classifyIntent } from '@/lib/ai/engine/intent-engine';
+import { retrieveRelevantSkills, selectSkillModules } from '@/lib/ai/skill-retriever';
 
 async function diagnose() {
   console.log('====================================================');
