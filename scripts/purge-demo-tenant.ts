@@ -126,13 +126,16 @@ async function main() {
 
     // 3. Delete user's own operational records
     await prisma.activity.deleteMany({ where: { userId: u.id } }).catch(() => {});
-    await prisma.task.deleteMany({ where: { assignedToId: u.id } }).catch(() => {});
-    await prisma.task.deleteMany({ where: { createdById: u.id } }).catch(() => {});
+    await prisma.task.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.note.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.reminder.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.emailAccount.deleteMany({ where: { userId: u.id } }).catch(() => {});
-    await prisma.campaignSdr.deleteMany({ where: { sdrId: u.id } }).catch(() => {});
+    await prisma.campaignSdr.deleteMany({ where: { userId: u.id } }).catch(() => {});
+    await prisma.sequenceStepCopy.deleteMany({ where: { approvedById: u.id } }).catch(() => {});
+    await prisma.sequenceDraftRecord.deleteMany({ where: { draftedById: u.id } }).catch(() => {});
+    await prisma.sequence.deleteMany({ where: { createdById: u.id } }).catch(() => {});
+    await prisma.template.deleteMany({ where: { createdById: u.id } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.aiMemory.deleteMany({ where: { userId: u.id } }).catch(() => {});
     await prisma.prospectTransition.deleteMany({ where: { actorUserId: u.id } }).catch(() => {});
