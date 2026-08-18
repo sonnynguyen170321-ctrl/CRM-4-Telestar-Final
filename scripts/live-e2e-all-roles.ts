@@ -12,22 +12,36 @@ interface RoleTestConfig {
 
 const ROLES: RoleTestConfig[] = [
   {
+    roleName: 'director',
+    email: 'dean@telestar.vn',
+    password: 'Telestar2026',
+    expectedGreeting: 'Dean',
+    specificPages: ['/', '/leads', '/campaigns', '/sequences', '/tasks'],
+  },
+  {
     roleName: 'floor_manager',
-    email: 'sonny@telestar.vn',
+    email: 'sonny@itelestar.com',
     password: 'Telestar2026',
     expectedGreeting: 'Sonny',
     specificPages: ['/', '/leads', '/tasks', '/sequences', '/campaigns'],
   },
   {
-    roleName: 'sdr',
-    email: 'carlos.reyes@telestar.vn',
+    roleName: 'team_lead',
+    email: 'brandon@itelestar.com',
     password: 'Telestar2026',
-    expectedGreeting: 'Carlos',
+    expectedGreeting: 'Brandon',
+    specificPages: ['/', '/leads', '/tasks', '/campaigns'],
+  },
+  {
+    roleName: 'sdr',
+    email: 'lan.pham@itelestar.com',
+    password: 'Telestar2026',
+    expectedGreeting: 'Lan',
     specificPages: ['/', '/tasks', '/leads', '/inbox'],
   },
   {
     roleName: 'leadgen_manager',
-    email: 'dominic@telestar.vn',
+    email: 'dominic@itelestar.com',
     password: 'Telestar2026',
     expectedGreeting: 'Dominic',
     specificPages: ['/', '/leads', '/leads/import'],
@@ -37,7 +51,7 @@ const ROLES: RoleTestConfig[] = [
 async function main() {
   console.log('🚀 Starting Multi-Role Production Playwright Verification Suite on https://crm.telestar.cloud...\n');
 
-  const artifactDir = 'C:\\Users\\admin\\.gemini\\antigravity-ide\\brain\\ed05b21f-cfdf-40f6-a1cd-a361d0d60c8d';
+  const artifactDir = 'C:\\Users\\admin\\.gemini\\antigravity-ide\\brain\\8f8094d8-37ac-4474-ab32-1162b26a9e94';
   const baseScreenshotDir = path.join(artifactDir, 'screenshots', 'roles');
   if (!fs.existsSync(baseScreenshotDir)) {
     fs.mkdirSync(baseScreenshotDir, { recursive: true });

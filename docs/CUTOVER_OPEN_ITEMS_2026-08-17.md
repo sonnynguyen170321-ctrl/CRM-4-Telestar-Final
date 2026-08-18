@@ -21,7 +21,7 @@ Companion to [`CUTOVER_2026-08-17.md`](CUTOVER_2026-08-17.md) and [`CUTOVER_EVID
 | ~~**A8**~~ | **Image digest certified in CI** | **CLOSED** | Published as `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:47cae338…`. |
 | ~~**A9**~~ | **Worker/queue proven end to end** | **CLOSED** | BullMQ `maintenance.healthcheck` job executed in 194ms and marked `completed` in PostgreSQL. |
 | ~~**A10**~~ | **Test discipline in CI** | **CLOSED** | Green in CI on `main` across all test suites without skips. |
-| **A11** | **Live role journey audit on deployment** | **OPEN** | 176/176 Playwright audit tests passed locally; live E2E smoke journey against production pending. |
+| ~~**A11**~~ | **Live role journey audit on deployment** | **CLOSED** | 5/5 role journeys (Director, Floor Manager, Team Lead, SDR, Leadgen Manager) 100% green against `https://crm.telestar.cloud`. |
 
 ---
 
