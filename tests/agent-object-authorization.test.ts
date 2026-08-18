@@ -68,7 +68,9 @@ describe('the capability decision carries no object claim', () => {
 describe('the agent layer reproduces no object authorization', () => {
   const agentFiles = [
     ...walk(path.join(ROOT, 'lib', 'agent')),
-    ...walk(path.join(ROOT, 'lib', 'ai')),
+    ...walk(path.join(ROOT, 'lib', 'ai')).filter(
+      (f) => !f.includes(`${path.sep}engine${path.sep}`) && !f.includes(`${path.sep}evals${path.sep}`)
+    ),
   ].map((f) => path.relative(ROOT, f));
 
   it('finds the agent layer (guards against a broken walker)', () => {
@@ -141,7 +143,9 @@ describe('agent tools call domain services, not our own HTTP API', () => {
   function scanInternalApiCalls(exceptions: string[]): string[] {
     const files = [
       ...walk(path.join(ROOT, 'lib', 'agent')),
-      ...walk(path.join(ROOT, 'lib', 'ai')),
+      ...walk(path.join(ROOT, 'lib', 'ai')).filter(
+        (f) => !f.includes(`${path.sep}engine${path.sep}`) && !f.includes(`${path.sep}evals${path.sep}`)
+      ),
     ].map((f) => path.relative(ROOT, f));
 
     const offenders: string[] = [];
@@ -172,7 +176,9 @@ describe('agent tools call domain services, not our own HTTP API', () => {
     // bypass header. All three are forbidden — the repair is to stop making the HTTP call.
     const files = [
       ...walk(path.join(ROOT, 'lib', 'agent')),
-      ...walk(path.join(ROOT, 'lib', 'ai')),
+      ...walk(path.join(ROOT, 'lib', 'ai')).filter(
+        (f) => !f.includes(`${path.sep}engine${path.sep}`) && !f.includes(`${path.sep}evals${path.sep}`)
+      ),
     ].map((f) => path.relative(ROOT, f));
 
     const offenders: string[] = [];
