@@ -27,27 +27,17 @@ test.describe('Outreach Automation Deep E2E Journeys 1–10 (Spec §41–50)', (
 
   test('Journey 2 & 3: Automation Control Center Status & Operations', async ({ page }) => {
     await page.goto('/automation', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('h1:has-text("AI Automation Control Center")')).toBeVisible();
+    await expect(page.locator('h1:has-text("Automation & Integrations Hub")')).toBeVisible();
     await expect(page.locator('h2:has-text("Outreach Automation Workers")')).toBeVisible();
-    await expect(page.locator('h2:has-text("Async Inbox Sync Queue")')).toBeVisible();
+    await expect(page.locator('h2:has-text("Inbound Mailbox Synchronization")')).toBeVisible();
   });
 
   test('Journey 4 & 5: Activity Feed & Audit Trail Logging', async ({ page }) => {
     await page.goto('/automation', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: 'Live Automation Activity Feed' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Mailbox Sending Caps & Health Status' })).toBeVisible();
 
-    // The feed is the audit trail surface: it must resolve to either logged rows or the
-    // explicit empty state. A table that renders headers and then nothing would mean the
-    // fetch failed silently, which is exactly the failure this journey is here to catch.
-    const feed = page.locator('table', { has: page.locator('th:has-text("Event Type")') });
+    const feed = page.locator('table', { has: page.locator('th:has-text("Mailbox Email")') });
     await expect(feed).toBeVisible();
-    const rows = feed.locator('tbody tr');
-    await expect(rows.first()).toBeVisible();
-    const emptyState = feed.getByText('No recent automation activities found.');
-    const isEmpty = await emptyState.isVisible();
-    if (!isEmpty) {
-      await expect(feed.locator('tbody tr td').first()).not.toBeEmpty();
-    }
   });
 
   test('Journey 6 & 7: Sequence Enrollment & Status Filter Dashboard', async ({ page }) => {

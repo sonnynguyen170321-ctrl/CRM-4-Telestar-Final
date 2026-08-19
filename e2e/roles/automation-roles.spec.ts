@@ -35,7 +35,7 @@ test.describe('Automation Role Matrix UI & API Security (Spec §40)', () => {
       await page.goto('/automation', { waitUntil: 'domcontentloaded' });
       expect(page.url()).toContain('/automation');
       await expect(page.locator('button:has-text("Run Maintenance & Repair Check")')).toBeVisible();
-      await expect(page.locator('button:has-text("Queue Inbox Sync Jobs")')).toBeVisible();
+      await expect(page.locator('button:has-text("Sync Inbound Messages Now")')).toBeVisible();
     });
   });
 });
