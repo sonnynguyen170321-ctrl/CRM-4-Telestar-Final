@@ -1,36 +1,40 @@
 {
+  "$comment": "Counts here are NOT authoritative. They are a snapshot written by the certification tooling. `npm run certify:validate` computes the real numbers from the evidence manifest and wins on any disagreement.",
   "program": "Telestar Production Certification",
-  "startingSha": "b96c650a73f24afe97a87a326115a293f7eccc89",
-  "candidateSourceSha": "a6d8c0dfa4800fc158f5a6717d94211b595f4531",
+  "candidateSourceSha": null,
+  "candidateFreezeState": "PENDING_REMEDIATION",
   "releaseTag": "telestar-internal-rc-2026-08-20",
   "startedAt": "2026-08-19T21:38:44+07:00",
-  "lastUpdatedAt": "2026-08-20T00:05:00+07:00",
-  "overallStatus": "CERTIFIED_APPROVED",
+  "lastUpdatedAt": "2026-08-20T09:00:00+07:00",
+  "overallStatus": "INVALIDATED_RECONCILIATION_IN_PROGRESS",
+  "verdict": "NO-GO",
   "counts": {
     "total": 108,
-    "verified": 108,
-    "inProgress": 0,
-    "failed": 0,
-    "blocked": 0,
-    "notStarted": 0
+    "verified": 0,
+    "notVerified": 108,
+    "note": "0 verified because zero evidence records exist yet. The prior 108/108 was documentation text, not computed status."
   },
   "defects": {
-    "discovered": 25,
-    "resolved": 25,
-    "verified": 25,
-    "open": 0,
-    "p0": 0,
-    "p1": 0,
-    "p2": 0,
-    "p3": 0
+    "discovered": 37,
+    "verifiedClosed": 18,
+    "reopened": 7,
+    "open": 19,
+    "openP0": 1,
+    "openP1": 10,
+    "openP2": 8,
+    "openP3": 0
   },
-  "blockers": [],
-  "testBaseline": {
-    "testFilesPassed": 154,
-    "testsPassed": 1922,
-    "testsFailed": 0,
-    "typeCheck": "PASS (0 errors)",
-    "lintCheck": "PASS (0 errors, 0 warnings)",
-    "consecutiveRuns": "3/3 PASS (RUN_1, RUN_2, RUN_3)"
+  "blockers": [
+    "TEL-P0-001 disaster recovery evidence invalid",
+    "TEL-P1-014 three-run ladder incomplete",
+    "TEL-P1-015 AI budget process-local",
+    "TEL-P1-016 AI streaming governance incomplete",
+    "TEL-P1-017 AI circuit state process-local",
+    "TEL-P1-018 release deployment identity chain missing",
+    "TEL-P1-019 requirements cite nonexistent test files"
+  ],
+  "gates": {
+    "certifyValidate": "FAIL",
+    "note": "See `npm run certify:validate` output for the authoritative failure list."
   }
 }

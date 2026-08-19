@@ -42,7 +42,11 @@
     "backfill:next-action": "tsx scripts/backfill-next-action-at.ts",
     "check:test-discipline": "node scripts/check-test-discipline.mjs",
     "check:relational-integrity": "tsx scripts/check-relational-integrity.ts",
-    "check:production-compose": "node scripts/check-production-compose.mjs"
+    "check:production-compose": "node scripts/check-production-compose.mjs",
+    "certify:validate": "node scripts/certification/validate-certification.mjs",
+    "certify:collect": "node scripts/certification/collect-evidence.mjs",
+    "certify:generate": "node scripts/certification/generate-certificate.mjs",
+    "certify:full": "node scripts/certification/run-full-certification.mjs"
   },
   "_prisma_seed_removed": "The `prisma.seed` key is intentionally absent. It made `prisma migrate dev` and `prisma migrate reset` invoke the destructive demo seed automatically, with no prompt — a mistyped DATABASE_URL emptied the target database. Run `npm run db:seed` explicitly instead; it is guarded by lib/seed-guard.ts. See docs/pre-domain-hardening/PLAN.md Task 1.",
   "overrides": {

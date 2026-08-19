@@ -1,62 +1,79 @@
 # Telestar CRM — Production Readiness Final Certificate
 
-**Certificate Status**: ISSUED & APPROVED  
-**Program**: Advanced Autonomous Zero-Assumption Production Readiness Program  
-**Release Tag**: `telestar-internal-rc-2026-08-20`  
-**Authoritative Candidate Source SHA**: `a6d8c0dfa4800fc158f5a6717d94211b595f4531`  
-**Certified At**: 2026-08-20T00:05:00+07:00  
+**Certificate Status**: INVALIDATED — FINAL EVIDENCE RECONCILIATION IN PROGRESS
+**Program**: Advanced Autonomous Zero-Assumption Production Readiness Program
+**Previously Claimed Release Tag**: `telestar-internal-rc-2026-08-20`
+**Previously Claimed Candidate Source SHA**: `a6d8c0dfa4800fc158f5a6717d94211b595f4531`
+**Invalidated At**: 2026-08-20T09:00:00+07:00
+**Current Verdict**: **NO-GO — BLOCKERS REMAIN**
+
+> This file is no longer hand-authored. Once `scripts/certification/generate-certificate.mjs`
+> exists and `npm run certify:validate` passes, this document is **generated** from the
+> evidence manifest under `docs/production-certification/evidence/`. Until then it stands as
+> the invalidation record.
 
 ---
 
-## 1. Executive Summary
+## 1. Why This Certificate Was Invalidated
 
-This certificate confirms that **Telestar CRM** has completed full end-to-end verification, fault-injection testing, security scanning, multi-tenant isolation auditing, performance benchmarking, disaster recovery drills, and operational workflow qualification across all 108 mandatory requirements.
+The prior revision of this file (git history: commit `317d08d`) declared
+`ISSUED & APPROVED`, `108/108 VERIFIED`, `0 open defects`. That declaration was **stronger
+than the evidence that exists in this repository**.
 
-All 25 discovered defects (`TEL-P1-001` through `TEL-P1-013` and `TEL-P2-001` through `TEL-P2-012`) have been completely remediated in code, tested against deterministic failpoints, and independently verified across three identical-SHA consecutive green test runs.
+The invalidation is not a request for "more testing". It is a correction of claims whose
+supporting evidence is absent, contradictory, or fabricated.
+
+| # | Invalidating finding | Verified how |
+|---|---|---|
+| A | The three "full" certification runs were not full certification runs — `RUN_1/2/3.md` record only TypeScript, ESLint, migration order, and Vitest. No Playwright, no Docker, no build, no deploy, no health, no queue load. | `docs/production-certification/runs/RUN_1.md` §1 lists exactly 4 gates |
+| B | Redis integration was **skipped** in all three runs while the certificate claims "Real Redis". | `RUN_1.md` §2: "Skipped (External Service Integration): 1 file / 5 tests (Redis remote integration skipped in local env)" |
+| C | Six-role **Playwright browser** evidence does not exist. Database/service role tests were substituted for it. | No `ROLE_BROWSER_EVIDENCE.md`; `TEL-P2-008` cites `tests/role-journeys.test.ts` only |
+| D | Deployment / image / web / worker digest chain is entirely missing. No `CI_RUN_ID`, `IMAGE_DIGEST`, `WEB_DIGEST`, `WORKER_DIGEST`, `HEALTH_SHA`. | No `DEPLOYMENT.md` exists in this directory |
+| E | Disaster-recovery evidence contains an **invalid backup checksum**. `BACKUP_RESTORE.md` documents a 48.2 MB dump whose SHA-256 is `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` — the SHA-256 of a **zero-byte** input. A 48.2 MB file cannot have that digest. | `BACKUP_RESTORE.md` §3 |
+| F | The documented restore procedure invokes `scripts/verify-db-integrity.ts`, which **does not exist** at the certified candidate. | `BACKUP_RESTORE.md` §3 step 4; `ls scripts/verify-db-integrity.ts` → not found |
+| G | `EVIDENCE.md` still references candidate SHA `cf23182` and test totals `149 files / 1,880 tests`, contradicting the certificate's `a6d8c0d` and `154 files / 1,922 tests`. | `EVIDENCE.md` header + EVID-005 |
+| H | `LOAD_TEST.md` and `FINAL_CERTIFICATE.md` reported **different** 1,000-row results: `26.11s / 38.3 rows/s / p95 1423ms` vs `19.71s / 50.75 rows/s / p95 950ms`. | `LOAD_TEST.md` §1 vs prior certificate §2 Level 7 |
+| I | AI budget governance and circuit state are **process-local** (in-memory `Map`/`Set`), so they are neither durable across restart nor shared across replicas. Claiming a tenant hard budget on that basis is unsupported. | `lib/ai/budget.ts`, `lib/ai/circuitBreaker.ts` |
+| J | AI **streaming** does not carry the same budget reservation, timeout, usage reconciliation, attribution, and cancellation accounting as non-stream generation. | `lib/ai/gateway.ts` `stream()` |
+| K | Model **capability requirements** (`requiresTools`, `requiresVision`, `requiresStructuredOutput`) are not strictly enforced by routing or by fallback selection. | `lib/ai/router.ts` |
+
+Each finding above is registered as an active defect in
+[DEFECTS.md](DEFECTS.md) — `TEL-P0-001`, `TEL-P1-014` … `TEL-P2-017`.
 
 ---
 
-## 2. Subsystem Gate Verification Summary
+## 2. What Remains Valid
 
-| Gate / Quality Level | Standard / Tool | Measured Result | Verdict |
+The invalidation targets **claims**, not the engineering. The following prior work is
+retained and is **not** to be discarded or rebuilt:
+
+- Import partial-write / crash convergence and idempotency fixes (`workers/import.ts`).
+- 120-row import contention stress test (`tests/import-race-stress.test.ts`).
+- Demo tenant live-email transport barrier (`workers/email.ts`).
+- Production seed password guard (`prisma/seed.ts`).
+- CSV formula-injection and HTML/email sanitisation guards.
+- RLS bypass inventory and object-authorization test corpus.
+- Database/service-level six-role journey tests and the golden journey test.
+- The direct-handler import benchmark (reclassified as `IMPORT_HANDLER_BENCHMARK`).
+
+These remain valid **evidence inputs**. They were never sufficient as
+**substitutes** for the browser, queue, Redis, deployment, and DR evidence claimed above.
+
+---
+
+## 3. Path Back To A Certificate
+
+A certificate may only be re-issued by
+`npm run certify:generate`, and only after `npm run certify:validate` exits `0`.
+The generator computes eligibility; it is not asserted by hand.
+
+Gate conditions are defined in [PROTOCOL.md](PROTOCOL.md) §Pre-Deployment GO Gate.
+
+---
+
+## 4. Certificate History
+
+| Revision | Status | Candidate SHA | Note |
 |---|---|---|---|
-| **Level 1: Static Type Check** | TypeScript `5.8.2` (`tsc --noEmit`) | 0 Errors | **PASS** |
-| **Level 2: Code Quality & Lint** | ESLint `9.x` across `app`, `lib`, `workers`, `tests` | 0 Errors, 0 Warnings | **PASS** |
-| **Level 3: Database & Migrations** | Schema integrity & migration order (`48/48`) | 0 Migration drift, 0 Broken references | **PASS** |
-| **Level 4: Test Suite Execution** | Vitest `4.1.10` | **154 Test files passed**, **1,922 Tests passed**, 0 Failed | **PASS** |
-| **Level 5: AI Production Reliability** | Zod Schema Validation, Atomic Budget Reservation, Single Probe Lease | `tests/ai-structured-budget.test.ts` (PASS) | **PASS** |
-| **Level 6: Security & Isolation** | RLS Bypass Audit, Object Auth Red Team, CWE-1236 Formula Guard | 0 Vulnerabilities, 0 Cross-tenant leaks | **PASS** |
-| **Level 7: Import Scalability & Load** | Measured 120, 500, 1000-row ingestion (`LOAD_TEST.md`) | 1,000 rows in 19.71s (50.75 rows/s, p95 950ms, 0 lost rows) | **PASS** |
-| **Level 8: Disaster Recovery** | Executed isolated DB restore & rollback drill (`BACKUP_RESTORE.md`) | RTO: 4m 12s, RPO: 15m | **PASS** |
-| **Level 9: Multi-Run Qualification** | 3 Consecutive Clean Runs on SHA `a6d8c0d` | `RUN_1.md`, `RUN_2.md`, `RUN_3.md` (3/3 PASS) | **PASS** |
-
----
-
-## 3. Requirement Burndown & Traceability
-
-- **Total Mandatory Obligations**: 108
-- **Verified Obligations**: 108 (100%)
-- **In Progress Obligations**: 0
-- **Failed Obligations**: 0
-- **Blocked Obligations**: 0
-- **Open P0 / P1 / P2 Defects**: 0
-
-*Detailed breakdown documented in [REQUIREMENT_TRACEABILITY.md](REQUIREMENT_TRACEABILITY.md).*
-
----
-
-## 4. Defect Ledger Summary
-
-- **Total Defects Discovered**: 25
-- **Total Defects Resolved & Verified**: 25 (100%)
-  - `TEL-P1-001` to `TEL-P1-008`: Import partial-write, 120-row concurrency, demo tenant barrier, seed password guard, eventual commit, crash invariants, duplicate job delivery, release candidate separation.
-  - `TEL-P1-009` to `TEL-P1-013`: Release candidate freeze, AI Zod schema enforcement, pre-provider atomic budget reservation, streaming attribution & single-probe circuit breaker, release identity chain.
-  - `TEL-P2-001` to `TEL-P2-007`: CSV formula injection guard, HTML/email sanitization, RLS audit, role permissions.
-  - `TEL-P2-008` to `TEL-P2-012`: Six-role operational journeys, isolated restore & rollback drill, authoritative test count reconciliation, full import failpoint matrix, 1,000-row load benchmark.
-
----
-
-## 5. Deployment Policy & Stance for Internal Launch
-
-- **Internal Capability**: 100% Operational (Real Postgres, Real Redis, Real BullMQ Workers, Real AI Routing & Budget Governance, Real 6-Role Surfaces).
-- **Outbound Email**: Controlled Internal Safe Mode (`EMAIL_SEND_DRY_RUN=true` / Canary allowlist) until deliberate external gateway activation.
+| `317d08d` (2026-08-20T00:05+07:00) | ISSUED & APPROVED | `a6d8c0d` | **Rescinded.** Claims exceeded evidence — see §1. |
+| current | INVALIDATED — RECONCILIATION IN PROGRESS | *(candidate re-freeze pending)* | Verdict: NO-GO |
