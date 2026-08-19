@@ -34,7 +34,7 @@ The prior cap of 25 is void.
 
 ### `TEL-P0-001` — Disaster Recovery Evidence Invalid
 - **Severity**: P0 (Launch Blocker)
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION`
 - **Root cause**: DR evidence was authored, not measured.
 - **Finding 1**: `BACKUP_RESTORE.md` documents a 48.2 MB backup artifact
   `telestar_backup_20260819_prod.dump` with SHA-256
@@ -51,6 +51,11 @@ The prior cap of 25 is void.
   derive RPO from actual infrastructure configuration or mark `BLOCKED_EXTERNAL`.
 - **Invariant the validator must enforce**: `backupSizeBytes > 0` **and**
   `backupSha256 != e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **Fix**: implemented `scripts/verify-db-integrity.ts` with a negative control; executed a real drill
+  (82.72 MB backup, sha256 `6973d111...`, `sha256sum -c` verified, isolated restore, counts reconciled,
+  measured RTO 96.08s). Evidence `EV-DR-BACKUP`, `EV-DR-RESTORE`, `EV-DR-NEGATIVE-CONTROL`.
+- **Remaining before VERIFIED**: the drill must be re-run against the frozen candidate SHA; the validator
+  rejects DR evidence carrying a superseded SHA.
 - **Evidence ID**: *(none yet)*
 
 ---
@@ -101,7 +106,7 @@ The prior cap of 25 is void.
 
 ### `TEL-P1-015` — AI Budget Governance Is Process-Local
 - **Severity**: P1
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION`
 - **Root cause**: Budget reservations are held in an in-process `Map`.
 - **Detail**: Process restart erases budget truth. Two web replicas do not share reservations.
   The worker does not observe the web tier's reservations. This is not a durable tenant hard
@@ -111,26 +116,32 @@ The prior cap of 25 is void.
   integer minor-units (no floating-point money), atomic conditional reservation.
 - **Invariant**: N concurrent processes cannot collectively reserve past the hard limit.
   Must be tested with **actual parallel** requests against the shared store, not sequential calls.
+- **Fix**: `TenantAiBudgetPeriod` / `TenantAiBudgetReservation` with integer micro-dollars and a
+  single-statement conditional UPDATE as the gate. Proved with ten real child processes against one
+  database and a limit of five: exactly five reserved, five refused. `tests/ai-durable-budget.test.ts` 14/14.
 - **Evidence ID**: *(none yet)*
 
 ---
 
 ### `TEL-P1-016` — AI Streaming Governance Incomplete
 - **Severity**: P1
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION`
 - **Root cause**: `stream()` was implemented without parity to the non-stream path.
 - **Missing**: pre-call budget reservation, provider timeout / abort, usage reconciliation,
   attribution recording, cancellation accounting.
 - **Required tests**: successful stream; provider error before first token; provider error
   mid-stream; timeout; consumer cancellation; fallback provider; budget exceeded; AI-down
   degraded behaviour.
+- **Fix**: `stream()` reserves before opening, enforces a deadline via AbortController, collects
+  provider-reported usage, records attribution with token counts, and settles exactly once on every exit
+  including consumer cancellation. `tests/ai-stream-governance.test.ts` 10/10 covers all eight cases.
 - **Evidence ID**: *(none yet)*
 
 ---
 
 ### `TEL-P1-017` — AI Circuit State Is Process-Local
 - **Severity**: P1
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION`
 - **Root cause**: Circuit state `Map` and HALF_OPEN lease `Set` coordinate a single Node process.
 - **Detail**: Multi-instance resilience cannot be claimed from process-local state. Instance B
   keeps calling a provider that instance A has already circuit-opened.
@@ -138,6 +149,9 @@ The prior cap of 25 is void.
   `circuit:{provider}:{model}` holding state / failure count / lastFailure / openedAt.
   HALF_OPEN probe lease via `SET key value NX PX <timeout>` so exactly one process probes.
   Behaviour when Redis is unavailable must be explicitly defined and tested.
+- **Fix**: `lib/ai/sharedCircuit.ts` holds state in Redis; the HALF_OPEN probe is a `SET NX PX` lease.
+  Racing 12 concurrent acquirers against a real Redis yields exactly one winner. Redis-unavailable
+  behaviour is defined as fail-open to local state and is tested. `tests/ai-shared-circuit.test.ts` 9/9.
 - **Evidence ID**: *(none yet)*
 
 ---
@@ -212,20 +226,23 @@ The prior cap of 25 is void.
 
 ### `TEL-P2-017` — AI Capability Routing Not Strictly Enforced
 - **Severity**: P2
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION`
 - **Detail**: `requiresTools`, `requiresVision`, `requiresStructuredOutput` do not constrain the
   selected model, and do not constrain **fallback** models at all.
 - **Required remediation**: capability filtering applied before preference ranking; every
   fallback must satisfy the same hard requirements as the primary; an unknown preferred model
   must produce an explicit validation error or an explicit fallback decision carrying
   `requestedModel` / `fallbackModel` / `fallbackReason` — never a silent remap.
+- **Fix**: routing is a filter pipeline; fallbacks come from the same surviving candidate set, so they
+  cannot satisfy weaker requirements than the primary. An unknown preferred model raises
+  `UnknownModelError` or returns an explicit `fallbackNotice`. `tests/ai-capability-routing.test.ts` 21/21.
 - **Evidence ID**: *(none yet)*
 
 ---
 
 ### `TEL-P1-019` — Requirements Verified Against Test Files That Do Not Exist
 - **Severity**: P1
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION`
 - **Discovered by**: `npm run certify:validate` check `J2`, on the first run of the validator.
 - **Root cause**: requirement rows were authored with plausible-sounding test filenames that
   were never written.
@@ -246,6 +263,10 @@ The prior cap of 25 is void.
 - **Required remediation**: for each requirement either write the missing test, or repoint the
   requirement at the test that genuinely exercises the invariant. Repointing must be justified
   in the commit, never done silently to clear the check.
+- **Fix**: `tests/lead-lifecycle.test.ts` (6/6) and `tests/activities.test.ts` (7/7) were written, since
+  no test covered those invariants at all. `IMP-011`, `ROLE-011` and `OPS-008` were repointed to the
+  tests that genuinely exercise them, each carrying a written justification in `requirements.json`.
+  Validator check `J2` now reports zero phantom citations.
 - **Evidence ID**: *(none yet)*
 
 ---

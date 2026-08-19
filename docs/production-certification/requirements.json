@@ -188,12 +188,16 @@
       "domain": "IMP",
       "severity": "P1",
       "description": "Pool import chunk partial-write fault injection & convergence",
-      "linkedDefects": [],
+      "linkedDefects": [
+        "TEL-P1-019"
+      ],
       "mandatory": true,
       "evidence": [
         {
           "kind": "vitest",
-          "testFile": "tests/leadgen-pool.test.ts"
+          "testFile": "tests/import-fault-injection.test.ts",
+          "repointedFrom": "tests/leadgen-pool.test.ts",
+          "justification": "The cited tests/leadgen-pool.test.ts never existed. Pool import failpoint convergence is genuinely covered by the \"TEL-P2-011: Complete Pool Import Failpoint Convergence\" block, which injects after_pool_item, after_pool_import_row and after_pool_activity and asserts clean convergence on retry."
         }
       ]
     },
@@ -777,12 +781,16 @@
       "domain": "ROLE",
       "severity": "P1",
       "description": "Leadgen: Sourcing pool submission, contact enrichment, account lookup",
-      "linkedDefects": [],
+      "linkedDefects": [
+        "TEL-P1-019"
+      ],
       "mandatory": true,
       "evidence": [
         {
           "kind": "vitest",
-          "testFile": "tests/leadgen-pool.test.ts"
+          "testFile": "tests/golden-journey.test.ts",
+          "repointedFrom": "tests/leadgen-pool.test.ts",
+          "justification": "The cited tests/leadgen-pool.test.ts never existed. Leadgen sourcing and pool submission are covered by golden-journey step 1, which sources two records and qualifies them against the campaign ICP against a real Postgres."
         },
         {
           "kind": "role-browser",
@@ -1374,12 +1382,16 @@
       "domain": "OPS",
       "severity": "P2",
       "description": "Task reassignment preserves sequence state and updates audit trail",
-      "linkedDefects": [],
+      "linkedDefects": [
+        "TEL-P1-019"
+      ],
       "mandatory": true,
       "evidence": [
         {
           "kind": "vitest",
-          "testFile": "tests/transfer-work.test.ts"
+          "testFile": "tests/admin-impact.test.ts",
+          "repointedFrom": "tests/transfer-work.test.ts",
+          "justification": "The cited tests/transfer-work.test.ts never existed. Work transfer is covered by admin-impact, which asserts open work moves, a cron-locked task stays with its owner, the transfer is idempotent by requestId, and an actor-stamped audit trail is written."
         }
       ]
     },
@@ -1542,12 +1554,16 @@
       "domain": "OPS",
       "severity": "P2",
       "description": "Lead soft delete and restore maintains complete activity history",
-      "linkedDefects": [],
+      "linkedDefects": [
+        "TEL-P1-019"
+      ],
       "mandatory": true,
       "evidence": [
         {
           "kind": "vitest",
-          "testFile": "tests/lead-lifecycle.test.ts"
+          "testFile": "tests/lead-lifecycle.test.ts",
+          "repointedFrom": "tests/lead-lifecycle.test.ts (never written)",
+          "justification": "The cited file never existed and no test covered the invariant. Written for this certification: archive is a soft delete that preserves the row and its full activity history, and restore returns the lead with the trail of both events intact."
         }
       ]
     },
@@ -1556,12 +1572,16 @@
       "domain": "OPS",
       "severity": "P1",
       "description": "Activity timeline captures all email, call, meeting, note events",
-      "linkedDefects": [],
+      "linkedDefects": [
+        "TEL-P1-019"
+      ],
       "mandatory": true,
       "evidence": [
         {
           "kind": "vitest",
-          "testFile": "tests/activities.test.ts"
+          "testFile": "tests/activities.test.ts",
+          "repointedFrom": "tests/activities.test.ts (never written)",
+          "justification": "The cited file never existed and no test covered the invariant. Written for this certification: every channel event lands on the right lead with its channel, metadata, chronological order and acting user preserved."
         }
       ]
     },
