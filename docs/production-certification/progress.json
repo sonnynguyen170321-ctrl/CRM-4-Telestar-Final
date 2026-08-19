@@ -1,10 +1,11 @@
 {
   "program": "Telestar Production Certification",
   "startingSha": "b96c650a73f24afe97a87a326115a293f7eccc89",
-  "candidateSourceSha": "b96c650a73f24afe97a87a326115a293f7eccc89",
+  "candidateSourceSha": "a6d8c0dfa4800fc158f5a6717d94211b595f4531",
+  "releaseTag": "telestar-internal-rc-2026-08-20",
   "startedAt": "2026-08-19T21:38:44+07:00",
-  "lastUpdatedAt": "2026-08-19T23:55:00+07:00",
-  "overallStatus": "VERIFIED_READY_FOR_CANDIDATE_FREEZE",
+  "lastUpdatedAt": "2026-08-20T00:05:00+07:00",
+  "overallStatus": "CERTIFIED_APPROVED",
   "counts": {
     "total": 108,
     "verified": 108,
@@ -29,6 +30,7 @@
     "testsPassed": 1922,
     "testsFailed": 0,
     "typeCheck": "PASS (0 errors)",
-    "lintCheck": "PASS (0 errors, 0 warnings)"
+    "lintCheck": "PASS (0 errors, 0 warnings)",
+    "consecutiveRuns": "3/3 PASS (RUN_1, RUN_2, RUN_3)"
   }
 }
