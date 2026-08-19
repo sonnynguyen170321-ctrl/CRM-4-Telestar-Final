@@ -1,0 +1,198 @@
+/**
+ * Shared AI circuit state across instances (TEL-P1-017).
+ *
+ * The breaker coordinated nothing beyond one Node process: its state was a `Map` and its
+ * HALF_OPEN probe lease was a `Set`. Instance A opening a circuit did not stop instance B
+ * hammering the same dead provider, and every instance sent its own probe the moment the
+ * reset timeout elapsed.
+ *
+ * These tests run against a **real Redis** when `REDIS_URL` is reachable, because a fake
+ * cannot prove that `SET NX PX` grants the lease to exactly one caller. They fall back to
+ * an in-memory double only to keep the fail-open behaviour covered where Redis is absent -
+ * and the certification ladder requires the real path (gate 09).
+ */
+import { Redis } from 'ioredis';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import { getRedisConfig } from '@/lib/bullmq/connection';
+import {
+  __setCircuitRedis,
+  clearSharedCircuits,
+  publishSharedCircuit,
+  readSharedCircuits,
+  releaseProbeLease,
+  tryAcquireProbeLease,
+  type CircuitRedis,
+} from '@/lib/ai/sharedCircuit';
+
+const isCI = Boolean(process.env.CI);
+
+/** A short-timeout probe, so a missing local Redis costs a second rather than a minute. */
+async function isRedisReachable(): Promise<boolean> {
+  const { url } = getRedisConfig();
+  const probe = new Redis(url, {
+    lazyConnect: true,
+    enableOfflineQueue: false,
+    commandTimeout: 2_000,
+    retryStrategy: () => null,
+    maxRetriesPerRequest: null,
+  });
+  probe.on('error', () => {});
+  try {
+    await probe.connect();
+    await probe.ping();
+    return true;
+  } catch {
+    return false;
+  } finally {
+    probe.disconnect();
+  }
+}
+
+const reachable = await isRedisReachable();
+
+// Skipping is correct on a developer machine and a lie on CI: there, an unreachable Redis
+// means the service container is broken, and a silent skip would report that as success.
+if (!reachable && isCI) {
+  throw new Error(
+    'REDIS_URL is unreachable on CI. Shared circuit coordination is the point of TEL-P1-017; ' +
+      'skipping it here would turn a broken service container into a green run.',
+  );
+}
+
+const client = reachable ? new Redis(getRedisConfig().url, { maxRetriesPerRequest: null }) : null;
+
+afterAll(async () => {
+  if (client) {
+    __setCircuitRedis(client as unknown as CircuitRedis);
+    await clearSharedCircuits().catch(() => undefined);
+    client.disconnect();
+  }
+  __setCircuitRedis(null);
+});
+
+describe.skipIf(!reachable)('shared circuit state over real Redis', () => {
+  beforeEach(async () => {
+    __setCircuitRedis(client as unknown as CircuitRedis);
+    await clearSharedCircuits();
+    const leases = await client!.keys('ai:circuit:probe:*');
+    for (const key of leases) await client!.del(key);
+  });
+
+  it('one instance publishes an open circuit and another observes it', async () => {
+    // Instance A opens the circuit.
+    await publishSharedCircuit('openai:gpt-4o-mini', {
+      state: 'OPEN',
+      consecutiveFailures: 3,
+      lastFailureTime: Date.now(),
+      openedAt: Date.now(),
+    });
+
+    // Instance B reads shared state and sees it.
+    const observed = await readSharedCircuits();
+
+    expect(observed['openai:gpt-4o-mini']).toBeDefined();
+    expect(observed['openai:gpt-4o-mini'].state).toBe('OPEN');
+    expect(observed['openai:gpt-4o-mini'].consecutiveFailures).toBe(3);
+  });
+
+  it('grants the HALF_OPEN probe to exactly one of many concurrent instances', async () => {
+    const attempts = await Promise.all(
+      Array.from({ length: 12 }, () => tryAcquireProbeLease('groq:llama-3.3-70b-versatile', 30_000)),
+    );
+
+    expect(attempts.filter(Boolean)).toHaveLength(1);
+    expect(attempts.filter((granted) => !granted)).toHaveLength(11);
+  });
+
+  it('lets the next instance probe once the lease is released', async () => {
+    expect(await tryAcquireProbeLease('openai:probe-release', 30_000)).toBe(true);
+    expect(await tryAcquireProbeLease('openai:probe-release', 30_000)).toBe(false);
+
+    await releaseProbeLease('openai:probe-release');
+
+    expect(await tryAcquireProbeLease('openai:probe-release', 30_000)).toBe(true);
+  });
+
+  it('expires a lease whose holder never came back', async () => {
+    expect(await tryAcquireProbeLease('openai:probe-expiry', 300)).toBe(true);
+    expect(await tryAcquireProbeLease('openai:probe-expiry', 300)).toBe(false);
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // The TTL is what stops a crashed prober from blocking recovery forever.
+    expect(await tryAcquireProbeLease('openai:probe-expiry', 300)).toBe(true);
+  });
+
+  it('reports a closed circuit so instances resume traffic together', async () => {
+    await publishSharedCircuit('google:gemini-flash-latest', {
+      state: 'OPEN',
+      consecutiveFailures: 5,
+      lastFailureTime: Date.now(),
+      openedAt: Date.now(),
+    });
+    await publishSharedCircuit('google:gemini-flash-latest', {
+      state: 'CLOSED',
+      consecutiveFailures: 0,
+      lastFailureTime: null,
+      openedAt: null,
+    });
+
+    const observed = await readSharedCircuits();
+    expect(observed['google:gemini-flash-latest'].state).toBe('CLOSED');
+    expect(observed['google:gemini-flash-latest'].consecutiveFailures).toBe(0);
+  });
+});
+
+describe('behaviour when Redis is unavailable is defined, not accidental', () => {
+  afterEach(() => {
+    __setCircuitRedis(null);
+  });
+
+  /** A client whose every command rejects, standing in for an unreachable Redis. */
+  function brokenRedis(): CircuitRedis {
+    const fail = () => Promise.reject(new Error('connection refused'));
+    return {
+      hgetall: fail,
+      hset: fail,
+      del: fail,
+      set: fail,
+      keys: fail,
+      pexpire: fail,
+    } as unknown as CircuitRedis;
+  }
+
+  it('reading returns no shared state rather than erasing the local view', async () => {
+    __setCircuitRedis(brokenRedis());
+
+    expect(await readSharedCircuits()).toEqual({});
+  });
+
+  it('publishing reports failure instead of throwing into the AI request path', async () => {
+    __setCircuitRedis(brokenRedis());
+
+    await expect(
+      publishSharedCircuit('openai:gpt-4o-mini', {
+        state: 'OPEN',
+        consecutiveFailures: 3,
+        lastFailureTime: Date.now(),
+        openedAt: Date.now(),
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it('grants the probe locally so a Redis outage does not become an AI outage', async () => {
+    __setCircuitRedis(brokenRedis());
+
+    // Fail open: the process falls back to its own single-process lease, which is exactly
+    // the behaviour that existed before shared state. Failing closed would turn a cache
+    // blip into a total AI outage.
+    expect(await tryAcquireProbeLease('openai:gpt-4o-mini', 30_000)).toBe(true);
+  });
+
+  it('releasing a lease is a no-op rather than an error', async () => {
+    __setCircuitRedis(brokenRedis());
+
+    await expect(releaseProbeLease('openai:gpt-4o-mini')).resolves.toBeUndefined();
+  });
+});

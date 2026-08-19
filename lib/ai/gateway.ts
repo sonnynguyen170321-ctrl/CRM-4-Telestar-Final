@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { circuitBreaker } from './circuitBreaker';
 import { routeModel, type RoutingCriteria } from './router';
 import type { ModelMetadata } from './registry';
-import { recordAiCall, classifyFailure } from './usage';
+import { recordAiCall, classifyFailure, type AiCallStatus } from './usage';
 import { checkAndReserveAiBudget, type BudgetReservation } from './budget';
 import type { SessionUser } from '@/lib/auth';
 
@@ -47,6 +47,42 @@ export interface GatewayResult {
     estimatedCostUsd: number;
   };
   durationMs: number;
+}
+
+/** What the CRM says when no provider can serve a streamed request. */
+const STREAM_UNAVAILABLE_MESSAGE =
+  'Telestar AI is temporarily unavailable. Core CRM operations remain operational.';
+
+/** Token counts as the OpenAI-compatible providers report them. */
+interface RawUsage {
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+  total_tokens?: number | null;
+}
+
+export interface StreamUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+}
+
+interface StreamChunk {
+  text: string;
+  usage: StreamUsage | null;
+}
+
+function toStreamUsage(raw: RawUsage, model: ModelMetadata): StreamUsage {
+  const promptTokens = raw.prompt_tokens ?? 0;
+  const completionTokens = raw.completion_tokens ?? 0;
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens: raw.total_tokens ?? promptTokens + completionTokens,
+    estimatedCostUsd:
+      (promptTokens / 1000) * model.costPer1kInputUsd +
+      (completionTokens / 1000) * model.costPer1kOutputUsd,
+  };
 }
 
 export interface StructuredRequestOptions<T> extends GatewayRequestOptions {
@@ -89,6 +125,9 @@ export class AiGateway {
       isEssential: opts.isEssential,
     });
 
+    // Pick up circuits other instances have opened before choosing a model (TEL-P1-017).
+    await circuitBreaker.sync();
+
     const route = routeModel(opts.criteria || { task: 'generate', preferredModel: opts.preferredModel });
     const modelsToTry = [route.primaryModel, ...route.fallbackModels];
 
@@ -96,6 +135,8 @@ export class AiGateway {
 
     for (const model of modelsToTry) {
       if (!circuitBreaker.isAvailable(model.provider, model.modelId)) continue;
+      // Exactly one instance probes a recovering provider.
+      if (!(await circuitBreaker.tryEnterHalfOpen(model.provider, model.modelId))) continue;
 
       const startedAt = Date.now();
       try {
@@ -118,6 +159,8 @@ export class AiGateway {
         ]);
 
         circuitBreaker.recordSuccess(model.provider, model.modelId);
+        await circuitBreaker.publish(model.provider, model.modelId);
+        await circuitBreaker.exitHalfOpen(model.provider, model.modelId);
         await this.recordAttribution(opts, model, result.durationMs, 'ok');
 
         if (reservation && result.usage?.estimatedCostUsd) {
@@ -131,6 +174,8 @@ export class AiGateway {
         lastError = err;
         const isRateLimit = this.isRateLimit(err);
         circuitBreaker.recordFailure(model.provider, model.modelId, isRateLimit);
+        await circuitBreaker.publish(model.provider, model.modelId);
+        await circuitBreaker.exitHalfOpen(model.provider, model.modelId);
         await this.recordAttribution(opts, model, Date.now() - startedAt, 'error', String(err));
         // Continue to fallback model
       }
@@ -173,68 +218,221 @@ export class AiGateway {
 
     return parsedJson as T;
   }
-
   /**
-   * Streaming generator with provider failover.
+   * Streaming generator with provider failover, under the same governance as `generate`
+   * (TEL-P1-016).
+   *
+   * The previous implementation opened a provider stream with none of it: no budget
+   * reservation, no timeout, no usage reconciliation, no attribution row, and no accounting
+   * when the consumer walked away. Streamed tokens were free as far as the ledger knew.
+   *
+   * Every exit path settles exactly once - success, provider error before the first token,
+   * error mid-stream, timeout, consumer cancellation, and every-provider-unavailable. The
+   * `finally` block is what makes cancellation safe: a consumer that breaks out of the
+   * `for await` triggers the generator's `return()`, which runs it.
    */
   public async *stream(opts: GatewayRequestOptions): AsyncGenerator<string> {
-    const route = routeModel(opts.criteria || { task: 'stream', preferredModel: opts.preferredModel });
-    const modelsToTry = [route.primaryModel, ...route.fallbackModels];
+    const reservation: BudgetReservation | null = await checkAndReserveAiBudget({
+      tenantId: opts.sessionUser?.tenantId,
+      estimatedCostUsd: 0.005,
+      operation: opts.operation || opts.criteria?.task || 'stream',
+      isEssential: opts.isEssential,
+    });
 
-    for (const model of modelsToTry) {
-      if (!circuitBreaker.isAvailable(model.provider, model.modelId)) continue;
+    let settled = false;
+    const settleOnce = async (actualCostUsd: number | null): Promise<void> => {
+      if (settled || !reservation) return;
+      settled = true;
+      if (actualCostUsd === null) await reservation.release();
+      else await reservation.reconcile(actualCostUsd);
+    };
 
+    try {
+      // Pick up circuits other instances have opened before choosing a model.
+      await circuitBreaker.sync();
+
+      let modelsToTry: ModelMetadata[];
       try {
-        if (model.provider === 'openai' && this.openaiClient) {
-          const stream = await this.openaiClient.chat.completions.create({
-            model: model.modelId,
-            messages: this.buildOpenAiMessages(opts),
-            stream: true,
-            temperature: opts.temperature ?? 0.7,
-            max_tokens: opts.maxTokens ?? model.maxOutputTokens,
-          });
+        const route = routeModel(
+          opts.criteria || { task: 'stream', preferredModel: opts.preferredModel },
+        );
+        modelsToTry = [route.primaryModel, ...route.fallbackModels];
+      } catch {
+        // Nothing can serve this request. Degrade rather than throwing into the UI.
+        await settleOnce(null);
+        yield STREAM_UNAVAILABLE_MESSAGE;
+        return;
+      }
 
-          for await (const chunk of stream) {
-            const delta = chunk.choices[0]?.delta?.content;
-            if (delta) yield delta;
-          }
-          circuitBreaker.recordSuccess(model.provider, model.modelId);
-          return;
-        } else if (model.provider === 'groq' && this.groqClient) {
-          const stream = await this.groqClient.chat.completions.create({
-            model: model.modelId,
-            messages: this.buildGroqMessages(opts),
-            stream: true,
-            temperature: opts.temperature ?? 0.7,
-            max_tokens: opts.maxTokens ?? model.maxOutputTokens,
-          });
+      const timeoutMs = opts.timeoutMs ?? 60_000;
 
-          for await (const chunk of stream) {
-            const delta = chunk.choices[0]?.delta?.content;
-            if (delta) yield delta;
-          }
-          circuitBreaker.recordSuccess(model.provider, model.modelId);
-          return;
-        } else if (model.provider === 'google' && this.geminiClient) {
-          const genModel = this.geminiClient.getGenerativeModel({ model: model.modelId });
-          const prompt = `${opts.systemPrompt ? `[SYSTEM]: ${opts.systemPrompt}\n\n` : ''}${opts.messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n')}`;
-          const result = await genModel.generateContentStream(prompt);
+      for (const model of modelsToTry) {
+        if (!circuitBreaker.isAvailable(model.provider, model.modelId)) continue;
+        // Exactly one instance probes a recovering provider.
+        if (!(await circuitBreaker.tryEnterHalfOpen(model.provider, model.modelId))) continue;
 
-          for await (const chunk of result.stream) {
-            const text = chunk.text();
-            if (text) yield text;
+        const startedAt = Date.now();
+        const controller = new AbortController();
+        const deadline = setTimeout(() => controller.abort(), timeoutMs);
+        let usage: StreamUsage | null = null;
+        let produced = false;
+
+        try {
+          for await (const chunk of this.openProviderStream(model, opts, controller.signal)) {
+            if (chunk.text) {
+              produced = true;
+              yield chunk.text;
+            }
+            if (chunk.usage) usage = chunk.usage;
           }
+
+          clearTimeout(deadline);
           circuitBreaker.recordSuccess(model.provider, model.modelId);
+          await circuitBreaker.publish(model.provider, model.modelId);
+          await circuitBreaker.exitHalfOpen(model.provider, model.modelId);
+
+          const cost = await this.recordAttribution(
+            opts,
+            model,
+            Date.now() - startedAt,
+            'ok',
+            undefined,
+            usage,
+          );
+          await settleOnce(cost ?? 0);
           return;
+        } catch (err: unknown) {
+          clearTimeout(deadline);
+          const timedOut = controller.signal.aborted;
+          circuitBreaker.recordFailure(model.provider, model.modelId, this.isRateLimit(err));
+          await circuitBreaker.publish(model.provider, model.modelId);
+          await circuitBreaker.exitHalfOpen(model.provider, model.modelId);
+
+          // Tokens already streamed were still billed by the provider, so partial usage is
+          // charged rather than discarded.
+          const partialCost = await this.recordAttribution(
+            opts,
+            model,
+            Date.now() - startedAt,
+            timedOut ? 'unavailable' : 'error',
+            String(err),
+            usage,
+            timedOut ? 'provider_timeout' : undefined,
+          );
+
+          if (produced) {
+            // The consumer has already seen part of an answer. Failing over now would
+            // splice two different completions together, so this stream ends here.
+            await settleOnce(partialCost ?? 0);
+            return;
+          }
+          // Nothing emitted yet - a fallback can still serve the request cleanly.
         }
-      } catch (err: unknown) {
-        circuitBreaker.recordFailure(model.provider, model.modelId, this.isRateLimit(err));
-        // Continue to fallback
+      }
+
+      await settleOnce(null);
+      yield STREAM_UNAVAILABLE_MESSAGE;
+    } finally {
+      // Consumer cancellation lands here: the generator was disposed before any path
+      // settled. Releasing the hold is what stops an abandoned stream from permanently
+      // consuming a slice of the tenant's budget.
+      if (!settled && reservation) {
+        settled = true;
+        await reservation.release();
       }
     }
-
-    yield 'Telestar AI is temporarily unavailable. Core CRM operations remain operational.';
   }
+
+  /**
+   * Normalises the three provider SDKs into one chunk stream carrying text and, where the
+   * provider reports it, usage. OpenAI-compatible providers report usage in a final chunk
+   * when asked; Gemini reports it on the aggregated response.
+   */
+  private async *openProviderStream(
+    model: ModelMetadata,
+    opts: GatewayRequestOptions,
+    signal: AbortSignal,
+  ): AsyncGenerator<StreamChunk> {
+    if (model.provider === 'openai') {
+      if (!this.openaiClient) throw new Error('OPENAI_API_KEY is not configured');
+      const stream = await this.openaiClient.chat.completions.create(
+        {
+          model: model.modelId,
+          messages: this.buildOpenAiMessages(opts),
+          stream: true,
+          stream_options: { include_usage: true },
+          temperature: opts.temperature ?? 0.7,
+          max_tokens: opts.maxTokens ?? model.maxOutputTokens,
+        },
+        { signal },
+      );
+
+      for await (const chunk of stream) {
+        yield {
+          text: chunk.choices[0]?.delta?.content ?? '',
+          usage: chunk.usage ? toStreamUsage(chunk.usage, model) : null,
+        };
+      }
+      return;
+    }
+
+    if (model.provider === 'groq') {
+      if (!this.groqClient) throw new Error('GROQ_API_KEY is not configured');
+      const stream = await this.groqClient.chat.completions.create(
+        {
+          model: model.modelId,
+          messages: this.buildGroqMessages(opts),
+          stream: true,
+          temperature: opts.temperature ?? 0.7,
+          max_tokens: opts.maxTokens ?? model.maxOutputTokens,
+        },
+        { signal },
+      );
+
+      for await (const chunk of stream) {
+        const usage = (chunk as { x_groq?: { usage?: RawUsage } }).x_groq?.usage;
+        yield {
+          text: chunk.choices[0]?.delta?.content ?? '',
+          usage: usage ? toStreamUsage(usage, model) : null,
+        };
+      }
+      return;
+    }
+
+    if (model.provider === 'google') {
+      if (!this.geminiClient) throw new Error('GEMINI_API_KEY is not configured');
+      const genModel = this.geminiClient.getGenerativeModel({ model: model.modelId });
+      const prompt = `${opts.systemPrompt ? `[SYSTEM]: ${opts.systemPrompt}\n\n` : ''}${opts.messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n')}`;
+      const result = await genModel.generateContentStream(prompt);
+
+      for await (const chunk of result.stream) {
+        // The Gemini SDK takes no AbortSignal, so the deadline is enforced between chunks.
+        if (signal.aborted) throw new Error('AI provider google timed out');
+        const text = chunk.text();
+        if (text) yield { text, usage: null };
+      }
+
+      const aggregated = await result.response;
+      const meta = aggregated.usageMetadata;
+      yield {
+        text: '',
+        usage: meta
+          ? toStreamUsage(
+              {
+                prompt_tokens: meta.promptTokenCount,
+                completion_tokens: meta.candidatesTokenCount,
+                total_tokens: meta.totalTokenCount,
+              },
+              model,
+            )
+          : null,
+      };
+      return;
+    }
+
+    throw new Error(`No streaming implementation for provider ${model.provider}`);
+  }
+
 
   // ── Provider Implementations ───────────────────────────────────────────────
 
@@ -343,12 +541,14 @@ export class AiGateway {
     opts: GatewayRequestOptions,
     model: ModelMetadata,
     latencyMs: number,
-    status: 'ok' | 'error',
-    errorMessage?: string
-  ) {
-    if (!opts.sessionUser) return;
+    status: AiCallStatus,
+    errorMessage?: string,
+    usage?: StreamUsage | null,
+    errorCodeOverride?: string
+  ): Promise<number | null> {
+    if (!opts.sessionUser) return null;
 
-    await recordAiCall({
+    const outcome = await recordAiCall({
       tenantId: opts.sessionUser.tenantId,
       userId: opts.sessionUser.id,
       leadId: opts.leadId ?? null,
@@ -356,10 +556,15 @@ export class AiGateway {
       operation: opts.operation ?? 'gateway_inference',
       provider: model.provider,
       model: model.modelId,
+      promptTokens: usage?.promptTokens ?? null,
+      completionTokens: usage?.completionTokens ?? null,
+      totalTokens: usage?.totalTokens ?? null,
       latencyMs,
       status,
-      errorCode: errorMessage ? classifyFailure(errorMessage) : undefined,
+      errorCode: errorCodeOverride ?? (errorMessage ? classifyFailure(errorMessage) : undefined),
     });
+
+    return outcome.estimatedCostUsd;
   }
 
   public getHealth(): Record<string, unknown> {
