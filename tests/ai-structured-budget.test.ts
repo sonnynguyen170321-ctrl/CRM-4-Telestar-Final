@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { z } from 'zod';
 import { AiGateway } from '@/lib/ai/gateway';
 import {
@@ -6,7 +6,9 @@ import {
   AiBudgetExceededError,
   setTenantCurrentSpend,
   clearBudgetReservations,
+  setTenantMonthlyLimit,
 } from '@/lib/ai/budget';
+import { prisma } from '@/lib/prisma';
 
 describe('TEL-P1-010: AI Structured Output Runtime Zod Schema Validation', () => {
   const gateway = new AiGateway();
@@ -119,12 +121,25 @@ describe('TEL-P1-010: AI Structured Output Runtime Zod Schema Validation', () =>
 describe('TEL-P1-011: Pre-Provider AI Budget Reservation & Concurrency Governance', () => {
   const TENANT = 'tenant-budget-test';
 
-  beforeEach(() => {
-    clearBudgetReservations();
+  // The budget ledger is a real table with a foreign key to Tenant now, not a Map, so the
+  // tenant has to exist. That is the point of TEL-P1-015.
+  beforeEach(async () => {
+    await prisma.$executeRaw`
+      INSERT INTO "Tenant" ("id", "name", "createdAt", "updatedAt")
+      VALUES (${TENANT}, 'Budget Governance Test', NOW(), NOW())
+      ON CONFLICT ("id") DO NOTHING
+    `;
+    await clearBudgetReservations(TENANT);
+    await setTenantMonthlyLimit(TENANT, 50.0);
+  });
+
+  afterAll(async () => {
+    await clearBudgetReservations(TENANT);
+    await prisma.$executeRaw`DELETE FROM "Tenant" WHERE "id" = ${TENANT}`;
   });
 
   it('allows reservation when tenant spend is under monthly limit', async () => {
-    setTenantCurrentSpend(TENANT, 10.0); // limit is 50.0
+    await setTenantCurrentSpend(TENANT, 10.0); // limit is 50.0
 
     const res = await checkAndReserveAiBudget({
       tenantId: TENANT,
@@ -135,11 +150,11 @@ describe('TEL-P1-011: Pre-Provider AI Budget Reservation & Concurrency Governanc
     expect(res).not.toBeNull();
     expect(res?.tenantId).toBe(TENANT);
 
-    res?.reconcile(0.04);
+    await res?.reconcile(0.04);
   });
 
   it('throws AiBudgetExceededError before calling provider when spend exceeds limit', async () => {
-    setTenantCurrentSpend(TENANT, 50.0); // limit is 50.0
+    await setTenantCurrentSpend(TENANT, 50.0); // limit is 50.0
 
     await expect(
       checkAndReserveAiBudget({
@@ -152,7 +167,7 @@ describe('TEL-P1-011: Pre-Provider AI Budget Reservation & Concurrency Governanc
   });
 
   it('allows essential operations to proceed even at budget cap', async () => {
-    setTenantCurrentSpend(TENANT, 50.0);
+    await setTenantCurrentSpend(TENANT, 50.0);
 
     const res = await checkAndReserveAiBudget({
       tenantId: TENANT,
@@ -162,11 +177,11 @@ describe('TEL-P1-011: Pre-Provider AI Budget Reservation & Concurrency Governanc
     });
 
     expect(res).not.toBeNull();
-    res?.release();
+    await res?.release();
   });
 
   it('blocks concurrent burst from exceeding budget when total reservations surpass limit', async () => {
-    setTenantCurrentSpend(TENANT, 49.90); // 10 cents left
+    await setTenantCurrentSpend(TENANT, 49.90); // 10 cents left
 
     // Make 2 concurrent requests estimating 0.08 each
     const req1 = await checkAndReserveAiBudget({
@@ -185,6 +200,6 @@ describe('TEL-P1-011: Pre-Provider AI Budget Reservation & Concurrency Governanc
       })
     ).rejects.toThrow(AiBudgetExceededError);
 
-    req1?.release();
+    await req1?.release();
   });
 });

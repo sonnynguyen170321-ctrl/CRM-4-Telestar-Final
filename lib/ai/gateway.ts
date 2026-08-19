@@ -121,9 +121,9 @@ export class AiGateway {
         await this.recordAttribution(opts, model, result.durationMs, 'ok');
 
         if (reservation && result.usage?.estimatedCostUsd) {
-          reservation.reconcile(result.usage.estimatedCostUsd);
+          await reservation.reconcile(result.usage.estimatedCostUsd);
         } else if (reservation) {
-          reservation.release();
+          await reservation.release();
         }
 
         return result;
@@ -137,7 +137,7 @@ export class AiGateway {
     }
 
     if (reservation) {
-      reservation.release();
+      await reservation.release();
     }
 
     throw new Error(`All AI providers failed. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
