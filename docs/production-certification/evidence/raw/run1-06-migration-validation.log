@@ -1,0 +1,11 @@
+# gate: 06-migration-validation — scripts/check-migration-order.mjs
+# command: C:\Program Files\nodejs\node.exe scripts/check-migration-order.mjs
+# startedAt: 2026-08-19T19:27:04.910Z
+# finishedAt: 2026-08-19T19:27:05.064Z
+# exitCode: 0
+
+--- stdout ---
+[migration-order] ok — 49 migrations, 1 new: 20260819000000_tenant_ai_budget_ledger
+
+--- stderr ---
+(empty)

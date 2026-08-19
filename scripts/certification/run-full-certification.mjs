@@ -199,6 +199,69 @@ async function withServer(fn) {
   }
 }
 
+/** Runs `fn` with a real BullMQ worker attached, so queue-draining gates mean something. */
+async function withWorker(fn) {
+  const worker = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'workers/index.ts'], {
+    cwd: REPO_ROOT,
+    env: {
+      ...process.env,
+      IS_WORKER: 'true',
+      DIRECT_URL: process.env.DIRECT_URL || process.env.DATABASE_URL,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  let output = '';
+  worker.stdout.on('data', (chunk) => {
+    output += chunk;
+  });
+  worker.stderr.on('data', (chunk) => {
+    output += chunk;
+  });
+
+  try {
+    // Give the worker time to attach to its queues before anything is enqueued.
+    await new Promise((resolve) => setTimeout(resolve, 8000));
+    return await fn();
+  } finally {
+    worker.kill();
+    writeFileSync(path.join(RAW_DIR, 'certification-worker.log'), output);
+  }
+}
+
+/**
+ * Gate 18. Needs a tenant id because this database holds many: the healthcheck refuses to
+ * guess which one to enqueue against rather than picking one arbitrarily.
+ */
+function gateWorkerReadiness() {
+  const tenantId = process.env.CERT_WORKER_TENANT_ID || readFixtureTenant();
+  return scriptGate(
+    '18-worker-readiness',
+    'worker healthcheck: a job is enqueued and a real worker drains it',
+    process.execPath,
+    ['node_modules/tsx/dist/cli.mjs', 'scripts/worker-healthcheck.ts'],
+    {
+      env: {
+        CUTOVER_TENANT_ID: tenantId ?? '',
+        IS_WORKER: 'true',
+        DIRECT_URL: process.env.DIRECT_URL || process.env.DATABASE_URL,
+      },
+      timeoutMs: 180_000,
+    },
+  );
+}
+
+/** The audit fixture's tenant A, so the healthcheck runs against a known-good tenant. */
+function readFixtureTenant() {
+  const manifest = path.join(REPO_ROOT, 'e2e', '.fixture.json');
+  if (!existsSync(manifest)) return null;
+  try {
+    return JSON.parse(readFileSync(manifest, 'utf8')).tenants?.a ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function gateHealthSmoke() {
   const startedAt = new Date();
   const results = {};
@@ -343,14 +406,11 @@ async function main() {
         { env: { BASE_URL } },
       ),
     );
-    collected.push(
-      scriptGate(
-        '18-worker-readiness',
-        'worker healthcheck against real Redis',
-        process.execPath,
-        ['node_modules/tsx/dist/cli.mjs', 'scripts/worker-healthcheck.ts'],
-      ),
-    );
+    // The healthcheck enqueues a job and waits for a worker to complete it, so a worker has
+    // to be attached. Without one it reports "is a worker running?" - which is the check
+    // doing its job, not a product failure, and is exactly the stranded-queue condition it
+    // exists to catch.
+    collected.push(await withWorker(() => gateWorkerReadiness()));
     collected.push(await gateHealthSmoke());
     return collected;
   });

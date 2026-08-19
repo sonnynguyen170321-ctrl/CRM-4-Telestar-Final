@@ -1,0 +1,8 @@
+# worker healthcheck against real Redis
+# exitCode: 1
+
+--- stdout ---
+cannot enqueue: more than one tenant exists — pass CUTOVER_TENANT_ID to say which one
+
+--- stderr ---
+(empty)

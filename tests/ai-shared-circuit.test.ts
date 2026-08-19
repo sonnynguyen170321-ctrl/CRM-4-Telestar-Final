@@ -16,6 +16,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { getRedisConfig } from '@/lib/bullmq/connection';
 import {
+  __setCircuitNamespace,
   __setCircuitRedis,
   clearSharedCircuits,
   publishSharedCircuit,
@@ -74,6 +75,8 @@ afterAll(async () => {
 describe.skipIf(!reachable)('shared circuit state over real Redis', () => {
   beforeEach(async () => {
     __setCircuitRedis(client as unknown as CircuitRedis);
+    // Its own namespace, so this file cannot open circuits for suites running beside it.
+    __setCircuitNamespace('test-shared-circuit');
     await clearSharedCircuits();
     const leases = await client!.keys('ai:circuit:probe:*');
     for (const key of leases) await client!.del(key);
@@ -141,6 +144,64 @@ describe.skipIf(!reachable)('shared circuit state over real Redis', () => {
     const observed = await readSharedCircuits();
     expect(observed['google:gemini-flash-latest'].state).toBe('CLOSED');
     expect(observed['google:gemini-flash-latest'].consecutiveFailures).toBe(0);
+  });
+});
+
+describe.skipIf(!reachable)('circuit state is namespaced per deployment', () => {
+  beforeEach(async () => {
+    __setCircuitRedis(client as unknown as CircuitRedis);
+  });
+
+  afterEach(() => {
+    __setCircuitNamespace(null);
+  });
+
+  it('does not leak an open circuit from one namespace into another', async () => {
+    // Sharing circuit state between instances of the same deployment is the feature.
+    // Sharing it between different deployments on one Redis is a defect: a staging run that
+    // exhausts a provider would open production's circuits. It is also what made the AI
+    // suites interfere with each other, since a test process with no API keys opens every
+    // circuit and the record then outlives the run by 24 hours.
+    __setCircuitNamespace('deployment-a');
+    await clearSharedCircuits();
+    await publishSharedCircuit('openai:gpt-4o-mini', {
+      state: 'OPEN',
+      consecutiveFailures: 9,
+      lastFailureTime: Date.now(),
+      openedAt: Date.now(),
+    });
+
+    expect((await readSharedCircuits())['openai:gpt-4o-mini']?.state).toBe('OPEN');
+
+    __setCircuitNamespace('deployment-b');
+    expect(await readSharedCircuits()).toEqual({});
+  });
+
+  it('keeps probe leases separate across namespaces', async () => {
+    __setCircuitNamespace('deployment-a');
+    expect(await tryAcquireProbeLease('openai:gpt-4o-mini', 30_000)).toBe(true);
+    expect(await tryAcquireProbeLease('openai:gpt-4o-mini', 30_000)).toBe(false);
+
+    // A different deployment is entitled to its own probe.
+    __setCircuitNamespace('deployment-b');
+    expect(await tryAcquireProbeLease('openai:gpt-4o-mini', 30_000)).toBe(true);
+  });
+
+  it('clears only its own namespace', async () => {
+    __setCircuitNamespace('deployment-a');
+    await publishSharedCircuit('groq:llama-3.1-8b-instant', {
+      state: 'OPEN',
+      consecutiveFailures: 3,
+      lastFailureTime: Date.now(),
+      openedAt: Date.now(),
+    });
+
+    __setCircuitNamespace('deployment-b');
+    await clearSharedCircuits();
+
+    __setCircuitNamespace('deployment-a');
+    expect((await readSharedCircuits())['groq:llama-3.1-8b-instant']?.state).toBe('OPEN');
+    await clearSharedCircuits();
   });
 });
 

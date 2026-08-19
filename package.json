@@ -48,7 +48,10 @@
     "certify:generate": "node scripts/certification/generate-certificate.mjs",
     "certify:full": "node scripts/certification/run-full-certification.mjs",
     "certify:dr": "node scripts/certification/dr-drill.mjs",
-    "certify:dr-negative": "node scripts/certification/dr-negative-fixture.mjs"
+    "certify:dr-negative": "node scripts/certification/dr-negative-fixture.mjs",
+    "certify:render": "node scripts/certification/render-traceability.mjs && node scripts/certification/render-load-report.mjs && node scripts/certification/render-evidence-ledger.mjs && node scripts/certification/render-deployment.mjs",
+    "certify:roles": "node scripts/certification/collect-role-evidence.mjs",
+    "certify:queue-load": "node node_modules/tsx/dist/cli.mjs scripts/certification/queue-load-benchmark.ts"
   },
   "_prisma_seed_removed": "The `prisma.seed` key is intentionally absent. It made `prisma migrate dev` and `prisma migrate reset` invoke the destructive demo seed automatically, with no prompt — a mistyped DATABASE_URL emptied the target database. Run `npm run db:seed` explicitly instead; it is guarded by lib/seed-guard.ts. See docs/pre-domain-hardening/PLAN.md Task 1.",
   "overrides": {

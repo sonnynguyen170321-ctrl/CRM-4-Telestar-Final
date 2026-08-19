@@ -1,0 +1,11 @@
+# gate: 05-test-discipline — scripts/check-test-discipline.mjs
+# command: C:\Program Files\nodejs\node.exe scripts/check-test-discipline.mjs
+# startedAt: 2026-08-19T19:27:04.638Z
+# finishedAt: 2026-08-19T19:27:04.909Z
+# exitCode: 0
+
+--- stdout ---
+test discipline OK — 1 allowlisted exemption(s)
+
+--- stderr ---
+(empty)

@@ -33,8 +33,38 @@ export interface SharedCircuitRecord {
 /** Only the commands this module uses, so tests can supply a small fake. */
 export type CircuitRedis = Pick<Redis, 'hgetall' | 'hset' | 'del' | 'set' | 'keys' | 'pexpire'>;
 
-const KEY_PREFIX = 'ai:circuit:';
-const PROBE_PREFIX = 'ai:circuit:probe:';
+/**
+ * Circuit state is shared **within a deployment**, never between deployments.
+ *
+ * Sharing across the instances of one deployment is the whole feature. Sharing across
+ * different deployments that happen to point at the same Redis is a defect: a staging run
+ * that exhausts a provider would open production's circuits, and a test process - which has
+ * no API keys, so every provider call fails - would open every circuit for everyone and
+ * leave the record behind for a day.
+ *
+ * The namespace follows the repository's existing `crm4u:` key convention (see `lib/cache.ts`).
+ */
+let namespaceOverride: string | null = null;
+
+/** Overrides the namespace - tests only. Pass null to restore the environment default. */
+export function __setCircuitNamespace(namespace: string | null): void {
+  namespaceOverride = namespace;
+}
+
+export function circuitNamespace(): string {
+  if (namespaceOverride) return namespaceOverride;
+  const configured = (process.env.AI_CIRCUIT_NAMESPACE || '').trim();
+  if (configured) return configured;
+  return process.env.NODE_ENV || 'development';
+}
+
+function keyPrefix(): string {
+  return `crm4u:ai:circuit:${circuitNamespace()}:`;
+}
+
+function probePrefix(): string {
+  return `crm4u:ai:circuit:${circuitNamespace()}:probe:`;
+}
 
 /** Circuit records outlive a short outage but must not accumulate forever. */
 const RECORD_TTL_MS = 24 * 60 * 60 * 1000;
@@ -81,14 +111,16 @@ export async function readSharedCircuits(): Promise<Record<string, SharedCircuit
   if (!redis) return {};
 
   try {
-    const keys = await redis.keys(`${KEY_PREFIX}*`);
-    const circuitKeys = keys.filter((key) => !key.startsWith(PROBE_PREFIX));
+    const prefix = keyPrefix();
+    const probes = probePrefix();
+    const keys = await redis.keys(`${prefix}*`);
+    const circuitKeys = keys.filter((key) => !key.startsWith(probes));
     const records: Record<string, SharedCircuitRecord> = {};
 
     for (const key of circuitKeys) {
       const raw = await redis.hgetall(key);
       if (!raw || !raw.state) continue;
-      records[key.slice(KEY_PREFIX.length)] = {
+      records[key.slice(prefix.length)] = {
         state: raw.state as SharedCircuitState,
         consecutiveFailures: Number(raw.consecutiveFailures ?? 0),
         lastFailureTime: raw.lastFailureTime ? Number(raw.lastFailureTime) : null,
@@ -114,7 +146,7 @@ export async function publishSharedCircuit(
   if (!redis) return false;
 
   try {
-    const redisKey = `${KEY_PREFIX}${key}`;
+    const redisKey = `${keyPrefix()}${key}`;
     await redis.hset(redisKey, {
       state: record.state,
       consecutiveFailures: String(record.consecutiveFailures),
@@ -147,7 +179,7 @@ export async function tryAcquireProbeLease(key: string, ttlMs: number): Promise<
   if (!redis) return true;
 
   try {
-    const result = await redis.set(`${PROBE_PREFIX}${key}`, String(process.pid), 'PX', ttlMs, 'NX');
+    const result = await redis.set(`${probePrefix()}${key}`, String(process.pid), 'PX', ttlMs, 'NX');
     return result === 'OK';
   } catch (error) {
     console.error(
@@ -163,7 +195,7 @@ export async function releaseProbeLease(key: string): Promise<void> {
   const redis = await getClient();
   if (!redis) return;
   try {
-    await redis.del(`${PROBE_PREFIX}${key}`);
+    await redis.del(`${probePrefix()}${key}`);
   } catch (error) {
     console.error(
       '[ai-circuit] failed to release probe lease:',
@@ -177,7 +209,7 @@ export async function clearSharedCircuits(): Promise<void> {
   const redis = await getClient();
   if (!redis) return;
   try {
-    const keys = await redis.keys(`${KEY_PREFIX}*`);
+    const keys = await redis.keys(`${keyPrefix()}*`);
     for (const key of keys) await redis.del(key);
   } catch (error) {
     console.error(

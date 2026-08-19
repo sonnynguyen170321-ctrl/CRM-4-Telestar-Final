@@ -18,6 +18,7 @@ import {
   setTenantMonthlyLimit,
 } from '@/lib/ai/budget';
 import { circuitBreaker } from '@/lib/ai/circuitBreaker';
+import { __setCircuitNamespace, clearSharedCircuits } from '@/lib/ai/sharedCircuit';
 import { AiGateway } from '@/lib/ai/gateway';
 import { prisma } from '@/lib/prisma';
 import type { SessionUser } from '@/lib/auth';
@@ -92,6 +93,11 @@ async function drain(stream: AsyncGenerator<string>): Promise<string[]> {
 beforeEach(async () => {
   recordedCalls.length = 0;
   circuitBreaker.reset();
+  // These tests deliberately make providers fail, and the gateway publishes those failures
+  // to shared circuit state. Without a namespace of its own this file would open every
+  // circuit for every other suite running in parallel - and inherit theirs.
+  __setCircuitNamespace('test-stream-governance');
+  await clearSharedCircuits();
   await prisma.$executeRaw`
     INSERT INTO "Tenant" ("id", "name", "createdAt", "updatedAt")
     VALUES (${TENANT}, 'Stream Governance Test', NOW(), NOW())
@@ -107,6 +113,8 @@ afterEach(() => {
 });
 
 afterAll(async () => {
+  await clearSharedCircuits();
+  __setCircuitNamespace(null);
   await clearBudgetReservations(TENANT);
   await prisma.$executeRaw`DELETE FROM "Tenant" WHERE "id" = ${TENANT}`;
 });
