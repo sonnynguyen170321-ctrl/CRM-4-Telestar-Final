@@ -8,12 +8,26 @@ export interface UnsubscribePayload {
   timestamp?: number;
 }
 
+function getSigningSecret(requiredForSigning = false): string | null {
+  const secret = process.env.AUTH_SECRET || process.env.ENCRYPTION_KEY;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'test') {
+      return 'test-suite-unsubscribe-signing-secret-only';
+    }
+    if (requiredForSigning) {
+      throw new Error('AUTH_SECRET or ENCRYPTION_KEY is required for unsubscribe token signing');
+    }
+    return null;
+  }
+  return secret;
+}
+
 /**
  * Generates an opaque, signed HMAC token for zero-login, secure unsubscribe.
  * Never exposes CRM database IDs directly or allows cross-tenant spoofing.
  */
 export function generateUnsubscribeToken(payload: UnsubscribePayload): string {
-  const secret = process.env.AUTH_SECRET || process.env.ENCRYPTION_KEY || 'default-fallback-unsub-secret';
+  const secret = getSigningSecret(true)!;
   const dataWithTs: UnsubscribePayload = {
     ...payload,
     timestamp: payload.timestamp ?? Date.now(),
@@ -26,7 +40,7 @@ export function generateUnsubscribeToken(payload: UnsubscribePayload): string {
 
 /**
  * Verifies a signed unsubscribe token.
- * Returns decoded payload on valid HMAC, or null if tampered or malformed.
+ * Returns decoded payload on valid HMAC, or null if tampered, malformed, or missing secret.
  */
 export function verifyUnsubscribeToken(token: string): UnsubscribePayload | null {
   try {
@@ -35,7 +49,9 @@ export function verifyUnsubscribeToken(token: string): UnsubscribePayload | null
     const [dataB64, sig] = parts;
     if (!dataB64 || !sig) return null;
 
-    const secret = process.env.AUTH_SECRET || process.env.ENCRYPTION_KEY || 'default-fallback-unsub-secret';
+    const secret = getSigningSecret(false);
+    if (!secret) return null;
+
     const expectedSig = crypto.createHmac('sha256', secret).update(dataB64).digest('base64url');
 
     const sigBuf = Buffer.from(sig);

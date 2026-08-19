@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
 import { verifyUnsubscribeToken } from '@/lib/email/unsubscribe';
 
+import { onSuppressionOrArchive } from '@/lib/contact-intelligence/events';
+
 export const dynamic = 'force-dynamic';
 
 async function handleUnsubscribe(token: string, source: 'one_click_header' | 'browser_click') {
@@ -12,29 +14,38 @@ async function handleUnsubscribe(token: string, source: 'one_click_header' | 'br
   }
 
   const { tenantId, email, leadId, campaignId } = payload;
+  const normalizedEmail = email.toLowerCase();
+  const targetCampaignId = campaignId || null;
 
   return tenantStorage.run({ tenantId, bypassRls: true }, async () => {
-    // 1. Upsert suppression entry
-    const recipientDomain = email.split('@')[1]?.toLowerCase();
-    await prisma.suppressionEntry.upsert({
+    // 1. Idempotent suppression entry recording
+    const recipientDomain = normalizedEmail.split('@')[1]?.toLowerCase();
+    const existing = await prisma.suppressionEntry.findFirst({
       where: {
-        tenantId_email_campaignId: {
-          tenantId,
-          email: email.toLowerCase(),
-          campaignId: campaignId || '',
-        },
-      },
-      create: {
         tenantId,
-        email: email.toLowerCase(),
-        domain: recipientDomain,
-        reason: 'unsubscribe',
-        campaignId: campaignId || null,
-      },
-      update: {
-        reason: 'unsubscribe',
+        email: normalizedEmail,
+        ...(targetCampaignId ? { campaignId: targetCampaignId } : { campaignId: null }),
       },
     });
+
+    if (!existing) {
+      try {
+        await prisma.suppressionEntry.create({
+          data: {
+            tenantId,
+            email: normalizedEmail,
+            domain: recipientDomain,
+            reason: 'unsubscribed',
+            campaignId: targetCampaignId,
+          },
+        });
+      } catch (err: any) {
+        // P2002: unique constraint race on suppression_email_scope_unique — safe idempotent absorption
+        if (err?.code !== 'P2002') {
+          throw err;
+        }
+      }
+    }
 
     // 2. If leadId was provided, update lead status & stop active sequence enrollments
     if (leadId) {
@@ -74,6 +85,18 @@ async function handleUnsubscribe(token: string, source: 'one_click_header' | 'br
       });
     } catch {
       // Activity logging failure should never fail the unsubscribe acknowledgement
+    }
+
+    // 4. Contact Intelligence lifecycle trigger
+    try {
+      await onSuppressionOrArchive({
+        tenantId,
+        email: normalizedEmail,
+        leadId: leadId ?? null,
+        reason: 'unsubscribe',
+      });
+    } catch {
+      // Non-blocking for unsubscribe acknowledgement
     }
 
     return { success: true, email };

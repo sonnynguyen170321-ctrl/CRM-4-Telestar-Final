@@ -7,14 +7,16 @@ import {
 import { GET, POST } from '@/app/api/unsubscribe/route';
 import { NextRequest } from 'next/server';
 
-const mockUpsert = vi.fn();
+const mockFindFirst = vi.fn();
+const mockCreate = vi.fn();
 const mockUpdateMany = vi.fn();
 const mockActivityCreate = vi.fn();
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     suppressionEntry: {
-      upsert: (...args: unknown[]) => mockUpsert(...args),
+      findFirst: (...args: unknown[]) => mockFindFirst(...args),
+      create: (...args: unknown[]) => mockCreate(...args),
     },
     sequenceEnrollment: {
       updateMany: (...args: unknown[]) => mockUpdateMany(...args),
@@ -23,6 +25,10 @@ vi.mock('@/lib/prisma', () => ({
       create: (...args: unknown[]) => mockActivityCreate(...args),
     },
   },
+}));
+
+vi.mock('@/lib/contact-intelligence/events', () => ({
+  onSuppressionOrArchive: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe('Unsubscribe HMAC token and RFC 8058 handling', () => {
@@ -65,6 +71,21 @@ describe('Unsubscribe HMAC token and RFC 8058 handling', () => {
     expect(verifyUnsubscribeToken('a.b.c')).toBeNull();
   });
 
+  it('fails safely when signing secrets are absent in production mode', () => {
+    delete process.env.AUTH_SECRET;
+    delete process.env.ENCRYPTION_KEY;
+    vi.stubEnv('NODE_ENV', 'production');
+
+    try {
+      expect(() =>
+        generateUnsubscribeToken({ tenantId: 't1', email: 'test@example.com' })
+      ).toThrow('AUTH_SECRET or ENCRYPTION_KEY is required');
+      expect(verifyUnsubscribeToken('invalid.token')).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('builds valid RFC 8058 compliant headers', () => {
     const headers = buildUnsubscribeHeaders('https://crm.telestar.cloud', 'sample-token-xyz');
     expect(headers['List-Unsubscribe']).toBe('<https://crm.telestar.cloud/api/unsubscribe?token=sample-token-xyz>');
@@ -72,7 +93,10 @@ describe('Unsubscribe HMAC token and RFC 8058 handling', () => {
   });
 
   describe('API Route /api/unsubscribe', () => {
-    it('POST (RFC 8058 one-click) creates suppression entry and returns 200 JSON', async () => {
+    it('POST (RFC 8058 one-click) creates suppression entry idempotently and returns 200 JSON', async () => {
+      mockFindFirst.mockResolvedValueOnce(null);
+      mockCreate.mockResolvedValueOnce({ id: 'supp-1' });
+
       const token = generateUnsubscribeToken({
         tenantId: 't-1',
         email: 'prospect@acme.corp',
@@ -88,14 +112,22 @@ describe('Unsubscribe HMAC token and RFC 8058 handling', () => {
       const data = await res.json();
       expect(data.ok).toBe(true);
 
-      expect(mockUpsert).toHaveBeenCalledWith(
+      expect(mockFindFirst).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            tenantId_email_campaignId: {
-              tenantId: 't-1',
-              email: 'prospect@acme.corp',
-              campaignId: '',
-            },
+            tenantId: 't-1',
+            email: 'prospect@acme.corp',
+            campaignId: null,
+          }),
+        })
+      );
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            tenantId: 't-1',
+            email: 'prospect@acme.corp',
+            campaignId: null,
+            reason: 'unsubscribed',
           }),
         })
       );
@@ -107,7 +139,51 @@ describe('Unsubscribe HMAC token and RFC 8058 handling', () => {
       );
     });
 
+    it('repeated unsubscribe is completely idempotent (skips create when already exists)', async () => {
+      mockFindFirst.mockResolvedValueOnce({ id: 'supp-existing', email: 'prospect@acme.corp' });
+
+      const token = generateUnsubscribeToken({
+        tenantId: 't-1',
+        email: 'prospect@acme.corp',
+        leadId: 'l-1',
+      });
+
+      const req = new NextRequest(`https://crm.telestar.cloud/api/unsubscribe?token=${token}`, {
+        method: 'POST',
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.ok).toBe(true);
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it('handles concurrent race condition safely if create throws unique constraint P2002', async () => {
+      mockFindFirst.mockResolvedValueOnce(null);
+      const p2002Error = new Error('Unique constraint failed');
+      (p2002Error as any).code = 'P2002';
+      mockCreate.mockRejectedValueOnce(p2002Error);
+
+      const token = generateUnsubscribeToken({
+        tenantId: 't-1',
+        email: 'prospect@acme.corp',
+      });
+
+      const req = new NextRequest(`https://crm.telestar.cloud/api/unsubscribe?token=${token}`, {
+        method: 'POST',
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.ok).toBe(true);
+    });
+
     it('GET (Browser click) returns 200 HTML page', async () => {
+      mockFindFirst.mockResolvedValueOnce(null);
+      mockCreate.mockResolvedValueOnce({ id: 'supp-2' });
+
       const token = generateUnsubscribeToken({
         tenantId: 't-1',
         email: 'person@company.com',
