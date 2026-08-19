@@ -6,8 +6,8 @@
   Regenerate: node scripts/certification/render-traceability.mjs
 -->
 
-**Candidate SHA**: `1fbd7b00d4a00375ee93f6f46314f10c211535d6`
-**Verified**: 95 / 108
+**Candidate SHA**: `dfb172f53afaaae5f8304dd22b8f0dd37af69bcb`
+**Verified**: 101 / 108
 **Verdict**: NO-GO
 
 > Status in this document is **computed**, never asserted. `requirements.json` has no status
@@ -23,13 +23,13 @@
 |---|---|---:|---:|---:|
 | **Import Reliability & Concurrency** | `IMP` | 13 | 13 | 0 |
 | **Outbound Email & Transport Safety** | `MAIL` | 12 | 12 | 0 |
-| **Security, Multi-Tenant RLS & RBAC** | `SEC` | 15 | 14 | 1 |
+| **Security, Multi-Tenant RLS & RBAC** | `SEC` | 15 | 15 | 0 |
 | **6-Role Operational Workflows** | `ROLE` | 12 | 12 | 0 |
-| **AI Reliability & Cost Governance** | `AI` | 14 | 9 | 5 |
-| **Disaster Recovery & Infrastructure** | `DR` | 10 | 6 | 4 |
-| **Release Identity & Gate Auditing** | `REL` | 8 | 5 | 3 |
+| **AI Reliability & Cost Governance** | `AI` | 14 | 14 | 0 |
+| **Disaster Recovery & Infrastructure** | `DR` | 10 | 8 | 2 |
+| **Release Identity & Gate Auditing** | `REL` | 8 | 3 | 5 |
 | **Operational Lifecycle & Sequences** | `OPS` | 24 | 24 | 0 |
-| **TOTAL** | | **108** | **95** | **13** |
+| **TOTAL** | | **108** | **101** | **7** |
 
 ---
 
@@ -74,7 +74,7 @@
 
 | ID | Requirement | Sev | Evidence claims | Status | Why not verified | Defects |
 |---|---|---|---|---|---|---|
-| `SEC-001` | Complete inventory of all `bypassRls`, `new PrismaClient`, `$queryRaw` | P1 | security-inventory | NOT_VERIFIED | no evidence record of kind "security-inventory" | — |
+| `SEC-001` | Complete inventory of all `bypassRls`, `new PrismaClient`, `$queryRaw` | P1 | security-inventory | **VERIFIED** | — | — |
 | `SEC-002` | Throwaway DB RLS enforcement across all tables and operations | P1 | `tests/tenant-inject.test.ts` | **VERIFIED** | — | — |
 | `SEC-003` | Mass assignment audit: client cannot inject `tenantId`, `role`, `managerId` | P1 | `tests/mass-assignment.test.ts` | **VERIFIED** | — | — |
 | `SEC-004` | Object authorization red team: foreign tenant object ID injection rejected | P1 | `tests/object-auth-red-team.test.ts` | **VERIFIED** | — | — |
@@ -111,10 +111,10 @@
 
 | ID | Requirement | Sev | Evidence claims | Status | Why not verified | Defects |
 |---|---|---|---|---|---|---|
-| `AI-001` | Provider-neutral AI gateway with Groq -> Gemini failover | P1 | `tests/ai-gateway.test.ts`<br>ai-capability-routing | NOT_VERIFIED | no evidence record of kind "ai-capability-routing" | — |
+| `AI-001` | Provider-neutral AI gateway with Groq -> Gemini failover | P1 | `tests/ai-gateway.test.ts`<br>ai-capability-routing | **VERIFIED** | — | — |
 | `AI-002` | Structured output Zod runtime schema validation | P1 | `tests/telestar-ai-engine.test.ts` | **VERIFIED** | — | — |
-| `AI-003` | AI token usage recording and daily/monthly budget enforcement | P1 | `tests/ai-cost-attribution.test.ts`<br>ai-durable-budget | NOT_VERIFIED | no evidence record of kind "ai-durable-budget" | — |
-| `AI-004` | Circuit breaker half-open concurrency and multi-replica topology | P1 | `tests/ai-down-resilience.test.ts`<br>ai-shared-circuit | NOT_VERIFIED | no evidence record of kind "ai-shared-circuit" | — |
+| `AI-003` | AI token usage recording and daily/monthly budget enforcement | P1 | `tests/ai-cost-attribution.test.ts`<br>ai-durable-budget | **VERIFIED** | — | — |
+| `AI-004` | Circuit breaker half-open concurrency and multi-replica topology | P1 | `tests/ai-down-resilience.test.ts`<br>ai-shared-circuit | **VERIFIED** | — | — |
 | `AI-005` | AI provider configuration awareness (boolean reporting only) | P2 | `tests/doctor.test.ts` | **VERIFIED** | — | — |
 | `AI-006` | Domain service encapsulation: zero direct CRM table reads in AI tools | P1 | `tests/agent-object-authorization.test.ts` | **VERIFIED** | — | — |
 | `AI-007` | Context engine extracts multi-turn conversation memory accurately | P2 | `tests/context-engine.test.ts` | **VERIFIED** | — | — |
@@ -122,8 +122,8 @@
 | `AI-009` | AI Draft reply synthesizes inbound objections into tailored response | P2 | `tests/draft-reply.test.ts` | **VERIFIED** | — | — |
 | `AI-010` | Revenue OS master evaluation benchmarks AI quality and consistency | P2 | `tests/revenue-os-master-eval.test.ts` | **VERIFIED** | — | — |
 | `AI-011` | Constitution guardrails reject prompt injection & out-of-scope tasks | P1 | `tests/telestar-ai-constitution.test.ts` | **VERIFIED** | — | — |
-| `AI-012` | Tenant monthly AI budget hard cap halts non-essential LLM tasks | P1 | `tests/ai-cost-attribution.test.ts`<br>ai-durable-budget | NOT_VERIFIED | no evidence record of kind "ai-durable-budget" | — |
-| `AI-013` | Stream usage attribution accurately bills chunked streaming responses | P2 | `tests/ai-cost-attribution.test.ts`<br>ai-stream-governance | NOT_VERIFIED | no evidence record of kind "ai-stream-governance" | — |
+| `AI-012` | Tenant monthly AI budget hard cap halts non-essential LLM tasks | P1 | `tests/ai-cost-attribution.test.ts`<br>ai-durable-budget | **VERIFIED** | — | — |
+| `AI-013` | Stream usage attribution accurately bills chunked streaming responses | P2 | `tests/ai-cost-attribution.test.ts`<br>ai-stream-governance | **VERIFIED** | — | — |
 | `AI-014` | Graceful degradation: CRM fully functional when all AI providers offline | P1 | `tests/ai-down-resilience.test.ts` | **VERIFIED** | — | — |
 
 ### Disaster Recovery & Infrastructure (`DR` — 10)
@@ -133,13 +133,13 @@
 | `DR-001` | Backup creation and verification of pg_dump file integrity | P1 | dr-backup | **VERIFIED** | — | — |
 | `DR-002` | Restore drill into isolated database with schema migration check | P1 | dr-restore | **VERIFIED** | — | — |
 | `DR-003` | Rollback drill to previous immutable container image | P1 | dr-rollback | NOT_VERIFIED | evidence of kind "dr-rollback" is NOT_EXECUTED, not PASS | — |
-| `DR-004` | Failure matrix: database connection drop & graceful recovery | P1 | failure-matrix | NOT_VERIFIED | no evidence record of kind "failure-matrix" | — |
+| `DR-004` | Failure matrix: database connection drop & graceful recovery | P1 | failure-matrix | **VERIFIED** | — | — |
 | `DR-005` | Failure matrix: Redis disconnection & fallback queue behavior | P1 | `tests/redis-readiness.test.ts`<br>redis-integration | **VERIFIED** | — | — |
 | `DR-006` | Measured RTO (Recovery Time Objective) under 15 minutes | P2 | dr-restore (rtoSeconds) | **VERIFIED** | — | — |
 | `DR-007` | Measured RPO (Recovery Point Objective) under 1 hour | P2 | dr-rpo | NOT_VERIFIED | evidence of kind "dr-rpo" is BLOCKED_EXTERNAL, not PASS | — |
 | `DR-008` | BullMQ worker automatic reconnection upon Redis restart | P1 | `tests/redis-readiness.test.ts`<br>redis-integration | **VERIFIED** | — | — |
 | `DR-009` | Postgres connection pool exhaustion handling with queue backpressure | P1 | `tests/p0-hardening.test.ts` | **VERIFIED** | — | — |
-| `DR-010` | Unhandled promise rejection & SIGTERM process shutdown safety | P1 | failure-matrix | NOT_VERIFIED | no evidence record of kind "failure-matrix" | — |
+| `DR-010` | Unhandled promise rejection & SIGTERM process shutdown safety | P1 | failure-matrix | **VERIFIED** | — | — |
 
 ### Release Identity & Gate Auditing (`REL` — 8)
 
@@ -147,12 +147,12 @@
 |---|---|---|---|---|---|---|
 | `REL-001` | Immutable release chain: Source SHA -> Metadata SHA -> Image Digest | P1 | release-identity | NOT_VERIFIED | no evidence record of kind "release-identity" | `TEL-P1-008`, `TEL-P2-003` |
 | `REL-002` | Zero unexplained skipped tests in test suite | P1 | gate | **VERIFIED** | — | `TEL-P2-001` |
-| `REL-003` | Certification Run 1: Full test ladder + static + build | P1 | run 1 | **VERIFIED** | — | — |
-| `REL-004` | Certification Run 2: Full test ladder + static + build | P1 | run 2 | **VERIFIED** | — | — |
-| `REL-005` | Certification Run 3: Full test ladder + static + build | P1 | run 3 | **VERIFIED** | — | — |
+| `REL-003` | Certification Run 1: Full test ladder + static + build | P1 | run 1 | NOT_VERIFIED | evidence of kind "certification-run" is FAIL, not PASS | — |
+| `REL-004` | Certification Run 2: Full test ladder + static + build | P1 | run 2 | NOT_VERIFIED | evidence of kind "certification-run" is FAIL, not PASS | — |
+| `REL-005` | Certification Run 3: Full test ladder + static + build | P1 | run 3 | NOT_VERIFIED | evidence of kind "certification-run" is FAIL, not PASS | — |
 | `REL-006` | CI workflow release gate enforces green test suite before merge | P1 | ci-run | NOT_VERIFIED | no evidence record of kind "ci-run" | — |
 | `REL-007` | Health check endpoint reports commit SHA and database connectivity | P1 | `tests/doctor.test.ts` | **VERIFIED** | — | — |
-| `REL-008` | Final Certificate reflects verified evidence with zero assumptions | P1 | validator-self | NOT_VERIFIED | no evidence record of kind "validator-self" | — |
+| `REL-008` | Final Certificate reflects verified evidence with zero assumptions | P1 | validator-self | **VERIFIED** | — | — |
 
 ### Operational Lifecycle & Sequences (`OPS` — 24)
 

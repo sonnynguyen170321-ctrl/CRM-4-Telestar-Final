@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-VITEST",
   "kind": "vitest",
-  "candidateSha": "1fbd7b00d4a00375ee93f6f46314f10c211535d6",
+  "candidateSha": "dfb172f53afaaae5f8304dd22b8f0dd37af69bcb",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-19T20:36:58.266Z",
-  "finishedAt": "2026-08-19T20:39:06.245Z",
+  "startedAt": "2026-08-19T21:11:39.796Z",
+  "finishedAt": "2026-08-19T21:13:59.085Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -385,6 +385,12 @@
       "tests/email-worker.test.ts": {
         "status": "passed",
         "tests": 34,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/failure-matrix.test.ts": {
+        "status": "passed",
+        "tests": 4,
         "failed": 0,
         "skipped": 0
       },
@@ -989,9 +995,9 @@
         "skipped": 0
       }
     },
-    "testFiles": 163,
-    "testFilesPassed": 163,
-    "testsPassed": 2055,
+    "testFiles": 164,
+    "testFilesPassed": 164,
+    "testsPassed": 2059,
     "testsFailed": 0,
     "testsSkipped": 0
   },
@@ -999,7 +1005,7 @@
     {
       "path": "docs/production-certification/evidence/raw/run3-08-vitest.log",
       "sizeBytes": 451,
-      "sha256": "075766b7efe460ac91ade64800291f14a08888119e0f9f3623b1889bbc9d6479"
+      "sha256": "2b62db1e4ce697e143d8223ab7f161f654681ee5b1e3f8aa8df6ab721d927bc7"
     }
   ]
 }

@@ -31,33 +31,33 @@ the queue removed; the system figure is what a real import actually costs.
 
 ## 2. `IMPORT_HANDLER_BENCHMARK`
 
-Candidate `null` · win32 / node 24.16.0 / postgres 16 / BullMQ mocked
+Candidate `dfb172f` · win32 / node 24.16.0 / postgres 16 / BullMQ mocked
 
 | Rows | Duration | Rows/s | Chunk p50 | Chunk p95 | Chunk p99 | Leads | Accounts | Contacts | Lost | Duplicate | Heap Δ |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| **120** | 2.89s | 41.58 | 614ms | 642ms | 642ms | 120 | 20 | 120 | 0 | 0 | 1.45 MB |
-| **500** | 14.27s | 35.04 | 1231ms | 1319ms | 1319ms | 500 | 20 | 500 | 0 | 0 | 3.54 MB |
-| **1000** | 28.76s | 34.77 | 1078ms | 3512ms | 3512ms | 1000 | 20 | 1000 | 0 | 0 | 1.66 MB |
+| **120** | 2.90s | 41.38 | 571ms | 695ms | 695ms | 120 | 20 | 120 | 0 | 0 | 1.42 MB |
+| **500** | 13.20s | 37.88 | 1110ms | 1364ms | 1364ms | 500 | 20 | 500 | 0 | 0 | 2.78 MB |
+| **1000** | 28.25s | 35.4 | 1100ms | 1971ms | 1971ms | 1000 | 20 | 1000 | 0 | 0 | 3.46 MB |
 
 ---
 
 ## 3. `IMPORT_SYSTEM_QUEUE_BENCHMARK`
 
-Candidate `1fbd7b0` · win32 / node 24.16.0 / postgres 16 / real Redis / real BullMQ
+Candidate `dfb172f` · win32 / node 24.16.0 / postgres 16 / real Redis / real BullMQ
 
 Queue wait is measured from enqueue to the worker picking the job up; job time is the
 handler's own execution once picked up.
 
 | Rows | Chunks | Duration | Rows/s | Wait p50 | Wait p95 | Wait p99 | Job p50 | Job p95 | Job p99 | Failed | Lost | Duplicate | Stuck |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| **120** | 3 | 1.21s | 98.93 | 2ms | 3ms | 3ms | 1113ms | 1120ms | 1120ms | 0 | 0 | 0 | 0 |
-| **500** | 10 | 4.14s | 120.74 | 1071ms | 2932ms | 2932ms | 950ms | 1097ms | 1097ms | 0 | 0 | 0 | 0 |
-| **1000** | 20 | 6.96s | 143.78 | 2978ms | 5834ms | 5834ms | 958ms | 1053ms | 1053ms | 0 | 0 | 0 | 0 |
+| **120** | 3 | 1.47s | 81.74 | 2ms | 3ms | 3ms | 1115ms | 1170ms | 1170ms | 0 | 0 | 0 | 0 |
+| **500** | 10 | 4.39s | 114 | 1178ms | 3125ms | 3125ms | 994ms | 1195ms | 1195ms | 0 | 0 | 0 | 0 |
+| **1000** | 20 | 6.94s | 144.07 | 2915ms | 5738ms | 5738ms | 968ms | 1006ms | 1016ms | 0 | 0 | 0 | 0 |
 
 ### What the queue measurement shows that the handler benchmark cannot
 
 Queue wait p95 rises from 3ms at the
-smallest scale to 5834ms at the
+smallest scale to 5738ms at the
 largest. Jobs are enqueued far faster than a bounded worker pool drains them, so latency for
 an individual chunk is dominated by waiting, not by work. The handler benchmark reports only
 the work and is structurally incapable of showing this.

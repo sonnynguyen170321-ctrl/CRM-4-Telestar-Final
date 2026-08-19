@@ -1,0 +1,41 @@
+{
+  "evidenceId": "EV-SECURITY-INVENTORY",
+  "kind": "security-inventory",
+  "candidateSha": "dfb172f53afaaae5f8304dd22b8f0dd37af69bcb",
+  "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
+  "command": "derived from C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
+  "startedAt": "2026-08-19T21:11:39.796Z",
+  "finishedAt": "2026-08-19T21:13:59.085Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {
+    "suites": {
+      "tests/tenant-inject.test.ts": {
+        "status": "passed",
+        "tests": 14,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/object-auth-red-team.test.ts": {
+        "status": "passed",
+        "tests": 4,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/mass-assignment.test.ts": {
+        "status": "passed",
+        "tests": 12,
+        "failed": 0,
+        "skipped": 0
+      }
+    },
+    "inventory": "docs/production-certification/RLS_BYPASS_INVENTORY.md"
+  },
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/run3-08-vitest.log",
+      "sizeBytes": 451,
+      "sha256": "2b62db1e4ce697e143d8223ab7f161f654681ee5b1e3f8aa8df6ab721d927bc7"
+    }
+  ]
+}

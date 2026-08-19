@@ -68,6 +68,11 @@ function line(label, text) {
   return `| ${label} | ${text} |`;
 }
 
+/** A three-column row naming the evidence record the value came from. */
+function sourced(label, text, evidenceId) {
+  return `| ${label} | ${text} | ${evidenceId ? `\`${evidenceId}\`` : '—'} |`;
+}
+
 function main() {
   const result = validateCertification();
   const records = loadAll();
@@ -133,12 +138,12 @@ ${line('HEALTH_SHA', `\`${value(identity, ['metrics', 'healthSha'])}\``)}
 
 | Measure | Value | Source |
 |---|---|---|
-${line('Vitest files passed', `${value(vitest, ['metrics', 'testFilesPassed'])} / ${value(vitest, ['metrics', 'testFiles'])}`)} ${vitest ? '| `EV-VITEST` |' : '| — |'}
-${line('Vitest tests passed', value(vitest, ['metrics', 'testsPassed']))} ${vitest ? '| `EV-VITEST` |' : '| — |'}
-${line('Vitest tests failed', value(vitest, ['metrics', 'testsFailed']))} ${vitest ? '| `EV-VITEST` |' : '| — |'}
-${line('Vitest tests skipped', value(vitest, ['metrics', 'testsSkipped']))} ${vitest ? '| `EV-VITEST` |' : '| — |'}
-${line('Redis integration executed', String(value(redis, ['metrics', 'executed'], false)))} ${redis ? '| `EV-REDIS-INTEGRATION` |' : '| — |'}
-${line('Redis integration skips', value(redis, ['metrics', 'skipped']))} ${redis ? '| `EV-REDIS-INTEGRATION` |' : '| — |'}
+${sourced('Vitest files passed', `${value(vitest, ['metrics', 'testFilesPassed'])} / ${value(vitest, ['metrics', 'testFiles'])}`, vitest && 'EV-VITEST')}
+${sourced('Vitest tests passed', value(vitest, ['metrics', 'testsPassed']), vitest && 'EV-VITEST')}
+${sourced('Vitest tests failed', value(vitest, ['metrics', 'testsFailed']), vitest && 'EV-VITEST')}
+${sourced('Vitest tests skipped', value(vitest, ['metrics', 'testsSkipped']), vitest && 'EV-VITEST')}
+${sourced('Redis integration executed', String(value(redis, ['metrics', 'executed'], false)), redis && 'EV-REDIS-INTEGRATION')}
+${sourced('Redis integration skips', value(redis, ['metrics', 'skipped']), redis && 'EV-REDIS-INTEGRATION')}
 
 All counts are machine-derived from the Vitest JSON reporter. None is typed.
 

@@ -1,7 +1,7 @@
 # gate: 10-ai-certification — AI durable budget, stream governance, shared circuit, capability routing
 # command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/ai-durable-budget.test.ts tests/ai-stream-governance.test.ts tests/ai-shared-circuit.test.ts tests/ai-capability-routing.test.ts tests/ai-structured-budget.test.ts tests/ai-down-resilience.test.ts
-# startedAt: 2026-08-19T20:25:28.093Z
-# finishedAt: 2026-08-19T20:25:35.425Z
+# startedAt: 2026-08-19T20:56:30.894Z
+# finishedAt: 2026-08-19T20:56:38.161Z
 # exitCode: 0
 
 --- stdout ---
@@ -11,8 +11,8 @@
 
  Test Files  6 passed (6)
       Tests  72 passed (72)
-   Start at  03:25:28
-   Duration  6.30s (transform 721ms, setup 1.39s, import 2.77s, tests 11.49s, environment 2ms)
+   Start at  03:56:31
+   Duration  6.40s (transform 712ms, setup 1.48s, import 2.78s, tests 11.77s, environment 2ms)
 
 
 --- stderr ---

@@ -1,7 +1,7 @@
 # gate: 07-database-integrity — scripts/verify-db-integrity.ts against the certification database
 # command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts
-# startedAt: 2026-08-19T20:23:08.890Z
-# finishedAt: 2026-08-19T20:23:17.260Z
+# startedAt: 2026-08-19T20:54:01.540Z
+# finishedAt: 2026-08-19T20:54:09.543Z
 # exitCode: 0
 
 --- stdout ---
@@ -21,18 +21,18 @@ database integrity verification — telestar_crm
           no --expect-counts snapshot supplied; counts recorded but not reconciled
 ------------------------------------------------------------------------
 representative counts:
-  Tenant               45890
-  User                 45320
-  Client               30606
-  Campaign             44849
-  Account              36162
-  Contact              29061
-  Lead                 265166
-  Task                 12122
-  Activity             27492
-  Sequence             29187
-  SequenceEnrollment   17015
-  OutboundMessage      120
+  Tenant               46895
+  User                 46304
+  Client               31299
+  Campaign             45830
+  Account              36876
+  Contact              29565
+  Lead                 270911
+  Task                 12434
+  Activity             28134
+  Sequence             29895
+  SequenceEnrollment   17444
+  OutboundMessage      123
   ImportBatch          7
 ========================================================================
 RESULT: PASS

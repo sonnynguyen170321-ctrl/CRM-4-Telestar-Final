@@ -1,79 +1,172 @@
-# Telestar CRM — Production Readiness Final Certificate
+# Telestar CRM — Production Readiness Certificate
 
-**Certificate Status**: INVALIDATED — FINAL EVIDENCE RECONCILIATION IN PROGRESS
-**Program**: Advanced Autonomous Zero-Assumption Production Readiness Program
-**Previously Claimed Release Tag**: `telestar-internal-rc-2026-08-20`
-**Previously Claimed Candidate Source SHA**: `a6d8c0dfa4800fc158f5a6717d94211b595f4531`
-**Invalidated At**: 2026-08-20T09:00:00+07:00
-**Current Verdict**: **NO-GO — BLOCKERS REMAIN**
+<!--
+  GENERATED FILE. Do not edit by hand.
+  Source: docs/production-certification/evidence/ + certification.config.json
+  Regenerate: npm run certify:generate
+  Eligibility is computed by npm run certify:validate. Nobody types the verdict.
+-->
 
-> This file is no longer hand-authored. Once `scripts/certification/generate-certificate.mjs`
-> exists and `npm run certify:validate` passes, this document is **generated** from the
-> evidence manifest under `docs/production-certification/evidence/`. Until then it stands as
-> the invalidation record.
+**Verdict**: **NO-GO — BLOCKERS REMAIN**
+**Generated**: 2026-08-19T21:18:20.428Z
+**Candidate SHA**: `dfb172f53afaaae5f8304dd22b8f0dd37af69bcb`
+**Release tag**: `telestar-internal-rc-2026-08-20`
+**Evidence records**: 21
 
 ---
 
-## 1. Why This Certificate Was Invalidated
+## 1. Release identity
 
-The prior revision of this file (git history: commit `317d08d`) declared
-`ISSUED & APPROVED`, `108/108 VERIFIED`, `0 open defects`. That declaration was **stronger
-than the evidence that exists in this repository**.
+| Field | Value |
+|---|---|
+| APPLICATION_SOURCE_SHA | `dfb172f53afaaae5f8304dd22b8f0dd37af69bcb` |
+| CI_RUN_ID | `not established` |
+| IMAGE_DIGEST | `not established` |
+| WEB_DIGEST | `not established` |
+| WORKER_DIGEST | `not established` |
+| HEALTH_SHA | `not established` |
 
-The invalidation is not a request for "more testing". It is a correction of claims whose
-supporting evidence is absent, contradictory, or fabricated.
+## 2. Test execution
 
-| # | Invalidating finding | Verified how |
+| Measure | Value | Source |
 |---|---|---|
-| A | The three "full" certification runs were not full certification runs — `RUN_1/2/3.md` record only TypeScript, ESLint, migration order, and Vitest. No Playwright, no Docker, no build, no deploy, no health, no queue load. | `docs/production-certification/runs/RUN_1.md` §1 lists exactly 4 gates |
-| B | Redis integration was **skipped** in all three runs while the certificate claims "Real Redis". | `RUN_1.md` §2: "Skipped (External Service Integration): 1 file / 5 tests (Redis remote integration skipped in local env)" |
-| C | Six-role **Playwright browser** evidence does not exist. Database/service role tests were substituted for it. | No `ROLE_BROWSER_EVIDENCE.md`; `TEL-P2-008` cites `tests/role-journeys.test.ts` only |
-| D | Deployment / image / web / worker digest chain is entirely missing. No `CI_RUN_ID`, `IMAGE_DIGEST`, `WEB_DIGEST`, `WORKER_DIGEST`, `HEALTH_SHA`. | No `DEPLOYMENT.md` exists in this directory |
-| E | Disaster-recovery evidence contains an **invalid backup checksum**. `BACKUP_RESTORE.md` documents a 48.2 MB dump whose SHA-256 is `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` — the SHA-256 of a **zero-byte** input. A 48.2 MB file cannot have that digest. | `BACKUP_RESTORE.md` §3 |
-| F | The documented restore procedure invokes `scripts/verify-db-integrity.ts`, which **does not exist** at the certified candidate. | `BACKUP_RESTORE.md` §3 step 4; `ls scripts/verify-db-integrity.ts` → not found |
-| G | `EVIDENCE.md` still references candidate SHA `cf23182` and test totals `149 files / 1,880 tests`, contradicting the certificate's `a6d8c0d` and `154 files / 1,922 tests`. | `EVIDENCE.md` header + EVID-005 |
-| H | `LOAD_TEST.md` and `FINAL_CERTIFICATE.md` reported **different** 1,000-row results: `26.11s / 38.3 rows/s / p95 1423ms` vs `19.71s / 50.75 rows/s / p95 950ms`. | `LOAD_TEST.md` §1 vs prior certificate §2 Level 7 |
-| I | AI budget governance and circuit state are **process-local** (in-memory `Map`/`Set`), so they are neither durable across restart nor shared across replicas. Claiming a tenant hard budget on that basis is unsupported. | `lib/ai/budget.ts`, `lib/ai/circuitBreaker.ts` |
-| J | AI **streaming** does not carry the same budget reservation, timeout, usage reconciliation, attribution, and cancellation accounting as non-stream generation. | `lib/ai/gateway.ts` `stream()` |
-| K | Model **capability requirements** (`requiresTools`, `requiresVision`, `requiresStructuredOutput`) are not strictly enforced by routing or by fallback selection. | `lib/ai/router.ts` |
+| Vitest files passed | 164 / 164 | `EV-VITEST` |
+| Vitest tests passed | 2059 | `EV-VITEST` |
+| Vitest tests failed | 0 | `EV-VITEST` |
+| Vitest tests skipped | 0 | `EV-VITEST` |
+| Redis integration executed | true | `EV-REDIS-INTEGRATION` |
+| Redis integration skips | 0 | `EV-REDIS-INTEGRATION` |
 
-Each finding above is registered as an active defect in
-[DEFECTS.md](DEFECTS.md) — `TEL-P0-001`, `TEL-P1-014` … `TEL-P2-017`.
+All counts are machine-derived from the Vitest JSON reporter. None is typed.
+
+## 3. Six-role browser acceptance
+
+Status **PASS** — 6/6 roles observed, 0 failing.
+
+| Role | Verdict | Console errors | Network failures |
+|---|---|---:|---:|
+| `director` | PASS | 0 | 0 |
+| `floor_manager` | PASS | 0 | 0 |
+| `leadgen` | PASS | 0 | 0 |
+| `leadgen_manager` | PASS | 0 | 0 |
+| `sdr` | PASS | 0 | 0 |
+| `team_lead` | PASS | 0 | 0 |
+
+Detail: [ROLE_BROWSER_EVIDENCE.md](ROLE_BROWSER_EVIDENCE.md).
+
+## 4. Import load
+
+Two benchmarks, named for what they exercise. Detail: [LOAD_TEST.md](LOAD_TEST.md).
+
+| Benchmark | Scales | Lost rows | Duplicate rows |
+|---|---|---:|---:|
+| `IMPORT_HANDLER_BENCHMARK` (BullMQ mocked) | 120, 500, 1000 | 0 | 0 |
+| `IMPORT_SYSTEM_QUEUE_BENCHMARK` (real Redis and BullMQ) | 120, 500, 1000 | 0 | 0 |
+
+## 5. Disaster recovery
+
+| Measure | Value |
+|---|---|
+| Backup artifact size | 91072927 bytes |
+| Backup SHA-256 | `131faed9d53d89abe8f062f950b7f0fc5543cf7bdd5aeea41a57ae3d34fdebcc` |
+| Checksum verified | true |
+| Restore integrity | true |
+| Measured RTO | 95.99 s |
+| RPO | BLOCKED_EXTERNAL — gcloud is not installed on this machine, so the live Cloud SQL backup configuration cannot be inspected. |
+| Rollback drill | NOT_EXECUTED — docker is not installed on this machine, so no image has been built and no digest exists to roll between. |
+
+Detail: [BACKUP_RESTORE.md](BACKUP_RESTORE.md).
+
+## 6. Requirements
+
+**101 of 108 verified.**
+
+| Domain | Verified | Total |
+|---|---:|---:|
+| `IMP` | 13 | 13 |
+| `MAIL` | 12 | 12 |
+| `SEC` | 15 | 15 |
+| `ROLE` | 12 | 12 |
+| `AI` | 14 | 14 |
+| `DR` | 8 | 10 |
+| `REL` | 3 | 8 |
+| `OPS` | 24 | 24 |
+
+Status is computed per requirement from the evidence manifest, never asserted. Detail:
+[REQUIREMENT_TRACEABILITY.md](REQUIREMENT_TRACEABILITY.md).
+
+## 7. Multi-run qualification
+
+| Run | Status | Failed gates | Missing gates | Mandatory skips |
+|---|---|---|---|---:|
+| 1 | FAIL | none | none | 0 |
+| 2 | FAIL | none | none | 0 |
+| 3 | FAIL | none | none | 0 |
+
+## 8. Open defects
+
+| Severity | Open |
+|---|---:|
+| P0 | 2 |
+| P1 | 8 |
+| P2 | 5 |
+| P3 | 0 |
+
+- `TEL-P0-001` — FIXED_PENDING_VERIFICATION
+- `TEL-P0-002` — BLOCKED_EXTERNAL
+- `TEL-P1-014` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-015` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-016` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-017` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-018` — OPEN
+- `TEL-P2-013` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-014` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-015` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-016` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-017` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-019` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-020` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-021` — FIXED_PENDING_VERIFICATION
+
+Detail: [DEFECTS.md](DEFECTS.md).
+
+## 9. What stands between this and GO
+
+**Check `01`** — 1 finding(s)
+  - working tree has 1 uncommitted non-metadata path(s): scripts/certification/generate-certificate.mjs
+
+**Check `L`** — 6 finding(s)
+  - run 1 gate "19-docker-build" is BLOCKED_EXTERNAL
+  - run 1 gate "20-image-inspection" is BLOCKED_EXTERNAL
+  - run 2 gate "19-docker-build" is BLOCKED_EXTERNAL
+  - run 2 gate "20-image-inspection" is BLOCKED_EXTERNAL
+  - run 3 gate "19-docker-build" is BLOCKED_EXTERNAL
+  - run 3 gate "20-image-inspection" is BLOCKED_EXTERNAL
+
+**Check `R`** — 1 finding(s)
+  - no release-identity evidence record: image/web/worker digests are unknown
+
+**Check `REQ`** — 7 finding(s)
+  - DR-003 is not VERIFIED: evidence of kind "dr-rollback" is NOT_EXECUTED, not PASS
+  - DR-007 is not VERIFIED: evidence of kind "dr-rpo" is BLOCKED_EXTERNAL, not PASS
+  - REL-001 is not VERIFIED: no evidence record of kind "release-identity"
+  - REL-003 is not VERIFIED: evidence of kind "certification-run" is FAIL, not PASS
+  - REL-004 is not VERIFIED: evidence of kind "certification-run" is FAIL, not PASS
+  - REL-005 is not VERIFIED: evidence of kind "certification-run" is FAIL, not PASS
+  - …and 1 more
 
 ---
 
-## 2. What Remains Valid
+## 10. Scope of these claims
 
-The invalidation targets **claims**, not the engineering. The following prior work is
-retained and is **not** to be discarded or rebuilt:
+Every figure above was produced by a command whose raw output is stored under
+`evidence/raw/` and whose artifacts are hash-verified on every validation run. Where a thing
+was not done, this document says it was not done rather than omitting it.
 
-- Import partial-write / crash convergence and idempotency fixes (`workers/import.ts`).
-- 120-row import contention stress test (`tests/import-race-stress.test.ts`).
-- Demo tenant live-email transport barrier (`workers/email.ts`).
-- Production seed password guard (`prisma/seed.ts`).
-- CSV formula-injection and HTML/email sanitisation guards.
-- RLS bypass inventory and object-authorization test corpus.
-- Database/service-level six-role journey tests and the golden journey test.
-- The direct-handler import benchmark (reclassified as `IMPORT_HANDLER_BENCHMARK`).
+Specifically: no claim is made about behaviour under production traffic, about infrastructure
+this workstation cannot reach, or about any scenario not listed in
+[REQUIREMENT_TRACEABILITY.md](REQUIREMENT_TRACEABILITY.md). Security findings are scoped to
+the specific tests named there — "no cross-tenant access was observed in the cases tested" is
+what the evidence supports, and is not the same claim as "the system is secure".
 
-These remain valid **evidence inputs**. They were never sufficient as
-**substitutes** for the browser, queue, Redis, deployment, and DR evidence claimed above.
-
----
-
-## 3. Path Back To A Certificate
-
-A certificate may only be re-issued by
-`npm run certify:generate`, and only after `npm run certify:validate` exits `0`.
-The generator computes eligibility; it is not asserted by hand.
-
-Gate conditions are defined in [PROTOCOL.md](PROTOCOL.md) §Pre-Deployment GO Gate.
-
----
-
-## 4. Certificate History
-
-| Revision | Status | Candidate SHA | Note |
-|---|---|---|---|
-| `317d08d` (2026-08-20T00:05+07:00) | ISSUED & APPROVED | `a6d8c0d` | **Rescinded.** Claims exceeded evidence — see §1. |
-| current | INVALIDATED — RECONCILIATION IN PROGRESS | *(candidate re-freeze pending)* | Verdict: NO-GO |
+**Verdict: NO-GO — BLOCKERS REMAIN**
