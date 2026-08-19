@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { MODEL_REGISTRY, getModelMetadata } from '@/lib/ai/registry';
 import { routeModel } from '@/lib/ai/router';
 import { circuitBreaker } from '@/lib/ai/circuitBreaker';

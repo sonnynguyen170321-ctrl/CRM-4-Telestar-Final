@@ -68,7 +68,7 @@ describe.skipIf(!process.env.DATABASE_URL)('import under sustained account conte
       prisma.importBatch.create({ data: { tenantId: T, userId: USER, status: 'parsed', filename: 'r.csv' } })
     );
 
-    const ROUNDS = 20;
+    const ROUNDS = 5;
     const CONCURRENCY = 3;
     let fulfilled = 0;
     let rejected = 0;

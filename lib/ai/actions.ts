@@ -4,7 +4,6 @@
  */
 
 import { prisma, tenantStorage } from '@/lib/prisma';
-import type { SessionUser } from '@/lib/auth';
 
 export type ActionRiskLevel =
   | 'READ'

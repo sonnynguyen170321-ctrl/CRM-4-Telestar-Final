@@ -5,7 +5,7 @@ import { createAiMission, approveMissionStep } from '@/lib/ai/aiMissions';
 import { generateWhyNowExplanation } from '@/lib/ai/whyNowEngine';
 import { parseInteractionToCrmProposal } from '@/lib/ai/zeroAdminEngine';
 import { decisionLedger } from '@/lib/ai/decisionLedger';
-import { composeSystemPrompt, PROMPT_REGISTRY } from '@/lib/ai/promptRegistry';
+import { composeSystemPrompt } from '@/lib/ai/promptRegistry';
 import { sanitizeAndInspectUntrustedData } from '@/lib/ai/securityGuards';
 
 describe('Phase 14: Role Copilot Intelligence', () => {

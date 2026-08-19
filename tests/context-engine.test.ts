@@ -1,8 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   assembleContext,
-  calculateDeterministicCampaignMetrics,
-  calculateDeterministicSdrMetrics,
   DEFAULT_TOKEN_BUDGET,
 } from '@/lib/ai/contextEngine';
 import type { SessionUser } from '@/lib/auth';

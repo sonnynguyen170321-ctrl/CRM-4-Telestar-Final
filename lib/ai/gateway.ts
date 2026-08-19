@@ -7,14 +7,9 @@ import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
 import { circuitBreaker } from './circuitBreaker';
-import { routeModel, type RoutingCriteria, type RoutingDecision } from './router';
-import { getModelMetadata, type ModelMetadata } from './registry';
-import { AI_TOOLS } from './tools';
+import { routeModel, type RoutingCriteria } from './router';
+import type { ModelMetadata } from './registry';
 import { recordAiCall, classifyFailure } from './usage';
-import { executeAgentAction } from '@/lib/agent/runtime';
-import { capabilityForTool } from '@/lib/agent/toolCapabilities';
-import { WRITE_CAPABILITIES } from '@/lib/agent/capabilities';
-import { generateToolIdempotencyKey } from './actions';
 import type { SessionUser } from '@/lib/auth';
 
 export interface ChatMessage {

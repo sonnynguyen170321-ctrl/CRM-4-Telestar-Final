@@ -40,7 +40,7 @@ export interface RelationshipTimelineEvent {
 export async function evaluateContactReuse(
   tenantId: string,
   contactId: string,
-  targetCampaignId: string
+  _targetCampaignId: string
 ): Promise<ReuseEligibilityAssessment> {
   return tenantStorage.run({ tenantId, bypassRls: false }, async () => {
     const contact = await prisma.contact.findUnique({

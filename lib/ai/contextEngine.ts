@@ -176,7 +176,10 @@ export async function assembleContext(params: {
 }): Promise<AssembledContext> {
   const { sessionUser, campaignId, leadId, sdrId } = params;
   const budget: TokenBudgetAllocation = { ...DEFAULT_TOKEN_BUDGET, ...params.budget };
-  const tenantId = sessionUser.tenantId || 'default-tenant';
+  const tenantId = sessionUser.tenantId;
+  if (!tenantId) {
+    throw new Error('Tenant context missing from session');
+  }
   const userName = `${sessionUser.firstName || ''} ${sessionUser.lastName || ''}`.trim() || sessionUser.email;
 
   const lines: string[] = [

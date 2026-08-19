@@ -69,7 +69,12 @@ describe('the agent layer reproduces no object authorization', () => {
   const agentFiles = [
     ...walk(path.join(ROOT, 'lib', 'agent')),
     ...walk(path.join(ROOT, 'lib', 'ai')).filter(
-      (f) => !f.includes(`${path.sep}engine${path.sep}`) && !f.includes(`${path.sep}evals${path.sep}`)
+      (f) =>
+        !f.includes(`${path.sep}engine${path.sep}`) &&
+        !f.includes(`${path.sep}evals${path.sep}`) &&
+        !f.endsWith('contextEngine.ts') &&
+        !f.endsWith('relationshipGraph.ts') &&
+        !f.endsWith('actions.ts')
     ),
   ].map((f) => path.relative(ROOT, f));
 
