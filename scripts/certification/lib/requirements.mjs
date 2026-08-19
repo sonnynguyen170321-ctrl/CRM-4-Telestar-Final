@@ -92,6 +92,18 @@ const CLAIM_CHECKERS = {
     return { satisfied: true };
   },
 
+  'failure-matrix'(claim, record) {
+    const scenarios = record.metrics?.scenarios ?? {};
+    const outcome = scenarios[claim.scenario];
+    if (!outcome) {
+      return { satisfied: false, reason: `no failure-matrix result for "${claim.scenario}"` };
+    }
+    if (outcome !== 'PASS') {
+      return { satisfied: false, reason: `failure-matrix scenario "${claim.scenario}" is ${outcome}` };
+    }
+    return { satisfied: true };
+  },
+
   'certification-run'(claim, record) {
     const metrics = record.metrics || {};
     if (metrics.runNumber !== claim.run) {

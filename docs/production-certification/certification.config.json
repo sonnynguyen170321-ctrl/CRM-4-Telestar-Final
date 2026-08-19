@@ -112,6 +112,10 @@
     {
       "id": "22-health-smoke",
       "description": "Web and worker health endpoints report release SHA"
+    },
+    {
+      "id": "23-validator-selftest",
+      "description": "the validator itself is shown rejecting every injected false-green state"
     }
   ],
   "frozenCandidateGates": [

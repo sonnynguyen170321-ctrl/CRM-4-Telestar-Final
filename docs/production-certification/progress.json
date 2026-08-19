@@ -1,54 +1,54 @@
 {
   "$comment": "GENERATED FILE. Regenerate with node scripts/certification/render-tracker.mjs. Counts are computed by the validator from the evidence manifest; nothing here is typed.",
   "program": "Telestar Production Certification",
-  "candidateSourceSha": "bafb9171ad81955f0c2dd9c44e9d1a517bcdba19",
+  "candidateSourceSha": "1fbd7b00d4a00375ee93f6f46314f10c211535d6",
   "releaseTag": "telestar-internal-rc-2026-08-20",
-  "generatedAt": "2026-08-19T20:16:13.971Z",
+  "generatedAt": "2026-08-19T20:42:57.405Z",
   "verdict": "NO-GO",
   "eligible": false,
   "requirements": {
     "total": 108,
-    "verified": 0,
-    "notVerified": 108,
+    "verified": 95,
+    "notVerified": 13,
     "byDomain": {
       "IMP": {
         "total": 13,
-        "verified": 0
+        "verified": 13
       },
       "MAIL": {
         "total": 12,
-        "verified": 0
+        "verified": 12
       },
       "SEC": {
         "total": 15,
-        "verified": 0
+        "verified": 14
       },
       "ROLE": {
         "total": 12,
-        "verified": 0
+        "verified": 12
       },
       "AI": {
         "total": 14,
-        "verified": 0
+        "verified": 9
       },
       "DR": {
         "total": 10,
-        "verified": 0
+        "verified": 6
       },
       "REL": {
         "total": 8,
-        "verified": 0
+        "verified": 5
       },
       "OPS": {
         "total": 24,
-        "verified": 0
+        "verified": 24
       }
     }
   },
   "defects": {
-    "open": 13,
+    "open": 15,
     "openP0": 2,
-    "openP1": 6,
+    "openP1": 8,
     "openP2": 5,
     "openP3": 0,
     "ids": [
@@ -62,7 +62,7 @@
       },
       {
         "id": "TEL-P1-014",
-        "status": "OPEN"
+        "status": "FIXED_PENDING_VERIFICATION"
       },
       {
         "id": "TEL-P1-015",
@@ -82,19 +82,19 @@
       },
       {
         "id": "TEL-P2-013",
-        "status": "OPEN"
+        "status": "FIXED_PENDING_VERIFICATION"
       },
       {
         "id": "TEL-P2-014",
-        "status": "OPEN"
+        "status": "FIXED_PENDING_VERIFICATION"
       },
       {
         "id": "TEL-P2-015",
-        "status": "OPEN"
+        "status": "FIXED_PENDING_VERIFICATION"
       },
       {
         "id": "TEL-P2-016",
-        "status": "OPEN"
+        "status": "FIXED_PENDING_VERIFICATION"
       },
       {
         "id": "TEL-P2-017",
@@ -103,17 +103,24 @@
       {
         "id": "TEL-P1-019",
         "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-020",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-021",
+        "status": "FIXED_PENDING_VERIFICATION"
       }
     ]
   },
-  "evidenceRecords": 11,
+  "evidenceRecords": 14,
   "validationFailures": {
-    "01": 1,
-    "G/H": 1,
     "D": 1,
-    "A": 7,
-    "L": 3,
+    "G/H": 13,
+    "A": 3,
+    "L": 6,
     "R": 1,
-    "REQ": 108
+    "REQ": 13
   }
 }

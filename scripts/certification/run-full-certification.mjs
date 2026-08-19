@@ -160,13 +160,13 @@ function gateSourceIdentity(candidateSha, { allowDirty }) {
 }
 
 /** Gate 02: the services the ladder depends on are actually reachable. */
-function gateEnvironment() {
+function gateEnvironment(runLabel) {
   const startedAt = new Date();
   const probe = shell(process.execPath, ['scripts/certification/probe-environment.mjs'], {
     timeoutMs: 60_000,
   });
   const finishedAt = new Date();
-  const logPath = writeLog('gate-02-environment', 'environment probe', probe);
+  const logPath = writeLog(`${runLabel}-02-environment`, 'environment probe', probe);
 
   let metrics = {};
   try {
@@ -189,7 +189,13 @@ function gateEnvironment() {
   };
 }
 
-function scriptGate(gateId, description, command, args, { env = {}, timeoutMs } = {}) {
+/**
+ * `runLabel` is part of the log filename on purpose. Without it every run wrote
+ * `gate-13-queue-load.log` to the same path, so run 2 overwrote the very file run 1's
+ * evidence record had hashed - and the validator correctly reported thirteen artifact
+ * mismatches. Evidence has to outlive the run after it.
+ */
+function scriptGate(gateId, description, command, args, { env = {}, timeoutMs, runLabel = 'run' } = {}) {
   const startedAt = new Date();
   const result = shell(command, args, { env, timeoutMs });
   const finishedAt = new Date();
@@ -203,7 +209,7 @@ function scriptGate(gateId, description, command, args, { env = {}, timeoutMs } 
     exitCode: result.status,
     status: result.status === 0 ? 'PASS' : 'FAIL',
     metrics: {},
-    logPath: writeLog(`gate-${gateId}`, description, result),
+    logPath: writeLog(`${runLabel}-${gateId}`, description, result),
   };
 }
 
@@ -296,7 +302,7 @@ async function withWorker(fn) {
  * Gate 18. Needs a tenant id because this database holds many: the healthcheck refuses to
  * guess which one to enqueue against rather than picking one arbitrarily.
  */
-function gateWorkerReadiness() {
+function gateWorkerReadiness(runLabel) {
   const tenantId = process.env.CERT_WORKER_TENANT_ID || readFixtureTenant();
   return scriptGate(
     '18-worker-readiness',
@@ -310,6 +316,7 @@ function gateWorkerReadiness() {
         DIRECT_URL: process.env.DIRECT_URL || process.env.DATABASE_URL,
       },
       timeoutMs: 180_000,
+      runLabel,
     },
   );
 }
@@ -325,7 +332,7 @@ function readFixtureTenant() {
   }
 }
 
-async function gateHealthSmoke() {
+async function gateHealthSmoke(runLabel) {
   const startedAt = new Date();
   const results = {};
   let ok = true;
@@ -358,7 +365,7 @@ async function gateHealthSmoke() {
     exitCode: ok ? 0 : 1,
     status: ok ? 'PASS' : 'FAIL',
     metrics: { endpoints: results },
-    logPath: path.join(RAW_DIR, 'gate-22-health-smoke.log'),
+    logPath: path.join(RAW_DIR, `${runLabel}-22-health-smoke.log`),
   };
 }
 
@@ -400,7 +407,7 @@ async function main() {
   };
 
   record(gateSourceIdentity(candidateSha, { allowDirty }));
-  record(gateEnvironment());
+  record(gateEnvironment(runLabel));
 
   // Static and test gates, straight from the catalogue.
   for (const gateId of [
@@ -416,7 +423,10 @@ async function main() {
     '12-import-fault-matrix',
   ]) {
     if (!GATES[gateId]) continue;
-    record({ ...runGate(gateId, { runLabel }), gateId });
+    record({
+      ...runGate(gateId, { runLabel, extraEnv: { CERT_CANDIDATE_SHA: candidateSha } }),
+      gateId,
+    });
   }
 
   record(
@@ -432,7 +442,7 @@ async function main() {
         '--scales',
         '120,500,1000',
       ],
-      { env: { IS_WORKER: 'true' } },
+      { env: { IS_WORKER: 'true' }, runLabel },
     ),
   );
 
@@ -449,7 +459,7 @@ async function main() {
         'six-role real browser acceptance',
         process.execPath,
         ['node_modules/@playwright/test/cli.js', 'test', '--project=certification-roles'],
-        { env: { BASE_URL } },
+        { env: { BASE_URL }, runLabel },
       ),
     );
     collected.push(
@@ -458,6 +468,7 @@ async function main() {
         'aggregate six-role observations into EV-ROLE-BROWSER',
         process.execPath,
         ['scripts/certification/collect-role-evidence.mjs', '--candidate', candidateSha],
+        { runLabel },
       ),
     );
     collected.push(
@@ -466,15 +477,15 @@ async function main() {
         'cross-role golden journey in a real browser',
         process.execPath,
         ['node_modules/@playwright/test/cli.js', 'test', '--project=certification-journey'],
-        { env: { BASE_URL } },
+        { env: { BASE_URL }, runLabel },
       ),
     );
     // The healthcheck enqueues a job and waits for a worker to complete it, so a worker has
     // to be attached. Without one it reports "is a worker running?" - which is the check
     // doing its job, not a product failure, and is exactly the stranded-queue condition it
     // exists to catch.
-    collected.push(await withWorker(() => gateWorkerReadiness()));
-    collected.push(await gateHealthSmoke());
+    collected.push(await withWorker(() => gateWorkerReadiness(runLabel)));
+    collected.push(await gateHealthSmoke(runLabel));
     return collected;
   });
   browserGates.forEach(record);
@@ -495,6 +506,17 @@ async function main() {
     ),
   );
   record({ ...runGate('21-compose-validation', { runLabel }), gateId: '21-compose-validation' });
+
+  // The validator has to be shown failing, or it proves nothing (order section 31).
+  record(
+    scriptGate(
+      '23-validator-selftest',
+      'the validator rejects every injected false-green state',
+      process.execPath,
+      ['scripts/certification/validator-selftest.mjs'],
+      { runLabel },
+    ),
+  );
 
   const finishedAt = new Date();
 
@@ -547,7 +569,13 @@ async function main() {
     .filter((result) => result.logPath && existsSync(result.logPath))
     .map((result) => artifactOf(result.logPath));
 
-  const runPassed = failedGates.length === 0 && missingGates.length === 0 && mandatorySkips === 0;
+  // A blocked gate is honest, but it still means this is not a complete certification run.
+  // Recording it as a pass would be the same class of claim the program exists to remove.
+  const runPassed =
+    failedGates.length === 0 &&
+    missingGates.length === 0 &&
+    mandatorySkips === 0 &&
+    blockedGates.length === 0;
 
   writeFileSync(
     path.join(EVIDENCE_DIR, `EV-RUN-${runNumber}.json`),
@@ -594,6 +622,70 @@ async function main() {
     writeGateEvidence(redisGate, {
       evidenceId: 'EV-REDIS-INTEGRATION',
       kind: 'redis-integration',
+      candidateSha,
+      environment: manifest.environment,
+    });
+  }
+
+  // Several requirements are satisfied by a specific suite rather than by the run as a whole.
+  // Deriving those records from the Vitest per-file results keeps one source of truth: a
+  // record can only claim a suite passed if that suite actually appears in the run output.
+  if (vitest) {
+    const suitePassed = (file) => {
+      const entry = vitest.files[file];
+      return Boolean(entry && entry.status === 'passed' && entry.tests > 0 && entry.skipped === 0);
+    };
+    const derive = (evidenceId, kind, files, extraMetrics = {}) => {
+      const allPassed = files.every(suitePassed);
+      writeFileSync(
+        path.join(EVIDENCE_DIR, `${evidenceId}.json`),
+        `${JSON.stringify(
+          {
+            evidenceId,
+            kind,
+            candidateSha,
+            environment: manifest.environment,
+            command: `derived from ${vitestGate?.command ?? 'the Vitest gate'}`,
+            startedAt: vitestGate?.startedAt ?? manifest.startedAt,
+            finishedAt: vitestGate?.finishedAt ?? manifest.finishedAt,
+            exitCode: allPassed ? 0 : 1,
+            status: allPassed ? 'PASS' : 'FAIL',
+            metrics: {
+              suites: Object.fromEntries(files.map((file) => [file, vitest.files[file] ?? null])),
+              ...extraMetrics,
+            },
+            artifacts: vitestGate && existsSync(vitestGate.logPath) ? [artifactOf(vitestGate.logPath)] : [],
+          },
+          null,
+          2,
+        )}
+`,
+      );
+    };
+
+    derive('EV-AI-CAPABILITY-ROUTING', 'ai-capability-routing', ['tests/ai-capability-routing.test.ts']);
+    derive('EV-AI-DURABLE-BUDGET', 'ai-durable-budget', ['tests/ai-durable-budget.test.ts']);
+    derive('EV-AI-SHARED-CIRCUIT', 'ai-shared-circuit', ['tests/ai-shared-circuit.test.ts']);
+    derive('EV-AI-STREAM-GOVERNANCE', 'ai-stream-governance', ['tests/ai-stream-governance.test.ts']);
+    derive(
+      'EV-SECURITY-INVENTORY',
+      'security-inventory',
+      ['tests/tenant-inject.test.ts', 'tests/object-auth-red-team.test.ts', 'tests/mass-assignment.test.ts'],
+      { inventory: 'docs/production-certification/RLS_BYPASS_INVENTORY.md' },
+    );
+    derive('EV-FAILURE-MATRIX', 'failure-matrix', ['tests/failure-matrix.test.ts'], {
+      scenarios: {
+        'database-connection-drop': suitePassed('tests/failure-matrix.test.ts') ? 'PASS' : 'FAIL',
+        'sigterm-shutdown': suitePassed('tests/failure-matrix.test.ts') ? 'PASS' : 'FAIL',
+      },
+    });
+  }
+
+  const selftestGate = gateResults.find((result) => result.gateId === '23-validator-selftest');
+  if (selftestGate) {
+    writeGateEvidence(selftestGate, {
+      evidenceId: 'EV-VALIDATOR-SELFTEST',
+      kind: 'validator-self',
       candidateSha,
       environment: manifest.environment,
     });

@@ -9,7 +9,7 @@
 **Requirement**: `REL-001`
 **Defect**: `TEL-P1-018`
 **Chain status**: **INCOMPLETE — see §2**
-**Candidate SHA**: *(not frozen)*
+**Candidate SHA**: `1fbd7b00d4a00375ee93f6f46314f10c211535d6`
 **Release tag**: `telestar-internal-rc-2026-08-20`
 
 ---
@@ -29,7 +29,7 @@ running.
 
 | Link | Value | How to establish it |
 |---|---|---|
-| APPLICATION_SOURCE_SHA | **not established** | freeze the candidate in `certification.config.json` |
+| APPLICATION_SOURCE_SHA | `1fbd7b00d4a00375ee93f6f46314f10c211535d6` | — |
 | CI_RUN_ID | **not established** | `gh run list --commit <sha> --json databaseId,conclusion,workflowName` |
 | IMAGE_DIGEST | **not established** | `docker buildx build --push` then `docker buildx imagetools inspect <ref>` |
 | WEB_DIGEST | **not established** | `docker inspect --format {{index .RepoDigests 0}} <web container>` |
@@ -49,7 +49,7 @@ To complete it, on a host with a container runtime and access to the registry:
 
 ```bash
 # 1. Build from the frozen candidate, and push by digest.
-git checkout <candidate-sha>
+git checkout 1fbd7b00d4a00375ee93f6f46314f10c211535d6
 docker buildx build --platform linux/amd64 -t <registry>/telestar-crm:telestar-internal-rc-2026-08-20 --push .
 IMAGE_DIGEST=$(docker buildx imagetools inspect <registry>/telestar-crm:telestar-internal-rc-2026-08-20 \
   --format '{{json .Manifest.Digest}}')
@@ -64,13 +64,13 @@ curl -s https://<host>/api/health
 
 # 4. Record it.
 node scripts/certification/record-release-identity.mjs \
-  --candidate <candidate-sha> \
+  --candidate 1fbd7b00d4a00375ee93f6f46314f10c211535d6 \
   --ci-run <run-id> --image <digest> --web <digest> --worker <digest> --health-sha <sha>
 ```
 
 ## 4. Rollback
 
-**NOT_EXECUTED** — docker is not installed on this machine, so no image has been built and no image digest exists to roll between.
+**NOT_EXECUTED** — docker is not installed on this machine, so no image has been built and no digest exists to roll between.
 
 A rollback drill needs two immutable image digests to move between, so it is blocked by the
 same gap as §2. The previously published "38 seconds" is withdrawn: it was never measured.

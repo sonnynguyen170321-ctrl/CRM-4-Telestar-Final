@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-VITEST",
   "kind": "vitest",
-  "candidateSha": "f37382ac63c59e3ad6523888951ffaec4cd58bf4",
+  "candidateSha": "1fbd7b00d4a00375ee93f6f46314f10c211535d6",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-19T20:01:37.457Z",
-  "finishedAt": "2026-08-19T20:03:49.870Z",
+  "startedAt": "2026-08-19T20:36:58.266Z",
+  "finishedAt": "2026-08-19T20:39:06.245Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -997,9 +997,9 @@
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/run1-08-vitest.log",
+      "path": "docs/production-certification/evidence/raw/run3-08-vitest.log",
       "sizeBytes": 451,
-      "sha256": "25a989ee41279aa145f79bf1a5da719acb48996b769ade135341c8e5a37c2d99"
+      "sha256": "075766b7efe460ac91ade64800291f14a08888119e0f9f3623b1889bbc9d6479"
     }
   ]
 }

@@ -1,0 +1,11 @@
+# gate: 09-redis-integration — Redis integration suite - must execute, never skip
+# command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/redis-integration.test.ts tests/ai-shared-circuit.test.ts tests/redis-readiness.test.ts --reporter=json --outputFile=.certification/redis.json
+# startedAt: 2026-08-19T20:32:23.748Z
+# finishedAt: 2026-08-19T20:32:27.277Z
+# exitCode: 0
+
+--- stdout ---
+JSON report written to C:/Users/admin/Desktop/Sonny & AI/clone-CRM-4-U-migration-main/.certification/redis.json
+
+--- stderr ---
+(empty)

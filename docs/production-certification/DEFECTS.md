@@ -20,7 +20,7 @@
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 2 | 0 | 0 | **2** |
-| **P1** (Critical) | 19 | 9 | 4 | **10** |
+| **P1** (Critical) | 21 | 9 | 4 | **12** |
 | **P2** (Important) | 17 | 9 | 3 | **8** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
 | **TOTAL** | **38** | **18** | **7** | **20** |
@@ -91,7 +91,7 @@ The prior cap of 25 is void.
 
 ### `TEL-P1-014` — Final Three-Run Certification Ladder Incomplete
 - **Severity**: P1
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION`
 - **Root cause**: `RUN_1/2/3` executed a 4-gate subset but were documented as full
   certification runs.
 - **Detail**: The runs prove TypeScript, ESLint, migration order, and Vitest. They do not
@@ -100,6 +100,11 @@ The prior cap of 25 is void.
 - **Required remediation**: `scripts/certification/run-full-certification.mjs` defining the
   complete ladder in code, invoked as `npm run certify:full`; run manifests generated from
   raw run output, not hand-written.
+- **Fix**: `scripts/certification/run-full-certification.mjs` runs the whole 22-gate ladder as one
+  command. A gate that does not run is reported in `missingGates`, and the validator refuses a run
+  that omitted one. Gate 02 proves Postgres and Redis are reachable before anything starts, which is
+  what the old runs lacked when they "passed" without Redis. Run manifests and `RUN_N.md` are
+  generated from raw output.
 - **Evidence ID**: *(none yet)*
 
 ---
@@ -171,7 +176,7 @@ The prior cap of 25 is void.
 
 ### `TEL-P2-013` — Six-Role Real Browser Acceptance Not Evidenced
 - **Severity**: P2
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION`
 - **Root cause**: Database/service role tests were treated as satisfying a browser-acceptance
   requirement.
 - **Detail**: `tests/role-journeys.test.ts` is valuable and is retained. It does not prove that
@@ -181,38 +186,48 @@ The prior cap of 25 is void.
   production build with real Postgres, real Redis, real server, real browser. Per role: login
   result, landing page, key navigation, allowed workflow, forbidden workflow, object
   authorization attempt, console errors, network failures, screenshot, trace.
+- **Fix**: `e2e/certification/six-role-acceptance.spec.ts` drives all six roles in Chromium against a
+  production build with real Postgres and Redis. Measured 6/6 PASS, 0 console errors, 0 network
+  failures, cross-tenant object denied for every role. The verdict is computed by
+  `buildRoleBrowserEvidence`, developed test-first, whose 14 cases pin that a role NOT stopped from a
+  forbidden surface FAILS. Evidence `EV-ROLE-BROWSER`; detail in `ROLE_BROWSER_EVIDENCE.md`.
 - **Evidence ID**: *(none yet)*
 
 ---
 
 ### `TEL-P2-014` — Master Evidence Ledger Stale
 - **Severity**: P2
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION`
 - **Detail**: `EVIDENCE.md` declares candidate `cf23182` and totals `149 files / 1,880 tests`
   while the certificate declared `a6d8c0d` and `154 files / 1,922 tests`. It also lacks
   evidence for the majority of active certification domains.
 - **Required remediation**: rebuild from the evidence manifest, covering static, build,
   database, Redis, unit/integration, import, queue load, email, AI, security, roles, Playwright,
   DR, rollback, deployment, and the three final runs.
+- **Fix**: `EVIDENCE.md` is generated from the evidence directory, so it cannot name a record that
+  does not exist or omit one that does, and it marks any record bound to a superseded candidate.
+  `MASTER_TRACKER.md`, `progress.json`, `REQUIREMENT_TRACEABILITY.md` and `RUN_N.md` are generated too.
 - **Evidence ID**: *(none yet)*
 
 ---
 
 ### `TEL-P2-015` — Load Results Contradict Certificate
 - **Severity**: P2
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION`
 - **Detail**: For the 1,000-row case `LOAD_TEST.md` recorded `26.11s / 38.3 rows/s / p95 1423ms`
   while the certificate recorded `19.71s / 50.75 rows/s / p95 950ms`. Two authoritative answers
   to one question is a certification failure regardless of which is correct.
 - **Required remediation**: one machine-written source of truth (`load-results.json`);
   `LOAD_TEST.md` and the certificate both rendered from it; no manual duplication anywhere.
+- **Fix**: the handler benchmark emits `EV-LOAD-HANDLER.json` instead of writing markdown, and
+  `LOAD_TEST.md` is rendered from both load records. No document types a performance number.
 - **Evidence ID**: *(none yet)*
 
 ---
 
 ### `TEL-P2-016` — Load Benchmark Does Not Exercise The Real BullMQ System
 - **Severity**: P2
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION`
 - **Detail**: The existing benchmark mocks BullMQ and invokes the worker handler directly. That
   is a legitimate **handler** benchmark and is retained under the name
   `IMPORT_HANDLER_BENCHMARK`. It is not queue/system evidence: it measures nothing about
@@ -220,6 +235,10 @@ The prior cap of 25 is void.
 - **Required remediation**: add `IMPORT_SYSTEM_QUEUE_BENCHMARK` using real Redis, real BullMQ,
   real worker, real queue, at 120 / 500 / 1000 rows, recording queue wait and processing
   percentiles, failed jobs, retries, lost/duplicate/stuck rows.
+- **Fix**: `scripts/certification/queue-load-benchmark.ts` runs real Redis, real BullMQ, a real worker
+  and real jobs, waiting for every row to reach a terminal state rather than for job counts. It
+  measured queue wait p95 rising 4ms -> 5007ms -> 8463ms across 120/500/1000 rows with zero lost,
+  duplicated or stuck rows - backpressure the handler benchmark is structurally unable to show.
 - **Evidence ID**: *(none yet)*
 
 ---
@@ -268,6 +287,46 @@ The prior cap of 25 is void.
   tests that genuinely exercise them, each carrying a written justification in `requirements.json`.
   Validator check `J2` now reports zero phantom citations.
 - **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-020` — `worker-healthcheck` Never Exits When The Check Succeeds
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: certification gate 18, which recorded `exitCode: null` (killed at its timeout)
+  while its own log read `job cmt0ivw530001vwc4rxu2z79t completed`.
+- **Root cause**: enqueuing opens a BullMQ queue and its Redis connection, and both keep the Node
+  event loop alive. Only the failure path called `process.exit`, so the **success** path returned
+  from `main()` and then hung forever.
+- **Why it matters**: a health check that hangs when everything is fine is worse than one that
+  fails. `npm run worker:healthcheck` is documented as a deploy gate; used there it would wait
+  forever and read as an infrastructure problem rather than a working system. The bug was invisible
+  precisely because it only manifests on success.
+- **Fix**: close the queues and the shared connection, then exit explicitly on both paths. The
+  cleanup lives in `main()`, not in the exported `runWorkerHealthcheck`, so
+  `scripts/cutover-preflight.ts` does not get its connections closed underneath it.
+- **Evidence ID**: gate `18-worker-readiness` in each run manifest
+
+---
+
+### `TEL-P1-021` — AI Circuit State Was Not Namespaced Per Deployment
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: the first full ladder run. The Vitest gate failed with 4 failures in
+  `ai-stream-governance`, all returning the AI-unavailable message; they passed in isolation.
+  Inspecting Redis afterwards showed six of the seven model circuits `OPEN`.
+- **Root cause**: `TEL-P1-017` moved circuit state to Redis keyed only by `provider:model`, with no
+  deployment scope. Any process that exercises the gateway without API keys fails every provider
+  call and therefore opens every circuit — for every other consumer of that Redis, and for 24 hours.
+- **Why it matters beyond tests**: sharing circuit state between the instances of one deployment is
+  the feature; sharing it between *different* deployments on one Redis is a defect. A staging run
+  that exhausts a provider would open production's circuits.
+- **Fix**: keys are now `crm4u:ai:circuit:{namespace}:`, following the existing `crm4u:` convention
+  in `lib/cache.ts`, with the namespace from `AI_CIRCUIT_NAMESPACE` else `NODE_ENV`. Written
+  test-first; three failing cases preceded the implementation. The two suites that drive the gateway
+  take a namespace of their own.
+- **Verification**: full Vitest went from 2048 passed / 4 failed to 2055 passed / 0 failed / 0 skipped.
+- **Evidence ID**: `EV-VITEST`
 
 ---
 

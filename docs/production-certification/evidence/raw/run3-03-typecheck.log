@@ -1,0 +1,10 @@
+# gate: 03-typecheck — tsc --noEmit
+# command: C:\Program Files\nodejs\node.exe node_modules/typescript/bin/tsc --noEmit
+# startedAt: 2026-08-19T20:35:33.663Z
+# finishedAt: 2026-08-19T20:35:59.076Z
+# exitCode: 0
+
+--- stdout ---
+(empty)
+--- stderr ---
+(empty)
