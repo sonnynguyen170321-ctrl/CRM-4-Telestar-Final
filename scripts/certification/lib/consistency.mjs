@@ -355,9 +355,22 @@ export function checkSourceIdentity(config) {
     // Commits after the freeze are checked by N, which reports any that touch application code.
   }
 
-  const status = (git(['status', '--porcelain']) ?? '')
+  // Read without trimming. Porcelain's status field is fixed-width - two status characters
+  // then a space - so the path starts at index 3. `trim()` strips an unstaged line's leading
+  // space, shifting the first line by one and turning `docs/...` into `ocs/...`, which
+  // misreads a metadata path as application code.
+  let statusOutput = '';
+  try {
+    statusOutput = execFileSync('git', ['status', '--porcelain'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    });
+  } catch {
+    statusOutput = '';
+  }
+  const status = statusOutput
     .split('\n')
-    .filter((line) => line.trim())
+    .filter((line) => line.trim().length > 0)
     .filter((line) => !line.slice(3).replace(/^"|"$/g, '').startsWith('docs/production-certification/'));
 
   if (status.length > 0) {

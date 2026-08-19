@@ -1,8 +1,9 @@
-# worker healthcheck against real Redis
-# exitCode: 1
+# worker healthcheck: a job is enqueued and a real worker drains it
+# exitCode: null
 
 --- stdout ---
-cannot enqueue: more than one tenant exists — pass CUTOVER_TENANT_ID to say which one
+[bullmq] Redis connected
+job cmt0ivw530001vwc4rxu2z79t completed
 
 --- stderr ---
 (empty)

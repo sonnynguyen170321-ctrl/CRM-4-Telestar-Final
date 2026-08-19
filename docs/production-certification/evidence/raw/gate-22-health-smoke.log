@@ -2,7 +2,7 @@
 {
   "/api/health": {
     "status": 200,
-    "body": "{\"ok\":true,\"ts\":1787167959596,\"commit\":\"unknown\",\"version\":\"unknown\",\"builtAt\":\"unknown\",\"schema\":\"ready\"}"
+    "body": "{\"ok\":true,\"ts\":1787170197824,\"commit\":\"unknown\",\"version\":\"unknown\",\"builtAt\":\"unknown\",\"schema\":\"ready\"}"
   },
   "/api/health/db": {
     "status": 404,

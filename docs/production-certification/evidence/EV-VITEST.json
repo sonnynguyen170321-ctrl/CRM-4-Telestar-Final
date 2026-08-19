@@ -1,13 +1,13 @@
 {
   "evidenceId": "EV-VITEST",
   "kind": "vitest",
-  "candidateSha": "e215c043effa70857eb7aa60ccb6fc1e8c3bddbb",
+  "candidateSha": "f37382ac63c59e3ad6523888951ffaec4cd58bf4",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-19T19:27:14.649Z",
-  "finishedAt": "2026-08-19T19:29:34.003Z",
-  "exitCode": 1,
-  "status": "FAIL",
+  "startedAt": "2026-08-19T20:01:37.457Z",
+  "finishedAt": "2026-08-19T20:03:49.870Z",
+  "exitCode": 0,
+  "status": "PASS",
   "metrics": {
     "files": {
       "tests/access-control.test.ts": {
@@ -132,14 +132,14 @@
       },
       "tests/ai-shared-circuit.test.ts": {
         "status": "passed",
-        "tests": 9,
+        "tests": 12,
         "failed": 0,
         "skipped": 0
       },
       "tests/ai-stream-governance.test.ts": {
-        "status": "failed",
-        "tests": 6,
-        "failed": 4,
+        "status": "passed",
+        "tests": 10,
+        "failed": 0,
         "skipped": 0
       },
       "tests/ai-structured-budget.test.ts": {
@@ -990,16 +990,16 @@
       }
     },
     "testFiles": 163,
-    "testFilesPassed": 162,
-    "testsPassed": 2048,
-    "testsFailed": 4,
+    "testFilesPassed": 163,
+    "testsPassed": 2055,
+    "testsFailed": 0,
     "testsSkipped": 0
   },
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/run1-08-vitest.log",
       "sizeBytes": 451,
-      "sha256": "842348c36b13a6cbd8ba5064ea073dc0566f95d03766da429b03c974370ba1d5"
+      "sha256": "25a989ee41279aa145f79bf1a5da719acb48996b769ade135341c8e5a37c2d99"
     }
   ]
 }

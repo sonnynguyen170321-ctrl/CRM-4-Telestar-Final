@@ -1,17 +1,17 @@
 {
   "evidenceId": "EV-DR-ROLLBACK",
   "kind": "dr-rollback",
-  "candidateSha": "7de1758634d0f8894de28eb823b7547fe0324fcc",
-  "environment": "certification workstation (win32) — no container runtime installed",
+  "candidateSha": "f37382ac63c59e3ad6523888951ffaec4cd58bf4",
+  "environment": "certification workstation - no container runtime installed",
   "command": "(not executed) rollback between two immutable image digests",
-  "startedAt": "2026-08-20T09:00:00+07:00",
-  "finishedAt": "2026-08-20T09:00:00+07:00",
+  "startedAt": "2026-08-19T19:59:53.297Z",
+  "finishedAt": "2026-08-19T19:59:53.297Z",
   "exitCode": 127,
   "status": "NOT_EXECUTED",
   "metrics": {
-    "reason": "docker is not installed on this machine, so no image has been built and no image digest exists to roll between.",
+    "reason": "docker is not installed on this machine, so no image has been built and no digest exists to roll between.",
     "rollbackSeconds": null,
-    "priorPublishedValueWithdrawn": "38 seconds — never measured",
+    "priorPublishedValueWithdrawn": "38 seconds - never measured",
     "defect": "TEL-P1-018",
     "closesWhen": "a controlled rollback records candidate digest, previous digest, command, start, finish, web health, worker health, schema compatibility, and redeployment of the candidate"
   },

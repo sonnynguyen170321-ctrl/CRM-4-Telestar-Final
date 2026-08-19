@@ -43,6 +43,20 @@ function git(args) {
   return result.status === 0 ? result.stdout.trim() : null;
 }
 
+/**
+ * `git status --porcelain` without trimming.
+ *
+ * Its status field is fixed-width - two status characters then a space - so the path starts
+ * at index 3. `trim()` strips the leading space of an unstaged line, which shifts the first
+ * line by one and turns `docs/...` into `ocs/...`. That misread a metadata path as
+ * application code and failed gate 01 for a file that was fine.
+ */
+function gitStatusLines() {
+  const result = spawnSync('git', ['status', '--porcelain'], { cwd: REPO_ROOT, encoding: 'utf8' });
+  if (result.status !== 0) return [];
+  return result.stdout.split('\n').filter((line) => line.trim().length > 0);
+}
+
 function shell(command, args, { env = {}, timeoutMs = 30 * 60 * 1000 } = {}) {
   return spawnSync(command, args, {
     cwd: REPO_ROOT,
@@ -92,7 +106,7 @@ function isMetadataPath(line) {
  */
 function gateSourceIdentity(candidateSha, { allowDirty }) {
   const head = git(['rev-parse', 'HEAD']);
-  const status = (git(['status', '--porcelain']) ?? '').split('\n').filter((line) => line.trim());
+  const status = gitStatusLines();
   const problems = [];
 
   const dirtyNonMetadata = status.filter((line) => !isMetadataPath(line));

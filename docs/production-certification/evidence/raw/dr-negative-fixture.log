@@ -1,6 +1,6 @@
 # verify-db-integrity.ts negative control
-# startedAt: 2026-08-19T17:48:29.663Z
-# finishedAt: 2026-08-19T17:48:39.499Z
+# startedAt: 2026-08-19T19:59:09.566Z
+# finishedAt: 2026-08-19T19:59:20.119Z
 # cases: [
   {
     "name": "empty-database",
@@ -33,7 +33,7 @@ exit 1; detected=true
 database integrity verification — telestar_dr_negative_fixture
 ========================================================================
 [FAIL   ] Every datamodel model has a table
-          0/65 declared tables present
+          0/67 declared tables present
           - missing table "User"
           - missing table "Client"
           - missing table "Campaign"
@@ -44,7 +44,7 @@ database integrity verification — telestar_dr_negative_fixture
           - missing table "ContactEvidence"
           - missing table "Lead"
           - missing table "Sequence"
-          ... 55 more
+          ... 57 more
 [FAIL   ] Verification executed to completion
           
 Invalid `prisma.$queryRawUnsafe()` invocation:
@@ -70,16 +70,16 @@ exit 1; detected=true
 database integrity verification — telestar_dr_negative_fixture
 ========================================================================
 [PASS   ] Every datamodel model has a table
-          65/65 declared tables present
+          67/67 declared tables present
 [PASS   ] Migration ledger is complete and fully applied
-          48/48 migrations applied successfully
+          49/49 migrations applied successfully
 [FAIL   ] No foreign key points at a missing row
-          209 single-column foreign keys checked
+          212 single-column foreign keys checked
           - Client.tenantId has 1 row(s) with no matching Tenant.id (Client_tenantId_fkey)
 [PASS   ] No tenant-owned row has a null tenantId
-          63 tenant-owned tables checked
+          65 tenant-owned tables checked
 [SKIPPED] Row-level security configuration
-          0/63 tenant-owned tables have RLS enabled - pass --require-rls to fail on this (RLS is applied from supabase/rls.sql, not by migrations)
+          0/65 tenant-owned tables have RLS enabled - pass --require-rls to fail on this (RLS is applied from supabase/rls.sql, not by migrations)
 [SKIPPED] Representative record counts
           no --expect-counts snapshot supplied; counts recorded but not reconciled
 ------------------------------------------------------------------------
@@ -106,16 +106,16 @@ exit 1; detected=true
 database integrity verification — telestar_dr_negative_fixture
 ========================================================================
 [FAIL   ] Every datamodel model has a table
-          64/65 declared tables present
+          66/67 declared tables present
           - missing table "Activity"
 [PASS   ] Migration ledger is complete and fully applied
-          48/48 migrations applied successfully
+          49/49 migrations applied successfully
 [PASS   ] No foreign key points at a missing row
-          204 single-column foreign keys checked
+          207 single-column foreign keys checked
 [PASS   ] No tenant-owned row has a null tenantId
-          62 tenant-owned tables checked
+          64 tenant-owned tables checked
 [SKIPPED] Row-level security configuration
-          0/62 tenant-owned tables have RLS enabled - pass --require-rls to fail on this (RLS is applied from supabase/rls.sql, not by migrations)
+          0/64 tenant-owned tables have RLS enabled - pass --require-rls to fail on this (RLS is applied from supabase/rls.sql, not by migrations)
 [SKIPPED] Representative record counts
           no --expect-counts snapshot supplied; counts recorded but not reconciled
 ------------------------------------------------------------------------

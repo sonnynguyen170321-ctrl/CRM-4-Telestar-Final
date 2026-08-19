@@ -1,26 +1,30 @@
 {
   "runNumber": 1,
-  "candidateSha": "e215c043effa70857eb7aa60ccb6fc1e8c3bddbb",
+  "candidateSha": "f37382ac63c59e3ad6523888951ffaec4cd58bf4",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
-  "startedAt": "2026-08-19T19:25:38.874Z",
-  "finishedAt": "2026-08-19T19:32:40.427Z",
-  "durationMs": 421553,
+  "startedAt": "2026-08-19T20:00:06.799Z",
+  "finishedAt": "2026-08-19T20:09:58.323Z",
+  "durationMs": 591524,
   "gates": {
     "01-source-identity": {
-      "status": "PASS",
-      "exitCode": 0,
+      "status": "FAIL",
+      "exitCode": 1,
       "durationMs": 0,
-      "description": "HEAD equals the candidate SHA and the tree is clean",
+      "description": "the application source is exactly the frozen candidate",
       "metrics": {
-        "head": "e215c043effa70857eb7aa60ccb6fc1e8c3bddbb",
-        "uncommittedPaths": 0,
-        "problems": []
+        "head": "45a51a425c84e943885742945e6bbfc59a3c082a",
+        "candidateSha": "f37382ac63c59e3ad6523888951ffaec4cd58bf4",
+        "commitsSinceFreeze": 1,
+        "uncommittedNonMetadataPaths": 2,
+        "problems": [
+          "working tree has 2 uncommitted non-metadata path(s): ocs/production-certification/evidence/EV-DR-BACKUP.json, scripts/certification/record-blocked-evidence.mjs"
+        ]
       }
     },
     "02-environment": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 288,
+      "durationMs": 340,
       "description": "Postgres and Redis reachable; required configuration present",
       "metrics": {
         "postgres": {
@@ -47,37 +51,37 @@
     "03-typecheck": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 29180,
+      "durationMs": 27731,
       "description": "tsc --noEmit"
     },
     "04-lint": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 56160,
+      "durationMs": 53652,
       "description": "eslint across the whole tree"
     },
     "05-test-discipline": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 271,
+      "durationMs": 289,
       "description": "scripts/check-test-discipline.mjs"
     },
     "06-migration-validation": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 154,
+      "durationMs": 143,
       "description": "scripts/check-migration-order.mjs"
     },
     "07-database-integrity": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 9581,
+      "durationMs": 8271,
       "description": "scripts/verify-db-integrity.ts against the certification database"
     },
     "08-vitest": {
-      "status": "FAIL",
-      "exitCode": 1,
-      "durationMs": 139354,
+      "status": "PASS",
+      "exitCode": 0,
+      "durationMs": 132413,
       "description": "full Vitest suite against real Postgres and Redis",
       "metrics": {
         "files": {
@@ -203,14 +207,14 @@
           },
           "tests/ai-shared-circuit.test.ts": {
             "status": "passed",
-            "tests": 9,
+            "tests": 12,
             "failed": 0,
             "skipped": 0
           },
           "tests/ai-stream-governance.test.ts": {
-            "status": "failed",
-            "tests": 6,
-            "failed": 4,
+            "status": "passed",
+            "tests": 10,
+            "failed": 0,
             "skipped": 0
           },
           "tests/ai-structured-budget.test.ts": {
@@ -1061,22 +1065,22 @@
           }
         },
         "testFiles": 163,
-        "testFilesPassed": 162,
-        "testsPassed": 2048,
-        "testsFailed": 4,
+        "testFilesPassed": 163,
+        "testsPassed": 2055,
+        "testsFailed": 0,
         "testsSkipped": 0
       }
     },
     "09-redis-integration": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 3491,
+      "durationMs": 3603,
       "description": "Redis integration suite - must execute, never skip",
       "metrics": {
         "files": {
           "tests/ai-shared-circuit.test.ts": {
             "status": "passed",
-            "tests": 9,
+            "tests": 12,
             "failed": 0,
             "skipped": 0
           },
@@ -1095,7 +1099,7 @@
         },
         "testFiles": 3,
         "testFilesPassed": 3,
-        "testsPassed": 31,
+        "testsPassed": 34,
         "testsFailed": 0,
         "testsSkipped": 0,
         "executed": true,
@@ -1105,73 +1109,73 @@
     "10-ai-certification": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 7720,
+      "durationMs": 7124,
       "description": "AI durable budget, stream governance, shared circuit, capability routing"
     },
     "11-email-safety": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 2177,
+      "durationMs": 2190,
       "description": "demo barrier, idempotency, safe-mode posture"
     },
     "12-import-fault-matrix": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 7812,
+      "durationMs": 7887,
       "description": "import durable-write failpoint matrix"
     },
     "13-queue-load": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 33959,
+      "durationMs": 34472,
       "description": "IMPORT_SYSTEM_QUEUE_BENCHMARK over real Redis and BullMQ"
     },
     "14-security-suite": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 3865,
+      "durationMs": 3645,
       "description": "tenant isolation, object auth, mass assignment, XSS, formula injection, secrets"
     },
     "15-production-build": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 75685,
+      "durationMs": 72136,
       "description": "next build"
     },
     "16-playwright-roles": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 30749,
+      "durationMs": 29984,
       "description": "six-role real browser acceptance"
     },
     "16-playwright-roles-evidence": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 376,
+      "durationMs": 146,
       "description": "aggregate six-role observations into EV-ROLE-BROWSER"
     },
     "17-golden-browser-journey": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 15738,
+      "durationMs": 15414,
       "description": "cross-role golden journey in a real browser"
     },
     "18-worker-readiness": {
       "status": "FAIL",
-      "exitCode": 1,
-      "durationMs": 825,
-      "description": "worker healthcheck against real Redis"
+      "exitCode": null,
+      "durationMs": 180024,
+      "description": "worker healthcheck: a job is enqueued and a real worker drains it"
     },
     "22-health-smoke": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 53,
+      "durationMs": 51,
       "description": "web health endpoints answer and report release identity",
       "metrics": {
         "endpoints": {
           "/api/health": {
             "status": 200,
-            "body": "{\"ok\":true,\"ts\":1787167959596,\"commit\":\"unknown\",\"version\":\"unknown\",\"builtAt\":\"unknown\",\"schema\":\"ready\"}"
+            "body": "{\"ok\":true,\"ts\":1787170197824,\"commit\":\"unknown\",\"version\":\"unknown\",\"builtAt\":\"unknown\",\"schema\":\"ready\"}"
           },
           "/api/health/db": {
             "status": 404,
@@ -1205,13 +1209,13 @@
     "21-compose-validation": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 791,
+      "durationMs": 459,
       "description": "scripts/check-production-compose.mjs"
     }
   },
   "missingGates": [],
   "failedGates": [
-    "08-vitest",
+    "01-source-identity",
     "18-worker-readiness"
   ],
   "blockedGates": [
@@ -1343,14 +1347,14 @@
       },
       "tests/ai-shared-circuit.test.ts": {
         "status": "passed",
-        "tests": 9,
+        "tests": 12,
         "failed": 0,
         "skipped": 0
       },
       "tests/ai-stream-governance.test.ts": {
-        "status": "failed",
-        "tests": 6,
-        "failed": 4,
+        "status": "passed",
+        "tests": 10,
+        "failed": 0,
         "skipped": 0
       },
       "tests/ai-structured-budget.test.ts": {
@@ -2201,9 +2205,9 @@
       }
     },
     "testFiles": 163,
-    "testFilesPassed": 162,
-    "testsPassed": 2048,
-    "testsFailed": 4,
+    "testFilesPassed": 163,
+    "testsPassed": 2055,
+    "testsFailed": 0,
     "testsSkipped": 0
   }
 }
