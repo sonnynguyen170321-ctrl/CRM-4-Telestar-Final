@@ -110,7 +110,10 @@ export function checkLoadResultAgreement(scope = defaultScope()) {
   const re = /([\d.]+)\s*rows\/s/g;
 
   for (const doc of certDocs(scope)) {
-    const content = readFileSync(doc, 'utf8');
+    // A document that *quotes* a withdrawn figure inside backticks - as the certificate does
+    // when recording why it was invalidated - is describing the contradiction, not publishing
+    // a second answer to it. `withoutCode` is declared below and hoisted.
+    const content = withoutCode(readFileSync(doc, 'utf8'));
     for (const match of content.matchAll(re)) {
       const value = Number(match[1]);
       if (!Number.isFinite(value)) continue;

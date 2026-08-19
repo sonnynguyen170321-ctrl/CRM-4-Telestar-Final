@@ -1,0 +1,95 @@
+# IMPORT_SYSTEM_QUEUE_BENCHMARK
+# startedAt: 2026-08-19T18:53:42.771Z
+# finishedAt: 2026-08-19T18:54:20.780Z
+# redis: 127.0.0.1:6379
+
+## 120 rows
+{
+  "rows": 120,
+  "chunks": 3,
+  "totalDurationMs": 1660,
+  "rowsPerSecond": 72.29,
+  "queueWaitMs": {
+    "p50": 3,
+    "p95": 4,
+    "p99": 4
+  },
+  "jobProcessingMs": {
+    "p50": 1546,
+    "p95": 1620,
+    "p99": 1620
+  },
+  "enqueueStartedAt": "2026-08-19T18:53:45.812Z",
+  "firstWorkerStartAt": "2026-08-19T18:53:45.831Z",
+  "lastRowTerminalAt": "2026-08-19T18:53:47.465Z",
+  "batchCommittedAt": "2026-08-19T18:53:47.472Z",
+  "failedJobs": 0,
+  "retries": 0,
+  "lostRows": 0,
+  "duplicateRows": 0,
+  "stuckRows": 0,
+  "workerConcurrency": 3,
+  "createdLeads": 120,
+  "createdAccounts": 20,
+  "createdContacts": 120
+}
+## 500 rows
+{
+  "rows": 500,
+  "chunks": 10,
+  "totalDurationMs": 8146,
+  "rowsPerSecond": 61.38,
+  "queueWaitMs": {
+    "p50": 1505,
+    "p95": 5007,
+    "p99": 5007
+  },
+  "jobProcessingMs": {
+    "p50": 1496,
+    "p95": 2928,
+    "p99": 2928
+  },
+  "enqueueStartedAt": "2026-08-19T18:53:51.360Z",
+  "firstWorkerStartAt": "2026-08-19T18:53:51.368Z",
+  "lastRowTerminalAt": "2026-08-19T18:53:59.498Z",
+  "batchCommittedAt": "2026-08-19T18:53:59.506Z",
+  "failedJobs": 0,
+  "retries": 0,
+  "lostRows": 0,
+  "duplicateRows": 0,
+  "stuckRows": 0,
+  "workerConcurrency": 3,
+  "createdLeads": 500,
+  "createdAccounts": 20,
+  "createdContacts": 500
+}
+## 1000 rows
+{
+  "rows": 1000,
+  "chunks": 20,
+  "totalDurationMs": 9655,
+  "rowsPerSecond": 103.57,
+  "queueWaitMs": {
+    "p50": 4577,
+    "p95": 8463,
+    "p99": 8463
+  },
+  "jobProcessingMs": {
+    "p50": 1466,
+    "p95": 1655,
+    "p99": 1656
+  },
+  "enqueueStartedAt": "2026-08-19T18:54:11.106Z",
+  "firstWorkerStartAt": "2026-08-19T18:54:11.113Z",
+  "lastRowTerminalAt": "2026-08-19T18:54:20.756Z",
+  "batchCommittedAt": "2026-08-19T18:54:20.761Z",
+  "failedJobs": 0,
+  "retries": 0,
+  "lostRows": 0,
+  "duplicateRows": 0,
+  "stuckRows": 0,
+  "workerConcurrency": 3,
+  "createdLeads": 1000,
+  "createdAccounts": 20,
+  "createdContacts": 1000
+}

@@ -1,0 +1,61 @@
+{
+  "evidenceId": "EV-LOAD-HANDLER",
+  "kind": "load-benchmark",
+  "benchmark": "IMPORT_HANDLER_BENCHMARK",
+  "candidateSha": "1ee045c4a8c645397df0a8d6866c6b4bd13decc2",
+  "environment": "win32 / node 24.16.0 / postgres 16 / BullMQ mocked",
+  "command": "node node_modules/vitest/vitest.mjs run tests/import-load-benchmark.test.ts",
+  "startedAt": "2026-08-19T18:56:45.132Z",
+  "finishedAt": "2026-08-19T18:57:20.867Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {
+    "note": "Handler throughput only. BullMQ is mocked and the worker handler is invoked directly, so queue wait, redelivery and retry are out of scope by construction.",
+    "mocked": true,
+    "scales": {
+      "120": {
+        "batchSize": 120,
+        "totalDurationMs": 3050,
+        "throughputRowsPerSec": 39.34,
+        "p50Ms": 604,
+        "p95Ms": 694,
+        "p99Ms": 694,
+        "createdLeads": 120,
+        "createdAccounts": 20,
+        "createdContacts": 120,
+        "lostRows": 0,
+        "duplicateRows": 0,
+        "memoryUsedMb": 1
+      },
+      "500": {
+        "batchSize": 500,
+        "totalDurationMs": 11106,
+        "throughputRowsPerSec": 45.02,
+        "p50Ms": 934,
+        "p95Ms": 961,
+        "p99Ms": 961,
+        "createdLeads": 500,
+        "createdAccounts": 20,
+        "createdContacts": 500,
+        "lostRows": 0,
+        "duplicateRows": 0,
+        "memoryUsedMb": -3.69
+      },
+      "1000": {
+        "batchSize": 1000,
+        "totalDurationMs": 21579,
+        "throughputRowsPerSec": 46.34,
+        "p50Ms": 908,
+        "p95Ms": 1072,
+        "p99Ms": 1072,
+        "createdLeads": 1000,
+        "createdAccounts": 20,
+        "createdContacts": 1000,
+        "lostRows": 0,
+        "duplicateRows": 0,
+        "memoryUsedMb": 14.31
+      }
+    }
+  },
+  "artifacts": []
+}
