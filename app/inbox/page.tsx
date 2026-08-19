@@ -309,9 +309,9 @@ export default function InboxPage() {
   });
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-[#fafafa]">
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-bg-main">
       {/* Search Header */}
-      <div className="h-14 border-b border-card-border bg-white px-5 flex items-center justify-between">
+      <div className="h-14 border-b border-card-border bg-card-bg px-5 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h1 className="text-lg font-bold text-text-primary">Unified Inbox</h1>
           <span className="text-xs bg-brand-red/10 border border-brand-red/20 text-brand-red px-2 py-0.5 rounded-full uppercase font-bold">
@@ -325,14 +325,14 @@ export default function InboxPage() {
             placeholder="Search messages..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[#f4f4f4] border border-card-border rounded-xl pl-9 pr-4 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red transition-all"
+            className="w-full bg-bg-main border border-card-border rounded-xl pl-9 pr-4 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red transition-all placeholder:text-text-muted"
           />
         </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
         {/* COLUMN 1: Folder Navigation Folders */}
-        <div className="w-56 border-r border-card-border bg-white p-3 space-y-4 select-none text-left overflow-y-auto">
+        <div className="w-56 border-r border-card-border bg-card-bg p-3 space-y-4 select-none text-left overflow-y-auto">
           <div className="space-y-1">
             <span className="px-3 text-[9px] font-bold text-text-muted uppercase tracking-wider block">
               Folders
@@ -342,7 +342,7 @@ export default function InboxPage() {
               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
                 folder === 'inbox' && classFilter === 'all'
                   ? 'bg-brand-red/10 text-brand-red font-bold'
-                  : 'text-text-secondary hover:bg-[#f5f5f5] hover:text-text-primary'
+                  : 'text-text-secondary hover:bg-card-border/30 hover:text-text-primary'
               }`}
             >
               <div className="flex items-center gap-2">
@@ -361,7 +361,7 @@ export default function InboxPage() {
               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
                 folder === 'sent'
                   ? 'bg-brand-red/10 text-brand-red font-bold'
-                  : 'text-text-secondary hover:bg-[#f5f5f5] hover:text-text-primary'
+                  : 'text-text-secondary hover:bg-card-border/30 hover:text-text-primary'
               }`}
             >
               <div className="flex items-center gap-2">
@@ -375,7 +375,7 @@ export default function InboxPage() {
               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
                 folder === 'spam'
                   ? 'bg-brand-red/10 text-brand-red font-bold'
-                  : 'text-text-secondary hover:bg-[#f5f5f5] hover:text-text-primary'
+                  : 'text-text-secondary hover:bg-card-border/30 hover:text-text-primary'
               }`}
             >
               <div className="flex items-center gap-2">
@@ -389,7 +389,7 @@ export default function InboxPage() {
               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
                 folder === 'trash'
                   ? 'bg-brand-red/10 text-brand-red font-bold'
-                  : 'text-text-secondary hover:bg-[#f5f5f5] hover:text-text-primary'
+                  : 'text-text-secondary hover:bg-card-border/30 hover:text-text-primary'
               }`}
             >
               <div className="flex items-center gap-2">
@@ -410,12 +410,12 @@ export default function InboxPage() {
                 onClick={() => setClassFilter('needs_attention')}
                 className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   classFilter === 'needs_attention'
-                    ? 'bg-amber-500/15 text-amber-800 font-bold border border-amber-500/30'
-                    : 'text-text-secondary hover:bg-[#f5f5f5]'
+                    ? 'bg-amber-500/15 text-amber-500 font-bold border border-amber-500/30'
+                    : 'text-text-secondary hover:bg-card-border/30 hover:text-text-primary'
                 }`}
               >
                 <span>Needs Attention</span>
-                <span className="text-[10px] font-mono px-1 bg-amber-100 rounded text-amber-800">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-amber-500/20 rounded text-amber-400 font-bold">
                   {threads.filter((t) => t.lead?.operatingState === 'human_attention' || t.messages.some((m) => m.replyClass === 'C' || m.replyClass === 'D')).length}
                 </span>
               </button>
@@ -424,12 +424,12 @@ export default function InboxPage() {
                 onClick={() => setClassFilter('C')}
                 className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   classFilter === 'C'
-                    ? 'bg-emerald-500/15 text-emerald-800 font-bold border border-emerald-500/30'
-                    : 'text-text-secondary hover:bg-[#f5f5f5]'
+                    ? 'bg-emerald-500/15 text-emerald-500 font-bold border border-emerald-500/30'
+                    : 'text-text-secondary hover:bg-card-border/30 hover:text-text-primary'
                 }`}
               >
                 <span>Sales Engagement (Class C)</span>
-                <span className="text-[10px] font-mono px-1 bg-emerald-100 rounded text-emerald-800">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-500/20 rounded text-emerald-400 font-bold">
                   {threads.filter((t) => t.messages.some((m) => m.replyClass === 'C')).length}
                 </span>
               </button>
@@ -438,12 +438,12 @@ export default function InboxPage() {
                 onClick={() => setClassFilter('D')}
                 className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   classFilter === 'D'
-                    ? 'bg-amber-500/15 text-amber-800 font-bold border border-amber-500/30'
-                    : 'text-text-secondary hover:bg-[#f5f5f5]'
+                    ? 'bg-amber-500/15 text-amber-500 font-bold border border-amber-500/30'
+                    : 'text-text-secondary hover:bg-card-border/30 hover:text-text-primary'
                 }`}
               >
                 <span>Human Review Required (Class D)</span>
-                <span className="text-[10px] font-mono px-1 bg-amber-100 rounded text-amber-800">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-amber-500/20 rounded text-amber-400 font-bold">
                   {threads.filter((t) => t.messages.some((m) => m.replyClass === 'D')).length}
                 </span>
               </button>
@@ -452,12 +452,12 @@ export default function InboxPage() {
                 onClick={() => setClassFilter('B')}
                 className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   classFilter === 'B'
-                    ? 'bg-gray-500/15 text-gray-800 font-bold border border-gray-500/30'
-                    : 'text-text-secondary hover:bg-[#f5f5f5]'
+                    ? 'bg-gray-500/15 text-gray-400 font-bold border border-gray-500/30'
+                    : 'text-text-secondary hover:bg-card-border/30 hover:text-text-primary'
                 }`}
               >
                 <span>Administrative / OOO (Class B)</span>
-                <span className="text-[10px] font-mono px-1 bg-gray-100 rounded text-gray-800">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-gray-500/20 rounded text-gray-400 font-bold">
                   {threads.filter((t) => t.messages.some((m) => m.replyClass === 'B')).length}
                 </span>
               </button>
@@ -466,12 +466,12 @@ export default function InboxPage() {
                 onClick={() => setClassFilter('A')}
                 className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   classFilter === 'A'
-                    ? 'bg-red-500/15 text-red-800 font-bold border border-red-500/30'
-                    : 'text-text-secondary hover:bg-[#f5f5f5]'
+                    ? 'bg-red-500/15 text-red-500 font-bold border border-red-500/30'
+                    : 'text-text-secondary hover:bg-card-border/30 hover:text-text-primary'
                 }`}
               >
                 <span>Opt-Out / Stop (Class A)</span>
-                <span className="text-[10px] font-mono px-1 bg-red-100 rounded text-red-800">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-red-500/20 rounded text-red-400 font-bold">
                   {threads.filter((t) => t.messages.some((m) => m.replyClass === 'A')).length}
                 </span>
               </button>
@@ -480,7 +480,7 @@ export default function InboxPage() {
         </div>
 
         {/* COLUMN 2: Message Thread List */}
-        <div className="w-80 border-r border-card-border bg-white flex flex-col overflow-y-auto">
+        <div className="w-80 border-r border-card-border bg-card-bg flex flex-col overflow-y-auto">
           {loading && threads.length === 0 ? (
             <div className="flex-1 flex justify-center items-center">
               <Loader2 className="w-6 h-6 animate-spin text-text-muted" />
@@ -502,8 +502,8 @@ export default function InboxPage() {
                     onClick={() => setSelectedThread(thread)}
                     className={`p-3.5 cursor-pointer text-left transition-all relative border-l-2 ${
                       isSelected
-                        ? 'bg-brand-red/[0.03] border-brand-red'
-                        : 'hover:bg-[#fafafa] border-transparent'
+                        ? 'bg-brand-red/10 border-brand-red'
+                        : 'hover:bg-bg-main/60 border-transparent'
                     }`}
                   >
                     {/* Unread dot indicator */}
@@ -528,41 +528,41 @@ export default function InboxPage() {
                       </p>
                       {thread.lead && (
                         <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                          <span className="text-[10px] font-semibold text-brand-orange-text border border-brand-orange/20 bg-brand-orange/5 px-1.5 py-0.5 rounded font-mono">
+                          <span className="text-[10px] font-semibold text-brand-orange-text border border-brand-orange/20 bg-brand-orange/10 px-1.5 py-0.5 rounded font-mono">
                             {thread.lead.company}
                           </span>
                           {thread.lead.operatingState === 'human_attention' && (
-                            <span className="text-[9px] font-bold text-amber-700 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
+                            <span className="text-[9px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
                               Needs Attention
                             </span>
                           )}
                           {thread.lead.operatingState === 'ai_managed' && (
-                            <span className="text-[9px] font-bold text-blue-700 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded">
+                            <span className="text-[9px] font-bold text-blue-500 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded">
                               AI Managing
                             </span>
                           )}
                           {thread.lead.operatingState === 'waiting_for_prospect' && (
-                            <span className="text-[9px] font-bold text-gray-700 bg-gray-500/10 border border-gray-500/20 px-1.5 py-0.5 rounded">
+                            <span className="text-[9px] font-bold text-text-muted bg-card-border/30 border border-card-border px-1.5 py-0.5 rounded">
                               Waiting
                             </span>
                           )}
                           {latestMsg?.replyClass === 'A' && (
-                            <span className="text-[9px] font-bold text-red-700 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded font-mono">
+                            <span className="text-[9px] font-bold text-red-500 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded font-mono">
                               Class A · Opt-Out
                             </span>
                           )}
                           {latestMsg?.replyClass === 'B' && (
-                            <span className="text-[9px] font-bold text-gray-700 bg-gray-500/10 border border-gray-500/20 px-1.5 py-0.5 rounded font-mono">
+                            <span className="text-[9px] font-bold text-gray-400 bg-gray-500/10 border border-gray-500/20 px-1.5 py-0.5 rounded font-mono">
                               Class B · Admin
                             </span>
                           )}
                           {latestMsg?.replyClass === 'C' && (
-                            <span className="text-[9px] font-bold text-emerald-700 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded font-mono">
+                            <span className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded font-mono">
                               Class C · Sales
                             </span>
                           )}
                           {latestMsg?.replyClass === 'D' && (
-                            <span className="text-[9px] font-bold text-amber-700 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded font-mono">
+                            <span className="text-[9px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded font-mono">
                               Class D · Review
                             </span>
                           )}
@@ -577,11 +577,11 @@ export default function InboxPage() {
         </div>
 
         {/* COLUMN 3: Reading Pane & Reply Composer */}
-        <div className="flex-1 bg-white flex flex-col overflow-hidden">
+        <div className="flex-1 bg-card-bg flex flex-col overflow-hidden">
           {selectedThread ? (
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Toolbar */}
-              <div className="h-12 border-b border-card-border px-5 flex items-center justify-between bg-[#fafafa]">
+              <div className="h-12 border-b border-card-border px-5 flex items-center justify-between bg-bg-main">
                 <div className="flex items-center gap-1">
                   {folder !== 'trash' && (
                     <button
@@ -632,7 +632,7 @@ export default function InboxPage() {
               </div>
 
               {/* Thread Messages Timeline */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#fafafa]/50 text-left">
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-bg-main/40 text-left">
                 <div className="pb-3 border-b border-card-border">
                   <h2 className="text-sm font-bold text-text-primary">{selectedThread.subject}</h2>
                 </div>
@@ -645,8 +645,8 @@ export default function InboxPage() {
                         key={msg.id}
                         className={`p-4 border rounded-2xl shadow-sm max-w-2xl text-xs space-y-3 ${
                           isOutbound
-                            ? 'bg-white border-card-border ml-auto text-right'
-                            : 'bg-white border-card-border'
+                            ? 'bg-card-bg border-card-border ml-auto text-right'
+                            : 'bg-card-bg border-card-border'
                         }`}
                       >
                         <div className={`flex justify-between items-start gap-4 ${isOutbound ? 'flex-row-reverse text-right' : ''}`}>
@@ -665,27 +665,27 @@ export default function InboxPage() {
 
                         {/* AI Reply Classification Banner (Phase 8b Integration & SDR Exception Workflows) */}
                         {!isOutbound && msg.replyClass && (
-                          <div className="p-3 rounded-xl border text-xs space-y-2 text-left bg-[#fcfcfc] border-card-border">
+                          <div className="p-3 rounded-xl border text-xs space-y-2 text-left bg-bg-main/60 border-card-border">
                             <div className="flex items-center justify-between gap-2 flex-wrap">
                               <div className="flex items-center gap-1.5">
                                 <span className="font-mono font-bold text-[10px] text-text-muted uppercase">AI Classification:</span>
                                 {msg.replyClass === 'A' && (
-                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-red-500/10 text-red-700 border border-red-500/20">
+                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-red-500/10 text-red-400 border border-red-500/20">
                                     Class A · Opt-Out / Stop
                                   </span>
                                 )}
                                 {msg.replyClass === 'B' && (
-                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-gray-500/10 text-gray-800 border border-gray-500/20">
+                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-gray-500/10 text-gray-400 border border-gray-500/20">
                                     Class B · Administrative (OOO)
                                   </span>
                                 )}
                                 {msg.replyClass === 'C' && (
-                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-500/10 text-emerald-800 border border-emerald-500/20">
+                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                                     Class C · Sales Engagement
                                   </span>
                                 )}
                                 {msg.replyClass === 'D' && (
-                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-500/10 text-amber-800 border border-amber-500/20">
+                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
                                     Class D · Human Review Required
                                   </span>
                                 )}
@@ -704,22 +704,22 @@ export default function InboxPage() {
 
                             {/* Class-specific operational guidance */}
                             {msg.replyClass === 'A' && (
-                              <p className="text-[11px] text-red-700 font-medium bg-red-50/60 p-2 rounded-lg border border-red-200/50">
+                              <p className="text-[11px] text-red-400 font-medium bg-red-500/10 p-2 rounded-lg border border-red-500/20">
                                 ✋ <strong>Opt-out / Stop:</strong> Autonomous outreach stopped. Prospect suppressed from sequence. No SDR task required.
                               </p>
                             )}
                             {msg.replyClass === 'B' && (
-                              <p className="text-[11px] text-gray-700 font-medium bg-gray-50 p-2 rounded-lg border border-gray-200/60">
+                              <p className="text-[11px] text-gray-300 font-medium bg-gray-500/10 p-2 rounded-lg border border-gray-500/20">
                                 ⏸ <strong>Administrative (OOO):</strong> Follow-up paused. Does not count as sales engagement. Cadence will resume when return period expires.
                               </p>
                             )}
                             {msg.replyClass === 'C' && (
-                              <p className="text-[11px] text-emerald-800 font-medium bg-emerald-50/60 p-2 rounded-lg border border-emerald-200/50">
+                              <p className="text-[11px] text-emerald-400 font-medium bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
                                 🎯 <strong>Sales Engagement:</strong> AI outreach stopped. Prospect transferred to SDR for human-managed follow-up.
                               </p>
                             )}
                             {msg.replyClass === 'D' && (
-                              <p className="text-[11px] text-amber-800 font-medium bg-amber-50/60 p-2 rounded-lg border border-amber-200/50">
+                              <p className="text-[11px] text-amber-400 font-medium bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
                                 🔍 <strong>Human Review Required:</strong> Classification intent uncertain. Inspect prospect context before resuming outreach.
                               </p>
                             )}
@@ -761,7 +761,7 @@ export default function InboxPage() {
                         <p className="text-xs font-bold text-text-primary flex items-center gap-1.5">
                           <span>AI Reply Copilot</span>
                           {aiDraftResult?.intentLabel && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white border border-card-border shadow-xs text-text-secondary">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-card-bg border border-card-border shadow-xs text-text-secondary">
                               {aiDraftResult.intentLabel} ({Math.round((aiDraftResult.confidence || 0.9) * 100)}%)
                             </span>
                           )}
@@ -810,12 +810,12 @@ export default function InboxPage() {
                       {aiDraftResult.drafts.map((d: any) => (
                         <div
                           key={d.id}
-                          className="bg-white border border-card-border hover:border-brand-red/40 rounded-xl p-3 space-y-2 shadow-xs transition-all flex flex-col justify-between"
+                          className="bg-card-bg border border-card-border hover:border-brand-red/40 rounded-xl p-3 space-y-2 shadow-xs transition-all flex flex-col justify-between"
                         >
                           <div className="space-y-1">
                             <p className="text-xs font-bold text-text-primary">{d.title}</p>
                             <p className="text-[10px] text-text-muted leading-tight">{d.strategy}</p>
-                            <div className="bg-[#fafafa] p-2 rounded-lg text-[11px] text-text-secondary whitespace-pre-wrap leading-relaxed max-h-24 overflow-y-auto border border-card-border/30 text-left">
+                            <div className="bg-bg-main/60 p-2 rounded-lg text-[11px] text-text-secondary whitespace-pre-wrap leading-relaxed max-h-24 overflow-y-auto border border-card-border/30 text-left">
                               {d.body}
                             </div>
                           </div>
@@ -835,7 +835,7 @@ export default function InboxPage() {
 
               {/* Reply Composer Editor */}
               {selectedThread.lead ? (
-                <form onSubmit={handleSendReply} className="border-t border-card-border p-4 bg-white dark:bg-zinc-900 space-y-3">
+                <form onSubmit={handleSendReply} className="border-t border-card-border p-4 bg-card-bg space-y-3">
                   {/* Smart Quick Reply Chips */}
                   <div className="flex flex-wrap items-center gap-1.5 pb-1">
                     <span className="text-[10px] text-text-muted font-bold font-mono mr-1">QUICK CHIPS:</span>
@@ -869,7 +869,7 @@ export default function InboxPage() {
                     </span>
                     
                     {/* Rich text formatting toolbar */}
-                    <div className="flex items-center gap-0.5 bg-[#f5f5f5] border border-card-border rounded-lg p-0.5">
+                    <div className="flex items-center gap-0.5 bg-bg-main border border-card-border rounded-lg p-0.5">
                       <button
                         type="button"
                         onMouseDown={(e) => { e.preventDefault(); execReplyCommand('bold'); }}
@@ -938,7 +938,7 @@ export default function InboxPage() {
                   </div>
                 </form>
               ) : (
-                <div className="border-t border-card-border p-4 bg-white text-center text-xs text-text-muted italic">
+                <div className="border-t border-card-border p-4 bg-card-bg text-center text-xs text-text-muted italic">
                   Cannot reply: Thread is not linked to an active CRM lead.
                 </div>
               )}
