@@ -2,8 +2,8 @@
 
 > **Status:** 🟢 **FULL PRODUCTION READY & OFFICIALLY CERTIFIED**  
 > **Canonical Record:** Single authoritative source of truth for the running live environment.  
-> **Certification Date:** 2026-08-17T17:00:00Z  
-> **Branch:** `release/final-production-certification`  
+> **Certification Date:** 2026-08-19  
+> **Canonical Branch:** `main`  
 
 ---
 
@@ -26,9 +26,9 @@
 
 | Component | Reference |
 | :--- | :--- |
-| **Active Commit SHA** | `473799a` (branch `main`) |
+| **Canonical Branch** | `main` |
 | **Deploy Target** | `gcp` (`-f docker-compose.yml -f docker-compose.gcp.yml`) |
-| **Database Migrations** | 47 total migrations applied (100% relational & FK integrity) |
+| **Database Migrations** | 48 total migrations applied (100% relational & FK integrity) |
 | **Active Team Roster** | 10 Core Authorized Team Members (Dean, Sonny, Alayna, Branndon, Jackie, Vie, Meixi, Hayden, Kim, Selina) |
 | **AI Copilot Engine** | Dual Groq + Google Gemini Flash with automatic plain-text tool error retry |
 | **TypeScript Checks** | 0 compilation errors (`tsc --noEmit` exit 0) |
