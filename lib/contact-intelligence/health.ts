@@ -14,8 +14,10 @@ export interface DatabaseHealthSummary {
   lockedOrCooldownCount: number;
   needsRefreshCount: number;
   averageQualityScore: number;
+  healthScore: number;
   averageConfidenceScore: number;
   averageFreshnessScore: number;
+  reuseStatusBreakdown: Record<string, number>;
   healthTier: 'excellent' | 'healthy' | 'needs_attention' | 'critical';
   remediationSuggestions: Array<{
     title: string;
@@ -147,8 +149,10 @@ export async function calculateDatabaseHealth(tenantId: string): Promise<Databas
     lockedOrCooldownCount,
     needsRefreshCount,
     averageQualityScore,
+    healthScore: averageQualityScore,
     averageConfidenceScore,
     averageFreshnessScore,
+    reuseStatusBreakdown: reuseBreakdown,
     healthTier,
     remediationSuggestions,
   };

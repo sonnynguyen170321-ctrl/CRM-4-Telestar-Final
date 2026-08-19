@@ -34,7 +34,17 @@ const run = <R>(fn: () => Promise<R>) => tenantStorage.run({ tenantId: T, bypass
 const runSystem = <R>(fn: () => Promise<R>) =>
   tenantStorage.run({ tenantId: 'system', bypassRls: true }, fn);
 
-describe.skipIf(!process.env.DATABASE_URL)('import under sustained account contention', () => {
+let hasDb = false;
+try {
+  if (process.env.DATABASE_URL) {
+    await prisma.$queryRaw`SELECT 1`;
+    hasDb = true;
+  }
+} catch {
+  hasDb = false;
+}
+
+describe.skipIf(!hasDb)('import under sustained account contention', () => {
   it('120 concurrent rows across 40 shared accounts lose no lead', async () => {
     await run(async () => {
       await prisma.activity.deleteMany({ where: { tenantId: T } });

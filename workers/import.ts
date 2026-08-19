@@ -716,19 +716,45 @@ async function handleImportChunk(payload: ImportChunkPayload) {
       // `nonBlank(...)` is what makes one payload safe as *both* halves: `create` needs every
       // field the row supplied, `update` must touch only what this row actually has, so a blank
       // incoming field can never null out a value an earlier row already filled in.
-      const account = await prisma.account.upsert({
-        where: { tenantId_name: { tenantId, name: data.company } },
-        create: accountData(data, tenantId),
-        update: nonBlank(accountData(data, tenantId)),
-      });
+      let account;
+      try {
+        account = await prisma.account.upsert({
+          where: { tenantId_name: { tenantId, name: data.company } },
+          create: accountData(data, tenantId),
+          update: nonBlank(accountData(data, tenantId)),
+        });
+      } catch (err: unknown) {
+        if ((err as { code?: string })?.code === 'P2002') {
+          account = await prisma.account.findUnique({
+            where: { tenantId_name: { tenantId, name: data.company } },
+          });
+          if (!account) throw err;
+        } else {
+          throw err;
+        }
+      }
 
-      const contact = normalizedEmail
-        ? await prisma.contact.upsert({
+      let contact;
+      if (normalizedEmail) {
+        try {
+          contact = await prisma.contact.upsert({
             where: { tenantId_normalizedEmail: { tenantId, normalizedEmail } },
             create: contactData(data, tenantId),
             update: nonBlank(contactData(data, tenantId)),
-          })
-        : await prisma.contact.create({ data: contactData(data, tenantId) });
+          });
+        } catch (err: unknown) {
+          if ((err as { code?: string })?.code === 'P2002') {
+            contact = await prisma.contact.findUnique({
+              where: { tenantId_normalizedEmail: { tenantId, normalizedEmail } },
+            });
+            if (!contact) throw err;
+          } else {
+            throw err;
+          }
+        }
+      } else {
+        contact = await prisma.contact.create({ data: contactData(data, tenantId) });
+      }
 
       const createdLead = await prisma.$transaction(async (tx) => {
         const leadNormalizedEmail = data.forceDuplicateLead ? null : normalizedEmail || null;
