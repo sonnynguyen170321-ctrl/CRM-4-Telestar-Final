@@ -791,7 +791,7 @@ async function handleImportChunk(payload: ImportChunkPayload) {
         }
 
         return lead;
-      });
+      }, { maxWait: 15000, timeout: 30000 });
 
       if (sequence && sequence.steps.length > 0) {
         await createTaskForStep(createdLead, sequence, sequence.steps[0], new Date());
