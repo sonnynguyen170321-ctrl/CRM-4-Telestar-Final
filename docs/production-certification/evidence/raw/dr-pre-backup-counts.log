@@ -1,13 +1,13 @@
 # pre-backup record counts
 # command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json
-# startedAt: 2026-08-19T20:19:22.370Z
-# finishedAt: 2026-08-19T20:19:27.498Z
+# startedAt: 2026-08-19T20:50:11.002Z
+# finishedAt: 2026-08-19T20:50:19.217Z
 # exitCode: 0
 
 --- stdout ---
 {
-  "startedAt": "2026-08-19T20:19:22.823Z",
-  "finishedAt": "2026-08-19T20:19:27.475Z",
+  "startedAt": "2026-08-19T20:50:11.565Z",
+  "finishedAt": "2026-08-19T20:50:19.183Z",
   "database": "telestar_crm",
   "status": "PASS",
   "checks": [
@@ -55,18 +55,18 @@
     }
   ],
   "counts": {
-    "Tenant": 45890,
-    "User": 45320,
-    "Client": 30606,
-    "Campaign": 44849,
-    "Account": 36162,
-    "Contact": 29061,
-    "Lead": 265166,
-    "Task": 12122,
-    "Activity": 27492,
-    "Sequence": 29187,
-    "SequenceEnrollment": 17015,
-    "OutboundMessage": 120,
+    "Tenant": 46895,
+    "User": 46304,
+    "Client": 31299,
+    "Campaign": 45830,
+    "Account": 36876,
+    "Contact": 29565,
+    "Lead": 270911,
+    "Task": 12434,
+    "Activity": 28134,
+    "Sequence": 29895,
+    "SequenceEnrollment": 17444,
+    "OutboundMessage": 123,
     "ImportBatch": 7
   }
 }

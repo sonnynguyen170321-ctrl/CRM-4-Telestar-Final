@@ -1,8 +1,0 @@
-# aggregate six-role observations into EV-ROLE-BROWSER
-# exitCode: 0
-
---- stdout ---
-EV-ROLE-BROWSER: PASS — 6/6 roles, 0 failing
-
---- stderr ---
-(empty)

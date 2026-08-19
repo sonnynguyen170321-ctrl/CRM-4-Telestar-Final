@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "program": "Telestar CRM Production Certification",
   "releaseTag": "telestar-internal-rc-2026-08-20",
-  "candidateSha": "1fbd7b00d4a00375ee93f6f46314f10c211535d6",
-  "candidateFrozenAt": "2026-08-19T20:19:22.006Z",
+  "candidateSha": "dfb172f53afaaae5f8304dd22b8f0dd37af69bcb",
+  "candidateFrozenAt": "2026-08-19T20:50:10.632Z",
   "previousCandidates": [
     {
       "sha": "cf23182cdd291d9f180bb36ec88d7fe6df0cdfb9",
@@ -21,6 +21,10 @@
     {
       "sha": "bafb9171ad81955f0c2dd9c44e9d1a517bcdba19",
       "invalidatedReason": "superseded: certification harness changed after the freeze (renderers, self-test), which is behaviour-changing for the qualification"
+    },
+    {
+      "sha": "1fbd7b00d4a00375ee93f6f46314f10c211535d6",
+      "invalidatedReason": "superseded: harness and test changes after the freeze"
     }
   ],
   "requiredRunCount": 3,

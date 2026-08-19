@@ -1,14 +1,14 @@
 # verify-db-integrity
-# command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json --expect-counts C:\Users\admin\Desktop\Sonny & AI\clone-CRM-4-U-migration-main\.dr-artifacts\counts-2026-08-19T20-19-22-364Z.json
-# startedAt: 2026-08-19T20:21:17.042Z
-# finishedAt: 2026-08-19T20:21:22.764Z
+# command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json --expect-counts C:\Users\admin\Desktop\Sonny & AI\clone-CRM-4-U-migration-main\.dr-artifacts\counts-2026-08-19T20-50-10-991Z.json
+# startedAt: 2026-08-19T20:52:12.925Z
+# finishedAt: 2026-08-19T20:52:18.982Z
 # exitCode: 0
 
 --- stdout ---
 {
-  "startedAt": "2026-08-19T20:21:17.600Z",
-  "finishedAt": "2026-08-19T20:21:22.734Z",
-  "database": "telestar_dr_drill_20260819t201922",
+  "startedAt": "2026-08-19T20:52:13.494Z",
+  "finishedAt": "2026-08-19T20:52:18.946Z",
+  "database": "telestar_dr_drill_20260819t205010",
   "status": "PASS",
   "checks": [
     {
@@ -55,18 +55,18 @@
     }
   ],
   "counts": {
-    "Tenant": 45890,
-    "User": 45320,
-    "Client": 30606,
-    "Campaign": 44849,
-    "Account": 36162,
-    "Contact": 29061,
-    "Lead": 265166,
-    "Task": 12122,
-    "Activity": 27492,
-    "Sequence": 29187,
-    "SequenceEnrollment": 17015,
-    "OutboundMessage": 120,
+    "Tenant": 46895,
+    "User": 46304,
+    "Client": 31299,
+    "Campaign": 45830,
+    "Account": 36876,
+    "Contact": 29565,
+    "Lead": 270911,
+    "Task": 12434,
+    "Activity": 28134,
+    "Sequence": 29895,
+    "SequenceEnrollment": 17444,
+    "OutboundMessage": 123,
     "ImportBatch": 7
   }
 }

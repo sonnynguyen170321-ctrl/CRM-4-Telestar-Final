@@ -1,7 +1,7 @@
 # pg_restore
-# command: C:\Program Files\PostgreSQL\16\bin\pg_restore.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_dr_drill_20260819t201922 --no-owner --no-acl --exit-on-error C:\Users\admin\Desktop\Sonny & AI\clone-CRM-4-U-migration-main\.dr-artifacts\telestar_2026-08-19T20-19-22-364Z.dump
-# startedAt: 2026-08-19T20:19:44.410Z
-# finishedAt: 2026-08-19T20:21:17.041Z
+# command: C:\Program Files\PostgreSQL\16\bin\pg_restore.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_dr_drill_20260819t205010 --no-owner --no-acl --exit-on-error C:\Users\admin\Desktop\Sonny & AI\clone-CRM-4-U-migration-main\.dr-artifacts\telestar_2026-08-19T20-50-10-991Z.dump
+# startedAt: 2026-08-19T20:50:36.938Z
+# finishedAt: 2026-08-19T20:52:12.924Z
 # exitCode: 0
 
 --- stdout ---
