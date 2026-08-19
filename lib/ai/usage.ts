@@ -14,7 +14,7 @@ import { estimateTokenCost, estimateCallCost } from './pricing';
  *      the whole `lib/ai` tree, this file included.
  */
 
-export type AiProvider = 'groq' | 'gemini' | 'tavily' | 'jina';
+export type AiProvider = 'openai' | 'groq' | 'gemini' | 'google' | 'tavily' | 'jina';
 export type AiCallStatus = 'ok' | 'error' | 'rate_limited' | 'unavailable';
 
 export interface AiCallRecord {
