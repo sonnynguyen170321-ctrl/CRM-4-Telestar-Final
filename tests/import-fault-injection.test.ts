@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('@/lib/bullmq/enqueue', () => ({
-  enqueue: () => Promise.resolve('j'),
-  enqueueImmediate: () => Promise.resolve('j'),
-  enqueueReschedule: () => Promise.resolve('j'),
-  ensureJob: () => Promise.resolve('j'),
-  removeJob: () => Promise.resolve(true),
+  enqueue: vi.fn().mockResolvedValue('j'),
+  enqueueImmediate: vi.fn().mockResolvedValue('j'),
+  enqueueReschedule: vi.fn().mockResolvedValue('j'),
+  ensureJob: vi.fn().mockResolvedValue('j'),
+  removeJob: vi.fn().mockResolvedValue(true),
 }));
 vi.mock('@/lib/bullmq/ensureJob', () => ({ ensureJob: () => Promise.resolve('j') }));
 vi.mock('@/auth', () => ({ auth: vi.fn(), handlers: {}, signIn: vi.fn(), signOut: vi.fn() }));
@@ -31,7 +31,7 @@ try {
   hasDb = false;
 }
 
-describe.skipIf(!hasDb)('TEL-P1-001: Import Partial-Write & Fault Injection Convergence', () => {
+describe.skipIf(!hasDb)('TEL-P1-001 / TEL-P1-005 / TEL-P1-006 / TEL-P1-007: Import Hardening Suite', () => {
   const setupBase = async () => {
     await run(async () => {
       await prisma.activity.deleteMany({ where: { tenantId: T } });
@@ -62,68 +62,116 @@ describe.skipIf(!hasDb)('TEL-P1-001: Import Partial-Write & Fault Injection Conv
     });
   };
 
-  it('converges cleanly when retried after lead was created prior to crash', async () => {
-    await setupBase();
+  describe('TEL-P1-006: Deterministic Failpoints and True Convergence', () => {
+    const failpoints = [
+      'after_account',
+      'after_contact',
+      'after_lead',
+      'after_import_row',
+      'after_activity_lead_created',
+    ] as const;
 
-    const batch = await run(() =>
-      prisma.importBatch.create({ data: { tenantId: T, userId: USER, status: 'parsed', filename: 'test.csv' } })
-    );
+    for (const fp of failpoints) {
+      it(`fails at failpoint ${fp} and converges cleanly upon retry without duplicate records`, async () => {
+        await setupBase();
 
-    const rowData = {
-      firstName: 'Alice',
-      lastName: 'Crash',
-      company: 'Crash Recovery Inc',
-      email: 'alice.crash@recovery.test',
-    };
+        const batch = await run(() =>
+          prisma.importBatch.create({ data: { tenantId: T, userId: USER, status: 'parsed', filename: `test-${fp}.csv` } })
+        );
 
-    const row = await run(() =>
-      prisma.importRow.create({
-        data: { batchId: batch.id, tenantId: T, rowIndex: 0, status: 'valid', data: rowData as never },
-      })
-    );
+        const rowData = {
+          firstName: 'Bob',
+          lastName: `Crash-${fp}`,
+          company: `Crash Corp ${fp}`,
+          email: `bob.${fp}@crash.test`,
+          __failpoint: fp,
+        };
 
-    // Simulated partial write: Lead was inserted, but importRow was not updated and crash happened
-    const account = await run(() =>
-      prisma.account.create({ data: { tenantId: T, name: rowData.company } })
-    );
-    const contact = await run(() =>
-      prisma.contact.create({
-        data: {
-          tenantId: T,
-          firstName: 'Alice',
-          lastName: 'Crash',
-          fullName: 'Alice Crash',
-          email: rowData.email,
-          normalizedEmail: rowData.email,
-          company: rowData.company,
-        },
-      })
-    );
-    const lead = await run(() =>
-      prisma.lead.create({
-        data: {
-          tenantId: T,
-          campaignId: CAMPAIGN,
-          contactId: contact.id,
-          accountId: account.id,
-          firstName: rowData.firstName,
-          lastName: rowData.lastName,
-          company: rowData.company,
-          email: rowData.email,
-          normalizedEmail: rowData.email,
-          stage: 'new',
-          assignedToId: USER,
-        },
-      })
-    );
+        const row = await run(() =>
+          prisma.importRow.create({
+            data: { batchId: batch.id, tenantId: T, rowIndex: 0, status: 'valid', data: rowData as never },
+          })
+        );
 
-    // Verify precondition: row is still 'valid', lead exists
-    expect(await run(() => prisma.lead.count({ where: { tenantId: T } }))).toBe(1);
-    expect((await run(() => prisma.importRow.findUnique({ where: { id: row.id } })))?.status).toBe('valid');
+        // First attempt: should throw the deterministic crash error at the exact boundary
+        await expect(
+          run(() =>
+            handleImportChunk({
+              batchId: batch.id,
+              chunkIndex: 0,
+              rowIds: [row.id],
+              rows: [rowData],
+              assignedToId: USER,
+              userId: USER,
+              campaignId: CAMPAIGN,
+              tenantId: T,
+              initialStage: 'new',
+            } as never)
+          )
+        ).rejects.toThrow(`FAILPOINT_${fp.toUpperCase()}`);
 
-    // Run handleImportChunk on retry
-    const res = await run(() =>
-      handleImportChunk({
+        // Second attempt: retry without failpoint
+        const retryRowData = { ...rowData, __failpoint: undefined };
+        await run(() =>
+          prisma.importRow.update({
+            where: { id: row.id },
+            data: { data: retryRowData as never },
+          })
+        );
+
+        const res = await run(() =>
+          handleImportChunk({
+            batchId: batch.id,
+            chunkIndex: 0,
+            rowIds: [row.id],
+            rows: [retryRowData],
+            assignedToId: USER,
+            userId: USER,
+            campaignId: CAMPAIGN,
+            tenantId: T,
+            initialStage: 'new',
+          } as never)
+        );
+
+        expect(res.success).toBe(true);
+        expect(res.created).toBe(1);
+        expect(res.errors).toBe(0);
+
+        // Assert convergence invariants
+        expect(await run(() => prisma.lead.count({ where: { tenantId: T } }))).toBe(1);
+        expect(await run(() => prisma.account.count({ where: { tenantId: T } }))).toBe(1);
+        expect(await run(() => prisma.contact.count({ where: { tenantId: T } }))).toBe(1);
+        expect(await run(() => prisma.activity.count({ where: { tenantId: T, type: 'lead_created' } }))).toBe(1);
+
+        const finalRow = await run(() => prisma.importRow.findUnique({ where: { id: row.id } }));
+        expect(finalRow?.status).toBe('imported');
+        expect(finalRow?.leadId).toBeTruthy();
+      });
+    }
+  });
+
+  describe('TEL-P1-007: Concurrent Duplicate Job Delivery', () => {
+    it('executes identical chunk payload concurrently across 2 workers without duplicating leads or activities', async () => {
+      await setupBase();
+
+      const batch = await run(() =>
+        prisma.importBatch.create({ data: { tenantId: T, userId: USER, status: 'parsed', filename: 'race.csv' } })
+      );
+
+      const rowData = {
+        firstName: 'Charlie',
+        lastName: 'Concurrent',
+        company: 'Concurrency Inc',
+        email: 'charlie.concurrent@race.test',
+      };
+
+      const row = await run(() =>
+        prisma.importRow.create({
+          data: { batchId: batch.id, tenantId: T, rowIndex: 0, status: 'valid', data: rowData as never },
+        })
+      );
+
+      const chunkPayload = {
         batchId: batch.id,
         chunkIndex: 0,
         rowIds: [row.id],
@@ -133,45 +181,77 @@ describe.skipIf(!hasDb)('TEL-P1-001: Import Partial-Write & Fault Injection Conv
         campaignId: CAMPAIGN,
         tenantId: T,
         initialStage: 'new',
-      } as never)
-    );
+      };
 
-    expect(res.success).toBe(true);
-    expect(res.created).toBe(1);
-    expect(res.errors).toBe(0);
+      // Execute duplicate job delivery simultaneously
+      const [res1, res2] = await Promise.all([
+        run(() => handleImportChunk(chunkPayload as never)),
+        run(() => handleImportChunk(chunkPayload as never)),
+      ]);
 
-    // Invariant: Exactly 1 lead, 1 account, 1 contact, exactly 1 activity, and row is 'imported'
-    expect(await run(() => prisma.lead.count({ where: { tenantId: T } }))).toBe(1);
-    expect(await run(() => prisma.account.count({ where: { tenantId: T } }))).toBe(1);
-    expect(await run(() => prisma.contact.count({ where: { tenantId: T } }))).toBe(1);
-    expect(await run(() => prisma.activity.count({ where: { tenantId: T, type: 'lead_created' } }))).toBe(1);
+      expect(res1.success).toBe(true);
+      expect(res2.success).toBe(true);
 
-    const updatedRow = await run(() => prisma.importRow.findUnique({ where: { id: row.id } }));
-    expect(updatedRow?.status).toBe('imported');
-    expect(updatedRow?.leadId).toBe(lead.id);
+      // Invariants: exactly 1 of each entity created
+      expect(await run(() => prisma.lead.count({ where: { tenantId: T } }))).toBe(1);
+      expect(await run(() => prisma.account.count({ where: { tenantId: T } }))).toBe(1);
+      expect(await run(() => prisma.contact.count({ where: { tenantId: T } }))).toBe(1);
+      expect(await run(() => prisma.activity.count({ where: { tenantId: T, type: 'lead_created' } }))).toBe(1);
+
+      const finalRow = await run(() => prisma.importRow.findUnique({ where: { id: row.id } }));
+      expect(finalRow?.status).toBe('imported');
+    });
   });
 
-  it('commit blocks while chunks are in flight (IMP-012)', async () => {
-    await setupBase();
+  describe('TEL-P1-005: Eventual Batch Commit Completion', () => {
+    it('commit re-enqueues when chunks are in flight, then commits when chunks complete', async () => {
+      await setupBase();
 
-    const batch = await run(() =>
-      prisma.importBatch.create({ data: { tenantId: T, userId: USER, status: 'parsing', filename: 'pending.csv' } })
-    );
+      const batch = await run(() =>
+        prisma.importBatch.create({ data: { tenantId: T, userId: USER, status: 'parsing', filename: 'eventual.csv' } })
+      );
 
-    // Row is still valid/in-flight
-    await run(() =>
-      prisma.importRow.create({
-        data: { batchId: batch.id, tenantId: T, rowIndex: 0, status: 'valid', data: { email: 'a@b.com', company: 'X' } as never },
-      })
-    );
+      const row = await run(() =>
+        prisma.importRow.create({
+          data: {
+            batchId: batch.id,
+            tenantId: T,
+            rowIndex: 0,
+            status: 'valid',
+            data: { firstName: 'Dave', lastName: 'Commit', company: 'Commit LLC', email: 'dave@commit.test' } as never,
+          },
+        })
+      );
 
-    const commitRes = await run(() => handleImportCommit({ batchId: batch.id }));
-    expect(commitRes.success).toBe(false);
-    expect(commitRes.inProgress).toBe(true);
-    expect(commitRes.reason).toBe('chunks_still_in_flight');
+      // Early commit attempt while row is 'valid'
+      const earlyCommit = await run(() => handleImportCommit({ batchId: batch.id }));
+      expect(earlyCommit.success).toBe(false);
+      expect(earlyCommit.inProgress).toBe(true);
+      expect(earlyCommit.reason).toBe('chunks_still_in_flight');
 
-    // Batch status is not committed
-    const currentBatch = await run(() => prisma.importBatch.findUnique({ where: { id: batch.id } }));
-    expect(currentBatch?.status).not.toBe('committed');
+      // Now process the chunk
+      await run(() =>
+        handleImportChunk({
+          batchId: batch.id,
+          chunkIndex: 0,
+          rowIds: [row.id],
+          rows: [{ firstName: 'Dave', lastName: 'Commit', company: 'Commit LLC', email: 'dave@commit.test' }],
+          assignedToId: USER,
+          userId: USER,
+          campaignId: CAMPAIGN,
+          tenantId: T,
+          initialStage: 'new',
+        } as never)
+      );
+
+      // Subsequent commit attempt
+      const finalCommit = await run(() => handleImportCommit({ batchId: batch.id }));
+      expect(finalCommit.success).toBe(true);
+      expect(finalCommit.imported).toBe(1);
+
+      const committedBatch = await run(() => prisma.importBatch.findUnique({ where: { id: batch.id } }));
+      expect(committedBatch?.status).toBe('committed');
+      expect(committedBatch?.parsedRows).toBe(1);
+    });
   });
 });

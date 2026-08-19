@@ -612,7 +612,10 @@ export function poolItemsToCsv(items: Array<{
     'sourceName', 'icpFitScore', 'dataQualityScore', 'emailValidation', 'emailScore',
   ];
   const escape = (v: unknown) => {
-    const s = String(v ?? '');
+    let s = String(v ?? '');
+    if (/^[=+\-@\t\r]/.test(s)) {
+      s = `'${s}`;
+    }
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = items.map((row) =>

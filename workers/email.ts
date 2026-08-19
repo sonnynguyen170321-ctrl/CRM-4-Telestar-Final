@@ -13,21 +13,7 @@ import {
   TERMINAL_STATUSES,
   classifySendFailure,
 } from '@/lib/email/idempotency';
-
-function isHtml(text: string): boolean {
-  return /<[a-z][\s\S]*>/i.test(text);
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n')
-    .replace(/<\/li>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
+import { isHtml, stripHtml } from '@/lib/email/sanitize';
 /** Minimal account shape the deliverability preflight needs. */
 type SendGateAccount = {
   isActive: boolean;

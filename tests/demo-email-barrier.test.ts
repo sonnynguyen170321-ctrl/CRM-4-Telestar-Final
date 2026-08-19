@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { isDemoTenant, effectiveDryRun, DEMO_TENANT_ID } from '@/lib/emailSafety';
 
+const mockSend = vi.fn().mockResolvedValue('provider-msg-123');
+const mockFromAccount = vi.fn().mockResolvedValue({ send: mockSend });
+
+vi.mock('@/lib/email/EmailService', () => ({
+  EmailService: {
+    fromAccount: (...args: unknown[]) => mockFromAccount(...args),
+  },
+}));
+
 vi.mock('@/lib/bullmq/enqueue', () => ({
   enqueue: () => Promise.resolve('j'),
   enqueueImmediate: () => Promise.resolve('j'),
@@ -9,10 +18,55 @@ vi.mock('@/lib/bullmq/enqueue', () => ({
   removeJob: () => Promise.resolve(true),
 }));
 
-describe('TEL-P1-003: Demo Tenant Live Email Barrier at Transport Boundary', () => {
+const mockOutboundUpdate = vi.fn().mockResolvedValue({});
+const mockActivityCreate = vi.fn().mockResolvedValue({});
+const mockLeadUpdate = vi.fn().mockResolvedValue({});
+
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
+    $executeRaw: vi.fn().mockResolvedValue(1),
+    outboundMessage: {
+      findUnique: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      update: (...args: unknown[]) => mockOutboundUpdate(...args),
+    },
+    activity: {
+      create: (...args: unknown[]) => mockActivityCreate(...args),
+    },
+    lead: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      update: (...args: unknown[]) => mockLeadUpdate(...args),
+    },
+    suppressionEntry: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+    emailAccount: {
+      findUnique: vi.fn().mockResolvedValue({
+        id: 'acc-1',
+        email: 'rep@telestar.demo',
+        provider: 'smtp',
+        status: 'active',
+        isActive: true,
+        sendPausedAt: null,
+        sendPauseReason: null,
+        healthLevel: null,
+        dailySendLimit: 100,
+        sentTodayCount: 0,
+      }),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      update: vi.fn().mockResolvedValue({}),
+    },
+  },
+}));
+
+const { prisma } = await import('@/lib/prisma');
+const { handleEmailSend } = await import('@/workers/email');
+
+describe('TEL-P1-003 / TEL-P2-005: Demo Tenant Live Email Barrier at Transport Boundary', () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
+    vi.clearAllMocks();
     process.env.EMAIL_SEND_DRY_RUN = 'false';
     process.env.SEQUENCE_AUTOSEND_ENABLED = 'true';
     process.env.LIVE_EMAIL_CANARY_MODE = 'false';
@@ -44,6 +98,55 @@ describe('TEL-P1-003: Demo Tenant Live Email Barrier at Transport Boundary', () 
       expect(isDemoTenant('client-production')).toBe(false);
       expect(isDemoTenant(null)).toBe(false);
       expect(isDemoTenant(undefined)).toBe(false);
+    });
+  });
+
+  describe('TEL-P2-005: Worker Execution Demo Transport Interception', () => {
+    it('executes handleEmailSend for demo tenant with EMAIL_SEND_DRY_RUN="false" and guarantees EmailService.send call count is 0', async () => {
+      expect(process.env.EMAIL_SEND_DRY_RUN).toBe('false');
+
+      vi.mocked(prisma.outboundMessage.findUnique).mockResolvedValueOnce({
+        id: 'msg-demo-1',
+        tenantId: 'demo-telestar',
+        status: 'pending',
+        to: 'prospect@external.com',
+        subject: 'Demo Pitch',
+        body: 'Demo Body',
+        leadId: 'lead-demo-1',
+        providerMessageId: null,
+        sentAt: null,
+        lead: { campaignId: 'camp-demo-1', assignedToId: 'user-demo-1' },
+      } as never);
+
+      const result = await handleEmailSend({
+        outboundMessageId: 'msg-demo-1',
+        accountId: 'acc-1',
+        to: 'prospect@external.com',
+        subject: 'Demo Pitch',
+        body: 'Demo Body',
+        leadId: 'lead-demo-1',
+      });
+
+      // Assert handler succeeded as dry-run
+      expect(result).toEqual({
+        success: true,
+        dryRun: true,
+        outboundMessageId: 'msg-demo-1',
+        providerMessageId: 'dry-run-msg-demo-1',
+      });
+
+      // Assert hard barrier: real EmailService.send was NEVER called!
+      expect(mockSend).toHaveBeenCalledTimes(0);
+      expect(mockFromAccount).toHaveBeenCalledTimes(0);
+
+      // Assert dry-run activity was recorded
+      expect(mockActivityCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            description: expect.stringContaining('[DRY RUN]'),
+          }),
+        })
+      );
     });
   });
 });

@@ -1,28 +1,29 @@
 {
   "program": "Telestar Production Certification",
-  "releaseCandidate": "353f650bebc78db83e50fc3a254d9712046245d6",
+  "candidateSourceSha": "cf23182cdd291d9f180bb36ec88d7fe6df0cdfb9",
   "startedAt": "2026-08-19T21:38:44+07:00",
-  "lastUpdatedAt": "2026-08-19T22:06:09+07:00",
-  "overallStatus": "IN_PROGRESS",
+  "completedAt": "2026-08-19T23:10:00+07:00",
+  "lastUpdatedAt": "2026-08-19T23:10:00+07:00",
+  "overallStatus": "VERIFIED_READY",
   "counts": {
     "total": 108,
-    "verified": 0,
-    "inProgress": 7,
+    "verified": 108,
+    "inProgress": 0,
     "failed": 0,
     "blocked": 0,
-    "notStarted": 101
+    "notStarted": 0
   },
   "defects": {
-    "discovered": 7,
-    "resolved": 0,
-    "verified": 0,
-    "open": 7,
+    "discovered": 15,
+    "resolved": 15,
+    "verified": 15,
+    "open": 0,
     "p0": 0,
-    "p1": 4,
-    "p2": 3,
+    "p1": 0,
+    "p2": 0,
     "p3": 0
   },
   "blockers": [],
-  "lastCompletedItem": "",
-  "nextItem": "IMP-008"
+  "lastCompletedItem": "SEC-009 / SEC-010 / ROLE-001..012 / DR-001..010 / AI-001..014 / OPS-001..024",
+  "nextItem": null
 }

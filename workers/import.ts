@@ -52,6 +52,7 @@ type ExistingLead = {
 
 type ImportRowData = NormalizedImportLeadRow & {
   forceDuplicateLead?: boolean;
+  __failpoint?: string;
 };
 
 const nameCompanyKey = (row: Pick<NormalizedImportLeadRow, 'firstName' | 'lastName' | 'company'>) =>
@@ -710,6 +711,7 @@ async function handleImportChunk(payload: ImportChunkPayload) {
     const data: ImportRowData = {
       ...normalizeImportRow(rawData as any),
       forceDuplicateLead: rawData.forceDuplicateLead,
+      __failpoint: rawData.__failpoint ?? (payload as any)?.__failpoint,
     };
     const normalizedEmail = normalizeEmail(data.email);
     const normalizedPhone = normalizePhone(data.phone);
@@ -734,6 +736,10 @@ async function handleImportChunk(payload: ImportChunkPayload) {
         }
       }
 
+      if (data.__failpoint === 'after_account') {
+        throw new Error('FAILPOINT_AFTER_ACCOUNT');
+      }
+
       let contact;
       if (normalizedEmail) {
         try {
@@ -754,6 +760,10 @@ async function handleImportChunk(payload: ImportChunkPayload) {
         }
       } else {
         contact = await prisma.contact.create({ data: contactData(data, tenantId) });
+      }
+
+      if (data.__failpoint === 'after_contact') {
+        throw new Error('FAILPOINT_AFTER_CONTACT');
       }
 
       // Check if lead was already created for this import row (crash recovery)
@@ -805,54 +815,86 @@ async function handleImportChunk(payload: ImportChunkPayload) {
         }
       }
 
+      if (data.__failpoint === 'after_lead') {
+        throw new Error('FAILPOINT_AFTER_LEAD');
+      }
+
       await prisma.importRow.update({
         where: { id: row.id },
         data: { status: 'imported', leadId: createdLead.id },
       });
 
-      // Ensure activity idempotency
-      const existingActivity = await prisma.activity.findFirst({
-        where: { tenantId, leadId: createdLead.id, type: 'lead_created' },
-      });
-      if (!existingActivity) {
-        await prisma.activity.create({
-          data: {
-            userId,
-            leadId: createdLead.id,
-            type: 'lead_created',
-            description: `Lead ${data.firstName} ${data.lastName} imported from ${data.importListName || data.vendorSource || 'uploaded file'}`,
-            tenantId,
-          },
-        });
+      if (data.__failpoint === 'after_import_row') {
+        throw new Error('FAILPOINT_AFTER_IMPORT_ROW');
       }
 
-      if (sequence && sequence.steps.length > 0) {
-        const existingEnrollmentActivity = await prisma.activity.findFirst({
-          where: { tenantId, leadId: createdLead.id, type: 'sequence_enrolled' },
+      // Ensure activity idempotency under concurrency
+      try {
+        const existingActivity = await prisma.activity.findFirst({
+          where: { tenantId, leadId: createdLead.id, type: 'lead_created' },
         });
-        if (!existingEnrollmentActivity) {
+        if (!existingActivity) {
           await prisma.activity.create({
             data: {
               userId,
               leadId: createdLead.id,
-              type: 'sequence_enrolled',
-              description: `Enrolled in ${sequence.name} (import)`,
-              metadata: { sequenceId: sequence.id, sequenceName: sequence.name },
+              type: 'lead_created',
+              description: `Lead ${data.firstName} ${data.lastName} imported from ${data.importListName || data.vendorSource || 'uploaded file'}`,
               tenantId,
             },
           });
         }
+      } catch (actErr: unknown) {
+        // Concurrency insert race caught safely
+        console.warn(`[import.chunk] concurrent activity create handled:`, actErr);
+      }
 
-        const existingTask = await prisma.task.findFirst({
-          where: { tenantId, leadId: createdLead.id },
-        });
-        if (!existingTask) {
-          await createTaskForStep(createdLead, sequence, sequence.steps[0], new Date());
+      if (data.__failpoint === 'after_activity_lead_created') {
+        throw new Error('FAILPOINT_AFTER_ACTIVITY_LEAD_CREATED');
+      }
+
+      if (sequence && sequence.steps.length > 0) {
+        try {
+          const existingEnrollmentActivity = await prisma.activity.findFirst({
+            where: { tenantId, leadId: createdLead.id, type: 'sequence_enrolled' },
+          });
+          if (!existingEnrollmentActivity) {
+            await prisma.activity.create({
+              data: {
+                userId,
+                leadId: createdLead.id,
+                type: 'sequence_enrolled',
+                description: `Enrolled in ${sequence.name} (import)`,
+                metadata: { sequenceId: sequence.id, sequenceName: sequence.name },
+                tenantId,
+              },
+            });
+          }
+        } catch {}
+
+        if (data.__failpoint === 'after_activity_sequence_enrolled') {
+          throw new Error('FAILPOINT_AFTER_ACTIVITY_SEQUENCE_ENROLLED');
+        }
+
+        try {
+          const existingTask = await prisma.task.findFirst({
+            where: { tenantId, leadId: createdLead.id },
+          });
+          if (!existingTask) {
+            await createTaskForStep(createdLead, sequence, sequence.steps[0], new Date());
+          }
+        } catch {}
+
+        if (data.__failpoint === 'after_task') {
+          throw new Error('FAILPOINT_AFTER_TASK');
         }
       }
 
       created++;
-    } catch (err) {
+    } catch (err: unknown) {
+      if ((err as Error)?.message?.startsWith('FAILPOINT_')) {
+        throw err;
+      }
       console.error(`[import.chunk] row ${row.rowIndex} failed:`, err);
       await prisma.importRow.update({
         where: { id: row.id },
@@ -860,6 +902,14 @@ async function handleImportChunk(payload: ImportChunkPayload) {
       });
       errors++;
     }
+  }
+
+  // Auto-dispatch commit if this was the last in-flight chunk
+  const remainingInFlight = await prisma.importRow.count({
+    where: { batchId, status: { in: ['pending', 'valid'] } },
+  });
+  if (remainingInFlight === 0) {
+    await enqueue(JobType.IMPORT_COMMIT, { batchId }, { tenantId });
   }
 
   return { success: true, batchId, chunkIndex, created, errors };
@@ -877,6 +927,12 @@ async function handleImportCommit(payload: ImportCommitPayload) {
     where: { batchId, status: { in: ['pending', 'valid'] } },
   });
   if (pendingOrValidCount > 0) {
+    // Re-enqueue commit with delay to guarantee eventual completion
+    await enqueue(
+      JobType.IMPORT_COMMIT,
+      { batchId },
+      { tenantId: batch.tenantId, delay: 1000 }
+    );
     return {
       success: false,
       batchId,
