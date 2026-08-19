@@ -1,50 +1,21 @@
 @import "tailwindcss";
 
-/* ─── TYPOGRAPHY ─── */
-/* Font strategy — one family, three cuts.
-   • IBM Plex Sans Condensed (--font-display): Headings, navigation, card titles,
-     KPI stats, buttons, badges, modal headers, tab labels — UI chrome.
-   • IBM Plex Sans (--font-sans): Body paragraphs, table cell data, form inputs,
-     descriptive text, tooltips — readable body content.
-   • IBM Plex Mono (--font-mono): Numbers, timestamps, IDs, code. Data only —
-     never labels or prose (that is what pushed mono to 24% of all text).
+/* ─── TYPOGRAPHY ARCHITECTURE ─── */
+/* Font Strategy:
+   • Montserrat (--font-sans): Primary Operating Voice.
+     Used for all UI chrome, body text, table data, forms, navigation, and AI text.
+   • Futura (--font-brand / --font-display): Brand Identity Voice.
+     Used for wordmarks, top-level brand titles, major section accents, and high-impact cards.
+   • JetBrains Mono (--font-mono): Technical Monospace Voice.
+     Used for technical IDs, tokens, code blocks, and JSON. */
 
-   Why Plex and not Inter/Geist: an AI-design detector flags `inter` by name,
-   because Inter + Geist is the stack nearly every generated app ships. Plex is
-   industrial and corporate-technical — the Linear/Attio register the brand
-   asks for — and reads as a deliberate choice. Only the weights actually used
-   are loaded. */
-
-/* ─── TYPE SCALE ─────────────────────────────────────────────────────────────
-   Six deliberate tiers. Sizes are absolute px, not rem, because the root is
-   17.5px (see `html` below) — rem-based Tailwind steps land on fractional
-   values like 13.1 / 15.3 / 26.3, which render sub-pixel and form no ratio.
-
-   Before this scale existed, section headings rendered at the same 15.3px as
-   button labels and body copy, and nothing occupied the gap between 15.3 and
-   26.3 — page titles jumped straight to body text with no tier in between.
-
-   The floor sits at 11px on purpose: an earlier pass ran prose at 10px, which
-   reads as "tiny body text" in accessibility audits. Body is 14px — the top of
-   the 13–14px the brand rules allow — so density survives the lift.
-
-   tier        size    used for
-   ─────────────────────────────────────────────────────────────────────────
-   page-title  28px    the one <h1> per route
-   section     20px    panel / card headers  (the tier that was missing)
-   subsection  16px    group labels inside a panel
-   body        14px    paragraphs, table cells, form values
-   meta        12.5px  timestamps, counts, secondary chrome
-   micro       11px    badges, kbd hints, avatar initials
-   ─────────────────────────────────────────────────────────────────────────
-   ~1.12–1.4x between adjacent steps, 2.55:1 overall.                       */
 :root {
   --text-page-title: 28px;
   --text-section: 20px;
   --text-subsection: 16px;
   --text-body: 14px;
   --text-meta: 13px;
-  --text-micro: 12px;
+  --text-micro: 11.5px;
 }
 
 /* ─── THEME TOKENS ─── */
@@ -56,10 +27,6 @@
   --brand-orange-hover: #C54E12;
   --brand-gold: #F5A623;
   --brand-yellow: #FEDD44;
-  /* Text-safe variants. The display colours are tuned for fills and borders; as
-     text on white they measure 2.03:1 (gold) and 3.41:1 (orange), both below the
-     4.5:1 AA floor. These darkened versions read as the same colour and pass at
-     4.9:1 and 5.2:1. Fills keep using --brand-gold / --brand-orange. */
   --brand-gold-text: #A16207;
   --brand-orange-text: #C2410C;
   --brand-dark: #0A0A0A;
@@ -72,15 +39,10 @@
   --channel-whatsapp: #10B981;
 
   /* Fonts */
-  /* The families are self-hosted by `next/font` (see app/fonts.ts), which sets these
-     `--font-plex-*` variables on <html>. They were loaded from the Google Fonts CDN through a
-     render-blocking `@import` here, which cost a round trip to a third party on every page
-     load, failed in CI, and had to be excused by an E2E allowlist. The literal family names
-     stay as the fallback so a build that somehow ships without the variables still resolves a
-     locally installed Plex before dropping to the system stack. */
-  --font-sans: var(--font-plex-sans), 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: var(--font-plex-condensed), 'IBM Plex Sans Condensed', var(--font-plex-sans), 'IBM Plex Sans', sans-serif;
-  --font-mono: var(--font-plex-mono), 'IBM Plex Mono', SFMono-Regular, Consolas, monospace;
+  --font-sans: var(--font-montserrat), 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-brand: 'Futura', 'Futura PT', 'Futura-Medium', 'Trebuchet MS', var(--font-montserrat), 'Montserrat', sans-serif;
+  --font-display: var(--font-brand);
+  --font-mono: var(--font-mono), 'JetBrains Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 /* LIGHT THEME — the only theme. `data-theme="light"` is set statically on <body>
@@ -672,6 +634,69 @@ body[data-theme="light"] .glass-topbar {
   content: attr(data-placeholder);
   color: var(--text-muted);
   pointer-events: none;
+}
+
+/* ─── SEMANTIC TYPOGRAPHY UTILITIES ─── */
+.font-brand, .font-futura {
+  font-family: var(--font-brand);
+}
+
+.font-sans, .font-montserrat {
+  font-family: var(--font-sans);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.type-page-title {
+  font-family: var(--font-brand);
+  font-size: var(--text-page-title);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.type-section {
+  font-family: var(--font-sans);
+  font-size: var(--text-section);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.type-subsection {
+  font-family: var(--font-sans);
+  font-size: var(--text-subsection);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.type-body {
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.type-meta {
+  font-family: var(--font-sans);
+  font-size: var(--text-meta);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.type-micro {
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
 }
 
 /* ─── PRINT / PDF OPTIMIZATION (Client Reports Public Page) ─── */
