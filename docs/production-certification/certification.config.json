@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "program": "Telestar CRM Production Certification",
   "releaseTag": "telestar-internal-rc-2026-08-20",
-  "candidateSha": "f37382ac63c59e3ad6523888951ffaec4cd58bf4",
-  "candidateFrozenAt": "2026-08-19T19:56:52.693Z",
+  "candidateSha": "bafb9171ad81955f0c2dd9c44e9d1a517bcdba19",
+  "candidateFrozenAt": "2026-08-19T20:14:00.801Z",
   "previousCandidates": [
     {
       "sha": "cf23182cdd291d9f180bb36ec88d7fe6df0cdfb9",
@@ -13,6 +13,10 @@
     {
       "sha": "a6d8c0dfa4800fc158f5a6717d94211b595f4531",
       "invalidatedReason": "certificate claims exceeded evidence; see FINAL_CERTIFICATE.md section 1"
+    },
+    {
+      "sha": "f37382ac63c59e3ad6523888951ffaec4cd58bf4",
+      "invalidatedReason": "superseded by tooling fixes found in run 1 (worker-healthcheck hang, git porcelain misread)"
     }
   ],
   "requiredRunCount": 3,
