@@ -605,12 +605,20 @@ async function handlePoolChunk(payload: ImportChunkPayload) {
     const data: ImportRowData = {
       ...normalizeImportRow(rawData as any),
       forceDuplicateLead: rawData.forceDuplicateLead,
+      __failpoint: rawData.__failpoint ?? (payload as any)?.__failpoint,
     };
 
     try {
+      const duplicateKey = buildPoolDuplicateKey(data);
       let poolItem = row.poolItemId
         ? await prisma.leadPoolItem.findUnique({ where: { id: row.poolItemId } })
         : null;
+
+      if (!poolItem && duplicateKey) {
+        poolItem = await prisma.leadPoolItem.findFirst({
+          where: { tenantId, duplicateKey, importBatchId: batchId },
+        });
+      }
 
       if (!poolItem) {
         try {
@@ -652,10 +660,18 @@ async function handlePoolChunk(payload: ImportChunkPayload) {
         }
       }
 
+      if (data.__failpoint === 'after_pool_item') {
+        throw new Error('FAILPOINT_AFTER_POOL_ITEM');
+      }
+
       await prisma.importRow.update({
         where: { id: row.id },
         data: { status: 'imported', poolItemId: poolItem.id },
       });
+
+      if (data.__failpoint === 'after_pool_import_row') {
+        throw new Error('FAILPOINT_AFTER_POOL_IMPORT_ROW');
+      }
 
       const existingActivity = await prisma.leadgenActivity.findFirst({
         where: { tenantId, poolItemId: poolItem.id, type: 'imported' },
@@ -672,8 +688,15 @@ async function handlePoolChunk(payload: ImportChunkPayload) {
         });
       }
 
+      if (data.__failpoint === 'after_pool_activity') {
+        throw new Error('FAILPOINT_AFTER_POOL_ACTIVITY');
+      }
+
       created++;
     } catch (err) {
+      if (typeof err === 'object' && err !== null && 'message' in err && typeof (err as Error).message === 'string' && (err as Error).message.startsWith('FAILPOINT_')) {
+        throw err;
+      }
       console.error(`[import.chunk] row ${row.rowIndex} failed:`, err);
       await prisma.importRow.update({
         where: { id: row.id },

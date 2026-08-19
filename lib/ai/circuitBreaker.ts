@@ -17,6 +17,7 @@ export interface CircuitMetrics {
 
 class CircuitBreakerManager {
   private circuits = new Map<string, CircuitMetrics>();
+  private halfOpenLeases = new Set<string>();
   private readonly failureThreshold = 3;
   private readonly resetTimeoutMs = 30_000; // 30s before trying HALF_OPEN
 
@@ -43,6 +44,7 @@ class CircuitBreakerManager {
 
   /**
    * Check whether a provider or model can receive traffic.
+   * In HALF_OPEN state, grants only a single concurrency probe lease.
    */
   public isAvailable(provider: string, modelId?: string): boolean {
     // 1. Check provider-level circuit first
@@ -54,6 +56,14 @@ class CircuitBreakerManager {
       }
       providerMetrics.state = 'HALF_OPEN';
       providerMetrics.lastStateChange = Date.now();
+    }
+
+    if (providerMetrics && providerMetrics.state === 'HALF_OPEN') {
+      if (this.halfOpenLeases.has(provider)) {
+        // Another probe is already in flight — reject concurrent calls until probe completes
+        return false;
+      }
+      this.halfOpenLeases.add(provider);
     }
 
     // 2. Check model-specific circuit if modelId supplied
@@ -68,6 +78,13 @@ class CircuitBreakerManager {
         modelMetrics.state = 'HALF_OPEN';
         modelMetrics.lastStateChange = Date.now();
       }
+
+      if (modelMetrics && modelMetrics.state === 'HALF_OPEN') {
+        if (this.halfOpenLeases.has(modelKey)) {
+          return false;
+        }
+        this.halfOpenLeases.add(modelKey);
+      }
     }
 
     return true;
@@ -78,6 +95,8 @@ class CircuitBreakerManager {
    */
   public recordSuccess(provider: string, modelId?: string): void {
     const key = this.getKey(provider, modelId);
+    this.halfOpenLeases.delete(provider);
+    this.halfOpenLeases.delete(key);
     const metrics = this.getOrCreate(key);
     metrics.totalCalls++;
     metrics.consecutiveFailures = 0;
@@ -93,6 +112,8 @@ class CircuitBreakerManager {
    */
   public recordFailure(provider: string, modelId?: string, isRateLimit = false): void {
     const key = this.getKey(provider, modelId);
+    this.halfOpenLeases.delete(provider);
+    this.halfOpenLeases.delete(key);
     const metrics = this.getOrCreate(key);
     metrics.totalCalls++;
     metrics.totalErrors++;
@@ -123,6 +144,7 @@ class CircuitBreakerManager {
    */
   public reset(): void {
     this.circuits.clear();
+    this.halfOpenLeases.clear();
   }
 }
 

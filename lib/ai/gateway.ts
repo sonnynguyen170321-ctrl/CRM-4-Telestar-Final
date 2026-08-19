@@ -6,10 +6,12 @@
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
+import { z } from 'zod';
 import { circuitBreaker } from './circuitBreaker';
 import { routeModel, type RoutingCriteria } from './router';
 import type { ModelMetadata } from './registry';
 import { recordAiCall, classifyFailure } from './usage';
+import { checkAndReserveAiBudget, type BudgetReservation } from './budget';
 import type { SessionUser } from '@/lib/auth';
 
 export interface ChatMessage {
@@ -30,6 +32,8 @@ export interface GatewayRequestOptions {
   operation?: string;
   executionId?: string;
   turnId?: string;
+  isEssential?: boolean;
+  timeoutMs?: number;
 }
 
 export interface GatewayResult {
@@ -47,6 +51,7 @@ export interface GatewayResult {
 
 export interface StructuredRequestOptions<T> extends GatewayRequestOptions {
   schemaDescription: string;
+  schema?: z.ZodType<T>;
   exampleJson?: T;
 }
 
@@ -72,9 +77,18 @@ export class AiGateway {
   }
 
   /**
-   * Standard non-streaming completion with automatic failover.
+   * Standard non-streaming completion with automatic failover and pre-provider budget guard.
    */
   public async generate(opts: GatewayRequestOptions): Promise<GatewayResult> {
+    // Pre-provider budget reservation
+    const tenantId = opts.sessionUser?.tenantId;
+    const reservation: BudgetReservation | null = await checkAndReserveAiBudget({
+      tenantId,
+      estimatedCostUsd: 0.005,
+      operation: opts.operation || opts.criteria?.task || 'generate',
+      isEssential: opts.isEssential,
+    });
+
     const route = routeModel(opts.criteria || { task: 'generate', preferredModel: opts.preferredModel });
     const modelsToTry = [route.primaryModel, ...route.fallbackModels];
 
@@ -85,18 +99,33 @@ export class AiGateway {
 
       const startedAt = Date.now();
       try {
-        let result: GatewayResult;
+        const timeout = opts.timeoutMs ?? 15000;
+        const callPromise = (async () => {
+          if (model.provider === 'openai') {
+            return this.callOpenAi(model, opts);
+          } else if (model.provider === 'google') {
+            return this.callGemini(model, opts);
+          } else {
+            return this.callGroq(model, opts);
+          }
+        })();
 
-        if (model.provider === 'openai') {
-          result = await this.callOpenAi(model, opts);
-        } else if (model.provider === 'google') {
-          result = await this.callGemini(model, opts);
-        } else {
-          result = await this.callGroq(model, opts);
-        }
+        const result: GatewayResult = await Promise.race([
+          callPromise,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`AI provider ${model.provider} timed out after ${timeout}ms`)), timeout)
+          ),
+        ]);
 
         circuitBreaker.recordSuccess(model.provider, model.modelId);
         await this.recordAttribution(opts, model, result.durationMs, 'ok');
+
+        if (reservation && result.usage?.estimatedCostUsd) {
+          reservation.reconcile(result.usage.estimatedCostUsd);
+        } else if (reservation) {
+          reservation.release();
+        }
+
         return result;
       } catch (err: unknown) {
         lastError = err;
@@ -107,11 +136,15 @@ export class AiGateway {
       }
     }
 
+    if (reservation) {
+      reservation.release();
+    }
+
     throw new Error(`All AI providers failed. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
   }
 
   /**
-   * Structured JSON completion.
+   * Structured JSON completion with runtime Zod validation.
    */
   public async generateStructured<T>(opts: StructuredRequestOptions<T>): Promise<T> {
     const systemWithJson = `${opts.systemPrompt || ''}\n\nIMPORTANT: You must respond ONLY with valid, parseable JSON matching this specification:\n${opts.schemaDescription}\nDo not include backticks, markdown, or explanatory text.`;
@@ -122,12 +155,23 @@ export class AiGateway {
       criteria: { ...opts.criteria, task: 'structured_json', requiresStructuredOutput: true },
     });
 
+    const clean = res.content.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+    let parsedJson: unknown;
     try {
-      const clean = res.content.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
-      return JSON.parse(clean) as T;
+      parsedJson = JSON.parse(clean);
     } catch {
       throw new Error(`AI generated invalid JSON: ${res.content}`);
     }
+
+    if (opts.schema) {
+      const validation = opts.schema.safeParse(parsedJson);
+      if (!validation.success) {
+        throw new Error(`AI structured output schema validation failed: ${validation.error.message}`);
+      }
+      return validation.data;
+    }
+
+    return parsedJson as T;
   }
 
   /**

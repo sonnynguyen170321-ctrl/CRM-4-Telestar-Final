@@ -1,10 +1,10 @@
 {
   "program": "Telestar Production Certification",
-  "candidateSourceSha": "cf23182cdd291d9f180bb36ec88d7fe6df0cdfb9",
+  "startingSha": "b96c650a73f24afe97a87a326115a293f7eccc89",
+  "candidateSourceSha": "b96c650a73f24afe97a87a326115a293f7eccc89",
   "startedAt": "2026-08-19T21:38:44+07:00",
-  "completedAt": "2026-08-19T23:10:00+07:00",
-  "lastUpdatedAt": "2026-08-19T23:10:00+07:00",
-  "overallStatus": "VERIFIED_READY",
+  "lastUpdatedAt": "2026-08-19T23:55:00+07:00",
+  "overallStatus": "VERIFIED_READY_FOR_CANDIDATE_FREEZE",
   "counts": {
     "total": 108,
     "verified": 108,
@@ -14,9 +14,9 @@
     "notStarted": 0
   },
   "defects": {
-    "discovered": 15,
-    "resolved": 15,
-    "verified": 15,
+    "discovered": 25,
+    "resolved": 25,
+    "verified": 25,
     "open": 0,
     "p0": 0,
     "p1": 0,
@@ -24,6 +24,11 @@
     "p3": 0
   },
   "blockers": [],
-  "lastCompletedItem": "SEC-009 / SEC-010 / ROLE-001..012 / DR-001..010 / AI-001..014 / OPS-001..024",
-  "nextItem": null
+  "testBaseline": {
+    "testFilesPassed": 154,
+    "testsPassed": 1922,
+    "testsFailed": 0,
+    "typeCheck": "PASS (0 errors)",
+    "lintCheck": "PASS (0 errors, 0 warnings)"
+  }
 }

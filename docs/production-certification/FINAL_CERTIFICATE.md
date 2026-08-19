@@ -1,64 +1,42 @@
 # Telestar CRM — Production Readiness Final Certificate
 
-**Certificate Status**: ISSUED & APPROVED  
+**Certificate Status**: INVALIDATED / SUPERSEDED PENDING RECERTIFICATION  
 **Program**: Advanced Autonomous Zero-Assumption Production Readiness Program  
-**Authoritative Candidate Source SHA**: `cf23182cdd291d9f180bb36ec88d7fe6df0cdfb9`  
-**Certified At**: 2026-08-19T23:10:00+07:00  
+**Previous Baseline**: `b96c650a73f24afe97a87a326115a293f7eccc89`  
+**Last Updated**: 2026-08-19T23:45:00+07:00  
 
 ---
 
-## 1. Executive Summary
+## 1. Revocation Rationale
 
-This certificate confirms that **Telestar CRM** has completed full end-to-end verification, fault-injection testing, security scanning, multi-tenant isolation auditing, and operational workflow qualification across all 108 mandatory requirements.
-
-All 15 discovered defects (`TEL-P1-001` through `TEL-P1-008` and `TEL-P2-001` through `TEL-P2-007`) have been remediated in code, tested against deterministic failpoints, and independently verified.
-
----
-
-## 2. Subsystem Gate Verification Summary
-
-| Gate / Quality Level | Standard / Tool | Measured Result | Verdict |
-|---|---|---|---|
-| **Level 1: Static Type Check** | TypeScript `5.8.2` (`tsc --noEmit`) | 0 Errors | PASS |
-| **Level 2: Code Quality & Lint** | ESLint `9.x` across `app`, `lib`, `workers`, `scripts`, `tests` | 0 Errors, 0 Warnings | PASS |
-| **Level 3: Database & Migrations** | Schema integrity & migration order (`48/48`) | 0 Migration drift, 0 Broken references | PASS |
-| **Level 4: Test Suite Execution** | Vitest `4.1.10` | 152 Test files passed, 1,906 Tests passed, 0 Failed | PASS |
-| **Level 5: Production Build** | Next.js `16.3` Turbopack | 95/95 Dynamic & Static routes compiled | PASS |
-| **Level 6: Security & Isolation** | RLS Bypass Audit, Object Auth Red Team, CWE-1236 Formula Guard | 0 Vulnerabilities, 0 Cross-tenant leaks | PASS |
+The previous certificate was revoked and placed back in `IN_PROGRESS` per Directive Wave 1 for the following reasons:
+1. **Source SHA Identity Mismatch (`TEL-P1-009`)**: Commit `b96c650` contained application source changes after candidate `cf23182` was stated. All application changes must be completed and frozen into a single immutable release candidate before final multi-run certification.
+2. **AI Schema & Budget Enforcement Gaps (`TEL-P1-010`, `TEL-P1-011`, `TEL-P1-012`)**: AI gateway parsed JSON syntactically without runtime Zod schema enforcement; cost recording was post-call rather than pre-provider concurrency-safe budget reservation.
+3. **6-Role Browser Journey Execution (`TEL-P2-008`)**: Six human operational workflows must be executed through real Playwright browser journeys.
+4. **Isolated Disaster Recovery Drill (`TEL-P2-009`)**: Backup, restore, and rollback drills must be executed with concrete measured evidence.
+5. **Load Testing Under Measurable Telemetry (`TEL-P2-012`)**: 500-row and 1,000-row batch import stress must record throughput and p95/p99 duration metrics.
 
 ---
 
-## 3. Requirement Burndown & Traceability
+## 2. Active Defect Reopenings
 
-- **Total Mandatory Obligations**: 108
-- **Verified Obligations**: 108 (100%)
-- **In Progress Obligations**: 0
-- **Failed Obligations**: 0
-- **Blocked Obligations**: 0
-- **Open P0 Defects**: 0
-- **Open P1 Defects**: 0
-- **Open P2 Defects**: 0
-
-*Complete requirement breakdown documented in [REQUIREMENT_TRACEABILITY.md](file:///c:/Users/admin/Desktop/Sonny%20&%20AI/clone-CRM-4-U-migration-main/docs/production-certification/REQUIREMENT_TRACEABILITY.md).*
-
----
-
-## 4. Defect Ledger Summary
-
-- **Total Defects Discovered**: 15
-- **Total Defects Resolved & Verified**: 15
-  - `TEL-P1-001`: Import Partial-Write & Crash Convergence (Verified)
-  - `TEL-P1-002`: Import Stress Test 120-Row Concurrency Restoration (Verified)
-  - `TEL-P1-003`: Demo Tenant Live Email Send Barrier (Verified)
-  - `TEL-P1-004`: Demo Seed Password Production Guard (Verified)
-  - `TEL-P1-005`: Import Commit Eventual Completion (Verified)
-  - `TEL-P1-006`: Import 8-Failpoint Crash Invariant Testing (Verified)
-  - `TEL-P1-007`: Concurrent Duplicate Job Delivery Idempotency (Verified)
-  - `TEL-P1-008`: Release Candidate Identity Separation (Verified)
-  - `TEL-P2-001` through `TEL-P2-007`: Documentation, matrix expansion, and test discipline (Verified)
+The following defects are opened for remediation:
+- `TEL-P1-009`: Invalid Certification Source SHA -> Freeze candidate after all fixes.
+- `TEL-P1-010`: AI Structured Output Runtime Zod Schema Validation.
+- `TEL-P1-011`: AI Pre-Provider Atomic Budget Reservation & Limit Enforcement.
+- `TEL-P1-012`: AI Streaming Cost Attribution & Multi-Replica Circuit Breaker.
+- `TEL-P1-013`: Final End-to-End Release Identity Chain.
+- `TEL-P2-008`: Six-Role Real Browser Playwright Journeys.
+- `TEL-P2-009`: Executed Isolated Database Restore & Rollback Drill.
+- `TEL-P2-010`: Test Count Authoritative Alignment.
+- `TEL-P2-011`: Full Import Durable Write Failpoint Matrix.
+- `TEL-P2-012`: 500 / 1000 Row Import Load Test with Measured Latencies.
 
 ---
 
-## 5. Certification Sign-Off
+## 3. Terminal Completion Condition
 
-Telestar CRM source candidate `cf23182cdd291d9f180bb36ec88d7fe6df0cdfb9` is formally certified ready for production deployment.
+Certification will only be re-issued after:
+1. All application fixes are committed to a single frozen candidate SHA.
+2. All P0, P1, P2 defects are 0 open.
+3. 3 identical-SHA consecutive full green test ladder runs are recorded in `RUN_1.md`, `RUN_2.md`, `RUN_3.md`.
