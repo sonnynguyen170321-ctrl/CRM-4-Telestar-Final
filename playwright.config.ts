@@ -67,7 +67,16 @@ export default defineConfig({
       // before it moved.
       name: 'certification-roles',
       dependencies: ['setup'],
-      testMatch: /e2e[\\/]certification[\\/].*\.spec\.ts/,
+      testMatch: /e2e[\\/]certification[\\/]six-role-acceptance\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      // The cross-role golden journey is its own project so gate 16 and gate 17 stay
+      // separable in the ladder: one proves each role can operate alone, the other proves
+      // the hand-offs between them work.
+      name: 'certification-journey',
+      dependencies: ['setup'],
+      testMatch: /e2e[\\/]certification[\\/]golden-journey\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
     {
