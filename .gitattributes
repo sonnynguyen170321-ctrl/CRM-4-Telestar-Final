@@ -1,1 +1,7 @@
 *.sh text eol=lf
+
+# Certification evidence must round-trip byte-identically: the validator verifies each
+# artifact's recorded SHA-256, and an LF->CRLF conversion on checkout would break every
+# hash on a fresh clone. core.autocrlf is true on the certification workstation.
+docs/production-certification/evidence/** -text
+docs/production-certification/evidence/raw/** -text
