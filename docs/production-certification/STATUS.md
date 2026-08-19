@@ -3,9 +3,17 @@
 > Master 30-Phase Production Completion & Feature Certification Tracker.
 > Execution follows strict evidentiary standards: **Evidence must drive status.**
 
-**Current Phase:** Production Certification Complete (Phases 1–30 + AI + Integrations)
-**Status:** 🟢 PRODUCTION CERTIFIED & FULLY OPERATIONAL
-**Overall Progress:** 30 / 30 Core Phases Complete (100% Green) + Next-Gen AI Agent + Integrations Hub
+**Current Phase:** Evidence-locked re-certification
+**Status:** NO-GO — the previous certificate was invalidated; see [FINAL_CERTIFICATE.md](FINAL_CERTIFICATE.md)
+**Authority:** this file is a narrative tracker and is **not** authoritative. Requirement status
+is computed by `npm run certify:validate` and rendered into
+[REQUIREMENT_TRACEABILITY.md](REQUIREMENT_TRACEABILITY.md). Where the two disagree, the
+validator wins.
+
+> The line above previously read "🟢 PRODUCTION CERTIFIED & FULLY OPERATIONAL, 30/30 phases,
+> 100% green". No mechanism produced that status and nothing could contradict it. The phase
+> table below is retained as a record of what was built; it is not evidence that any of it is
+> verified.
 
 ---
 

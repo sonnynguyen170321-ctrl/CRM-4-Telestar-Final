@@ -1,40 +1,119 @@
 {
-  "$comment": "Counts here are NOT authoritative. They are a snapshot written by the certification tooling. `npm run certify:validate` computes the real numbers from the evidence manifest and wins on any disagreement.",
+  "$comment": "GENERATED FILE. Regenerate with node scripts/certification/render-tracker.mjs. Counts are computed by the validator from the evidence manifest; nothing here is typed.",
   "program": "Telestar Production Certification",
-  "candidateSourceSha": null,
-  "candidateFreezeState": "PENDING_REMEDIATION",
+  "candidateSourceSha": "bafb9171ad81955f0c2dd9c44e9d1a517bcdba19",
   "releaseTag": "telestar-internal-rc-2026-08-20",
-  "startedAt": "2026-08-19T21:38:44+07:00",
-  "lastUpdatedAt": "2026-08-20T09:00:00+07:00",
-  "overallStatus": "INVALIDATED_RECONCILIATION_IN_PROGRESS",
+  "generatedAt": "2026-08-19T20:16:13.971Z",
   "verdict": "NO-GO",
-  "counts": {
+  "eligible": false,
+  "requirements": {
     "total": 108,
     "verified": 0,
     "notVerified": 108,
-    "note": "0 verified because zero evidence records exist yet. The prior 108/108 was documentation text, not computed status."
+    "byDomain": {
+      "IMP": {
+        "total": 13,
+        "verified": 0
+      },
+      "MAIL": {
+        "total": 12,
+        "verified": 0
+      },
+      "SEC": {
+        "total": 15,
+        "verified": 0
+      },
+      "ROLE": {
+        "total": 12,
+        "verified": 0
+      },
+      "AI": {
+        "total": 14,
+        "verified": 0
+      },
+      "DR": {
+        "total": 10,
+        "verified": 0
+      },
+      "REL": {
+        "total": 8,
+        "verified": 0
+      },
+      "OPS": {
+        "total": 24,
+        "verified": 0
+      }
+    }
   },
   "defects": {
-    "discovered": 37,
-    "verifiedClosed": 18,
-    "reopened": 7,
-    "open": 19,
-    "openP0": 1,
-    "openP1": 10,
-    "openP2": 8,
-    "openP3": 0
+    "open": 13,
+    "openP0": 2,
+    "openP1": 6,
+    "openP2": 5,
+    "openP3": 0,
+    "ids": [
+      {
+        "id": "TEL-P0-001",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P0-002",
+        "status": "BLOCKED_EXTERNAL"
+      },
+      {
+        "id": "TEL-P1-014",
+        "status": "OPEN"
+      },
+      {
+        "id": "TEL-P1-015",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-016",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-017",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-018",
+        "status": "OPEN"
+      },
+      {
+        "id": "TEL-P2-013",
+        "status": "OPEN"
+      },
+      {
+        "id": "TEL-P2-014",
+        "status": "OPEN"
+      },
+      {
+        "id": "TEL-P2-015",
+        "status": "OPEN"
+      },
+      {
+        "id": "TEL-P2-016",
+        "status": "OPEN"
+      },
+      {
+        "id": "TEL-P2-017",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-019",
+        "status": "FIXED_PENDING_VERIFICATION"
+      }
+    ]
   },
-  "blockers": [
-    "TEL-P0-001 disaster recovery evidence invalid",
-    "TEL-P1-014 three-run ladder incomplete",
-    "TEL-P1-015 AI budget process-local",
-    "TEL-P1-016 AI streaming governance incomplete",
-    "TEL-P1-017 AI circuit state process-local",
-    "TEL-P1-018 release deployment identity chain missing",
-    "TEL-P1-019 requirements cite nonexistent test files"
-  ],
-  "gates": {
-    "certifyValidate": "FAIL",
-    "note": "See `npm run certify:validate` output for the authoritative failure list."
+  "evidenceRecords": 11,
+  "validationFailures": {
+    "01": 1,
+    "G/H": 1,
+    "D": 1,
+    "A": 7,
+    "L": 3,
+    "R": 1,
+    "REQ": 108
   }
 }
