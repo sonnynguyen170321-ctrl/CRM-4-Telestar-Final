@@ -464,7 +464,7 @@ describe.skipIf(!hasDb)('PUT /api/users/[id] — Floor Manager scoped role admin
 
   it('allows a Floor Manager to promote an in-scope SDR to Team Lead', async () => {
     mockAuth(xfm);
-    const res = await updateUser(putReq(xrep1.id, { role: 'team_lead' }), {
+    const res = await updateUser(putReq(xrep1.id, { role: 'team_lead', managerId: xfm.id }), {
       params: Promise.resolve({ id: xrep1.id }),
     });
     expect(res.status).toBe(200);
@@ -472,13 +472,14 @@ describe.skipIf(!hasDb)('PUT /api/users/[id] — Floor Manager scoped role admin
     const after = await tenantStorage.run({ tenantId: 'system', bypassRls: true }, () =>
       prisma.user.findUnique({
         where: { id: xrep1.id },
-        select: { role: true },
+        select: { role: true, managerId: true },
       })
     );
     expect(after?.role).toBe('team_lead');
+    expect(after?.managerId).toBe(xfm.id);
 
     // Restore back to SDR
-    await updateUser(putReq(xrep1.id, { role: 'sdr' }), {
+    await updateUser(putReq(xrep1.id, { role: 'sdr', managerId: xmgr.id }), {
       params: Promise.resolve({ id: xrep1.id }),
     });
   });
