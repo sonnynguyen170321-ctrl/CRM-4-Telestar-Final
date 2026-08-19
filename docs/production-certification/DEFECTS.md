@@ -19,11 +19,11 @@
 
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
-| **P0** (Launch Blocker) | 1 | 0 | 0 | **1** |
+| **P0** (Launch Blocker) | 2 | 0 | 0 | **2** |
 | **P1** (Critical) | 19 | 9 | 4 | **10** |
 | **P2** (Important) | 17 | 9 | 3 | **8** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **37** | **18** | **7** | **19** |
+| **TOTAL** | **38** | **18** | **7** | **20** |
 
 The defect total is permitted to increase. Finding more defects is successful auditing.
 The prior cap of 25 is void.
@@ -52,6 +52,35 @@ The prior cap of 25 is void.
 - **Invariant the validator must enforce**: `backupSizeBytes > 0` **and**
   `backupSha256 != e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
 - **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P0-002` — Production Backup Posture Contradicts Itself; RPO Unsubstantiated
+- **Severity**: P0 (Launch Blocker)
+- **Status**: `BLOCKED_EXTERNAL`
+- **Discovered by**: attempting to derive RPO from real configuration instead of restating a target.
+- **Detail**: three repository documents make incompatible statements about whether the
+  production database has any automated backup at all.
+
+  | Source | Claim |
+  |---|---|
+  | `docs/BACKUP_RESTORE_RUNBOOK.md` section 1 | automated daily backups and 7-day PITR **enabled**; RPO < 5 minutes |
+  | `docs/CLOUD_RUN_DEPLOY.md` Cloud SQL creation | instance created with `--availability-type=zonal --no-backup` |
+  | `docs/DEPLOY.md` section 8 | as of 2026-08-05 `gcloud sql backups list` returned one manual snapshot — "There is no schedule." |
+
+  The same two documents also disagree on engine version (runbook says PostgreSQL 15, the
+  creation command specifies `POSTGRES_16`).
+- **Why P0**: if the deploy documentation is accurate, the production database has no
+  automated backup and no point-in-time recovery, so the real RPO is "everything since the
+  last manual snapshot" — unbounded. A launch on that posture risks unrecoverable data loss.
+  The risk is the *uncertainty*: no one currently knows which document describes reality.
+- **Why BLOCKED_EXTERNAL**: `gcloud` is not installed on the certification machine, so the
+  live instance cannot be inspected. Guessing is prohibited.
+- **Required remediation**: run `gcloud sql instances describe telestar-crm-db` and
+  `gcloud sql backups list` against the real project, attach the raw output as evidence,
+  correct whichever document is wrong, and — if backups are in fact disabled — enable
+  automated backups and PITR before launch.
+- **Evidence ID**: `EV-DR-RPO` (recorded `BLOCKED_EXTERNAL`)
 
 ---
 

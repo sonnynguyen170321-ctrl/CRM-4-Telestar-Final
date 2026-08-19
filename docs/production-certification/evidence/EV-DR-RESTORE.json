@@ -1,0 +1,53 @@
+{
+  "evidenceId": "EV-DR-RESTORE",
+  "kind": "dr-restore",
+  "candidateSha": "7de1758634d0f8894de28eb823b7547fe0324fcc",
+  "environment": "win32 / node 24.16.0 / postgres 16 / source telestar_crm",
+  "command": "C:\\Program Files\\PostgreSQL\\16\\bin\\pg_restore.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_dr_drill_20260819t174444 --no-owner --no-acl --exit-on-error C:\\Users\\admin\\Desktop\\Sonny & AI\\clone-CRM-4-U-migration-main\\.dr-artifacts\\telestar_2026-08-19T17-44-44-936Z.dump",
+  "startedAt": "2026-08-19T17:45:06.802Z",
+  "finishedAt": "2026-08-19T17:46:42.879Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {
+    "targetDatabase": "telestar_dr_drill_20260819t174444",
+    "backupArtifact": ".dr-artifacts/telestar_2026-08-19T17-44-44-936Z.dump",
+    "backupSha256": "6973d111728f0173fb9c0d48df90bf8add6dcfc7753957f6038ac7f7e73472fa",
+    "rtoSeconds": 96.08,
+    "rtoMeasuredFrom": "pg_restore invocation to pg_restore exit",
+    "integrityCheckPassed": true,
+    "integrityCommand": "C:\\Program Files\\nodejs\\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json --expect-counts C:\\Users\\admin\\Desktop\\Sonny & AI\\clone-CRM-4-U-migration-main\\.dr-artifacts\\counts-2026-08-19T17-44-44-936Z.json",
+    "countsReconciled": true,
+    "restoredCounts": {
+      "Tenant": 44884,
+      "User": 44335,
+      "Client": 29912,
+      "Campaign": 43867,
+      "Account": 35428,
+      "Contact": 27557,
+      "Lead": 258421,
+      "Task": 11810,
+      "Activity": 25850,
+      "Sequence": 28479,
+      "SequenceEnrollment": 16586,
+      "OutboundMessage": 117,
+      "ImportBatch": 6
+    }
+  },
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/dr-createdb.log",
+      "sizeBytes": 275,
+      "sha256": "8721f876a4fca65379e3529fa814ee6720373c8783d3ac42e1db494a5101c0a3"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/dr-restore-command.log",
+      "sizeBytes": 434,
+      "sha256": "f0bcbb0b5982dc9fb5b3a9e237b5b68eedcd942fbc411917bdfce36ce3c9d94c"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/dr-restore-integrity.log",
+      "sizeBytes": 2228,
+      "sha256": "db14762a3634f49a3fc6b533b7f4bf65912e12215d23f85dc57afb0d730218b0"
+    }
+  ]
+}

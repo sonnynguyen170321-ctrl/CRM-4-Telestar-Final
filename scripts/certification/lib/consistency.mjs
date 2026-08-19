@@ -157,11 +157,20 @@ export function checkCertificateVersusOpenDefects(certificateText, defectsText) 
   return findings;
 }
 
+/**
+ * Strips fenced blocks and inline code spans. Documentation that *describes* a
+ * forbidden pattern inside backticks is not using it, and flagging PROTOCOL.md
+ * for naming the rule it enforces is noise, not a finding.
+ */
+function withoutCode(markdown) {
+  return markdown.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
+}
+
 /** I: no file:// references anywhere in certification documentation. */
 export function checkNoFileUrls(scope = defaultScope()) {
   const findings = [];
   for (const doc of certDocs(scope)) {
-    const content = readFileSync(doc, 'utf8');
+    const content = withoutCode(readFileSync(doc, 'utf8'));
     if (content.includes('file://')) {
       findings.push(finding('I', `${relativeTo(scope, doc)} contains a file:// reference`));
     }
