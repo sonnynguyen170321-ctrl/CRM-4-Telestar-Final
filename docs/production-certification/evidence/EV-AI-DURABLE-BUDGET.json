@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-AI-DURABLE-BUDGET",
   "kind": "ai-durable-budget",
-  "candidateSha": "dfb172f53afaaae5f8304dd22b8f0dd37af69bcb",
+  "candidateSha": "84e4482bf40befe09bfc5824f8fb368f759c9a83",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "derived from C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-19T21:11:39.796Z",
-  "finishedAt": "2026-08-19T21:13:59.085Z",
+  "startedAt": "2026-08-19T21:38:05.647Z",
+  "finishedAt": "2026-08-19T21:40:26.830Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -22,7 +22,7 @@
     {
       "path": "docs/production-certification/evidence/raw/run3-08-vitest.log",
       "sizeBytes": 451,
-      "sha256": "2b62db1e4ce697e143d8223ab7f161f654681ee5b1e3f8aa8df6ab721d927bc7"
+      "sha256": "bcd127ce430bb808563386fc053e715cd65ba144491c21414a4190f941542cfe"
     }
   ]
 }

@@ -8,7 +8,7 @@
 
 **Requirement**: `ROLE-001`, `ROLE-003`, `ROLE-005`, `ROLE-007`, `ROLE-009`, `ROLE-011`
 **Defect**: `TEL-P2-013`
-**Candidate**: `dfb172f53afaaae5f8304dd22b8f0dd37af69bcb`
+**Candidate**: `84e4482bf40befe09bfc5824f8fb368f759c9a83`
 **Environment**: win32 / node 24.16.0 / next start / real Postgres / real Redis / Chromium 1440x900
 **Status**: PASS
 
@@ -59,12 +59,12 @@ Playwright traces are retained on failure by the shared config.
 
 | Artifact | Bytes | SHA-256 |
 |---|---:|---|
-| `docs/production-certification/evidence/raw/role-screenshots/director.png` | 229983 | `8e19da616aa837b8…` |
-| `docs/production-certification/evidence/raw/role-screenshots/floor_manager.png` | 221035 | `d50c90dadf66e3b3…` |
-| `docs/production-certification/evidence/raw/role-screenshots/leadgen.png` | 165032 | `e4b2027f83310f75…` |
-| `docs/production-certification/evidence/raw/role-screenshots/leadgen_manager.png` | 138118 | `9d14de6f8ce13a36…` |
-| `docs/production-certification/evidence/raw/role-screenshots/sdr.png` | 121562 | `92213bb95b2542a5…` |
-| `docs/production-certification/evidence/raw/role-screenshots/team_lead.png` | 218512 | `797c4020542b1503…` |
+| `docs/production-certification/evidence/raw/role-screenshots/director.png` | 230355 | `fbac69e4972eeb57…` |
+| `docs/production-certification/evidence/raw/role-screenshots/floor_manager.png` | 220403 | `31623a5e2621814e…` |
+| `docs/production-certification/evidence/raw/role-screenshots/leadgen.png` | 196889 | `caa880c71905c5e1…` |
+| `docs/production-certification/evidence/raw/role-screenshots/leadgen_manager.png` | 137438 | `f0a3c163ce709083…` |
+| `docs/production-certification/evidence/raw/role-screenshots/sdr.png` | 122023 | `6b861c1280c787e1…` |
+| `docs/production-certification/evidence/raw/role-screenshots/team_lead.png` | 217925 | `5f87aea62d351378…` |
 
 ## 5. Scope
 

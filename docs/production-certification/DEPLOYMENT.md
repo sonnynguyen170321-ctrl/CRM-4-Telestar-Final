@@ -9,7 +9,7 @@
 **Requirement**: `REL-001`
 **Defect**: `TEL-P1-018`
 **Chain status**: **INCOMPLETE — see §2**
-**Candidate SHA**: `dfb172f53afaaae5f8304dd22b8f0dd37af69bcb`
+**Candidate SHA**: `84e4482bf40befe09bfc5824f8fb368f759c9a83`
 **Release tag**: `telestar-internal-rc-2026-08-20`
 
 ---
@@ -29,7 +29,7 @@ running.
 
 | Link | Value | How to establish it |
 |---|---|---|
-| APPLICATION_SOURCE_SHA | `dfb172f53afaaae5f8304dd22b8f0dd37af69bcb` | — |
+| APPLICATION_SOURCE_SHA | `84e4482bf40befe09bfc5824f8fb368f759c9a83` | — |
 | CI_RUN_ID | **not established** | `gh run list --commit <sha> --json databaseId,conclusion,workflowName` |
 | IMAGE_DIGEST | **not established** | `docker buildx build --push` then `docker buildx imagetools inspect <ref>` |
 | WEB_DIGEST | **not established** | `docker inspect --format {{index .RepoDigests 0}} <web container>` |
@@ -49,7 +49,7 @@ To complete it, on a host with a container runtime and access to the registry:
 
 ```bash
 # 1. Build from the frozen candidate, and push by digest.
-git checkout dfb172f53afaaae5f8304dd22b8f0dd37af69bcb
+git checkout 84e4482bf40befe09bfc5824f8fb368f759c9a83
 docker buildx build --platform linux/amd64 -t <registry>/telestar-crm:telestar-internal-rc-2026-08-20 --push .
 IMAGE_DIGEST=$(docker buildx imagetools inspect <registry>/telestar-crm:telestar-internal-rc-2026-08-20 \
   --format '{{json .Manifest.Digest}}')
@@ -64,7 +64,7 @@ curl -s https://<host>/api/health
 
 # 4. Record it.
 node scripts/certification/record-release-identity.mjs \
-  --candidate dfb172f53afaaae5f8304dd22b8f0dd37af69bcb \
+  --candidate 84e4482bf40befe09bfc5824f8fb368f759c9a83 \
   --ci-run <run-id> --image <digest> --web <digest> --worker <digest> --health-sha <sha>
 ```
 

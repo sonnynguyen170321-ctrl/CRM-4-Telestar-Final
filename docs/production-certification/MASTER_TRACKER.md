@@ -7,10 +7,10 @@
 -->
 
 **Verdict**: **NO-GO**
-**Candidate SHA**: `dfb172f53afaaae5f8304dd22b8f0dd37af69bcb`
+**Candidate SHA**: `84e4482bf40befe09bfc5824f8fb368f759c9a83`
 **Requirements verified**: 101 / 108
 **Evidence records**: 21
-**Generated**: 2026-08-19T21:17:43.634Z
+**Generated**: 2026-08-19T21:44:03.727Z
 
 > This file and `progress.json` are rendered from the same computation. They used to be
 > maintained by hand, and both said 108/108 VERIFIED and CERTIFIED_APPROVED — which proved

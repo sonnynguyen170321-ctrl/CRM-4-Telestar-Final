@@ -1,9 +1,9 @@
 {
   "$comment": "GENERATED FILE. Regenerate with node scripts/certification/render-tracker.mjs. Counts are computed by the validator from the evidence manifest; nothing here is typed.",
   "program": "Telestar Production Certification",
-  "candidateSourceSha": "dfb172f53afaaae5f8304dd22b8f0dd37af69bcb",
+  "candidateSourceSha": "84e4482bf40befe09bfc5824f8fb368f759c9a83",
   "releaseTag": "telestar-internal-rc-2026-08-20",
-  "generatedAt": "2026-08-19T21:17:43.634Z",
+  "generatedAt": "2026-08-19T21:44:03.727Z",
   "verdict": "NO-GO",
   "eligible": false,
   "requirements": {

@@ -1,7 +1,7 @@
 # gate: 12-import-fault-matrix — import durable-write failpoint matrix
 # command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/import-fault-injection.test.ts tests/import-race-stress.test.ts
-# startedAt: 2026-08-19T21:14:12.505Z
-# finishedAt: 2026-08-19T21:14:20.735Z
+# startedAt: 2026-08-19T21:40:39.804Z
+# finishedAt: 2026-08-19T21:40:47.843Z
 # exitCode: 0
 
 --- stdout ---
@@ -11,8 +11,8 @@
 
  Test Files  2 passed (2)
       Tests  13 passed (13)
-   Start at  04:14:13
-   Duration  7.33s (transform 945ms, setup 515ms, import 2.20s, tests 9.09s, environment 0ms)
+   Start at  04:40:40
+   Duration  7.12s (transform 920ms, setup 519ms, import 2.23s, tests 8.66s, environment 1ms)
 
 
 --- stderr ---

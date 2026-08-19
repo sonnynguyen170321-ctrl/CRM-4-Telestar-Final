@@ -1,0 +1,1341 @@
+{
+  "evidenceId": "EV-RUN-1",
+  "kind": "certification-run",
+  "candidateSha": "84e4482bf40befe09bfc5824f8fb368f759c9a83",
+  "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
+  "command": "node scripts/certification/run-full-certification.mjs --candidate 84e4482bf40befe09bfc5824f8fb368f759c9a83 --run 1",
+  "startedAt": "2026-08-19T21:22:08.741Z",
+  "finishedAt": "2026-08-19T21:29:32.129Z",
+  "exitCode": 1,
+  "status": "FAIL",
+  "metrics": {
+    "runNumber": 1,
+    "gates": {
+      "01-source-identity": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 0,
+        "description": "the application source is exactly the frozen candidate",
+        "metrics": {
+          "head": "d9a70d5e2b2e00841fc144e287066659ff179482",
+          "candidateSha": "84e4482bf40befe09bfc5824f8fb368f759c9a83",
+          "commitsSinceFreeze": 1,
+          "uncommittedNonMetadataPaths": 0,
+          "problems": []
+        }
+      },
+      "02-environment": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 325,
+        "description": "Postgres and Redis reachable; required configuration present",
+        "metrics": {
+          "postgres": {
+            "host": "localhost",
+            "port": "5432",
+            "database": "telestar_crm",
+            "reachable": true,
+            "appliedMigrations": 49
+          },
+          "redis": {
+            "host": "127.0.0.1",
+            "port": 6379,
+            "reachable": true
+          },
+          "configuration": {
+            "AUTH_SECRET": "present",
+            "ENCRYPTION_KEY": "present",
+            "EMAIL_SEND_DRY_RUN": "true"
+          },
+          "problems": [],
+          "status": "PASS"
+        }
+      },
+      "03-typecheck": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 27545,
+        "description": "tsc --noEmit"
+      },
+      "04-lint": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 52820,
+        "description": "eslint across the whole tree"
+      },
+      "05-test-discipline": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 554,
+        "description": "scripts/check-test-discipline.mjs"
+      },
+      "06-migration-validation": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 163,
+        "description": "scripts/check-migration-order.mjs"
+      },
+      "07-database-integrity": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 10106,
+        "description": "scripts/verify-db-integrity.ts against the certification database"
+      },
+      "08-vitest": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 139488,
+        "description": "full Vitest suite against real Postgres and Redis",
+        "metrics": {
+          "files": {
+            "tests/access-control.test.ts": {
+              "status": "passed",
+              "tests": 10,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/activities.test.ts": {
+              "status": "passed",
+              "tests": 7,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/admin-audit.test.ts": {
+              "status": "passed",
+              "tests": 7,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/admin-impact.test.ts": {
+              "status": "passed",
+              "tests": 15,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/admin-org-rules.test.ts": {
+              "status": "passed",
+              "tests": 9,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/admin-org.test.ts": {
+              "status": "passed",
+              "tests": 22,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/admin-overview.test.ts": {
+              "status": "passed",
+              "tests": 3,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/admin.test.ts": {
+              "status": "passed",
+              "tests": 15,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/agent-capability-autonomy.test.ts": {
+              "status": "passed",
+              "tests": 30,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/agent-object-authorization.test.ts": {
+              "status": "passed",
+              "tests": 17,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/agent-runtime-integration.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/agent-sla-priority.test.ts": {
+              "status": "passed",
+              "tests": 13,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/ai-capability-routing.test.ts": {
+              "status": "passed",
+              "tests": 21,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/ai-cost-attribution.test.ts": {
+              "status": "passed",
+              "tests": 15,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/ai-down-resilience.test.ts": {
+              "status": "passed",
+              "tests": 7,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/ai-durable-budget.test.ts": {
+              "status": "passed",
+              "tests": 14,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/ai-enhancements.test.ts": {
+              "status": "passed",
+              "tests": 2,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/ai-execution-id.test.ts": {
+              "status": "passed",
+              "tests": 6,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/ai-gateway.test.ts": {
+              "status": "passed",
+              "tests": 10,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/ai-optional.test.ts": {
+              "status": "passed",
+              "tests": 9,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/ai-shared-circuit.test.ts": {
+              "status": "passed",
+              "tests": 12,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/ai-stream-governance.test.ts": {
+              "status": "passed",
+              "tests": 10,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/ai-structured-budget.test.ts": {
+              "status": "passed",
+              "tests": 8,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/api-keys-and-integrations.test.ts": {
+              "status": "passed",
+              "tests": 5,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/assignable-reps.test.ts": {
+              "status": "passed",
+              "tests": 8,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/automation-operator-state.test.ts": {
+              "status": "passed",
+              "tests": 12,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/automation-stats-route.test.ts": {
+              "status": "passed",
+              "tests": 5,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/backfill-next-action-at.test.ts": {
+              "status": "passed",
+              "tests": 7,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/booking-link-patch-reference-integrity.test.ts": {
+              "status": "passed",
+              "tests": 2,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/booking-link-reference-integrity.test.ts": {
+              "status": "passed",
+              "tests": 12,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/bounceDetection.test.ts": {
+              "status": "passed",
+              "tests": 8,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/bullmq.test.ts": {
+              "status": "passed",
+              "tests": 10,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/businessDays.test.ts": {
+              "status": "passed",
+              "tests": 6,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/cache.test.ts": {
+              "status": "passed",
+              "tests": 13,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/campaign-playbook.test.ts": {
+              "status": "passed",
+              "tests": 27,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/certification-role-evidence.test.ts": {
+              "status": "passed",
+              "tests": 14,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/certification-validator.test.ts": {
+              "status": "passed",
+              "tests": 44,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/client-report-preview-reference-integrity.test.ts": {
+              "status": "passed",
+              "tests": 9,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/client-report-reference-integrity.test.ts": {
+              "status": "passed",
+              "tests": 9,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/client-report-scope.test.ts": {
+              "status": "passed",
+              "tests": 6,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/client-reports.test.ts": {
+              "status": "passed",
+              "tests": 27,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/commercial-intelligence-master.test.ts": {
+              "status": "passed",
+              "tests": 8,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/commercial-intelligence-trio.test.ts": {
+              "status": "passed",
+              "tests": 5,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/commercial-memory.test.ts": {
+              "status": "passed",
+              "tests": 2,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/contact-intelligence.test.ts": {
+              "status": "passed",
+              "tests": 29,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/context-engine.test.ts": {
+              "status": "passed",
+              "tests": 3,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/create-admin.test.ts": {
+              "status": "passed",
+              "tests": 2,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/create-user.test.ts": {
+              "status": "passed",
+              "tests": 8,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/crmtest-feedback.test.ts": {
+              "status": "passed",
+              "tests": 14,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/csp.test.ts": {
+              "status": "passed",
+              "tests": 15,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/cutover-preflight.test.ts": {
+              "status": "passed",
+              "tests": 31,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/defer-scheduling.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/demo-email-barrier.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/doctor.test.ts": {
+              "status": "passed",
+              "tests": 32,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/draft-reply.test.ts": {
+              "status": "passed",
+              "tests": 2,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/eligibility.test.ts": {
+              "status": "passed",
+              "tests": 20,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/email-health-access.test.ts": {
+              "status": "passed",
+              "tests": 22,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/email-health-p8.test.ts": {
+              "status": "passed",
+              "tests": 17,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/email-health-scoring.test.ts": {
+              "status": "passed",
+              "tests": 28,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/email-idempotency.test.ts": {
+              "status": "passed",
+              "tests": 23,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/email-oauth.test.ts": {
+              "status": "passed",
+              "tests": 6,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/email-safety.test.ts": {
+              "status": "passed",
+              "tests": 33,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/email-worker.test.ts": {
+              "status": "passed",
+              "tests": 34,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/failure-matrix.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/floor-manager-administration.test.ts": {
+              "status": "passed",
+              "tests": 6,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/gitleaks-allowlist.test.ts": {
+              "status": "passed",
+              "tests": 20,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/golden-journey.test.ts": {
+              "status": "passed",
+              "tests": 14,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/icp-adherence.test.ts": {
+              "status": "passed",
+              "tests": 15,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/import-concurrency.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/import-fault-injection.test.ts": {
+              "status": "passed",
+              "tests": 12,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/import-load-benchmark.test.ts": {
+              "status": "passed",
+              "tests": 3,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/import-race-stress.test.ts": {
+              "status": "passed",
+              "tests": 1,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/import-rows.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/import-worker.test.ts": {
+              "status": "passed",
+              "tests": 21,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/lead-import-reference-integrity.test.ts": {
+              "status": "passed",
+              "tests": 7,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/lead-lifecycle.test.ts": {
+              "status": "passed",
+              "tests": 6,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/lead-reference-integrity.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/leadgen-redesign.test.ts": {
+              "status": "passed",
+              "tests": 10,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/leadgen.test.ts": {
+              "status": "passed",
+              "tests": 5,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/lifecycle-integration.test.ts": {
+              "status": "passed",
+              "tests": 6,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/login-throttle.test.ts": {
+              "status": "passed",
+              "tests": 26,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/maintenance-worker.test.ts": {
+              "status": "passed",
+              "tests": 23,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/mass-assignment.test.ts": {
+              "status": "passed",
+              "tests": 12,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/meetings.test.ts": {
+              "status": "passed",
+              "tests": 9,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/migration-order.test.ts": {
+              "status": "passed",
+              "tests": 11,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/migration-status.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/notif-prefs.test.ts": {
+              "status": "passed",
+              "tests": 10,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/notification-worker.test.ts": {
+              "status": "passed",
+              "tests": 9,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/object-auth-red-team.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/opportunities.test.ts": {
+              "status": "passed",
+              "tests": 14,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/opportunity-handoff.test.ts": {
+              "status": "passed",
+              "tests": 9,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/p0-hardening.test.ts": {
+              "status": "passed",
+              "tests": 8,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/p1-hardening.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-10-approved-learning.test.ts": {
+              "status": "passed",
+              "tests": 31,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-10-draft-guard-db.test.ts": {
+              "status": "passed",
+              "tests": 9,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-7-knowledge.test.ts": {
+              "status": "passed",
+              "tests": 27,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-8-stabilization.test.ts": {
+              "status": "passed",
+              "tests": 8,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-8a-ai-refinement.test.ts": {
+              "status": "passed",
+              "tests": 17,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-8a-execution-lock.test.ts": {
+              "status": "passed",
+              "tests": 3,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-8a-lifecycle-routes.test.ts": {
+              "status": "passed",
+              "tests": 18,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-8a-maintenance-occurrence.test.ts": {
+              "status": "passed",
+              "tests": 9,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-8a-occupancy.test.ts": {
+              "status": "passed",
+              "tests": 29,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-8a-occurrence-advance.test.ts": {
+              "status": "passed",
+              "tests": 13,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-8a-prospecting.test.ts": {
+              "status": "passed",
+              "tests": 69,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-8a-provider-routing.test.ts": {
+              "status": "passed",
+              "tests": 8,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-8a-queue-ensure.test.ts": {
+              "status": "passed",
+              "tests": 16,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-8a-resume-convergence.test.ts": {
+              "status": "passed",
+              "tests": 21,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-8b-replies.test.ts": {
+              "status": "passed",
+              "tests": 18,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/phase-9-role-surfaces.test.ts": {
+              "status": "passed",
+              "tests": 25,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/podScoping.test.ts": {
+              "status": "passed",
+              "tests": 13,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/prod-env.test.ts": {
+              "status": "passed",
+              "tests": 1,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/prospect-operating-state.test.ts": {
+              "status": "passed",
+              "tests": 23,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/queue-reconciliation.test.ts": {
+              "status": "passed",
+              "tests": 8,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/redis-integration.test.ts": {
+              "status": "passed",
+              "tests": 5,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/redis-readiness.test.ts": {
+              "status": "passed",
+              "tests": 17,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/relationship-capital.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/release.test.ts": {
+              "status": "passed",
+              "tests": 15,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/render.test.ts": {
+              "status": "passed",
+              "tests": 5,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/revenue-intelligence-trio.test.ts": {
+              "status": "passed",
+              "tests": 3,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/revenue-learning-trio.test.ts": {
+              "status": "passed",
+              "tests": 3,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/revenue-os-master-eval.test.ts": {
+              "status": "passed",
+              "tests": 9,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/rls-policy-coverage.test.ts": {
+              "status": "passed",
+              "tests": 6,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/rls.test.ts": {
+              "status": "passed",
+              "tests": 3,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/role-journeys.test.ts": {
+              "status": "passed",
+              "tests": 14,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/run-now-immediate.test.ts": {
+              "status": "passed",
+              "tests": 3,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/scheduling.test.ts": {
+              "status": "passed",
+              "tests": 37,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/scoring.test.ts": {
+              "status": "passed",
+              "tests": 3,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/search-terms.test.ts": {
+              "status": "passed",
+              "tests": 9,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/security-injection.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/seed-guard.test.ts": {
+              "status": "passed",
+              "tests": 22,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/sequence-analytics.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/sequence-execute.test.ts": {
+              "status": "passed",
+              "tests": 18,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/sequence-ladder-execution.test.ts": {
+              "status": "passed",
+              "tests": 29,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/sequence-ladder.test.ts": {
+              "status": "passed",
+              "tests": 14,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/sequence-preview-opaque-ids.test.ts": {
+              "status": "passed",
+              "tests": 3,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/sequence-step-copy.test.ts": {
+              "status": "passed",
+              "tests": 27,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/sequence-worker.test.ts": {
+              "status": "passed",
+              "tests": 15,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/session-revocation.test.ts": {
+              "status": "passed",
+              "tests": 13,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/sync-worker.test.ts": {
+              "status": "passed",
+              "tests": 33,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/telestar-ai-certification-evals.test.ts": {
+              "status": "passed",
+              "tests": 2,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/telestar-ai-constitution.test.ts": {
+              "status": "passed",
+              "tests": 3,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/telestar-ai-engine.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/telestar-ai-p1.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/telestar-ai-p2.test.ts": {
+              "status": "passed",
+              "tests": 2,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/telestar-ai-p3.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/telestar-ai-ui-routes.test.ts": {
+              "status": "passed",
+              "tests": 3,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/tenant-context.test.ts": {
+              "status": "passed",
+              "tests": 5,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/tenant-includes.test.ts": {
+              "status": "passed",
+              "tests": 6,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/tenant-inject.test.ts": {
+              "status": "passed",
+              "tests": 14,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/typography-design-system.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/unsubscribe.test.ts": {
+              "status": "passed",
+              "tests": 10,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/validation.test.ts": {
+              "status": "passed",
+              "tests": 14,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/variant-attribution.test.ts": {
+              "status": "passed",
+              "tests": 8,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/webhooks-scoring.test.ts": {
+              "status": "passed",
+              "tests": 5,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/weekend-policy.test.ts": {
+              "status": "passed",
+              "tests": 19,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/work-order-approvals.test.ts": {
+              "status": "passed",
+              "tests": 26,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/work-order-boundary.test.ts": {
+              "status": "passed",
+              "tests": 5,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/work-order-bounds.test.ts": {
+              "status": "passed",
+              "tests": 33,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/work-order-dispatch.test.ts": {
+              "status": "passed",
+              "tests": 9,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/work-order-execution.test.ts": {
+              "status": "passed",
+              "tests": 18,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/work-order-leases.test.ts": {
+              "status": "passed",
+              "tests": 27,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/work-order-lifecycle.test.ts": {
+              "status": "passed",
+              "tests": 24,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/work-order-object-rbac.test.ts": {
+              "status": "passed",
+              "tests": 3,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/work-order-reference-integrity.test.ts": {
+              "status": "passed",
+              "tests": 6,
+              "failed": 0,
+              "skipped": 0
+            }
+          },
+          "testFiles": 164,
+          "testFilesPassed": 164,
+          "testsPassed": 2059,
+          "testsFailed": 0,
+          "testsSkipped": 0
+        }
+      },
+      "09-redis-integration": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 3490,
+        "description": "Redis integration suite - must execute, never skip",
+        "metrics": {
+          "files": {
+            "tests/ai-shared-circuit.test.ts": {
+              "status": "passed",
+              "tests": 12,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/redis-integration.test.ts": {
+              "status": "passed",
+              "tests": 5,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/redis-readiness.test.ts": {
+              "status": "passed",
+              "tests": 17,
+              "failed": 0,
+              "skipped": 0
+            }
+          },
+          "testFiles": 3,
+          "testFilesPassed": 3,
+          "testsPassed": 34,
+          "testsFailed": 0,
+          "testsSkipped": 0,
+          "executed": true,
+          "skipped": 0
+        }
+      },
+      "10-ai-certification": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 7317,
+        "description": "AI durable budget, stream governance, shared circuit, capability routing"
+      },
+      "11-email-safety": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 2171,
+        "description": "demo barrier, idempotency, safe-mode posture"
+      },
+      "12-import-fault-matrix": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 8331,
+        "description": "import durable-write failpoint matrix"
+      },
+      "13-queue-load": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 34885,
+        "description": "IMPORT_SYSTEM_QUEUE_BENCHMARK over real Redis and BullMQ"
+      },
+      "14-security-suite": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 3737,
+        "description": "tenant isolation, object auth, mass assignment, XSS, formula injection, secrets"
+      },
+      "15-production-build": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 87245,
+        "description": "next build"
+      },
+      "16-playwright-roles": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 33084,
+        "description": "six-role real browser acceptance"
+      },
+      "16-playwright-roles-evidence": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 160,
+        "description": "aggregate six-role observations into EV-ROLE-BROWSER"
+      },
+      "17-golden-browser-journey": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 15486,
+        "description": "cross-role golden journey in a real browser"
+      },
+      "18-worker-readiness": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 3406,
+        "description": "worker healthcheck: a job is enqueued and a real worker drains it"
+      },
+      "22-health-smoke": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 42,
+        "description": "web health endpoints answer and report release identity",
+        "metrics": {
+          "endpoints": {
+            "/api/health": {
+              "status": 200,
+              "body": "{\"ok\":true,\"ts\":1787174970708,\"commit\":\"unknown\",\"version\":\"unknown\",\"builtAt\":\"unknown\",\"schema\":\"ready\"}"
+            },
+            "/api/health/db": {
+              "status": 404,
+              "body": "<!DOCTYPE html><html lang=\"en\" class=\"h-full antialiased montserrat_749aa487-module__uhke3q__variable jetbrains_mono_cae79820-module__QvYvBa__variable\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/2u-nyl4aihksk.css\" data-precedence=\"next\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/1onf9fi"
+            },
+            "/api/health/redis": {
+              "status": 404,
+              "body": "<!DOCTYPE html><html lang=\"en\" class=\"h-full antialiased montserrat_749aa487-module__uhke3q__variable jetbrains_mono_cae79820-module__QvYvBa__variable\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/2u-nyl4aihksk.css\" data-precedence=\"next\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/1onf9fi"
+            }
+          }
+        }
+      },
+      "19-docker-build": {
+        "status": "BLOCKED_EXTERNAL",
+        "exitCode": 127,
+        "durationMs": 0,
+        "description": "Docker image build from the candidate SHA",
+        "metrics": {
+          "reason": "no container runtime on the certification workstation; see TEL-P1-018"
+        }
+      },
+      "20-image-inspection": {
+        "status": "BLOCKED_EXTERNAL",
+        "exitCode": 127,
+        "durationMs": 0,
+        "description": "image digest captured by digest, never by floating tag",
+        "metrics": {
+          "reason": "no image exists to inspect; see TEL-P1-018"
+        }
+      },
+      "21-compose-validation": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 458,
+        "description": "scripts/check-production-compose.mjs"
+      },
+      "23-validator-selftest": {
+        "status": "PASS",
+        "exitCode": 0,
+        "durationMs": 924,
+        "description": "the validator rejects every injected false-green state"
+      }
+    },
+    "missingGates": [],
+    "failedGates": [],
+    "blockedGates": [
+      "19-docker-build",
+      "20-image-inspection"
+    ],
+    "mandatorySkips": 0
+  },
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/run1-02-environment.log",
+      "sizeBytes": 469,
+      "sha256": "f12cf723aecfa45866b3b3fa3dbf46518fa3463a4f2500526398586362c88f07"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-03-typecheck.log",
+      "sizeBytes": 261,
+      "sha256": "e9e6a38e127f30390c99a64a2510f2cf3a18901690fdfe9b1a9097ab2f584b28"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-04-lint.log",
+      "sizeBytes": 318,
+      "sha256": "36b00d25a5536be07dcd3b1a7aff66e8c97c09a86a2db8a87d0693f8019366c6"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-05-test-discipline.log",
+      "sizeBytes": 324,
+      "sha256": "d57828b79198c4721fb5ee6cef1cd6c0572a44640f35ed7db1ae9ef7db63a77d"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-06-migration-validation.log",
+      "sizeBytes": 365,
+      "sha256": "4ebc182e159b0c29f5d103f4928976966ffa6cfeb46f36ea1d181ac3d57e5ef4"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-07-database-integrity.log",
+      "sizeBytes": 1757,
+      "sha256": "1af5f2dfbb90e04a219e523b0b055d69a79e797c4182cab24ec8c40b203fb839"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-08-vitest.log",
+      "sizeBytes": 451,
+      "sha256": "82c2c752bfb818baa5e246d3ba04fa93121f3c471083e656eff0a7e716e42dae"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-09-redis-integration.log",
+      "sizeBytes": 555,
+      "sha256": "8364d2866ee7f741e794b20d8393206b65e7837c80b08285a61268f248858e1d"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-10-ai-certification.log",
+      "sizeBytes": 769,
+      "sha256": "2ab0b8f82ce336b9947fa82ce62109e30e5cd924fde1a4379336c862fc9ab9ce"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-11-email-safety.log",
+      "sizeBytes": 625,
+      "sha256": "5f8fe28a1a49514a7e659fdf1f5148cbc65656a9407e5c4f2492ecdfe9b68a00"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-12-import-fault-matrix.log",
+      "sizeBytes": 604,
+      "sha256": "bd0ce93ecc98b260b55302c4efbc4f6ae65f5c54f29d675d214b08b1382302b7"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-13-queue-load.log",
+      "sizeBytes": 524,
+      "sha256": "68b81c9b44bb688d80890104be6ca0f85bde643d040302907db46c823846810e"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-14-security-suite.log",
+      "sizeBytes": 777,
+      "sha256": "dd42b7451bd9cac52954195cc13d0373bb2a3829e6d90618dcd14f13a518b086"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-15-production-build.log",
+      "sizeBytes": 7371,
+      "sha256": "964987cbecb2b86dea764fc9cc0180125c9cc799aee42059c134bb66a27d517d"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-16-playwright-roles.log",
+      "sizeBytes": 2174,
+      "sha256": "e810cd4094ada9c8b05f6451c185a65af975b484764175dd23e38efc1bd70bf6"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-16-playwright-roles-evidence.log",
+      "sizeBytes": 156,
+      "sha256": "576a1d9f71438d9faa59093b3970cf411475968d66679fbac5a619519d3850ee"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-17-golden-browser-journey.log",
+      "sizeBytes": 2217,
+      "sha256": "3af24bb6367aba012b2d9bbcebf93839692d3488a4a405ac212721361fcceec1"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-18-worker-readiness.log",
+      "sizeBytes": 187,
+      "sha256": "204f92326860ca9e057faa0cfe4415694b4928bddd3e747b127108b555024a7c"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-21-compose-validation.log",
+      "sizeBytes": 1413,
+      "sha256": "66e8d557a38ef80214fd7702d1cd236f14fde01ef25c48e678465fcaf3c86c90"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-23-validator-selftest.log",
+      "sizeBytes": 1554,
+      "sha256": "f0aa07d6c388d17c7924c6d9edd82ef2a7012b42d93c7e7e398649ef0daa03b0"
+    }
+  ]
+}

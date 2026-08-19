@@ -6,7 +6,7 @@
   Regenerate: node scripts/certification/render-traceability.mjs
 -->
 
-**Candidate SHA**: `dfb172f53afaaae5f8304dd22b8f0dd37af69bcb`
+**Candidate SHA**: `84e4482bf40befe09bfc5824f8fb368f759c9a83`
 **Verified**: 101 / 108
 **Verdict**: NO-GO
 

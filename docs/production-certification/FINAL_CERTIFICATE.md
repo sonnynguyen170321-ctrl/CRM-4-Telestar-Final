@@ -8,8 +8,8 @@
 -->
 
 **Verdict**: **NO-GO — BLOCKERS REMAIN**
-**Generated**: 2026-08-19T21:18:20.428Z
-**Candidate SHA**: `dfb172f53afaaae5f8304dd22b8f0dd37af69bcb`
+**Generated**: 2026-08-19T21:44:04.316Z
+**Candidate SHA**: `84e4482bf40befe09bfc5824f8fb368f759c9a83`
 **Release tag**: `telestar-internal-rc-2026-08-20`
 **Evidence records**: 21
 
@@ -19,7 +19,7 @@
 
 | Field | Value |
 |---|---|
-| APPLICATION_SOURCE_SHA | `dfb172f53afaaae5f8304dd22b8f0dd37af69bcb` |
+| APPLICATION_SOURCE_SHA | `84e4482bf40befe09bfc5824f8fb368f759c9a83` |
 | CI_RUN_ID | `not established` |
 | IMAGE_DIGEST | `not established` |
 | WEB_DIGEST | `not established` |
@@ -67,11 +67,11 @@ Two benchmarks, named for what they exercise. Detail: [LOAD_TEST.md](LOAD_TEST.m
 
 | Measure | Value |
 |---|---|
-| Backup artifact size | 91072927 bytes |
-| Backup SHA-256 | `131faed9d53d89abe8f062f950b7f0fc5543cf7bdd5aeea41a57ae3d34fdebcc` |
+| Backup artifact size | 93006466 bytes |
+| Backup SHA-256 | `111288297fe29dcef4fca209a52c2ba107f4089fbceec3d2bb791ab6b646d533` |
 | Checksum verified | true |
 | Restore integrity | true |
-| Measured RTO | 95.99 s |
+| Measured RTO | 96.11 s |
 | RPO | BLOCKED_EXTERNAL — gcloud is not installed on this machine, so the live Cloud SQL backup configuration cannot be inspected. |
 | Rollback drill | NOT_EXECUTED — docker is not installed on this machine, so no image has been built and no digest exists to roll between. |
 
@@ -132,8 +132,8 @@ Detail: [DEFECTS.md](DEFECTS.md).
 
 ## 9. What stands between this and GO
 
-**Check `01`** — 1 finding(s)
-  - working tree has 1 uncommitted non-metadata path(s): scripts/certification/generate-certificate.mjs
+**Check `A`** — 1 finding(s)
+  - docs/production-certification/FINAL_CERTIFICATE.md still references non-candidate SHA dfb172f (candidate is 84e4482)
 
 **Check `L`** — 6 finding(s)
   - run 1 gate "19-docker-build" is BLOCKED_EXTERNAL

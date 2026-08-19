@@ -1,7 +1,7 @@
 # gate: 14-security-suite — tenant isolation, object auth, mass assignment, XSS, formula injection, secrets
 # command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/tenant-inject.test.ts tests/object-auth-red-team.test.ts tests/mass-assignment.test.ts tests/security-injection.test.ts tests/gitleaks-allowlist.test.ts tests/csp.test.ts tests/login-throttle.test.ts
-# startedAt: 2026-08-19T21:07:05.903Z
-# finishedAt: 2026-08-19T21:07:09.583Z
+# startedAt: 2026-08-19T21:34:22.742Z
+# finishedAt: 2026-08-19T21:34:26.442Z
 # exitCode: 0
 
 --- stdout ---
@@ -11,8 +11,8 @@
 
  Test Files  7 passed (7)
       Tests  95 passed (95)
-   Start at  04:07:06
-   Duration  2.82s (transform 714ms, setup 1.93s, import 1.63s, tests 1.30s, environment 2ms)
+   Start at  04:34:23
+   Duration  2.85s (transform 760ms, setup 1.93s, import 1.71s, tests 1.25s, environment 2ms)
 
 
 --- stderr ---

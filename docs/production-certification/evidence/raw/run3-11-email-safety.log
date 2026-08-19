@@ -1,7 +1,7 @@
 # gate: 11-email-safety — demo barrier, idempotency, safe-mode posture
 # command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/demo-email-barrier.test.ts tests/email-idempotency.test.ts tests/email-safety.test.ts
-# startedAt: 2026-08-19T21:14:10.281Z
-# finishedAt: 2026-08-19T21:14:12.504Z
+# startedAt: 2026-08-19T21:40:37.617Z
+# finishedAt: 2026-08-19T21:40:39.802Z
 # exitCode: 0
 
 --- stdout ---
@@ -11,8 +11,8 @@
 
  Test Files  3 passed (3)
       Tests  60 passed (60)
-   Start at  04:14:11
-   Duration  1.36s (transform 398ms, setup 815ms, import 803ms, tests 64ms, environment 1ms)
+   Start at  04:40:38
+   Duration  1.33s (transform 368ms, setup 856ms, import 748ms, tests 63ms, environment 1ms)
 
 
 --- stderr ---
