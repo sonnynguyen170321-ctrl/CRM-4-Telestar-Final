@@ -1,6 +1,6 @@
 # verify-db-integrity.ts negative control
-# startedAt: 2026-08-19T19:59:09.566Z
-# finishedAt: 2026-08-19T19:59:20.119Z
+# startedAt: 2026-08-19T20:21:25.055Z
+# finishedAt: 2026-08-19T20:21:35.228Z
 # cases: [
   {
     "name": "empty-database",

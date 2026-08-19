@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-DR-RPO",
   "kind": "dr-rpo",
-  "candidateSha": "bafb9171ad81955f0c2dd9c44e9d1a517bcdba19",
+  "candidateSha": "1fbd7b00d4a00375ee93f6f46314f10c211535d6",
   "environment": "certification workstation - gcloud CLI not installed",
   "command": "gcloud sql instances describe telestar-crm-db --project=telestar-crm-final",
-  "startedAt": "2026-08-19T20:14:00.977Z",
-  "finishedAt": "2026-08-19T20:14:00.977Z",
+  "startedAt": "2026-08-19T20:19:22.128Z",
+  "finishedAt": "2026-08-19T20:19:22.128Z",
   "exitCode": 127,
   "status": "BLOCKED_EXTERNAL",
   "metrics": {
