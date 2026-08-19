@@ -22,7 +22,7 @@ import { QueueEvents } from 'bullmq';
 
 import { getConnection, getRedisConfig } from '@/lib/bullmq/connection';
 import { enqueue } from '@/lib/bullmq/enqueue';
-import { importQueue, closeAllQueues } from '@/lib/bullmq/queues';
+import { closeAllQueues } from '@/lib/bullmq/queues';
 import { JobType } from '@/lib/bullmq/types';
 import { prisma, tenantStorage } from '@/lib/prisma';
 import { createImportWorker } from '@/workers/import';

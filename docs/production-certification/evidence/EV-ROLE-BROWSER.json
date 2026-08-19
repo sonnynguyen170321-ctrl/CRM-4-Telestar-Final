@@ -1,0 +1,149 @@
+{
+  "evidenceId": "EV-ROLE-BROWSER",
+  "kind": "role-browser",
+  "candidateSha": "b9e6ed9860c7477d89dfa0801b34803ef539d829",
+  "environment": "win32 / node 24.16.0 / next start / real Postgres / real Redis / Chromium 1440x900",
+  "command": "node node_modules/@playwright/test/cli.js test --project=certification-roles",
+  "startedAt": "2026-08-19T19:17:20.985Z",
+  "finishedAt": "2026-08-19T19:17:20.985Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {
+    "requiredRoles": [
+      "director",
+      "floor_manager",
+      "team_lead",
+      "sdr",
+      "leadgen_manager",
+      "leadgen"
+    ],
+    "observedRoles": [
+      "director",
+      "floor_manager",
+      "leadgen",
+      "leadgen_manager",
+      "sdr",
+      "team_lead"
+    ],
+    "missingRoles": [],
+    "failingRoles": [],
+    "roles": {
+      "director": {
+        "status": "PASS",
+        "reasons": [],
+        "landingPath": "/",
+        "navigations": 4,
+        "allowedWorkflow": "read the admin overview",
+        "forbiddenWorkflow": "read another tenant's lead",
+        "consoleErrors": 0,
+        "networkFailures": 0,
+        "consoleErrorSamples": [],
+        "networkFailureSamples": [],
+        "screenshot": "C:\\Users\\admin\\Desktop\\Sonny & AI\\clone-CRM-4-U-migration-main\\docs\\production-certification\\evidence\\raw\\role-screenshots\\director.png",
+        "trace": null
+      },
+      "floor_manager": {
+        "status": "PASS",
+        "reasons": [],
+        "landingPath": "/",
+        "navigations": 3,
+        "allowedWorkflow": "read the lead book",
+        "forbiddenWorkflow": "read another tenant's lead",
+        "consoleErrors": 0,
+        "networkFailures": 0,
+        "consoleErrorSamples": [],
+        "networkFailureSamples": [],
+        "screenshot": "C:\\Users\\admin\\Desktop\\Sonny & AI\\clone-CRM-4-U-migration-main\\docs\\production-certification\\evidence\\raw\\role-screenshots\\floor_manager.png",
+        "trace": null
+      },
+      "leadgen": {
+        "status": "PASS",
+        "reasons": [],
+        "landingPath": "/",
+        "navigations": 2,
+        "allowedWorkflow": "read the leadgen pool",
+        "forbiddenWorkflow": "read the admin user list",
+        "consoleErrors": 0,
+        "networkFailures": 0,
+        "consoleErrorSamples": [],
+        "networkFailureSamples": [],
+        "screenshot": "C:\\Users\\admin\\Desktop\\Sonny & AI\\clone-CRM-4-U-migration-main\\docs\\production-certification\\evidence\\raw\\role-screenshots\\leadgen.png",
+        "trace": null
+      },
+      "leadgen_manager": {
+        "status": "PASS",
+        "reasons": [],
+        "landingPath": "/",
+        "navigations": 2,
+        "allowedWorkflow": "read the leadgen pool",
+        "forbiddenWorkflow": "read the admin user list",
+        "consoleErrors": 0,
+        "networkFailures": 0,
+        "consoleErrorSamples": [],
+        "networkFailureSamples": [],
+        "screenshot": "C:\\Users\\admin\\Desktop\\Sonny & AI\\clone-CRM-4-U-migration-main\\docs\\production-certification\\evidence\\raw\\role-screenshots\\leadgen_manager.png",
+        "trace": null
+      },
+      "sdr": {
+        "status": "PASS",
+        "reasons": [],
+        "landingPath": "/",
+        "navigations": 2,
+        "allowedWorkflow": "read own assigned leads",
+        "forbiddenWorkflow": "read the admin user list",
+        "consoleErrors": 0,
+        "networkFailures": 0,
+        "consoleErrorSamples": [],
+        "networkFailureSamples": [],
+        "screenshot": "C:\\Users\\admin\\Desktop\\Sonny & AI\\clone-CRM-4-U-migration-main\\docs\\production-certification\\evidence\\raw\\role-screenshots\\sdr.png",
+        "trace": null
+      },
+      "team_lead": {
+        "status": "PASS",
+        "reasons": [],
+        "landingPath": "/",
+        "navigations": 3,
+        "allowedWorkflow": "read the pod lead book",
+        "forbiddenWorkflow": "read the admin user list",
+        "consoleErrors": 0,
+        "networkFailures": 0,
+        "consoleErrorSamples": [],
+        "networkFailureSamples": [],
+        "screenshot": "C:\\Users\\admin\\Desktop\\Sonny & AI\\clone-CRM-4-U-migration-main\\docs\\production-certification\\evidence\\raw\\role-screenshots\\team_lead.png",
+        "trace": null
+      }
+    }
+  },
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/role-screenshots/director.png",
+      "sizeBytes": 230240,
+      "sha256": "9df26d86318281a2ddc0c6df99c93fdee8c7b656408f76c09ca98ddb0be5f9bf"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/role-screenshots/floor_manager.png",
+      "sizeBytes": 221318,
+      "sha256": "47d843e603b7ff69623baadcdebf5b24a21f2e8b4d0528d1ed04441edaf88fdf"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/role-screenshots/leadgen.png",
+      "sizeBytes": 83735,
+      "sha256": "4a79cafc3ee3385079bc6864bdebc15268b26caf408b507cf735f9f3cb8f02b3"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/role-screenshots/leadgen_manager.png",
+      "sizeBytes": 137939,
+      "sha256": "40bfaa486f5af7a50711d0dfa547ee9773708b007ad3e260481c962a7b04fd90"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/role-screenshots/sdr.png",
+      "sizeBytes": 92874,
+      "sha256": "6cab54690074b754e5479b31480ab9c1d933670b6cbf8e112e5e70e20c4c277b"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/role-screenshots/team_lead.png",
+      "sizeBytes": 218836,
+      "sha256": "c2e7b11952eb909721b3c98d09d589b09fef34c6c7da8ab56af2b987f158be15"
+    }
+  ]
+}

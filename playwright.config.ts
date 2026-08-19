@@ -61,6 +61,16 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
     {
+      // Six-role certification acceptance (TEL-P2-013). Its own project because the audit's
+      // testMatch does not cover `e2e/certification`, and a spec matched by no project
+      // silently never runs - which is exactly what happened to automation-journeys.spec.ts
+      // before it moved.
+      name: 'certification-roles',
+      dependencies: ['setup'],
+      testMatch: /e2e[\\/]certification[\\/].*\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
       // The demo walkthrough. Its own project because the audit's testMatch does not cover
       // `e2e/demo`, and a spec matched by no project silently never runs — which is exactly
       // what happened to automation-journeys.spec.ts before it moved.

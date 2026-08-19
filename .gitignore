@@ -122,3 +122,6 @@ vitest-results.json
 
 # Disaster-recovery drill artifacts. Real database dumps - never commit these.
 .dr-artifacts/
+
+# Transient certification working directory (run manifests, observations, vitest json).
+.certification/
