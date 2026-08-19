@@ -453,13 +453,18 @@ describe.skipIf(!hasDb)('PUT /api/users/[id] — cycle guard is wired into the r
   });
 });
 
-describe.skipIf(!hasDb)('PUT /api/users/[id] — director-only fields are not writable by a Floor Manager', () => {
-  it('drops role and isActive when a Floor Manager sends them', async () => {
-    // `fmCanManage` lets a Floor Manager edit team membership inside their floor.
-    // `role` / `isActive` sit behind `isDirector` and must fall on the floor —
-    // honouring them would let an FM mint a director.
+describe.skipIf(!hasDb)('PUT /api/users/[id] — Floor Manager scoped role administration', () => {
+  it('rejects promoting to Director when a Floor Manager sends it', async () => {
     mockAuth(xfm);
-    const res = await updateUser(putReq(xrep1.id, { role: 'director', isActive: false }), {
+    const res = await updateUser(putReq(xrep1.id, { role: 'director' }), {
+      params: Promise.resolve({ id: xrep1.id }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('allows a Floor Manager to promote an in-scope SDR to Team Lead', async () => {
+    mockAuth(xfm);
+    const res = await updateUser(putReq(xrep1.id, { role: 'team_lead' }), {
       params: Promise.resolve({ id: xrep1.id }),
     });
     expect(res.status).toBe(200);
@@ -467,11 +472,15 @@ describe.skipIf(!hasDb)('PUT /api/users/[id] — director-only fields are not wr
     const after = await tenantStorage.run({ tenantId: 'system', bypassRls: true }, () =>
       prisma.user.findUnique({
         where: { id: xrep1.id },
-        select: { role: true, isActive: true },
+        select: { role: true },
       })
     );
-    expect(after?.role).toBe('sdr');
-    expect(after?.isActive).toBe(true);
+    expect(after?.role).toBe('team_lead');
+
+    // Restore back to SDR
+    await updateUser(putReq(xrep1.id, { role: 'sdr' }), {
+      params: Promise.resolve({ id: xrep1.id }),
+    });
   });
 });
 

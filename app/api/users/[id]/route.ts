@@ -84,20 +84,53 @@ export async function PUT(
     if (body.avatarUrl !== undefined) updateData.avatarUrl = body.avatarUrl;
   }
 
-  // Director-only fields (role, isActive, unassigning to null)
-  if (isDirector) {
-    if (body.role !== undefined) updateData.role = body.role;
-    if (body.managerId !== undefined) updateData.managerId = body.managerId;
-    if (body.isActive !== undefined) updateData.isActive = body.isActive;
+  // Role changes: Director (any) or Floor Manager (scoped between SDR and Team Lead)
+  if (body.role !== undefined) {
+    if (isDirector) {
+      updateData.role = body.role;
+    } else if (fmCanManage) {
+      if (target.role !== 'sdr' && target.role !== 'team_lead') {
+        return NextResponse.json(
+          { error: 'Floor Managers may only manage SDR and Team Lead roles' },
+          { status: 403 }
+        );
+      }
+      if (body.role !== 'sdr' && body.role !== 'team_lead') {
+        return NextResponse.json(
+          { error: 'Floor Managers may only promote or demote between SDR and Team Lead' },
+          { status: 403 }
+        );
+      }
+      updateData.role = body.role;
+    }
   }
 
-  // Floor Manager — may reassign team membership (managerId) within their floor
-  if (fmCanManage && !isDirector) {
-    if (body.managerId !== undefined && body.managerId !== null) {
-      if (!(await canAccessUser(currentUser, body.managerId))) {
-        return NextResponse.json({ error: 'Forbidden: manager outside your floor' }, { status: 403 });
+  // Active status changes: Director (any) or Floor Manager (scoped non-director/non-FM)
+  if (body.isActive !== undefined) {
+    if (isDirector) {
+      updateData.isActive = body.isActive;
+    } else if (fmCanManage) {
+      if (target.role === 'director' || target.role === 'floor_manager') {
+        return NextResponse.json(
+          { error: 'Floor Managers cannot activate or deactivate management accounts' },
+          { status: 403 }
+        );
       }
+      updateData.isActive = body.isActive;
+    }
+  }
+
+  // Manager assignment
+  if (body.managerId !== undefined) {
+    if (isDirector) {
       updateData.managerId = body.managerId;
+    } else if (fmCanManage) {
+      if (body.managerId !== null) {
+        if (!(await canAccessUser(currentUser, body.managerId))) {
+          return NextResponse.json({ error: 'Forbidden: manager outside your floor' }, { status: 403 });
+        }
+        updateData.managerId = body.managerId;
+      }
     }
   }
 
