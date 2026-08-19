@@ -592,7 +592,7 @@ async function handlePoolChunk(payload: ImportChunkPayload) {
   const { batchId, chunkIndex, rowIds, userId, tenantId } = payload;
 
   const importRows = await prisma.importRow.findMany({
-    where: { id: { in: rowIds }, status: 'valid' },
+    where: { id: { in: rowIds }, status: { in: ['valid', 'imported'] } },
   });
   if (importRows.length === 0) return { skipped: true, reason: 'no_rows_found' };
 
@@ -607,47 +607,69 @@ async function handlePoolChunk(payload: ImportChunkPayload) {
     };
 
     try {
-      const poolItem = await prisma.leadPoolItem.create({
-        data: {
-          firstName: data.firstName,
-          lastName: data.lastName,
-          fullName: data.fullName || `${data.firstName} ${data.lastName}`.trim(),
-          company: data.company,
-          title: data.title || null,
-          email: data.email,
-          phone: data.phone || null,
-          linkedIn: data.linkedIn || null,
-          website: data.website || null,
-          country: data.contactCountry || data.companyCountry || null,
-          industry: data.industry || null,
-          emailValidation: data.emailValidation || null,
-          emailScore: data.emailScore,
-          sourceType: data.vendorSource ? 'vendor' : 'csv_import',
-          sourceName: data.importListName || data.vendorSource || 'csv_import',
-          tags: data.tags ?? [],
-          duplicateKey: buildPoolDuplicateKey(data),
-          status: 'imported',
-          qualification: 'unreviewed',
-          importBatchId: batchId,
-          rawPayload: row.data as never,
-          tenantId,
-        },
-      });
+      let poolItem = row.poolItemId
+        ? await prisma.leadPoolItem.findUnique({ where: { id: row.poolItemId } })
+        : null;
+
+      if (!poolItem) {
+        try {
+          poolItem = await prisma.leadPoolItem.create({
+            data: {
+              firstName: data.firstName,
+              lastName: data.lastName,
+              fullName: data.fullName || `${data.firstName} ${data.lastName}`.trim(),
+              company: data.company,
+              title: data.title || null,
+              email: data.email,
+              phone: data.phone || null,
+              linkedIn: data.linkedIn || null,
+              website: data.website || null,
+              country: data.contactCountry || data.companyCountry || null,
+              industry: data.industry || null,
+              emailValidation: data.emailValidation || null,
+              emailScore: data.emailScore,
+              sourceType: data.vendorSource ? 'vendor' : 'csv_import',
+              sourceName: data.importListName || data.vendorSource || 'csv_import',
+              tags: data.tags ?? [],
+              duplicateKey: buildPoolDuplicateKey(data),
+              status: 'imported',
+              qualification: 'unreviewed',
+              importBatchId: batchId,
+              rawPayload: row.data as never,
+              tenantId,
+            },
+          });
+        } catch (err: unknown) {
+          if ((err as { code?: string })?.code === 'P2002') {
+            poolItem = await prisma.leadPoolItem.findFirst({
+              where: { tenantId, duplicateKey: buildPoolDuplicateKey(data) },
+            });
+            if (!poolItem) throw err;
+          } else {
+            throw err;
+          }
+        }
+      }
 
       await prisma.importRow.update({
         where: { id: row.id },
         data: { status: 'imported', poolItemId: poolItem.id },
       });
 
-      await prisma.leadgenActivity.create({
-        data: {
-          userId,
-          poolItemId: poolItem.id,
-          type: 'imported',
-          description: `Lead ${data.firstName} ${data.lastName} imported to internal lead database`,
-          tenantId,
-        },
+      const existingActivity = await prisma.leadgenActivity.findFirst({
+        where: { tenantId, poolItemId: poolItem.id, type: 'imported' },
       });
+      if (!existingActivity) {
+        await prisma.leadgenActivity.create({
+          data: {
+            userId,
+            poolItemId: poolItem.id,
+            type: 'imported',
+            description: `Lead ${data.firstName} ${data.lastName} imported to internal lead database`,
+            tenantId,
+          },
+        });
+      }
 
       created++;
     } catch (err) {
@@ -669,7 +691,7 @@ async function handleImportChunk(payload: ImportChunkPayload) {
   const { batchId, chunkIndex, rowIds, assignedToId, userId, campaignId, tenantId, initialStage, sequenceId } = payload;
 
   const importRows = await prisma.importRow.findMany({
-    where: { id: { in: rowIds }, status: 'valid' },
+    where: { id: { in: rowIds }, status: { in: ['valid', 'imported'] } },
   });
   if (importRows.length === 0) return { skipped: true, reason: 'no_rows_found' };
 
@@ -694,28 +716,6 @@ async function handleImportChunk(payload: ImportChunkPayload) {
     const normalizedLinkedIn = normalizeLinkedIn(data.linkedIn);
 
     try {
-      // Resolved on the bare client, *before* the transaction opens — not a style choice.
-      //
-      // Postgres's native `INSERT ... ON CONFLICT DO UPDATE` is what makes an upsert race-safe,
-      // and Prisma does not take that path for a call made through an interactive transaction's
-      // `tx` client. That was verified directly against a live CI failure, where the Postgres
-      // server's own STATEMENT log for the error showed a plain `INSERT` with no `ON CONFLICT`
-      // clause at all — proof Prisma had decomposed the upsert into separate steps on that
-      // connection. Once one of those steps errors, Postgres aborts the whole transaction, so
-      // nothing issued afterward on `tx` can recover it: not a re-read, not a retry, not a
-      // catch. Two earlier fixes were written against that same live symptom before the server
-      // log settled which of them could possibly work.
-      //
-      // Called on `prisma`, each upsert gets its own connection and the native path, so two
-      // chunks racing the same company name are serialized by Postgres itself instead of one of
-      // them losing its lead. `account`/`contact` are idempotent rows independent of any one
-      // lead, so resolving them ahead of the transaction is not a consistency loss — the
-      // transaction still makes the lead, the import-row status and the activity atomic
-      // together, which is the part that has to be.
-      //
-      // `nonBlank(...)` is what makes one payload safe as *both* halves: `create` needs every
-      // field the row supplied, `update` must touch only what this row actually has, so a blank
-      // incoming field can never null out a value an earlier row already filled in.
       let account;
       try {
         account = await prisma.account.upsert({
@@ -756,64 +756,99 @@ async function handleImportChunk(payload: ImportChunkPayload) {
         contact = await prisma.contact.create({ data: contactData(data, tenantId) });
       }
 
-      const leadNormalizedEmail = data.forceDuplicateLead ? null : normalizedEmail || null;
-      const createdLead = await prisma.lead.create({
-        data: {
-          contactId: contact.id,
-          accountId: account.id,
-          firstName: data.firstName,
-          lastName: data.lastName,
-          company: data.company,
-          title: data.title || null,
-          email: data.email,
-          phone: data.phone || null,
-          linkedIn: data.linkedIn || null,
-          whatsApp: data.whatsApp || null,
-          stage: sequence ? 'sequence_active' : (initialStage as any),
-          crmPriorityScore: data.priority,
-          assignedToId,
-          campaignId: campaignId!,
-          source: data.source,
-          importListName: data.importListName || null,
-          emailValidation: data.emailValidation || null,
-          emailScore: data.emailScore,
-          vendorSource: data.vendorSource || null,
-          tags: data.tags ?? [],
-          normalizedEmail: leadNormalizedEmail,
-          normalizedPhone: normalizedPhone || null,
-          normalizedLinkedIn: normalizedLinkedIn || null,
-          tenantId,
-          ...(sequence ? { sequenceId: sequence.id, sequenceStep: 1, sequenceStatus: 'active' as const } : {}),
-        },
-      });
+      // Check if lead was already created for this import row (crash recovery)
+      let createdLead = row.leadId
+        ? await prisma.lead.findUnique({ where: { id: row.leadId } })
+        : null;
+
+      if (!createdLead) {
+        try {
+          const leadNormalizedEmail = data.forceDuplicateLead ? null : normalizedEmail || null;
+          createdLead = await prisma.lead.create({
+            data: {
+              contactId: contact.id,
+              accountId: account.id,
+              firstName: data.firstName,
+              lastName: data.lastName,
+              company: data.company,
+              title: data.title || null,
+              email: data.email,
+              phone: data.phone || null,
+              linkedIn: data.linkedIn || null,
+              whatsApp: data.whatsApp || null,
+              stage: sequence ? 'sequence_active' : (initialStage as any),
+              crmPriorityScore: data.priority,
+              assignedToId,
+              campaignId: campaignId!,
+              source: data.source,
+              importListName: data.importListName || null,
+              emailValidation: data.emailValidation || null,
+              emailScore: data.emailScore,
+              vendorSource: data.vendorSource || null,
+              tags: data.tags ?? [],
+              normalizedEmail: leadNormalizedEmail,
+              normalizedPhone: normalizedPhone || null,
+              normalizedLinkedIn: normalizedLinkedIn || null,
+              tenantId,
+              ...(sequence ? { sequenceId: sequence.id, sequenceStep: 1, sequenceStatus: 'active' as const } : {}),
+            },
+          });
+        } catch (err: unknown) {
+          if ((err as { code?: string })?.code === 'P2002' && normalizedEmail) {
+            createdLead = await prisma.lead.findFirst({
+              where: { tenantId, campaignId: campaignId!, normalizedEmail },
+            });
+            if (!createdLead) throw err;
+          } else {
+            throw err;
+          }
+        }
+      }
 
       await prisma.importRow.update({
         where: { id: row.id },
         data: { status: 'imported', leadId: createdLead.id },
       });
 
-      await prisma.activity.create({
-        data: {
-          userId,
-          leadId: createdLead.id,
-          type: 'lead_created',
-          description: `Lead ${data.firstName} ${data.lastName} imported from ${data.importListName || data.vendorSource || 'uploaded file'}`,
-          tenantId,
-        },
+      // Ensure activity idempotency
+      const existingActivity = await prisma.activity.findFirst({
+        where: { tenantId, leadId: createdLead.id, type: 'lead_created' },
       });
-
-      if (sequence && sequence.steps.length > 0) {
+      if (!existingActivity) {
         await prisma.activity.create({
           data: {
             userId,
             leadId: createdLead.id,
-            type: 'sequence_enrolled',
-            description: `Enrolled in ${sequence.name} (import)`,
-            metadata: { sequenceId: sequence.id, sequenceName: sequence.name },
+            type: 'lead_created',
+            description: `Lead ${data.firstName} ${data.lastName} imported from ${data.importListName || data.vendorSource || 'uploaded file'}`,
             tenantId,
           },
         });
-        await createTaskForStep(createdLead, sequence, sequence.steps[0], new Date());
+      }
+
+      if (sequence && sequence.steps.length > 0) {
+        const existingEnrollmentActivity = await prisma.activity.findFirst({
+          where: { tenantId, leadId: createdLead.id, type: 'sequence_enrolled' },
+        });
+        if (!existingEnrollmentActivity) {
+          await prisma.activity.create({
+            data: {
+              userId,
+              leadId: createdLead.id,
+              type: 'sequence_enrolled',
+              description: `Enrolled in ${sequence.name} (import)`,
+              metadata: { sequenceId: sequence.id, sequenceName: sequence.name },
+              tenantId,
+            },
+          });
+        }
+
+        const existingTask = await prisma.task.findFirst({
+          where: { tenantId, leadId: createdLead.id },
+        });
+        if (!existingTask) {
+          await createTaskForStep(createdLead, sequence, sequence.steps[0], new Date());
+        }
       }
 
       created++;
@@ -836,6 +871,20 @@ async function handleImportCommit(payload: ImportCommitPayload) {
   const batch = await prisma.importBatch.findUnique({ where: { id: batchId } });
   if (!batch) return { skipped: true, reason: 'batch_not_found' };
   if (batch.status === 'committed') return { skipped: true, reason: 'already_committed' };
+
+  // State-driven commit barrier: ensure no chunks are still in-flight
+  const pendingOrValidCount = await prisma.importRow.count({
+    where: { batchId, status: { in: ['pending', 'valid'] } },
+  });
+  if (pendingOrValidCount > 0) {
+    return {
+      success: false,
+      batchId,
+      inProgress: true,
+      pendingOrValidCount,
+      reason: 'chunks_still_in_flight',
+    };
+  }
 
   await prisma.importBatch.update({ where: { id: batchId }, data: { status: 'committing' } });
 

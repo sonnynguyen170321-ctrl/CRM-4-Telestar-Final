@@ -4,6 +4,7 @@ import {
   describeSeedTarget,
   looksLikeCloudSql,
   parsePostgresUrl,
+  resolveDemoPassword,
   SeedGuardError,
   DESTRUCTIVE_SEED_CONFIRMATION,
 } from '@/lib/seed-guard';
@@ -133,5 +134,37 @@ describe('describeSeedTarget', () => {
     expect(banner).toContain('crm_dev');
     expect(banner).toContain('development');
     expect(banner).toMatch(/deletes every tenant/i);
+  });
+});
+
+describe('resolveDemoPassword', () => {
+  it('allows default password in development or test mode', () => {
+    const pass = resolveDemoPassword(undefined, 'development');
+    expect(pass).toBe('TelestarDemo!2026');
+  });
+
+  it('allows custom password in development', () => {
+    const pass = resolveDemoPassword('CustomDevPass123!', 'development');
+    expect(pass).toBe('CustomDevPass123!');
+  });
+
+  it('rejects missing password in production', () => {
+    expect(() => resolveDemoPassword(undefined, 'production')).toThrow(SeedGuardError);
+    expect(() => resolveDemoPassword('', 'production')).toThrow(/DEMO_PASSWORD environment variable is required/);
+  });
+
+  it('rejects public default password in production', () => {
+    expect(() => resolveDemoPassword('TelestarDemo!2026', 'production')).toThrow(
+      /known public default/
+    );
+  });
+
+  it('rejects passwords shorter than 12 characters in production', () => {
+    expect(() => resolveDemoPassword('short123', 'production')).toThrow(/at least 12 characters/);
+  });
+
+  it('accepts strong secret password in production', () => {
+    const pass = resolveDemoPassword('SuperSecretDemoPassword2026!#', 'production');
+    expect(pass).toBe('SuperSecretDemoPassword2026!#');
   });
 });

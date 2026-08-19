@@ -1,38 +1,28 @@
 {
   "program": "Telestar Production Certification",
   "releaseCandidate": "353f650bebc78db83e50fc3a254d9712046245d6",
-  "startedAt": "2026-08-19T21:38:44Z",
-  "lastUpdatedAt": "2026-08-19T21:45:50Z",
-  "overallStatus": "VERIFIED",
+  "startedAt": "2026-08-19T21:38:44+07:00",
+  "lastUpdatedAt": "2026-08-19T22:06:09+07:00",
+  "overallStatus": "IN_PROGRESS",
   "counts": {
-    "total": 35,
-    "verified": 35,
-    "inProgress": 0,
+    "total": 108,
+    "verified": 0,
+    "inProgress": 7,
     "failed": 0,
     "blocked": 0,
-    "notStarted": 0
+    "notStarted": 101
   },
-  "domains": {
-    "Static": { "total": 1, "verified": 1 },
-    "Security": { "total": 1, "verified": 1 },
-    "Database": { "total": 2, "verified": 2 },
-    "Build": { "total": 1, "verified": 1 },
-    "TestDiscipline": { "total": 1, "verified": 1 },
-    "RBAC": { "total": 6, "verified": 6 },
-    "AI": { "total": 3, "verified": 3 },
-    "CommercialIntelligence": { "total": 2, "verified": 2 },
-    "Imports": { "total": 1, "verified": 1 },
-    "Email": { "total": 3, "verified": 3 },
-    "Sequences": { "total": 2, "verified": 2 },
-    "MeetingsOpportunities": { "total": 2, "verified": 2 },
-    "Reports": { "total": 1, "verified": 1 },
-    "Workers": { "total": 3, "verified": 3 },
-    "Demo": { "total": 1, "verified": 1 },
-    "Typography": { "total": 1, "verified": 1 },
-    "Regression": { "total": 3, "verified": 3 },
-    "Production": { "total": 1, "verified": 1 }
+  "defects": {
+    "discovered": 7,
+    "resolved": 0,
+    "verified": 0,
+    "open": 7,
+    "p0": 0,
+    "p1": 4,
+    "p2": 3,
+    "p3": 0
   },
   "blockers": [],
-  "lastCompletedItem": "PC-035",
-  "nextItem": ""
+  "lastCompletedItem": "",
+  "nextItem": "IMP-008"
 }

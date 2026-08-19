@@ -4,7 +4,7 @@ import { enqueueReschedule } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
 import type { EmailSendPayload } from '@/lib/bullmq/types';
 import { EmailService } from '@/lib/email/EmailService';
-import { isDryRun, isGlobalEmailPaused, isCanaryRecipientAllowed } from '@/lib/emailSafety';
+import { effectiveDryRun, isGlobalEmailPaused, isCanaryRecipientAllowed } from '@/lib/emailSafety';
 import { generateUnsubscribeToken, buildUnsubscribeHeaders } from '@/lib/email/unsubscribe';
 import { renderTemplate } from '@/lib/templates/render';
 import {
@@ -197,7 +197,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
   }
 
   // ── Canary Recipient Restriction ──────────────────────────────────────────
-  if (!isDryRun() && !isCanaryRecipientAllowed(to)) {
+  if (!effectiveDryRun(existing.tenantId) && !isCanaryRecipientAllowed(to)) {
     await prisma.outboundMessage.update({
       where: { id: outboundMessageId },
       data: { status: OUTBOUND_STATUS.FAILED, errorMessage: `Canary restriction: recipient ${to} is not in allowed list` },
@@ -307,8 +307,8 @@ async function handleEmailSend(payload: EmailSendPayload) {
   }
 
   // Dry-run gate for safe demo/staging execution. Engaged unless EMAIL_SEND_DRY_RUN
-  // is explicitly "false" — see lib/emailSafety.ts for why the default is inverted.
-  if (isDryRun()) {
+  // is explicitly "false" — demo tenant ALWAYS dry-runs at worker side-effect boundary.
+  if (effectiveDryRun(existing.tenantId)) {
     const dryRunProviderId = `dry-run-${outboundMessageId}`;
     await prisma.outboundMessage.update({
       where: { id: outboundMessageId },

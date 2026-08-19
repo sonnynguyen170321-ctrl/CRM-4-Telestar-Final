@@ -32,6 +32,17 @@ export function isAutosendEnabled(): boolean {
   return normalize(process.env.SEQUENCE_AUTOSEND_ENABLED) === 'true';
 }
 
+export const DEMO_TENANT_ID = 'demo-telestar';
+
+/**
+ * True if the tenant is a demo or staging presentation tenant.
+ */
+export function isDemoTenant(tenantId?: string | null): boolean {
+  if (!tenantId) return false;
+  const t = normalize(tenantId);
+  return t === DEMO_TENANT_ID || t === 'demo-tenant' || t.startsWith('demo-');
+}
+
 /**
  * True unless dry-run has been explicitly turned off.
  *
@@ -40,6 +51,19 @@ export function isAutosendEnabled(): boolean {
  */
 export function isDryRun(): boolean {
   return normalize(process.env.EMAIL_SEND_DRY_RUN) !== 'false';
+}
+
+/**
+ * Tenant-aware effective dry-run evaluator.
+ *
+ * Guaranteed Invariant: Demo tenants ALWAYS resolve to dryRun=true regardless
+ * of EMAIL_SEND_DRY_RUN or other production environment flags.
+ */
+export function effectiveDryRun(tenantId?: string | null): boolean {
+  if (isDemoTenant(tenantId)) {
+    return true;
+  }
+  return isDryRun();
 }
 
 /**

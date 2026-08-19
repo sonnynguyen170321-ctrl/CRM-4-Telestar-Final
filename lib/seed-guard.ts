@@ -138,6 +138,35 @@ export function assertDestructiveSeedAllowed(input: SeedGuardInput): SeedTarget 
   return { host, database, nodeEnv };
 }
 
+/**
+ * Resolves demo tenant password with strict production guard against default public passwords.
+ */
+export const INSECURE_DEFAULT_DEMO_PASSWORD = 'TelestarDemo!2026';
+
+export function resolveDemoPassword(rawPassword?: string, nodeEnv?: string): string {
+  const env = nodeEnv ?? process.env.NODE_ENV;
+  const password = rawPassword ?? process.env.DEMO_PASSWORD;
+
+  if (env === 'production') {
+    if (!password || password.trim() === '') {
+      throw new SeedGuardError(
+        'DEMO_PASSWORD environment variable is required in production mode. Refusing to seed demo tenant without explicit credentials.'
+      );
+    }
+    if (password === INSECURE_DEFAULT_DEMO_PASSWORD) {
+      throw new SeedGuardError(
+        'DEMO_PASSWORD matches known public default ("TelestarDemo!2026"). Production demo tenant must use an explicit secret password.'
+      );
+    }
+    if (password.length < 12) {
+      throw new SeedGuardError('DEMO_PASSWORD must be at least 12 characters in production.');
+    }
+    return password;
+  }
+
+  return password ?? INSECURE_DEFAULT_DEMO_PASSWORD;
+}
+
 /** One-line banner printed before any delete runs, so the target is never a surprise. */
 export function describeSeedTarget(target: SeedTarget): string {
   return [

@@ -23,11 +23,12 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
+import { resolveDemoPassword } from '@/lib/seed-guard';
 
 const prisma = new PrismaClient();
 
 export const DEMO_TENANT_ID = 'demo-telestar';
-export const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? 'TelestarDemo!2026';
+export const DEMO_PASSWORD = resolveDemoPassword();
 
 export const DEMO_DIRECTOR_EMAIL = 'demo.director@telestar.demo';
 export const DEMO_SDR_EMAIL = 'demo.sdr@telestar.demo';

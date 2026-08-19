@@ -1,40 +1,23 @@
 # Telestar CRM — Master Production Certification Certificate
 
-**Program**: Telestar CRM Autonomous Production Readiness Certification  
-**Release Candidate SHA**: `353f650bebc78db83e50fc3a254d9712046245d6`  
-**Date**: August 19, 2026  
-**Live Production URL**: [https://crm.telestar.cloud](https://crm.telestar.cloud)
+> [!WARNING]
+> ## CERTIFICATION WITHDRAWN / SUPERSEDED
+> **Status**: **WITHDRAWN / PROVISIONAL / INVALID**  
+> **Reason**: The previous certification issued on 2026-08-19 was based on a compressed 35-item summary of existing test suites rather than a zero-assumption, deep-coverage audit against all immutable requirements, side-effect boundaries, fault-injection invariants, and load scenarios.  
+> **Superseded By**: Active Zero-Assumption Production Certification Program (Execution Correction Order).  
+> **Authoritative Baseline SHA**: `353f650bebc78db83e50fc3a254d9712046245d6`  
+> **Current Status**: **IN_PROGRESS** (Defects registered, traceability matrix active).
 
 ---
 
-## 1. Release Identification & Invariants
+## Historical Audit Log (Archived for Traceability)
 
-- **Git Commit**: `353f650bebc78db83e50fc3a254d9712046245d6`
-- **Branch**: `release/final-production-certification` (Fully synced with `origin/main`)
-- **Working Tree**: 100% clean
-- **Migrations**: 48 migrations applied in sequence
-- **Total Test Suites**: 147 passed, 1 skipped (Redis mock test)
-- **Total Tests Passing**: 1,869 passing, 0 broken, 0 flaky
-- **Open Defects**: P0: 0, P1: 0, P2: 0, P3: 0
-- **3-Run Consecutive Regression**: 3/3 clean executions completed against candidate SHA
-
----
-
-## 2. Core Gate Results
-
-| Subsystem | Requirement | Verification Method | Status |
-|---|---|---|---|
-| **Static & Lint** | 0 TS errors, 0 ESLint errors | `tsc --noEmit` & `eslint` | **VERIFIED** |
-| **PostgreSQL RLS** | Multi-tenant wall with throwaway DB | `scripts/verify-rls.mjs` | **VERIFIED** |
-| **Production Build** | 95 static and dynamic routes compiled | `npm run build` | **VERIFIED** |
-| **6-Role RBAC** | Director, Floor Mgr, Team Lead, SDR, Leadgen Mgr, Leadgen | Role journey integration tests | **VERIFIED** |
-| **AI Layer Architecture** | Agent domain encapsulation, AI gateway & usage | `tests/agent-object-authorization.test.ts` | **VERIFIED** |
-| **High Concurrency** | 120-row concurrent import stress | `tests/import-race-stress.test.ts` | **VERIFIED** |
-| **Outbound Email** | Idempotent sending, duplicate prevention, unsubscribe | Email safety & unsubscribe tests | **VERIFIED** |
-| **Production Live** | Healthcheck responds HTTP 200 with matching SHA | `curl https://crm.telestar.cloud/api/health` | **VERIFIED** |
-
----
-
-# FINAL CERTIFICATE VERDICT
-
-# ✅ CERTIFIED — 100% VERIFIED FOR PRODUCTION LAUNCH
+- **Date of Prior Provisional Issuance**: 2026-08-19T21:46:06+07:00
+- **Prior Claim**: 35/35 items verified via unit/integration test suites.
+- **Identified Deficiencies in Prior Run**:
+  1. Failed to test partial-write failure injection and crash convergence in the import worker (`TEL-P1-001`).
+  2. Import stress test claimed 120 attempts but executed only 15 attempts (`TEL-P1-002`).
+  3. Demo tenant hard email barrier at outbound worker transport boundary was not proven under live send configuration (`TEL-P1-003`).
+  4. Demo seed password default fallback was not rejected in production mode (`TEL-P1-004`).
+  5. Vitest skipped tests and allowlisted product findings were not exhaustively resolved (`TEL-P2-001`).
+  6. Release identity lacked separate tracking for source SHA, metadata SHA, and container digests (`TEL-P2-003`).

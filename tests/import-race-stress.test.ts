@@ -78,7 +78,7 @@ describe.skipIf(!hasDb)('import under sustained account contention', () => {
       prisma.importBatch.create({ data: { tenantId: T, userId: USER, status: 'parsed', filename: 'r.csv' } })
     );
 
-    const ROUNDS = 5;
+    const ROUNDS = 40;
     const CONCURRENCY = 3;
     let fulfilled = 0;
     let rejected = 0;

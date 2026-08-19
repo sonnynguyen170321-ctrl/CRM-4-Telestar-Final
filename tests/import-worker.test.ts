@@ -58,11 +58,17 @@ vi.mock('@/lib/prisma', () => ({
     lead: {
       findMany: (...args: unknown[]) => mockLeadFindMany(...args),
       findUnique: (...args: unknown[]) => mockLeadFindUnique(...args),
+      findFirst: (...args: unknown[]) => mockLeadFindUnique(...args),
       create: (...args: unknown[]) => mockLeadCreate(...args),
       update: (...args: unknown[]) => mockLeadUpdate(...args),
     },
     activity: {
+      findFirst: vi.fn().mockResolvedValue(null),
       create: (...args: unknown[]) => mockActivityCreate(...args),
+    },
+    task: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({ id: 'task-1' }),
     },
     sequence: {
       findUnique: (...args: unknown[]) => mockSequenceFindUnique(...args),
@@ -461,9 +467,10 @@ describe('handleImportCommit', () => {
   it('counts imported and error rows, updates batch', async () => {
     mockBatchFindUnique.mockResolvedValue(MOCK_BATCH);
     mockRowCount
-      .mockResolvedValueOnce(5)
-      .mockResolvedValueOnce(1)
-      .mockResolvedValueOnce(2);
+      .mockResolvedValueOnce(0) // pending/valid in-flight check = 0
+      .mockResolvedValueOnce(5) // imported count = 5
+      .mockResolvedValueOnce(1) // updated count = 1
+      .mockResolvedValueOnce(2); // error count = 2
 
     const result = await handleImportCommit({ batchId: 'batch-1' });
 
