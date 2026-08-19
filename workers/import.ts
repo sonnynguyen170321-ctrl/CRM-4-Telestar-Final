@@ -756,70 +756,63 @@ async function handleImportChunk(payload: ImportChunkPayload) {
         contact = await prisma.contact.create({ data: contactData(data, tenantId) });
       }
 
-      const createdLead = await prisma.$transaction(async (tx) => {
-        const leadNormalizedEmail = data.forceDuplicateLead ? null : normalizedEmail || null;
-        const lead = await tx.lead.create({
-          data: {
-            contactId: contact.id,
-            accountId: account.id,
-            firstName: data.firstName,
-            lastName: data.lastName,
-            company: data.company,
-            title: data.title || null,
-            email: data.email,
-            phone: data.phone || null,
-            linkedIn: data.linkedIn || null,
-            whatsApp: data.whatsApp || null,
-            stage: sequence ? 'sequence_active' : (initialStage as any),
-            crmPriorityScore: data.priority,
-            assignedToId,
-            campaignId: campaignId!,
-            source: data.source,
-            importListName: data.importListName || null,
-            emailValidation: data.emailValidation || null,
-            emailScore: data.emailScore,
-            vendorSource: data.vendorSource || null,
-            tags: data.tags ?? [],
-            normalizedEmail: leadNormalizedEmail,
-            normalizedPhone: normalizedPhone || null,
-            normalizedLinkedIn: normalizedLinkedIn || null,
-            tenantId,
-            ...(sequence ? { sequenceId: sequence.id, sequenceStep: 1, sequenceStatus: 'active' as const } : {}),
-          },
-        });
+      const leadNormalizedEmail = data.forceDuplicateLead ? null : normalizedEmail || null;
+      const createdLead = await prisma.lead.create({
+        data: {
+          contactId: contact.id,
+          accountId: account.id,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          company: data.company,
+          title: data.title || null,
+          email: data.email,
+          phone: data.phone || null,
+          linkedIn: data.linkedIn || null,
+          whatsApp: data.whatsApp || null,
+          stage: sequence ? 'sequence_active' : (initialStage as any),
+          crmPriorityScore: data.priority,
+          assignedToId,
+          campaignId: campaignId!,
+          source: data.source,
+          importListName: data.importListName || null,
+          emailValidation: data.emailValidation || null,
+          emailScore: data.emailScore,
+          vendorSource: data.vendorSource || null,
+          tags: data.tags ?? [],
+          normalizedEmail: leadNormalizedEmail,
+          normalizedPhone: normalizedPhone || null,
+          normalizedLinkedIn: normalizedLinkedIn || null,
+          tenantId,
+          ...(sequence ? { sequenceId: sequence.id, sequenceStep: 1, sequenceStatus: 'active' as const } : {}),
+        },
+      });
 
-        await tx.importRow.update({
-          where: { id: row.id },
-          data: { status: 'imported', leadId: lead.id },
-        });
+      await prisma.importRow.update({
+        where: { id: row.id },
+        data: { status: 'imported', leadId: createdLead.id },
+      });
 
-        await tx.activity.create({
-          data: {
-            userId,
-            leadId: lead.id,
-            type: 'lead_created',
-            description: `Lead ${data.firstName} ${data.lastName} imported from ${data.importListName || data.vendorSource || 'uploaded file'}`,
-            tenantId,
-          },
-        });
-
-        if (sequence && sequence.steps.length > 0) {
-          await tx.activity.create({
-            data: {
-              userId,
-              leadId: lead.id,
-              type: 'sequence_enrolled',
-              description: `Enrolled in ${sequence.name} (import)`,
-              metadata: { sequenceId: sequence.id, sequenceName: sequence.name },
-              tenantId,
-            },
-          });
-        }
-
-        return lead;
-      }, { maxWait: 15000, timeout: 30000 });
+      await prisma.activity.create({
+        data: {
+          userId,
+          leadId: createdLead.id,
+          type: 'lead_created',
+          description: `Lead ${data.firstName} ${data.lastName} imported from ${data.importListName || data.vendorSource || 'uploaded file'}`,
+          tenantId,
+        },
+      });
 
       if (sequence && sequence.steps.length > 0) {
+        await prisma.activity.create({
+          data: {
+            userId,
+            leadId: createdLead.id,
+            type: 'sequence_enrolled',
+            description: `Enrolled in ${sequence.name} (import)`,
+            metadata: { sequenceId: sequence.id, sequenceName: sequence.name },
+            tenantId,
+          },
+        });
         await createTaskForStep(createdLead, sequence, sequence.steps[0], new Date());
       }
 
