@@ -1,7 +1,7 @@
 # pg_dump
-# command: C:\Program Files\PostgreSQL\16\bin\pg_dump.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_crm --format=custom --no-owner --no-acl --file C:\Users\admin\Desktop\Sonny & AI\clone-CRM-4-U-migration-main\.dr-artifacts\telestar_2026-08-19T20-50-10-991Z.dump
-# startedAt: 2026-08-19T20:50:19.220Z
-# finishedAt: 2026-08-19T20:50:35.153Z
+# command: C:\Program Files\PostgreSQL\16\bin\pg_dump.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_crm --format=custom --no-owner --no-acl --file C:\Users\admin\Desktop\Sonny & AI\clone-CRM-4-U-migration-main\.dr-artifacts\telestar_2026-08-19T21-19-28-785Z.dump
+# startedAt: 2026-08-19T21:19:38.074Z
+# finishedAt: 2026-08-19T21:19:54.080Z
 # exitCode: 0
 
 --- stdout ---

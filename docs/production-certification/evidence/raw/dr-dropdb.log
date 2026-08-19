@@ -1,7 +1,7 @@
 # dropdb
-# command: C:\Program Files\PostgreSQL\16\bin\dropdb.exe -h 127.0.0.1 -p 5432 -U postgres telestar_dr_drill_20260819t205010
-# startedAt: 2026-08-19T20:52:18.989Z
-# finishedAt: 2026-08-19T20:52:19.867Z
+# command: C:\Program Files\PostgreSQL\16\bin\dropdb.exe -h 127.0.0.1 -p 5432 -U postgres telestar_dr_drill_20260819t211928
+# startedAt: 2026-08-19T21:21:38.097Z
+# finishedAt: 2026-08-19T21:21:38.905Z
 # exitCode: 0
 
 --- stdout ---
