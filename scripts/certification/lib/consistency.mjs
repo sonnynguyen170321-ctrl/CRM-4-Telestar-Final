@@ -326,7 +326,15 @@ export function checkPostFreezeCommits(config) {
   return findings;
 }
 
-/** 01: the candidate must be exactly what is checked out, with a clean tree. */
+/**
+ * 01: the application source is exactly the frozen candidate.
+ *
+ * Certification metadata is produced *by* a run, so it cannot also be a precondition: the
+ * freeze is deliberately followed by metadata commits, and a run writes evidence as it goes.
+ * HEAD may therefore move past the candidate, and the tree may be dirty, **only** under
+ * `docs/production-certification/`. Anything else means the code under test is not the code
+ * that was frozen. Check N enforces the same boundary on the commits themselves.
+ */
 export function checkSourceIdentity(config) {
   const findings = [];
   if (!config.candidateSha) {
@@ -335,15 +343,30 @@ export function checkSourceIdentity(config) {
     );
     return findings;
   }
+
   const head = git(['rev-parse', 'HEAD']);
   if (head !== config.candidateSha) {
-    findings.push(
-      finding('01', `HEAD ${String(head).slice(0, 7)} is not the frozen candidate ${config.candidateSha.slice(0, 7)}`),
-    );
+    const range = git(['log', '--format=%H', `${config.candidateSha}..HEAD`]);
+    if (range === null) {
+      findings.push(
+        finding('01', `frozen candidate ${config.candidateSha.slice(0, 7)} is not reachable from HEAD`),
+      );
+    }
+    // Commits after the freeze are checked by N, which reports any that touch application code.
   }
-  const status = git(['status', '--porcelain']);
-  if (status) {
-    findings.push(finding('01', `working tree is not clean (${status.split('\n').length} changed path(s))`));
+
+  const status = (git(['status', '--porcelain']) ?? '')
+    .split('\n')
+    .filter((line) => line.trim())
+    .filter((line) => !line.slice(3).replace(/^"|"$/g, '').startsWith('docs/production-certification/'));
+
+  if (status.length > 0) {
+    findings.push(
+      finding(
+        '01',
+        `working tree has ${status.length} uncommitted non-metadata path(s): ${status.slice(0, 5).map((line) => line.slice(3)).join(', ')}`,
+      ),
+    );
   }
   return findings;
 }

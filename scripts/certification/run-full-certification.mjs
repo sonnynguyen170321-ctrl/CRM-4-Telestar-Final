@@ -71,27 +71,76 @@ function writeLog(name, label, result) {
   return logPath;
 }
 
-/** Gate 01: the candidate must be exactly what is checked out, with a clean tree. */
+/** Certification metadata is produced *by* a run, so it cannot also be a precondition. */
+const METADATA_PREFIX = 'docs/production-certification/';
+
+/** `git status --porcelain` lines look like " M path" or "?? path". */
+function isMetadataPath(line) {
+  return line.slice(3).replace(/^"|"$/g, '').startsWith(METADATA_PREFIX);
+}
+
+/**
+ * Gate 01: the application under test is exactly the frozen candidate.
+ *
+ * "Exactly" means the application source, not the paperwork. A run writes evidence,
+ * manifests and rendered documents under `docs/production-certification/`, and the freeze is
+ * deliberately followed by metadata commits. So HEAD may move past the candidate and the tree
+ * may be dirty **only** where certification metadata lives. Anything else means the code being
+ * tested is not the code that was frozen, which is the whole point of freezing it.
+ *
+ * This is the same boundary the validator's check N enforces on commits.
+ */
 function gateSourceIdentity(candidateSha, { allowDirty }) {
   const head = git(['rev-parse', 'HEAD']);
-  const status = git(['status', '--porcelain']) ?? '';
+  const status = (git(['status', '--porcelain']) ?? '').split('\n').filter((line) => line.trim());
   const problems = [];
 
-  if (head !== candidateSha) problems.push(`HEAD ${String(head).slice(0, 7)} != candidate ${candidateSha.slice(0, 7)}`);
-  if (status.trim() && !allowDirty) {
-    problems.push(`working tree has ${status.trim().split('\n').length} uncommitted path(s)`);
+  const dirtyNonMetadata = status.filter((line) => !isMetadataPath(line));
+  if (dirtyNonMetadata.length > 0 && !allowDirty) {
+    problems.push(
+      `working tree has ${dirtyNonMetadata.length} uncommitted non-metadata path(s): ` +
+        dirtyNonMetadata.slice(0, 5).map((line) => line.slice(3)).join(', '),
+    );
+  }
+
+  let commitsSinceFreeze = [];
+  if (head !== candidateSha) {
+    const range = git(['log', '--format=%H', `${candidateSha}..HEAD`]);
+    if (range === null) {
+      problems.push(`candidate ${candidateSha.slice(0, 7)} is not reachable from HEAD`);
+    } else {
+      commitsSinceFreeze = range.split('\n').filter(Boolean);
+      for (const commit of commitsSinceFreeze) {
+        const files = (git(['show', '--name-only', '--format=', commit]) ?? '')
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean);
+        const behaviourChanging = files.filter((file) => !file.startsWith(METADATA_PREFIX));
+        if (behaviourChanging.length > 0) {
+          problems.push(
+            `commit ${commit.slice(0, 7)} after the freeze changes application code: ${behaviourChanging.slice(0, 3).join(', ')}`,
+          );
+        }
+      }
+    }
   }
 
   return {
     gateId: '01-source-identity',
-    description: 'HEAD equals the candidate SHA and the tree is clean',
-    command: 'git rev-parse HEAD; git status --porcelain',
+    description: 'the application source is exactly the frozen candidate',
+    command: 'git rev-parse HEAD; git status --porcelain; git log candidate..HEAD',
     startedAt: new Date().toISOString(),
     finishedAt: new Date().toISOString(),
     durationMs: 0,
     exitCode: problems.length === 0 ? 0 : 1,
     status: problems.length === 0 ? 'PASS' : 'FAIL',
-    metrics: { head, uncommittedPaths: status.trim() ? status.trim().split('\n').length : 0, problems },
+    metrics: {
+      head,
+      candidateSha,
+      commitsSinceFreeze: commitsSinceFreeze.length,
+      uncommittedNonMetadataPaths: dirtyNonMetadata.length,
+      problems,
+    },
     logPath: null,
   };
 }
