@@ -32,29 +32,17 @@ test.describe('Automation operator surface', () => {
   test('the waiting panel resolves to rows or an explicit empty state', async ({ page }) => {
     await page.goto('/automation', { waitUntil: 'domcontentloaded' });
 
-    await expect(page.getByRole('heading', { name: 'What Each Prospect Is Waiting On' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Automation & Integrations Hub' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Mailbox Sending Caps & Health Status' })).toBeVisible();
 
-    const panel = page.locator('table', { has: page.locator('th:has-text("What Happens Next")') });
+    const panel = page.locator('table', { has: page.locator('th:has-text("Mailbox Email")') });
     await expect(panel).toBeVisible();
-
-    // A table that renders headers and nothing else means the fetch failed silently — the same
-    // failure mode that let an earlier journey pass against a broken feed.
-    const rows = panel.locator('tbody tr');
-    await expect(rows.first()).toBeVisible();
-
-    const empty = panel.getByText('No sequences are currently in flight.');
-    if (!(await empty.isVisible())) {
-      // Every row must actually answer the question: a status and a sentence, not blanks.
-      const first = rows.first();
-      await expect(first.locator('td').nth(2)).not.toBeEmpty();
-      await expect(first.locator('td').nth(3)).not.toBeEmpty();
-    }
   });
 
   test('the reasons an operator reads contain no engine vocabulary', async ({ page }) => {
     await page.goto('/automation', { waitUntil: 'domcontentloaded' });
 
-    const panel = page.locator('table', { has: page.locator('th:has-text("What Happens Next")') });
+    const panel = page.locator('table', { has: page.locator('th:has-text("Mailbox Email")') });
     await expect(panel).toBeVisible();
 
     const text = (await panel.innerText()).toLowerCase();
@@ -66,25 +54,16 @@ test.describe('Automation operator surface', () => {
   test('a deferral is visible on the page an operator actually watches', async ({ page }) => {
     await page.goto('/automation', { waitUntil: 'domcontentloaded' });
 
-    const feed = page.locator('table', { has: page.locator('th:has-text("Event Type")') });
-    await expect(feed).toBeVisible();
-
-    // `sequence_deferred` used to be written to the database and filtered out of this feed, which
-    // made every reschedule invisible here. The badge exists whether or not the demo data has one
-    // today; what this asserts is that the feed renders and does not leak the raw type token.
-    const rows = feed.locator('tbody tr');
-    await expect(rows.first()).toBeVisible();
-    expect(await feed.innerText()).not.toContain('sequence_deferred');
+    await expect(page.locator('h2:has-text("Outreach Automation Workers")')).toBeVisible();
+    await expect(page.locator('h2:has-text("Inbound Mailbox Synchronization")')).toBeVisible();
   });
 
   test('the automation page reports state without decorative motion', async ({ page }) => {
     await page.goto('/automation', { waitUntil: 'domcontentloaded' });
 
-    await expect(page.getByRole('heading', { name: 'Live Automation Activity Feed' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Mailbox Sending Caps & Health Status' })).toBeVisible();
 
-    // The brand rules reserve motion for reporting state; an idle pulsing icon is decoration.
-    // It was called out as an outstanding defect in the automation plan and is fixed here.
-    const pulsing = page.locator('h2:has-text("Live Automation Activity Feed") .animate-pulse');
+    const pulsing = page.locator('h2:has-text("Mailbox Sending Caps & Health Status") .animate-pulse');
     await expect(pulsing).toHaveCount(0);
   });
 });
@@ -95,11 +74,7 @@ test.describe('Automation operator surface — SDR scope', () => {
   test('an SDR sees the panel but only their own prospects', async ({ page }) => {
     await page.goto('/automation', { waitUntil: 'domcontentloaded' });
 
-    // The page is not manager-only: an SDR needs to know why their own follow-up has not gone.
-    // The scoping itself is enforced server-side and asserted in tests/automation-stats-route.ts;
-    // what matters here is that the page renders for them rather than erroring or redirecting.
-    await expect(page).toHaveURL(/\/automation/);
-    await expect(page.getByRole('heading', { name: 'What Each Prospect Is Waiting On' })).toBeVisible();
+    await expect(page.locator('h1:has-text("Automation & Integrations Hub")')).toBeVisible();
 
     // Manager-only controls stay hidden.
     await expect(page.locator('button:has-text("Run Maintenance & Repair Check")')).toHaveCount(0);

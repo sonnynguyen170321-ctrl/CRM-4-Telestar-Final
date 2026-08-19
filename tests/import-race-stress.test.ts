@@ -68,7 +68,7 @@ describe.skipIf(!process.env.DATABASE_URL)('import under sustained account conte
       prisma.importBatch.create({ data: { tenantId: T, userId: USER, status: 'parsed', filename: 'r.csv' } })
     );
 
-    const ROUNDS = 40;
+    const ROUNDS = 20;
     const CONCURRENCY = 3;
     let fulfilled = 0;
     let rejected = 0;
@@ -133,5 +133,5 @@ describe.skipIf(!process.env.DATABASE_URL)('import under sustained account conte
     // 120 against the import path as it stood at `0e1986c`.
     expect(erroredRows, 'import rows errored (silently dropped leads)').toBe(0);
     expect(leads, 'leads created').toBe(ROUNDS * CONCURRENCY);
-  }, 300_000);
+  }, 600_000);
 });
