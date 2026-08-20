@@ -285,11 +285,36 @@ domains:
     description: This control plane, the adapters generated from it, and the agent CLI.
     risk: R2
     paths:
-      - .agent/**
+      - .agent/registry/**
+      - .agent/memory/**
+      - .agent/agents/**
+      - .agent/skills/**
+      - .agent/CONSTITUTION.md
       - AGENTS.md
       - CLAUDE.md
       - .claude/**
-      - docs/agent-os/**
+      - scripts/agent/**
+    tests:
+      - tests/agent-facts.test.ts
+    gates:
+      - npm run agent -- context-audit
+      - npm run agent -- facts --check
     notes: >-
-      Changing the kernel changes every future session. Treat a context-budget regression as
-      a defect, not a cost of doing business.
+      Changing the kernel or the registry changes every future session and every routing
+      decision. Treat a context-budget regression as a defect, not a cost of doing business.
+      Note that `docs/agent-os/**` is deliberately NOT here — writing down what was done is
+      documentation (R0); changing how routing works is not.
+
+  - id: documentation
+    description: Prose. Explains meaning; states no derived fact.
+    risk: R0
+    paths:
+      - docs/**
+      - README.md
+      - SKILL.md
+      - .agent/README.md
+      - .agent/**/README.md
+    notes: >-
+      R0 only because prose cannot break a running system. It can still be wrong, and a
+      confidently wrong document outlives the person who wrote it — which is why facts are
+      generated rather than written here.

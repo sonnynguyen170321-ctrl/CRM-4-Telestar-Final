@@ -12,14 +12,57 @@ plan: ./PLAN.md
 Branch: `feat/agent-intelligence-os` · started 2026-08-20 · stacked on
 `fix/telestar-ai-three-provider` (PR #98, unmerged).
 
-**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phases 0–3 complete of 9.
+**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phases 0–4 complete of 9.
 
 ---
 
 ## Current phase
 
-**Phase 4 — context compiler and impact engine.** Next task is `agent brief` and
-`agent impact`. See `PLAN.md` phase 4.
+**Phase 5 — engineering skill portfolio.** The routing targets exist and are tested;
+the skills they point at are still `status: planned`. See `PLAN.md` phase 5.
+
+### Phase 4 result — 2026-08-20
+
+`agent brief`, `agent impact`, `agent context-audit`. Routing is registry-driven: changing
+which domain owns a path is a one-line YAML diff, not an edit to a classifier.
+
+Measured routing behaviour:
+
+| Change | Domain | Risk | Skills loaded |
+|---|---|---|---|
+| `lib/ai/pricing.ts` | telestar-ai | R3 | 1 |
+| `lib/auth.ts` | auth-rbac-tenancy | **R4** | 1 |
+| `prisma/migrations/.../migration.sql` | data-prisma (R3) | **R4** by escalator | 1 |
+| `components/LeadCard.tsx` | frontend-role-ux | R1 | 1 |
+| `workers/sequence.ts` + `lib/sequences/engine.ts` | workers-durability + email-automation | R3 | 2 |
+| `docs/agent-os/PLAN.md` | documentation | **R0** | **0** |
+| six domains at once | six | R4 | **capped at 3** |
+
+Risk is the maximum across touched domains, then raised by content escalators — never
+averaged. A change that is mostly documentation plus one migration is a migration.
+
+`context-audit` reports startup context at **2,459 tokens**: `REVIEW` against the 2,000 target,
+inside the 3,000 hard threshold, exit 0. Scoped `.claude/rules/*` are correctly excluded — all
+six carry `paths:` frontmatter, so none is startup cost.
+
+### Two bugs found by building it
+
+**A glob compiler that matched everything.** The first `globToRegExp` chained `.replace()`
+calls whose expansions contain the same metacharacters being matched, so each replacement
+rewrote the previous one's output and the result was an empty pattern — which matches every
+path. Every file would have resolved to whichever domain was declared last. Rewritten as a
+single-pass scanner; `tests/agent-routing.test.ts` now asserts the negative cases explicitly,
+because a router that matches everything passes every positive test.
+
+**A comment that closed itself.** A doc comment containing the glob `app/` + `**` + `/page.tsx`
+ends the block comment early — `*/` is `*/` wherever it appears. The file stopped parsing.
+Worth knowing before writing glob examples in TypeScript comments.
+
+### Deferred
+
+Context ROI counters (§XXI) need per-session telemetry — which skills were loaded versus which
+were actually used — and no such signal exists yet. Recorded as deferred rather than silently
+dropped.
 
 ### Phase 3 result — 2026-08-20
 
@@ -213,6 +256,12 @@ to break that loop.
 | 2026-08-20 | 3 | `vitest agent-facts + prod-env + doctor` | **0** | 43 passed |
 | 2026-08-20 | 3 | `tsc --noEmit` | **0** | 0 errors |
 | 2026-08-20 | 3 | `eslint .` | **0** | 0 errors, 11 warnings |
+| 2026-08-20 | 4 | `agent brief --paths lib/ai/pricing.ts` | **0** | telestar-ai, R3, 1 skill |
+| 2026-08-20 | 4 | `agent impact` across 5 change shapes | **0** | risk R0/R1/R3/R4 as expected |
+| 2026-08-20 | 4 | `agent context-audit` | **0** | 2,459 tokens, REVIEW, under hard threshold |
+| 2026-08-20 | 4 | `vitest tests/agent-routing.test.ts` | **0** | 30 passed |
+| 2026-08-20 | 4 | `tsc --noEmit` | **0** | 0 errors |
+| 2026-08-20 | 4 | `eslint .` | **0** | 0 errors, 11 warnings |
 
 Exit codes are captured from the tool itself, never from the tail of a pipe.
 

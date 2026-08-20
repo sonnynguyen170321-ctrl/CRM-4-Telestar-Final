@@ -80,16 +80,18 @@ no AI keys) and prints no secret · ✅ `facts --check` exits 1 on tampering, 0 
 
 ---
 
-## Phase 4 — Context compiler and impact engine (§XIX, §XX, §XXI, §XXIII, §XXIV)
+## Phase 4 — Context compiler and impact engine ✅ (§XIX, §XX, §XXI, §XXIII, §XXIV)
 
-- [ ] `agent brief --paths <...>` / `--diff <base>` → domain, risk, sources, skills, ADRs, lessons, target tests, production implications (§XIX)
-- [ ] `agent impact --base origin/main` → changed domains, risk class, mandatory skills, candidate tests, verification requirement (§XXIII)
-- [ ] Risk classifier R0–R4 driven by `registry/risks.yaml` (§XXIV)
-- [ ] `agent context-audit` → enforce the §XX budgets with conservative estimation
-- [ ] Context ROI counters where cheap to collect (§XXI)
+- [x] `agent brief --paths <...>` / `--diff <base>` (§XIX)
+- [x] `agent impact` — domains, risk, candidate tests, verification requirement (§XXIII)
+- [x] Risk classifier R0–R4 from `registry/risks.yaml`, plus content escalators (§XXIV)
+- [x] `agent context-audit` — conservative bytes/4 estimation (§XX)
+- [x] Routing evals asserting precision as well as recall (§XLVIII, pulled forward)
+- [ ] Context ROI counters (§XXI) — deferred; needs session telemetry that does not exist yet
 
-**Acceptance:** `brief` on a `lib/ai/**` diff returns `telestar-ai` and R3, not the whole
-portfolio; `brief` on a docs-only diff returns R0 and loads no skill.
+**Acceptance:** ✅ `lib/ai/pricing.ts` → `telestar-ai`, R3, one skill, only the AI lesson ·
+✅ docs-only → R0, zero skills · ✅ migration → R4 by escalator even though `data-prisma` is
+R3 · ✅ never more than 3 skills · ✅ 30 routing evals pass · ✅ `tsc` 0, `eslint` 0 errors.
 
 ---
 
