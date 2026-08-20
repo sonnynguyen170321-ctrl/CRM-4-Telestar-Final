@@ -2,6 +2,27 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> # 🛑 RESUME POINTER — read before anything else
+>
+> **`docs/telestar-ai-remediation/RESUME_HERE.md`**
+>
+> The Telestar AI chat outage is **fixed and proven locally, and not deployed**. Work is parked
+> mid-flight on branch `fix/telestar-ai-three-provider` (`b1a2a9e`, PR #98, open). Production
+> `crm.telestar.cloud` is still serving `9ba27b8` — **the broken build**.
+>
+> It is blocked on three things a human must clear, none of them code:
+>
+> 1. **GitHub Actions billing has stopped every CI job** ("recent account payments have failed
+>    or your spending limit needs to be increased"). Nothing ships until that clears.
+> 2. CI has never been green on this repo — CodeQL and Dependency review need GitHub Advanced
+>    Security, which a private repo on this plan lacks. That makes the workflow conclude
+>    `failure`, so `docker-image.yml` has **skipped image publishing on every commit**.
+> 3. The three AI provider keys must be in `.env.production` **on the VM** before deploying;
+>    `prod-check-env` now requires all three, and they must reach the worker too.
+>
+> `RESUME_HERE.md` carries the full state, the remaining seven steps in order, and the traps.
+> Read it rather than re-deriving any of this.
+
 Detailed context lives in `.claude/rules/` — Claude Code loads these automatically:
 
 | File                              | Content                                                   | Loads                   |
