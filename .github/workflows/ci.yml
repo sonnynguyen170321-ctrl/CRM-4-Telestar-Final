@@ -113,6 +113,15 @@ jobs:
         run: node scripts/check-stale-models.mjs
         shell: bash
 
+      # The destructive seed wipes with an ordered delete list, and a required relation
+      # declared without an onDelete blocks its parent. CI seeds an empty service container
+      # where no such row exists, so a missing entry is invisible here and fails on every
+      # developer machine — half-wiping the database and making the next login-dependent
+      # spec look like a product defect.
+      - name: Seed delete order covers every restricting child
+        run: node scripts/check-seed-delete-order.mjs
+        shell: bash
+
       # The agent control plane must still describe this repository. Regenerates the derived
       # facts and diffs them, checks the context budget, and fails on dead path references or
       # retired architecture claims in anything an agent reads as current truth.

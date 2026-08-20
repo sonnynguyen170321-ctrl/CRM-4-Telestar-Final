@@ -46,6 +46,7 @@
     "check:test-discipline": "node scripts/check-test-discipline.mjs",
     "check:relational-integrity": "node node_modules/tsx/dist/cli.mjs scripts/check-relational-integrity.ts",
     "check:production-compose": "node scripts/check-production-compose.mjs",
+    "check:seed-delete-order": "node scripts/check-seed-delete-order.mjs",
     "certify:validate": "node scripts/certification/validate-certification.mjs",
     "certify:collect": "node scripts/certification/collect-evidence.mjs",
     "certify:generate": "node scripts/certification/generate-certificate.mjs",
