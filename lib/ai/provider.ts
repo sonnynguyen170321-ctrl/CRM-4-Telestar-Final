@@ -258,7 +258,7 @@ async function* streamGemini(opts: StreamOptions): AsyncGenerator<string> {
   // systemInstruction belongs on the model, not on startChat(). Passing it to
   // startChat() sends an invalid Content and Gemini rejects it with a 400.
   const model = genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-3.6-flash',
     systemInstruction: opts.systemPrompt,
   });
 

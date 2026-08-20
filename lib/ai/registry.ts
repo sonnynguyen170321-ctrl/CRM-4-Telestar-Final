@@ -100,9 +100,9 @@ export const MODEL_REGISTRY: Record<string, ModelMetadata> = {
   // ── Google / Vertex AI Models (Enterprise Fallback & Multimodal) ───────────
   'gemini-flash-latest': {
     provider: 'google',
-    modelId: 'gemini-2.5-flash',
+    modelId: 'gemini-3.6-flash',
     internalAlias: 'gemini-flash-latest',
-    displayName: 'Gemini 2.5 Flash',
+    displayName: 'Gemini 3.6 Flash',
     description: 'Ultra-fast multimodal model for creative drafting, subject lines, and primary tool fallback.',
     productionAllowed: true,
     enabled: true,
@@ -121,9 +121,9 @@ export const MODEL_REGISTRY: Record<string, ModelMetadata> = {
   },
   'gemini-pro-latest': {
     provider: 'google',
-    modelId: 'gemini-2.5-pro',
+    modelId: 'gemini-3.1-pro-preview',
     internalAlias: 'gemini-pro-latest',
-    displayName: 'Gemini 2.5 Pro',
+    displayName: 'Gemini 3.1 Pro',
     description: 'High-context reasoning model for complex campaign retrospectives and large document analysis.',
     productionAllowed: true,
     enabled: true,
