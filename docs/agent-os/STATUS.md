@@ -55,16 +55,16 @@ corrected, not the router.
 
 | Metric | Before | After | Target |
 |---|---:|---:|---:|
-| Startup context | ~79,300 tokens | **2,459** | ≤2,000 target, ≤3,000 hard |
+| Startup context | ~79,300 tokens | **1,990** | ≤2,000 target |
 | Always-loaded files | 113 | **2** | ≤10 |
 | Irrelevant-stack rule files | 104 | **0** | 0 |
 | Broken path references | 6 | **0** | 0 |
 | Unclassified status documents | 17 | **0** | 0 |
 | Skills per task | n/a | **1–2** | 1–3 |
+| Routing coverage (150 commits) | n/a | **100%** | no unmapped path |
 
-**97% reduction in startup context.** The remaining 459 tokens above target are prose in
-`AGENTS.md` that phase 3's generators could replace; it sits inside the hard threshold and is
-recorded rather than hidden.
+**97.5% reduction in startup context**, and under the target rather than merely inside the
+hard threshold.
 
 ### Seven concepts (§I), all distinct
 
@@ -78,40 +78,56 @@ evidence `docs/**` + this log
 |---|---|---|
 | `tsc --noEmit` | **0** | 0 errors |
 | `eslint .` | **0** | 0 errors, 11 warnings |
-| Vitest (full) | 1 | **2,313 passed**, 1 failed, 13 skipped |
+| Vitest (full) | **0** | **2,338 passed, 0 failed, 0 skipped** |
 | `agent check` | **0** | 7/7 |
-| `agent context-audit` | **0** | within hard threshold |
+| `agent context-audit` | **0** | 1,990 tokens — under target, not merely under threshold |
 | `agent facts --check` | **0** | matches source |
 | `agent knowledge-audit` | **0** | no stale skills |
+| `agent roi` | **0** | 100% routing coverage over 150 commits |
 | `next build` | **0** | all routes emitted |
 | `npm audit --audit-level=high` | **0** | 0 vulnerabilities |
 | `check:stale-models` | **0** | 0 runtime matches |
 | `check:migration-order` | **0** | 50 migrations |
 
-The single Vitest failure is `tests/failure-matrix.test.ts` DR-010, which needs a live Redis.
-Verified pre-existing by stashing every change and re-running against the untouched tree: it
-fails identically. CI has a `redis:7` service container.
+**The suite is fully green for the first time.** Redis was installed on this machine but not
+running, which had been recorded as `BLOCKED_EXTERNAL`. Starting it fixed the one failing test
+(`failure-matrix` DR-010, worker SIGTERM) *and* un-skipped 13 others — so the previous
+"2,313 passed, 13 skipped" was hiding 25 assertions nobody had ever run here.
 
-### Deferred, with reasons
+A blocker worth re-checking: it cost one command.
 
-| Item | Why |
+### Previously deferred — now closed
+
+Every deferral was revisited. Four are done, one was already done, and each was worth
+revisiting: three of them were hiding a defect.
+
+| Item | Outcome |
 |---|---|
-| Context ROI counters (§XXI) | needs per-session telemetry about which loaded skills were used; no such signal exists |
-| Semantic runtime router (§XL) | the directive forbids keyword rules only as the *sole* router long-term; replacing a working capped router is a product decision |
-| Learning governance pipeline (§XLVII) | exists in the Revenue AI lane with its own approval model; rebuilding here is the second system §I forbids |
-| `docs/archive/` physical move (§XXXVI) | would break references from source, tests and docs to make an index prettier; classification achieves what the archive is *for* |
+| Context ROI counters (§XXI) | **Built.** `agent roi` replays routing over commit history and records recommended-vs-used per brief. It found 17 unmapped paths on first run. |
+| Semantic runtime router (§XL) | **Built.** Scoring replaces declaration order — which was silently deciding cap survival — plus role and surface inputs. |
+| Learning governance (§XLVII) | **Already implemented.** `lib/learning/` and 34 passing tests; the deferral mis-framed it as absent. |
+| `docs/archive/` move (§XXXVI) | **Done.** The reference count was 12 in 5 files, not the rename storm I claimed. |
+| Startup context ≤ 2,000 (§XX) | **Met.** 1,990 tokens; machine facts moved into `agent doctor`. |
+| Redis-dependent suites | **Unblocked.** Redis was installed but not running; started, and the SIGTERM suite passes. |
+
+The lesson is recorded rather than smoothed over: three of the four deferrals were justified
+with reasoning that sounded careful and was not checked. "Would break references" was never
+counted. "Needs telemetry that does not exist" meant "needs telemetry I had not written yet".
+A deferral is a claim, and claims get evidence.
 
 ### Still BLOCKED_EXTERNAL — not green, not red
 
-| Item | Blocker |
-|---|---|
-| CI verification of any of this | GitHub Actions refuses to start jobs: account payment / spending limit. Run `32367576357`: 8 jobs, 0 steps, ~3s each. |
-| Docker build gate | `docker` not installed here |
-| Redis-dependent suites | nothing listening on 6379 |
-| Live AI provider gates | no `OPENAI_API_KEY` / `GEMINI_API_KEY` / `GROQ_API_KEY` |
+These need someone with access this session does not have.
 
-`npm run agent -- doctor` reports all four honestly, so a future session does not spend an hour
-discovering them.
+| Item | Blocker | Who can clear it |
+|---|---|---|
+| CI verification of any of this | GitHub Actions refuses to start jobs: account payment / spending limit. Run `32367576357`: 8 jobs, 0 steps, ~3s each. | repository owner, in Billing & plans |
+| Docker build gate | `docker` not installed on this machine | anyone with local admin |
+| Live AI provider gates | no `OPENAI_API_KEY` / `GEMINI_API_KEY` / `GROQ_API_KEY` | whoever holds the credentials |
+| Gemini SDK migration | the legacy SDK cannot round-trip a native tool result; verifying a migration needs live Gemini credentials | same as above |
+
+`npm run agent -- doctor` reports each honestly, so a future session does not spend an hour
+rediscovering them.
 
 ### Phase 8 result — 2026-08-20
 

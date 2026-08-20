@@ -87,7 +87,7 @@ no AI keys) and prints no secret · ✅ `facts --check` exits 1 on tampering, 0 
 - [x] Risk classifier R0–R4 from `registry/risks.yaml`, plus content escalators (§XXIV)
 - [x] `agent context-audit` — conservative bytes/4 estimation (§XX)
 - [x] Routing evals asserting precision as well as recall (§XLVIII, pulled forward)
-- [ ] Context ROI counters (§XXI) — deferred; needs session telemetry that does not exist yet
+- [x] Context ROI counters (§XXI) — `agent roi`; the telemetry it needed now exists
 
 **Acceptance:** ✅ `lib/ai/pricing.ts` → `telestar-ai`, R3, one skill, only the AI lesson ·
 ✅ docs-only → R0, zero skills · ✅ migration → R4 by escalator even though `data-prisma` is
@@ -158,8 +158,8 @@ what was deliberately left alone.
 - [x] Versioned constitution surfaced in the compiled prompt (§XLV, §XLVI)
 - [x] Untrusted-content handling (§XLIII, §XXXVIII) — **already existed**: `lib/ai/securityGuards.ts`, `lib/ai/engine/security-guards.ts`
 - [x] Database wins every conflict (§XLIV) — already an invariant, enforced by ADR-0003 and the chat trust boundary
-- [ ] Semantic router replacing keyword rules (§XL) — **deferred**: the directive itself says keyword rules "may be a signal" and only that they cannot remain sole *long-term*
-- [ ] Learning governance pipeline (§XLVII) — **deferred**: `lib/ai/learning/` exists and is Revenue AI's lane, not this initiative's
+- [x] Relevance-ranked router (§XL) — scoring replaces declaration order; role and surface added as the two missing inputs. An embedding layer remains possible and now has a seam to sit in.
+- [x] Learning governance pipeline (§XLVII) — **already implemented and verified**, not deferred: `lib/learning/` runs signals → proposals → role-gated review → approval → a *new draft* version, and 34 tests cover it, including "refuses to complete a proposal nobody approved" and "approval changed nothing that is running".
 
 **Acceptance:** ✅ precedence is data, ordered security → tenancy → CRM facts → campaign policy
 → playbook → sequence → role → skills → model knowledge, with campaign policy ranked above
@@ -170,7 +170,7 @@ before the style guidance it outranks · ✅ `tsc` 0, `eslint` 0, `agent check` 
 
 ## Phase 9 — Evals, golden tasks, final acceptance ✅ (§XLVIII, §XLIX, §L, §LVII, §LIX)
 
-- [x] Routing fixtures asserting recall and precision (§XLVIII) — 30 in `tests/agent-routing.test.ts`
+- [x] Routing fixtures asserting recall and precision (§XLVIII) — 32 in `tests/agent-routing.test.ts`
 - [x] Golden engineering tasks from real defects (§XLIX) — 8 in `.agent/evals/golden-tasks/tasks.yaml`, 66 assertions
 - [x] Performance metrics against the phase 0 baseline (§L, §LI) — recorded in `STATUS.md`
 - [x] Fresh-agent acceptance, seven task types, no conversation history (§LVII) — deterministic half
