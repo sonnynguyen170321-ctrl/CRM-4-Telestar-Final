@@ -1,3 +1,8 @@
+---
+classification: CURRENT_REFERENCE
+note: Email automation lane reference.
+---
+
 # Email Automation + Sequence Execution — lane handoff
 
 Branch: `integrate/phase-8-10-final` (this lane's work lands directly on it).

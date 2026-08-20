@@ -1,3 +1,8 @@
+---
+classification: CURRENT_REFERENCE
+note: Security reference.
+---
+
 # TELESTAR REVENUE DELIVERY OS — SECURITY & ISOLATION SPECIFICATION
 
 **Document Version**: 1.0.0  

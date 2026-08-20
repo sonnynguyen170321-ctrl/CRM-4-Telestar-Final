@@ -44,22 +44,25 @@ Every non-obvious document carries one, in YAML front matter:
 | Production certification | [`production-certification/STATUS.md`](./production-certification/STATUS.md) |
 | Warmup certification | [`warmup-certification/STATUS.md`](./warmup-certification/STATUS.md) |
 
-## Finished — kept for reasoning, not for behaviour
+## `docs/archive/` — finished, kept for reasoning
 
-`admin-control-center` · `automation-engine` · `commercial-intelligence` · `deliverability` ·
-`design-flags` · `runtime-hardening`
+`admin-control-center` · `commercial-intelligence` · `deliverability` · `design-flags` ·
+`final-readiness` · `runtime-hardening`
 
 Each carries a NOT CURRENT banner naming where the behaviour now lives — usually a scoped rule
 under `.claude/rules/` or a skill under `.agent/skills/`, both of which load on demand instead
-of being remembered.
+of being remembered. Nothing here is current truth and nothing here is auto-loaded.
 
-## Why they were not moved into `docs/archive/`
+## Directories that were deliberately *not* archived
 
-§XXXVI describes an archive directory, and moving them would have been the tidier shape. It
-was not done, deliberately: these documents are referenced by source comments, tests and other
-docs, and relocating six directories would have broken those references to make an index
-prettier. Classification achieves what the archive is *for* — no old status document competing
-as current truth — without a rename storm.
+`automation-engine`, `revenue-os` and `design` each hold a finished progress ledger **next to
+live reference material** — an architecture description, operational runbooks, a typography
+system. Archiving the directory would have buried documents people still need; splitting it
+would have put one initiative in two places.
+
+Instead the ledger keeps its `HISTORICAL` banner and the reference files are marked
+`CURRENT_REFERENCE`, so each file states its own standing. Classification is per document, not
+per folder, because that is the granularity at which the question is actually asked.
 
 If a document later has no reader at all, delete it. Git keeps history; the working tree
 carries what is current.

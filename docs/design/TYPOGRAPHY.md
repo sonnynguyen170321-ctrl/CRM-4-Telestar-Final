@@ -1,3 +1,8 @@
+---
+classification: CURRENT_REFERENCE
+note: Typography system reference. The enforced rules live in .claude/rules/frontend-ux.md.
+---
+
 # TELESTAR DESIGN SYSTEM — TYPOGRAPHY ARCHITECTURE
 
 **Document Version**: 1.0.0  

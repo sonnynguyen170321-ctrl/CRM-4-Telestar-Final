@@ -195,7 +195,7 @@ Error: E2E_PASSWORD is the published demo password. Use a run-scoped value.
 ```
 
 **This is a security control working, not a broken app**, and the command printed in `CLAUDE.md`,
-`docs/DEPLOY.md`, `docs/GCP_DEPLOY.md` and `docs/admin-control-center/STATUS.md` has been stale
+`docs/DEPLOY.md`, `docs/GCP_DEPLOY.md` and `docs/archive/admin-control-center/STATUS.md` has been stale
 since the guard landed. Corrected in Phase 15.
 
 Re-run after seeding `scripts/e2e-audit-fixture.ts` (additive and idempotent — zero `deleteMany`,

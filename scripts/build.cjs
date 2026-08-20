@@ -10,7 +10,7 @@
  * Runs `prisma generate` then `next build`. Both are invoked through the
  * current Node binary rather than the npm/npx .bin shims, which cannot be
  * resolved when the checkout path contains an ampersand (see
- * docs/deliverability/STATUS.md, "Environment gotchas").
+ * docs/archive/deliverability/STATUS.md, "Environment gotchas").
  *
  * Next type-checks the whole project inside a build worker. On hosts where
  * V8 sizes the default old-space near 2 GB that worker dies with
