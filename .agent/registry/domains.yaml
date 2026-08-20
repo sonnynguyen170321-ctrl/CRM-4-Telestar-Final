@@ -92,7 +92,7 @@ domains:
     risk: R3
     paths:
       - workers/**
-      - lib/queue/**
+      - lib/bullmq/**
       - app/api/cron/**
     tests:
       - tests/*-worker.test.ts
@@ -138,7 +138,7 @@ domains:
     description: Domain and mailbox health, bounce handling, warmup, sending reputation.
     risk: R3
     paths:
-      - lib/deliverability/**
+      - lib/email-health/**
       - app/api/email-health/**
     tests:
       - tests/email-health-*.test.ts
@@ -164,11 +164,13 @@ domains:
     description: Opportunities, meetings, commercial signals, learning, client reporting.
     risk: R2
     paths:
-      - lib/revenue/**
       - lib/meetings/**
       - lib/opportunities/**
-      - lib/reports/**
-      - app/api/reports/**
+      - lib/reporting/**
+      - lib/client-reports/**
+      - app/api/client-reports/**
+      - app/api/opportunities/**
+      - app/api/meetings/**
     tests:
       - tests/revenue-*.test.ts
       - tests/commercial-*.test.ts
@@ -200,9 +202,9 @@ domains:
     paths:
       - lib/leads/**
       - lib/tasks/**
-      - lib/activities/**
       - app/api/leads/**
       - app/api/tasks/**
+      - app/api/activities/**
     tests:
       - tests/lead-*.test.ts
       - tests/activities.test.ts
@@ -272,8 +274,8 @@ domains:
     risk: R4
     paths:
       - lib/crypto.ts
-      - lib/audit/**
-      - lib/logging/**
+      - lib/audit.ts
+      - lib/security/**
       - .gitleaks.toml
     tests:
       - tests/security-injection.test.ts

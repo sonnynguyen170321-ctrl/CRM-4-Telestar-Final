@@ -29,7 +29,7 @@ Docker Compose on **GCP with Cloud SQL**. Web and workers are separate always-on
 `docker-compose.gcp.yml` is the production override; `scripts/check-production-compose.mjs`
 asserts Cloud SQL wiring, local Postgres disabled, no port exposure.
 
-**Any document describing this as Vercel + Neon is describing a topology this project left.**
+**Any document describing this as Vercel + Neon is describing a topology this project left.** <!-- truth-check: allow — names the retired topology in order to reject it -->
 It is the most common stale architecture claim in older docs. Correct it rather than following
 it.
 

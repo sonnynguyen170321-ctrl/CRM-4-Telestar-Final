@@ -113,6 +113,17 @@ jobs:
         run: node scripts/check-stale-models.mjs
         shell: bash
 
+      # The agent control plane must still describe this repository. Regenerates the derived
+      # facts and diffs them, checks the context budget, and fails on dead path references or
+      # retired architecture claims in anything an agent reads as current truth.
+      #
+      # Cheap and deterministic — it runs no tests and calls no network. A stale role list or a
+      # doc still describing a topology this project left is the kind of drift that costs an
+      # hour of a future session and is invisible to every other gate here.
+      - name: Project truth (agent control plane)
+        run: npm run agent -- check
+        shell: bash
+
       # Runs *before* the suite: a missing DATABASE_URL or REDIS_URL means 49 database suites
       # and the only real-Redis suite would skip themselves, and a broken service container
       # would be reported as a pass. Also fails on any `.only` / `.skip` / `.todo` that is not

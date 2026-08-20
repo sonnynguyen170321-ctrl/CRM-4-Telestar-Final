@@ -29,7 +29,7 @@ workers are not serverless functions. `docker-compose.gcp.yml` is the production
 `scripts/check-production-compose.mjs` asserts its invariants — Cloud SQL wiring, local
 Postgres disabled, no port exposure.
 
-Any document describing this deployment as Vercel + Neon is describing a topology this project
+Any document describing this deployment as Vercel + Neon is describing a topology this project <!-- truth-check: allow — names the retired topology in order to reject it -->
 left. Correct it rather than following it.
 
 ## Releases have immutable identity

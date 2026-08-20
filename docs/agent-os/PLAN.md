@@ -111,15 +111,17 @@ registry entry without a file and no file without an entry · ✅ 101 agent-syst
 
 ---
 
-## Phase 6 — Drift prevention and project-truth CI (§XII, §LIV, §LVI, §LII)
+## Phase 6 — Drift prevention and project-truth CI ✅ (§XII, §LIV, §LVI, §LII)
 
-- [ ] `agent check` — role sync, AI model sync, env contract sync, deleted-path references, broken links, production topology, adapter sync, skill registry integrity, source freshness, context budget, memory hygiene, classification, forbidden stale architecture language (§LIV)
-- [ ] `agent knowledge-audit` — stale fingerprints, docs older than their sources, retired model references, expired temporary data (§XII)
-- [ ] Wire into CI: relevant gates on PR, full integrity on release (§LVI)
-- [ ] Teach-once mapping: each repeated mistake class routed to its permanent layer (§LII)
+- [x] `agent check` — six deterministic checks: generated-facts (covers role, AI model and env sync), context-budget, dead-references, stale-architecture-language, memory-hygiene, registry-integrity (§LIV)
+- [x] `agent knowledge-audit` — which active skills have had their sources move underneath them, by git commit date (§XII)
+- [x] Wired into CI as a mandatory step in the `quality` job (§LVI)
+- [x] `tests/agent-check.test.ts` — asserts the tree is consistent and every check is capable of failing
+- [ ] Full release-integrity aggregate (§LVI) — the PR gate is in place; the release-only superset lands with phase 9
 
-**Acceptance:** `agent check` fails on a deliberately introduced role/model/env drift, and
-passes clean afterwards.
+**Acceptance:** ✅ injected drift (tampered `role-map.json` + a Vercel claim in a rule) →
+exit **1**, both named · ✅ restored → exit **0** · ✅ `tsc` 0, `eslint` 0 errors, 104
+agent-system tests pass.
 
 ---
 

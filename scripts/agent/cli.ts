@@ -5,8 +5,8 @@
  * enumerate. Every subcommand supports `--json` so an agent can consume the result without
  * parsing human prose.
  *
- * Commands land as their phase does; anything not yet implemented says so and exits non-zero
- * rather than pretending. A command that silently does nothing is worse than a missing one.
+ * Every command here is implemented. A subcommand that silently does nothing, or prints a
+ * placeholder, is worse than one that does not exist — an agent will believe it ran.
  */
 
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
@@ -17,6 +17,8 @@ import { capabilities, renderCapabilities } from './doctor';
 import { compile, compileFromDiff, renderBrief } from './brief';
 import { analyze, changedPaths, renderImpact } from './impact';
 import { audit, auditExitCode, renderAudit } from './contextAudit';
+import { runChecks, renderChecks, checksExitCode } from './check';
+import { auditSkillFreshness, renderFreshness, freshnessExitCode } from './knowledgeAudit';
 
 const ROOT = process.cwd();
 const argv = process.argv.slice(2);
@@ -122,12 +124,10 @@ function runContextAudit(): number {
   return auditExitCode(items);
 }
 
-function notImplemented(name: string, phase: string): number {
-  out(
-    `\`agent ${name}\` is not implemented yet (${phase}).\nSee docs/agent-os/PLAN.md.`,
-    { command: name, implemented: false, phase },
-  );
-  return 2;
+async function runProjectChecks(): Promise<number> {
+  const results = await runChecks();
+  out(renderChecks(results), { command: 'check', results });
+  return checksExitCode(results);
 }
 
 const HELP = `Telestar agent control plane
@@ -140,8 +140,8 @@ Commands
   brief            Compile minimum sufficient context for a task
   impact           Classify a change: domains, risk, tests
   context-audit    Enforce the startup context budget
-  check            Project-truth CI gates                            (phase 6)
-  knowledge-audit  Stale fingerprints, dead references               (phase 6)
+  check            Project-truth CI gates
+  knowledge-audit  Which skills have had their sources move underneath them
 
 Targeting
   --paths <a> <b>  Explicit paths
@@ -168,9 +168,14 @@ async function main(): Promise<void> {
       code = runContextAudit();
       break;
     case 'check':
-    case 'knowledge-audit':
-      code = notImplemented(command, 'phase 6');
+      code = await runProjectChecks();
       break;
+    case 'knowledge-audit': {
+      const findings = auditSkillFreshness();
+      out(renderFreshness(findings), { command: 'knowledge-audit', findings });
+      code = freshnessExitCode();
+      break;
+    }
     case 'help':
     case '--help':
     case '-h':

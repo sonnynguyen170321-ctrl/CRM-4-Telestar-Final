@@ -12,14 +12,56 @@ plan: ./PLAN.md
 Branch: `feat/agent-intelligence-os` · started 2026-08-20 · stacked on
 `fix/telestar-ai-three-provider` (PR #98, unmerged).
 
-**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phases 0–5 complete of 9.
+**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phases 0–6 complete of 9.
 
 ---
 
 ## Current phase
 
-**Phase 6 — drift prevention and project-truth CI.** Next task is `agent check` and
-`agent knowledge-audit`. See `PLAN.md` phase 6.
+**Phase 7 — document layering and garbage collection.** See `PLAN.md` phase 7.
+
+### Phase 6 result — 2026-08-20
+
+`agent check` runs six deterministic checks and is now a mandatory CI step. `agent
+knowledge-audit` reports which skills have had their sources move.
+
+| Check | Catches |
+|---|---|
+| `generated-facts` | any role, model, env, route or queue fact that no longer matches source |
+| `context-budget` | the kernel regrowing past its hard threshold |
+| `dead-references` | a document naming a file that does not exist |
+| `stale-architecture-language` | Vercel/Neon as current, four-role claims, deleted modules |
+| `memory-hygiene` | an ADR with no Protection section, a lesson with no permanent protection |
+| `registry-integrity` | a skill routed to nothing, a domain owning a directory that is absent |
+
+Proven capable of failing: tampering `role-map.json` and adding a Vercel claim to a rule
+produced exit **1** with both named; restoring produced exit **0**.
+
+### The checker found a real defect in the registry
+
+`registry-integrity` immediately reported eight domain paths that do not exist. They were
+plausible names written from memory rather than checked: `lib/queue/**` (the code is
+`lib/bullmq/`), `lib/deliverability`, `lib/revenue`, `lib/reports`, `lib/activities`,
+`lib/audit`, `lib/logging`, `app/api/reports`.
+
+Every one of those would have silently failed to route. A change to `lib/bullmq/` would have
+matched no domain, been classified `unclassified` at R2, and loaded no skill — for the exact
+domain whose invariant is that duplicated jobs corrupt data. Corrected against the real tree.
+
+### Three of the six checks were themselves wrong on first run
+
+Worth recording, because it is the same failure the checks exist to catch:
+
+- **dead-references** resolved every path from the repository root, so correct *relative* links
+  (`../registry/sources.yaml`) were reported dead. It also flagged ADR-0002 for naming
+  `lib/ai/provider.ts` — a file it exists to explain the deletion of. Memory is now exempt.
+- **stale-architecture-language** flagged the two documents that name Vercel + Neon in order to
+  say the project left it. A `truth-check: allow` marker now makes such an exemption visible in
+  the text rather than hidden in the checker.
+- **registry-integrity** required the literal prefix of every glob to exist, so `scripts/ai-*.ts`
+  failed on `scripts/ai-`, which is not a path and never will be.
+
+A check that reports false positives gets disabled, and a disabled check protects nothing.
 
 ### Phase 5 result — 2026-08-20
 
@@ -294,6 +336,13 @@ to break that loop.
 | 2026-08-20 | 5 | `agent brief --paths lib/sequences/engine.ts` | **0** | email-automation, R3, 1 skill |
 | 2026-08-20 | 5 | `tsc --noEmit` | **0** | 0 errors |
 | 2026-08-20 | 5 | `eslint .` | **0** | 0 errors, 11 warnings |
+| 2026-08-20 | 6 | `agent check` (clean tree) | **0** | 6/6 checks pass |
+| 2026-08-20 | 6 | `agent check` (injected drift) | **1** | stale fact + stale architecture claim named |
+| 2026-08-20 | 6 | `agent check` (restored) | **0** | 6/6 |
+| 2026-08-20 | 6 | `agent knowledge-audit` | **0** | every active skill newer than its sources |
+| 2026-08-20 | 6 | `vitest` agent-check + skills + routing + facts | **0** | 104 passed |
+| 2026-08-20 | 6 | `tsc --noEmit` | **0** | 0 errors |
+| 2026-08-20 | 6 | `eslint .` | **0** | 0 errors, 11 warnings |
 
 Exit codes are captured from the tool itself, never from the tail of a pipe.
 
