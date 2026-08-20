@@ -1,3 +1,17 @@
+---
+classification: HISTORICAL
+snapshot: 2026-08-05
+superseded_by: current code, and the scoped rule or skill named below
+---
+
+> ## NOT CURRENT
+>
+> A record of finished work, kept for its reasoning. **Do not read it as a description
+> of how the system behaves today** — it was accurate when written and nothing has kept
+> it accurate since. Admin Control Center shipped. Behaviour lives in lib/admin/ and .claude/rules/auth-rbac.md.
+>
+> Current truth: the code, then `.agent/generated/`, then `.agent/` and `.claude/rules/`.
+
 # Admin Control Center — Status & Handoff
 
 **Last updated:** 2026-08-05

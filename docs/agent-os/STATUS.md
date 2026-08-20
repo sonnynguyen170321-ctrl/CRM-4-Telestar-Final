@@ -12,13 +12,37 @@ plan: ./PLAN.md
 Branch: `feat/agent-intelligence-os` · started 2026-08-20 · stacked on
 `fix/telestar-ai-three-provider` (PR #98, unmerged).
 
-**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phases 0–6 complete of 9.
+**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phases 0–7 complete of 9.
 
 ---
 
 ## Current phase
 
-**Phase 7 — document layering and garbage collection.** See `PLAN.md` phase 7.
+**Phase 8 — runtime AI intelligence.** See `PLAN.md` phase 8.
+
+### Phase 7 result — 2026-08-20
+
+Seventeen status documents now declare whether they are live. Classification is taken from
+what each document says about itself, not from a guess.
+
+| Classification | Count | Which |
+|---|---|---|
+| `CURRENT_CANONICAL` | 7 | agent-os, telestar-ai-remediation (×2), revenue-ai, pre-domain-hardening, production-certification, warmup-certification |
+| `HISTORICAL` | 9 | admin-control-center, automation-engine, commercial-intelligence, deliverability, design-flags, runtime-hardening, and three 2026-08-19 progress ledgers |
+| `NEEDS_REVIEW` | 1 | `docs/telestar-ai/STATUS.md` |
+
+Every historical document carries a **NOT CURRENT** banner naming where the behaviour now
+lives — usually a scoped rule or a skill, both of which load on demand rather than needing to
+be remembered.
+
+`docs/telestar-ai/STATUS.md` is flagged rather than classified: it opens at "Phase 0 Kickoff"
+dated 2026-08-18 while the AI work actually proceeded under `docs/telestar-ai-remediation/`.
+One of the two is stale and only a human knows which. Guessing would have produced exactly the
+kind of confident-and-wrong classification this phase exists to remove.
+
+The new `document-classification` check immediately found three status documents the manual
+sweep had missed — `TYPOGRAPHY_MIGRATION_STATUS.md`, and two `MASTER_STATUS.md` ledgers whose
+filenames did not start with `STATUS`. That is the argument for the check over the sweep.
 
 ### Phase 6 result — 2026-08-20
 
@@ -343,6 +367,10 @@ to break that loop.
 | 2026-08-20 | 6 | `vitest` agent-check + skills + routing + facts | **0** | 104 passed |
 | 2026-08-20 | 6 | `tsc --noEmit` | **0** | 0 errors |
 | 2026-08-20 | 6 | `eslint .` | **0** | 0 errors, 11 warnings |
+| 2026-08-20 | 7 | `agent check` after classification | **0** | 7/7, 17 documents classified |
+| 2026-08-20 | 7 | `vitest` agent-system suites | **0** | 104 passed |
+| 2026-08-20 | 7 | `tsc --noEmit` | **0** | 0 errors |
+| 2026-08-20 | 7 | `eslint .` | **0** | 0 errors, 11 warnings |
 
 Exit codes are captured from the tool itself, never from the tail of a pipe.
 

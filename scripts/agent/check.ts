@@ -251,6 +251,54 @@ function checkRegistryIntegrity(): CheckResult {
   };
 }
 
+// ── 7. every status document declares whether it is current ──────────────────
+
+const VALID_CLASSIFICATIONS = [
+  'CURRENT_CANONICAL',
+  'CURRENT_REFERENCE',
+  'GENERATED',
+  'HISTORICAL',
+  'NEEDS_REVIEW',
+  'SUPERSEDED',
+  'ARCHIVED',
+];
+
+/**
+ * A status document with no classification is the specific failure this repository already
+ * had: fourteen resume pointers, several describing finished initiatives in the present
+ * tense, and no way for a reader to tell which was live.
+ */
+function checkDocumentClassification(): CheckResult {
+  const findings: string[] = [];
+  const docs = walk(
+    path.join(ROOT, 'docs'),
+    (f) => /(STATUS|RESUME_HERE)\.md$/.test(path.basename(f)),
+  );
+
+  for (const file of docs) {
+    const relative = path.relative(ROOT, file).split(path.sep).join('/');
+    const head = readFileSync(file, 'utf8').slice(0, 300);
+    const match = head.match(/^---\s*[\s\S]*?classification:\s*([A-Z_]+)/);
+    if (!match) {
+      findings.push(`${relative} — no classification; a reader cannot tell if it is live`);
+      continue;
+    }
+    if (!VALID_CLASSIFICATIONS.includes(match[1])) {
+      findings.push(`${relative} — unknown classification ${match[1]}`);
+    }
+  }
+
+  return {
+    id: 'document-classification',
+    ok: findings.length === 0,
+    detail:
+      findings.length === 0
+        ? `${docs.length} status documents classified`
+        : `${findings.length} unclassified`,
+    findings,
+  };
+}
+
 // ── run ──────────────────────────────────────────────────────────────────────
 
 export async function runChecks(): Promise<CheckResult[]> {
@@ -261,6 +309,7 @@ export async function runChecks(): Promise<CheckResult[]> {
     checkArchitectureLanguage(),
     checkMemoryHygiene(),
     checkRegistryIntegrity(),
+    checkDocumentClassification(),
   ];
 }
 

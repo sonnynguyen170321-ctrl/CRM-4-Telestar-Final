@@ -1,3 +1,13 @@
+---
+classification: NEEDS_REVIEW
+---
+
+> ## CLASSIFICATION UNRESOLVED
+>
+> Opens at "Phase 0 Kickoff" (2026-08-18), but the AI work proceeded under docs/telestar-ai-remediation/. One of the two is stale and only a human knows which.
+>
+> Until that is decided, treat this as **not** current truth.
+
 # 🧭 TELESTAR AI — STATUS & TRACKING
 
 Last Updated: 2026-08-18 (Phase 0 Kickoff)

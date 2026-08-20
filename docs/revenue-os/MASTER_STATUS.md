@@ -1,3 +1,15 @@
+---
+classification: HISTORICAL
+snapshot: 2026-08-19
+---
+
+> ## NOT CURRENT
+>
+> A point-in-time progress ledger. It was accurate when written and nothing has kept it
+> accurate since. A progress ledger last updated 2026-08-19. Live Revenue AI status is `docs/revenue-ai/STATUS.md`.
+>
+> Current truth: the code, then `.agent/generated/`, then `.agent/` and `.claude/rules/`.
+
 # TELESTAR REVENUE DELIVERY OS — MASTER PROGRESS LEDGER
 
 **Directive**: Complete AI Transformation Master Execution Directive  

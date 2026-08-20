@@ -1,3 +1,8 @@
+---
+classification: CURRENT_CANONICAL
+note: Live handoff for the AI remediation branch.
+---
+
 # RESUME HERE — Telestar AI remediation
 
 **Written 2026-08-20. Read this first, on any machine, before touching `lib/ai/` or the deploy

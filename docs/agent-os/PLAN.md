@@ -125,15 +125,23 @@ agent-system tests pass.
 
 ---
 
-## Phase 7 — Document layering and garbage collection (§XXXVI, §XXXVII, §LIII)
+## Phase 7 — Document layering and garbage collection ✅ (§XXXVI, §XXXVII, §LIII)
 
-- [ ] `docs/current/`, `docs/generated/`, `docs/production-certification/`, `docs/archive/`
-- [ ] Classification header on every non-obvious document (§XXXVII)
-- [ ] Move superseded STATUS documents to `docs/archive/` with snapshot date, SHA and superseded-by link
-- [ ] Delete duplication that survives only because it once existed (§LIII)
+- [x] `docs/README.md` — the index: source hierarchy, classification table, live pointers, finished work
+- [x] Classification front matter on all 17 status documents (§XXXVII)
+- [x] `NOT CURRENT` banner on every historical one, naming where the behaviour now lives
+- [x] `document-classification` added to `agent check` so this cannot decay
+- [~] Physical `docs/archive/` move — **deliberately not done**; see below
+- [~] Delete duplication (§LIII) — one document flagged `NEEDS_REVIEW` for a human rather than deleted by guess
 
-**Acceptance:** no archived document is reachable as current truth; no two documents claim to
-be canonical for the same subject.
+**Acceptance:** ✅ no status document reads as current without saying so · ✅ 17/17 classified,
+enforced by CI · ✅ `tsc` 0, `eslint` 0 errors, 104 tests pass.
+
+**On not moving files into `docs/archive/`.** §XXXVI describes an archive directory and it
+would have been the tidier shape. These documents are referenced from source comments, tests
+and other docs; relocating six directories would break those references to make an index
+prettier. Classification achieves what the archive is *for* — no old status document competing
+as current truth — at no cost. Recorded as a deliberate deviation, not an oversight.
 
 ---
 

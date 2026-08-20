@@ -1,3 +1,17 @@
+---
+classification: HISTORICAL
+snapshot: 2026-08-18
+superseded_by: current code, and the scoped rule or skill named below
+---
+
+> ## NOT CURRENT
+>
+> A record of finished work, kept for its reasoning. **Do not read it as a description
+> of how the system behaves today** — it was accurate when written and nothing has kept
+> it accurate since. All phases complete per this document. Behaviour lives in lib/reporting/ and .agent/skills/revenue-intelligence/.
+>
+> Current truth: the code, then `.agent/generated/`, then `.agent/` and `.claude/rules/`.
+
 # Telestar Commercial Intelligence Engine — STATUS & TRACKING
 
 **Last Updated:** 2026-08-18  

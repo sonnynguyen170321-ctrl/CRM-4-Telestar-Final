@@ -1,3 +1,8 @@
+---
+classification: CURRENT_CANONICAL
+note: Live certification tracker.
+---
+
 # Telestar CRM — Final Remediation & Production Certification — STATUS
 
 > Master 30-Phase Production Completion & Feature Certification Tracker.

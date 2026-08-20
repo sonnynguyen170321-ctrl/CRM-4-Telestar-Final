@@ -1,3 +1,8 @@
+---
+classification: CURRENT_CANONICAL
+note: Live resume pointer for the AI remediation branch.
+---
+
 # Telestar AI + Chatbox Production Green Remediation — STATUS
 
 **Resume pointer. Read this first, then `PLAN.md`.**

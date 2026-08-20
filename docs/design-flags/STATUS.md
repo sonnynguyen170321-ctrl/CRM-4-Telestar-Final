@@ -1,3 +1,17 @@
+---
+classification: HISTORICAL
+snapshot: 2026-08-02
+superseded_by: current code, and the scoped rule or skill named below
+---
+
+> ## NOT CURRENT
+>
+> A record of finished work, kept for its reasoning. **Do not read it as a description
+> of how the system behaves today** — it was accurate when written and nothing has kept
+> it accurate since. Design rules now live in .claude/rules/frontend-ux.md, which loads on any component change.
+>
+> Current truth: the code, then `.agent/generated/`, then `.agent/` and `.claude/rules/`.
+
 # Design-flag remediation — STATUS (resume pointer)
 
 **Goal:** drive the [impeccable.style](https://impeccable.style) browser overlay to **zero flags**

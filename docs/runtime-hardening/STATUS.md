@@ -1,3 +1,16 @@
+---
+classification: HISTORICAL
+superseded_by: current code, and the scoped rule or skill named below
+---
+
+> ## NOT CURRENT
+>
+> A record of finished work, kept for its reasoning. **Do not read it as a description
+> of how the system behaves today** — it was accurate when written and nothing has kept
+> it accurate since. Go-live completed per this document. Runtime law lives in .claude/rules/workers-runtime.md and ADR-0001.
+>
+> Current truth: the code, then `.agent/generated/`, then `.agent/` and `.claude/rules/`.
+
 # Runtime Hardening — STATUS
 
 > Update this file at the end of every working session. It is the resume pointer:

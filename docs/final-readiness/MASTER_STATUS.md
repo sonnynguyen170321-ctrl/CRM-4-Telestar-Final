@@ -1,3 +1,15 @@
+---
+classification: HISTORICAL
+snapshot: 2026-08-19
+---
+
+> ## NOT CURRENT
+>
+> A point-in-time progress ledger. It was accurate when written and nothing has kept it
+> accurate since. A readiness ledger last updated 2026-08-19, pinned to commit `5b96492`. Release identity and evidence rules now live in ADR-0006 and `.agent/skills/production-release/`.
+>
+> Current truth: the code, then `.agent/generated/`, then `.agent/` and `.claude/rules/`.
+
 # TELESTAR CRM — MASTER PROGRESS & PRODUCTION READINESS LEDGER
 
 **Created**: 2026-08-19 06:38 UTC  

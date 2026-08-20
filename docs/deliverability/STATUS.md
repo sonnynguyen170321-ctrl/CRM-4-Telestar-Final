@@ -1,3 +1,16 @@
+---
+classification: HISTORICAL
+superseded_by: current code, and the scoped rule or skill named below
+---
+
+> ## NOT CURRENT
+>
+> A record of finished work, kept for its reasoning. **Do not read it as a description
+> of how the system behaves today** — it was accurate when written and nothing has kept
+> it accurate since. Email health shipped. Behaviour lives in lib/email-health/ and .agent/skills/email-deliverability/.
+>
+> Current truth: the code, then `.agent/generated/`, then `.agent/` and `.claude/rules/`.
+
 # Deliverability / Email Health — STATUS
 
 > **Read this first.** Resume pointer for the Email Health module (working-order item 4,

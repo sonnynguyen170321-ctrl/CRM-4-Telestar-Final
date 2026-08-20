@@ -1,3 +1,16 @@
+---
+classification: HISTORICAL
+superseded_by: current code, and the scoped rule or skill named below
+---
+
+> ## NOT CURRENT
+>
+> A record of finished work, kept for its reasoning. **Do not read it as a description
+> of how the system behaves today** — it was accurate when written and nothing has kept
+> it accurate since. Automation engine shipped. Behaviour lives in lib/automation/ and .agent/skills/email-automation/.
+>
+> Current truth: the code, then `.agent/generated/`, then `.agent/` and `.claude/rules/`.
+
 # Automation Engine — STATUS
 
 **Read this first.** Then execute the next unchecked item in [`PLAN.md`](PLAN.md).

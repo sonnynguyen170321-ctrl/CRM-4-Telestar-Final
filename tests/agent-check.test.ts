@@ -28,6 +28,7 @@ describe('project truth', () => {
     expect(ids).toEqual([
       'context-budget',
       'dead-references',
+      'document-classification',
       'generated-facts',
       'memory-hygiene',
       'registry-integrity',
