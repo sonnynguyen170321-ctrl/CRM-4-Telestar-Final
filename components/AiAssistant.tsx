@@ -10,10 +10,25 @@ import type { ModelId } from '@/lib/ai/models';
 import { resolveTurnExecutionId, type FailedTurn } from '@/lib/ai/executionId';
 
 interface Message {
+  /**
+   * Stable identity for the lifetime of the panel.
+   *
+   * The streamed answer used to be written back by array index, captured before the request
+   * started. Anything that appended to the conversation while a turn was in flight — the
+   * morning briefing is the one that does — shifted that index, and the stream then wrote
+   * itself over the wrong bubble. An id cannot shift.
+   */
+  id: string;
   role: 'user' | 'assistant';
   content: string;
   feedback?: 'up' | 'down';
   executionId?: string;
+}
+
+let messageSeq = 0;
+function newMessageId(): string {
+  messageSeq += 1;
+  return `m${messageSeq}`;
 }
 
 /**
@@ -242,9 +257,19 @@ export default function AiAssistant() {
 
       lines.push(`\nWhat do you want to tackle first?`);
 
-      setMessages([{ role: 'assistant', content: lines.join('') }]);
+      // Append, never replace.
+      //
+      // The briefing is fetched asynchronously from `handleOpen`, so an SDR who types
+      // immediately can already have a message in flight when it lands. Assigning a fresh
+      // array here discarded their message *and* the assistant's greeting, mid-turn — the
+      // streamed answer then wrote itself into an index that no longer existed.
+      //
+      // It went unnoticed because `/api/ai/briefing` answered 500 for every role except
+      // director, so this line effectively never ran. Fixing the endpoint is what made the
+      // race reachable.
+      setMessages((prev) => [...prev, { id: newMessageId(), role: 'assistant', content: lines.join('') }]);
     } catch {
-      // silently skip if briefing fails
+      // A failed briefing degrades to no briefing. It must never cost the SDR their chat.
     }
   }, [firstName]);
 
@@ -255,6 +280,7 @@ export default function AiAssistant() {
     if (messages.length === 0) {
       setMessages([
         {
+          id: newMessageId(),
           role: 'assistant',
           content: `Hey ${firstName}! 👋 I'm your Telestar AI Assistant. I'm connected with live context on your leads, campaigns, and sequence tasks.\n\nHow can I help you today?`,
         },
@@ -290,15 +316,15 @@ export default function AiAssistant() {
       await fetch('/api/ai/memory', { method: 'DELETE' });
       bustMemCache();
       memoryFetchedRef.current = false;
-      const resetMsg = { role: 'assistant' as const, content: `Memory cleared. How can I help you today?` };
-      setMessages((prev) => [...prev, { role: 'user', content }, resetMsg]);
+      const resetMsg = { id: newMessageId(), role: 'assistant' as const, content: `Memory cleared. How can I help you today?` };
+      setMessages((prev) => [...prev, { id: newMessageId(), role: 'user', content }, resetMsg]);
       return;
     }
 
     // One id per logical turn, minted here rather than inside the fetch: a retry of the
     // same message must reuse it, and anything generated per network attempt cannot.
     const executionId = resolveTurnExecutionId(content, failedTurnRef.current);
-    const userMsg: Message = { role: 'user', content, executionId };
+    const userMsg: Message = { id: newMessageId(), role: 'user', content, executionId };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
 
@@ -327,9 +353,13 @@ export default function AiAssistant() {
 
     setIsStreaming(true);
     let assistantContent = '';
-    const assistantIdx = newMessages.length;
+    const assistantId = newMessageId();
 
-    setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
+    setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '' }]);
+
+    /** Rewrites this turn's assistant bubble wherever it currently sits. */
+    const writeAnswer = (text: string) =>
+      setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content: text } : m)));
 
     try {
       const res = await fetch('/api/ai/chat', {
@@ -354,12 +384,7 @@ export default function AiAssistant() {
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
         assistantContent = `${assistantContent}${chunk}`;
-        const currentText = assistantContent;
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[assistantIdx] = { role: 'assistant', content: currentText };
-          return updated;
-        });
+        writeAnswer(assistantContent);
       }
 
       // A 200 that streamed nothing still leaves an empty bubble and a stuck-looking panel.
@@ -367,14 +392,7 @@ export default function AiAssistant() {
       // duplicating.
       if (assistantContent.trim().length === 0) {
         failedTurnRef.current = { content, executionId };
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[assistantIdx] = {
-            role: 'assistant',
-            content: "I couldn't finish that response. Try that again.",
-          };
-          return updated;
-        });
+        writeAnswer("I couldn't finish that response. Try that again.");
         return;
       }
 
@@ -383,11 +401,7 @@ export default function AiAssistant() {
     } catch (err) {
       // Keep the namespace so resending the same message retries this turn.
       failedTurnRef.current = { content, executionId };
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[assistantIdx] = { role: 'assistant', content: messageForRequestError(err) };
-        return updated;
-      });
+      writeAnswer(messageForRequestError(err));
     } finally {
       // Always clears, on every path — a stuck `true` here disables the input and the send
       // button permanently, which reads as the whole assistant being broken.
@@ -597,7 +611,7 @@ export default function AiAssistant() {
               </div>
             )}
             {messages.map((msg, idx) => (
-              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] ${msg.role === 'user' ? 'order-1' : 'order-0'}`}>
                   <div
                     className={`rounded-2xl px-3 py-2 text-sm ${

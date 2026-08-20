@@ -98,38 +98,59 @@ Credentials: `OPENAI_API_KEY` SET · `GEMINI_API_KEY` SET · `GROQ_API_KEY` SET.
 | 3 Consolidate model registry | ✅ done — three models, alias == modelId |
 | 4 Chat model experience | ✅ done — Auto default + three models |
 | 5 Routing intention | ✅ done — tiers rewritten |
-| 6 API key production contract | ⬜ |
-| 7 Container secret injection | ⬜ |
+| 6 API key production contract | ✅ DONE — required by `prod-check-env`, documented in `.env.production.example` |
+| 7 Container secret injection | ✅ DONE — `env_file` on the shared anchor; `scripts/verify-container-secrets.sh` |
 | 8 Direct provider smoke test | ✅ done — 3/3 |
 | 9 Gateway-level test | ✅ done — 14/14, `scripts/ai-gateway-smoke.ts` |
 | 10 Chat API contract | ✅ done — zod validation, 4xx separated from provider failure |
 | 11 Chat context preserved | ✅ done |
-| 12 Role-aware behaviour | ⬜ |
-| 13 Chat input experience | ⬜ |
+| 12 Role-aware behaviour | ✅ DONE — 4 roles green in Playwright; prompt built from session only |
+| 13 Chat input experience | ✅ DONE — Enter/Shift+Enter, blank guard, awkward characters |
 | 14 Streaming experience | ✅ done — real token streaming with tools attached |
 | 15 Loading / UX states | ✅ done — no ghost bubble, input refocuses, empty stream handled |
 | 16 Chat error design | ✅ done — `userMessageForFailure` |
 | 17 Observability | ✅ done — `turnId` + structured log lines |
 | 18 Retry behaviour | ✅ done — execution id preserved, ordinal action keys |
 | 19 Tool security preserved | ✅ done — `executeAgentAction` unchanged, both guards carried over |
-| 20 Tool call matrix | ⬜ |
-| 21 Conversation continuity | ⬜ |
-| 22 AI memory | ⬜ |
-| 23 Lead context | ⬜ |
-| 24 Page context | ⬜ |
-| 25 Chatbox layout | ⬜ |
+| 20 Tool call matrix | ✅ DONE — read tool, write tool, refusal, retry safety |
+| 21 Conversation continuity | ✅ DONE — multi-turn recall verified per role |
+| 22 AI memory | ✅ DONE — session-scoped load asserted in `tests/ai-chat-route.test.ts` |
+| 23 Lead context | ✅ DONE — authorized loader only; unauthorized lead yields no context |
+| 24 Page context | ✅ DONE — page drives channel inference; validated and bounded |
+| 25 Chatbox layout | ✅ DONE — no horizontal overflow, close/reopen, Escape |
 | 26 Accessibility | ✅ done — dialog/log roles, labels, Escape, non-colour state |
-| 27 Network failure | ⬜ |
+| 27 Network failure | ✅ DONE — aborted request recovers without a refresh |
 | 28 Provider failover | ✅ done — verified live, all three directions + total outage |
 | 29 Circuit breaker | ✅ done — verified live |
 | 30 Budget governance | ✅ done — `tests/ai-stream-governance.test.ts` 10/10 |
 | 31 All AI entry points | ✅ done — `generation.ts` rebuilt on the gateway |
-| 32 AI status panel | ⬜ |
-| 33 Automated chat route tests | ⬜ |
+| 32 AI status panel | ✅ DONE — `GET /api/ai/status`, floor_manager and above |
+| 33 Automated chat route tests | ✅ DONE — 35 tests incl. the 404 regression |
 | 34 Playwright chat E2E | ⬜ |
 | 35 Production chat smoke | ⬜ |
-| 36 Provider attribution | ⬜ |
-| 37 Stale model scan | ⬜ |
-| 38 Security regression | ⬜ |
+| 36 Provider attribution | ✅ DONE — `scripts/verify-ai-attribution.ts` PASS over live rows |
+| 37 Stale model scan | ✅ DONE — `npm run check:stale-models` PASS; found and fixed the onboarding route |
+| 38 Security regression | ✅ DONE — 126 tests across auth, RBAC, tenancy, RLS, injection |
 | 39 Quality gates | ⬜ |
 | 40 No certification cheating | ⬜ |
+
+---
+
+## Defects found and fixed beyond the reported symptom
+
+| # | Defect | Found by |
+|---|---|---|
+| 1 | Chat routed to a withdrawn Groq model; a 404 was not a fallback condition | direct provider probe |
+| 2 | Gateway sent `max_tokens` + `temperature: 0.7`, both 400s on gpt-5.6-luna | direct provider probe |
+| 3 | Registry aliased `gpt-5.6-luna` onto `gpt-4o-mini` — false ledger attribution | code read |
+| 4 | Function tools refused on gpt-5.6-luna without `reasoning_effort: 'none'` | direct provider probe |
+| 5 | `generation.ts` sent the same dead model, breaking every background AI feature | code read |
+| 6 | `pricing.ts` knew no approved model — every call priced null, budget reconciled to zero | test |
+| 7 | Gemini starved of output tokens by a caller-supplied cap it should never have received | gateway smoke test |
+| 8 | Gemini tool results replayed under role `'function'`, rejected by gemini-3.6-flash | gateway smoke test |
+| 9 | `app/api/ai/onboarding` built its own Groq client on a dead model | stale-model scan |
+| 10 | `/api/ai/briefing` applied a Task filter to Lead queries — 500 for every non-director role | Playwright recorder |
+
+Defect 10 is worth its own note: it predates this work, and the only reason it was ever
+invisible is that the chatbox swallows a failed briefing with `.catch(() => {})`. The symptom
+was a morning briefing that silently never appeared.

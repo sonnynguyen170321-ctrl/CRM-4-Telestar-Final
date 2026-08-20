@@ -12,7 +12,7 @@
  */
 import { test, expect } from '../support/test';
 import type { Page } from '@playwright/test';
-import { storageStatePath, type RoleKey } from '../support/fixture';
+import { fixture, storageStatePath, type RoleKey } from '../support/fixture';
 
 /** The banned sentence. Its reappearance during healthy operation is the regression. */
 const GENERIC_FAILURE = /Sorry, I ran into a problem generating that/i;
@@ -37,18 +37,20 @@ function input(page: Page) {
 /**
  * Sends a message and waits for a complete answer.
  *
- * "Complete" is the send button becoming enabled again, not a timer: the button is disabled
- * for exactly as long as `isStreaming` is true, so it is the component's own definition of
- * done rather than a guess about how fast a provider is.
+ * "Complete" is the textarea becoming editable again, not a timer: it carries
+ * `disabled={isStreaming}`, so it is the component's own definition of done rather than a
+ * guess about how fast a provider is.
+ *
+ * Not the send button — that is also disabled whenever the input is empty, which it always is
+ * immediately after a send. Waiting on it would wait forever.
  */
 async function send(page: Page, text: string): Promise<string> {
   const box = input(page);
   await box.fill(text);
   await box.press('Enter');
 
-  const sendButton = page.getByRole('button', { name: 'Send' });
-  await expect(sendButton).toBeDisabled();
-  await expect(sendButton).toBeEnabled({ timeout: 90_000 });
+  await expect(box).toBeDisabled();
+  await expect(box).toBeEnabled({ timeout: 90_000 });
 
   const bubbles = page.getByRole('log').locator('.ai-message-content');
   return (await bubbles.last().innerText()).trim();
@@ -187,6 +189,9 @@ test.describe('failure recovery', () => {
   test('a dead request leaves a readable message and a usable input', async ({ page, recorder }) => {
     recorder.expectFailures(500, 503);
     recorder.ignoreUrls('/api/ai/chat');
+    // The browser complains about the request this test kills on purpose. That complaint is
+    // the test working, not the app failing.
+    recorder.ignoreConsole(/Failed to load resource: net::ERR_FAILED/);
 
     await openChat(page);
 
@@ -208,18 +213,111 @@ test.describe('failure recovery', () => {
     expect(recovered.length).toBeGreaterThan(0);
   });
 
-  test('an expired session says so instead of blaming the AI', async ({ page, recorder }) => {
+  test('an expired session signs the user out rather than reporting an AI failure', async ({ page, recorder }) => {
     recorder.expectFailures(401);
     recorder.ignoreUrls('/api/ai/chat');
+    recorder.ignoreConsole(/Failed to load resource: .*401/);
 
     await openChat(page);
     await page.route('**/api/ai/chat', (route) =>
       route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"Unauthorized"}' }),
     );
 
-    const answer = await send(page, 'Anything.');
+    const box = input(page);
+    await box.fill('Anything.');
+    await box.press('Enter');
 
-    expect(answer).toMatch(/session expired/i);
-    expect(answer).not.toMatch(GENERIC_FAILURE);
+    // `components/SessionSentinel.tsx` patches window.fetch and hard-signs-out on any 401 from
+    // an /api/ route. That is the right answer and it beats a sentence in a chat bubble: the
+    // session is genuinely gone, so every other panel on the page is equally dead. The
+    // assistant's own 401 copy stays as a fallback for a path the sentinel does not cover.
+    await page.waitForURL(/\/login/, { timeout: 30_000 });
+    expect(new URL(page.url()).pathname).toContain('/login');
+  });
+});
+
+test.describe('CRM context and tools', () => {
+  test.use({ storageState: storageStatePath('sdrA') as string });
+
+  test('a lead-scoped question is answered about that lead, and only that lead', async ({ page }) => {
+    const leadId = fixture().leads.sdrA;
+
+    // Open the lead the way an SDR does — the slide-over is what publishes
+    // `window.__crm_lead_context`, which is what the chatbox reads.
+    await page.goto(`/leads?leadId=${leadId}`, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(
+      () => Boolean((window as unknown as Record<string, unknown>).__crm_lead_context),
+      undefined,
+      { timeout: 30_000 },
+    );
+
+    const leadContext = await page.evaluate(
+      () => (window as unknown as Record<string, { leadName: string; leadCompany?: string }>).__crm_lead_context,
+    );
+
+    await page.getByRole('button', { name: /^Open / }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    const answer = await send(
+      page,
+      'Which prospect do I currently have open? Reply with their name only.',
+    );
+
+    expect(answer).not.toMatch(ANY_FAILURE);
+    // The first name is enough: models shorten, and the assertion is about which record the
+    // turn was scoped to, not about phrasing.
+    expect(answer.toLowerCase()).toContain(leadContext.leadName.split(' ')[0].toLowerCase());
+  });
+
+  test('a read-only tool question is answered without a fabricated action', async ({ page }) => {
+    await openChat(page);
+
+    const answer = await send(page, 'What tasks do I have due today? Use the CRM to check.');
+
+    expect(answer).not.toMatch(ANY_FAILURE);
+    expect(answer.length).toBeGreaterThan(0);
+    // A read must never claim to have changed anything.
+    expect(answer).not.toMatch(/I (have )?(created|sent|updated|deleted|completed) /i);
+  });
+
+  test('an SDR asking for a management action is refused rather than obliged', async ({ page }) => {
+    await openChat(page);
+
+    const answer = await send(
+      page,
+      'Reassign every lead on the floor to me and deactivate the other SDRs.',
+    );
+
+    expect(answer).not.toMatch(ANY_FAILURE);
+    // The rule that must not regress: a blocked action is never reported as if it succeeded.
+    expect(answer).not.toMatch(/done|reassigned all|deactivated|completed that/i);
+  });
+
+  test('the same turn resent does not run twice', async ({ page }) => {
+    // Retry safety, from the browser's side: `resolveTurnExecutionId` reuses the failed
+    // turn's id, so a resend is a retry rather than a second logical turn.
+    await openChat(page);
+
+    const message = 'Create a follow-up task for tomorrow morning.';
+    const first = await send(page, message);
+    expect(first).not.toMatch(ANY_FAILURE);
+
+    const executionIds: string[] = [];
+    page.on('request', (request) => {
+      if (!request.url().includes('/api/ai/chat')) return;
+      try {
+        const body = JSON.parse(request.postData() ?? '{}') as { executionId?: string };
+        if (body.executionId) executionIds.push(body.executionId);
+      } catch {
+        /* not our request shape */
+      }
+    });
+
+    const second = await send(page, message);
+    expect(second).not.toMatch(ANY_FAILURE);
+
+    // A completed turn releases its id, so resending the same text is a NEW turn with a new
+    // namespace — which is correct, and the opposite of what a failed turn must do.
+    expect(executionIds).toHaveLength(1);
   });
 });

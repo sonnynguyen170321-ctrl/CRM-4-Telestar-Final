@@ -38,7 +38,18 @@ export async function GET(req: NextRequest) {
   }
   // director: no filter (sees all)
 
+  /**
+   * The same set of people, spelled the way each model spells ownership.
+   *
+   * `Task` and `Activity` own a `userId`; `Lead` owns an `assignedToId`. Applying the task
+   * shape to a lead query is not a silent mismatch — Prisma rejects it outright with
+   * `Unknown argument \`userId\``, and the whole briefing endpoint answers 500. It did, for
+   * every role except director, for as long as this had one scope object: the chatbox swallows
+   * a failed briefing with `.catch(() => {})`, so the only visible symptom was a morning
+   * briefing that never appeared.
+   */
   const userScope = userIdFilter ? { userId: { in: userIdFilter } } : {};
+  const leadScope = userIdFilter ? { assignedToId: { in: userIdFilter } } : {};
 
   if (type === 'morning') {
     const [overdueTasks, todayTasks, staleLeads, recentReplies] = await Promise.all([
@@ -61,14 +72,14 @@ export async function GET(req: NextRequest) {
       }),
       prisma.lead.count({
         where: {
-          ...userScope,
+          ...leadScope,
           stage: { notIn: ['won', 'lost'] },
           lastContactedAt: { lt: new Date(now.getTime() - 7 * 86400000) },
         },
       }),
       prisma.lead.findMany({
         where: {
-          ...userScope,
+          ...leadScope,
           stage: 'replied',
           updatedAt: { gte: new Date(now.getTime() - 86400000) },
         },

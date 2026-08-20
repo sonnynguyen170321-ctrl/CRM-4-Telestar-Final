@@ -25,6 +25,15 @@ export type Recorder = {
   expectFailures(...statuses: number[]): void;
   /** URL substrings whose failures are this test's business, not a defect. */
   ignoreUrls(...fragments: string[]): void;
+  /**
+   * Console messages this test deliberately provokes.
+   *
+   * `ignoreUrls` cannot cover these: a console error is recorded against the *page* URL, not
+   * the request that caused it, so a test that kills one request has no way to say so. A test
+   * that aborts a fetch on purpose still owns the browser's complaint about it — and, as with
+   * `expectFailures`, declaring which complaint turns an assumption into something reviewable.
+   */
+  ignoreConsole(...patterns: RegExp[]): void;
   /** Assert no unexpected console/network noise so far, without ending the test. */
   assertClean(label?: string): void;
 };
@@ -55,6 +64,7 @@ const NETWORK_ALLOWLIST: { pattern: RegExp; reason: string }[] = [
 function attach(page: Page): Recorder {
   const expected = new Set<number>();
   const ignored: string[] = [];
+  const ignoredConsole: RegExp[] = [];
 
   const rec: Recorder = {
     consoleErrors: [],
@@ -66,8 +76,13 @@ function attach(page: Page): Recorder {
     ignoreUrls(...fragments) {
       ignored.push(...fragments);
     },
+    ignoreConsole(...patterns) {
+      ignoredConsole.push(...patterns);
+    },
     assertClean(label = 'page') {
-      const console_ = rec.consoleErrors;
+      const console_ = rec.consoleErrors.filter(
+        (entry) => !ignoredConsole.some((pattern) => pattern.test(entry.text)),
+      );
       const errors = rec.pageErrors;
       const net = rec.failedRequests.filter(
         (r) => !expected.has(r.status) && !ignored.some((f) => r.url.includes(f))
