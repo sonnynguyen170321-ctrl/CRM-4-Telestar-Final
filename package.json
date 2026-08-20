@@ -72,7 +72,7 @@
     "imapflow": "^1.6.5",
     "ioredis": "^6.0.0",
     "isomorphic-dompurify": "^3.22.0",
-    "lucide-react": "^1.17.0",
+    "lucide-react": "^1.33.0",
     "mailparser": "^3.9.14",
     "next": "^16.3.0",
     "next-auth": "^5.0.0-beta.32",
@@ -84,7 +84,7 @@
     "read-excel-file": "^9.2.0",
     "recharts": "^3.10.1",
     "sip.js": "^0.21.2",
-    "tsx": "^4.23.7",
+    "tsx": "^4.23.12",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -92,7 +92,7 @@
     "@tailwindcss/postcss": "^4",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20",
-    "@types/nodemailer": "^8.0.0",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
