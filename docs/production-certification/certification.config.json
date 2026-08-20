@@ -3,9 +3,13 @@
   "schemaVersion": 1,
   "program": "Telestar CRM Production Certification",
   "releaseTag": "telestar-internal-rc-2026-08-21",
-  "candidateSha": "034c830175fafa95ea7422d14dfa6a6cfb452ade",
-  "candidateFrozenAt": "2026-08-20T19:39:55.842Z",
+  "candidateSha": "ecbcc5f6786b9960994eb6597a8a730986cd1c4a",
+  "candidateFrozenAt": "2026-08-20T19:53:51.329Z",
   "previousCandidates": [
+    {
+      "sha": "034c830175fafa95ea7422d14dfa6a6cfb452ade",
+      "invalidatedReason": "superseded: the routing replay read a shallow checkout as one enormous commit; fixed in the commit this candidate names"
+    },
     {
       "sha": "b9819d5cc7d9627a06d363500353c7a3176c4c8f",
       "invalidatedReason": "superseded: the first green CI run found registry-integrity failing on a gitignored path mapping; fixed in the commit this candidate names"
