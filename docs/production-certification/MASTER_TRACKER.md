@@ -7,10 +7,10 @@
 -->
 
 **Verdict**: **NO-GO**
-**Candidate SHA**: `84e4482bf40befe09bfc5824f8fb368f759c9a83`
+**Candidate SHA**: `3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32`
 **Requirements verified**: 101 / 108
-**Evidence records**: 21
-**Generated**: 2026-08-19T21:44:03.727Z
+**Evidence records**: 22
+**Generated**: 2026-08-20T03:26:58.008Z
 
 > This file and `progress.json` are rendered from the same computation. They used to be
 > maintained by hand, and both said 108/108 VERIFIED and CERTIFIED_APPROVED — which proved
@@ -40,10 +40,10 @@ Detail, with the blocking reason on every unverified row:
 | Severity | Open |
 |---|---:|
 | P0 | 2 |
-| P1 | 8 |
-| P2 | 5 |
+| P1 | 9 |
+| P2 | 6 |
 | P3 | 0 |
-| **Total** | **15** |
+| **Total** | **17** |
 
 - `TEL-P0-001` — FIXED_PENDING_VERIFICATION
 - `TEL-P0-002` — BLOCKED_EXTERNAL
@@ -60,6 +60,8 @@ Detail, with the blocking reason on every unverified row:
 - `TEL-P1-019` — FIXED_PENDING_VERIFICATION
 - `TEL-P1-020` — FIXED_PENDING_VERIFICATION
 - `TEL-P1-021` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-022` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-018` — BLOCKED_EXTERNAL
 
 ## 3. What the validator is currently reporting
 

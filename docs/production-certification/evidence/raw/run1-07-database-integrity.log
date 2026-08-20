@@ -1,7 +1,7 @@
 # gate: 07-database-integrity — scripts/verify-db-integrity.ts against the certification database
 # command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts
-# startedAt: 2026-08-20T02:31:13.384Z
-# finishedAt: 2026-08-20T02:31:22.202Z
+# startedAt: 2026-08-20T03:05:56.229Z
+# finishedAt: 2026-08-20T03:06:06.482Z
 # exitCode: 0
 
 --- stdout ---
@@ -10,7 +10,7 @@ database integrity verification — telestar_crm
 [PASS   ] Every datamodel model has a table
           67/67 declared tables present
 [PASS   ] Migration ledger is complete and fully applied
-          49/49 migrations applied successfully (1 superseded rolled-back attempt(s), which is normal)
+          50/50 migrations applied successfully (1 superseded rolled-back attempt(s), which is normal)
 [PASS   ] No foreign key points at a missing row
           212 single-column foreign keys checked
 [PASS   ] No tenant-owned row has a null tenantId
@@ -21,19 +21,19 @@ database integrity verification — telestar_crm
           no --expect-counts snapshot supplied; counts recorded but not reconciled
 ------------------------------------------------------------------------
 representative counts:
-  Tenant               48905
-  User                 48272
-  Client               32685
-  Campaign             47792
-  Account              38304
-  Contact              30573
-  Lead                 282401
-  Task                 13058
-  Activity             29418
-  Sequence             31311
-  SequenceEnrollment   18302
-  OutboundMessage      129
-  ImportBatch          7
+  Tenant               49910
+  User                 49256
+  Client               33377
+  Campaign             48772
+  Account              38998
+  Contact              30077
+  Lead                 287146
+  Task                 13370
+  Activity             29061
+  Sequence             32019
+  SequenceEnrollment   18731
+  OutboundMessage      132
+  ImportBatch          6
 ========================================================================
 RESULT: PASS
 

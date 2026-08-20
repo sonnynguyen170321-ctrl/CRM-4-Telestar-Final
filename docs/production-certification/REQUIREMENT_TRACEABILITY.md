@@ -6,7 +6,7 @@
   Regenerate: node scripts/certification/render-traceability.mjs
 -->
 
-**Candidate SHA**: `84e4482bf40befe09bfc5824f8fb368f759c9a83`
+**Candidate SHA**: `3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32`
 **Verified**: 101 / 108
 **Verdict**: NO-GO
 
@@ -150,7 +150,7 @@
 | `REL-003` | Certification Run 1: Full test ladder + static + build | P1 | run 1 | NOT_VERIFIED | evidence of kind "certification-run" is FAIL, not PASS | — |
 | `REL-004` | Certification Run 2: Full test ladder + static + build | P1 | run 2 | NOT_VERIFIED | evidence of kind "certification-run" is FAIL, not PASS | — |
 | `REL-005` | Certification Run 3: Full test ladder + static + build | P1 | run 3 | NOT_VERIFIED | evidence of kind "certification-run" is FAIL, not PASS | — |
-| `REL-006` | CI workflow release gate enforces green test suite before merge | P1 | ci-run | NOT_VERIFIED | no evidence record of kind "ci-run" | — |
+| `REL-006` | CI workflow release gate enforces green test suite before merge | P1 | ci-run | NOT_VERIFIED | evidence of kind "ci-run" is FAIL, not PASS | — |
 | `REL-007` | Health check endpoint reports commit SHA and database connectivity | P1 | `tests/doctor.test.ts` | **VERIFIED** | — | — |
 | `REL-008` | Final Certificate reflects verified evidence with zero assumptions | P1 | validator-self | **VERIFIED** | — | — |
 

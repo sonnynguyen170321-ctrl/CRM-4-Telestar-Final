@@ -8,7 +8,7 @@
     "port": "5432",
     "database": "telestar_crm",
     "reachable": true,
-    "appliedMigrations": 49
+    "appliedMigrations": 50
   },
   "redis": {
     "host": "127.0.0.1",

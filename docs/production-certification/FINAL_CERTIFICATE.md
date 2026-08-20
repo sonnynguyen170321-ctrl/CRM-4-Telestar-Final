@@ -8,10 +8,10 @@
 -->
 
 **Verdict**: **NO-GO — BLOCKERS REMAIN**
-**Generated**: 2026-08-19T21:44:04.316Z
-**Candidate SHA**: `84e4482bf40befe09bfc5824f8fb368f759c9a83`
+**Generated**: 2026-08-20T03:26:58.608Z
+**Candidate SHA**: `3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32`
 **Release tag**: `telestar-internal-rc-2026-08-20`
-**Evidence records**: 21
+**Evidence records**: 22
 
 ---
 
@@ -19,7 +19,7 @@
 
 | Field | Value |
 |---|---|
-| APPLICATION_SOURCE_SHA | `84e4482bf40befe09bfc5824f8fb368f759c9a83` |
+| APPLICATION_SOURCE_SHA | `3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32` |
 | CI_RUN_ID | `not established` |
 | IMAGE_DIGEST | `not established` |
 | WEB_DIGEST | `not established` |
@@ -67,11 +67,11 @@ Two benchmarks, named for what they exercise. Detail: [LOAD_TEST.md](LOAD_TEST.m
 
 | Measure | Value |
 |---|---|
-| Backup artifact size | 93006466 bytes |
-| Backup SHA-256 | `111288297fe29dcef4fca209a52c2ba107f4089fbceec3d2bb791ab6b646d533` |
+| Backup artifact size | 96787550 bytes |
+| Backup SHA-256 | `6431c2d06d420ae3ca995b51ef1cff4f054baea6656263b4f8fb489f7cd5ca6d` |
 | Checksum verified | true |
 | Restore integrity | true |
-| Measured RTO | 96.11 s |
+| Measured RTO | 103.75 s |
 | RPO | BLOCKED_EXTERNAL — gcloud is not installed on this machine, so the live Cloud SQL backup configuration cannot be inspected. |
 | Rollback drill | NOT_EXECUTED — docker is not installed on this machine, so no image has been built and no digest exists to roll between. |
 
@@ -108,8 +108,8 @@ Status is computed per requirement from the evidence manifest, never asserted. D
 | Severity | Open |
 |---|---:|
 | P0 | 2 |
-| P1 | 8 |
-| P2 | 5 |
+| P1 | 9 |
+| P2 | 6 |
 | P3 | 0 |
 
 - `TEL-P0-001` — FIXED_PENDING_VERIFICATION
@@ -127,13 +127,15 @@ Status is computed per requirement from the evidence manifest, never asserted. D
 - `TEL-P1-019` — FIXED_PENDING_VERIFICATION
 - `TEL-P1-020` — FIXED_PENDING_VERIFICATION
 - `TEL-P1-021` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-022` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-018` — BLOCKED_EXTERNAL
 
 Detail: [DEFECTS.md](DEFECTS.md).
 
 ## 9. What stands between this and GO
 
 **Check `A`** — 1 finding(s)
-  - docs/production-certification/FINAL_CERTIFICATE.md still references non-candidate SHA dfb172f (candidate is 84e4482)
+  - docs/production-certification/FINAL_CERTIFICATE.md still references non-candidate SHA 84e4482 (candidate is 3672f97)
 
 **Check `L`** — 6 finding(s)
   - run 1 gate "19-docker-build" is BLOCKED_EXTERNAL

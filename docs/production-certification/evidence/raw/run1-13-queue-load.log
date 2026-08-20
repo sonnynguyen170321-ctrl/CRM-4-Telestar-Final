@@ -7,11 +7,11 @@ scales  : 120, 500, 1000
 
 [120 rows] enqueuing real BullMQ jobs
 [bullmq] Redis connected
-           1.37s, 87.34 rows/s, queue wait p95 4ms, lost 0, dup 0
+           1.48s, 80.97 rows/s, queue wait p95 5ms, lost 0, dup 0
 [500 rows] enqueuing real BullMQ jobs
-           4.12s, 121.45 rows/s, queue wait p95 2915ms, lost 0, dup 0
+           4.14s, 120.89 rows/s, queue wait p95 2916ms, lost 0, dup 0
 [1000 rows] enqueuing real BullMQ jobs
-           6.97s, 143.49 rows/s, queue wait p95 5810ms, lost 0, dup 0
+           7.23s, 138.33 rows/s, queue wait p95 6071ms, lost 0, dup 0
 
 RESULT: PASS
 

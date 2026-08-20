@@ -1,13 +1,13 @@
 {
   "evidenceId": "EV-VITEST",
   "kind": "vitest",
-  "candidateSha": "471b61148305c745927d0f6267cc86a478ad1b9b",
+  "candidateSha": "3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-20T02:47:13.902Z",
-  "finishedAt": "2026-08-20T02:49:46.587Z",
-  "exitCode": 1,
-  "status": "FAIL",
+  "startedAt": "2026-08-20T03:20:45.132Z",
+  "finishedAt": "2026-08-20T03:23:10.573Z",
+  "exitCode": 0,
+  "status": "PASS",
   "metrics": {
     "files": {
       "tests/access-control.test.ts": {
@@ -431,9 +431,9 @@
         "skipped": 0
       },
       "tests/import-load-benchmark.test.ts": {
-        "status": "failed",
-        "tests": 1,
-        "failed": 2,
+        "status": "passed",
+        "tests": 3,
+        "failed": 0,
         "skipped": 0
       },
       "tests/import-race-stress.test.ts": {
@@ -473,9 +473,9 @@
         "skipped": 0
       },
       "tests/leadgen-redesign.test.ts": {
-        "status": "failed",
-        "tests": 8,
-        "failed": 2,
+        "status": "passed",
+        "tests": 10,
+        "failed": 0,
         "skipped": 0
       },
       "tests/leadgen.test.ts": {
@@ -708,7 +708,7 @@
       },
       "tests/release.test.ts": {
         "status": "passed",
-        "tests": 0,
+        "tests": 15,
         "failed": 0,
         "skipped": 0
       },
@@ -996,16 +996,16 @@
       }
     },
     "testFiles": 164,
-    "testFilesPassed": 162,
-    "testsPassed": 2040,
-    "testsFailed": 4,
+    "testFilesPassed": 164,
+    "testsPassed": 2059,
+    "testsFailed": 0,
     "testsSkipped": 0
   },
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/run3-08-vitest.log",
       "sizeBytes": 451,
-      "sha256": "9a0bafa9b2ce2e1ecffb2270adb5a768abffddffd7b5f22d1e1778e1fc4a06b7"
+      "sha256": "d75b85ea5d521a7a4ebf372c6731652dfa9d36c619c20e05840a7c64af851de9"
     }
   ]
 }

@@ -1,0 +1,72 @@
+{
+  "evidenceId": "EV-CI-RUN",
+  "kind": "ci-run",
+  "candidateSha": "3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32",
+  "environment": "GitHub Actions",
+  "command": "gh run view 32326914380",
+  "startedAt": "2026-08-20T03:04:24Z",
+  "finishedAt": "2026-08-20T03:13:31Z",
+  "exitCode": 1,
+  "status": "FAIL",
+  "metrics": {
+    "runId": "32326914380",
+    "workflowName": "CI",
+    "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32326914380",
+    "headSha": "e68fd04d63d1ae256b7243288d3a4128b3d499f3",
+    "headBranch": "release/evidence-locked-certification",
+    "conclusion": "failure",
+    "runStatus": "completed",
+    "commitsBetweenCandidateAndHead": 1,
+    "nonMetadataCommitsBetween": 0,
+    "sourceMatchesCandidate": true,
+    "jobs": [
+      {
+        "name": "Docker build",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
+        "name": "Dependency review",
+        "conclusion": "failure",
+        "status": "completed"
+      },
+      {
+        "name": "Lint · types · tests",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
+        "name": "Migration validation",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
+        "name": "Build · Playwright",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
+        "name": "Secret scan",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
+        "name": "CodeQL",
+        "conclusion": "failure",
+        "status": "completed"
+      },
+      {
+        "name": "CI required checks",
+        "conclusion": "failure",
+        "status": "completed"
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/ci-run-32326914380.log",
+      "sizeBytes": 27704,
+      "sha256": "053702c5ccd0263ab5fbe49a007755edf870ff350b06c88d98e22e5c94dd6031"
+    }
+  ]
+}
