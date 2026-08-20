@@ -64,19 +64,19 @@ ignored, README tracked · ✅ 6/6 registry files parse as YAML.
 
 ---
 
-## Phase 3 — Machine truth (§X, §XI, §XXII, §XXXV)
+## Phase 3 — Machine truth ✅ (§X, §XI, §XXII, §XXXV)
 
-Nothing derivable gets hand-maintained after this phase.
+- [x] `npm run agent` CLI, `--json` on every subcommand (§X)
+- [x] `agent facts` → six generated files, plus `--check` drift mode (§X)
+- [x] Derived from source, not prose — imported where possible, parsed only for the route tree
+- [x] `agent doctor` → capability matrix, credentials as SET/NOT SET only (§XXII)
+- [x] Source-dependency declarations in `.agent/registry/sources.yaml` (§XI)
+- [x] `tests/agent-facts.test.ts` — 10 tests, including non-emptiness
 
-- [ ] `npm run agent` CLI entrypoint, `--json` on every subcommand (§X)
-- [ ] `agent facts` → `.agent/generated/`: `project-facts.json`, `role-map.json`, `route-map.json`, `ai-contract.json`, `env-contract.json`, `queue-map.json` (§X)
-- [ ] Derive from source, never from prose: roles from `prisma/schema.prisma` + auth policy; routes from `app/`; models from `lib/ai/registry.ts`; env from the validator; queues from `lib/queue/`; compose services from `docker-compose*.yml`
-- [ ] `agent doctor` → capability matrix: Node, npm, Docker, Redis, Postgres test DB, Playwright, gcloud, GitHub auth, AI keys as SET/NOT SET only (§XXII)
-- [ ] Source-dependency declarations so knowledge artifacts can be marked REVIEW REQUIRED (§XI)
-
-**Acceptance:** generated role list matches the Prisma enum; generated AI contract matches the
-registry; `doctor` reports this machine honestly (no Docker, no Redis, no AI keys) and never
-prints a secret.
+**Acceptance:** ✅ role map = the six roles · ✅ AI contract imported from the registry, alias
+invariant asserted · ✅ `doctor` reports this machine honestly (no Docker, no Redis, no gcloud,
+no AI keys) and prints no secret · ✅ `facts --check` exits 1 on tampering, 0 when clean ·
+✅ `tsc` 0, `eslint` 0 errors, 43 tests pass.
 
 ---
 

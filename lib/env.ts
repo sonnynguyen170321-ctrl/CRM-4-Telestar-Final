@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { OPTIONAL_ENV_GROUPS } from './env-contract';
+
 /**
  * Fail-fast env validation, run once at boot from instrumentation.ts.
  * Required vars throw; optional integration groups only warn so the app
@@ -13,14 +15,16 @@ const requiredSchema = z.object({
     .regex(/^[0-9a-f]{64}$/i, 'ENCRYPTION_KEY must be 64 hex chars (32 bytes)'),
 });
 
-const OPTIONAL_GROUPS: Record<string, string[]> = {
-  'Gmail OAuth': ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'],
-  'Microsoft OAuth': ['MICROSOFT_CLIENT_ID', 'MICROSOFT_CLIENT_SECRET', 'MICROSOFT_REDIRECT_URI'],
-  'Cron auth': ['CRON_SECRET'],
-  // AI SDR assistant: Groq is primary, Gemini the fallback. With neither key the
-  // assistant degrades gracefully, so this stays a warning (not a hard requirement).
-  'AI assistant': ['GROQ_API_KEY'],
-};
+/**
+ * The optional groups come from `lib/env-contract.ts`, not from a list kept here.
+ *
+ * This file used to declare its own, and it had drifted: the AI group named `GROQ_API_KEY`
+ * alone, dating from when Groq was primary and Gemini the fallback. The product now routes
+ * across three providers, and `scripts/prod-check-env.ts` already required all three — so a
+ * deployment missing the OpenAI and Gemini credentials booted without a single warning, while
+ * the deploy gate would have refused it.
+ */
+const OPTIONAL_GROUPS = OPTIONAL_ENV_GROUPS;
 
 export function validateEnv(): void {
   const result = requiredSchema.safeParse(process.env);

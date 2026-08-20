@@ -12,14 +12,57 @@ plan: ./PLAN.md
 Branch: `feat/agent-intelligence-os` · started 2026-08-20 · stacked on
 `fix/telestar-ai-three-provider` (PR #98, unmerged).
 
-**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phases 0–2 complete of 9.
+**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phases 0–3 complete of 9.
 
 ---
 
 ## Current phase
 
-**Phase 3 — machine truth.** Next task is the `npm run agent` CLI and the `facts`
-generators. See `PLAN.md` phase 3.
+**Phase 4 — context compiler and impact engine.** Next task is `agent brief` and
+`agent impact`. See `PLAN.md` phase 4.
+
+### Phase 3 result — 2026-08-20
+
+`npm run agent -- facts | doctor`, both with `--json`.
+
+Six generated files, each derived from the code that defines it:
+
+| File | Derived by | Result |
+|---|---|---|
+| `role-map.json` | scanning the authorization layer | 6 roles |
+| `ai-contract.json` | **importing** `lib/ai/registry.ts` | 3 models, alias invariant true |
+| `env-contract.json` | **importing** `lib/env-contract.ts` | 3 AI providers, 17 production-required |
+| `route-map.json` | walking `app/**` | 34 pages, 169 API routes |
+| `queue-map.json` | **importing** `lib/bullmq/types.ts` | 6 queues, 18 job types, 9 workers |
+| `project-facts.json` | `package.json` | stack + script inventory |
+
+`facts --check` regenerates and diffs rather than trusting the committed copy: it exits 1 when
+a generated file no longer matches its source. That is the drift gate phase 6 wires into CI.
+
+### Drift corrected: the AI environment contract
+
+`lib/env.ts` declared the whole "AI assistant" optional group as **`GROQ_API_KEY` alone** —
+dating from when Groq was primary and Gemini the fallback. Meanwhile
+`scripts/prod-check-env.ts` and `.env.production.example` correctly required all three
+providers.
+
+A deployment holding only a Groq key therefore **booted with no warning at all**, while the
+deploy gate would have refused it. The three-provider failover that the whole gateway
+architecture exists to provide would simply not have existed, and nothing at runtime would
+have said so.
+
+Both now read from one declaration in `lib/env-contract.ts`, which is also what the generator
+imports. §LV "missing production AI env alignment", closed.
+
+### A generator that was confidently empty
+
+The first queue generator pattern-matched `new Queue('name')`. The names are a `QUEUES`
+constant and the only `new Queue(` call passes a variable, so it matched nothing and wrote an
+empty queue list — without failing. A silently empty generated fact is worse than no
+generator, because a document can then cite it.
+
+Rewritten to import `lib/bullmq/types.ts`. `tests/agent-facts.test.ts` now asserts
+non-emptiness for every generator, which is the general form of that failure.
 
 ### Phase 2 result — 2026-08-20
 
@@ -163,6 +206,13 @@ to break that loop.
 | 2026-08-20 | 1 | frontmatter scan of `.claude/rules/*.md` | 0 | 6/6 carry `paths:` |
 | 2026-08-20 | 2 | `js-yaml` parse of `.agent/registry/*.yaml` | 0 | 6/6 parse |
 | 2026-08-20 | 2 | `git check-ignore .agent/state/probe.json` | 0 | ignored by `.gitignore:130` |
+| 2026-08-20 | 3 | `agent facts` | **0** | 6 files generated |
+| 2026-08-20 | 3 | `agent facts --check` (clean) | **0** | matches sources |
+| 2026-08-20 | 3 | `agent facts --check` (tampered) | **1** | drift detected and named |
+| 2026-08-20 | 3 | `agent doctor` | **0** | node/npm/postgres/playwright/gh present; docker/redis/gcloud/AI keys absent |
+| 2026-08-20 | 3 | `vitest agent-facts + prod-env + doctor` | **0** | 43 passed |
+| 2026-08-20 | 3 | `tsc --noEmit` | **0** | 0 errors |
+| 2026-08-20 | 3 | `eslint .` | **0** | 0 errors, 11 warnings |
 
 Exit codes are captured from the tool itself, never from the tail of a pipe.
 

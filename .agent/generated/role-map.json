@@ -1,0 +1,23 @@
+{
+  "$generated": {
+    "by": "npm run agent -- facts",
+    "from": [
+      "lib/auth.ts",
+      "lib/podScoping.ts",
+      "lib/admin/orgRules.ts"
+    ],
+    "warning": "Generated file. Do not edit by hand; the next run reverts it."
+  },
+  "roles": [
+    "director",
+    "floor_manager",
+    "leadgen",
+    "leadgen_manager",
+    "sdr",
+    "team_lead"
+  ],
+  "count": 6,
+  "storage": "String column on User — not a database enum, so nothing rejects an invalid value",
+  "scoping": "managerId walk: team_lead -> their SDRs, floor_manager -> their team leads, director -> all",
+  "note": "Any list naming four roles is stale."
+}

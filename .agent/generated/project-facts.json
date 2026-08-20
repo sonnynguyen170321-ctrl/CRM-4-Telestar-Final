@@ -1,0 +1,96 @@
+{
+  "$generated": {
+    "by": "npm run agent -- facts",
+    "from": [
+      "package.json"
+    ],
+    "warning": "Generated file. Do not edit by hand; the next run reverts it."
+  },
+  "name": "telestar-sdr-crm",
+  "stack": [
+    {
+      "package": "next",
+      "version": "^16.3.0"
+    },
+    {
+      "package": "react",
+      "version": "19.2.8"
+    },
+    {
+      "package": "typescript",
+      "version": "^5"
+    },
+    {
+      "package": "prisma",
+      "version": "^6.2.1"
+    },
+    {
+      "package": "bullmq",
+      "version": "^6.0.8"
+    },
+    {
+      "package": "zod",
+      "version": "^4.4.3"
+    },
+    {
+      "package": "@playwright/test",
+      "version": "^1.62.1"
+    },
+    {
+      "package": "vitest",
+      "version": "^4.1.10"
+    }
+  ],
+  "scripts": [
+    "agent",
+    "ai:smoke-gateway",
+    "ai:smoke-providers",
+    "analyze",
+    "backfill:next-action",
+    "build",
+    "certify:collect",
+    "certify:dr",
+    "certify:dr-negative",
+    "certify:full",
+    "certify:generate",
+    "certify:queue-load",
+    "certify:render",
+    "certify:roles",
+    "certify:selftest",
+    "certify:validate",
+    "check:migration-order",
+    "check:production-compose",
+    "check:relational-integrity",
+    "check:stale-models",
+    "check:test-discipline",
+    "create-admin",
+    "create-user",
+    "cutover:preflight",
+    "db:generate",
+    "db:migrate",
+    "db:push",
+    "db:seed",
+    "db:studio",
+    "demo:reset",
+    "demo:seed",
+    "dev",
+    "doctor",
+    "encrypt-existing-tokens",
+    "lint",
+    "list-users",
+    "prod:audit",
+    "prod:check-env",
+    "prod:check-migrations",
+    "purge:demo",
+    "repair:approved-proposals",
+    "setup:dev",
+    "start",
+    "sync-enrollments",
+    "test",
+    "verify:rls",
+    "worker:dev",
+    "worker:healthcheck",
+    "worker:start"
+  ],
+  "scriptCount": 49
+}

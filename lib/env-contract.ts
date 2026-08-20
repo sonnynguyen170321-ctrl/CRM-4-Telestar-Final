@@ -12,6 +12,66 @@
  */
 
 // ---------------------------------------------------------------------------
+// The declared contract
+// ---------------------------------------------------------------------------
+
+/**
+ * Which variables the application requires, and which groups are optional.
+ *
+ * Declared here rather than inside `lib/env.ts` because three separate consumers need the
+ * same list — the boot validator, the production deploy gate, and the `agent facts`
+ * generator — and they had already drifted apart. `lib/env.ts` warned about a single
+ * `GROQ_API_KEY` for the whole "AI assistant" group, while `scripts/prod-check-env.ts` and
+ * `.env.production.example` correctly required all three providers. A deployment missing
+ * OpenAI and Gemini credentials would therefore boot with no warning at all, and the failover
+ * the three-provider contract exists to guarantee would silently not exist.
+ *
+ * Names only. This module never holds a value.
+ */
+
+/** Absent at boot, the application cannot run at all. */
+export const RUNTIME_REQUIRED_ENV = ['DATABASE_URL', 'AUTH_SECRET', 'ENCRYPTION_KEY'] as const;
+
+/**
+ * Telestar AI routes across three providers and fails over between them.
+ *
+ * All three are one group on purpose: a deployment holding one key has no failover, and the
+ * production chat outage this guards against was exactly that — one provider, one withdrawn
+ * model, nothing else reachable.
+ */
+export const AI_PROVIDER_ENV = ['OPENAI_API_KEY', 'GEMINI_API_KEY', 'GROQ_API_KEY'] as const;
+
+/**
+ * Optional integration groups. Partially configured is a warning; entirely absent disables
+ * the feature and, in production, says so.
+ */
+export const OPTIONAL_ENV_GROUPS: Record<string, readonly string[]> = {
+  'Gmail OAuth': ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'],
+  'Microsoft OAuth': ['MICROSOFT_CLIENT_ID', 'MICROSOFT_CLIENT_SECRET', 'MICROSOFT_REDIRECT_URI'],
+  'Cron auth': ['CRON_SECRET'],
+  'Telestar AI providers': AI_PROVIDER_ENV,
+};
+
+/** Additionally required in a production deployment, beyond the runtime set above. */
+export const PRODUCTION_REQUIRED_ENV = [
+  'DEPLOY_TARGET',
+  'CRM_IMAGE',
+  'DATABASE_URL',
+  'DIRECT_URL',
+  'BACKUP_DATABASE_URL',
+  'REDIS_URL',
+  'CRM_DOMAIN',
+  'NEXTAUTH_URL',
+  'CADDY_SITE_ADDRESS',
+  'AUTH_SECRET',
+  'ENCRYPTION_KEY',
+  'CRON_SECRET',
+  'EMAIL_SEND_DRY_RUN',
+  'SEQUENCE_AUTOSEND_ENABLED',
+  ...AI_PROVIDER_ENV,
+] as const;
+
+// ---------------------------------------------------------------------------
 // Placeholder detection
 // ---------------------------------------------------------------------------
 

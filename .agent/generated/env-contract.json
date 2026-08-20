@@ -1,0 +1,59 @@
+{
+  "$generated": {
+    "by": "npm run agent -- facts",
+    "from": [
+      "lib/env-contract.ts"
+    ],
+    "warning": "Generated file. Do not edit by hand; the next run reverts it."
+  },
+  "runtimeRequired": [
+    "DATABASE_URL",
+    "AUTH_SECRET",
+    "ENCRYPTION_KEY"
+  ],
+  "productionRequired": [
+    "DEPLOY_TARGET",
+    "CRM_IMAGE",
+    "DATABASE_URL",
+    "DIRECT_URL",
+    "BACKUP_DATABASE_URL",
+    "REDIS_URL",
+    "CRM_DOMAIN",
+    "NEXTAUTH_URL",
+    "CADDY_SITE_ADDRESS",
+    "AUTH_SECRET",
+    "ENCRYPTION_KEY",
+    "CRON_SECRET",
+    "EMAIL_SEND_DRY_RUN",
+    "SEQUENCE_AUTOSEND_ENABLED",
+    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "GROQ_API_KEY"
+  ],
+  "aiProviders": [
+    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "GROQ_API_KEY"
+  ],
+  "optionalGroups": {
+    "Gmail OAuth": [
+      "GOOGLE_CLIENT_ID",
+      "GOOGLE_CLIENT_SECRET",
+      "GOOGLE_REDIRECT_URI"
+    ],
+    "Microsoft OAuth": [
+      "MICROSOFT_CLIENT_ID",
+      "MICROSOFT_CLIENT_SECRET",
+      "MICROSOFT_REDIRECT_URI"
+    ],
+    "Cron auth": [
+      "CRON_SECRET"
+    ],
+    "Telestar AI providers": [
+      "OPENAI_API_KEY",
+      "GEMINI_API_KEY",
+      "GROQ_API_KEY"
+    ]
+  },
+  "note": "Names only. Presence is reported as SET / NOT SET; values are never read here."
+}

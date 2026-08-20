@@ -1,0 +1,115 @@
+{
+  "$generated": {
+    "by": "npm run agent -- facts",
+    "from": [
+      "lib/ai/registry.ts"
+    ],
+    "warning": "Generated file. Do not edit by hand; the next run reverts it."
+  },
+  "productionModelCount": 3,
+  "models": [
+    {
+      "modelId": "gpt-5.6-luna",
+      "provider": "openai",
+      "displayName": "GPT-5.6 Luna",
+      "aliasEqualsModelId": true,
+      "contextLimit": 1050000,
+      "maxOutputTokens": 128000,
+      "defaultMaxOutputTokens": 8192,
+      "supportsTools": true,
+      "supportsStructuredOutput": true,
+      "supportsVision": true,
+      "rejectedParameters": [
+        "max_tokens",
+        "temperature"
+      ],
+      "pricing": {
+        "currency": "USD",
+        "verifiedAt": "2026-08-20",
+        "periods": [
+          {
+            "effectiveFrom": null,
+            "effectiveUntil": null,
+            "inputPerMillionUsd": 0.2,
+            "outputPerMillionUsd": 1.2,
+            "cachedInputPerMillionUsd": 0.02,
+            "cachedInputWritePerMillionUsd": 0.25
+          }
+        ],
+        "longContext": {
+          "promptTokensAbove": 272000,
+          "inputMultiplier": 2,
+          "outputMultiplier": 1.5
+        }
+      }
+    },
+    {
+      "modelId": "gemini-3.6-flash",
+      "provider": "google",
+      "displayName": "Gemini 3.6 Flash",
+      "aliasEqualsModelId": true,
+      "contextLimit": 1048576,
+      "maxOutputTokens": 65536,
+      "defaultMaxOutputTokens": null,
+      "supportsTools": true,
+      "supportsStructuredOutput": true,
+      "supportsVision": true,
+      "rejectedParameters": [
+        "temperature",
+        "top_p",
+        "top_k",
+        "thinking_budget"
+      ],
+      "pricing": {
+        "currency": "USD",
+        "verifiedAt": "2026-08-20",
+        "periods": [
+          {
+            "effectiveFrom": null,
+            "effectiveUntil": "2027-01-01",
+            "inputPerMillionUsd": 0.75,
+            "outputPerMillionUsd": 3.75,
+            "cachedInputPerMillionUsd": null
+          },
+          {
+            "effectiveFrom": "2027-01-01",
+            "effectiveUntil": null,
+            "inputPerMillionUsd": 1.5,
+            "outputPerMillionUsd": 7.5,
+            "cachedInputPerMillionUsd": null
+          }
+        ],
+        "longContext": null
+      }
+    },
+    {
+      "modelId": "openai/gpt-oss-20b",
+      "provider": "groq",
+      "displayName": "Groq GPT-OSS 20B",
+      "aliasEqualsModelId": true,
+      "contextLimit": 131072,
+      "maxOutputTokens": 65536,
+      "defaultMaxOutputTokens": 8192,
+      "supportsTools": true,
+      "supportsStructuredOutput": true,
+      "supportsVision": false,
+      "rejectedParameters": [],
+      "pricing": {
+        "currency": "USD",
+        "verifiedAt": "2026-08-20",
+        "periods": [
+          {
+            "effectiveFrom": null,
+            "effectiveUntil": null,
+            "inputPerMillionUsd": 0.075,
+            "outputPerMillionUsd": 0.3,
+            "cachedInputPerMillionUsd": 0.037
+          }
+        ],
+        "longContext": null
+      }
+    }
+  ],
+  "evidence": "docs/telestar-ai-remediation/MODEL_VERIFICATION.json",
+  "invariant": "internalAlias === modelId for every production model"
+}
