@@ -181,19 +181,36 @@ describe.skipIf(!hasDb)('IMPORT_HANDLER_BENCHMARK (TEL-P2-012, reclassified by T
     return metric;
   };
 
+  // Every scale carries an explicit timeout, proportional to the rows it imports.
+  //
+  // These are benchmarks: they assert relational integrity (zero lost, zero duplicate rows),
+  // never a wall-clock threshold. Nothing here is supposed to fail because a machine is slow,
+  // so the budget only has to be larger than the slowest environment we run on.
+  //
+  // The 500-row case used to inherit the 20000ms default from vitest.config.ts while the
+  // 1,000-row case - twice the work - carried an explicit 90000ms. That gap was invisible on
+  // a host with native PostgreSQL (500 rows measured 12786ms, comfortably inside 20s) and a
+  // guaranteed red suite on a host running PostgreSQL in Docker, where per-round-trip latency
+  // is ~2.5x higher and the same case measures 36161ms. The failure said "slow disk", not
+  // "broken import", but it read as the latter.
+  //
+  // A timeout here is also not contained: Vitest reports a test failed at the deadline but
+  // cannot interrupt the awaited work, so the abandoned run keeps inserting leads while the
+  // next test's setupTenant deletes the campaign they point at - surfacing as a confusing
+  // foreign key violation in a test that is itself fine.
   it('executes 120-row high contention import benchmark with zero prospect loss', async () => {
     const metric = await runBatchBenchmark(120, 30);
     expect(metric.createdLeads).toBe(120);
     expect(metric.lostRows).toBe(0);
     expect(metric.duplicateRows).toBe(0);
-  });
+  }, 45000);
 
   it('executes 500-row batch import benchmark with measured throughput & p95 latency', async () => {
     const metric = await runBatchBenchmark(500, 50);
     expect(metric.createdLeads).toBe(500);
     expect(metric.lostRows).toBe(0);
     expect(metric.duplicateRows).toBe(0);
-  });
+  }, 150000);
 
   it('executes 1,000-row batch import benchmark with complete relational integrity', async () => {
     const metric = await runBatchBenchmark(1000, 50);
@@ -241,5 +258,5 @@ describe.skipIf(!hasDb)('IMPORT_HANDLER_BENCHMARK (TEL-P2-012, reclassified by T
 `,
       'utf-8',
     );
-  }, 90000);
+  }, 300000);
 });
