@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "program": "Telestar CRM Production Certification",
   "releaseTag": "telestar-internal-rc-2026-08-20",
-  "candidateSha": "84e4482bf40befe09bfc5824f8fb368f759c9a83",
-  "candidateFrozenAt": "2026-08-19T21:19:28.482Z",
+  "candidateSha": "471b61148305c745927d0f6267cc86a478ad1b9b",
+  "candidateFrozenAt": "2026-08-20T02:27:16.798Z",
   "previousCandidates": [
     {
       "sha": "cf23182cdd291d9f180bb36ec88d7fe6df0cdfb9",
@@ -29,6 +29,10 @@
     {
       "sha": "dfb172f53afaaae5f8304dd22b8f0dd37af69bcb",
       "invalidatedReason": "superseded: generator rendering fix committed after the freeze, caught by check N"
+    },
+    {
+      "sha": "84e4482bf40befe09bfc5824f8fb368f759c9a83",
+      "invalidatedReason": "superseded: import concurrency fix found by CI run 32323964277 (TEL-P1-022)"
     }
   ],
   "requiredRunCount": 3,
