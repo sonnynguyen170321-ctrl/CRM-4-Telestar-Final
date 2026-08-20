@@ -178,6 +178,43 @@ export async function capabilities(): Promise<Capability[]> {
   return out;
 }
 
+/**
+ * How to invoke tooling in *this* checkout.
+ *
+ * These are properties of the machine, not of the project, and they lived in `CLAUDE.md` where
+ * every session paid for them whether or not it ran a command. They belong here: an agent
+ * reads them at the moment it needs them, from the command whose job is to describe the
+ * environment.
+ */
+export function executionNotes(): string[] {
+  const notes: string[] = [];
+
+  if (process.cwd().includes('&')) {
+    notes.push(
+      'The checkout path contains "&", which breaks npm and npx .bin shims — `npx tsc` ' +
+        'resolves to a path that does not exist. Call entry scripts through node directly:',
+      '    node node_modules/typescript/bin/tsc --noEmit',
+      '    node node_modules/vitest/vitest.mjs run',
+      '    node node_modules/eslint/bin/eslint.js .',
+      '    node node_modules/tsx/dist/cli.mjs <script>',
+      '    node ./node_modules/next/dist/bin/next dev',
+      '  scripts/build.cjs already does this.',
+    );
+  }
+
+  if (process.platform === 'win32') {
+    notes.push(
+      'tsc and next build need NODE_OPTIONS=--max-old-space-size=8192, or they exit 134 with ' +
+        '"Ineffective mark-compacts near heap limit" — a heap limit, not a type error.',
+      'prisma generate fails with EPERM on query_engine-windows.dll.node while another process ' +
+        'holds the query engine. Stop the dev server and any running test process first.',
+    );
+  }
+
+  notes.push('Capture a gate exit code from the tool itself; a pipe reports its last stage.');
+  return notes;
+}
+
 export function renderCapabilities(caps: Capability[]): string {
   const lines: string[] = ['Local capability matrix', ''];
   const width = Math.max(...caps.map((c) => c.id.length));
@@ -193,5 +230,12 @@ export function renderCapabilities(caps: Capability[]): string {
       for (const blocked_item of cap.blocks) lines.push(`  - ${blocked_item}  (needs ${cap.id})`);
     }
   }
+
+  const notes = executionNotes();
+  if (notes.length > 0) {
+    lines.push('', 'Running commands here:');
+    for (const note of notes) lines.push(note.startsWith('    ') ? note : `  ${note}`);
+  }
+
   return lines.join('\n');
 }
