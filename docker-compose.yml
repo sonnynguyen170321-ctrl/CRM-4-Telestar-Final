@@ -24,6 +24,14 @@ x-app-base: &app-base
     CRON_SECRET: "${CRON_SECRET:-}"
     SEQUENCE_AUTOSEND_ENABLED: "${SEQUENCE_AUTOSEND_ENABLED:-false}"
     EMAIL_SEND_DRY_RUN: "${EMAIL_SEND_DRY_RUN:-true}"
+    # OPENAI_API_KEY / GEMINI_API_KEY / GROQ_API_KEY are deliberately NOT listed here.
+    #
+    # They arrive through `env_file` above, which both `web` and `worker` inherit from this
+    # anchor. Adding them with a `${VAR:-}` default would be actively harmful: an unset shell
+    # variable would resolve to an empty string, and an `environment:` entry *overrides*
+    # `env_file`, so the keys sitting correctly in .env.production would be replaced with
+    # blanks — and Telestar AI would report every provider as unconfigured while the file that
+    # holds the keys looked fine. Verify injection with `scripts/verify-container-secrets.sh`.
   restart: unless-stopped
   networks:
     - crm_internal

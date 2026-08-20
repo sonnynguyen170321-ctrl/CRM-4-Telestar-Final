@@ -27,7 +27,7 @@ import { z } from 'zod';
 import { circuitBreaker } from './circuitBreaker';
 import { routeModel, UnroutableRequestError, type RoutingCriteria } from './router';
 import type { ModelMetadata, ModelProvider } from './registry';
-import { recordAiCall, classifyFailure, type AiCallStatus } from './usage';
+import { recordAiCall, type AiCallStatus } from './usage';
 import { checkAndReserveAiBudget, type BudgetReservation } from './budget';
 import {
   streamGemini,

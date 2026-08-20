@@ -28,7 +28,17 @@ const requiredKeys = [
   'CRON_SECRET',
   'EMAIL_SEND_DRY_RUN',
   'SEQUENCE_AUTOSEND_ENABLED',
+  // Telestar AI routes across three providers and fails over between them. Requiring all
+  // three is the point: a deployment with one key has no failover, and the production chat
+  // outage this check exists to prevent was exactly that — one provider, one withdrawn model,
+  // nothing else reachable.
+  'OPENAI_API_KEY',
+  'GEMINI_API_KEY',
+  'GROQ_API_KEY',
 ];
+
+/** Provider credentials, reported by presence only. Never echo a key, or any part of one. */
+const aiProviderKeys = ['OPENAI_API_KEY', 'GEMINI_API_KEY', 'GROQ_API_KEY'];
 
 const add = (checks: Check[], level: Level, message: string) => {
   checks.push({ level, message });
@@ -46,6 +56,12 @@ const validate = (): Check[] => {
 
   for (const key of requiredKeys) {
     if (!env[key]) add(checks, 'FAIL', `${key} is required`);
+  }
+
+  for (const key of aiProviderKeys) {
+    // Presence, and nothing else. No prefix, no suffix, no length — each of those narrows the
+    // search space for anyone reading a CI log or a screen share.
+    if (env[key]) add(checks, 'PASS', `${key} configured`);
   }
 
   for (const [key, value] of Object.entries(env)) {

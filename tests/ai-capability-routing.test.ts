@@ -4,13 +4,17 @@
  * `requiresTools`, `requiresVision` and `requiresStructuredOutput` were declared on the
  * routing criteria and then never consulted. Two consequences, both tested here:
  *
- *   1. A request needing a capability could be answered by a model without it. A `deep`
- *      vision request routed to `gpt-5.6-sol`, whose `supportsVision` is false.
+ *   1. A request needing a capability could be answered by a model without it — a `deep`
+ *      vision request routed to a model whose `supportsVision` was false.
  *   2. Fallbacks were filtered on availability alone, so even a correct primary could fail
  *      over to a model that could not do the job.
  *
- * An unknown `preferredModel` also silently became Terra. That is now either an explicit
- * error or an explicit, inspectable fallback notice.
+ * An unknown `preferredModel` also silently became the flagship. That is now either an
+ * explicit error or an explicit, inspectable fallback notice.
+ *
+ * The model names here changed when the registry was cut to the three approved production
+ * models; the properties did not. `openai/gpt-oss-20b` is the one model without vision, so it
+ * plays the role the retired deep-reasoning model used to play in these cases.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -47,8 +51,9 @@ describe('capability filtering constrains the primary model', () => {
     expect(decision.primaryModel.supportsVision).toBe(true);
   });
 
-  it('routes a DEEP vision request away from gpt-5.6-sol, which has no vision', () => {
-    // The exact regression: deep/critical preferred Sol, and vision was never checked.
+  it('routes a DEEP vision request away from the one model that has no vision', () => {
+    // The exact regression: a deep/critical request took the top of the deep tier, and vision
+    // was never checked on the way.
     const decision = routeModel({
       task: 'strategic analysis of this dashboard image',
       complexity: 'deep',
@@ -56,8 +61,8 @@ describe('capability filtering constrains the primary model', () => {
       requiresVision: true,
     });
 
-    expect(MODEL_REGISTRY['gpt-5.6-sol'].supportsVision).toBe(false);
-    expect(decision.primaryModel.internalAlias).not.toBe('gpt-5.6-sol');
+    expect(MODEL_REGISTRY['openai/gpt-oss-20b'].supportsVision).toBe(false);
+    expect(decision.primaryModel.internalAlias).not.toBe('openai/gpt-oss-20b');
     expect(decision.primaryModel.supportsVision).toBe(true);
   });
 
@@ -76,9 +81,8 @@ describe('capability filtering constrains the primary model', () => {
   it('still honours the low-complexity fast tier when tools are not required', () => {
     const decision = routeModel({ task: 'classify sentiment', complexity: 'low', requiresTools: false });
 
-    expect(['gpt-4o-mini', 'llama-3.1-8b-instant', 'llama-3.3-70b-versatile']).toContain(
-      decision.primaryModel.modelId,
-    );
+    expect(decision.primaryModel.modelId).toBe(MODEL_REGISTRY['openai/gpt-oss-20b'].modelId);
+    expect(decision.primaryModel.latencyTier).toBe('instant');
   });
 });
 
@@ -115,9 +119,10 @@ describe('every fallback satisfies the same hard requirements as the primary', (
     const chainWithout = [withoutRequirement.primaryModel, ...withoutRequirement.fallbackModels];
     const chainWith = [withRequirement.primaryModel, ...withRequirement.fallbackModels];
 
-    // Sol is reachable without the requirement and unreachable with it.
-    expect(chainWithout.some((model) => model.internalAlias === 'gpt-5.6-sol')).toBe(true);
-    expect(chainWith.some((model) => model.internalAlias === 'gpt-5.6-sol')).toBe(false);
+    // Reachable without the requirement, unreachable with it. The pair is the assertion: one
+    // half alone would pass against a router that simply never selects this model.
+    expect(chainWithout.some((model) => model.internalAlias === 'openai/gpt-oss-20b')).toBe(true);
+    expect(chainWith.some((model) => model.internalAlias === 'openai/gpt-oss-20b')).toBe(false);
   });
 
   it('offers a cross-provider fallback first so one provider outage is survivable', () => {
@@ -150,36 +155,42 @@ describe('an unknown preferred model is never silently remapped', () => {
   });
 
   it('does not fabricate a notice when the preference is honoured', () => {
-    const decision = routeModel({ task: 'chat', preferredModel: 'gpt-5.6-terra' });
+    // A non-default choice, so honouring it is visible: the router's own primary for this
+    // criteria is gpt-5.6-luna.
+    const decision = routeModel({ task: 'chat', preferredModel: 'gemini-3.6-flash' });
 
-    expect(decision.primaryModel.internalAlias).toBe('gpt-5.6-terra');
+    expect(decision.primaryModel.internalAlias).toBe('gemini-3.6-flash');
     expect(decision.fallbackNotice).toBeUndefined();
   });
 
   it('explains why a real model was declined for a capability it lacks', () => {
     const decision = routeModel({
       task: 'look at this image',
-      preferredModel: 'gpt-5.6-sol',
+      preferredModel: 'openai/gpt-oss-20b',
       requiresVision: true,
     });
 
-    expect(decision.fallbackNotice?.requestedModel).toBe('gpt-5.6-sol');
+    expect(decision.fallbackNotice?.requestedModel).toBe('openai/gpt-oss-20b');
     expect(decision.fallbackNotice?.fallbackReason).toContain('vision');
     expect(decision.primaryModel.supportsVision).toBe(true);
   });
 
   it('explains why a real model was declined for an open circuit', () => {
-    openCircuit('gpt-5.6-terra');
+    openCircuit('gpt-5.6-luna');
 
-    const decision = routeModel({ task: 'chat', preferredModel: 'gpt-5.6-terra' });
+    const decision = routeModel({ task: 'chat', preferredModel: 'gpt-5.6-luna' });
 
     expect(decision.fallbackNotice?.fallbackReason).toContain('circuit is open');
-    expect(decision.primaryModel.internalAlias).not.toBe('gpt-5.6-terra');
+    expect(decision.primaryModel.internalAlias).not.toBe('gpt-5.6-luna');
   });
 
   it('registry lookup returns null rather than a substitute', () => {
     expect(findModelMetadata('gpt-9-does-not-exist')).toBeNull();
-    expect(findModelMetadata('gpt-5.6-terra')?.internalAlias).toBe('gpt-5.6-terra');
+    // A retired id must be as unknown as one that never existed. This is the lookup the whole
+    // outage went through: it used to answer with the flagship for any unrecognised string.
+    expect(findModelMetadata('gpt-5.6-terra')).toBeNull();
+    expect(findModelMetadata('llama-3.3-70b-versatile')).toBeNull();
+    expect(findModelMetadata('gemini-3.6-flash')?.internalAlias).toBe('gemini-3.6-flash');
     expect(() => getModelMetadata('gpt-9-does-not-exist')).toThrow(/Unknown AI model/);
   });
 });
