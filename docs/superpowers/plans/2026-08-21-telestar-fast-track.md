@@ -141,6 +141,39 @@ materialised any leads … Is the BullMQ import worker running?"*. CI starts
 worker up the spec passes in 17.3s. Environmental, and the registry now records how to run
 the browser suite locally so the next person does not rediscover it.
 
+## Telestar AI — verified with live providers
+
+Real keys went into `.env.local` (gitignored, never committed). What that unlocked, and what
+it found.
+
+| Gate | Result |
+|---|---|
+| `ai:smoke-providers` | **3/3 passed**, exit 0 — completion, streaming, tools, structured, per provider |
+| `ai:smoke-gateway` | **14/14 passed**, three consecutive runs |
+| Chat journeys, `TELESTAR_AI_E2E=1` | **30 passed**, exit 0 — the six exemptions discharged |
+
+**P0 · A recovering model could be skipped forever, in-process.** `isAvailable` marks a model
+as being probed in a process-local set, and only `recordSuccess` and `recordFailure` clear it —
+both of which describe the outcome of a call. Two paths enter HALF_OPEN and then decline to
+call: losing the shared probe lease, and abandoning an attempt whose price will not resolve.
+Neither recorded an outcome, so the marker stayed and every later `isAvailable` returned false
+for that model for the life of the process.
+
+Observed, not theorised: the chat route answered "Telestar AI is temporarily unavailable" in
+four milliseconds for 131 minutes — `openedAt` 1787250135227 against a 30-second reset — while
+the same three providers passed the CLI gateway smoke 14/14 in the same minutes. Fixed in
+`lib/ai/circuitBreaker.ts`; `tryEnterHalfOpen` releases the local marker when it loses the race
+and `exitHalfOpen` releases both halves. Two regression tests in `tests/ai-shared-circuit.test.ts`,
+shown failing without the fix and passing with it.
+
+**Harness · two release gates were coin flips.** The provider smoke asked a reasoning model to
+answer inside 32 output tokens; measured, `gpt-oss-20b` spends about thirty tokens thinking
+before it writes anything, so 32 truncates it mid-thought and returns empty. The gateway smoke
+had the same fault at 128 and streamed 0 characters on one run and 5 on the next. Both now take
+the budget from the registry, which is what the runtime sends. The gateway smoke also cleared
+only its in-process breaker between checks, so one transient blip failed every check after it —
+it now clears the shared state too. Three consecutive 14/14 runs.
+
 ## Findings recorded, not chased (§20)
 
 **P1 · The AI constitution governs one entrypoint, not all of them.**
@@ -153,6 +186,14 @@ Not a security hole: `lib/ai/tools.ts` enforces capability authorization through
 the "AI never bypasses application authorization" invariant holds regardless of the prompt.
 It is a prompt-governance gap and a false claim in a docstring. Fixing it changes AI output,
 which under §13 is a product change needing its own proof — not a pre-launch edit.
+
+**P1 · The boot window swallows the first Redis commands of every process.**
+`lazyConnect: true` with `enableOfflineQueue: false` means commands issued before the
+connection settles fail immediately. Seen affecting three separate things: login throttling
+fails open, `readSharedCircuits` returns `{}`, and `publishSharedCircuit` silently drops the
+write. A long-lived server self-corrects seconds later; a short-lived CLI process may never
+reach Redis at all. Changing the connection policy is an R3 change to worker and queue
+behaviour, so it needs its own proof rather than a pre-launch edit.
 
 **P1 · Login throttling fails open during the boot window, with Redis healthy.**
 `lib/bullmq/connection.ts` builds the client with `lazyConnect: true` and
