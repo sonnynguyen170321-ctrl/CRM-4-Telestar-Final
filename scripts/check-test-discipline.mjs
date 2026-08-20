@@ -34,6 +34,25 @@ const ROOT = process.cwd();
 const SCAN_DIRS = ['tests', 'e2e'];
 
 /**
+ * The provider-dependent Telestar AI chat journeys.
+ *
+ * These six gates read `TELESTAR_AI_E2E`, and the suite runs only when it is `1` and all
+ * three approved provider keys are live. That is an external prerequisite, not a disabled
+ * test: a default CI run holds no provider credentials, and a chat journey without a
+ * provider asserts nothing about the product. BLOCKED_EXTERNAL, which is never a pass.
+ *
+ * The exemption is discharged by running them, not by deleting them. Telestar AI cannot be
+ * certified from a run in which these skipped: the release certification run sets
+ * `TELESTAR_AI_E2E=1` against three live keys, and a skip there is a release blocker.
+ */
+const AI_CHAT_E2E_LINES = [112, 179, 188, 202, 246, 305];
+const AI_CHAT_E2E_REASON =
+  'Provider-dependent Telestar AI chat journey. Needs TELESTAR_AI_E2E=1 and three live ' +
+  'provider keys (OPENAI_API_KEY, GEMINI_API_KEY, GROQ_API_KEY); without them the journey ' +
+  'asserts nothing. BLOCKED_EXTERNAL, never a pass. The exemption is discharged by the ' +
+  'release certification run, which sets TELESTAR_AI_E2E=1 — a skip there blocks the release.';
+
+/**
  * Deliberately disabled tests. Every entry needs a reason and an owner phase — an entry with
  * neither is how a permanent hole starts looking like a temporary one.
  *
@@ -51,6 +70,11 @@ const ALLOWED_DISABLED = [
       'when a lane-owned lead is visible to that role. The acceptance matrix is maintained by ' +
       'the independent auditor, so this entry deliberately claims no status in it.',
   },
+  ...AI_CHAT_E2E_LINES.map((line) => ({
+    file: 'e2e/journeys/telestar-ai-chat.spec.ts',
+    line,
+    reason: AI_CHAT_E2E_REASON,
+  })),
 ];
 
 /**
