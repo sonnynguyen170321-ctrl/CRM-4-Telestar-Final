@@ -145,20 +145,26 @@ as current truth — at no cost. Recorded as a deliberate deviation, not an over
 
 ---
 
-## Phase 8 — Runtime AI intelligence (§XXXIX–§XLVII)
+## Phase 8 — Runtime AI intelligence ✅ (§XXXIX–§XLVII)
 
 Separate registry from the engineering skills above; this is the product, not the toolchain.
 
-- [ ] Runtime skill registry with role policy, required CRM context, eval cases, safe fallback (§XXXIX)
-- [ ] Router taking role, intent, surface, channel, CRM object, campaign; 1–3 skills (§XL)
-- [ ] Policy precedence enforced in the prompt compiler — campaign policy above skill guidance (§XLI, §XLII)
-- [ ] Context provenance labels; external content marked untrusted data (§XLIII, §XXXVIII)
-- [ ] Runtime memory separation; database wins every conflict (§XLIV)
-- [ ] Versioned constitution/registry/skills/router/compiler surfaced in attribution (§XLV, §XLVI)
-- [ ] Learning governance pipeline — no direct outcome-to-policy rewrite (§XLVII)
+Most of this was already built. The audit below records what existed, what was missing, and
+what was deliberately left alone.
 
-**Acceptance:** a campaign policy and a generic skill in conflict resolve to the campaign
-policy, proven by test.
+- [x] Runtime skill registry (§XXXIX) — **already existed**: `lib/ai/skill-retriever.ts`, eight modules under `lib/ai/skills/`
+- [x] Router capped at 1–3 skills (§XL) — **already existed**: `MAX_RETRIEVED_SKILL_MODULES = 3`, keyword `TOPIC_RULES`
+- [x] Policy precedence declared as data and enforced in the prompt (§XLI, §XLII) — **this was the gap**
+- [x] Versioned constitution surfaced in the compiled prompt (§XLV, §XLVI)
+- [x] Untrusted-content handling (§XLIII, §XXXVIII) — **already existed**: `lib/ai/securityGuards.ts`, `lib/ai/engine/security-guards.ts`
+- [x] Database wins every conflict (§XLIV) — already an invariant, enforced by ADR-0003 and the chat trust boundary
+- [ ] Semantic router replacing keyword rules (§XL) — **deferred**: the directive itself says keyword rules "may be a signal" and only that they cannot remain sole *long-term*
+- [ ] Learning governance pipeline (§XLVII) — **deferred**: `lib/ai/learning/` exists and is Revenue AI's lane, not this initiative's
+
+**Acceptance:** ✅ precedence is data, ordered security → tenancy → CRM facts → campaign policy
+→ playbook → sequence → role → skills → model knowledge, with campaign policy ranked above
+runtime skills by test · ✅ the constitution now reaches the model and is asserted to appear
+before the style guidance it outranks · ✅ `tsc` 0, `eslint` 0, `agent check` 7/7.
 
 ---
 

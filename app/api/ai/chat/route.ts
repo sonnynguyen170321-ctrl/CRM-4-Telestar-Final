@@ -10,6 +10,7 @@ import { calculateDeterministicSdrMetrics } from '@/lib/ai/contextEngine';
 import { formatEodForPrompt, isEodRequest, loadEodSummary } from '@/lib/briefing/service';
 import { isValidExecutionId, newExecutionId } from '@/lib/ai/executionId';
 import { retrieveRelevantSkills } from '@/lib/ai/skill-retriever';
+import { compileConstitutionalPrompt } from '@/lib/ai/behavior/telestar-ai-constitution';
 
 /**
  * Telestar AI chat.
@@ -204,7 +205,16 @@ export async function POST(req: NextRequest) {
 
   const relevantSkills = retrieveRelevantSkills({ channel: inferredChannel, operation: 'chat', topicText: lastUserMessage });
 
-  const systemPrompt = `You are the AI SDR Assistant for ${user.firstName} ${user.lastName} (${user.role} at Telestar).
+  // The constitution is the first layer, and deliberately so.
+  //
+  // It encodes the authority ordering — security, then tenancy and RBAC, then CRM facts,
+  // before anything about tone or usefulness — and it had been reaching no prompt at all:
+  // nothing outside its own test imported it, so the priority ladder governed nothing a model
+  // ever saw. Retrieved skills and style guidance sit below it, which is the point: generic
+  // coaching can never outrank campaign policy or authorization.
+  const systemPrompt = `${compileConstitutionalPrompt()}
+
+You are the AI SDR Assistant for ${user.firstName} ${user.lastName} (${user.role} at Telestar).
 Today's date: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.${memoryBlock}${contextBlock}
 
 ${relevantSkills}

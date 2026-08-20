@@ -366,6 +366,24 @@ describe('CRM context', () => {
     expect(loadEodSummaryMock).not.toHaveBeenCalled();
   });
 
+  it('puts the constitution above everything else in the prompt', async () => {
+    // The gap this closes: the constitution was declared, priority-ordered and tested, and
+    // imported by nothing outside its own test — so the authority ladder governed nothing a
+    // model ever saw. Security and authorization must appear, and must appear before the
+    // style guidance they outrank.
+    await POST(post({ messages: [{ role: 'user', content: 'hi' }] }));
+
+    const prompt = executeMock.mock.calls[0][0].systemPrompt as string;
+    expect(prompt).toContain('TELESTAR AI CONSTITUTION');
+    expect(prompt).toContain('SECURITY_ISOLATION');
+    expect(prompt).toContain('TENANT_AND_RBAC_AUTHORIZATION');
+
+    expect(prompt.indexOf('SECURITY_ISOLATION')).toBeLessThan(prompt.indexOf('IMPORTANT REMINDERS'));
+    expect(prompt.indexOf('TENANT_AND_RBAC_AUTHORIZATION')).toBeLessThan(
+      prompt.indexOf('IMPORTANT REMINDERS'),
+    );
+  });
+
   it('gives a manager the team-level note instead of the SDR one', async () => {
     requireAuthMock.mockResolvedValue({ ...SDR, role: 'floor_manager' });
 

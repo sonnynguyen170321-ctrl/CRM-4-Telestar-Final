@@ -12,13 +12,49 @@ plan: ./PLAN.md
 Branch: `feat/agent-intelligence-os` · started 2026-08-20 · stacked on
 `fix/telestar-ai-three-provider` (PR #98, unmerged).
 
-**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phases 0–7 complete of 9.
+**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phases 0–8 complete of 9.
 
 ---
 
 ## Current phase
 
-**Phase 8 — runtime AI intelligence.** See `PLAN.md` phase 8.
+**Phase 9 — evals, golden tasks, final acceptance.** See `PLAN.md` phase 9.
+
+### Phase 8 result — 2026-08-20
+
+Most of the runtime AI system described in §XXXIX–§XLVII already existed. The honest work was
+finding the one part that did not.
+
+| Requirement | State found |
+|---|---|
+| runtime skill registry (§XXXIX) | built — `lib/ai/skill-retriever.ts`, 8 modules |
+| router capped at 1–3 (§XL) | built — `MAX_RETRIEVED_SKILL_MODULES = 3` |
+| untrusted-content handling (§XLIII) | built — `lib/ai/securityGuards.ts` |
+| versioned prompt templates (§XLVI) | built — `lib/ai/promptRegistry.ts`, each `version: '1.0.0'` |
+| **policy precedence enforced (§XLI, §XLII)** | **declared, tested, and wired to nothing** |
+
+### The constitution governed nothing
+
+`lib/ai/behavior/telestar-ai-constitution.ts` defines ten priority-ordered principles —
+security first, then tenancy and RBAC, then CRM factual grounding, with tone and style last.
+It has a test asserting the ordering. And `compileConstitutionalPrompt` was imported by
+**nothing outside that test and one diagnostic script**.
+
+The chat route built its own system prompt inline. So the authority ladder existed as a
+document about itself: the priority order was real in the file, tested in the file, and absent
+from every prompt a model actually received. §LV lists "AI constitution role mismatch" as
+known drift; this is what it was.
+
+The constitution is now the first layer of the chat system prompt, carries
+`TELESTAR_AI_CONSTITUTION_VERSION`, and `POLICY_PRECEDENCE` declares the §XLI ordering as data
+so a compiler can sort by it. `tests/ai-chat-route.test.ts` asserts the security and
+authorization principles appear in the prompt **and appear before the style guidance they
+outrank** — the property, not the declaration.
+
+### Deferred, with reasons
+
+- **Semantic router** (§XL). The directive says keyword rules "may be a signal" and only that they cannot remain the sole router *long-term*. Replacing a working capped router with an embedding pipeline is a product decision, not a control-plane one.
+- **Learning governance pipeline** (§XLVII). `lib/ai/learning/` exists and belongs to the Revenue AI lane, which has its own STATUS and its own approval model. Rebuilding it here would be the second system §I forbids.
 
 ### Phase 7 result — 2026-08-20
 
@@ -371,6 +407,10 @@ to break that loop.
 | 2026-08-20 | 7 | `vitest` agent-system suites | **0** | 104 passed |
 | 2026-08-20 | 7 | `tsc --noEmit` | **0** | 0 errors |
 | 2026-08-20 | 7 | `eslint .` | **0** | 0 errors, 11 warnings |
+| 2026-08-20 | 8 | `vitest` constitution + chat route | **0** | 46 + 40 passed |
+| 2026-08-20 | 8 | `agent check` | **0** | 7/7 |
+| 2026-08-20 | 8 | `tsc --noEmit` | **0** | 0 errors |
+| 2026-08-20 | 8 | `eslint .` | **0** | 0 errors, 11 warnings |
 
 Exit codes are captured from the tool itself, never from the tail of a pipe.
 

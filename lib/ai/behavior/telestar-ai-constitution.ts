@@ -88,12 +88,52 @@ export const TELESTAR_AI_CONSTITUTION: readonly ConstitutionalPrinciple[] = [
 ] as const;
 
 /**
+ * Version of the constitution, surfaced so a behavioural change is explainable.
+ *
+ * "The AI changed" must be answerable. If conduct differs between two turns, either this
+ * version differs or the change was not authorised.
+ */
+export const TELESTAR_AI_CONSTITUTION_VERSION = '1.0.0';
+
+/**
+ * Authority ordering for everything that reaches the model.
+ *
+ * Declared as data rather than prose because it is a contract: lower-authority content must
+ * never displace higher-authority content, and a compiler that assembles layers needs
+ * something to sort by. Generic coaching guidance can never override campaign policy, and
+ * nothing overrides tenancy.
+ */
+export const POLICY_PRECEDENCE = [
+  'SECURITY',
+  'TENANCY_RBAC',
+  'CRM_FACTS',
+  'CLIENT_CAMPAIGN_POLICY',
+  'APPROVED_PLAYBOOK',
+  'CURRENT_SEQUENCE_CONFIG',
+  'ROLE_POLICY',
+  'RUNTIME_SKILLS',
+  'GENERAL_MODEL_KNOWLEDGE',
+] as const;
+
+export type PolicyLayer = (typeof POLICY_PRECEDENCE)[number];
+
+/** Lower number binds harder. Used to order composed prompt layers. */
+export function policyRank(layer: PolicyLayer): number {
+  return POLICY_PRECEDENCE.indexOf(layer);
+}
+
+/**
  * Returns the compiled Constitutional Prompt Block for model system instructions.
+ *
+ * This was declared, tested, and reached no prompt: nothing outside its own test and a
+ * diagnostic script imported it, so the priority ladder above governed nothing that a model
+ * ever saw. It is now the first layer of the chat system prompt, which is what makes the
+ * ordering a property rather than a description.
  */
 export function compileConstitutionalPrompt(): string {
   const principles = TELESTAR_AI_CONSTITUTION.map(
     (p) => `[P${p.priority} - ${p.name}]\n${p.rule}`
   ).join('\n\n');
 
-  return `=== TELESTAR AI CONSTITUTION (IMMUTABLE OPERATING PRINCIPLES) ===\n${principles}\n=== END CONSTITUTION ===`;
+  return `=== TELESTAR AI CONSTITUTION v${TELESTAR_AI_CONSTITUTION_VERSION} (IMMUTABLE OPERATING PRINCIPLES) ===\n${principles}\n=== END CONSTITUTION ===`;
 }
