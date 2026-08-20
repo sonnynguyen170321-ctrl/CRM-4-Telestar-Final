@@ -269,6 +269,8 @@ domains:
       - scripts/verify-*-live.ts
       - scripts/deep-*-audit.ts
       - scripts/deep-audit-*.ts
+      - scripts/check-test-discipline.mjs
+      - scripts/check-seed-delete-order.mjs
       - playwright.config.ts
       - vitest.config.ts
     tests:
@@ -277,6 +279,7 @@ domains:
       - tests/render.test.ts
     gates:
       - npm run check:test-discipline
+      - npm run check:seed-delete-order
     notes: Certification verdicts are generated from evidence. Never hand-edit generated output.
 
   - id: production-release

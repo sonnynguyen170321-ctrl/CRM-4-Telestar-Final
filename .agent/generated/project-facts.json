@@ -61,6 +61,7 @@
     "check:migration-order",
     "check:production-compose",
     "check:relational-integrity",
+    "check:seed-delete-order",
     "check:stale-models",
     "check:test-discipline",
     "create-admin",
@@ -92,5 +93,5 @@
     "worker:healthcheck",
     "worker:start"
   ],
-  "scriptCount": 49
+  "scriptCount": 50
 }
