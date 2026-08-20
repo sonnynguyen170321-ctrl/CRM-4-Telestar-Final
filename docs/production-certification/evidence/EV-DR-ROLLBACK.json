@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-DR-ROLLBACK",
   "kind": "dr-rollback",
-  "candidateSha": "99f6b8d00c3240c8be0fd07446ded1e710aa2b7b",
+  "candidateSha": "3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32",
   "environment": "certification workstation - no container runtime installed",
   "command": "(not executed) rollback between two immutable image digests",
-  "startedAt": "2026-08-20T02:50:31.322Z",
-  "finishedAt": "2026-08-20T02:50:31.322Z",
+  "startedAt": "2026-08-20T03:01:46.545Z",
+  "finishedAt": "2026-08-20T03:01:46.545Z",
   "exitCode": 127,
   "status": "NOT_EXECUTED",
   "metrics": {
