@@ -203,7 +203,16 @@ export async function POST(req: NextRequest) {
     ? 'linkedin'
     : 'email';
 
-  const relevantSkills = retrieveRelevantSkills({ channel: inferredChannel, operation: 'chat', topicText: lastUserMessage });
+  // Role and surface are weak tie-breakers, not authority: they nudge which craft module is
+  // retrieved, never what the user may see. Both come from the session and the validated
+  // navigation hint, never from anything the browser asserts about itself.
+  const relevantSkills = retrieveRelevantSkills({
+    channel: inferredChannel,
+    operation: 'chat',
+    topicText: lastUserMessage,
+    role: user.role,
+    surface: context?.page,
+  });
 
   // The constitution is the first layer, and deliberately so.
   //
