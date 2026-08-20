@@ -67,6 +67,12 @@ static_gates:
   - id: production-compose
     run: npm run check:production-compose
     checks: Cloud SQL wiring, local postgres disabled, no port exposure
+  - id: seed-delete-order
+    run: npm run check:seed-delete-order
+    checks: >-
+      every restricting child is deleted, and deleted before its parent, in
+      prisma/seed-demo.ts. A missing entry passes on an empty CI database and fails
+      partway through the wipe on a populated one.
   - id: relational-integrity
     run: npm run check:relational-integrity
   - id: rls
@@ -88,7 +94,14 @@ external_prerequisites:
     note: The smoke test requires 3 configured, 3 attempted, 3 passed. There is no partial mode.
   - tests: e2e requiring a built app
     needs: next build, then next start, plus a seeded audit fixture and a run-scoped E2E_PASSWORD
-    note: The published demo password is refused by the fixture guard.
+    note: >-
+      The published demo password is refused by the fixture guard. Mint ONE value per run and
+      seed it into both places: DEMO_SEED_PASSWORD for `npm run db:seed`, and E2E_PASSWORD for
+      the audit fixture and the Playwright run. The legacy `chromium` and `demo` projects sign
+      in seeded demo personas while `audit` and the certification projects use fixture users —
+      one value everywhere is what makes every project agree. Setting only E2E_PASSWORD makes
+      every persona login in e2e/crm-journeys.spec.ts fail for a reason that looks like a
+      product defect and is not. The CI job does this; a local run must too.
 
 reporting:
   - Capture the exit code from the tool, never from the tail of a pipe.
