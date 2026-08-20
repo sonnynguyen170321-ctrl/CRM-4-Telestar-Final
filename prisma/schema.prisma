@@ -1002,6 +1002,14 @@ model Reminder {
 
 model Activity {
   id          String       @id @default(cuid())
+  /// Deterministic key for writes that must happen exactly once per subject, such as the
+  /// single `lead_created` row an import produces for a lead.
+  ///
+  /// Nullable and unique: Postgres allows many NULLs in a unique index, so ordinary
+  /// activities - dozens of `email_sent` rows on one lead - are unaffected, while a keyed
+  /// write is guaranteed once by the database rather than by a read-then-write check that
+  /// two concurrent workers can both pass.
+  idempotencyKey String?   @unique
   userId      String
   user        User         @relation(fields: [userId], references: [id])
   leadId      String?

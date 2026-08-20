@@ -710,6 +710,31 @@ async function handlePoolChunk(payload: ImportChunkPayload) {
 }
 
 /**
+ * Performs a write that must happen exactly once, letting the database enforce it.
+ *
+ * The pattern this replaces was "read for an existing row, create it if absent". Two workers
+ * handed the same chunk both read nothing and both create, because nothing between the read
+ * and the write stops them — and the surrounding `catch` could not help, since with no
+ * constraint there was no error to catch. CI found exactly that (TEL-P1-022): two
+ * `lead_created` rows where the invariant is one.
+ *
+ * With a unique `idempotencyKey`, the loser gets P2002 and that *is* the success signal: the
+ * row exists, written by whoever won. Any other error still propagates, so a genuine failure
+ * is not quietly swallowed.
+ */
+async function createOnceByKey<T>(
+  idempotencyKey: string,
+  create: (idempotencyKey: string) => Promise<T>,
+): Promise<T | null> {
+  try {
+    return await create(idempotencyKey);
+  } catch (err: unknown) {
+    if ((err as { code?: string })?.code === 'P2002') return null;
+    throw err;
+  }
+}
+
+/**
  * Finds the lead that won a unique-constraint race, tolerating the commit window.
  *
  * When two workers are handed the same chunk, one `lead.create` succeeds and the other gets
@@ -881,62 +906,60 @@ async function handleImportChunk(payload: ImportChunkPayload) {
         throw new Error('FAILPOINT_AFTER_IMPORT_ROW');
       }
 
-      // Ensure activity idempotency under concurrency
-      try {
-        const existingActivity = await prisma.activity.findFirst({
-          where: { tenantId, leadId: createdLead.id, type: 'lead_created' },
-        });
-        if (!existingActivity) {
-          await prisma.activity.create({
+      // Exactly one `lead_created` row, guaranteed by the database.
+      //
+      // This used to read for an existing activity and create one if absent. Two workers
+      // handed the same chunk both saw none and both created — the check-then-act window is
+      // real, and CI caught it (TEL-P1-022) writing two rows where the invariant is one. The
+      // `catch` around it claimed to handle "the concurrency insert race", but nothing threw:
+      // there was no constraint to violate.
+      await createOnceByKey(
+        `import:lead_created:${createdLead.id}`,
+        (idempotencyKey) =>
+          prisma.activity.create({
             data: {
+              idempotencyKey,
               userId,
-              leadId: createdLead.id,
+              leadId: createdLead!.id,
               type: 'lead_created',
               description: `Lead ${data.firstName} ${data.lastName} imported from ${data.importListName || data.vendorSource || 'uploaded file'}`,
               tenantId,
             },
-          });
-        }
-      } catch (actErr: unknown) {
-        // Concurrency insert race caught safely
-        console.warn(`[import.chunk] concurrent activity create handled:`, actErr);
-      }
+          }),
+      );
 
       if (data.__failpoint === 'after_activity_lead_created') {
         throw new Error('FAILPOINT_AFTER_ACTIVITY_LEAD_CREATED');
       }
 
       if (sequence && sequence.steps.length > 0) {
-        try {
-          const existingEnrollmentActivity = await prisma.activity.findFirst({
-            where: { tenantId, leadId: createdLead.id, type: 'sequence_enrolled' },
-          });
-          if (!existingEnrollmentActivity) {
-            await prisma.activity.create({
+        await createOnceByKey(
+          `import:sequence_enrolled:${createdLead.id}:${sequence.id}`,
+          (idempotencyKey) =>
+            prisma.activity.create({
               data: {
+                idempotencyKey,
                 userId,
-                leadId: createdLead.id,
+                leadId: createdLead!.id,
                 type: 'sequence_enrolled',
                 description: `Enrolled in ${sequence.name} (import)`,
                 metadata: { sequenceId: sequence.id, sequenceName: sequence.name },
                 tenantId,
               },
-            });
-          }
-        } catch {}
+            }),
+        );
 
         if (data.__failpoint === 'after_activity_sequence_enrolled') {
           throw new Error('FAILPOINT_AFTER_ACTIVITY_SEQUENCE_ENROLLED');
         }
 
-        try {
-          const existingTask = await prisma.task.findFirst({
-            where: { tenantId, leadId: createdLead.id },
-          });
-          if (!existingTask) {
-            await createTaskForStep(createdLead, sequence, sequence.steps[0], new Date());
-          }
-        } catch {}
+        // Deterministic id, so two workers handed the same chunk collide on the Task primary
+        // key and the loser reuses the winner's row. The previous findFirst-then-create pair
+        // let both through and scheduled the cadence twice - the same race that produced two
+        // `lead_created` activities.
+        await createTaskForStep(createdLead, sequence, sequence.steps[0], new Date(), {
+          taskId: `import-${createdLead.id}-${sequence.id}-step${sequence.steps[0].order}`,
+        });
 
         if (data.__failpoint === 'after_task') {
           throw new Error('FAILPOINT_AFTER_TASK');

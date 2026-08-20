@@ -344,9 +344,28 @@ The prior cap of 25 is void.
 - **Why local runs never saw it**: the window is milliseconds wide. Slower, more contended CI
   hardware widens it enough to hit; this workstation does not. This is the case for running CI
   as evidence rather than trusting a local green.
-- **Fix**: `findLeadAfterConflict` re-reads up to five times with a short delay before giving
-  up. A row still absent after that has genuinely not been written, and the caller rethrows —
-  so the branch stays honest instead of swallowing a real failure.
+- **Fix, part 1**: `findLeadAfterConflict` re-reads up to five times with a short delay before
+  giving up. A row still absent after that has genuinely not been written, and the caller
+  rethrows — so the branch stays honest instead of swallowing a real failure.
+- **Fix, part 2 (what actually mattered)**: part 1 alone did not fix it. The second CI run failed
+  the same test with `expected 2 to be 1` on `activity.count` — the lead was no longer
+  duplicated, but **two `lead_created` activities** were. Three writes in that path used the
+  same check-then-act shape:
+
+  | Write | Old guard | Now |
+  |---|---|---|
+  | `lead_created` activity | `findFirst` then create | unique `Activity.idempotencyKey`, P2002 means "already written" |
+  | `sequence_enrolled` activity | `findFirst` then create | same |
+  | first sequence-step task | `findFirst` by `leadId` then create | deterministic `taskId`, the mechanism `createTaskForStep` already provides |
+
+  The `catch` wrapped around the activity guard claimed to handle "the concurrency insert
+  race". It could not: with no constraint there was nothing to throw. It was catching an error
+  that never happened while the duplicate went in cleanly.
+- **Schema**: `Activity.idempotencyKey String? @unique`. Nullable, so Postgres permits many
+  NULLs and ordinary activities — dozens of `email_sent` rows on one lead — are unaffected,
+  while a keyed write is guaranteed once by the database. Migration
+  `20260820000000_activity_idempotency_key`. Task needed no schema change: the deterministic
+  primary key `createTaskForStep` already accepts is exactly this mechanism.
 - **Evidence ID**: `EV-CI-RUN`, plus `EV-VITEST`
 
 ---
