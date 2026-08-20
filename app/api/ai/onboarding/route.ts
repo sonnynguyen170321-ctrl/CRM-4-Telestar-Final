@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import Groq from 'groq-sdk';
+import type { SessionUser } from '@/lib/auth';
+import { aiGateway } from '@/lib/ai/gateway';
+
+/**
+ * Onboarding answer validation.
+ *
+ * This route used to construct its own Groq client and hard-code a model id. That made it a
+ * fourth provider path — outside the registry, outside routing, outside failover, outside the
+ * usage ledger — and it broke silently when Groq withdrew the model, because a validation
+ * failure here degrades to "Got it!" rather than an error anyone sees. It goes through the
+ * gateway now, like everything else.
+ */
 
 
 // Client-side pre-screening: obvious non-answers that don't need an API call
@@ -43,6 +54,7 @@ export async function POST(req: NextRequest) {
   try {
     const userOrRes = await requireAuth();
     if (userOrRes instanceof NextResponse) return userOrRes;
+    const user = userOrRes as SessionUser;
 
     const { questionKey, answer, firstName } = await req.json() as {
       questionKey: string;
@@ -65,13 +77,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ valid: false, message: fallback });
     }
 
-    const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) {
+    // No provider configured is not a validation failure — onboarding must not become
+    // unpassable because the AI is down.
+    if (!aiGateway.hasAnyProvider()) {
       return NextResponse.json({ valid: true, message: 'Got it!' });
     }
 
     const context = QUESTION_CONTEXT[questionKey] ?? 'a coherent, relevant answer to the question asked';
-    const groq = new Groq({ apiKey });
 
     const prompt = `You are validating an SDR onboarding answer. Be STRICT — only accept answers that genuinely answer the question.
 
@@ -94,14 +106,18 @@ VALID: [1-sentence confirmation that references only what they actually said]
 or
 INVALID: [1-2 sentence friendly challenge that tells them specifically what you need]`;
 
-    const response = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+    const response = await aiGateway.generate({
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 130,
+      // Short, structured, latency-sensitive: exactly the fast tier's shape.
+      criteria: { task: 'onboarding_validation', complexity: 'low', latencySensitive: true },
+      maxTokens: 130,
       temperature: 0.2,
+      operation: 'onboarding_validation',
+      sessionUser: { id: user.id, tenantId: user.tenantId },
+      timeoutMs: 20_000,
     });
 
-    const raw = (response.choices[0]?.message?.content ?? '').trim();
+    const raw = response.content.trim();
 
     if (/^VALID:/i.test(raw)) {
       return NextResponse.json({

@@ -125,3 +125,7 @@ vitest-results.json
 
 # Transient certification working directory (run manifests, observations, vitest json).
 .certification/
+
+# Agent control plane — ephemeral session state (see .agent/state/README.md)
+.agent/state/*
+!.agent/state/README.md

@@ -1,3 +1,8 @@
+---
+classification: CURRENT_REFERENCE
+note: Automation domain map.
+---
+
 # Automation Engine — Domain Map
 
 > Architecture contract: every mutation path across the automation domain.

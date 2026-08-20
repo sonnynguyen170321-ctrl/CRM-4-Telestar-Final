@@ -1,3 +1,8 @@
+---
+classification: CURRENT_REFERENCE
+note: Automation engine design. Still describes the running scheduler.
+---
+
 # Automation Engine — Target Architecture
 
 > From spec §2. This is the architectural contract for the upgrade.

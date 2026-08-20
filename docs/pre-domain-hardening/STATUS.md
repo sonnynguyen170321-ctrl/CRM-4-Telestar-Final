@@ -1,3 +1,8 @@
+---
+classification: CURRENT_CANONICAL
+note: Live resume pointer.
+---
+
 # Pre-Domain Hardening — STATUS
 
 > Resume pointer. Read this first, then execute the next unchecked task in

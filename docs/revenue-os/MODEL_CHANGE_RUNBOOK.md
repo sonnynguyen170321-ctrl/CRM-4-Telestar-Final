@@ -1,3 +1,8 @@
+---
+classification: CURRENT_REFERENCE
+note: Operational runbook.
+---
+
 # TELESTAR REVENUE DELIVERY OS — MODEL CHANGE RUNBOOK
 
 **Document Version**: 1.0.0  

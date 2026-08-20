@@ -72,10 +72,30 @@ async function main() {
   await raw.meeting.deleteMany();
   await raw.task.deleteMany();
   await raw.sequenceStep.deleteMany();
+
+  // Every model below holds a *required* relation declared without an `onDelete`, so Prisma
+  // applies Restrict and the row pins its parent in place. On a fresh database none of them
+  // exist and their absence here is invisible — which is exactly why this list rotted: CI
+  // seeds an empty service container, while a developer machine or a reused test database
+  // has messages, opportunities and import batches, and the seed dies with P2003 partway
+  // through the wipe. The order is children before parents; `SequenceStepCopy`,
+  // `ImportRow` and the other cascading children need no line of their own.
+  await raw.opportunityActivity.deleteMany();
+  await raw.opportunity.deleteMany();
+  await raw.outboundMessage.deleteMany();
+  await raw.sequenceEnrollment.deleteMany();
   await raw.lead.deleteMany();
   await raw.sequence.deleteMany();
   await raw.template.deleteMany();
   await raw.bookingLink.deleteMany();
+  await raw.clientReportExport.deleteMany();
+  await raw.clientReportShareLink.deleteMany();
+  await raw.clientReport.deleteMany();
+  await raw.importRow.deleteMany();
+  await raw.importBatch.deleteMany();
+  await raw.leadgenActivity.deleteMany();
+  await raw.agentAction.deleteMany();
+  await raw.emailHealthSnapshot.deleteMany();
   await raw.campaignSdr.deleteMany();
   await raw.campaign.deleteMany();
   await raw.client.deleteMany();
@@ -807,6 +827,13 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
 
 tenantStorage.run({ tenantId: 'default-tenant', bypassRls: true }, () => {
   main()
-    .catch(console.error)
+    // `catch(console.error)` printed the failure and exited 0. A destructive seed that wipes
+    // half a database, fails, and reports success is the worst possible outcome: CI runs
+    // `set -o pipefail; npm run db:seed`, sees 0, and every login-dependent spec afterwards
+    // fails for a reason that looks like a product defect. Fail loudly instead.
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    })
     .finally(() => { prisma.$disconnect(); raw.$disconnect(); });
 });

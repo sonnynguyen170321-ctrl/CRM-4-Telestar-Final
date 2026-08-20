@@ -706,8 +706,13 @@ describe('Phase 8a — AI refinement and drafting at the provider boundary', () 
   // =========================================================================
   describe('generation provenance', () => {
     it('records an attributable AiCall even when no provider is configured', async () => {
+      const openai = process.env.OPENAI_API_KEY;
       const groq = process.env.GROQ_API_KEY;
       const gemini = process.env.GEMINI_API_KEY;
+      // All three, or the one left standing keeps generation available and the test proves
+      // nothing. A developer with only `OPENAI_API_KEY` in `.env.local` would have seen it pass
+      // for the wrong reason.
+      delete process.env.OPENAI_API_KEY;
       delete process.env.GROQ_API_KEY;
       delete process.env.GEMINI_API_KEY;
 
@@ -743,10 +748,14 @@ describe('Phase 8a — AI refinement and drafting at the provider boundary', () 
           expect(call.leadId).toBe(leadA);
           expect(call.status).toBe('unavailable');
           expect(call.errorCode).toBe('NO_API_KEY');
-          expect(call.provider).toBe('groq');
-          expect(call.model).toBeTruthy();
+          expect(call.provider).toBe('openai');
+          // No model is named, because none was called. Filling this in with the model that
+          // *would* have run is the same fabrication that made the ledger untrustworthy when
+          // an alias layer mapped `gpt-5.6-luna` onto a different model entirely.
+          expect(call.model).toBeNull();
         });
       } finally {
+        if (openai) process.env.OPENAI_API_KEY = openai;
         if (groq) process.env.GROQ_API_KEY = groq;
         if (gemini) process.env.GEMINI_API_KEY = gemini;
       }

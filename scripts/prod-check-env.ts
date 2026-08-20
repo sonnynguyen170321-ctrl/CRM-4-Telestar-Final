@@ -4,6 +4,8 @@ import {
   placeholderPattern,
   parseUrl,
   isLocalHost,
+  AI_PROVIDER_ENV,
+  PRODUCTION_REQUIRED_ENV,
 } from '@/lib/env-contract';
 
 type Level = 'PASS' | 'WARN' | 'FAIL';
@@ -13,22 +15,15 @@ const envPath = process.argv.includes('--file')
   ? process.argv[process.argv.indexOf('--file') + 1]
   : '.env.production';
 
-const requiredKeys = [
-  'DEPLOY_TARGET',
-  'CRM_IMAGE',
-  'DATABASE_URL',
-  'DIRECT_URL',
-  'BACKUP_DATABASE_URL',
-  'REDIS_URL',
-  'CRM_DOMAIN',
-  'NEXTAUTH_URL',
-  'CADDY_SITE_ADDRESS',
-  'AUTH_SECRET',
-  'ENCRYPTION_KEY',
-  'CRON_SECRET',
-  'EMAIL_SEND_DRY_RUN',
-  'SEQUENCE_AUTOSEND_ENABLED',
-];
+// Declared in lib/env-contract.ts so the boot validator, this deploy gate and the
+// `agent facts` generator cannot hold three different opinions about the same contract.
+// Telestar AI routes across three providers and fails over between them; requiring all three
+// is the point, because a deployment with one key has no failover — which is exactly the
+// production chat outage this check exists to prevent.
+const requiredKeys = PRODUCTION_REQUIRED_ENV;
+
+/** Provider credentials, reported by presence only. Never echo a key, or any part of one. */
+const aiProviderKeys = AI_PROVIDER_ENV;
 
 const add = (checks: Check[], level: Level, message: string) => {
   checks.push({ level, message });
@@ -46,6 +41,12 @@ const validate = (): Check[] => {
 
   for (const key of requiredKeys) {
     if (!env[key]) add(checks, 'FAIL', `${key} is required`);
+  }
+
+  for (const key of aiProviderKeys) {
+    // Presence, and nothing else. No prefix, no suffix, no length — each of those narrows the
+    // search space for anyone reading a CI log or a screen share.
+    if (env[key]) add(checks, 'PASS', `${key} configured`);
   }
 
   for (const [key, value] of Object.entries(env)) {

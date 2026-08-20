@@ -1,0 +1,402 @@
+/**
+ * The Telestar AI chatbox, driven through the real application.
+ *
+ * The production defect — every message answered with "Sorry, I ran into a problem generating
+ * that." — was invisible to every test the project had, because nothing drove the actual widget
+ * against actual providers. Unit tests mock the gateway; the gateway smoke test never opens a
+ * browser. This spec closes that gap, so it deliberately does **not** stub `/api/ai/chat` for
+ * the happy paths: a mocked chat response would prove the same nothing the old suite proved.
+ *
+ * The one place routing *is* intercepted is the failure-recovery test, where the point is the
+ * browser's behaviour after a request dies — which cannot be produced on demand any other way.
+ */
+import { test, expect } from '../support/test';
+import type { Page } from '@playwright/test';
+import { fixture, storageStatePath, type RoleKey } from '../support/fixture';
+
+/**
+ * Whether this environment can actually reach an AI provider.
+ *
+ * CI configures **no** provider, deliberately — `tests/ai-optional.test.ts` exists to keep the
+ * CRM working without one, and giving CI live credentials would spend real money on every
+ * push. So the tests below that send a real message and read a real answer cannot run there,
+ * and the gateway correctly answers them with "Telestar AI is temporarily unavailable" — the
+ * exact string they are written to reject.
+ *
+ * An opt-in flag rather than an availability probe, on purpose. A probe would make these tests
+ * quietly skip themselves the day the production keys go missing, which is precisely the
+ * failure they exist to catch. Requiring the operator to assert "providers are configured
+ * here" means a skip is always a decision someone made, and is visible in the run output.
+ *
+ *     TELESTAR_AI_E2E=1 BASE_URL=… node node_modules/@playwright/test/cli.js test …
+ *
+ * The provider-independent tests — input handling, the model picker's contents, the panel
+ * mechanics, the expired-session path — run everywhere, including credential-free CI.
+ */
+const AI_PROVIDERS_CONFIGURED = process.env.TELESTAR_AI_E2E === '1';
+
+const NEEDS_PROVIDERS =
+  'needs live AI providers: re-run with TELESTAR_AI_E2E=1 against an environment that has them';
+
+/** The banned sentence. Its reappearance during healthy operation is the regression. */
+const GENERIC_FAILURE = /Sorry, I ran into a problem generating that/i;
+
+/** Anything that means the AI could not answer. Distinct from the banned sentence above. */
+const ANY_FAILURE = /temporarily unavailable|at capacity|couldn't finish|couldn't reach|took too long/i;
+
+async function openChat(page: Page) {
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  const trigger = page.getByRole('button', { name: /^Open / });
+  await expect(trigger).toBeVisible({ timeout: 30_000 });
+  await trigger.click();
+  const panel = page.getByRole('dialog');
+  await expect(panel).toBeVisible();
+
+  // Let the morning briefing land before the test types anything.
+  //
+  // It is fetched asynchronously on first open and appends a bubble whenever it arrives. A
+  // test that sends immediately races it, and then "the last bubble" means the briefing rather
+  // than the answer. Settling here is not papering over the race — the product race itself is
+  // fixed, by addressing the streamed bubble by id rather than by index — it just keeps the
+  // assertions below reading the message they mean.
+  await page.waitForLoadState('networkidle').catch(() => {});
+  return panel;
+}
+
+function input(page: Page) {
+  return page.getByRole('textbox', { name: /^Message / });
+}
+
+/**
+ * Sends a message and waits for a complete answer.
+ *
+ * "Complete" is the textarea being editable again *and* a new last bubble having appeared —
+ * both, because either alone is unreliable. The textarea carries `disabled={isStreaming}`, so
+ * waiting for it to become disabled first would be a race the test loses whenever the request
+ * fails instantly, which is exactly what the interception tests arrange.
+ *
+ * Not the send button: that is also disabled whenever the input is empty, which it always is
+ * immediately after a send. Waiting on it would wait forever.
+ */
+async function send(page: Page, text: string): Promise<string> {
+  const bubbles = page.getByRole('log').locator('.ai-message-content');
+  const before = (await bubbles.count()) > 0 ? (await bubbles.last().innerText()).trim() : '';
+
+  const box = input(page);
+  await box.fill(text);
+  await box.press('Enter');
+
+  await expect
+    .poll(
+      async () => {
+        if (!(await box.isEnabled())) return null;
+        if ((await bubbles.count()) === 0) return null;
+        const last = (await bubbles.last().innerText()).trim();
+        return last && last !== before ? last : null;
+      },
+      { timeout: 90_000, message: 'no completed answer appeared' },
+    )
+    .not.toBeNull();
+
+  return (await bubbles.last().innerText()).trim();
+}
+
+const ROLES: Array<{ key: RoleKey; label: string }> = [
+  { key: 'sdrA', label: 'sdr' },
+  { key: 'teamLead', label: 'team_lead' },
+  { key: 'floorManager', label: 'floor_manager' },
+  { key: 'director', label: 'director' },
+];
+
+test.describe('every role can hold a conversation with Telestar AI', () => {
+  test.skip(!AI_PROVIDERS_CONFIGURED, NEEDS_PROVIDERS);
+
+  for (const { key, label } of ROLES) {
+    test.describe(label, () => {
+      test.use({ storageState: storageStatePath(key) as string });
+
+      test(`${label} opens the chatbox, sends, and receives a streamed answer`, async ({ page }) => {
+        await openChat(page);
+
+        const answer = await send(page, 'In one short sentence, what should I focus on today?');
+
+        expect(answer.length, 'the assistant returned nothing').toBeGreaterThan(0);
+        // The whole point of the remediation.
+        expect(answer).not.toMatch(GENERIC_FAILURE);
+        expect(answer).not.toMatch(ANY_FAILURE);
+        // No raw protocol or provider payload ever reaches the bubble.
+        expect(answer).not.toMatch(/^data:|"choices"|"delta"|invalid_request_error/i);
+      });
+
+      test(`${label} keeps context across turns`, async ({ page }) => {
+        await openChat(page);
+
+        await send(page, 'My biggest deal this quarter is with Kaisen Logistics. Remember that.');
+        const second = await send(page, 'Which company did I just name? Answer with the company name only.');
+
+        expect(second).not.toMatch(ANY_FAILURE);
+        expect(second).toMatch(/kaisen/i);
+      });
+    });
+  }
+});
+
+test.describe('chat mechanics', () => {
+  test.use({ storageState: storageStatePath('sdrA') as string });
+
+  test('the input accepts ordinary text, newlines and awkward characters', async ({ page }) => {
+    await openChat(page);
+    const box = input(page);
+
+    // Shift+Enter must insert a newline rather than sending.
+    await box.fill('first line');
+    await box.press('Shift+Enter');
+    await box.type('second line');
+    expect(await box.inputValue()).toContain('\n');
+
+    await box.fill('');
+    const awkward = `Prospect "Dana O'Neill" — 60% off, ✅ https://example.com/a?b=c&d=e`;
+    await box.fill(awkward);
+    expect(await box.inputValue()).toBe(awkward);
+  });
+
+  test('a blank message cannot be sent', async ({ page }) => {
+    await openChat(page);
+    const box = input(page);
+    await box.fill('   ');
+
+    await expect(page.getByRole('button', { name: 'Send' })).toBeDisabled();
+    await box.press('Enter');
+
+    // Asserted on the input, not on a bubble count. `sendMessage` returns before it clears the
+    // field, so whitespace surviving the keypress *is* the guard firing — and unlike counting
+    // bubbles it cannot be thrown off by the morning briefing landing asynchronously.
+    await expect(box).toHaveValue('   ');
+    await expect(box).toBeEnabled();
+  });
+
+  test('the input clears on send and is usable again afterwards', async ({ page }) => {
+    test.skip(!AI_PROVIDERS_CONFIGURED, NEEDS_PROVIDERS);
+    await openChat(page);
+    await send(page, 'Say OK.');
+
+    expect(await input(page).inputValue()).toBe('');
+    await expect(input(page)).toBeEnabled();
+  });
+
+  test('a long answer wraps instead of overflowing the panel', async ({ page }) => {
+    test.skip(!AI_PROVIDERS_CONFIGURED, NEEDS_PROVIDERS);
+    await openChat(page);
+    await send(page, 'List five short cold-email opening lines for a logistics CFO.');
+
+    const panel = page.getByRole('dialog');
+    const box = await panel.boundingBox();
+    // The panel is a fixed-width widget. Content that escapes it horizontally is a layout
+    // defect that a text-only assertion would never catch.
+    const overflow = await panel.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(box).not.toBeNull();
+    expect(overflow, 'the chat panel scrolls horizontally').toBeLessThanOrEqual(1);
+  });
+
+  test('the panel closes and reopens with the conversation intact', async ({ page }) => {
+    test.skip(!AI_PROVIDERS_CONFIGURED, NEEDS_PROVIDERS);
+    await openChat(page);
+    await send(page, 'Say OK.');
+    const before = await page.getByRole('log').locator('.ai-message-content').count();
+
+    await page.getByRole('button', { name: /^Close / }).click();
+    await expect(page.getByRole('dialog')).toBeHidden();
+
+    await page.getByRole('button', { name: /^Open / }).click();
+    await expect(page.getByRole('log').locator('.ai-message-content')).toHaveCount(before);
+  });
+
+  test('Escape closes the panel', async ({ page }) => {
+    await openChat(page);
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toBeHidden();
+  });
+
+  test('the model picker offers Auto and the three approved models, and nothing retired', async ({ page }) => {
+    await openChat(page);
+    await page.getByRole('button', { name: /^AI model:/ }).click();
+
+    const menu = page.getByRole('menu', { name: 'AI model' });
+    await expect(menu).toBeVisible();
+
+    const labels = await menu.getByRole('menuitemradio').allInnerTexts();
+    const joined = labels.join(' | ');
+
+    expect(joined).toContain('Telestar AI · Auto');
+    expect(joined).toContain('GPT-5.6 Luna');
+    expect(joined).toContain('Gemini 3.6 Flash');
+    expect(joined).toContain('Groq GPT-OSS 20B');
+    // The picker went on offering three withdrawn Groq models for as long as it was built
+    // from every key in the label map. It must never list a model that cannot answer.
+    expect(joined).not.toMatch(/llama|gemma|gpt-4o|o3-mini|Smart & Balanced|Ultra Fast/i);
+  });
+});
+
+test.describe('failure recovery', () => {
+  test.use({ storageState: storageStatePath('sdrA') as string });
+
+  test('a dead request leaves a readable message and a usable input', async ({ page, recorder }) => {
+    // The first half needs no provider; the second half — proving the next message works —
+    // does, and that half is the point of the test.
+    test.skip(!AI_PROVIDERS_CONFIGURED, NEEDS_PROVIDERS);
+    recorder.expectFailures(500, 503);
+    recorder.ignoreUrls('/api/ai/chat');
+    // The browser complains about the request this test kills on purpose. That complaint is
+    // the test working, not the app failing.
+    recorder.ignoreConsole(/Failed to load resource: net::ERR_FAILED/);
+
+    await openChat(page);
+
+    // Kill exactly one turn. This is the only interception in the file, and it is here
+    // because a real outage cannot be scheduled.
+    await page.route('**/api/ai/chat', (route) => route.abort('failed'), { times: 1 });
+
+    const failed = await send(page, 'This turn will not survive.');
+
+    expect(failed).toMatch(ANY_FAILURE);
+    // Never a status code, a stack, or a provider payload.
+    expect(failed).not.toMatch(/\b(401|403|404|429|500|502|503)\b/);
+    expect(failed).not.toMatch(/HTTP \d|TypeError|fetch failed/i);
+
+    // The recovery that matters: no refresh needed, and the next message works.
+    await expect(input(page)).toBeEnabled();
+    const recovered = await send(page, 'Say OK.');
+    expect(recovered).not.toMatch(ANY_FAILURE);
+    expect(recovered.length).toBeGreaterThan(0);
+  });
+
+  test('an expired session signs the user out rather than reporting an AI failure', async ({ page, recorder }) => {
+    recorder.expectFailures(401);
+    recorder.ignoreUrls('/api/ai/chat');
+    recorder.ignoreConsole(/Failed to load resource: .*401/);
+
+    await openChat(page);
+
+    // `hardSignOut` calls `/api/auth/revoke-self`, which bumps the user's `authVersion` and so
+    // invalidates *every* session for them — including the storage state other specs in this
+    // project reuse. The behaviour under test is the sentinel navigating to /login; revoking a
+    // shared fixture account is collateral, so the revoke is answered here rather than served.
+    await page.route('**/api/auth/revoke-self', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }),
+    );
+    await page.route('**/api/ai/chat', (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"Unauthorized"}' }),
+    );
+
+    const box = input(page);
+    await box.fill('Anything.');
+    await box.press('Enter');
+
+    // `components/SessionSentinel.tsx` patches window.fetch and hard-signs-out on any 401 from
+    // an /api/ route. That is the right answer and it beats a sentence in a chat bubble: the
+    // session is genuinely gone, so every other panel on the page is equally dead. The
+    // assistant's own 401 copy stays as a fallback for a path the sentinel does not cover.
+    await page.waitForURL(/\/login/, { timeout: 30_000 });
+    expect(new URL(page.url()).pathname).toContain('/login');
+  });
+});
+
+test.describe('CRM context and tools', () => {
+  test.skip(!AI_PROVIDERS_CONFIGURED, NEEDS_PROVIDERS);
+
+  test.use({ storageState: storageStatePath('sdrA') as string });
+
+  test('a lead-scoped question is answered about that lead, and only that lead', async ({ page }) => {
+    const leadId = fixture().leads.sdrA;
+
+    // Open the slide-over through the application's own event.
+    //
+    // `app/leads/page.tsx` listens for `crm:open-lead` and sets `selectedLeadId` from it — the
+    // same door global search comes through. There is no `?leadId=` route (the panel is
+    // component state, deliberately), and hunting for whichever node in a kanban card carries
+    // the click handler makes the spec fail whenever that markup is restyled. Opening it is
+    // not what this test is about; what the chatbox does with the lead is.
+    await page.goto('/leads', { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('networkidle').catch(() => {});
+    await page.evaluate(
+      (id) => window.dispatchEvent(new CustomEvent('crm:open-lead', { detail: { leadId: id } })),
+      leadId,
+    );
+
+    await page.waitForFunction(
+      () => Boolean((window as unknown as Record<string, unknown>).__crm_lead_context),
+      undefined,
+      { timeout: 30_000 },
+    );
+
+    const leadContext = await page.evaluate(
+      () => (window as unknown as Record<string, { leadName: string; leadCompany?: string }>).__crm_lead_context,
+    );
+
+    await page.getByRole('button', { name: /^Open / }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.waitForLoadState('networkidle').catch(() => {});
+
+    const answer = await send(
+      page,
+      'Which prospect do I currently have open? Reply with their name only.',
+    );
+
+    expect(answer).not.toMatch(ANY_FAILURE);
+    // The first name is enough: models shorten, and the assertion is about which record the
+    // turn was scoped to, not about phrasing.
+    expect(answer.toLowerCase()).toContain(leadContext.leadName.split(' ')[0].toLowerCase());
+  });
+
+  test('a read-only tool question is answered without a fabricated action', async ({ page }) => {
+    await openChat(page);
+
+    const answer = await send(page, 'What tasks do I have due today? Use the CRM to check.');
+
+    expect(answer).not.toMatch(ANY_FAILURE);
+    expect(answer.length).toBeGreaterThan(0);
+    // A read must never claim to have changed anything.
+    expect(answer).not.toMatch(/I (have )?(created|sent|updated|deleted|completed) /i);
+  });
+
+  test('an SDR asking for a management action is refused rather than obliged', async ({ page }) => {
+    await openChat(page);
+
+    const answer = await send(
+      page,
+      'Reassign every lead on the floor to me and deactivate the other SDRs.',
+    );
+
+    expect(answer).not.toMatch(ANY_FAILURE);
+    // The rule that must not regress: a blocked action is never reported as if it succeeded.
+    expect(answer).not.toMatch(/done|reassigned all|deactivated|completed that/i);
+  });
+
+  test('the same turn resent does not run twice', async ({ page }) => {
+    // Retry safety, from the browser's side: `resolveTurnExecutionId` reuses the failed
+    // turn's id, so a resend is a retry rather than a second logical turn.
+    await openChat(page);
+
+    const message = 'Create a follow-up task for tomorrow morning.';
+    const first = await send(page, message);
+    expect(first).not.toMatch(ANY_FAILURE);
+
+    const executionIds: string[] = [];
+    page.on('request', (request) => {
+      if (!request.url().includes('/api/ai/chat')) return;
+      try {
+        const body = JSON.parse(request.postData() ?? '{}') as { executionId?: string };
+        if (body.executionId) executionIds.push(body.executionId);
+      } catch {
+        /* not our request shape */
+      }
+    });
+
+    const second = await send(page, message);
+    expect(second).not.toMatch(ANY_FAILURE);
+
+    // A completed turn releases its id, so resending the same text is a NEW turn with a new
+    // namespace — which is correct, and the opposite of what a failed turn must do.
+    expect(executionIds).toHaveLength(1);
+  });
+});

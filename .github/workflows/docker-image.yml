@@ -21,6 +21,8 @@ on:
 permissions:
   contents: read
   packages: write
+  # Needed to read the triggering run's individual job results. See the gate step below.
+  actions: read
 
 env:
   REGISTRY: ghcr.io
@@ -29,14 +31,51 @@ env:
 jobs:
   publish:
     name: Build and push
-    # `workflow_run` fires on completion regardless of outcome, so the conclusion has to
-    # be tested explicitly — without this, a failed CI run would publish an image.
+    # `workflow_run` fires on completion regardless of outcome. A cancelled run validated
+    # nothing, so it is excluded here; every other outcome is decided by the gate step below
+    # rather than by the workflow's overall conclusion.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+      github.event.workflow_run.conclusion != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # ── The release gate ────────────────────────────────────────────────
+      #
+      # Deliberately the `CI required checks` job's own conclusion, not the CI workflow's.
+      #
+      # The workflow conclusion is the *aggregate of every job in it*, including the two that
+      # depend on GitHub plan features — CodeQL needs Advanced Security on a private repo, and
+      # Dependency Review needs the dependency graph. Where those are unavailable they fail
+      # permanently, the workflow conclusion is permanently `failure`, and gating on it means
+      # no commit can ever be released no matter how green the code is. The pressure that
+      # creates is to delete the security jobs, which is the wrong repair.
+      #
+      # `CI required checks` already encodes which results are acceptable for which job. Asking
+      # it directly keeps release eligibility a statement about the code, while leaving the
+      # optional scanners free to be honestly red.
+      - name: Require the mandatory CI aggregate to have succeeded
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          conclusion="$(gh api "repos/${REPO}/actions/runs/${RUN_ID}/jobs" --paginate \
+            --jq '.jobs[] | select(.name == "CI required checks") | .conclusion' | head -n 1)"
+
+          if [ -z "${conclusion}" ]; then
+            echo "::error::No 'CI required checks' job in run ${RUN_ID}. Refusing to publish an image for a run whose mandatory gate cannot be found."
+            exit 1
+          fi
+          if [ "${conclusion}" != "success" ]; then
+            echo "::error::'CI required checks' concluded '${conclusion}'. No image is published."
+            exit 1
+          fi
+          echo "Mandatory CI aggregate succeeded — release eligible."
+        shell: bash
+
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           # The commit CI actually validated — not whatever main points at now.

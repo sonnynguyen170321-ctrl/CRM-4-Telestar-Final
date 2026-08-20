@@ -1,5 +1,6 @@
-import { hasGroq, hasGemini, primaryProvider } from '@/lib/ai/providerRouting';
-import { DEFAULT_MODEL } from '@/lib/ai/provider';
+import { aiGateway } from '@/lib/ai/gateway';
+import { MODEL_REGISTRY } from '@/lib/ai/registry';
+import { routeModel } from '@/lib/ai/router';
 import { compileConstitutionalPrompt, TELESTAR_AI_CONSTITUTION } from '@/lib/ai/behavior/telestar-ai-constitution';
 import { detectPromptInjection, scrubSecrets } from '@/lib/ai/engine/security-guards';
 import { classifyIntent } from '@/lib/ai/engine/intent-engine';
@@ -10,11 +11,23 @@ async function diagnose() {
   console.log('🤖 TELESTAR AI AGENT DEEP DIAGNOSTIC');
   console.log('====================================================\n');
 
-  console.log('1. 🔌 Provider Configuration:');
-  console.log('   - GROQ_API_KEY present:', hasGroq() ? '✅ YES' : '❌ NO');
-  console.log('   - GEMINI_API_KEY present:', hasGemini() ? '✅ YES' : '❌ NO');
-  console.log('   - Primary Active Provider:', primaryProvider() ?? '🛡️ None (Fallback Resilience Mock Active)');
-  console.log('   - Default LLM Model:', DEFAULT_MODEL);
+  console.log('1. 🔌 Provider Configuration (presence only — never the key):');
+  console.log('   - OPENAI_API_KEY:', aiGateway.isProviderConfigured('openai') ? 'SET ✅' : 'NOT SET ❌');
+  console.log('   - GEMINI_API_KEY:', aiGateway.isProviderConfigured('google') ? 'SET ✅' : 'NOT SET ❌');
+  console.log('   - GROQ_API_KEY:', aiGateway.isProviderConfigured('groq') ? 'SET ✅' : 'NOT SET ❌');
+
+  console.log('\n   Approved production models:');
+  for (const model of Object.values(MODEL_REGISTRY)) {
+    console.log(`   - ${model.displayName.padEnd(20)} ${model.provider.padEnd(7)} ${model.modelId}`);
+  }
+
+  try {
+    const route = routeModel({ task: 'chat', requiresTools: true }, { requireConfiguredProvider: true });
+    console.log('\n   Chat routes to:', route.primaryModel.modelId);
+    console.log('   Failover chain:', route.fallbackModels.map((m) => m.modelId).join(' -> ') || '(none)');
+  } catch (err) {
+    console.log('\n   ❌ Chat is unroutable:', err instanceof Error ? err.message : String(err));
+  }
 
   console.log('\n2. 📜 AI Constitution & Governance:');
   console.log(`   - Loaded ${TELESTAR_AI_CONSTITUTION.length} Immutable Operating Principles`);

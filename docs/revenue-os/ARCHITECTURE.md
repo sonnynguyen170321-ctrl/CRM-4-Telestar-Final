@@ -1,3 +1,8 @@
+---
+classification: CURRENT_REFERENCE
+note: Revenue OS design reference.
+---
+
 # TELESTAR REVENUE DELIVERY OS — ARCHITECTURE SPECIFICATION
 
 **Document Version**: 1.0.0  

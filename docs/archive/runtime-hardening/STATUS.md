@@ -1,0 +1,98 @@
+---
+classification: HISTORICAL
+superseded_by: current code, and the scoped rule or skill named below
+---
+
+> ## NOT CURRENT
+>
+> A record of finished work, kept for its reasoning. **Do not read it as a description
+> of how the system behaves today** — it was accurate when written and nothing has kept
+> it accurate since. Go-live completed per this document. Runtime law lives in .claude/rules/workers-runtime.md and ADR-0001.
+>
+> Current truth: the code, then `.agent/generated/`, then `.agent/` and `.claude/rules/`.
+
+# Runtime Hardening — STATUS
+
+> Update this file at the end of every working session. It is the resume pointer:
+> an agent reads this first, then jumps to the named task in [`PLAN.md`](./PLAN.md).
+
+**Current phase:** FULL PRODUCTION GO-LIVE COMPLETED (Phases 0–11, Phase A–D, Gates E10–E20).
+**Status:** 🟢 Live & Active in Production at `https://crm.telestar.cloud`.
+**Next unchecked task:** None. System in live operational outreach mode.
+**Blockers:** None.
+
+### Deployment Record — 2026-08-17 (Production Launch)
+
+| Component | Production Configuration | Status |
+|---|---|---|
+| **Production URL** | `https://crm.telestar.cloud` (Caddy TLS, HTTP/2, Auto-cert) | 🟢 LIVE (HTTP 200) |
+| **GCP Project** | `telestar-crm-final`, region `asia-southeast1`, zone `-a` | 🟢 HEALTHY |
+| **Host VM** | GCE `telestar-crm-vm` (`e2-standard-2`), Docker Compose + Caddy | 🟢 RUNNING |
+| **Database** | Cloud SQL `telestar-db`, Postgres 16, 46 schema migrations applied | 🟢 CONNECTED |
+| **Queue & Cache** | Redis 7 container on VM (BullMQ) | 🟢 CONNECTED |
+| **Background Workers** | `crm-4-u-worker-1` always-on BullMQ sequence & email worker | 🟢 RUNNING |
+| **Live Mailbox** | Hostinger Titan IMAP/SMTP (`imap.titan.email:993` / `smtp.titan.email:465`) | 🟢 CERTIFIED (Outbound + Inbound) |
+| **Automated Backups** | Daily 02:00 UTC Cloud SQL dump + 7-day rolling retention (`/etc/cron.d/crm-daily-backup`) | 🟢 ACTIVE |
+| **Outreach Mode** | **Phase D Full Production Outreach** (`LIVE_EMAIL_CANARY_MODE="false"`) | 🟢 ACTIVE |
+| **Personas Tested** | Director, Floor Manager, SDR, Leadgen (Playwright E2E 100% Green) | 🟢 CERTIFIED |
+
+**P10 honesty note.** An earlier revision of this file marked P10 complete while the plan's
+acceptance criterion — *provision managed Redis and a separate always-on host running
+`workers/index.ts`* — had only been met on paper, by authoring packaging and runbooks. As of
+the deployment above the worker genuinely runs, so the claim now holds. One deviation from
+the original wording: Redis is a container on the same VM rather than a managed service.
+That satisfies "always-on worker with a reachable queue" but **not** "queue state survives
+loss of the VM". Accepted deliberately for a demo; revisit before real client data.
+
+**P11 pilot smoke:** done. `crm-journeys` + `deep-smoke` ran green against the live URL —
+20/20, including the outbound-safety assertion that `/api/cron/sequence-engine` returns
+`{disabled: true, sent: 0}`.
+
+## Decisions locked
+- **Runtime:** Full BullMQ — separate always-on worker host + managed Redis (P10). The web tier is host-agnostic; there is no Vercel coupling in this repo (no `vercel.json`, no `@vercel/*`, no edge runtime). See `docs/GCP_DEPLOY.md`, `docs/CLOUD_RUN_DEPLOY.md`, `docs/DEPLOY.md`.
+- **Scope:** Entire plan P0–P11.
+- **Migrations/workers:** use `DIRECT_URL` (Neon HTTP driver has no interactive transactions).
+- **Email live-send:** stays `EMAIL_SEND_DRY_RUN=true` until P4/P6 verified.
+- **Tenant scoping:** `@default("default-tenant")` removed from all 23 models; middleware in `lib/prisma.ts` injects `tenantId` from session. Seed wraps operations in `tenantStorage.run()` for explicit tenant context.
+- **Token encryption:** OAuth tokens encrypted on save via `lib/crypto.ts`; decrypted on read in `EmailService.fromAccount()`. Old plaintext columns kept for backfill.
+- **Suppression dedup:** Partial unique indexes using `COALESCE("campaignId", '')` to handle nullable campaignId; one active enrollment per lead per sequence via `WHERE status='active'`; lead dedup on `(tenantId, campaignId, normalizedEmail)`.
+
+## Progress log
+- 2026-06-23 — Plan authored, verified against codebase, committed. Pinned as primary flow in `CLAUDE.md` / `AGENTS.md` / `.claude/rules/runtime-hardening.md`. No app code changed yet.
+- 2026-06-23 — P0.1: Lead list AND-compose fix already applied to codebase (found during verification). No additional changes needed.
+- 2026-06-23 — P0.2–P0.11: Completed entire workflow correctness phase. Added timezone boundary helper, lead access validations, soft archiving on delete, task completion CAS, and Topbar role fencing. Verified with passing Vitest tests.
+- 2026-06-23 — P1.0: Reconciled database drift. Created and applied migration for Tenant, tenantId, and AiMemory drift. Modified seed.ts to upsert default-tenant first, and verified database seed and tests.
+- 2026-06-23 — P2: BullMQ foundation built. Installed `bullmq` + `ioredis`. Created `lib/bullmq/{connection,types,queues,jobOptions,enqueue,events,index}.ts`. Created `workers/{index,healthcheck}.ts`. Created `scripts/{worker-dev,worker-start}.cjs`. Updated `package.json` scripts + `.env.example` with `REDIS_URL`.
+- 2026-06-23 — **P1.1** ✓ — Removed `@default("default-tenant")` from all 23 models in `schema.prisma`. Updated seed.ts to use middleware-aware `prisma` + `tenantStorage.run()` for tenant context. Migration SQL created.
+- 2026-06-23 — **P1.9** ✓ — Added `encAccessToken`/`encRefreshToken` fields to EmailAccount schema. Encrypt on save in Google OAuth, Microsoft OAuth, and IMAP/SMTP accounts routes. Decrypt on read in `EmailService.fromAccount()`. Encrypt refreshed tokens in GmailAdapter `tokens` handler and OutlookAdapter `refreshAccessToken()`. Created backfill script `scripts/encrypt-existing-tokens.ts`. 4 crypto round-trip tests passing.
+- 2026-06-23 — **P1.4** ✓ — SuppressionEntry uniqueness: partial unique indexes with `COALESCE("campaignId", '')` for email/domain/company + schema `@@unique` constraints.
+- 2026-06-23 — **P1.5** ✓ — SequenceEnrollment: removed full `@@unique([leadId,sequenceId])`; replaced with partial `WHERE status='active'` via raw SQL. Enum already has `completed|unenrolled`.
+- 2026-06-23 — **P1.7** ✓ — Lead dedup: partial unique index on `(tenantId, campaignId, normalizedEmail)` where `normalizedEmail IS NOT NULL`.
+- 2026-06-23 — **P1.2/P1.3/P1.6/P1.8** ✓ — Verified as already present in schema (checkbox ticked).
+- 2026-06-23 — **P2 Workflows** ✓ — Multi-step workflow definitions created under `lib/workflows/{import,sequence,email}.ts` to isolate job enqueuing. Tested and fully passing.
+- 2026-06-23 — **P3 Sequence worker** ✓ — `workers/sequence.ts` with 5 handlers (enroll/advance/pause/unenroll/rebuild) using `createAppWorker`. 14 Vitest unit tests pass.
+- 2026-06-23 — **P9 Live Verification** ✅ — HTTP smoke-test against `localhost:3000` + Neon DB confirmed: all 4 admin API routes return 200 with correct schemas (floor_manager); SDR gets 403 on API routes; all 4 admin UI pages render 31k+ bytes HTML for floor_manager. Added edge-level role guard to `proxy.ts`.
+- 2026-06-23 — **Audit: P0.4 gap closed** — Added `.min(1)` to `subject` and `body` in `sendEmailSchema`; added suppression gate to email send route.
+- 2026-06-23 — **Audit: P1.8 migration gap closed** — Created migration `20260623080000_add_sequencestep_unique_order_per_sequence`.
+- 2026-06-23 — **P4 Email worker** ✓ — Created `workers/email.ts` with OutboundMessage lifecycle, atomic quota with date-aware reset, provider idempotency reconciliation, suppression gate. Gmail adapter returns provider message ID for idempotency storage. Imap adapter returns nodemailer messageId. Three send paths (API route, smartSend cron, Inngest) all now create OutboundMessage + enqueue via `enqueueEmailSendWorkflow`. Email worker registered in `workers/index.ts`. 7 Vitest unit tests pass (110 total).
+- 2026-06-23 — **P7 Notification/Maintenance worker** ✓ — Created `workers/notification.ts` (reminder.due/digest.daily) and `workers/maintenance.ts` (5 repair types: orphan-tasks, stale-sending, stuck-running, missing-delayed, reassignment-drift). Both registered in `workers/index.ts`. Notification worker runs on SYNC queue, maintenance on MAINTENANCE queue. 19 new Vitest unit tests pass across 2 test files (129 total).
+- 2026-06-23 — **P6 Sync/reply/bounce worker** ✓ — Created `workers/sync.ts` with `handleEmailSync` (fetch + classify + apply inline), `handleApplyReply` (idempotent on lead state), `handleApplyBounce` (hard→SuppressionEntry, soft→no suppression). Added `providerMessageId` to `InboxMessage` interface; updated Gmail/Outlook/Imap adapters. Fixed `jobQueue()` routing: `email.sync/apply-reply/apply-bounce` → SYNC queue. Updated inbox-sync cron to enqueue BullMQ jobs. 16 new Vitest tests pass (141 total).
+- 2026-06-23 — **P5 Import worker** ✓ — Refactored `POST /api/leads/import` into two-phase flow (create batch + enqueue, returns 202). Created `workers/import.ts` with `handleImportParse` (validate + scoped dedup + chunk), `handleImportChunk` (create leads with normalized fields + activities + optional sequence enrollment), `handleImportCommit` (count + finalize). Extended `ImportParsePayload`/`ImportChunkPayload` with metadata. Created `lib/leads/normalize.ts` (normalizeEmail, normalizePhone, normalizeLinkedIn). Updated API route to return 202 Accepted. 18 new Vitest tests pass (147 total).
+- 2026-06-23 — **P8 Phase 1 ✓** — Added `Account` model (name, industry, website, linkedIn, size, tenantId); added `accountId` (optional FK) + `engagementScore` (Int?) to Lead; renamed `priority` → `crmPriorityScore` on Lead. Migration populates Account from existing distinct Lead companies. Updated all 11 source files referencing old `priority` field. API surface keeps `priority` as input. Migration: `20260623100000_p8_premium_data_model`.
+- 2026-06-23 — **P8 Phase 2 (pragmatic) ✓** — Added `Contact` model (person fields + dedup on `(tenantId, normalizedEmail)`); added `contactId` FK to Lead. Updated `workers/import.ts`, `app/api/leads/route.ts`, `prisma/seed.ts` to create/find Contact before Lead. Person fields retained on Lead for backward compat. Migration: `20260624100000_p8_contact_model`. 162/163 tests pass (admin needs Neon DB).
+- 2026-06-24 — **Build-unblock audit (static + Playwright runtime) ✓** — `next build` had been silently broken since P1.1 (156 tsc errors; `next dev` doesn't typecheck). Root cause: removing `@default("default-tenant")` made `tenantId` type-required on every write while `lib/prisma.ts` injects it at runtime. **Central fix:** extracted tenant-injection into `lib/tenant-inject.ts` (now also stamps writes in the bypassRls worker/seed path — a latent NOT-NULL runtime bug — and never WHERE-scopes bypass reads); exported `prisma` as a `TenantWriteOptional` type so `tenantId` is optional only on write inputs. Added `tests/tenant-inject.test.ts` (14 tests). Fixed ~20 genuine bugs (seed `leadsData` ordering + nested-step `tenantId`; BullMQ `timeout`/`ConnectionOptions`/`Prisma.DbNull`; email/send `tenantId` guard; import-row JSON cast; adapter `send` return types; `tasks` route `crmPriorityScore`→`priority` remap; `workers/healthcheck` `job.client`; test drift; `prefer-const`). **Playwright sweep** of all 14 pages logged in as Dean (director): every page 0 console errors / all API 200 after fixes. Two runtime bugs found+fixed: `/api/sequences` 500 (reverted the `Sequence.version`/`sequence_paused` schema adds — they needed a DB migration the un-migrated Neon DB lacked; refactored `handleRebuild` to drop the unused version-bump and `pauseSequence` to emit `sequence_unenrolled`+`paused` metadata) and a React `key` warning in `JobsAdminPage` (Fragment key). Verified create path end-to-end (POST /api/leads → 201 with middleware-injected `tenantId`). Gates green: tsc 0 · lint clean · 177 tests · `next build` OK. Note: `team/campaigns` showed a transient Neon connect-timeout (infra, not code). No Neon migration applied (moving to AWS).
+
+- 2026-06-25 — **P10 Inngest teardown ✓** — Removed the last Inngest usage. The scheduled auto-send (`crm/task.execute`, fired at a step's due date) is now a **delayed BullMQ `sequence.execute-task` job**: `lib/sequences/engine.ts` enqueues it with `delay = dueDate - now` + `tenantId`; ported the executor to `workers/sequence.ts:handleExecuteTask` (worker already runs in tenant context via `wrapProcessor`, so the manual `tenantStorage` juggling dropped). Deleted `lib/inngest/*`, `app/api/inngest/route.ts`, and the `inngest` dependency. Delayed job is rebuildable from the `JobRun` mirror (maintenance `missing-delayed`). Added `tests/sequence-execute.test.ts` (8 tests). Gates green. **Remaining P10 = infra** (managed Redis + worker host) + retire `smartSend` scanner.
+- 2026-07-07 — **Sequence Run Now Workflow ✓** — Added `POST /api/tasks/[id]/run-now/route.ts` to instantly advance delayed sequence steps. The endpoint updates `dueDate` to `new Date()` and immediately enqueues `JobType.SEQUENCE_EXECUTE_TASK` with `delay: 0`, relying on `workerUtils` and `handleExecuteTask` idempotency to bypass the old delayed job. Added "RUN NOW" button in `LeadDetailPanel.tsx`'s task list for pending automated sequence steps, enabling manual fast-forwarding of campaigns.
+- 2026-08-02 — **Meeting Booking Module ✓** — Implemented full Meeting Booking architecture (Prisma models, Waterfall Link Resolver, Lifecycle & Outcome Engine, Next.js 16 UI modals/dashboards). Architecture documented in `docs/MEETING_MODULE_ARCHITECTURE.md`.
+- 2026-08-02 — **P11 Full Test Suite Verification ✓** — Hardened BullMQ mock isolation in admin routes, resolved leadgen role scoping in team meetings API, and cleared TypeScript compiler issues (`tsc --noEmit` 0 errors). All 28 test suites and 252 Vitest unit/integration tests passing.
+- 2026-08-03 — **P10 smartSend Teardown ✓** — Retired `lib/sequences/smartSend.ts` cron scanner. Removed `scheduleSmartSends` and `distributeSends` calls from `app/api/cron/sequence-engine/route.ts`. Deleted `lib/sequences/smartSend.ts`.
+- 2026-08-18 — **Production Hardening, Multi-Role E2E Certification & Walkthrough Suite ✓** — Verified live production at `https://crm.telestar.cloud`. Executed Playwright sweeps across all 5 roles (Director, Floor Manager, Team Lead, SDR, Leadgen Manager) with 100% green pass and screenshot captures. Reconciled and closed all items in Cutover Ledger (A3, A6, A7, A11, B1). Hardened test baseline with safe connection error handling in `db-baseline.ts`. Hardened Next.js static build configuration for PrismaClient constructor fallback. Created comprehensive 5-minute product demo runbook (`docs/DEMO_WALKTHROUGH.md`). Verified `next build` 93/93 routes and zero ESLint errors. All commits pushed and synchronized on `origin/main`.
+
+## How to resume (any machine)
+1. `git pull`
+2. Read this file → note **Next unchecked task**.
+3. Open `PLAN.md`, find that task, re-read the named source files (don't trust stale context).
+4. Implement + add/extend the Vitest test. Run `npm test`.
+5. Tick the checkbox in `PLAN.md`, update **Next unchecked task** + **Progress log** here.
+6. Commit `fix:`/`feat:` referencing the task id (e.g. `P0.1`).

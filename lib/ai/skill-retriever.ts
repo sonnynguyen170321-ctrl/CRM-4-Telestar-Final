@@ -39,6 +39,10 @@ export interface SkillRetrievalOptions {
   channel?: 'email' | 'phone' | 'linkedin' | 'whatsapp';
   operation?: string;
   topicText?: string;
+  /** Who is asking. A leadgen user's default craft is not an SDR's. */
+  role?: string;
+  /** Where they are — the CRM surface, used only as a weak tie-breaker. */
+  surface?: string;
 }
 
 const SKILLS_DIR = join(process.cwd(), 'lib', 'ai', 'skills');
@@ -58,8 +62,8 @@ export function loadSkillModule(moduleId: SkillModuleId): string {
 export const MAX_RETRIEVED_SKILL_MODULES = 3;
 
 /**
- * Topic classification, in priority order — the order also decides which modules survive the
- * cap when a message matches more than three.
+ * Topic classification. Declaration order is now only a tie-breaker: which modules survive
+ * the cap is decided by relevance score in `selectSkillModules`, not by position here.
  *
  * **`call` is deliberately absent from the meeting-booking pattern.** It used to be there, so
  * "help me improve my cold call opener" retrieved the meeting-booking playbook: the word
@@ -115,44 +119,86 @@ const TOPIC_RULES: ReadonlyArray<{
   },
 ];
 
+/** Weak affinities: real signal, but never enough to outrank an explicit topic match. */
+const CHANNEL_AFFINITY: Record<string, SkillModuleId[]> = {
+  email: ['cold-email', 'personalization'],
+  phone: ['cold-call', 'objection-handling'],
+  linkedin: ['personalization'],
+  whatsapp: ['personalization'],
+};
+
+/** A leadgen user's default craft is sourcing, not closing. */
+const ROLE_AFFINITY: Record<string, SkillModuleId[]> = {
+  leadgen: ['research', 'personalization'],
+  leadgen_manager: ['research', 'qualification'],
+};
+
+const SURFACE_AFFINITY: Array<{ match: RegExp; modules: SkillModuleId[] }> = [
+  { match: /dialer|phone/i, modules: ['cold-call'] },
+  { match: /sequence|template/i, modules: ['cold-email'] },
+  { match: /meeting/i, modules: ['meeting-booking'] },
+  { match: /leadgen/i, modules: ['research'] },
+];
+
 /**
- * Decides which skill modules a request needs.
+ * Decides which skill modules a request needs, by **relevance score** rather than by
+ * declaration order.
+ *
+ * The previous version collected every matching rule into a `Set` and took the first three.
+ * Insertion order is `TOPIC_RULES` order, so which modules survived the cap was decided by how
+ * the rules happen to be listed in this file — not by how well any of them matched. A message
+ * squarely about objections that mentioned "meeting" once could lose `objection-handling` to a
+ * rule declared earlier.
+ *
+ * Scoring keeps the same inputs honest and adds the two §XL asks for that were missing, role
+ * and surface, as weak tie-breakers. It stays fully deterministic: no model call, no
+ * embedding, and every case is assertable. Keyword patterns remain a *signal* rather than the
+ * whole router, which is what §XL requires of them.
  *
  * Exported because it is the property worth testing: which modules are selected, and that the
  * count never exceeds {@link MAX_RETRIEVED_SKILL_MODULES}. Asserting on the concatenated
  * prompt string would test the markdown, not the routing.
  */
 export function selectSkillModules(options: SkillRetrievalOptions = {}): SkillModuleId[] {
-  const { channel, operation, topicText } = options;
+  const { channel, operation, topicText, role, surface } = options;
   const text = topicText || '';
-  const selected = new Set<SkillModuleId>();
+  const scores = new Map<SkillModuleId, number>();
+
+  const add = (moduleId: SkillModuleId, weight: number) => {
+    scores.set(moduleId, (scores.get(moduleId) ?? 0) + weight);
+  };
 
   for (const rule of TOPIC_RULES) {
-    if ((operation && rule.operations.includes(operation)) || rule.pattern.test(text)) {
-      selected.add(rule.module);
+    // An explicit operation is the strongest signal available: the caller named the intent
+    // rather than the router inferring it.
+    if (operation && rule.operations.includes(operation)) add(rule.module, 10);
+
+    const matches = text.match(new RegExp(rule.pattern.source, 'gi'));
+    // More distinct hits means the message is more about this topic, not merely adjacent to it.
+    if (matches) add(rule.module, 4 + Math.min(matches.length - 1, 3));
+  }
+
+  if (channel) for (const moduleId of CHANNEL_AFFINITY[channel] ?? []) add(moduleId, 2);
+  if (role) for (const moduleId of ROLE_AFFINITY[role] ?? []) add(moduleId, 1);
+  if (surface) {
+    for (const rule of SURFACE_AFFINITY) {
+      if (rule.match.test(surface)) for (const moduleId of rule.modules) add(moduleId, 1);
     }
   }
 
-  // Channel mapping, only when the text carried no topic signal of its own.
-  if (selected.size === 0 && channel) {
-    if (channel === 'email') {
-      selected.add('cold-email');
-      selected.add('personalization');
-    } else if (channel === 'phone') {
-      selected.add('cold-call');
-      selected.add('objection-handling');
-    } else if (channel === 'linkedin' || channel === 'whatsapp') {
-      selected.add('personalization');
-    }
+  if (scores.size === 0) {
+    // No signal at all. Research plus cold-email is the broadest useful pair for an SDR.
+    return ['research', 'cold-email'];
   }
 
-  // Default when there is no context at all.
-  if (selected.size === 0) {
-    selected.add('research');
-    selected.add('cold-email');
-  }
-
-  return Array.from(selected).slice(0, MAX_RETRIEVED_SKILL_MODULES);
+  return [...scores.entries()]
+    .sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      // Ties fall back to declaration order, which encodes editorial priority.
+      return TOPIC_RULES.findIndex((r) => r.module === a[0]) - TOPIC_RULES.findIndex((r) => r.module === b[0]);
+    })
+    .slice(0, MAX_RETRIEVED_SKILL_MODULES)
+    .map(([moduleId]) => moduleId);
 }
 
 /**

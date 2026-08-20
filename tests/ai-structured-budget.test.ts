@@ -23,8 +23,10 @@ describe('TEL-P1-010: AI Structured Output Runtime Zod Schema Validation', () =>
     vi.spyOn(gateway, 'generate').mockResolvedValueOnce({
       content: mockOutput,
       provider: 'groq',
-      modelId: 'llama-3.3-70b-versatile',
+      modelId: 'openai/gpt-oss-20b',
       durationMs: 120,
+      attempts: [],
+      aiCallId: null,
     });
 
     const schema = z.object({
@@ -53,8 +55,10 @@ describe('TEL-P1-010: AI Structured Output Runtime Zod Schema Validation', () =>
     vi.spyOn(gateway, 'generate').mockResolvedValueOnce({
       content: invalidOutput,
       provider: 'groq',
-      modelId: 'llama-3.3-70b-versatile',
+      modelId: 'openai/gpt-oss-20b',
       durationMs: 120,
+      attempts: [],
+      aiCallId: null,
     });
 
     const schema = z.object({
@@ -80,8 +84,10 @@ describe('TEL-P1-010: AI Structured Output Runtime Zod Schema Validation', () =>
     vi.spyOn(gateway, 'generate').mockResolvedValueOnce({
       content: wrongTypeOutput,
       provider: 'groq',
-      modelId: 'llama-3.3-70b-versatile',
+      modelId: 'openai/gpt-oss-20b',
       durationMs: 120,
+      attempts: [],
+      aiCallId: null,
     });
 
     const schema = z.object({
@@ -102,8 +108,10 @@ describe('TEL-P1-010: AI Structured Output Runtime Zod Schema Validation', () =>
     vi.spyOn(gateway, 'generate').mockResolvedValueOnce({
       content: 'Here is your score: 85 and summary is great',
       provider: 'groq',
-      modelId: 'llama-3.3-70b-versatile',
+      modelId: 'openai/gpt-oss-20b',
       durationMs: 120,
+      attempts: [],
+      aiCallId: null,
     });
 
     const schema = z.object({ score: z.number() });

@@ -1,3 +1,8 @@
+---
+classification: CURRENT_CANONICAL
+note: Live certification tracker.
+---
+
 # Email Inbox Warmup & Sender Reputation Certification — STATUS
 
 > This file tracks the progress of the Warmup & Sender Reputation Certification (Gates W1–W20).

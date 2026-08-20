@@ -39,7 +39,7 @@ const PASSWORD = requiredPassword();
  * confirm the browser navigated, and nothing else. A route whose every API call returned 500,
  * or which rendered Next's error boundary, satisfied every one of them.
  *
- * Every route in the CRM paints exactly one `<h1>` (`.claude/rules/brand-design.md` makes that
+ * Every route in the CRM paints exactly one `<h1>` (`.claude/rules/frontend-ux.md` makes that
  * a rule, and it was verified across all 18 routes before this helper was written), so
  * requiring a visible heading and the absence of an error boundary turns a navigation check
  * into a render check without coupling the test to any particular page's content.

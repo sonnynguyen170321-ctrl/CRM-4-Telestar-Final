@@ -1,3 +1,8 @@
+---
+classification: CURRENT_CANONICAL
+note: Live resume pointer.
+---
+
 # Telestar Revenue AI — STATUS
 
 **Read this first.** Then execute the next unchecked item in [`PLAN.md`](PLAN.md).

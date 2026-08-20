@@ -9,7 +9,7 @@ disabled, no worker.
 > - **`GCP_DEPLOY.md`** — Compute Engine VM + Docker Compose + Caddy + Memorystore Redis,
 >   running the web app *and* the worker. The full production topology.
 >
-> Also see `DEPLOY.md` (EC2/VPS) and `docs/runtime-hardening/PLAN.md` for the always-on
+> Also see `DEPLOY.md` (EC2/VPS) and `docs/archive/runtime-hardening/PLAN.md` for the always-on
 > worker requirement.
 
 Cloud Run scales to zero and is **not** a valid host for `workers/index.ts` unless run as a

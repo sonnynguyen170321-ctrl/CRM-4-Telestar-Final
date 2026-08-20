@@ -1,3 +1,15 @@
+---
+classification: HISTORICAL
+snapshot: 2026-08-19
+---
+
+> ## NOT CURRENT
+>
+> A point-in-time progress ledger. It was accurate when written and nothing has kept it
+> accurate since. A progress ledger last updated 2026-08-19. The typography rules it drove now live in `.claude/rules/frontend-ux.md`, which loads on any component change.
+>
+> Current truth: the code, then `.agent/generated/`, then `.agent/` and `.claude/rules/`.
+
 # TELESTAR TYPOGRAPHY TRANSFORMATION — MASTER PROGRESS LEDGER
 
 **Directive**: Continuous Typography Transformation Master Directive  

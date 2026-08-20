@@ -5,18 +5,40 @@ import { usePathname } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { X, Send, Copy, ThumbsUp, ThumbsDown, ChevronDown, Sparkles } from 'lucide-react';
-import { MODEL_LABELS, MODEL_DESCRIPTIONS, DEFAULT_MODEL } from '@/lib/ai/models';
+import { MODEL_LABELS, MODEL_DESCRIPTIONS, DEFAULT_MODEL, SELECTABLE_MODEL_IDS, isKnownModelId } from '@/lib/ai/models';
 import type { ModelId } from '@/lib/ai/models';
 import { resolveTurnExecutionId, type FailedTurn } from '@/lib/ai/executionId';
 
 interface Message {
+  /**
+   * Stable identity for the lifetime of the panel.
+   *
+   * The streamed answer used to be written back by array index, captured before the request
+   * started. Anything that appended to the conversation while a turn was in flight — the
+   * morning briefing is the one that does — shifted that index, and the stream then wrote
+   * itself over the wrong bubble. An id cannot shift.
+   */
+  id: string;
   role: 'user' | 'assistant';
   content: string;
   feedback?: 'up' | 'down';
   executionId?: string;
 }
 
-const MODELS = Object.keys(MODEL_LABELS) as ModelId[];
+let messageSeq = 0;
+function newMessageId(): string {
+  messageSeq += 1;
+  return `m${messageSeq}`;
+}
+
+/**
+ * Auto first, then the three approved models.
+ *
+ * The picker used to be built from every key in `MODEL_LABELS`, which is how it went on
+ * offering three withdrawn Groq models long after they stopped answering. Listing Auto first
+ * and defaulting to it means the normal SDR never has to know which provider is healthy.
+ */
+const MODELS: ModelId[] = ['auto', ...SELECTABLE_MODEL_IDS];
 
 const MEMORY_TRIGGERS = [
   'remember', 'i prefer', 'always', 'never again', 'my client', 'my campaign',
@@ -26,6 +48,40 @@ const MEMORY_TRIGGERS = [
 function detectMemoryIntent(text: string): boolean {
   const lower = text.toLowerCase();
   return MEMORY_TRIGGERS.some((t) => lower.includes(t));
+}
+
+/** Carries the status code so the copy below can distinguish a session drop from an outage. */
+class HttpError extends Error {
+  constructor(public readonly status: number) {
+    super(`HTTP ${status}`);
+    this.name = 'HttpError';
+  }
+}
+
+/**
+ * What the SDR reads when the request itself failed.
+ *
+ * A status code is not an explanation, and "Sorry, I hit an issue: HTTP 401" tells the reader
+ * nothing they can act on. Each case here maps to something they can actually do next.
+ */
+function messageForRequestError(err: unknown): string {
+  if (err instanceof HttpError) {
+    if (err.status === 401 || err.status === 403) {
+      return 'Your session expired. Refresh the page and sign in again.';
+    }
+    if (err.status === 413) {
+      return 'This conversation has gotten too long. Start a new chat and I will pick it up from there.';
+    }
+    if (err.status === 400) {
+      return "I couldn't read that message. Try rephrasing it.";
+    }
+    if (err.status === 429) {
+      return 'Telestar AI is temporarily at capacity. Try that again shortly.';
+    }
+    return 'Telestar AI is temporarily unavailable. The rest of the CRM is still working.';
+  }
+  // A network drop, an aborted request, or the tab going offline all land here.
+  return "I couldn't reach Telestar AI. Check your connection and try that again.";
 }
 
 function getContextChips(page: string, hasLead: boolean): string[] {
@@ -76,18 +132,27 @@ export default function AiAssistant() {
     try { sessionStorage.removeItem(`ai_mem_${currentUserId || 'anon'}`); } catch { /* ignore */ }
   }
 
+  /**
+   * Navigation hints only — where the user is, and which lead is open.
+   *
+   * This used to spread `window.__crm_sdr_stats` and the whole `window.__crm_lead_context`
+   * object into the request alongside `userName` and `userRole`. The server read the counters
+   * as CRM truth, which made a browser global the authority on an SDR's performance figures,
+   * and accepted the rest through a `.passthrough()` schema — arbitrary page-controlled keys
+   * arriving at a system prompt.
+   *
+   * The server now reads identity, role and every counter from the session and the database.
+   * All it needs from the page is which record the user is looking at, and even that is a
+   * request: `loadAuthorizedLeadContext` decides whether this user may see that lead.
+   */
   const getCrmContext = useCallback(() => {
     const w = typeof window !== 'undefined' ? (window as unknown as Record<string, Record<string, unknown> | null>) : null;
-    const leadCtx = w?.__crm_lead_context ?? null;
-    const sdrStats = w?.__crm_sdr_stats ?? null;
+    const leadId = w?.__crm_lead_context?.leadId;
     return {
       page: pathname,
-      userName: firstName,
-      userRole: currentRole,
-      ...(sdrStats || {}),
-      ...(leadCtx || {}),
+      ...(typeof leadId === 'string' ? { leadId } : {}),
     };
-  }, [pathname, firstName, currentRole]);
+  }, [pathname]);
 
   // Load memories and preferred model on mount
   useEffect(() => {
@@ -103,8 +168,11 @@ export default function AiAssistant() {
 
       const modelMem = mems.find((m) => m.startsWith('preferred_model: '));
       if (modelMem) {
-        const saved = modelMem.replace('preferred_model: ', '') as ModelId;
-        if (MODELS.includes(saved)) setModelId(saved);
+        // A stored preference for a model this build no longer recognises is ignored rather
+        // than sent. That is how `llama-3.3-70b-versatile` outlived its own withdrawal: it sat
+        // in a memory row and was replayed into every request.
+        const saved = modelMem.replace('preferred_model: ', '');
+        if (isKnownModelId(saved)) setModelId(saved);
       }
     }
 
@@ -198,9 +266,19 @@ export default function AiAssistant() {
 
       lines.push(`\nWhat do you want to tackle first?`);
 
-      setMessages([{ role: 'assistant', content: lines.join('') }]);
+      // Append, never replace.
+      //
+      // The briefing is fetched asynchronously from `handleOpen`, so an SDR who types
+      // immediately can already have a message in flight when it lands. Assigning a fresh
+      // array here discarded their message *and* the assistant's greeting, mid-turn — the
+      // streamed answer then wrote itself into an index that no longer existed.
+      //
+      // It went unnoticed because `/api/ai/briefing` answered 500 for every role except
+      // director, so this line effectively never ran. Fixing the endpoint is what made the
+      // race reachable.
+      setMessages((prev) => [...prev, { id: newMessageId(), role: 'assistant', content: lines.join('') }]);
     } catch {
-      // silently skip if briefing fails
+      // A failed briefing degrades to no briefing. It must never cost the SDR their chat.
     }
   }, [firstName]);
 
@@ -211,6 +289,7 @@ export default function AiAssistant() {
     if (messages.length === 0) {
       setMessages([
         {
+          id: newMessageId(),
           role: 'assistant',
           content: `Hey ${firstName}! 👋 I'm your Telestar AI Assistant. I'm connected with live context on your leads, campaigns, and sequence tasks.\n\nHow can I help you today?`,
         },
@@ -246,15 +325,15 @@ export default function AiAssistant() {
       await fetch('/api/ai/memory', { method: 'DELETE' });
       bustMemCache();
       memoryFetchedRef.current = false;
-      const resetMsg = { role: 'assistant' as const, content: `Memory cleared. How can I help you today?` };
-      setMessages((prev) => [...prev, { role: 'user', content }, resetMsg]);
+      const resetMsg = { id: newMessageId(), role: 'assistant' as const, content: `Memory cleared. How can I help you today?` };
+      setMessages((prev) => [...prev, { id: newMessageId(), role: 'user', content }, resetMsg]);
       return;
     }
 
     // One id per logical turn, minted here rather than inside the fetch: a retry of the
     // same message must reuse it, and anything generated per network attempt cannot.
     const executionId = resolveTurnExecutionId(content, failedTurnRef.current);
-    const userMsg: Message = { role: 'user', content, executionId };
+    const userMsg: Message = { id: newMessageId(), role: 'user', content, executionId };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
 
@@ -267,25 +346,24 @@ export default function AiAssistant() {
       }).then(() => bustMemCache()).catch(() => {});
     }
 
-    // Handle EOD summary trigger
-    const isEodRequest = /summarize my day|end of day|what did i do today|eod report|daily summary/i.test(content);
-    let injectedContext = getCrmContext();
-
-    if (isEodRequest) {
-      try {
-        const eodRes = await fetch('/api/ai/briefing?type=eod');
-        if (eodRes.ok) {
-          const eodData = await eodRes.json();
-          injectedContext = { ...injectedContext, eodData: JSON.stringify(eodData) } as typeof injectedContext;
-        }
-      } catch {}
-    }
+    // End-of-day summaries are detected and loaded on the server.
+    //
+    // This used to fetch `/api/ai/briefing?type=eod` here and attach the JSON to the chat
+    // request as `context.eodData`. The route's schema accepted the key and the system prompt
+    // never read it, so the round trip bought nothing and the model answered about the user's
+    // day from conversation history. The server now recognises the request and reads the
+    // figures itself, under the session's own role scope.
+    const injectedContext = getCrmContext();
 
     setIsStreaming(true);
     let assistantContent = '';
-    const assistantIdx = newMessages.length;
+    const assistantId = newMessageId();
 
-    setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
+    setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '' }]);
+
+    /** Rewrites this turn's assistant bubble wherever it currently sits. */
+    const writeAnswer = (text: string) =>
+      setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content: text } : m)));
 
     try {
       const res = await fetch('/api/ai/chat', {
@@ -299,7 +377,7 @@ export default function AiAssistant() {
         }),
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new HttpError(res.status);
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -310,32 +388,31 @@ export default function AiAssistant() {
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
         assistantContent = `${assistantContent}${chunk}`;
-        const currentText = assistantContent;
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[assistantIdx] = { role: 'assistant', content: currentText };
-          return updated;
-        });
+        writeAnswer(assistantContent);
+      }
+
+      // A 200 that streamed nothing still leaves an empty bubble and a stuck-looking panel.
+      // Say something, and treat the turn as failed so resending it retries rather than
+      // duplicating.
+      if (assistantContent.trim().length === 0) {
+        failedTurnRef.current = { content, executionId };
+        writeAnswer("I couldn't finish that response. Try that again.");
+        return;
       }
 
       // The turn completed, so a later message with the same text is a new turn, not a retry.
       failedTurnRef.current = null;
-
-      // Detect if AI says it will remember something and save it
-      if (/i.?ll remember|noted|got it|i.?ve saved/i.test(assistantContent) && detectMemoryIntent(content)) {
-        // Already saved above
-      }
     } catch (err) {
       // Keep the namespace so resending the same message retries this turn.
       failedTurnRef.current = { content, executionId };
-      const msg = err instanceof Error ? err.message : 'Something went wrong.';
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[assistantIdx] = { role: 'assistant', content: `Sorry, I hit an issue: ${msg}. Try again in a moment.` };
-        return updated;
-      });
+      writeAnswer(messageForRequestError(err));
     } finally {
+      // Always clears, on every path — a stuck `true` here disables the input and the send
+      // button permanently, which reads as the whole assistant being broken.
       setIsStreaming(false);
+      // The textarea was disabled while streaming, so the browser moved focus off it. Putting
+      // it back is what lets a failed turn be retried by typing, without reaching for the mouse.
+      setTimeout(() => inputRef.current?.focus(), 0);
     }
   }
 
@@ -442,6 +519,15 @@ export default function AiAssistant() {
       {/* Expanded chat panel */}
       {isOpen && (
         <div
+          role="dialog"
+          aria-label={assistantName}
+          onKeyDown={(e) => {
+            // Escape closes the panel — but only when a menu is not the thing that should
+            // close first, or the SDR loses the whole conversation reaching for the menu.
+            if (e.key !== 'Escape') return;
+            if (showModelMenu) setShowModelMenu(false);
+            else setIsOpen(false);
+          }}
           className="ai-chat-panel fixed bottom-6 right-6 z-50 flex flex-col bg-white dark:bg-[#111] border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-2xl"
           style={{ width: 390, height: 560 }}
         >
@@ -462,14 +548,23 @@ export default function AiAssistant() {
                 <button
                   onClick={() => setShowModelMenu((v) => !v)}
                   className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-zinc-800"
+                  aria-haspopup="menu"
+                  aria-expanded={showModelMenu}
+                  aria-label={`AI model: ${MODEL_LABELS[modelId]}. Change model`}
                 >
-                  {MODEL_LABELS[modelId]} <ChevronDown size={12} />
+                  {MODEL_LABELS[modelId]} <ChevronDown size={12} aria-hidden="true" />
                 </button>
                 {showModelMenu && (
-                  <div className="absolute bottom-8 right-0 w-72 bg-[#1A1A1A] border border-zinc-700 rounded-xl shadow-2xl overflow-hidden z-10">
+                  <div
+                    role="menu"
+                    aria-label="AI model"
+                    className="absolute bottom-8 right-0 w-72 bg-[#1A1A1A] border border-zinc-700 rounded-xl shadow-2xl overflow-hidden z-10"
+                  >
                     {MODELS.map((id) => (
                       <button
                         key={id}
+                        role="menuitemradio"
+                        aria-checked={id === modelId}
                         onClick={() => handleModelChange(id)}
                         className={`w-full text-left px-3 py-2.5 hover:bg-zinc-800 transition-colors ${id === modelId ? 'bg-zinc-800' : ''}`}
                       >
@@ -480,14 +575,25 @@ export default function AiAssistant() {
                   </div>
                 )}
               </div>
-              <button onClick={() => setIsOpen(false)} className="text-zinc-400 hover:text-white transition-colors">
-                <X size={18} />
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-zinc-400 hover:text-white transition-colors"
+                aria-label={`Close ${assistantName}`}
+              >
+                <X size={18} aria-hidden="true" />
               </button>
             </div>
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ background: '#FAFAFA' }}>
+          <div
+            className="flex-1 overflow-y-auto px-4 py-3 space-y-3"
+            style={{ background: '#FAFAFA' }}
+            role="log"
+            aria-label="Conversation"
+            aria-live="polite"
+            aria-busy={isStreaming}
+          >
             {messages.length === 0 && (
               <div className="text-center text-zinc-600 text-sm mt-4 space-y-3">
                 <div className="font-bold text-zinc-800 text-base">👋 Hey {firstName}!</div>
@@ -509,7 +615,7 @@ export default function AiAssistant() {
               </div>
             )}
             {messages.map((msg, idx) => (
-              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] ${msg.role === 'user' ? 'order-1' : 'order-0'}`}>
                   <div
                     className={`rounded-2xl px-3 py-2 text-sm ${
@@ -519,7 +625,9 @@ export default function AiAssistant() {
                     }`}
                   >
                     {msg.role === 'assistant' && isStreaming && idx === messages.length - 1 && msg.content === '' ? (
-                      <span className="flex gap-1 items-center py-0.5">
+                      // The dots carry the state visually; the label carries it for a screen
+                      // reader and for anyone who cannot distinguish the animation.
+                      <span className="flex gap-1 items-center py-0.5" role="status" aria-label="Generating a response">
                         <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 ai-typing-dot" style={{ animationDelay: '0ms' }} />
                         <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 ai-typing-dot" style={{ animationDelay: '150ms' }} />
                         <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 ai-typing-dot" style={{ animationDelay: '300ms' }} />
@@ -616,6 +724,7 @@ export default function AiAssistant() {
                 placeholder="Ask me anything..."
                 rows={1}
                 disabled={isStreaming}
+                aria-label={`Message ${assistantName}`}
                 className="flex-1 bg-transparent text-sm text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 resize-none border-0 outline-none leading-snug"
                 style={{ maxHeight: 80, overflowY: 'auto' }}
               />

@@ -1,0 +1,50 @@
+{
+  "$generated": {
+    "by": "npm run agent -- facts",
+    "from": [
+      "workers/**",
+      "lib/bullmq/types.ts"
+    ],
+    "warning": "Generated file. Do not edit by hand; the next run reverts it."
+  },
+  "workerEntrypoints": [
+    "workers/agent.ts",
+    "workers/email.ts",
+    "workers/healthcheck.ts",
+    "workers/import.ts",
+    "workers/index.ts",
+    "workers/maintenance.ts",
+    "workers/notification.ts",
+    "workers/sequence.ts",
+    "workers/sync.ts"
+  ],
+  "queues": [
+    "agent",
+    "email",
+    "import",
+    "maintenance",
+    "sequence",
+    "sync"
+  ],
+  "jobTypes": [
+    "agent.execute-work-order",
+    "digest.daily",
+    "email.apply-bounce",
+    "email.apply-reply",
+    "email.send",
+    "email.sync",
+    "import.chunk",
+    "import.commit",
+    "import.parse",
+    "maintenance.healthcheck",
+    "maintenance.repair",
+    "reminder.due",
+    "sequence.advance",
+    "sequence.enroll",
+    "sequence.execute-task",
+    "sequence.pause",
+    "sequence.rebuild",
+    "sequence.unenroll"
+  ],
+  "invariant": "The database is workflow truth; every delayed job must be rebuildable from it."
+}

@@ -3,7 +3,7 @@
  *
  * Two things make these worth pairing. Transfer is the operation that moves ownership of live
  * work between people, so getting it wrong loses work silently rather than loudly. And the
- * audit log is the only record that any of it happened — `.claude/rules/runtime-hardening.md`
+ * audit log is the only record that any of it happened — `.claude/rules/workers-runtime.md`
  * requires *"every state transition writes an Activity/audit"*, which is a claim nothing else
  * in the product fails loudly about if it stops being true.
  *
