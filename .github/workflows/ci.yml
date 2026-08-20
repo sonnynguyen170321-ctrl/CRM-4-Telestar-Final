@@ -615,9 +615,35 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+      # The same platform dependency as CodeQL: on a private repository the dependency graph
+      # comparison needs Advanced Security. Probe it, so an absent capability reads as
+      # BLOCKED_EXTERNAL instead of turning a clean pull request red.
+      - id: capability
+        name: Can this repository compare dependency graphs?
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -u
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          probe="$(gh api "repos/${GITHUB_REPOSITORY}/dependency-graph/compare/${base}...${head}" 2>&1 || true)"
+          if printf '%s' "$probe" | grep -qiE 'advanced security|dependency review is not supported'; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+        shell: bash
+
+      - if: steps.capability.outputs.available == 'true'
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
         with:
           fail-on-severity: high
+
+      - if: steps.capability.outputs.available != 'true'
+        name: Record dependency review as BLOCKED_EXTERNAL
+        run: |
+          echo "::notice title=Dependency review BLOCKED_EXTERNAL::The dependency graph comparison needs GitHub Advanced Security on a private repository. The mandatory dependency-audit gate still ran."
+        shell: bash
 
   # ── Static security analysis ─────────────────────────────────────────────
   # Requires a public repository, or GitHub Advanced Security on a private one. Do NOT
@@ -633,11 +659,46 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - uses: github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3
+      # Ask the platform whether it can accept results at all, rather than discovering it in
+      # the upload failing. A 403 naming Advanced Security is the plan saying the capability
+      # is absent: BLOCKED_EXTERNAL, not a finding about this code. Reporting that as a red
+      # job made every CI run conclude "failure" while every gate that reads the code was
+      # green. Any other outcome means CodeQL can run, and a real failure still fails here.
+      - id: capability
+        name: Can this repository accept code scanning results?
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -u
+          probe="$(gh api "repos/${GITHUB_REPOSITORY}/code-scanning/alerts?per_page=1" 2>&1 || true)"
+          if printf '%s' "$probe" | grep -qi 'advanced security must be enabled'; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+        shell: bash
+
+      - if: steps.capability.outputs.available == 'true'
+        uses: github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3
         with:
           languages: javascript-typescript
 
-      - uses: github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3
+      - if: steps.capability.outputs.available == 'true'
+        uses: github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3
+
+      # Visible, not silent. A gap nobody can see is the one mistaken for coverage.
+      - if: steps.capability.outputs.available != 'true'
+        name: Record CodeQL as BLOCKED_EXTERNAL
+        run: |
+          echo "::notice title=CodeQL BLOCKED_EXTERNAL::Code scanning needs a public repository, or GitHub Advanced Security on a private one. This repository has neither, so CodeQL did not run. This is not a pass."
+          {
+            echo "### CodeQL - BLOCKED_EXTERNAL"
+            echo
+            echo "Code scanning requires a public repository, or GitHub Advanced Security on a private one."
+            echo "Neither is available here, so no analysis ran. **This is not a pass.**"
+            echo "Enable Advanced Security to discharge it. The dependency-audit and quality gates remain mandatory either way."
+          } >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
 
   # ── One check to require, so branch protection needs updating far less often ──
   #
