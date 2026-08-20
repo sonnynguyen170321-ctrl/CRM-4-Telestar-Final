@@ -14,6 +14,20 @@
  * was never anything to translate. `internalAlias === modelId` is now an invariant, asserted
  * in `tests/ai-model-registry.test.ts`, so the two cannot drift apart again.
  *
+ * ## LIMITS AND PRICING ARE DATED FACTS, NOT CONSTANTS
+ *
+ * Every number below was re-read from the provider's own documentation on `verifiedAt`, and
+ * the values it replaced were wrong in both directions — Gemini input was priced at $0.075/M
+ * against a real $0.75/M (10x under), Luna output at $10/M against a real $1.20/M (8x over),
+ * and every `maxOutputTokens` was the same inherited 8192 regardless of model. A budget
+ * governed by those numbers is not governing anything.
+ * `docs/telestar-ai-remediation/MODEL_VERIFICATION.json` carries the same facts in
+ * machine-readable form, with the source URL for each.
+ *
+ * Pricing is **effective-dated** because one of the three providers has already published a
+ * future change: Gemini's introductory rate ends 2026-12-31. A scalar price would become
+ * silently wrong on 2027-01-01 and nothing in the product would notice.
+ *
  * ## PARAMETER PROFILE
  *
  * The three providers do not accept the same request. These are observed facts, captured live
@@ -23,7 +37,10 @@
  *     rejects any `temperature` other than the default, and refuses function tools in
  *     /v1/chat/completions unless `reasoning_effort` is `'none'`.
  *   - `openai/gpt-oss-20b` takes the classic `max_tokens` + `temperature` pair.
- *   - Gemini takes neither — it is configured through the SDK's own generation config.
+ *   - `gemini-3.6-flash` takes neither, and `temperature`, `top_p` and `top_k` are
+ *     **deprecated**: accepted and ignored today, an error in a future model generation per
+ *     Google's migration notes. Sending a parameter the provider has announced it will reject
+ *     is a scheduled outage, so they are not sent at all.
  *
  * The gateway reads `parameters` rather than branching on provider, because the difference is
  * per-model and the next model added may not match its provider's other models.
@@ -35,14 +52,75 @@ export type ModelCostTier = 'ultra_low' | 'low' | 'standard' | 'premium';
 export type ModelQualityTier = 'fast' | 'standard' | 'advanced' | 'deep_reasoning';
 export type ModelLatencyTier = 'instant' | 'fast' | 'moderate' | 'reasoning';
 
+/** Gemini 3 replaced the numeric `thinking_budget` with this enum. */
+export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
+
 /** How a model's request must be shaped. Observed per model, never assumed per provider. */
 export interface ModelParameterProfile {
   /** Which output-length parameter the API accepts. `null` when the SDK takes neither. */
   maxTokensParam: 'max_tokens' | 'max_completion_tokens' | null;
-  /** False when the model accepts only its default temperature. */
+  /**
+   * What to request when the caller names no ceiling — a policy, not a provider fact.
+   *
+   * Kept separate from `maxOutputTokens`, which is the provider's hard limit. Requesting the
+   * hard limit by default is not free: the OpenAI-compatible providers require
+   * `prompt + max_tokens` to fit the context window, so defaulting Groq to its full 65,536
+   * would 400 any conversation over ~65K tokens. The ceiling is a fact to price against; this
+   * is the number actually sent.
+   */
+  defaultMaxOutputTokens: number | null;
+  /** False when the model accepts only its default temperature, or has deprecated it. */
   supportsTemperature: boolean;
   /** True when function tools require `reasoning_effort: 'none'` on chat completions. */
   requiresReasoningEffortNoneForTools: boolean;
+  /**
+   * Parameters the provider documents as deprecated or unsupported for this model. The
+   * adapter must never send these. `tests/ai-model-registry.test.ts` asserts the list is
+   * honoured by the request builder rather than merely declared here.
+   */
+  rejectedParameters: readonly string[];
+  /** Thinking level to request, for models that take one. `null` when the concept is absent. */
+  defaultThinkingLevel: ThinkingLevel | null;
+}
+
+/**
+ * One dated price band.
+ *
+ * `effectiveFrom: null` means "since the beginning of the ledger" and `effectiveUntil: null`
+ * means "until further notice", so the bands tile with no gap and a historical `AiCall`
+ * always resolves to exactly one rate. `effectiveUntil` is exclusive.
+ */
+export interface ModelPricePeriod {
+  effectiveFrom: string | null;
+  effectiveUntil: string | null;
+  inputPerMillionUsd: number;
+  outputPerMillionUsd: number;
+  /** Rate for prompt tokens served from the provider's cache. `null` when not published. */
+  cachedInputPerMillionUsd: number | null;
+  /** Surcharge to write the cache, where the provider bills one separately. */
+  cachedInputWritePerMillionUsd?: number | null;
+}
+
+/**
+ * A provider that re-prices the *entire* request once the prompt crosses a threshold.
+ *
+ * OpenAI does this for Luna above 272K input tokens, and it is not a rounding error: the same
+ * request costs 2x input and 1.5x output. An estimator that ignores it under-reserves by 100%
+ * on exactly the largest calls — the ones that could exhaust a tenant's month.
+ */
+export interface LongContextPricingRule {
+  promptTokensAbove: number;
+  inputMultiplier: number;
+  outputMultiplier: number;
+}
+
+export interface ModelPricing {
+  currency: 'USD';
+  /** ISO date the rates below were last read from the provider's own documentation. */
+  verifiedAt: string;
+  /** Ordered oldest-first. Must tile without gap or overlap. */
+  periods: readonly ModelPricePeriod[];
+  longContext: LongContextPricingRule | null;
 }
 
 export interface ModelMetadata {
@@ -64,8 +142,12 @@ export interface ModelMetadata {
   supportsTools: boolean;
   supportsVision: boolean;
   fallbackPriority: number; // 1 = highest
-  costPer1kInputUsd: number;
-  costPer1kOutputUsd: number;
+  /**
+   * The only price for this model. There is deliberately no scalar `costPer1kInputUsd`
+   * beside it: a second price field is a second source of truth about the same model, and
+   * the pair drifts the moment one of them is updated.
+   */
+  pricing: ModelPricing;
   parameters: ModelParameterProfile;
 }
 
@@ -84,18 +166,38 @@ export const MODEL_REGISTRY: Record<string, ModelMetadata> = {
     costTier: 'standard',
     qualityTier: 'advanced',
     latencyTier: 'fast',
-    contextLimit: 400_000,
-    maxOutputTokens: 8192,
+    contextLimit: 1_050_000,
+    maxOutputTokens: 128_000,
     supportsStructuredOutput: true,
     supportsTools: true,
     supportsVision: true,
     fallbackPriority: 1,
-    costPer1kInputUsd: 0.00125,
-    costPer1kOutputUsd: 0.01,
+    pricing: {
+      currency: 'USD',
+      verifiedAt: '2026-08-20',
+      periods: [
+        {
+          effectiveFrom: null,
+          effectiveUntil: null,
+          inputPerMillionUsd: 0.2,
+          outputPerMillionUsd: 1.2,
+          cachedInputPerMillionUsd: 0.02,
+          cachedInputWritePerMillionUsd: 0.25,
+        },
+      ],
+      longContext: {
+        promptTokensAbove: 272_000,
+        inputMultiplier: 2,
+        outputMultiplier: 1.5,
+      },
+    },
     parameters: {
       maxTokensParam: 'max_completion_tokens',
+      defaultMaxOutputTokens: 8192,
       supportsTemperature: false,
       requiresReasoningEffortNoneForTools: true,
+      rejectedParameters: ['max_tokens', 'temperature'],
+      defaultThinkingLevel: null,
     },
   },
 
@@ -113,18 +215,48 @@ export const MODEL_REGISTRY: Record<string, ModelMetadata> = {
     costTier: 'low',
     qualityTier: 'standard',
     latencyTier: 'fast',
-    contextLimit: 1_000_000,
-    maxOutputTokens: 8192,
+    contextLimit: 1_048_576,
+    maxOutputTokens: 65_536,
     supportsStructuredOutput: true,
     supportsTools: true,
     supportsVision: true,
     fallbackPriority: 2,
-    costPer1kInputUsd: 0.000075,
-    costPer1kOutputUsd: 0.0003,
+    pricing: {
+      currency: 'USD',
+      verifiedAt: '2026-08-20',
+      periods: [
+        {
+          // Introductory rate. Google has published its end date, so it is encoded as an end
+          // date rather than as "the price".
+          effectiveFrom: null,
+          effectiveUntil: '2027-01-01',
+          inputPerMillionUsd: 0.75,
+          outputPerMillionUsd: 3.75,
+          // Gemini supports context caching, but Google publishes no separate cached-input
+          // rate for this model. Cached prompt tokens are therefore charged at the full input
+          // rate, which over-estimates rather than under-estimates — the safe direction for a
+          // spend cap.
+          cachedInputPerMillionUsd: null,
+        },
+        {
+          effectiveFrom: '2027-01-01',
+          effectiveUntil: null,
+          inputPerMillionUsd: 1.5,
+          outputPerMillionUsd: 7.5,
+          cachedInputPerMillionUsd: null,
+        },
+      ],
+      longContext: null,
+    },
     parameters: {
       maxTokensParam: null,
-      supportsTemperature: true,
+      defaultMaxOutputTokens: null,
+      // Deprecated by Google for this model generation: accepted and ignored today, an error
+      // in a future one. Not sent at all.
+      supportsTemperature: false,
       requiresReasoningEffortNoneForTools: false,
+      rejectedParameters: ['temperature', 'top_p', 'top_k', 'thinking_budget'],
+      defaultThinkingLevel: 'medium',
     },
   },
 
@@ -143,17 +275,32 @@ export const MODEL_REGISTRY: Record<string, ModelMetadata> = {
     qualityTier: 'fast',
     latencyTier: 'instant',
     contextLimit: 131_072,
-    maxOutputTokens: 8192,
+    maxOutputTokens: 65_536,
     supportsStructuredOutput: true,
     supportsTools: true,
     supportsVision: false,
     fallbackPriority: 3,
-    costPer1kInputUsd: 0.0001,
-    costPer1kOutputUsd: 0.0005,
+    pricing: {
+      currency: 'USD',
+      verifiedAt: '2026-08-20',
+      periods: [
+        {
+          effectiveFrom: null,
+          effectiveUntil: null,
+          inputPerMillionUsd: 0.075,
+          outputPerMillionUsd: 0.3,
+          cachedInputPerMillionUsd: 0.037,
+        },
+      ],
+      longContext: null,
+    },
     parameters: {
       maxTokensParam: 'max_tokens',
+      defaultMaxOutputTokens: 8192,
       supportsTemperature: true,
       requiresReasoningEffortNoneForTools: false,
+      rejectedParameters: [],
+      defaultThinkingLevel: null,
     },
   },
 };

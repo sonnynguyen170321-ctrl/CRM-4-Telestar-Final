@@ -1,0 +1,161 @@
+{
+  "$comment": "Machine-readable record of what each approved model's limits, capabilities and prices were verified to be, and where each fact came from. lib/ai/registry.ts is the runtime source of truth; this file is the evidence behind it. Re-verify before changing a registry number — provider pricing and parameter support are dated facts, not constants.",
+  "verifiedAt": "2026-08-20",
+  "verifiedBy": "provider documentation read directly; see sources[] per model",
+  "contract": {
+    "productionModelCount": 3,
+    "invariant": "internalAlias === modelId for every production model",
+    "rule": "No fourth production model, no alias pointing at a different model id."
+  },
+  "models": [
+    {
+      "modelId": "gpt-5.6-luna",
+      "provider": "openai",
+      "envVar": "OPENAI_API_KEY",
+      "displayName": "GPT-5.6 Luna",
+      "contextLimit": 1050000,
+      "maxOutputTokens": 128000,
+      "pricing": {
+        "currency": "USD",
+        "perMillionTokens": {
+          "input": 0.2,
+          "cachedInput": 0.02,
+          "cachedInputWrite": 0.25,
+          "output": 1.2
+        },
+        "effectiveFrom": null,
+        "effectiveUntil": null,
+        "longContext": {
+          "promptTokensAbove": 272000,
+          "inputMultiplier": 2,
+          "outputMultiplier": 1.5,
+          "note": "Re-prices the entire request, not only the tokens above the threshold. Equivalent to $0.40 input / $1.80 output."
+        }
+      },
+      "capabilities": {
+        "tools": true,
+        "structuredOutput": true,
+        "vision": true,
+        "streaming": true
+      },
+      "endpoints": {
+        "supported": ["chat.completions", "responses"],
+        "inUse": "chat.completions",
+        "rationale": "Chat Completions supports every capability the gateway needs — streaming, function tools, structured output and usage reporting. Migrating to Responses would be change without a requirement behind it."
+      },
+      "rejectedParameters": [
+        { "name": "max_tokens", "reason": "400 — 'Use max_completion_tokens instead'" },
+        { "name": "temperature", "reason": "400 — only the default value is supported" }
+      ],
+      "notes": [
+        "Function tools on chat.completions require reasoning_effort: 'none'.",
+        "Released 2026-07-09; knowledge cutoff 2026-02-16."
+      ],
+      "sources": ["https://developers.openai.com/api/docs/models/gpt-5.6-luna"]
+    },
+    {
+      "modelId": "gemini-3.6-flash",
+      "provider": "google",
+      "envVar": "GEMINI_API_KEY",
+      "displayName": "Gemini 3.6 Flash",
+      "contextLimit": 1048576,
+      "maxOutputTokens": 65536,
+      "pricing": {
+        "currency": "USD",
+        "periods": [
+          {
+            "effectiveFrom": null,
+            "effectiveUntil": "2027-01-01",
+            "perMillionTokens": { "input": 0.75, "output": 3.75 },
+            "note": "Introductory rate. Output pricing includes thinking tokens."
+          },
+          {
+            "effectiveFrom": "2027-01-01",
+            "effectiveUntil": null,
+            "perMillionTokens": { "input": 1.5, "output": 7.5 },
+            "note": "Published standard rate — exactly double the introductory rate."
+          }
+        ],
+        "cachedInput": null,
+        "cachedInputNote": "Context caching is supported but Google publishes no separate cached-input rate for this model. The resolver charges cached prompt tokens at the full input rate, which over-estimates rather than under-estimates.",
+        "longContext": null
+      },
+      "capabilities": {
+        "tools": true,
+        "structuredOutput": true,
+        "vision": true,
+        "streaming": true,
+        "thinking": true
+      },
+      "rejectedParameters": [
+        { "name": "temperature", "reason": "Deprecated: accepted and ignored today, documented to error in a future model generation." },
+        { "name": "top_p", "reason": "Deprecated — same as temperature." },
+        { "name": "top_k", "reason": "Deprecated — same as temperature." },
+        { "name": "thinking_budget", "reason": "Replaced by the thinking_level string enum." }
+      ],
+      "thinkingLevels": ["minimal", "low", "medium", "high"],
+      "defaultThinkingLevel": "medium",
+      "sdkStatus": {
+        "inUse": "@google/generative-ai",
+        "current": "@google/genai",
+        "assessment": "KNOWN GAP — see docs/telestar-ai-remediation/STATUS.md. The legacy SDK cannot round-trip a native tool result for this model: role 'function' is refused outright, and 'user' + functionResponse fails on a missing thought_signature the SDK neither surfaces nor returns. The adapter feeds tool results back as plain user text, which works but is not the provider's own representation. Migration requires live credentials to verify.",
+        "verifiedCapabilitiesOnLegacySdk": ["completion", "streaming", "structured output", "function call request"],
+        "unverifiedOnLegacySdk": ["native functionResponse round trip", "thought signature preservation"]
+      },
+      "sources": [
+        "https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash",
+        "https://ai.google.dev/gemini-api/docs/gemini-3"
+      ]
+    },
+    {
+      "modelId": "openai/gpt-oss-20b",
+      "provider": "groq",
+      "envVar": "GROQ_API_KEY",
+      "displayName": "Groq GPT-OSS 20B",
+      "contextLimit": 131072,
+      "maxOutputTokens": 65536,
+      "pricing": {
+        "currency": "USD",
+        "perMillionTokens": {
+          "input": 0.075,
+          "cachedInput": 0.037,
+          "output": 0.3
+        },
+        "effectiveFrom": null,
+        "effectiveUntil": null,
+        "longContext": null
+      },
+      "capabilities": {
+        "tools": true,
+        "structuredOutput": true,
+        "jsonObjectMode": true,
+        "jsonSchemaMode": true,
+        "reasoning": true,
+        "vision": false,
+        "streaming": true
+      },
+      "rejectedParameters": [],
+      "notes": [
+        "Takes the classic max_tokens + temperature pair.",
+        "Account-tier rate limits are deliberately NOT recorded in the registry — they vary per account and are not a property of the model."
+      ],
+      "sources": ["https://console.groq.com/docs/model/openai/gpt-oss-20b"]
+    }
+  ],
+  "correctedOnThisPass": [
+    { "modelId": "gpt-5.6-luna", "field": "contextLimit", "was": 400000, "now": 1050000 },
+    { "modelId": "gpt-5.6-luna", "field": "maxOutputTokens", "was": 8192, "now": 128000 },
+    { "modelId": "gpt-5.6-luna", "field": "inputPerMillionUsd", "was": 1.25, "now": 0.2 },
+    { "modelId": "gpt-5.6-luna", "field": "outputPerMillionUsd", "was": 10.0, "now": 1.2 },
+    { "modelId": "gpt-5.6-luna", "field": "longContext", "was": null, "now": "2x input / 1.5x output above 272K prompt tokens" },
+    { "modelId": "gemini-3.6-flash", "field": "contextLimit", "was": 1000000, "now": 1048576 },
+    { "modelId": "gemini-3.6-flash", "field": "maxOutputTokens", "was": 8192, "now": 65536 },
+    { "modelId": "gemini-3.6-flash", "field": "inputPerMillionUsd", "was": 0.075, "now": 0.75, "note": "was 10x under the real rate" },
+    { "modelId": "gemini-3.6-flash", "field": "outputPerMillionUsd", "was": 0.3, "now": 3.75 },
+    { "modelId": "gemini-3.6-flash", "field": "supportsTemperature", "was": true, "now": false, "note": "deprecated by the provider; the adapter was still sending it" },
+    { "modelId": "openai/gpt-oss-20b", "field": "maxOutputTokens", "was": 8192, "now": 65536 },
+    { "modelId": "openai/gpt-oss-20b", "field": "inputPerMillionUsd", "was": 0.1, "now": 0.075 },
+    { "modelId": "openai/gpt-oss-20b", "field": "outputPerMillionUsd", "was": 0.5, "now": 0.3 },
+    { "modelId": "openai/gpt-oss-20b", "field": "cachedInputPerMillionUsd", "was": null, "now": 0.037 }
+  ]
+}

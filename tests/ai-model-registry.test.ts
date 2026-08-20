@@ -103,6 +103,76 @@ describe('client-safe model list', () => {
   });
 });
 
+/**
+ * The model contract, asserted as exact numbers.
+ *
+ * These replace assertions of the form `expect(cost).toBeGreaterThan(0)` and
+ * `expect(estimateTokenCost(...)).toBeCloseTo(registry.costPer1kInput * 1000)`. Neither could
+ * fail for any wrong value: the first passes for a price off by a factor of ten, and the
+ * second compares the registry against itself, so it held while Gemini was priced at a tenth
+ * of its real rate and every model claimed the same inherited 8192-token output ceiling.
+ *
+ * Verified against provider documentation on 2026-08-20. When a provider changes a number,
+ * this test is supposed to fail — that is the signal to re-verify, not a reason to relax it.
+ */
+describe('model contract — exact limits', () => {
+  it('carries GPT-5.6 Luna context and output limits', () => {
+    const luna = MODEL_REGISTRY['gpt-5.6-luna'];
+    expect(luna.contextLimit).toBe(1_050_000);
+    expect(luna.maxOutputTokens).toBe(128_000);
+    expect(luna.supportsTools).toBe(true);
+    expect(luna.supportsStructuredOutput).toBe(true);
+    expect(luna.supportsVision).toBe(true);
+  });
+
+  it('carries Gemini 3.6 Flash context and output limits', () => {
+    const gemini = MODEL_REGISTRY['gemini-3.6-flash'];
+    expect(gemini.contextLimit).toBe(1_048_576);
+    expect(gemini.maxOutputTokens).toBe(65_536);
+    expect(gemini.supportsTools).toBe(true);
+    expect(gemini.supportsStructuredOutput).toBe(true);
+  });
+
+  it('carries Groq GPT-OSS 20B context and output limits', () => {
+    const groq = MODEL_REGISTRY['openai/gpt-oss-20b'];
+    expect(groq.contextLimit).toBe(131_072);
+    expect(groq.maxOutputTokens).toBe(65_536);
+    expect(groq.supportsTools).toBe(true);
+    expect(groq.supportsStructuredOutput).toBe(true);
+    // Open-weights text model — claiming vision would route image work to a model that
+    // cannot see it.
+    expect(groq.supportsVision).toBe(false);
+  });
+
+  it('never sends a parameter its provider has deprecated', () => {
+    // Gemini's sampling parameters are ignored today and documented to error in a future
+    // model generation. Declaring them unsupported is what keeps the adapter from sending
+    // them, so both halves are asserted.
+    const gemini = MODEL_REGISTRY['gemini-3.6-flash'];
+    expect(gemini.parameters.supportsTemperature).toBe(false);
+    expect(gemini.parameters.rejectedParameters).toContain('temperature');
+    expect(gemini.parameters.rejectedParameters).toContain('top_p');
+    expect(gemini.parameters.rejectedParameters).toContain('top_k');
+
+    // Luna rejects both `max_tokens` and any non-default temperature.
+    const luna = MODEL_REGISTRY['gpt-5.6-luna'];
+    expect(luna.parameters.maxTokensParam).toBe('max_completion_tokens');
+    expect(luna.parameters.supportsTemperature).toBe(false);
+    expect(luna.parameters.rejectedParameters).toContain('max_tokens');
+  });
+
+  it('requests a default output ceiling that fits inside the context window', () => {
+    // `maxOutputTokens` is the provider's hard limit; requesting it by default would push
+    // `prompt + max_tokens` past the context window on a long conversation.
+    for (const model of Object.values(MODEL_REGISTRY)) {
+      const requested = model.parameters.defaultMaxOutputTokens;
+      if (requested === null) continue;
+      expect(requested).toBeLessThanOrEqual(model.maxOutputTokens);
+      expect(requested).toBeLessThan(model.contextLimit / 2);
+    }
+  });
+});
+
 describe('pricing coverage', () => {
   it('prices every approved model', () => {
     // A model the product calls but pricing does not know produces a null cost on every call
@@ -113,10 +183,17 @@ describe('pricing coverage', () => {
     }
   });
 
-  it('derives its rates from the registry rather than a second table', () => {
-    const luna = MODEL_REGISTRY['gpt-5.6-luna'];
-    const expected = luna.costPer1kInputUsd * 1000 + luna.costPer1kOutputUsd * 1000;
-    expect(estimateTokenCost('gpt-5.6-luna', 1_000_000, 1_000_000)).toBeCloseTo(expected, 6);
+  it('prices at the documented rate', () => {
+    // Exact published rates, not a re-derivation from the registry. A test that multiplies the
+    // registry by 1000 and compares it to the registry times 1000 cannot fail.
+    const at = new Date('2026-08-20T00:00:00Z');
+    // Luna: $0.20/M in + $1.20/M out. Deliberately below 272K prompt tokens — past that
+    // threshold OpenAI re-prices the whole request, which `ai-pricing-contract.test.ts` covers.
+    expect(estimateTokenCost('gpt-5.6-luna', 100_000, 100_000, { at })).toBeCloseTo(0.14, 6);
+    // Gemini introductory: $0.75/M in + $3.75/M out.
+    expect(estimateTokenCost('gemini-3.6-flash', 1_000_000, 1_000_000, { at })).toBeCloseTo(4.5, 6);
+    // Groq: $0.075/M in + $0.30/M out.
+    expect(estimateTokenCost('openai/gpt-oss-20b', 1_000_000, 1_000_000, { at })).toBeCloseTo(0.375, 6);
   });
 
   it('still returns null for a model nobody registered', () => {

@@ -25,6 +25,7 @@ import OpenAI from 'openai';
 import Groq from 'groq-sdk';
 import type { GoogleGenerativeAI, Content, FunctionDeclaration, Part } from '@google/generative-ai';
 import type { ModelMetadata } from './registry';
+import { resolveModelPrice } from './pricing';
 import type { GatewayToolDefinition, LoopMessage, PendingToolCall } from './conversation';
 
 export interface StreamUsage {
@@ -46,18 +47,34 @@ export interface RawUsage {
   prompt_tokens?: number | null;
   completion_tokens?: number | null;
   total_tokens?: number | null;
+  /** Prompt tokens served from the provider's cache, where it breaks them out. */
+  cached_prompt_tokens?: number | null;
 }
 
-export function toStreamUsage(raw: RawUsage, model: ModelMetadata): StreamUsage {
+/**
+ * Cost comes from the price resolver, not from arithmetic repeated here.
+ *
+ * This function used to multiply out its own per-1k rates, which made it a third place that
+ * knew what a model costs — and the only one of the three that knew nothing about effective
+ * dates or OpenAI's long-context multiplier. A streamed turn was therefore priced differently
+ * from the same turn reconciled through the ledger.
+ */
+export function toStreamUsage(
+  raw: RawUsage,
+  model: ModelMetadata,
+  at: Date = new Date(),
+): StreamUsage {
   const promptTokens = raw.prompt_tokens ?? 0;
   const completionTokens = raw.completion_tokens ?? 0;
   return {
     promptTokens,
     completionTokens,
     totalTokens: raw.total_tokens ?? promptTokens + completionTokens,
-    estimatedCostUsd:
-      (promptTokens / 1000) * model.costPer1kInputUsd +
-      (completionTokens / 1000) * model.costPer1kOutputUsd,
+    estimatedCostUsd: resolveModelPrice(model.modelId, at, {
+      promptTokens,
+      completionTokens,
+      cachedPromptTokens: raw.cached_prompt_tokens,
+    }).costUsd,
   };
 }
 
@@ -80,9 +97,19 @@ function openAiCompatibleParams(
   opts: AdapterOptions,
 ): Record<string, unknown> {
   const params: Record<string, unknown> = {};
-  const { maxTokensParam, supportsTemperature, requiresReasoningEffortNoneForTools } = model.parameters;
+  const {
+    maxTokensParam,
+    defaultMaxOutputTokens,
+    supportsTemperature,
+    requiresReasoningEffortNoneForTools,
+  } = model.parameters;
 
-  if (maxTokensParam) params[maxTokensParam] = opts.maxTokens ?? model.maxOutputTokens;
+  // `defaultMaxOutputTokens`, not `maxOutputTokens`: the latter is the provider's hard
+  // ceiling, and requesting it by default would push `prompt + max_tokens` past the context
+  // window on any long conversation.
+  if (maxTokensParam) {
+    params[maxTokensParam] = opts.maxTokens ?? defaultMaxOutputTokens ?? model.maxOutputTokens;
+  }
   if (supportsTemperature && opts.temperature !== undefined) params.temperature = opts.temperature;
   if (opts.responseFormatJson) params.response_format = { type: 'json_object' };
 
@@ -93,6 +120,29 @@ function openAiCompatibleParams(
     if (requiresReasoningEffortNoneForTools) params.reasoning_effort = 'none';
   }
 
+  return assertNoRejectedParameters(model, params);
+}
+
+/**
+ * Last line of defence before a request leaves the process.
+ *
+ * The individual `if` guards above are the intent; this is the check that the intent held.
+ * A parameter the provider has deprecated is not harmless because it is ignored today —
+ * Google's migration note says the next model generation returns an error for the Gemini
+ * sampling parameters, which would turn a silent no-op into an outage on a date nobody in
+ * this codebase controls.
+ */
+export function assertNoRejectedParameters(
+  model: ModelMetadata,
+  params: Record<string, unknown>,
+): Record<string, unknown> {
+  for (const rejected of model.parameters.rejectedParameters) {
+    if (rejected in params) {
+      throw new Error(
+        `Model ${model.modelId} does not accept "${rejected}" — it is listed in rejectedParameters.`,
+      );
+    }
+  }
   return params;
 }
 
@@ -168,7 +218,17 @@ export async function* streamOpenAi(
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta;
     if (delta?.tool_calls?.length) accumulator.add(delta.tool_calls);
-    if (chunk.usage) usage = toStreamUsage(chunk.usage, model);
+    if (chunk.usage) {
+      // Cached prompt tokens bill at a tenth of the standard input rate on Luna, so the
+      // breakout is worth carrying rather than pricing every prompt token as uncached.
+      usage = toStreamUsage(
+        {
+          ...chunk.usage,
+          cached_prompt_tokens: chunk.usage.prompt_tokens_details?.cached_tokens ?? null,
+        },
+        model,
+      );
+    }
     if (delta?.content) yield { text: delta.content, usage: null };
   }
 

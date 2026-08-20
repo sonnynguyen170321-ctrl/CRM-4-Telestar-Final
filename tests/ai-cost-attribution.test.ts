@@ -41,9 +41,11 @@ describe('pricing', () => {
   });
 
   it('computes token cost from separate input and output rates', () => {
-    // Groq GPT-OSS 20B: $0.10/M in, $0.50/M out.
+    // Groq GPT-OSS 20B: $0.075/M in, $0.30/M out, verified 2026-08-20. This assertion
+    // previously read $0.10/M and $0.50/M — numbers no provider page has carried, inherited
+    // from an earlier model and never re-checked.
     const cost = estimateTokenCost('openai/gpt-oss-20b', 1_000_000, 1_000_000);
-    expect(cost).toBeCloseTo(0.6, 6);
+    expect(cost).toBeCloseTo(0.375, 6);
   });
 
   it('returns null for an unknown model rather than guessing', () => {
