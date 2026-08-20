@@ -20,8 +20,8 @@
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 2 | 0 | 0 | **2** |
-| **P1** (Critical) | 21 | 9 | 4 | **12** |
-| **P2** (Important) | 17 | 9 | 3 | **8** |
+| **P1** (Critical) | 22 | 9 | 4 | **13** |
+| **P2** (Important) | 18 | 9 | 3 | **9** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
 | **TOTAL** | **38** | **18** | **7** | **20** |
 
@@ -327,6 +327,48 @@ The prior cap of 25 is void.
   take a namespace of their own.
 - **Verification**: full Vitest went from 2048 passed / 4 failed to 2055 passed / 0 failed / 0 skipped.
 - **Evidence ID**: `EV-VITEST`
+
+---
+
+### `TEL-P1-022` — Concurrent Duplicate Job Delivery Could Still Fail The Chunk
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: the first real CI run (`32323964277`). 163 test files passed and one failed:
+  `TEL-P1-007: executes identical chunk payload concurrently across 2 workers without
+  duplicating leads or activities`. It passes on the certification workstation every time.
+- **Root cause**: when two workers get the same chunk, one `lead.create` wins and the other
+  receives `P2002` on `(tenantId, campaignId, normalizedEmail)`. The loser is supposed to adopt
+  the winner's row rather than duplicate it, and it re-read **once**. The constraint firing
+  proves the row exists, but not that it is *committed* — and a read landing inside that window
+  returns null, so the handler rethrew and failed the whole chunk.
+- **Why local runs never saw it**: the window is milliseconds wide. Slower, more contended CI
+  hardware widens it enough to hit; this workstation does not. This is the case for running CI
+  as evidence rather than trusting a local green.
+- **Fix**: `findLeadAfterConflict` re-reads up to five times with a short delay before giving
+  up. A row still absent after that has genuinely not been written, and the caller rethrows —
+  so the branch stays honest instead of swallowing a real failure.
+- **Evidence ID**: `EV-CI-RUN`, plus `EV-VITEST`
+
+---
+
+### `TEL-P2-018` — Two CI Jobs Cannot Run On This Repository
+- **Severity**: P2
+- **Status**: `BLOCKED_EXTERNAL`
+- **Discovered by**: CI run `32323964277`.
+- **Detail**: two required checks fail for repository-configuration reasons rather than code.
+
+  | Job | Error |
+  |---|---|
+  | Dependency review | "Dependency review is not supported on this repository. Please ensure that Dependency graph is enabled along with GitHub Advanced Security" |
+  | CodeQL | "Resource not accessible by integration" when uploading results |
+
+- **Why it matters**: `docs/BRANCH_PROTECTION.md` intends every CI job to be a required status
+  check. Two of them can never pass as configured, so the branch-protection intent is not
+  actually enforceable, and "CI is green" is unreachable on this repository today.
+- **Required remediation**: enable Dependency graph and GitHub Advanced Security in repository
+  settings, or remove the jobs from the required set and say so. This is an account/repository
+  setting and cannot be changed from the codebase.
+- **Evidence ID**: `EV-CI-RUN`
 
 ---
 

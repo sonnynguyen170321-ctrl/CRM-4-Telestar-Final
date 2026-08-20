@@ -709,6 +709,30 @@ async function handlePoolChunk(payload: ImportChunkPayload) {
   return { success: true, batchId, chunkIndex, created, errors };
 }
 
+/**
+ * Finds the lead that won a unique-constraint race, tolerating the commit window.
+ *
+ * When two workers are handed the same chunk, one `lead.create` succeeds and the other gets
+ * P2002. The loser then has to adopt the winner's row instead of creating a duplicate — but
+ * the winning transaction may not have committed at the moment the loser looks, so a single
+ * read can legitimately see nothing. Retrying briefly closes that window; a row that is still
+ * absent after it has genuinely not been written, and the caller rethrows.
+ */
+async function findLeadAfterConflict(
+  tenantId: string,
+  campaignId: string,
+  normalizedEmail: string,
+  attempts = 5,
+  delayMs = 100,
+) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const found = await prisma.lead.findFirst({ where: { tenantId, campaignId, normalizedEmail } });
+    if (found) return found;
+    if (attempt < attempts - 1) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return null;
+}
+
 async function handleImportChunk(payload: ImportChunkPayload) {
   if (payload.targetType === 'pool') return handlePoolChunk(payload);
 
@@ -828,9 +852,15 @@ async function handleImportChunk(payload: ImportChunkPayload) {
           });
         } catch (err: unknown) {
           if ((err as { code?: string })?.code === 'P2002' && normalizedEmail) {
-            createdLead = await prisma.lead.findFirst({
-              where: { tenantId, campaignId: campaignId!, normalizedEmail },
-            });
+            // The constraint fired, so the winning row exists - but it may not be *committed*
+            // yet at the instant we look, and a single read that lands in that window returns
+            // null and rethrows. That is the whole failure this branch exists to prevent, and
+            // it surfaced on CI (TEL-P1-007) while passing locally, because the window is
+            // measured in milliseconds and only a slower machine widens it enough to hit.
+            //
+            // Re-read a few times before giving up. Time-bounded, because a genuinely absent
+            // row must still raise rather than spin.
+            createdLead = await findLeadAfterConflict(tenantId, campaignId!, normalizedEmail);
             if (!createdLead) throw err;
           } else {
             throw err;
