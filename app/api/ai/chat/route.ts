@@ -62,9 +62,22 @@ const chatRequestSchema = z.object({
   executionId: z.string().max(200).optional(),
 });
 
-/** Accept only cuid-shaped ids, so a hostile client cannot write arbitrary text to AiCall. */
+/**
+ * Bound the shape of a client-supplied lead id.
+ *
+ * This is not an authorization check and must never be mistaken for one — `loadAuthorizedLeadContext`
+ * is what decides whether this user may see this lead. What this prevents is arbitrary client
+ * text reaching the `AiCall.leadId` column, so the constraint that matters is the character
+ * set and the length, not a particular id format.
+ *
+ * It used to be `^[a-z0-9]{20,32}$`, which is cuid v1 and nothing else. A UUID has hyphens; so
+ * does any readable id. Such a lead's context was dropped in silence — the SDR had the
+ * prospect open, asked about them, and the assistant answered that it could not see one.
+ */
+const LEAD_ID_SHAPE = /^[A-Za-z0-9_-]{8,64}$/;
+
 function sanitizeLeadId(value: unknown): string | undefined {
-  return typeof value === 'string' && /^[a-z0-9]{20,32}$/i.test(value) ? value : undefined;
+  return typeof value === 'string' && LEAD_ID_SHAPE.test(value) ? value : undefined;
 }
 
 export async function POST(req: NextRequest) {

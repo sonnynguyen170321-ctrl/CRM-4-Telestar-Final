@@ -27,6 +27,15 @@ async function openChat(page: Page) {
   await trigger.click();
   const panel = page.getByRole('dialog');
   await expect(panel).toBeVisible();
+
+  // Let the morning briefing land before the test types anything.
+  //
+  // It is fetched asynchronously on first open and appends a bubble whenever it arrives. A
+  // test that sends immediately races it, and then "the last bubble" means the briefing rather
+  // than the answer. Settling here is not papering over the race — the product race itself is
+  // fixed, by addressing the streamed bubble by id rather than by index — it just keeps the
+  // assertions below reading the message they mean.
+  await page.waitForLoadState('networkidle').catch(() => {});
   return panel;
 }
 
@@ -37,22 +46,34 @@ function input(page: Page) {
 /**
  * Sends a message and waits for a complete answer.
  *
- * "Complete" is the textarea becoming editable again, not a timer: it carries
- * `disabled={isStreaming}`, so it is the component's own definition of done rather than a
- * guess about how fast a provider is.
+ * "Complete" is the textarea being editable again *and* a new last bubble having appeared —
+ * both, because either alone is unreliable. The textarea carries `disabled={isStreaming}`, so
+ * waiting for it to become disabled first would be a race the test loses whenever the request
+ * fails instantly, which is exactly what the interception tests arrange.
  *
- * Not the send button — that is also disabled whenever the input is empty, which it always is
+ * Not the send button: that is also disabled whenever the input is empty, which it always is
  * immediately after a send. Waiting on it would wait forever.
  */
 async function send(page: Page, text: string): Promise<string> {
+  const bubbles = page.getByRole('log').locator('.ai-message-content');
+  const before = (await bubbles.count()) > 0 ? (await bubbles.last().innerText()).trim() : '';
+
   const box = input(page);
   await box.fill(text);
   await box.press('Enter');
 
-  await expect(box).toBeDisabled();
-  await expect(box).toBeEnabled({ timeout: 90_000 });
+  await expect
+    .poll(
+      async () => {
+        if (!(await box.isEnabled())) return null;
+        if ((await bubbles.count()) === 0) return null;
+        const last = (await bubbles.last().innerText()).trim();
+        return last && last !== before ? last : null;
+      },
+      { timeout: 90_000, message: 'no completed answer appeared' },
+    )
+    .not.toBeNull();
 
-  const bubbles = page.getByRole('log').locator('.ai-message-content');
   return (await bubbles.last().innerText()).trim();
 }
 
@@ -115,13 +136,17 @@ test.describe('chat mechanics', () => {
 
   test('a blank message cannot be sent', async ({ page }) => {
     await openChat(page);
-    await input(page).fill('   ');
+    const box = input(page);
+    await box.fill('   ');
 
-    // The button stays disabled, and Enter on whitespace adds no turn.
     await expect(page.getByRole('button', { name: 'Send' })).toBeDisabled();
-    const before = await page.getByRole('log').locator('.ai-message-content').count();
-    await input(page).press('Enter');
-    await expect(page.getByRole('log').locator('.ai-message-content')).toHaveCount(before);
+    await box.press('Enter');
+
+    // Asserted on the input, not on a bubble count. `sendMessage` returns before it clears the
+    // field, so whitespace surviving the keypress *is* the guard firing — and unlike counting
+    // bubbles it cannot be thrown off by the morning briefing landing asynchronously.
+    await expect(box).toHaveValue('   ');
+    await expect(box).toBeEnabled();
   });
 
   test('the input clears on send and is usable again afterwards', async ({ page }) => {
@@ -219,6 +244,14 @@ test.describe('failure recovery', () => {
     recorder.ignoreConsole(/Failed to load resource: .*401/);
 
     await openChat(page);
+
+    // `hardSignOut` calls `/api/auth/revoke-self`, which bumps the user's `authVersion` and so
+    // invalidates *every* session for them — including the storage state other specs in this
+    // project reuse. The behaviour under test is the sentinel navigating to /login; revoking a
+    // shared fixture account is collateral, so the revoke is answered here rather than served.
+    await page.route('**/api/auth/revoke-self', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }),
+    );
     await page.route('**/api/ai/chat', (route) =>
       route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"Unauthorized"}' }),
     );
@@ -242,9 +275,20 @@ test.describe('CRM context and tools', () => {
   test('a lead-scoped question is answered about that lead, and only that lead', async ({ page }) => {
     const leadId = fixture().leads.sdrA;
 
-    // Open the lead the way an SDR does — the slide-over is what publishes
-    // `window.__crm_lead_context`, which is what the chatbox reads.
-    await page.goto(`/leads?leadId=${leadId}`, { waitUntil: 'domcontentloaded' });
+    // Open the slide-over through the application's own event.
+    //
+    // `app/leads/page.tsx` listens for `crm:open-lead` and sets `selectedLeadId` from it — the
+    // same door global search comes through. There is no `?leadId=` route (the panel is
+    // component state, deliberately), and hunting for whichever node in a kanban card carries
+    // the click handler makes the spec fail whenever that markup is restyled. Opening it is
+    // not what this test is about; what the chatbox does with the lead is.
+    await page.goto('/leads', { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('networkidle').catch(() => {});
+    await page.evaluate(
+      (id) => window.dispatchEvent(new CustomEvent('crm:open-lead', { detail: { leadId: id } })),
+      leadId,
+    );
+
     await page.waitForFunction(
       () => Boolean((window as unknown as Record<string, unknown>).__crm_lead_context),
       undefined,
@@ -257,6 +301,7 @@ test.describe('CRM context and tools', () => {
 
     await page.getByRole('button', { name: /^Open / }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
+    await page.waitForLoadState('networkidle').catch(() => {});
 
     const answer = await send(
       page,

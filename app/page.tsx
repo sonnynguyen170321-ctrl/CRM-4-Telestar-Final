@@ -123,10 +123,21 @@ export default function DashboardPage() {
   const [quickNoteText, setQuickNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [sdrPipelineCounts, setSdrPipelineCounts] = useState<Record<string, number>>({});
-  const [showStats, setShowStats] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') return localStorage.getItem('crm:showStats') !== 'false';
-    return true;
-  });
+  // Starts at the server's value and adopts the stored preference after mount.
+  //
+  // Reading localStorage in the initializer made the first *client* render disagree with the
+  // server HTML for anyone who had hidden the stats — a hydration mismatch, which React 19
+  // reports as an uncaught error (#418), not a warning. The flash of one extra render is the
+  // price of the markup matching; there is no server-side way to know a browser preference.
+  const [showStats, setShowStats] = useState<boolean>(true);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('crm:showStats') === 'false') setShowStats(false);
+    } catch {
+      // Storage can be unavailable (private mode, blocked cookies). The default stands.
+    }
+  }, []);
   const [overflowOpenId, setOverflowOpenId] = useState<string | null>(null);
 
   // ── Task filters (F4A) + bulk selection (F4B) ──────────────────────────────
@@ -677,7 +688,14 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="page-hero flex flex-row items-start justify-between gap-4">
         <div>
-          <h1>
+          {/*
+            `suppressHydrationWarning` because the greeting is a clock read, and the server's
+            clock and the browser's need not fall in the same hour bucket — a render that
+            straddles noon or 18:00, or a browser in another timezone, legitimately produces
+            different text. This is the case the attribute exists for. Without it React tears
+            down the tree with #418 over a word.
+          */}
+          <h1 suppressHydrationWarning>
             {timeOfDayGreeting()}
             {currentUser?.firstName ? `, ${currentUser.firstName}` : ''}
           </h1>
