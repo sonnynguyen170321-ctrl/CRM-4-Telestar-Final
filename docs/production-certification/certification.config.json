@@ -2,10 +2,14 @@
   "$comment": "Authoritative certification configuration. The candidate SHA lives HERE and nowhere else; every other file must agree with it or `npm run certify:validate` fails.",
   "schemaVersion": 1,
   "program": "Telestar CRM Production Certification",
-  "releaseTag": "telestar-internal-rc-2026-08-20",
-  "candidateSha": "3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32",
-  "candidateFrozenAt": "2026-08-20T03:01:46.383Z",
+  "releaseTag": "telestar-internal-rc-2026-08-21",
+  "candidateSha": "e6144b2692c8f46ecbf2f83b371f65aef0542492",
+  "candidateFrozenAt": "2026-08-20T19:07:57.927Z",
   "previousCandidates": [
+    {
+      "sha": "3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32",
+      "invalidatedReason": "superseded: 37 commits of agent-control-plane work, the CI capability probes, the runnable-harness fixes and the seed delete-order defect all landed after it"
+    },
     {
       "sha": "cf23182cdd291d9f180bb36ec88d7fe6df0cdfb9",
       "invalidatedReason": "superseded"
