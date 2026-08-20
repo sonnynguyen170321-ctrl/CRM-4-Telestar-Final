@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-DR-NEGATIVE-CONTROL",
   "kind": "dr-negative-control",
-  "candidateSha": "471b61148305c745927d0f6267cc86a478ad1b9b",
+  "candidateSha": "99f6b8d00c3240c8be0fd07446ded1e710aa2b7b",
   "environment": "win32 / node 24.16.0 / postgres 16",
   "command": "node scripts/certification/dr-negative-fixture.mjs",
-  "startedAt": "2026-08-20T02:29:29.948Z",
-  "finishedAt": "2026-08-20T02:29:40.532Z",
+  "startedAt": "2026-08-20T02:53:32.259Z",
+  "finishedAt": "2026-08-20T02:53:50.301Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -43,7 +43,7 @@
     {
       "path": "docs/production-certification/evidence/raw/dr-negative-fixture.log",
       "sizeBytes": 4641,
-      "sha256": "7bbc780824dac4784bf41f2f6104e087de4de6245814d854f5773c993ee64259"
+      "sha256": "84d2782e24883bad2e5de2d571ccc60364961953b355b023e77fab5d37bf4aec"
     }
   ]
 }

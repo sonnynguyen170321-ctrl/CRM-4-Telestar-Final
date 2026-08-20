@@ -16,12 +16,18 @@
  *
  * Exit code is non-zero if any stage fails.
  */
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { EVIDENCE_DIR, RAW_DIR, REPO_ROOT, repoRelative } from './lib/paths.mjs';
+
+/** Mirrors REPRESENTATIVE_MODELS in scripts/verify-db-integrity.ts. */
+const REPRESENTATIVE_MODELS = [
+  'Tenant', 'User', 'Client', 'Campaign', 'Account', 'Contact', 'Lead', 'Task',
+  'Activity', 'Sequence', 'SequenceEnrollment', 'OutboundMessage', 'ImportBatch',
+];
 
 const PG_BIN = process.env.PG_BIN || 'C:/Program Files/PostgreSQL/16/bin';
 const PGHOST = process.env.PGHOST || '127.0.0.1';
@@ -118,10 +124,10 @@ async function main() {
   console.log(`backup artifact : ${repoRelative(dumpFile)}`);
   console.log('');
 
-  // 1. Pre-backup record counts - the reconciliation baseline.
-  console.log('[1/6] capturing pre-backup record counts');
+  // 1. Source integrity, before anything else. A backup of a broken database is not a backup.
+  console.log('[1/6] verifying source integrity');
   const preCounts = run(
-    'pre-backup record counts',
+    'pre-backup source integrity',
     process.execPath,
     ['node_modules/tsx/dist/cli.mjs', 'scripts/verify-db-integrity.ts', '--json'],
     path.join(RAW_DIR, 'dr-pre-backup-counts.log'),
@@ -130,19 +136,82 @@ async function main() {
   stages.push(preCounts);
   if (preCounts.exitCode !== 0) fail('source database failed its own integrity check before backup');
 
-  const preReport = JSON.parse(preCounts.stdout.slice(preCounts.stdout.indexOf('{')));
-  writeFileSync(countsFile, JSON.stringify(preReport.counts, null, 2));
-  console.log(`      ${Object.keys(preReport.counts).length} models counted`);
+  // 2. Dump and count from the SAME snapshot.
+  //
+  // Counting before the dump and comparing afterwards is a race: any write in between makes
+  // the restore look larger than the baseline, and the drill reports a data-integrity failure
+  // that is really just concurrency. It did exactly that - Contact +42, Lead +42, Activity +30
+  // - on a database that was perfectly healthy.
+  //
+  // A repeatable-read transaction exports a snapshot id; pg_dump reads that same snapshot with
+  // --snapshot, and the counts are taken inside the transaction that owns it. Both therefore
+  // observe one identical instant, and the comparison means what it claims to.
+  console.log('[2/6] running pg_dump against an exported snapshot');
+  const snapshotHolder = spawn(
+    pgTool('psql'),
+    ['-h', PGHOST, '-p', PGPORT, '-U', PGUSER, '-d', source, '-X', '-q', '-A', '-t'],
+    { env: { ...process.env, PGPASSWORD }, stdio: ['pipe', 'pipe', 'pipe'] },
+  );
 
-  // 2. Real backup.
-  console.log('[2/6] running pg_dump');
+  let holderOut = '';
+  let holderErr = '';
+  snapshotHolder.stdout.on('data', (chunk) => {
+    holderOut += String(chunk);
+  });
+  snapshotHolder.stderr.on('data', (chunk) => {
+    holderErr += String(chunk);
+  });
+
+  const countSql = REPRESENTATIVE_MODELS.map(
+    (model) => `SELECT '${model}=' || (SELECT COUNT(*) FROM "${model}");`,
+  ).join('\n');
+
+  snapshotHolder.stdin.write('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ;\n');
+  snapshotHolder.stdin.write("SELECT 'SNAPSHOT=' || pg_export_snapshot();\n");
+
+  const snapshotId = await new Promise((resolve, reject) => {
+    const deadline = setTimeout(() => reject(new Error('timed out exporting a snapshot')), 30_000);
+    const poll = setInterval(() => {
+      const match = holderOut.match(/SNAPSHOT=(\S+)/);
+      if (match) {
+        clearInterval(poll);
+        clearTimeout(deadline);
+        resolve(match[1]);
+      }
+    }, 100);
+  });
+  console.log(`      snapshot ${snapshotId}`);
+
   const dump = run(
     'pg_dump',
     pgTool('pg_dump'),
-    ['-h', PGHOST, '-p', PGPORT, '-U', PGUSER, '-d', source, '--format=custom', '--no-owner', '--no-acl', '--file', dumpFile],
+    [
+      '-h', PGHOST, '-p', PGPORT, '-U', PGUSER, '-d', source,
+      '--format=custom', '--no-owner', '--no-acl',
+      '--snapshot', snapshotId,
+      '--file', dumpFile,
+    ],
     path.join(RAW_DIR, 'dr-backup-command.log'),
   );
   stages.push(dump);
+
+  // Counts from inside the snapshot-owning transaction, so they describe the dump exactly.
+  snapshotHolder.stdin.write(`${countSql}\n`);
+  snapshotHolder.stdin.write('COMMIT;\n');
+  snapshotHolder.stdin.end();
+  await new Promise((resolve) => snapshotHolder.on('exit', resolve));
+
+  const snapshotCounts = {};
+  for (const model of REPRESENTATIVE_MODELS) {
+    const match = holderOut.match(new RegExp(`${model}=(\\d+)`));
+    if (match) snapshotCounts[model] = Number(match[1]);
+  }
+  writeFileSync(countsFile, JSON.stringify(snapshotCounts, null, 2));
+  writeFileSync(
+    path.join(RAW_DIR, 'dr-snapshot-counts.log'),
+    `# counts taken inside the transaction that exported snapshot ${snapshotId}\n${holderOut}\n${holderErr}\n`,
+  );
+  console.log(`      ${Object.keys(snapshotCounts).length} models counted in-snapshot`);
   if (dump.exitCode !== 0) fail(`pg_dump exited ${dump.exitCode}`);
   if (!existsSync(dumpFile) || statSync(dumpFile).size === 0) fail('pg_dump produced an empty artifact');
 
@@ -228,7 +297,8 @@ async function main() {
       checksumVerified: true,
       checksumCommand: 'sha256sum -c',
       backupDurationSeconds: Number((dump.durationMs / 1000).toFixed(2)),
-      preBackupCounts: preReport.counts,
+      snapshotId,
+      snapshotCounts,
     },
     artifacts: rawArtifacts.filter((entry) => /backup|counts/.test(entry.path)),
   };

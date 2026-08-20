@@ -5,8 +5,8 @@
   "candidateSha": "471b61148305c745927d0f6267cc86a478ad1b9b",
   "environment": "win32 / node 24.16.0 / postgres 16 / real Redis / real BullMQ",
   "command": "npx tsx scripts/certification/queue-load-benchmark.ts",
-  "startedAt": "2026-08-20T02:41:35.802Z",
-  "finishedAt": "2026-08-20T02:42:08.969Z",
+  "startedAt": "2026-08-20T02:50:08.359Z",
+  "finishedAt": "2026-08-20T02:50:45.641Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -16,22 +16,22 @@
       "120": {
         "rows": 120,
         "chunks": 3,
-        "totalDurationMs": 1388,
-        "rowsPerSecond": 86.46,
+        "totalDurationMs": 1407,
+        "rowsPerSecond": 85.29,
         "queueWaitMs": {
-          "p50": 2,
-          "p95": 3,
-          "p99": 3
+          "p50": 3,
+          "p95": 10,
+          "p99": 10
         },
         "jobProcessingMs": {
-          "p50": 1130,
-          "p95": 1174,
-          "p99": 1174
+          "p50": 1026,
+          "p95": 1164,
+          "p99": 1164
         },
-        "enqueueStartedAt": "2026-08-20T02:41:45.747Z",
-        "firstWorkerStartAt": "2026-08-20T02:41:45.760Z",
-        "lastRowTerminalAt": "2026-08-20T02:41:47.124Z",
-        "batchCommittedAt": "2026-08-20T02:41:47.135Z",
+        "enqueueStartedAt": "2026-08-20T02:50:18.634Z",
+        "firstWorkerStartAt": "2026-08-20T02:50:18.649Z",
+        "lastRowTerminalAt": "2026-08-20T02:50:20.030Z",
+        "batchCommittedAt": "2026-08-20T02:50:20.041Z",
         "failedJobs": 0,
         "retries": 0,
         "lostRows": 0,
@@ -45,22 +45,22 @@
       "500": {
         "rows": 500,
         "chunks": 10,
-        "totalDurationMs": 4134,
-        "rowsPerSecond": 120.95,
+        "totalDurationMs": 4394,
+        "rowsPerSecond": 113.79,
         "queueWaitMs": {
-          "p50": 979,
-          "p95": 2886,
-          "p99": 2886
+          "p50": 1042,
+          "p95": 3345,
+          "p99": 3345
         },
         "jobProcessingMs": {
-          "p50": 982,
-          "p95": 1002,
-          "p99": 1002
+          "p50": 1121,
+          "p95": 1239,
+          "p99": 1239
         },
-        "enqueueStartedAt": "2026-08-20T02:41:50.474Z",
-        "firstWorkerStartAt": "2026-08-20T02:41:50.481Z",
-        "lastRowTerminalAt": "2026-08-20T02:41:54.332Z",
-        "batchCommittedAt": "2026-08-20T02:41:54.608Z",
+        "enqueueStartedAt": "2026-08-20T02:50:23.426Z",
+        "firstWorkerStartAt": "2026-08-20T02:50:23.433Z",
+        "lastRowTerminalAt": "2026-08-20T02:50:27.813Z",
+        "batchCommittedAt": "2026-08-20T02:50:27.820Z",
         "failedJobs": 0,
         "retries": 0,
         "lostRows": 0,
@@ -74,22 +74,22 @@
       "1000": {
         "rows": 1000,
         "chunks": 20,
-        "totalDurationMs": 6958,
-        "rowsPerSecond": 143.72,
+        "totalDurationMs": 8263,
+        "rowsPerSecond": 121.02,
         "queueWaitMs": {
-          "p50": 3071,
-          "p95": 5764,
-          "p99": 5764
+          "p50": 4043,
+          "p95": 7201,
+          "p99": 7201
         },
         "jobProcessingMs": {
-          "p50": 928,
-          "p95": 1195,
-          "p99": 1208
+          "p50": 1092,
+          "p95": 1489,
+          "p99": 1494
         },
-        "enqueueStartedAt": "2026-08-20T02:42:01.999Z",
-        "firstWorkerStartAt": "2026-08-20T02:42:02.005Z",
-        "lastRowTerminalAt": "2026-08-20T02:42:08.946Z",
-        "batchCommittedAt": "2026-08-20T02:42:08.957Z",
+        "enqueueStartedAt": "2026-08-20T02:50:37.365Z",
+        "firstWorkerStartAt": "2026-08-20T02:50:37.371Z",
+        "lastRowTerminalAt": "2026-08-20T02:50:45.623Z",
+        "batchCommittedAt": "2026-08-20T02:50:45.628Z",
         "failedJobs": 0,
         "retries": 0,
         "lostRows": 0,
@@ -105,8 +105,8 @@
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/load-queue-benchmark.log",
-      "sizeBytes": 2065,
-      "sha256": "fbe04a2e933a0153641cb5ade7617209cc59983f2b9111b117b39cf83feb5d95"
+      "sizeBytes": 2070,
+      "sha256": "ac64ec4ce0c6cae8b7edcda4582989b887fb77d12389e43fa5177b26d7bf768b"
     }
   ]
 }

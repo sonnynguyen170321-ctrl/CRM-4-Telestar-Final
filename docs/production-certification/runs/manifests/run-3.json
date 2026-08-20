@@ -1,28 +1,30 @@
 {
-  "runNumber": 1,
+  "runNumber": 3,
   "candidateSha": "471b61148305c745927d0f6267cc86a478ad1b9b",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
-  "startedAt": "2026-08-20T02:29:53.708Z",
-  "finishedAt": "2026-08-20T02:37:17.078Z",
-  "durationMs": 443370,
+  "startedAt": "2026-08-20T02:44:33.372Z",
+  "finishedAt": "2026-08-20T02:54:14.989Z",
+  "durationMs": 581617,
   "gates": {
     "01-source-identity": {
-      "status": "PASS",
-      "exitCode": 0,
+      "status": "FAIL",
+      "exitCode": 1,
       "durationMs": 0,
       "description": "the application source is exactly the frozen candidate",
       "metrics": {
         "head": "602a90641bd1ceafb78b41631106ea09014edd3a",
         "candidateSha": "471b61148305c745927d0f6267cc86a478ad1b9b",
         "commitsSinceFreeze": 1,
-        "uncommittedNonMetadataPaths": 0,
-        "problems": []
+        "uncommittedNonMetadataPaths": 3,
+        "problems": [
+          "working tree has 3 uncommitted non-metadata path(s): prisma/schema.prisma, workers/import.ts, prisma/migrations/20260820000000_activity_task_idempotency_key/"
+        ]
       }
     },
     "02-environment": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 319,
+      "durationMs": 423,
       "description": "Postgres and Redis reachable; required configuration present",
       "metrics": {
         "postgres": {
@@ -30,7 +32,7 @@
           "port": "5432",
           "database": "telestar_crm",
           "reachable": true,
-          "appliedMigrations": 49
+          "appliedMigrations": 50
         },
         "redis": {
           "host": "127.0.0.1",
@@ -49,37 +51,37 @@
     "03-typecheck": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 26591,
+      "durationMs": 76310,
       "description": "tsc --noEmit"
     },
     "04-lint": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 51848,
+      "durationMs": 73436,
       "description": "eslint across the whole tree"
     },
     "05-test-discipline": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 545,
+      "durationMs": 701,
       "description": "scripts/check-test-discipline.mjs"
     },
     "06-migration-validation": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 158,
+      "durationMs": 195,
       "description": "scripts/check-migration-order.mjs"
     },
     "07-database-integrity": {
-      "status": "PASS",
-      "exitCode": 0,
-      "durationMs": 8818,
+      "status": "FAIL",
+      "exitCode": 1,
+      "durationMs": 9185,
       "description": "scripts/verify-db-integrity.ts against the certification database"
     },
     "08-vitest": {
-      "status": "PASS",
-      "exitCode": 0,
-      "durationMs": 138411,
+      "status": "FAIL",
+      "exitCode": 1,
+      "durationMs": 152685,
       "description": "full Vitest suite against real Postgres and Redis",
       "metrics": {
         "files": {
@@ -504,9 +506,9 @@
             "skipped": 0
           },
           "tests/import-load-benchmark.test.ts": {
-            "status": "passed",
-            "tests": 3,
-            "failed": 0,
+            "status": "failed",
+            "tests": 1,
+            "failed": 2,
             "skipped": 0
           },
           "tests/import-race-stress.test.ts": {
@@ -546,9 +548,9 @@
             "skipped": 0
           },
           "tests/leadgen-redesign.test.ts": {
-            "status": "passed",
-            "tests": 10,
-            "failed": 0,
+            "status": "failed",
+            "tests": 8,
+            "failed": 2,
             "skipped": 0
           },
           "tests/leadgen.test.ts": {
@@ -781,7 +783,7 @@
           },
           "tests/release.test.ts": {
             "status": "passed",
-            "tests": 15,
+            "tests": 0,
             "failed": 0,
             "skipped": 0
           },
@@ -1069,16 +1071,16 @@
           }
         },
         "testFiles": 164,
-        "testFilesPassed": 164,
-        "testsPassed": 2059,
-        "testsFailed": 0,
+        "testFilesPassed": 162,
+        "testsPassed": 2040,
+        "testsFailed": 4,
         "testsSkipped": 0
       }
     },
     "09-redis-integration": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 3504,
+      "durationMs": 3428,
       "description": "Redis integration suite - must execute, never skip",
       "metrics": {
         "files": {
@@ -1113,73 +1115,73 @@
     "10-ai-certification": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 7184,
+      "durationMs": 6989,
       "description": "AI durable budget, stream governance, shared circuit, capability routing"
     },
     "11-email-safety": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 2165,
+      "durationMs": 2145,
       "description": "demo barrier, idempotency, safe-mode posture"
     },
     "12-import-fault-matrix": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 8384,
+      "durationMs": 7904,
       "description": "import durable-write failpoint matrix"
     },
     "13-queue-load": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 34812,
+      "durationMs": 38630,
       "description": "IMPORT_SYSTEM_QUEUE_BENCHMARK over real Redis and BullMQ"
     },
     "14-security-suite": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 3643,
+      "durationMs": 4417,
       "description": "tenant isolation, object auth, mass assignment, XSS, formula injection, secrets"
     },
     "15-production-build": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 92468,
+      "durationMs": 130680,
       "description": "next build"
     },
     "16-playwright-roles": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 32340,
+      "durationMs": 41490,
       "description": "six-role real browser acceptance"
     },
     "16-playwright-roles-evidence": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 193,
+      "durationMs": 145,
       "description": "aggregate six-role observations into EV-ROLE-BROWSER"
     },
     "17-golden-browser-journey": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 15638,
+      "durationMs": 16603,
       "description": "cross-role golden journey in a real browser"
     },
     "18-worker-readiness": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 3360,
+      "durationMs": 3374,
       "description": "worker healthcheck: a job is enqueued and a real worker drains it"
     },
     "22-health-smoke": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 41,
+      "durationMs": 48,
       "description": "web health endpoints answer and report release identity",
       "metrics": {
         "endpoints": {
           "/api/health": {
             "status": 200,
-            "body": "{\"ok\":true,\"ts\":1787193435829,\"commit\":\"unknown\",\"version\":\"unknown\",\"builtAt\":\"unknown\",\"schema\":\"ready\"}"
+            "body": "{\"ok\":true,\"ts\":1787194453797,\"commit\":\"unknown\",\"version\":\"unknown\",\"builtAt\":\"unknown\",\"schema\":\"ready\"}"
           },
           "/api/health/db": {
             "status": 404,
@@ -1213,18 +1215,22 @@
     "21-compose-validation": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 434,
+      "durationMs": 413,
       "description": "scripts/check-production-compose.mjs"
     },
     "23-validator-selftest": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 776,
+      "durationMs": 736,
       "description": "the validator rejects every injected false-green state"
     }
   },
   "missingGates": [],
-  "failedGates": [],
+  "failedGates": [
+    "01-source-identity",
+    "07-database-integrity",
+    "08-vitest"
+  ],
   "blockedGates": [
     "19-docker-build",
     "20-image-inspection"
@@ -1653,9 +1659,9 @@
         "skipped": 0
       },
       "tests/import-load-benchmark.test.ts": {
-        "status": "passed",
-        "tests": 3,
-        "failed": 0,
+        "status": "failed",
+        "tests": 1,
+        "failed": 2,
         "skipped": 0
       },
       "tests/import-race-stress.test.ts": {
@@ -1695,9 +1701,9 @@
         "skipped": 0
       },
       "tests/leadgen-redesign.test.ts": {
-        "status": "passed",
-        "tests": 10,
-        "failed": 0,
+        "status": "failed",
+        "tests": 8,
+        "failed": 2,
         "skipped": 0
       },
       "tests/leadgen.test.ts": {
@@ -1930,7 +1936,7 @@
       },
       "tests/release.test.ts": {
         "status": "passed",
-        "tests": 15,
+        "tests": 0,
         "failed": 0,
         "skipped": 0
       },
@@ -2218,9 +2224,9 @@
       }
     },
     "testFiles": 164,
-    "testFilesPassed": 164,
-    "testsPassed": 2059,
-    "testsFailed": 0,
+    "testFilesPassed": 162,
+    "testsPassed": 2040,
+    "testsFailed": 4,
     "testsSkipped": 0
   }
 }
