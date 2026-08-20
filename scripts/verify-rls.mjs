@@ -180,12 +180,27 @@ async function main() {
       datasources: { db: { url: dbUrl(DB_NAME, APP_ROLE, APP_PASSWORD) } },
     });
 
-    const asTenantA = async (sql) => {
-      // Session-scoped so it survives across statements on this connection.
-      await appClient.$executeRawUnsafe(`SELECT set_config('app.current_tenant_id','tenant-a',false)`);
-      await appClient.$executeRawUnsafe(`SELECT set_config('app.bypass_rls','false',false)`);
-      return appClient.$queryRawUnsafe(sql);
-    };
+    /**
+     * Runs one statement holding tenant A's context.
+     *
+     * The context and the statement have to share a connection, and issuing them as separate
+     * client calls does not guarantee that: Prisma hands each call whichever pooled connection
+     * is free, so the `set_config` can land on one connection and the query on another that
+     * has no tenant context at all. The policy then correctly hides everything and the check
+     * reports "expected 1 own row, saw 0" — the verifier failing, not RLS.
+     *
+     * That is exactly what happened on CI while every run on the developer machine passed,
+     * because a quiet pool tends to reuse a single connection and a busy one does not.
+     *
+     * An interactive transaction pins both to the same connection. The settings are
+     * transaction-scoped (`true`), so they also cannot leak into a later check.
+     */
+    const asTenantA = (sql) =>
+      appClient.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(`SELECT set_config('app.current_tenant_id','tenant-a',true)`);
+        await tx.$executeRawUnsafe(`SELECT set_config('app.bypass_rls','false',true)`);
+        return tx.$queryRawUnsafe(sql);
+      });
 
     try {
       console.log('Connected as an unprivileged role holding tenant A context:\n');
@@ -260,9 +275,14 @@ async function main() {
       }
 
       // Missing context must fail closed, not open.
-      await appClient.$executeRawUnsafe(`SELECT set_config('app.current_tenant_id','',false)`);
-      await appClient.$executeRawUnsafe(`SELECT set_config('app.bypass_rls','false',false)`);
-      const noCtx = await appClient.$queryRawUnsafe(`SELECT id FROM "Lead"`);
+      // Same pinning requirement: without it this can read on a connection that still holds
+      // a tenant context from an earlier statement, and "fails closed" would pass for the
+      // wrong reason.
+      const noCtx = await appClient.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(`SELECT set_config('app.current_tenant_id','',true)`);
+        await tx.$executeRawUnsafe(`SELECT set_config('app.bypass_rls','false',true)`);
+        return tx.$queryRawUnsafe(`SELECT id FROM "Lead"`);
+      });
       if (noCtx.length === 0) {
         pass('fails closed with no tenant context');
       } else {
