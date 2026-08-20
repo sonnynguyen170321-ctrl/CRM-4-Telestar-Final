@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { buildCsp, CSP_HEADER_NAME } from './lib/security/csp';
+import bundleAnalyzer from "@next/bundle-analyzer";
 
 // Security headers applied to every response. HSTS is harmless over plain HTTP (browsers
 // ignore it) and enforced once the app is served over TLS behind the load balancer.
@@ -27,11 +28,9 @@ const nextConfig: NextConfig = {
   },
 };
 
-let config = nextConfig;
+// Gated by `enabled` rather than by a conditional require(): when ANALYZE is unset the
+// plugin returns the config untouched, so the behaviour matches the previous branch while
+// staying a static ESM import.
+const withBundleAnalyzer = bundleAnalyzer({ enabled: process.env.ANALYZE === 'true' });
 
-if (process.env.ANALYZE === 'true') {
-  const withBundleAnalyzer = require('@next/bundle-analyzer')({ enabled: true });
-  config = withBundleAnalyzer(config);
-}
-
-export default config;
+export default withBundleAnalyzer(nextConfig);
