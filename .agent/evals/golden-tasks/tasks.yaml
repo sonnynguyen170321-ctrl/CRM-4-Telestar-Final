@@ -1,0 +1,141 @@
+# Golden engineering tasks (§XLIX).
+#
+# Every one of these is a defect this repository actually paid for. They are the benchmark for
+# whether the control plane routes a real problem correctly: given the files a fix would touch,
+# does an agent arrive at the right domain, the right risk, the right skills and the right
+# tests — without reading obsolete history?
+#
+# `expects.not_skills` matters as much as `expects.skills`. A router that returns everything is
+# not a router.
+#
+# Asserted by tests/agent-golden-tasks.test.ts. Deterministic and cheap: no agent is run, only
+# the routing. Full agent benchmarks are periodic, not per-commit.
+
+version: 1
+
+tasks:
+  - id: GT-001
+    title: Chat returns a generic apology for every message
+    symptom: >-
+      Every message in production came back as "Sorry, I ran into a problem generating that."
+      The cause was a Groq model that had been withdrawn, a 404 that the legacy router did not
+      treat as a fallback condition, and a generic catch that flattened every cause into one
+      sentence.
+    paths: [lib/ai/gateway.ts, lib/ai/registry.ts, app/api/ai/chat/route.ts]
+    expects:
+      domains: [telestar-ai]
+      risk: R3
+      skills: [telestar-ai]
+      not_skills: [frontend-role-ux, data-prisma, email-deliverability]
+      independent_verification: true
+    safety: A blocked or failed provider call is never reported as a successful answer.
+
+  - id: GT-002
+    title: A migration applies cleanly and replays broken
+    symptom: >-
+      A generated migration sorted before the tables it altered. It applied fine locally,
+      migrate status stayed green, and only a replay from an empty database saw it. Four
+      occurrences.
+    paths: [prisma/migrations/20260101000000_example/migration.sql]
+    expects:
+      domains: [data-prisma]
+      risk: R4
+      skills: [data-prisma]
+      not_skills: [telestar-ai, frontend-role-ux]
+      independent_verification: true
+    safety: Not locally recoverable once applied to a real database.
+
+  - id: GT-003
+    title: A Floor Manager sees another floor
+    symptom: >-
+      Role scoping walks managerId. A branch that falls through to a broader scope when a role
+      does not match is invisible to tests written for the roles that do match.
+    paths: [lib/podScoping.ts, lib/auth.ts]
+    expects:
+      domains: [auth-rbac-tenancy]
+      risk: R4
+      skills: [auth-rbac-tenancy]
+      not_skills: [telestar-ai, email-automation]
+      independent_verification: true
+    safety: Cross-tenant or cross-pod leakage is the highest-severity defect class here.
+
+  - id: GT-004
+    title: A prospect receives the same sequence step twice
+    symptom: >-
+      A retried job without a stable idempotency key duplicated an outbound send. A prospect
+      cannot be un-emailed.
+    paths: [lib/sequences/engine.ts, workers/sequence.ts]
+    expects:
+      domains: [email-automation, workers-durability]
+      risk: R3
+      skills: [email-automation, workers-durability]
+      not_skills: [frontend-role-ux, revenue-intelligence]
+      independent_verification: true
+    safety: Idempotency keys derive from durable ids, never a timestamp or a random value.
+
+  - id: GT-005
+    title: An unsubscribed contact receives a send
+    symptom: >-
+      The suppression check ran after quota reservation rather than before it, so a blocked
+      send still consumed a slot — and an ordering slip meant it was not consulted at all.
+    paths: [lib/email/send.ts, lib/automation/scheduling.ts]
+    expects:
+      domains: [email-automation]
+      risk: R3
+      skills: [email-automation]
+      not_skills: [telestar-ai, auth-rbac-tenancy]
+      independent_verification: true
+    safety: Every send passes a suppression check first and goes through OutboundMessage.
+
+  - id: GT-006
+    title: A client report shows another client's numbers
+    symptom: >-
+      A report joining across campaigns exposes one client's meetings to another. The output
+      leaves the company, which makes this the highest-consequence defect in its domain despite
+      the domain's ordinary risk class.
+    paths: [lib/client-reports/build.ts, app/api/client-reports/route.ts]
+    expects:
+      # Both paths belong to revenue-intelligence, including the route: `app/api/client-reports/**`
+      # is more specific than the generic `app/api/**` that api-contracts owns, and the narrower
+      # owner wins. Expecting api-contracts here was the fixture being wrong, not the router —
+      # loading a second skill for a route its own domain already covers is the over-selection
+      # this whole exercise exists to prevent.
+      domains: [revenue-intelligence]
+      risk: R2
+      skills: [revenue-intelligence]
+      not_skills: [workers-durability, telestar-ai, api-contracts]
+      independent_verification: false
+    safety: >-
+      Reports are tenant- and campaign-scoped at the query, never filtered in the view, and
+      carry no internal team data. Treat a scoping change here as R4 regardless of the class.
+
+  - id: GT-007
+    title: A role sees a surface it should not
+    symptom: >-
+      A nav item or panel rendered for a role without the matching API gate. Hiding a control
+      is not authorization, but showing one that 403s is still a defect.
+    paths: [components/Sidebar.tsx, app/team/page.tsx]
+    expects:
+      domains: [frontend-role-ux]
+      risk: R1
+      skills: [frontend-role-ux]
+      not_skills: [data-prisma, workers-durability]
+      independent_verification: false
+    safety: The UI is not the authorization boundary; the API must refuse independently.
+
+  - id: GT-008
+    title: The served commit does not match the release
+    symptom: >-
+      Deploying by a moving tag rather than an immutable digest left "is this fixed in
+      production?" unanswerable.
+    paths: [.github/workflows/docker-image.yml, scripts/build.cjs]
+    expects:
+      domains: [production-release]
+      risk: R4
+      skills: [production-release]
+      not_skills: [telestar-ai, frontend-role-ux]
+      independent_verification: true
+      operator_authorization: true
+    safety: >-
+      Production mutation requires explicit operator authorization for the specific action.
+      No instruction about pace or completeness grants it.
