@@ -67,7 +67,15 @@ jobs:
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/telestar_crm_test
       REDIS_URL: redis://localhost:6379
     steps:
+      # Depth matters here. `agent check` replays routing over the last 60 commits, and a
+      # shallow checkout grafts the tip into a parentless commit — `git show --name-only`
+      # then reports every file in the tree as changed, so the replay saw all 123 top-level
+      # paths as unrouted and failed on a property of the checkout rather than of the code.
+      # 100 covers the 60-commit window with room for the boundary commit, without paying
+      # for the full history on every run.
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 100
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:

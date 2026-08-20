@@ -123,6 +123,32 @@ export function staticRoi(n = 40): StaticRoi {
   let classified = 0;
 
   for (const sha of shas) {
+    // A commit with no parent is either the repository root or the boundary of a shallow
+    // clone. `git show --name-only` reports both as having added every file in the tree,
+    // which is not a change set anyone routed — it is the whole repository.
+    //
+    // CI checks out at depth 1 by default, so the tip has no parent there and this replay
+    // reported all 123 top-level paths as unclassified: `.dockerignore`, `.env.example`,
+    // `.github/CODEOWNERS`. The routing test failed on a machine-shaped artefact while
+    // passing on any developer clone, which has real history behind the tip.
+    //
+    // Skipping such commits is right in both cases: the initial commit carries no routing
+    // signal either, since "every file changed at once" says nothing about which domain a
+    // change belongs to.
+    let parents: string[] = [];
+    try {
+      parents = execFileSync('git', ['rev-list', '--parents', '-n', '1', sha], {
+        encoding: 'utf8',
+        cwd: ROOT,
+      })
+        .trim()
+        .split(/\s+/)
+        .slice(1);
+    } catch {
+      continue;
+    }
+    if (parents.length === 0) continue;
+
     let files: string[] = [];
     try {
       files = execFileSync('git', ['show', '--name-only', '--format=', sha], {
