@@ -4,6 +4,7 @@ import { analyze } from '@/scripts/agent/impact';
 import { compile } from '@/scripts/agent/brief';
 import { globToRegExp, resolvePath, maxRisk } from '@/scripts/agent/registry';
 import { audit, auditExitCode } from '@/scripts/agent/contextAudit';
+import { staticRoi } from '@/scripts/agent/roi';
 
 /**
  * Routing evals (§XLVIII).
@@ -192,5 +193,23 @@ describe('context budget', () => {
     const startup = items.find((i) => i.label === 'startup universal context');
     // Every .claude/rules file carries `paths:` frontmatter, so none of them load at startup.
     expect(startup!.files.some((f) => f.startsWith('.claude/rules/'))).toBe(false);
+  });
+});
+
+describe('routing coverage (§XXI)', () => {
+  it('classifies every path changed in recent history', () => {
+    // The failure this prevents is silent: an unmapped path routes to no domain, loads no
+    // skill, and is classified R2 by default — so a change to a critical area arrives with
+    // less context than a cosmetic one, and nothing says so. Replaying real commits is the
+    // only way to notice, because the gap only exists for paths people actually touch.
+    const { unclassifiedPaths, classified } = staticRoi(60);
+    expect(classified).toBeGreaterThan(100);
+    expect(unclassifiedPaths, 'unmapped paths — add them to .agent/registry/domains.yaml').toEqual([]);
+  });
+
+  it('selects at least one skill for the domains that see real churn', () => {
+    const { frequency } = staticRoi(60);
+    expect(frequency.length).toBeGreaterThan(0);
+    for (const entry of frequency) expect(entry.selections).toBeGreaterThan(0);
   });
 });

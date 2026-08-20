@@ -23,6 +23,9 @@ domains:
       - app/api/ai/**
       - components/AiAssistant.tsx
       - scripts/ai-*.ts
+      - scripts/check-stale-models.mjs
+      - scripts/diagnose-ai-agent.ts
+      - scripts/verify-ai-attribution.ts
     tests:
       - tests/ai-*.test.ts
       - tests/agent-*.test.ts
@@ -48,6 +51,10 @@ domains:
       - app/api/auth/**
       - app/api/admin/**
       - app/api/users/**
+      - scripts/create-user.ts
+      - scripts/create-admin.ts
+      - scripts/provision-telestar-organization.ts
+      - scripts/sync-users-to-production.ts
     tests:
       - tests/access-control.test.ts
       - tests/admin-*.test.ts
@@ -73,6 +80,13 @@ domains:
       - lib/prisma.ts
       - lib/seed-guard.ts
       - supabase/**
+      - scripts/verify-rls.mjs
+      - scripts/verify-db-integrity.ts
+      - scripts/demo-seed.ts
+      - prisma/seed-demo.ts
+      - scripts/backfill-*
+      - scripts/purge-*
+      - scripts/repair-*
     tests:
       - tests/migration-*.test.ts
       - tests/rls-policy-coverage.test.ts
@@ -93,6 +107,8 @@ domains:
     paths:
       - workers/**
       - lib/bullmq/**
+      - scripts/worker-*.ts
+      - scripts/worker-*.cjs
       - app/api/cron/**
     tests:
       - tests/*-worker.test.ts
@@ -114,6 +130,8 @@ domains:
       - lib/sequences/**
       - lib/automation/**
       - lib/email/**
+      - lib/emailSafety.ts
+      - lib/replies/**
       - app/api/sequences/**
     tests:
       - tests/sequence-*.test.ts
@@ -140,6 +158,8 @@ domains:
     paths:
       - lib/email-health/**
       - app/api/email-health/**
+      - scripts/diagnose-email-*.ts
+      - scripts/test-email-*.ts
     tests:
       - tests/email-health-*.test.ts
       - tests/bounceDetection.test.ts
@@ -151,6 +171,7 @@ domains:
     risk: R2
     paths:
       - lib/leadgen/**
+      - lib/contact-intelligence/**
       - app/api/leadgen/**
       - app/leadgen/**
       - app/leadgen-manager/**
@@ -189,6 +210,8 @@ domains:
       - app/api/**
       - lib/api/**
       - lib/validation*.ts
+      - lib/validation/**
+      - lib/webhooks/**
     tests:
       - tests/validation.test.ts
       - tests/security-injection.test.ts
@@ -202,6 +225,7 @@ domains:
     paths:
       - lib/leads/**
       - lib/tasks/**
+      - lib/briefing/**
       - app/api/leads/**
       - app/api/tasks/**
       - app/api/activities/**
@@ -223,6 +247,7 @@ domains:
       - hooks/**
       - context/**
       - app/globals.css
+      - app/fonts.ts
     tests:
       - tests/typography-design-system.test.ts
       - tests/phase-9-role-surfaces.test.ts
@@ -238,6 +263,12 @@ domains:
       - tests/**
       - e2e/**
       - scripts/certification/**
+      - scripts/live-e2e-*
+      - scripts/verify-rbac-*
+      - scripts/e2e-*
+      - scripts/verify-*-live.ts
+      - scripts/deep-*-audit.ts
+      - scripts/deep-audit-*.ts
       - playwright.config.ts
       - vitest.config.ts
     tests:
@@ -257,8 +288,18 @@ domains:
       - .github/workflows/**
       - scripts/deploy*
       - scripts/prod-*
+      - scripts/verify-container-secrets.sh
+      - scripts/post-deploy-*.sh
+      - scripts/canary-*
       - scripts/build.cjs
+      - next.config.ts
       - lib/env.ts
+      - lib/env-contract.ts
+      - .env.production.example
+      - package.json
+      - package-lock.json
+      - .gitignore
+      - .gitattributes
     tests:
       - tests/prod-env.test.ts
       - tests/cutover-preflight.test.ts
@@ -288,6 +329,8 @@ domains:
     risk: R2
     paths:
       - .agent/registry/**
+      - .agent/generated/**
+      - .agent/evals/**
       - .agent/memory/**
       - .agent/agents/**
       - .agent/skills/**
@@ -306,6 +349,18 @@ domains:
       decision. Treat a context-budget regression as a defect, not a cost of doing business.
       Note that `docs/agent-os/**` is deliberately NOT here — writing down what was done is
       documentation (R0); changing how routing works is not.
+
+  - id: artifacts
+    description: Build and test output. Not source; owns no behaviour.
+    risk: R0
+    paths:
+      - screenshots/**
+      - test-results/**
+    notes: >-
+      Mapped so routing coverage measures what it should. A change here never implies a
+      behaviour change; if one seems to, the behaviour changed somewhere else.
+      Only directories that actually exist are listed — `agent check` rejects a speculative
+      mapping, and a path that appears later will surface as a routing gap in `agent roi`.
 
   - id: documentation
     description: Prose. Explains meaning; states no derived fact.

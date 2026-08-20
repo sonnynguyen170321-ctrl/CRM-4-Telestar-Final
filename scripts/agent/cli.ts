@@ -19,6 +19,7 @@ import { analyze, changedPaths, renderImpact } from './impact';
 import { audit, auditExitCode, renderAudit } from './contextAudit';
 import { runChecks, renderChecks, checksExitCode } from './check';
 import { auditSkillFreshness, renderFreshness, freshnessExitCode } from './knowledgeAudit';
+import { recordBrief, recordUsage, sessionRoi, staticRoi, renderRoi } from './roi';
 
 const ROOT = process.cwd();
 const argv = process.argv.slice(2);
@@ -104,7 +105,36 @@ function runBrief(): number {
     out('No changed paths. Pass --paths <files> or --diff <base>.', { command: 'brief', paths: [] });
     return 0;
   }
-  out(renderBrief(brief), { command: 'brief', ...brief });
+
+  // Recorded so `agent roi` can later compare what was recommended against what was read.
+  // Gitignored and task-scoped; the id is echoed so an agent can report actuals against it.
+  const briefId = Date.now().toString(36);
+  recordBrief(briefId, brief.paths, brief.skills.map((s) => s.id));
+
+  out(`${renderBrief(brief)}\n\nbrief id: ${briefId}`, { command: 'brief', briefId, ...brief });
+  return 0;
+}
+
+function runRoi(): number {
+  const recordFlag = argv.indexOf('--record');
+  if (recordFlag !== -1) {
+    const id = argv[recordFlag + 1];
+    const usedFlag = argv.indexOf('--used');
+    const used = usedFlag === -1 ? [] : (argv[usedFlag + 1] ?? '').split(',').filter(Boolean);
+    const ok = recordUsage(id, used);
+    out(
+      ok ? `Recorded ${used.length} used skill(s) for brief ${id}.` : `No brief ${id} in .agent/state/.`,
+      { command: 'roi', mode: 'record', id, used, ok },
+    );
+    return ok ? 0 : 1;
+  }
+
+  const windowFlag = argv.indexOf('--commits');
+  const commits = windowFlag === -1 ? 40 : Number(argv[windowFlag + 1]) || 40;
+  const session = sessionRoi();
+  const staticPart = staticRoi(commits);
+  out(renderRoi(session, staticPart), { command: 'roi', session, static: staticPart });
+  // A report, not a gate: rare knowledge is not waste, and an unknown ratio is not a failure.
   return 0;
 }
 
@@ -142,6 +172,11 @@ Commands
   context-audit    Enforce the startup context budget
   check            Project-truth CI gates
   knowledge-audit  Which skills have had their sources move underneath them
+  roi              Context ROI: skill selection frequency, routing gaps, loaded-vs-used
+
+ROI
+  --commits <n>    Replay routing over the last n commits (default 40)
+  --record <id> --used <a,b>   Record which recommended skills a session actually read
 
 Targeting
   --paths <a> <b>  Explicit paths
@@ -169,6 +204,9 @@ async function main(): Promise<void> {
       break;
     case 'check':
       code = await runProjectChecks();
+      break;
+    case 'roi':
+      code = runRoi();
       break;
     case 'knowledge-audit': {
       const findings = auditSkillFreshness();
