@@ -27,23 +27,24 @@ that *could* be generated is written by hand before them.
 
 ---
 
-## Phase 1 — Kernel, adapters, and the bloat (§II, §III, §IV, §LV)
+## Phase 1 — Kernel, adapters, and the bloat ✅ (§II, §III, §IV, §LV)
 
 The measured problem: ~314 KB of always-loaded instruction, of which 251 KB is generic
 language rules for stacks this repository does not use.
 
-- [ ] Rewrite `AGENTS.md` to < 200 lines / ~1,500–2,000 tokens (§II)
-  - [ ] Remove: caveman response instructions, stop-on-any-warning rule, runtime-hardening initiative, Neon/Vercel assumptions, old SHAs and test counts
-  - [ ] Keep: purpose, stack, source hierarchy, six roles, invariants, risk policy, context-loading algorithm, testing philosophy, completion semantics
-  - [ ] Preserve the framework-managed `nextjs-agent-rules` block (§II "preserve framework-managed material")
-- [ ] Reduce `CLAUDE.md` to `@AGENTS.md` + genuinely Claude-specific behavior only (§III)
-- [ ] Add `paths:` frontmatter to every `.claude/rules/*.md`; keep unscoped rules tiny (§III)
-- [ ] Remove `.claude/rules/ecc/**` — 104 files, 251 KB, covering ArkTS/HarmonyOS, Angular, Swift, PHP, Ruby, Go, Rust, Python (§LV "generic ECC rule bloat")
-- [ ] Fix the six dead skill pointers in `.claude/rules/workflow.md:23-28` → `.claude/skills/ecc/` does not exist (§LV, §LIV "deleted-path references")
-- [ ] Correct stale facts found in rules: four-role project context, pre-development architecture rule, old module inventory, old dev commands (§LV)
+- [x] Rewrite `AGENTS.md` to < 200 lines / ~1,500–2,000 tokens (§II) — 161 lines, ~1,874 tokens
+  - [x] Removed: caveman response instructions, stop-on-any-warning rule, runtime-hardening initiative, Neon/Vercel assumptions, old SHAs and test counts
+  - [x] Kept: purpose, stack, source hierarchy, six roles, invariants, risk policy, context-loading algorithm, testing philosophy, completion semantics
+  - [x] Preserved the framework-managed `nextjs-agent-rules` block
+- [x] Reduce `CLAUDE.md` to `@AGENTS.md` + genuinely Claude-specific behavior only (§III) — 30,535 → 2,339 bytes
+- [x] Add `paths:` frontmatter to every `.claude/rules/*.md` (§III) — 6/6 scoped, none unscoped
+- [x] Remove `.claude/rules/ecc/**` — 104 files, 251 KB (§LV)
+- [x] Fix the six dead skill pointers (§LV, §LIV) — `workflow.md` deleted; its true content moved into scoped rules
+- [x] Correct stale facts found in rules (§LV) — four-role context, pre-development architecture rule, old module inventory, old dev commands all removed; the stale `prisma.seed` hazard warning replaced with the current guard
 
-**Acceptance:** startup context ≤ 3,000 tokens measured by `context-audit` (phase 4); no
-broken path references; `AGENTS.md` contains no branch name, SHA or test count.
+**Acceptance:** ✅ startup context 2,459 tokens (≤ 3,000 hard review; target 2,000 reached in
+phase 3 when prose facts become generated) · ✅ no broken path references in live code ·
+✅ `AGENTS.md` contains no branch name, SHA or test count · ✅ `tsc` 0, `eslint` 0 errors.
 
 ---
 

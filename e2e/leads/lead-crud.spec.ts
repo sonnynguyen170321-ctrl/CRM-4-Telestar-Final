@@ -8,7 +8,7 @@
  *
  * §14's activity-trail requirement is covered where the API exposes it: stage changes and
  * notes are asserted against `/api/activities`, because the auto-logging described in
- * `.claude/rules/architecture.md` is the source of truth for Team View and coaching. If that
+ * `SKILL.md` is the source of truth for Team View and coaching. If that
  * silently stopped working, nothing else in the product would fail loudly.
  *
  * Data is `PW_AUDIT`-prefixed per §53 and each test archives what it created.
@@ -164,7 +164,7 @@ test.describe('lead CRUD', () => {
   });
 
   test('archiving soft-deletes rather than destroying the row', async ({ baseURL, recorder }) => {
-    // `.claude/rules/runtime-hardening.md` forbids hard delete for archive, so this asserts
+    // `.claude/rules/workers-runtime.md` forbids hard delete for archive, so this asserts
     // the row survives — a 404 on re-read would be indistinguishable from data loss.
     recorder.expectFailures(404, 403);
     const api = await apiAs('director', baseURL!);

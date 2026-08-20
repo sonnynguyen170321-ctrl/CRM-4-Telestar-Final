@@ -30,7 +30,7 @@ interface Props<T> {
  * expanded row — lifted from the job-runs page so the five admin tables agree.
  *
  * Row height and cell padding follow the documented data-table exception to
- * brand density (see `.claude/rules/brand-design.md`).
+ * brand density (see `.claude/rules/frontend-ux.md`).
  */
 export default function AdminTable<T>({
   columns,

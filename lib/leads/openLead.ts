@@ -2,7 +2,7 @@
  * Open a lead's detail slide-over from anywhere in the app.
  *
  * Lead detail is a slide-over panel, never a route — there is no `app/leads/[id]/page.tsx`
- * and there is not meant to be one (`.claude/rules/architecture.md`). Linking to
+ * and there is not meant to be one (`.claude/rules/frontend-ux.md`). Linking to
  * `/leads/{id}` therefore renders a dead anchor: Next prefetches it on hover and logs a
  * 404, and clicking it lands on the not-found page.
  *

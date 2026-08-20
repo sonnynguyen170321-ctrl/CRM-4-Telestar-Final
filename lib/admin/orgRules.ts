@@ -4,7 +4,7 @@ type Role = SessionUser['role'];
 
 /**
  * Which roles may act as a manager for each role. Encodes the hierarchy from
- * `.claude/rules/project-context.md`: Director → Floor Manager → Team Lead → SDR,
+ * `.claude/rules/auth-rbac.md`: Director → Floor Manager → Team Lead → SDR,
  * with the leadgen branch (Leadgen Manager → Leadgen) hanging off the Director.
  *
  * Enforced on `PUT /api/users/[id]`. Without it an SDR could be made the manager

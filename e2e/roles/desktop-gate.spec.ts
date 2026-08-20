@@ -1,7 +1,7 @@
 /**
  * §42 — the desktop-only gate.
  *
- * `.claude/rules/brand-design.md` is explicit that the CRM is desktop-only (1280px+) and that
+ * `.claude/rules/frontend-ux.md` is explicit that the CRM is desktop-only (1280px+) and that
  * below 1024px a full-screen gate blocks the app rather than reflowing it. The failure this
  * guards against is not "it looks bad on a phone" — it is the app *half*-rendering below the
  * threshold, with the sidebar, a modal or the command palette painting on top of the gate.

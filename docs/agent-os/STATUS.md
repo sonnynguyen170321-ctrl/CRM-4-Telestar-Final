@@ -12,14 +12,51 @@ plan: ./PLAN.md
 Branch: `feat/agent-intelligence-os` · started 2026-08-20 · stacked on
 `fix/telestar-ai-three-provider` (PR #98, unmerged).
 
-**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phase 0 of 9 complete.
+**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phases 0–1 complete of 9.
 
 ---
 
 ## Current phase
 
-**Phase 1 — kernel, adapters, and the bloat.** Next unchecked task is the `AGENTS.md`
-rewrite. See `PLAN.md` phase 1.
+**Phase 2 — control plane skeleton.** Next task is the `.agent/` tree and
+`CONSTITUTION.md`. See `PLAN.md` phase 2.
+
+### Phase 1 result — measured 2026-08-20
+
+| Metric | Baseline | Now | Target |
+|---|---:|---:|---:|
+| Startup context (tokens) | ~79,300 | **~2,460** | ≤ 2,000 (hard ≤ 3,000) |
+| Always-loaded files | 113 | **2** | ≤ 10 |
+| Irrelevant-stack rule files | 104 | **0** | 0 |
+| Broken path references (live code) | 6 | **0** | 0 |
+
+**97% reduction.** Inside the §XX hard-review threshold, ~460 tokens above the target — the
+remaining gap closes in phase 3, when the facts now written as prose in `AGENTS.md` become
+generated.
+
+What changed:
+
+- `AGENTS.md` rewritten to 161 lines / ~1,874 tokens. Removed the caveman response rules, the
+  stop-on-any-warning rule, the finished runtime-hardening initiative and the Neon/Vercel
+  topology. Kept purpose, stack, six roles, source hierarchy, invariants, risk policy,
+  context-loading algorithm, testing philosophy, completion semantics and boundaries.
+- `CLAUDE.md` reduced from 30,535 to 2,339 bytes: `@AGENTS.md` plus genuinely Claude-specific
+  execution mechanics only.
+- `.claude/rules/ecc/**` deleted — 104 files, 251 KB, 19 stacks, 15 of them irrelevant.
+- The seven remaining rules replaced by six `paths:`-scoped rules: `ai`, `auth-rbac`,
+  `data-prisma`, `frontend-ux`, `production`, `workers-runtime`. None load unless a matching
+  file is touched.
+- Ten live references to deleted rule files repointed. Eight remain inside historical
+  documents, which phase 7 will classify rather than rewrite — editing them would falsify a
+  record of what was true at the time.
+
+### Drift corrected while rewriting
+
+The old kernel warned that `prisma/seed.ts` was "armed and wired into `prisma.seed`". That was
+stale: the seed is now `prisma/seed-demo.ts`, `package.json` deliberately carries no
+`prisma.seed` key, and `lib/seed-guard.ts` refuses to run it where it could destroy real data.
+An agent following the old warning would have been defending against a hazard that had already
+been fixed, and would not have known about the guard that replaced it.
 
 ---
 
@@ -92,6 +129,10 @@ to break that loop.
 | Date | Phase | Command | Exit | Result |
 |---|---|---|---|---|
 | 2026-08-20 | 0 | context baseline measurement | 0 | 317,116 bytes / 113 files recorded above |
+| 2026-08-20 | 1 | `wc -c AGENTS.md CLAUDE.md` | 0 | 9,837 bytes always-on (~2,460 tokens) |
+| 2026-08-20 | 1 | `tsc --noEmit` | **0** | 0 errors |
+| 2026-08-20 | 1 | `eslint .` | **0** | 0 errors, 11 warnings |
+| 2026-08-20 | 1 | frontmatter scan of `.claude/rules/*.md` | 0 | 6/6 carry `paths:` |
 
 Exit codes are captured from the tool itself, never from the tail of a pipe.
 

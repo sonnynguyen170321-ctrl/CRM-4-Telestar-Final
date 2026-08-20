@@ -253,7 +253,7 @@ for (const persona of PERSONAS) {
         // only checked that `<body>` was non-empty — which the sidebar alone satisfies, so a
         // route whose content died quietly still passed. Assert the heading it claims to.
         // Verified across all 18 routes: each paints exactly one `<h1>`, per
-        // `.claude/rules/brand-design.md`.
+        // `.claude/rules/frontend-ux.md`.
         // Wait for it rather than sampling once: these pages fetch their data client-side, so
         // the heading lands a beat after `domcontentloaded`. A bare `isVisible()` here reported
         // five personas as broken purely because it looked too early.

@@ -2,7 +2,7 @@
  * §15 — clients and campaigns.
  *
  * These are the top of the data chain the whole product hangs off: `lead → campaign → client`
- * (`.claude/rules/project-context.md`). Getting the write gate wrong here is worse than on a
+ * (`.claude/rules/auth-rbac.md`). Getting the write gate wrong here is worse than on a
  * lead, because a campaign is what scoping is computed *from* — `getVisibleCampaignIds` and
  * the account axis in `canAccessLead` both read it.
  *
