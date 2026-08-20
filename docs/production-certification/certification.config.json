@@ -1,0 +1,203 @@
+{
+  "$comment": "Authoritative certification configuration. The candidate SHA lives HERE and nowhere else; every other file must agree with it or `npm run certify:validate` fails.",
+  "schemaVersion": 1,
+  "program": "Telestar CRM Production Certification",
+  "releaseTag": "telestar-internal-rc-2026-08-20",
+  "candidateSha": "3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32",
+  "candidateFrozenAt": "2026-08-20T03:01:46.383Z",
+  "previousCandidates": [
+    {
+      "sha": "cf23182cdd291d9f180bb36ec88d7fe6df0cdfb9",
+      "invalidatedReason": "superseded"
+    },
+    {
+      "sha": "a6d8c0dfa4800fc158f5a6717d94211b595f4531",
+      "invalidatedReason": "certificate claims exceeded evidence; see FINAL_CERTIFICATE.md section 1"
+    },
+    {
+      "sha": "f37382ac63c59e3ad6523888951ffaec4cd58bf4",
+      "invalidatedReason": "superseded by tooling fixes found in run 1 (worker-healthcheck hang, git porcelain misread)"
+    },
+    {
+      "sha": "bafb9171ad81955f0c2dd9c44e9d1a517bcdba19",
+      "invalidatedReason": "superseded: certification harness changed after the freeze (renderers, self-test), which is behaviour-changing for the qualification"
+    },
+    {
+      "sha": "1fbd7b00d4a00375ee93f6f46314f10c211535d6",
+      "invalidatedReason": "superseded: harness and test changes after the freeze"
+    },
+    {
+      "sha": "dfb172f53afaaae5f8304dd22b8f0dd37af69bcb",
+      "invalidatedReason": "superseded: generator rendering fix committed after the freeze, caught by check N"
+    },
+    {
+      "sha": "84e4482bf40befe09bfc5824f8fb368f759c9a83",
+      "invalidatedReason": "superseded: import concurrency fix found by CI run 32323964277 (TEL-P1-022)"
+    },
+    {
+      "sha": "471b61148305c745927d0f6267cc86a478ad1b9b",
+      "invalidatedReason": "superseded: activity/task idempotency fix for the CI-found race (TEL-P1-022)"
+    },
+    {
+      "sha": "99f6b8d00c3240c8be0fd07446ded1e710aa2b7b",
+      "invalidatedReason": "superseded: DR drill snapshot correctness fix"
+    }
+  ],
+  "requiredRunCount": 3,
+  "fullCertificationGates": [
+    {
+      "id": "01-source-identity",
+      "description": "Working tree clean and HEAD equals candidate SHA"
+    },
+    {
+      "id": "02-environment",
+      "description": "Postgres and Redis reachable; required env present"
+    },
+    {
+      "id": "03-typecheck",
+      "description": "tsc --noEmit"
+    },
+    {
+      "id": "04-lint",
+      "description": "eslint across app components lib context tests workers scripts e2e"
+    },
+    {
+      "id": "05-test-discipline",
+      "description": "scripts/check-test-discipline.mjs"
+    },
+    {
+      "id": "06-migration-validation",
+      "description": "scripts/check-migration-order.mjs + prisma migrate diff against empty shadow"
+    },
+    {
+      "id": "07-database-integrity",
+      "description": "scripts/verify-db-integrity.ts"
+    },
+    {
+      "id": "08-vitest",
+      "description": "Full Vitest suite against real Postgres"
+    },
+    {
+      "id": "09-redis-integration",
+      "description": "Redis integration suite; MUST execute, never skip"
+    },
+    {
+      "id": "10-ai-certification",
+      "description": "AI durable budget, stream governance, shared circuit, capability routing"
+    },
+    {
+      "id": "11-email-safety",
+      "description": "Demo barrier, idempotency, safe-mode posture"
+    },
+    {
+      "id": "12-import-fault-matrix",
+      "description": "Import durable-write failpoint matrix"
+    },
+    {
+      "id": "13-queue-load",
+      "description": "IMPORT_SYSTEM_QUEUE_BENCHMARK over real BullMQ"
+    },
+    {
+      "id": "14-security-suite",
+      "description": "Tenant isolation, object auth, mass assignment, XSS, formula injection, secret scan"
+    },
+    {
+      "id": "15-production-build",
+      "description": "next build"
+    },
+    {
+      "id": "16-playwright-roles",
+      "description": "Six-role real browser acceptance"
+    },
+    {
+      "id": "17-golden-browser-journey",
+      "description": "Cross-role browser golden journey"
+    },
+    {
+      "id": "18-worker-readiness",
+      "description": "Worker healthcheck against real Redis"
+    },
+    {
+      "id": "19-docker-build",
+      "description": "Docker image build from candidate SHA"
+    },
+    {
+      "id": "20-image-inspection",
+      "description": "Image digest captured by digest, never by floating tag"
+    },
+    {
+      "id": "21-compose-validation",
+      "description": "scripts/check-production-compose.mjs"
+    },
+    {
+      "id": "22-health-smoke",
+      "description": "Web and worker health endpoints report release SHA"
+    },
+    {
+      "id": "23-validator-selftest",
+      "description": "the validator itself is shown rejecting every injected false-green state"
+    }
+  ],
+  "frozenCandidateGates": [
+    {
+      "id": "dr-backup-restore",
+      "description": "Real backup, checksum, isolated restore, integrity verification, measured RTO"
+    },
+    {
+      "id": "dr-rollback",
+      "description": "Controlled rollback exercise between image digests"
+    }
+  ],
+  "shaDeclaringFiles": [
+    "docs/production-certification/progress.json",
+    "docs/production-certification/MASTER_TRACKER.md",
+    "docs/production-certification/EVIDENCE.md",
+    "docs/production-certification/REQUIREMENT_TRACEABILITY.md",
+    "docs/production-certification/FINAL_CERTIFICATE.md"
+  ],
+  "forbiddenArtifactHashes": {
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": "SHA-256 of the empty byte sequence - a non-empty artifact cannot have this digest"
+  },
+  "referencedScriptAllowlist": [
+    {
+      "path": "scripts/verify-db-integrity.ts",
+      "reason": "named by TEL-P0-001 as the missing script that must be implemented; the registry check still fails until it exists"
+    },
+    {
+      "path": "scripts/certification/run-full-certification.mjs",
+      "reason": "named by TEL-P1-014 as the ladder script to be built"
+    },
+    {
+      "path": "scripts/certification/generate-certificate.mjs",
+      "reason": "named by FINAL_CERTIFICATE.md as the generator to be built"
+    },
+    {
+      "path": "scripts/certification/collect-evidence.mjs",
+      "reason": "named by PROTOCOL.md as the collector to be built"
+    },
+    {
+      "path": "tests/leadgen-pool.test.ts",
+      "reason": "named by TEL-P1-019 as a cited-but-nonexistent test; check J2 still fails on the registry citation"
+    },
+    {
+      "path": "tests/transfer-work.test.ts",
+      "reason": "named by TEL-P1-019 as a cited-but-nonexistent test; check J2 still fails on the registry citation"
+    },
+    {
+      "path": "tests/lead-lifecycle.test.ts",
+      "reason": "named by TEL-P1-019 as a cited-but-nonexistent test; check J2 still fails on the registry citation"
+    },
+    {
+      "path": "tests/activities.test.ts",
+      "reason": "named by TEL-P1-019 as a cited-but-nonexistent test; check J2 still fails on the registry citation"
+    },
+    {
+      "path": "prisma/seed.ts",
+      "reason": "named by TEL-P1-019 as a miscitation; the real files are prisma/seed-demo.ts and lib/seed-guard.ts"
+    }
+  ],
+  "emailPosture": {
+    "requiredMode": "dry-run-or-canary",
+    "demoTenantLiveTransport": "hard-blocked"
+  }
+}

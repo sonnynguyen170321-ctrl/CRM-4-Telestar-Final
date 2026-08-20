@@ -1,0 +1,17 @@
+# counts taken inside the transaction that exported snapshot 00000003-000E3D26-1
+SNAPSHOT=00000003-000E3D26-1
+Tenant=49910
+User=49256
+Client=33377
+Campaign=48772
+Account=38998
+Contact=30077
+Lead=287146
+Task=13370
+Activity=29061
+Sequence=32019
+SequenceEnrollment=18731
+OutboundMessage=132
+ImportBatch=6
+
+

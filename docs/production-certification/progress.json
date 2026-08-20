@@ -1,36 +1,132 @@
 {
+  "$comment": "GENERATED FILE. Regenerate with node scripts/certification/render-tracker.mjs. Counts are computed by the validator from the evidence manifest; nothing here is typed.",
   "program": "Telestar Production Certification",
-  "startingSha": "b96c650a73f24afe97a87a326115a293f7eccc89",
-  "candidateSourceSha": "a6d8c0dfa4800fc158f5a6717d94211b595f4531",
+  "candidateSourceSha": "3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32",
   "releaseTag": "telestar-internal-rc-2026-08-20",
-  "startedAt": "2026-08-19T21:38:44+07:00",
-  "lastUpdatedAt": "2026-08-20T00:05:00+07:00",
-  "overallStatus": "CERTIFIED_APPROVED",
-  "counts": {
+  "generatedAt": "2026-08-20T03:26:58.008Z",
+  "verdict": "NO-GO",
+  "eligible": false,
+  "requirements": {
     "total": 108,
-    "verified": 108,
-    "inProgress": 0,
-    "failed": 0,
-    "blocked": 0,
-    "notStarted": 0
+    "verified": 101,
+    "notVerified": 7,
+    "byDomain": {
+      "IMP": {
+        "total": 13,
+        "verified": 13
+      },
+      "MAIL": {
+        "total": 12,
+        "verified": 12
+      },
+      "SEC": {
+        "total": 15,
+        "verified": 15
+      },
+      "ROLE": {
+        "total": 12,
+        "verified": 12
+      },
+      "AI": {
+        "total": 14,
+        "verified": 14
+      },
+      "DR": {
+        "total": 10,
+        "verified": 8
+      },
+      "REL": {
+        "total": 8,
+        "verified": 3
+      },
+      "OPS": {
+        "total": 24,
+        "verified": 24
+      }
+    }
   },
   "defects": {
-    "discovered": 25,
-    "resolved": 25,
-    "verified": 25,
-    "open": 0,
-    "p0": 0,
-    "p1": 0,
-    "p2": 0,
-    "p3": 0
+    "open": 17,
+    "openP0": 2,
+    "openP1": 9,
+    "openP2": 6,
+    "openP3": 0,
+    "ids": [
+      {
+        "id": "TEL-P0-001",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P0-002",
+        "status": "BLOCKED_EXTERNAL"
+      },
+      {
+        "id": "TEL-P1-014",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-015",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-016",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-017",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-018",
+        "status": "OPEN"
+      },
+      {
+        "id": "TEL-P2-013",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P2-014",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P2-015",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P2-016",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P2-017",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-019",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-020",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-021",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-022",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P2-018",
+        "status": "BLOCKED_EXTERNAL"
+      }
+    ]
   },
-  "blockers": [],
-  "testBaseline": {
-    "testFilesPassed": 154,
-    "testsPassed": 1922,
-    "testsFailed": 0,
-    "typeCheck": "PASS (0 errors)",
-    "lintCheck": "PASS (0 errors, 0 warnings)",
-    "consecutiveRuns": "3/3 PASS (RUN_1, RUN_2, RUN_3)"
+  "evidenceRecords": 22,
+  "validationFailures": {
+    "A": 3,
+    "L": 6,
+    "R": 1,
+    "REQ": 7
   }
 }

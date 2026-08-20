@@ -186,11 +186,28 @@ export const MODEL_REGISTRY: Record<string, ModelMetadata> = {
   },
 };
 
+/**
+ * Looks a model up by registry alias or provider model id. Returns `null` when there is
+ * no such model.
+ *
+ * This is the lookup routing uses. It deliberately has no default: the previous behaviour
+ * returned Terra for any unrecognised string, so a typo, a decommissioned model id, or a
+ * model from another vendor all silently became "route to Terra" — a request answered by a
+ * model nobody chose, with no signal that a substitution happened (TEL-P2-017).
+ */
+export function findModelMetadata(aliasOrId: string): ModelMetadata | null {
+  return (
+    MODEL_REGISTRY[aliasOrId] ??
+    Object.values(MODEL_REGISTRY).find((model) => model.modelId === aliasOrId) ??
+    null
+  );
+}
+
+/** Strict lookup. Throws rather than substituting a model the caller did not ask for. */
 export function getModelMetadata(aliasOrId: string): ModelMetadata {
-  const model = MODEL_REGISTRY[aliasOrId] ?? Object.values(MODEL_REGISTRY).find((m) => m.modelId === aliasOrId);
+  const model = findModelMetadata(aliasOrId);
   if (!model) {
-    // Default fallback to standard interactive model
-    return MODEL_REGISTRY['gpt-5.6-terra'] ?? MODEL_REGISTRY['llama-3.3-70b-versatile'];
+    throw new Error(`Unknown AI model "${aliasOrId}". It is not a registry alias or model id.`);
   }
   return model;
 }

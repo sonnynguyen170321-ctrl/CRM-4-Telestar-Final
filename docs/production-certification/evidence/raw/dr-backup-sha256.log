@@ -1,0 +1,11 @@
+# sha256sum -c
+# command: sha256sum -c telestar_2026-08-20T03-01-46-674Z.dump.sha256
+# startedAt: 2026-08-20T03:02:13.524Z
+# finishedAt: 2026-08-20T03:02:14.176Z
+# exitCode: 0
+
+--- stdout ---
+telestar_2026-08-20T03-01-46-674Z.dump: OK
+
+--- stderr ---
+(empty)

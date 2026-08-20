@@ -1,7 +1,9 @@
 # Telestar CRM — Master RLS Bypass & Raw Query Inventory
 
 **Program**: Zero-Assumption Production Certification  
-**Authoritative Candidate Source SHA**: `cf23182cdd291d9f180bb36ec88d7fe6df0cdfb9`  
+**Candidate SHA**: see `certification.config.json` — this document does not restate it.
+> A second copy of the candidate SHA is a second thing to keep in step, and the previous one
+> named `cf23182`, a candidate superseded twice over.  
 **Requirement Ref**: `SEC-001`  
 **Last Updated**: 2026-08-19T22:58:00+07:00  
 

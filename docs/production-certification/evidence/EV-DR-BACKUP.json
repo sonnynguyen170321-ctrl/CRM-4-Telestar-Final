@@ -1,0 +1,53 @@
+{
+  "evidenceId": "EV-DR-BACKUP",
+  "kind": "dr-backup",
+  "candidateSha": "3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32",
+  "environment": "win32 / node 24.16.0 / postgres 16 / source telestar_crm",
+  "command": "C:\\Program Files\\PostgreSQL\\16\\bin\\pg_dump.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_crm --format=custom --no-owner --no-acl --snapshot 00000003-000E3D26-1 --file C:\\Users\\admin\\Desktop\\Sonny & AI\\clone-CRM-4-U-migration-main\\.dr-artifacts\\telestar_2026-08-20T03-01-46-674Z.dump",
+  "startedAt": "2026-08-20T03:01:56.403Z",
+  "finishedAt": "2026-08-20T03:02:12.808Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {
+    "sourceDatabase": "telestar_crm",
+    "backupArtifact": ".dr-artifacts/telestar_2026-08-20T03-01-46-674Z.dump",
+    "backupSizeBytes": 96787550,
+    "backupSha256": "6431c2d06d420ae3ca995b51ef1cff4f054baea6656263b4f8fb489f7cd5ca6d",
+    "checksumVerified": true,
+    "checksumCommand": "sha256sum -c",
+    "backupDurationSeconds": 16.41,
+    "snapshotId": "00000003-000E3D26-1",
+    "snapshotCounts": {
+      "Tenant": 49910,
+      "User": 49256,
+      "Client": 33377,
+      "Campaign": 48772,
+      "Account": 38998,
+      "Contact": 30077,
+      "Lead": 287146,
+      "Task": 13370,
+      "Activity": 29061,
+      "Sequence": 32019,
+      "SequenceEnrollment": 18731,
+      "OutboundMessage": 132,
+      "ImportBatch": 6
+    }
+  },
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/dr-pre-backup-counts.log",
+      "sizeBytes": 2101,
+      "sha256": "cb0c08e9af4fce691595b10674b7377bd2d63ea457264fb85062c0df871b3472"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/dr-backup-command.log",
+      "sizeBytes": 445,
+      "sha256": "802dd0ce9496ffdb2a56f21438ccee9219487673fcb4403751d96ea511aa6c56"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/dr-backup-sha256.log",
+      "sizeBytes": 259,
+      "sha256": "94b047063f4a5c23e2c2340ee80615f57d56571b28b942d844a76f6ffa0fc0b4"
+    }
+  ]
+}

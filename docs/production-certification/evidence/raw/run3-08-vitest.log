@@ -1,0 +1,11 @@
+# gate: 08-vitest — full Vitest suite against real Postgres and Redis
+# command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json
+# startedAt: 2026-08-20T03:20:45.132Z
+# finishedAt: 2026-08-20T03:23:10.573Z
+# exitCode: 0
+
+--- stdout ---
+JSON report written to C:/Users/admin/Desktop/Sonny & AI/clone-CRM-4-U-migration-main/.certification/vitest.json
+
+--- stderr ---
+(empty)

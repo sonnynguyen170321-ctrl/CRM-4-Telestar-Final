@@ -1,0 +1,136 @@
+# verify-db-integrity.ts negative control
+# startedAt: 2026-08-20T03:04:05.860Z
+# finishedAt: 2026-08-20T03:04:16.624Z
+# cases: [
+  {
+    "name": "empty-database",
+    "expected": "FAIL",
+    "detected": true,
+    "exitCode": 1
+  },
+  {
+    "name": "migrated-database-baseline",
+    "expected": "PASS",
+    "detected": true,
+    "exitCode": 0
+  },
+  {
+    "name": "orphaned-foreign-key",
+    "expected": "FAIL",
+    "detected": true,
+    "exitCode": 1
+  },
+  {
+    "name": "dropped-table",
+    "expected": "FAIL",
+    "detected": true,
+    "exitCode": 1
+  }
+]
+
+### case 1
+exit 1; detected=true
+database integrity verification — telestar_dr_negative_fixture
+========================================================================
+[FAIL   ] Every datamodel model has a table
+          0/67 declared tables present
+          - missing table "User"
+          - missing table "Client"
+          - missing table "Campaign"
+          - missing table "CampaignSdr"
+          - missing table "Account"
+          - missing table "Contact"
+          - missing table "ContactIntelligence"
+          - missing table "ContactEvidence"
+          - missing table "Lead"
+          - missing table "Sequence"
+          ... 57 more
+[FAIL   ] Verification executed to completion
+          
+Invalid `prisma.$queryRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42P01`. Message: `relation "_prisma_migrations" does not exist`
+          - 
+Invalid `prisma.$queryRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42P01`. Message: `relation "_prisma_migrations" does not exist`
+------------------------------------------------------------------------
+representative counts:
+========================================================================
+RESULT: FAIL
+
+
+### baseline
+migrated fixture verifies clean: exit 0
+
+### case 2
+exit 1; detected=true
+database integrity verification — telestar_dr_negative_fixture
+========================================================================
+[PASS   ] Every datamodel model has a table
+          67/67 declared tables present
+[PASS   ] Migration ledger is complete and fully applied
+          50/50 migrations applied successfully
+[FAIL   ] No foreign key points at a missing row
+          212 single-column foreign keys checked
+          - Client.tenantId has 1 row(s) with no matching Tenant.id (Client_tenantId_fkey)
+[PASS   ] No tenant-owned row has a null tenantId
+          65 tenant-owned tables checked
+[SKIPPED] Row-level security configuration
+          0/65 tenant-owned tables have RLS enabled - pass --require-rls to fail on this (RLS is applied from supabase/rls.sql, not by migrations)
+[SKIPPED] Representative record counts
+          no --expect-counts snapshot supplied; counts recorded but not reconciled
+------------------------------------------------------------------------
+representative counts:
+  Tenant               0
+  User                 0
+  Client               1
+  Campaign             0
+  Account              0
+  Contact              0
+  Lead                 0
+  Task                 0
+  Activity             0
+  Sequence             0
+  SequenceEnrollment   0
+  OutboundMessage      0
+  ImportBatch          0
+========================================================================
+RESULT: FAIL
+
+
+### case 3
+exit 1; detected=true
+database integrity verification — telestar_dr_negative_fixture
+========================================================================
+[FAIL   ] Every datamodel model has a table
+          66/67 declared tables present
+          - missing table "Activity"
+[PASS   ] Migration ledger is complete and fully applied
+          50/50 migrations applied successfully
+[PASS   ] No foreign key points at a missing row
+          207 single-column foreign keys checked
+[PASS   ] No tenant-owned row has a null tenantId
+          64 tenant-owned tables checked
+[SKIPPED] Row-level security configuration
+          0/64 tenant-owned tables have RLS enabled - pass --require-rls to fail on this (RLS is applied from supabase/rls.sql, not by migrations)
+[SKIPPED] Representative record counts
+          no --expect-counts snapshot supplied; counts recorded but not reconciled
+------------------------------------------------------------------------
+representative counts:
+  Tenant               0
+  User                 0
+  Client               0
+  Campaign             0
+  Account              0
+  Contact              0
+  Lead                 0
+  Task                 0
+  Sequence             0
+  SequenceEnrollment   0
+  OutboundMessage      0
+  ImportBatch          0
+========================================================================
+RESULT: FAIL

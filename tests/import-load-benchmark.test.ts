@@ -50,7 +50,7 @@ interface LoadMetric {
 
 const recordedMetrics: LoadMetric[] = [];
 
-describe.skipIf(!hasDb)('TEL-P2-012: Realistic Measured Import Load Testing (120, 500, 1000 Rows)', () => {
+describe.skipIf(!hasDb)('IMPORT_HANDLER_BENCHMARK (TEL-P2-012, reclassified by TEL-P2-016): 120, 500, 1000 rows', () => {
   const setupTenant = async () => {
     await run(async () => {
       await prisma.activity.deleteMany({ where: { tenantId: T } });
@@ -201,34 +201,45 @@ describe.skipIf(!hasDb)('TEL-P2-012: Realistic Measured Import Load Testing (120
     expect(metric.lostRows).toBe(0);
     expect(metric.duplicateRows).toBe(0);
 
-    // Write measured telemetry artifact to docs/production-certification/LOAD_TEST.md
-    const markdown = `# Telestar CRM — Measured Import Load & Scalability Report
+    // Emit STRUCTURED evidence, not prose.
+    //
+    // This test used to write LOAD_TEST.md directly, and the certificate carried a second,
+    // different set of numbers for the same run - 26.11s here versus 19.71s there
+    // (TEL-P2-015). Performance figures now have exactly one source: this record. Every
+    // document that shows them is rendered from it.
+    //
+    // The benchmark is named for what it actually measures. BullMQ is mocked here and the
+    // handler is called directly, so this is a HANDLER benchmark: it says nothing about
+    // enqueue cost, queue wait, redelivery or retry. IMPORT_SYSTEM_QUEUE_BENCHMARK
+    // (scripts/certification/queue-load-benchmark.ts) covers those over real Redis.
+    const scales: Record<string, LoadMetric> = {};
+    for (const entry of recordedMetrics) scales[String(entry.batchSize)] = entry;
 
-**Program**: Zero-Assumption Production Certification  
-**Requirement Ref**: \`IMP-008\`, \`IMP-009\`, \`IMP-010\` (\`TEL-P2-012\`)  
-**Generated**: ${new Date().toISOString()}  
+    const startedAt = new Date(Date.now() - recordedMetrics.reduce((sum, m) => sum + m.totalDurationMs, 0));
+    const record = {
+      evidenceId: 'EV-LOAD-HANDLER',
+      kind: 'load-benchmark',
+      benchmark: 'IMPORT_HANDLER_BENCHMARK',
+      candidateSha: process.env.CERT_CANDIDATE_SHA ?? null,
+      environment: `${process.platform} / node ${process.versions.node} / postgres 16 / BullMQ mocked`,
+      command: 'node node_modules/vitest/vitest.mjs run tests/import-load-benchmark.test.ts',
+      startedAt: startedAt.toISOString(),
+      finishedAt: new Date().toISOString(),
+      exitCode: 0,
+      status: 'PASS',
+      metrics: {
+        note: 'Handler throughput only. BullMQ is mocked and the worker handler is invoked directly, so queue wait, redelivery and retry are out of scope by construction.',
+        mocked: true,
+        scales,
+      },
+      artifacts: [],
+    };
 
----
-
-## 1. Measured Performance Telemetry
-
-| Batch Size | Duration | Throughput | Chunk p50 | Chunk p95 | Chunk p99 | Created Leads | Accounts | Contacts | Lost Rows | Duplicate Rows | Heap Delta |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-${recordedMetrics
-  .map(
-    (m) =>
-      `| **${m.batchSize} rows** | ${(m.totalDurationMs / 1000).toFixed(2)}s | **${m.throughputRowsPerSec} rows/s** | ${m.p50Ms}ms | **${m.p95Ms}ms** | ${m.p99Ms}ms | ${m.createdLeads} | ${m.createdAccounts} | ${m.createdContacts} | **0** | **0** | ${m.memoryUsedMb} MB |`
-  )
-  .join('\n')}
-
----
-
-## 2. Invariant Verification
-- **Zero Prospect Loss**: 100% of parsed valid rows reached \`imported\` terminal status across all scales.
-- **Deduplication Correctness**: Accounts and Contacts were reconciled across concurrent chunks without primary key collisions or duplicate entity drift.
-- **Latency Distribution**: Chunk p95 duration remained sub-second across 1,000-row continuous ingestion.
-`;
-
-    writeFileSync(path.join(process.cwd(), 'docs/production-certification/LOAD_TEST.md'), markdown, 'utf-8');
+    writeFileSync(
+      path.join(process.cwd(), 'docs/production-certification/evidence/EV-LOAD-HANDLER.json'),
+      `${JSON.stringify(record, null, 2)}
+`,
+      'utf-8',
+    );
   }, 90000);
 });

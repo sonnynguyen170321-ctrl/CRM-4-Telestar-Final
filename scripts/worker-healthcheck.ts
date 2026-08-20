@@ -19,6 +19,9 @@
  */
 import { PrismaClient } from '@prisma/client';
 
+import { getConnection } from '@/lib/bullmq/connection';
+import { closeAllQueues } from '@/lib/bullmq/queues';
+
 export const DEFAULT_TIMEOUT_MS = 60_000;
 const POLL_INTERVAL_MS = 2_000;
 
@@ -109,13 +112,26 @@ export async function runWorkerHealthcheck(options: {
 
 async function main(): Promise<void> {
   const prisma = new PrismaClient();
+  let completed = false;
   try {
     const result = await runWorkerHealthcheck({ prisma, tenantId: process.env.CUTOVER_TENANT_ID });
     console.log(result.detail);
-    if (result.completed !== true) process.exit(1);
+    completed = result.completed === true;
   } finally {
     await prisma.$disconnect();
+    // Enqueuing opened a BullMQ queue and its Redis connection, and both keep the event loop
+    // alive. Without closing them this process **never exits on success** — it only exited
+    // before because the failure path calls process.exit(1). A health check that hangs when
+    // everything is fine is worse than one that fails: a deploy gate waits forever and looks
+    // like an infrastructure problem.
+    await closeAllQueues().catch(() => undefined);
+    try {
+      getConnection().disconnect();
+    } catch {
+      // No connection was ever created; nothing to close.
+    }
   }
+  process.exit(completed ? 0 : 1);
 }
 
 if (process.argv[1] && process.argv[1].includes('worker-healthcheck')) {

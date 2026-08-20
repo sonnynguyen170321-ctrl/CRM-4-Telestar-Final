@@ -1,0 +1,112 @@
+{
+  "evidenceId": "EV-LOAD-QUEUE",
+  "kind": "load-benchmark",
+  "benchmark": "IMPORT_SYSTEM_QUEUE_BENCHMARK",
+  "candidateSha": "3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32",
+  "environment": "win32 / node 24.16.0 / postgres 16 / real Redis / real BullMQ",
+  "command": "npx tsx scripts/certification/queue-load-benchmark.ts",
+  "startedAt": "2026-08-20T03:23:34.149Z",
+  "finishedAt": "2026-08-20T03:24:12.140Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {
+    "note": "Real Redis, real BullMQ, real worker, real queue. Nothing mocked. Distinct from IMPORT_HANDLER_BENCHMARK, which calls the handler directly.",
+    "mocked": false,
+    "scales": {
+      "120": {
+        "rows": 120,
+        "chunks": 3,
+        "totalDurationMs": 1651,
+        "rowsPerSecond": 72.68,
+        "queueWaitMs": {
+          "p50": 3,
+          "p95": 3,
+          "p99": 3
+        },
+        "jobProcessingMs": {
+          "p50": 1295,
+          "p95": 1341,
+          "p99": 1341
+        },
+        "enqueueStartedAt": "2026-08-20T03:23:44.494Z",
+        "firstWorkerStartAt": "2026-08-20T03:23:44.510Z",
+        "lastRowTerminalAt": "2026-08-20T03:23:45.883Z",
+        "batchCommittedAt": "2026-08-20T03:23:46.145Z",
+        "failedJobs": 0,
+        "retries": 0,
+        "lostRows": 0,
+        "duplicateRows": 0,
+        "stuckRows": 0,
+        "workerConcurrency": 3,
+        "createdLeads": 120,
+        "createdAccounts": 20,
+        "createdContacts": 120
+      },
+      "500": {
+        "rows": 500,
+        "chunks": 10,
+        "totalDurationMs": 4428,
+        "rowsPerSecond": 112.92,
+        "queueWaitMs": {
+          "p50": 1370,
+          "p95": 3345,
+          "p99": 3345
+        },
+        "jobProcessingMs": {
+          "p50": 1104,
+          "p95": 1409,
+          "p99": 1409
+        },
+        "enqueueStartedAt": "2026-08-20T03:23:50.805Z",
+        "firstWorkerStartAt": "2026-08-20T03:23:50.815Z",
+        "lastRowTerminalAt": "2026-08-20T03:23:55.224Z",
+        "batchCommittedAt": "2026-08-20T03:23:55.233Z",
+        "failedJobs": 0,
+        "retries": 0,
+        "lostRows": 0,
+        "duplicateRows": 0,
+        "stuckRows": 0,
+        "workerConcurrency": 3,
+        "createdLeads": 500,
+        "createdAccounts": 20,
+        "createdContacts": 500
+      },
+      "1000": {
+        "rows": 1000,
+        "chunks": 20,
+        "totalDurationMs": 8850,
+        "rowsPerSecond": 112.99,
+        "queueWaitMs": {
+          "p50": 3233,
+          "p95": 7419,
+          "p99": 7419
+        },
+        "jobProcessingMs": {
+          "p50": 1131,
+          "p95": 1736,
+          "p99": 1768
+        },
+        "enqueueStartedAt": "2026-08-20T03:24:03.279Z",
+        "firstWorkerStartAt": "2026-08-20T03:24:03.286Z",
+        "lastRowTerminalAt": "2026-08-20T03:24:12.123Z",
+        "batchCommittedAt": "2026-08-20T03:24:12.129Z",
+        "failedJobs": 0,
+        "retries": 0,
+        "lostRows": 0,
+        "duplicateRows": 0,
+        "stuckRows": 0,
+        "workerConcurrency": 3,
+        "createdLeads": 1000,
+        "createdAccounts": 20,
+        "createdContacts": 1000
+      }
+    }
+  },
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/load-queue-benchmark.log",
+      "sizeBytes": 2068,
+      "sha256": "3111fda4dfde4cfada6fcc77cfbd289df14181fbe379f3b6d30c0dd4e3ff6078"
+    }
+  ]
+}

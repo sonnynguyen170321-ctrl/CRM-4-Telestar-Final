@@ -61,6 +61,25 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
     {
+      // Six-role certification acceptance (TEL-P2-013). Its own project because the audit's
+      // testMatch does not cover `e2e/certification`, and a spec matched by no project
+      // silently never runs - which is exactly what happened to automation-journeys.spec.ts
+      // before it moved.
+      name: 'certification-roles',
+      dependencies: ['setup'],
+      testMatch: /e2e[\\/]certification[\\/]six-role-acceptance\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      // The cross-role golden journey is its own project so gate 16 and gate 17 stay
+      // separable in the ladder: one proves each role can operate alone, the other proves
+      // the hand-offs between them work.
+      name: 'certification-journey',
+      dependencies: ['setup'],
+      testMatch: /e2e[\\/]certification[\\/]golden-journey\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
       // The demo walkthrough. Its own project because the audit's testMatch does not cover
       // `e2e/demo`, and a spec matched by no project silently never runs — which is exactly
       // what happened to automation-journeys.spec.ts before it moved.

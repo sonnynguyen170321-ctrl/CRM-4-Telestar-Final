@@ -1,0 +1,28 @@
+# environment probe
+# exitCode: 0
+
+--- stdout ---
+{
+  "postgres": {
+    "host": "localhost",
+    "port": "5432",
+    "database": "telestar_crm",
+    "reachable": true,
+    "appliedMigrations": 50
+  },
+  "redis": {
+    "host": "127.0.0.1",
+    "port": 6379,
+    "reachable": true
+  },
+  "configuration": {
+    "AUTH_SECRET": "present",
+    "ENCRYPTION_KEY": "present",
+    "EMAIL_SEND_DRY_RUN": "true"
+  },
+  "problems": [],
+  "status": "PASS"
+}
+
+--- stderr ---
+(empty)

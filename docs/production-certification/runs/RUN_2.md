@@ -1,25 +1,69 @@
-# Telestar CRM — Production Certification Run 2 / 3
+# Telestar CRM — Certification Run 2
 
-**Program**: Zero-Assumption Multi-Run Certification Ladder  
-**Target Candidate SHA**: `a6d8c0dfa4800fc158f5a6717d94211b595f4531`  
-**Tag**: `telestar-internal-rc-2026-08-20`  
-**Execution Timestamp**: 2026-08-20T00:00:02+07:00  
-**Overall Verdict**: PASS (100% Clean)  
+<!--
+  GENERATED FILE. Do not edit by hand.
+  Source: docs/production-certification/runs/manifests/run-2.json
+  Regenerate: node scripts/certification/render-runs.mjs
+-->
 
----
-
-## 1. Stage Verification Results
-
-| Quality Gate | Tool / Standard | Result | Verdict |
-|---|---|---|---|
-| **Level 1: Static Type Safety** | TypeScript 5.8.2 (`tsc --noEmit`) | 0 Errors | **PASS** |
-| **Level 2: Code Quality & Lint** | ESLint 9.x across `app`, `lib`, `workers`, `tests` | 0 Errors, 0 Warnings | **PASS** |
-| **Level 3: Database & Migrations** | Schema integrity & migration order (48/48) | 0 Drift, 0 Constraint Violations | **PASS** |
-| **Level 4: Test Suite Execution** | Vitest 4.1.10 | **154 Files Passed**, **1,922 Tests Passed**, 0 Failed | **PASS** |
+**Verdict**: **PASS**
+**Candidate SHA**: `3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32`
+**Release tag**: `telestar-internal-rc-2026-08-20`
+**Environment**: win32 / node 24.16.0 / postgres 16 / redis real
+**Ran**: 2026-08-20T03:11:53.372Z → 2026-08-20T03:19:12.939Z (7.3 min)
 
 ---
 
-## 2. Telemetry Summary
-- Duration: 115.90s
-- Flakiness Detected: 0
-- Skipped (External Service Integration): 1 file / 5 tests (Redis remote integration skipped in local env)
+## 1. Scope
+
+This run executed **24 gates**: 22 passed, 0 failed, 2 blocked externally.
+Mandatory skips: **0**.
+
+No mandatory gate was omitted.
+
+## 2. Gates
+
+| Gate | Status | Exit | Duration | Notes |
+|---|---|---:|---:|---|
+| `01-source-identity` | **PASS** | 0 | 0.0s | — |
+| `02-environment` | **PASS** | 0 | 0.4s | — |
+| `03-typecheck` | **PASS** | 0 | 27.1s | — |
+| `04-lint` | **PASS** | 0 | 53.2s | — |
+| `05-test-discipline` | **PASS** | 0 | 0.7s | — |
+| `06-migration-validation` | **PASS** | 0 | 0.2s | — |
+| `07-database-integrity` | **PASS** | 0 | 9.0s | — |
+| `08-vitest` | **PASS** | 0 | 145.8s | — |
+| `09-redis-integration` | **PASS** | 0 | 3.6s | — |
+| `10-ai-certification` | **PASS** | 0 | 7.7s | — |
+| `11-email-safety` | **PASS** | 0 | 2.3s | — |
+| `12-import-fault-matrix` | **PASS** | 0 | 8.8s | — |
+| `13-queue-load` | **PASS** | 0 | 35.6s | — |
+| `14-security-suite` | **PASS** | 0 | 4.0s | — |
+| `15-production-build` | **PASS** | 0 | 72.7s | — |
+| `16-playwright-roles` | **PASS** | 0 | 35.7s | — |
+| `16-playwright-roles-evidence` | **PASS** | 0 | 0.2s | — |
+| `17-golden-browser-journey` | **PASS** | 0 | 16.3s | — |
+| `18-worker-readiness` | **PASS** | 0 | 3.5s | — |
+| `22-health-smoke` | **PASS** | 0 | 0.0s | — |
+| `19-docker-build` | BLOCKED_EXTERNAL | 127 | 0.0s | no container runtime on the certification workstation; see TEL-P1-018 |
+| `20-image-inspection` | BLOCKED_EXTERNAL | 127 | 0.0s | no image exists to inspect; see TEL-P1-018 |
+| `21-compose-validation` | **PASS** | 0 | 0.4s | — |
+| `23-validator-selftest` | **PASS** | 0 | 0.8s | — |
+
+## 3. Test execution
+
+| Measure | Value |
+|---|---:|
+| Test files | 164 |
+| Test files passed | 164 |
+| Tests passed | 2059 |
+| Tests failed | 0 |
+| Tests skipped | 0 |
+
+Counts come from Vitest's JSON reporter. None is typed by hand.
+
+## 4. Raw output
+
+Every gate's stdout and stderr was captured while it ran, under
+`evidence/raw/run2-*.log` and `evidence/raw/gate-*.log`, and each file
+is hash-verified by `npm run certify:validate`.

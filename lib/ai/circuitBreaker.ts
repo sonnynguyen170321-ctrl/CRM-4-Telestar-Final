@@ -1,7 +1,30 @@
 /**
  * AI Provider Circuit Breaker for Telestar Revenue Delivery OS (Directive Phase 1 §16).
  * Automatically isolates failing providers/models and directs traffic to operational alternatives.
+ *
+ * ## Local view, shared truth (TEL-P1-017)
+ *
+ * `isAvailable` stays **synchronous** because routing filters candidates with it, and routing
+ * is a pure function. So this class holds a local view that is refreshed from shared state by
+ * `sync()`, which the gateway awaits before it routes. State changes are pushed back with
+ * `publish()`.
+ *
+ * The consequence is bounded staleness, not divergence: an instance can be at most one
+ * routing decision behind another instance's circuit change. What must not be approximate is
+ * the HALF_OPEN probe - `tryEnterHalfOpen` takes a Redis lease, so exactly one instance
+ * probes a recovering provider no matter how many are running.
+ *
+ * With Redis unreachable every shared call degrades to the previous single-process behaviour
+ * and says so in the log. See `sharedCircuit.ts`.
  */
+
+import {
+  circuitKey,
+  publishSharedCircuit,
+  readSharedCircuits,
+  releaseProbeLease,
+  tryAcquireProbeLease,
+} from './sharedCircuit';
 
 export type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN';
 
@@ -145,6 +168,61 @@ class CircuitBreakerManager {
   public reset(): void {
     this.circuits.clear();
     this.halfOpenLeases.clear();
+  }
+
+  // ── Shared coordination (TEL-P1-017) ───────────────────────────────────────
+
+  /**
+   * Refreshes the local view from shared state.
+   *
+   * Shared state wins on `state` and `openedAt`: another instance having opened a circuit is
+   * information this process does not otherwise have. Local counters are kept when they are
+   * ahead, so a failure observed here is never discarded by a stale read.
+   */
+  public async sync(): Promise<void> {
+    const shared = await readSharedCircuits();
+
+    for (const [key, record] of Object.entries(shared)) {
+      const local = this.getOrCreate(key);
+      local.state = record.state;
+      local.consecutiveFailures = Math.max(local.consecutiveFailures, record.consecutiveFailures);
+      if (record.lastFailureTime !== null) {
+        local.lastFailureTime = Math.max(local.lastFailureTime ?? 0, record.lastFailureTime);
+      }
+      if (record.openedAt !== null) local.lastStateChange = record.openedAt;
+    }
+  }
+
+  /** Pushes one circuit's local state to shared storage. */
+  public async publish(provider: string, modelId?: string): Promise<void> {
+    const key = this.getKey(provider, modelId);
+    const metrics = this.getOrCreate(key);
+
+    await publishSharedCircuit(key, {
+      state: metrics.state,
+      consecutiveFailures: metrics.consecutiveFailures,
+      lastFailureTime: metrics.lastFailureTime,
+      openedAt: metrics.state === 'OPEN' ? metrics.lastStateChange : null,
+    });
+  }
+
+  /**
+   * Attempts to become the single instance that probes a recovering provider.
+   *
+   * Returns `true` when this process holds the probe, `false` when another already does.
+   * Circuits that are not HALF_OPEN need no lease and return `true`.
+   */
+  public async tryEnterHalfOpen(provider: string, modelId?: string): Promise<boolean> {
+    const key = this.getKey(provider, modelId);
+    const metrics = this.circuits.get(key);
+    if (!metrics || metrics.state !== 'HALF_OPEN') return true;
+
+    return tryAcquireProbeLease(circuitKey(provider, modelId), this.resetTimeoutMs);
+  }
+
+  /** Releases the probe lease once the probe has resolved. */
+  public async exitHalfOpen(provider: string, modelId?: string): Promise<void> {
+    await releaseProbeLease(circuitKey(provider, modelId));
   }
 }
 

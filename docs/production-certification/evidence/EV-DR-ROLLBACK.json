@@ -1,0 +1,19 @@
+{
+  "evidenceId": "EV-DR-ROLLBACK",
+  "kind": "dr-rollback",
+  "candidateSha": "3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32",
+  "environment": "certification workstation - no container runtime installed",
+  "command": "(not executed) rollback between two immutable image digests",
+  "startedAt": "2026-08-20T03:01:46.545Z",
+  "finishedAt": "2026-08-20T03:01:46.545Z",
+  "exitCode": 127,
+  "status": "NOT_EXECUTED",
+  "metrics": {
+    "reason": "docker is not installed on this machine, so no image has been built and no digest exists to roll between.",
+    "rollbackSeconds": null,
+    "priorPublishedValueWithdrawn": "38 seconds - never measured",
+    "defect": "TEL-P1-018",
+    "closesWhen": "a controlled rollback records candidate digest, previous digest, command, start, finish, web health, worker health, schema compatibility, and redeployment of the candidate"
+  },
+  "artifacts": []
+}

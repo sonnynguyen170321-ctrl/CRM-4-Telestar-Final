@@ -1,0 +1,1631 @@
+{
+  "$comment": "AUTHORITATIVE requirement registry. Status is NEVER stored here - it is COMPUTED by scripts/certification/validate-certification.mjs from the evidence manifest. REQUIREMENT_TRACEABILITY.md is generated from this file.",
+  "schemaVersion": 1,
+  "domains": {
+    "IMP": "Import Reliability & Concurrency",
+    "MAIL": "Outbound Email & Transport Safety",
+    "SEC": "Security, Multi-Tenant RLS & RBAC",
+    "ROLE": "6-Role Operational Workflows",
+    "AI": "AI Reliability & Cost Governance",
+    "DR": "Disaster Recovery & Infrastructure",
+    "REL": "Release Identity & Gate Auditing",
+    "OPS": "Operational Lifecycle & Sequences"
+  },
+  "requirements": [
+    {
+      "id": "IMP-001",
+      "domain": "IMP",
+      "severity": "P1",
+      "description": "Account race & collision convergence across concurrent workers",
+      "linkedDefects": [
+        "TEL-P1-002"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/import-race-stress.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "IMP-002",
+      "domain": "IMP",
+      "severity": "P1",
+      "description": "Contact identity deduplication on concurrent import chunks",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/import-worker.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "IMP-003",
+      "domain": "IMP",
+      "severity": "P1",
+      "description": "Deterministic crash after Lead creation converges on retry",
+      "linkedDefects": [
+        "TEL-P1-001",
+        "TEL-P1-006"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/import-fault-injection.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "IMP-004",
+      "domain": "IMP",
+      "severity": "P1",
+      "description": "Deterministic crash after ImportRow update converges on retry",
+      "linkedDefects": [
+        "TEL-P1-001",
+        "TEL-P1-006"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/import-fault-injection.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "IMP-005",
+      "domain": "IMP",
+      "severity": "P1",
+      "description": "Deterministic crash after Activity creation converges on retry",
+      "linkedDefects": [
+        "TEL-P1-001",
+        "TEL-P1-006"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/import-fault-injection.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "IMP-006",
+      "domain": "IMP",
+      "severity": "P1",
+      "description": "Deterministic crash after SequenceEnrollment converges",
+      "linkedDefects": [
+        "TEL-P1-001",
+        "TEL-P1-006"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/import-fault-injection.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "IMP-007",
+      "domain": "IMP",
+      "severity": "P1",
+      "description": "Deterministic crash after first Task creation converges",
+      "linkedDefects": [
+        "TEL-P1-001",
+        "TEL-P1-006"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/import-fault-injection.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "IMP-008",
+      "domain": "IMP",
+      "severity": "P1",
+      "description": "120-row high contention stress test with 40 shared accounts",
+      "linkedDefects": [
+        "TEL-P1-002"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/import-race-stress.test.ts"
+        },
+        {
+          "kind": "load-benchmark",
+          "scale": 120
+        }
+      ]
+    },
+    {
+      "id": "IMP-009",
+      "domain": "IMP",
+      "severity": "P2",
+      "description": "500-row batch load test with p95 duration tracking",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/import-worker.test.ts"
+        },
+        {
+          "kind": "load-benchmark",
+          "scale": 500
+        }
+      ]
+    },
+    {
+      "id": "IMP-010",
+      "domain": "IMP",
+      "severity": "P2",
+      "description": "1,000-row batch load test with zero prospect loss",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/import-worker.test.ts"
+        },
+        {
+          "kind": "load-benchmark",
+          "scale": 1000
+        }
+      ]
+    },
+    {
+      "id": "IMP-011",
+      "domain": "IMP",
+      "severity": "P1",
+      "description": "Pool import chunk partial-write fault injection & convergence",
+      "linkedDefects": [
+        "TEL-P1-019"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/import-fault-injection.test.ts",
+          "repointedFrom": "tests/leadgen-pool.test.ts",
+          "justification": "The cited tests/leadgen-pool.test.ts never existed. Pool import failpoint convergence is genuinely covered by the \"TEL-P2-011: Complete Pool Import Failpoint Convergence\" block, which injects after_pool_item, after_pool_import_row and after_pool_activity and asserts clean convergence on retry."
+        }
+      ]
+    },
+    {
+      "id": "IMP-012",
+      "domain": "IMP",
+      "severity": "P1",
+      "description": "Batch commit ordering: state-driven commit blocked while chunks in-flight",
+      "linkedDefects": [
+        "TEL-P1-005"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/import-fault-injection.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "IMP-013",
+      "domain": "IMP",
+      "severity": "P1",
+      "description": "Batch commit idempotency: duplicate BullMQ delivery does not duplicate state",
+      "linkedDefects": [
+        "TEL-P1-007"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/import-fault-injection.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "MAIL-001",
+      "domain": "MAIL",
+      "severity": "P1",
+      "description": "Hard send barrier: demo tenant cannot trigger network transport",
+      "linkedDefects": [
+        "TEL-P1-003",
+        "TEL-P2-005"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/demo-email-barrier.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "MAIL-002",
+      "domain": "MAIL",
+      "severity": "P1",
+      "description": "Outbound message idempotency key prevents duplicate physical sends",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/email-idempotency.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "MAIL-003",
+      "domain": "MAIL",
+      "severity": "P1",
+      "description": "Worker crash after provider transport records `UNKNOWN_PROVIDER_OUTCOME`",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/email-worker.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "MAIL-004",
+      "domain": "MAIL",
+      "severity": "P1",
+      "description": "Provider timeout handling without blind automated retries",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/email-worker.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "MAIL-005",
+      "domain": "MAIL",
+      "severity": "P1",
+      "description": "Suppression list & global unsubscribe checked at final transport boundary",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/email-safety.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "MAIL-006",
+      "domain": "MAIL",
+      "severity": "P2",
+      "description": "Account quota enforcement & daily rate limiting",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/email-health-scoring.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "MAIL-007",
+      "domain": "MAIL",
+      "severity": "P1",
+      "description": "Global emergency pause halts all active workers immediately",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/email-safety.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "MAIL-008",
+      "domain": "MAIL",
+      "severity": "P1",
+      "description": "Unsubscribe atomicity across campaign and tenant suppression",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/email-safety.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "MAIL-009",
+      "domain": "MAIL",
+      "severity": "P2",
+      "description": "Bounce detection categorizes hard vs soft bounces accurately",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/bounceDetection.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "MAIL-010",
+      "domain": "MAIL",
+      "severity": "P2",
+      "description": "Inbound email sync reconciles thread messages into CRM activity",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/sync-worker.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "MAIL-011",
+      "domain": "MAIL",
+      "severity": "P2",
+      "description": "Deliverability health scoring autopause on critical bounce threshold",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/email-health-p8.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "MAIL-012",
+      "domain": "MAIL",
+      "severity": "P1",
+      "description": "Canary mode restricts outbound sends exclusively to allowlisted recipients",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/email-safety.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "SEC-001",
+      "domain": "SEC",
+      "severity": "P1",
+      "description": "Complete inventory of all `bypassRls`, `new PrismaClient`, `$queryRaw`",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "security-inventory",
+          "artifact": "docs/production-certification/RLS_BYPASS_INVENTORY.md"
+        }
+      ]
+    },
+    {
+      "id": "SEC-002",
+      "domain": "SEC",
+      "severity": "P1",
+      "description": "Throwaway DB RLS enforcement across all tables and operations",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/tenant-inject.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "SEC-003",
+      "domain": "SEC",
+      "severity": "P1",
+      "description": "Mass assignment audit: client cannot inject `tenantId`, `role`, `managerId`",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/mass-assignment.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "SEC-004",
+      "domain": "SEC",
+      "severity": "P1",
+      "description": "Object authorization red team: foreign tenant object ID injection rejected",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/object-auth-red-team.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "SEC-005",
+      "domain": "SEC",
+      "severity": "P1",
+      "description": "Object authorization red team: foreign team object ID injection rejected",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/object-auth-red-team.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "SEC-006",
+      "domain": "SEC",
+      "severity": "P2",
+      "description": "Organization hierarchy invariants: cycle prevention & self-manager block",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/admin-org-rules.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "SEC-007",
+      "domain": "SEC",
+      "severity": "P2",
+      "description": "Floor Manager scoped promotion rights vs Director absolute rights",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/floor-manager-administration.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "SEC-008",
+      "domain": "SEC",
+      "severity": "P1",
+      "description": "Demo seed password: must reject default fallback in production",
+      "linkedDefects": [
+        "TEL-P1-004"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/seed-guard.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "SEC-009",
+      "domain": "SEC",
+      "severity": "P2",
+      "description": "Security scan: formula injection in CSV/XLSX export/import",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/security-injection.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "SEC-010",
+      "domain": "SEC",
+      "severity": "P1",
+      "description": "Inbound email XSS sanitization and dangerous HTML stripping",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/security-injection.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "SEC-011",
+      "domain": "SEC",
+      "severity": "P1",
+      "description": "CSP headers enforce strict nonces, reject unsafe inline scripts",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/csp.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "SEC-012",
+      "domain": "SEC",
+      "severity": "P1",
+      "description": "Gitleaks scan: 0 hardcoded secrets or API tokens in source history",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/gitleaks-allowlist.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "SEC-013",
+      "domain": "SEC",
+      "severity": "P1",
+      "description": "Password hashing uses bcrypt with work factor >= 12",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/seed-guard.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "SEC-014",
+      "domain": "SEC",
+      "severity": "P1",
+      "description": "Login throttling rate limits brute-force attempts per IP/account",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/login-throttle.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "SEC-015",
+      "domain": "SEC",
+      "severity": "P1",
+      "description": "API Key scoping: Developer tokens restricted to declared tenant & scopes",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/api-keys-and-integrations.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "ROLE-001",
+      "domain": "ROLE",
+      "severity": "P1",
+      "description": "Director: Full tenant visibility, deals, executive intelligence, user admin",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/role-journeys.test.ts"
+        },
+        {
+          "kind": "role-browser",
+          "role": "director"
+        }
+      ]
+    },
+    {
+      "id": "ROLE-002",
+      "domain": "ROLE",
+      "severity": "P2",
+      "description": "Director: Executive revenue overview and cross-team reallocations",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/phase-9-role-surfaces.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "ROLE-003",
+      "domain": "ROLE",
+      "severity": "P1",
+      "description": "Floor Manager: SDR workload allocation, team transfer, operational metrics",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/floor-manager-administration.test.ts"
+        },
+        {
+          "kind": "role-browser",
+          "role": "floor_manager"
+        }
+      ]
+    },
+    {
+      "id": "ROLE-004",
+      "domain": "ROLE",
+      "severity": "P2",
+      "description": "Floor Manager: Team performance pacing and lead reallocation",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/phase-9-role-surfaces.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "ROLE-005",
+      "domain": "ROLE",
+      "severity": "P1",
+      "description": "Team Lead: Pod member reviews, meeting approvals, lead validation",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/podScoping.test.ts"
+        },
+        {
+          "kind": "role-browser",
+          "role": "team_lead"
+        }
+      ]
+    },
+    {
+      "id": "ROLE-006",
+      "domain": "ROLE",
+      "severity": "P2",
+      "description": "Team Lead: Coaching notes, rep progress tracking, draft review",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/phase-9-role-surfaces.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "ROLE-007",
+      "domain": "ROLE",
+      "severity": "P1",
+      "description": "SDR: Assigned leads only, personal sequences, booking links, meeting logging",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/role-journeys.test.ts"
+        },
+        {
+          "kind": "role-browser",
+          "role": "sdr"
+        }
+      ]
+    },
+    {
+      "id": "ROLE-008",
+      "domain": "ROLE",
+      "severity": "P1",
+      "description": "SDR: Cannot access unassigned prospect data or cross-tenant records",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/podScoping.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "ROLE-009",
+      "domain": "ROLE",
+      "severity": "P1",
+      "description": "Leadgen Manager: Pool management, researcher allocation, dedup rules",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/phase-9-role-surfaces.test.ts"
+        },
+        {
+          "kind": "role-browser",
+          "role": "leadgen_manager"
+        }
+      ]
+    },
+    {
+      "id": "ROLE-010",
+      "domain": "ROLE",
+      "severity": "P2",
+      "description": "Leadgen Manager: Campaign requirements definition and quality scoring",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/leadgen-redesign.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "ROLE-011",
+      "domain": "ROLE",
+      "severity": "P1",
+      "description": "Leadgen: Sourcing pool submission, contact enrichment, account lookup",
+      "linkedDefects": [
+        "TEL-P1-019"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/golden-journey.test.ts",
+          "repointedFrom": "tests/leadgen-pool.test.ts",
+          "justification": "The cited tests/leadgen-pool.test.ts never existed. Leadgen sourcing and pool submission are covered by golden-journey step 1, which sources two records and qualifies them against the campaign ICP against a real Postgres."
+        },
+        {
+          "kind": "role-browser",
+          "role": "leadgen"
+        }
+      ]
+    },
+    {
+      "id": "ROLE-012",
+      "domain": "ROLE",
+      "severity": "P2",
+      "description": "Leadgen visibility audit: verify lane-owned lead visibility rules",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/phase-9-role-surfaces.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "AI-001",
+      "domain": "AI",
+      "severity": "P1",
+      "description": "Provider-neutral AI gateway with Groq -> Gemini failover",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/ai-gateway.test.ts"
+        },
+        {
+          "kind": "ai-capability-routing"
+        }
+      ]
+    },
+    {
+      "id": "AI-002",
+      "domain": "AI",
+      "severity": "P1",
+      "description": "Structured output Zod runtime schema validation",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/telestar-ai-engine.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "AI-003",
+      "domain": "AI",
+      "severity": "P1",
+      "description": "AI token usage recording and daily/monthly budget enforcement",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/ai-cost-attribution.test.ts"
+        },
+        {
+          "kind": "ai-durable-budget"
+        }
+      ]
+    },
+    {
+      "id": "AI-004",
+      "domain": "AI",
+      "severity": "P1",
+      "description": "Circuit breaker half-open concurrency and multi-replica topology",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/ai-down-resilience.test.ts"
+        },
+        {
+          "kind": "ai-shared-circuit"
+        }
+      ]
+    },
+    {
+      "id": "AI-005",
+      "domain": "AI",
+      "severity": "P2",
+      "description": "AI provider configuration awareness (boolean reporting only)",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/doctor.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "AI-006",
+      "domain": "AI",
+      "severity": "P1",
+      "description": "Domain service encapsulation: zero direct CRM table reads in AI tools",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/agent-object-authorization.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "AI-007",
+      "domain": "AI",
+      "severity": "P2",
+      "description": "Context engine extracts multi-turn conversation memory accurately",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/context-engine.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "AI-008",
+      "domain": "AI",
+      "severity": "P2",
+      "description": "Commercial intelligence scoring and next best action generation",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/commercial-intelligence-master.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "AI-009",
+      "domain": "AI",
+      "severity": "P2",
+      "description": "AI Draft reply synthesizes inbound objections into tailored response",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/draft-reply.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "AI-010",
+      "domain": "AI",
+      "severity": "P2",
+      "description": "Revenue OS master evaluation benchmarks AI quality and consistency",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/revenue-os-master-eval.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "AI-011",
+      "domain": "AI",
+      "severity": "P1",
+      "description": "Constitution guardrails reject prompt injection & out-of-scope tasks",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/telestar-ai-constitution.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "AI-012",
+      "domain": "AI",
+      "severity": "P1",
+      "description": "Tenant monthly AI budget hard cap halts non-essential LLM tasks",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/ai-cost-attribution.test.ts"
+        },
+        {
+          "kind": "ai-durable-budget"
+        }
+      ]
+    },
+    {
+      "id": "AI-013",
+      "domain": "AI",
+      "severity": "P2",
+      "description": "Stream usage attribution accurately bills chunked streaming responses",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/ai-cost-attribution.test.ts"
+        },
+        {
+          "kind": "ai-stream-governance"
+        }
+      ]
+    },
+    {
+      "id": "AI-014",
+      "domain": "AI",
+      "severity": "P1",
+      "description": "Graceful degradation: CRM fully functional when all AI providers offline",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/ai-down-resilience.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "DR-001",
+      "domain": "DR",
+      "severity": "P1",
+      "description": "Backup creation and verification of pg_dump file integrity",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "dr-backup"
+        }
+      ]
+    },
+    {
+      "id": "DR-002",
+      "domain": "DR",
+      "severity": "P1",
+      "description": "Restore drill into isolated database with schema migration check",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "dr-restore"
+        }
+      ]
+    },
+    {
+      "id": "DR-003",
+      "domain": "DR",
+      "severity": "P1",
+      "description": "Rollback drill to previous immutable container image",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "dr-rollback"
+        }
+      ]
+    },
+    {
+      "id": "DR-004",
+      "domain": "DR",
+      "severity": "P1",
+      "description": "Failure matrix: database connection drop & graceful recovery",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "failure-matrix",
+          "scenario": "database-connection-drop"
+        }
+      ]
+    },
+    {
+      "id": "DR-005",
+      "domain": "DR",
+      "severity": "P1",
+      "description": "Failure matrix: Redis disconnection & fallback queue behavior",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/redis-readiness.test.ts"
+        },
+        {
+          "kind": "redis-integration"
+        }
+      ]
+    },
+    {
+      "id": "DR-006",
+      "domain": "DR",
+      "severity": "P2",
+      "description": "Measured RTO (Recovery Time Objective) under 15 minutes",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "dr-restore",
+          "metric": "rtoSeconds"
+        }
+      ]
+    },
+    {
+      "id": "DR-007",
+      "domain": "DR",
+      "severity": "P2",
+      "description": "Measured RPO (Recovery Point Objective) under 1 hour",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "dr-rpo"
+        }
+      ]
+    },
+    {
+      "id": "DR-008",
+      "domain": "DR",
+      "severity": "P1",
+      "description": "BullMQ worker automatic reconnection upon Redis restart",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/redis-readiness.test.ts"
+        },
+        {
+          "kind": "redis-integration"
+        }
+      ]
+    },
+    {
+      "id": "DR-009",
+      "domain": "DR",
+      "severity": "P1",
+      "description": "Postgres connection pool exhaustion handling with queue backpressure",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/p0-hardening.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "DR-010",
+      "domain": "DR",
+      "severity": "P1",
+      "description": "Unhandled promise rejection & SIGTERM process shutdown safety",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "failure-matrix",
+          "scenario": "sigterm-shutdown"
+        }
+      ]
+    },
+    {
+      "id": "REL-001",
+      "domain": "REL",
+      "severity": "P1",
+      "description": "Immutable release chain: Source SHA -> Metadata SHA -> Image Digest",
+      "linkedDefects": [
+        "TEL-P1-008",
+        "TEL-P2-003"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "release-identity"
+        }
+      ]
+    },
+    {
+      "id": "REL-002",
+      "domain": "REL",
+      "severity": "P1",
+      "description": "Zero unexplained skipped tests in test suite",
+      "linkedDefects": [
+        "TEL-P2-001"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "gate",
+          "gate": "test-discipline"
+        }
+      ]
+    },
+    {
+      "id": "REL-003",
+      "domain": "REL",
+      "severity": "P1",
+      "description": "Certification Run 1: Full test ladder + static + build",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "certification-run",
+          "run": 1
+        }
+      ]
+    },
+    {
+      "id": "REL-004",
+      "domain": "REL",
+      "severity": "P1",
+      "description": "Certification Run 2: Full test ladder + static + build",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "certification-run",
+          "run": 2
+        }
+      ]
+    },
+    {
+      "id": "REL-005",
+      "domain": "REL",
+      "severity": "P1",
+      "description": "Certification Run 3: Full test ladder + static + build",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "certification-run",
+          "run": 3
+        }
+      ]
+    },
+    {
+      "id": "REL-006",
+      "domain": "REL",
+      "severity": "P1",
+      "description": "CI workflow release gate enforces green test suite before merge",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "ci-run"
+        }
+      ]
+    },
+    {
+      "id": "REL-007",
+      "domain": "REL",
+      "severity": "P1",
+      "description": "Health check endpoint reports commit SHA and database connectivity",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/doctor.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "REL-008",
+      "domain": "REL",
+      "severity": "P1",
+      "description": "Final Certificate reflects verified evidence with zero assumptions",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "validator-self"
+        }
+      ]
+    },
+    {
+      "id": "OPS-001",
+      "domain": "OPS",
+      "severity": "P1",
+      "description": "Sequence step execution order and delay timing calculations",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/sequence-worker.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-002",
+      "domain": "OPS",
+      "severity": "P1",
+      "description": "Sequence enrollment state transitions: active, paused, completed, un-enrolled",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/sequence-worker.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-003",
+      "domain": "OPS",
+      "severity": "P1",
+      "description": "Sequence auto-pause on prospect reply or meeting booked",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/sequence-worker.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-004",
+      "domain": "OPS",
+      "severity": "P2",
+      "description": "Next action calculation skips weekends and honors business hours",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/businessDays.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-005",
+      "domain": "OPS",
+      "severity": "P2",
+      "description": "Backfill next action script fixes corrupted or null schedule dates",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/backfill-next-action-at.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-006",
+      "domain": "OPS",
+      "severity": "P1",
+      "description": "Task creation on sequence step: phone call, manual email, custom task",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/sequence-worker.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-007",
+      "domain": "OPS",
+      "severity": "P1",
+      "description": "Task completion advances sequence to next sequential step",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/sequence-worker.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-008",
+      "domain": "OPS",
+      "severity": "P2",
+      "description": "Task reassignment preserves sequence state and updates audit trail",
+      "linkedDefects": [
+        "TEL-P1-019"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/admin-impact.test.ts",
+          "repointedFrom": "tests/transfer-work.test.ts",
+          "justification": "The cited tests/transfer-work.test.ts never existed. Work transfer is covered by admin-impact, which asserts open work moves, a cron-locked task stays with its owner, the transfer is idempotent by requestId, and an actor-stamped audit trail is written."
+        }
+      ]
+    },
+    {
+      "id": "OPS-009",
+      "domain": "OPS",
+      "severity": "P1",
+      "description": "Opportunity creation links Lead, Contact, Account, and Campaign",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/opportunities.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-010",
+      "domain": "OPS",
+      "severity": "P2",
+      "description": "Opportunity stage progression enforces mandatory fields per stage",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/opportunities.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-011",
+      "domain": "OPS",
+      "severity": "P2",
+      "description": "Opportunity value calculation and weighted pipeline forecasting",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/opportunities.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-012",
+      "domain": "OPS",
+      "severity": "P2",
+      "description": "Meeting booking links support timezone resolution and availability windows",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/meetings.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-013",
+      "domain": "OPS",
+      "severity": "P2",
+      "description": "Meeting outcome recording: completed, no-show, rescheduled",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/meetings.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-014",
+      "domain": "OPS",
+      "severity": "P2",
+      "description": "Meeting conversion to Opportunity links meeting notes and participants",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/meetings.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-015",
+      "domain": "OPS",
+      "severity": "P1",
+      "description": "Campaign creation validates budget, date range, and client assignment",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/campaign-playbook.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-016",
+      "domain": "OPS",
+      "severity": "P2",
+      "description": "Campaign membership allocation assigns SDRs with capacity limits",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/campaign-playbook.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-017",
+      "domain": "OPS",
+      "severity": "P2",
+      "description": "Lead scoring rules recalculate priority score on activity events",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/scoring.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-018",
+      "domain": "OPS",
+      "severity": "P1",
+      "description": "Lead qualification pipeline moves leads between new, contacted, qualified",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/eligibility.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-019",
+      "domain": "OPS",
+      "severity": "P1",
+      "description": "Lead deduplication detects duplicate records across email, phone, LinkedIn",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/import-worker.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-020",
+      "domain": "OPS",
+      "severity": "P2",
+      "description": "Lead soft delete and restore maintains complete activity history",
+      "linkedDefects": [
+        "TEL-P1-019"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/lead-lifecycle.test.ts",
+          "repointedFrom": "tests/lead-lifecycle.test.ts (never written)",
+          "justification": "The cited file never existed and no test covered the invariant. Written for this certification: archive is a soft delete that preserves the row and its full activity history, and restore returns the lead with the trail of both events intact."
+        }
+      ]
+    },
+    {
+      "id": "OPS-021",
+      "domain": "OPS",
+      "severity": "P1",
+      "description": "Activity timeline captures all email, call, meeting, note events",
+      "linkedDefects": [
+        "TEL-P1-019"
+      ],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/activities.test.ts",
+          "repointedFrom": "tests/activities.test.ts (never written)",
+          "justification": "The cited file never existed and no test covered the invariant. Written for this certification: every channel event lands on the right lead with its channel, metadata, chronological order and acting user preserved."
+        }
+      ]
+    },
+    {
+      "id": "OPS-022",
+      "domain": "OPS",
+      "severity": "P2",
+      "description": "Notification dispatch notifies assigned reps on hot lead activity",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/notification-worker.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-023",
+      "domain": "OPS",
+      "severity": "P1",
+      "description": "Audit log records all administrative mutations with user & IP",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/admin-audit.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "OPS-024",
+      "domain": "OPS",
+      "severity": "P2",
+      "description": "Maintenance worker prunes expired tokens, stale logs, and old artifacts",
+      "linkedDefects": [],
+      "mandatory": true,
+      "evidence": [
+        {
+          "kind": "vitest",
+          "testFile": "tests/maintenance-worker.test.ts"
+        }
+      ]
+    }
+  ]
+}

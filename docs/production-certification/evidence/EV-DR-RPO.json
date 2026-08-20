@@ -1,0 +1,20 @@
+{
+  "evidenceId": "EV-DR-RPO",
+  "kind": "dr-rpo",
+  "candidateSha": "3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32",
+  "environment": "certification workstation - gcloud CLI not installed",
+  "command": "gcloud sql instances describe telestar-crm-db --project=telestar-crm-final",
+  "startedAt": "2026-08-20T03:01:46.545Z",
+  "finishedAt": "2026-08-20T03:01:46.545Z",
+  "exitCode": 127,
+  "status": "BLOCKED_EXTERNAL",
+  "metrics": {
+    "reason": "gcloud is not installed on this machine, so the live Cloud SQL backup configuration cannot be inspected.",
+    "rpoSeconds": null,
+    "priorPublishedValueWithdrawn": "15 minutes (BACKUP_RESTORE.md) and under 5 minutes (BACKUP_RESTORE_RUNBOOK.md) - neither was measured",
+    "contradiction": "docs/CLOUD_RUN_DEPLOY.md creates the instance with --no-backup and docs/DEPLOY.md records no backup schedule as of 2026-08-05, while docs/BACKUP_RESTORE_RUNBOOK.md claims automated backups and 7-day PITR are enabled",
+    "defect": "TEL-P0-002",
+    "closesWhen": "raw gcloud output for backupConfiguration.enabled, pointInTimeRecoveryEnabled and transactionLogRetentionDays is attached as an artifact"
+  },
+  "artifacts": []
+}

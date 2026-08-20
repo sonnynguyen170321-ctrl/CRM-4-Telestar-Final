@@ -1002,6 +1002,14 @@ model Reminder {
 
 model Activity {
   id          String       @id @default(cuid())
+  /// Deterministic key for writes that must happen exactly once per subject, such as the
+  /// single `lead_created` row an import produces for a lead.
+  ///
+  /// Nullable and unique: Postgres allows many NULLs in a unique index, so ordinary
+  /// activities - dozens of `email_sent` rows on one lead - are unaffected, while a keyed
+  /// write is guaranteed once by the database rather than by a read-then-write check that
+  /// two concurrent workers can both pass.
+  idempotencyKey String?   @unique
   userId      String
   user        User         @relation(fields: [userId], references: [id])
   leadId      String?
@@ -2031,6 +2039,88 @@ model Tenant {
   apiKeys                  ApiKey[]
   contactIntelligences     ContactIntelligence[]
   contactEvidence          ContactEvidence[]
+  aiBudgetPeriods          TenantAiBudgetPeriod[]
+  aiBudgetReservations     TenantAiBudgetReservation[]
+}
+
+// ─── Durable AI Budget Governance (TEL-P1-015) ───────────────────────────────
+
+/// A tenant's AI spend ledger for one calendar month.
+///
+/// Budget state used to live in a process-local `Map`. That is not a budget: restarting a
+/// process forgot every dollar already spent, and a second replica started again from zero,
+/// so N replicas could each spend the full limit. This table is the shared, durable truth.
+///
+/// ## Why integers
+///
+/// Amounts are **micro-dollars** (USD x 1_000_000) held in `BigInt`. Floating-point money
+/// accumulates error across thousands of small AI calls, and `0.1 + 0.2 != 0.3` is not a
+/// property you want in a spend cap. `AiCall.estimatedCostUsd` is `Decimal(12,6)`, so
+/// micro-dollars represent it exactly with no rounding.
+///
+/// ## How the cap actually holds
+///
+/// Reservation is a **single-statement conditional UPDATE** whose WHERE clause carries the
+/// limit check. Postgres takes a row lock for the duration, so concurrent reservers are
+/// serialised on this row and the sum can never cross `limitMicros` no matter how many
+/// processes try at once. It needs no interactive transaction, which matters because the
+/// Neon HTTP driver does not have them.
+model TenantAiBudgetPeriod {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// UTC calendar month, `YYYY-MM`.
+  periodKey String
+
+  /// Hard cap for the period, in micro-dollars.
+  limitMicros BigInt
+  /// Settled spend, in micro-dollars.
+  usedMicros BigInt @default(0)
+  /// Currently held reservations, in micro-dollars. Released or reconciled on settlement.
+  reservedMicros BigInt @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reservations TenantAiBudgetReservation[]
+
+  @@unique([tenantId, periodKey])
+  @@index([tenantId])
+}
+
+/// One in-flight budget hold.
+///
+/// Reservations are rows rather than memory so a crashed process cannot strand budget
+/// forever: a sweep expires holds past `expiresAt` and returns the amount. The sweep marks
+/// the row first and decrements the period second, so an interruption between the two
+/// leaves the period *over*-reserved rather than under-reserved - the direction that denies
+/// spend instead of permitting overspend.
+model TenantAiBudgetReservation {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  periodId String
+  period   TenantAiBudgetPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  /// Amount held, in micro-dollars.
+  amountMicros BigInt
+  /// What the spend was for - 'chat', 'briefing', 'research', ...
+  operation String?
+
+  /// `held` | `reconciled` | `released` | `expired`
+  status String @default("held")
+
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  settledAt DateTime?
+  /// Actual settled cost in micro-dollars, once known.
+  settledMicros BigInt?
+
+  @@index([tenantId, status])
+  @@index([status, expiresAt])
+  @@index([periodId])
 }
 
 // ─── API Keys & Developer Access ─────────────────────────────────────────────

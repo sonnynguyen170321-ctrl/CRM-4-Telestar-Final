@@ -1,53 +1,89 @@
-# Telestar CRM — Master Production Certification Tracker
+# Telestar CRM — Master Certification Tracker
 
-**Program**: Zero-Assumption Production Certification  
-**Authoritative Candidate SHA**: `a6d8c0dfa4800fc158f5a6717d94211b595f4531`  
-**Release Tag**: `telestar-internal-rc-2026-08-20`  
-**Started**: 2026-08-19T21:38:44+07:00  
-**Last Updated**: 2026-08-20T00:05:00+07:00  
-**Overall Status**: CERTIFIED_APPROVED  
+<!--
+  GENERATED FILE. Do not edit by hand.
+  Source: computed by npm run certify:validate
+  Regenerate: node scripts/certification/render-tracker.mjs
+-->
 
----
+**Verdict**: **NO-GO**
+**Candidate SHA**: `3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32`
+**Requirements verified**: 101 / 108
+**Evidence records**: 22
+**Generated**: 2026-08-20T03:26:58.008Z
 
-## 1. Executive Summary
-
-```text
-OVERALL
-Total Requirements: 108 (Floor)
-Verified: 108 (100%)
-In Progress: 0
-Failed: 0
-Blocked External: 0
-Not Started: 0
-
-Defects:
-P0 Discovered / Open: 0 / 0
-P1 Discovered / Open: 13 / 0 (All 13 Resolved & Verified)
-P2 Discovered / Open: 12 / 0 (All 12 Resolved & Verified)
-P3 Discovered / Open: 0 / 0
-Total Defects: 25 Discovered / 25 Resolved & Verified / 0 Open
-
-Multi-Run Ladder on Candidate SHA a6d8c0d:
-- RUN 1: PASS (154 Files Passed, 1,922 Tests Passed, 0 Failed, 0 Lint, 0 Type Errors)
-- RUN 2: PASS (154 Files Passed, 1,922 Tests Passed, 0 Failed, 0 Lint, 0 Type Errors)
-- RUN 3: PASS (154 Files Passed, 1,922 Tests Passed, 0 Failed, 0 Lint, 0 Type Errors)
-- FINAL CERTIFICATE: ISSUED & APPROVED
-```
+> This file and `progress.json` are rendered from the same computation. They used to be
+> maintained by hand, and both said 108/108 VERIFIED and CERTIFIED_APPROVED — which proved
+> only that the numbers had been copied from one to the other.
 
 ---
 
-## 2. Requirements Tracking Ledger
+## 1. Requirements by domain
 
-*See detailed mappings in [REQUIREMENT_TRACEABILITY.md](REQUIREMENT_TRACEABILITY.md).*
+| Domain | Total | Verified | Not verified |
+|---|---:|---:|---:|
+| `IMP` | 13 | 13 | 0 |
+| `MAIL` | 12 | 12 | 0 |
+| `SEC` | 15 | 15 | 0 |
+| `ROLE` | 12 | 12 | 0 |
+| `AI` | 14 | 14 | 0 |
+| `DR` | 10 | 8 | 2 |
+| `REL` | 8 | 3 | 5 |
+| `OPS` | 24 | 24 | 0 |
+| **TOTAL** | **108** | **101** | **7** |
 
-| Domain | Total Req | Verified | In Progress | Open Defects | Status |
-|---|---|---|---|---|---|
-| **A. Import Reliability & Concurrency (IMP)** | 13 | 13 | 0 | 0 | VERIFIED |
-| **B. Outbound Email Safety (MAIL)** | 12 | 12 | 0 | 0 | VERIFIED (Safe Internal Mode) |
-| **C. Security, RLS & RBAC (SEC)** | 15 | 15 | 0 | 0 | VERIFIED |
-| **D. 6-Role Operational Matrix (ROLE)** | 12 | 12 | 0 | 0 | VERIFIED |
-| **E. AI Reliability & Gateway (AI)** | 14 | 14 | 0 | 0 | VERIFIED |
-| **F. Disaster Recovery & Backup (DR)** | 10 | 10 | 0 | 0 | VERIFIED |
-| **G. Release & 3-Run Certification (REL)** | 8 | 8 | 0 | 0 | VERIFIED |
-| **H. Lifecycle, Sequences & Tasks (OPS)** | 24 | 24 | 0 | 0 | VERIFIED |
-| **TOTAL** | **108** | **108** | **0** | **0** | **CERTIFIED_APPROVED** |
+Detail, with the blocking reason on every unverified row:
+[REQUIREMENT_TRACEABILITY.md](REQUIREMENT_TRACEABILITY.md).
+
+## 2. Open defects
+
+| Severity | Open |
+|---|---:|
+| P0 | 2 |
+| P1 | 9 |
+| P2 | 6 |
+| P3 | 0 |
+| **Total** | **17** |
+
+- `TEL-P0-001` — FIXED_PENDING_VERIFICATION
+- `TEL-P0-002` — BLOCKED_EXTERNAL
+- `TEL-P1-014` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-015` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-016` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-017` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-018` — OPEN
+- `TEL-P2-013` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-014` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-015` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-016` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-017` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-019` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-020` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-021` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-022` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-018` — BLOCKED_EXTERNAL
+
+## 3. What the validator is currently reporting
+
+| Check | Failures |
+|---|---:|
+| `REQ` | 7 |
+| `L` | 6 |
+| `A` | 3 |
+| `R` | 1 |
+
+Check meanings are in [PROTOCOL.md](PROTOCOL.md) §6.
+
+## 4. Document map
+
+| Document | Generated from |
+|---|---|
+| [FINAL_CERTIFICATE.md](FINAL_CERTIFICATE.md) | evidence manifest + validator |
+| [REQUIREMENT_TRACEABILITY.md](REQUIREMENT_TRACEABILITY.md) | `requirements.json` + evidence |
+| [EVIDENCE.md](EVIDENCE.md) | `evidence/*.json` |
+| [LOAD_TEST.md](LOAD_TEST.md) | `EV-LOAD-HANDLER`, `EV-LOAD-QUEUE` |
+| [ROLE_BROWSER_EVIDENCE.md](ROLE_BROWSER_EVIDENCE.md) | `EV-ROLE-BROWSER` |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | `EV-RELEASE-IDENTITY` |
+| [runs/RUN_N.md](runs/) | `runs/manifests/run-N.json` |
+| [DEFECTS.md](DEFECTS.md) | hand-maintained — the one narrative document |
+| [PROTOCOL.md](PROTOCOL.md) | hand-maintained — the rules themselves |
