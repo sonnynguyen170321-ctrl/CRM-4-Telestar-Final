@@ -12,9 +12,10 @@
  * and the certification ladder requires the real path (gate 09).
  */
 import { Redis } from 'ioredis';
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getRedisConfig } from '@/lib/bullmq/connection';
+import { circuitBreaker } from '@/lib/ai/circuitBreaker';
 import {
   __setCircuitNamespace,
   __setCircuitRedis,
@@ -255,5 +256,80 @@ describe('behaviour when Redis is unavailable is defined, not accidental', () =>
     __setCircuitRedis(brokenRedis());
 
     await expect(releaseProbeLease('openai:gpt-4o-mini')).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * The probe marker `isAvailable` sets must always be released.
+ *
+ * `isAvailable` records, in a process-local set, that this instance is probing a recovering
+ * model. Only `recordSuccess` and `recordFailure` clear it — and both describe the outcome of
+ * a call. Every path that enters HALF_OPEN and then declines to call leaves the marker set,
+ * and from then on `isAvailable` returns false for that model for the lifetime of the process.
+ *
+ * Found by running the provider-dependent chat journeys for the first time: the chat route
+ * answered "Telestar AI is temporarily unavailable" in four milliseconds, for over two hours,
+ * while the same three providers passed a CLI smoke test 14/14. The circuits in Redis had been
+ * open since a single transient failure, long past the thirty-second reset.
+ */
+describe('the half-open probe marker is released on every path', () => {
+  beforeEach(() => {
+    __setCircuitRedis(null);
+    circuitBreaker.reset();
+  });
+
+  afterEach(() => {
+    __setCircuitRedis(null);
+    circuitBreaker.reset();
+  });
+
+  /** Opens the circuit for one model and lets the reset timeout elapse. */
+  function openLongAgo(provider: string, modelId: string): void {
+    circuitBreaker.recordFailure(provider, modelId, true);
+    const statuses = circuitBreaker.getStatuses();
+    expect(statuses[`${provider}:${modelId}`].state).toBe('OPEN');
+    // The breaker reads `lastFailureTime` first, so age the clock rather than the record.
+    vi.setSystemTime(Date.now() + 60_000);
+  }
+
+  it('a model stays reachable after losing the probe race', async () => {
+    vi.useFakeTimers();
+    try {
+      openLongAgo('groq', 'openai/gpt-oss-20b');
+
+      // A recovering model: available, so the caller asks for the shared lease.
+      expect(circuitBreaker.isAvailable('groq', 'openai/gpt-oss-20b')).toBe(true);
+
+      // Another instance holds it. No call is made, so no outcome is recorded.
+      __setCircuitRedis({
+        hgetall: async () => ({}),
+        hset: async () => 0,
+        del: async () => 0,
+        set: async () => null, // NX fails: the lease is taken
+        keys: async () => [],
+        pexpire: async () => 1,
+      } as unknown as CircuitRedis);
+      expect(await circuitBreaker.tryEnterHalfOpen('groq', 'openai/gpt-oss-20b')).toBe(false);
+
+      // The next request must still be able to probe. Before the fix this was false forever.
+      expect(circuitBreaker.isAvailable('groq', 'openai/gpt-oss-20b')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a model stays reachable after an attempt is abandoned before the call', async () => {
+    vi.useFakeTimers();
+    try {
+      openLongAgo('openai', 'gpt-5.6-luna');
+      expect(circuitBreaker.isAvailable('openai', 'gpt-5.6-luna')).toBe(true);
+
+      // The gateway abandons this attempt — an unresolvable price, say — and releases.
+      await circuitBreaker.exitHalfOpen('openai', 'gpt-5.6-luna');
+
+      expect(circuitBreaker.isAvailable('openai', 'gpt-5.6-luna')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

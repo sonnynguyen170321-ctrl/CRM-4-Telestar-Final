@@ -217,12 +217,33 @@ class CircuitBreakerManager {
     const metrics = this.circuits.get(key);
     if (!metrics || metrics.state !== 'HALF_OPEN') return true;
 
-    return tryAcquireProbeLease(circuitKey(provider, modelId), this.resetTimeoutMs);
+    const acquired = await tryAcquireProbeLease(circuitKey(provider, modelId), this.resetTimeoutMs);
+    // Losing the race is not an outcome of the probe — no call was made, so `recordSuccess`
+    // and `recordFailure` never run, and they are the only things that clear the local marker
+    // `isAvailable` set on the way in. Left behind, that marker makes every later
+    // `isAvailable` return false for this model, permanently, in this process.
+    //
+    // That is how a healthy provider stayed unreachable: the chat route answered
+    // "Telestar AI is temporarily unavailable" in four milliseconds for over two hours while
+    // the same three providers answered a CLI smoke test 14/14. Release it here so the next
+    // request can probe.
+    if (!acquired) this.releaseLocalProbe(provider, modelId);
+    return acquired;
   }
 
   /** Releases the probe lease once the probe has resolved. */
   public async exitHalfOpen(provider: string, modelId?: string): Promise<void> {
+    // Both halves, always. The shared lease lets another instance probe; the local marker is
+    // what lets *this* one probe again. A caller that skips an attempt after entering
+    // HALF_OPEN — an unresolvable price, say — releases neither by recording an outcome.
+    this.releaseLocalProbe(provider, modelId);
     await releaseProbeLease(circuitKey(provider, modelId));
+  }
+
+  /** Clears the in-process probe marker for a provider and, if given, one of its models. */
+  private releaseLocalProbe(provider: string, modelId?: string): void {
+    this.halfOpenLeases.delete(provider);
+    if (modelId) this.halfOpenLeases.delete(`${provider}:${modelId}`);
   }
 }
 
