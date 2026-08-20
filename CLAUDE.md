@@ -302,12 +302,77 @@ lifecycle. `SequenceEnrollment.status` + `nextActionAt` / `pausedReason` / `curr
 > reader and no new writer** — new logic branches on `SequenceEnrollment`. Where the two
 > disagree, the enrollment is right. Deprecation path in `ARCHITECTURE.md` §4.1.
 
-> ⚠️ **AI client/server boundary (`ARCHITECTURE.md` §10).** `lib/ai/models.ts` is client-safe and
-> **must stay import-free**. `provider.ts`, `usage.ts`, `tools.ts` and any Prisma-backed AI
-> service are **server-only** — no `"use client"` module may import them, directly or
-> transitively. `provider.ts` reaches the database via `usage.ts`, so a client import pulls
-> `async_hooks`/`dns`/`net` into the browser bundle and `next build` fails. **tsc and Vitest
-> pass while this is broken.** Two tests in `tests/ai-optional.test.ts` hold the line.
+> ⚠️ **AI client/server boundary (`ARCHITECTURE.md` §10).** `lib/ai/models.ts` and
+> `lib/ai/conversation.ts` are client-safe and **must stay import-free**. `gateway.ts`,
+> `chatRuntime.ts`, `generation.ts`, `providerAdapters.ts`, `usage.ts`, `tools.ts` and any
+> Prisma-backed AI service are **server-only** — no `"use client"` module may import them,
+> directly or transitively. `gateway.ts` reaches the database via `usage.ts`, so a client
+> import pulls `async_hooks`/`dns`/`net` into the browser bundle and `next build` fails.
+> **tsc and Vitest pass while this is broken.** `tests/ai-optional.test.ts` holds the line.
+
+## 🔵 Telestar AI — three providers, one gateway (2026-08-20)
+
+**`lib/ai/gateway.ts` is the only module in the codebase that constructs a provider client.**
+`lib/ai/provider.ts` and `lib/ai/providerRouting.ts` are **deleted**; do not reintroduce a
+second router under any name. `lib/ai/generation.ts` is a thin structured-output adapter over
+the gateway, and `lib/ai/chatRuntime.ts` owns the chat turn and its tool authorization.
+
+`lib/ai/registry.ts` holds **exactly three models**, and `internalAlias === modelId` is an
+invariant (`tests/ai-model-registry.test.ts`):
+
+| Alias = model id | Provider | Display |
+|---|---|---|
+| `gpt-5.6-luna` | openai | GPT-5.6 Luna |
+| `gemini-3.6-flash` | google | Gemini 3.6 Flash |
+| `openai/gpt-oss-20b` | groq | Groq GPT-OSS 20B |
+
+> **Why the alias invariant exists.** The registry used to map `gpt-5.6-luna` onto `gpt-4o-mini`,
+> so every `AiCall` row named a model that was never called and a spend review was reading
+> fiction. `gpt-5.6-luna` is a real OpenAI model id. There was never anything to translate.
+
+**The parameter contract differs per model, and is data, not a `switch`.** `ModelMetadata.parameters`
+carries it; `lib/ai/providerAdapters.ts` reads it. These are observed facts, captured live:
+
+- `gpt-5.6-luna` rejects `max_tokens` (`Use 'max_completion_tokens' instead`), rejects any
+  `temperature` but the default, and refuses function tools on `/v1/chat/completions` without
+  `reasoning_effort: 'none'`.
+- `gemini-3.6-flash` takes **no** output cap from callers — it spends output budget on
+  reasoning before emitting a character, so a caller's 64-token ceiling produces an empty
+  response. Its tool results must be replayed as **plain user text**: role `'function'` is
+  rejected outright, and a `functionResponse` part needs a `thought_signature` this SDK does
+  not round-trip.
+- `openai/gpt-oss-20b` takes the classic `max_tokens` + `temperature` pair.
+
+**Every failure kind fails over.** Three models sit behind three separate credentials and
+accept different parameters, so one model's 401 or 400 says nothing about the next model's.
+The old rate-limit-only policy is exactly how a withdrawn Groq model became a total chat
+outage: the 404 was not a fallback condition, so nothing else was ever tried.
+
+**`npm run check:stale-models` is a required gate.** It fails the build on a retired model id
+in runtime code, and it is how `app/api/ai/onboarding/route.ts` was caught still building its
+own Groq client. Comments are stripped before matching, so the incident history can keep
+naming the dead ids.
+
+Verify against real providers before believing anything here:
+
+```bash
+npm run ai:smoke-providers   # each SDK, one call, the approved model
+npm run ai:smoke-gateway     # the path the product calls: routing, streaming, tools, failover
+node node_modules/tsx/dist/cli.mjs scripts/verify-ai-attribution.ts   # the ledger names real models
+```
+
+`e2e/journeys/telestar-ai-chat.spec.ts` drives the real widget against real providers for four
+roles and **fails on the exact production sentence** (`/Sorry, I ran into a problem generating
+that/i`). Full account: `docs/telestar-ai-remediation/STATUS.md`; post-deploy gate:
+`docs/telestar-ai-remediation/PRODUCTION_GATE.md`.
+
+> **Postgres and Redis run as Docker containers here (`telestar-pg`, `telestar-redis`), not as
+> the Windows service `postgresql-x64-16` described below.** That service does not exist on
+> this machine. `docker ps` is the fastest way to check.
+
+> **`prisma generate` EPERM on Windows is a file lock, not a Prisma bug.** Any live `next start`
+> or hung `tsx` process holds `query_engine-windows.dll.node`. Find the holder and stop it:
+> `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*CRM-4-Telestar-Final*' }`.
 
 **Agent capabilities (Phase 2, shipped).** Every tool call resolves through
 `lib/agent/authorization.ts`, returning `ALLOW` / `REQUIRE_USER_APPROVAL` /

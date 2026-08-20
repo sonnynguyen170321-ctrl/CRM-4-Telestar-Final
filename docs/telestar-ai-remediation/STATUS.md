@@ -126,13 +126,13 @@ Credentials: `OPENAI_API_KEY` SET · `GEMINI_API_KEY` SET · `GROQ_API_KEY` SET.
 | 31 All AI entry points | ✅ done — `generation.ts` rebuilt on the gateway |
 | 32 AI status panel | ✅ DONE — `GET /api/ai/status`, floor_manager and above |
 | 33 Automated chat route tests | ✅ DONE — 35 tests incl. the 404 regression |
-| 34 Playwright chat E2E | ⬜ |
-| 35 Production chat smoke | ⬜ |
+| 34 Playwright chat E2E | ✅ DONE — 30/30, exit 0, real providers, 4 roles |
+| 35 Production chat smoke | 🟡 READY — needs deploy; see `PRODUCTION_GATE.md` |
 | 36 Provider attribution | ✅ DONE — `scripts/verify-ai-attribution.ts` PASS over live rows |
 | 37 Stale model scan | ✅ DONE — `npm run check:stale-models` PASS; found and fixed the onboarding route |
 | 38 Security regression | ✅ DONE — 126 tests across auth, RBAC, tenancy, RLS, injection |
-| 39 Quality gates | ⬜ |
-| 40 No certification cheating | ⬜ |
+| 39 Quality gates | ✅ DONE — see the scorecard below |
+| 40 No certification cheating | ✅ DONE — no assertion weakened; every model change re-proved live |
 
 ---
 
@@ -154,3 +154,42 @@ Credentials: `OPENAI_API_KEY` SET · `GEMINI_API_KEY` SET · `GROQ_API_KEY` SET.
 Defect 10 is worth its own note: it predates this work, and the only reason it was ever
 invisible is that the chatbox swallows a failed briefing with `.catch(() => {})`. The symptom
 was a morning briefing that silently never appeared.
+
+---
+
+## Final gate run (2026-08-20, nothing running concurrently)
+
+| Gate | Command | Exit |
+|---|---|---|
+| TypeScript | `tsc --noEmit` | **0** |
+| ESLint | `eslint .` | **0** (0 errors, 9 pre-existing warnings) |
+| Vitest | `vitest run` | **0** — 2118/2118, 167 files |
+| Production build | `node scripts/build.cjs` | **0** |
+| Stale model scan | `npm run check:stale-models` | **0** |
+| Direct provider smoke | `npm run ai:smoke-providers` | **0** — 3/3 |
+| Gateway smoke | `npm run ai:smoke-gateway` | **0** — 14/14 |
+| Chat E2E (Playwright) | `--project=audit e2e/journeys/telestar-ai-chat.spec.ts` | **0** — 30/30 |
+| Provider attribution | `scripts/verify-ai-attribution.ts` | **0** |
+| Production env contract | `prod-check-env --file .env.production.example` | requires all three keys |
+
+Every exit code was captured from the tool itself, never from the tail of a pipe.
+
+**Chat attribution over the E2E run:** 80 `operation=chat` rows, all `status=ok`, all
+`openai/gpt-5.6-luna`, 191,866 tokens. Zero failures. Server log: 21 `[ai/chat] turn` lines,
+0 non-`ok`, 0 `[ai/gateway] provider attempt failed`.
+
+### Two failures that were not failures
+
+- `tests/import-load-benchmark.test.ts` timed out at 45s during a full Vitest run held
+  concurrently with the browser suite; it passes 3/3 in isolation. This is the contention
+  `CLAUDE.md` documents for that file.
+- The gateway smoke test's original failover check forced a circuit open, then lost the
+  manipulation to `circuitBreaker.sync()` reading the cluster's healthy view back from Redis.
+  That is the system working. The check now removes a provider's credentials instead.
+
+### Still open
+
+**Phase 35 — production chat smoke.** `https://crm.telestar.cloud` is serving commit
+`9ba27b8`, which predates this work. Deploying to a live system carrying real users is not
+something to do unattended, so nothing here was run against production. Every step needed
+afterwards is written out in [`PRODUCTION_GATE.md`](./PRODUCTION_GATE.md).
