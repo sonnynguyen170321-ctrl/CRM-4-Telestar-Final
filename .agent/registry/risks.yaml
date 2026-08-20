@@ -1,0 +1,97 @@
+# Risk classes and what each one obliges.
+#
+# Risk is a property of what a change *can* break, never of whether the suite is currently
+# green. A passing suite proves what it covers; these classes exist for what it does not.
+#
+# `agent impact` resolves the risk of a change as the MAXIMUM across every domain it touches.
+# A one-line edit inside an R4 domain is R4.
+
+version: 1
+
+classes:
+  - id: R0
+    name: Documentation / cosmetic
+    scope: Docs, comments, formatting. No behaviour change of any kind.
+    verification:
+      - targeted check only
+    skills: 0
+    independent_verification: false
+
+  - id: R1
+    name: Local UI / low-risk behaviour
+    scope: Presentation, layout, copy, a component's internal state.
+    verification:
+      - focused tests for the changed surface
+      - lint and typecheck
+    skills: 1
+    independent_verification: false
+
+  - id: R2
+    name: API / business logic, bounded blast radius
+    scope: Route handlers, domain services whose failure is visible and recoverable.
+    verification:
+      - domain tests
+      - lint, typecheck, static gates
+      - wider Vitest at checkpoint
+    skills: 1-2
+    independent_verification: false
+
+  - id: R3
+    name: Data integrity, workers, AI tools, email, authorization
+    scope: >-
+      Anything that can corrupt data, duplicate an outbound action, spend money, or grant
+      access. Failures here are often silent and discovered late.
+    verification:
+      - domain tests
+      - full Vitest
+      - relevant Playwright
+      - domain-specific gates from domains.yaml
+    skills: 1-3
+    independent_verification: true
+
+  - id: R4
+    name: Production, migrations, security, certification, destructive operations
+    scope: >-
+      Anything whose failure is not locally recoverable, or which crosses the production
+      boundary.
+    verification:
+      - every mandatory release gate
+      - migration replay from empty where schema is touched
+      - evidence recorded against the exact candidate SHA
+    skills: 1-3
+    independent_verification: true
+    operator_authorization: true
+
+# Signals that raise the resolved class regardless of which paths changed.
+escalators:
+  - when: change adds or alters a database migration
+    to: R4
+    why: A migration is not locally recoverable once applied to a real database.
+  - when: change alters authorization, role scoping or tenant filtering
+    to: R4
+    why: A silent widening grants access nobody reviewed.
+  - when: change alters idempotency keys, retry semantics or lease handling
+    to: R3
+    why: A retry that duplicates an outbound action is a data-integrity defect.
+  - when: change alters outbound sending, suppression or send windows
+    to: R3
+    why: A prospect cannot be un-emailed.
+  - when: change alters AI pricing, budget reservation or model routing
+    to: R3
+    why: The tenant spend cap is only as correct as these numbers.
+  - when: change touches generated certification output
+    to: R4
+    why: The generator owns the verdict; hand edits fabricate evidence.
+  - when: change weakens or removes a test, gate or assertion
+    to: R4
+    why: >-
+      Reducing what is checked is a change to the safety of every future change, not to this
+      one. It requires the same scrutiny as the thing it stops checking.
+
+# Never applicable as a reason to lower a class.
+non_reasons:
+  - "the tests pass"
+  - "it is a one-line change"
+  - "it is behind a flag"
+  - "it was already broken"
+  - "the deadline"

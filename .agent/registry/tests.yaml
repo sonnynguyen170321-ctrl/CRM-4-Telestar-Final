@@ -1,0 +1,96 @@
+# How to run things, and which rung of the ladder each belongs to.
+#
+# Domain -> test mappings live in domains.yaml. This file holds the commands and the escalation
+# order, so an agent does not run the full suite after a one-line edit or ship an R4 change on
+# a focused run.
+#
+# Every command calls its entry script through node. The checkout path contains an `&`, which
+# breaks npm/npx .bin shims.
+
+version: 1
+
+runner:
+  vitest: node node_modules/vitest/vitest.mjs run
+  playwright: node node_modules/@playwright/test/cli.js test
+  tsc: NODE_OPTIONS=--max-old-space-size=8192 node node_modules/typescript/bin/tsc --noEmit
+  eslint: node node_modules/eslint/bin/eslint.js .
+  build: node scripts/build.cjs
+  tsx: node node_modules/tsx/dist/cli.mjs
+
+# Escalate up this ladder; do not skip rungs on R3/R4.
+ladder:
+  - rung: focused
+    when: implementing, iterating
+    run:
+      - "{vitest} <the regression for this behaviour>"
+    note: One file. Seconds. This is where most of the loop lives.
+
+  - rung: domain
+    when: the change looks complete
+    run:
+      - "{vitest} <domain test globs from domains.yaml>"
+      - "{tsc}"
+      - "{eslint}"
+      - domain gates from domains.yaml
+
+  - rung: checkpoint
+    when: before commit on R2+, or before handing off
+    run:
+      - "{vitest}"
+      - "{playwright} --project=audit <affected e2e dirs>"
+
+  - rung: release
+    when: R4, or preparing a candidate
+    run:
+      - "{tsc}"
+      - "{eslint}"
+      - node scripts/check-test-discipline.mjs --ci
+      - "{vitest}"
+      - "{build}"
+      - npm run check:migration-order
+      - npm run check:stale-models
+      - npm run check:production-compose
+      - npm audit --audit-level=high
+      - "{playwright}"
+
+# Gates that are not tests but decide a merge.
+static_gates:
+  - id: test-discipline
+    run: node scripts/check-test-discipline.mjs --ci
+    checks: forbidden .only/.skip/.todo outside the reviewed allowlist; suites that skipped at runtime
+  - id: migration-order
+    run: npm run check:migration-order
+    checks: a new migration sorting before the tables it alters
+  - id: stale-models
+    run: npm run check:stale-models
+    checks: retired AI model ids in runtime code
+  - id: production-compose
+    run: npm run check:production-compose
+    checks: Cloud SQL wiring, local postgres disabled, no port exposure
+  - id: relational-integrity
+    run: npm run check:relational-integrity
+  - id: rls
+    run: npm run verify:rls
+  - id: dependency-audit
+    run: npm audit --audit-level=high
+
+# Suites that need infrastructure this machine may not have. A skip here is BLOCKED_EXTERNAL,
+# never a pass — and on CI, where the service containers exist, a skip means the container is
+# broken.
+external_prerequisites:
+  - tests: tests/redis-integration.test.ts, tests/failure-matrix.test.ts
+    needs: a live Redis on 6379
+  - tests: live provider smoke and gateway smoke
+    needs: OPENAI_API_KEY, GEMINI_API_KEY and GROQ_API_KEY, all three
+    commands:
+      - "{tsx} scripts/ai-provider-smoke.ts"
+      - "{tsx} scripts/ai-gateway-smoke.ts"
+    note: The smoke test requires 3 configured, 3 attempted, 3 passed. There is no partial mode.
+  - tests: e2e requiring a built app
+    needs: next build, then next start, plus a seeded audit fixture and a run-scoped E2E_PASSWORD
+    note: The published demo password is refused by the fixture guard.
+
+reporting:
+  - Capture the exit code from the tool, never from the tail of a pipe.
+  - Record counts, not the word PASS.
+  - A skipped suite is named as skipped, with its class.

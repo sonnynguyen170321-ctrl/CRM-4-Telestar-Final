@@ -48,18 +48,19 @@ phase 3 when prose facts become generated) · ✅ no broken path references in l
 
 ---
 
-## Phase 2 — Control plane skeleton (§V, §XIII–§XVII, §XXVI)
+## Phase 2 — Control plane skeleton ✅ (§V, §XIII–§XVII, §XXVI)
 
-- [ ] `.agent/` tree per §V, with `.agent/state/` gitignored (§XVIII)
-- [ ] `.agent/CONSTITUTION.md` — engineering constitution, versioned (§XLVI)
-- [ ] `.agent/memory/INVARIANTS.md` — small, each invariant carrying source + protecting test (§XIV)
-- [ ] `.agent/memory/decisions/` — seed ADRs for decisions already made and already load-bearing (§XV): database truth model, worker durability, GCP canonical production, single AI gateway, six-role architecture, AI tool authorization, certification evidence model
-- [ ] `.agent/memory/lessons/` — seed from defects this repository has already paid for (§XVI)
-- [ ] `.agent/agents/*.md` — seven capability profiles; authority, not knowledge (§XXVI, §XXVII)
-- [ ] `.agent/registry/*.yaml` — domains, skills, policies, risks, tests, sources (§XXIII)
+- [x] `.agent/` tree per §V, with `.agent/state/` gitignored (§XVIII) — verified with `git check-ignore`
+- [x] `.agent/CONSTITUTION.md` — 12 articles, version 1.0.0 (§XLVI)
+- [x] `.agent/memory/INVARIANTS.md` — 14 invariants, each naming source + protecting test; the two with no protection say so (§XIV)
+- [x] `.agent/memory/decisions/` — ADR-0001..0007 (§XV)
+- [x] `.agent/memory/lessons/` — L001–L005, each from a defect already paid for (§XVI)
+- [x] `.agent/agents/*.md` — seven capability profiles + index (§XXVI, §XXVII)
+- [x] `.agent/registry/*.yaml` — domains, risks, tests, skills, sources, policies; all parse (§XXIII)
 
-**Acceptance:** every invariant names a source and a protecting check; no ADR describes an
-ordinary bug fix; `.agent/state/` is ignored by git.
+**Acceptance:** ✅ every invariant names a source, and the two lacking a protecting check are
+marked rather than implied · ✅ no ADR describes an ordinary bug fix · ✅ `.agent/state/`
+ignored, README tracked · ✅ 6/6 registry files parse as YAML.
 
 ---
 

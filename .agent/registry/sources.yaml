@@ -1,0 +1,114 @@
+# Source authorities.
+#
+# For each subject, the file that *decides* it. When a document and its authority disagree, the
+# document is the defect.
+#
+# `agent knowledge-audit` uses `depends_on` to mark a knowledge artifact REVIEW REQUIRED when a
+# source it claims to describe has changed underneath it (§XI).
+
+version: 1
+
+authorities:
+  - subject: the six roles
+    authority:
+      - prisma/schema.prisma
+      - lib/auth.ts
+      - lib/podScoping.ts
+    generated_to: .agent/generated/role-map.json
+    protected_by:
+      - e2e/roles/**
+      - tests/podScoping.test.ts
+    note: >-
+      `role` is a String column, not a database enum. Nothing but a generated drift check keeps
+      a role list honest, which is why a hand-written one in a doc or test is suspect.
+
+  - subject: AI models, limits, pricing and parameters
+    authority:
+      - lib/ai/registry.ts
+    generated_to: .agent/generated/ai-contract.json
+    evidence: docs/telestar-ai-remediation/MODEL_VERIFICATION.json
+    protected_by:
+      - tests/ai-model-registry.test.ts
+      - tests/ai-pricing-contract.test.ts
+      - scripts/check-stale-models.mjs
+    freshness: externally re-verified against provider documentation; pricing is effective-dated
+
+  - subject: how a model is reached
+    authority:
+      - lib/ai/gateway.ts
+      - lib/ai/router.ts
+      - lib/ai/providerAdapters.ts
+    protected_by:
+      - tests/ai-provider-client-containment.test.ts
+      - tests/ai-gateway.test.ts
+
+  - subject: required environment variables
+    authority:
+      - lib/env.ts
+    generated_to: .agent/generated/env-contract.json
+    protected_by:
+      - tests/prod-env.test.ts
+      - scripts/prod-check-env.ts
+
+  - subject: routes
+    authority:
+      - app/**
+    generated_to: .agent/generated/route-map.json
+    protected_by:
+      - e2e/deep-smoke.spec.ts
+
+  - subject: queues, workers and job types
+    authority:
+      - workers/**
+      - lib/queue/**
+    generated_to: .agent/generated/queue-map.json
+    protected_by:
+      - tests/bullmq.test.ts
+      - tests/queue-reconciliation.test.ts
+
+  - subject: production topology
+    authority:
+      - docker-compose.yml
+      - docker-compose.gcp.yml
+      - scripts/check-production-compose.mjs
+    protected_by:
+      - tests/doctor.test.ts
+    note: Any document describing this as Vercel + Neon is describing a topology this project left.
+
+  - subject: schema and migration history
+    authority:
+      - prisma/schema.prisma
+      - prisma/migrations/**
+    protected_by:
+      - scripts/check-migration-order.mjs
+      - tests/migration-order.test.ts
+    note: >-
+      RLS is deliberately absent from migrations. supabase/rls.sql must be reapplied after any
+      migration adding a tenant-owned table.
+
+  - subject: npm scripts
+    authority:
+      - package.json
+    generated_to: .agent/generated/project-facts.json
+
+  - subject: product specification
+    authority:
+      - SKILL.md
+    classification: CURRENT_CANONICAL
+    note: Modules, data models, UI requirements. Explains meaning; does not state derived facts.
+
+  - subject: how engineering work is done
+    authority:
+      - .agent/CONSTITUTION.md
+      - AGENTS.md
+
+# Documents that describe a subject they do not own. They are readable, and they lose.
+subordinate:
+  - path: docs/**/STATUS.md
+    describes: past initiatives
+    authority_note: >-
+      A record of what was true when written. Never current truth. Phase 7 classifies these
+      explicitly.
+  - path: docs/archive/**
+    describes: superseded material
+    authority_note: Never auto-loaded, never current truth.

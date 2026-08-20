@@ -1,0 +1,135 @@
+# Skill index.
+#
+# The index, not the skills. Each entry says when a skill loads and when it must not; the
+# expertise itself lives in .agent/skills/<id>/SKILL.md.
+#
+# `status: planned` means the routing target exists but the skill is not written yet. `agent
+# brief` names it so routing can be evaluated before the content lands; it cannot be loaded.
+#
+# Selection rule: 1 primary, 0-2 secondary. Four means the task is two tasks.
+
+version: 1
+
+budget:
+  core_target_tokens: 800
+  core_hard_review_tokens: 1200
+  per_task_target: 1-3
+
+skills:
+  - id: telestar-ai
+    domain: telestar-ai
+    risk: R3
+    status: planned
+    load_when: gateway, routing, model registry, pricing, budget, agent tools, chat runtime
+    do_not_load_when: an AI *page* layout change with no runtime behaviour — that is frontend-role-ux
+    sources: [lib/ai/**, lib/agent/**, app/api/ai/**]
+
+  - id: auth-rbac-tenancy
+    domain: auth-rbac-tenancy
+    risk: R4
+    status: planned
+    load_when: roles, pod scoping, tenant filtering, session handling, admin membership changes
+    do_not_load_when: a route that merely reads an already-scoped service
+    sources: [lib/auth.ts, lib/auth/**, lib/podScoping.ts, lib/admin/**]
+
+  - id: data-prisma
+    domain: data-prisma
+    risk: R3
+    status: planned
+    load_when: schema change, migration, RLS, seed, relational integrity, transaction semantics
+    do_not_load_when: an ordinary query through an existing service
+    sources: [prisma/**, lib/prisma.ts, supabase/**]
+
+  - id: workers-durability
+    domain: workers-durability
+    risk: R3
+    status: planned
+    load_when: queue behaviour, retries, leases, idempotency, cron, job failure handling
+    do_not_load_when: enqueueing from a route without changing job semantics
+    sources: [workers/**, lib/queue/**]
+
+  - id: email-automation
+    domain: email-automation
+    risk: R3
+    status: planned
+    load_when: sequences, scheduling, enrolment, send windows, suppression, A/B variants
+    do_not_load_when: mailbox health or reputation — that is email-deliverability
+    sources: [lib/sequences/**, lib/automation/**, lib/email/**]
+
+  - id: email-deliverability
+    domain: email-deliverability
+    risk: R3
+    status: planned
+    load_when: domain/mailbox health, bounces, warmup, sending reputation
+    do_not_load_when: what to send or when — that is email-automation
+    sources: [lib/deliverability/**, app/api/email-health/**]
+
+  - id: product-workflows
+    domain: product-workflows
+    risk: R2
+    status: planned
+    load_when: leads, tasks, activities, stage lifecycle, notes, reminders
+    do_not_load_when: the change is purely presentational
+    sources: [lib/leads/**, lib/tasks/**, lib/activities/**]
+
+  - id: api-contracts
+    domain: api-contracts
+    risk: R2
+    status: planned
+    load_when: a new or changed route handler, validation, error envelope, rate limiting
+    do_not_load_when: internal service refactor with no route surface change
+    sources: [app/api/**, lib/api/**]
+
+  - id: leadgen-intelligence
+    domain: leadgen-intelligence
+    risk: R2
+    status: planned
+    load_when: sourcing, qualification, ICP adherence, lead pool, handoff to an SDR
+    sources: [lib/leadgen/**, app/api/leadgen/**]
+
+  - id: revenue-intelligence
+    domain: revenue-intelligence
+    risk: R2
+    status: planned
+    load_when: opportunities, meetings, commercial signals, client reporting
+    sources: [lib/revenue/**, lib/meetings/**, lib/reports/**]
+
+  - id: frontend-role-ux
+    domain: frontend-role-ux
+    risk: R1
+    status: planned
+    load_when: components, pages, role-scoped surfaces, design system, typography
+    do_not_load_when: the change is in a service the component calls
+    sources: [components/**, app/**/page.tsx, app/globals.css]
+
+  - id: testing-certification
+    domain: testing-certification
+    risk: R3
+    status: planned
+    load_when: test harness, fixtures, evidence collection, certification validators
+    do_not_load_when: writing an ordinary test for a feature — the domain skill covers that
+    sources: [tests/**, e2e/**, scripts/certification/**]
+
+  - id: production-release
+    domain: production-release
+    risk: R4
+    status: planned
+    load_when: compose topology, deployment, release identity, environment contract, CI gates
+    do_not_load_when: read-only production diagnostics
+    sources: [docker-compose*.yml, .github/workflows/**, scripts/prod-*]
+
+  - id: security-observability
+    domain: security-observability
+    risk: R4
+    status: planned
+    load_when: secrets handling, injection defence, audit trail, logging hygiene
+    sources: [lib/crypto.ts, lib/audit/**]
+
+# Pairs that legitimately co-load. Anything outside this list loading together twice is worth
+# investigating as a routing defect or a merge candidate (§VIII).
+expected_pairs:
+  - [email-automation, workers-durability]
+  - [telestar-ai, api-contracts]
+  - [auth-rbac-tenancy, product-workflows]
+  - [production-release, testing-certification]
+  - [data-prisma, auth-rbac-tenancy]

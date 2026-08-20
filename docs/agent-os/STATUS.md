@@ -12,14 +12,42 @@ plan: ./PLAN.md
 Branch: `feat/agent-intelligence-os` · started 2026-08-20 · stacked on
 `fix/telestar-ai-three-provider` (PR #98, unmerged).
 
-**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phases 0–1 complete of 9.
+**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phases 0–2 complete of 9.
 
 ---
 
 ## Current phase
 
-**Phase 2 — control plane skeleton.** Next task is the `.agent/` tree and
-`CONSTITUTION.md`. See `PLAN.md` phase 2.
+**Phase 3 — machine truth.** Next task is the `npm run agent` CLI and the `facts`
+generators. See `PLAN.md` phase 3.
+
+### Phase 2 result — 2026-08-20
+
+`.agent/` exists as the tool-neutral control plane: constitution, registry, memory, capability
+profiles.
+
+| Artifact | Content |
+|---|---|
+| `CONSTITUTION.md` | 12 articles, v1.0.0 — evidence hierarchy, exact-candidate rule, minimum sufficient context, risk, production boundary, trust boundaries, teach-once |
+| `registry/domains.yaml` | 15 domains → paths, real test globs, e2e dirs, gates, verification requirement |
+| `registry/risks.yaml` | R0–R4 with obligations, 7 escalators, and the non-reasons that never lower a class |
+| `registry/tests.yaml` | the four-rung ladder, static gates, external prerequisites |
+| `registry/sources.yaml` | 11 subjects → the file that decides each |
+| `registry/skills.yaml` | 14 skills indexed with LOAD WHEN / DO NOT LOAD WHEN, all `status: planned` |
+| `registry/policies.yaml` | 10 policies, each naming what enforces it — or `none`, where nothing does yet |
+| `memory/INVARIANTS.md` | 14 invariants with source + protecting test |
+| `memory/decisions/` | ADR-0001..0007 |
+| `memory/lessons/` | L001–L005 |
+| `agents/` | 7 capability profiles + index |
+
+Two invariants are recorded as **unprotected** rather than assumed safe: candidate-SHA binding
+of evidence (13) and the kernel-does-not-grow budget (14). Both land in phase 6. Naming the gap
+is worth more than implying coverage that does not exist.
+
+`policies.yaml` does the same for policies: `production-authorization`,
+`independent-verification`, `exact-candidate-evidence`, `generated-not-authored`,
+`context-budget` and `kernel-does-not-grow` all currently read `enforced_by: none`. They are
+stated boundaries, not enforced ones, until the phase 6 checks exist.
 
 ### Phase 1 result — measured 2026-08-20
 
@@ -133,6 +161,8 @@ to break that loop.
 | 2026-08-20 | 1 | `tsc --noEmit` | **0** | 0 errors |
 | 2026-08-20 | 1 | `eslint .` | **0** | 0 errors, 11 warnings |
 | 2026-08-20 | 1 | frontmatter scan of `.claude/rules/*.md` | 0 | 6/6 carry `paths:` |
+| 2026-08-20 | 2 | `js-yaml` parse of `.agent/registry/*.yaml` | 0 | 6/6 parse |
+| 2026-08-20 | 2 | `git check-ignore .agent/state/probe.json` | 0 | ignored by `.gitignore:130` |
 
 Exit codes are captured from the tool itself, never from the tail of a pipe.
 

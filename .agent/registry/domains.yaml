@@ -1,0 +1,295 @@
+# Domain ownership map.
+#
+# The keystone of the control plane: `agent brief` and `agent impact` resolve changed paths to
+# domains through this file, and everything downstream — risk, skills, tests, verification
+# requirement — follows from the domain.
+#
+# Explicit ownership beats an inferred dependency graph. A graph derived from imports is
+# fragile and confidently wrong at the edges; this is checkable by reading it.
+#
+# `paths` are matched most-specific-first, so a file may match several entries and the
+# narrowest wins. Anything matching nothing is `unclassified` and treated as R2 until mapped.
+
+version: 1
+
+domains:
+  - id: telestar-ai
+    description: Provider gateway, model registry, pricing, agent tools, chat runtime.
+    risk: R3
+    paths:
+      - lib/ai/**
+      - lib/agent/**
+      - lib/workorders/**
+      - app/api/ai/**
+      - components/AiAssistant.tsx
+      - scripts/ai-*.ts
+    tests:
+      - tests/ai-*.test.ts
+      - tests/agent-*.test.ts
+      - tests/telestar-ai-*.test.ts
+      - tests/work-order-*.test.ts
+    e2e:
+      - e2e/journeys/telestar-ai-chat.spec.ts
+    gates:
+      - npm run check:stale-models
+    notes: >-
+      Live provider gates (ai:smoke-providers, ai:smoke-gateway) require all three
+      credentials and are BLOCKED_EXTERNAL without them. Their absence is never a pass.
+
+  - id: auth-rbac-tenancy
+    description: Sessions, the six roles, pod scoping, tenant isolation, admin control centre.
+    risk: R4
+    paths:
+      - lib/auth.ts
+      - lib/auth/**
+      - lib/podScoping.ts
+      - lib/admin/**
+      - lib/tenant*.ts
+      - app/api/auth/**
+      - app/api/admin/**
+      - app/api/users/**
+    tests:
+      - tests/access-control.test.ts
+      - tests/admin-*.test.ts
+      - tests/podScoping.test.ts
+      - tests/tenant-*.test.ts
+      - tests/rls*.test.ts
+      - tests/session-revocation.test.ts
+      - tests/mass-assignment.test.ts
+      - tests/object-auth-red-team.test.ts
+      - tests/floor-manager-administration.test.ts
+    e2e:
+      - e2e/roles/**
+      - e2e/admin/**
+      - e2e/auth/**
+    verification: independent
+    notes: Cross-tenant leakage is the highest-severity defect class here.
+
+  - id: data-prisma
+    description: Schema, migrations, RLS policy, seeds, relational integrity.
+    risk: R3
+    paths:
+      - prisma/**
+      - lib/prisma.ts
+      - lib/seed-guard.ts
+      - supabase/**
+    tests:
+      - tests/migration-*.test.ts
+      - tests/rls-policy-coverage.test.ts
+      - tests/seed-guard.test.ts
+      - tests/*reference-integrity.test.ts
+    gates:
+      - npm run check:migration-order
+      - npm run check:relational-integrity
+      - npm run verify:rls
+    verification: independent
+    notes: >-
+      A migration can sort correctly and still be wrong. `migrate diff` from an empty shadow
+      database is the correctness authority; check:migration-order is only a speed gate.
+
+  - id: workers-durability
+    description: BullMQ workers, queues, job leases, retries, idempotency, cron.
+    risk: R3
+    paths:
+      - workers/**
+      - lib/queue/**
+      - app/api/cron/**
+    tests:
+      - tests/*-worker.test.ts
+      - tests/bullmq.test.ts
+      - tests/queue-*.test.ts
+      - tests/redis-*.test.ts
+      - tests/failure-matrix.test.ts
+      - tests/import-*.test.ts
+    verification: independent
+    notes: >-
+      Redis-dependent suites are BLOCKED_EXTERNAL without a live Redis. On CI the service
+      container exists, so a skip there means the container is broken, not that the test is
+      optional.
+
+  - id: email-automation
+    description: Sequence engine, scheduling, enrolment, send pipeline, suppression.
+    risk: R3
+    paths:
+      - lib/sequences/**
+      - lib/automation/**
+      - lib/email/**
+      - app/api/sequences/**
+    tests:
+      - tests/sequence-*.test.ts
+      - tests/scheduling.test.ts
+      - tests/eligibility.test.ts
+      - tests/defer-scheduling.test.ts
+      - tests/weekend-policy.test.ts
+      - tests/businessDays.test.ts
+      - tests/email-idempotency.test.ts
+      - tests/email-safety.test.ts
+      - tests/unsubscribe.test.ts
+      - tests/demo-email-barrier.test.ts
+      - tests/variant-attribution.test.ts
+    e2e:
+      - e2e/journeys/automation*.spec.ts
+    verification: independent
+    notes: >-
+      Only lib/automation/scheduling.ts computes a schedule. Jitter and A/B selection are
+      seeded from durable ids, never Math.random().
+
+  - id: email-deliverability
+    description: Domain and mailbox health, bounce handling, warmup, sending reputation.
+    risk: R3
+    paths:
+      - lib/deliverability/**
+      - app/api/email-health/**
+    tests:
+      - tests/email-health-*.test.ts
+      - tests/bounceDetection.test.ts
+      - tests/email-oauth.test.ts
+      - tests/webhooks-scoring.test.ts
+
+  - id: leadgen-intelligence
+    description: Sourcing, qualification, ICP adherence, lead pool, handoff to SDR.
+    risk: R2
+    paths:
+      - lib/leadgen/**
+      - app/api/leadgen/**
+      - app/leadgen/**
+      - app/leadgen-manager/**
+    tests:
+      - tests/leadgen*.test.ts
+      - tests/icp-adherence.test.ts
+      - tests/opportunity-handoff.test.ts
+      - tests/contact-intelligence.test.ts
+
+  - id: revenue-intelligence
+    description: Opportunities, meetings, commercial signals, learning, client reporting.
+    risk: R2
+    paths:
+      - lib/revenue/**
+      - lib/meetings/**
+      - lib/opportunities/**
+      - lib/reports/**
+      - app/api/reports/**
+    tests:
+      - tests/revenue-*.test.ts
+      - tests/commercial-*.test.ts
+      - tests/opportunities.test.ts
+      - tests/meetings.test.ts
+      - tests/client-report*.test.ts
+      - tests/relationship-capital.test.ts
+    e2e:
+      - e2e/reports/**
+      - e2e/meetings/**
+
+  - id: api-contracts
+    description: Route handlers, request validation, error envelopes, rate limiting.
+    risk: R2
+    paths:
+      - app/api/**
+      - lib/api/**
+      - lib/validation*.ts
+    tests:
+      - tests/validation.test.ts
+      - tests/security-injection.test.ts
+      - tests/csp.test.ts
+      - tests/login-throttle.test.ts
+      - tests/api-keys-and-integrations.test.ts
+
+  - id: product-workflows
+    description: Leads, tasks, activities, notes, reminders, stage lifecycle.
+    risk: R2
+    paths:
+      - lib/leads/**
+      - lib/tasks/**
+      - lib/activities/**
+      - app/api/leads/**
+      - app/api/tasks/**
+    tests:
+      - tests/lead-*.test.ts
+      - tests/activities.test.ts
+      - tests/lifecycle-integration.test.ts
+      - tests/prospect-operating-state.test.ts
+    e2e:
+      - e2e/leads/**
+
+  - id: frontend-role-ux
+    description: Components, pages, role-scoped surfaces, design system.
+    risk: R1
+    paths:
+      - app/**/page.tsx
+      - app/**/layout.tsx
+      - components/**
+      - hooks/**
+      - context/**
+      - app/globals.css
+    tests:
+      - tests/typography-design-system.test.ts
+      - tests/phase-9-role-surfaces.test.ts
+      - tests/telestar-ai-ui-routes.test.ts
+    e2e:
+      - e2e/crm-journeys.spec.ts
+      - e2e/roles/desktop-gate.spec.ts
+
+  - id: testing-certification
+    description: Test harness, fixtures, certification evidence and its validators.
+    risk: R3
+    paths:
+      - tests/**
+      - e2e/**
+      - scripts/certification/**
+      - playwright.config.ts
+      - vitest.config.ts
+    tests:
+      - tests/certification-*.test.ts
+      - tests/release.test.ts
+      - tests/render.test.ts
+    gates:
+      - npm run check:test-discipline
+    notes: Certification verdicts are generated from evidence. Never hand-edit generated output.
+
+  - id: production-release
+    description: Compose topology, deployment, environment contract, release identity, CI.
+    risk: R4
+    paths:
+      - docker-compose*.yml
+      - Dockerfile*
+      - .github/workflows/**
+      - scripts/deploy*
+      - scripts/prod-*
+      - scripts/build.cjs
+      - lib/env.ts
+    tests:
+      - tests/prod-env.test.ts
+      - tests/cutover-preflight.test.ts
+      - tests/doctor.test.ts
+    gates:
+      - npm run check:production-compose
+    verification: independent
+    authorization: operator
+    notes: Mutating production requires explicit operator authorization for that action.
+
+  - id: security-observability
+    description: Secrets handling, injection defence, audit trail, logging hygiene.
+    risk: R4
+    paths:
+      - lib/crypto.ts
+      - lib/audit/**
+      - lib/logging/**
+      - .gitleaks.toml
+    tests:
+      - tests/security-injection.test.ts
+      - tests/gitleaks-allowlist.test.ts
+      - tests/admin-audit.test.ts
+    verification: independent
+
+  - id: agent-control-plane
+    description: This control plane, the adapters generated from it, and the agent CLI.
+    risk: R2
+    paths:
+      - .agent/**
+      - AGENTS.md
+      - CLAUDE.md
+      - .claude/**
+      - docs/agent-os/**
+    notes: >-
+      Changing the kernel changes every future session. Treat a context-budget regression as
+      a defect, not a cost of doing business.
