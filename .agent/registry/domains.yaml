@@ -358,12 +358,16 @@ domains:
     risk: R0
     paths:
       - screenshots/**
-      - test-results/**
     notes: >-
       Mapped so routing coverage measures what it should. A change here never implies a
       behaviour change; if one seems to, the behaviour changed somewhere else.
       Only directories that actually exist are listed — `agent check` rejects a speculative
       mapping, and a path that appears later will surface as a routing gap in `agent roi`.
+      `test-results/**` was listed here and is gone: Playwright writes it and .gitignore
+      excludes it, so it exists on a machine that has run the browser suite and never on a
+      clean checkout. That made registry-integrity pass locally and fail on every CI run —
+      a mapping whose validity depended on whose machine ran the check. A gitignored output
+      directory cannot appear in a diff, so mapping it bought no routing coverage anyway.
 
   - id: documentation
     description: Prose. Explains meaning; states no derived fact.
