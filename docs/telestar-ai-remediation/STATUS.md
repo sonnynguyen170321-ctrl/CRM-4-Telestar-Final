@@ -193,3 +193,102 @@ Every exit code was captured from the tool itself, never from the tail of a pipe
 `9ba27b8`, which predates this work. Deploying to a live system carrying real users is not
 something to do unattended, so nothing here was run against production. Every step needed
 afterwards is written out in [`PRODUCTION_GATE.md`](./PRODUCTION_GATE.md).
+
+---
+
+# Pass 2 — 2026-08-20 — certification directive remediation
+
+**Candidate:** `9cec9d9` on `fix/telestar-ai-three-provider` (PR #98).
+Pass 1's head was `e8600a3`; every gate below was re-run on this candidate, not carried over.
+
+## The exact-candidate rule applies to pass 1's evidence
+
+Pass 1 recorded a live 3/3 provider smoke and a 14/14 gateway smoke. Those were true, on
+`e8600a3`, on a machine that had the production credentials. **They are not evidence for
+`9cec9d9`** and are not repeated as such below. This machine has no `OPENAI_API_KEY`,
+`GEMINI_API_KEY` or `GROQ_API_KEY` in the environment and no `.env.local`, so everything that
+requires a real provider is `BLOCKED_EXTERNAL` here.
+
+## What was wrong, and is now fixed
+
+| # | Finding | Evidence it was real |
+|---|---|---|
+| 1 | Registry stale on 11 of 12 limits and rates | Provider docs re-read 2026-08-20; see `MODEL_VERIFICATION.json` |
+| 2 | Gemini priced at $0.075/M input against a real $0.75/M | 10x under; budget reconciled against fiction |
+| 3 | No effective dating — Gemini's rate changes 2027-01-01 | A scalar is silently wrong from that date |
+| 4 | No long-context rule — Luna re-prices the whole request >272K | Linear estimate is 100% low on the largest calls |
+| 5 | Budget reserved a flat `$0.005` per turn | `gateway.ts:375`; ~100x under-reservation on a large Luna call |
+| 6 | Fallback spend never reached the budget period | `settleOnce` settled once per turn; provider A's cost stayed in the ledger only |
+| 7 | Provider smoke exited 0 on **zero** configured providers | `probes` array only populated for present keys |
+| 8 | `configured && circuitHealthy` reported as `healthy` | Three revoked keys reported three healthy providers |
+| 9 | Chat context comment said `.strip()`, code said `.passthrough()` | `route.ts:42` vs `:56` |
+| 10 | Client-supplied performance counters used as CRM truth | Counters read straight from the request body into the prompt |
+| 11 | `context.eodData` accepted by the schema and read by nothing | A full browser round trip to nowhere |
+| 12 | `check:stale-models` wired into no CI gate | The scan that prevents the original outage was advisory only |
+| 13 | Dependency security depended on a plan feature | Dependency Review only; nothing ran on push |
+| 14 | 3 high-severity advisories in the email-parsing path | GHSA-ggr8-5vv4-36mx via html-to-text/mailparser |
+| 15 | Image publishing gated on the whole CI workflow conclusion | A permanently-red optional scanner blocks every release |
+
+## Gates on `9cec9d9`
+
+Every exit code captured from the tool itself, never from the tail of a pipe.
+
+| Gate | Command | Exit | Result |
+|---|---|---|---|
+| TypeScript | `node node_modules/typescript/bin/tsc --noEmit` | **0** | 0 errors |
+| ESLint | `node node_modules/eslint/bin/eslint.js .` | **0** | 0 errors, 11 warnings |
+| Vitest (full) | `node node_modules/vitest/vitest.mjs run` | 1 | **2138 passed**, 1 failed, 13 skipped |
+| Production build | `node scripts/build.cjs` | **0** | all routes emitted |
+| Stale model scan | `node scripts/check-stale-models.mjs` | **0** | 0 runtime matches |
+| Migration order | `node scripts/check-migration-order.mjs` | **0** | 50 migrations, none new |
+| Dependency audit | `npm audit --audit-level=high` | **0** | **0 vulnerabilities** (was 3 high) |
+| Playwright — roles | `--project=audit e2e/roles` | **0** | **73/73** |
+| Playwright — journeys | `--project=audit e2e/journeys` (3 specs) | **0** | **23/23** |
+
+### The one Vitest failure is environmental and pre-existing
+
+`tests/failure-matrix.test.ts` DR-010 "exits on its own after SIGTERM" fails because **no Redis
+is running on this machine** — the worker cannot shut down cleanly against a closed connection.
+Verified by stashing every change on this branch and re-running the test alone against the
+unmodified tree: it fails identically. It touches no `lib/ai` file. CI runs a `redis:7` service
+container, where it is expected to pass.
+
+### Playwright coverage is partial, and here is which part
+
+`--project=chromium` (the legacy three-spec list) could not run: those specs sign in with demo
+accounts this machine's database does not carry, and the fixture guard refuses the published
+demo password. `e2e/journeys/telestar-ai-chat.spec.ts` needs real providers. Everything run
+above used the run-scoped audit fixture and passed.
+
+## Still BLOCKED_EXTERNAL — not GREEN, not RED
+
+| Item | Blocker |
+|---|---|
+| CI on the candidate SHA | GitHub Actions refuses to start jobs: *"The job was not started because recent account payments have failed or your spending limit needs to be increased."* Run `32367576357`, all 8 jobs, 0 steps, 3s each. |
+| Live 3/3 provider smoke | No provider credentials on this machine |
+| Live gateway smoke | Same |
+| Chat E2E with providers | Same |
+| Docker build | `docker` is not installed here |
+| Merge, image, deploy, six-role production acceptance, cost audit against real invoices | All downstream of CI, and CI cannot run |
+
+**None of these may be reported GREEN on the strength of the code being green locally.**
+
+## Known gap carried forward: the Gemini SDK
+
+`lib/ai/providerAdapters.ts` still uses `@google/generative-ai`, not the current
+`@google/genai`. The deprecated-parameter half of that problem is fixed — temperature, top_p
+and top_k are no longer sent, and `assertNoRejectedParameters` fails the request if they ever
+are. What is not fixed is the tool-result round trip: this SDK refuses `role: 'function'`
+outright and rejects `user` + `functionResponse` on a missing `thought_signature` it neither
+surfaces nor returns, so the adapter feeds tool results back as plain user text. That works,
+and it is not the provider's own representation.
+
+Migrating requires live credentials to verify streaming, structured output, tool calls and
+thought-signature preservation against the real API. It is recorded in
+`MODEL_VERIFICATION.json` under `sdkStatus` with what is and is not verified.
+
+## Next action
+
+Clear the GitHub Actions billing block, then re-run CI **on the current candidate SHA** —
+not on `e8600a3`, and not by reusing run `32367576357`. `PRODUCTION_GATE.md` still describes
+every step after that.
