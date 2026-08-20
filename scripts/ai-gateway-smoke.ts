@@ -17,6 +17,7 @@ import { aiGateway } from '@/lib/ai/gateway';
 import { MODEL_REGISTRY } from '@/lib/ai/registry';
 import { routeModel } from '@/lib/ai/router';
 import { circuitBreaker } from '@/lib/ai/circuitBreaker';
+import { clearSharedCircuits } from '@/lib/ai/sharedCircuit';
 
 // Safe to load after the imports: the gateway builds its SDK clients lazily, per credential
 // value, precisely so a key that arrives after module load is still seen.
@@ -31,8 +32,27 @@ interface Check {
 
 const checks: Check[] = [];
 
+/**
+ * Every check starts from a genuinely closed breaker.
+ *
+ * The call sites already say `circuitBreaker.reset()`, and that clears the in-process map and
+ * nothing else. Circuit state is shared through Redis, so one transient provider blip during a
+ * run stayed open for every check after it: a single 429 from Groq turned three later checks
+ * red — "attribution mismatch", "failed over", "No AI provider could serve this request" —
+ * none of which said anything about the code.
+ *
+ * The product is right to behave that way. One failure opens the circuit and
+ * `resetTimeoutMs = 30_000` probes it again half a minute later, which is faster than these
+ * checks run. It is the gate that has to clear the shared state to mean what it says.
+ */
+async function resetBreakers(): Promise<void> {
+  circuitBreaker.reset();
+  await clearSharedCircuits();
+}
+
 async function check(name: string, fn: () => Promise<string>): Promise<void> {
   const startedAt = Date.now();
+  await resetBreakers();
   try {
     checks.push({ name, status: 'PASS', detail: await fn(), latencyMs: Date.now() - startedAt });
   } catch (err) {
@@ -88,13 +108,24 @@ async function main() {
 
   // ── Each approved model, forced individually through the gateway ──
   for (const model of Object.values(MODEL_REGISTRY)) {
+    // Budget from the registry, not a constant, because a reasoning model spends output
+    // tokens thinking before it emits any visible text and the fixed caps here were sized for
+    // a model that does not.
+    //
+    // `openai/gpt-oss-20b` streamed 0 characters on one run of this gate and 5 on the next,
+    // from the same code against the same budget of 128 — the check was a coin flip sitting
+    // in a release gate, and its red said nothing about the product. Measured directly: at
+    // 128 tokens the model finishes with `finish_reason: length` mid-count, at 512 it
+    // completes. The registry grants this model 8192, which is what the runtime sends.
+    const budget = model.parameters.defaultMaxOutputTokens ?? model.maxOutputTokens;
+
     await check(`gateway generate via ${model.displayName}`, async () => {
       circuitBreaker.reset();
       const result = await aiGateway.generate({
         messages: [{ role: 'user', content: 'Reply with exactly: OK' }],
         preferredModel: model.internalAlias,
         operation: 'smoke_generate',
-        maxTokens: 64,
+        maxTokens: budget,
         timeoutMs: 60_000,
       });
       if (result.modelId !== model.modelId) {
@@ -111,7 +142,7 @@ async function main() {
           messages: [{ role: 'user', content: 'Count from one to five.' }],
           preferredModel: model.internalAlias,
           operation: 'smoke_stream',
-          maxTokens: 128,
+          maxTokens: budget,
           timeoutMs: 60_000,
         }),
       );

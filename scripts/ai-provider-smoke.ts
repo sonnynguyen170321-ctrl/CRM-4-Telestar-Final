@@ -35,6 +35,8 @@ import OpenAI from 'openai';
 import Groq from 'groq-sdk';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 
+import { findModelMetadata } from '../lib/ai/registry';
+
 config({ path: process.env.SMOKE_ENV_FILE || '.env.local' });
 
 const PROMPT = 'Reply with exactly: OK';
@@ -146,11 +148,24 @@ async function probeGroq(model: string): Promise<Probe> {
   const client = new Groq({ apiKey: (process.env.GROQ_API_KEY || '').trim() });
   let actualModel: string | undefined;
 
+  // The budget comes from the registry, because that is what the runtime grants.
+  //
+  // This probe asked for 32 tokens and reported the provider as broken. `gpt-oss-20b` is a
+  // reasoning model: it spends output tokens thinking before it emits any visible text, and
+  // 32 truncates it mid-thought. Measured against the live API — 32 tokens returns
+  // `completion_tokens=32` and an empty `content`, while 256 returns the answer in 31.
+  //
+  // Nothing in the product asks a model to answer inside 32 tokens; the registry grants this
+  // one `defaultMaxOutputTokens: 8192`. A probe that fails on a limit the runtime never
+  // imposes is testing the probe, not the provider. Cost is unaffected — billing is per token
+  // produced, and the model stops after about thirty.
+  const budget = findModelMetadata(model)?.parameters.defaultMaxOutputTokens ?? 512;
+
   try {
     const res = await client.chat.completions.create({
       model,
       messages: [{ role: 'user', content: PROMPT }],
-      max_tokens: 32,
+      max_tokens: budget,
     });
     actualModel = res.model;
     const text = res.choices[0]?.message?.content ?? '';
@@ -164,7 +179,7 @@ async function probeGroq(model: string): Promise<Probe> {
     const stream = (await client.chat.completions.create({
       model,
       messages: [{ role: 'user', content: PROMPT }],
-      max_tokens: 32,
+      max_tokens: budget,
       stream: true,
     } as Parameters<typeof client.chat.completions.create>[0])) as unknown as AsyncIterable<Groq.Chat.ChatCompletionChunk>;
     for await (const chunk of stream) {
