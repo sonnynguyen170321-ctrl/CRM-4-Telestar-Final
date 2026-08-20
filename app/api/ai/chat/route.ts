@@ -6,6 +6,8 @@ import { prisma } from '@/lib/prisma';
 import { runChatTurn, userMessageForFailure, type ChatTurnOutcome } from '@/lib/ai/chatRuntime';
 import { isKnownModelId, type ModelId } from '@/lib/ai/models';
 import { loadAuthorizedLeadContext } from '@/lib/leads/context';
+import { calculateDeterministicSdrMetrics } from '@/lib/ai/contextEngine';
+import { formatEodForPrompt, isEodRequest, loadEodSummary } from '@/lib/briefing/service';
 import { isValidExecutionId, newExecutionId } from '@/lib/ai/executionId';
 import { retrieveRelevantSkills } from '@/lib/ai/skill-retriever';
 
@@ -36,24 +38,29 @@ const chatMessageSchema = z.object({
 });
 
 /**
- * Client-supplied context labels the turn; it grants nothing.
+ * The browser supplies navigation hints. It supplies nothing the model reasons *from*.
  *
- * `userName`, `userRole` and the counters are display and prompt colour only — the session is
- * the sole authority for identity and scope, and `.strip()`ping unknown keys keeps an
- * inventive client from smuggling extra prompt text through this object.
+ * This schema used to accept `userName`, `userRole` and four performance counters, and it
+ * ended in `.passthrough()` — three lines below a comment claiming unknown keys were
+ * `.strip()`ped. Both halves were wrong in the same direction:
+ *
+ *   - `.passthrough()` let a client attach arbitrary extra keys to the context object, and
+ *     anything reaching the system prompt through it is prompt text nobody reviewed. Zod's
+ *     default object behaviour is exactly the `.strip()` the comment promised, so the fix is
+ *     to stop overriding it.
+ *   - The counters were client-authored numbers presented to the model as CRM truth. An SDR
+ *     with dev tools could tell Telestar AI they had zero overdue tasks, and the answer —
+ *     including anything a manager later read — would be built on it.
+ *
+ * What remains is `page` and `leadId`: where the user is, and which record is open. Neither
+ * grants anything. `page` is a UI hint used to guess a channel; `leadId` is a *request* that
+ * `loadAuthorizedLeadContext` then approves or refuses against the session. Identity, role,
+ * tenant and every counter are read server-side from the CRM.
  */
-const chatContextSchema = z
-  .object({
-    page: z.string().max(200).optional(),
-    leadId: z.string().max(64).optional(),
-    userName: z.string().max(120).optional(),
-    userRole: z.string().max(64).optional(),
-    overdueTasks: z.number().int().min(0).max(100_000).optional(),
-    todayTasks: z.number().int().min(0).max(100_000).optional(),
-    sdrCallsToday: z.number().int().min(0).max(100_000).optional(),
-    sdrEmailsToday: z.number().int().min(0).max(100_000).optional(),
-  })
-  .passthrough();
+const chatContextSchema = z.object({
+  page: z.string().max(200).optional(),
+  leadId: z.string().max(64).optional(),
+});
 
 const chatRequestSchema = z.object({
   messages: z.array(chatMessageSchema).min(1).max(MAX_MESSAGES),
@@ -133,13 +140,36 @@ export async function POST(req: NextRequest) {
     ? `\n\n[What I remember about ${user.firstName}]\n${memories.map((m) => `- ${m.memory}`).join('\n')}`
     : '';
 
-  // Build live context block
+  // Build live context block.
+  //
+  // `page` is the only client-supplied line here. Every number below it is read from the CRM
+  // under this session's tenant and this session's user id, because a counter the browser
+  // sent is a counter the browser chose.
   const contextLines: string[] = [];
   if (context?.page) contextLines.push(`Current page: ${context.page}`);
-  if (context?.overdueTasks != null) contextLines.push(`Overdue tasks: ${context.overdueTasks}`);
-  if (context?.todayTasks != null) contextLines.push(`Tasks due today: ${context.todayTasks}`);
-  if (context?.sdrCallsToday != null) contextLines.push(`Calls logged today: ${context.sdrCallsToday}`);
-  if (context?.sdrEmailsToday != null) contextLines.push(`Emails sent today: ${context.sdrEmailsToday}`);
+
+  const lastUserMessage = messages.filter((m) => m.role === 'user').pop()?.content || '';
+
+  const workload = user.tenantId
+    ? await calculateDeterministicSdrMetrics(user.tenantId, user.id).catch(() => null)
+    : null;
+  if (workload) {
+    contextLines.push(`Assigned leads: ${workload.assignedLeadsCount}`);
+    contextLines.push(`Overdue tasks: ${workload.overdueTasksCount}`);
+    contextLines.push(`Leads awaiting a reply follow-up: ${workload.hotRepliesCount}`);
+    contextLines.push(`Meetings booked this month: ${workload.meetingsBookedThisMonth}`);
+  }
+
+  // End-of-day intent is detected and answered server-side.
+  //
+  // The chatbox used to fetch `/api/ai/briefing?type=eod` itself and attach the JSON to the
+  // request as `context.eodData`. `.passthrough()` accepted the key and the system prompt
+  // never read it, so the model answered "summarise my day" from conversation history while
+  // a full round trip's worth of real figures sat unused in the request body.
+  if (isEodRequest(lastUserMessage)) {
+    const eod = await loadEodSummary(user).catch(() => null);
+    if (eod) contextLines.push(`\n${formatEodForPrompt(eod)}`);
+  }
 
   let playbookVersionId: string | undefined = undefined;
 
@@ -172,7 +202,6 @@ export async function POST(req: NextRequest) {
     ? 'linkedin'
     : 'email';
 
-  const lastUserMessage = messages.filter((m) => m.role === 'user').pop()?.content || '';
   const relevantSkills = retrieveRelevantSkills({ channel: inferredChannel, operation: 'chat', topicText: lastUserMessage });
 
   const systemPrompt = `You are the AI SDR Assistant for ${user.firstName} ${user.lastName} (${user.role} at Telestar).

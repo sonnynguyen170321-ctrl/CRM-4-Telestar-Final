@@ -132,18 +132,27 @@ export default function AiAssistant() {
     try { sessionStorage.removeItem(`ai_mem_${currentUserId || 'anon'}`); } catch { /* ignore */ }
   }
 
+  /**
+   * Navigation hints only — where the user is, and which lead is open.
+   *
+   * This used to spread `window.__crm_sdr_stats` and the whole `window.__crm_lead_context`
+   * object into the request alongside `userName` and `userRole`. The server read the counters
+   * as CRM truth, which made a browser global the authority on an SDR's performance figures,
+   * and accepted the rest through a `.passthrough()` schema — arbitrary page-controlled keys
+   * arriving at a system prompt.
+   *
+   * The server now reads identity, role and every counter from the session and the database.
+   * All it needs from the page is which record the user is looking at, and even that is a
+   * request: `loadAuthorizedLeadContext` decides whether this user may see that lead.
+   */
   const getCrmContext = useCallback(() => {
     const w = typeof window !== 'undefined' ? (window as unknown as Record<string, Record<string, unknown> | null>) : null;
-    const leadCtx = w?.__crm_lead_context ?? null;
-    const sdrStats = w?.__crm_sdr_stats ?? null;
+    const leadId = w?.__crm_lead_context?.leadId;
     return {
       page: pathname,
-      userName: firstName,
-      userRole: currentRole,
-      ...(sdrStats || {}),
-      ...(leadCtx || {}),
+      ...(typeof leadId === 'string' ? { leadId } : {}),
     };
-  }, [pathname, firstName, currentRole]);
+  }, [pathname]);
 
   // Load memories and preferred model on mount
   useEffect(() => {
@@ -337,19 +346,14 @@ export default function AiAssistant() {
       }).then(() => bustMemCache()).catch(() => {});
     }
 
-    // Handle EOD summary trigger
-    const isEodRequest = /summarize my day|end of day|what did i do today|eod report|daily summary/i.test(content);
-    let injectedContext = getCrmContext();
-
-    if (isEodRequest) {
-      try {
-        const eodRes = await fetch('/api/ai/briefing?type=eod');
-        if (eodRes.ok) {
-          const eodData = await eodRes.json();
-          injectedContext = { ...injectedContext, eodData: JSON.stringify(eodData) } as typeof injectedContext;
-        }
-      } catch {}
-    }
+    // End-of-day summaries are detected and loaded on the server.
+    //
+    // This used to fetch `/api/ai/briefing?type=eod` here and attach the JSON to the chat
+    // request as `context.eodData`. The route's schema accepted the key and the system prompt
+    // never read it, so the round trip bought nothing and the model answered about the user's
+    // day from conversation history. The server now recognises the request and reads the
+    // figures itself, under the session's own role scope.
+    const injectedContext = getCrmContext();
 
     setIsStreaming(true);
     let assistantContent = '';
