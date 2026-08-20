@@ -14,6 +14,30 @@ import { test, expect } from '../support/test';
 import type { Page } from '@playwright/test';
 import { fixture, storageStatePath, type RoleKey } from '../support/fixture';
 
+/**
+ * Whether this environment can actually reach an AI provider.
+ *
+ * CI configures **no** provider, deliberately — `tests/ai-optional.test.ts` exists to keep the
+ * CRM working without one, and giving CI live credentials would spend real money on every
+ * push. So the tests below that send a real message and read a real answer cannot run there,
+ * and the gateway correctly answers them with "Telestar AI is temporarily unavailable" — the
+ * exact string they are written to reject.
+ *
+ * An opt-in flag rather than an availability probe, on purpose. A probe would make these tests
+ * quietly skip themselves the day the production keys go missing, which is precisely the
+ * failure they exist to catch. Requiring the operator to assert "providers are configured
+ * here" means a skip is always a decision someone made, and is visible in the run output.
+ *
+ *     TELESTAR_AI_E2E=1 BASE_URL=… node node_modules/@playwright/test/cli.js test …
+ *
+ * The provider-independent tests — input handling, the model picker's contents, the panel
+ * mechanics, the expired-session path — run everywhere, including credential-free CI.
+ */
+const AI_PROVIDERS_CONFIGURED = process.env.TELESTAR_AI_E2E === '1';
+
+const NEEDS_PROVIDERS =
+  'needs live AI providers: re-run with TELESTAR_AI_E2E=1 against an environment that has them';
+
 /** The banned sentence. Its reappearance during healthy operation is the regression. */
 const GENERIC_FAILURE = /Sorry, I ran into a problem generating that/i;
 
@@ -85,6 +109,8 @@ const ROLES: Array<{ key: RoleKey; label: string }> = [
 ];
 
 test.describe('every role can hold a conversation with Telestar AI', () => {
+  test.skip(!AI_PROVIDERS_CONFIGURED, NEEDS_PROVIDERS);
+
   for (const { key, label } of ROLES) {
     test.describe(label, () => {
       test.use({ storageState: storageStatePath(key) as string });
@@ -150,6 +176,7 @@ test.describe('chat mechanics', () => {
   });
 
   test('the input clears on send and is usable again afterwards', async ({ page }) => {
+    test.skip(!AI_PROVIDERS_CONFIGURED, NEEDS_PROVIDERS);
     await openChat(page);
     await send(page, 'Say OK.');
 
@@ -158,6 +185,7 @@ test.describe('chat mechanics', () => {
   });
 
   test('a long answer wraps instead of overflowing the panel', async ({ page }) => {
+    test.skip(!AI_PROVIDERS_CONFIGURED, NEEDS_PROVIDERS);
     await openChat(page);
     await send(page, 'List five short cold-email opening lines for a logistics CFO.');
 
@@ -171,6 +199,7 @@ test.describe('chat mechanics', () => {
   });
 
   test('the panel closes and reopens with the conversation intact', async ({ page }) => {
+    test.skip(!AI_PROVIDERS_CONFIGURED, NEEDS_PROVIDERS);
     await openChat(page);
     await send(page, 'Say OK.');
     const before = await page.getByRole('log').locator('.ai-message-content').count();
@@ -212,6 +241,9 @@ test.describe('failure recovery', () => {
   test.use({ storageState: storageStatePath('sdrA') as string });
 
   test('a dead request leaves a readable message and a usable input', async ({ page, recorder }) => {
+    // The first half needs no provider; the second half — proving the next message works —
+    // does, and that half is the point of the test.
+    test.skip(!AI_PROVIDERS_CONFIGURED, NEEDS_PROVIDERS);
     recorder.expectFailures(500, 503);
     recorder.ignoreUrls('/api/ai/chat');
     // The browser complains about the request this test kills on purpose. That complaint is
@@ -270,6 +302,8 @@ test.describe('failure recovery', () => {
 });
 
 test.describe('CRM context and tools', () => {
+  test.skip(!AI_PROVIDERS_CONFIGURED, NEEDS_PROVIDERS);
+
   test.use({ storageState: storageStatePath('sdrA') as string });
 
   test('a lead-scoped question is answered about that lead, and only that lead', async ({ page }) => {
