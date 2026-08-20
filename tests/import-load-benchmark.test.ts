@@ -252,6 +252,18 @@ describe.skipIf(!hasDb)('IMPORT_HANDLER_BENCHMARK (TEL-P2-012, reclassified by T
       artifacts: [],
     };
 
+    // Only a certification run may write into the evidence ledger.
+    //
+    // scripts/certification/run-full-certification.mjs is the only thing that sets
+    // CERT_CANDIDATE_SHA, and it sets it per gate. Without this guard an ordinary local
+    // `vitest run` rewrote docs/production-certification/evidence/EV-LOAD-HANDLER.json with
+    // that developer's throughput numbers, candidateSha: null, and a status of 'PASS' that is
+    // a literal in this file rather than anything measured - silently replacing evidence
+    // frozen against a specific candidate SHA. The ledger's own rule is that eligibility is
+    // computed by `npm run certify:validate` and nobody types the verdict; a test that types
+    // "PASS" into the ledger on every run is exactly that failure.
+    if (!process.env.CERT_CANDIDATE_SHA) return;
+
     writeFileSync(
       path.join(process.cwd(), 'docs/production-certification/evidence/EV-LOAD-HANDLER.json'),
       `${JSON.stringify(record, null, 2)}
