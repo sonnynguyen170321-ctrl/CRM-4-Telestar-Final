@@ -15,7 +15,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 
-import { AI_PROVIDER_ENV } from '../../lib/env-contract';
+import { AI_PROVIDER_ENV, placeholderPattern } from '../../lib/env-contract';
 
 const ROOT = process.cwd();
 
@@ -86,14 +86,29 @@ function portOpen(host: string, port: number, timeoutMs = 700): Promise<boolean>
   });
 }
 
+/**
+ * Whether a credential is genuinely configured.
+ *
+ * A placeholder is not a credential. Reporting `REPLACE_ME` as SET is the same failure shape
+ * as a smoke test that passes on zero providers: the check runs, reports success, and the
+ * thing it was checking is absent. `placeholderPattern` is reused from `lib/env-contract.ts`
+ * rather than re-expressed here, so "what counts as a placeholder" has one definition.
+ *
+ * The value is tested against a pattern and discarded. It is never returned, logged or
+ * measured — a length alone identifies which provider issued a key.
+ */
 function envPresent(name: string): boolean {
-  if ((process.env[name] || '').trim().length > 0) return true;
-  // A key in .env.local counts as configured for a local run, and reading only for presence
-  // keeps this honest without the value ever entering memory as a value.
+  const fromProcess = (process.env[name] || '').trim();
+  if (fromProcess.length > 0) return !placeholderPattern.test(fromProcess);
+
+  // A key in .env.local counts as configured for a local run.
   const envFile = path.join(ROOT, '.env.local');
   if (!existsSync(envFile)) return false;
-  const line = new RegExp(`^${name}\\s*=\\s*\\S`, 'm');
-  return line.test(readFileSync(envFile, 'utf8'));
+
+  const match = readFileSync(envFile, 'utf8').match(new RegExp(`^${name}\\s*=\\s*(.+)$`, 'm'));
+  if (!match) return false;
+  const value = match[1].trim().replace(/^["']|["']$/g, '');
+  return value.length > 0 && !placeholderPattern.test(value);
 }
 
 export async function capabilities(): Promise<Capability[]> {
