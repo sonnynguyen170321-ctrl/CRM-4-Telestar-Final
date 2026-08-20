@@ -5,23 +5,23 @@
 
 Running 15 tests using 1 worker
 
-  ok  1 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate director (1.4s)
-  ok  2 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate floorManager (565ms)
-  ok  3 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate teamLead (560ms)
-  ok  4 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate sdrA (559ms)
-  ok  5 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate sdrB (614ms)
-  ok  6 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate leadgenManager (588ms)
-  ok  7 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate leadgen (565ms)
-  ok  8 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate directorB (537ms)
-  ok  9 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate sdrTenantB (542ms)
-  ok 10 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › director › director can operate the product and is stopped where it must be (5.0s)
-  ok 11 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › floor_manager › floor_manager can operate the product and is stopped where it must be (3.3s)
-  ok 12 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › team_lead › team_lead can operate the product and is stopped where it must be (2.6s)
-  ok 13 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › sdr › sdr can operate the product and is stopped where it must be (2.0s)
+  ok  1 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate director (1.2s)
+  ok  2 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate floorManager (726ms)
+  ok  3 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate teamLead (590ms)
+  ok  4 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate sdrA (614ms)
+  ok  5 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate sdrB (628ms)
+  ok  6 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate leadgenManager (611ms)
+  ok  7 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate leadgen (498ms)
+  ok  8 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate directorB (515ms)
+  ok  9 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate sdrTenantB (511ms)
+  ok 10 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › director › director can operate the product and is stopped where it must be (4.1s)
+  ok 11 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › floor_manager › floor_manager can operate the product and is stopped where it must be (2.2s)
+  ok 12 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › team_lead › team_lead can operate the product and is stopped where it must be (2.5s)
+  ok 13 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › sdr › sdr can operate the product and is stopped where it must be (1.8s)
   ok 14 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › leadgen_manager › leadgen_manager can operate the product and is stopped where it must be (2.1s)
-  ok 15 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › leadgen › leadgen can operate the product and is stopped where it must be (2.9s)
+  ok 15 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › leadgen › leadgen can operate the product and is stopped where it must be (1.6s)
 
-  15 passed (26.9s)
+  15 passed (23.0s)
 
 --- stderr ---
 (empty)

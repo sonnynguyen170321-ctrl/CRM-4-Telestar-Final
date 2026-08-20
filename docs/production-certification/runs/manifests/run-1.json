@@ -1,10 +1,10 @@
 {
   "runNumber": 1,
-  "candidateSha": "3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32",
+  "candidateSha": "28669f0a76b33e4538eda0006550e192774ce17c",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
-  "startedAt": "2026-08-20T03:04:32.573Z",
-  "finishedAt": "2026-08-20T03:11:53.099Z",
-  "durationMs": 440526,
+  "startedAt": "2026-08-20T20:50:21.499Z",
+  "finishedAt": "2026-08-20T20:56:31.623Z",
+  "durationMs": 370124,
   "gates": {
     "01-source-identity": {
       "status": "PASS",
@@ -12,8 +12,8 @@
       "durationMs": 0,
       "description": "the application source is exactly the frozen candidate",
       "metrics": {
-        "head": "e68fd04d63d1ae256b7243288d3a4128b3d499f3",
-        "candidateSha": "3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32",
+        "head": "8bfe9d6cb7cbd2c823ccfbd77b9d58e2cf133fb1",
+        "candidateSha": "28669f0a76b33e4538eda0006550e192774ce17c",
         "commitsSinceFreeze": 1,
         "uncommittedNonMetadataPaths": 0,
         "problems": []
@@ -22,13 +22,13 @@
     "02-environment": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 337,
+      "durationMs": 287,
       "description": "Postgres and Redis reachable; required configuration present",
       "metrics": {
         "postgres": {
           "host": "localhost",
           "port": "5432",
-          "database": "telestar_crm",
+          "database": "telestar_audit_e2e_test",
           "reachable": true,
           "appliedMigrations": 50
         },
@@ -40,7 +40,7 @@
         "configuration": {
           "AUTH_SECRET": "present",
           "ENCRYPTION_KEY": "present",
-          "EMAIL_SEND_DRY_RUN": "true"
+          "EMAIL_SEND_DRY_RUN": "1"
         },
         "problems": [],
         "status": "PASS"
@@ -49,37 +49,37 @@
     "03-typecheck": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 28977,
+      "durationMs": 30476,
       "description": "tsc --noEmit"
     },
     "04-lint": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 53381,
+      "durationMs": 51670,
       "description": "eslint across the whole tree"
     },
     "05-test-discipline": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 582,
+      "durationMs": 284,
       "description": "scripts/check-test-discipline.mjs"
     },
     "06-migration-validation": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 154,
+      "durationMs": 148,
       "description": "scripts/check-migration-order.mjs"
     },
     "07-database-integrity": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 10253,
+      "durationMs": 1556,
       "description": "scripts/verify-db-integrity.ts against the certification database"
     },
     "08-vitest": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 141296,
+      "durationMs": 121195,
       "description": "full Vitest suite against real Postgres and Redis",
       "metrics": {
         "files": {
@@ -137,15 +137,45 @@
             "failed": 0,
             "skipped": 0
           },
+          "tests/agent-check.test.ts": {
+            "status": "passed",
+            "tests": 3,
+            "failed": 0,
+            "skipped": 0
+          },
+          "tests/agent-facts.test.ts": {
+            "status": "passed",
+            "tests": 10,
+            "failed": 0,
+            "skipped": 0
+          },
+          "tests/agent-golden-tasks.test.ts": {
+            "status": "passed",
+            "tests": 66,
+            "failed": 0,
+            "skipped": 0
+          },
           "tests/agent-object-authorization.test.ts": {
             "status": "passed",
             "tests": 17,
             "failed": 0,
             "skipped": 0
           },
+          "tests/agent-routing.test.ts": {
+            "status": "passed",
+            "tests": 32,
+            "failed": 0,
+            "skipped": 0
+          },
           "tests/agent-runtime-integration.test.ts": {
             "status": "passed",
-            "tests": 4,
+            "tests": 5,
+            "failed": 0,
+            "skipped": 0
+          },
+          "tests/agent-skills.test.ts": {
+            "status": "passed",
+            "tests": 61,
             "failed": 0,
             "skipped": 0
           },
@@ -155,9 +185,21 @@
             "failed": 0,
             "skipped": 0
           },
+          "tests/ai-briefing-scope.test.ts": {
+            "status": "passed",
+            "tests": 8,
+            "failed": 0,
+            "skipped": 0
+          },
           "tests/ai-capability-routing.test.ts": {
             "status": "passed",
             "tests": 21,
+            "failed": 0,
+            "skipped": 0
+          },
+          "tests/ai-chat-route.test.ts": {
+            "status": "passed",
+            "tests": 40,
             "failed": 0,
             "skipped": 0
           },
@@ -193,7 +235,13 @@
           },
           "tests/ai-gateway.test.ts": {
             "status": "passed",
-            "tests": 10,
+            "tests": 12,
+            "failed": 0,
+            "skipped": 0
+          },
+          "tests/ai-model-registry.test.ts": {
+            "status": "passed",
+            "tests": 17,
             "failed": 0,
             "skipped": 0
           },
@@ -203,15 +251,33 @@
             "failed": 0,
             "skipped": 0
           },
+          "tests/ai-pricing-contract.test.ts": {
+            "status": "passed",
+            "tests": 22,
+            "failed": 0,
+            "skipped": 0
+          },
+          "tests/ai-provider-client-containment.test.ts": {
+            "status": "passed",
+            "tests": 2,
+            "failed": 0,
+            "skipped": 0
+          },
           "tests/ai-shared-circuit.test.ts": {
             "status": "passed",
-            "tests": 12,
+            "tests": 14,
+            "failed": 0,
+            "skipped": 0
+          },
+          "tests/ai-skill-routing.test.ts": {
+            "status": "passed",
+            "tests": 9,
             "failed": 0,
             "skipped": 0
           },
           "tests/ai-stream-governance.test.ts": {
             "status": "passed",
-            "tests": 10,
+            "tests": 11,
             "failed": 0,
             "skipped": 0
           },
@@ -709,7 +775,7 @@
           },
           "tests/phase-8a-provider-routing.test.ts": {
             "status": "passed",
-            "tests": 8,
+            "tests": 9,
             "failed": 0,
             "skipped": 0
           },
@@ -925,7 +991,7 @@
           },
           "tests/telestar-ai-constitution.test.ts": {
             "status": "passed",
-            "tests": 3,
+            "tests": 7,
             "failed": 0,
             "skipped": 0
           },
@@ -1068,9 +1134,9 @@
             "skipped": 0
           }
         },
-        "testFiles": 164,
-        "testFilesPassed": 164,
-        "testsPassed": 2059,
+        "testFiles": 175,
+        "testFilesPassed": 175,
+        "testsPassed": 2340,
         "testsFailed": 0,
         "testsSkipped": 0
       }
@@ -1078,13 +1144,13 @@
     "09-redis-integration": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 3611,
+      "durationMs": 3176,
       "description": "Redis integration suite - must execute, never skip",
       "metrics": {
         "files": {
           "tests/ai-shared-circuit.test.ts": {
             "status": "passed",
-            "tests": 12,
+            "tests": 14,
             "failed": 0,
             "skipped": 0
           },
@@ -1103,7 +1169,7 @@
         },
         "testFiles": 3,
         "testFilesPassed": 3,
-        "testsPassed": 34,
+        "testsPassed": 36,
         "testsFailed": 0,
         "testsSkipped": 0,
         "executed": true,
@@ -1113,61 +1179,61 @@
     "10-ai-certification": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 7743,
+      "durationMs": 7116,
       "description": "AI durable budget, stream governance, shared circuit, capability routing"
     },
     "11-email-safety": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 2371,
+      "durationMs": 2095,
       "description": "demo barrier, idempotency, safe-mode posture"
     },
     "12-import-fault-matrix": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 8539,
+      "durationMs": 5178,
       "description": "import durable-write failpoint matrix"
     },
     "13-queue-load": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 36392,
+      "durationMs": 20103,
       "description": "IMPORT_SYSTEM_QUEUE_BENCHMARK over real Redis and BullMQ"
     },
     "14-security-suite": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 4227,
+      "durationMs": 3456,
       "description": "tenant isolation, object auth, mass assignment, XSS, formula injection, secrets"
     },
     "15-production-build": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 74961,
+      "durationMs": 67864,
       "description": "next build"
     },
     "16-playwright-roles": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 34491,
+      "durationMs": 25371,
       "description": "six-role real browser acceptance"
     },
     "16-playwright-roles-evidence": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 156,
+      "durationMs": 126,
       "description": "aggregate six-role observations into EV-ROLE-BROWSER"
     },
     "17-golden-browser-journey": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 16761,
+      "durationMs": 13483,
       "description": "cross-role golden journey in a real browser"
     },
     "18-worker-readiness": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 3357,
+      "durationMs": 3234,
       "description": "worker healthcheck: a job is enqueued and a real worker drains it"
     },
     "22-health-smoke": {
@@ -1179,15 +1245,15 @@
         "endpoints": {
           "/api/health": {
             "status": 200,
-            "body": "{\"ok\":true,\"ts\":1787195511860,\"commit\":\"unknown\",\"version\":\"unknown\",\"builtAt\":\"unknown\",\"schema\":\"ready\"}"
+            "body": "{\"ok\":true,\"ts\":1787259389838,\"commit\":\"unknown\",\"version\":\"unknown\",\"builtAt\":\"unknown\",\"schema\":\"ready\"}"
           },
           "/api/health/db": {
             "status": 404,
-            "body": "<!DOCTYPE html><html lang=\"en\" class=\"h-full antialiased montserrat_749aa487-module__uhke3q__variable jetbrains_mono_cae79820-module__QvYvBa__variable\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/2u-nyl4aihksk.css\" data-precedence=\"next\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/1onf9fi"
+            "body": "<!DOCTYPE html><html lang=\"en\" class=\"h-full antialiased montserrat_749aa487-module__uhke3q__variable jetbrains_mono_cae79820-module__QvYvBa__variable\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/42gcb8tnhmq7r.css\" data-precedence=\"next\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/1onf9fi"
           },
           "/api/health/redis": {
             "status": 404,
-            "body": "<!DOCTYPE html><html lang=\"en\" class=\"h-full antialiased montserrat_749aa487-module__uhke3q__variable jetbrains_mono_cae79820-module__QvYvBa__variable\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/2u-nyl4aihksk.css\" data-precedence=\"next\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/1onf9fi"
+            "body": "<!DOCTYPE html><html lang=\"en\" class=\"h-full antialiased montserrat_749aa487-module__uhke3q__variable jetbrains_mono_cae79820-module__QvYvBa__variable\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/42gcb8tnhmq7r.css\" data-precedence=\"next\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/1onf9fi"
           }
         }
       }
@@ -1213,13 +1279,13 @@
     "21-compose-validation": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 430,
+      "durationMs": 450,
       "description": "scripts/check-production-compose.mjs"
     },
     "23-validator-selftest": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 768,
+      "durationMs": 1280,
       "description": "the validator rejects every injected false-green state"
     }
   },
@@ -1286,15 +1352,45 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/agent-check.test.ts": {
+        "status": "passed",
+        "tests": 3,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/agent-facts.test.ts": {
+        "status": "passed",
+        "tests": 10,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/agent-golden-tasks.test.ts": {
+        "status": "passed",
+        "tests": 66,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/agent-object-authorization.test.ts": {
         "status": "passed",
         "tests": 17,
         "failed": 0,
         "skipped": 0
       },
+      "tests/agent-routing.test.ts": {
+        "status": "passed",
+        "tests": 32,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/agent-runtime-integration.test.ts": {
         "status": "passed",
-        "tests": 4,
+        "tests": 5,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/agent-skills.test.ts": {
+        "status": "passed",
+        "tests": 61,
         "failed": 0,
         "skipped": 0
       },
@@ -1304,9 +1400,21 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/ai-briefing-scope.test.ts": {
+        "status": "passed",
+        "tests": 8,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/ai-capability-routing.test.ts": {
         "status": "passed",
         "tests": 21,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/ai-chat-route.test.ts": {
+        "status": "passed",
+        "tests": 40,
         "failed": 0,
         "skipped": 0
       },
@@ -1342,7 +1450,13 @@
       },
       "tests/ai-gateway.test.ts": {
         "status": "passed",
-        "tests": 10,
+        "tests": 12,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/ai-model-registry.test.ts": {
+        "status": "passed",
+        "tests": 17,
         "failed": 0,
         "skipped": 0
       },
@@ -1352,15 +1466,33 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/ai-pricing-contract.test.ts": {
+        "status": "passed",
+        "tests": 22,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/ai-provider-client-containment.test.ts": {
+        "status": "passed",
+        "tests": 2,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/ai-shared-circuit.test.ts": {
         "status": "passed",
-        "tests": 12,
+        "tests": 14,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/ai-skill-routing.test.ts": {
+        "status": "passed",
+        "tests": 9,
         "failed": 0,
         "skipped": 0
       },
       "tests/ai-stream-governance.test.ts": {
         "status": "passed",
-        "tests": 10,
+        "tests": 11,
         "failed": 0,
         "skipped": 0
       },
@@ -1858,7 +1990,7 @@
       },
       "tests/phase-8a-provider-routing.test.ts": {
         "status": "passed",
-        "tests": 8,
+        "tests": 9,
         "failed": 0,
         "skipped": 0
       },
@@ -2074,7 +2206,7 @@
       },
       "tests/telestar-ai-constitution.test.ts": {
         "status": "passed",
-        "tests": 3,
+        "tests": 7,
         "failed": 0,
         "skipped": 0
       },
@@ -2217,9 +2349,9 @@
         "skipped": 0
       }
     },
-    "testFiles": 164,
-    "testFilesPassed": 164,
-    "testsPassed": 2059,
+    "testFiles": 175,
+    "testFilesPassed": 175,
+    "testsPassed": 2340,
     "testsFailed": 0,
     "testsSkipped": 0
   }

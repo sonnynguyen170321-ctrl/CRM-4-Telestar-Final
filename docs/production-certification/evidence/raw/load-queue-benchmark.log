@@ -1,28 +1,28 @@
 # IMPORT_SYSTEM_QUEUE_BENCHMARK
-# startedAt: 2026-08-20T03:23:34.149Z
-# finishedAt: 2026-08-20T03:24:12.140Z
+# startedAt: 2026-08-20T21:06:34.373Z
+# finishedAt: 2026-08-20T21:06:54.509Z
 # redis: 127.0.0.1:6379
 
 ## 120 rows
 {
   "rows": 120,
   "chunks": 3,
-  "totalDurationMs": 1651,
-  "rowsPerSecond": 72.68,
+  "totalDurationMs": 1139,
+  "rowsPerSecond": 105.36,
   "queueWaitMs": {
-    "p50": 3,
-    "p95": 3,
-    "p99": 3
+    "p50": 2,
+    "p95": 5,
+    "p99": 5
   },
   "jobProcessingMs": {
-    "p50": 1295,
-    "p95": 1341,
-    "p99": 1341
+    "p50": 1008,
+    "p95": 1050,
+    "p99": 1050
   },
-  "enqueueStartedAt": "2026-08-20T03:23:44.494Z",
-  "firstWorkerStartAt": "2026-08-20T03:23:44.510Z",
-  "lastRowTerminalAt": "2026-08-20T03:23:45.883Z",
-  "batchCommittedAt": "2026-08-20T03:23:46.145Z",
+  "enqueueStartedAt": "2026-08-20T21:06:35.589Z",
+  "firstWorkerStartAt": "2026-08-20T21:06:35.604Z",
+  "lastRowTerminalAt": "2026-08-20T21:06:36.721Z",
+  "batchCommittedAt": "2026-08-20T21:06:36.728Z",
   "failedJobs": 0,
   "retries": 0,
   "lostRows": 0,
@@ -37,22 +37,22 @@
 {
   "rows": 500,
   "chunks": 10,
-  "totalDurationMs": 4428,
-  "rowsPerSecond": 112.92,
+  "totalDurationMs": 3879,
+  "rowsPerSecond": 128.9,
   "queueWaitMs": {
-    "p50": 1370,
-    "p95": 3345,
-    "p99": 3345
+    "p50": 1090,
+    "p95": 2814,
+    "p99": 2814
   },
   "jobProcessingMs": {
-    "p50": 1104,
-    "p95": 1409,
-    "p99": 1409
+    "p50": 899,
+    "p95": 1117,
+    "p99": 1117
   },
-  "enqueueStartedAt": "2026-08-20T03:23:50.805Z",
-  "firstWorkerStartAt": "2026-08-20T03:23:50.815Z",
-  "lastRowTerminalAt": "2026-08-20T03:23:55.224Z",
-  "batchCommittedAt": "2026-08-20T03:23:55.233Z",
+  "enqueueStartedAt": "2026-08-20T21:06:39.191Z",
+  "firstWorkerStartAt": "2026-08-20T21:06:39.200Z",
+  "lastRowTerminalAt": "2026-08-20T21:06:43.061Z",
+  "batchCommittedAt": "2026-08-20T21:06:43.070Z",
   "failedJobs": 0,
   "retries": 0,
   "lostRows": 0,
@@ -67,22 +67,22 @@
 {
   "rows": 1000,
   "chunks": 20,
-  "totalDurationMs": 8850,
-  "rowsPerSecond": 112.99,
+  "totalDurationMs": 6964,
+  "rowsPerSecond": 143.6,
   "queueWaitMs": {
-    "p50": 3233,
-    "p95": 7419,
-    "p99": 7419
+    "p50": 3110,
+    "p95": 5941,
+    "p99": 5941
   },
   "jobProcessingMs": {
-    "p50": 1131,
-    "p95": 1736,
-    "p99": 1768
+    "p50": 964,
+    "p95": 1102,
+    "p99": 1106
   },
-  "enqueueStartedAt": "2026-08-20T03:24:03.279Z",
-  "firstWorkerStartAt": "2026-08-20T03:24:03.286Z",
-  "lastRowTerminalAt": "2026-08-20T03:24:12.123Z",
-  "batchCommittedAt": "2026-08-20T03:24:12.129Z",
+  "enqueueStartedAt": "2026-08-20T21:06:47.537Z",
+  "firstWorkerStartAt": "2026-08-20T21:06:47.543Z",
+  "lastRowTerminalAt": "2026-08-20T21:06:54.496Z",
+  "batchCommittedAt": "2026-08-20T21:06:54.501Z",
   "failedJobs": 0,
   "retries": 0,
   "lostRows": 0,

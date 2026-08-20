@@ -1,42 +1,32 @@
 {
   "evidenceId": "EV-CI-RUN",
   "kind": "ci-run",
-  "candidateSha": "3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32",
+  "candidateSha": "28669f0a76b33e4538eda0006550e192774ce17c",
   "environment": "GitHub Actions",
-  "command": "gh run view 32326914380",
-  "startedAt": "2026-08-20T03:04:24Z",
-  "finishedAt": "2026-08-20T03:13:31Z",
-  "exitCode": 1,
-  "status": "FAIL",
+  "command": "gh run view 32416213512",
+  "startedAt": "2026-08-20T20:50:02Z",
+  "finishedAt": "2026-08-20T21:03:01Z",
+  "exitCode": 0,
+  "status": "PASS",
   "metrics": {
-    "runId": "32326914380",
+    "runId": "32416213512",
     "workflowName": "CI",
-    "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32326914380",
-    "headSha": "e68fd04d63d1ae256b7243288d3a4128b3d499f3",
-    "headBranch": "release/evidence-locked-certification",
-    "conclusion": "failure",
+    "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32416213512",
+    "headSha": "8bfe9d6cb7cbd2c823ccfbd77b9d58e2cf133fb1",
+    "headBranch": "main",
+    "conclusion": "success",
     "runStatus": "completed",
     "commitsBetweenCandidateAndHead": 1,
     "nonMetadataCommitsBetween": 0,
     "sourceMatchesCandidate": true,
     "jobs": [
       {
-        "name": "Docker build",
-        "conclusion": "success",
-        "status": "completed"
-      },
-      {
-        "name": "Dependency review",
-        "conclusion": "failure",
-        "status": "completed"
-      },
-      {
         "name": "Lint · types · tests",
         "conclusion": "success",
         "status": "completed"
       },
       {
-        "name": "Migration validation",
+        "name": "Docker build",
         "conclusion": "success",
         "status": "completed"
       },
@@ -46,27 +36,42 @@
         "status": "completed"
       },
       {
+        "name": "CodeQL",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
+        "name": "Dependency audit",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
         "name": "Secret scan",
         "conclusion": "success",
         "status": "completed"
       },
       {
-        "name": "CodeQL",
-        "conclusion": "failure",
+        "name": "Migration validation",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
+        "name": "Dependency review",
+        "conclusion": "skipped",
         "status": "completed"
       },
       {
         "name": "CI required checks",
-        "conclusion": "failure",
+        "conclusion": "success",
         "status": "completed"
       }
     ]
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/ci-run-32326914380.log",
-      "sizeBytes": 27704,
-      "sha256": "053702c5ccd0263ab5fbe49a007755edf870ff350b06c88d98e22e5c94dd6031"
+      "path": "docs/production-certification/evidence/raw/ci-run-32416213512.log",
+      "sizeBytes": 29927,
+      "sha256": "758c83dba9d24f7335ec98ad6c12720e788f6b293ae3fbb2ba0d7ba61f3f073e"
     }
   ]
 }

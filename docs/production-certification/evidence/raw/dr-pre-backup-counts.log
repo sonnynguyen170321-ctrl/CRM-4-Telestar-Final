@@ -1,14 +1,14 @@
 # pre-backup source integrity
 # command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json
-# startedAt: 2026-08-20T03:01:46.679Z
-# finishedAt: 2026-08-20T03:01:56.275Z
+# startedAt: 2026-08-20T21:09:19.096Z
+# finishedAt: 2026-08-20T21:09:20.652Z
 # exitCode: 0
 
 --- stdout ---
 {
-  "startedAt": "2026-08-20T03:01:47.168Z",
-  "finishedAt": "2026-08-20T03:01:56.249Z",
-  "database": "telestar_crm",
+  "startedAt": "2026-08-20T21:09:19.559Z",
+  "finishedAt": "2026-08-20T21:09:20.626Z",
+  "database": "telestar_audit_e2e_test",
   "status": "PASS",
   "checks": [
     {
@@ -22,7 +22,7 @@
       "key": "migrations",
       "title": "Migration ledger is complete and fully applied",
       "status": "PASS",
-      "detail": "50/50 migrations applied successfully (1 superseded rolled-back attempt(s), which is normal)",
+      "detail": "50/50 migrations applied successfully",
       "findings": []
     },
     {
@@ -55,19 +55,19 @@
     }
   ],
   "counts": {
-    "Tenant": 49910,
-    "User": 49256,
-    "Client": 33377,
-    "Campaign": 48772,
-    "Account": 38998,
-    "Contact": 30077,
-    "Lead": 287146,
-    "Task": 13370,
-    "Activity": 29061,
-    "Sequence": 32019,
-    "SequenceEnrollment": 18731,
-    "OutboundMessage": 132,
-    "ImportBatch": 6
+    "Tenant": 380,
+    "User": 409,
+    "Client": 281,
+    "Campaign": 379,
+    "Account": 349,
+    "Contact": 2318,
+    "Lead": 4110,
+    "Task": 121,
+    "Activity": 2380,
+    "Sequence": 250,
+    "SequenceEnrollment": 153,
+    "OutboundMessage": 8,
+    "ImportBatch": 7
   }
 }
 

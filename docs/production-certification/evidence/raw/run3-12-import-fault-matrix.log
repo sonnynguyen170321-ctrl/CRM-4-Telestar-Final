@@ -1,18 +1,18 @@
 # gate: 12-import-fault-matrix — import durable-write failpoint matrix
 # command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/import-fault-injection.test.ts tests/import-race-stress.test.ts
-# startedAt: 2026-08-20T03:23:24.205Z
-# finishedAt: 2026-08-20T03:23:32.784Z
+# startedAt: 2026-08-20T21:06:27.538Z
+# finishedAt: 2026-08-20T21:06:32.986Z
 # exitCode: 0
 
 --- stdout ---
 
- RUN  v4.1.10 C:/Users/admin/Desktop/Sonny & AI/clone-CRM-4-U-migration-main
+ RUN  v4.1.10 C:/Users/admin/Desktop/Sonny & AI/CRM-4-Telestar-Final
 
 
  Test Files  2 passed (2)
       Tests  13 passed (13)
-   Start at  10:23:25
-   Duration  7.67s (transform 1000ms, setup 526ms, import 2.29s, tests 9.63s, environment 1ms)
+   Start at  04:06:28
+   Duration  4.60s (transform 992ms, setup 524ms, import 2.25s, tests 4.90s, environment 1ms)
 
 
 --- stderr ---

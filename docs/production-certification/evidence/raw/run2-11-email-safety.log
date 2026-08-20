@@ -1,18 +1,18 @@
 # gate: 11-email-safety — demo barrier, idempotency, safe-mode posture
 # command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/demo-email-barrier.test.ts tests/email-idempotency.test.ts tests/email-safety.test.ts
-# startedAt: 2026-08-20T03:16:01.395Z
-# finishedAt: 2026-08-20T03:16:03.726Z
+# startedAt: 2026-08-20T21:00:10.674Z
+# finishedAt: 2026-08-20T21:00:12.728Z
 # exitCode: 0
 
 --- stdout ---
 
- RUN  v4.1.10 C:/Users/admin/Desktop/Sonny & AI/clone-CRM-4-U-migration-main
+ RUN  v4.1.10 C:/Users/admin/Desktop/Sonny & AI/CRM-4-Telestar-Final
 
 
  Test Files  3 passed (3)
       Tests  60 passed (60)
-   Start at  10:16:02
-   Duration  1.44s (transform 316ms, setup 906ms, import 776ms, tests 67ms, environment 1ms)
+   Start at  04:00:11
+   Duration  1.25s (transform 423ms, setup 776ms, import 750ms, tests 66ms, environment 1ms)
 
 
 --- stderr ---

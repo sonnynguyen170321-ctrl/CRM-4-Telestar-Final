@@ -6,8 +6,8 @@
   Regenerate: node scripts/certification/render-traceability.mjs
 -->
 
-**Candidate SHA**: `3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32`
-**Verified**: 101 / 108
+**Candidate SHA**: `28669f0a76b33e4538eda0006550e192774ce17c`
+**Verified**: 102 / 108
 **Verdict**: NO-GO
 
 > Status in this document is **computed**, never asserted. `requirements.json` has no status
@@ -27,9 +27,9 @@
 | **6-Role Operational Workflows** | `ROLE` | 12 | 12 | 0 |
 | **AI Reliability & Cost Governance** | `AI` | 14 | 14 | 0 |
 | **Disaster Recovery & Infrastructure** | `DR` | 10 | 8 | 2 |
-| **Release Identity & Gate Auditing** | `REL` | 8 | 3 | 5 |
+| **Release Identity & Gate Auditing** | `REL` | 8 | 4 | 4 |
 | **Operational Lifecycle & Sequences** | `OPS` | 24 | 24 | 0 |
-| **TOTAL** | | **108** | **101** | **7** |
+| **TOTAL** | | **108** | **102** | **6** |
 
 ---
 
@@ -150,7 +150,7 @@
 | `REL-003` | Certification Run 1: Full test ladder + static + build | P1 | run 1 | NOT_VERIFIED | evidence of kind "certification-run" is FAIL, not PASS | — |
 | `REL-004` | Certification Run 2: Full test ladder + static + build | P1 | run 2 | NOT_VERIFIED | evidence of kind "certification-run" is FAIL, not PASS | — |
 | `REL-005` | Certification Run 3: Full test ladder + static + build | P1 | run 3 | NOT_VERIFIED | evidence of kind "certification-run" is FAIL, not PASS | — |
-| `REL-006` | CI workflow release gate enforces green test suite before merge | P1 | ci-run | NOT_VERIFIED | evidence of kind "ci-run" is FAIL, not PASS | — |
+| `REL-006` | CI workflow release gate enforces green test suite before merge | P1 | ci-run | **VERIFIED** | — | — |
 | `REL-007` | Health check endpoint reports commit SHA and database connectivity | P1 | `tests/doctor.test.ts` | **VERIFIED** | — | — |
 | `REL-008` | Final Certificate reflects verified evidence with zero assumptions | P1 | validator-self | **VERIFIED** | — | — |
 

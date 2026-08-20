@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-VITEST",
   "kind": "vitest",
-  "candidateSha": "3672f9759f06fc4cf21d88ffc9d65bb5d42ffa32",
+  "candidateSha": "28669f0a76b33e4538eda0006550e192774ce17c",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-20T03:20:45.132Z",
-  "finishedAt": "2026-08-20T03:23:10.573Z",
+  "startedAt": "2026-08-20T21:04:06.151Z",
+  "finishedAt": "2026-08-20T21:06:14.621Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -64,15 +64,45 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/agent-check.test.ts": {
+        "status": "passed",
+        "tests": 3,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/agent-facts.test.ts": {
+        "status": "passed",
+        "tests": 10,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/agent-golden-tasks.test.ts": {
+        "status": "passed",
+        "tests": 66,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/agent-object-authorization.test.ts": {
         "status": "passed",
         "tests": 17,
         "failed": 0,
         "skipped": 0
       },
+      "tests/agent-routing.test.ts": {
+        "status": "passed",
+        "tests": 32,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/agent-runtime-integration.test.ts": {
         "status": "passed",
-        "tests": 4,
+        "tests": 5,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/agent-skills.test.ts": {
+        "status": "passed",
+        "tests": 61,
         "failed": 0,
         "skipped": 0
       },
@@ -82,9 +112,21 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/ai-briefing-scope.test.ts": {
+        "status": "passed",
+        "tests": 8,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/ai-capability-routing.test.ts": {
         "status": "passed",
         "tests": 21,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/ai-chat-route.test.ts": {
+        "status": "passed",
+        "tests": 40,
         "failed": 0,
         "skipped": 0
       },
@@ -120,7 +162,13 @@
       },
       "tests/ai-gateway.test.ts": {
         "status": "passed",
-        "tests": 10,
+        "tests": 12,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/ai-model-registry.test.ts": {
+        "status": "passed",
+        "tests": 17,
         "failed": 0,
         "skipped": 0
       },
@@ -130,15 +178,33 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/ai-pricing-contract.test.ts": {
+        "status": "passed",
+        "tests": 22,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/ai-provider-client-containment.test.ts": {
+        "status": "passed",
+        "tests": 2,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/ai-shared-circuit.test.ts": {
         "status": "passed",
-        "tests": 12,
+        "tests": 14,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/ai-skill-routing.test.ts": {
+        "status": "passed",
+        "tests": 9,
         "failed": 0,
         "skipped": 0
       },
       "tests/ai-stream-governance.test.ts": {
         "status": "passed",
-        "tests": 10,
+        "tests": 11,
         "failed": 0,
         "skipped": 0
       },
@@ -636,7 +702,7 @@
       },
       "tests/phase-8a-provider-routing.test.ts": {
         "status": "passed",
-        "tests": 8,
+        "tests": 9,
         "failed": 0,
         "skipped": 0
       },
@@ -852,7 +918,7 @@
       },
       "tests/telestar-ai-constitution.test.ts": {
         "status": "passed",
-        "tests": 3,
+        "tests": 7,
         "failed": 0,
         "skipped": 0
       },
@@ -995,17 +1061,17 @@
         "skipped": 0
       }
     },
-    "testFiles": 164,
-    "testFilesPassed": 164,
-    "testsPassed": 2059,
+    "testFiles": 175,
+    "testFilesPassed": 175,
+    "testsPassed": 2340,
     "testsFailed": 0,
     "testsSkipped": 0
   },
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/run3-08-vitest.log",
-      "sizeBytes": 451,
-      "sha256": "d75b85ea5d521a7a4ebf372c6731652dfa9d36c619c20e05840a7c64af851de9"
+      "sizeBytes": 443,
+      "sha256": "b948c859cc6e704f1b2f4122caad0bdf483b208dea5c9ea18f001cdbe860848d"
     }
   ]
 }

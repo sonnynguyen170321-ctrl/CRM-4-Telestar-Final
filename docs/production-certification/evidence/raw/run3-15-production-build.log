@@ -1,35 +1,34 @@
 # gate: 15-production-build — next build
 # command: C:\Program Files\nodejs\node.exe scripts/build.cjs
-# startedAt: 2026-08-20T03:24:18.654Z
-# finishedAt: 2026-08-20T03:25:31.844Z
+# startedAt: 2026-08-20T21:06:58.120Z
+# finishedAt: 2026-08-20T21:08:02.216Z
 # exitCode: 0
 
 --- stdout ---
-Environment variables loaded from .env
 Prisma schema loaded from prisma\schema.prisma
 
-✔ Generated Prisma Client (v6.2.1) to .\node_modules\@prisma\client in 2.37s
+✔ Generated Prisma Client (v6.2.1) to .\node_modules\@prisma\client in 2.31s
 
 Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
 
 Tip: Interested in query caching in just a few lines of code? Try Accelerate today! https://pris.ly/tip-3-accelerate
 
 ▲ Next.js 16.3.0 (Turbopack)
-- Environments: .env.local, .env
-✓ Running next.config.ts took 102ms
+- Environments: .env.local
+✓ Running next.config.ts took 75ms
 - Experiments (use with caution):
   · optimizePackageImports
 
   Creating an optimized production build ...
-✓ Compiled successfully in 21.4s
+✓ Compiled successfully in 17.6s
   Running TypeScript ...
-  Finished TypeScript in 30.0s ...
+  Finished TypeScript in 26.1s ...
   Collecting page data using 3 workers ...
-  Generating static pages using 3 workers (0/95) ...
-  Generating static pages using 3 workers (23/95) 
-  Generating static pages using 3 workers (47/95) 
-  Generating static pages using 3 workers (71/95) 
-✓ Generating static pages using 3 workers (95/95) in 4.8s
+  Generating static pages using 3 workers (0/96) ...
+  Generating static pages using 3 workers (24/96) 
+  Generating static pages using 3 workers (48/96) 
+  Generating static pages using 3 workers (72/96) 
+✓ Generating static pages using 3 workers (96/96) in 4.8s
   Finalizing page optimization ...
 
 Route (app)
@@ -73,6 +72,7 @@ Route (app)
 ├ ƒ /api/ai/onboarding
 ├ ƒ /api/ai/proposals
 ├ ƒ /api/ai/proposals/[id]
+├ ƒ /api/ai/status
 ├ ƒ /api/approvals
 ├ ƒ /api/approvals/[id]
 ├ ƒ /api/auth/[...nextauth]

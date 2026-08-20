@@ -1,14 +1,14 @@
 # verify-db-integrity
-# command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json --expect-counts C:\Users\admin\Desktop\Sonny & AI\clone-CRM-4-U-migration-main\.dr-artifacts\counts-2026-08-20T03-01-46-674Z.json
-# startedAt: 2026-08-20T03:03:58.586Z
-# finishedAt: 2026-08-20T03:04:04.904Z
+# command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json --expect-counts C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\.dr-artifacts\counts-2026-08-20T21-09-19-090Z.json
+# startedAt: 2026-08-20T21:09:28.120Z
+# finishedAt: 2026-08-20T21:09:29.465Z
 # exitCode: 0
 
 --- stdout ---
 {
-  "startedAt": "2026-08-20T03:03:59.149Z",
-  "finishedAt": "2026-08-20T03:04:04.867Z",
-  "database": "telestar_dr_drill_20260820t030146",
+  "startedAt": "2026-08-20T21:09:28.572Z",
+  "finishedAt": "2026-08-20T21:09:29.439Z",
+  "database": "telestar_dr_drill_20260820t210919",
   "status": "PASS",
   "checks": [
     {
@@ -22,7 +22,7 @@
       "key": "migrations",
       "title": "Migration ledger is complete and fully applied",
       "status": "PASS",
-      "detail": "50/50 migrations applied successfully (1 superseded rolled-back attempt(s), which is normal)",
+      "detail": "50/50 migrations applied successfully",
       "findings": []
     },
     {
@@ -55,19 +55,19 @@
     }
   ],
   "counts": {
-    "Tenant": 49910,
-    "User": 49256,
-    "Client": 33377,
-    "Campaign": 48772,
-    "Account": 38998,
-    "Contact": 30077,
-    "Lead": 287146,
-    "Task": 13370,
-    "Activity": 29061,
-    "Sequence": 32019,
-    "SequenceEnrollment": 18731,
-    "OutboundMessage": 132,
-    "ImportBatch": 6
+    "Tenant": 380,
+    "User": 409,
+    "Client": 281,
+    "Campaign": 379,
+    "Account": 349,
+    "Contact": 2318,
+    "Lead": 4110,
+    "Task": 121,
+    "Activity": 2380,
+    "Sequence": 250,
+    "SequenceEnrollment": 153,
+    "OutboundMessage": 8,
+    "ImportBatch": 7
   }
 }
 

@@ -1,35 +1,34 @@
 # gate: 15-production-build — next build
 # command: C:\Program Files\nodejs\node.exe scripts/build.cjs
-# startedAt: 2026-08-20T03:09:30.691Z
-# finishedAt: 2026-08-20T03:10:45.652Z
+# startedAt: 2026-08-20T20:54:28.486Z
+# finishedAt: 2026-08-20T20:55:36.350Z
 # exitCode: 0
 
 --- stdout ---
-Environment variables loaded from .env
 Prisma schema loaded from prisma\schema.prisma
 
-✔ Generated Prisma Client (v6.2.1) to .\node_modules\@prisma\client in 2.43s
+✔ Generated Prisma Client (v6.2.1) to .\node_modules\@prisma\client in 2.26s
 
 Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
 
-Tip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate
+Tip: Curious about the SQL queries Prisma ORM generates? Optimize helps you enhance your visibility: https://pris.ly/tip-2-optimize
 
 ▲ Next.js 16.3.0 (Turbopack)
-- Environments: .env.local, .env
-✓ Running next.config.ts took 316ms
+- Environments: .env.local
+✓ Running next.config.ts took 266ms
 - Experiments (use with caution):
   · optimizePackageImports
 
   Creating an optimized production build ...
-✓ Compiled successfully in 22.6s
+✓ Compiled successfully in 15.9s
   Running TypeScript ...
-  Finished TypeScript in 29.9s ...
+  Finished TypeScript in 32.2s ...
   Collecting page data using 3 workers ...
-  Generating static pages using 3 workers (0/95) ...
-  Generating static pages using 3 workers (23/95) 
-  Generating static pages using 3 workers (47/95) 
-  Generating static pages using 3 workers (71/95) 
-✓ Generating static pages using 3 workers (95/95) in 4.7s
+  Generating static pages using 3 workers (0/96) ...
+  Generating static pages using 3 workers (24/96) 
+  Generating static pages using 3 workers (48/96) 
+  Generating static pages using 3 workers (72/96) 
+✓ Generating static pages using 3 workers (96/96) in 4.4s
   Finalizing page optimization ...
 
 Route (app)
@@ -73,6 +72,7 @@ Route (app)
 ├ ƒ /api/ai/onboarding
 ├ ƒ /api/ai/proposals
 ├ ƒ /api/ai/proposals/[id]
+├ ƒ /api/ai/status
 ├ ƒ /api/approvals
 ├ ƒ /api/approvals/[id]
 ├ ƒ /api/auth/[...nextauth]

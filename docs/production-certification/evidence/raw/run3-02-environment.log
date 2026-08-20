@@ -6,7 +6,7 @@
   "postgres": {
     "host": "localhost",
     "port": "5432",
-    "database": "telestar_crm",
+    "database": "telestar_audit_e2e_test",
     "reachable": true,
     "appliedMigrations": 50
   },
@@ -18,7 +18,7 @@
   "configuration": {
     "AUTH_SECRET": "present",
     "ENCRYPTION_KEY": "present",
-    "EMAIL_SEND_DRY_RUN": "true"
+    "EMAIL_SEND_DRY_RUN": "1"
   },
   "problems": [],
   "status": "PASS"

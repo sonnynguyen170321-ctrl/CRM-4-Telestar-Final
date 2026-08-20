@@ -1,0 +1,23 @@
+[worker] starting...
+[worker] NODE_ENV=undefined
+[worker] REDIS_URL=set
+[worker] DIRECT_URL=set
+[worker] release: unknown (image built without build args — not a published release)
+[worker] registered: healthcheck
+[worker] registered: sequence
+[worker] registered: email
+[worker] registered: notification
+[worker] registered: maintenance
+[worker] registered: sync
+[worker] registered: import
+[worker] registered: agent
+[bullmq] Redis connected
+[worker] ready: maintenance
+[worker] ready: sequence
+[worker] ready: email
+[worker] ready: notification
+[worker] ready: maintenance
+[worker] ready: sync
+[worker] ready: import
+[worker] ready: agent
+[worker] ready

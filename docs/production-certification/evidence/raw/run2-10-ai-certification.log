@@ -1,18 +1,18 @@
 # gate: 10-ai-certification — AI durable budget, stream governance, shared circuit, capability routing
 # command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/ai-durable-budget.test.ts tests/ai-stream-governance.test.ts tests/ai-shared-circuit.test.ts tests/ai-capability-routing.test.ts tests/ai-structured-budget.test.ts tests/ai-down-resilience.test.ts
-# startedAt: 2026-08-20T03:15:53.706Z
-# finishedAt: 2026-08-20T03:16:01.393Z
+# startedAt: 2026-08-20T21:00:03.696Z
+# finishedAt: 2026-08-20T21:00:10.672Z
 # exitCode: 0
 
 --- stdout ---
 
- RUN  v4.1.10 C:/Users/admin/Desktop/Sonny & AI/clone-CRM-4-U-migration-main
+ RUN  v4.1.10 C:/Users/admin/Desktop/Sonny & AI/CRM-4-Telestar-Final
 
 
  Test Files  6 passed (6)
-      Tests  72 passed (72)
-   Start at  10:15:54
-   Duration  6.81s (transform 791ms, setup 1.51s, import 3.00s, tests 12.54s, environment 1ms)
+      Tests  75 passed (75)
+   Start at  04:00:04
+   Duration  6.16s (transform 811ms, setup 1.85s, import 4.38s, tests 9.27s, environment 1ms)
 
 
 --- stderr ---
