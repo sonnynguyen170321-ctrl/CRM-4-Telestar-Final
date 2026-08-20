@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { estimateTokenCost, estimateCallCost, hasTokenRate } from '@/lib/ai/pricing';
-import { MODEL_LABELS } from '@/lib/ai/provider';
+import { SELECTABLE_MODEL_IDS } from '@/lib/ai/models';
 
 /**
  * AI cost attribution (Revenue AI Phase 1).
@@ -35,15 +35,15 @@ describe('pricing', () => {
   it('every selectable model has a rate', () => {
     // A model the UI offers but pricing does not know produces a null cost on every call
     // it serves — a silent hole in exactly the number Phase 10 reports.
-    for (const model of Object.keys(MODEL_LABELS)) {
+    for (const model of SELECTABLE_MODEL_IDS) {
       expect(hasTokenRate(model), `no rate for ${model}`).toBe(true);
     }
   });
 
   it('computes token cost from separate input and output rates', () => {
-    // llama-3.3-70b: $0.59/M in, $0.79/M out.
-    const cost = estimateTokenCost('llama-3.3-70b-versatile', 1_000_000, 1_000_000);
-    expect(cost).toBeCloseTo(1.38, 6);
+    // Groq GPT-OSS 20B: $0.10/M in, $0.50/M out.
+    const cost = estimateTokenCost('openai/gpt-oss-20b', 1_000_000, 1_000_000);
+    expect(cost).toBeCloseTo(0.6, 6);
   });
 
   it('returns null for an unknown model rather than guessing', () => {
@@ -58,7 +58,7 @@ describe('pricing', () => {
   });
 
   it('rounds to the six decimal places the column stores', () => {
-    const cost = estimateTokenCost('llama-3.1-8b-instant', 1, 1);
+    const cost = estimateTokenCost('gemini-3.6-flash', 1, 1);
     expect(cost).not.toBeNull();
     expect(String(cost).split('.')[1]?.length ?? 0).toBeLessThanOrEqual(6);
   });
@@ -79,7 +79,7 @@ describe('recordAiCall', () => {
       leadId: 'lead-1',
       workOrderId: 'wo-1',
       provider: 'groq',
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-20b',
       promptTokens: 1000,
       completionTokens: 500,
       totalTokens: 1500,
@@ -94,7 +94,7 @@ describe('recordAiCall', () => {
       workOrderId: 'wo-1',
       operation: 'chat',
       provider: 'groq',
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-20b',
       promptTokens: 1000,
       completionTokens: 500,
       totalTokens: 1500,
@@ -118,7 +118,7 @@ describe('recordAiCall', () => {
     await recordAiCall({
       ...base,
       provider: 'groq',
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-20b',
       status: 'rate_limited',
       errorCode: '429',
     });
@@ -134,7 +134,7 @@ describe('recordAiCall', () => {
     // Accounting is not worth failing an SDR's question over. This runs inside the AI
     // request path, so a throw here would surface as a broken answer.
     await expect(
-      recordAiCall({ ...base, provider: 'groq', model: 'llama-3.3-70b-versatile' })
+      recordAiCall({ ...base, provider: 'groq', model: 'openai/gpt-oss-20b' })
     ).resolves.not.toThrow();
   });
 
@@ -144,7 +144,7 @@ describe('recordAiCall', () => {
       ...base,
       tenantId: undefined,
       provider: 'groq',
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-20b',
       promptTokens: 100,
       completionTokens: 100,
     })).estimatedCostUsd;
@@ -177,7 +177,7 @@ describe('withAiCallRecording', () => {
     userId: 'user-1',
     operation: 'briefing',
     provider: 'groq' as const,
-    model: 'llama-3.3-70b-versatile',
+    model: 'openai/gpt-oss-20b',
   };
 
   it('records usage and latency on success', async () => {

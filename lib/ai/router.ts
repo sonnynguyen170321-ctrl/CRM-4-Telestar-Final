@@ -168,10 +168,20 @@ function filterCandidates(
   return { eligible, rejected };
 }
 
-/** Preference order per tier. Ranking only ever reorders models that already qualified. */
-const DEEP_TIER = ['gpt-5.6-sol', 'gemini-pro-latest', 'gpt-5.6-terra'];
-const FAST_TIER = ['gpt-5.6-luna', 'llama-3.1-8b-instant', 'llama-3.3-70b-versatile', 'gemini-flash-latest'];
-const STANDARD_TIER = ['gpt-5.6-terra', 'gemini-flash-latest', 'llama-3.3-70b-versatile'];
+/**
+ * Preference order per tier. Ranking only ever reorders models that already qualified.
+ *
+ * Three models, so every tier lists all three — the tiers express *which one leads*, and the
+ * remainder is the failover chain. Listing every approved model in every tier is what keeps a
+ * single-provider outage from making a tier unroutable.
+ *
+ *   deep     — high context and long-document work leads with Gemini's million-token window.
+ *   fast     — latency-sensitive and background work leads with Groq.
+ *   standard — interactive CRM conversation and tool execution leads with Luna.
+ */
+const DEEP_TIER = ['gemini-3.6-flash', 'gpt-5.6-luna', 'openai/gpt-oss-20b'];
+const FAST_TIER = ['openai/gpt-oss-20b', 'gpt-5.6-luna', 'gemini-3.6-flash'];
+const STANDARD_TIER = ['gpt-5.6-luna', 'gemini-3.6-flash', 'openai/gpt-oss-20b'];
 
 function preferenceOrder(criteria: RoutingCriteria): { aliases: string[]; rationale: string } {
   if (
@@ -273,7 +283,9 @@ function summariseRejections(rejected: Rejection[]): string {
 }
 
 export function routeModel(criteria: RoutingCriteria, options: RoutingOptions = {}): RoutingDecision {
-  if (!criteria.preferredModel) return decide(criteria, options);
+  // 'auto' is the product's way of saying "no preference" — the default every SDR sees. It is
+  // not a model, so it must not reach `findModelMetadata` and be reported as unknown.
+  if (!criteria.preferredModel || criteria.preferredModel === 'auto') return decide(criteria, options);
 
   const requested = findModelMetadata(criteria.preferredModel);
 

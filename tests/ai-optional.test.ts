@@ -153,11 +153,15 @@ describe('AI is an optional layer, not a CRM dependency', () => {
   it('no Client Component imports a server-side AI module', () => {
     // `next build` is the only gate that catches this, and it catches it as a wall of
     // "Can't resolve 'async_hooks' / 'dns' / 'net'" — tsc and vitest both pass, because
-    // the problem is bundling, not types. provider.ts and usage.ts reach the database;
-    // tools.ts calls internal APIs. A "use client" file may import model constants from
-    // lib/ai/models.ts, which is import-free for exactly this reason.
+    // the problem is bundling, not types. gateway.ts and usage.ts reach the database;
+    // tools.ts calls domain services. A "use client" file may import model constants from
+    // lib/ai/models.ts and the conversation types from lib/ai/conversation.ts, both of which
+    // are import-free for exactly this reason.
     const SERVER_ONLY_AI = [
-      '@/lib/ai/provider',
+      '@/lib/ai/gateway',
+      '@/lib/ai/chatRuntime',
+      '@/lib/ai/generation',
+      '@/lib/ai/providerAdapters',
       '@/lib/ai/usage',
       '@/lib/ai/tools',
       // Prisma-backed: reads AutonomyPolicy. lib/agent/capabilities.ts and

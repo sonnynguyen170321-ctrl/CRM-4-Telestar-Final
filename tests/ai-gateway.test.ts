@@ -10,52 +10,73 @@ describe('Phase 1: Central Model Registry & Smart Routing', () => {
     circuitBreaker.reset();
   });
 
-  it('resolves model metadata accurately from aliases and modelIds', () => {
-    const terra = getModelMetadata('gpt-5.6-terra');
-    expect(terra.provider).toBe('openai');
-    expect(terra.supportsTools).toBe(true);
-    expect(terra.qualityTier).toBe('advanced');
-
+  it('resolves model metadata for each approved production model', () => {
     const luna = getModelMetadata('gpt-5.6-luna');
-    expect(luna.costTier).toBe('ultra_low');
-    expect(luna.latencyTier).toBe('instant');
+    expect(luna.provider).toBe('openai');
+    expect(luna.supportsTools).toBe(true);
+    expect(luna.qualityTier).toBe('advanced');
 
-    const sol = getModelMetadata('gpt-5.6-sol');
-    expect(sol.purpose).toBe('deep_analysis');
-    expect(sol.qualityTier).toBe('deep_reasoning');
+    const gemini = getModelMetadata('gemini-3.6-flash');
+    expect(gemini.provider).toBe('google');
+    expect(gemini.contextLimit).toBeGreaterThanOrEqual(1_000_000);
+
+    const groq = getModelMetadata('openai/gpt-oss-20b');
+    expect(groq.provider).toBe('groq');
+    expect(groq.latencyTier).toBe('instant');
   });
 
-  it('routes deep complexity and strategic tasks to Sol/reasoning tier', () => {
+  it('routes deep, high-context work to the million-token model', () => {
     const decision = routeModel({
       task: 'Analyze cross-campaign client churn and suggest multi-variable recovery',
       complexity: 'deep',
       businessImportance: 'critical',
     });
 
-    expect(decision.primaryModel.modelId).toBe(MODEL_REGISTRY['gpt-5.6-sol'].modelId);
+    expect(decision.primaryModel.modelId).toBe(MODEL_REGISTRY['gemini-3.6-flash'].modelId);
     expect(decision.fallbackModels.length).toBeGreaterThan(0);
-    expect(decision.fallbackModels.some((m) => m.provider === 'google')).toBe(true);
+    expect(decision.fallbackModels.some((m) => m.provider === 'openai')).toBe(true);
   });
 
-  it('routes low complexity extraction/classification to Luna/fast tier', () => {
+  it('routes latency-sensitive classification to the fast tier', () => {
     const decision = routeModel({
       task: 'Classify email sentiment',
       complexity: 'low',
       requiresTools: false,
     });
 
-    expect(['gpt-4o-mini', 'llama-3.1-8b-instant', 'llama-3.3-70b-versatile']).toContain(
-      decision.primaryModel.modelId
-    );
+    expect(decision.primaryModel.modelId).toBe(MODEL_REGISTRY['openai/gpt-oss-20b'].modelId);
   });
 
-  it('routes interactive SDR/CRM tool execution to Terra/flagship tier', () => {
+  it('routes interactive SDR/CRM tool execution to the primary reasoning model', () => {
     const decision = routeModel({
       task: 'Prepare meeting briefing and execute lead status updates',
       requiresTools: true,
     });
 
-    expect(decision.primaryModel.modelId).toBe(MODEL_REGISTRY['gpt-5.6-terra'].modelId);
+    expect(decision.primaryModel.modelId).toBe(MODEL_REGISTRY['gpt-5.6-luna'].modelId);
+  });
+
+  it('every tier lists all three approved models, so one outage cannot empty a tier', () => {
+    // Not decoration: a two-model tier plus one dead provider is a tier that can only fail,
+    // which is what a chat path that could reach exactly one withdrawn model amounted to.
+    for (const criteria of [
+      { task: 'deep', complexity: 'deep' as const },
+      { task: 'fast', complexity: 'low' as const },
+      { task: 'standard' },
+    ]) {
+      const decision = routeModel(criteria);
+      const chain = [decision.primaryModel, ...decision.fallbackModels];
+      expect(chain).toHaveLength(Object.keys(MODEL_REGISTRY).length);
+      expect(new Set(chain.map((m) => m.provider)).size).toBe(3);
+    }
+  });
+
+  it("treats 'auto' as no preference rather than an unknown model", () => {
+    // 'auto' is the product default every SDR sees. Reporting it as unroutable — or attaching
+    // a `fallbackNotice` claiming a substitution happened — would be wrong on both counts.
+    const decision = routeModel({ task: 'chat', preferredModel: 'auto' });
+    expect(decision.fallbackNotice).toBeUndefined();
+    expect(decision.primaryModel.modelId).toBe(MODEL_REGISTRY['gpt-5.6-luna'].modelId);
   });
 });
 
@@ -79,8 +100,8 @@ describe('Phase 1: Circuit Breakers & Failover Isolation', () => {
 
   it('immediately opens circuit on rate limit signal', () => {
     expect(circuitBreaker.isAvailable('groq')).toBe(true);
-    circuitBreaker.recordFailure('groq', 'llama-3.3-70b-versatile', true);
-    expect(circuitBreaker.isAvailable('groq', 'llama-3.3-70b-versatile')).toBe(false);
+    circuitBreaker.recordFailure('groq', 'openai/gpt-oss-20b', true);
+    expect(circuitBreaker.isAvailable('groq', 'openai/gpt-oss-20b')).toBe(false);
   });
 
   it('routes around broken providers automatically when circuit is OPEN', () => {

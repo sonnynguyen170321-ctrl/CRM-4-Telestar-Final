@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { X, Send, Copy, ThumbsUp, ThumbsDown, ChevronDown, Sparkles } from 'lucide-react';
-import { MODEL_LABELS, MODEL_DESCRIPTIONS, DEFAULT_MODEL } from '@/lib/ai/models';
+import { MODEL_LABELS, MODEL_DESCRIPTIONS, DEFAULT_MODEL, SELECTABLE_MODEL_IDS, isKnownModelId } from '@/lib/ai/models';
 import type { ModelId } from '@/lib/ai/models';
 import { resolveTurnExecutionId, type FailedTurn } from '@/lib/ai/executionId';
 
@@ -16,7 +16,14 @@ interface Message {
   executionId?: string;
 }
 
-const MODELS = Object.keys(MODEL_LABELS) as ModelId[];
+/**
+ * Auto first, then the three approved models.
+ *
+ * The picker used to be built from every key in `MODEL_LABELS`, which is how it went on
+ * offering three withdrawn Groq models long after they stopped answering. Listing Auto first
+ * and defaulting to it means the normal SDR never has to know which provider is healthy.
+ */
+const MODELS: ModelId[] = ['auto', ...SELECTABLE_MODEL_IDS];
 
 const MEMORY_TRIGGERS = [
   'remember', 'i prefer', 'always', 'never again', 'my client', 'my campaign',
@@ -26,6 +33,40 @@ const MEMORY_TRIGGERS = [
 function detectMemoryIntent(text: string): boolean {
   const lower = text.toLowerCase();
   return MEMORY_TRIGGERS.some((t) => lower.includes(t));
+}
+
+/** Carries the status code so the copy below can distinguish a session drop from an outage. */
+class HttpError extends Error {
+  constructor(public readonly status: number) {
+    super(`HTTP ${status}`);
+    this.name = 'HttpError';
+  }
+}
+
+/**
+ * What the SDR reads when the request itself failed.
+ *
+ * A status code is not an explanation, and "Sorry, I hit an issue: HTTP 401" tells the reader
+ * nothing they can act on. Each case here maps to something they can actually do next.
+ */
+function messageForRequestError(err: unknown): string {
+  if (err instanceof HttpError) {
+    if (err.status === 401 || err.status === 403) {
+      return 'Your session expired. Refresh the page and sign in again.';
+    }
+    if (err.status === 413) {
+      return 'This conversation has gotten too long. Start a new chat and I will pick it up from there.';
+    }
+    if (err.status === 400) {
+      return "I couldn't read that message. Try rephrasing it.";
+    }
+    if (err.status === 429) {
+      return 'Telestar AI is temporarily at capacity. Try that again shortly.';
+    }
+    return 'Telestar AI is temporarily unavailable. The rest of the CRM is still working.';
+  }
+  // A network drop, an aborted request, or the tab going offline all land here.
+  return "I couldn't reach Telestar AI. Check your connection and try that again.";
 }
 
 function getContextChips(page: string, hasLead: boolean): string[] {
@@ -103,8 +144,11 @@ export default function AiAssistant() {
 
       const modelMem = mems.find((m) => m.startsWith('preferred_model: '));
       if (modelMem) {
-        const saved = modelMem.replace('preferred_model: ', '') as ModelId;
-        if (MODELS.includes(saved)) setModelId(saved);
+        // A stored preference for a model this build no longer recognises is ignored rather
+        // than sent. That is how `llama-3.3-70b-versatile` outlived its own withdrawal: it sat
+        // in a memory row and was replayed into every request.
+        const saved = modelMem.replace('preferred_model: ', '');
+        if (isKnownModelId(saved)) setModelId(saved);
       }
     }
 
@@ -299,7 +343,7 @@ export default function AiAssistant() {
         }),
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new HttpError(res.status);
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -318,24 +362,39 @@ export default function AiAssistant() {
         });
       }
 
+      // A 200 that streamed nothing still leaves an empty bubble and a stuck-looking panel.
+      // Say something, and treat the turn as failed so resending it retries rather than
+      // duplicating.
+      if (assistantContent.trim().length === 0) {
+        failedTurnRef.current = { content, executionId };
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[assistantIdx] = {
+            role: 'assistant',
+            content: "I couldn't finish that response. Try that again.",
+          };
+          return updated;
+        });
+        return;
+      }
+
       // The turn completed, so a later message with the same text is a new turn, not a retry.
       failedTurnRef.current = null;
-
-      // Detect if AI says it will remember something and save it
-      if (/i.?ll remember|noted|got it|i.?ve saved/i.test(assistantContent) && detectMemoryIntent(content)) {
-        // Already saved above
-      }
     } catch (err) {
       // Keep the namespace so resending the same message retries this turn.
       failedTurnRef.current = { content, executionId };
-      const msg = err instanceof Error ? err.message : 'Something went wrong.';
       setMessages((prev) => {
         const updated = [...prev];
-        updated[assistantIdx] = { role: 'assistant', content: `Sorry, I hit an issue: ${msg}. Try again in a moment.` };
+        updated[assistantIdx] = { role: 'assistant', content: messageForRequestError(err) };
         return updated;
       });
     } finally {
+      // Always clears, on every path — a stuck `true` here disables the input and the send
+      // button permanently, which reads as the whole assistant being broken.
       setIsStreaming(false);
+      // The textarea was disabled while streaming, so the browser moved focus off it. Putting
+      // it back is what lets a failed turn be retried by typing, without reaching for the mouse.
+      setTimeout(() => inputRef.current?.focus(), 0);
     }
   }
 
@@ -442,6 +501,15 @@ export default function AiAssistant() {
       {/* Expanded chat panel */}
       {isOpen && (
         <div
+          role="dialog"
+          aria-label={assistantName}
+          onKeyDown={(e) => {
+            // Escape closes the panel — but only when a menu is not the thing that should
+            // close first, or the SDR loses the whole conversation reaching for the menu.
+            if (e.key !== 'Escape') return;
+            if (showModelMenu) setShowModelMenu(false);
+            else setIsOpen(false);
+          }}
           className="ai-chat-panel fixed bottom-6 right-6 z-50 flex flex-col bg-white dark:bg-[#111] border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-2xl"
           style={{ width: 390, height: 560 }}
         >
@@ -462,14 +530,23 @@ export default function AiAssistant() {
                 <button
                   onClick={() => setShowModelMenu((v) => !v)}
                   className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-zinc-800"
+                  aria-haspopup="menu"
+                  aria-expanded={showModelMenu}
+                  aria-label={`AI model: ${MODEL_LABELS[modelId]}. Change model`}
                 >
-                  {MODEL_LABELS[modelId]} <ChevronDown size={12} />
+                  {MODEL_LABELS[modelId]} <ChevronDown size={12} aria-hidden="true" />
                 </button>
                 {showModelMenu && (
-                  <div className="absolute bottom-8 right-0 w-72 bg-[#1A1A1A] border border-zinc-700 rounded-xl shadow-2xl overflow-hidden z-10">
+                  <div
+                    role="menu"
+                    aria-label="AI model"
+                    className="absolute bottom-8 right-0 w-72 bg-[#1A1A1A] border border-zinc-700 rounded-xl shadow-2xl overflow-hidden z-10"
+                  >
                     {MODELS.map((id) => (
                       <button
                         key={id}
+                        role="menuitemradio"
+                        aria-checked={id === modelId}
                         onClick={() => handleModelChange(id)}
                         className={`w-full text-left px-3 py-2.5 hover:bg-zinc-800 transition-colors ${id === modelId ? 'bg-zinc-800' : ''}`}
                       >
@@ -480,14 +557,25 @@ export default function AiAssistant() {
                   </div>
                 )}
               </div>
-              <button onClick={() => setIsOpen(false)} className="text-zinc-400 hover:text-white transition-colors">
-                <X size={18} />
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-zinc-400 hover:text-white transition-colors"
+                aria-label={`Close ${assistantName}`}
+              >
+                <X size={18} aria-hidden="true" />
               </button>
             </div>
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ background: '#FAFAFA' }}>
+          <div
+            className="flex-1 overflow-y-auto px-4 py-3 space-y-3"
+            style={{ background: '#FAFAFA' }}
+            role="log"
+            aria-label="Conversation"
+            aria-live="polite"
+            aria-busy={isStreaming}
+          >
             {messages.length === 0 && (
               <div className="text-center text-zinc-600 text-sm mt-4 space-y-3">
                 <div className="font-bold text-zinc-800 text-base">👋 Hey {firstName}!</div>
@@ -519,7 +607,9 @@ export default function AiAssistant() {
                     }`}
                   >
                     {msg.role === 'assistant' && isStreaming && idx === messages.length - 1 && msg.content === '' ? (
-                      <span className="flex gap-1 items-center py-0.5">
+                      // The dots carry the state visually; the label carries it for a screen
+                      // reader and for anyone who cannot distinguish the animation.
+                      <span className="flex gap-1 items-center py-0.5" role="status" aria-label="Generating a response">
                         <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 ai-typing-dot" style={{ animationDelay: '0ms' }} />
                         <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 ai-typing-dot" style={{ animationDelay: '150ms' }} />
                         <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 ai-typing-dot" style={{ animationDelay: '300ms' }} />
@@ -616,6 +706,7 @@ export default function AiAssistant() {
                 placeholder="Ask me anything..."
                 rows={1}
                 disabled={isStreaming}
+                aria-label={`Message ${assistantName}`}
                 className="flex-1 bg-transparent text-sm text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 resize-none border-0 outline-none leading-snug"
                 style={{ maxHeight: 80, overflowY: 'auto' }}
               />

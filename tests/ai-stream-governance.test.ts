@@ -65,7 +65,8 @@ function usage(prompt = 100, completion = 50): FakeChunk['usage'] {
 interface ProviderStreamHost {
   openProviderStream: (
     model: unknown,
-    opts: unknown,
+    messages: unknown,
+    adapterOptions: unknown,
     signal: AbortSignal,
   ) => AsyncGenerator<FakeChunk>;
 }
@@ -78,7 +79,7 @@ function stubProviderStream(
   let attempt = 0;
   return vi
     .spyOn(gateway as unknown as ProviderStreamHost, 'openProviderStream')
-    .mockImplementation((_model, _opts, signal) => {
+    .mockImplementation((_model, _messages, _adapterOptions, signal) => {
       attempt += 1;
       return impl(signal, attempt);
     });
@@ -90,9 +91,22 @@ async function drain(stream: AsyncGenerator<string>): Promise<string[]> {
   return pieces;
 }
 
+const originalKeys = {
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+  GROQ_API_KEY: process.env.GROQ_API_KEY,
+};
+
 beforeEach(async () => {
   recordedCalls.length = 0;
   circuitBreaker.reset();
+  // Routing skips a provider with no credentials in this process, so without these the router
+  // would find nothing to route to and every test here would assert against the degraded
+  // message instead of the governance it is about. The provider stream itself is stubbed —
+  // these keys are never used to reach anyone.
+  process.env.OPENAI_API_KEY = 'test-openai-key';
+  process.env.GEMINI_API_KEY = 'test-gemini-key';
+  process.env.GROQ_API_KEY = 'test-groq-key';
   // These tests deliberately make providers fail, and the gateway publishes those failures
   // to shared circuit state. Without a namespace of its own this file would open every
   // circuit for every other suite running in parallel - and inherit theirs.
@@ -113,6 +127,10 @@ afterEach(() => {
 });
 
 afterAll(async () => {
+  for (const [key, original] of Object.entries(originalKeys)) {
+    if (original) process.env[key] = original;
+    else delete process.env[key];
+  }
   await clearSharedCircuits();
   __setCircuitNamespace(null);
   await clearBudgetReservations(TENANT);
@@ -207,7 +225,7 @@ describe('provider failure', () => {
 
     expect(pieces.join('')).toContain('temporarily unavailable');
     expect(recordedCalls.every((call) => call.status === 'unavailable')).toBe(true);
-    expect(recordedCalls[0]).toMatchObject({ errorCode: 'provider_timeout' });
+    expect(recordedCalls[0]).toMatchObject({ errorCode: 'timeout' });
 
     const state = await getTenantBudgetState(TENANT);
     expect(state.reservedUsd).toBeCloseTo(0, 6);

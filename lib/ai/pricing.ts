@@ -11,18 +11,29 @@
  * finds again when it changes.
  */
 
+import { MODEL_REGISTRY, findModelMetadata } from './registry';
+
 /** USD per 1M tokens, per model. */
 type TokenRate = { inputPerMillion: number; outputPerMillion: number };
 
-const TOKEN_RATES: Record<string, TokenRate> = {
-  // Groq — published rates as of 2026-08.
-  'llama-3.3-70b-versatile': { inputPerMillion: 0.59, outputPerMillion: 0.79 },
-  'llama-3.1-8b-instant': { inputPerMillion: 0.05, outputPerMillion: 0.08 },
-  'gemma2-9b-it': { inputPerMillion: 0.2, outputPerMillion: 0.2 },
-  // Google.
-  'gemini-flash-latest': { inputPerMillion: 0.1, outputPerMillion: 0.4 },
-  'gemini-2.0-flash': { inputPerMillion: 0.1, outputPerMillion: 0.4 },
-};
+/**
+ * Rates come from the model registry, not a second table beside it.
+ *
+ * A separate price list is a second source of truth about the same three models, and it drifts
+ * the moment one of them changes: this table used to name `llama-3.3-70b-versatile`,
+ * `gemma2-9b-it` and `gemini-flash-latest` — none of which the product calls any more — while
+ * knowing nothing about the models it actually does call. Every such call priced at `null`,
+ * which meant a zero-cost budget reconciliation and a spend report that read as free.
+ */
+const TOKEN_RATES: Record<string, TokenRate> = Object.fromEntries(
+  Object.values(MODEL_REGISTRY).map((model) => [
+    model.modelId,
+    {
+      inputPerMillion: model.costPer1kInputUsd * 1000,
+      outputPerMillion: model.costPer1kOutputUsd * 1000,
+    },
+  ]),
+);
 
 /** USD per call, for providers that bill per request rather than per token. */
 const CALL_RATES: Record<string, number> = {
@@ -39,7 +50,10 @@ export function estimateTokenCost(
   promptTokens: number | null | undefined,
   completionTokens: number | null | undefined
 ): number | null {
-  const rate = TOKEN_RATES[model];
+  // Accept a registry alias as well as the raw model id, so a caller that recorded one and a
+  // report that queries the other agree. They are the same string today, and the lookup keeps
+  // that from being load-bearing.
+  const rate = TOKEN_RATES[model] ?? TOKEN_RATES[findModelMetadata(model)?.modelId ?? ''];
   if (!rate) return null;
   const input = ((promptTokens ?? 0) / 1_000_000) * rate.inputPerMillion;
   const output = ((completionTokens ?? 0) / 1_000_000) * rate.outputPerMillion;
@@ -60,5 +74,5 @@ function round6(n: number): number {
 
 /** Exposed for the pricing-coverage test: every model the app can select must have a rate. */
 export function hasTokenRate(model: string): boolean {
-  return model in TOKEN_RATES;
+  return model in TOKEN_RATES || !!findModelMetadata(model);
 }
