@@ -12,14 +12,41 @@ plan: ./PLAN.md
 Branch: `feat/agent-intelligence-os` · started 2026-08-20 · stacked on
 `fix/telestar-ai-three-provider` (PR #98, unmerged).
 
-**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phases 0–4 complete of 9.
+**Verdict: `TELESTAR ENGINEERING INTELLIGENCE OS: NOT GREEN`** — phases 0–5 complete of 9.
 
 ---
 
 ## Current phase
 
-**Phase 5 — engineering skill portfolio.** The routing targets exist and are tested;
-the skills they point at are still `status: planned`. See `PLAN.md` phase 5.
+**Phase 6 — drift prevention and project-truth CI.** Next task is `agent check` and
+`agent knowledge-audit`. See `PLAN.md` phase 6.
+
+### Phase 5 result — 2026-08-20
+
+Fourteen skills written to the §VII contract and activated in the registry. Routing now
+resolves to content rather than to a placeholder.
+
+Token cost, measured by `agent context-audit`:
+
+| Band | Skills |
+|---|---|
+| at or under the 800 target | 10 |
+| 800–1,200 (review band) | 4 — `telestar-ai` 919, `production-release` 892, `auth-rbac-tenancy` 870, `data-prisma` 863 |
+| over 1,200 (hard threshold) | **0** |
+
+The four in the review band are the domains carrying the most hard-won failure detail. They
+stay whole for now; if any crosses 1,200 the supporting reference material splits out of the
+core rather than riding along on every load.
+
+Each skill records what actually went wrong here, not generic advice: the withdrawn model id,
+the migration that sorts before its tables, the `.passthrough()` that accepted a key the prompt
+never read, the delete-and-recreate that silently reschedules every in-flight lead, the client
+report that must never carry a rep name.
+
+`tests/agent-skills.test.ts` holds the registry honest in both directions — no entry without a
+file (which would route an agent to nothing, silently), and no file without an entry (knowledge
+nobody loads, drifting unread). It also enforces one skill per domain, since two would make
+selection arbitrary.
 
 ### Phase 4 result — 2026-08-20
 
@@ -262,6 +289,11 @@ to break that loop.
 | 2026-08-20 | 4 | `vitest tests/agent-routing.test.ts` | **0** | 30 passed |
 | 2026-08-20 | 4 | `tsc --noEmit` | **0** | 0 errors |
 | 2026-08-20 | 4 | `eslint .` | **0** | 0 errors, 11 warnings |
+| 2026-08-20 | 5 | `agent context-audit` | **0** | 14 skills, none over 1,200 tokens |
+| 2026-08-20 | 5 | `vitest agent-skills + agent-routing + agent-facts` | **0** | 101 passed |
+| 2026-08-20 | 5 | `agent brief --paths lib/sequences/engine.ts` | **0** | email-automation, R3, 1 skill |
+| 2026-08-20 | 5 | `tsc --noEmit` | **0** | 0 errors |
+| 2026-08-20 | 5 | `eslint .` | **0** | 0 errors, 11 warnings |
 
 Exit codes are captured from the tool itself, never from the tail of a pipe.
 

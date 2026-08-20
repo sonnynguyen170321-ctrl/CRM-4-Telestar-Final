@@ -95,18 +95,19 @@ R3 · ✅ never more than 3 skills · ✅ 30 routing evals pass · ✅ `tsc` 0, 
 
 ---
 
-## Phase 5 — Engineering skill portfolio (§VI, §VII, §VIII, §IX)
+## Phase 5 — Engineering skill portfolio ✅ (§VI, §VII, §VIII, §IX)
 
-Fourteen initial skills, each written to the §VII contract and held to the §XX budget.
+- [x] `product-workflows` · `data-prisma` · `auth-rbac-tenancy` · `api-contracts`
+- [x] `workers-durability` · `email-automation` · `email-deliverability`
+- [x] `leadgen-intelligence` · `revenue-intelligence` · `telestar-ai`
+- [x] `frontend-role-ux` · `testing-certification` · `production-release` · `security-observability`
+- [x] Each carries LOAD WHEN / DO NOT LOAD WHEN, source globs, invariants, known failure modes, required tests and eval cases
+- [x] All 14 flipped from `status: planned` to `active` in the registry
+- [x] `tests/agent-skills.test.ts` — registry integrity and the content contract
 
-- [ ] `product-workflows` · `data-prisma` · `auth-rbac-tenancy` · `api-contracts`
-- [ ] `workers-durability` · `email-automation` · `email-deliverability`
-- [ ] `leadgen-intelligence` · `revenue-intelligence` · `telestar-ai`
-- [ ] `frontend-role-ux` · `testing-certification` · `production-release` · `security-observability`
-- [ ] Each: LOAD WHEN / DO NOT LOAD WHEN, source globs, invariants, known failure modes, required tests, eval cases, source fingerprint
-
-**Acceptance:** every skill core ≤ 1,200 tokens; every skill has at least one eval case; no
-skill duplicates another's invariants.
+**Acceptance:** ✅ every skill under the 1,200-token hard threshold (largest 919, ten at or
+under target) · ✅ every skill has eval cases · ✅ one skill per domain, enforced · ✅ no
+registry entry without a file and no file without an entry · ✅ 101 agent-system tests pass.
 
 ---
 

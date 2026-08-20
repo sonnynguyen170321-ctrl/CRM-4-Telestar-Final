@@ -19,7 +19,7 @@ skills:
   - id: telestar-ai
     domain: telestar-ai
     risk: R3
-    status: planned
+    status: active
     load_when: gateway, routing, model registry, pricing, budget, agent tools, chat runtime
     do_not_load_when: an AI *page* layout change with no runtime behaviour — that is frontend-role-ux
     sources: [lib/ai/**, lib/agent/**, app/api/ai/**]
@@ -27,7 +27,7 @@ skills:
   - id: auth-rbac-tenancy
     domain: auth-rbac-tenancy
     risk: R4
-    status: planned
+    status: active
     load_when: roles, pod scoping, tenant filtering, session handling, admin membership changes
     do_not_load_when: a route that merely reads an already-scoped service
     sources: [lib/auth.ts, lib/auth/**, lib/podScoping.ts, lib/admin/**]
@@ -35,7 +35,7 @@ skills:
   - id: data-prisma
     domain: data-prisma
     risk: R3
-    status: planned
+    status: active
     load_when: schema change, migration, RLS, seed, relational integrity, transaction semantics
     do_not_load_when: an ordinary query through an existing service
     sources: [prisma/**, lib/prisma.ts, supabase/**]
@@ -43,7 +43,7 @@ skills:
   - id: workers-durability
     domain: workers-durability
     risk: R3
-    status: planned
+    status: active
     load_when: queue behaviour, retries, leases, idempotency, cron, job failure handling
     do_not_load_when: enqueueing from a route without changing job semantics
     sources: [workers/**, lib/queue/**]
@@ -51,7 +51,7 @@ skills:
   - id: email-automation
     domain: email-automation
     risk: R3
-    status: planned
+    status: active
     load_when: sequences, scheduling, enrolment, send windows, suppression, A/B variants
     do_not_load_when: mailbox health or reputation — that is email-deliverability
     sources: [lib/sequences/**, lib/automation/**, lib/email/**]
@@ -59,7 +59,7 @@ skills:
   - id: email-deliverability
     domain: email-deliverability
     risk: R3
-    status: planned
+    status: active
     load_when: domain/mailbox health, bounces, warmup, sending reputation
     do_not_load_when: what to send or when — that is email-automation
     sources: [lib/deliverability/**, app/api/email-health/**]
@@ -67,7 +67,7 @@ skills:
   - id: product-workflows
     domain: product-workflows
     risk: R2
-    status: planned
+    status: active
     load_when: leads, tasks, activities, stage lifecycle, notes, reminders
     do_not_load_when: the change is purely presentational
     sources: [lib/leads/**, lib/tasks/**, lib/activities/**]
@@ -75,7 +75,7 @@ skills:
   - id: api-contracts
     domain: api-contracts
     risk: R2
-    status: planned
+    status: active
     load_when: a new or changed route handler, validation, error envelope, rate limiting
     do_not_load_when: internal service refactor with no route surface change
     sources: [app/api/**, lib/api/**]
@@ -83,21 +83,21 @@ skills:
   - id: leadgen-intelligence
     domain: leadgen-intelligence
     risk: R2
-    status: planned
+    status: active
     load_when: sourcing, qualification, ICP adherence, lead pool, handoff to an SDR
     sources: [lib/leadgen/**, app/api/leadgen/**]
 
   - id: revenue-intelligence
     domain: revenue-intelligence
     risk: R2
-    status: planned
+    status: active
     load_when: opportunities, meetings, commercial signals, client reporting
     sources: [lib/revenue/**, lib/meetings/**, lib/reports/**]
 
   - id: frontend-role-ux
     domain: frontend-role-ux
     risk: R1
-    status: planned
+    status: active
     load_when: components, pages, role-scoped surfaces, design system, typography
     do_not_load_when: the change is in a service the component calls
     sources: [components/**, app/**/page.tsx, app/globals.css]
@@ -105,7 +105,7 @@ skills:
   - id: testing-certification
     domain: testing-certification
     risk: R3
-    status: planned
+    status: active
     load_when: test harness, fixtures, evidence collection, certification validators
     do_not_load_when: writing an ordinary test for a feature — the domain skill covers that
     sources: [tests/**, e2e/**, scripts/certification/**]
@@ -113,7 +113,7 @@ skills:
   - id: production-release
     domain: production-release
     risk: R4
-    status: planned
+    status: active
     load_when: compose topology, deployment, release identity, environment contract, CI gates
     do_not_load_when: read-only production diagnostics
     sources: [docker-compose*.yml, .github/workflows/**, scripts/prod-*]
@@ -121,7 +121,7 @@ skills:
   - id: security-observability
     domain: security-observability
     risk: R4
-    status: planned
+    status: active
     load_when: secrets handling, injection defence, audit trail, logging hygiene
     sources: [lib/crypto.ts, lib/audit/**]
 
