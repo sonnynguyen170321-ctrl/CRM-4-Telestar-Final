@@ -29,6 +29,7 @@ import { routeModel, UnroutableRequestError, type RoutingCriteria } from './rout
 import type { ModelMetadata, ModelProvider } from './registry';
 import { recordAiCall, type AiCallStatus } from './usage';
 import { checkAndReserveAiBudget, type BudgetReservation } from './budget';
+import { estimateMaxRequestCostUsd } from './pricing';
 import {
   streamGemini,
   streamGroq,
@@ -140,6 +141,8 @@ export type GatewayFailureKind =
   | 'timeout'
   | 'provider_outage'
   | 'budget_exceeded'
+  /** A registered model whose price will not resolve — a deployment fault, not a provider one. */
+  | 'pricing_unconfigured'
   | 'all_providers_unavailable';
 
 export class GatewayError extends Error {
@@ -370,22 +373,29 @@ export class AiGateway {
     opts: GatewayRequestOptions,
     toolLoop: { tools: GatewayToolDefinition[]; executeTool: GatewayToolExecutor } | null,
   ): AsyncGenerator<GatewayEvent> {
-    const reservation: BudgetReservation | null = await checkAndReserveAiBudget({
-      tenantId: this.tenantOf(opts),
-      estimatedCostUsd: 0.005,
-      operation: opts.operation || opts.criteria?.task || 'generate',
-      isEssential: opts.isEssential,
-    });
-
-    let settled = false;
-    const settleOnce = async (actualCostUsd: number | null): Promise<void> => {
-      if (settled || !reservation) return;
-      settled = true;
-      if (actualCostUsd === null) await reservation.release();
-      else await reservation.reconcile(actualCostUsd);
+    // Budget is reserved **per provider attempt**, not once per turn.
+    //
+    // One turn can bill two providers: OpenAI rate-limits after emitting 300 tokens, Gemini
+    // answers, and both calls appear on an invoice. The previous single reservation settled
+    // exactly once, so whichever attempt settled first was the only one the tenant's cap ever
+    // saw and the failed-over spend was invisible to governance. It also reserved a flat
+    // $0.005 regardless of model or prompt size — against a 1M-token Luna request priced at
+    // the long-context rate, an under-reservation of roughly a hundredfold.
+    //
+    // Each attempt now reserves its own conservative estimate and settles its own actual
+    // cost, including the partial usage of an attempt that failed mid-stream.
+    let activeReservation: BudgetReservation | null = null;
+    const settleActive = async (actualCostUsd: number | null): Promise<void> => {
+      const held = activeReservation;
+      if (!held) return;
+      activeReservation = null;
+      if (actualCostUsd === null) await held.release();
+      else await held.reconcile(actualCostUsd);
     };
 
     const attempts: GatewayAttempt[] = [];
+    /** Attempts that actually reached a provider. Drives first-attempt budget semantics. */
+    let providerAttempts = 0;
 
     try {
       // Pick up circuits other instances have opened before choosing a model.
@@ -408,7 +418,8 @@ export class AiGateway {
         modelsToTry = [route.primaryModel, ...route.fallbackModels];
       } catch (err) {
         if (!(err instanceof UnroutableRequestError)) throw err;
-        await settleOnce(null);
+        // Nothing is reserved yet — reservation now happens per attempt, and there has been
+        // no attempt.
         yield { kind: 'unavailable', reason: 'unroutable', attempts };
         return;
       }
@@ -419,6 +430,45 @@ export class AiGateway {
         if (!circuitBreaker.isAvailable(model.provider, model.modelId)) continue;
         // Exactly one instance probes a recovering provider.
         if (!(await circuitBreaker.tryEnterHalfOpen(model.provider, model.modelId))) continue;
+
+        let attemptEstimateUsd: number;
+        try {
+          attemptEstimateUsd = estimateAttemptCostUsd(model, opts);
+        } catch (err) {
+          // A registered model whose price will not resolve. Spending money the ledger cannot
+          // measure is worse than not answering, so this model is skipped rather than called
+          // at an unknown rate (§11: never reconcile a real call as $0).
+          await circuitBreaker.exitHalfOpen(model.provider, model.modelId);
+          attempts.push({
+            provider: model.provider,
+            model: model.modelId,
+            status: 'error',
+            aiCallId: null,
+            latencyMs: 0,
+            errorCode: 'pricing_unconfigured',
+          });
+          logGatewayFailure(opts, model, 'pricing_unconfigured', 0);
+          continue;
+        }
+
+        try {
+          activeReservation = await checkAndReserveAiBudget({
+            tenantId: this.tenantOf(opts),
+            estimatedCostUsd: attemptEstimateUsd,
+            operation: opts.operation || opts.criteria?.task || 'generate',
+            isEssential: opts.isEssential,
+          });
+        } catch (err) {
+          await circuitBreaker.exitHalfOpen(model.provider, model.modelId);
+          // On the first attempt the tenant is simply over its cap, and the caller is owed the
+          // same error it got before any provider was called. On a later attempt a provider has
+          // already billed real money for this turn, so the turn ends as unavailable rather
+          // than throwing on top of a completed, charged call.
+          if (providerAttempts === 0) throw err;
+          yield { kind: 'unavailable', reason: 'budget_exhausted', attempts };
+          return;
+        }
+        providerAttempts += 1;
 
         const startedAt = Date.now();
         const controller = new AbortController();
@@ -449,7 +499,7 @@ export class AiGateway {
             aiCallId: record.aiCallId,
             latencyMs: Date.now() - startedAt,
           });
-          await settleOnce(record.estimatedCostUsd ?? 0);
+          await settleActive(record.estimatedCostUsd ?? 0);
 
           yield {
             kind: 'done',
@@ -493,10 +543,15 @@ export class AiGateway {
 
           logGatewayFailure(opts, model, kind, Date.now() - startedAt);
 
+          // This attempt's own hold is settled at this attempt's own cost — zero when the
+          // provider failed before billing anything, the partial usage when it failed after.
+          // Settling here rather than once per turn is what keeps a failed-over attempt's
+          // spend inside the tenant's cap instead of only inside the AiCall ledger.
+          await settleActive(record.estimatedCostUsd ?? 0);
+
           if (produced) {
             // The consumer has already seen part of an answer. Failing over now would splice
             // two different completions together, so this stream ends here.
-            await settleOnce(record.estimatedCostUsd ?? 0);
             yield { kind: 'truncated', attempts };
             return;
           }
@@ -504,15 +559,15 @@ export class AiGateway {
         }
       }
 
-      await settleOnce(null);
       yield { kind: 'unavailable', reason: 'all_providers_failed', attempts };
     } finally {
-      // Consumer cancellation lands here: the generator was disposed before any path settled.
-      // Releasing the hold is what stops an abandoned stream from permanently consuming a
-      // slice of the tenant's budget.
-      if (!settled && reservation) {
-        settled = true;
-        await reservation.release();
+      // Consumer cancellation lands here: the generator was disposed mid-attempt, before that
+      // attempt could settle. Releasing the hold is what stops an abandoned stream from
+      // permanently consuming a slice of the tenant's budget.
+      if (activeReservation) {
+        const orphan = activeReservation;
+        activeReservation = null;
+        await orphan.release();
       }
     }
   }
@@ -640,6 +695,47 @@ export type GatewayEvent =
   | { kind: 'truncated'; attempts: GatewayAttempt[] }
   /** Nothing could serve the request. `attempts` says what was tried and why each failed. */
   | { kind: 'unavailable'; reason: string; attempts: GatewayAttempt[] };
+
+/**
+ * Characters per token, for a pre-flight estimate only.
+ *
+ * Four is the conventional English approximation and it is deliberately not tuned: this
+ * number sizes a *hold*, which is released or reconciled the moment the provider reports real
+ * usage. Being wrong high costs a tenant a few seconds of unavailable headroom; being wrong
+ * low lets a call walk through the cap.
+ */
+const CHARS_PER_TOKEN_ESTIMATE = 4;
+
+/** Prompt size a provider is about to be sent, in tokens, rounded up. */
+function estimatePromptTokens(opts: GatewayRequestOptions): number {
+  let chars = opts.systemPrompt?.length ?? 0;
+  for (const message of opts.messages) chars += message.content.length;
+  // Tool schemas are part of the prompt the provider bills for, and a full CRM tool set is
+  // not a rounding error against a short question.
+  if ('tools' in opts && Array.isArray((opts as ToolLoopOptions).tools)) {
+    chars += JSON.stringify((opts as ToolLoopOptions).tools).length;
+  }
+  return Math.ceil(chars / CHARS_PER_TOKEN_ESTIMATE);
+}
+
+/**
+ * The most this attempt could cost, for its budget reservation.
+ *
+ * Prices the prompt actually being sent plus the full output ceiling actually being
+ * requested, at the rate in force right now — including OpenAI's long-context multiplier when
+ * the prompt crosses 272K tokens. Throws `PricingConfigurationError` when the model's rates
+ * do not resolve, which the caller turns into "skip this model" rather than "call it at an
+ * unknown price".
+ */
+function estimateAttemptCostUsd(model: ModelMetadata, opts: GatewayRequestOptions): number {
+  const requestedOutputTokens =
+    opts.maxTokens ?? model.parameters.defaultMaxOutputTokens ?? model.maxOutputTokens;
+  return estimateMaxRequestCostUsd(
+    model.modelId,
+    estimatePromptTokens(opts),
+    requestedOutputTokens,
+  );
+}
 
 function accumulate(current: StreamUsage | null, next: StreamUsage): StreamUsage {
   if (!current) return next;

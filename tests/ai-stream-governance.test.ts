@@ -31,8 +31,18 @@ vi.mock('@/lib/ai/usage', async (importOriginal) => {
     ...actual,
     recordAiCall: vi.fn(async (record: Record<string, unknown>) => {
       recordedCalls.push(record);
-      // A fixed, non-zero cost so reconciliation is observable in the ledger.
-      return { estimatedCostUsd: 0.002, aiCallId: 'ai-call-test' };
+      // A non-zero cost when tokens were consumed, so reconciliation is observable — and
+      // zero when they were not.
+      //
+      // This used to return a flat 0.002 for every call, failures included. That was
+      // invisible while the gateway settled one reservation per turn, and wrong the moment it
+      // began settling per attempt: three providers failing before emitting a token billed
+      // $0.006 for tokens no provider produced. The real `estimateCost` prices null token
+      // counts at zero, and the fixture now says the same thing.
+      const consumed =
+        (record.promptTokens as number | null) !== null ||
+        (record.completionTokens as number | null) !== null;
+      return { estimatedCostUsd: consumed ? 0.002 : 0, aiCallId: 'ai-call-test' };
     }),
   };
 });
@@ -252,6 +262,37 @@ describe('consumer cancellation', () => {
     // The hold must not survive the abandoned stream, or an abandoned request would
     // permanently consume a slice of the tenant's budget.
     const state = await getTenantBudgetState(TENANT);
+    expect(state.reservedUsd).toBeCloseTo(0, 6);
+  });
+
+  it('charges both providers when a billable attempt fails over to another', async () => {
+    // The defect this pins: one turn, two provider round trips, both billed by their
+    // providers — and a budget that only ever heard about one of them.
+    //
+    // The gateway used to reserve once per turn and settle once per turn, so whichever
+    // attempt settled first was the only spend the tenant's cap ever saw. Provider A could
+    // consume tokens, fail, and hand the turn to provider B, and A's money simply never
+    // reached `TenantAiBudgetPeriod` — it existed in the AiCall ledger and nowhere that
+    // governed anything.
+    const gateway = new AiGateway();
+    stubProviderStream(gateway, async function* (_signal, attempt) {
+      if (attempt === 1) {
+        // Usage reported, no visible text — so this attempt is billable *and* may still fail
+        // over cleanly, which is exactly the case the single settlement lost.
+        yield { text: '', usage: usage() };
+        throw new Error('provider unreachable');
+      }
+      yield { text: 'second provider answered', usage: usage() };
+    });
+
+    const pieces = await drain(gateway.stream({ messages: [{ role: 'user', content: 'hi' }], sessionUser }));
+    expect(pieces.join('')).toContain('second provider answered');
+
+    const state = await getTenantBudgetState(TENANT);
+    // Two billable attempts at 0.002 each. Under the previous single-settlement design this
+    // read 0.002 — half the money actually spent.
+    expect(state.usedUsd).toBeCloseTo(0.004, 6);
+    // And nothing is left held: each attempt released or reconciled its own reservation.
     expect(state.reservedUsd).toBeCloseTo(0, 6);
   });
 
