@@ -29,6 +29,7 @@ const {
   correctClaim,
   retractClaim,
   expireLapsedClaims,
+  recordContactClaim,
   ClaimValidationError,
 } = await import('@/lib/memory/claims');
 
@@ -63,6 +64,10 @@ describe.skipIf(!hasDb)('commercial memory', () => {
   afterAll(async () => {
     await runSystem(async () => {
       await prisma.commercialClaim.deleteMany({ where: { tenantId: { in: [T, OTHER] } } });
+      await prisma.lead.deleteMany({ where: { tenantId: { in: [T, OTHER] } } });
+      await prisma.campaign.deleteMany({ where: { tenantId: { in: [T, OTHER] } } });
+      await prisma.client.deleteMany({ where: { tenantId: { in: [T, OTHER] } } });
+      await prisma.user.deleteMany({ where: { tenantId: { in: [T, OTHER] } } });
       await prisma.tenant.deleteMany({ where: { id: { in: [T, OTHER] } } });
     });
   });
@@ -374,6 +379,136 @@ describe.skipIf(!hasDb)('commercial memory', () => {
         expect(swept).toBeGreaterThan(0);
         expect(before).toEqual([]);
         expect(after).toEqual([]);
+      });
+    });
+  });
+
+  describe('writing on behalf of a user is object-authorized, not just tenant-scoped', () => {
+    // Tenancy is not object authorization. An SDR is inside the tenant for every lead in it and
+    // may act on almost none of them, so `recordContactClaim` loads the lead and puts it through
+    // the same `canAccessLead` the rest of the CRM uses.
+    const SDR = { id: 'claims-sdr-1', tenantId: T, role: 'sdr' };
+
+    it('refuses a lead that does not exist in this tenant', async () => {
+      await run(async () => {
+        await expect(
+          recordContactClaim(SDR, {
+            leadId: 'claims-lead-nonexistent',
+            claimType: 'PREFERENCE',
+            claimText: 'Prefers morning calls.',
+          }),
+        ).rejects.toThrow(/lead not found/);
+      });
+    });
+
+    it('refuses a lead in this tenant that the user cannot access', async () => {
+      await runSystem(async () => {
+        await prisma.user.deleteMany({ where: { id: { in: ['claims-sdr-1', 'claims-sdr-2'] } } });
+        for (const id of ['claims-sdr-1', 'claims-sdr-2']) {
+          await prisma.user.create({
+            data: {
+              id,
+              tenantId: T,
+              email: `${id}@claims.invalid`,
+              password: 'x',
+              firstName: 'C',
+              lastName: id,
+              role: 'sdr',
+              timezone: 'UTC',
+              isActive: true,
+            },
+          });
+        }
+        // A Lead requires a Campaign, which requires a Client. No CampaignSdr row is created
+        // for either SDR, so the campaign access axis stays shut and the assignment axis is the
+        // only one in play — which is what these two tests are about.
+        await prisma.lead.deleteMany({ where: { id: { in: ['claims-lead-other', 'claims-lead-mine'] } } });
+        await prisma.campaign.deleteMany({ where: { id: 'claims-campaign' } });
+        await prisma.client.deleteMany({ where: { id: 'claims-client' } });
+        await prisma.client.create({
+          data: {
+            id: 'claims-client',
+            tenantId: T,
+            name: 'Claims Client',
+            industry: 'Logistics',
+            contactName: 'Ops',
+            contactEmail: 'ops@claims.invalid',
+            status: 'active',
+          },
+        });
+        await prisma.campaign.create({
+          data: {
+            id: 'claims-campaign',
+            tenantId: T,
+            clientId: 'claims-client',
+            name: 'Claims Campaign',
+            status: 'active',
+            startDate: new Date('2026-08-01T00:00:00Z'),
+          },
+        });
+        await prisma.lead.create({
+          data: {
+            id: 'claims-lead-other',
+            tenantId: T,
+            firstName: 'Not',
+            lastName: 'Mine',
+            company: 'Elsewhere',
+            email: 'not.mine@claims.invalid',
+            stage: 'new',
+            // Assigned to the *other* SDR, and in no campaign, so neither access axis opens.
+            assignedToId: 'claims-sdr-2',
+            campaignId: 'claims-campaign',
+          },
+        });
+      });
+
+      await run(async () => {
+        await expect(
+          recordContactClaim(SDR, {
+            leadId: 'claims-lead-other',
+            claimType: 'PREFERENCE',
+            claimText: 'Should never be written.',
+          }),
+        ).rejects.toThrow(/Forbidden/);
+      });
+
+      // And nothing was written.
+      const written = await runSystem(() =>
+        prisma.commercialClaim.findMany({ where: { tenantId: T, scopeId: 'claims-lead-other' } }),
+      );
+      expect(written).toEqual([]);
+    });
+
+    it('records against a lead the user owns, attributed to them', async () => {
+      await runSystem(async () => {
+
+        await prisma.lead.create({
+          data: {
+            id: 'claims-lead-mine',
+            tenantId: T,
+            firstName: 'Dana',
+            lastName: 'Ito',
+            company: 'Kaisen',
+            email: 'dana@claims.invalid',
+            stage: 'replied',
+            assignedToId: 'claims-sdr-1',
+            campaignId: 'claims-campaign',
+          },
+        });
+      });
+
+      await run(async () => {
+        const claim = await recordContactClaim(SDR, {
+          leadId: 'claims-lead-mine',
+          claimType: 'FACTUAL',
+          claimText: 'Budget review moved to November.',
+          sourceType: 'call',
+        });
+        expect(claim.scopeType).toBe('CONTACT');
+        expect(claim.scopeId).toBe('claims-lead-mine');
+        // An AI-authored claim is never silently indistinguishable from a human assertion.
+        expect(claim.createdByType).toBe('ai');
+        expect(claim.createdById).toBe('claims-sdr-1');
       });
     });
   });

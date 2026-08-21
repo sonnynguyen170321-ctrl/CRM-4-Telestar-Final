@@ -290,6 +290,59 @@ export async function expireLapsedClaims(params: { tenantId: string; now?: Date 
   return result.count;
 }
 
+/**
+ * Records a claim about the contact behind a lead, on behalf of a signed-in user.
+ *
+ * This is the entry point an agent tool calls, and it exists because `recordClaim` enforces
+ * **tenancy and nothing else**. Tenancy is not object authorization: an SDR is inside the
+ * tenant for every lead in it, and may act on almost none of them. So the lead is loaded and
+ * put through `canAccessLead` — the same check the rest of the CRM uses — before anything is
+ * written.
+ *
+ * Throws on refusal rather than returning a falsy value, so a caller cannot mistake a denied
+ * write for an empty result and report it as done.
+ */
+export async function recordContactClaim(
+  sessionUser: { id: string; tenantId?: string | null; role: string },
+  input: {
+    leadId: string;
+    claimType: ClaimType;
+    claimText: string;
+    sourceType?: string | null;
+    sourceId?: string | null;
+    confidence?: number | null;
+    now?: Date;
+  },
+): Promise<CommercialClaim> {
+  if (!sessionUser.tenantId) throw new ClaimValidationError('no tenant on the session');
+
+  const lead = await prisma.lead.findFirst({
+    where: { id: input.leadId, tenantId: sessionUser.tenantId },
+    select: { assignedToId: true, campaignId: true },
+  });
+  // Same message for absent and out-of-scope: which one it is would itself disclose that a
+  // lead with this id exists somewhere the caller cannot see.
+  if (!lead) throw new ClaimValidationError('lead not found');
+
+  const { canAccessLead } = await import('@/lib/auth');
+  const allowed = await canAccessLead(sessionUser as never, lead);
+  if (!allowed) throw new ClaimValidationError('Forbidden: you do not have access to that lead');
+
+  return recordClaim({
+    tenantId: sessionUser.tenantId,
+    scopeType: 'CONTACT',
+    scopeId: input.leadId,
+    claimType: input.claimType,
+    claimText: input.claimText,
+    sourceType: input.sourceType ?? null,
+    sourceId: input.sourceId ?? null,
+    confidence: input.confidence ?? null,
+    createdByType: 'ai',
+    createdById: sessionUser.id,
+    now: input.now,
+  });
+}
+
 /** Withdraws a claim without asserting a replacement. */
 export async function retractClaim(params: {
   tenantId: string;

@@ -26,6 +26,10 @@ export const TOOL_CAPABILITY: Record<string, AgentCapability> = {
   prioritize_leads: 'research',
   evaluate_lead_quality: 'research',
   get_contact_intelligence: 'research',
+  // A commercial claim is a structured note about a contact, so it maps to the capability
+  // that already governs agent-written CRM notes rather than inventing a new one. A new
+  // capability would need a default in every tenant's autonomy policy to mean anything.
+  record_contact_claim: 'notes',
   draft_sequence: 'sequence_draft',
   enroll_lead_in_sequence: 'sequence_enroll',
 };

@@ -6,6 +6,7 @@ import type { SessionUser } from '@/lib/auth';
 import { createTask as serviceCreateTask, getTasks } from '@/lib/tasks/service';
 import { TaskType, TaskPriority } from '@prisma/client';
 import { RetryableResearchError } from '@/lib/research/error';
+import { recordContactClaim } from '@/lib/memory/claims';
 
 /** What the model is told when a capability is not cleanly allowed. */
 function refusalMessage(outcome: AuthorizationOutcome): string {
@@ -82,6 +83,42 @@ export const AI_TOOLS: ToolDefinition[] = [
           },
         },
         required: ['url'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'record_contact_claim',
+      description:
+        "Record something durable Telestar AI has learned about the contact currently in view, so it is available in later conversations. Use this when the user states a fact about the contact worth remembering, or asks you to remember something. State the claim in one sentence. Choose claimType honestly: FACTUAL only when someone actually said or wrote it and you can name the source; INFERRED when you are deducing it, and then give a confidence; PREFERENCE for how the contact likes to be worked. Never record a guess as FACTUAL.",
+      parameters: {
+        type: 'object',
+        properties: {
+          claimText: {
+            type: 'string',
+            description: 'The claim, in one sentence (e.g., "Budget review moved to November").',
+          },
+          claimType: {
+            type: 'string',
+            description: 'What kind of claim this is. FACTUAL requires a source.',
+            enum: ['FACTUAL', 'INFERRED', 'PREFERENCE'],
+          },
+          sourceType: {
+            type: 'string',
+            description: 'Where it came from. Required for FACTUAL.',
+            enum: ['email', 'call', 'meeting', 'note', 'research', 'user_stated'],
+          },
+          confidence: {
+            type: 'number',
+            description: 'How strongly the claim is held, 0 to 1. Required for INFERRED.',
+          },
+          leadId: {
+            type: 'string',
+            description: 'The CRM lead id this claim is about. Omit to use the lead in context.',
+          },
+        },
+        required: ['claimText', 'claimType'],
       },
     },
   },
@@ -428,6 +465,9 @@ export async function executeTool(
         context
       );
 
+    case 'record_contact_claim':
+      return recordContactClaimTool(args, context);
+
     case 'create_task':
       return createTask(stringArgs(args), context.userId, context.leadId, context.sessionUser);
 
@@ -466,6 +506,41 @@ async function visitPage(url: string | undefined, ctx: ToolContext): Promise<str
     return 'Could not access that page. LinkedIn may have blocked access — using search results instead.';
   }
   return res.data;
+}
+
+/**
+ * Persists one durable claim about the contact in view.
+ *
+ * Every refusal is returned as a sentence the model can relay, never thrown: a tool that throws
+ * ends the turn, and the SDR then sees a generic failure for what is often a normal outcome
+ * ("that lead is not yours"). What must never happen is the opposite — reporting a refused
+ * write as done — so each branch below says plainly that nothing was saved.
+ */
+async function recordContactClaimTool(
+  args: Record<string, unknown>,
+  context: ToolContext
+): Promise<string> {
+  const leadId = stringArg(args.leadId) || context.leadId;
+  if (!leadId) return 'Nothing was saved: there is no lead in context to attach this to.';
+  if (!context.sessionUser) return 'Nothing was saved: no session user context.';
+
+  const claimText = stringArg(args.claimText) ?? '';
+  const claimType = (stringArg(args.claimType) ?? '') as 'FACTUAL' | 'INFERRED' | 'PREFERENCE';
+  const confidence = typeof args.confidence === 'number' ? args.confidence : null;
+
+  try {
+    const claim = await recordContactClaim(context.sessionUser, {
+      leadId,
+      claimType,
+      claimText,
+      sourceType: stringArg(args.sourceType) ?? null,
+      confidence,
+    });
+    return `Recorded as ${claim.claimType.toLowerCase()}: "${claim.claimText}"`;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return `Nothing was saved. ${message}`;
+  }
 }
 
 async function createTask(
