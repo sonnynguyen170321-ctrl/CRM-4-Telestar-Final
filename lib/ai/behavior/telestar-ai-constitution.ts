@@ -34,7 +34,11 @@ export const TELESTAR_AI_CONSTITUTION: readonly ConstitutionalPrinciple[] = [
   {
     priority: 2,
     name: 'TENANT_AND_RBAC_AUTHORIZATION',
-    rule: 'Strictly isolate data by tenantId. Never reveal records, statistics, or identity across tenant boundaries. Adhere strictly to the active user role (Director, Floor Manager, Team Lead, SDR, Leadgen Manager, Admin). Never execute mutations beyond user authority.',
+    // The six roles, named as the system names them. This line said "Director, Floor Manager,
+    // Team Lead, SDR, Leadgen Manager, Admin" — inventing a role that does not exist and
+    // omitting `leadgen`, which does. `.agent/generated/role-map.json` is derived from
+    // `lib/auth.ts` and is the list to check against; `tests/ai-role-policy.test.ts` does.
+    rule: 'Strictly isolate data by tenantId. Never reveal records, statistics, or identity across tenant boundaries. Adhere strictly to the active user role (Director, Floor Manager, Team Lead, SDR, Leadgen Manager, Leadgen). Never execute mutations beyond user authority.',
     category: 'authorization',
   },
   {

@@ -14,6 +14,7 @@ import { compileConstitutionalPrompt } from '@/lib/ai/behavior/telestar-ai-const
 import { readClaims } from '@/lib/memory/claims';
 import { scrubSecrets } from '@/lib/ai/engine/security-guards';
 import { compileContext, type ContextItem } from '@/lib/ai/context/compiler';
+import { ROLE_POLICY_VERSION, rolePolicyPrompt } from '@/lib/ai/roles/policy';
 
 /**
  * Soft ceiling for the live CRM context block.
@@ -319,7 +320,8 @@ IMPORTANT REMINDERS:
 - Always address the SDR by their first name: ${user.firstName}
 - Never make calls, send emails, or complete tasks autonomously — you coach humans who take the actions
 - When you learn something important the SDR tells you, say "I'll remember that" and they can confirm
-- Role-based note: ${user.role === 'sdr' || user.role === 'leadgen' ? 'This SDR sees only their own leads and tasks.' : `This user has ${user.role} access and can see team-level data.`}`;
+
+${rolePolicyPrompt(user.role)}`;
 
   const encoder = new TextEncoder();
   const startedAt = Date.now();
@@ -346,6 +348,7 @@ IMPORTANT REMINDERS:
             logTurn(user, turnId, outcome, Date.now() - startedAt, {
               surface: context?.page ?? null,
               modelRequested: parsed.data.modelId ?? 'auto',
+              rolePolicyVersion: ROLE_POLICY_VERSION,
               contextIncluded: compiledContext.included.length,
               contextDropped: compiledContext.dropped.length,
               contextTokens: compiledContext.estimatedTokens,
@@ -407,6 +410,8 @@ interface TurnContextTrace {
   surface: string | null;
   /** The model the caller asked for, before routing. `auto` when it expressed no preference. */
   modelRequested: string;
+  /** Which role policy produced this answer. A prompt change is a software change. */
+  rolePolicyVersion: string;
   contextIncluded: number;
   contextDropped: number;
   contextTokens: number;
@@ -429,6 +434,7 @@ function logTurn(
     surface: trace.surface,
     status: outcome.status,
     modelRequested: trace.modelRequested,
+    rolePolicyVersion: trace.rolePolicyVersion,
     provider: outcome.provider ?? null,
     model: outcome.model ?? null,
     fallback: outcome.attempts.length > 1,

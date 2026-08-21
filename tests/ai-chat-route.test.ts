@@ -229,7 +229,11 @@ describe('CRM context', () => {
     const prompt = executeMock.mock.calls[0][0].systemPrompt as string;
     expect(prompt).toContain('Mai Tran');
     expect(prompt).toContain('(sdr at Telestar)');
-    expect(prompt).toContain('This SDR sees only their own leads and tasks.');
+    // The role policy is selected from the session role, so a client claiming `director`
+    // still gets the SDR policy.
+    expect(prompt).toContain('[Role: SDR]');
+    expect(prompt).toContain('Only leads assigned to them');
+    expect(prompt).not.toContain('[Role: Director]');
     expect(prompt).not.toContain('Attacker');
   });
 
@@ -521,14 +525,18 @@ describe('CRM context', () => {
     );
   });
 
-  it('gives a manager the team-level note instead of the SDR one', async () => {
+  it('gives each role its own policy, not one of two buckets', async () => {
+    // This asserted a ternary that sorted six roles into two sentences and called a Leadgen
+    // researcher "This SDR". What matters is that the policy is role-specific, so it now checks
+    // the Floor Manager gets the Floor Manager mandate rather than a generic manager note.
     requireAuthMock.mockResolvedValue({ ...SDR, role: 'floor_manager' });
 
     await POST(post({ messages: [{ role: 'user', content: 'How is the floor doing?' }] }));
 
     const prompt = executeMock.mock.calls[0][0].systemPrompt as string;
-    expect(prompt).toContain('floor_manager access and can see team-level data');
-    expect(prompt).not.toContain('sees only their own leads and tasks');
+    expect(prompt).toContain('[Role: Floor Manager]');
+    expect(prompt).toContain('Runs the floor');
+    expect(prompt).not.toContain('[Role: SDR]');
   });
 });
 
