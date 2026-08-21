@@ -97,6 +97,24 @@ export function userMessageForFailure(kind: GatewayFailureKind | 'unknown'): str
   }
 }
 
+/**
+ * What became of one tool call.
+ *
+ * The two `refused_*` values are refusals this runtime makes before the CRM is reached, and they
+ * are kept distinct from `failed` on purpose: a refusal is the system working, a failure is not,
+ * and an operator reading a turn needs to tell them apart without opening the code.
+ */
+export type ToolCallStatus =
+  | 'completed'
+  | 'failed'
+  | 'refused_no_execution_id'
+  | 'refused_malformed_args';
+
+export interface ToolCallRecord {
+  name: string;
+  status: ToolCallStatus;
+}
+
 export interface ChatTurnOutcome {
   status: 'ok' | 'truncated' | 'failed';
   provider?: string;
@@ -104,6 +122,8 @@ export interface ChatTurnOutcome {
   failure?: GatewayFailureKind | 'unknown';
   attempts: GatewayAttempt[];
   toolCallCount: number;
+  /** Every tool call the turn made, in order, with what became of it. */
+  toolCalls: ToolCallRecord[];
 }
 
 /**
@@ -121,9 +141,10 @@ export async function* runChatTurn(
   // so a row written under it can never be mistaken for a retry-safe one.
   const executionNamespace = input.executionId ?? `ephemeral-${newExecutionId()}`;
   let toolCallCount = 0;
+  const toolCalls: ToolCallRecord[] = [];
   let producedText = false;
 
-  const outcome: ChatTurnOutcome = { status: 'failed', attempts: [], toolCallCount: 0 };
+  const outcome: ChatTurnOutcome = { status: 'failed', attempts: [], toolCallCount: 0, toolCalls: [] };
 
   const events = aiGateway.execute({
     messages: input.messages,
@@ -141,8 +162,20 @@ export async function* runChatTurn(
     executeTool: async ({ name, args, ordinal }) => {
       toolCallCount++;
 
-      if (args === null) return MALFORMED_ARGUMENTS_REFUSAL;
-      if (!input.executionId && requiresDurableExecution(name)) return NO_EXECUTION_ID_REFUSAL;
+      // Each call's outcome is recorded, including the two refusals below.
+      //
+      // The turn used to report `toolCallCount` and nothing else, so "the assistant called three
+      // tools" and "the assistant called three tools and every one was refused" produced an
+      // identical log line. Those are different incidents: the second is usually a missing
+      // execution id or a capability the role does not hold, and neither is visible from a count.
+      if (args === null) {
+        toolCalls.push({ name, status: 'refused_malformed_args' });
+        return MALFORMED_ARGUMENTS_REFUSAL;
+      }
+      if (!input.executionId && requiresDurableExecution(name)) {
+        toolCalls.push({ name, status: 'refused_no_execution_id' });
+        return NO_EXECUTION_ID_REFUSAL;
+      }
 
       // The provider's tool-call id is correlation only — it changes on every retry, so it
       // cannot be the idempotency authority. The ordinal is.
@@ -156,6 +189,8 @@ export async function* runChatTurn(
         leadId: input.leadId,
         playbookVersionId: input.playbookVersionId,
       });
+
+      toolCalls.push({ name, status: result.status === 'completed' ? 'completed' : 'failed' });
 
       const payload = result.status === 'completed' ? result.result || 'Done' : result.error || 'Failed';
 
@@ -202,6 +237,7 @@ export async function* runChatTurn(
   }
 
   outcome.toolCallCount = toolCallCount;
+  outcome.toolCalls = toolCalls;
   onOutcome?.(outcome);
 }
 

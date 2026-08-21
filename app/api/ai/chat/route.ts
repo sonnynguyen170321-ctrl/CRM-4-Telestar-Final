@@ -443,6 +443,11 @@ function logTurn(
     fallbackPath: outcome.attempts.map((a) => `${a.provider}/${a.model}`),
     failure: outcome.failure ?? null,
     toolCalls: outcome.toolCallCount,
+    // Names and outcomes, not arguments. Which tool ran is operational; what it was asked to do
+    // is CRM content, and a log line is the wrong place for it.
+    toolsRun: outcome.toolCalls.map((t) => `${t.name}:${t.status}`),
+    toolsRefused: outcome.toolCalls.filter((t) => t.status.startsWith('refused_')).length,
+    toolsFailed: outcome.toolCalls.filter((t) => t.status === 'failed').length,
     contextIncluded: trace.contextIncluded,
     contextDropped: trace.contextDropped,
     contextTokens: trace.contextTokens,

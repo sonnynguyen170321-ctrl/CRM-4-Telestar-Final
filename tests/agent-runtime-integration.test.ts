@@ -220,6 +220,39 @@ describe('AgentRuntime Integration Path', () => {
     expect(createTask).not.toHaveBeenCalled();
   });
 
+  it('records what became of every tool call, refusals included', async () => {
+    // The turn reported `toolCallCount` and nothing else, so "called three tools" and "called
+    // three tools and every one was refused" logged identically. Those are different incidents:
+    // the second is usually a missing execution id or a capability the role does not hold.
+    stubProviderTurns([
+      { toolCalls: [{ name: 'create_task', args: { title: 'Nope' } }] },
+      { text: 'Done.' },
+    ]);
+    vi.spyOn(prisma.autonomyPolicy, 'findUnique').mockResolvedValue({ mode: 'auto' } as never);
+
+    let seen: import('@/lib/ai/chatRuntime').ChatTurnOutcome | undefined;
+    await drain(
+      runChatTurn(
+        {
+          sessionUser,
+          messages: [{ role: 'user', content: 'Create a task.' }],
+          systemPrompt: 'You are an AI.',
+          // No executionId, so the write-capable tool is refused before the CRM is reached.
+          playbookVersionId: 'pbv-1',
+          turnId: 'turn-tools',
+        },
+        (outcome) => {
+          seen = outcome;
+        },
+      ),
+    );
+
+    expect(seen?.toolCallCount).toBe(1);
+    expect(seen?.toolCalls).toEqual([
+      { name: 'create_task', status: 'refused_no_execution_id' },
+    ]);
+  });
+
   it('refuses a write-capable tool when the turn has no durable execution id', async () => {
     stubProviderTurns([
       { toolCalls: [{ name: 'create_task', args: { title: 'Nope' } }] },
