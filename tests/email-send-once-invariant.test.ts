@@ -60,6 +60,9 @@ let leadId = '';
 
 async function seed() {
   await run(async () => {
+    await prisma.inboundMessage.deleteMany({ where: { account: { tenantId: T } } });
+    await prisma.sequenceEnrollment.deleteMany({ where: { tenantId: T } });
+    await prisma.sequence.deleteMany({ where: { tenantId: T } });
     await prisma.activity.deleteMany({ where: { tenantId: T } });
     await prisma.outboundMessage.deleteMany({ where: { tenantId: T } });
     await prisma.suppressionEntry.deleteMany({ where: { tenantId: T } });
@@ -166,6 +169,9 @@ afterAll(async () => {
   await run(async () => {
     // A successful send writes an Activity against the lead and the user, so those rows have to
     // go before the records they point at.
+    await prisma.inboundMessage.deleteMany({ where: { account: { tenantId: T } } });
+    await prisma.sequenceEnrollment.deleteMany({ where: { tenantId: T } });
+    await prisma.sequence.deleteMany({ where: { tenantId: T } });
     await prisma.activity.deleteMany({ where: { tenantId: T } });
     await prisma.outboundMessage.deleteMany({ where: { tenantId: T } });
     await prisma.suppressionEntry.deleteMany({ where: { tenantId: OTHER_T } });
@@ -543,5 +549,162 @@ describe.skipIf(!hasDb)('a redelivered provider webhook does not double-apply', 
 
     const lead = await run(() => prisma.lead.findUnique({ where: { id: leadId } }));
     expect(lead?.emailInvalid).toBe(false);
+  });
+});
+
+/**
+ * A redelivered reply webhook must not double-apply either.
+ *
+ * `handleApplyReply` carries an explicit dedup gate — "Redelivery deduplication (S4): if this
+ * exact provider message was already classified, skip" — and `tests/phase-8b-replies.test.ts`,
+ * which does use a real database, has **no** redelivery case. The gate had never been exercised.
+ *
+ * "Please unsubscribe me." classifies deterministically, so no AI provider is involved.
+ */
+describe.skipIf(!hasDb)('a redelivered reply webhook does not double-apply', () => {
+  let sequenceId = '';
+
+  beforeEach(async () => {
+    await run(async () => {
+      await prisma.inboundMessage.deleteMany({ where: { account: { tenantId: T } } });
+      await prisma.sequenceEnrollment.deleteMany({ where: { tenantId: T } });
+      await prisma.suppressionEntry.deleteMany({ where: { tenantId: T } });
+      await prisma.activity.deleteMany({ where: { tenantId: T } });
+
+      if (!sequenceId) {
+        const owner = await prisma.user.findFirst({ where: { tenantId: T } });
+        const sequence = await prisma.sequence.create({
+          data: { tenantId: T, name: 'Send Once Cadence', createdById: owner!.id },
+        });
+        sequenceId = sequence.id;
+      }
+    });
+  });
+
+  async function enrolAndReceive(providerMessageId: string, body: string) {
+    return run(async () => {
+      await prisma.sequenceEnrollment.create({
+        data: {
+          tenantId: T,
+          leadId,
+          sequenceId,
+          status: 'active',
+          occupancyKey: `${T}:${leadId}`,
+          currentStep: 1,
+        },
+      });
+      await prisma.inboundMessage.create({
+        data: {
+          accountId,
+          leadId,
+          fromEmail: 'prospect@sendonce.test',
+          to: 'sender@sendonce.test',
+          providerMessageId,
+          date: new Date(),
+          subject: 'Re: One step, one send',
+          body,
+          isReply: true,
+        },
+      });
+    });
+  }
+
+  it('classifies once and reports the redelivery as already processed', async () => {
+    const { handleApplyReply } = await import('@/workers/sync');
+    const providerMessageId = `reply-evt-${crypto.randomUUID()}`;
+    await enrolAndReceive(providerMessageId, 'Please unsubscribe me.');
+
+    const first = await run(() => handleApplyReply({ providerMessageId, leadId, accountId }));
+    const second = await run(() => handleApplyReply({ providerMessageId, leadId, accountId }));
+
+    expect((first as { skipped?: boolean }).skipped).not.toBe(true);
+    expect((second as { skipped?: boolean }).skipped).toBe(true);
+    expect((second as { reason?: string }).reason).toBe('already_processed');
+  });
+
+  it('a redelivered unsubscribe reply suppresses the address exactly once', async () => {
+    const { handleApplyReply } = await import('@/workers/sync');
+    const providerMessageId = `reply-unsub-${crypto.randomUUID()}`;
+    await enrolAndReceive(providerMessageId, 'Please unsubscribe me.');
+
+    await run(() => handleApplyReply({ providerMessageId, leadId, accountId }));
+    await run(() => handleApplyReply({ providerMessageId, leadId, accountId }));
+
+    const suppressions = await run(() =>
+      prisma.suppressionEntry.count({ where: { tenantId: T, email: 'prospect@sendonce.test' } }),
+    );
+    expect(suppressions).toBe(1);
+  });
+
+  it('records the reply on the timeline exactly once across a redelivery', async () => {
+    // The same defect class as the bounce path (TEL-P2-024). Suppression is protected twice
+    // over — the dedup gate here and applyReplyClassification's own check — but the timeline
+    // is written on the classification path, so only the dedup gate stands between a
+    // redelivery and a duplicated entry.
+    const { handleApplyReply } = await import('@/workers/sync');
+    const providerMessageId = `reply-timeline-${crypto.randomUUID()}`;
+    await enrolAndReceive(providerMessageId, 'Please unsubscribe me.');
+
+    await run(() => handleApplyReply({ providerMessageId, leadId, accountId }));
+    const before = await run(() =>
+      prisma.activity.count({ where: { tenantId: T, leadId } }),
+    );
+    await run(() => handleApplyReply({ providerMessageId, leadId, accountId }));
+    const after = await run(() => prisma.activity.count({ where: { tenantId: T, leadId } }));
+
+    expect(after).toBe(before);
+  });
+
+  it('does not re-stamp classifiedAt on a redelivery', async () => {
+    // If the second delivery reclassified, the timestamp would move and the audit trail would
+    // claim the prospect replied later than they did.
+    const { handleApplyReply } = await import('@/workers/sync');
+    const providerMessageId = `reply-stamp-${crypto.randomUUID()}`;
+    await enrolAndReceive(providerMessageId, 'Please unsubscribe me.');
+
+    await run(() => handleApplyReply({ providerMessageId, leadId, accountId }));
+    const first = await run(() =>
+      prisma.inboundMessage.findUnique({ where: { providerMessageId } }),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    await run(() => handleApplyReply({ providerMessageId, leadId, accountId }));
+    const second = await run(() =>
+      prisma.inboundMessage.findUnique({ where: { providerMessageId } }),
+    );
+
+    expect(second?.classifiedAt?.getTime()).toBe(first?.classifiedAt?.getTime());
+  });
+
+  it('the stop reaches the send path: no later step goes out after the reply', async () => {
+    // The rule the whole cadence rests on, driven end to end rather than asserted.
+    const { handleApplyReply } = await import('@/workers/sync');
+    const providerMessageId = `reply-stop-${crypto.randomUUID()}`;
+    await enrolAndReceive(providerMessageId, 'Please unsubscribe me.');
+    await run(() => handleApplyReply({ providerMessageId, leadId, accountId }));
+
+    sendCalls.length = 0;
+    const nextStep = await createMessage(`after-reply-${crypto.randomUUID()}`);
+    await run(() => handleEmailSend(payloadFor(nextStep.id)));
+
+    expect(sendCalls).toHaveLength(0);
+    const after = await run(() => prisma.outboundMessage.findUnique({ where: { id: nextStep.id } }));
+    expect(after?.status).toBe(OUTBOUND_STATUS.FAILED);
+  });
+
+  it('a reply for a lead with no active enrollment is skipped, not applied', async () => {
+    const { handleApplyReply } = await import('@/workers/sync');
+    const providerMessageId = `reply-noenrol-${crypto.randomUUID()}`;
+    await enrolAndReceive(providerMessageId, 'Please unsubscribe me.');
+    await run(() =>
+      prisma.sequenceEnrollment.updateMany({
+        where: { tenantId: T, leadId },
+        data: { status: 'completed', occupancyKey: null },
+      }),
+    );
+
+    const result = await run(() => handleApplyReply({ providerMessageId, leadId, accountId }));
+    expect((result as { skipped?: boolean }).skipped).toBe(true);
+    expect((result as { reason?: string }).reason).toBe('sequence_not_active');
   });
 });

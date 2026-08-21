@@ -108,6 +108,22 @@ The four genuinely open P1s share a shape: each needs something this checkout ca
   its Prisma mock — its absence broke 8 tests with `prisma.activity.findFirst is not a
   function`, which is itself a reminder of how much that suite is asserting against a mock
   rather than a database.
+
+### The reply path, checked the same way — and it held
+
+`handleApplyReply` carries an explicit dedup gate ("Redelivery deduplication (S4)") that had
+**no test**, including in `tests/phase-8b-replies.test.ts`, which does use a real database.
+Driven for real, it holds: a redelivered reply reports `already_processed`, suppresses exactly
+once, adds no second timeline entry, and does not re-stamp `classifiedAt`. The stop also reaches
+the send path — no later step goes out after the reply.
+
+**A mutation made the design clearer than reading it did.** Removing the dedup gate still leaves
+the redelivery caught, by the *enrollment* gate returning `sequence_not_active` — because the
+first delivery's unsubscribe classification had already terminated the enrollment. Confirmed by
+observing the returned reason, not inferred. So the reply path has two independent guards and
+the dedup gate is not solely load-bearing for a stopping reply. That is defence in depth working
+as intended, and worth recording precisely rather than claiming the single mutation "proved" the
+gate.
 - **Evidence ID**: *(none yet)*
 
 ---
