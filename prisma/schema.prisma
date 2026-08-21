@@ -1433,6 +1433,100 @@ model AiMemory {
   @@index([tenantId])
 }
 
+// ─── Commercial Memory ───────────────────────────────────────────────────────
+
+/// A single durable thing Telestar AI believes about a commercial relationship.
+///
+/// ## Why this is a table and not a Map
+///
+/// The implementation this replaces held claims in `new Map<string, CommercialClaim>()` inside
+/// one Node process. That is not memory: it is empty after every deploy, invisible to the
+/// worker, and different in each of two web containers behind a load balancer. It also could
+/// not be audited, expired or corrected, because nothing outside that process could see it.
+///
+/// ## Every claim carries what kind of claim it is
+///
+/// The product rule is that inference is never presented as fact. That distinction has to be
+/// stored, not reconstructed by a prompt: `claimType` is `FACTUAL` (someone said it, and
+/// `sourceType`/`sourceId` say where), `INFERRED` (derived, and `confidence` says how strongly),
+/// `PREFERENCE` (how a person likes to work) or `PLAYBOOK` (an institutional rule).
+///
+/// A `FACTUAL` claim without a source is a defect; the domain service refuses to write one.
+///
+/// ## Correction is supersession, never mutation
+///
+/// A claim is immutable once written. Correcting it writes a new row pointing at the old one
+/// through `supersedesId` and sets the old row's status to `superseded`, so the history of what
+/// the system believed — and when it stopped believing it — survives. Overwriting `claimText`
+/// would destroy exactly the evidence needed to explain a bad answer after the fact.
+///
+/// Types are text, not Postgres enums, matching `WorkOrder` and `AutonomyPolicy`: adding a
+/// scope or a claim type should be a code change and a test, not an enum migration coordinated
+/// with a deploy.
+model CommercialClaim {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// What the claim is about: 'CONVERSATION' | 'CONTACT' | 'COMPANY' | 'CAMPAIGN' | 'CLIENT'
+  /// | 'USER' | 'TEAM' | 'TENANT' | 'INSTITUTIONAL'.
+  scopeType String
+  /// Id of the scoped record. Null only for 'TENANT' and 'INSTITUTIONAL', which scope to the
+  /// tenant itself. Deliberately no foreign key: a claim is a record of what was believed and
+  /// must outlive an archived lead, the same reasoning `AiCall.leadId` carries.
+  scopeId   String?
+
+  /// 'FACTUAL' | 'INFERRED' | 'PREFERENCE' | 'PLAYBOOK'.
+  claimType String
+  claimText String @db.Text
+
+  /// Where the belief came from: 'email' | 'call' | 'meeting' | 'note' | 'research' |
+  /// 'crm_record' | 'user_stated' | 'ai_inference'.
+  sourceType       String?
+  sourceId         String?
+  /// When the source was observed — not when the row was written. A claim from a six-month-old
+  /// email is stale even if it was extracted this morning.
+  sourceObservedAt DateTime?
+
+  /// 0..1. Required for 'INFERRED'; meaningless for 'FACTUAL', which is either sourced or
+  /// refused.
+  confidence Float?
+
+  createdAt       DateTime  @default(now())
+  /// Last time something re-observed this and found it still true. Drives decay.
+  lastConfirmedAt DateTime?
+  /// When this stops being usable without re-confirmation. AI-generated claims are given a
+  /// shorter life than sourced CRM facts.
+  expiresAt       DateTime?
+
+  /// 'active' | 'superseded' | 'expired' | 'retracted'.
+  status String @default("active")
+
+  /// The claim this one corrects. The superseded row keeps its text and gains status
+  /// 'superseded' — the record of a wrong belief is the point.
+  supersedesId    String?          @unique
+  supersedes      CommercialClaim? @relation("ClaimCorrection", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy    CommercialClaim? @relation("ClaimCorrection")
+  correctionReason String?         @db.Text
+
+  /// 'user' | 'ai' | 'system'. An AI-authored claim is never silently indistinguishable from
+  /// one a person asserted.
+  createdByType String
+  createdById   String?
+
+  /// Set when a human confirmed the claim. Promotes an inference's standing without rewriting
+  /// its type.
+  verifiedById String?
+  verifiedAt   DateTime?
+
+  /// The read path: everything active about one scoped record, newest first.
+  @@index([tenantId, scopeType, scopeId, status, createdAt])
+  /// The expiry sweep.
+  @@index([tenantId, status, expiresAt])
+  /// Retrieval that wants only sourced facts, or only playbook rules.
+  @@index([tenantId, claimType, status])
+}
+
 // ─── Booking Links ───────────────────────────────────────────────────────────
 
 model BookingLink {
@@ -2041,6 +2135,7 @@ model Tenant {
   contactEvidence          ContactEvidence[]
   aiBudgetPeriods          TenantAiBudgetPeriod[]
   aiBudgetReservations     TenantAiBudgetReservation[]
+  commercialClaims         CommercialClaim[]
 }
 
 // ─── Durable AI Budget Governance (TEL-P1-015) ───────────────────────────────
