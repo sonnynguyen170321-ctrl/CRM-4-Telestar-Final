@@ -20,10 +20,10 @@
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 2 | 0 | 0 | **2** |
-| **P1** (Critical) | 26 | 9 | 4 | **17** |
+| **P1** (Critical) | 27 | 9 | 4 | **18** |
 | **P2** (Important) | 22 | 9 | 3 | **13** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **46** | **18** | **7** | **28** |
+| **TOTAL** | **47** | **18** | **7** | **29** |
 
 The defect total is permitted to increase. Finding more defects is successful auditing.
 The prior cap of 25 is void.
@@ -558,6 +558,48 @@ The prior cap of 25 is void.
 - **Fix**: added `scripts/rollback*` to the `production-release` domain.
 - **Regression test**: `tests/agent-routing.test.ts` — 32 passed, exit 0.
 - **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-025` — Any Branch's Test Fixtures Fail Every Pull Request's Secret Scan
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: PR #100. Every job passed — quality, migrations, e2e, docker,
+  dependency-audit, CodeQL, dependency-review — and `CI required checks` still failed:
+
+  ```
+  secret-scan          failure    (allowed: success )
+  ##[error]secret-scan produced 'failure', which is not an acceptable result.
+  ```
+
+- **Root cause**: the finding was not in the pull request. `gitleaks` reported
+  `generic-api-key` at `tests/telestar-ai-certification-evals.test.ts:111`, commit `5d46eaa`,
+  which is on **`feat/telestar-ai-2`** — a branch the PR neither contains nor touches.
+  `actions/checkout` runs with `fetch-depth: 0`, so the clone holds every remote ref, and
+  `gitleaks detect --source=/repo` walks the entire object graph rather than the PR's own
+  commits. One credential-shaped fixture on any branch therefore fails **every** pull request,
+  including ones that never go near it.
+- **Why it matters**: the merge gate was unreachable for anybody. This is a stronger version of
+  the `TEL-P2-018` finding — there the two blocked jobs were at least excluded from the
+  mandatory set; here a **mandatory** check could not pass on any branch.
+- **Is anything disclosed?** No, and nothing needs rotation. The flagged line is one row of a
+  fixture table asserting that `scrubSecrets` redacts credentials before they reach a log or a
+  provider, so it necessarily contains credential-shaped strings. Every value is visibly
+  synthetic — `AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q7R` counts in pairs, the Groq fixture
+  runs `ABCdef123456GHIjkl…`, and `AKIAIOSFODNN7EXAMPLE` is AWS's own published documentation
+  example. None has ever authenticated anything.
+- **Fix**: `tests/telestar-ai-certification-evals.test.ts` exempted in `.gitleaks.toml` by
+  **exact path**, matching how `tests/gitleaks-allowlist.test.ts` and `tests/p1-hardening.test.ts`
+  are already handled. Not by value, deliberately: `tests/gitleaks-allowlist.test.ts` asserts
+  that these very shapes stay detected, because a value exemption would follow the string
+  anywhere in the repository.
+- **Regression test**: `tests/gitleaks-allowlist.test.ts` — 21 passed, exit 0. Pins both that
+  the path is exempt and that the Groq fixture value is still caught elsewhere.
+- **Residual risk**: the underlying behaviour is unchanged — a *real* secret committed to any
+  branch will still fail every PR, which is correct, and a future fixture on a new branch will
+  still need its own path entry. Narrowing the scan to the PR's own commits would weaken it and
+  was not done.
+- **Evidence ID**: *(none yet — closes on a green `secret-scan` for PR #100)*
 
 ---
 

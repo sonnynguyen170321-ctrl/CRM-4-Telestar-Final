@@ -54,6 +54,7 @@ NEXT_ACTION=operator installing Docker Desktop; then re-freeze candidate and run
 | TEL-P1-024 | P1 | FIXED_PENDING_VERIFICATION | agent | tests/certification-rpo-probe.test.ts — needs authenticated gcloud |
 | TEL-P2-019 | P2 | FIXED_PENDING_VERIFICATION | agent | Windows batch-shim exec, tests/certification-rpo-probe.test.ts |
 | TEL-P2-020 | P2 | FIXED_PENDING_VERIFICATION | agent | rollback.sh domain mapping, tests/agent-routing.test.ts |
+| TEL-P1-025 | P1 | FIXED_PENDING_VERIFICATION | agent | gitleaks path exemption; closes on green secret-scan for PR #100 |
 
 ## Ceiling with Docker alone
 
