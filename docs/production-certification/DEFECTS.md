@@ -25,9 +25,9 @@ last two attempts at this table were both wrong.
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 3 | 0 | 0 | **2** |
 | **P1** (Critical) | 39 | 9 | 4 | **26** |
-| **P2** (Important) | 23 | 8 | 4 | **11** |
+| **P2** (Important) | 24 | 8 | 4 | **12** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **65** | **17** | **8** | **39** |
+| **TOTAL** | **66** | **17** | **8** | **40** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -82,6 +82,42 @@ The four genuinely open P1s share a shape: each needs something this checkout ca
 ---
 
 ## 2. Active Defects
+
+### `TEL-P2-023` — The Send-Once Invariant Was Only Ever Tested Against A Mocked Compare-And-Set
+- **Severity**: P2 (coverage gap; no product defect found)
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: Phase 13, before writing anything — checking what the existing email tests
+  actually exercise.
+- **Root cause**: `tests/email-worker.test.ts` mocks `@/lib/prisma` **entirely**, including
+  `outboundMessage.updateMany`. That call *is* the compare-and-set that makes
+  "one logical step, at most one physical send" true. A mocked CAS returns whatever the mock
+  says, so the guarantee the whole email lane rests on had never been exercised against a
+  database capable of serialising two writers. `MAIL` reads 12/12 verified on that basis.
+- **Not a product defect.** The implementation is correct: a `updateMany` claim narrowed by
+  `status IN (CLAIMABLE_STATUSES)`, ambiguous provider outcomes routed to
+  `reconciliation_required` rather than back to the claimable pool, and terminal statuses
+  refused. Running it for real confirmed all of it.
+- **Fix**: `tests/email-send-once-invariant.test.ts` runs the real handler against real Postgres
+  and counts real provider invocations. Only the provider and the queue are substituted; every
+  status transition is genuine. Seven cases:
+
+  | Scenario | Result |
+  |---|---|
+  | **ten workers racing one message** | exactly 1 send; 9 decline cleanly; row ends `sent` |
+  | same job delivered twice in sequence | exactly 1 send |
+  | one logical step upserted twice | one row, not two |
+  | ambiguous provider outcome (`ETIMEDOUT`) | `reconciliation_required`; retry sends 0 |
+  | crash between provider acceptance and status write | never re-claimable; retry sends 0 |
+  | suppressed recipient | 0 sends, row `failed` |
+  | already `sent` | 0 sends |
+
+- **Proven by demonstrating the failure, not by going green.** Removing the `status IN
+  (CLAIMABLE_STATUSES)` guard from the claim makes the race test report **10 sends instead of
+  1** — ten copies to one prospect. The module restores clean at 7/7. A test that cannot show
+  the defect it guards against is not evidence.
+- **Evidence ID**: *(none yet)*
+
+---
 
 ### `TEL-P1-037` — A Signing Secret Generated With `Math.random()`
 - **Severity**: P1
