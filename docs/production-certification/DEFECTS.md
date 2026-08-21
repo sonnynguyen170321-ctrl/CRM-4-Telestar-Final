@@ -24,10 +24,10 @@ last two attempts at this table were both wrong.
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 3 | 0 | 0 | **2** |
-| **P1** (Critical) | 34 | 9 | 4 | **21** |
-| **P2** (Important) | 22 | 8 | 4 | **10** |
+| **P1** (Critical) | 35 | 9 | 4 | **22** |
+| **P2** (Important) | 23 | 8 | 4 | **11** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **59** | **17** | **8** | **33** |
+| **TOTAL** | **61** | **17** | **8** | **35** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -57,12 +57,12 @@ tests that fail if the table and the entries disagree.
 
 ### Active P1 classification (Phase 6)
 
-All 21, individually. No defect is deleted to improve a count.
+All 22, individually. No defect is deleted to improve a count.
 
 | Classification | Count | IDs |
 |---|---:|---|
 | **REAL OPEN DEFECT** | 4 | `TEL-P1-026` · `TEL-P1-027` · `TEL-P1-028` · `TEL-P1-032` |
-| **FIX_IMPLEMENTED**, awaiting verification on the new candidate | 15 | `TEL-P1-014`–`024`, `TEL-P1-029`, `TEL-P1-030`, `TEL-P1-031`, `DEPLOY-001`, `DEPLOY-002` |
+| **FIX_IMPLEMENTED**, awaiting verification on the new candidate | 16 | `TEL-P1-014`–`024`, `TEL-P1-029`–`031`, `TEL-P1-033`, `DEPLOY-001`, `DEPLOY-002` |
 | **CI_VERIFIED**, awaiting candidate freeze | 2 | `TEL-P1-025` (secret-scan now PASS on PR #100) · `TEL-P1-018` (chain present in `EV-RELEASE-IDENTITY`, `REL-001` VERIFIED) |
 | STALE LEDGER ITEM | 0 | the stale item was this summary table, now corrected |
 | DUPLICATE | 0 | — |
@@ -82,6 +82,57 @@ The four genuinely open P1s share a shape: each needs something this checkout ca
 ---
 
 ## 2. Active Defects
+
+### `TEL-P1-033` — A Test Guarding A Secret Printed It, And Depended On The Ambient Environment
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: running the full suite with `.env.local` loaded — the condition the
+  certification ladder now runs under, after `TEL-P2-021` taught it to read that file.
+- **Two defects in one line.** `tests/golden-journey.test.ts` opened its send assertion with:
+
+  ```ts
+  expect(process.env.GROQ_API_KEY ?? '').toBe('');
+  ```
+
+  1. **It asserted its premise instead of establishing it.** The journey exists to prove the send
+     produces the approved wording with *no AI provider reachable*, but it only hoped the ambient
+     environment had no keys. On a machine with them the guard tripped, and test 11 then failed
+     as a cascade because the message test 8 should have created did not exist. Measured: 14/14
+     without provider keys, 2 failures with them.
+  2. **The failure printed the key.** Vitest renders the received value, so a live
+     `gsk_…` Groq credential was written to the test output — and the certification ladder
+     stores raw gate output under `docs/production-certification/evidence/raw/`. A failing
+     certification run would have committed a working provider key into an evidence artifact
+     that gitleaks then scans.
+- **Why this session caused it to surface**: before `TEL-P2-021` the ladder never loaded
+  `.env.local`, so gate 08 ran without provider keys and the test's assumption held by accident.
+  Fixing the environment loading made gate 08 run the way a developer does — and this test would
+  have failed all three certification runs.
+- **Fix**: `beforeAll` now stubs `GROQ_API_KEY`, `GEMINI_API_KEY` and `OPENAI_API_KEY` to empty
+  via `vi.stubEnv`, with `vi.unstubAllEnvs()` in `afterAll`, so the premise is **made** true
+  regardless of the machine. The guard remains but asserts a derived string —
+  `` `${key} present: false` `` — so a failure can never render the credential.
+- **Swept**: this was the only assertion in `tests/` or `e2e/` comparing a secret-bearing
+  environment variable against a literal.
+- **Verified**: `tests/golden-journey.test.ts` 14/14 **with** provider keys loaded and 14/14
+  without — the same result either way, which is the property that was missing.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P2-022` — `lib/authRoles.ts` Was Owned By No Domain
+- **Severity**: P2
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: `tests/agent-routing.test.ts` failing after `TEL-P0-005` added the file —
+  `unmapped paths — add them to .agent/registry/domains.yaml: expected [ 'lib/authRoles.ts' ]`.
+- **Root cause**: `auth-rbac-tenancy` maps `lib/auth.ts` and `lib/auth/**`, and the new module
+  matches neither. An R4 authorization surface therefore routed to no domain, no risk class and
+  no target tests — the same defect as `TEL-P2-020`, one directory over.
+- **Fix**: `lib/authRoles.ts` added to the `auth-rbac-tenancy` domain.
+- **Regression test**: `tests/agent-routing.test.ts` — 32 passed, exit 0.
+- **Evidence ID**: *(none yet)*
+
+---
 
 ### `TEL-P0-005` — API Keys Authenticated As Managers Regardless Of Who Created Them
 - **Severity**: P0 (privilege escalation)

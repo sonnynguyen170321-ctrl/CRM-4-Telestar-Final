@@ -151,7 +151,17 @@ const managerSession = () => ({
  */
 const JOURNEY_CLOCK = new Date('2026-08-12T10:00:00Z'); // Wednesday, 10:00 UTC
 
+/**
+ * This journey proves the send works with **no AI provider reachable**, so it has to make that
+ * true rather than hope the ambient environment happens to be. It previously asserted the
+ * condition instead of establishing it, which meant the suite passed on a machine with no
+ * provider keys and failed on one that had them — including, after `TEL-P2-021` taught the
+ * certification ladder to read `.env.local`, inside the certification run itself.
+ */
+const AI_PROVIDER_KEYS = ['GROQ_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY'] as const;
+
 beforeAll(async () => {
+  for (const key of AI_PROVIDER_KEYS) vi.stubEnv(key, '');
   vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true });
   vi.setSystemTime(JOURNEY_CLOCK);
   if (!hasDb) return;
@@ -513,8 +523,15 @@ describe.skipIf(!hasDb)('the Telestar golden journey', () => {
   });
 
   it('8. the message that goes out carries the human wording, with no provider reachable', async () => {
-    // No AI key is set anywhere in this file. The send has to work anyway.
-    expect(process.env.GROQ_API_KEY ?? '').toBe('');
+    // No AI provider is reachable — established in beforeAll, re-checked here.
+    //
+    // Asserted as a boolean, never as the value: `expect(process.env.GROQ_API_KEY).toBe('')`
+    // prints the actual key on failure, straight into CI logs and into the raw certification
+    // artifacts under docs/production-certification/evidence/raw/. A test guarding a secret
+    // must not be the thing that discloses it.
+    for (const key of AI_PROVIDER_KEYS) {
+      expect(`${key} present: ${Boolean(process.env[key])}`).toBe(`${key} present: false`);
+    }
 
     const { handleExecuteTask } = await import('@/workers/sequence');
     await run(async () => {
@@ -717,4 +734,5 @@ describe.skipIf(!hasDb)('the Telestar golden journey', () => {
 
 afterAll(() => {
   vi.useRealTimers();
+  vi.unstubAllEnvs();
 });
