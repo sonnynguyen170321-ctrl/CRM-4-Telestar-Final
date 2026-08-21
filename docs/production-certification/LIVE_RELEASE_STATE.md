@@ -76,6 +76,24 @@ The verdict stays **NO-GO** below 108/108 regardless, because `TEL-P0-002` is an
 three repository documents disagree about whether production has any automated backup at all,
 and nothing in this checkout can settle it.
 
+## Validator state, measured 2026-08-21 (`npm run certify:validate`, exit 1)
+
+17 failures, in exactly three groups. Nothing unexplained.
+
+| Check | Count | What it is |
+|---|---:|---|
+| `L` | 6 | gates 19/20 `BLOCKED_EXTERNAL` in the three stale runs. Fixed in code by `TEL-P1-023`; clears when the runs are re-executed on a machine with a container runtime |
+| `N` | 6 | this session's commits touch non-certification files after the freeze. **Correct, and the point**: it is the validator proving the candidate is superseded |
+| `REQ` | 5 | DR-003, DR-007, REL-003/004/005 |
+
+Check `N` is worth reading as a pass, not a failure: it caught every commit made here and
+refused to let `daa8ffb` stand as the candidate. That is the mechanism working.
+
+A dead reference in this very file was also caught by check `J` — `lib/rollbackDrill.mjs`
+written without its `scripts/certification/` prefix — and fixed. Note that
+`npm run agent -- check` passed on the same file: the two link checkers have different scope,
+so a green `agent check` is not a substitute for `certify:validate`.
+
 ## Blocked-on-operator (cannot be resolved from this checkout)
 
 1. **Install a container runtime** (Docker Desktop or podman) — unblocks gates 19/20, therefore
@@ -108,7 +126,7 @@ Without both, the ceiling is 103/108 and the verdict stays NO-GO. Neither is a c
 | full vitest suite (4th convergence) | 180 files, **2442 passed**, 0 failed, 0 skipped | 0 |
 | **PR #100 `CI required checks`** | every mandatory job green | 0 |
 | `scripts/deploy.sh` executed end to end, 6 paths | all abort correctly | 1 each, as intended |
-| `lib/rollbackDrill.mjs` decision rules | 27 tests; 7 fail under an always-PASS mutant | 0 |
+| `scripts/certification/lib/rollbackDrill.mjs` decision rules | 27 tests; 7 fail under an always-PASS mutant | 0 |
 
 ## Gate pre-flight on this machine (2026-08-21)
 
