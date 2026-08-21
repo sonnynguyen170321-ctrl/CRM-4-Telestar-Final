@@ -30,7 +30,7 @@ Where something was not done, this document says so rather than omitting it.
 | Gateway | `npm run ai:smoke-gateway` | **14 / 14, exit 0** on the third of three runs; the two earlier runs lost different checks to transient OpenAI/Gemini weather |
 | Degraded provider drill | `scripts/ai-degraded-provider-drill.ts` | **7 / 7, exit 0** |
 | Chat journeys, `next dev` | Playwright, `--project=audit` | **10 / 30** |
-| **Chat journeys, production build** | Playwright against `next start` | **30 / 30, exit 0** |
+| **Chat journeys, production build** | Playwright against `next start` | **30 / 30, exit 0** — re-run after waves 3, 5, 6, 9 changed the chat route substantially |
 | **Six-role browser acceptance** (§24) | Playwright `--project=certification-roles` against `next start` | **15 passed, exit 0** |
 | Chat route contract | `vitest run tests/ai-chat-route.test.ts` | **42 / 42, exit 0** |
 | Production liveness | `curl https://crm.telestar.cloud/api/health` | **HTTP 200**, `commit=daa8ffb`, `schema=ready` |
