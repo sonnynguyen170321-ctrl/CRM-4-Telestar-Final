@@ -113,8 +113,33 @@ The four genuinely open P1s share a shape: each needs something this checkout ca
 
 - **Proven by demonstrating the failure, not by going green.** Removing the `status IN
   (CLAIMABLE_STATUSES)` guard from the claim makes the race test report **10 sends instead of
-  1** — ten copies to one prospect. The module restores clean at 7/7. A test that cannot show
-  the defect it guards against is not evidence.
+  1** — ten copies to one prospect. The module restores clean. A test that cannot show the
+  defect it guards against is not evidence.
+
+### The stop rules, added the same way
+
+`tests/unsubscribe.test.ts` and `tests/sequence-worker.test.ts` also mock `@/lib/prisma`, so
+*"a stopped contact never receives a later step"* had only ever been asserted against mocks
+too. The send path is the chokepoint that makes it true regardless of what the sequence decides,
+so each stop signal is now driven through the real handler and counted:
+
+| Signal | Result |
+|---|---|
+| unsubscribe after step one | step **two** sends 0, row `failed`, reason `suppressed` |
+| hard-bounce suppression | 0 sends, reason recorded |
+| manager-paused inbox | 0 sends, pause reason surfaced |
+| deactivated sender | 0 sends |
+| **resume after pause** | sends again — a pause that cannot be lifted is an outage |
+| suppression in a neighbouring tenant | **does not** silence this tenant |
+
+Two mutants, each caught by exactly the tests that should catch it and no others:
+
+| Mutant | Failures |
+|---|---|
+| `evaluateSendBlock` neutralised | paused · deactivated · resume |
+| suppression check skipped | suppressed · unsubscribe-next-step · hard bounce |
+
+13 tests total, exit 0, restored clean after both mutations.
 - **Evidence ID**: *(none yet)*
 
 ---

@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import crypto from 'crypto';
 
 /**
@@ -52,6 +52,7 @@ const { OUTBOUND_STATUS } = await import('@/lib/email/idempotency');
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 const T = 'sendonce-tenant';
+const OTHER_T = 'sendonce-other-tenant';
 const run = <R>(fn: () => Promise<R>) => tenantStorage.run({ tenantId: T, bypassRls: true }, fn);
 
 let accountId = '';
@@ -69,7 +70,11 @@ async function seed() {
     await prisma.user.deleteMany({ where: { tenantId: T } });
     await prisma.tenant.deleteMany({ where: { id: T } });
 
+    await prisma.tenant.deleteMany({ where: { id: OTHER_T } });
     await prisma.tenant.create({ data: { id: T, name: 'Send Once' } });
+    // A real neighbouring tenant, so the cross-tenant suppression assertion is about scoping
+    // rather than about a foreign key that happens to fail.
+    await prisma.tenant.create({ data: { id: OTHER_T, name: 'Send Once Other' } });
     const user = await prisma.user.create({
       data: {
         tenantId: T,
@@ -151,25 +156,30 @@ const payloadFor = (id: string) => ({
   leadId,
 });
 
-describe.skipIf(!hasDb)('one logical step sends at most one physical email', () => {
-  beforeAll(seed);
+/**
+ * Seeded once for the whole file. Both suites share the tenant chain, so tearing it down at the
+ * end of the first `describe` left the second with a lead that no longer existed.
+ */
+beforeAll(seed);
 
-  afterAll(async () => {
-    await run(async () => {
-      // A successful send writes an Activity against the lead and the user, so those rows have
-      // to go before the records they point at.
-      await prisma.activity.deleteMany({ where: { tenantId: T } });
-      await prisma.outboundMessage.deleteMany({ where: { tenantId: T } });
-      await prisma.suppressionEntry.deleteMany({ where: { tenantId: T } });
-      await prisma.lead.deleteMany({ where: { tenantId: T } });
-      await prisma.campaign.deleteMany({ where: { tenantId: T } });
-      await prisma.client.deleteMany({ where: { tenantId: T } });
-      await prisma.emailAccount.deleteMany({ where: { tenantId: T } });
-      await prisma.user.deleteMany({ where: { tenantId: T } });
-      await prisma.tenant.deleteMany({ where: { id: T } });
-    });
+afterAll(async () => {
+  await run(async () => {
+    // A successful send writes an Activity against the lead and the user, so those rows have to
+    // go before the records they point at.
+    await prisma.activity.deleteMany({ where: { tenantId: T } });
+    await prisma.outboundMessage.deleteMany({ where: { tenantId: T } });
+    await prisma.suppressionEntry.deleteMany({ where: { tenantId: OTHER_T } });
+    await prisma.suppressionEntry.deleteMany({ where: { tenantId: T } });
+    await prisma.lead.deleteMany({ where: { tenantId: T } });
+    await prisma.campaign.deleteMany({ where: { tenantId: T } });
+    await prisma.client.deleteMany({ where: { tenantId: T } });
+    await prisma.emailAccount.deleteMany({ where: { tenantId: T } });
+    await prisma.user.deleteMany({ where: { tenantId: T } });
+    await prisma.tenant.deleteMany({ where: { id: { in: [T, OTHER_T] } } });
   });
+});
 
+describe.skipIf(!hasDb)('one logical step sends at most one physical email', () => {
   beforeEach(() => {
     sendCalls.length = 0;
     sendBehaviour = async () => `provider-${crypto.randomUUID()}`;
@@ -285,5 +295,138 @@ describe.skipIf(!hasDb)('one logical step sends at most one physical email', () 
 
     await run(() => handleEmailSend(payloadFor(message.id)));
     expect(sendCalls).toHaveLength(0);
+  });
+});
+
+/**
+ * The stop rules, against the same real database.
+ *
+ * `tests/unsubscribe.test.ts` and `tests/sequence-worker.test.ts` both mock `@/lib/prisma`, so
+ * "a stopped contact never receives a later step" had only ever been asserted against mocks.
+ * The send path is the chokepoint that makes it true regardless of what the sequence decides,
+ * so each stop signal is driven through the real handler here and counted.
+ */
+describe.skipIf(!hasDb)('a stopped contact receives no further sends', () => {
+  beforeEach(() => {
+    sendCalls.length = 0;
+    sendBehaviour = async () => `provider-${crypto.randomUUID()}`;
+  });
+
+  afterEach(async () => {
+    await run(async () => {
+      await prisma.suppressionEntry.deleteMany({ where: { tenantId: T } });
+      await prisma.emailAccount.updateMany({
+        where: { tenantId: T },
+        data: { isActive: true, sendPausedAt: null, sendPauseReason: null },
+      });
+    });
+  });
+
+  it('an unsubscribe stops the NEXT step, not just the one that triggered it', async () => {
+    // Step one goes out, the prospect unsubscribes, step two must not.
+    const stepOne = await createMessage(`unsub-step1-${crypto.randomUUID()}`);
+    await run(() => handleEmailSend(payloadFor(stepOne.id)));
+    expect(sendCalls).toHaveLength(1);
+
+    await run(() =>
+      prisma.suppressionEntry.create({
+        data: { tenantId: T, email: 'prospect@sendonce.test', reason: 'unsubscribed' },
+      }),
+    );
+
+    sendCalls.length = 0;
+    const stepTwo = await createMessage(`unsub-step2-${crypto.randomUUID()}`);
+    await run(() => handleEmailSend(payloadFor(stepTwo.id)));
+
+    expect(sendCalls).toHaveLength(0);
+    const after = await run(() => prisma.outboundMessage.findUnique({ where: { id: stepTwo.id } }));
+    expect(after?.status).toBe(OUTBOUND_STATUS.FAILED);
+    expect(after?.errorMessage).toContain('suppressed');
+  });
+
+  it('a hard bounce suppression stops later steps the same way', async () => {
+    await run(() =>
+      prisma.suppressionEntry.create({
+        data: { tenantId: T, email: 'prospect@sendonce.test', reason: 'hard_bounce' },
+      }),
+    );
+
+    const message = await createMessage(`bounce-${crypto.randomUUID()}`);
+    await run(() => handleEmailSend(payloadFor(message.id)));
+
+    expect(sendCalls).toHaveLength(0);
+    const after = await run(() => prisma.outboundMessage.findUnique({ where: { id: message.id } }));
+    expect(after?.errorMessage).toContain('hard_bounce');
+  });
+
+  it('a paused inbox sends nothing, and says why', async () => {
+    await run(() =>
+      prisma.emailAccount.updateMany({
+        where: { id: accountId },
+        data: { sendPausedAt: new Date(), sendPauseReason: 'manager paused' },
+      }),
+    );
+
+    const message = await createMessage(`paused-${crypto.randomUUID()}`);
+    await run(() => handleEmailSend(payloadFor(message.id)));
+
+    expect(sendCalls).toHaveLength(0);
+    const after = await run(() => prisma.outboundMessage.findUnique({ where: { id: message.id } }));
+    expect(after?.status).toBe(OUTBOUND_STATUS.FAILED);
+    expect(after?.errorMessage).toContain('manager paused');
+  });
+
+  it('a deactivated sender sends nothing', async () => {
+    // The SDR left, or was deactivated mid-cadence.
+    await run(() =>
+      prisma.emailAccount.updateMany({ where: { id: accountId }, data: { isActive: false } }),
+    );
+
+    const message = await createMessage(`inactive-${crypto.randomUUID()}`);
+    await run(() => handleEmailSend(payloadFor(message.id)));
+
+    expect(sendCalls).toHaveLength(0);
+    const after = await run(() => prisma.outboundMessage.findUnique({ where: { id: message.id } }));
+    expect(after?.errorMessage).toContain('inactive');
+  });
+
+  it('resuming a paused inbox lets the next step through again', async () => {
+    // Pause must be reversible, or a manager pause becomes a permanent outage.
+    await run(() =>
+      prisma.emailAccount.updateMany({
+        where: { id: accountId },
+        data: { sendPausedAt: new Date(), sendPauseReason: 'temporary' },
+      }),
+    );
+    const blocked = await createMessage(`resume-blocked-${crypto.randomUUID()}`);
+    await run(() => handleEmailSend(payloadFor(blocked.id)));
+    expect(sendCalls).toHaveLength(0);
+
+    await run(() =>
+      prisma.emailAccount.updateMany({
+        where: { id: accountId },
+        data: { sendPausedAt: null, sendPauseReason: null },
+      }),
+    );
+    const allowed = await createMessage(`resume-allowed-${crypto.randomUUID()}`);
+    await run(() => handleEmailSend(payloadFor(allowed.id)));
+    expect(sendCalls).toHaveLength(1);
+  });
+
+  it('suppression is matched per tenant, not globally', async () => {
+    // A suppression in someone else's tenant must not silence this one's sending.
+    await run(() =>
+      prisma.suppressionEntry.create({
+        data: { tenantId: OTHER_T, email: 'prospect@sendonce.test', reason: 'unsubscribed' },
+      }),
+    );
+
+    const message = await createMessage(`crosstenant-${crypto.randomUUID()}`);
+    await run(() => handleEmailSend(payloadFor(message.id)));
+    expect(sendCalls).toHaveLength(1);
+
+    await run(() =>
+      prisma.suppressionEntry.deleteMany({ where: { tenantId: OTHER_T } }),
+    );
   });
 });
