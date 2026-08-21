@@ -185,6 +185,41 @@ describe('assertPublicDestination', () => {
   });
 });
 
+describe('deliverWebhook refuses every SSRF vector end to end', () => {
+  // Through the real function, not the helpers. Each of these is refused before any socket is
+  // opened, so none of them performs network I/O.
+  it.each([
+    ['loopback literal', 'http://127.0.0.1:8081/'],
+    ['loopback by name', 'http://localhost:8081/'],
+    ['cloud metadata', 'http://169.254.169.254/computeMetadata/v1/'],
+    ['private 10/8', 'http://10.0.0.5:8081/'],
+    ['private 192.168/16', 'http://192.168.1.1:8081/'],
+    ['integer-encoded loopback', 'http://2130706433:8081/'],
+    ['IPv6 loopback', 'http://[::1]:8081/'],
+    ['credentials in the URL', 'https://user:pass@example.com/'],
+    ['file scheme', 'file:///etc/passwd'],
+    ['unsupported scheme', 'httpx://example.com/'],
+  ])('refuses %s', async (_label, url) => {
+    const { deliverWebhook } = await import('@/lib/webhooks/dispatcher');
+    const result = await deliverWebhook(url, 'whsec_x', 'test.ping', { ping: true }, 'tenant-a');
+    expect(result.success).toBe(false);
+    expect(result.error ?? '').toContain('Refused webhook destination');
+  });
+
+  it('reports the refusal without a status code, because nothing was contacted', async () => {
+    const { deliverWebhook } = await import('@/lib/webhooks/dispatcher');
+    const result = await deliverWebhook(
+      'http://169.254.169.254/',
+      'whsec_x',
+      'test.ping',
+      {},
+      'tenant-a',
+    );
+    expect(result.statusCode).toBeUndefined();
+    expect(result.latencyMs).toBeGreaterThanOrEqual(0);
+  });
+});
+
 describe('the guard is wired where it cannot be bypassed', () => {
   const dispatcher = readFileSync(join(process.cwd(), 'lib', 'webhooks', 'dispatcher.ts'), 'utf8');
 
@@ -194,8 +229,19 @@ describe('the guard is wired where it cannot be bypassed', () => {
     expect(dispatcher).toContain('assertPublicDestination');
   });
 
-  it('validates before the fetch, not after', () => {
-    expect(dispatcher.indexOf('assertPublicDestination')).toBeLessThan(dispatcher.indexOf('await fetch('));
+  it('validates before the request, not after', () => {
+    const check = dispatcher.indexOf('assertPublicDestination');
+    const request = dispatcher.indexOf('undiciFetch(');
+    expect(check).toBeGreaterThan(-1);
+    expect(request).toBeGreaterThan(-1);
+    expect(check).toBeLessThan(request);
+  });
+
+  it('re-checks the address at connect time, closing the rebinding window', () => {
+    // assertPublicDestination is a check-then-use; the connector's own lookup is what makes it
+    // authoritative. CodeQL's js/request-forgery alert was correct about the difference.
+    expect(dispatcher).toContain('guardedDispatcher');
+    expect(dispatcher).toMatch(/dispatcher: guardedDispatcher/);
   });
 
   it('does not follow redirects', () => {

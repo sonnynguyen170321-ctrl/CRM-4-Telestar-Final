@@ -1,5 +1,7 @@
 import crypto from 'crypto';
-import { assertPublicDestination } from '@/lib/webhooks/ssrfGuard';
+import { fetch as undiciFetch } from 'undici';
+
+import { assertPublicDestination, guardedDispatcher } from '@/lib/webhooks/ssrfGuard';
 
 export type WebhookEvent = 
   | 'lead.created'
@@ -81,7 +83,7 @@ export async function deliverWebhook(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    const response = await fetch(url, {
+    const response = await undiciFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -92,6 +94,9 @@ export async function deliverWebhook(
       },
       body: payloadString,
       signal: controller.signal,
+      // Authoritative guard: re-checks the resolved address at connect time, so a DNS record
+      // that changes between the pre-check and the connection cannot be used.
+      dispatcher: guardedDispatcher,
       // A validated public URL that answers 302 to http://169.254.169.254 would otherwise be
       // followed automatically, defeating the check above. Webhook endpoints have no reason to
       // redirect, so a redirect is a failed delivery rather than something to chase.

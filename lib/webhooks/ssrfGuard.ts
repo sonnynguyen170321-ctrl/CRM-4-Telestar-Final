@@ -1,4 +1,6 @@
 import { lookup } from 'node:dns/promises';
+import { lookup as lookupCb } from 'node:dns';
+import { Agent } from 'undici';
 
 /**
  * Refuse webhook destinations that point back inside our own network.
@@ -14,11 +16,12 @@ import { lookup } from 'node:dns/promises';
  * and a DNS name whose A record is 10.0.0.5 all resolve to a blocked address, so none of them
  * needs its own special case.
  *
- * Residual risk, stated rather than hidden: this validates the addresses at check time, so a
- * DNS rebinding attack that returns a public address here and a private one microseconds later
- * during `fetch` is not prevented. Closing that requires pinning the connection to the
- * validated IP. The 8-second timeout and the blocked-by-default posture limit the window; it is
- * recorded as residual on TEL-P1-030 rather than claimed as covered.
+ * Two layers, because one of them is a check-then-use and CodeQL was right to say so
+ * (`js/request-forgery`, critical). `assertPublicDestination` validates before the request and
+ * gives a clear early error naming the destination; `guardedDispatcher` at the bottom of this
+ * file re-runs the same address rules inside the connector, against the address the socket is
+ * actually about to use. The DNS-rebinding window an earlier version of this file recorded as
+ * residual is closed by the second layer.
  */
 
 export type DestinationVerdict = { ok: true } | { ok: false; reason: string };
@@ -138,3 +141,56 @@ export async function assertPublicDestination(
 
   return { ok: true };
 }
+
+/**
+ * A dispatcher that re-checks the address at the moment it connects.
+ *
+ * `assertPublicDestination` is a check-then-use: it validates what the hostname resolved to a
+ * moment ago, and `fetch` then resolves it again itself. CodeQL flags exactly this
+ * (`js/request-forgery`, critical) and is right to — a guard that runs before the connection is
+ * not a sanitizer, and DNS rebinding lives in the gap.
+ *
+ * Undici lets the connector's DNS lookup be replaced, so the same rules run against the address
+ * the socket is actually about to use. The window closes: there is no longer a resolution that
+ * happens after the check.
+ *
+ * Both layers are kept. This one is authoritative; the earlier check stays because it produces
+ * a clear, early error message naming the destination, rather than a connect-time failure.
+ */
+export const guardedDispatcher = new Agent({
+  connect: {
+    lookup(hostname, options, callback) {
+      // Resolve every address so all of them can be checked, regardless of what the caller
+      // asked for — then answer in the shape the caller expects. Getting this wrong does not
+      // fail safe: replying with the single-address shape while `all` was requested hands the
+      // connector `undefined` and breaks every legitimate delivery.
+      const wantsAll = Boolean((options as { all?: boolean })?.all);
+
+      lookupCb(hostname, { ...options, all: true, verbatim: true }, (err, addresses) => {
+        if (err) return callback(err, '', 0);
+
+        const list = Array.isArray(addresses) ? addresses : [];
+        if (list.length === 0) {
+          return callback(new Error(`${hostname} resolved to no addresses`), '', 0);
+        }
+
+        for (const entry of list) {
+          const reason = blockedAddressReason(entry.address, entry.family);
+          if (reason) {
+            // Refused at connect time, so a record that changed since the pre-check cannot be
+            // used. This is the DNS-rebinding case.
+            return callback(
+              new Error(`Refused webhook destination: ${hostname} resolves to ${entry.address}: ${reason}`),
+              '',
+              0,
+            );
+          }
+        }
+
+        if (wantsAll) return callback(null, list as never);
+        const first = list[0];
+        return callback(null, first.address, first.family);
+      });
+    },
+  },
+});

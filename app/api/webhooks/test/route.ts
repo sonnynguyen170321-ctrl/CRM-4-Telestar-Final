@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { requireManager, type SessionUser } from '@/lib/auth';
 import { deliverWebhook, type WebhookConfig } from '@/lib/webhooks/dispatcher';
 import { checkDestinationShape } from '@/lib/webhooks/ssrfGuard';
@@ -29,7 +30,8 @@ export async function POST(req: NextRequest) {
     const { url, webhookId, event } = await req.json();
 
     let targetUrl: string | null = null;
-    let signingSecret = `whsec_probe_${Math.random().toString(36).slice(2)}`;
+    // A throwaway value, but still a signing secret: Math.random() is not a source for one.
+    let signingSecret = `whsec_probe_${crypto.randomBytes(24).toString('hex')}`;
 
     if (typeof webhookId === 'string' && webhookId) {
       const saved =

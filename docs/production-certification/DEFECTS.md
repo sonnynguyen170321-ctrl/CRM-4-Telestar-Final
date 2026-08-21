@@ -24,10 +24,10 @@ last two attempts at this table were both wrong.
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 3 | 0 | 0 | **2** |
-| **P1** (Critical) | 38 | 9 | 4 | **25** |
+| **P1** (Critical) | 39 | 9 | 4 | **26** |
 | **P2** (Important) | 23 | 8 | 4 | **11** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **64** | **17** | **8** | **38** |
+| **TOTAL** | **65** | **17** | **8** | **39** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -57,12 +57,12 @@ tests that fail if the table and the entries disagree.
 
 ### Active P1 classification (Phase 6)
 
-All 25, individually. No defect is deleted to improve a count.
+All 26, individually. No defect is deleted to improve a count.
 
 | Classification | Count | IDs |
 |---|---:|---|
 | **REAL OPEN DEFECT** | 4 | `TEL-P1-026` · `TEL-P1-027` · `TEL-P1-028` · `TEL-P1-032` |
-| **FIX_IMPLEMENTED**, awaiting verification on the new candidate | 19 | `TEL-P1-014`–`024`, `TEL-P1-029`–`031`, `TEL-P1-033`–`036`, `DEPLOY-001`, `DEPLOY-002` |
+| **FIX_IMPLEMENTED**, awaiting verification on the new candidate | 20 | `TEL-P1-014`–`024`, `TEL-P1-029`–`031`, `TEL-P1-033`–`037`, `DEPLOY-001`, `DEPLOY-002` |
 | **CI_VERIFIED**, awaiting candidate freeze | 2 | `TEL-P1-025` (secret-scan now PASS on PR #100) · `TEL-P1-018` (chain present in `EV-RELEASE-IDENTITY`, `REL-001` VERIFIED) |
 | STALE LEDGER ITEM | 0 | the stale item was this summary table, now corrected |
 | DUPLICATE | 0 | — |
@@ -82,6 +82,25 @@ The four genuinely open P1s share a shape: each needs something this checkout ca
 ---
 
 ## 2. Active Defects
+
+### `TEL-P1-037` — A Signing Secret Generated With `Math.random()`
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: CodeQL on PR #101 — `js/insecure-randomness`, **high**. Found in code
+  written earlier in this same session.
+- **Root cause**: the rewritten webhook test endpoint generated its throwaway signing value with
+  `` `whsec_probe_${Math.random().toString(36).slice(2)}` ``. `Math.random()` is not a
+  cryptographic source, and a webhook signature is precisely a security context — the value
+  proves to the receiving system that a payload came from Telestar.
+- **Why it slipped in**: it was introduced *while removing* the caller-supplied secret, so the
+  change that improved one property quietly weakened another. The reviewer that caught it was a
+  scanner whose result is non-blocking by policy, and which it would have been easy to wave past
+  on a green PR.
+- **Fix**: `crypto.randomBytes(24).toString('hex')`, matching how the real webhook secret is
+  generated in `app/api/webhooks/route.ts`.
+- **Evidence ID**: *(none yet)*
+
+---
 
 ### `TEL-P1-034` — The Health Gate Passed On 401, 403, 404, A Login Redirect, And The Wrong Release
 - **Severity**: P1
@@ -318,10 +337,30 @@ The four genuinely open P1s share a shape: each needs something this checkout ca
   address is blocked the destination is refused, because which one `fetch` picks is not ours to
   choose. Redirects are no longer followed (`redirect: 'manual'`) and a 3xx is a failed
   delivery.
-- **Residual risk, stated rather than hidden**: validation happens at check time, so DNS
-  rebinding — a public answer here and a private one microseconds later during `fetch` — is not
-  prevented. Closing it requires pinning the connection to the validated IP. Recorded as
-  residual, not claimed as covered.
+- **Rebinding window closed, after CodeQL disagreed with the first fix.** The initial guard was
+  a check-then-use, and CodeQL raised `js/request-forgery` at **critical** on exactly that: a
+  validation that runs before the request is not a sanitizer, because `fetch` resolves the name
+  again itself. It was right. `guardedDispatcher` now re-runs the same address rules **inside
+  undici's connector**, against the address the socket is about to use, so there is no
+  resolution after the check.
+
+  The two layers cover different threats, and neither is redundant:
+
+  | Vector | Caught by |
+  |---|---|
+  | literal IP, in any encoding | the pre-check — a literal cannot rebind, and undici skips DNS for literals entirely |
+  | hostname resolving private | either layer |
+  | **DNS rebinding** | the connector, which is the only layer that can |
+
+- **Live-verified, not only unit-tested.** Driving the connector directly, `http://localhost` is
+  refused with *"resolves to ::1: IPv6 loopback"* while `https://example.com` **reaches status
+  200** — the guard blocks without breaking delivery. That check mattered: the first version of
+  the connector replied in the single-address shape while asking the resolver for all addresses,
+  which handed undici `undefined` and **broke every legitimate delivery**. It was caught by
+  running it, not by reading it.
+- **End-to-end**: ten vectors driven through `deliverWebhook` itself — loopback literal and by
+  name, cloud metadata, `10/8`, `192.168/16`, integer-encoded, IPv6 loopback, credentials in the
+  URL, `file://`, and an unsupported scheme — all refused before any socket opens.
 - **Regression test**: `tests/webhook-ssrf-and-authorization.test.ts` — 57 passed, exit 0,
   covering every case in the directive's list including integer and hex encodings, IPv6, a
   hostname resolving private, and a mixed public/private answer.
