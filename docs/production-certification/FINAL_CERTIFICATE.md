@@ -8,10 +8,10 @@
 -->
 
 **Verdict**: **NO-GO — BLOCKERS REMAIN**
-**Generated**: 2026-08-20T21:11:28.166Z
-**Candidate SHA**: `28669f0a76b33e4538eda0006550e192774ce17c`
+**Generated**: 2026-08-21T03:24:02.023Z
+**Candidate SHA**: `daa8ffb679b7bee87a907d4913123318b697eab6`
 **Release tag**: `telestar-internal-rc-2026-08-21`
-**Evidence records**: 22
+**Evidence records**: 23
 
 ---
 
@@ -19,12 +19,12 @@
 
 | Field | Value |
 |---|---|
-| APPLICATION_SOURCE_SHA | `28669f0a76b33e4538eda0006550e192774ce17c` |
-| CI_RUN_ID | `not established` |
-| IMAGE_DIGEST | `not established` |
-| WEB_DIGEST | `not established` |
-| WORKER_DIGEST | `not established` |
-| HEALTH_SHA | `not established` |
+| APPLICATION_SOURCE_SHA | `daa8ffb679b7bee87a907d4913123318b697eab6` |
+| CI_RUN_ID | `32418164738` |
+| IMAGE_DIGEST | `sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49` |
+| WEB_DIGEST | `sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49` |
+| WORKER_DIGEST | `sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49` |
+| HEALTH_SHA | `daa8ffb679b7bee87a907d4913123318b697eab6` |
 
 ## 2. Test execution
 
@@ -67,8 +67,8 @@ Two benchmarks, named for what they exercise. Detail: [LOAD_TEST.md](LOAD_TEST.m
 
 | Measure | Value |
 |---|---|
-| Backup artifact size | 1886624 bytes |
-| Backup SHA-256 | `a48165d61cb19491f27865e6b6f244c217e9c79d8b06dad7e81e9359fb296cc0` |
+| Backup artifact size | 1911816 bytes |
+| Backup SHA-256 | `b1e332498f272cec5cab4bcb2fb8c3dc58c6cf1524a003f2148e7a7070c47512` |
 | Checksum verified | true |
 | Restore integrity | true |
 | Measured RTO | 4.77 s |
@@ -79,7 +79,7 @@ Detail: [BACKUP_RESTORE.md](BACKUP_RESTORE.md).
 
 ## 6. Requirements
 
-**102 of 108 verified.**
+**103 of 108 verified.**
 
 | Domain | Verified | Total |
 |---|---:|---:|
@@ -89,7 +89,7 @@ Detail: [BACKUP_RESTORE.md](BACKUP_RESTORE.md).
 | `ROLE` | 12 | 12 |
 | `AI` | 14 | 14 |
 | `DR` | 8 | 10 |
-| `REL` | 4 | 8 |
+| `REL` | 5 | 8 |
 | `OPS` | 24 | 24 |
 
 Status is computed per requirement from the evidence manifest, never asserted. Detail:
@@ -142,13 +142,9 @@ Detail: [DEFECTS.md](DEFECTS.md).
   - run 3 gate "19-docker-build" is BLOCKED_EXTERNAL
   - run 3 gate "20-image-inspection" is BLOCKED_EXTERNAL
 
-**Check `R`** — 1 finding(s)
-  - no release-identity evidence record: image/web/worker digests are unknown
-
-**Check `REQ`** — 6 finding(s)
+**Check `REQ`** — 5 finding(s)
   - DR-003 is not VERIFIED: evidence of kind "dr-rollback" is NOT_EXECUTED, not PASS
   - DR-007 is not VERIFIED: evidence of kind "dr-rpo" is BLOCKED_EXTERNAL, not PASS
-  - REL-001 is not VERIFIED: no evidence record of kind "release-identity"
   - REL-003 is not VERIFIED: evidence of kind "certification-run" is FAIL, not PASS
   - REL-004 is not VERIFIED: evidence of kind "certification-run" is FAIL, not PASS
   - REL-005 is not VERIFIED: evidence of kind "certification-run" is FAIL, not PASS

@@ -1,13 +1,13 @@
 # pre-backup source integrity
 # command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json
-# startedAt: 2026-08-20T21:09:19.096Z
-# finishedAt: 2026-08-20T21:09:20.652Z
+# startedAt: 2026-08-21T03:04:00.369Z
+# finishedAt: 2026-08-21T03:04:02.126Z
 # exitCode: 0
 
 --- stdout ---
 {
-  "startedAt": "2026-08-20T21:09:19.559Z",
-  "finishedAt": "2026-08-20T21:09:20.626Z",
+  "startedAt": "2026-08-21T03:04:00.847Z",
+  "finishedAt": "2026-08-21T03:04:02.102Z",
   "database": "telestar_audit_e2e_test",
   "status": "PASS",
   "checks": [

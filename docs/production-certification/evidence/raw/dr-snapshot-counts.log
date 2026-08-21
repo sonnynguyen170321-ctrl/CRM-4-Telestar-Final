@@ -1,5 +1,5 @@
-# counts taken inside the transaction that exported snapshot 00000003-00033721-1
-SNAPSHOT=00000003-00033721-1
+# counts taken inside the transaction that exported snapshot 00000003-0004144D-1
+SNAPSHOT=00000003-0004144D-1
 Tenant=380
 User=409
 Client=281

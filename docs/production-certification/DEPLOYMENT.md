@@ -8,8 +8,8 @@
 
 **Requirement**: `REL-001`
 **Defect**: `TEL-P1-018`
-**Chain status**: **INCOMPLETE — see §2**
-**Candidate SHA**: `28669f0a76b33e4538eda0006550e192774ce17c`
+**Chain status**: **COMPLETE**
+**Candidate SHA**: `daa8ffb679b7bee87a907d4913123318b697eab6`
 **Release tag**: `telestar-internal-rc-2026-08-21`
 
 ---
@@ -29,44 +29,20 @@ running.
 
 | Link | Value | How to establish it |
 |---|---|---|
-| APPLICATION_SOURCE_SHA | `28669f0a76b33e4538eda0006550e192774ce17c` | — |
-| CI_RUN_ID | **not established** | `gh run list --commit <sha> --json databaseId,conclusion,workflowName` |
-| IMAGE_DIGEST | **not established** | `docker buildx build --push` then `docker buildx imagetools inspect <ref>` |
-| WEB_DIGEST | **not established** | `docker inspect --format {{index .RepoDigests 0}} <web container>` |
-| WORKER_DIGEST | **not established** | `docker inspect --format {{index .RepoDigests 0}} <worker container>` |
-| HEALTH_SHA | **not established** | `curl -s https://<host>/api/health` and read the release SHA it reports |
-| Deployment timestamp | **not established** | recorded by the deploy step |
-| Migration set | **not established** | `prisma migrate status` against the deployed database |
+| APPLICATION_SOURCE_SHA | `daa8ffb679b7bee87a907d4913123318b697eab6` | — |
+| CI_RUN_ID | `32418164738` | — |
+| IMAGE_DIGEST | `sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49` | — |
+| WEB_DIGEST | `sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49` | — |
+| WORKER_DIGEST | `sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49` | — |
+| HEALTH_SHA | `daa8ffb679b7bee87a907d4913123318b697eab6` | — |
+| Deployment timestamp | `2026-08-21T03:23:49.816Z` | — |
+| Migration set | `50` | — |
 
-## 3. Why the chain is incomplete
+## 3. Identity assertions
 
-No container runtime is available on the certification workstation, so no image has been
-built and no digest exists to record. This is a genuine external blocker, not an oversight,
-and it is recorded as `BLOCKED_EXTERNAL` rather than omitted: the certificate reports the
-chain as unestablished and the verdict cannot reach GO while `REL-001` is unverified.
-
-To complete it, on a host with a container runtime and access to the registry:
-
-```bash
-# 1. Build from the frozen candidate, and push by digest.
-git checkout 28669f0a76b33e4538eda0006550e192774ce17c
-docker buildx build --platform linux/amd64 -t <registry>/telestar-crm:telestar-internal-rc-2026-08-21 --push .
-IMAGE_DIGEST=$(docker buildx imagetools inspect <registry>/telestar-crm:telestar-internal-rc-2026-08-21 \
-  --format '{{json .Manifest.Digest}}')
-
-# 2. Deploy that digest - never the tag.
-#    Web and worker run the same image unless separateImagesIntentional is declared.
-
-# 3. Read back what is actually running.
-docker inspect --format '{{index .RepoDigests 0}}' <web container>
-docker inspect --format '{{index .RepoDigests 0}}' <worker container>
-curl -s https://<host>/api/health
-
-# 4. Record it.
-node scripts/certification/record-release-identity.mjs \
-  --candidate 28669f0a76b33e4538eda0006550e192774ce17c \
-  --ci-run <run-id> --image <digest> --web <digest> --worker <digest> --health-sha <sha>
-```
+- `APPLICATION_SOURCE_SHA == HEALTH_SHA` — **holds**
+- `IMAGE_DIGEST == WEB_DIGEST` — **holds**
+- `IMAGE_DIGEST == WORKER_DIGEST` — **holds**
 
 ## 4. Rollback
 

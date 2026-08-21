@@ -6,8 +6,8 @@
   Regenerate: node scripts/certification/render-traceability.mjs
 -->
 
-**Candidate SHA**: `28669f0a76b33e4538eda0006550e192774ce17c`
-**Verified**: 102 / 108
+**Candidate SHA**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+**Verified**: 103 / 108
 **Verdict**: NO-GO
 
 > Status in this document is **computed**, never asserted. `requirements.json` has no status
@@ -27,9 +27,9 @@
 | **6-Role Operational Workflows** | `ROLE` | 12 | 12 | 0 |
 | **AI Reliability & Cost Governance** | `AI` | 14 | 14 | 0 |
 | **Disaster Recovery & Infrastructure** | `DR` | 10 | 8 | 2 |
-| **Release Identity & Gate Auditing** | `REL` | 8 | 4 | 4 |
+| **Release Identity & Gate Auditing** | `REL` | 8 | 5 | 3 |
 | **Operational Lifecycle & Sequences** | `OPS` | 24 | 24 | 0 |
-| **TOTAL** | | **108** | **102** | **6** |
+| **TOTAL** | | **108** | **103** | **5** |
 
 ---
 
@@ -145,7 +145,7 @@
 
 | ID | Requirement | Sev | Evidence claims | Status | Why not verified | Defects |
 |---|---|---|---|---|---|---|
-| `REL-001` | Immutable release chain: Source SHA -> Metadata SHA -> Image Digest | P1 | release-identity | NOT_VERIFIED | no evidence record of kind "release-identity" | `TEL-P1-008`, `TEL-P2-003` |
+| `REL-001` | Immutable release chain: Source SHA -> Metadata SHA -> Image Digest | P1 | release-identity | **VERIFIED** | — | `TEL-P1-008`, `TEL-P2-003` |
 | `REL-002` | Zero unexplained skipped tests in test suite | P1 | gate | **VERIFIED** | — | `TEL-P2-001` |
 | `REL-003` | Certification Run 1: Full test ladder + static + build | P1 | run 1 | NOT_VERIFIED | evidence of kind "certification-run" is FAIL, not PASS | — |
 | `REL-004` | Certification Run 2: Full test ladder + static + build | P1 | run 2 | NOT_VERIFIED | evidence of kind "certification-run" is FAIL, not PASS | — |

@@ -14,9 +14,9 @@
 [bullmq] Redis connected
 [worker] ready: maintenance
 [worker] ready: sequence
-[worker] ready: email
 [worker] ready: notification
 [worker] ready: maintenance
+[worker] ready: email
 [worker] ready: sync
 [worker] ready: import
 [worker] ready: agent

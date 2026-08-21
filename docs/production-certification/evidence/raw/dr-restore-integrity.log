@@ -1,14 +1,14 @@
 # verify-db-integrity
-# command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json --expect-counts C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\.dr-artifacts\counts-2026-08-20T21-09-19-090Z.json
-# startedAt: 2026-08-20T21:09:28.120Z
-# finishedAt: 2026-08-20T21:09:29.465Z
+# command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json --expect-counts C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\.dr-artifacts\counts-2026-08-21T03-04-00-363Z.json
+# startedAt: 2026-08-21T03:04:09.689Z
+# finishedAt: 2026-08-21T03:04:11.164Z
 # exitCode: 0
 
 --- stdout ---
 {
-  "startedAt": "2026-08-20T21:09:28.572Z",
-  "finishedAt": "2026-08-20T21:09:29.439Z",
-  "database": "telestar_dr_drill_20260820t210919",
+  "startedAt": "2026-08-21T03:04:10.180Z",
+  "finishedAt": "2026-08-21T03:04:11.128Z",
+  "database": "telestar_dr_drill_20260821t030400",
   "status": "PASS",
   "checks": [
     {

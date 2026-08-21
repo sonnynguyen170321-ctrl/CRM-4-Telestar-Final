@@ -7,10 +7,10 @@
 -->
 
 **Verdict**: **PASS**
-**Candidate SHA**: `28669f0a76b33e4538eda0006550e192774ce17c`
+**Candidate SHA**: `daa8ffb679b7bee87a907d4913123318b697eab6`
 **Release tag**: `telestar-internal-rc-2026-08-21`
 **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
-**Ran**: 2026-08-20T20:56:44.764Z → 2026-08-20T21:02:36.078Z (5.9 min)
+**Ran**: 2026-08-21T02:50:20.923Z → 2026-08-21T02:56:32.425Z (6.2 min)
 
 ---
 
@@ -27,28 +27,28 @@ No mandatory gate was omitted.
 |---|---|---:|---:|---|
 | `01-source-identity` | **PASS** | 0 | 0.0s | — |
 | `02-environment` | **PASS** | 0 | 0.3s | — |
-| `03-typecheck` | **PASS** | 0 | 23.7s | — |
-| `04-lint` | **PASS** | 0 | 48.2s | — |
+| `03-typecheck` | **PASS** | 0 | 25.8s | — |
+| `04-lint` | **PASS** | 0 | 50.5s | — |
 | `05-test-discipline` | **PASS** | 0 | 0.3s | — |
-| `06-migration-validation` | **PASS** | 0 | 0.2s | — |
-| `07-database-integrity` | **PASS** | 0 | 2.0s | — |
-| `08-vitest` | **PASS** | 0 | 120.9s | — |
-| `09-redis-integration` | **PASS** | 0 | 3.2s | — |
-| `10-ai-certification` | **PASS** | 0 | 7.0s | — |
-| `11-email-safety` | **PASS** | 0 | 2.1s | — |
-| `12-import-fault-matrix` | **PASS** | 0 | 5.2s | — |
-| `13-queue-load` | **PASS** | 0 | 19.5s | — |
-| `14-security-suite` | **PASS** | 0 | 3.5s | — |
-| `15-production-build` | **PASS** | 0 | 60.0s | — |
-| `16-playwright-roles` | **PASS** | 0 | 24.8s | — |
+| `06-migration-validation` | **PASS** | 0 | 0.1s | — |
+| `07-database-integrity` | **PASS** | 0 | 1.7s | — |
+| `08-vitest` | **PASS** | 0 | 123.9s | — |
+| `09-redis-integration` | **PASS** | 0 | 3.5s | — |
+| `10-ai-certification` | **PASS** | 0 | 7.7s | — |
+| `11-email-safety` | **PASS** | 0 | 2.2s | — |
+| `12-import-fault-matrix` | **PASS** | 0 | 5.3s | — |
+| `13-queue-load` | **PASS** | 0 | 20.1s | — |
+| `14-security-suite` | **PASS** | 0 | 3.6s | — |
+| `15-production-build` | **PASS** | 0 | 63.2s | — |
+| `16-playwright-roles` | **PASS** | 0 | 30.4s | — |
 | `16-playwright-roles-evidence` | **PASS** | 0 | 0.1s | — |
-| `17-golden-browser-journey` | **PASS** | 0 | 14.2s | — |
-| `18-worker-readiness` | **PASS** | 0 | 3.3s | — |
-| `22-health-smoke` | **PASS** | 0 | 0.0s | — |
+| `17-golden-browser-journey` | **PASS** | 0 | 15.3s | — |
+| `18-worker-readiness` | **PASS** | 0 | 4.5s | — |
+| `22-health-smoke` | **PASS** | 0 | 0.1s | — |
 | `19-docker-build` | BLOCKED_EXTERNAL | 127 | 0.0s | no container runtime on the certification workstation; see TEL-P1-018 |
 | `20-image-inspection` | BLOCKED_EXTERNAL | 127 | 0.0s | no image exists to inspect; see TEL-P1-018 |
 | `21-compose-validation` | **PASS** | 0 | 0.4s | — |
-| `23-validator-selftest` | **PASS** | 0 | 1.0s | — |
+| `23-validator-selftest` | **PASS** | 0 | 0.9s | — |
 
 ## 3. Test execution
 

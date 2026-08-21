@@ -1,7 +1,7 @@
 # gate: 07-database-integrity — scripts/verify-db-integrity.ts against the certification database
 # command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts
-# startedAt: 2026-08-20T21:04:04.655Z
-# finishedAt: 2026-08-20T21:04:06.149Z
+# startedAt: 2026-08-21T02:58:11.552Z
+# finishedAt: 2026-08-21T02:58:13.514Z
 # exitCode: 0
 
 --- stdout ---

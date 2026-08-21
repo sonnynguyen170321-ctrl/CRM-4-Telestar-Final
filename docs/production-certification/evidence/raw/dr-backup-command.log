@@ -1,7 +1,7 @@
 # pg_dump
-# command: C:\Program Files\PostgreSQL\16\bin\pg_dump.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_audit_e2e_test --format=custom --no-owner --no-acl --snapshot 00000003-00033721-1 --file C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\.dr-artifacts\telestar_2026-08-20T21-09-19-090Z.dump
-# startedAt: 2026-08-20T21:09:21.417Z
-# finishedAt: 2026-08-20T21:09:22.534Z
+# command: C:\Program Files\PostgreSQL\16\bin\pg_dump.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_audit_e2e_test --format=custom --no-owner --no-acl --snapshot 00000003-0004144D-1 --file C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\.dr-artifacts\telestar_2026-08-21T03-04-00-363Z.dump
+# startedAt: 2026-08-21T03:04:02.575Z
+# finishedAt: 2026-08-21T03:04:03.753Z
 # exitCode: 0
 
 --- stdout ---

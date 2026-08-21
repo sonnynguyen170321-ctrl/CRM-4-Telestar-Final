@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-ROLE-BROWSER",
   "kind": "role-browser",
-  "candidateSha": "28669f0a76b33e4538eda0006550e192774ce17c",
+  "candidateSha": "daa8ffb679b7bee87a907d4913123318b697eab6",
   "environment": "win32 / node 24.16.0 / next start / real Postgres / real Redis / Chromium 1440x900",
   "command": "node node_modules/@playwright/test/cli.js test --project=certification-roles",
-  "startedAt": "2026-08-20T21:08:29.908Z",
-  "finishedAt": "2026-08-20T21:08:29.908Z",
+  "startedAt": "2026-08-21T03:03:03.382Z",
+  "finishedAt": "2026-08-21T03:03:03.382Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -117,8 +117,8 @@
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/director.png",
-      "sizeBytes": 150986,
-      "sha256": "5b77b3c8494969c30038962b9eaac542b9bed12504ea23b77a751c8da8dd6bed"
+      "sizeBytes": 151257,
+      "sha256": "d386bcfe8e24b916ef0bfd59a272dfcd6ab0c24b0cd09c93ec30e008e8dc5c89"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/floor_manager.png",
@@ -142,8 +142,8 @@
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/team_lead.png",
-      "sizeBytes": 217038,
-      "sha256": "c1a8dc130c931a319a2c68919b907ae1ed5718bc6892c31bf5b2329c44c0f643"
+      "sizeBytes": 217040,
+      "sha256": "d5028a2f9746573bd68a5c8fb2fc51893a54a5a02e05e50f90221e9ba88ce043"
     }
   ]
 }

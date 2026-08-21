@@ -7,10 +7,10 @@
 -->
 
 **Verdict**: **NO-GO**
-**Candidate SHA**: `28669f0a76b33e4538eda0006550e192774ce17c`
-**Requirements verified**: 102 / 108
-**Evidence records**: 22
-**Generated**: 2026-08-20T21:11:26.570Z
+**Candidate SHA**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+**Requirements verified**: 103 / 108
+**Evidence records**: 23
+**Generated**: 2026-08-21T03:24:00.348Z
 
 > This file and `progress.json` are rendered from the same computation. They used to be
 > maintained by hand, and both said 108/108 VERIFIED and CERTIFIED_APPROVED — which proved
@@ -28,9 +28,9 @@
 | `ROLE` | 12 | 12 | 0 |
 | `AI` | 14 | 14 | 0 |
 | `DR` | 10 | 8 | 2 |
-| `REL` | 8 | 4 | 4 |
+| `REL` | 8 | 5 | 3 |
 | `OPS` | 24 | 24 | 0 |
-| **TOTAL** | **108** | **102** | **6** |
+| **TOTAL** | **108** | **103** | **5** |
 
 Detail, with the blocking reason on every unverified row:
 [REQUIREMENT_TRACEABILITY.md](REQUIREMENT_TRACEABILITY.md).
@@ -68,8 +68,7 @@ Detail, with the blocking reason on every unverified row:
 | Check | Failures |
 |---|---:|
 | `L` | 6 |
-| `REQ` | 6 |
-| `R` | 1 |
+| `REQ` | 5 |
 
 Check meanings are in [PROTOCOL.md](PROTOCOL.md) §6.
 
