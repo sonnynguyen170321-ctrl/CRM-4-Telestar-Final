@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { MODEL_REGISTRY, getModelMetadata } from '@/lib/ai/registry';
 import { routeModel } from '@/lib/ai/router';
 import { circuitBreaker } from '@/lib/ai/circuitBreaker';
-import { generateToolIdempotencyKey } from '@/lib/ai/actions';
 import { aiGateway } from '@/lib/ai/gateway';
 
 describe('Phase 1: Central Model Registry & Smart Routing', () => {
@@ -126,41 +125,11 @@ describe('Phase 1: Circuit Breakers & Failover Isolation', () => {
   });
 });
 
-describe('Phase 1: Durable Tool Idempotency Keys', () => {
-  it('generates deterministic and unique idempotency keys per execution turn and tool', () => {
-    const key1 = generateToolIdempotencyKey({
-      tenantId: 'tenant-123',
-      userId: 'user-456',
-      executionId: 'exec-789',
-      turnId: 'turn-1',
-      toolOrdinal: 0,
-      toolName: 'assign_leads',
-    });
-
-    const key2 = generateToolIdempotencyKey({
-      tenantId: 'tenant-123',
-      userId: 'user-456',
-      executionId: 'exec-789',
-      turnId: 'turn-1',
-      toolOrdinal: 0,
-      toolName: 'assign_leads',
-    });
-
-    const keyDifferentTool = generateToolIdempotencyKey({
-      tenantId: 'tenant-123',
-      userId: 'user-456',
-      executionId: 'exec-789',
-      turnId: 'turn-1',
-      toolOrdinal: 1,
-      toolName: 'log_activity',
-    });
-
-    expect(key1).toBe(key2);
-    expect(key1).not.toBe(keyDifferentTool);
-    expect(key1).toContain('tenant-123');
-    expect(key1).toContain('assign_leads');
-  });
-});
+// The durable tool idempotency key is built in `lib/ai/chatRuntime.ts` from a per-turn
+// ordinal, and is asserted against its real format in
+// `tests/agent-runtime-integration.test.ts`. A second describe block here tested
+// `lib/ai/actions.ts:generateToolIdempotencyKey`, a parallel implementation that no
+// production path ever called — coverage of a function that could not affect a user.
 
 describe('Phase 1: AI Gateway Health Reporting', () => {
   it('reports operational health status across providers and circuits', () => {

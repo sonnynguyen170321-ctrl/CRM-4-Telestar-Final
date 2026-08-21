@@ -1,27 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { validateActionAutonomy } from '@/lib/ai/engine/autonomy-matrix';
 import { detectPromptInjection, scrubSecrets } from '@/lib/ai/engine/security-guards';
 
-describe('Telestar AI Phase 3 — Autonomy & Security Guards', () => {
-  describe('Autonomy & Risk Validation', () => {
-    it('allows low risk actions for standard SDRs', () => {
-      const result = validateActionAutonomy({
-        actionName: 'searchLeads',
-        userRole: 'sdr',
-      });
-      expect(result.allowed).toBe(true);
-      expect(result.policy.riskLevel).toBe('LOW');
-    });
-
-    it('refuses critical mutations to SDRs without management authority', () => {
-      const result = validateActionAutonomy({
-        actionName: 'bulkTransferLeads',
-        userRole: 'sdr',
-      });
-      expect(result.allowed).toBe(false);
-      expect(result.reason).toContain('not authorized');
-    });
-  });
+describe('Telestar AI Phase 3 — Security Guards', () => {
+  // The autonomy block that stood here exercised `lib/ai/engine/autonomy-matrix.ts`, which
+  // no production path imported. Real autonomy and object authorization are enforced by the
+  // CRM domain services and covered by `tests/agent-capability-autonomy.test.ts`,
+  // `tests/agent-object-authorization.test.ts` and `tests/work-order-approvals.test.ts`.
 
   describe('Security & Prompt Injection Guards', () => {
     it('detects prompt injection attack patterns', () => {

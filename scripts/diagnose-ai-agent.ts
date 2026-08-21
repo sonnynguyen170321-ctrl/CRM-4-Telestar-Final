@@ -3,7 +3,6 @@ import { MODEL_REGISTRY } from '@/lib/ai/registry';
 import { routeModel } from '@/lib/ai/router';
 import { compileConstitutionalPrompt, TELESTAR_AI_CONSTITUTION } from '@/lib/ai/behavior/telestar-ai-constitution';
 import { detectPromptInjection, scrubSecrets } from '@/lib/ai/engine/security-guards';
-import { classifyIntent } from '@/lib/ai/engine/intent-engine';
 import { retrieveRelevantSkills, selectSkillModules } from '@/lib/ai/skill-retriever';
 
 async function diagnose() {
@@ -46,19 +45,7 @@ async function diagnose() {
   const scrubbed = scrubSecrets(secretInput);
   console.log('   - Secret Scrubbing:', scrubbed.includes('SuperSecret') ? '❌ LEAKED' : '✅ REDACTED TO [REDACTED_SECRET]');
 
-  console.log('\n4. 🧠 Intent Classification Engine:');
-  const intentsToTest = [
-    'Can you help me enrich this lead with industry pain points?',
-    'Schedule a follow up call tomorrow at 2pm',
-    'What are my pipeline metrics for today?',
-  ];
-
-  for (const text of intentsToTest) {
-    const res = classifyIntent(text);
-    console.log(`   - "${text}" -> Intent: [${res.intent}] (Confidence: ${res.confidence})`);
-  }
-
-  console.log('\n5. 🎯 Dynamic Skill Retriever:');
+  console.log('\n4. 🎯 Dynamic Skill Retriever:');
   const selectedModuleIds = selectSkillModules({ topicText: 'Write a cold outbound email for logistics CFO' });
   console.log(`   - Selected ${selectedModuleIds.length} dynamic skill modules:`, selectedModuleIds);
   const promptContext = retrieveRelevantSkills({ topicText: 'Write a cold outbound email for logistics CFO' });

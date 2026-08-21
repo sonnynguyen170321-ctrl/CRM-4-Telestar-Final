@@ -65,12 +65,10 @@ async function check(name: string, fn: () => Promise<string>): Promise<void> {
   }
 }
 
-async function collect(stream: AsyncIterable<{ type: string; text?: string }>): Promise<string> {
-  let text = '';
-  for await (const event of stream) {
-    if (event.type === 'text' && event.text) text += event.text;
-  }
-  return text;
+async function collect(stream: AsyncGenerator<string>): Promise<string> {
+  const pieces: string[] = [];
+  for await (const piece of stream) pieces.push(piece);
+  return pieces.join('');
 }
 
 /**

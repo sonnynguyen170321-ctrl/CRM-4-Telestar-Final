@@ -52,7 +52,10 @@ describe('deploy.sh runs the Telestar AI release gates', () => {
 
   it('makes a real provider call from inside the image that will serve traffic', () => {
     // The gate this whole file exists for. A key that parses is not a key that works.
-    expect(deploySh).toMatch(/ai_gate .*provider-smoke.*\n?.*scripts\/ai-provider-smoke\.ts/s);
+    // Asserted as two halves rather than one dotAll regex: the `s` flag needs an es2018 lib
+    // target this project does not set, and the split reads as the clearer statement anyway.
+    expect(deploySh).toMatch(/ai_gate [^\n]*provider-smoke/);
+    expect(deploySh).toContain('scripts/ai-provider-smoke.ts');
   });
 
   it('proves the worker can reach the providers, not only web', () => {
@@ -64,7 +67,8 @@ describe('deploy.sh runs the Telestar AI release gates', () => {
   });
 
   it('exercises the gateway — routing, failover and streaming — not just raw providers', () => {
-    expect(deploySh).toMatch(/ai_gate .*gateway-smoke.*\n?.*scripts\/ai-gateway-smoke\.ts/s);
+    expect(deploySh).toMatch(/ai_gate [^\n]*gateway-smoke/);
+    expect(deploySh).toContain('scripts/ai-gateway-smoke.ts');
   });
 
   it('runs every AI gate before the application smoke test', () => {

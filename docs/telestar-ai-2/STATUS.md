@@ -145,7 +145,7 @@ behaviour, so it needs its own proof rather than an opportunistic edit.
 
 ---
 
-## P1 — Seventeen "intelligence" modules are dead code
+## P1 — 37% of `lib/ai/` is unreachable from production
 
 Every module below has exactly **one** importer, and in every case that importer is its own
 test. Nothing in `app/`, `components/`, `workers/` or the chat runtime reaches any of them.
@@ -174,6 +174,121 @@ Two concrete instances of what the code does:
 - `lib/ai/roleCopilots.ts` — returns template strings. `whyThisContact` is
   `` `Matches target executive persona as ${title} at ${company}.` `` — no CRM read, no
   evidence, no inference. It cannot be wrong because it never consults anything.
+
+---
+
+### The full measurement
+
+The first pass counted seventeen modules by grepping for importers. A transitive reachability
+walk — start at every `@/lib/ai/*` import made by `app/`, `components/`, `workers/`, `hooks/`,
+`context/` and the rest of `lib/`, then follow imports — gives the real number.
+
+```
+entry points reached from production code: 15
+REACHABLE   modules: 21   (5,744 loc)
+UNREACHABLE modules: 35   (3,358 loc)
+```
+
+**35 of 56 modules. 3,358 of 9,102 lines.** Not merely uncalled by the chat runtime: unreachable
+from any production entry point in the application.
+
+Three of those are worse than the rest, because of what they are:
+
+| Module | loc | Why it matters |
+|---|---:|---|
+| `lib/ai/engine/security-guards` | 50 | prompt-injection detection and secret scrubbing — **not wired to anything** |
+| `lib/ai/securityGuards` | 39 | a *second*, separate security-guard module, also unreachable |
+| `lib/ai/engine/tool-registry` | 85 | a *second* tool registry; the live one is `lib/ai/tools.ts` |
+
+Two security-guard modules and two tool registries, one of each dead. A reader auditing this
+codebase for "is prompt injection handled" finds a module that handles it, and no way to learn
+it is never called.
+
+### The evaluation suite could not fail
+
+`tests/telestar-ai-certification-evals.test.ts` had two tests:
+
+- The first called `classifyIntent(scenario.userMessage)` and asserted `toBeDefined()`.
+  `classifyIntent` returns a non-nullable object, so this passed for every input including an
+  empty string. `expectedIntent` — declared on every scenario — was never read.
+- The second ran `scrubSecrets` over the **user's own message** and asserted the result did not
+  contain `postgresql://`. The message never contained it.
+
+Rewritten to assert what the dataset declares. It went red immediately, and found two real
+defects rather than test-only problems:
+
+1. **`scrubSecrets` does not redact AI provider keys.** `SECRET_PATTERNS` covers `tl_live_`,
+   Postgres URLs, bearer JWTs and `ghp_`. It misses `sk-proj-` (OpenAI), `AIzaSy` (Google) and
+   `gsk_` (Groq) — the three credential formats this system actually holds.
+2. **The intent classifier disagrees with the dataset on 3 of 4 scenarios.** "Who should I
+   contact next?" classifies as `LOOKUP`, not `PRIORITIZE`; so does its Vietnamese equivalent.
+   A third scenario declared `EXECUTIVE`, which is not a member of `AiIntent` at all — it is a
+   `requiredDepth` value. `expectedIntent` was typed `string`, so nothing caught it.
+
+Both defects sit in unreachable modules, which bounds their production impact to zero today and
+makes them certain to bite whenever the modules are wired.
+
+---
+
+## WAVE 5 (partial) + security — the unreachable layer is gone
+
+**Decision taken by the operator:** wire the security guard, delete the rest.
+
+### Security wired, and taught our own credential formats — `ca44fa2`
+
+`lib/ai/engine/security-guards.ts` is now imported by `lib/ai/chatRuntime.ts` and applied to
+every tool result before it returns to the model. Tool results are CRM content — lead notes,
+imported fields, prospect email bodies, provider error strings — all untrusted by
+`AGENTS.md`'s definition.
+
+`SECRET_PATTERNS` gained the three provider formats it was missing (`sk-proj-`, `AIza`, `gsk_`)
+plus Redis/Mongo URLs with passwords, AWS key ids, Slack tokens, GitHub PATs and bare JWTs.
+`lib/ai/securityGuards.ts` — a second guard module with a different opinion — was merged in and
+deleted.
+
+**Not done, and stated rather than implied:** the model's streamed answer is not scrubbed.
+Chunk boundaries can split a credential in half, so a per-chunk scrub would miss it while
+implying a protection that does not exist. That needs a windowed scrubber and its own proof.
+
+### 34 modules deleted, 3,308 lines
+
+Every module unreachable from a production entry point, except `lib/ai/evals/golden-dataset.ts`
+which is a test dataset by design. With them went 8 test files whose subject no longer exists.
+
+Two deletions are worth naming because they were counted as coverage:
+
+- `lib/ai/actions.ts:generateToolIdempotencyKey` — a parallel idempotency-key implementation
+  that nothing called, tested under the heading "Phase 1: Durable Tool Idempotency Keys". The
+  key production actually uses is built in `chatRuntime.ts` from a per-turn ordinal, and is
+  asserted against its real format in `tests/agent-runtime-integration.test.ts:158`. "Write
+  idempotency" is a line on the required certificate; it was being evidenced by the wrong
+  function.
+- `lib/ai/engine/autonomy-matrix.ts` — tested with "refuses critical mutations to SDRs without
+  management authority". Real autonomy and object authorization live in the CRM domain services
+  and are covered by `agent-capability-autonomy`, `agent-object-authorization` and
+  `work-order-approvals`.
+
+### The evaluation suite now asserts things
+
+Rebuilt `lib/ai/evals/golden-dataset.ts`: 8 families, all six roles, 47 scenarios, no
+duplicates written to inflate a count. `expectedIntent` was removed — the classifier it named is
+deleted, and the suite's rule is that a field nobody asserts does not stay.
+
+One test in the rewritten suite was wrong and is recorded as such: it asserted that a
+scenario's `forbiddenClaims` do not appear in the **user's own message**, which they always do,
+since the phrase is drawn from the request. `forbiddenClaims` constrains a *model answer* and
+cannot be checked without a model. It is now structurally validated here and left to the
+live-model suite to assert semantically.
+
+**Adversarial scope, stated honestly.** The `SECURITY` family is regression protection for a
+pattern matcher, not a red team. A pattern matcher cannot catch a semantically phrased
+injection, and encoding such cases here would only record a permanent failure. Real adversarial
+coverage needs a model in the loop — WAVE 10.
+
+### Evidence
+
+`tsc --noEmit` **exit 0**, captured from the tool. ESLint **exit 0** (11 pre-existing warnings,
+all in `prisma/seed-demo.ts`). `check-test-discipline` **exit 0**.
 
 ---
 
