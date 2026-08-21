@@ -19,11 +19,11 @@
 
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
-| **P0** (Launch Blocker) | 2 | 0 | 0 | **2** |
-| **P1** (Critical) | 28 | 9 | 4 | **19** |
+| **P0** (Launch Blocker) | 2 | 1 | 0 | **1** |
+| **P1** (Critical) | 30 | 9 | 4 | **21** |
 | **P2** (Important) | 23 | 9 | 3 | **14** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **49** | **18** | **7** | **31** |
+| **TOTAL** | **51** | **19** | **7** | **32** |
 
 The defect total is permitted to increase. Finding more defects is successful auditing.
 The prior cap of 25 is void.
@@ -62,7 +62,7 @@ The prior cap of 25 is void.
 
 ### `TEL-P0-002` — Production Backup Posture Contradicts Itself; RPO Unsubstantiated
 - **Severity**: P0 (Launch Blocker)
-- **Status**: `BLOCKED_EXTERNAL`
+- **Status**: `RESOLVED` — measured 2026-08-21; superseded by `TEL-P1-027`
 - **Discovered by**: attempting to derive RPO from real configuration instead of restating a target.
 - **Detail**: three repository documents make incompatible statements about whether the
   production database has any automated backup at all.
@@ -94,7 +94,42 @@ The prior cap of 25 is void.
   `gcloud sql backups list` against the real project, attach the raw output as evidence,
   correct whichever document is wrong, and — if backups are in fact disabled — enable
   automated backups and PITR before launch.
-- **Evidence ID**: `EV-DR-RPO` (recorded `BLOCKED_EXTERNAL`)
+- **Evidence ID**: `EV-DR-RPO` (to be re-recorded against the new candidate)
+
+### RESOLVED 2026-08-21 — measured against the live instance
+
+Operator authenticated `gcloud`; the instance was inspected directly. **No document was right.**
+
+First, the remediation command in this very defect names an instance that does not exist. The
+real instance is **`telestar-db`**, not `telestar-crm-db`; `scripts/deploy.sh` had it right.
+
+| Source | Claim | Reality |
+|---|---|---|
+| `BACKUP_RESTORE_RUNBOOK.md` | daily backups **and 7-day PITR**; RPO < 5 min | backups yes, **PITR no**, RPO up to 24 h |
+| `CLOUD_RUN_DEPLOY.md` | created `--no-backup` | **wrong** — backups are enabled |
+| `DEPLOY.md` (2026-08-05) | one manual snapshot, "no schedule" | true then, **stale now** — a schedule exists |
+| `BACKUP_RESTORE_RUNBOOK.md` | PostgreSQL 15 | **`POSTGRES_16`** |
+
+Measured `settings.backupConfiguration`:
+
+```
+enabled                       true
+startTime                     17:00
+retainedBackups               7 (COUNT)
+transactionLogRetentionDays   7
+pointInTimeRecoveryEnabled    (absent — PITR is OFF)
+```
+
+`gcloud sql backups list` shows successful automated backups at 17:00 on five consecutive days
+through 2026-08-20, plus one on-demand. So the database **is** backed up daily and the
+unbounded-loss scenario this defect feared does not exist.
+
+**The P0 is resolved. It is replaced by a smaller but real finding**, `TEL-P1-027`: without
+PITR the worst case is everything since the last daily backup — 24 hours — and `DR-007` requires
+under one hour.
+
+Incidentally this validated `DEPLOY-002` against reality: real backup run ids look like
+`1787245200000`, which `validate_backup_id` accepts, while `Telestar2026` is refused.
 
 ---
 
@@ -731,6 +766,78 @@ The prior cap of 25 is void.
   defect this requirement exists to close.
 - **Regression test**: `tests/certification-rollback-drill.test.ts` — 27 passed, exit 0.
 - **Evidence ID**: `EV-DR-ROLLBACK` (still `NOT_EXECUTED` — no drill has run)
+
+---
+
+### `TEL-P1-027` — Measured RPO Is 24 Hours; DR-007 Requires Under One Hour
+- **Severity**: P1
+- **Status**: `OPEN`
+- **Discovered by**: measuring RPO against the live instance instead of restating a target.
+- **Measured**: automated daily backups at 17:00 UTC, 7 retained, **point-in-time recovery not
+  enabled**. Worst-case data loss is therefore everything written since the last daily backup —
+  up to **86,400 seconds**. `DR-007` is `mandatory` and reads *"Measured RPO under 1 hour"*.
+- **Why this is a change, not a restatement**: `DR-007` was previously `NOT_VERIFIED` because
+  nothing could measure it. It is now measured, and the measured value **fails** the
+  requirement. Authenticating `gcloud` did not turn DR-007 green; it turned an unknown into a
+  known failure. That is progress, but it is not a pass, and it must not be recorded as one.
+- **Required remediation**: enable point-in-time recovery on `telestar-db`, which bounds
+  recovery by transaction-log durability rather than by the backup interval and brings the
+  measured RPO within the requirement. `transactionLogRetentionDays` is already 7, so the
+  retention side is in place.
+
+  > This is a **production configuration change** and needs explicit operator authorization for
+  > that action. It is not covered by any instruction to make certification green. Enabling PITR
+  > on Cloud SQL requires a restart on some configurations — confirm the maintenance impact
+  > before running it.
+
+  Alternatively, and only as a deliberate decision rather than a default: reduce `DR-007`'s
+  threshold to match an accepted business RPO of 24 hours, and record who accepted it. Changing
+  a requirement to match the system is normally how certifications become worthless, so it
+  should be the operator's explicit call, never the agent's.
+- **Evidence ID**: `EV-DR-RPO` — will record `MEASURED` / `DAILY_BACKUP` / `86400`
+
+---
+
+### `TEL-P1-028` — Phase 15 Claims Private VPC Transport; The Instance Has A Public IP And Permits Unencrypted Connections
+- **Severity**: P1
+- **Status**: `OPEN`
+- **Discovered by**: reading the instance's network configuration while measuring RPO.
+- **The claim**: `STATUS.md`'s Phase 15, *"Cloud SQL Transport Security"*, is marked
+  **🟢 GREEN** with the note *"Cloud SQL transport over private VPC connection."*
+- **Measured**:
+
+  ```
+  ipv4Enabled        true
+  ipAddresses        136.110.29.201 (PRIMARY), 136.110.52.105 (OUTGOING)
+  PRIVATE_ADDRESS    none
+  authorizedNetworks 34.142.236.46/32
+  requireSsl         false
+  sslMode            ALLOW_UNENCRYPTED_AND_ENCRYPTED
+  availabilityType   ZONAL
+  ```
+
+  There is **no private VPC path**. The instance is reachable on a public IP, restricted to one
+  authorized address, and the server **accepts unencrypted connections**.
+- **What is and is not established**: the *server* permits plaintext and there is no private
+  connection — both are measured facts that contradict the phase note. Whether the application
+  actually connects with TLS **cannot be determined from this checkout**, because the production
+  `DATABASE_URL` lives in `.env.production` on the VM. If it carries `sslmode=require` the
+  traffic is encrypted despite the permissive server setting; if it does not, database
+  credentials and tenant data cross the network in cleartext. **That check has not been run and
+  no claim is made about it here.**
+- **Why it matters beyond the misconfiguration**: a phase marked GREEN on a false description is
+  the same failure class the whole re-certification exists to correct. `SEC` currently reads
+  15/15 verified; none of those tests covers Cloud SQL transport, so the green came from a
+  document rather than from evidence.
+- **Required remediation**, in order:
+  1. Read the production `DATABASE_URL` on the VM and establish whether `sslmode=require` is
+     set. Do not print the value; report only whether the parameter is present.
+  2. Set `requireSsl` / `sslMode` to encrypted-only on `telestar-db`, once step 1 confirms the
+     application will not be cut off by it.
+  3. Correct or withdraw the Phase 15 note.
+
+  Steps 2 and 3 touch production and need explicit operator authorization.
+- **Evidence ID**: *(none yet)*
 
 ---
 
