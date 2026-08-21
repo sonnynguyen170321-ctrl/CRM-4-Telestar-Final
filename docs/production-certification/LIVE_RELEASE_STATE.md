@@ -5,149 +5,116 @@ note: Agent working memory for the final certification push. Compact by design.
 
 # LIVE RELEASE STATE
 
-CANDIDATE_SHA=daa8ffb679b7bee87a907d4913123318b697eab6
-HEAD_SHA=4e8145c64094803074d7c2aabd38d89fcb45fa6b
+CANDIDATE_SHA=daa8ffb679b7bee87a907d4913123318b697eab6 (SUPERSEDED — re-freeze required)
 IMAGE_DIGEST=sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49
 DEPLOYED_SHA=daa8ffb679b7bee87a907d4913123318b697eab6
-CURRENT_PHASE=1 complete, PR #100 green on CI required checks — awaiting container runtime
-CURRENT_BLOCKER=docker absent (DR-003, REL-003/4/5) + gcloud unauthenticated (DR-007, TEL-P0-002)
-P0_OPEN=2 (TEL-P0-001 pending re-freeze · TEL-P0-002 needs gcloud auth)
-P1_OPEN=17 (new: TEL-P1-023, TEL-P1-024, DEPLOY-001, DEPLOY-002 — all FIXED_PENDING_VERIFICATION)
+BRANCH=fix/release-gates-and-deploy-guards (PR #100)
+CURRENT_PHASE=1 complete — every repo-local gate green; blocked on operator
+CURRENT_BLOCKER=no container runtime · gcloud unauthenticated · E2E_PASSWORD not supplied
+P0_OPEN=2
+P1_OPEN=19
 REQUIREMENTS_VERIFIED=103/108
-LAST_FULL_CI=CI_RUN_ID 32418164738 (candidate daa8ffb)
-CERT_RUN_1=FAIL (only: gates 19-docker-build, 20-image-inspection BLOCKED_EXTERNAL)
-CERT_RUN_2=FAIL (same)
-CERT_RUN_3=FAIL (same)
-ROLLBACK=NOT_EXECUTED (needs docker)
+CERT_RUN_1/2/3=FAIL (only: gates 19/20 BLOCKED_EXTERNAL — stale, predate TEL-P1-023)
+ROLLBACK=NOT_EXECUTED (no drill exists — TEL-P1-026)
 BACKUP_RESTORE=PASS (RTO 4.77s, checksum verified, restore integrity true)
-NEXT_ACTION=operator installing Docker Desktop; then re-freeze candidate and run certify:full x3
+VALIDATOR=17 failures, exit 1, NO-GO
+NEXT_ACTION=operator: container runtime + E2E_PASSWORD; then re-freeze and run certify:full x3
 
-## Machine capability (measured 2026-08-21, `npm run agent -- doctor`)
+## Machine capability (measured, `npm run agent -- doctor`)
 
 | Capability | State |
 |---|---|
-| node / npm / playwright | ok |
+| node · npm · playwright | ok |
 | postgres :5432 · redis :6379 | ok, listening |
-| AI providers | OPENAI/GEMINI/GROQ keys SET |
-| **docker** | **ABSENT** — blocks 2 CI gates, DR-003 |
+| AI providers | OPENAI / GEMINI / GROQ keys SET |
+| **container runtime** | **ABSENT** — docker and podman both unresolved |
 | **gcloud** | **INSTALLED (SDK 581.0.0), NO CREDENTIALED ACCOUNTS** |
 
-> Correction to the ledger: `TEL-P0-002` and `EV-DR-RPO` both state "gcloud is not installed on
-> the certification machine". That is false as of 2026-08-21. gcloud is installed; it has no
-> authenticated account. The blocker is `gcloud auth login`, an operator action — not an install.
+> `TEL-P0-002` and `EV-DR-RPO` both said "gcloud is not installed on the certification machine".
+> False. It is installed and unauthenticated. The blocker is `gcloud auth login`, not an install
+> — and because the evidence was a hardcoded constant, authenticating would not have changed it
+> either (`TEL-P1-024`).
 
-## Ledger
+## What each operator action is worth
 
-| ID | Sev | State | Owner | Verification |
-|---|---|---|---|---|
-| TEL-P0-001 | P0 | FIXED_PENDING_VERIFICATION | agent | re-run DR drill on frozen candidate SHA |
-| TEL-P0-002 | P0 | BLOCKED_EXTERNAL | operator | `gcloud auth login` then `sql instances describe` |
-| TEL-P1-014..017 | P1 | FIXED_PENDING_VERIFICATION | agent | cert run flip |
-| TEL-P1-018 | P1 | OPEN | agent | DEPLOYMENT.md digest chain |
-| TEL-P1-019..022 | P1 | FIXED_PENDING_VERIFICATION | agent | cert run flip |
-| TEL-P2-013..017 | P2 | FIXED_PENDING_VERIFICATION | agent | cert run flip |
-| TEL-P2-018 | P2 | BLOCKED_EXTERNAL | operator | needs docker |
-| DEPLOY-001 | P1 | FIXED_PENDING_VERIFICATION | agent | tests/deploy-script.test.ts — needs one real deploy |
-| DEPLOY-002 | P1 | FIXED_PENDING_VERIFICATION | agent | tests/deploy-script.test.ts — needs one real deploy |
-| DEPLOY-003 | P2 | FIXED_PENDING_VERIFICATION | agent | tests/deploy-script.test.ts |
-| TEL-P1-023 | P1 | FIXED_PENDING_VERIFICATION | agent | tests/certification-image-gates.test.ts — needs a run with docker |
-| TEL-P1-024 | P1 | FIXED_PENDING_VERIFICATION | agent | tests/certification-rpo-probe.test.ts — needs authenticated gcloud |
-| TEL-P2-019 | P2 | FIXED_PENDING_VERIFICATION | agent | Windows batch-shim exec, tests/certification-rpo-probe.test.ts |
-| TEL-P2-020 | P2 | FIXED_PENDING_VERIFICATION | agent | rollback.sh domain mapping, tests/agent-routing.test.ts |
-| TEL-P1-025 | P1 | FIXED_PENDING_VERIFICATION | agent | gitleaks path exemption; secret-scan now PASS on PR #100 |
-| TEL-P2-021 | P2 | FIXED_PENDING_VERIFICATION | agent | ladder reads .env.local; gate 02 probe now exits 0 |
-| TEL-P2-018 | P2 | FIXED_PENDING_VERIFICATION | external | premise dead: CodeQL + Dependency review pass across 6 runs |
+| Action | Unblocks | Reaches |
+|---|---|---|
+| container runtime | gates 19/20 → REL-003/004/005 | 106/108 |
+| ↳ then finish the DR-003 drill | DR-003 | 107/108 |
+| `gcloud auth login` | DR-007 + settles `TEL-P0-002` | 108/108 |
 
-## Ceiling with Docker alone — corrected
+Below 108/108 the verdict stays **NO-GO**: `TEL-P0-002` is an open **P0** — three repository
+documents disagree about whether production has any automated backup at all, and nothing in
+this checkout can settle it.
 
-An earlier version of this file said a container runtime would take verification to 107/108 by
-unblocking DR-003 and REL-003/004/005. That was wrong about DR-003. Corrected:
+`E2E_PASSWORD` is additionally required for the browser gates. Run-scoped; the published demo
+password is refused by `e2e/support/fixture.ts`.
 
-| Requirement | Unblocked by a container runtime? |
-|---|---|
-| REL-003 / REL-004 / REL-005 | **Yes** — gates 19/20 become real (`TEL-P1-023`) |
-| DR-003 | **No.** Nothing in the repository performs a rollback drill; the only writer of `dr-rollback` evidence records `NOT_EXECUTED`. See `TEL-P1-026` |
-| DR-007 | **No.** Needs an authenticated `gcloud` |
+## Validator state (`npm run certify:validate`, exit 1)
 
-So a container runtime alone reaches **106/108**. Writing the rollback drill takes it to 107/108.
-`gcloud auth login` takes it to 108/108.
-
-The verdict stays **NO-GO** below 108/108 regardless, because `TEL-P0-002` is an open **P0**:
-three repository documents disagree about whether production has any automated backup at all,
-and nothing in this checkout can settle it.
-
-## Validator state, measured 2026-08-21 (`npm run certify:validate`, exit 1)
-
-17 failures, in exactly three groups. Nothing unexplained.
+17 failures, in three groups. Nothing unexplained.
 
 | Check | Count | What it is |
 |---|---:|---|
-| `L` | 6 | gates 19/20 `BLOCKED_EXTERNAL` in the three stale runs. Fixed in code by `TEL-P1-023`; clears when the runs are re-executed on a machine with a container runtime |
-| `N` | 6 | this session's commits touch non-certification files after the freeze. **Correct, and the point**: it is the validator proving the candidate is superseded |
-| `REQ` | 5 | DR-003, DR-007, REL-003/004/005 |
+| `L` | 6 | gates 19/20 `BLOCKED_EXTERNAL` in the three stale runs. Fixed in code by `TEL-P1-023`; clears when the runs are re-executed with a container runtime |
+| `N` | 6 | this session's commits touch non-certification files after the freeze |
+| `REQ` | 5 | DR-003 · DR-007 · REL-003/004/005 |
 
-Check `N` is worth reading as a pass, not a failure: it caught every commit made here and
-refused to let `daa8ffb` stand as the candidate. That is the mechanism working.
+Check `N` reads as the mechanism working, not as a defect: it caught every commit made here and
+refused to let `daa8ffb` stand as the candidate.
 
-A dead reference in this very file was also caught by check `J` — `lib/rollbackDrill.mjs`
-written without its `scripts/certification/` prefix — and fixed. Note that
-`npm run agent -- check` passed on the same file: the two link checkers have different scope,
-so a green `agent check` is not a substitute for `certify:validate`.
+Check `J` also caught a dead reference in this file and was fixed. `npm run agent -- check`
+passed on the same file — the two link checkers differ in scope, so a green `agent check` is
+not a substitute for `certify:validate`.
 
-## Blocked-on-operator (cannot be resolved from this checkout)
+## Defects found and fixed this session
 
-1. **Install a container runtime** (Docker Desktop or podman) — unblocks gates 19/20, therefore
-   REL-003/004/005, and DR-003 rollback.
-2. **`gcloud auth login`** — unblocks DR-007 (RPO) and the TEL-P0-002 backup-posture contradiction.
+All `FIXED_PENDING_VERIFICATION` unless noted. Full detail in [DEFECTS.md](DEFECTS.md).
 
-Without both, the ceiling is 103/108 and the verdict stays NO-GO. Neither is a code defect.
+| ID | Sev | What it was | Verification |
+|---|---|---|---|
+| `TEL-P1-023` | P1 | gates 19/20 blocked by a hardcoded constant — the sole cause of the NO-GO | 17 tests |
+| `TEL-P1-024` | P1 | `EV-DR-RPO` a constant asserting a stale blocker | 18 tests |
+| `TEL-P1-025` | P1 | one branch's fixtures failed **every** PR's secret scan | 21 tests; secret-scan now PASS |
+| `TEL-P1-026` | P1 | **OPEN** — DR-003 has no producing script; decision rules written, orchestration not | 27 tests + mutation |
+| `DEPLOY-001` | P1 | failed audit-trail write did not fail the deploy | 31 tests + 6 end-to-end paths |
+| `DEPLOY-002` | P1 | backup prompt accepted `Telestar2026` | as above; fails closed non-interactively |
+| `DEPLOY-003` | P2 | full disk reported as a missing image | as above |
+| `TEL-P2-019` | P2 | Windows batch shim read as "gcloud absent" | included in 18 |
+| `TEL-P2-020` | P2 | `rollback.sh` owned by no domain | 32 tests |
+| `TEL-P2-021` | P2 | ladder could not read `.env.local`; gate 02 failed | 8 tests; probe now exits 0 |
+| `TEL-P2-018` | P2 | premise dead — CodeQL and Dependency review pass across 6 runs | external |
 
-> Until 2026-08-21 item 1 would **not** have worked: the ladder recorded gates 19 and 20 as
-> blocked from a hardcoded constant and never probed for a runtime (`TEL-P1-023`). Installing
-> Docker before that fix would have changed nothing. It is now wired to a real probe.
+`TEL-P1-018` was corrected from `OPEN`: the evidence it demands already exists in
+`EV-RELEASE-IDENTITY` with `chainProblems: []`, and `REL-001` reads VERIFIED.
 
-## Work completed this session (repo-local, all verifiable here)
+## Verification runs, exit codes captured from the tool itself
 
-| Change | Verification | Exit |
+| Check | Result | Exit |
 |---|---|---|
-| `scripts/deploy-lib.sh` — backup-id validation, pull classification, record guards | `bash -n` | 0 |
-| `scripts/deploy.sh` — preflight + classify + verified append | 31 tests | 0 |
-| `scripts/rollback.sh` — same guards, incident path | 31 tests | 0 |
-| `scripts/certification/lib/imageGates.mjs` — real gates 19/20 | 17 tests | 0 |
-| `tsc --noEmit` (own exit code) | whole project | 0 |
-| `eslint` on changed files | — | 0 |
+| full vitest suite | 180 files, **2442 passed**, 0 failed, 0 skipped | 0 |
+| `tsc --noEmit` | whole project | 0 |
+| `eslint` | changed files | 0 |
 | `npm run agent -- check` | 7 project-truth checks | 0 |
 | `certify:selftest` | 19 detected, 0 missed | 0 |
-| `scripts/certification/lib/rpoProbe.mjs` — real RPO probe | 18 tests | 0 |
-| `scripts/certification/lib/exec.mjs` — Windows shim resolution | included above | 0 |
-| `.agent/registry/domains.yaml` — `scripts/rollback*` mapped | 32 tests | 0 |
-| `.gitleaks.toml` — fixture path exemption (TEL-P1-025) | 21 tests | 0 |
-| `scripts/certification/lib/loadEnv.mjs` — ladder reads `.env.local` | 7 tests | 0 |
-| full vitest suite (4th convergence) | 180 files, **2442 passed**, 0 failed, 0 skipped | 0 |
+| gate 15 production build | run locally | 0 |
 | **PR #100 `CI required checks`** | every mandatory job green | 0 |
-| `scripts/deploy.sh` executed end to end, 6 paths | all abort correctly | 1 each, as intended |
-| `scripts/certification/lib/rollbackDrill.mjs` decision rules | 27 tests; 7 fail under an always-PASS mutant | 0 |
 
-## Gate pre-flight on this machine (2026-08-21)
+### Gate pre-flight on this machine
 
-Run ahead of the ladder so a long run does not fail on something knowable in seconds.
+Run ahead of the ladder so a long run cannot fail on something knowable in seconds.
 
 | Gate | Result |
 |---|---|
-| 02-environment | PASS — was FAIL before TEL-P2-021 |
-| 05-test-discipline | PASS |
-| 06-migration-validation | PASS |
-| 07-database-integrity | PASS |
-| 21-compose-validation | PASS |
-| seed delete order · stale models | PASS |
-| 15-production-build | in progress |
-| 19/20 image gates | need a container runtime |
-| 01-source-identity | fails until the candidate is re-frozen — expected |
+| 02-environment | PASS — was FAIL before `TEL-P2-021` |
+| 05 · 06 · 07 · 15 · 21 | PASS |
+| 19 / 20 image gates | need a container runtime |
+| 01-source-identity | fails until re-freeze — expected |
 
 ## Candidate status
 
-`daa8ffb` is **superseded**. These changes touch application tooling — the certification runner,
-the deploy and rollback scripts, the evidence recorder — so evidence bound to `daa8ffb` no longer
-describes this tree. A new candidate must be frozen before the next run, and the DR drill re-run
-against it. No certification evidence was regenerated in this session, deliberately: writing new
-evidence against a superseded candidate would satisfy nothing.
+`daa8ffb` is **superseded**. This session changed the certification runner, the deploy and
+rollback scripts, and the evidence recorder, so evidence bound to it no longer describes this
+tree. A new candidate must be frozen on the merge SHA and the DR drill re-run against it. No
+certification evidence was regenerated here, deliberately: writing evidence against a superseded
+candidate satisfies nothing.
