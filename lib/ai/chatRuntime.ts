@@ -22,6 +22,7 @@ import { executeAgentAction } from '@/lib/agent/runtime';
 import { capabilityForTool } from '@/lib/agent/toolCapabilities';
 import { WRITE_CAPABILITIES } from '@/lib/agent/capabilities';
 import { AI_TOOLS } from './tools';
+import { scrubSecrets } from './engine/security-guards';
 import { newExecutionId } from './executionId';
 import {
   aiGateway,
@@ -155,7 +156,18 @@ export async function* runChatTurn(
         playbookVersionId: input.playbookVersionId,
       });
 
-      return result.status === 'completed' ? result.result || 'Done' : result.error || 'Failed';
+      const payload = result.status === 'completed' ? result.result || 'Done' : result.error || 'Failed';
+
+      // Tool results carry CRM content — lead notes, prospect emails, imported fields, scraped
+      // research — which AGENTS.md classifies as untrusted. A credential pasted into a lead note
+      // by a rep, or quoted inside a provider error body, would otherwise travel back into the
+      // model's context and can be echoed into an answer from there.
+      //
+      // Scoped deliberately to tool results, which are complete strings. The model's own streamed
+      // answer is not scrubbed here: chunk boundaries can split a credential in half, so a
+      // per-chunk scrub would miss it and imply a protection that does not exist. That needs a
+      // windowed scrubber and its own proof.
+      return scrubSecrets(payload);
     },
   });
 
