@@ -23,11 +23,11 @@ last two attempts at this table were both wrong.
 
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
-| **P0** (Launch Blocker) | 3 | 0 | 0 | **2** |
-| **P1** (Critical) | 39 | 9 | 4 | **26** |
-| **P2** (Important) | 25 | 8 | 4 | **13** |
+| **P0** (Launch Blocker) | 4 | 0 | 0 | **3** |
+| **P1** (Critical) | 40 | 9 | 4 | **27** |
+| **P2** (Important) | 28 | 8 | 4 | **16** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **67** | **17** | **8** | **41** |
+| **TOTAL** | **72** | **17** | **8** | **46** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -565,6 +565,119 @@ not evidence of anything.
 
 ---
 
+### `TEL-P0-004` — Production PostgreSQL Application Role: MEASURED, core requirements met
+- **Severity**: P0 (as raised)
+- **Status**: `FIXED_PENDING_VERIFICATION` — measured 2026-08-22 against the live database
+- **How**: VM shell obtained (see `TEL-P2-025`), queried through the running `crm-4-u-web-1`
+  container as the application's own connection.
+
+| Attribute | Required | Measured |
+|---|---|---|
+| `current_user` / `session_user` | — | `crm` / `crm` |
+| `rolsuper` | **false** | **false** ✓ |
+| `rolbypassrls` | **false** | **false** ✓ |
+| `rolreplication` | — | false ✓ |
+| `rolcreaterole` | — | **true** ⚠ |
+| `rolcreatedb` | — | **true** ⚠ |
+
+**Both mandatory conditions are met.** The application does not run as a superuser and cannot
+bypass row security.
+
+`rolcreaterole` and `rolcreatedb` are excess privilege for an application role and are recorded
+as `TEL-P2-026`. On PostgreSQL 16 — which this instance runs — `CREATEROLE` no longer implies
+the ability to grant arbitrary memberships, so this is least-privilege hygiene rather than a
+live escalation path.
+
+- **Connection security, measured on the live connection**: `pg_stat_ssl` reports
+  `ssl = true, version = TLSv1.3`. See `TEL-P1-028`.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-038` — Row-Level Security Does Not Exist, In Production Or Anywhere
+- **Severity**: P1
+- **Status**: `OPEN`
+- **Discovered by**: attempting the production-identity RLS certification `TEL-P0-004` asks for.
+- **Measured, production**: 68 tables in `public`; **0 with `relrowsecurity`**; **0 rows in
+  `pg_policies`**.
+- **Measured, local development database**: the same — 0 and 0.
+- **Measured, source**: `grep -rl "ENABLE ROW LEVEL SECURITY" prisma/migrations/` returns
+  **nothing**. No migration has ever created a policy.
+- **What is actually true**: tenant isolation is enforced in the **application layer**, by the
+  Prisma extension in `lib/prisma.ts`. That is the documented design —
+  `.claude/rules/auth-rbac.md` says so plainly: *"Every query is tenant-scoped, enforced by the
+  `lib/prisma.ts` extension."* It is covered by real tests, and 103 authorization and tenancy
+  assertions pass against it.
+- **The defect is the evidence, not the isolation.** `tests/rls.test.ts` is titled *"PostgreSQL
+  Row-Level Security (RLS)"* and exercises the extension's scoping; Phase 27 records *"RLS
+  isolation … passed"*; `SEC` reads 15/15. Nothing there is backed by a database policy, because
+  none exists. A reader — or an auditor — would reasonably conclude the database enforces
+  tenancy. It does not.
+- **Two consequences worth separating**:
+  1. `rolbypassrls = false`, recorded above as a pass, is **vacuous**: there are no policies to
+     bypass.
+  2. Any path that reaches the database without the extension — a psql session, a migration
+     script, a raw `$queryRaw` that forgets scoping — has **no tenant isolation at all**. With
+     RLS that would be defence in depth; without it, the extension is the only thing standing.
+- **Required remediation**, and this is a decision rather than a fix: either implement RLS
+  policies and prove them under the production identity, or **rename every claim** — tests,
+  phase notes, requirement text — to say "application-enforced tenant scoping", and record the
+  absence of database-level enforcement as an accepted risk with a named owner. Changing the
+  words is legitimate; leaving them as they are is not.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P2-026` — The Application Role Holds CREATEROLE and CREATEDB
+- **Severity**: P2
+- **Status**: `OPEN`
+- **Measured**: the `crm` role has `rolcreaterole = true` and `rolcreatedb = true`.
+- **Why it matters**: an application role needs neither. On PostgreSQL 16 `CREATEROLE` is
+  constrained, so this is hygiene rather than an open escalation, but it widens what a
+  compromised application connection could do.
+- **Remediation**: `ALTER ROLE crm NOCREATEROLE NOCREATEDB;` — a production change requiring
+  operator authorization, and worth confirming no migration path depends on it first.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P2-027` — An Orphaned One-Off Container Has Been Running Five Days On A Different Image
+- **Severity**: P2
+- **Status**: `OPEN`
+- **Measured on the VM**: alongside `crm-4-u-web-1` and `crm-4-u-worker-1`, both correctly on
+  `f2e807bb7812`, a third container `crm-4-u-web-run-acdfd691c452` has been **up 5 days** on
+  image **`47cae338dcb6`** — a different build. It is a `docker compose run` one-off, the kind
+  `deploy.sh` uses for `migrate deploy`, left behind rather than removed.
+- **Why it matters**: this is exactly the "no orphan containers, no mixed versions" condition
+  the rollback drill is required to verify, and it is currently violated on the live box. A
+  stray container from an older image holding a database connection is also a quiet consumer of
+  the connection pool.
+- **Remediation**: confirm what it is, then `docker rm -f` it. Production change; needs
+  authorization.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P2-025` — VM Shell Was Unreachable; Root Cause And Fix
+- **Severity**: P2
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Symptom**: `gcloud compute ssh` failed with *"Server refused our key"*, and OpenSSH over an
+  IAP tunnel with *"Permission denied (publickey)"*, blocking `TEL-P0-004`, `TEL-P1-028`,
+  DR-003 and the deployment audit check.
+- **Root cause**: the instance's `ssh-keys` metadata held only **expired** entries
+  (`expireOn 2026-08-21T15:24`, browser-SSH ephemerals) and the project-level key was not being
+  honoured. Separately, gcloud on Windows drives **plink**, which failed even once a valid key
+  was present.
+- **Fix**: appended the operator's existing public key to the instance `ssh-keys` metadata,
+  **preserving both existing entries** — the value is replaced wholesale by
+  `add-metadata`, so it was read, backed up, and appended rather than overwritten — and
+  connected with native OpenSSH over an IAP tunnel rather than plink.
+- **Reversal**: restore the backed-up value with
+  `gcloud compute instances add-metadata telestar-crm-vm --zone=asia-southeast1-a --metadata-from-file ssh-keys=<backup>`.
+- **Evidence ID**: *(none yet)*
+
+---
+
 ### `TEL-P0-001` — Disaster Recovery Evidence Invalid
 - **Severity**: P0 (Launch Blocker)
 - **Status**: `FIXED_PENDING_VERIFICATION`
@@ -1051,7 +1164,12 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
   stub container runtime. With a read-only record file it aborts **exit 1** before the pull, and
   with a record directory that does not exist it aborts the same way — in both cases naming the
   missing audit trail, and in both cases before anything irreversible has happened.
-- **Remaining before VERIFIED**: one real deploy on the VM.
+- **Confirmed from production, 2026-08-22.** `/opt/crm-4-u/deployments.ndjson` ends at commit
+  `353f650`, deployed 2026-08-19. Production is running **`daa8ffb`**, confirmed by the health
+  endpoint and by both containers sitting on image `f2e807bb7812`. **The release currently
+  serving traffic has no entry in the audit trail** — the defect described here, observed
+  directly rather than inferred.
+- **Remaining before VERIFIED**: one real deploy on the VM with the new preflight in place.
 - **Evidence ID**: *(none yet)*
 
 ---
@@ -1088,6 +1206,12 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
   The first matters most: a deploy run from a script or a CI job, where nobody is present to
   acknowledge, can no longer proceed without a verified backup. On this machine the warning also
   classified correctly — *"gcloud has no usable credentials here"*, not "not installed".
+
+  **Confirmed from production, 2026-08-22.** The last two entries in
+  `/opt/crm-4-u/deployments.ndjson` both record `"backupId": "Telestar2026"` — the published
+  demo password, written into the audit trail as though it were a Cloud SQL backup id. Two
+  deploys therefore proceeded with no backup, and the record says otherwise. This is the defect
+  as originally described, now evidenced from the live box rather than reconstructed.
 - **Remaining before VERIFIED**: one real deploy on the VM.
 - **Evidence ID**: *(none yet)*
 
