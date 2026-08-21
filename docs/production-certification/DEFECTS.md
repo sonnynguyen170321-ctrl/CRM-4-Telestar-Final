@@ -185,6 +185,33 @@ Two mutants, each caught by exactly the tests that should catch it and no others
 | suppression check skipped | suppressed · unsubscribe-next-step · hard bounce |
 
 13 tests total, exit 0, restored clean after both mutations.
+
+### Lead reassignment mid-cadence — characterised, not assumed
+
+`lib/admin/transferWork.ts` moves leads, tasks, meetings and opportunities. It does **not** touch
+`OutboundMessage`. Measured consequence:
+
+| Situation | Behaviour |
+|---|---|
+| send queued **before** the handover | still goes from the **previous owner's** mailbox |
+| the same message after reassignment | not duplicated — sends once |
+| send queued **after** the handover | uses the new owner's mailbox |
+| previous owner's inbox deactivated | their queued send is stopped |
+
+The first row is a **product decision worth making deliberately**, and it is recorded here as an
+observation rather than corrected: the message was composed and approved against that inbox, so
+rewriting the sender on transfer would change what a prospect sees mid-conversation. Nothing was
+changed unilaterally. The invariant that matters either way — no duplicate send across a
+handover — holds.
+
+### Queue recovery — already covered, verified rather than rewritten
+
+`tests/queue-reconciliation.test.ts` runs against a real database and already covers the case
+this phase asks about: a delayed job waking **after** a stop signal. Safety 1–8 span reply,
+hard bounce, meeting booked, suppression added after scheduling, mailbox paused, mailbox
+inactive, worker-level pause and archived lead. Re-run here with the Redis suites: **56 passed,
+exit 0, 0 skipped**. No new tests were written for it, because duplicating proven coverage is
+not evidence of anything.
 - **Evidence ID**: *(none yet)*
 
 ---

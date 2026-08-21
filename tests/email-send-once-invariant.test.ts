@@ -708,3 +708,135 @@ describe.skipIf(!hasDb)('a redelivered reply webhook does not double-apply', () 
     expect((result as { reason?: string }).reason).toBe('sequence_not_active');
   });
 });
+
+/**
+ * Lead reassignment mid-cadence.
+ *
+ * `lib/admin/transferWork.ts` moves leads, tasks, meetings and opportunities. It does not touch
+ * `OutboundMessage`, so a send already queued against the previous owner's mailbox is still
+ * addressed from that mailbox when it runs. These tests characterise what actually happens
+ * rather than assert what ought to — the behaviour is a product decision, and the point here is
+ * that it should be a decided one rather than an accident.
+ */
+describe.skipIf(!hasDb)('a lead reassigned mid-cadence', () => {
+  let otherUserId = '';
+  let otherAccountId = '';
+
+  beforeAll(async () => {
+    await run(async () => {
+      const other = await prisma.user.create({
+        data: {
+          tenantId: T,
+          email: 'second-owner@sendonce.test',
+          firstName: 'Sam',
+          lastName: 'Second',
+          role: 'sdr',
+          password: 'x',
+          isActive: true,
+        },
+      });
+      const account = await prisma.emailAccount.create({
+        data: {
+          tenantId: T,
+          userId: other.id,
+          email: 'second-sender@sendonce.test',
+          provider: 'imap_smtp',
+          isActive: true,
+          dailyCap: 1000,
+          dailySendCount: 0,
+        },
+      });
+      otherUserId = other.id;
+      otherAccountId = account.id;
+    });
+  });
+
+  beforeEach(async () => {
+    sendCalls.length = 0;
+    sendBehaviour = async () => `provider-${crypto.randomUUID()}`;
+    await run(() =>
+      prisma.lead.updateMany({ where: { id: leadId }, data: { assignedToId: undefined } }),
+    );
+  });
+
+  it('a send queued before the handover still goes from the original mailbox', async () => {
+    // Characterisation, not a judgement: the message was composed against that inbox, and
+    // transferWork does not rewrite queued sends.
+    const queued = await createMessage(`reassign-${crypto.randomUUID()}`);
+
+    await run(() =>
+      prisma.lead.update({ where: { id: leadId }, data: { assignedToId: otherUserId } }),
+    );
+
+    await run(() => handleEmailSend(payloadFor(queued.id)));
+
+    expect(sendCalls).toHaveLength(1);
+    const after = await run(() => prisma.outboundMessage.findUnique({ where: { id: queued.id } }));
+    expect(after?.accountId).toBe(accountId);
+    expect(after?.status).toBe(OUTBOUND_STATUS.SENT);
+  });
+
+  it('reassignment does not duplicate an already-sent message', async () => {
+    // The invariant that must hold whatever the ownership decision is.
+    const message = await createMessage(`reassign-dup-${crypto.randomUUID()}`);
+    await run(() => handleEmailSend(payloadFor(message.id)));
+    expect(sendCalls).toHaveLength(1);
+
+    await run(() =>
+      prisma.lead.update({ where: { id: leadId }, data: { assignedToId: otherUserId } }),
+    );
+    await run(() => handleEmailSend(payloadFor(message.id)));
+
+    expect(sendCalls).toHaveLength(1);
+  });
+
+  it('a send explicitly queued against the new owner uses the new mailbox', async () => {
+    // The supported path: the next step is derived after the handover.
+    const message = await run(() =>
+      prisma.outboundMessage.create({
+        data: {
+          tenantId: T,
+          leadId,
+          accountId: otherAccountId,
+          to: 'prospect@sendonce.test',
+          subject: 'After the handover',
+          body: 'Hello again',
+          idempotencyKey: `reassign-new-${crypto.randomUUID()}`,
+          status: OUTBOUND_STATUS.PENDING,
+        },
+      }),
+    );
+
+    await run(() =>
+      handleEmailSend({
+        outboundMessageId: message.id,
+        accountId: otherAccountId,
+        to: 'prospect@sendonce.test',
+        subject: 'After the handover',
+        body: 'Hello again',
+        leadId,
+      }),
+    );
+
+    expect(sendCalls).toHaveLength(1);
+    const after = await run(() => prisma.outboundMessage.findUnique({ where: { id: message.id } }));
+    expect(after?.accountId).toBe(otherAccountId);
+    expect(after?.status).toBe(OUTBOUND_STATUS.SENT);
+  });
+
+  it('deactivating the previous owner stops their queued sends', async () => {
+    // What a real handover usually accompanies. The queued message must not go out from a
+    // mailbox that has been switched off.
+    const queued = await createMessage(`reassign-inactive-${crypto.randomUUID()}`);
+    await run(() =>
+      prisma.emailAccount.updateMany({ where: { id: accountId }, data: { isActive: false } }),
+    );
+
+    await run(() => handleEmailSend(payloadFor(queued.id)));
+    expect(sendCalls).toHaveLength(0);
+
+    await run(() =>
+      prisma.emailAccount.updateMany({ where: { id: accountId }, data: { isActive: true } }),
+    );
+  });
+});
