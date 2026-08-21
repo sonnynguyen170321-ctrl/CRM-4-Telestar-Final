@@ -127,6 +127,37 @@ Two facts survive that correction, and both matter:
 **Operator decision taken: upgrade Groq to Dev Tier.** No code change, restores the
 three-provider contract, and gives the fallback real headroom.
 
+### Measured: Groq is fine for production traffic — only the gate over-asks
+
+`scripts/ai-degraded-provider-drill.ts`, added to answer the operator's question "do the two
+working keys carry the load without disruption": **7/7, exit 0.**
+
+```
+standard tier (interactive chat)                 PASS  answered by openai/gpt-5.6-luna
+deep tier (executive analysis)                   PASS  answered by google/gemini-3.6-flash
+fast tier (Groq-first, the degraded one)         PASS  answered by groq/openai/gpt-oss-20b
+fast tier stops re-trying the degraded provider  PASS  514/506/349/559ms  groq,groq,groq,groq
+OpenAI down, Groq degraded -> Gemini carries chat  PASS
+Gemini down, Groq degraded -> OpenAI carries chat  PASS
+chat streams to the browser with one provider degraded  PASS
+```
+
+The fourth line is the one that matters. Four consecutive fast-tier calls were **answered by
+Groq** in around half a second each, at the 130-token budget the onboarding path actually
+sends. No failover, no penalty, no rate limit.
+
+So the earlier framing was too pessimistic and is corrected here: Groq is not a degraded
+provider in production. The only thing that exceeds its tier is
+`scripts/ai-provider-smoke.ts`, which sends the registry's `defaultMaxOutputTokens: 8192` — a
+budget **no production caller uses**, since chat sends 1200, `generation.ts` sends 1200 and
+onboarding sends 130.
+
+That leaves the release gate asserting something about a path the product does not exercise.
+Making it representative is a real improvement and remains **deliberately unmade**: editing a
+release gate while it is red is the pattern the directive warns against, and the operator's
+decision was to upgrade the tier rather than change the gate. Recorded as a tracked follow-up,
+not done quietly.
+
 ### Observed live, previously only theorised
 
 The Redis boot-window defect recorded as a P1 finding in the fast-track plan is real and
