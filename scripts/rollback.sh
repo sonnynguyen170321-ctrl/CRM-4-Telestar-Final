@@ -24,6 +24,8 @@ fail() { printf '\n\033[31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
 # ── Resolve canonical topology from single authority ───────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/deploy-lib.sh
+. "${SCRIPT_DIR}/deploy-lib.sh"
 COMPOSE_FILES="${COMPOSE_FILES:-$("${SCRIPT_DIR}/production-compose.sh" "$ENV_FILE")}"
 DEPLOY_TARGET=$(grep -E '^[[:space:]]*DEPLOY_TARGET=' "$ENV_FILE" | head -1 | cut -d= -f2- | sed -e 's/["'\''[:space:]]//g' || echo "gcp")
 
@@ -33,6 +35,12 @@ TARGET="${1:-$(grep -E '^PREVIOUS_CRM_IMAGE=' "$ENV_FILE" | head -1 | cut -d= -f
 [ -n "$TARGET" ] || fail "No PREVIOUS_CRM_IMAGE recorded and no digest given. Pass one explicitly."
 printf '%s' "$TARGET" | grep -Eq '@sha256:[0-9a-f]{64}$|:[0-9a-f]{40}$' \
   || fail "Refusing to roll back to a mutable reference: ${TARGET}"
+
+# A rollback happens during an incident, which is the worst possible moment to discover the
+# audit trail is unwritable. Ask before touching anything. (DEPLOY-001)
+RECORD_WRITABLE_MSG=$(assert_record_writable "$RECORD_FILE") || fail "$RECORD_WRITABLE_MSG"
+command -v python3 >/dev/null 2>&1 || command -v node >/dev/null 2>&1 \
+  || fail "Neither python3 nor node is available to write ${RECORD_FILE}. The rollback would leave no audit trail."
 
 echo "  target   : ${DEPLOY_TARGET}"
 echo "  compose  : ${COMPOSE_FILES}"
@@ -55,7 +63,12 @@ read -r -p "  Proceed with rollback? [y/N] " reply
 DC="$DOCKER compose --env-file $ENV_FILE $COMPOSE_FILES"
 
 log "Pulling ${TARGET}"
-$DOCKER pull "$TARGET"
+# DEPLOY-003: during an incident, "no space left on device" must not be reported as anything else.
+if ! PULL_OUTPUT=$($DOCKER pull "$TARGET" 2>&1); then
+  printf '%s\n' "$PULL_OUTPUT" >&2
+  fail "$(classify_pull_failure "$PULL_OUTPUT" "$TARGET")"
+fi
+printf '%s\n' "$PULL_OUTPUT"
 
 log "Pinning ${ENV_FILE}"
 cp "$ENV_FILE" "${ENV_FILE}.bak"
@@ -73,13 +86,23 @@ log "Post-deploy smoke test"
 DOCKER="$DOCKER" ENV_FILE="$ENV_FILE" COMPOSE_FILES="$COMPOSE_FILES" ./scripts/post-deploy-smoke.sh
 
 log "Recording the rollback in ${RECORD_FILE}"
+RECORD_LINES_BEFORE=0
+if [ -f "$RECORD_FILE" ]; then
+  RECORD_LINES_BEFORE=$(wc -l < "$RECORD_FILE" | tr -d ' ')
+fi
+
 if command -v python3 >/dev/null 2>&1; then
   python3 -c 'import sys, json, datetime; t, c, tgt, op = sys.argv[1:]; print(json.dumps({"at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "kind": "rollback", "image": t, "previousImage": c or None, "deployTarget": tgt, "operator": op}))' \
     "$TARGET" "$CURRENT" "$DEPLOY_TARGET" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
 elif command -v node >/dev/null 2>&1; then
   node -e 'const [t, c, tgt, op] = process.argv.slice(1); console.log(JSON.stringify({at: new Date().toISOString(), kind: "rollback", image: t, previousImage: c || null, deployTarget: tgt, operator: op}));' \
     "$TARGET" "$CURRENT" "$DEPLOY_TARGET" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
+else
+  fail "No JSON writer available, so ${RECORD_FILE} was not written. This rollback is live and unrecorded — add the entry by hand before doing anything else."
 fi
+
+RECORD_APPEND_MSG=$(assert_record_appended "$RECORD_FILE" "$RECORD_LINES_BEFORE") \
+  || fail "$RECORD_APPEND_MSG"
 
 tail -1 "$RECORD_FILE"
 log "Rolled back to ${TARGET}"

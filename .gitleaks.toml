@@ -91,6 +91,22 @@ paths = [
   # the single character "p".
   '''^tests/prod-env\.test\.ts$''',
 
+  # Asserts that `scrubSecrets` redacts credential-shaped strings before anything is logged
+  # or sent to a provider, so its fixture table has to contain them: a GitHub PAT, an OpenAI
+  # project key, a Google API key, a Groq key and an AWS access key id. Every one is visibly
+  # synthetic — `AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q7R` counts in pairs and
+  # `AKIAIOSFODNN7EXAMPLE` is AWS's own published documentation example — and none has ever
+  # authenticated anything, so there is nothing to rotate.
+  #
+  # Exempted by exact path rather than by value, deliberately: `tests/gitleaks-allowlist.test.ts`
+  # asserts that those same shapes are NOT regex-allowlisted, because a value exemption would
+  # follow the string anywhere in the repository. A path exemption stays where it was put.
+  #
+  # Found by PR #100's secret scan, on a fixture living on `feat/telestar-ai-2` rather than on
+  # the branch under review: `actions/checkout` uses `fetch-depth: 0`, so gitleaks walks every
+  # fetched ref and any branch's fixtures fail every pull request. See TEL-P1-025.
+  '''^tests/telestar-ai-certification-evals\.test\.ts$''',
+
   # Diagnostic and testing scripts
   '''^scripts/diagnose-ai-agent\.ts$''',
   '''^scripts/live-e2e-all-roles\.ts$''',

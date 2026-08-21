@@ -68,6 +68,20 @@ describe('gitleaks allowlist', () => {
     expect(isAllowlisted(value)).toBe(false);
   });
 
+  it('exempts the scrubSecrets fixture table by path, not by value', () => {
+    // PR #100's secret scan failed on `tests/telestar-ai-certification-evals.test.ts`, whose
+    // fixture table must contain credential-shaped strings in order to assert that
+    // `scrubSecrets` removes them. The exemption is a path, because a value exemption would
+    // follow those strings anywhere in the repository — which is exactly what the assertions
+    // above forbid.
+    const start = toml.indexOf('paths = [');
+    const paths = [...toml.slice(start).matchAll(/'''([\s\S]*?)'''/g)].map((m) => m[1]);
+    expect(paths).toContain('^tests/telestar-ai-certification-evals\\.test\\.ts$');
+
+    // The Groq fixture from that table must still be caught anywhere else.
+    expect(isAllowlisted('gsk_ABCdef123456GHIjkl789012MNOpqr345678')).toBe(false);
+  });
+
   it('scopes path exemptions to templates and named fixture files', () => {
     // A blanket '^tests/' or '^docs/' would exempt any secret pasted into those trees.
     const start = toml.indexOf('paths = [');

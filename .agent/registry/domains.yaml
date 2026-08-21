@@ -290,6 +290,7 @@ domains:
       - Dockerfile*
       - .github/workflows/**
       - scripts/deploy*
+      - scripts/rollback*
       - scripts/prod-*
       - scripts/verify-container-secrets.sh
       - scripts/post-deploy-*.sh
