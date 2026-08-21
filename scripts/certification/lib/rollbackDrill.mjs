@@ -78,8 +78,40 @@ export function evaluateServiceParity(phase) {
  * the return to the candidate. Anything less does not demonstrate a recoverable deployment —
  * a rollback nobody rolled forward from has left production on the old release.
  */
-export function evaluateDrill({ candidateDigest, previousDigest, phases }) {
+/**
+ * What each phase is expected to be running, derived from the frozen release identity.
+ *
+ * A phase carries **observed** state only. An earlier version of this module took
+ * `phase.expectedSha` from the caller, which let whoever assembled the drill decide what
+ * "correct" meant — so a drill could assert that the rollback phase was expected to be running
+ * the candidate, and pass. Expectation comes from the freeze; the phase supplies only what was
+ * seen.
+ */
+const PHASE_EXPECTATION = {
+  'deploy-candidate': 'candidate',
+  'rollback-to-previous': 'previous',
+  'restore-candidate': 'candidate',
+};
+
+export function expectationFor(phaseName, { candidateSha, previousSha, candidateDigest, previousDigest }) {
+  const which = PHASE_EXPECTATION[phaseName];
+  if (!which) return null;
+  return which === 'candidate'
+    ? { sha: candidateSha, digest: candidateDigest }
+    : { sha: previousSha, digest: previousDigest };
+}
+
+export function evaluateDrill({ candidateSha, previousSha, candidateDigest, previousDigest, phases }) {
   const findings = [];
+
+  for (const [label, sha] of [['candidate', candidateSha], ['previous', previousSha]]) {
+    if (!sha || !/^[0-9a-f]{40}$/.test(sha)) {
+      findings.push(`${label} SHA is not a 40-character commit sha: ${sha ?? 'none'}`);
+    }
+  }
+  if (candidateSha && candidateSha === previousSha) {
+    findings.push('candidate and previous SHAs are identical; the drill proves nothing');
+  }
 
   if (!isImmutableReference(candidateDigest)) {
     findings.push(`candidate digest is not immutable: ${candidateDigest ?? 'none'}`);
@@ -102,11 +134,34 @@ export function evaluateDrill({ candidateDigest, previousDigest, phases }) {
   }
 
   for (const phase of phases) {
+    // Expectation is derived from the freeze, never read off the phase.
+    const expected = expectationFor(phase.name, {
+      candidateSha,
+      previousSha,
+      candidateDigest,
+      previousDigest,
+    });
+
+    if (Object.prototype.hasOwnProperty.call(phase, 'expectedSha')) {
+      // Refused rather than ignored: a caller supplying one believes it is being honoured.
+      findings.push(
+        `${phase.label}: phase carries expectedSha, which the caller does not get to decide`,
+      );
+    }
+
     findings.push(...evaluateServiceParity(phase));
-    findings.push(...evaluateHealth(phase.webHealth, phase.expectedSha, `${phase.label} web`).findings);
+    findings.push(...evaluateHealth(phase.webHealth, expected.sha, `${phase.label} web`).findings);
     findings.push(
-      ...evaluateHealth(phase.workerHealth, phase.expectedSha, `${phase.label} worker`).findings,
+      ...evaluateHealth(phase.workerHealth, expected.sha, `${phase.label} worker`).findings,
     );
+
+    if (phase.webDigest !== expected.digest) {
+      findings.push(
+        `${phase.label}: running ${String(phase.webDigest).slice(-12)}, expected the ${
+          PHASE_EXPECTATION[phase.name]
+        } digest ${String(expected.digest).slice(-12)}`,
+      );
+    }
 
     if (!Number.isFinite(phase.durationMs) || phase.durationMs < 0) {
       findings.push(`${phase.label}: duration was not measured`);
@@ -132,8 +187,8 @@ export function evaluateDrill({ candidateDigest, previousDigest, phases }) {
  * Build the evidence record. `status` comes from `evaluateDrill`, never from a caller, so a
  * drill that failed cannot be written down as one that passed.
  */
-export function buildRollbackEvidence({ candidateSha, candidateDigest, previousDigest, phases, environment, command, startedAt, finishedAt }) {
-  const result = evaluateDrill({ candidateDigest, previousDigest, phases });
+export function buildRollbackEvidence({ candidateSha, previousSha, candidateDigest, previousDigest, phases, environment, command, startedAt, finishedAt }) {
+  const result = evaluateDrill({ candidateSha, previousSha, candidateDigest, previousDigest, phases });
 
   return {
     evidenceId: 'EV-DR-ROLLBACK',
@@ -146,13 +201,14 @@ export function buildRollbackEvidence({ candidateSha, candidateDigest, previousD
     exitCode: result.status === 'PASS' ? 0 : 1,
     status: result.status,
     metrics: {
+      candidateSha: candidateSha ?? null,
+      previousSha: previousSha ?? null,
       candidateDigest: candidateDigest ?? null,
       previousDigest: previousDigest ?? null,
       rollbackSeconds: result.rollbackSeconds,
       restoreSeconds: result.restoreSeconds,
       phases: (phases ?? []).map((phase) => ({
         name: phase.name,
-        expectedSha: phase.expectedSha ?? null,
         webDigest: phase.webDigest ?? null,
         workerDigest: phase.workerDigest ?? null,
         durationMs: phase.durationMs ?? null,

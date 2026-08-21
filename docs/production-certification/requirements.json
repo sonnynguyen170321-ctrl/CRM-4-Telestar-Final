@@ -4,7 +4,7 @@
   "domains": {
     "IMP": "Import Reliability & Concurrency",
     "MAIL": "Outbound Email & Transport Safety",
-    "SEC": "Security, Multi-Tenant RLS & RBAC",
+    "SEC": "Security, Multi-Tenant Isolation & RBAC",
     "ROLE": "6-Role Operational Workflows",
     "AI": "AI Reliability & Cost Governance",
     "DR": "Disaster Recovery & Infrastructure",
@@ -422,13 +422,17 @@
       "id": "SEC-002",
       "domain": "SEC",
       "severity": "P1",
-      "description": "Throwaway DB RLS enforcement across all tables and operations",
+      "description": "Application-enforced tenant scoping: every query shape is stamped and scoped (no database RLS exists — see TEL-P1-038)",
       "linkedDefects": [],
       "mandatory": true,
       "evidence": [
         {
           "kind": "vitest",
           "testFile": "tests/tenant-inject.test.ts"
+        },
+        {
+          "kind": "vitest",
+          "testFile": "tests/rls.test.ts"
         }
       ]
     },
@@ -606,13 +610,17 @@
       "id": "SEC-015",
       "domain": "SEC",
       "severity": "P1",
-      "description": "API Key scoping: Developer tokens restricted to declared tenant & scopes",
+      "description": "API key authority never exceeds its creator, and is restricted to declared tenant & scopes",
       "linkedDefects": [],
       "mandatory": true,
       "evidence": [
         {
           "kind": "vitest",
           "testFile": "tests/api-keys-and-integrations.test.ts"
+        },
+        {
+          "kind": "vitest",
+          "testFile": "tests/api-key-privilege-escalation.test.ts"
         }
       ]
     },

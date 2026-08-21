@@ -27,11 +27,15 @@ function health(sha: string, ok = true) {
   return { ok, ts: Date.now(), commit: sha, version: sha, builtAt: '2026-08-21T00:00:00Z' };
 }
 
+/**
+ * A phase carries OBSERVED state only. `expectedSha` is deliberately absent: the drill derives
+ * what each phase should be running from the frozen release identity, so a caller cannot decide
+ * what "correct" means.
+ */
 function phase(name: string, label: string, sha: string, digest: string, durationMs = 4200) {
   return {
     name,
     label,
-    expectedSha: sha,
     webDigest: digest,
     workerDigest: digest,
     webHealth: health(sha),
@@ -49,6 +53,8 @@ function goodPhases() {
 }
 
 const goodDrill = () => ({
+  candidateSha: SHA_A,
+  previousSha: SHA_B,
   candidateDigest: DIGEST_A,
   previousDigest: DIGEST_B,
   phases: goodPhases(),
@@ -131,6 +137,43 @@ describe('evaluateDrill', () => {
     expect(result.findings).toEqual([]);
     expect(result.rollbackSeconds).toBe(4.2);
     expect(result.restoreSeconds).toBe(4.2);
+  });
+
+  it('refuses a phase that tries to supply its own expectedSha', () => {
+    // The caller does not get to define truth. Ignoring it silently would be worse: whoever
+    // passed it believes it is being honoured.
+    const phases = goodPhases();
+    (phases[1] as Record<string, unknown>).expectedSha = SHA_A;
+    const result = evaluateDrill({ ...goodDrill(), phases });
+    expect(result.status).toBe('FAIL');
+    expect(result.findings.join(' ')).toContain('does not get to decide');
+  });
+
+  it('derives the expectation from the freeze, so a rollback showing the candidate fails', () => {
+    const phases = goodPhases();
+    phases[1].webHealth = health(SHA_A);
+    phases[1].workerHealth = health(SHA_A);
+    const result = evaluateDrill({ ...goodDrill(), phases });
+    expect(result.status).toBe('FAIL');
+  });
+
+  it('fails when a phase runs a digest other than the one the freeze names', () => {
+    const phases = goodPhases();
+    phases[2].webDigest = DIGEST_B;
+    phases[2].workerDigest = DIGEST_B;
+    const result = evaluateDrill({ ...goodDrill(), phases });
+    expect(result.status).toBe('FAIL');
+    expect(result.findings.join(' ')).toContain('expected the candidate digest');
+  });
+
+  it('refuses identical candidate and previous SHAs', () => {
+    const result = evaluateDrill({ ...goodDrill(), previousSha: SHA_A });
+    expect(result.status).toBe('FAIL');
+    expect(result.findings.join(' ')).toContain('SHAs are identical');
+  });
+
+  it('refuses a SHA that is not a commit sha', () => {
+    expect(evaluateDrill({ ...goodDrill(), previousSha: 'HEAD~1' }).status).toBe('FAIL');
   });
 
   it('refuses a rollback onto the same image', () => {

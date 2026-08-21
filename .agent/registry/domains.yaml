@@ -45,6 +45,7 @@ domains:
     paths:
       - lib/auth.ts
       - lib/auth/**
+      - lib/authRoles.ts
       - lib/podScoping.ts
       - lib/admin/**
       - lib/tenant*.ts

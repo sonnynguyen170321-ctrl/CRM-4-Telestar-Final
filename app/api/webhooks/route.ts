@@ -1,8 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { requireAuth, type SessionUser } from '@/lib/auth';
+import { requireManager, type SessionUser } from '@/lib/auth';
 import { cacheGet, cacheSet } from '@/lib/cache';
 import type { WebhookConfig, WebhookEvent } from '@/lib/webhooks/dispatcher';
+import { checkDestinationShape } from '@/lib/webhooks/ssrfGuard';
+
+/**
+ * Webhook administration is a management capability, not merely an authenticated one.
+ *
+ * Every verb here gated on `requireAuth()`, so any authenticated user — an SDR, a leadgen —
+ * could list, create and delete the tenant's webhooks. A webhook is an outbound data channel
+ * carrying lead events, so creating one is a way to forward a client's pipeline to an address
+ * of your choosing, and `GET` returned each config's signing `secret`, which is enough to forge
+ * payloads the client's systems would accept as ours. (TEL-P1-031)
+ */
+
+/** The secret is write-only: it is never read back, only replaced. */
+function redactSecret(webhook: WebhookConfig): Omit<WebhookConfig, 'secret'> & { secretSet: boolean } {
+  const { secret, ...rest } = webhook;
+  return { ...rest, secretSet: Boolean(secret) };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +30,7 @@ function getCacheKey(tenantId: string): string {
 }
 
 export async function GET() {
-  const userOrRes = await requireAuth();
+  const userOrRes = await requireManager();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
@@ -22,11 +39,11 @@ export async function GET() {
   }
 
   const cached = await cacheGet<WebhookConfig[]>(getCacheKey(user.tenantId));
-  return NextResponse.json({ webhooks: cached || [] });
+  return NextResponse.json({ webhooks: (cached || []).map(redactSecret) });
 }
 
 export async function POST(req: NextRequest) {
-  const userOrRes = await requireAuth();
+  const userOrRes = await requireManager();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
@@ -38,8 +55,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { url, events, isActive, secret } = body;
 
-    if (!url || typeof url !== 'string' || !url.startsWith('http')) {
-      return NextResponse.json({ error: 'Valid URL (http/https) is required' }, { status: 400 });
+    // `startsWith('http')` also admitted `httpx://` and credentials in the URL. The full
+    // address check happens at delivery, where DNS can be resolved; this rejects the obviously
+    // malformed early with a useful message.
+    const shape = checkDestinationShape(typeof url === 'string' ? url : '');
+    if (!shape.ok) {
+      return NextResponse.json({ error: `Valid https URL required: ${shape.reason}` }, { status: 400 });
     }
 
     if (!Array.isArray(events) || events.length === 0) {
@@ -64,14 +85,16 @@ export async function POST(req: NextRequest) {
     const updated = current.filter((w) => w.id !== webhookId).concat(newWebhook);
     await cacheSet(getCacheKey(user.tenantId), updated, WEBHOOK_CACHE_TTL);
 
-    return NextResponse.json({ success: true, webhook: newWebhook });
+    // Echo the generated secret exactly once, on creation, so it can be copied into the
+    // receiving system. It is never readable again.
+    return NextResponse.json({ success: true, webhook: redactSecret(newWebhook), secret: newWebhook.secret });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to save webhook' }, { status: 500 });
   }
 }
 
 export async function DELETE(req: NextRequest) {
-  const userOrRes = await requireAuth();
+  const userOrRes = await requireManager();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 

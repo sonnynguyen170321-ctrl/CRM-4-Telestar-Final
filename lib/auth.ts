@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
 import { computeVisibleUserIds } from '@/lib/podScoping';
+import { MANAGER_ROLES, deriveIsManager } from '@/lib/authRoles';
 
 export type ApiKeyContext = {
   id: string;
@@ -23,8 +24,6 @@ export type SessionUser = {
   tenantId?: string;
   apiKey?: ApiKeyContext;
 };
-
-const MANAGER_ROLES: readonly SessionUser['role'][] = ['director', 'floor_manager', 'team_lead'];
 
 /** True for roles on the leadgen branch (manager or member). */
 export function isLeadgenUser(role: SessionUser['role']): boolean {
@@ -61,6 +60,9 @@ export const getSessionUser = cache(async function getSessionUser(): Promise<Ses
                 lastName: true,
                 role: true,
                 isActive: true,
+                // Needed to derive isManager the same way the session path does. Without it
+                // the API-key path had to guess, and guessed "yes".
+                _count: { select: { reports: { where: { isActive: true } } } },
               },
             },
           },
@@ -84,7 +86,9 @@ export const getSessionUser = cache(async function getSessionUser(): Promise<Ses
             firstName: apiKey.createdBy.firstName,
             lastName: apiKey.createdBy.lastName,
             role,
-            isManager: true,
+            // Derived, never assumed: an API key carries exactly the authority of the user who
+            // created it, and no more.
+            isManager: deriveIsManager(role, apiKey.createdBy._count.reports),
             tenantId: apiKey.tenantId,
             apiKey: {
               id: apiKey.id,
@@ -136,7 +140,7 @@ export const getSessionUser = cache(async function getSessionUser(): Promise<Ses
     firstName: dbUser.firstName,
     lastName: dbUser.lastName,
     role,
-    isManager: dbUser._count.reports > 0 || MANAGER_ROLES.includes(role),
+    isManager: deriveIsManager(role, dbUser._count.reports),
     tenantId: dbUser.tenantId,
   };
 });
@@ -183,6 +187,7 @@ export async function requireManager(): Promise<SessionUser | NextResponse> {
 }
 
 export { computeVisibleUserIds };
+export { deriveIsManager, MANAGER_ROLES };
 
 /**
  * The user IDs this viewer may see, or `null` for unrestricted.

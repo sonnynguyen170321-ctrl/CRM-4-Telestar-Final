@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, type SessionUser } from '@/lib/auth';
-import { deliverWebhook } from '@/lib/webhooks/dispatcher';
+import crypto from 'crypto';
+import { requireManager, type SessionUser } from '@/lib/auth';
+import { deliverWebhook, type WebhookConfig } from '@/lib/webhooks/dispatcher';
+import { checkDestinationShape } from '@/lib/webhooks/ssrfGuard';
+import { cacheGet } from '@/lib/cache';
+
+/**
+ * Sending a test ping is webhook administration, so it needs the same management capability as
+ * creating one — it was gated on `requireAuth()` alone (TEL-P1-031).
+ *
+ * The caller no longer supplies a secret. Either it names a saved webhook and the server
+ * resolves the URL and secret itself, or it supplies a URL to try before saving and the ping is
+ * signed with a throwaway value. A caller-supplied secret served no purpose except to require
+ * the browser to hold one.
+ */
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  const userOrRes = await requireAuth();
+  const userOrRes = await requireManager();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
@@ -14,10 +27,28 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { url, secret, event } = await req.json();
+    const { url, webhookId, event } = await req.json();
 
-    if (!url || typeof url !== 'string' || !url.startsWith('http')) {
-      return NextResponse.json({ error: 'Valid URL is required' }, { status: 400 });
+    let targetUrl: string | null = null;
+    // A throwaway value, but still a signing secret: Math.random() is not a source for one.
+    let signingSecret = `whsec_probe_${crypto.randomBytes(24).toString('hex')}`;
+
+    if (typeof webhookId === 'string' && webhookId) {
+      const saved =
+        (await cacheGet<WebhookConfig[]>(`webhooks:configs:${user.tenantId}`)) || [];
+      const match = saved.find((w) => w.id === webhookId);
+      if (!match) {
+        return NextResponse.json({ error: 'Webhook not found' }, { status: 404 });
+      }
+      targetUrl = match.url;
+      signingSecret = match.secret;
+    } else {
+      targetUrl = typeof url === 'string' ? url : '';
+    }
+
+    const shape = checkDestinationShape(targetUrl);
+    if (!shape.ok) {
+      return NextResponse.json({ error: `Valid https URL required: ${shape.reason}` }, { status: 400 });
     }
 
     const testEvent = event || 'test.ping';
@@ -39,8 +70,8 @@ export async function POST(req: NextRequest) {
     };
 
     const delivery = await deliverWebhook(
-      url,
-      secret || 'whsec_test_secret',
+      targetUrl,
+      signingSecret,
       testEvent,
       mockData,
       user.tenantId

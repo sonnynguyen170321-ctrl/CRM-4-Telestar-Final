@@ -7,7 +7,7 @@
 -->
 
 **Candidate SHA**: `daa8ffb679b7bee87a907d4913123318b697eab6`
-**Verified**: 103 / 108
+**Verified**: 102 / 108
 **Verdict**: NO-GO
 
 > Status in this document is **computed**, never asserted. `requirements.json` has no status
@@ -23,13 +23,13 @@
 |---|---|---:|---:|---:|
 | **Import Reliability & Concurrency** | `IMP` | 13 | 13 | 0 |
 | **Outbound Email & Transport Safety** | `MAIL` | 12 | 12 | 0 |
-| **Security, Multi-Tenant RLS & RBAC** | `SEC` | 15 | 15 | 0 |
+| **Security, Multi-Tenant Isolation & RBAC** | `SEC` | 15 | 14 | 1 |
 | **6-Role Operational Workflows** | `ROLE` | 12 | 12 | 0 |
 | **AI Reliability & Cost Governance** | `AI` | 14 | 14 | 0 |
 | **Disaster Recovery & Infrastructure** | `DR` | 10 | 8 | 2 |
 | **Release Identity & Gate Auditing** | `REL` | 8 | 5 | 3 |
 | **Operational Lifecycle & Sequences** | `OPS` | 24 | 24 | 0 |
-| **TOTAL** | | **108** | **103** | **5** |
+| **TOTAL** | | **108** | **102** | **6** |
 
 ---
 
@@ -70,12 +70,12 @@
 | `MAIL-011` | Deliverability health scoring autopause on critical bounce threshold | P2 | `tests/email-health-p8.test.ts` | **VERIFIED** | — | — |
 | `MAIL-012` | Canary mode restricts outbound sends exclusively to allowlisted recipients | P1 | `tests/email-safety.test.ts` | **VERIFIED** | — | — |
 
-### Security, Multi-Tenant RLS & RBAC (`SEC` — 15)
+### Security, Multi-Tenant Isolation & RBAC (`SEC` — 15)
 
 | ID | Requirement | Sev | Evidence claims | Status | Why not verified | Defects |
 |---|---|---|---|---|---|---|
 | `SEC-001` | Complete inventory of all `bypassRls`, `new PrismaClient`, `$queryRaw` | P1 | security-inventory | **VERIFIED** | — | — |
-| `SEC-002` | Throwaway DB RLS enforcement across all tables and operations | P1 | `tests/tenant-inject.test.ts` | **VERIFIED** | — | — |
+| `SEC-002` | Application-enforced tenant scoping: every query shape is stamped and scoped (no database RLS exists — see TEL-P1-038) | P1 | `tests/tenant-inject.test.ts`<br>`tests/rls.test.ts` | **VERIFIED** | — | — |
 | `SEC-003` | Mass assignment audit: client cannot inject `tenantId`, `role`, `managerId` | P1 | `tests/mass-assignment.test.ts` | **VERIFIED** | — | — |
 | `SEC-004` | Object authorization red team: foreign tenant object ID injection rejected | P1 | `tests/object-auth-red-team.test.ts` | **VERIFIED** | — | — |
 | `SEC-005` | Object authorization red team: foreign team object ID injection rejected | P1 | `tests/object-auth-red-team.test.ts` | **VERIFIED** | — | — |
@@ -88,7 +88,7 @@
 | `SEC-012` | Gitleaks scan: 0 hardcoded secrets or API tokens in source history | P1 | `tests/gitleaks-allowlist.test.ts` | **VERIFIED** | — | — |
 | `SEC-013` | Password hashing uses bcrypt with work factor >= 12 | P1 | `tests/seed-guard.test.ts` | **VERIFIED** | — | — |
 | `SEC-014` | Login throttling rate limits brute-force attempts per IP/account | P1 | `tests/login-throttle.test.ts` | **VERIFIED** | — | — |
-| `SEC-015` | API Key scoping: Developer tokens restricted to declared tenant & scopes | P1 | `tests/api-keys-and-integrations.test.ts` | **VERIFIED** | — | — |
+| `SEC-015` | API key authority never exceeds its creator, and is restricted to declared tenant & scopes | P1 | `tests/api-keys-and-integrations.test.ts`<br>`tests/api-key-privilege-escalation.test.ts` | NOT_VERIFIED | vitest run does not include tests/api-key-privilege-escalation.test.ts | — |
 
 ### 6-Role Operational Workflows (`ROLE` — 12)
 

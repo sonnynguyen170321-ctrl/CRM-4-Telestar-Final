@@ -1,4 +1,7 @@
 import crypto from 'crypto';
+import { fetch as undiciFetch } from 'undici';
+
+import { assertPublicDestination, guardedDispatcher } from '@/lib/webhooks/ssrfGuard';
 
 export type WebhookEvent = 
   | 'lead.created'
@@ -7,6 +10,13 @@ export type WebhookEvent =
   | 'sequence.completed'
   | 'inbound.reply_received'
   | 'test.ping';
+
+/**
+ * A webhook as the API returns it. The signing secret is write-only — it is echoed once on
+ * creation and never read back, because it is enough to forge payloads the receiving system
+ * would accept as ours (TEL-P1-031).
+ */
+export type WebhookConfigPublic = Omit<WebhookConfig, 'secret'> & { secretSet: boolean };
 
 export interface WebhookConfig {
   id: string;
@@ -57,11 +67,23 @@ export async function deliverWebhook(
   const signature = signWebhookPayload(payloadString, secret);
   const startTime = Date.now();
 
+  // The guard lives here rather than in the routes so that every caller inherits it — the test
+  // ping and the real event dispatcher alike. Validating in one route and forgetting the other
+  // is how this class of hole reopens (TEL-P1-030).
+  const destination = await assertPublicDestination(url);
+  if (!destination.ok) {
+    return {
+      success: false,
+      latencyMs: Date.now() - startTime,
+      error: `Refused webhook destination: ${destination.reason}`,
+    };
+  }
+
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    const response = await fetch(url, {
+    const response = await undiciFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -72,10 +94,26 @@ export async function deliverWebhook(
       },
       body: payloadString,
       signal: controller.signal,
+      // Authoritative guard: re-checks the resolved address at connect time, so a DNS record
+      // that changes between the pre-check and the connection cannot be used.
+      dispatcher: guardedDispatcher,
+      // A validated public URL that answers 302 to http://169.254.169.254 would otherwise be
+      // followed automatically, defeating the check above. Webhook endpoints have no reason to
+      // redirect, so a redirect is a failed delivery rather than something to chase.
+      redirect: 'manual',
     });
 
     clearTimeout(timeoutId);
     const latencyMs = Date.now() - startTime;
+
+    if (response.status >= 300 && response.status < 400) {
+      return {
+        success: false,
+        statusCode: response.status,
+        latencyMs,
+        error: 'Refused webhook destination: endpoint redirected; provide the final URL',
+      };
+    }
 
     return {
       success: response.ok,

@@ -17,20 +17,754 @@
 
 ## 1. Defect Summary
 
+**Counted from the entries in this file on 2026-08-22, by a parser that is itself tested**
+(`tests/defect-ledger-consistency.test.ts`). Not carried forward, and not hand-tallied — the
+last two attempts at this table were both wrong.
+
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
-| **P0** (Launch Blocker) | 2 | 1 | 0 | **1** |
-| **P1** (Critical) | 30 | 9 | 4 | **21** |
-| **P2** (Important) | 23 | 9 | 3 | **14** |
+| **P0** (Launch Blocker) | 5 | 0 | 0 | **4** |
+| **P1** (Critical) | 40 | 9 | 4 | **27** |
+| **P2** (Important) | 28 | 8 | 4 | **15** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **51** | **19** | **7** | **32** |
+| **TOTAL** | **73** | **17** | **8** | **46** |
 
-The defect total is permitted to increase. Finding more defects is successful auditing.
-The prior cap of 25 is void.
+Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
+`Discovered` is their sum, not a free-standing tally — that identity is what previously went
+unchecked, and it is now asserted per severity.
+
+<details>
+<summary>Two wrong versions of this table, and why each was wrong</summary>
+
+**The inherited figures** read `discovered 56 · verified closed 19 · reopened 7 · active 37`.
+Active was overstated by four; four P1 and four P2 counted there have no entry anywhere in the
+file. The figures had been incremented as defects were added without re-deriving the base.
+
+**The first correction, made earlier the same day, read `53 · 11 · 8 · 33` and was worse on two
+columns.** It came from a parser that counted table rows rather than defect ids, and section 4
+contains a range row — `` `TEL-P2-001`–`TEL-P2-007` `` — carrying seven defects on one line. So
+seven closures were dropped, and the note accompanying it asserted that the inherited "19 verified
+closed" figure "had no support". That was false: the true figure is **17**, and 19 was much nearer
+the mark than 11.
+
+Recorded rather than quietly overwritten, because the failure is the instructive part: a
+correction derived from a parser nobody had tested is not more trustworthy than the number it
+replaces. The parser now expands range rows, reads only the first cell of each row — section 3
+also lists a *successor* id per row, which double-counted reopenings as 17 — and is covered by
+tests that fail if the table and the entries disagree.
+
+</details>
+
+### Active P1 classification (Phase 6)
+
+All 26, individually. No defect is deleted to improve a count.
+
+| Classification | Count | IDs |
+|---|---:|---|
+| **REAL OPEN DEFECT** | 4 | `TEL-P1-026` · `TEL-P1-027` · `TEL-P1-028` · `TEL-P1-032` |
+| **FIX_IMPLEMENTED**, awaiting verification on the new candidate | 20 | `TEL-P1-014`–`024`, `TEL-P1-029`–`031`, `TEL-P1-033`–`037`, `DEPLOY-001`, `DEPLOY-002` |
+| **CI_VERIFIED**, awaiting candidate freeze | 2 | `TEL-P1-025` (secret-scan now PASS on PR #100) · `TEL-P1-018` (chain present in `EV-RELEASE-IDENTITY`, `REL-001` VERIFIED) |
+| STALE LEDGER ITEM | 0 | the stale item was this summary table, now corrected |
+| DUPLICATE | 0 | — |
+| ACCEPTED RISK | 0 | none accepted; `TEL-P1-027` may become one, but only by explicit operator decision |
+
+The four genuinely open P1s share a shape: each needs something this checkout cannot reach.
+
+| ID | What it needs |
+|---|---|
+| `TEL-P1-026` | a container runtime, to finish and run the rollback drill |
+| `TEL-P1-027` | authorization to enable PITR on `telestar-db` (production change) |
+| `TEL-P1-028` | the production `DATABASE_URL` read from the VM, then a Cloud SQL setting change |
+| `TEL-P1-032` | authorization for a schema migration (R4) |
+
+**No P1 is open for want of engineering effort available here.**
 
 ---
 
 ## 2. Active Defects
+
+### `TEL-P2-024` — A Redelivered Bounce Webhook Recorded The Same Bounce Twice
+- **Severity**: P2
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: Phase 13, testing duplicate provider delivery against a real database.
+  `tests/sync-worker.test.ts` mocks `@/lib/prisma`, so redelivery had never been measured.
+- **Root cause**: `handleApplyBounce` writes its timeline `Activity` **unconditionally**, before
+  the `already_invalid` guard. Providers redeliver webhooks, so the second delivery of one
+  bounce added a second `email_bounced` entry.
+- **Everything else was already correct**, which is why this was the only finding: the
+  originating message is selected only while still `sent`, so it cannot be flipped twice; the
+  suppression entry is checked before create; the `invalid-email` tag is not re-pushed; and the
+  second delivery returns `already_invalid`. Measured, not assumed — each of those is now a
+  test.
+- **Why it counts**: the prospect bounced once and the record said twice. Duplicated CRM state
+  is what the directive's *"CRM state must remain correct"* rule is about, even when nothing is
+  re-sent.
+- **Fix**: the entry is now keyed on the provider's own event id —
+  `metadata.path(['providerMessageId'])` — so the two deliveries are recognisable as one event.
+  The write is skipped when that id is already on the timeline. Deliberately not keyed on the
+  outbound message: a genuine second bounce of a *different* send still records its own entry.
+- **Demonstrated before it was fixed**: the test reported `expected 2 to be 1`, then passed.
+- **Harness follow-through**: `tests/sync-worker.test.ts` needed `activity.findFirst` added to
+  its Prisma mock — its absence broke 8 tests with `prisma.activity.findFirst is not a
+  function`, which is itself a reminder of how much that suite is asserting against a mock
+  rather than a database.
+
+### The reply path, checked the same way — and it held
+
+`handleApplyReply` carries an explicit dedup gate ("Redelivery deduplication (S4)") that had
+**no test**, including in `tests/phase-8b-replies.test.ts`, which does use a real database.
+Driven for real, it holds: a redelivered reply reports `already_processed`, suppresses exactly
+once, adds no second timeline entry, and does not re-stamp `classifiedAt`. The stop also reaches
+the send path — no later step goes out after the reply.
+
+**A mutation made the design clearer than reading it did.** Removing the dedup gate still leaves
+the redelivery caught, by the *enrollment* gate returning `sequence_not_active` — because the
+first delivery's unsubscribe classification had already terminated the enrollment. Confirmed by
+observing the returned reason, not inferred. So the reply path has two independent guards and
+the dedup gate is not solely load-bearing for a stopping reply. That is defence in depth working
+as intended, and worth recording precisely rather than claiming the single mutation "proved" the
+gate.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P2-023` — The Send-Once Invariant Was Only Ever Tested Against A Mocked Compare-And-Set
+- **Severity**: P2 (coverage gap; no product defect found)
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: Phase 13, before writing anything — checking what the existing email tests
+  actually exercise.
+- **Root cause**: `tests/email-worker.test.ts` mocks `@/lib/prisma` **entirely**, including
+  `outboundMessage.updateMany`. That call *is* the compare-and-set that makes
+  "one logical step, at most one physical send" true. A mocked CAS returns whatever the mock
+  says, so the guarantee the whole email lane rests on had never been exercised against a
+  database capable of serialising two writers. `MAIL` reads 12/12 verified on that basis.
+- **Not a product defect.** The implementation is correct: a `updateMany` claim narrowed by
+  `status IN (CLAIMABLE_STATUSES)`, ambiguous provider outcomes routed to
+  `reconciliation_required` rather than back to the claimable pool, and terminal statuses
+  refused. Running it for real confirmed all of it.
+- **Fix**: `tests/email-send-once-invariant.test.ts` runs the real handler against real Postgres
+  and counts real provider invocations. Only the provider and the queue are substituted; every
+  status transition is genuine. Seven cases:
+
+  | Scenario | Result |
+  |---|---|
+  | **ten workers racing one message** | exactly 1 send; 9 decline cleanly; row ends `sent` |
+  | same job delivered twice in sequence | exactly 1 send |
+  | one logical step upserted twice | one row, not two |
+  | ambiguous provider outcome (`ETIMEDOUT`) | `reconciliation_required`; retry sends 0 |
+  | crash between provider acceptance and status write | never re-claimable; retry sends 0 |
+  | suppressed recipient | 0 sends, row `failed` |
+  | already `sent` | 0 sends |
+
+- **Proven by demonstrating the failure, not by going green.** Removing the `status IN
+  (CLAIMABLE_STATUSES)` guard from the claim makes the race test report **10 sends instead of
+  1** — ten copies to one prospect. The module restores clean. A test that cannot show the
+  defect it guards against is not evidence.
+
+### The stop rules, added the same way
+
+`tests/unsubscribe.test.ts` and `tests/sequence-worker.test.ts` also mock `@/lib/prisma`, so
+*"a stopped contact never receives a later step"* had only ever been asserted against mocks
+too. The send path is the chokepoint that makes it true regardless of what the sequence decides,
+so each stop signal is now driven through the real handler and counted:
+
+| Signal | Result |
+|---|---|
+| unsubscribe after step one | step **two** sends 0, row `failed`, reason `suppressed` |
+| hard-bounce suppression | 0 sends, reason recorded |
+| manager-paused inbox | 0 sends, pause reason surfaced |
+| deactivated sender | 0 sends |
+| **resume after pause** | sends again — a pause that cannot be lifted is an outage |
+| suppression in a neighbouring tenant | **does not** silence this tenant |
+
+Two mutants, each caught by exactly the tests that should catch it and no others:
+
+| Mutant | Failures |
+|---|---|
+| `evaluateSendBlock` neutralised | paused · deactivated · resume |
+| suppression check skipped | suppressed · unsubscribe-next-step · hard bounce |
+
+13 tests total, exit 0, restored clean after both mutations.
+
+### Lead reassignment mid-cadence — characterised, not assumed
+
+`lib/admin/transferWork.ts` moves leads, tasks, meetings and opportunities. It does **not** touch
+`OutboundMessage`. Measured consequence:
+
+| Situation | Behaviour |
+|---|---|
+| send queued **before** the handover | still goes from the **previous owner's** mailbox |
+| the same message after reassignment | not duplicated — sends once |
+| send queued **after** the handover | uses the new owner's mailbox |
+| previous owner's inbox deactivated | their queued send is stopped |
+
+The first row is a **product decision worth making deliberately**, and it is recorded here as an
+observation rather than corrected: the message was composed and approved against that inbox, so
+rewriting the sender on transfer would change what a prospect sees mid-conversation. Nothing was
+changed unilaterally. The invariant that matters either way — no duplicate send across a
+handover — holds.
+
+### Queue recovery — already covered, verified rather than rewritten
+
+`tests/queue-reconciliation.test.ts` runs against a real database and already covers the case
+this phase asks about: a delayed job waking **after** a stop signal. Safety 1–8 span reply,
+hard bounce, meeting booked, suppression added after scheduling, mailbox paused, mailbox
+inactive, worker-level pause and archived lead. Re-run here with the Redis suites: **56 passed,
+exit 0, 0 skipped**. No new tests were written for it, because duplicating proven coverage is
+not evidence of anything.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-037` — A Signing Secret Generated With `Math.random()`
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: CodeQL on PR #101 — `js/insecure-randomness`, **high**. Found in code
+  written earlier in this same session.
+- **Root cause**: the rewritten webhook test endpoint generated its throwaway signing value with
+  `` `whsec_probe_${Math.random().toString(36).slice(2)}` ``. `Math.random()` is not a
+  cryptographic source, and a webhook signature is precisely a security context — the value
+  proves to the receiving system that a payload came from Telestar.
+- **Why it slipped in**: it was introduced *while removing* the caller-supplied secret, so the
+  change that improved one property quietly weakened another. The reviewer that caught it was a
+  scanner whose result is non-blocking by policy, and which it would have been easy to wave past
+  on a green PR.
+- **Fix**: `crypto.randomBytes(24).toString('hex')`, matching how the real webhook secret is
+  generated in `app/api/webhooks/route.ts`.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-034` — The Health Gate Passed On 401, 403, 404, A Login Redirect, And The Wrong Release
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: Phase 9, the adversarial review of the certifier itself.
+- **Root cause**: gate 22 decided everything on one line — `if (response.status >= 500) ok = false;`.
+  Its description read *"web health endpoints answer and report release identity"*, but the
+  function never read `commit` and was never given the candidate SHA to compare against.
+- **What therefore passed**: `401`, `403`, `404`, a `302` to a login page, a proxy's HTML error
+  page served with `200`, and — the one that matters — a perfectly healthy server running an
+  **entirely different release**.
+- **And two of its three endpoints do not exist.** It probed `/api/health`, `/api/health/db` and
+  `/api/health/redis`. Measured against production: `200`, **`404`**, **`404`**. Because 404 is
+  under 500, the gate reported PASS on two endpoints that have never existed. A mandatory gate
+  had never verified anything.
+- **Second defect in the same function**: it wrote its log to `gate-22-health-smoke.log` while
+  recording `logPath` as `<runLabel>-22-health-smoke.log`. The recorded artifact did not exist,
+  and each run overwrote the previous run's log — the same defect the queue-load gate was fixed
+  for earlier.
+- **Fix**: `scripts/certification/lib/healthGate.mjs` requires HTTP **exactly 200**, a body that
+  parses as JSON, `ok === true`, and `commit` equal to the frozen candidate. Each rejected
+  status is named for what it means operationally, because "not 200" was the thing nobody
+  noticed. `HEALTH_ENDPOINTS` is now `['/api/health']` — the two that never existed are gone
+  rather than silently passing. The gate receives `candidateSha`, and the log path written is
+  the log path recorded.
+- **Regression test**: `tests/certification-false-green.test.ts` — 36 passed, exit 0, every case
+  a way the gate used to say PASS.
+- **Verified by mutation**: reinstating the old `>= 500` rule fails **9 of the 36**. An earlier
+  draft of these tests caught only 2, because the status cases used an empty body that failed
+  JSON parsing regardless of status; they now carry a valid healthy body so only the status rule
+  can fail them.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-035` — Playwright Skips Were Invisible To The Certifier
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: Phase 9, checking what `mandatorySkips` actually counts.
+- **Root cause**: `mandatorySkips = (vitest?.testsSkipped ?? 0) + (redisGate?.metrics?.skipped ?? 0)`.
+  Playwright is not in that sum. The Playwright gates were recorded by `scriptGate`, which reads
+  the exit code — and **Playwright exits 0 when tests are skipped**.
+- **Why nothing could have counted them**: `playwright.config.ts` sets `reporter: 'list'`, which
+  produces nothing machine-readable. There was no artifact to count even in principle.
+- **What that allowed**: the merge run reported **227 passed, 16 skipped**. Those 16 contributed
+  nothing to `mandatorySkips`, so the validator's check K — *"final runs require zero"* — would
+  have passed a certification with 16 unexecuted browser tests, concentrated in live Telestar AI
+  behaviour.
+- **Fix**: `scripts/certification/lib/playwrightReport.mjs` parses the JSON report and counts
+  `skipped`, `flaky`, `timedOut` and `interrupted` — every outcome that is neither a pass nor an
+  honest failure. The ladder requests `--reporter=list,json` with `PLAYWRIGHT_JSON_OUTPUT_NAME`
+  **on the certification path only**, so CI and local runs are unchanged. A Playwright gate that
+  exits 0 with any unaccounted result is now `FAIL`, and the counts are added to
+  `mandatorySkips`. A missing or malformed report reports `parsed: false` rather than zero,
+  because absent evidence must never read as a clean run.
+- **Regression test**: covered by the 36 in `tests/certification-false-green.test.ts`.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-036` — The Rollback Drill Let The Caller Define What Correct Meant
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: Phase 9. This is a defect in `TEL-P1-026`'s own remediation, written earlier
+  in this session.
+- **Root cause**: `evaluateDrill` compared each phase's observed health against
+  `phase.expectedSha` — a value supplied by whoever assembled the drill. A drill could therefore
+  declare that the rollback phase was expected to be running the *candidate*, and pass while
+  proving the opposite of what DR-003 asks.
+- **Fix**: expectation is derived from the frozen release identity. `evaluateDrill` now takes
+  `candidateSha` and `previousSha` alongside the digests, and `expectationFor(phaseName, …)`
+  maps each phase to the identity it must show. A phase carries **observed state only**; a phase
+  that still supplies `expectedSha` is **refused rather than ignored**, because whoever passed it
+  believes it is being honoured. Each phase's running digest is also checked against the one the
+  freeze names, not merely against its sibling service.
+- **Regression test**: `tests/certification-rollback-drill.test.ts` — 32 passed, exit 0, now
+  including a caller-supplied `expectedSha`, a rollback phase reporting the candidate, a phase
+  running the wrong digest, and identical candidate/previous SHAs.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-033` — A Test Guarding A Secret Printed It, And Depended On The Ambient Environment
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: running the full suite with `.env.local` loaded — the condition the
+  certification ladder now runs under, after `TEL-P2-021` taught it to read that file.
+- **Two defects in one line.** `tests/golden-journey.test.ts` opened its send assertion with:
+
+  ```ts
+  expect(process.env.GROQ_API_KEY ?? '').toBe('');
+  ```
+
+  1. **It asserted its premise instead of establishing it.** The journey exists to prove the send
+     produces the approved wording with *no AI provider reachable*, but it only hoped the ambient
+     environment had no keys. On a machine with them the guard tripped, and test 11 then failed
+     as a cascade because the message test 8 should have created did not exist. Measured: 14/14
+     without provider keys, 2 failures with them.
+  2. **The failure printed the key.** Vitest renders the received value, so a live
+     `gsk_…` Groq credential was written to the test output — and the certification ladder
+     stores raw gate output under `docs/production-certification/evidence/raw/`. A failing
+     certification run would have committed a working provider key into an evidence artifact
+     that gitleaks then scans.
+- **Why this session caused it to surface**: before `TEL-P2-021` the ladder never loaded
+  `.env.local`, so gate 08 ran without provider keys and the test's assumption held by accident.
+  Fixing the environment loading made gate 08 run the way a developer does — and this test would
+  have failed all three certification runs.
+- **Fix**: `beforeAll` now stubs `GROQ_API_KEY`, `GEMINI_API_KEY` and `OPENAI_API_KEY` to empty
+  via `vi.stubEnv`, with `vi.unstubAllEnvs()` in `afterAll`, so the premise is **made** true
+  regardless of the machine. The guard remains but asserts a derived string —
+  `` `${key} present: false` `` — so a failure can never render the credential.
+- **Swept**: this was the only assertion in `tests/` or `e2e/` comparing a secret-bearing
+  environment variable against a literal.
+- **Verified**: `tests/golden-journey.test.ts` 14/14 **with** provider keys loaded and 14/14
+  without — the same result either way, which is the property that was missing.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P2-022` — `lib/authRoles.ts` Was Owned By No Domain
+- **Severity**: P2
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: `tests/agent-routing.test.ts` failing after `TEL-P0-005` added the file —
+  `unmapped paths — add them to .agent/registry/domains.yaml: expected [ 'lib/authRoles.ts' ]`.
+- **Root cause**: `auth-rbac-tenancy` maps `lib/auth.ts` and `lib/auth/**`, and the new module
+  matches neither. An R4 authorization surface therefore routed to no domain, no risk class and
+  no target tests — the same defect as `TEL-P2-020`, one directory over.
+- **Fix**: `lib/authRoles.ts` added to the `auth-rbac-tenancy` domain.
+- **Regression test**: `tests/agent-routing.test.ts` — 32 passed, exit 0.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P0-005` — API Keys Authenticated As Managers Regardless Of Who Created Them
+- **Severity**: P0 (privilege escalation)
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: the directed blind-spot audit of shared-auth behaviour around `isManager`.
+- **Root cause**: `getSessionUser()` in `lib/auth.ts` has two authentication paths that had
+  drifted apart.
+
+  | Path | `isManager` |
+  |---|---|
+  | session JWT | `dbUser._count.reports > 0 \|\| MANAGER_ROLES.includes(role)` — derived |
+  | **API key** | **`true` — hardcoded, unconditional** |
+
+- **Why it is exploitable, not theoretical**: `POST /api/developer/keys` is gated by
+  `requireAuth()` alone, so **any authenticated user can mint a key** — an SDR included. Every
+  request bearing that key then resolves to `isManager: true`, and `requireManager()` passes a
+  caller who "is not director/floor_manager/team_lead **and** `!user.isManager`". The negation
+  is satisfied, so the gate opens.
+- **Invariant violated**: `API_KEY_PERMISSION <= CURRENT_USER_PERMISSION`.
+- **Reachable surface**: the six routes gated by `requireManager()` —
+  `automation/accounts/[id]/cap`, `opportunities`, `team/alerts`, `team/leaderboard`,
+  `team/meetings`, `team/sdr-progress`.
+- **Not affected**: the other `isManager` occurrences (`cron/*`, `email/accounts`,
+  `email/send`) compute it locally from `role` and never read the poisoned session field.
+- **Fix**: the derivation moved to `lib/authRoles.ts` as `deriveIsManager(role, activeReports)`
+  and **both** paths now call it; the API-key query selects
+  `_count.reports where isActive` so it has the input it previously lacked. The fix is in the
+  derivation rather than in `requireManager()` on purpose: an individual contributor with
+  active reports is a legitimate manager, and removing the `isManager` check would break them.
+  `authRoles.ts` is separate from `auth.ts` because the latter imports next-auth and cannot be
+  loaded from a unit test — which is precisely why this rule went untested and the two paths
+  drifted.
+- **Regression test**: `tests/api-key-privilege-escalation.test.ts` — 17 passed, exit 0.
+  Includes a static guard that `isManager:\s*true` appears nowhere in `lib/auth.ts`.
+- **Verified by mutation, not only by a green run**: forcing `deriveIsManager` to return `true`
+  unconditionally fails **5 of the 17** tests; the module restores clean at 17/17.
+- **Blast radius re-run**: 11 authorization and tenancy suites, **103 passed**, exit 0.
+- **Remaining before VERIFIED**: exercise through the real HTTP surface with a live SDR-minted
+  key, per `.claude/rules/auth-rbac.md` — this is an R4 change and the role E2E suite is part of
+  the evidence, not an optional extra.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-029` — Demo Diagnostics Endpoint Readable Against Live Tenants, Without Object Authorization
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: the directed object-level authorization audit.
+- **Root cause**: `app/api/demo/diagnostics/route.ts` gated on `requireAuth()` and a tenant
+  comparison, and nothing else. Two distinct problems:
+
+  1. **It ran against real client tenants.** Its own docstring calls it *"a debugging tool, not
+     a customer surface"*, and every sibling under `app/api/demo/` confines itself to
+     `DEMO_TENANT_ID` — `inbound-reply` says why in as many words, *"so it cannot be used to
+     inject mail into a real one"*. Diagnostics had drifted from that convention and was the
+     only route in the directory readable against a live tenant.
+  2. **No object authorization inside the tenant.** Any authenticated user could pass any
+     `leadId` belonging to their tenant. An SDR could therefore read another SDR's prospect —
+     identity and company, operating state, enrollment, current task, work orders, **agent
+     actions, approvals**, reply classification, job runs and latest activity.
+
+- **Invariant broken**, stated in `AGENTS.md`: *"Capability authorization is not object
+  authorization."* Being allowed to call the endpoint is not being allowed to read that row.
+- **Not affected**: cross-tenant reads were already refused, so this was never a tenant-isolation
+  breach — it is a within-tenant, cross-user exposure.
+- **Fix**: the route now refuses any tenant other than `DEMO_TENANT_ID` with **403**, before it
+  reads any prospect data, matching `inbound-reply`. Within the demo tenant it additionally
+  resolves `getVisibleUserIds(user)` and refuses a lead outside that set with the **same 404** a
+  missing lead returns, so the endpoint cannot be used as an oracle for which lead ids exist.
+  The pre-existing tenant check is retained, so neither guard is load-bearing alone.
+- **Regression test**: `tests/demo-diagnostics-authorization.test.ts` — 12 passed, exit 0. It
+  also asserts the convention across **every** route under `app/api/demo/`, since the defect was
+  one route drifting from what its siblings do.
+- **Blast radius re-run**: 5 object-authorization suites, **75 passed**, exit 0.
+- **Remaining before VERIFIED**: exercise through the real HTTP surface — SDR A requesting
+  SDR B's lead must 404.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-030` — Webhook Delivery Was Server-Side Request Forgery With A Response Oracle
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: the directed SSRF audit.
+- **Root cause**: `deliverWebhook()` called `fetch(url)` with no validation. The only check
+  anywhere was the route's `url.startsWith('http')`, which also admits `httpx://`, credentials
+  in the URL, and every private address.
+- **What that allowed**: any authenticated user could make the production VM issue a **POST**,
+  with a body they controlled, to any address it could reach — `127.0.0.1`, `10/8`,
+  `169.254.169.254`, the app itself — and read back `statusCode`, `latencyMs` and the raw
+  `error` string. Status plus latency plus error text is enough to port-scan and fingerprint the
+  internal network from outside. `fetch` also follows redirects by default, so a public URL
+  answering `302` to a private one worked too.
+- **Fix**: `lib/webhooks/ssrfGuard.ts`, applied **inside `deliverWebhook`** so the test ping and
+  the real dispatcher inherit it rather than each route remembering to call it.
+
+  The check is on **resolved addresses**, not hostname text, which is why the exotic encodings
+  need no special cases — `http://2130706433/`, `http://0x7f000001/` and a DNS name whose A
+  record is `10.0.0.5` all resolve to something blocked. Blocked: loopback, `0.0.0.0/8`,
+  `10/8`, `172.16/12`, `192.168/16`, `169.254/16` (cloud metadata), CGNAT, multicast, IPv6
+  `::1`/`::`/`fc00::/7`/`fe80::/10`/`ff00::/8`, and IPv4-mapped IPv6 forms. If **any** resolved
+  address is blocked the destination is refused, because which one `fetch` picks is not ours to
+  choose. Redirects are no longer followed (`redirect: 'manual'`) and a 3xx is a failed
+  delivery.
+- **Rebinding window closed, after CodeQL disagreed with the first fix.** The initial guard was
+  a check-then-use, and CodeQL raised `js/request-forgery` at **critical** on exactly that: a
+  validation that runs before the request is not a sanitizer, because `fetch` resolves the name
+  again itself. It was right. `guardedDispatcher` now re-runs the same address rules **inside
+  undici's connector**, against the address the socket is about to use, so there is no
+  resolution after the check.
+
+  The two layers cover different threats, and neither is redundant:
+
+  | Vector | Caught by |
+  |---|---|
+  | literal IP, in any encoding | the pre-check — a literal cannot rebind, and undici skips DNS for literals entirely |
+  | hostname resolving private | either layer |
+  | **DNS rebinding** | the connector, which is the only layer that can |
+
+- **Live-verified, not only unit-tested.** Driving the connector directly, `http://localhost` is
+  refused with *"resolves to ::1: IPv6 loopback"* while `https://example.com` **reaches status
+  200** — the guard blocks without breaking delivery. That check mattered: the first version of
+  the connector replied in the single-address shape while asking the resolver for all addresses,
+  which handed undici `undefined` and **broke every legitimate delivery**. It was caught by
+  running it, not by reading it.
+- **End-to-end**: ten vectors driven through `deliverWebhook` itself — loopback literal and by
+  name, cloud metadata, `10/8`, `192.168/16`, integer-encoded, IPv6 loopback, credentials in the
+  URL, `file://`, and an unsupported scheme — all refused before any socket opens.
+- **Regression test**: `tests/webhook-ssrf-and-authorization.test.ts` — 57 passed, exit 0,
+  covering every case in the directive's list including integer and hex encodings, IPv6, a
+  hostname resolving private, and a mixed public/private answer.
+- **Verified by mutation**: forcing `blockedAddressReason` to return `null` fails **30 of 57**.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-031` — Webhook Administration Needed Only Authentication, And Read Back Signing Secrets
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: the directed webhook authorization audit.
+- **Root cause**: `GET`, `POST` and `DELETE` on `/api/webhooks` — and `POST /api/webhooks/test`
+  — were all gated on `requireAuth()`. Any authenticated user, an SDR or a leadgen included,
+  could list, create, delete and test the tenant's webhooks.
+- **Why it matters twice over**:
+  1. A webhook is an **outbound data channel** carrying lead events. Creating one is a way to
+     forward a client's pipeline to an address of your choosing.
+  2. `GET` returned each config's **signing `secret`** in full. That secret is what the
+     receiving system uses to decide a payload really came from Telestar, so reading it is
+     enough to forge traffic the client's systems accept as ours.
+- **Fix**: all four verbs now require `requireManager()`. The secret became write-only: `GET`
+  maps every config through `redactSecret`, returning `secretSet: boolean` instead, and the
+  generated secret is echoed exactly once on creation so it can be copied into the receiving
+  system. The test endpoint no longer accepts a caller-supplied secret at all — it takes a
+  `webhookId` and resolves the URL and secret server-side, or a bare URL for trying an unsaved
+  endpoint, signed with a throwaway value.
+- **UI follow-through**: `app/automation/page.tsx` no longer reads `webhook.secret`. It sends
+  `webhookId` to the test endpoint and renders a fixed mask, so the browser never holds a
+  signing secret. Its state type moved to the new `WebhookConfigPublic`.
+- **Regression test**: covered by the 57 in `tests/webhook-ssrf-and-authorization.test.ts`,
+  including that no verb is gated on mere authentication and that no read path returns a secret.
+- **Blast radius re-run**: 5 webhook and authorization suites, **95 passed**, exit 0.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-032` — Webhook Configuration Has No Durable Authority And Writes Can Fail Silently
+- **Severity**: P1
+- **Status**: `OPEN` — remediation needs a migration, which is R4
+- **Discovered by**: the directed durability audit.
+- **Measured**: there is **no `Webhook` model in `prisma/schema.prisma`** — the word does not
+  appear in the schema at all. Every webhook configuration lives only in Redis, written by
+  `cacheSet(getCacheKey(tenantId), updated, WEBHOOK_CACHE_TTL)` where the TTL is
+  `3600 * 24 * 30`.
+- **Three distinct failures follow**:
+  1. **It expires.** After 30 days without a rewrite, every webhook silently stops existing.
+  2. **It does not survive Redis.** A restart without persistence, a flush, an eviction under
+     memory pressure, or a cache migration loses every tenant's configuration with no record
+     that it ever existed.
+  3. **A write can silently do nothing.** `cacheSet` returns early when there is no client and
+     swallows errors — `catch { /* silently fail — cache is optional */ }`. With Redis down,
+     creating a webhook returns `{ success: true }` and stores nothing.
+- **Why it is not merely a cache concern**: this is configuration, not a cached projection of
+  something durable. There is no source of truth behind it to rebuild from, which is the
+  invariant in `AGENTS.md` — *"The database is workflow truth. Queues execute, never decide,
+  and are rebuildable from it."*
+- **Required remediation**: a `Webhook` model owning `id`, `tenantId`, `url`, `secret`,
+  `events`, `isActive`, `createdAt`, `lastDeliveryAt`, `lastStatus`, with the tenant scoping
+  every other model has; the routes reading and writing it as the authority; Redis retained
+  only as a read cache in front of it, with a failed cache write no longer able to look like a
+  successful save. Concurrent create/update/delete then need testing against the database
+  rather than against a read-modify-write of a cached array, which is itself lossy under
+  concurrency.
+- **Why not fixed in this pass**: it requires a schema migration, and `AGENTS.md` classifies
+  migrations as **R4 — independent verification plus explicit operator authorization**. The
+  analysis is complete and the change is ready to make on authorization.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P0-006` — Production Database Password Disclosed, And Rotated
+- **Severity**: P0 (credential exposure)
+- **Status**: `FIXED_PENDING_VERIFICATION` — rotated and verified against the live database
+  2026-08-22. Not `VERIFIED`: this ledger's closure rule requires an evidence record ID under
+  `evidence/`, and none exists until the next certification run.
+- **Cause**: mine. While reading `sslmode` from `/opt/crm-4-u/.env.production`, the redaction
+  applied to the output did not match — the value is wrapped in a quote
+  (`DATABASE_URL="postgresql://…`), so the anchored substitution never fired and the full DSN,
+  including the password, printed into the session transcript. The guard that was supposed to
+  prevent it was the thing that failed.
+- **Scope**: the `crm` role's password on Cloud SQL instance `telestar-db`, which is the
+  credential used by `DATABASE_URL`, `DIRECT_URL` and `BACKUP_DATABASE_URL`.
+
+**Rotation, in order, each step verified:**
+
+| Step | Result |
+|---|---|
+| back up `.env.production` on the VM | `.env.production.prerotate.20260821201304` |
+| generate 40-character alphanumeric password | never printed; alphanumeric so no DSN-encoding hazard |
+| `gcloud sql users set-password crm --instance=telestar-db` | exit 0 |
+| rewrite all three DSNs in place | 3 before, 3 after; `sslmode=require` preserved on all 3 |
+| recreate `web` and `worker` | both on `f2e807bb7812` — no version drift |
+| production health | `ok:true`, HTTP 200, `schema: ready` |
+| application DB connection | `current_user = crm`, reads data, `ssl = true TLSv1.3` |
+| **old credential** | **refused — "Authentication failed against database server"** |
+| worker and web logs | 0 authentication or connection errors |
+
+Rotation is not proven by the new password working; it is proven by the **old one failing**,
+which is why that check was run explicitly against the pre-rotation backup rather than assumed.
+
+- **Handling of the value**: the password was passed to the VM over the SSH channel and applied
+  via the environment rather than argv, so it never entered the VM's process list. The local
+  copy on the workstation was deleted once rotation was verified — Cloud SQL and the VM env file
+  are the only places it now exists.
+- **Residual**: `.env.production.prerotate.20260821201304` on the VM still contains the **old**
+  password. That credential is now dead, so this is untidiness rather than exposure; it is
+  retained for the moment because it is also the rollback copy of every other setting in that
+  file. Delete it once the rotation has been stable for a day.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P0-004` — Production PostgreSQL Application Role: MEASURED, core requirements met
+- **Severity**: P0 (as raised)
+- **Status**: `FIXED_PENDING_VERIFICATION` — measured 2026-08-22 against the live database
+- **How**: VM shell obtained (see `TEL-P2-025`), queried through the running `crm-4-u-web-1`
+  container as the application's own connection.
+
+| Attribute | Required | Measured |
+|---|---|---|
+| `current_user` / `session_user` | — | `crm` / `crm` |
+| `rolsuper` | **false** | **false** ✓ |
+| `rolbypassrls` | **false** | **false** ✓ |
+| `rolreplication` | — | false ✓ |
+| `rolcreaterole` | — | **true** ⚠ |
+| `rolcreatedb` | — | **true** ⚠ |
+
+**Both mandatory conditions are met.** The application does not run as a superuser and cannot
+bypass row security.
+
+`rolcreaterole` and `rolcreatedb` are excess privilege for an application role and are recorded
+as `TEL-P2-026`. On PostgreSQL 16 — which this instance runs — `CREATEROLE` no longer implies
+the ability to grant arbitrary memberships, so this is least-privilege hygiene rather than a
+live escalation path.
+
+- **Connection security, measured on the live connection**: `pg_stat_ssl` reports
+  `ssl = true, version = TLSv1.3`. See `TEL-P1-028`.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-038` — Row-Level Security Does Not Exist, In Production Or Anywhere
+- **Severity**: P1
+- **Status**: `OPEN`
+- **Discovered by**: attempting the production-identity RLS certification `TEL-P0-004` asks for.
+- **Measured, production**: 68 tables in `public`; **0 with `relrowsecurity`**; **0 rows in
+  `pg_policies`**.
+- **Measured, local development database**: the same — 0 and 0.
+- **Measured, source**: `grep -rl "ENABLE ROW LEVEL SECURITY" prisma/migrations/` returns
+  **nothing**. No migration has ever created a policy.
+- **What is actually true**: tenant isolation is enforced in the **application layer**, by the
+  Prisma extension in `lib/prisma.ts`. That is the documented design —
+  `.claude/rules/auth-rbac.md` says so plainly: *"Every query is tenant-scoped, enforced by the
+  `lib/prisma.ts` extension."* It is covered by real tests, and 103 authorization and tenancy
+  assertions pass against it.
+- **The defect is the evidence, not the isolation.** `tests/rls.test.ts` is titled *"PostgreSQL
+  Row-Level Security (RLS)"* and exercises the extension's scoping; Phase 27 records *"RLS
+  isolation … passed"*; `SEC` reads 15/15. Nothing there is backed by a database policy, because
+  none exists. A reader — or an auditor — would reasonably conclude the database enforces
+  tenancy. It does not.
+- **Two consequences worth separating**:
+  1. `rolbypassrls = false`, recorded above as a pass, is **vacuous**: there are no policies to
+     bypass.
+  2. Any path that reaches the database without the extension — a psql session, a migration
+     script, a raw `$queryRaw` that forgets scoping — has **no tenant isolation at all**. With
+     RLS that would be defence in depth; without it, the extension is the only thing standing.
+- **Required remediation**, and this is a decision rather than a fix: either implement RLS
+  policies and prove them under the production identity, or **rename every claim** — tests,
+  phase notes, requirement text — to say "application-enforced tenant scoping", and record the
+  absence of database-level enforcement as an accepted risk with a named owner. Changing the
+  words is legitimate; leaving them as they are is not.
+
+### The false claims are corrected; the implementation decision is still open
+
+Correcting documentation that contradicts the code needs no authorization — `AGENTS.md` is
+explicit that a document disagreeing with the code is a defect in the document. Done:
+
+| Claim | Was | Now |
+|---|---|---|
+| `SEC` domain label | "Security, Multi-Tenant **RLS** & RBAC" | "Multi-Tenant **Isolation** & RBAC" |
+| `SEC-002` | "Throwaway DB **RLS enforcement** across all tables" — verified by a test of pure stamping helpers that never opens a database | "Application-enforced tenant scoping … (no database RLS exists — see TEL-P1-038)", evidenced by the stamping helpers **and** the real-database scoping suite |
+| `tests/rls.test.ts` | `describe('PostgreSQL Row-Level Security (RLS)')` | `describe('application-enforced tenant scoping (Prisma extension)')` |
+| Phase 27 | 🟢 GREEN "RLS isolation … passed" | ⚠️ CORRECTED, naming the absence |
+
+**The correction cost a requirement, which is the point.** Re-rendering traceability moved
+verification from **103/108 to 102/108**: `SEC-015` now reads `NOT_VERIFIED` because its evidence
+cites `tests/api-key-privilege-escalation.test.ts`, and the recorded Vitest run predates that
+file. The validator is refusing to credit a test that was not in the run it has evidence for —
+correct, and it resolves when the ladder re-runs on the new candidate.
+
+`SEC-015`'s description was also wrong in a way that mattered: it read "Developer tokens
+restricted to declared tenant & scopes" and was verified by a suite that never tested authority
+at all — which is how `TEL-P0-005` survived. It now reads "API key authority never exceeds its
+creator".
+
+**Still open**: whether to implement RLS or accept application-only enforcement. That is an
+operator decision, not a documentation one.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P2-026` — The Application Role Holds CREATEROLE and CREATEDB
+- **Severity**: P2
+- **Status**: `OPEN`
+- **Measured**: the `crm` role has `rolcreaterole = true` and `rolcreatedb = true`.
+- **Why it matters**: an application role needs neither. On PostgreSQL 16 `CREATEROLE` is
+  constrained, so this is hygiene rather than an open escalation, but it widens what a
+  compromised application connection could do.
+- **Remediation**: `ALTER ROLE crm NOCREATEROLE NOCREATEDB;` — a production change requiring
+  operator authorization, and worth confirming no migration path depends on it first.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P2-027` — An Orphaned One-Off Container Has Been Running Five Days On A Different Image
+- **Severity**: P2
+- **Status**: `RESOLVED` — removed and verified 2026-08-22
+- **Measured on the VM**: alongside `crm-4-u-web-1` and `crm-4-u-worker-1`, both correctly on
+  `f2e807bb7812`, a third container `crm-4-u-web-run-acdfd691c452` has been **up 5 days** on
+  image **`47cae338dcb6`** — a different build. It is a `docker compose run` one-off, the kind
+  `deploy.sh` uses for `migrate deploy`, left behind rather than removed.
+- **Why it matters**: this is exactly the "no orphan containers, no mixed versions" condition
+  the rollback drill is required to verify, and it is currently violated on the live box. A
+  stray container from an older image holding a database connection is also a quiet consumer of
+  the connection pool.
+- **What it actually was — a known defect, still running.** Inspected before removal rather than
+  deleted on sight:
+
+  ```
+  cmd:     ["node","node_modules/tsx/dist/cli.mjs","scripts/worker-healthcheck.ts"]
+  created: 2026-08-16T13:42:12Z   status: running   restarts: 0
+  image:   …@sha256:47cae338dcb6…
+  ```
+
+  That is **`TEL-P1-020`** — *"`worker-healthcheck` never exits when the check succeeds"* —
+  observed alive in production six days after the deploy that started it. Its log tail showed it
+  flapping (`ENOTFOUND 'redis'` → reconnect), holding a BullMQ connection and 81 MB throughout.
+
+- **Resolution**: removed with `docker rm -f`. Four containers remain — `web` and `worker` both
+  on `f2e807bb7812`, plus caddy and redis — and no other `run-` one-offs exist. Production health
+  after removal: `ok:true`, HTTP 200.
+- **It will not recur on the current release.** The deployed image `daa8ffb` **does** contain the
+  `TEL-P1-020` fix — `finally { await closeAllQueues() }` and `process.exit(completed ? 0 : 1)`.
+  The orphan was built from `47cae338`, an image from before that fix. Checked rather than
+  assumed, because "we fixed that" and "the fix is in the running bytes" are different claims.
+- **This also strengthens `TEL-P1-020`**: its remediation is confirmed present in the deployed
+  image, not merely merged.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P2-025` — VM Shell Was Unreachable; Root Cause And Fix
+- **Severity**: P2
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Symptom**: `gcloud compute ssh` failed with *"Server refused our key"*, and OpenSSH over an
+  IAP tunnel with *"Permission denied (publickey)"*, blocking `TEL-P0-004`, `TEL-P1-028`,
+  DR-003 and the deployment audit check.
+- **Root cause**: the instance's `ssh-keys` metadata held only **expired** entries
+  (`expireOn 2026-08-21T15:24`, browser-SSH ephemerals) and the project-level key was not being
+  honoured. Separately, gcloud on Windows drives **plink**, which failed even once a valid key
+  was present.
+- **Fix**: appended the operator's existing public key to the instance `ssh-keys` metadata,
+  **preserving both existing entries** — the value is replaced wholesale by
+  `add-metadata`, so it was read, backed up, and appended rather than overwritten — and
+  connected with native OpenSSH over an IAP tunnel rather than plink.
+- **Reversal**: restore the backed-up value with
+  `gcloud compute instances add-metadata telestar-crm-vm --zone=asia-southeast1-a --metadata-from-file ssh-keys=<backup>`.
+- **Evidence ID**: *(none yet)*
+
+---
 
 ### `TEL-P0-001` — Disaster Recovery Evidence Invalid
 - **Severity**: P0 (Launch Blocker)
@@ -518,7 +1252,12 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
   stub container runtime. With a read-only record file it aborts **exit 1** before the pull, and
   with a record directory that does not exist it aborts the same way — in both cases naming the
   missing audit trail, and in both cases before anything irreversible has happened.
-- **Remaining before VERIFIED**: one real deploy on the VM.
+- **Confirmed from production, 2026-08-22.** `/opt/crm-4-u/deployments.ndjson` ends at commit
+  `353f650`, deployed 2026-08-19. Production is running **`daa8ffb`**, confirmed by the health
+  endpoint and by both containers sitting on image `f2e807bb7812`. **The release currently
+  serving traffic has no entry in the audit trail** — the defect described here, observed
+  directly rather than inferred.
+- **Remaining before VERIFIED**: one real deploy on the VM with the new preflight in place.
 - **Evidence ID**: *(none yet)*
 
 ---
@@ -555,6 +1294,12 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
   The first matters most: a deploy run from a script or a CI job, where nobody is present to
   acknowledge, can no longer proceed without a verified backup. On this machine the warning also
   classified correctly — *"gcloud has no usable credentials here"*, not "not installed".
+
+  **Confirmed from production, 2026-08-22.** The last two entries in
+  `/opt/crm-4-u/deployments.ndjson` both record `"backupId": "Telestar2026"` — the published
+  demo password, written into the audit trail as though it were a Cloud SQL backup id. Two
+  deploys therefore proceeded with no backup, and the record says otherwise. This is the defect
+  as originally described, now evidenced from the live box rather than reconstructed.
 - **Remaining before VERIFIED**: one real deploy on the VM.
 - **Evidence ID**: *(none yet)*
 

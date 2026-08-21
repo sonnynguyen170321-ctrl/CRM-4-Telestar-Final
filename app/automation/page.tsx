@@ -23,7 +23,7 @@ import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 import { DEFAULT_SCORING_RULES, type LeadScoringRules } from '@/lib/leads/scoring';
-import type { WebhookConfig, WebhookEvent } from '@/lib/webhooks/dispatcher';
+import type { WebhookConfigPublic, WebhookEvent } from '@/lib/webhooks/dispatcher';
 
 interface EmailAccount {
   id: string;
@@ -85,7 +85,7 @@ export default function AutomationDashboard() {
   const [sequenceResult, setSequenceResult] = useState<any | null>(null);
 
   // Webhooks State
-  const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
+  const [webhooks, setWebhooks] = useState<WebhookConfigPublic[]>([]);
   const [showAddWebhook, setShowAddWebhook] = useState(false);
   const [newWebhookUrl, setNewWebhookUrl] = useState('');
   const [newWebhookSecret, setNewWebhookSecret] = useState('');
@@ -243,7 +243,7 @@ export default function AutomationDashboard() {
     }
   };
 
-  const handleTestWebhook = async (webhook: WebhookConfig) => {
+  const handleTestWebhook = async (webhook: WebhookConfigPublic) => {
     setTestingWebhookId(webhook.id);
     setTestResult(null);
     try {
@@ -251,8 +251,9 @@ export default function AutomationDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url: webhook.url,
-          secret: webhook.secret,
+          // Send the id, not the URL and secret. The server resolves both, so the signing
+          // secret never has to reach the browser (TEL-P1-031).
+          webhookId: webhook.id,
           event: webhook.events[0] || 'test.ping',
         }),
       });
@@ -699,7 +700,7 @@ export default function AutomationDashboard() {
                           </div>
                         </td>
                         <td className="py-3.5 font-mono text-[10px] text-text-muted">
-                          {wh.secret.slice(0, 10)}••••••••
+                          {wh.secretSet ? '••••••••••••' : 'not set'}
                         </td>
                         <td className="py-3.5 text-right space-x-2">
                           <button
