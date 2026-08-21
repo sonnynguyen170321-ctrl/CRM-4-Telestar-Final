@@ -11,7 +11,7 @@ IMAGE_DIGEST=sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584
 DEPLOYED_SHA=daa8ffb679b7bee87a907d4913123318b697eab6
 CURRENT_PHASE=1 complete, PR #100 green on CI required checks — awaiting container runtime
 CURRENT_BLOCKER=docker absent (DR-003, REL-003/4/5) + gcloud unauthenticated (DR-007, TEL-P0-002)
-P0_OPEN=2
+P0_OPEN=2 (TEL-P0-001 pending re-freeze · TEL-P0-002 needs gcloud auth)
 P1_OPEN=17 (new: TEL-P1-023, TEL-P1-024, DEPLOY-001, DEPLOY-002 — all FIXED_PENDING_VERIFICATION)
 REQUIREMENTS_VERIFIED=103/108
 LAST_FULL_CI=CI_RUN_ID 32418164738 (candidate daa8ffb)
@@ -105,8 +105,10 @@ Without both, the ceiling is 103/108 and the verdict stays NO-GO. Neither is a c
 | `.agent/registry/domains.yaml` — `scripts/rollback*` mapped | 32 tests | 0 |
 | `.gitleaks.toml` — fixture path exemption (TEL-P1-025) | 21 tests | 0 |
 | `scripts/certification/lib/loadEnv.mjs` — ladder reads `.env.local` | 7 tests | 0 |
-| full vitest suite (3rd convergence) | 179 files, **2414 passed**, 0 failed, 0 skipped | 0 |
+| full vitest suite (4th convergence) | 180 files, **2442 passed**, 0 failed, 0 skipped | 0 |
 | **PR #100 `CI required checks`** | every mandatory job green | 0 |
+| `scripts/deploy.sh` executed end to end, 6 paths | all abort correctly | 1 each, as intended |
+| `lib/rollbackDrill.mjs` decision rules | 27 tests; 7 fail under an always-PASS mutant | 0 |
 
 ## Gate pre-flight on this machine (2026-08-21)
 
