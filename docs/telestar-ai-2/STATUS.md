@@ -35,7 +35,7 @@ blocked.
 
 ---
 
-## P0 — LIVE: all three provider credentials are rejected
+## P0 — RESOLVED for two of three providers (2026-08-21 12:30)
 
 **Found** 2026-08-21, during baseline. **Layer C** in the directive's §0.7 taxonomy —
 provider authentication.
@@ -72,6 +72,79 @@ credentials here.
 
 ---
 
+### Resolution
+
+The operator minted new credentials at 12:30. Re-probed, auth-only, against each provider's
+model-list endpoint — no SDK, no gateway, no model in the path:
+
+```
+OpenAI  HTTP 200      Groq  HTTP 200      Gemini  HTTP 200
+```
+
+All three also grant the exact model the registry names (`gpt-5.6-luna`, `gemini-3.6-flash`,
+`openai/gpt-oss-20b`). Ambient shadowing was ruled out first: the three variables are unset at
+Process, User and Machine scope, so `.env.local` is the only source.
+
+### What the full gates then found
+
+`npm run ai:smoke-providers` — **2/3, exit 1**
+
+| Provider | Result | Detail |
+|---|---|---|
+| openai | **PASS** | completion, streaming, tools, structured — 7.7 s |
+| google | **PASS** | completion, streaming, tools, structured — 7.5 s |
+| groq | **FAIL** | `413` TPM: limit 8000, requested 8268 |
+
+`npm run ai:smoke-gateway` — **13/14, exit 1**. The one failure is the gate being honest:
+`gateway generate via Groq` reports `attribution mismatch: asked for openai/gpt-oss-20b,
+answered by gpt-5.6-luna` — Groq rate-limited, the gateway failed over to OpenAI, and the
+smoke refused to count someone else's answer as Groq's. Failover itself is proven working in
+all three directions, including `OpenAI + Gemini unavailable -> Groq answers` in 550 ms,
+genuinely from Groq.
+
+### Groq: a tier limit, not a defect — and a correction
+
+Groq bills `prompt + max_tokens` against tokens-per-minute. The key is on the free/on-demand
+tier at 8,000 TPM. The provider smoke sends the registry's `defaultMaxOutputTokens: 8192`,
+which exceeds the ceiling on its own, before a single prompt token.
+
+**A claim made earlier in this initiative was wrong and is withdrawn**: that every default Groq
+call would 413 in production. It would not. Every production call site caps output explicitly —
+`chatRuntime.ts:136` sends `maxTokens: 1200`, `lib/ai/generation.ts:129` sends
+`input.maxOutputTokens ?? 1200`, `app/api/ai/onboarding/route.ts:113` sends `130`. Nothing in
+production relies on the 8192 default; only the smoke does. Interactive chat fits inside the
+free tier.
+
+Two facts survive that correction, and both matter:
+
+1. The smoke exercises an output budget **no production caller uses**. A gate that tests an
+   unused path is weaker than it looks. Worth fixing on its own merits, with its own proof —
+   not while it is red, and not as a way to turn it green.
+2. 8,000 TPM cannot carry fallback traffic. Groq is the third fallback: it is reached precisely
+   when OpenAI and Gemini are both failing and the entire tenant's load concentrates on it. A
+   fallback that rate-limits under exactly the conditions it exists for is not a fallback.
+
+**Operator decision taken: upgrade Groq to Dev Tier.** No code change, restores the
+three-provider contract, and gives the fallback real headroom.
+
+### Observed live, previously only theorised
+
+The Redis boot-window defect recorded as a P1 finding in the fast-track plan is real and
+reproduced on every gateway smoke run:
+
+```
+[ai-circuit] failed to clear shared circuit state: Stream isn't writeable and enableOfflineQueue options is false
+[ai-circuit] failed to read shared circuit state:  Stream isn't writeable and enableOfflineQueue options is false
+```
+
+`lib/bullmq/connection.ts` builds the client with `lazyConnect: true` and
+`enableOfflineQueue: false`, so commands issued before the connection settles fail outright. A
+short-lived CLI process may never reach Redis at all — which means the shared circuit state a
+gate reads is `{}` and the state it writes is silently dropped. R3: it changes worker and queue
+behaviour, so it needs its own proof rather than an opportunistic edit.
+
+---
+
 ## P1 — Seventeen "intelligence" modules are dead code
 
 Every module below has exactly **one** importer, and in every case that importer is its own
@@ -85,6 +158,9 @@ meetingQualityEngine  deliveryGuardian  aiMissions
 ```
 
 Verified by exhaustive grep across `.ts`/`.tsx`, not by import-path guessing.
+
+**1,445 lines of unreachable production code, guarded by 26 tests across 635 lines of test
+code.** Those 26 tests pass, and they counted toward the 2,340 in the current certificate.
 
 This is worse than the directive assumed. The directive asks to "replace prototype intelligence
 with real CRM-derived intelligence" — but this prototype intelligence is not *serving* anything.
