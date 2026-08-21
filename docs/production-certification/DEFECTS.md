@@ -681,11 +681,34 @@ The prior cap of 25 is void.
   worker health, schema compatibility, and the measured rollback duration. `scripts/rollback.sh`
   already performs the swap safely — including the guards added as `DEPLOY-001`/`DEPLOY-003` —
   so the drill should drive it rather than reimplement it.
-- **Why not written yet**: it needs a live container runtime to develop against. Writing it
-  blind would produce a few hundred lines of unverified orchestration and a script nobody has
-  run, which is the same class of defect as the authored DR evidence in `TEL-P0-001`. It will
-  be built and verified step by step once a runtime exists.
-- **Evidence ID**: `EV-DR-ROLLBACK` (currently `NOT_EXECUTED`)
+- **Progress — the decisions are written and tested; the orchestration is not.**
+  `scripts/certification/lib/rollbackDrill.mjs` holds every rule the drill must satisfy before
+  it may record a pass, with no container commands in it. That split is deliberate: the
+  decisions are where a drill goes wrong quietly, and they can be tested exhaustively without a
+  daemon. The rules it refuses on:
+
+  | Refusal | Why it matters |
+  |---|---|
+  | rollback onto the same digest | exercises nothing |
+  | a drill that never returned to the candidate | leaves production on the old release |
+  | phases out of order, or absent | not a rollback |
+  | health reporting a different commit than expected | containers swapped, bytes did not |
+  | web and worker on different images | the mixed-version state `deploy.sh` exists to prevent |
+  | a floating tag anywhere | `latest` is not an identity |
+  | a duration that was never measured | this is exactly the withdrawn "38 seconds" |
+  | a non-object health body | a proxy 502 is a string, not JSON |
+
+  `status` is **derived** inside `buildRollbackEvidence`, never taken from the caller, so a
+  failed drill cannot be written down as a passing one — the `TEL-P0-001` failure mode.
+
+  **Verified with a mutation test, not just a green run**: forcing `evaluateDrill` to always
+  return `PASS` fails 7 of the 27 tests. A rule nothing can violate would prove nothing.
+- **Remaining**: the orchestration shell that drives `scripts/rollback.sh` through the three
+  phases and collects the health responses. It needs a live container runtime to develop
+  against; writing it blind would produce a script nobody has run, which is the same class of
+  defect this requirement exists to close.
+- **Regression test**: `tests/certification-rollback-drill.test.ts` — 27 passed, exit 0.
+- **Evidence ID**: `EV-DR-ROLLBACK` (still `NOT_EXECUTED` — no drill has run)
 
 ---
 
