@@ -23,11 +23,11 @@ last two attempts at this table were both wrong.
 
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
-| **P0** (Launch Blocker) | 4 | 0 | 0 | **3** |
+| **P0** (Launch Blocker) | 5 | 0 | 0 | **4** |
 | **P1** (Critical) | 40 | 9 | 4 | **27** |
 | **P2** (Important) | 28 | 8 | 4 | **16** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **72** | **17** | **8** | **46** |
+| **TOTAL** | **73** | **17** | **8** | **47** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -561,6 +561,48 @@ not evidence of anything.
 - **Why not fixed in this pass**: it requires a schema migration, and `AGENTS.md` classifies
   migrations as **R4 — independent verification plus explicit operator authorization**. The
   analysis is complete and the change is ready to make on authorization.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P0-006` — Production Database Password Disclosed, And Rotated
+- **Severity**: P0 (credential exposure)
+- **Status**: `FIXED_PENDING_VERIFICATION` — rotated and verified against the live database
+  2026-08-22. Not `VERIFIED`: this ledger's closure rule requires an evidence record ID under
+  `evidence/`, and none exists until the next certification run.
+- **Cause**: mine. While reading `sslmode` from `/opt/crm-4-u/.env.production`, the redaction
+  applied to the output did not match — the value is wrapped in a quote
+  (`DATABASE_URL="postgresql://…`), so the anchored substitution never fired and the full DSN,
+  including the password, printed into the session transcript. The guard that was supposed to
+  prevent it was the thing that failed.
+- **Scope**: the `crm` role's password on Cloud SQL instance `telestar-db`, which is the
+  credential used by `DATABASE_URL`, `DIRECT_URL` and `BACKUP_DATABASE_URL`.
+
+**Rotation, in order, each step verified:**
+
+| Step | Result |
+|---|---|
+| back up `.env.production` on the VM | `.env.production.prerotate.20260821201304` |
+| generate 40-character alphanumeric password | never printed; alphanumeric so no DSN-encoding hazard |
+| `gcloud sql users set-password crm --instance=telestar-db` | exit 0 |
+| rewrite all three DSNs in place | 3 before, 3 after; `sslmode=require` preserved on all 3 |
+| recreate `web` and `worker` | both on `f2e807bb7812` — no version drift |
+| production health | `ok:true`, HTTP 200, `schema: ready` |
+| application DB connection | `current_user = crm`, reads data, `ssl = true TLSv1.3` |
+| **old credential** | **refused — "Authentication failed against database server"** |
+| worker and web logs | 0 authentication or connection errors |
+
+Rotation is not proven by the new password working; it is proven by the **old one failing**,
+which is why that check was run explicitly against the pre-rotation backup rather than assumed.
+
+- **Handling of the value**: the password was passed to the VM over the SSH channel and applied
+  via the environment rather than argv, so it never entered the VM's process list. The local
+  copy on the workstation was deleted once rotation was verified — Cloud SQL and the VM env file
+  are the only places it now exists.
+- **Residual**: `.env.production.prerotate.20260821201304` on the VM still contains the **old**
+  password. That credential is now dead, so this is untidiness rather than exposure; it is
+  retained for the moment because it is also the rollback copy of every other setting in that
+  file. Delete it once the rotation has been stable for a day.
 - **Evidence ID**: *(none yet)*
 
 ---
