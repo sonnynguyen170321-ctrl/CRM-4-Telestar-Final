@@ -130,6 +130,17 @@ smoke run: `[ai-circuit] failed to read shared circuit state: Stream isn't write
 a short-lived CLI reads `{}` for shared circuit state and silently drops its writes. R3, needs
 its own proof, not fixed here.
 
+**Something in the local toolchain rewrote the Node version pins mid-session.** The tree was
+clean at `4e8145c`. By the end, `.nvmrc`, `.node-version`, `package.json` `engines`,
+`package-lock.json` and all three `Dockerfile` stages had been changed from `24.18.0` to
+`24.16.0` — this machine's Node version. Committing that would have downgraded the production
+base image to match a developer laptop.
+
+Reverted; the tree is clean and the Dockerfile is back on `24.18.0`. The writer was **not**
+identified: `scripts/doctor-core.mjs` only evaluates the pins and errors when they diverge, and
+nothing else under `scripts/` writes them. Worth finding, because a command that silently
+rewrites a release pin is a supply-chain footgun regardless of which one it is.
+
 **No live-model evaluation exists.** The `SECURITY` family is regression protection for a
 pattern matcher, not a red team — a matcher cannot catch a semantically phrased injection, and
 encoding such cases would record a permanent failure. That needs a model in the loop.
