@@ -19,11 +19,11 @@
 
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
-| **P0** (Launch Blocker) | 2 | 1 | 0 | **1** |
+| **P0** (Launch Blocker) | 3 | 1 | 0 | **2** |
 | **P1** (Critical) | 30 | 9 | 4 | **21** |
 | **P2** (Important) | 23 | 9 | 3 | **14** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **51** | **19** | **7** | **32** |
+| **TOTAL** | **52** | **19** | **7** | **33** |
 
 The defect total is permitted to increase. Finding more defects is successful auditing.
 The prior cap of 25 is void.
@@ -31,6 +31,49 @@ The prior cap of 25 is void.
 ---
 
 ## 2. Active Defects
+
+### `TEL-P0-005` — API Keys Authenticated As Managers Regardless Of Who Created Them
+- **Severity**: P0 (privilege escalation)
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: the directed blind-spot audit of shared-auth behaviour around `isManager`.
+- **Root cause**: `getSessionUser()` in `lib/auth.ts` has two authentication paths that had
+  drifted apart.
+
+  | Path | `isManager` |
+  |---|---|
+  | session JWT | `dbUser._count.reports > 0 \|\| MANAGER_ROLES.includes(role)` — derived |
+  | **API key** | **`true` — hardcoded, unconditional** |
+
+- **Why it is exploitable, not theoretical**: `POST /api/developer/keys` is gated by
+  `requireAuth()` alone, so **any authenticated user can mint a key** — an SDR included. Every
+  request bearing that key then resolves to `isManager: true`, and `requireManager()` passes a
+  caller who "is not director/floor_manager/team_lead **and** `!user.isManager`". The negation
+  is satisfied, so the gate opens.
+- **Invariant violated**: `API_KEY_PERMISSION <= CURRENT_USER_PERMISSION`.
+- **Reachable surface**: the six routes gated by `requireManager()` —
+  `automation/accounts/[id]/cap`, `opportunities`, `team/alerts`, `team/leaderboard`,
+  `team/meetings`, `team/sdr-progress`.
+- **Not affected**: the other `isManager` occurrences (`cron/*`, `email/accounts`,
+  `email/send`) compute it locally from `role` and never read the poisoned session field.
+- **Fix**: the derivation moved to `lib/authRoles.ts` as `deriveIsManager(role, activeReports)`
+  and **both** paths now call it; the API-key query selects
+  `_count.reports where isActive` so it has the input it previously lacked. The fix is in the
+  derivation rather than in `requireManager()` on purpose: an individual contributor with
+  active reports is a legitimate manager, and removing the `isManager` check would break them.
+  `authRoles.ts` is separate from `auth.ts` because the latter imports next-auth and cannot be
+  loaded from a unit test — which is precisely why this rule went untested and the two paths
+  drifted.
+- **Regression test**: `tests/api-key-privilege-escalation.test.ts` — 17 passed, exit 0.
+  Includes a static guard that `isManager:\s*true` appears nowhere in `lib/auth.ts`.
+- **Verified by mutation, not only by a green run**: forcing `deriveIsManager` to return `true`
+  unconditionally fails **5 of the 17** tests; the module restores clean at 17/17.
+- **Blast radius re-run**: 11 authorization and tenancy suites, **103 passed**, exit 0.
+- **Remaining before VERIFIED**: exercise through the real HTTP surface with a live SDR-minted
+  key, per `.claude/rules/auth-rbac.md` — this is an R4 change and the role E2E suite is part of
+  the evidence, not an optional extra.
+- **Evidence ID**: *(none yet)*
+
+---
 
 ### `TEL-P0-001` — Disaster Recovery Evidence Invalid
 - **Severity**: P0 (Launch Blocker)
