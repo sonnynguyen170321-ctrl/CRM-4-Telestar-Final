@@ -17,16 +17,67 @@
 
 ## 1. Defect Summary
 
+**Counted from the entries in this file on 2026-08-22, by a parser that is itself tested**
+(`tests/defect-ledger-consistency.test.ts`). Not carried forward, and not hand-tallied — the
+last two attempts at this table were both wrong.
+
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
-| **P0** (Launch Blocker) | 3 | 1 | 0 | **2** |
-| **P1** (Critical) | 34 | 9 | 4 | **25** |
-| **P2** (Important) | 23 | 9 | 3 | **14** |
+| **P0** (Launch Blocker) | 3 | 0 | 0 | **2** |
+| **P1** (Critical) | 34 | 9 | 4 | **21** |
+| **P2** (Important) | 22 | 8 | 4 | **10** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **56** | **19** | **7** | **37** |
+| **TOTAL** | **59** | **17** | **8** | **33** |
 
-The defect total is permitted to increase. Finding more defects is successful auditing.
-The prior cap of 25 is void.
+Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
+`Discovered` is their sum, not a free-standing tally — that identity is what previously went
+unchecked, and it is now asserted per severity.
+
+<details>
+<summary>Two wrong versions of this table, and why each was wrong</summary>
+
+**The inherited figures** read `discovered 56 · verified closed 19 · reopened 7 · active 37`.
+Active was overstated by four; four P1 and four P2 counted there have no entry anywhere in the
+file. The figures had been incremented as defects were added without re-deriving the base.
+
+**The first correction, made earlier the same day, read `53 · 11 · 8 · 33` and was worse on two
+columns.** It came from a parser that counted table rows rather than defect ids, and section 4
+contains a range row — `` `TEL-P2-001`–`TEL-P2-007` `` — carrying seven defects on one line. So
+seven closures were dropped, and the note accompanying it asserted that the inherited "19 verified
+closed" figure "had no support". That was false: the true figure is **17**, and 19 was much nearer
+the mark than 11.
+
+Recorded rather than quietly overwritten, because the failure is the instructive part: a
+correction derived from a parser nobody had tested is not more trustworthy than the number it
+replaces. The parser now expands range rows, reads only the first cell of each row — section 3
+also lists a *successor* id per row, which double-counted reopenings as 17 — and is covered by
+tests that fail if the table and the entries disagree.
+
+</details>
+
+### Active P1 classification (Phase 6)
+
+All 21, individually. No defect is deleted to improve a count.
+
+| Classification | Count | IDs |
+|---|---:|---|
+| **REAL OPEN DEFECT** | 4 | `TEL-P1-026` · `TEL-P1-027` · `TEL-P1-028` · `TEL-P1-032` |
+| **FIX_IMPLEMENTED**, awaiting verification on the new candidate | 15 | `TEL-P1-014`–`024`, `TEL-P1-029`, `TEL-P1-030`, `TEL-P1-031`, `DEPLOY-001`, `DEPLOY-002` |
+| **CI_VERIFIED**, awaiting candidate freeze | 2 | `TEL-P1-025` (secret-scan now PASS on PR #100) · `TEL-P1-018` (chain present in `EV-RELEASE-IDENTITY`, `REL-001` VERIFIED) |
+| STALE LEDGER ITEM | 0 | the stale item was this summary table, now corrected |
+| DUPLICATE | 0 | — |
+| ACCEPTED RISK | 0 | none accepted; `TEL-P1-027` may become one, but only by explicit operator decision |
+
+The four genuinely open P1s share a shape: each needs something this checkout cannot reach.
+
+| ID | What it needs |
+|---|---|
+| `TEL-P1-026` | a container runtime, to finish and run the rollback drill |
+| `TEL-P1-027` | authorization to enable PITR on `telestar-db` (production change) |
+| `TEL-P1-028` | the production `DATABASE_URL` read from the VM, then a Cloud SQL setting change |
+| `TEL-P1-032` | authorization for a schema migration (R4) |
+
+**No P1 is open for want of engineering effort available here.**
 
 ---
 
