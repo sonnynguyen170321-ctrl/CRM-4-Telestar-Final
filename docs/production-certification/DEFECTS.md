@@ -20,10 +20,10 @@
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 3 | 1 | 0 | **2** |
-| **P1** (Critical) | 31 | 9 | 4 | **22** |
+| **P1** (Critical) | 34 | 9 | 4 | **25** |
 | **P2** (Important) | 23 | 9 | 3 | **14** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **53** | **19** | **7** | **34** |
+| **TOTAL** | **56** | **19** | **7** | **37** |
 
 The defect total is permitted to increase. Finding more defects is successful auditing.
 The prior cap of 25 is void.
@@ -107,6 +107,105 @@ The prior cap of 25 is void.
 - **Blast radius re-run**: 5 object-authorization suites, **75 passed**, exit 0.
 - **Remaining before VERIFIED**: exercise through the real HTTP surface — SDR A requesting
   SDR B's lead must 404.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-030` — Webhook Delivery Was Server-Side Request Forgery With A Response Oracle
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: the directed SSRF audit.
+- **Root cause**: `deliverWebhook()` called `fetch(url)` with no validation. The only check
+  anywhere was the route's `url.startsWith('http')`, which also admits `httpx://`, credentials
+  in the URL, and every private address.
+- **What that allowed**: any authenticated user could make the production VM issue a **POST**,
+  with a body they controlled, to any address it could reach — `127.0.0.1`, `10/8`,
+  `169.254.169.254`, the app itself — and read back `statusCode`, `latencyMs` and the raw
+  `error` string. Status plus latency plus error text is enough to port-scan and fingerprint the
+  internal network from outside. `fetch` also follows redirects by default, so a public URL
+  answering `302` to a private one worked too.
+- **Fix**: `lib/webhooks/ssrfGuard.ts`, applied **inside `deliverWebhook`** so the test ping and
+  the real dispatcher inherit it rather than each route remembering to call it.
+
+  The check is on **resolved addresses**, not hostname text, which is why the exotic encodings
+  need no special cases — `http://2130706433/`, `http://0x7f000001/` and a DNS name whose A
+  record is `10.0.0.5` all resolve to something blocked. Blocked: loopback, `0.0.0.0/8`,
+  `10/8`, `172.16/12`, `192.168/16`, `169.254/16` (cloud metadata), CGNAT, multicast, IPv6
+  `::1`/`::`/`fc00::/7`/`fe80::/10`/`ff00::/8`, and IPv4-mapped IPv6 forms. If **any** resolved
+  address is blocked the destination is refused, because which one `fetch` picks is not ours to
+  choose. Redirects are no longer followed (`redirect: 'manual'`) and a 3xx is a failed
+  delivery.
+- **Residual risk, stated rather than hidden**: validation happens at check time, so DNS
+  rebinding — a public answer here and a private one microseconds later during `fetch` — is not
+  prevented. Closing it requires pinning the connection to the validated IP. Recorded as
+  residual, not claimed as covered.
+- **Regression test**: `tests/webhook-ssrf-and-authorization.test.ts` — 57 passed, exit 0,
+  covering every case in the directive's list including integer and hex encodings, IPv6, a
+  hostname resolving private, and a mixed public/private answer.
+- **Verified by mutation**: forcing `blockedAddressReason` to return `null` fails **30 of 57**.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-031` — Webhook Administration Needed Only Authentication, And Read Back Signing Secrets
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: the directed webhook authorization audit.
+- **Root cause**: `GET`, `POST` and `DELETE` on `/api/webhooks` — and `POST /api/webhooks/test`
+  — were all gated on `requireAuth()`. Any authenticated user, an SDR or a leadgen included,
+  could list, create, delete and test the tenant's webhooks.
+- **Why it matters twice over**:
+  1. A webhook is an **outbound data channel** carrying lead events. Creating one is a way to
+     forward a client's pipeline to an address of your choosing.
+  2. `GET` returned each config's **signing `secret`** in full. That secret is what the
+     receiving system uses to decide a payload really came from Telestar, so reading it is
+     enough to forge traffic the client's systems accept as ours.
+- **Fix**: all four verbs now require `requireManager()`. The secret became write-only: `GET`
+  maps every config through `redactSecret`, returning `secretSet: boolean` instead, and the
+  generated secret is echoed exactly once on creation so it can be copied into the receiving
+  system. The test endpoint no longer accepts a caller-supplied secret at all — it takes a
+  `webhookId` and resolves the URL and secret server-side, or a bare URL for trying an unsaved
+  endpoint, signed with a throwaway value.
+- **UI follow-through**: `app/automation/page.tsx` no longer reads `webhook.secret`. It sends
+  `webhookId` to the test endpoint and renders a fixed mask, so the browser never holds a
+  signing secret. Its state type moved to the new `WebhookConfigPublic`.
+- **Regression test**: covered by the 57 in `tests/webhook-ssrf-and-authorization.test.ts`,
+  including that no verb is gated on mere authentication and that no read path returns a secret.
+- **Blast radius re-run**: 5 webhook and authorization suites, **95 passed**, exit 0.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-032` — Webhook Configuration Has No Durable Authority And Writes Can Fail Silently
+- **Severity**: P1
+- **Status**: `OPEN` — remediation needs a migration, which is R4
+- **Discovered by**: the directed durability audit.
+- **Measured**: there is **no `Webhook` model in `prisma/schema.prisma`** — the word does not
+  appear in the schema at all. Every webhook configuration lives only in Redis, written by
+  `cacheSet(getCacheKey(tenantId), updated, WEBHOOK_CACHE_TTL)` where the TTL is
+  `3600 * 24 * 30`.
+- **Three distinct failures follow**:
+  1. **It expires.** After 30 days without a rewrite, every webhook silently stops existing.
+  2. **It does not survive Redis.** A restart without persistence, a flush, an eviction under
+     memory pressure, or a cache migration loses every tenant's configuration with no record
+     that it ever existed.
+  3. **A write can silently do nothing.** `cacheSet` returns early when there is no client and
+     swallows errors — `catch { /* silently fail — cache is optional */ }`. With Redis down,
+     creating a webhook returns `{ success: true }` and stores nothing.
+- **Why it is not merely a cache concern**: this is configuration, not a cached projection of
+  something durable. There is no source of truth behind it to rebuild from, which is the
+  invariant in `AGENTS.md` — *"The database is workflow truth. Queues execute, never decide,
+  and are rebuildable from it."*
+- **Required remediation**: a `Webhook` model owning `id`, `tenantId`, `url`, `secret`,
+  `events`, `isActive`, `createdAt`, `lastDeliveryAt`, `lastStatus`, with the tenant scoping
+  every other model has; the routes reading and writing it as the authority; Redis retained
+  only as a read cache in front of it, with a failed cache write no longer able to look like a
+  successful save. Concurrent create/update/delete then need testing against the database
+  rather than against a read-modify-write of a cached array, which is itself lossy under
+  concurrency.
+- **Why not fixed in this pass**: it requires a schema migration, and `AGENTS.md` classifies
+  migrations as **R4 — independent verification plus explicit operator authorization**. The
+  analysis is complete and the change is ready to make on authorization.
 - **Evidence ID**: *(none yet)*
 
 ---
