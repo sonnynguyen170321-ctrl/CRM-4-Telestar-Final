@@ -22,7 +22,7 @@ Where something was not done, this document says so rather than omitting it.
 | Migration order | `node scripts/check-migration-order.mjs` | **exit 0** — 51 migrations, 1 new |
 | Prisma schema | `prisma validate` | **exit 0** |
 | Production build | `npm run build` | **exit 0** — compiled in 79 s |
-| Unit + integration | `vitest run` | **2337 / 2338**, then **exit 0** after routing registration |
+| Unit + integration | `vitest run` | **2338 / 2338, exit 0** — 170/170 files, after regenerating facts and registering `lib/memory` |
 | Commercial memory | `vitest run tests/commercial-claims.test.ts` | **14 / 14, exit 0** |
 | Release gate tests | `vitest run tests/ai-release-gate.test.ts` | **12 / 12, exit 0** |
 | Provider auth | `curl` model-list per provider | **3 / 3 — HTTP 200** |
