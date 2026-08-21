@@ -13,6 +13,17 @@ import { retrieveRelevantSkills } from '@/lib/ai/skill-retriever';
 import { compileConstitutionalPrompt } from '@/lib/ai/behavior/telestar-ai-constitution';
 import { readClaims } from '@/lib/memory/claims';
 import { scrubSecrets } from '@/lib/ai/engine/security-guards';
+import { compileContext, type ContextItem } from '@/lib/ai/context/compiler';
+
+/**
+ * Soft ceiling for the live CRM context block.
+ *
+ * Deliberately generous relative to what a turn assembles today — a few hundred tokens — so
+ * introducing the budget changes no existing answer. It exists to bind later, when commercial
+ * memory has accumulated and something has to give: at that point the compiler drops from the
+ * least authoritative tier up rather than dropping whatever happened to be appended last.
+ */
+const CONTEXT_BUDGET_TOKENS = 2000;
 
 /**
  * Telestar AI chat.
@@ -148,8 +159,15 @@ export async function POST(req: NextRequest) {
   // `page` is the only client-supplied line here. Every number below it is read from the CRM
   // under this session's tenant and this session's user id, because a counter the browser
   // sent is a counter the browser chose.
-  const contextLines: string[] = [];
-  if (context?.page) contextLines.push(`Current page: ${context.page}`);
+  // Collected as ranked items rather than appended strings. `compileContext` decides the order
+  // and what gives way when the budget binds, so the lead in front of the user cannot be
+  // crowded out by a long tail of low-confidence memory.
+  const contextItems: ContextItem[] = [];
+  // The one client-supplied line, and the least important. A hint about which surface the user
+  // is on, never a fact.
+  if (context?.page) {
+    contextItems.push({ tier: 'background', key: 'page', text: `Current page: ${context.page}` });
+  }
 
   const lastUserMessage = messages.filter((m) => m.role === 'user').pop()?.content || '';
 
@@ -157,10 +175,17 @@ export async function POST(req: NextRequest) {
     ? await calculateDeterministicSdrMetrics(user.tenantId, user.id).catch(() => null)
     : null;
   if (workload) {
-    contextLines.push(`Assigned leads: ${workload.assignedLeadsCount}`);
-    contextLines.push(`Overdue tasks: ${workload.overdueTasksCount}`);
-    contextLines.push(`Leads awaiting a reply follow-up: ${workload.hotRepliesCount}`);
-    contextLines.push(`Meetings booked this month: ${workload.meetingsBookedThisMonth}`);
+    // Deterministic CRM metrics, read under this session's own ids. True by definition, so they
+    // outrank everything the AI inferred.
+    const facts: Array<[string, string]> = [
+      ['assigned-leads', `Assigned leads: ${workload.assignedLeadsCount}`],
+      ['overdue-tasks', `Overdue tasks: ${workload.overdueTasksCount}`],
+      ['hot-replies', `Leads awaiting a reply follow-up: ${workload.hotRepliesCount}`],
+      ['meetings-booked', `Meetings booked this month: ${workload.meetingsBookedThisMonth}`],
+    ];
+    for (const [key, text] of facts) {
+      contextItems.push({ tier: 'authoritative_fact', key, text });
+    }
   }
 
   // End-of-day intent is detected and answered server-side.
@@ -171,7 +196,13 @@ export async function POST(req: NextRequest) {
   // a full round trip's worth of real figures sat unused in the request body.
   if (isEodRequest(lastUserMessage)) {
     const eod = await loadEodSummary(user).catch(() => null);
-    if (eod) contextLines.push(`\n${formatEodForPrompt(eod)}`);
+    if (eod) {
+      contextItems.push({
+        tier: 'recent_interaction',
+        key: 'eod',
+        text: `\n${formatEodForPrompt(eod)}`,
+      });
+    }
   }
 
   let playbookVersionId: string | undefined = undefined;
@@ -180,12 +211,24 @@ export async function POST(req: NextRequest) {
   if (validLeadId) {
     const leadContext = await loadAuthorizedLeadContext(user, validLeadId);
     if (leadContext) {
-      contextLines.push(`\nCurrent lead: ${leadContext.leadName}`);
-      if (leadContext.leadCompany) contextLines.push(`Company: ${leadContext.leadCompany}`);
-      if (leadContext.leadStage) contextLines.push(`Pipeline stage: ${leadContext.leadStage}`);
-      if (leadContext.leadDaysSinceContact != null) contextLines.push(`Days since last contact: ${leadContext.leadDaysSinceContact}`);
-      if (leadContext.campaignName) contextLines.push(`Campaign: ${leadContext.campaignName}`);
-      if (leadContext.clientName) contextLines.push(`Client: ${leadContext.clientName}`);
+      // The record the user is actually looking at. Ranked below hard CRM counters and above
+      // everything inferred, and kept in one tier so the fields read as a single description.
+      const leadFields: Array<[string, string | null]> = [
+        ['lead-name', `\nCurrent lead: ${leadContext.leadName}`],
+        ['lead-company', leadContext.leadCompany ? `Company: ${leadContext.leadCompany}` : null],
+        ['lead-stage', leadContext.leadStage ? `Pipeline stage: ${leadContext.leadStage}` : null],
+        [
+          'lead-days',
+          leadContext.leadDaysSinceContact != null
+            ? `Days since last contact: ${leadContext.leadDaysSinceContact}`
+            : null,
+        ],
+        ['lead-campaign', leadContext.campaignName ? `Campaign: ${leadContext.campaignName}` : null],
+        ['lead-client', leadContext.clientName ? `Client: ${leadContext.clientName}` : null],
+      ];
+      for (const [key, text] of leadFields) {
+        if (text) contextItems.push({ tier: 'current_task_record', key, text });
+      }
 
       if (leadContext.playbookVersionId) {
         playbookVersionId = leadContext.playbookVersionId;
@@ -214,21 +257,26 @@ export async function POST(req: NextRequest) {
           })
         : [];
       if (claims.length > 0) {
-        contextLines.push('\nWhat Telestar AI has recorded about this contact:');
+        // One item, not one per claim, so the budget can never keep the heading and drop the
+        // claims under it — leaving a promise of evidence with no evidence. Sourced and inferred
+        // claims share a tier because the label already tells them apart in the text.
+        const lines = ['\nWhat Telestar AI has recorded about this contact:'];
         for (const claim of claims) {
           const label =
             claim.claimType === 'INFERRED' && claim.confidence != null
               ? `inferred, confidence ${claim.confidence.toFixed(2)}`
               : claim.claimType.toLowerCase();
           const provenance = claim.sourceType ? `, from ${claim.sourceType}` : '';
-          contextLines.push(`- (${label}${provenance}) ${scrubSecrets(claim.claimText)}`);
+          lines.push(`- (${label}${provenance}) ${scrubSecrets(claim.claimText)}`);
         }
+        contextItems.push({ tier: 'commercial_evidence', key: 'claims', text: lines.join('\n') });
       }
     }
   }
 
-  const contextBlock = contextLines.length > 0
-    ? `\n\n[Live CRM context]\n${contextLines.join('\n')}`
+  const compiledContext = compileContext(contextItems, { budgetTokens: CONTEXT_BUDGET_TOKENS });
+  const contextBlock = compiledContext.text
+    ? `\n\n[Live CRM context]\n${compiledContext.text}`
     : '';
 
   const inferredChannel = context?.page?.includes('phone') || context?.page?.includes('dialer')

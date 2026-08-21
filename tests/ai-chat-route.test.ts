@@ -242,6 +242,37 @@ describe('CRM context', () => {
     expect(executeMock.mock.calls[0][0].systemPrompt).toContain('prefers short emails');
   });
 
+  it('ranks CRM facts above the client-supplied page hint', async () => {
+    // The compiler's ordering has to survive the wiring, not just hold in its own unit test.
+    // `page` is the one line the browser controls; it is emitted last on purpose.
+    loadAuthorizedLeadContext.mockResolvedValue({ leadName: 'Dana Ito' });
+    sdrMetricsMock.mockResolvedValue({
+      assignedLeadsCount: 12,
+      overdueTasksCount: 3,
+      hotRepliesCount: 1,
+      meetingsBookedThisMonth: 4,
+    });
+
+    await POST(
+      post({
+        messages: [{ role: 'user', content: 'Prep me' }],
+        context: { page: '/leads', leadId: 'clh1234567890abcdefgh' },
+      }),
+    );
+
+    const prompt = executeMock.mock.calls[0][0].systemPrompt as string;
+    const assigned = prompt.indexOf('Assigned leads: 12');
+    const lead = prompt.indexOf('Current lead: Dana Ito');
+    const page = prompt.indexOf('Current page: /leads');
+
+    expect(assigned).toBeGreaterThan(-1);
+    expect(lead).toBeGreaterThan(-1);
+    expect(page).toBeGreaterThan(-1);
+    // authoritative_fact -> current_task_record -> background
+    expect(assigned).toBeLessThan(lead);
+    expect(lead).toBeLessThan(page);
+  });
+
   it('labels commercial memory by claim type, so inference never reads as fact', async () => {
     // The product rule is that an inference is never presented as established fact. A model
     // cannot honour that about text it receives unlabelled, so the labelling is the contract.
