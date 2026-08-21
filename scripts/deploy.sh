@@ -30,6 +30,8 @@ fail() { printf '\n\033[31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
 # ── Resolve canonical topology from single authority ───────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/deploy-lib.sh
+. "${SCRIPT_DIR}/deploy-lib.sh"
 COMPOSE_FILES="${COMPOSE_FILES:-$("${SCRIPT_DIR}/production-compose.sh" "$ENV_FILE")}"
 DEPLOY_TARGET=$(grep -E '^[[:space:]]*DEPLOY_TARGET=' "$ENV_FILE" | head -1 | cut -d= -f2- | sed -e 's/["'\''[:space:]]//g' || echo "gcp")
 
@@ -38,12 +40,25 @@ if ! printf '%s' "$COMMIT" | grep -Eq '^[0-9a-f]{40}$'; then
   fail "Expected a full 40-character commit SHA, got: $COMMIT"
 fi
 
+# ── 0. Preflight the audit trail ────────────────────────────────────────────
+# DEPLOY-001: the record was written last, so a file this user cannot append to was only
+# discovered after the containers had already swapped — leaving the running release with no
+# entry in the audit trail. Ask now, while nothing has happened yet.
+RECORD_WRITABLE_MSG=$(assert_record_writable "$RECORD_FILE") || fail "$RECORD_WRITABLE_MSG"
+command -v python3 >/dev/null 2>&1 || command -v node >/dev/null 2>&1 \
+  || fail "Neither python3 nor node is available to write ${RECORD_FILE}. The deploy would leave no audit trail."
+
 # ── 1. Resolve the tag to a digest, once ────────────────────────────────────
 # Everything downstream uses the digest. If the tag moves after this line, it changes
 # nothing about what gets deployed.
 log "Resolving ${IMAGE_NAME}:${COMMIT} to a digest"
-$DOCKER pull "${REGISTRY}/${IMAGE_NAME}:${COMMIT}" \
-  || fail "No image published for commit ${COMMIT}. CI publishes only after it passes — check the run."
+# DEPLOY-003: report the cause the registry actually gave. A full disk and a missing image
+# need opposite responses, and this line used to name CI for both.
+if ! PULL_OUTPUT=$($DOCKER pull "${REGISTRY}/${IMAGE_NAME}:${COMMIT}" 2>&1); then
+  printf '%s\n' "$PULL_OUTPUT" >&2
+  fail "$(classify_pull_failure "$PULL_OUTPUT" "$COMMIT")"
+fi
+printf '%s\n' "$PULL_OUTPUT"
 
 DIGEST=$($DOCKER inspect --format '{{index .RepoDigests 0}}' "${REGISTRY}/${IMAGE_NAME}:${COMMIT}" \
   | sed 's/.*@//')
@@ -67,6 +82,9 @@ fi
 BACKUP_ID="${DEPLOY_BACKUP_ID:-$(grep -E '^DEPLOY_BACKUP_ID=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' || true)}"
 BACKUP_AT="${DEPLOY_BACKUP_AT:-$(grep -E '^DEPLOY_BACKUP_AT=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' || true)}"
 
+SQL_INSTANCE="${DEPLOY_SQL_INSTANCE:-telestar-db}"
+SQL_PROJECT="${DEPLOY_SQL_PROJECT:-telestar-crm-final}"
+
 if [ -z "$BACKUP_ID" ]; then
   cat <<'REMINDER'
 
@@ -75,11 +93,43 @@ if [ -z "$BACKUP_ID" ]; then
 
       gcloud sql backups create --instance=telestar-db --project=telestar-crm-final
 
+  Then paste the numeric backup run id it prints — not a password, not a date.
+
 REMINDER
   read -r -p "  Enter Cloud SQL Backup ID: " BACKUP_ID
-  [ -n "$BACKUP_ID" ] || fail "Aborted. Backup ID is required."
   BACKUP_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 fi
+
+# DEPLOY-002: this prompt used to accept any non-empty string. `Telestar2026` — the published
+# demo password — was accepted on three separate deploys, and nothing ever checked that a
+# backup existed. Validate the shape, then ask the infrastructure.
+BACKUP_ID_MSG=$(validate_backup_id "$BACKUP_ID") || fail "Aborted. ${BACKUP_ID_MSG}"
+BACKUP_ID="$BACKUP_ID_MSG"
+
+set +e
+BACKUP_CHECK_MSG=$(verify_backup_exists "$BACKUP_ID" "$SQL_INSTANCE" "$SQL_PROJECT")
+BACKUP_CHECK_STATUS=$?
+set -e
+
+case "$BACKUP_CHECK_STATUS" in
+  0)
+    BACKUP_VERIFIED=true
+    echo "  backup   : ${BACKUP_ID} (verified)"
+    ;;
+  1)
+    # Cloud SQL answered and said no. Deploying now risks an unrecoverable migration.
+    fail "${BACKUP_CHECK_MSG} Create a real backup before deploying."
+    ;;
+  *)
+    # Could not ask. That is not a pass, and the record must say so rather than implying one.
+    BACKUP_VERIFIED=false
+    printf '\n\033[33mWARNING: %s\033[0m\n' "$BACKUP_CHECK_MSG" >&2
+    echo "  Verify it yourself from Cloud Shell before continuing:"
+    echo "      gcloud sql backups describe ${BACKUP_ID} --instance=${SQL_INSTANCE} --project=${SQL_PROJECT}"
+    read -r -p "  Type UNVERIFIED to deploy without proof of a backup: " BACKUP_ACK
+    [ "$BACKUP_ACK" = "UNVERIFIED" ] || fail "Aborted. No verified pre-deploy backup."
+    ;;
+esac
 
 DC="$DOCKER compose --env-file $ENV_FILE $COMPOSE_FILES"
 
@@ -122,13 +172,25 @@ fi
 # ── 7. Record it ────────────────────────────────────────────────────────────
 # Append-only structured record in deployments.ndjson
 log "Recording the deployment in ${RECORD_FILE}"
-if command -v python3 >/dev/null 2>&1; then
-  python3 -c 'import sys, json, datetime; c, d, i, p, m, t, b_id, b_at, tot, op = sys.argv[1:]; print(json.dumps({"deployedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(), "commit": c, "digest": d, "image": i, "previousImage": p or None, "deployTarget": t, "backupId": b_id or None, "backupAt": b_at or None, "totalMigrations": int(tot) if tot.isdigit() else 0, "latestMigration": m, "operator": op}))' \
-    "$COMMIT" "$DIGEST" "$NEW_IMAGE" "$PREVIOUS_IMAGE" "$MIGRATION_LATEST" "$DEPLOY_TARGET" "$BACKUP_ID" "$BACKUP_AT" "$TOTAL_MIGRATIONS" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
-elif command -v node >/dev/null 2>&1; then
-  node -e 'const [c, d, i, p, m, t, b_id, b_at, tot, op] = process.argv.slice(1); console.log(JSON.stringify({deployedAt: new Date().toISOString(), commit: c, digest: d, image: i, previousImage: p || null, deployTarget: t, backupId: b_id || null, backupAt: b_at || null, totalMigrations: parseInt(tot, 10) || 0, latestMigration: m, operator: op}));' \
-    "$COMMIT" "$DIGEST" "$NEW_IMAGE" "$PREVIOUS_IMAGE" "$MIGRATION_LATEST" "$DEPLOY_TARGET" "$BACKUP_ID" "$BACKUP_AT" "$TOTAL_MIGRATIONS" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
+RECORD_LINES_BEFORE=0
+if [ -f "$RECORD_FILE" ]; then
+  RECORD_LINES_BEFORE=$(wc -l < "$RECORD_FILE" | tr -d ' ')
 fi
+
+if command -v python3 >/dev/null 2>&1; then
+  python3 -c 'import sys, json, datetime; c, d, i, p, m, t, b_id, b_at, b_v, tot, op = sys.argv[1:]; print(json.dumps({"deployedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(), "commit": c, "digest": d, "image": i, "previousImage": p or None, "deployTarget": t, "backupId": b_id or None, "backupAt": b_at or None, "backupVerified": b_v == "true", "totalMigrations": int(tot) if tot.isdigit() else 0, "latestMigration": m, "operator": op}))' \
+    "$COMMIT" "$DIGEST" "$NEW_IMAGE" "$PREVIOUS_IMAGE" "$MIGRATION_LATEST" "$DEPLOY_TARGET" "$BACKUP_ID" "$BACKUP_AT" "$BACKUP_VERIFIED" "$TOTAL_MIGRATIONS" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
+elif command -v node >/dev/null 2>&1; then
+  node -e 'const [c, d, i, p, m, t, b_id, b_at, b_v, tot, op] = process.argv.slice(1); console.log(JSON.stringify({deployedAt: new Date().toISOString(), commit: c, digest: d, image: i, previousImage: p || null, deployTarget: t, backupId: b_id || null, backupAt: b_at || null, backupVerified: b_v === "true", totalMigrations: parseInt(tot, 10) || 0, latestMigration: m, operator: op}));' \
+    "$COMMIT" "$DIGEST" "$NEW_IMAGE" "$PREVIOUS_IMAGE" "$MIGRATION_LATEST" "$DEPLOY_TARGET" "$BACKUP_ID" "$BACKUP_AT" "$BACKUP_VERIFIED" "$TOTAL_MIGRATIONS" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
+else
+  fail "No JSON writer available, so ${RECORD_FILE} was not written. This release is running unrecorded — add the entry by hand before doing anything else."
+fi
+
+# The append is only real if the file grew. A redirect that printed "Permission denied" used
+# to leave the deploy looking successful.
+RECORD_APPEND_MSG=$(assert_record_appended "$RECORD_FILE" "$RECORD_LINES_BEFORE") \
+  || fail "$RECORD_APPEND_MSG"
 
 tail -1 "$RECORD_FILE"
 log "Successfully deployed ${COMMIT} (${DIGEST})"

@@ -28,6 +28,7 @@ import {
   writeGateEvidence,
 } from './collect-evidence.mjs';
 import { CONFIG_PATH, EVIDENCE_DIR, RAW_DIR, REPO_ROOT, RUNS_DIR } from './lib/paths.mjs';
+import { containerRuntime, gateDockerBuild, gateImageInspection } from './lib/imageGates.mjs';
 
 const RUN_MANIFEST_DIR = path.join(RUNS_DIR, 'manifests');
 const SERVER_PORT = Number(process.env.CERT_PORT || 3000);
@@ -490,20 +491,26 @@ async function main() {
   });
   browserGates.forEach(record);
 
-  // Image gates require a container runtime. Recorded as blocked, never as absent.
+  // Image gates need a container runtime. They RUN wherever one answers, and are recorded as
+  // blocked only where one genuinely does not — never as absent, and never as a pass.
+  const runtime = containerRuntime(shell);
+  if (runtime) {
+    console.log(`  container runtime: ${runtime.command} ${runtime.version}`);
+  } else {
+    console.log('  container runtime: none — gates 19 and 20 will record BLOCKED_EXTERNAL');
+  }
+  const dockerBuild = gateDockerBuild({ runtime, candidateSha, runLabel, scriptGate, blockedGate });
+  record(dockerBuild);
   record(
-    blockedGate(
-      '19-docker-build',
-      'Docker image build from the candidate SHA',
-      'no container runtime on the certification workstation; see TEL-P1-018',
-    ),
-  );
-  record(
-    blockedGate(
-      '20-image-inspection',
-      'image digest captured by digest, never by floating tag',
-      'no image exists to inspect; see TEL-P1-018',
-    ),
+    gateImageInspection({
+      runtime,
+      candidateSha,
+      buildStatus: dockerBuild.status,
+      runLabel,
+      shell,
+      writeLog,
+      blockedGate,
+    }),
   );
   record({ ...runGate('21-compose-validation', { runLabel }), gateId: '21-compose-validation' });
 

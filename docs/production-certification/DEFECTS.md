@@ -3,7 +3,7 @@
 **Program**: Telestar Production Certification
 **Certificate State**: INVALIDATED — evidence reconciliation in progress
 **Candidate SHA**: *(re-freeze pending — `a6d8c0d` invalidated as candidate)*
-**Last Updated**: 2026-08-20T09:00:00+07:00
+**Last Updated**: 2026-08-21T20:10:00+07:00
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -20,10 +20,10 @@
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 2 | 0 | 0 | **2** |
-| **P1** (Critical) | 22 | 9 | 4 | **13** |
-| **P2** (Important) | 18 | 9 | 3 | **9** |
+| **P1** (Critical) | 25 | 9 | 4 | **16** |
+| **P2** (Important) | 19 | 9 | 3 | **10** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **38** | **18** | **7** | **20** |
+| **TOTAL** | **42** | **18** | **7** | **24** |
 
 The defect total is permitted to increase. Finding more defects is successful auditing.
 The prior cap of 25 is void.
@@ -79,8 +79,17 @@ The prior cap of 25 is void.
   automated backup and no point-in-time recovery, so the real RPO is "everything since the
   last manual snapshot" — unbounded. A launch on that posture risks unrecoverable data loss.
   The risk is the *uncertainty*: no one currently knows which document describes reality.
-- **Why BLOCKED_EXTERNAL**: `gcloud` is not installed on the certification machine, so the
-  live instance cannot be inspected. Guessing is prohibited.
+- **Why BLOCKED_EXTERNAL**: the live instance cannot be inspected from here. Guessing is
+  prohibited.
+
+  > **Correction, 2026-08-21.** This line previously read "`gcloud` is not installed on the
+  > certification machine". That is false, and it pointed the remediation at the wrong action.
+  > `gcloud` **is** installed — SDK 581.0.0, confirmed by `npm run agent -- doctor` — but
+  > `gcloud auth list` reports *No credentialed accounts*. The blocker is authentication, not
+  > installation: one `gcloud auth login` by the operator resolves it. Separately, the VM's own
+  > service account cannot answer Cloud SQL questions at all
+  > (`ACCESS_TOKEN_SCOPE_INSUFFICIENT`), so this must be run from Cloud Shell or from an
+  > operator-authenticated workstation — not from the VM.
 - **Required remediation**: run `gcloud sql instances describe telestar-crm-db` and
   `gcloud sql backups list` against the real project, attach the raw output as evidence,
   correct whichever document is wrong, and — if backups are in fact disabled — enable
@@ -388,6 +397,98 @@ The prior cap of 25 is void.
   settings, or remove the jobs from the required set and say so. This is an account/repository
   setting and cannot be changed from the codebase.
 - **Evidence ID**: `EV-CI-RUN`
+
+---
+
+### `TEL-P1-023` — The Image Gates Were Blocked By A Constant, Not By The Machine
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: asking why three certification runs failed with no failing gate.
+- **Root cause**: `scripts/certification/run-full-certification.mjs` recorded gates
+  `19-docker-build` and `20-image-inspection` as `BLOCKED_EXTERNAL` **unconditionally**, via a
+  hardcoded `blockedGate(...)` call with the reason "no container runtime on the certification
+  workstation". The reason was true of the workstation, but nothing in the code ever checked
+  it.
+- **Why it matters**: this is the sole cause of `REL-003`, `REL-004` and `REL-005` being
+  `NOT_VERIFIED`, and therefore of the `NO-GO` verdict. Because the block was a literal,
+  **installing a container runtime would not have changed a single run's verdict** — the gates
+  would have gone on reporting blocked on a machine perfectly able to run them. The remediation
+  everyone believed was available was not actually wired to anything.
+- **Fix**: extracted to `scripts/certification/lib/imageGates.mjs`. `containerRuntime()` probes
+  the daemon (`docker version`, then `podman version`) rather than trusting PATH, because an
+  installed-but-stopped Docker Desktop resolves on PATH and fails every command. Gate 19 builds
+  from the candidate tree, tagged `telestar-crm-candidate:<candidateSha>` and never `latest`.
+  Gate 20 reads identity back off the built image and fails unless the image id is a real
+  sha256, the `org.opencontainers.image.revision` label equals the candidate SHA, and no
+  floating tag references it. `BLOCKED_EXTERNAL` is still recorded — and is still not a pass —
+  where no runtime answers.
+- **Regression test**: `tests/certification-image-gates.test.ts`, 17 tests, including that a
+  missing runtime never yields `PASS` and never silently skips the attempt.
+- **Remaining before VERIFIED**: a certification run on a machine with a container runtime.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `DEPLOY-001` — A Failed Audit-Trail Write Did Not Fail The Deploy
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: deploying to the live box on 2026-08-21.
+- **Root cause**: `scripts/deploy.sh` appended to `deployments.ndjson` as its **last** step. The
+  file was root-owned, the append printed `Permission denied`, and the release that is now
+  serving traffic has no entry in the audit trail. The `if python3 … elif node …` chain also had
+  no `else`, so a machine with neither writer wrote nothing and said nothing.
+- **Why it matters**: `REL-001` requires an immutable release identity chain. A deploy that
+  leaves no record breaks that chain silently, and the gap is invisible until someone asks what
+  is running.
+- **Fix**: `assert_record_writable` now runs as a **preflight**, before the pull and long before
+  the container swap, so an unwritable record aborts while nothing has happened yet; the missing
+  `else` now fails loudly; and `assert_record_appended` confirms the file actually grew by a
+  line. The same guards were added to `scripts/rollback.sh`, where the problem is worse — that
+  script runs during an incident.
+- **Regression test**: `tests/deploy-script.test.ts`.
+- **Remaining before VERIFIED**: one real deploy on the VM.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `DEPLOY-002` — The Pre-Deploy Backup Prompt Accepted Any String
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: deploying to the live box on 2026-08-21.
+- **Root cause**: `scripts/deploy.sh` prompted for a Cloud SQL backup id and accepted anything
+  non-empty (`[ -n "$BACKUP_ID" ] || fail`). `Telestar2026` — the published demo password — was
+  accepted on three separate deploys, and nothing ever asked Cloud SQL whether a backup existed.
+- **Why it matters**: the pre-deploy backup is the only thing standing between a bad migration
+  and unrecoverable data loss. A prompt that accepts a password records a backup that was never
+  taken, which is worse than no prompt: it produces false assurance in the audit trail. Directly
+  compounds `TEL-P0-002`.
+- **Fix**: `validate_backup_id` rejects anything that is not a numeric run id of plausible
+  length. `verify_backup_exists` then asks Cloud SQL directly: a definite "no such backup" now
+  aborts the deploy; an inability to ask (no gcloud, no credentials, or the VM service account's
+  `ACCESS_TOKEN_SCOPE_INSUFFICIENT`) is **not** treated as a pass — it warns, requires the
+  operator to type `UNVERIFIED`, and records `backupVerified: false` in the deployment record so
+  a verified deploy and an unverified one are distinguishable afterwards.
+- **Regression test**: `tests/deploy-script.test.ts`, including the literal `Telestar2026` case.
+- **Remaining before VERIFIED**: one real deploy on the VM.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `DEPLOY-003` — Every Pull Failure Was Reported As A Missing Image
+- **Severity**: P2
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: a disk-full incident on the VM on 2026-08-21.
+- **Root cause**: `$DOCKER pull … || fail "No image published for commit ${COMMIT}. CI publishes
+  only after it passes — check the run."` asserted one cause for every possible failure. The VM
+  disk had filled with images and build cache; the operator was sent to inspect a CI run that was
+  perfectly healthy. `docker image prune -a -f` plus `docker builder prune -f` recovered 36 GB.
+- **Fix**: `classify_pull_failure` reads what the registry actually said and names it — full
+  disk (with the recovery command), missing manifest, rejected credentials, or network — and
+  quotes the real first line for anything unrecognised rather than guessing. Applied to
+  `deploy.sh` and to `rollback.sh`, where a misdiagnosis during an incident costs the most.
+- **Regression test**: `tests/deploy-script.test.ts`.
+- **Remaining before VERIFIED**: observed on a real failure, or accepted on the regression test.
+- **Evidence ID**: *(none yet)*
 
 ---
 
