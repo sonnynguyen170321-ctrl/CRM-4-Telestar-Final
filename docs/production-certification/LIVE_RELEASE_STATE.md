@@ -9,7 +9,7 @@ CANDIDATE_SHA=daa8ffb679b7bee87a907d4913123318b697eab6
 HEAD_SHA=4e8145c64094803074d7c2aabd38d89fcb45fa6b
 IMAGE_DIGEST=sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49
 DEPLOYED_SHA=daa8ffb679b7bee87a907d4913123318b697eab6
-CURRENT_PHASE=1 complete — unblocked P1s closed; blocked on two operator actions
+CURRENT_PHASE=1 complete, PR #100 open — awaiting container runtime install
 CURRENT_BLOCKER=docker absent (DR-003, REL-003/4/5) + gcloud unauthenticated (DR-007, TEL-P0-002)
 P0_OPEN=2
 P1_OPEN=17 (new: TEL-P1-023, TEL-P1-024, DEPLOY-001, DEPLOY-002 — all FIXED_PENDING_VERIFICATION)
@@ -20,7 +20,7 @@ CERT_RUN_2=FAIL (same)
 CERT_RUN_3=FAIL (same)
 ROLLBACK=NOT_EXECUTED (needs docker)
 BACKUP_RESTORE=PASS (RTO 4.77s, checksum verified, restore integrity true)
-NEXT_ACTION=operator: install a container runtime, and run `gcloud auth login`
+NEXT_ACTION=operator installing Docker Desktop; then re-freeze candidate and run certify:full x3
 
 ## Machine capability (measured 2026-08-21, `npm run agent -- doctor`)
 
@@ -54,6 +54,15 @@ NEXT_ACTION=operator: install a container runtime, and run `gcloud auth login`
 | TEL-P1-024 | P1 | FIXED_PENDING_VERIFICATION | agent | tests/certification-rpo-probe.test.ts — needs authenticated gcloud |
 | TEL-P2-019 | P2 | FIXED_PENDING_VERIFICATION | agent | Windows batch-shim exec, tests/certification-rpo-probe.test.ts |
 | TEL-P2-020 | P2 | FIXED_PENDING_VERIFICATION | agent | rollback.sh domain mapping, tests/agent-routing.test.ts |
+
+## Ceiling with Docker alone
+
+Installing a container runtime unblocks four requirements — DR-003 and REL-003/004/005 — taking
+verification from 103/108 to **107/108**. The verdict stays **NO-GO** regardless, because DR-007
+(measured RPO) still has no evidence and `TEL-P0-002` is an open **P0**: three repository
+documents disagree about whether production has any automated backup, and nothing in this
+checkout can settle it. That needs one `gcloud auth login` by the operator, or the equivalent
+run from Cloud Shell.
 
 ## Blocked-on-operator (cannot be resolved from this checkout)
 
