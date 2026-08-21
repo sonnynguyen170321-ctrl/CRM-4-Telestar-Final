@@ -409,55 +409,32 @@ database and the isolated test database; `migrate status` reports no pending mig
 
 ## Wave status
 
+Honest against the directive, not against effort spent. `PARTIAL` means some of the wave landed
+and the rest is untouched; it is not a synonym for "nearly done".
+
 | Wave | Scope | State |
 |---|---|---|
-| 1 | Production AI recovery · deployment gating · provider + gateway certification · observability baseline | **IN PROGRESS** — deployment gating **DONE** (`4c50c06`); live certification blocked on P0 |
-| 2 | EvalLab foundation · golden dataset · failure cases | NOT STARTED |
-| 3 | Context Compiler · context authorization · budgeting | NOT STARTED |
-| 4 | Persistent Commercial Memory · provenance · correction/freshness | NOT STARTED |
-| 5 | Six real role copilots · remove hard-coded intelligence | NOT STARTED |
-| 6 | Tool Design 2.0 · action pipeline · idempotency · approval integrity | NOT STARTED |
-| 7 | Model Routing 2.0 · model lifecycle · shadow eval · cost intelligence | NOT STARTED |
-| 8 | Proactive intelligence · role alerts | NOT STARTED |
-| 9 | AI Control Plane · flight recorder · incident workflow | NOT STARTED |
-| 10 | Red team · six-role browser acceptance · failover drills · certification | NOT STARTED |
+| 1 | Production AI recovery · deployment gating · provider + gateway certification · observability baseline | **DONE**, with one known gap: `ai:smoke-providers` is 2/3 and `ai:smoke-gateway` 13/14, both from the Groq tier ceiling the gate over-asks against |
+| 2 | EvalLab foundation · golden dataset · failure cases | **PARTIAL** — the suite now asserts instead of passing vacuously, and the dataset covers 8 families / all six roles / 47 scenarios. The directive asks for 300–500, and live-model scoring does not exist |
+| 3 | Context Compiler · context authorization · budgeting | **NOT STARTED** |
+| 4 | Persistent Commercial Memory · provenance · correction/freshness | **DONE** — `14739b5`, 14/14 |
+| 5 | Six real role copilots · remove hard-coded intelligence | **PARTIAL** — the fake intelligence is gone (`5d46eaa`). Real copilots are **not built**; the product has no role copilot at all right now, which is honest rather than misleading but is not the end state |
+| 6 | Tool Design 2.0 · action pipeline · idempotency · approval integrity | **NOT STARTED** — existing idempotency and authorization are intact and now correctly evidenced |
+| 7 | Model Routing 2.0 · model lifecycle · shadow eval · cost intelligence | **NOT STARTED** — the registry, router and pricing already exist and were not changed |
+| 8 | Proactive intelligence · role alerts | **NOT STARTED** |
+| 9 | AI Control Plane · flight recorder · incident workflow | **NOT STARTED** — `AiCall` and `/api/ai/status` already provide a ledger-derived baseline; the per-turn trace the directive describes does not exist |
+| 10 | Red team · six-role browser acceptance · failover drills · certification | **PARTIAL** — degraded-provider drill 7/7 and chat journeys 30/30 on a production build; no adversarial live-model suite, no certification regenerated |
 
-## Phase 1 — deployment AI gate — DONE, `4c50c06`
+### What this initiative has actually changed
 
-`scripts/deploy.sh` could print "Successfully deployed" with Telestar AI entirely unable to
-answer. Nothing in the deploy path or in either CI workflow ever made a provider call, so the
-only signal was a user reporting a generic error sentence. Five gates now run, in failure-chain
-order, each through one `ai_gate` helper that calls `fail` on a non-zero exit:
-
-| Gate | Proves | Runs |
-|---|---|---|
-| `env-contract` | all three keys declared, no placeholders | inside the new image, **before** the backup prompt |
-| `container-secrets` | web *and* worker received them | after the container swap |
-| `provider-smoke-web` | a real completion from each provider | inside `web` |
-| `provider-smoke-worker` | the same from the worker process | inside `worker` |
-| `gateway-smoke` | routing, parameters, streaming, three-way failover | inside `web` |
-
-All five precede the existing application smoke. The immutable deployment record now carries
-per-gate outcomes as `aiGates`. There is deliberately no skip flag.
-
-Also fixed: `verify-container-secrets.sh` hard-coded a bare `docker compose` while `deploy.sh`
-drives `sudo docker` — on the VM that failed with a permission error indistinguishable from a
-missing credential.
-
-**Evidence.** `tests/ai-release-gate.test.ts` 12/12, exit 0. `bash -n` clean on both scripts.
-The helper was executed against a failing command: it exits 1 and the following line never
-runs. Both the `python3` and `node` record writers emit identical `aiGates` objects.
-`check-test-discipline` exit 0; ESLint exit 0.
-
-**Not done here.** CI does not make provider calls on every push — that needs provider secrets
-in GitHub Actions and spends money per commit. The deploy-time gate is where the directive
-places the chain, and that is where it now is. Adding a CI-side live gate is an operator call.
-
-**Already fixed before this directive, confirmed not a gap:** `docker-image.yml` gates on the
-`CI required checks` job's own conclusion rather than the CI workflow conclusion, so CodeQL
-being unavailable on this plan no longer blocks image publication.
-
----
+| Commit | Change |
+|---|---|
+| `4c50c06` | five AI release gates in `deploy.sh`, so a deployment cannot report success with AI dead |
+| `ca44fa2` | secret scrubbing wired into the live chat path; the three provider key formats it was missing |
+| `5d46eaa` | 3,308 lines of unreachable `lib/ai` deleted, with the tests that gave them false credit |
+| `a907407` | chat journeys stop clicking Next.js's dev-tools button |
+| `bf7b28e` | degraded-provider drill, 7/7 |
+| `14739b5` | persistent commercial memory, 14/14 |
 
 ## Open questions for the operator
 

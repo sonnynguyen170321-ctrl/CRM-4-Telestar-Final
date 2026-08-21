@@ -19,6 +19,7 @@ domains:
     paths:
       - lib/ai/**
       - lib/agent/**
+      - lib/memory/**
       - lib/workorders/**
       - app/api/ai/**
       - components/AiAssistant.tsx
@@ -29,6 +30,7 @@ domains:
     tests:
       - tests/ai-*.test.ts
       - tests/agent-*.test.ts
+      - tests/commercial-claims.test.ts
       - tests/telestar-ai-*.test.ts
       - tests/work-order-*.test.ts
     e2e:
