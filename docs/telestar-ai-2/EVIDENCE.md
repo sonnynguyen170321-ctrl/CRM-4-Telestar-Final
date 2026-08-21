@@ -22,7 +22,7 @@ Where something was not done, this document says so rather than omitting it.
 | Migration order | `node scripts/check-migration-order.mjs` | **exit 0** — 51 migrations, 1 new |
 | Prisma schema | `prisma validate` | **exit 0** |
 | Production build | `npm run build` | **exit 0** — compiled in 79 s |
-| Unit + integration | `vitest run` | **2343 / 2343, exit 0** — 170/170 files, final run with the memory writer in place |
+| Unit + integration | `vitest run` | **2387 / 2387, exit 0** — 175/175 files, after waves 3, 5, 6, 7 and 9 |
 | Commercial memory | `vitest run tests/commercial-claims.test.ts` | **17 / 17, exit 0** — includes the writer’s object-authorization cases |
 | Release gate tests | `vitest run tests/ai-release-gate.test.ts` | **12 / 12, exit 0** |
 | Provider auth | `curl` model-list per provider | **3 / 3 — HTTP 200** |
@@ -70,6 +70,18 @@ secret scrubbing, wired to nothing), `lib/ai/securityGuards` (a *second* guard m
 Tool Idempotency Keys" and no caller. "Write idempotency" is a required certificate line; it
 was being evidenced by a function production never ran. The real key is built in `chatRuntime`
 from a per-turn ordinal and is asserted in `tests/agent-runtime-integration.test.ts:158`.
+
+### Guards added, and proven able to fail
+
+Three of the defects this initiative found were tests that could not fail. Anything added since
+has been checked the same way it criticised:
+
+| Guard | Proven how |
+|---|---|
+| `tests/ai-model-evidence.test.ts` | one context limit perturbed in the evidence file → red; reverted → green |
+| `tests/ai-output-budget.test.ts` | scans real call sites; would fail on any uncapped `aiGateway` call |
+| `tests/ai-role-policy.test.ts` | checked against `.agent/generated/role-map.json`, and it **did** fail on the constitution's invented "Admin" role before that was fixed |
+| `tests/ai-claim-label.test.ts` | asserts the poisoning case directly — an AI-written FACTUAL claim must not read as factual |
 
 ### After the deletion
 
