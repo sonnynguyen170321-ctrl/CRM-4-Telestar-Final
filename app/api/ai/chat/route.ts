@@ -11,6 +11,8 @@ import { formatEodForPrompt, isEodRequest, loadEodSummary } from '@/lib/briefing
 import { isValidExecutionId, newExecutionId } from '@/lib/ai/executionId';
 import { retrieveRelevantSkills } from '@/lib/ai/skill-retriever';
 import { compileConstitutionalPrompt } from '@/lib/ai/behavior/telestar-ai-constitution';
+import { readClaims } from '@/lib/memory/claims';
+import { scrubSecrets } from '@/lib/ai/engine/security-guards';
 
 /**
  * Telestar AI chat.
@@ -187,6 +189,40 @@ export async function POST(req: NextRequest) {
 
       if (leadContext.playbookVersionId) {
         playbookVersionId = leadContext.playbookVersionId;
+      }
+
+      // Commercial memory about this contact.
+      //
+      // Read only after `loadAuthorizedLeadContext` returned, so it inherits that
+      // authorization decision rather than making a second, weaker one of its own.
+      //
+      // Each claim is labelled with what kind of claim it is. That labelling is the point: the
+      // product rule is that an inference is never presented as established fact, and a model
+      // cannot honour that rule about text it receives unlabelled. `FACTUAL` carries where it
+      // came from; `INFERRED` carries how strongly it is held.
+      //
+      // Scrubbed on the way in because a claim can be extracted from untrusted material — a
+      // prospect's email, a scraped page, a rep's pasted note.
+      // No tenant on the session means no tenant-scoped memory to read. Skipped rather than
+      // asserted: a claim read without a tenant is the one query that could cross the boundary.
+      const claims = user.tenantId
+        ? await readClaims({
+            tenantId: user.tenantId,
+            scopeType: 'CONTACT',
+            scopeId: validLeadId,
+            limit: 12,
+          })
+        : [];
+      if (claims.length > 0) {
+        contextLines.push('\nWhat Telestar AI has recorded about this contact:');
+        for (const claim of claims) {
+          const label =
+            claim.claimType === 'INFERRED' && claim.confidence != null
+              ? `inferred, confidence ${claim.confidence.toFixed(2)}`
+              : claim.claimType.toLowerCase();
+          const provenance = claim.sourceType ? `, from ${claim.sourceType}` : '';
+          contextLines.push(`- (${label}${provenance}) ${scrubSecrets(claim.claimText)}`);
+        }
       }
     }
   }

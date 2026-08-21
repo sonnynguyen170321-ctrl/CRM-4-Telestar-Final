@@ -17,6 +17,7 @@ import type { SessionUser } from '@/lib/auth';
 
 const requireAuthMock = vi.fn();
 const aiMemoryFindMany = vi.fn();
+const commercialClaimFindMany = vi.fn().mockResolvedValue([]);
 const loadAuthorizedLeadContext = vi.fn();
 const executeMock = vi.fn();
 const sdrMetricsMock = vi.fn();
@@ -29,7 +30,12 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 vi.mock('@/lib/prisma', () => ({
-  prisma: { aiMemory: { findMany: (...args: unknown[]) => aiMemoryFindMany(...args) } },
+  prisma: {
+    aiMemory: { findMany: (...args: unknown[]) => aiMemoryFindMany(...args) },
+    // Commercial memory is read for the lead in scope. Defaults to empty so the
+    // existing cases assert what they always asserted.
+    commercialClaim: { findMany: (...args: unknown[]) => commercialClaimFindMany(...args) },
+  },
 }));
 
 vi.mock('@/lib/leads/context', () => ({
@@ -234,6 +240,70 @@ describe('CRM context', () => {
 
     expect(aiMemoryFindMany.mock.calls[0][0].where).toEqual({ userId: SDR.id });
     expect(executeMock.mock.calls[0][0].systemPrompt).toContain('prefers short emails');
+  });
+
+  it('labels commercial memory by claim type, so inference never reads as fact', async () => {
+    // The product rule is that an inference is never presented as established fact. A model
+    // cannot honour that about text it receives unlabelled, so the labelling is the contract.
+    loadAuthorizedLeadContext.mockResolvedValue({ leadName: 'Dana Ito', leadCompany: 'Kaisen' });
+    commercialClaimFindMany.mockResolvedValueOnce([
+      {
+        claimType: 'FACTUAL',
+        claimText: 'Sarah stated budget review is in September.',
+        sourceType: 'email',
+        confidence: null,
+      },
+      {
+        claimType: 'INFERRED',
+        claimText: 'Likely evaluating a competitor.',
+        sourceType: null,
+        confidence: 0.62,
+      },
+    ]);
+
+    await POST(
+      post({
+        messages: [{ role: 'user', content: 'Prep me' }],
+        context: { leadId: 'clh1234567890abcdefgh' },
+      }),
+    );
+
+    const prompt = executeMock.mock.calls[0][0].systemPrompt as string;
+    expect(prompt).toContain('(factual, from email) Sarah stated budget review is in September.');
+    expect(prompt).toContain('(inferred, confidence 0.62) Likely evaluating a competitor.');
+
+    // Scoped to this tenant and this contact, never to the lead id alone.
+    expect(commercialClaimFindMany.mock.calls[0][0].where).toMatchObject({
+      tenantId: SDR.tenantId,
+      scopeType: 'CONTACT',
+      scopeId: 'clh1234567890abcdefgh',
+      status: 'active',
+    });
+  });
+
+  it('strips a credential out of a claim before it reaches the model', async () => {
+    // A claim can be extracted from untrusted material — a prospect's email, a scraped page, a
+    // rep's pasted note. Memory must not become a laundering route for a secret.
+    loadAuthorizedLeadContext.mockResolvedValue({ leadName: 'Dana Ito' });
+    commercialClaimFindMany.mockResolvedValueOnce([
+      {
+        claimType: 'FACTUAL',
+        claimText: 'Staging db is postgresql://crm:hunter2@10.20.30.40:5432/telestar_crm',
+        sourceType: 'note',
+        confidence: null,
+      },
+    ]);
+
+    await POST(
+      post({
+        messages: [{ role: 'user', content: 'Prep me' }],
+        context: { leadId: 'clh1234567890abcdefgh' },
+      }),
+    );
+
+    const prompt = executeMock.mock.calls[0][0].systemPrompt as string;
+    expect(prompt).not.toContain('hunter2');
+    expect(prompt).toContain('[REDACTED_SECRET]');
   });
 
   it('loads lead context only through the authorized loader', async () => {
