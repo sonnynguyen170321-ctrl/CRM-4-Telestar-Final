@@ -69,6 +69,18 @@ Tool Idempotency Keys" and no caller. "Write idempotency" is a required certific
 was being evidenced by a function production never ran. The real key is built in `chatRuntime`
 from a per-turn ordinal and is asserted in `tests/agent-runtime-integration.test.ts:158`.
 
+### After the deletion
+
+The same reachability walk, re-run on the current tree:
+
+```
+REACHABLE   modules: 22   (5,877 loc)
+UNREACHABLE modules:  1   (551 loc)
+```
+
+The single remaining unreachable module is `lib/ai/evals/golden-dataset.ts`, which is a test
+dataset and is not supposed to have a production caller.
+
 ### The evaluation suite could not fail
 
 Two tests: one asserted `classifyIntent(...)` was `toBeDefined()` — it returns a non-nullable
