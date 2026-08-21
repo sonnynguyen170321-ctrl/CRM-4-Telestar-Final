@@ -28,6 +28,12 @@ import {
 import { CONFIG_PATH, EVIDENCE_DIR, RAW_DIR, REPO_ROOT, RUNS_DIR } from './lib/paths.mjs';
 import { loadCertificationEnv, missingOperatorEnv } from './lib/loadEnv.mjs';
 import { containerRuntime, gateDockerBuild, gateImageInspection } from './lib/imageGates.mjs';
+import { HEALTH_ENDPOINTS, evaluateHealthGate } from './lib/healthGate.mjs';
+import {
+  parsePlaywrightReport,
+  unaccountedResults,
+  describePlaywright,
+} from './lib/playwrightReport.mjs';
 
 // Before any `const` below reads process.env: CERT_PORT is read at module load, so loading
 // configuration inside main() would be too late for it.
@@ -336,40 +342,50 @@ function readFixtureTenant() {
   }
 }
 
-async function gateHealthSmoke(runLabel) {
+async function gateHealthSmoke(runLabel, candidateSha) {
   const startedAt = new Date();
-  const results = {};
-  let ok = true;
+  const probes = [];
 
-  for (const endpoint of ['/api/health', '/api/health/db', '/api/health/redis']) {
+  for (const endpoint of HEALTH_ENDPOINTS) {
     try {
       const response = await fetch(`${BASE_URL}${endpoint}`);
-      const text = await response.text();
-      results[endpoint] = { status: response.status, body: text.slice(0, 400) };
-      if (response.status >= 500) ok = false;
+      probes.push({ endpoint, status: response.status, body: await response.text() });
     } catch (error) {
-      results[endpoint] = { status: null, error: String(error) };
-      ok = false;
+      probes.push({ endpoint, status: null, body: '', error: String(error) });
     }
   }
 
+  // The expected SHA is the frozen candidate, never a value read back from the response.
+  const result = evaluateHealthGate(probes, candidateSha);
   const finishedAt = new Date();
+
+  // The log filename carries runLabel, and the recorded logPath is the file that was actually
+  // written. These were two different paths, so the recorded artifact did not exist and each
+  // run overwrote the previous run's log (TEL-P1-034).
+  const logPath = path.join(RAW_DIR, `${runLabel}-22-health-smoke.log`);
   writeFileSync(
-    path.join(RAW_DIR, 'gate-22-health-smoke.log'),
-    `# health smoke\n${JSON.stringify(results, null, 2)}\n`,
+    logPath,
+    [
+      '# health smoke',
+      `# candidate: ${candidateSha}`,
+      `# findings: ${result.findings.length ? result.findings.join('; ') : 'none'}`,
+      '',
+      JSON.stringify(result.byEndpoint, null, 2),
+      '',
+    ].join('\n'),
   );
 
   return {
     gateId: '22-health-smoke',
-    description: 'web health endpoints answer and report release identity',
-    command: `GET ${BASE_URL}/api/health*`,
+    description: 'web health endpoints answer 200 with ok=true and report the candidate SHA',
+    command: `GET ${BASE_URL}${HEALTH_ENDPOINTS.join(' , ')}`,
     startedAt: startedAt.toISOString(),
     finishedAt: finishedAt.toISOString(),
     durationMs: finishedAt - startedAt,
-    exitCode: ok ? 0 : 1,
-    status: ok ? 'PASS' : 'FAIL',
-    metrics: { endpoints: results },
-    logPath: path.join(RAW_DIR, `${runLabel}-22-health-smoke.log`),
+    exitCode: result.ok ? 0 : 1,
+    status: result.ok ? 'PASS' : 'FAIL',
+    metrics: { endpoints: result.byEndpoint, findings: result.findings },
+    logPath,
   };
 }
 
@@ -457,18 +473,41 @@ async function main() {
   record({ ...runGate('14-security-suite', { runLabel }), gateId: '14-security-suite' });
   record({ ...runGate('15-production-build', { runLabel }), gateId: '15-production-build' });
 
+  /**
+   * A Playwright gate, counted rather than inferred from the exit code.
+   *
+   * Playwright exits 0 when tests are skipped, and the project reporter is `list`, which writes
+   * nothing machine-readable. So a run with skipped browser tests passed its gate and
+   * contributed nothing to `mandatorySkips` (TEL-P1-035). The JSON reporter is requested here
+   * rather than in playwright.config.ts so CI and local runs are unaffected.
+   */
+  const playwrightGate = (gateId, description, project) => {
+    const reportPath = path.join(REPO_ROOT, '.certification', `playwright-${project}-${runLabel}.json`);
+    const gate = scriptGate(
+      gateId,
+      description,
+      process.execPath,
+      ['node_modules/@playwright/test/cli.js', 'test', `--project=${project}`, '--reporter=list,json'],
+      { env: { BASE_URL, PLAYWRIGHT_JSON_OUTPUT_NAME: reportPath }, runLabel },
+    );
+
+    const counts = parsePlaywrightReport(reportPath);
+    const unaccounted = unaccountedResults(counts);
+
+    return {
+      ...gate,
+      // A gate that exited 0 while skipping tests is not a pass.
+      status: gate.status === 'PASS' && counts.parsed && unaccounted === 0 ? 'PASS' : 'FAIL',
+      metrics: { ...(gate.metrics ?? {}), playwright: counts, unaccounted },
+    };
+  };
+
   // Browser and runtime gates need the built app running.
   const browserGates = await withServer(async () => {
     const collected = [];
 
     collected.push(
-      scriptGate(
-        '16-playwright-roles',
-        'six-role real browser acceptance',
-        process.execPath,
-        ['node_modules/@playwright/test/cli.js', 'test', '--project=certification-roles'],
-        { env: { BASE_URL }, runLabel },
-      ),
+      playwrightGate('16-playwright-roles', 'six-role real browser acceptance', 'certification-roles'),
     );
     collected.push(
       scriptGate(
@@ -480,12 +519,10 @@ async function main() {
       ),
     );
     collected.push(
-      scriptGate(
+      playwrightGate(
         '17-golden-browser-journey',
         'cross-role golden journey in a real browser',
-        process.execPath,
-        ['node_modules/@playwright/test/cli.js', 'test', '--project=certification-journey'],
-        { env: { BASE_URL }, runLabel },
+        'certification-journey',
       ),
     );
     // The healthcheck enqueues a job and waits for a worker to complete it, so a worker has
@@ -493,7 +530,7 @@ async function main() {
     // doing its job, not a product failure, and is exactly the stranded-queue condition it
     // exists to catch.
     collected.push(await withWorker(() => gateWorkerReadiness(runLabel)));
-    collected.push(await gateHealthSmoke(runLabel));
+    collected.push(await gateHealthSmoke(runLabel, candidateSha));
     return collected;
   });
   browserGates.forEach(record);
@@ -545,7 +582,13 @@ async function main() {
 
   const vitest = parseVitest(path.join(REPO_ROOT, '.certification/vitest.json'));
   const redisGate = gateResults.find((result) => result.gateId === '09-redis-integration');
-  const mandatorySkips = (vitest?.testsSkipped ?? 0) + (redisGate?.metrics?.skipped ?? 0);
+  // Playwright skips were previously invisible here, so a run with skipped browser tests
+  // reported zero mandatory skips and satisfied the validator's check K (TEL-P1-035).
+  const playwrightUnaccounted = gateResults
+    .filter((result) => result.metrics?.playwright)
+    .reduce((sum, result) => sum + (result.metrics.unaccounted ?? 0), 0);
+  const mandatorySkips =
+    (vitest?.testsSkipped ?? 0) + (redisGate?.metrics?.skipped ?? 0) + playwrightUnaccounted;
 
   const gatesMap = {};
   for (const result of gateResults) {
@@ -722,6 +765,9 @@ async function main() {
   console.log(`missing    : ${missingGates.length > 0 ? missingGates.join(', ') : 'none'}`);
   console.log(`vitest     : ${vitest ? `${vitest.testsPassed} passed, ${vitest.testsFailed} failed, ${vitest.testsSkipped} skipped` : 'not parsed'}`);
   console.log(`skips      : ${mandatorySkips}`);
+  for (const result of gateResults.filter((r) => r.metrics?.playwright)) {
+    console.log(`playwright : ${result.gateId} — ${describePlaywright(result.metrics.playwright)}`);
+  }
   console.log(`RUN ${runNumber}      : ${runPassed ? 'PASS' : 'FAIL'}`);
 
   process.exit(runPassed ? 0 : 1);

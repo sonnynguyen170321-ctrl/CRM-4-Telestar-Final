@@ -24,10 +24,10 @@ last two attempts at this table were both wrong.
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 3 | 0 | 0 | **2** |
-| **P1** (Critical) | 35 | 9 | 4 | **22** |
+| **P1** (Critical) | 38 | 9 | 4 | **25** |
 | **P2** (Important) | 23 | 8 | 4 | **11** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **61** | **17** | **8** | **35** |
+| **TOTAL** | **64** | **17** | **8** | **38** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -57,12 +57,12 @@ tests that fail if the table and the entries disagree.
 
 ### Active P1 classification (Phase 6)
 
-All 22, individually. No defect is deleted to improve a count.
+All 25, individually. No defect is deleted to improve a count.
 
 | Classification | Count | IDs |
 |---|---:|---|
 | **REAL OPEN DEFECT** | 4 | `TEL-P1-026` · `TEL-P1-027` · `TEL-P1-028` · `TEL-P1-032` |
-| **FIX_IMPLEMENTED**, awaiting verification on the new candidate | 16 | `TEL-P1-014`–`024`, `TEL-P1-029`–`031`, `TEL-P1-033`, `DEPLOY-001`, `DEPLOY-002` |
+| **FIX_IMPLEMENTED**, awaiting verification on the new candidate | 19 | `TEL-P1-014`–`024`, `TEL-P1-029`–`031`, `TEL-P1-033`–`036`, `DEPLOY-001`, `DEPLOY-002` |
 | **CI_VERIFIED**, awaiting candidate freeze | 2 | `TEL-P1-025` (secret-scan now PASS on PR #100) · `TEL-P1-018` (chain present in `EV-RELEASE-IDENTITY`, `REL-001` VERIFIED) |
 | STALE LEDGER ITEM | 0 | the stale item was this summary table, now corrected |
 | DUPLICATE | 0 | — |
@@ -82,6 +82,87 @@ The four genuinely open P1s share a shape: each needs something this checkout ca
 ---
 
 ## 2. Active Defects
+
+### `TEL-P1-034` — The Health Gate Passed On 401, 403, 404, A Login Redirect, And The Wrong Release
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: Phase 9, the adversarial review of the certifier itself.
+- **Root cause**: gate 22 decided everything on one line — `if (response.status >= 500) ok = false;`.
+  Its description read *"web health endpoints answer and report release identity"*, but the
+  function never read `commit` and was never given the candidate SHA to compare against.
+- **What therefore passed**: `401`, `403`, `404`, a `302` to a login page, a proxy's HTML error
+  page served with `200`, and — the one that matters — a perfectly healthy server running an
+  **entirely different release**.
+- **And two of its three endpoints do not exist.** It probed `/api/health`, `/api/health/db` and
+  `/api/health/redis`. Measured against production: `200`, **`404`**, **`404`**. Because 404 is
+  under 500, the gate reported PASS on two endpoints that have never existed. A mandatory gate
+  had never verified anything.
+- **Second defect in the same function**: it wrote its log to `gate-22-health-smoke.log` while
+  recording `logPath` as `<runLabel>-22-health-smoke.log`. The recorded artifact did not exist,
+  and each run overwrote the previous run's log — the same defect the queue-load gate was fixed
+  for earlier.
+- **Fix**: `scripts/certification/lib/healthGate.mjs` requires HTTP **exactly 200**, a body that
+  parses as JSON, `ok === true`, and `commit` equal to the frozen candidate. Each rejected
+  status is named for what it means operationally, because "not 200" was the thing nobody
+  noticed. `HEALTH_ENDPOINTS` is now `['/api/health']` — the two that never existed are gone
+  rather than silently passing. The gate receives `candidateSha`, and the log path written is
+  the log path recorded.
+- **Regression test**: `tests/certification-false-green.test.ts` — 36 passed, exit 0, every case
+  a way the gate used to say PASS.
+- **Verified by mutation**: reinstating the old `>= 500` rule fails **9 of the 36**. An earlier
+  draft of these tests caught only 2, because the status cases used an empty body that failed
+  JSON parsing regardless of status; they now carry a valid healthy body so only the status rule
+  can fail them.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-035` — Playwright Skips Were Invisible To The Certifier
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: Phase 9, checking what `mandatorySkips` actually counts.
+- **Root cause**: `mandatorySkips = (vitest?.testsSkipped ?? 0) + (redisGate?.metrics?.skipped ?? 0)`.
+  Playwright is not in that sum. The Playwright gates were recorded by `scriptGate`, which reads
+  the exit code — and **Playwright exits 0 when tests are skipped**.
+- **Why nothing could have counted them**: `playwright.config.ts` sets `reporter: 'list'`, which
+  produces nothing machine-readable. There was no artifact to count even in principle.
+- **What that allowed**: the merge run reported **227 passed, 16 skipped**. Those 16 contributed
+  nothing to `mandatorySkips`, so the validator's check K — *"final runs require zero"* — would
+  have passed a certification with 16 unexecuted browser tests, concentrated in live Telestar AI
+  behaviour.
+- **Fix**: `scripts/certification/lib/playwrightReport.mjs` parses the JSON report and counts
+  `skipped`, `flaky`, `timedOut` and `interrupted` — every outcome that is neither a pass nor an
+  honest failure. The ladder requests `--reporter=list,json` with `PLAYWRIGHT_JSON_OUTPUT_NAME`
+  **on the certification path only**, so CI and local runs are unchanged. A Playwright gate that
+  exits 0 with any unaccounted result is now `FAIL`, and the counts are added to
+  `mandatorySkips`. A missing or malformed report reports `parsed: false` rather than zero,
+  because absent evidence must never read as a clean run.
+- **Regression test**: covered by the 36 in `tests/certification-false-green.test.ts`.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-036` — The Rollback Drill Let The Caller Define What Correct Meant
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: Phase 9. This is a defect in `TEL-P1-026`'s own remediation, written earlier
+  in this session.
+- **Root cause**: `evaluateDrill` compared each phase's observed health against
+  `phase.expectedSha` — a value supplied by whoever assembled the drill. A drill could therefore
+  declare that the rollback phase was expected to be running the *candidate*, and pass while
+  proving the opposite of what DR-003 asks.
+- **Fix**: expectation is derived from the frozen release identity. `evaluateDrill` now takes
+  `candidateSha` and `previousSha` alongside the digests, and `expectationFor(phaseName, …)`
+  maps each phase to the identity it must show. A phase carries **observed state only**; a phase
+  that still supplies `expectedSha` is **refused rather than ignored**, because whoever passed it
+  believes it is being honoured. Each phase's running digest is also checked against the one the
+  freeze names, not merely against its sibling service.
+- **Regression test**: `tests/certification-rollback-drill.test.ts` — 32 passed, exit 0, now
+  including a caller-supplied `expectedSha`, a rollback phase reporting the candidate, a phase
+  running the wrong digest, and identical candidate/previous SHAs.
+- **Evidence ID**: *(none yet)*
+
+---
 
 ### `TEL-P1-033` — A Test Guarding A Secret Printed It, And Depended On The Ambient Environment
 - **Severity**: P1
