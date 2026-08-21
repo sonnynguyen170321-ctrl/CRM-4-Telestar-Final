@@ -554,6 +554,12 @@ describe('CRM context', () => {
     expect(prompt).toContain('TENANT_AND_RBAC_AUTHORIZATION');
 
     expect(prompt.indexOf('SECURITY_ISOLATION')).toBeLessThan(prompt.indexOf('IMPORTANT REMINDERS'));
+
+    // The role policy sits below the constitution too. It describes what this person is trying
+    // to do; it must never read as though it could relax tenancy or authorization, which the
+    // constitution asserts above it.
+    expect(prompt).toContain('[Role: SDR]');
+    expect(prompt.indexOf('TENANT_AND_RBAC_AUTHORIZATION')).toBeLessThan(prompt.indexOf('[Role: SDR]'));
     expect(prompt.indexOf('TENANT_AND_RBAC_AUTHORIZATION')).toBeLessThan(
       prompt.indexOf('IMPORTANT REMINDERS'),
     );
