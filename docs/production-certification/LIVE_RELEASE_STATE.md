@@ -12,7 +12,7 @@ DEPLOYED_SHA=daa8ffb679b7bee87a907d4913123318b697eab6
 CURRENT_PHASE=1 complete — unblocked P1s closed; blocked on two operator actions
 CURRENT_BLOCKER=docker absent (DR-003, REL-003/4/5) + gcloud unauthenticated (DR-007, TEL-P0-002)
 P0_OPEN=2
-P1_OPEN=12 (3 new: TEL-P1-023, DEPLOY-001, DEPLOY-002 — all FIXED_PENDING_VERIFICATION)
+P1_OPEN=17 (new: TEL-P1-023, TEL-P1-024, DEPLOY-001, DEPLOY-002 — all FIXED_PENDING_VERIFICATION)
 REQUIREMENTS_VERIFIED=103/108
 LAST_FULL_CI=CI_RUN_ID 32418164738 (candidate daa8ffb)
 CERT_RUN_1=FAIL (only: gates 19-docker-build, 20-image-inspection BLOCKED_EXTERNAL)
@@ -51,6 +51,9 @@ NEXT_ACTION=operator: install a container runtime, and run `gcloud auth login`
 | DEPLOY-002 | P1 | FIXED_PENDING_VERIFICATION | agent | tests/deploy-script.test.ts — needs one real deploy |
 | DEPLOY-003 | P2 | FIXED_PENDING_VERIFICATION | agent | tests/deploy-script.test.ts |
 | TEL-P1-023 | P1 | FIXED_PENDING_VERIFICATION | agent | tests/certification-image-gates.test.ts — needs a run with docker |
+| TEL-P1-024 | P1 | FIXED_PENDING_VERIFICATION | agent | tests/certification-rpo-probe.test.ts — needs authenticated gcloud |
+| TEL-P2-019 | P2 | FIXED_PENDING_VERIFICATION | agent | Windows batch-shim exec, tests/certification-rpo-probe.test.ts |
+| TEL-P2-020 | P2 | FIXED_PENDING_VERIFICATION | agent | rollback.sh domain mapping, tests/agent-routing.test.ts |
 
 ## Blocked-on-operator (cannot be resolved from this checkout)
 
@@ -76,3 +79,14 @@ Without both, the ceiling is 103/108 and the verdict stays NO-GO. Neither is a c
 | `eslint` on changed files | — | 0 |
 | `npm run agent -- check` | 7 project-truth checks | 0 |
 | `certify:selftest` | 19 detected, 0 missed | 0 |
+| `scripts/certification/lib/rpoProbe.mjs` — real RPO probe | 18 tests | 0 |
+| `scripts/certification/lib/exec.mjs` — Windows shim resolution | included above | 0 |
+| `.agent/registry/domains.yaml` — `scripts/rollback*` mapped | 32 tests | 0 |
+
+## Candidate status
+
+`daa8ffb` is **superseded**. These changes touch application tooling — the certification runner,
+the deploy and rollback scripts, the evidence recorder — so evidence bound to `daa8ffb` no longer
+describes this tree. A new candidate must be frozen before the next run, and the DR drill re-run
+against it. No certification evidence was regenerated in this session, deliberately: writing new
+evidence against a superseded candidate would satisfy nothing.

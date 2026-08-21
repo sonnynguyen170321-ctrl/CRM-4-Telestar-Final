@@ -20,10 +20,10 @@
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 2 | 0 | 0 | **2** |
-| **P1** (Critical) | 25 | 9 | 4 | **16** |
-| **P2** (Important) | 19 | 9 | 3 | **10** |
+| **P1** (Critical) | 26 | 9 | 4 | **17** |
+| **P2** (Important) | 22 | 9 | 3 | **13** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **42** | **18** | **7** | **24** |
+| **TOTAL** | **46** | **18** | **7** | **28** |
 
 The defect total is permitted to increase. Finding more defects is successful auditing.
 The prior cap of 25 is void.
@@ -172,7 +172,15 @@ The prior cap of 25 is void.
 
 ### `TEL-P1-018` — Release Deployment Identity Chain Missing
 - **Severity**: P1
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION`
+
+> **Status corrected 2026-08-21.** This read `OPEN` while the evidence for it already existed.
+> `EV-RELEASE-IDENTITY` carries every value the remediation below demands — `ciRunId`
+> `32418164738`, image/web/worker digest `sha256:f2e807bb…`, `healthSha` equal to the candidate
+> — with `chainProblems: []`, and `REL-001` reads **VERIFIED** in
+> [REQUIREMENT_TRACEABILITY.md](REQUIREMENT_TRACEABILITY.md). Carrying it as `OPEN` overstated
+> the remaining work; the honest state is fix implemented and evidenced, awaiting re-run
+> against the next frozen candidate, since this session supersedes `daa8ffb`.
 - **Root cause**: Release identity was asserted at source-SHA level only.
 - **Missing authoritative values**: `CI_RUN_ID`, `IMAGE_DIGEST`, `WEB_DIGEST`, `WORKER_DIGEST`,
   `HEALTH_SHA`.
@@ -488,6 +496,67 @@ The prior cap of 25 is void.
   `deploy.sh` and to `rollback.sh`, where a misdiagnosis during an incident costs the most.
 - **Regression test**: `tests/deploy-script.test.ts`.
 - **Remaining before VERIFIED**: observed on a real failure, or accepted on the regression test.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-024` — The RPO Evidence Record Was A Constant Asserting A Stale Blocker
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: checking whether the blocker named in `EV-DR-RPO` was still true.
+- **Root cause**: `scripts/certification/record-blocked-evidence.mjs` wrote `EV-DR-RPO` from a
+  hardcoded literal carrying the reason *"gcloud is not installed on this machine"*. That was
+  false by 2026-08-21 — gcloud is installed, SDK 581.0.0 — and because the record was a
+  constant, authenticating would not have changed it. The evidence would have gone on citing a
+  blocker that no longer existed, and DR-007 would have stayed `NOT_VERIFIED` for a reason
+  nobody could act on correctly.
+- **Why it matters**: same class as `TEL-P1-023`. An evidence record that cannot change is not
+  evidence, it is an assertion — the exact thing this certification programme exists to reject.
+- **Fix**: `scripts/certification/lib/rpoProbe.mjs` asks Cloud SQL and separates the outcomes
+  that need different actions from different people: `NOT_INSTALLED` (install it),
+  `NOT_AUTHENTICATED` (`gcloud auth login`), `INSUFFICIENT_SCOPE` (the VM service account —
+  use Cloud Shell), and `MEASURED`. RPO is derived from the real `backupConfiguration`: PITR
+  bounds it at transaction-log durability, backups-without-PITR at the daily interval, and no
+  automated backup at all is reported `UNBOUNDED` rather than as an error — that last case is
+  the `TEL-P0-002` finding, not a failure to measure. Only `MEASURED` writes `PASS`.
+- **Regression test**: `tests/certification-rpo-probe.test.ts`, 18 tests, including that no
+  failure path can ever return `MEASURED`.
+- **Remaining before VERIFIED**: an authenticated `gcloud` run against the live project.
+- **Evidence ID**: `EV-DR-RPO` (still `BLOCKED_EXTERNAL` here — now for the accurate reason)
+
+---
+
+### `TEL-P2-019` — A Windows Batch Shim Would Have Reported gcloud As Absent
+- **Severity**: P2
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: the `TEL-P1-024` probe reporting `NOT_INSTALLED` on a machine where
+  `gcloud version` works perfectly from the shell.
+- **Root cause**: on Windows `gcloud` is `gcloud.cmd`, a batch file. `spawnSync('gcloud', …)`
+  returns `ENOENT` for the bare name, and since the CVE-2024-27980 mitigation Node returns
+  `EINVAL` for the `.cmd` unless a shell is used. A probe reading either as "not installed"
+  reports a false blocker on every Windows certification workstation — which would have
+  reproduced the very defect `TEL-P1-024` was fixing, one layer down.
+- **Fix**: `scripts/certification/lib/exec.mjs` retries the `.cmd`/`.bat` shim through a shell
+  on `ENOENT`/`EINVAL`. Because the shell concatenates rather than escapes, every argument is
+  screened for shell metacharacters first and **refused** rather than quoted-and-hoped-for.
+  `.exe` programs — docker, podman, node — never touch this path.
+- **Regression test**: `tests/certification-rpo-probe.test.ts` — resolves a real shim, and
+  asserts a metacharacter argument throws rather than reaching a shell.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P2-020` — `scripts/rollback.sh` Was Owned By No Domain
+- **Severity**: P2
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: `tests/agent-routing.test.ts` failing after `rollback.sh` was modified:
+  `unmapped paths — add them to .agent/registry/domains.yaml: expected [ 'scripts/rollback.sh' ]
+  to deeply equal []`.
+- **Root cause**: `production-release` mapped `scripts/deploy*` but not `scripts/rollback*`, so
+  the rollback script — an R4 surface — routed to no domain, no risk class and no target tests.
+  It went unnoticed only because nobody had changed the file since the router was built.
+- **Fix**: added `scripts/rollback*` to the `production-release` domain.
+- **Regression test**: `tests/agent-routing.test.ts` — 32 passed, exit 0.
 - **Evidence ID**: *(none yet)*
 
 ---
