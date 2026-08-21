@@ -417,13 +417,13 @@ and the rest is untouched; it is not a synonym for "nearly done".
 | 1 | Production AI recovery · deployment gating · provider + gateway certification · observability baseline | **DONE**, with one known gap: `ai:smoke-providers` is 2/3 and `ai:smoke-gateway` 13/14, both from the Groq tier ceiling the gate over-asks against |
 | 2 | EvalLab foundation · golden dataset · failure cases | **PARTIAL** — the suite now asserts instead of passing vacuously, and the dataset covers 8 families / all six roles / 47 scenarios. The directive asks for 300–500, and live-model scoring does not exist |
 | 3 | Context Compiler · context authorization · budgeting | **NOT STARTED** |
-| 4 | Persistent Commercial Memory · provenance · correction/freshness | **DONE** — `14739b5`, 14/14 |
+| 4 | Persistent Commercial Memory · provenance · correction/freshness | **PARTIAL** — store, rules and read path done (`14739b5`, `3dd32af`); **nothing writes claims yet**, so reads return empty until a writer exists |
 | 5 | Six real role copilots · remove hard-coded intelligence | **PARTIAL** — the fake intelligence is gone (`5d46eaa`). Real copilots are **not built**; the product has no role copilot at all right now, which is honest rather than misleading but is not the end state |
 | 6 | Tool Design 2.0 · action pipeline · idempotency · approval integrity | **NOT STARTED** — existing idempotency and authorization are intact and now correctly evidenced |
 | 7 | Model Routing 2.0 · model lifecycle · shadow eval · cost intelligence | **NOT STARTED** — the registry, router and pricing already exist and were not changed |
 | 8 | Proactive intelligence · role alerts | **NOT STARTED** |
 | 9 | AI Control Plane · flight recorder · incident workflow | **NOT STARTED** — `AiCall` and `/api/ai/status` already provide a ledger-derived baseline; the per-turn trace the directive describes does not exist |
-| 10 | Red team · six-role browser acceptance · failover drills · certification | **PARTIAL** — degraded-provider drill 7/7 and chat journeys 30/30 on a production build; no adversarial live-model suite, no certification regenerated |
+| 10 | Red team · six-role browser acceptance · failover drills · certification | **PARTIAL** — six-role acceptance **15/15 exit 0**, chat journeys **30/30 exit 0**, degraded-provider drill **7/7 exit 0**, all against a production build; no adversarial live-model suite, no certification regenerated |
 
 ### What this initiative has actually changed
 
