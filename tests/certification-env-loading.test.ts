@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { readFileSync } from 'fs';
+import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 import { join } from 'path';
 import { pathToFileURL } from 'url';
 import { execFileSync } from 'child_process';
@@ -10,6 +11,53 @@ import { OPERATOR_SUPPLIED, missingOperatorEnv } from '../scripts/certification/
 const LOADER_URL = pathToFileURL(
   join(process.cwd(), 'scripts', 'certification', 'lib', 'loadEnv.mjs'),
 ).href;
+
+const fixtureDirs: string[] = [];
+
+/** A throwaway directory holding the env files a case needs, and nothing else. */
+function fixtureRoot(files: Record<string, string>): string {
+  const dir = mkdtempSync(join(tmpdir(), 'cert-env-'));
+  fixtureDirs.push(dir);
+  for (const [name, contents] of Object.entries(files)) {
+    writeFileSync(join(dir, name), contents);
+  }
+  return dir;
+}
+
+/**
+ * Load in a child process: this one has already been configured by vitest, so observing the
+ * load here would measure vitest's environment rather than the loader's behaviour.
+ */
+function loadInChild(root: string): {
+  files: string[];
+  databaseUrl: boolean;
+  redisUrl: boolean;
+  databaseUrlValue: string;
+  threw?: string;
+} {
+  const script = `
+    import('${LOADER_URL}')
+      .then(m => {
+        const files = m.loadCertificationEnv({ root: ${JSON.stringify(root)} });
+        console.log('RESULT:' + JSON.stringify({
+          files,
+          databaseUrl: Boolean(process.env.DATABASE_URL),
+          redisUrl: Boolean(process.env.REDIS_URL),
+          databaseUrlValue: process.env.DATABASE_URL || '',
+        }));
+      })
+      .catch(e => console.log('RESULT:' + JSON.stringify({ threw: e.message })));
+  `;
+  // A clean environment, so a value inherited from this shell cannot be mistaken for one the
+  // loader read out of a file. NODE_ENV is kept because ProcessEnv requires it.
+  const env: NodeJS.ProcessEnv = {
+    PATH: process.env.PATH ?? '',
+    SystemRoot: process.env.SystemRoot ?? '',
+    NODE_ENV: process.env.NODE_ENV,
+  };
+  const out: string = execFileSync(process.execPath, ['-e', script], { encoding: 'utf8', env });
+  return JSON.parse(out.slice(out.indexOf('RESULT:') + 7, out.lastIndexOf('}') + 1));
+}
 
 /**
  * The ladder loaded configuration with `import 'dotenv/config'`, which reads `.env` and
@@ -40,36 +88,48 @@ describe('certification env loading', () => {
   });
 
   it('reads .env.local, which is where this project keeps configuration', () => {
-    // Run in a child so the load is observed from a clean process rather than this one,
-    // which vitest has already configured.
-    const script = `
-      import('${LOADER_URL}')
-        .then(m => {
-          const files = m.loadCertificationEnv();
-          console.log(JSON.stringify({
-            files,
-            databaseUrl: Boolean(process.env.DATABASE_URL),
-            redisUrl: Boolean(process.env.REDIS_URL),
-          }));
-        });
-    `;
-    const out = execFileSync(process.execPath, ['-e', script], { encoding: 'utf8' });
-    const parsed = JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1));
+    // Against a fixture root, not this repository's own files: CI has no .env.local, and a
+    // test that depends on one passes here and fails there — which is exactly what it did.
+    const root = fixtureRoot({
+      '.env.local': 'DATABASE_URL=postgresql://fixture@127.0.0.1:5432/fixture\nREDIS_URL=redis://127.0.0.1:6379\n',
+    });
+    const parsed = loadInChild(root);
     expect(parsed.files).toContain('.env.local');
     expect(parsed.databaseUrl).toBe(true);
     expect(parsed.redisUrl).toBe(true);
   });
 
+  it('prefers .env.local over .env, as Next.js does', () => {
+    const root = fixtureRoot({
+      '.env': 'DATABASE_URL=postgresql://from-dot-env@127.0.0.1:5432/x\n',
+      '.env.local': 'DATABASE_URL=postgresql://from-dot-env-local@127.0.0.1:5432/x\n',
+    });
+    const parsed = loadInChild(root);
+    expect(parsed.files).toEqual(['.env.local', '.env']);
+    expect(parsed.databaseUrlValue).toContain('from-dot-env-local');
+  });
+
+  it('returns an empty list where no env file exists, rather than throwing', () => {
+    // A CI machine that exports everything explicitly has neither file.
+    const parsed = loadInChild(fixtureRoot({}));
+    expect(parsed.files).toEqual([]);
+    expect(parsed.threw).toBeUndefined();
+  });
+
   it('does not override a variable already exported in the shell', () => {
     // CI exports everything explicitly. An env file must never win over that, or a run would
     // silently test a different configuration than the one CI intended.
+    const root = fixtureRoot({
+      '.env.local': 'DATABASE_URL=postgresql://from-file@127.0.0.1:5432/x\n',
+    });
     const script = `
       process.env.DATABASE_URL = 'postgresql://sentinel:sentinel@127.0.0.1:5432/sentinel';
       import('${LOADER_URL}')
-        .then(m => { m.loadCertificationEnv(); console.log(process.env.DATABASE_URL); });
+        .then(m => { m.loadCertificationEnv({ root: ${JSON.stringify(root)} }); console.log(process.env.DATABASE_URL); });
     `;
     const out = execFileSync(process.execPath, ['-e', script], { encoding: 'utf8' });
     expect(out).toContain('sentinel');
+    expect(out).not.toContain('from-file');
   });
 
   it('names E2E_PASSWORD as operator-supplied rather than reading it from a file', () => {
@@ -111,22 +171,6 @@ describe('certification env loading', () => {
   });
 });
 
-describe('loadCertificationEnv is safe to call anywhere', () => {
-  it('returns the list of files it read and never throws', () => {
-    // It resolves relative to REPO_ROOT, not the working directory, so it behaves the same
-    // wherever it is invoked from — and on a machine with no env file at all it must return
-    // an empty list rather than throwing, so CI still runs.
-    const script = `
-      import('${LOADER_URL}')
-        .then(m => { const f = m.loadCertificationEnv(); console.log('FILES:' + JSON.stringify(f)); })
-        .catch(e => { console.log('threw: ' + e.message); });
-    `;
-    const out = execFileSync(process.execPath, ['-e', script], {
-      encoding: 'utf8',
-      cwd: process.cwd(),
-    });
-    expect(out).not.toContain('threw:');
-    const files = JSON.parse(out.slice(out.indexOf('FILES:') + 6, out.lastIndexOf(']') + 1));
-    expect(Array.isArray(files)).toBe(true);
-  });
+afterAll(() => {
+  for (const dir of fixtureDirs) rmSync(dir, { recursive: true, force: true });
 });

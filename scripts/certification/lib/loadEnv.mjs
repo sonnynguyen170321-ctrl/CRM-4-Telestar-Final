@@ -22,9 +22,9 @@ import { REPO_ROOT } from './paths.mjs';
  * Precedence matches Next.js: `.env.local` wins over `.env`. Neither overrides a variable
  * already exported in the shell, so CI — which exports everything explicitly — is unaffected.
  */
-export function loadCertificationEnv() {
+export function loadCertificationEnv({ root = REPO_ROOT } = {}) {
   const files = ['.env.local', '.env']
-    .map((name) => path.join(REPO_ROOT, name))
+    .map((name) => path.join(root, name))
     .filter((file) => existsSync(file));
 
   if (files.length > 0) {

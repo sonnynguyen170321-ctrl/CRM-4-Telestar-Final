@@ -9,7 +9,7 @@ CANDIDATE_SHA=daa8ffb679b7bee87a907d4913123318b697eab6
 HEAD_SHA=4e8145c64094803074d7c2aabd38d89fcb45fa6b
 IMAGE_DIGEST=sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49
 DEPLOYED_SHA=daa8ffb679b7bee87a907d4913123318b697eab6
-CURRENT_PHASE=1 complete, PR #100 open — awaiting container runtime install
+CURRENT_PHASE=1 complete, PR #100 green on CI required checks — awaiting container runtime
 CURRENT_BLOCKER=docker absent (DR-003, REL-003/4/5) + gcloud unauthenticated (DR-007, TEL-P0-002)
 P0_OPEN=2
 P1_OPEN=17 (new: TEL-P1-023, TEL-P1-024, DEPLOY-001, DEPLOY-002 — all FIXED_PENDING_VERIFICATION)
@@ -54,7 +54,9 @@ NEXT_ACTION=operator installing Docker Desktop; then re-freeze candidate and run
 | TEL-P1-024 | P1 | FIXED_PENDING_VERIFICATION | agent | tests/certification-rpo-probe.test.ts — needs authenticated gcloud |
 | TEL-P2-019 | P2 | FIXED_PENDING_VERIFICATION | agent | Windows batch-shim exec, tests/certification-rpo-probe.test.ts |
 | TEL-P2-020 | P2 | FIXED_PENDING_VERIFICATION | agent | rollback.sh domain mapping, tests/agent-routing.test.ts |
-| TEL-P1-025 | P1 | FIXED_PENDING_VERIFICATION | agent | gitleaks path exemption; closes on green secret-scan for PR #100 |
+| TEL-P1-025 | P1 | FIXED_PENDING_VERIFICATION | agent | gitleaks path exemption; secret-scan now PASS on PR #100 |
+| TEL-P2-021 | P2 | FIXED_PENDING_VERIFICATION | agent | ladder reads .env.local; gate 02 probe now exits 0 |
+| TEL-P2-018 | P2 | FIXED_PENDING_VERIFICATION | external | premise dead: CodeQL + Dependency review pass across 6 runs |
 
 ## Ceiling with Docker alone
 
@@ -92,6 +94,26 @@ Without both, the ceiling is 103/108 and the verdict stays NO-GO. Neither is a c
 | `scripts/certification/lib/rpoProbe.mjs` — real RPO probe | 18 tests | 0 |
 | `scripts/certification/lib/exec.mjs` — Windows shim resolution | included above | 0 |
 | `.agent/registry/domains.yaml` — `scripts/rollback*` mapped | 32 tests | 0 |
+| `.gitleaks.toml` — fixture path exemption (TEL-P1-025) | 21 tests | 0 |
+| `scripts/certification/lib/loadEnv.mjs` — ladder reads `.env.local` | 7 tests | 0 |
+| full vitest suite (3rd convergence) | 179 files, **2414 passed**, 0 failed, 0 skipped | 0 |
+| **PR #100 `CI required checks`** | every mandatory job green | 0 |
+
+## Gate pre-flight on this machine (2026-08-21)
+
+Run ahead of the ladder so a long run does not fail on something knowable in seconds.
+
+| Gate | Result |
+|---|---|
+| 02-environment | PASS — was FAIL before TEL-P2-021 |
+| 05-test-discipline | PASS |
+| 06-migration-validation | PASS |
+| 07-database-integrity | PASS |
+| 21-compose-validation | PASS |
+| seed delete order · stale models | PASS |
+| 15-production-build | in progress |
+| 19/20 image gates | need a container runtime |
+| 01-source-identity | fails until the candidate is re-frozen — expected |
 
 ## Candidate status
 
