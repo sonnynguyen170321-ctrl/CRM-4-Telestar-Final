@@ -14,6 +14,7 @@ import { compileConstitutionalPrompt } from '@/lib/ai/behavior/telestar-ai-const
 import { readClaims } from '@/lib/memory/claims';
 import { scrubSecrets } from '@/lib/ai/engine/security-guards';
 import { compileContext, type ContextItem } from '@/lib/ai/context/compiler';
+import { claimPrefix } from '@/lib/ai/context/claimLabel';
 import { ROLE_POLICY_VERSION, rolePolicyPrompt } from '@/lib/ai/roles/policy';
 
 /**
@@ -266,12 +267,7 @@ export async function POST(req: NextRequest) {
         // claims share a tier because the label already tells them apart in the text.
         const lines = ['\nWhat Telestar AI has recorded about this contact:'];
         for (const claim of claims) {
-          const label =
-            claim.claimType === 'INFERRED' && claim.confidence != null
-              ? `inferred, confidence ${claim.confidence.toFixed(2)}`
-              : claim.claimType.toLowerCase();
-          const provenance = claim.sourceType ? `, from ${claim.sourceType}` : '';
-          lines.push(`- (${label}${provenance}) ${scrubSecrets(claim.claimText)}`);
+          lines.push(`- ${claimPrefix(claim)} ${scrubSecrets(claim.claimText)}`);
         }
         contextItems.push({ tier: 'commercial_evidence', key: 'claims', text: lines.join('\n') });
       }

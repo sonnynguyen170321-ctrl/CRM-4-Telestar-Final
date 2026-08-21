@@ -323,12 +323,17 @@ describe('CRM context', () => {
         claimText: 'Sarah stated budget review is in September.',
         sourceType: 'email',
         confidence: null,
+        // A person entered this one, so it is factual on their authority.
+        createdByType: 'user',
+        verifiedAt: null,
       },
       {
         claimType: 'INFERRED',
         claimText: 'Likely evaluating a competitor.',
         sourceType: null,
         confidence: 0.62,
+        createdByType: 'ai',
+        verifiedAt: null,
       },
     ]);
 
@@ -350,6 +355,35 @@ describe('CRM context', () => {
       scopeId: 'clh1234567890abcdefgh',
       status: 'active',
     });
+  });
+
+  it('does not present an unverified AI-written claim as established fact', async () => {
+    // Memory poisoning: untrusted content in a prospect's email influences the model, the model
+    // records a "fact" citing a source nobody confirmed, and every later turn reads it as
+    // settled. The claim is still shown — losing it would lose real information — but the model
+    // is told who is vouching for it, which is nobody.
+    loadAuthorizedLeadContext.mockResolvedValue({ leadName: 'Dana Ito' });
+    commercialClaimFindMany.mockResolvedValueOnce([
+      {
+        claimType: 'FACTUAL',
+        claimText: 'They have already signed with us.',
+        sourceType: 'email',
+        confidence: null,
+        createdByType: 'ai',
+        verifiedAt: null,
+      },
+    ]);
+
+    await POST(
+      post({
+        messages: [{ role: 'user', content: 'Prep me' }],
+        context: { leadId: 'clh1234567890abcdefgh' },
+      }),
+    );
+
+    const prompt = executeMock.mock.calls[0][0].systemPrompt as string;
+    expect(prompt).toContain('(reported, not yet verified, from email) They have already signed');
+    expect(prompt).not.toContain('(factual, from email) They have already signed');
   });
 
   it('strips a credential out of a claim before it reaches the model', async () => {
