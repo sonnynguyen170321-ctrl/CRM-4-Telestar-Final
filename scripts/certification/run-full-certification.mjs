@@ -13,8 +13,6 @@
  * Writes a run manifest, an evidence record per run, and the derived RUN_N.md. Exits non-zero
  * if any mandatory gate failed.
  */
-import 'dotenv/config';
-
 import { spawnSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -28,7 +26,12 @@ import {
   writeGateEvidence,
 } from './collect-evidence.mjs';
 import { CONFIG_PATH, EVIDENCE_DIR, RAW_DIR, REPO_ROOT, RUNS_DIR } from './lib/paths.mjs';
+import { loadCertificationEnv, missingOperatorEnv } from './lib/loadEnv.mjs';
 import { containerRuntime, gateDockerBuild, gateImageInspection } from './lib/imageGates.mjs';
+
+// Before any `const` below reads process.env: CERT_PORT is read at module load, so loading
+// configuration inside main() would be too late for it.
+const ENV_FILES_LOADED = loadCertificationEnv();
 
 const RUN_MANIFEST_DIR = path.join(RUNS_DIR, 'manifests');
 const SERVER_PORT = Number(process.env.CERT_PORT || 3000);
@@ -385,10 +388,14 @@ async function main() {
   mkdirSync(RUN_MANIFEST_DIR, { recursive: true });
   mkdirSync(path.join(REPO_ROOT, '.certification'), { recursive: true });
 
-  if (!process.env.E2E_PASSWORD) {
+  const missingEnv = missingOperatorEnv();
+  if (missingEnv.length > 0) {
     console.error(
-      'E2E_PASSWORD is required for the browser gates. Use a run-scoped value; the published ' +
-        'demo password is refused by e2e/support/fixture.ts.',
+      `${missingEnv.join(', ')} is required for the browser gates. Use a run-scoped value; the ` +
+        'published demo password is refused by e2e/support/fixture.ts.',
+    );
+    console.error(
+      `Configuration loaded from: ${ENV_FILES_LOADED.length > 0 ? ENV_FILES_LOADED.join(', ') : 'no env file found'}.`,
     );
     process.exit(2);
   }

@@ -21,9 +21,9 @@
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 2 | 0 | 0 | **2** |
 | **P1** (Critical) | 27 | 9 | 4 | **18** |
-| **P2** (Important) | 22 | 9 | 3 | **13** |
+| **P2** (Important) | 23 | 9 | 3 | **14** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **47** | **18** | **7** | **29** |
+| **TOTAL** | **48** | **18** | **7** | **30** |
 
 The defect total is permitted to increase. Finding more defects is successful auditing.
 The prior cap of 25 is void.
@@ -389,8 +389,33 @@ The prior cap of 25 is void.
 
 ### `TEL-P2-018` — Two CI Jobs Cannot Run On This Repository
 - **Severity**: P2
-- **Status**: `BLOCKED_EXTERNAL`
+- **Status**: `FIXED_PENDING_VERIFICATION`
 - **Discovered by**: CI run `32323964277`.
+
+> **Premise no longer holds, 2026-08-21.** Both jobs now run and pass. Checked across the six
+> most recent `ci.yml` runs rather than inferred from one:
+>
+> | Run | CodeQL | Dependency review |
+> |---|---|---|
+> | `32487639659` | success | success |
+> | `32486606317` | success | success |
+> | `32486554961` | cancelled (superseded) | success |
+> | `32443270100` | success | skipped (push event — correct) |
+> | `32418164738` | success | skipped (push event — correct) |
+> | `32416213512` | success | skipped (push event — correct) |
+>
+> `skipped` on the push runs is the workflow behaving as designed: dependency review needs a
+> base ref to diff against, so it runs on `pull_request` only. Whatever repository setting was
+> missing on 2026-08-20 — Dependency graph, or Advanced Security — has since been enabled.
+> Nothing in this repository changed to cause it, which is why the finding was correctly
+> classified `BLOCKED_EXTERNAL` at the time.
+>
+> This closes the "CI is green is unreachable" concern **for these two jobs**. The genuinely
+> unreachable mandatory gate turned out to be a different one — see `TEL-P1-025`.
+>
+> Note the aggregate job never treated either as mandatory: `require "codeql" "$CODEQL"
+> success skipped failure` accepts all three outcomes deliberately, so that the merge gate
+> depends on the code rather than on a GitHub plan.
 - **Detail**: two required checks fail for repository-configuration reasons rather than code.
 
   | Job | Error |
@@ -600,6 +625,40 @@ The prior cap of 25 is void.
   still need its own path entry. Narrowing the scan to the PR's own commits would weaken it and
   was not done.
 - **Evidence ID**: *(none yet — closes on a green `secret-scan` for PR #100)*
+
+---
+
+### `TEL-P2-021` — The Ladder Could Not Read This Project's Own Configuration
+- **Severity**: P2
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: checking gate 02 before spending a full ladder run on it.
+- **Root cause**: `run-full-certification.mjs` loaded configuration with
+  `import 'dotenv/config'`, which reads `.env` and nothing else. This repository keeps local
+  configuration in **`.env.local`** — the Next.js convention the app, the dev server and
+  `agent doctor` all follow — and has no `.env` at all. Measured on the certification
+  workstation, gate 02 therefore failed:
+
+  ```
+  DATABASE_URL is not set
+  REDIS_URL is not set; the Redis-dependent gates cannot run
+  AUTH_SECRET is not configured
+  ENCRYPTION_KEY is not configured
+  ```
+
+- **Why it matters**: run 1 would have failed for an environment-loading reason having nothing
+  to do with the candidate, after the long gates had already run. The probe itself was honest —
+  it exits 1 on `FAIL`, verified directly rather than through a pipe — so this was never a
+  false green, only wasted runs and a misleading first impression of the candidate.
+- **Fix**: `scripts/certification/lib/loadEnv.mjs` loads `.env.local` then `.env`, matching
+  Next.js precedence, and **never overrides a variable already exported in the shell** so CI —
+  which exports everything explicitly — is unaffected. Loaded at module scope, because
+  `CERT_PORT` is read into a `const` before `main()` runs. `E2E_PASSWORD` stays deliberately
+  operator-supplied: it is run-scoped and `e2e/support/fixture.ts` refuses the published demo
+  password, so it is now named in `OPERATOR_SUPPLIED` and reported as missing with the list of
+  files that were actually read.
+- **Measured after the fix**: gate 02 probe exits **0**, `status: PASS`, `problems: []`.
+- **Regression test**: `tests/certification-env-loading.test.ts` — 7 passed, exit 0.
+- **Evidence ID**: *(none yet)*
 
 ---
 
