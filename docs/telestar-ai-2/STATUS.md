@@ -418,9 +418,9 @@ and the rest is untouched; it is not a synonym for "nearly done".
 | 2 | EvalLab foundation · golden dataset · failure cases | **PARTIAL** — the suite now asserts instead of passing vacuously, and the dataset covers 8 families / all six roles / 47 scenarios. The directive asks for 300–500, and live-model scoring does not exist |
 | 3 | Context Compiler · context authorization · budgeting | **DONE** — `35c1a99`. Ranks by tier, dedupes, budgets, returns a trace. Deliberately does **not** authorize: every item has already passed the authorization governing its source, and a second check beside the real one is the weaker one |
 | 4 | Persistent Commercial Memory · provenance · correction/freshness | **DONE** — store and rules (`14739b5`), read into the chat turn (`3dd32af`), object-authorized writer (`2ec5a20`). 17/17 |
-| 5 | Six real role copilots · remove hard-coded intelligence | **PARTIAL** — the fake intelligence is gone (`5d46eaa`). Real copilots are **not built**; the product has no role copilot at all right now, which is honest rather than misleading but is not the end state |
-| 6 | Tool Design 2.0 · action pipeline · idempotency · approval integrity | **NOT STARTED** — existing idempotency and authorization are intact and now correctly evidenced |
-| 7 | Model Routing 2.0 · model lifecycle · shadow eval · cost intelligence | **NOT STARTED** — the registry, router and pricing already exist and were not changed |
+| 5 | Six real role copilots · remove hard-coded intelligence | **PARTIAL** — fake intelligence gone (`5d46eaa`); per-role policy with mandate, scope and boundaries, drift-checked against the generated role map (`c082ceb`). Role-specific *engines* beyond NBA and attention are still not built |
+| 6 | Tool Design 2.0 · action pipeline · idempotency · approval integrity | **PARTIAL** — approval integrity audited and found already sound (`approvedCopy` is what an approver sees and what execution replays). Per-tool outcomes now recorded incl. refusals (`be3d520`). No structured tool-result contract, no composite read tool |
+| 7 | Model Routing 2.0 · model lifecycle · shadow eval · cost intelligence | **PARTIAL** — registry and its evidence file now held to each other (`caf8e09`), and the shared output budget removed a gate/runtime drift (`e270715`). No lifecycle stages, no shadow/canary, no cost-per-successful-task |
 | 8 | Proactive intelligence · role alerts | **NOT STARTED** |
 | 9 | AI Control Plane · flight recorder · incident workflow | **PARTIAL** — `00776f3` adds the per-turn trace: surface, requested model, fallback *path*, context included/dropped/tokens, memory claim count. Counts and ids only, never content. No incident workflow, no control-plane UI |
 | 10 | Red team · six-role browser acceptance · failover drills · certification | **PARTIAL** — six-role acceptance **15/15 exit 0**, chat journeys **30/30 exit 0**, degraded-provider drill **7/7 exit 0**, all against a production build; no adversarial live-model suite, no certification regenerated |
@@ -470,6 +470,10 @@ exists to bind once commercial memory accumulates.
 | `e270715` | release gates ask for the budget the product sends — providers 3/3, gateway 14/14 |
 | `35c1a99` | context compiler: ranked, deduplicated, budgeted, traced |
 | `00776f3` | per-turn flight recorder — counts and ids, never content |
+| `c082ceb` | six role policies, drift-checked; constitution stops naming a role that does not exist |
+| `be3d520` | every tool call's outcome recorded, refusals distinguished from failures |
+| `584d4b1` | an unverified AI-written claim no longer reads as established fact |
+| `caf8e09` | model registry and its evidence file held to each other |
 
 ## Open questions for the operator
 
