@@ -20,10 +20,10 @@
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 3 | 1 | 0 | **2** |
-| **P1** (Critical) | 30 | 9 | 4 | **21** |
+| **P1** (Critical) | 31 | 9 | 4 | **22** |
 | **P2** (Important) | 23 | 9 | 3 | **14** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **52** | **19** | **7** | **33** |
+| **TOTAL** | **53** | **19** | **7** | **34** |
 
 The defect total is permitted to increase. Finding more defects is successful auditing.
 The prior cap of 25 is void.
@@ -71,6 +71,42 @@ The prior cap of 25 is void.
 - **Remaining before VERIFIED**: exercise through the real HTTP surface with a live SDR-minted
   key, per `.claude/rules/auth-rbac.md` — this is an R4 change and the role E2E suite is part of
   the evidence, not an optional extra.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-029` — Demo Diagnostics Endpoint Readable Against Live Tenants, Without Object Authorization
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: the directed object-level authorization audit.
+- **Root cause**: `app/api/demo/diagnostics/route.ts` gated on `requireAuth()` and a tenant
+  comparison, and nothing else. Two distinct problems:
+
+  1. **It ran against real client tenants.** Its own docstring calls it *"a debugging tool, not
+     a customer surface"*, and every sibling under `app/api/demo/` confines itself to
+     `DEMO_TENANT_ID` — `inbound-reply` says why in as many words, *"so it cannot be used to
+     inject mail into a real one"*. Diagnostics had drifted from that convention and was the
+     only route in the directory readable against a live tenant.
+  2. **No object authorization inside the tenant.** Any authenticated user could pass any
+     `leadId` belonging to their tenant. An SDR could therefore read another SDR's prospect —
+     identity and company, operating state, enrollment, current task, work orders, **agent
+     actions, approvals**, reply classification, job runs and latest activity.
+
+- **Invariant broken**, stated in `AGENTS.md`: *"Capability authorization is not object
+  authorization."* Being allowed to call the endpoint is not being allowed to read that row.
+- **Not affected**: cross-tenant reads were already refused, so this was never a tenant-isolation
+  breach — it is a within-tenant, cross-user exposure.
+- **Fix**: the route now refuses any tenant other than `DEMO_TENANT_ID` with **403**, before it
+  reads any prospect data, matching `inbound-reply`. Within the demo tenant it additionally
+  resolves `getVisibleUserIds(user)` and refuses a lead outside that set with the **same 404** a
+  missing lead returns, so the endpoint cannot be used as an oracle for which lead ids exist.
+  The pre-existing tenant check is retained, so neither guard is load-bearing alone.
+- **Regression test**: `tests/demo-diagnostics-authorization.test.ts` — 12 passed, exit 0. It
+  also asserts the convention across **every** route under `app/api/demo/`, since the defect was
+  one route drifting from what its siblings do.
+- **Blast radius re-run**: 5 object-authorization suites, **75 passed**, exit 0.
+- **Remaining before VERIFIED**: exercise through the real HTTP surface — SDR A requesting
+  SDR B's lead must 404.
 - **Evidence ID**: *(none yet)*
 
 ---

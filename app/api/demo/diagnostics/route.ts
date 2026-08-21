@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, getVisibleUserIds } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { handleApiError } from '@/lib/api/errors';
 import { evaluateReengagementEligibility } from '@/lib/prospects/reengagement';
@@ -14,11 +14,25 @@ import { evaluateReengagementEligibility } from '@/lib/prospects/reengagement';
  *
  * Read-only, tenant-scoped by the session, and deliberately unstyled — a debugging tool, not a
  * customer surface.
+ *
+ * Restricted to the demo tenant, like `demo/inbound-reply`, so a debugging escape hatch cannot
+ * be pointed at a real client's prospects. It previously had no such restriction and was the
+ * only route under `demo/` readable against a live tenant (TEL-P1-029).
+ *
+ * Scoped to what the caller may already see, because refusing a lead only on tenant is
+ * capability authorization, not object authorization: it let one SDR read another SDR's
+ * prospect, including agent actions, approvals and reply classification.
  */
+const DEMO_TENANT_ID = 'demo-telestar';
+
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
+
+  if (user.tenantId !== DEMO_TENANT_ID) {
+    return NextResponse.json({ error: 'Available in the demo tenant only' }, { status: 403 });
+  }
 
   const leadId = req.nextUrl.searchParams.get('leadId');
   if (!leadId) return NextResponse.json({ error: 'leadId is required' }, { status: 400 });
@@ -28,12 +42,21 @@ export async function GET(req: NextRequest) {
     const lead = await prisma.lead.findUnique({
       where: { id: leadId },
       select: {
-        id: true, tenantId: true, firstName: true, lastName: true, company: true,
+        id: true, tenantId: true, assignedToId: true,
+        firstName: true, lastName: true, company: true,
         operatingState: true, operatingStateAt: true, stage: true,
         sequenceId: true, sequenceStep: true, sequenceStatus: true, nextTaskDue: true,
       },
     });
     if (!lead || lead.tenantId !== tenantId) {
+      return NextResponse.json({ error: 'Prospect not found' }, { status: 404 });
+    }
+
+    // Object authorization. `null` means unrestricted (director); anyone else may only
+    // diagnose a prospect they could already see. Same 404 as a missing lead, so this does not
+    // become an oracle for which lead ids exist.
+    const visibleUserIds = await getVisibleUserIds(user);
+    if (visibleUserIds !== null && !visibleUserIds.includes(lead.assignedToId)) {
       return NextResponse.json({ error: 'Prospect not found' }, { status: 404 });
     }
 
