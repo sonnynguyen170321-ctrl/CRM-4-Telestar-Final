@@ -20,10 +20,10 @@
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 2 | 0 | 0 | **2** |
-| **P1** (Critical) | 27 | 9 | 4 | **18** |
+| **P1** (Critical) | 28 | 9 | 4 | **19** |
 | **P2** (Important) | 23 | 9 | 3 | **14** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **48** | **18** | **7** | **30** |
+| **TOTAL** | **49** | **18** | **7** | **31** |
 
 The defect total is permitted to increase. Finding more defects is successful auditing.
 The prior cap of 25 is void.
@@ -659,6 +659,33 @@ The prior cap of 25 is void.
 - **Measured after the fix**: gate 02 probe exits **0**, `status: PASS`, `problems: []`.
 - **Regression test**: `tests/certification-env-loading.test.ts` — 7 passed, exit 0.
 - **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-026` — DR-003 Has No Script That Can Ever Produce A Pass
+- **Severity**: P1
+- **Status**: `OPEN`
+- **Discovered by**: checking that the planned remediation would actually reach GO, before
+  spending three ladder runs finding out.
+- **Detail**: `DR-003` ("Rollback drill to previous immutable container image") is `mandatory`
+  and requires an evidence record of kind `dr-rollback` with status `PASS`. The **only** thing
+  in the repository that writes that kind is `scripts/certification/record-blocked-evidence.mjs`,
+  which writes `NOT_EXECUTED`. Nothing performs a rollback drill and records the result.
+- **Why it matters**: this corrects the remediation plan. Installing a container runtime makes
+  gates 19 and 20 real (`TEL-P1-023`) and therefore unblocks `REL-003/004/005` — but it does
+  **not** unblock `DR-003`, because there is no drill to run. The ceiling with a container
+  runtime alone is **106/108**, not 107.
+- **Required remediation**: a drill that observes, rather than asserts: deploy digest A, prove
+  the health endpoint reports A's SHA; roll back **by digest** to B and prove health reports
+  B's SHA; roll forward to A; record both digests, the command, start and finish, web and
+  worker health, schema compatibility, and the measured rollback duration. `scripts/rollback.sh`
+  already performs the swap safely — including the guards added as `DEPLOY-001`/`DEPLOY-003` —
+  so the drill should drive it rather than reimplement it.
+- **Why not written yet**: it needs a live container runtime to develop against. Writing it
+  blind would produce a few hundred lines of unverified orchestration and a script nobody has
+  run, which is the same class of defect as the authored DR evidence in `TEL-P0-001`. It will
+  be built and verified step by step once a runtime exists.
+- **Evidence ID**: `EV-DR-ROLLBACK` (currently `NOT_EXECUTED`)
 
 ---
 

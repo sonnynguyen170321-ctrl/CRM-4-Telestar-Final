@@ -58,14 +58,23 @@ NEXT_ACTION=operator installing Docker Desktop; then re-freeze candidate and run
 | TEL-P2-021 | P2 | FIXED_PENDING_VERIFICATION | agent | ladder reads .env.local; gate 02 probe now exits 0 |
 | TEL-P2-018 | P2 | FIXED_PENDING_VERIFICATION | external | premise dead: CodeQL + Dependency review pass across 6 runs |
 
-## Ceiling with Docker alone
+## Ceiling with Docker alone — corrected
 
-Installing a container runtime unblocks four requirements — DR-003 and REL-003/004/005 — taking
-verification from 103/108 to **107/108**. The verdict stays **NO-GO** regardless, because DR-007
-(measured RPO) still has no evidence and `TEL-P0-002` is an open **P0**: three repository
-documents disagree about whether production has any automated backup, and nothing in this
-checkout can settle it. That needs one `gcloud auth login` by the operator, or the equivalent
-run from Cloud Shell.
+An earlier version of this file said a container runtime would take verification to 107/108 by
+unblocking DR-003 and REL-003/004/005. That was wrong about DR-003. Corrected:
+
+| Requirement | Unblocked by a container runtime? |
+|---|---|
+| REL-003 / REL-004 / REL-005 | **Yes** — gates 19/20 become real (`TEL-P1-023`) |
+| DR-003 | **No.** Nothing in the repository performs a rollback drill; the only writer of `dr-rollback` evidence records `NOT_EXECUTED`. See `TEL-P1-026` |
+| DR-007 | **No.** Needs an authenticated `gcloud` |
+
+So a container runtime alone reaches **106/108**. Writing the rollback drill takes it to 107/108.
+`gcloud auth login` takes it to 108/108.
+
+The verdict stays **NO-GO** below 108/108 regardless, because `TEL-P0-002` is an open **P0**:
+three repository documents disagree about whether production has any automated backup at all,
+and nothing in this checkout can settle it.
 
 ## Blocked-on-operator (cannot be resolved from this checkout)
 
