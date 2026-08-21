@@ -63,6 +63,41 @@ if [ "$NEW_IMAGE" = "$PREVIOUS_IMAGE" ]; then
   exit 0
 fi
 
+DC="$DOCKER compose --env-file $ENV_FILE $COMPOSE_FILES"
+
+# ── Telestar AI release gates ───────────────────────────────────────────────
+# A deployment is not successful if Telestar AI cannot answer, and presence of a credential is
+# not evidence that it works. On 2026-08-21 all three provider keys were present and all three
+# were rejected with HTTP 401; every presence-based check in this repository passed, and the
+# only signal anyone had was an SDR reporting a generic error sentence.
+#
+# So these gates make real calls, from inside the image that is about to serve traffic. They
+# cost three small completions per deployment. The outage they exist to prevent cost a day.
+#
+# There is deliberately no skip flag. A gate that can be turned off in a hurry is not a gate.
+AI_GATE_RESULTS=""
+
+ai_gate() {
+  local name="$1"; shift
+  log "AI gate: ${name}"
+  if "$@"; then
+    AI_GATE_RESULTS="${AI_GATE_RESULTS}${name}=pass;"
+  else
+    AI_GATE_RESULTS="${AI_GATE_RESULTS}${name}=fail;"
+    fail "AI gate '${name}' failed — Telestar AI would be broken on this deployment.
+  If containers are already running the new digest, the previous one is in ${ENV_FILE} as
+  PREVIOUS_CRM_IMAGE: roll back with ./scripts/rollback.sh
+  If this is the env-contract gate, nothing has been changed yet — fix ${ENV_FILE} and re-run."
+  fi
+}
+
+# Gate 1 of 5 — the environment contract, checked before the backup prompt so that a missing
+# key costs the operator a re-run rather than a Cloud SQL backup. Read inside the new image,
+# because what the image can see is the fact that matters.
+ai_gate env-contract env CRM_IMAGE="$NEW_IMAGE" $DC run --rm --no-deps \
+  -v "$PWD/$ENV_FILE:/tmp/env.production:ro" web \
+  node node_modules/tsx/dist/cli.mjs scripts/prod-check-env.ts --file /tmp/env.production
+
 # ── 2. Back up before any migration ─────────────────────────────────────────
 BACKUP_ID="${DEPLOY_BACKUP_ID:-$(grep -E '^DEPLOY_BACKUP_ID=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' || true)}"
 BACKUP_AT="${DEPLOY_BACKUP_AT:-$(grep -E '^DEPLOY_BACKUP_AT=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' || true)}"
@@ -80,8 +115,6 @@ REMINDER
   [ -n "$BACKUP_ID" ] || fail "Aborted. Backup ID is required."
   BACKUP_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 fi
-
-DC="$DOCKER compose --env-file $ENV_FILE $COMPOSE_FILES"
 
 # ── 3. Migrate, using the NEW image ─────────────────────────────────────────
 # CRM_IMAGE is exported for this command so the one-off container is the same build that
@@ -112,6 +145,27 @@ log "Starting web and worker on the new digest"
 $DC up -d --no-deps web worker
 $DC ps --format 'table {{.Name}}\t{{.Image}}\t{{.Status}}'
 
+# ── 5b. Prove Telestar AI on the running containers ─────────────────────────
+# Gate 2 of 5 — the credentials reached both services. A key present in .env.production but
+# shadowed by an `environment:` entry, or supplied to web and not worker, produces a chatbox
+# that looks healthy while every background AI job fails.
+ai_gate container-secrets env DOCKER="$DOCKER" COMPOSE_FILES="$COMPOSE_FILES" \
+  ./scripts/verify-container-secrets.sh
+
+# Gates 3 and 4 of 5 — a real completion from each provider, from each service. Web passing is
+# not evidence about the worker: they are separate processes with separate environments, and
+# the failure mode where only one of them can reach a provider is invisible from the UI.
+ai_gate provider-smoke-web $DC exec -T web \
+  node node_modules/tsx/dist/cli.mjs scripts/ai-provider-smoke.ts
+ai_gate provider-smoke-worker $DC exec -T worker \
+  node node_modules/tsx/dist/cli.mjs scripts/ai-provider-smoke.ts
+
+# Gate 5 of 5 — the gateway above the providers: routing, model parameters, streaming, and
+# failover in all three directions. Three working providers wired to a broken router is still
+# a broken chatbox.
+ai_gate gateway-smoke $DC exec -T web \
+  node node_modules/tsx/dist/cli.mjs scripts/ai-gateway-smoke.ts
+
 # ── 6. Prove it ─────────────────────────────────────────────────────────────
 log "Post-deploy smoke test"
 if ! DEPLOYED_COMMIT="$COMMIT" DOCKER="$DOCKER" ENV_FILE="$ENV_FILE" \
@@ -123,11 +177,11 @@ fi
 # Append-only structured record in deployments.ndjson
 log "Recording the deployment in ${RECORD_FILE}"
 if command -v python3 >/dev/null 2>&1; then
-  python3 -c 'import sys, json, datetime; c, d, i, p, m, t, b_id, b_at, tot, op = sys.argv[1:]; print(json.dumps({"deployedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(), "commit": c, "digest": d, "image": i, "previousImage": p or None, "deployTarget": t, "backupId": b_id or None, "backupAt": b_at or None, "totalMigrations": int(tot) if tot.isdigit() else 0, "latestMigration": m, "operator": op}))' \
-    "$COMMIT" "$DIGEST" "$NEW_IMAGE" "$PREVIOUS_IMAGE" "$MIGRATION_LATEST" "$DEPLOY_TARGET" "$BACKUP_ID" "$BACKUP_AT" "$TOTAL_MIGRATIONS" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
+  python3 -c 'import sys, json, datetime; c, d, i, p, m, t, b_id, b_at, tot, op, ai = sys.argv[1:]; print(json.dumps({"deployedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(), "commit": c, "digest": d, "image": i, "previousImage": p or None, "deployTarget": t, "backupId": b_id or None, "backupAt": b_at or None, "totalMigrations": int(tot) if tot.isdigit() else 0, "latestMigration": m, "operator": op, "aiGates": dict(x.split("=", 1) for x in ai.split(";") if x)}))' \
+    "$COMMIT" "$DIGEST" "$NEW_IMAGE" "$PREVIOUS_IMAGE" "$MIGRATION_LATEST" "$DEPLOY_TARGET" "$BACKUP_ID" "$BACKUP_AT" "$TOTAL_MIGRATIONS" "$(whoami)@$(hostname)" "$AI_GATE_RESULTS" >> "$RECORD_FILE"
 elif command -v node >/dev/null 2>&1; then
-  node -e 'const [c, d, i, p, m, t, b_id, b_at, tot, op] = process.argv.slice(1); console.log(JSON.stringify({deployedAt: new Date().toISOString(), commit: c, digest: d, image: i, previousImage: p || null, deployTarget: t, backupId: b_id || null, backupAt: b_at || null, totalMigrations: parseInt(tot, 10) || 0, latestMigration: m, operator: op}));' \
-    "$COMMIT" "$DIGEST" "$NEW_IMAGE" "$PREVIOUS_IMAGE" "$MIGRATION_LATEST" "$DEPLOY_TARGET" "$BACKUP_ID" "$BACKUP_AT" "$TOTAL_MIGRATIONS" "$(whoami)@$(hostname)" >> "$RECORD_FILE"
+  node -e 'const [c, d, i, p, m, t, b_id, b_at, tot, op, ai] = process.argv.slice(1); console.log(JSON.stringify({deployedAt: new Date().toISOString(), commit: c, digest: d, image: i, previousImage: p || null, deployTarget: t, backupId: b_id || null, backupAt: b_at || null, totalMigrations: parseInt(tot, 10) || 0, latestMigration: m, operator: op, aiGates: Object.fromEntries(ai.split(';').filter(Boolean).map((x) => x.split('=')))}));' \
+    "$COMMIT" "$DIGEST" "$NEW_IMAGE" "$PREVIOUS_IMAGE" "$MIGRATION_LATEST" "$DEPLOY_TARGET" "$BACKUP_ID" "$BACKUP_AT" "$TOTAL_MIGRATIONS" "$(whoami)@$(hostname)" "$AI_GATE_RESULTS" >> "$RECORD_FILE"
 fi
 
 tail -1 "$RECORD_FILE"

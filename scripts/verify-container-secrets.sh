@@ -16,6 +16,10 @@
 set -uo pipefail
 
 COMPOSE_FILES="${COMPOSE_FILES:--f docker-compose.yml}"
+# deploy.sh drives docker as `sudo docker` on the VM. Hard-coding a bare `docker`
+# here fails with a permission error that reads exactly like a missing credential,
+# so the override has to reach this script too.
+DOCKER="${DOCKER:-docker}"
 SERVICES="${SERVICES:-web worker}"
 KEYS="OPENAI_API_KEY GEMINI_API_KEY GROQ_API_KEY"
 
@@ -26,7 +30,7 @@ for service in $SERVICES; do
   for key in $KEYS; do
     # `printenv` in the container, reduced to a presence boolean before it ever crosses the
     # process boundary. The value is never carried back into this shell.
-    if docker compose $COMPOSE_FILES exec -T "$service" \
+    if $DOCKER compose $COMPOSE_FILES exec -T "$service" \
         sh -c "test -n \"\${$key:-}\"" >/dev/null 2>&1; then
       echo "  $key: SET"
     else
