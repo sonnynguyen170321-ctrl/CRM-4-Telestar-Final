@@ -35,7 +35,7 @@ import OpenAI from 'openai';
 import Groq from 'groq-sdk';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 
-import { findModelMetadata } from '../lib/ai/registry';
+import { CHAT_OUTPUT_BUDGET_TOKENS } from '@/lib/ai/registry';
 
 config({ path: process.env.SMOKE_ENV_FILE || '.env.local' });
 
@@ -148,18 +148,21 @@ async function probeGroq(model: string): Promise<Probe> {
   const client = new Groq({ apiKey: (process.env.GROQ_API_KEY || '').trim() });
   let actualModel: string | undefined;
 
-  // The budget comes from the registry, because that is what the runtime grants.
+  // The budget is the one an interactive turn actually asks for, imported rather than chosen.
   //
-  // This probe asked for 32 tokens and reported the provider as broken. `gpt-oss-20b` is a
-  // reasoning model: it spends output tokens thinking before it emits any visible text, and
-  // 32 truncates it mid-thought. Measured against the live API — 32 tokens returns
+  // This probe asked for 32 tokens once and reported the provider as broken. `gpt-oss-20b` is a
+  // reasoning model: it spends output tokens thinking before it emits any visible text, and 32
+  // truncates it mid-thought. Measured against the live API — 32 tokens returns
   // `completion_tokens=32` and an empty `content`, while 256 returns the answer in 31.
   //
-  // Nothing in the product asks a model to answer inside 32 tokens; the registry grants this
-  // one `defaultMaxOutputTokens: 8192`. A probe that fails on a limit the runtime never
-  // imposes is testing the probe, not the provider. Cost is unaffected — billing is per token
-  // produced, and the model stops after about thirty.
-  const budget = findModelMetadata(model)?.parameters.defaultMaxOutputTokens ?? 512;
+  // The correction to that over-corrected. It moved to `parameters.defaultMaxOutputTokens`,
+  // which is 8192 and which **no production caller sends** — chat sends
+  // `CHAT_OUTPUT_BUDGET_TOKENS`, onboarding sends 130. When a provider tier capped
+  // tokens-per-minute at 8,000, this gate failed on a request no user could produce while the
+  // product served that provider in about half a second.
+  //
+  // Both mistakes have the same shape: the gate picked its own number. It no longer does.
+  const budget = CHAT_OUTPUT_BUDGET_TOKENS;
 
   try {
     const res = await client.chat.completions.create({

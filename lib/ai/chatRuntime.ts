@@ -22,6 +22,7 @@ import { executeAgentAction } from '@/lib/agent/runtime';
 import { capabilityForTool } from '@/lib/agent/toolCapabilities';
 import { WRITE_CAPABILITIES } from '@/lib/agent/capabilities';
 import { AI_TOOLS } from './tools';
+import { CHAT_OUTPUT_BUDGET_TOKENS } from './registry';
 import { scrubSecrets } from './engine/security-guards';
 import { newExecutionId } from './executionId';
 import {
@@ -134,7 +135,7 @@ export async function* runChatTurn(
     turnId: input.turnId,
     preferredModel: input.preferredModel === 'auto' ? undefined : input.preferredModel,
     criteria: { task: 'chat', requiresTools: true, risk: 'draft' },
-    maxTokens: 1200,
+    maxTokens: CHAT_OUTPUT_BUDGET_TOKENS,
     timeoutMs: 60_000,
     tools: AI_TOOLS as unknown as GatewayToolDefinition[],
     executeTool: async ({ name, args, ordinal }) => {

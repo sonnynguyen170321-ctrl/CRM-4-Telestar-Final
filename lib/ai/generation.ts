@@ -31,6 +31,7 @@ import { aiGateway, GatewayError, type GatewayAttempt } from './gateway';
 import { recordAiCall } from './usage';
 import type { ModelId } from './models';
 import type { RoutingCriteria } from './router';
+import { CHAT_OUTPUT_BUDGET_TOKENS } from './registry';
 
 export type AiProviderId = 'openai' | 'google' | 'groq';
 
@@ -126,7 +127,7 @@ export async function generateStructured<T>(
       messages: [{ role: 'user', content: input.userPrompt }],
       systemPrompt: input.systemPrompt,
       responseFormatJson: true,
-      maxTokens: input.maxOutputTokens ?? 1200,
+      maxTokens: input.maxOutputTokens ?? CHAT_OUTPUT_BUDGET_TOKENS,
       temperature: 0.4,
       operation: input.operation,
       leadId: input.leadId ?? undefined,

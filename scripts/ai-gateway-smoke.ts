@@ -14,7 +14,7 @@
 
 import { config } from 'dotenv';
 import { aiGateway } from '@/lib/ai/gateway';
-import { MODEL_REGISTRY } from '@/lib/ai/registry';
+import { CHAT_OUTPUT_BUDGET_TOKENS, MODEL_REGISTRY } from '@/lib/ai/registry';
 import { routeModel } from '@/lib/ai/router';
 import { circuitBreaker } from '@/lib/ai/circuitBreaker';
 import { clearSharedCircuits } from '@/lib/ai/sharedCircuit';
@@ -117,7 +117,7 @@ async function main() {
     // in a release gate, and its red said nothing about the product. Measured directly: at
     // 128 tokens the model finishes with `finish_reason: length` mid-count, at 512 it
     // completes. The registry grants this model 8192, which is what the runtime sends.
-    const budget = model.parameters.defaultMaxOutputTokens ?? model.maxOutputTokens;
+    const budget = CHAT_OUTPUT_BUDGET_TOKENS;
 
     await check(`gateway generate via ${model.displayName}`, async () => {
       circuitBreaker.reset();

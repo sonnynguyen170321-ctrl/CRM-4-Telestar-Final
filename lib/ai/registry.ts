@@ -46,6 +46,22 @@
  * per-model and the next model added may not match its provider's other models.
  */
 
+/**
+ * The output budget an interactive turn actually asks for.
+ *
+ * One number, imported by the runtime *and* by the release gates, so the gate cannot drift from
+ * what the product sends. It drifted once: the provider smoke sent
+ * `parameters.defaultMaxOutputTokens` (8192) on the reasoning that the registry grants it, while
+ * chat has always sent 1200. When a provider tier capped tokens-per-minute at 8,000 the gate
+ * went red on a request no user could produce.
+ *
+ * 1200 rather than something smaller because `openai/gpt-oss-20b` is a reasoning model: it
+ * spends roughly thirty output tokens thinking before it emits a character, and budgets of 32
+ * and 128 truncated it mid-thought and returned an empty string. `tests/ai-output-budget.test.ts`
+ * holds both ends of that.
+ */
+export const CHAT_OUTPUT_BUDGET_TOKENS = 1200;
+
 export type ModelProvider = 'openai' | 'google' | 'groq';
 
 export type ModelCostTier = 'ultra_low' | 'low' | 'standard' | 'premium';
