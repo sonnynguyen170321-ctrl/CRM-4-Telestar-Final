@@ -416,13 +416,13 @@ and the rest is untouched; it is not a synonym for "nearly done".
 |---|---|---|
 | 1 | Production AI recovery · deployment gating · provider + gateway certification · observability baseline | **DONE** — `ai:smoke-providers` **3/3 exit 0**, `ai:smoke-gateway` **14/14 exit 0** after the gates stopped asking for a budget no caller sends |
 | 2 | EvalLab foundation · golden dataset · failure cases | **PARTIAL** — the suite now asserts instead of passing vacuously, and the dataset covers 8 families / all six roles / 47 scenarios. The directive asks for 300–500, and live-model scoring does not exist |
-| 3 | Context Compiler · context authorization · budgeting | **NOT STARTED** |
+| 3 | Context Compiler · context authorization · budgeting | **DONE** — `35c1a99`. Ranks by tier, dedupes, budgets, returns a trace. Deliberately does **not** authorize: every item has already passed the authorization governing its source, and a second check beside the real one is the weaker one |
 | 4 | Persistent Commercial Memory · provenance · correction/freshness | **DONE** — store and rules (`14739b5`), read into the chat turn (`3dd32af`), object-authorized writer (`2ec5a20`). 17/17 |
 | 5 | Six real role copilots · remove hard-coded intelligence | **PARTIAL** — the fake intelligence is gone (`5d46eaa`). Real copilots are **not built**; the product has no role copilot at all right now, which is honest rather than misleading but is not the end state |
 | 6 | Tool Design 2.0 · action pipeline · idempotency · approval integrity | **NOT STARTED** — existing idempotency and authorization are intact and now correctly evidenced |
 | 7 | Model Routing 2.0 · model lifecycle · shadow eval · cost intelligence | **NOT STARTED** — the registry, router and pricing already exist and were not changed |
 | 8 | Proactive intelligence · role alerts | **NOT STARTED** |
-| 9 | AI Control Plane · flight recorder · incident workflow | **NOT STARTED** — `AiCall` and `/api/ai/status` already provide a ledger-derived baseline; the per-turn trace the directive describes does not exist |
+| 9 | AI Control Plane · flight recorder · incident workflow | **PARTIAL** — `00776f3` adds the per-turn trace: surface, requested model, fallback *path*, context included/dropped/tokens, memory claim count. Counts and ids only, never content. No incident workflow, no control-plane UI |
 | 10 | Red team · six-role browser acceptance · failover drills · certification | **PARTIAL** — six-role acceptance **15/15 exit 0**, chat journeys **30/30 exit 0**, degraded-provider drill **7/7 exit 0**, all against a production build; no adversarial live-model suite, no certification regenerated |
 
 ### Wave 4, end to end
@@ -436,6 +436,26 @@ and the rest is untouched; it is not a synonym for "nearly done".
 The labelling is the product rule made mechanical: an inference is never presented as
 established fact, and a model cannot honour that about text it receives unlabelled.
 
+### Wave 3 — what the compiler is and is not
+
+Ranks by the directive's tier order (authoritative fact → current task record → recent
+interaction → commercial evidence → memory → playbook → background), deduplicates by key and by
+text, and spends a token budget from the top. Stable within a tier, so a lead's name, company
+and stage stay together and read as one description.
+
+It **does not authorize**, on purpose. Every item reaching it has already passed the
+authorization that governs its source — `loadAuthorizedLeadContext` for the lead, tenant-scoped
+queries for claims, session ids for the counters. A compiler filtering by permission would be a
+second authorization decision sitting beside the real one, and when two disagree the weaker one
+is the one that matters. Unauthorized data must never reach it; that invariant lives upstream.
+
+Items are dropped whole rather than truncated — half a fact is worse than none, because the
+model cannot tell it is half — and the claims block is one item so the budget can never keep a
+heading that promises evidence and drop the evidence.
+
+Budget is 2000 tokens against a few hundred assembled today, so it changes no current answer. It
+exists to bind once commercial memory accumulates.
+
 ### What this initiative has actually changed
 
 | Commit | Change |
@@ -446,6 +466,10 @@ established fact, and a model cannot honour that about text it receives unlabell
 | `a907407` | chat journeys stop clicking Next.js's dev-tools button |
 | `bf7b28e` | degraded-provider drill, 7/7 |
 | `14739b5` | persistent commercial memory, 14/14 |
+| `3dd32af` · `2ec5a20` | memory read into the turn, and an object-authorized writer |
+| `e270715` | release gates ask for the budget the product sends — providers 3/3, gateway 14/14 |
+| `35c1a99` | context compiler: ranked, deduplicated, budgeted, traced |
+| `00776f3` | per-turn flight recorder — counts and ids, never content |
 
 ## Open questions for the operator
 
