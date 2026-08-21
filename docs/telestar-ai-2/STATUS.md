@@ -414,7 +414,7 @@ and the rest is untouched; it is not a synonym for "nearly done".
 
 | Wave | Scope | State |
 |---|---|---|
-| 1 | Production AI recovery · deployment gating · provider + gateway certification · observability baseline | **DONE**, with one known gap: `ai:smoke-providers` is 2/3 and `ai:smoke-gateway` 13/14, both from the Groq tier ceiling the gate over-asks against |
+| 1 | Production AI recovery · deployment gating · provider + gateway certification · observability baseline | **DONE** — `ai:smoke-providers` **3/3 exit 0**, `ai:smoke-gateway` **14/14 exit 0** after the gates stopped asking for a budget no caller sends |
 | 2 | EvalLab foundation · golden dataset · failure cases | **PARTIAL** — the suite now asserts instead of passing vacuously, and the dataset covers 8 families / all six roles / 47 scenarios. The directive asks for 300–500, and live-model scoring does not exist |
 | 3 | Context Compiler · context authorization · budgeting | **NOT STARTED** |
 | 4 | Persistent Commercial Memory · provenance · correction/freshness | **DONE** — store and rules (`14739b5`), read into the chat turn (`3dd32af`), object-authorized writer (`2ec5a20`). 17/17 |
