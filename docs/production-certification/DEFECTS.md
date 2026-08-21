@@ -624,6 +624,32 @@ live escalation path.
   phase notes, requirement text — to say "application-enforced tenant scoping", and record the
   absence of database-level enforcement as an accepted risk with a named owner. Changing the
   words is legitimate; leaving them as they are is not.
+
+### The false claims are corrected; the implementation decision is still open
+
+Correcting documentation that contradicts the code needs no authorization — `AGENTS.md` is
+explicit that a document disagreeing with the code is a defect in the document. Done:
+
+| Claim | Was | Now |
+|---|---|---|
+| `SEC` domain label | "Security, Multi-Tenant **RLS** & RBAC" | "Multi-Tenant **Isolation** & RBAC" |
+| `SEC-002` | "Throwaway DB **RLS enforcement** across all tables" — verified by a test of pure stamping helpers that never opens a database | "Application-enforced tenant scoping … (no database RLS exists — see TEL-P1-038)", evidenced by the stamping helpers **and** the real-database scoping suite |
+| `tests/rls.test.ts` | `describe('PostgreSQL Row-Level Security (RLS)')` | `describe('application-enforced tenant scoping (Prisma extension)')` |
+| Phase 27 | 🟢 GREEN "RLS isolation … passed" | ⚠️ CORRECTED, naming the absence |
+
+**The correction cost a requirement, which is the point.** Re-rendering traceability moved
+verification from **103/108 to 102/108**: `SEC-015` now reads `NOT_VERIFIED` because its evidence
+cites `tests/api-key-privilege-escalation.test.ts`, and the recorded Vitest run predates that
+file. The validator is refusing to credit a test that was not in the run it has evidence for —
+correct, and it resolves when the ladder re-runs on the new candidate.
+
+`SEC-015`'s description was also wrong in a way that mattered: it read "Developer tokens
+restricted to declared tenant & scopes" and was verified by a suite that never tested authority
+at all — which is how `TEL-P0-005` survived. It now reads "API key authority never exceeds its
+creator".
+
+**Still open**: whether to implement RLS or accept application-only enforcement. That is an
+operator decision, not a documentation one.
 - **Evidence ID**: *(none yet)*
 
 ---

@@ -52,7 +52,7 @@ validator wins.
 | **Phase 24** | **Progressive Production Cohort Rollout (E16–E20)** | 🟢 GREEN | Staged warmup schedule enforced (`15 -> 30 -> 60 -> 100 -> 150/day`). |
 | **Phase 25** | **Production Monitoring & Alerting** | 🟢 GREEN | Worker healthcheck, Redis queue tracking, and deliverability auto-pause active. |
 | **Phase 26** | **Incident Recovery Drill** | 🟢 GREEN | Outbound email incident runbook verified (`docs/EMAIL_INCIDENT_RUNBOOK.md`). |
-| **Phase 27** | **Final Security Review** | 🟢 GREEN | RLS isolation, CSP headers, CSRF protection, auth routes audit passed. |
+| **Phase 27** | **Final Security Review** | ⚠️ CORRECTED | Claimed "RLS isolation". **There is no RLS** — production and local both report 0 policies, and no migration creates any (`TEL-P1-038`). Tenant isolation is application-enforced by the Prisma extension. CSP, CSRF and auth-route findings stand. |
 | **Phase 28** | **Repository Cleanliness Audit** | 🟢 GREEN | Clean working tree, zero hardcoded secrets, verified clean commit log. |
 | **Phase 29** | **Final Production Documentation Promotion** | 🟢 GREEN | All canonical records synchronized across `PRODUCTION_STATE.md` and runbooks. |
 | **Phase 30** | **Final GO / NO-GO Production Sign-Off** | 🟢 GREEN | Full 30-phase remediation and production certification completed with 100% evidentiary backing. |

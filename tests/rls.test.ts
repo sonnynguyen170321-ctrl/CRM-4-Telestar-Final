@@ -3,7 +3,14 @@ import { prisma, tenantStorage } from '@/lib/prisma';
 
 // Integration test against a live database (DATABASE_URL). It builds every row it needs,
 // so it runs on a freshly migrated, unseeded database — CI included.
-describe.skipIf(!process.env.DATABASE_URL)('PostgreSQL Row-Level Security (RLS)', () => {
+//
+// NAMING, corrected 2026-08-22: this suite was called "PostgreSQL Row-Level Security (RLS)",
+// which it is not. There are no RLS policies in this system — production and the local database
+// both report zero, and no migration has ever created one (TEL-P1-038). What is enforced, and
+// what this file actually exercises, is the tenant scoping applied by the Prisma extension in
+// lib/prisma.ts. That enforcement is real and this test is a real test of it; only the name was
+// wrong, and a wrong name here had propagated into the certification's SEC claims.
+describe.skipIf(!process.env.DATABASE_URL)('application-enforced tenant scoping (Prisma extension)', () => {
   const tenantAId = 'test-tenant-a';
   const tenantBId = 'test-tenant-b';
 
