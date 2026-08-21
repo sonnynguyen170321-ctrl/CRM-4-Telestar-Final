@@ -25,9 +25,9 @@ last two attempts at this table were both wrong.
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 5 | 0 | 0 | **4** |
 | **P1** (Critical) | 40 | 9 | 4 | **27** |
-| **P2** (Important) | 28 | 8 | 4 | **16** |
+| **P2** (Important) | 28 | 8 | 4 | **15** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **73** | **17** | **8** | **47** |
+| **TOTAL** | **73** | **17** | **8** | **46** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -711,7 +711,7 @@ operator decision, not a documentation one.
 
 ### `TEL-P2-027` — An Orphaned One-Off Container Has Been Running Five Days On A Different Image
 - **Severity**: P2
-- **Status**: `OPEN`
+- **Status**: `RESOLVED` — removed and verified 2026-08-22
 - **Measured on the VM**: alongside `crm-4-u-web-1` and `crm-4-u-worker-1`, both correctly on
   `f2e807bb7812`, a third container `crm-4-u-web-run-acdfd691c452` has been **up 5 days** on
   image **`47cae338dcb6`** — a different build. It is a `docker compose run` one-off, the kind
@@ -720,8 +720,28 @@ operator decision, not a documentation one.
   the rollback drill is required to verify, and it is currently violated on the live box. A
   stray container from an older image holding a database connection is also a quiet consumer of
   the connection pool.
-- **Remediation**: confirm what it is, then `docker rm -f` it. Production change; needs
-  authorization.
+- **What it actually was — a known defect, still running.** Inspected before removal rather than
+  deleted on sight:
+
+  ```
+  cmd:     ["node","node_modules/tsx/dist/cli.mjs","scripts/worker-healthcheck.ts"]
+  created: 2026-08-16T13:42:12Z   status: running   restarts: 0
+  image:   …@sha256:47cae338dcb6…
+  ```
+
+  That is **`TEL-P1-020`** — *"`worker-healthcheck` never exits when the check succeeds"* —
+  observed alive in production six days after the deploy that started it. Its log tail showed it
+  flapping (`ENOTFOUND 'redis'` → reconnect), holding a BullMQ connection and 81 MB throughout.
+
+- **Resolution**: removed with `docker rm -f`. Four containers remain — `web` and `worker` both
+  on `f2e807bb7812`, plus caddy and redis — and no other `run-` one-offs exist. Production health
+  after removal: `ok:true`, HTTP 200.
+- **It will not recur on the current release.** The deployed image `daa8ffb` **does** contain the
+  `TEL-P1-020` fix — `finally { await closeAllQueues() }` and `process.exit(completed ? 0 : 1)`.
+  The orphan was built from `47cae338`, an image from before that fix. Checked rather than
+  assumed, because "we fixed that" and "the fix is in the running bytes" are different claims.
+- **This also strengthens `TEL-P1-020`**: its remediation is confirmed present in the deployed
+  image, not merely merged.
 - **Evidence ID**: *(none yet)*
 
 ---
