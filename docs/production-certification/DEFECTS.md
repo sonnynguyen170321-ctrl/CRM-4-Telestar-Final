@@ -479,6 +479,10 @@ The prior cap of 25 is void.
   line. The same guards were added to `scripts/rollback.sh`, where the problem is worse — that
   script runs during an incident.
 - **Regression test**: `tests/deploy-script.test.ts`.
+- **Executed end to end**, not only unit-tested: `scripts/deploy.sh` was run in a sandbox with a
+  stub container runtime. With a read-only record file it aborts **exit 1** before the pull, and
+  with a record directory that does not exist it aborts the same way — in both cases naming the
+  missing audit trail, and in both cases before anything irreversible has happened.
 - **Remaining before VERIFIED**: one real deploy on the VM.
 - **Evidence ID**: *(none yet)*
 
@@ -502,6 +506,20 @@ The prior cap of 25 is void.
   operator to type `UNVERIFIED`, and records `backupVerified: false` in the deployment record so
   a verified deploy and an unverified one are distinguishable afterwards.
 - **Regression test**: `tests/deploy-script.test.ts`, including the literal `Telestar2026` case.
+- **Executed end to end.** Running the real `scripts/deploy.sh` with
+  `DEPLOY_BACKUP_ID=Telestar2026` aborts **exit 1** — *"Backup ID must be the numeric Cloud SQL
+  backup run id, not free text"* — before the migration and before the container swap. Two
+  further paths were exercised, because the interesting question is what happens when the
+  backup **cannot** be checked rather than when it is plainly wrong:
+
+  | Path | Result |
+  |---|---|
+  | valid numeric id, gcloud cannot answer, non-interactive | **fails closed**, exit 1 |
+  | valid numeric id, operator types `UNVERIFIED` | proceeds, records `backupVerified: false` |
+
+  The first matters most: a deploy run from a script or a CI job, where nobody is present to
+  acknowledge, can no longer proceed without a verified backup. On this machine the warning also
+  classified correctly — *"gcloud has no usable credentials here"*, not "not installed".
 - **Remaining before VERIFIED**: one real deploy on the VM.
 - **Evidence ID**: *(none yet)*
 
@@ -520,6 +538,10 @@ The prior cap of 25 is void.
   quotes the real first line for anything unrecognised rather than guessing. Applied to
   `deploy.sh` and to `rollback.sh`, where a misdiagnosis during an incident costs the most.
 - **Regression test**: `tests/deploy-script.test.ts`.
+- **Executed end to end**: with a stub runtime whose `pull` writes
+  `no space left on device`, the real `scripts/deploy.sh` aborts **exit 1** with *"Disk is full
+  on this box … This is not a CI problem"* and the recovery command, instead of the old message
+  that sent the operator to inspect a healthy CI run.
 - **Remaining before VERIFIED**: observed on a real failure, or accepted on the regression test.
 - **Evidence ID**: *(none yet)*
 
