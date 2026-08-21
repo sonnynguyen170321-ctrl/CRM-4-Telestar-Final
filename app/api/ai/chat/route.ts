@@ -206,6 +206,8 @@ export async function POST(req: NextRequest) {
   }
 
   let playbookVersionId: string | undefined = undefined;
+  /** Hoisted out of the lead block so the turn log can report it whether or not a lead was in view. */
+  let memoryClaimCount = 0;
 
   const validLeadId = sanitizeLeadId(context?.leadId);
   if (validLeadId) {
@@ -256,6 +258,7 @@ export async function POST(req: NextRequest) {
             limit: 12,
           })
         : [];
+      memoryClaimCount = claims.length;
       if (claims.length > 0) {
         // One item, not one per claim, so the budget can never keep the heading and drop the
         // claims under it — leaving a promise of evidence with no evidence. Sourced and inferred
@@ -339,7 +342,15 @@ IMPORTANT REMINDERS:
             executionId: isValidExecutionId(clientExecutionId) ? clientExecutionId : undefined,
             turnId,
           },
-          (outcome) => logTurn(user, turnId, outcome, Date.now() - startedAt),
+          (outcome) =>
+            logTurn(user, turnId, outcome, Date.now() - startedAt, {
+              surface: context?.page ?? null,
+              modelRequested: parsed.data.modelId ?? 'auto',
+              contextIncluded: compiledContext.included.length,
+              contextDropped: compiledContext.dropped.length,
+              contextTokens: compiledContext.estimatedTokens,
+              memoryClaims: memoryClaimCount,
+            }),
         );
 
         for await (const chunk of generator) {
@@ -384,19 +395,52 @@ IMPORTANT REMINDERS:
  * Carries no prompt, no completion, no memory content and no credential — the ids and the
  * classification are what make a recurrence diagnosable, and they are all this needs.
  */
-function logTurn(user: SessionUser, turnId: string, outcome: ChatTurnOutcome, latencyMs: number): void {
+/**
+ * What the turn was given, in counts.
+ *
+ * Deliberately not the context itself. "Which claims did the model see" is answerable from the
+ * claim ids and the tenant; "here is the text of everything it saw" in a log line is a copy of
+ * commercial data in a place with different retention and different access control.
+ */
+interface TurnContextTrace {
+  /** Which surface the request came from. A client hint, recorded as such. */
+  surface: string | null;
+  /** The model the caller asked for, before routing. `auto` when it expressed no preference. */
+  modelRequested: string;
+  contextIncluded: number;
+  contextDropped: number;
+  contextTokens: number;
+  memoryClaims: number;
+}
+
+function logTurn(
+  user: SessionUser,
+  turnId: string,
+  outcome: ChatTurnOutcome,
+  latencyMs: number,
+  trace: TurnContextTrace,
+): void {
   const line = JSON.stringify({
     operation: 'chat',
     turnId,
     tenantId: user.tenantId,
     userId: user.id,
     role: user.role,
+    surface: trace.surface,
     status: outcome.status,
+    modelRequested: trace.modelRequested,
     provider: outcome.provider ?? null,
     model: outcome.model ?? null,
     fallback: outcome.attempts.length > 1,
+    // The order providers were tried in, not just whether a fallback happened. "It failed over"
+    // and "it failed over twice, and the first two both timed out" are different incidents.
+    fallbackPath: outcome.attempts.map((a) => `${a.provider}/${a.model}`),
     failure: outcome.failure ?? null,
     toolCalls: outcome.toolCallCount,
+    contextIncluded: trace.contextIncluded,
+    contextDropped: trace.contextDropped,
+    contextTokens: trace.contextTokens,
+    memoryClaims: trace.memoryClaims,
     latencyMs,
   });
 

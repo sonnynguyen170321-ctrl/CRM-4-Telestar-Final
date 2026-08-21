@@ -242,6 +242,42 @@ describe('CRM context', () => {
     expect(executeMock.mock.calls[0][0].systemPrompt).toContain('prefers short emails');
   });
 
+  it('records what the turn was given, in counts, and never the content', async () => {
+    // The flight recorder answers "what happened operationally" after a bad answer. It must not
+    // answer "what did the prospect say" — that is commercial data, and a log line has different
+    // retention and different access control from the CRM.
+    loadAuthorizedLeadContext.mockResolvedValue({ leadName: 'Dana Ito' });
+    commercialClaimFindMany.mockResolvedValueOnce([
+      { claimType: 'FACTUAL', claimText: 'Budget review is in September.', sourceType: 'email', confidence: null },
+    ]);
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+
+    const res = await POST(
+      post({
+        messages: [{ role: 'user', content: 'Prep me' }],
+        context: { page: '/leads', leadId: 'clh1234567890abcdefgh' },
+      }),
+    );
+    // The outcome is reported when the stream finishes, so the body has to be drained before
+    // the log line exists. A test that asserts on it without reading the body is asserting on
+    // work that has not happened yet.
+    await res.text();
+
+    const logged = info.mock.calls.map((c) => String(c[1])).find((l) => l.includes('"turnId"'));
+    expect(logged, 'no turn line was logged').toBeDefined();
+    const record = JSON.parse(logged as string);
+
+    expect(record.surface).toBe('/leads');
+    expect(record.modelRequested).toBe('auto');
+    expect(record.memoryClaims).toBe(1);
+    expect(record.contextIncluded).toBeGreaterThan(0);
+    expect(Array.isArray(record.fallbackPath)).toBe(true);
+
+    // The claim's text is in the prompt and must not be in the log.
+    expect(logged).not.toContain('Budget review is in September');
+    info.mockRestore();
+  });
+
   it('ranks CRM facts above the client-supplied page hint', async () => {
     // The compiler's ordering has to survive the wiring, not just hold in its own unit test.
     // `page` is the one line the browser controls; it is emitted last on purpose.
