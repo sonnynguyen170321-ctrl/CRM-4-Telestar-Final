@@ -323,65 +323,57 @@ all in `prisma/seed-demo.ts`). `check-test-discipline` **exit 0**.
 
 ---
 
-## OPEN P1 — the assistant does not mount under `next dev`
+## RESOLVED — the chat suite passes 30/30 against a production build
 
-`e2e/journeys/telestar-ai-chat.spec.ts` fails **20 of 30** locally. Two distinct problems were
-found; one is fixed, one is not.
+Directive §0.5, real authenticated chat against live providers, is green.
 
-### Fixed — an ambiguous locator (worth 1 test)
+| Environment | Result |
+|---|---|
+| `next dev` | 20 failed / 10 passed |
+| **production build** (`next start`, the shape CI’s gate uses) | **30 passed, exit 0** (4.4 min) |
 
-`openChat` located the trigger with `getByRole('button', { name: /^Open / })`. Under `next dev`,
-Next.js 16 renders its own **"Open Next.js Dev Tools"** button, and a probe confirmed the
-locator was resolving to it:
+All four roles hold a conversation and keep context across turns; chat mechanics, failure
+recovery, and the CRM-context and tool tests all pass. The product is not broken.
 
-```
-PROBE: trigger matches = 1
-PROBE: trigger label   = Open Next.js Dev Tools
-```
+Two separate problems were found getting here, and only one of them was the product’s.
 
-Narrowed to `/^Open (?!Next\.js)/` in the helper and the two other call sites. Real, but it
-moved the result only from 21 failures to 20 — which is how the second problem surfaced.
+**A real test defect, fixed (`a907407`).** `openChat` located the trigger with
+`getByRole('button', { name: /^Open / })`, which under `next dev` also matches Next.js 16’s own
+"Open Next.js Dev Tools" button — confirmed by probe, `trigger label = Open Next.js Dev Tools`.
+Narrowed to `/^Open (?!Next\.js)/`. Worth exactly one test, which is how the second problem
+became visible.
 
-### Not fixed — the component is absent, and every guard says it should be present
-
-With the locator corrected, the failure is `element(s) not found`: the assistant's trigger is
-genuinely not in the DOM. `components/AiAssistant.tsx` returns `null` on four conditions, and
-all four were measured from the browser as satisfied:
-
-```
-PROBE: viewport      = {"innerWidth":1440,"matches1024":true,"pathname":"/"}
-PROBE: session status= 200
-PROBE: session body  = {"user":{"id":"cmt2i…","role":"sdr","tenantId":"pw-audit-tenant-a"}…}
-PROBE: buttons       = […,"Open Next.js Dev Tools"]     ← no assistant trigger
-```
-
-So `pathname !== '/login'`, `isDesktop` is true, and `currentUserId` is populated. The component
-is mounted through `components/ClientLayoutAddons.tsx` as
+**A `next dev` artifact, not fixed and not a product defect.** With the locator corrected the
+failure becomes `element(s) not found`: the assistant is genuinely absent from the DOM under
+`next dev`, while every one of its four render guards measures as satisfied — `pathname` is `/`,
+`matches1024` is true, and the session returns 200 with a populated user id. It is mounted via
 `dynamic(() => import('@/components/AiAssistant'), { ssr: false })`, correctly nested inside
-`SessionProvider` → `AppProvider`. It simply never appears.
+`SessionProvider` → `AppProvider`. The same code, built and served by `next start`, mounts and
+passes 30/30. The remaining question is why Turbopack dev does not evaluate that dynamic chunk;
+it costs local developers a chatbox and costs production nothing.
 
-Two theories were tested and **both were wrong**, recorded so they are not retried:
+### Three theories tested and disproved, recorded so they are not retried
 
-- *CSP blocking `eval`.* The dev log carries `[csp-report] directive=script-src blocked=eval`,
-  and `next dev` needs `eval` for its chunks. But `lib/security/csp.ts` sets
+- **`isSessionLoading` unmounting the panel.** A guard change was written, the suite re-run, and
+  the result was identical 21/9. The mechanism had been *reasoned from reading the component,
+  not measured*. The change was reverted: it could not be verified (this repository has no React
+  component test infrastructure — no jsdom, no testing-library), and next-auth keeps
+  `status: 'authenticated'` through a background refetch anyway.
+- **CSP blocking `eval`.** The dev log does carry `[csp-report] directive=script-src blocked=eval`,
+  and `next dev` needs `eval`. But `lib/security/csp.ts` sets
   `CSP_HEADER_NAME = 'Content-Security-Policy-Report-Only'` — report-only enforces nothing.
-- *`isSessionLoading` unmounting the panel.* Disproved by rerun, and the speculative guard
-  change was reverted.
+- **`/api/health` 503 signing the user out.** Real 503, wrong conclusion: it was
+  `reason: 'pending_migrations'`, caused by this initiative adding the `CommercialClaim`
+  migration without applying it locally. `DashboardShell` pings health inside `.catch(() => {})`
+  and ignores the result. Applying the migration cleared the 503 and changed nothing.
 
-### The experiment that decides whether this is a product defect
-
-CI runs the Playwright gate against a **production build**, not `next dev`, and the current
-certification's six-role browser acceptance passed 6/6 with zero console errors against a built
-image. Production is serving `daa8ffb` with `/api/health` 200. So the open question is narrow:
-does the assistant mount in a production build?
-
-`npm run build` then the same spec against `next start` answers it. Until that runs, the honest
-statement is: **the chat journeys fail under `next dev` on this machine, and no evidence yet
-shows the shipped product is affected.**
+A fourth wrong turn was mine rather than the code’s: the first probe omitted `storageState`, ran
+signed out, was correctly redirected to `/login`, and appeared to prove that opening the
+assistant signed the user out. It proved nothing about the product.
 
 ---
 
-## WAVE 4 (in progress) — persistent commercial memory
+## WAVE 4 — DONE — persistent commercial memory (`14739b5`)
 
 The prototype this replaces held claims in `new Map<string, CommercialClaim>()` in one process:
 empty after every deploy, invisible to the worker, different in each web container, and
@@ -409,8 +401,9 @@ matter: a read never returns another tenant's claims, and a correction by id acr
 boundary is refused with the same "not found" message used for a genuinely absent claim,
 because the difference is itself information about another tenant.
 
-**Not yet run.** The Prisma client needs regenerating and the query engine is held by the
-running browser suite. Nothing here is claimed as passing.
+**Verified.** `tests/commercial-claims.test.ts` **14/14, exit 0**, including the two tenancy
+cases. `tsc --noEmit` exit 0, ESLint exit 0. The migration is applied to both the local dev
+database and the isolated test database; `migrate status` reports no pending migrations.
 
 ---
 
