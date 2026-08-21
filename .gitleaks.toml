@@ -81,6 +81,17 @@ paths = [
   '''^tests/p1-hardening\.test\.ts$''',
   '''^tests/client-reports\.test\.ts$''',
 
+  # The evaluation suite's scrubber fixtures. `scrubSecrets` previously matched none of the
+  # three provider key formats this deployment actually holds, so the test that caught that has
+  # to contain one of each — a `sk-proj-`, an `AIza`, and a `gsk_` — to assert they are
+  # redacted. Every value is fabricated: they are asserted to be *removed*, so a real key there
+  # would make the test pass for the wrong reason and protect nothing.
+  #
+  # Only this file is exempted. `tests/ai-tool-result-scrubbing.test.ts` carries the same class
+  # of fixture and does not currently trip the scanner; it is deliberately left unexempted
+  # rather than pre-emptively excused, and belongs here only if a future ruleset flags it.
+  '''^tests/telestar-ai-certification-evals\.test\.ts$''',
+
   # The test that guards this very file. It must contain credential-shaped strings —
   # `postgresql://crm:Tr0ub4dor3xK@...`, a GitHub PAT, an AWS key id — precisely to assert
   # that the allowlist does NOT exempt them. Scanning it would flag the fixtures proving
