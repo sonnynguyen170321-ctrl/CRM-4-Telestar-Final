@@ -9,6 +9,7 @@ const mockAccountFindUnique = vi.fn();
 const mockAccountUpdate = vi.fn();
 const mockNotificationCreate = vi.fn();
 const mockActivityCreate = vi.fn();
+const mockActivityFindFirst = vi.fn().mockResolvedValue(null);
 const mockTaskCreate = vi.fn();
 const mockSuppressionFindFirst = vi.fn();
 const mockSuppressionCreate = vi.fn();
@@ -44,6 +45,9 @@ vi.mock('@/lib/prisma', () => ({
     },
     activity: {
       create: (...args: unknown[]) => mockActivityCreate(...args),
+      // handleApplyBounce dedupes the timeline entry on the provider's event id, so a
+      // redelivered webhook does not record the same bounce twice. Defaults to "not seen".
+      findFirst: (...args: unknown[]) => mockActivityFindFirst(...args),
     },
     task: {
       updateMany: (...a: unknown[]) => mockTaskUpdateManyOcc(...a),

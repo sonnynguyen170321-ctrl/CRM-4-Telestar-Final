@@ -25,9 +25,9 @@ last two attempts at this table were both wrong.
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 3 | 0 | 0 | **2** |
 | **P1** (Critical) | 39 | 9 | 4 | **26** |
-| **P2** (Important) | 24 | 8 | 4 | **12** |
+| **P2** (Important) | 25 | 8 | 4 | **13** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **66** | **17** | **8** | **40** |
+| **TOTAL** | **67** | **17** | **8** | **41** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -82,6 +82,35 @@ The four genuinely open P1s share a shape: each needs something this checkout ca
 ---
 
 ## 2. Active Defects
+
+### `TEL-P2-024` — A Redelivered Bounce Webhook Recorded The Same Bounce Twice
+- **Severity**: P2
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: Phase 13, testing duplicate provider delivery against a real database.
+  `tests/sync-worker.test.ts` mocks `@/lib/prisma`, so redelivery had never been measured.
+- **Root cause**: `handleApplyBounce` writes its timeline `Activity` **unconditionally**, before
+  the `already_invalid` guard. Providers redeliver webhooks, so the second delivery of one
+  bounce added a second `email_bounced` entry.
+- **Everything else was already correct**, which is why this was the only finding: the
+  originating message is selected only while still `sent`, so it cannot be flipped twice; the
+  suppression entry is checked before create; the `invalid-email` tag is not re-pushed; and the
+  second delivery returns `already_invalid`. Measured, not assumed — each of those is now a
+  test.
+- **Why it counts**: the prospect bounced once and the record said twice. Duplicated CRM state
+  is what the directive's *"CRM state must remain correct"* rule is about, even when nothing is
+  re-sent.
+- **Fix**: the entry is now keyed on the provider's own event id —
+  `metadata.path(['providerMessageId'])` — so the two deliveries are recognisable as one event.
+  The write is skipped when that id is already on the timeline. Deliberately not keyed on the
+  outbound message: a genuine second bounce of a *different* send still records its own entry.
+- **Demonstrated before it was fixed**: the test reported `expected 2 to be 1`, then passed.
+- **Harness follow-through**: `tests/sync-worker.test.ts` needed `activity.findFirst` added to
+  its Prisma mock — its absence broke 8 tests with `prisma.activity.findFirst is not a
+  function`, which is itself a reminder of how much that suite is asserting against a mock
+  rather than a database.
+- **Evidence ID**: *(none yet)*
+
+---
 
 ### `TEL-P2-023` — The Send-Once Invariant Was Only Ever Tested Against A Mocked Compare-And-Set
 - **Severity**: P2 (coverage gap; no product defect found)

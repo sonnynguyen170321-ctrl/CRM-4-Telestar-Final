@@ -379,16 +379,32 @@ export async function handleApplyBounce(payload: EmailApplyBouncePayload) {
     });
   }
 
-  await prisma.activity.create({
-    data: {
-      userId: lead.assignedToId ?? accountId,
+  // Providers redeliver, and this write sits before the already-invalid guard below, so a
+  // redelivered webhook used to add a second timeline entry for one bounce. The prospect
+  // bounced once; the record should say so once. Keyed on the provider's own event id, which
+  // is what makes the two deliveries recognisable as the same event.
+  const alreadyRecorded = await prisma.activity.findFirst({
+    where: {
+      tenantId: lead.tenantId,
       leadId,
       type: 'email_bounced',
-      channel: 'email',
-      description: `Email to ${lead.email} ${isHard ? 'hard' : 'soft'}-bounced`,
-      metadata: { providerMessageId, accountId, bounceType, outboundMessageId: originating?.id ?? null, auto: true },
+      metadata: { path: ['providerMessageId'], equals: providerMessageId },
     },
+    select: { id: true },
   });
+
+  if (!alreadyRecorded) {
+    await prisma.activity.create({
+      data: {
+        userId: lead.assignedToId ?? accountId,
+        leadId,
+        type: 'email_bounced',
+        channel: 'email',
+        description: `Email to ${lead.email} ${isHard ? 'hard' : 'soft'}-bounced`,
+        metadata: { providerMessageId, accountId, bounceType, outboundMessageId: originating?.id ?? null, auto: true },
+      },
+    });
+  }
 
   // Hard bounces make the email permanently invalid; soft bounces are transient
   if (isHard) {

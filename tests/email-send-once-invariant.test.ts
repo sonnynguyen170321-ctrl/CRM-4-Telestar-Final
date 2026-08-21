@@ -430,3 +430,118 @@ describe.skipIf(!hasDb)('a stopped contact receives no further sends', () => {
     );
   });
 });
+
+/**
+ * A duplicate provider webhook must not double-apply.
+ *
+ * Providers redeliver. `handleApplyBounce` guards the originating message (only rows still
+ * `sent` are selected) and the suppression entry (checked before create), and returns
+ * `already_invalid` on a second hard bounce. Whether all of that holds together under an actual
+ * redelivery had never been measured — `tests/sync-worker.test.ts` mocks `@/lib/prisma`.
+ */
+describe.skipIf(!hasDb)('a redelivered provider webhook does not double-apply', () => {
+  beforeEach(async () => {
+    sendCalls.length = 0;
+    sendBehaviour = async () => `provider-${crypto.randomUUID()}`;
+    await run(async () => {
+      await prisma.activity.deleteMany({ where: { tenantId: T } });
+      await prisma.suppressionEntry.deleteMany({ where: { tenantId: T } });
+      await prisma.lead.updateMany({ where: { tenantId: T }, data: { emailInvalid: false } });
+    });
+  });
+
+  it('a hard bounce delivered twice suppresses once and marks the lead once', async () => {
+    const { handleApplyBounce } = await import('@/workers/sync');
+    const sent = await createMessage(`bounce-dup-${crypto.randomUUID()}`);
+    await run(() => handleEmailSend(payloadFor(sent.id)));
+
+    const bounce = {
+      providerMessageId: `bounce-evt-${crypto.randomUUID()}`,
+      leadId,
+      accountId,
+      bounceType: 'hard' as const,
+    };
+
+    const first = await run(() => handleApplyBounce(bounce));
+    const second = await run(() => handleApplyBounce(bounce));
+
+    // The second delivery must recognise the state it already produced.
+    expect((second as { skipped?: boolean }).skipped).toBe(true);
+    expect((second as { reason?: string }).reason).toBe('already_invalid');
+    expect((first as { skipped?: boolean }).skipped).not.toBe(true);
+
+    const suppressions = await run(() =>
+      prisma.suppressionEntry.count({
+        where: { tenantId: T, email: 'prospect@sendonce.test', reason: 'hard_bounce' },
+      }),
+    );
+    expect(suppressions).toBe(1);
+
+    const message = await run(() => prisma.outboundMessage.findUnique({ where: { id: sent.id } }));
+    expect(message?.status).toBe('bounced');
+  });
+
+  it('the invalid-email tag is not appended twice', async () => {
+    const { handleApplyBounce } = await import('@/workers/sync');
+    const sent = await createMessage(`tag-dup-${crypto.randomUUID()}`);
+    await run(() => handleEmailSend(payloadFor(sent.id)));
+
+    const bounce = {
+      providerMessageId: `tag-evt-${crypto.randomUUID()}`,
+      leadId,
+      accountId,
+      bounceType: 'hard' as const,
+    };
+    await run(() => handleApplyBounce(bounce));
+    await run(() => handleApplyBounce(bounce));
+
+    const lead = await run(() => prisma.lead.findUnique({ where: { id: leadId } }));
+    const tags = (lead?.tags ?? []) as string[];
+    expect(tags.filter((t) => t === 'invalid-email')).toHaveLength(1);
+  });
+
+  it('records the bounce on the timeline exactly once per delivery', async () => {
+    // A redelivered webhook writing a second timeline entry is duplicated CRM state: the
+    // prospect bounced once, and the record should say so once.
+    const { handleApplyBounce } = await import('@/workers/sync');
+    const sent = await createMessage(`activity-dup-${crypto.randomUUID()}`);
+    await run(() => handleEmailSend(payloadFor(sent.id)));
+
+    const bounce = {
+      providerMessageId: `activity-evt-${crypto.randomUUID()}`,
+      leadId,
+      accountId,
+      bounceType: 'hard' as const,
+    };
+    await run(() => handleApplyBounce(bounce));
+    await run(() => handleApplyBounce(bounce));
+
+    const bounceActivities = await run(() =>
+      prisma.activity.count({ where: { tenantId: T, leadId, type: 'email_bounced' } }),
+    );
+    expect(bounceActivities).toBe(1);
+  });
+
+  it('a soft bounce does not suppress the address', async () => {
+    const { handleApplyBounce } = await import('@/workers/sync');
+    const sent = await createMessage(`soft-${crypto.randomUUID()}`);
+    await run(() => handleEmailSend(payloadFor(sent.id)));
+
+    await run(() =>
+      handleApplyBounce({
+        providerMessageId: `soft-evt-${crypto.randomUUID()}`,
+        leadId,
+        accountId,
+        bounceType: 'soft' as const,
+      }),
+    );
+
+    const suppressions = await run(() =>
+      prisma.suppressionEntry.count({ where: { tenantId: T, email: 'prospect@sendonce.test' } }),
+    );
+    expect(suppressions).toBe(0);
+
+    const lead = await run(() => prisma.lead.findUnique({ where: { id: leadId } }));
+    expect(lead?.emailInvalid).toBe(false);
+  });
+});
