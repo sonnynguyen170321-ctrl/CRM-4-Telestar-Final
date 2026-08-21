@@ -44,9 +44,31 @@ const GENERIC_FAILURE = /Sorry, I ran into a problem generating that/i;
 /** Anything that means the AI could not answer. Distinct from the banned sentence above. */
 const ANY_FAILURE = /temporarily unavailable|at capacity|couldn't finish|couldn't reach|took too long/i;
 
+/**
+ * The assistant's own trigger, and nothing else.
+ *
+ * `/^Open /` matched two things once this ran under `next dev`: the assistant's
+ * `Open ${assistantName}`, and Next.js 16's own **"Open Next.js Dev Tools"** button. The dev
+ * tools button renders immediately; the assistant is gated on the session and appears a beat
+ * later. So `toBeVisible` resolved against the dev tools button, the click toggled the dev
+ * overlay, and `getByRole('dialog')` timed out — 21 of 30 tests failing identically, with no
+ * console error, no page error and no failed request, because nothing had gone wrong with the
+ * product at all.
+ *
+ * It was invisible in CI because CI runs the Playwright gate against a production build, where
+ * Next ships no dev tools button.
+ *
+ * The name is still matched loosely on purpose: `assistantName` is fetched at runtime and a
+ * rename should not break the suite. Excluding the one known collision is narrower than
+ * pinning the exact label.
+ */
+function assistantTrigger(page: Page) {
+  return page.getByRole('button', { name: /^Open (?!Next\.js)/ });
+}
+
 async function openChat(page: Page) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  const trigger = page.getByRole('button', { name: /^Open / });
+  const trigger = assistantTrigger(page);
   await expect(trigger).toBeVisible({ timeout: 30_000 });
   await trigger.click();
   const panel = page.getByRole('dialog');
@@ -207,7 +229,7 @@ test.describe('chat mechanics', () => {
     await page.getByRole('button', { name: /^Close / }).click();
     await expect(page.getByRole('dialog')).toBeHidden();
 
-    await page.getByRole('button', { name: /^Open / }).click();
+    await assistantTrigger(page).click();
     await expect(page.getByRole('log').locator('.ai-message-content')).toHaveCount(before);
   });
 
@@ -333,7 +355,7 @@ test.describe('CRM context and tools', () => {
       () => (window as unknown as Record<string, { leadName: string; leadCompany?: string }>).__crm_lead_context,
     );
 
-    await page.getByRole('button', { name: /^Open / }).click();
+    await assistantTrigger(page).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await page.waitForLoadState('networkidle').catch(() => {});
 

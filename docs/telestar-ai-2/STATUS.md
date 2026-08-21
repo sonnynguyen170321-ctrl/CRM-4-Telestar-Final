@@ -292,6 +292,97 @@ all in `prisma/seed-demo.ts`). `check-test-discipline` **exit 0**.
 
 ---
 
+## OPEN P1 — the assistant does not mount under `next dev`
+
+`e2e/journeys/telestar-ai-chat.spec.ts` fails **20 of 30** locally. Two distinct problems were
+found; one is fixed, one is not.
+
+### Fixed — an ambiguous locator (worth 1 test)
+
+`openChat` located the trigger with `getByRole('button', { name: /^Open / })`. Under `next dev`,
+Next.js 16 renders its own **"Open Next.js Dev Tools"** button, and a probe confirmed the
+locator was resolving to it:
+
+```
+PROBE: trigger matches = 1
+PROBE: trigger label   = Open Next.js Dev Tools
+```
+
+Narrowed to `/^Open (?!Next\.js)/` in the helper and the two other call sites. Real, but it
+moved the result only from 21 failures to 20 — which is how the second problem surfaced.
+
+### Not fixed — the component is absent, and every guard says it should be present
+
+With the locator corrected, the failure is `element(s) not found`: the assistant's trigger is
+genuinely not in the DOM. `components/AiAssistant.tsx` returns `null` on four conditions, and
+all four were measured from the browser as satisfied:
+
+```
+PROBE: viewport      = {"innerWidth":1440,"matches1024":true,"pathname":"/"}
+PROBE: session status= 200
+PROBE: session body  = {"user":{"id":"cmt2i…","role":"sdr","tenantId":"pw-audit-tenant-a"}…}
+PROBE: buttons       = […,"Open Next.js Dev Tools"]     ← no assistant trigger
+```
+
+So `pathname !== '/login'`, `isDesktop` is true, and `currentUserId` is populated. The component
+is mounted through `components/ClientLayoutAddons.tsx` as
+`dynamic(() => import('@/components/AiAssistant'), { ssr: false })`, correctly nested inside
+`SessionProvider` → `AppProvider`. It simply never appears.
+
+Two theories were tested and **both were wrong**, recorded so they are not retried:
+
+- *CSP blocking `eval`.* The dev log carries `[csp-report] directive=script-src blocked=eval`,
+  and `next dev` needs `eval` for its chunks. But `lib/security/csp.ts` sets
+  `CSP_HEADER_NAME = 'Content-Security-Policy-Report-Only'` — report-only enforces nothing.
+- *`isSessionLoading` unmounting the panel.* Disproved by rerun, and the speculative guard
+  change was reverted.
+
+### The experiment that decides whether this is a product defect
+
+CI runs the Playwright gate against a **production build**, not `next dev`, and the current
+certification's six-role browser acceptance passed 6/6 with zero console errors against a built
+image. Production is serving `daa8ffb` with `/api/health` 200. So the open question is narrow:
+does the assistant mount in a production build?
+
+`npm run build` then the same spec against `next start` answers it. Until that runs, the honest
+statement is: **the chat journeys fail under `next dev` on this machine, and no evidence yet
+shows the shipped product is affected.**
+
+---
+
+## WAVE 4 (in progress) — persistent commercial memory
+
+The prototype this replaces held claims in `new Map<string, CommercialClaim>()` in one process:
+empty after every deploy, invisible to the worker, different in each web container, and
+unreachable from production so none of it was ever felt. It was deleted in `5d46eaa`.
+
+**Schema** — `CommercialClaim` in `prisma/schema.prisma`, migration
+`20260821000000_commercial_claim`. `npm run check:migration-order` reports 51 migrations, 1
+new, exit 0. `prisma validate` exit 0.
+
+The model encodes the rules rather than describing them:
+
+| Rule | How it is held |
+|---|---|
+| Inference is never fact | `claimType` is stored, and a `FACTUAL` claim without `sourceType` is refused at the write |
+| Inference carries strength | `INFERRED` requires `confidence` in [0, 1] |
+| Correction is not mutation | `supersedesId` + status `superseded`; the wrong belief keeps its text |
+| AI memory decays faster | default TTL 30 days for `INFERRED` against 365 for `FACTUAL` |
+| Tenancy | `tenantId` on every row and every query; the Prisma extension derives tenant-owned models from the DMMF, so the new table is enforced without registration |
+
+**Service** — `lib/memory/claims.ts`, placed outside `lib/ai/` because `.claude/rules/ai.md`
+holds the line that nothing under `lib/ai/` touches a CRM table directly.
+
+**Tests** — `tests/commercial-claims.test.ts`, 14 cases including the two tenancy ones that
+matter: a read never returns another tenant's claims, and a correction by id across a tenant
+boundary is refused with the same "not found" message used for a genuinely absent claim,
+because the difference is itself information about another tenant.
+
+**Not yet run.** The Prisma client needs regenerating and the query engine is held by the
+running browser suite. Nothing here is claimed as passing.
+
+---
+
 ## Wave status
 
 | Wave | Scope | State |
