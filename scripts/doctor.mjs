@@ -34,6 +34,14 @@ import {
   sanitizeDiagnosticText,
   evaluateVersionState,
   evaluateGitState,
+  ENV_FILES,
+  TYPECHECK_ARGS,
+  TYPECHECK_NODE_OPTIONS,
+  classifyTypecheckResult,
+  PRISMA_MIGRATE_STATUS_ARGS,
+  summarizeDependencyProblems,
+  mergeEnvFiles,
+  parseEnvFile,
 } from './doctor-core.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -244,11 +252,34 @@ if (isPreInstall) {
 // ---------------------------------------------------------------------------
 
 // --- Dependency tree valid ---
-const npmLsResult = safeExecCode('npm ls --all --json');
-if (npmLsResult.ok) {
+// `npm ls` exits non-zero when it finds problems and prints the tree on stdout regardless, so
+// this reads stdout rather than treating the exit code as the whole answer. Naming the packages
+// is the point: "installed tree has problems" hid two peer-dependency violations for weeks.
+// Read stdout RAW. `safeExec` runs it through `sanitizeDiagnosticText`, which rewrites
+// credential-shaped URLs — and an npm tree is full of registry URLs, so the sanitized text is no
+// longer valid JSON. Nothing printed from here comes from the raw text: only the extracted
+// problem lines are shown, and those are package names.
+let npmLsStdout = '';
+try {
+  npmLsStdout = execSync('npm ls --all --json', {
+    cwd: ROOT,
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+    timeout: 120_000,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+} catch (err) {
+  // Non-zero exit is the normal case when problems exist; the tree is still on stdout.
+  npmLsStdout = err?.stdout ?? '';
+}
+const deps = summarizeDependencyProblems(npmLsStdout);
+if (!deps.parsed) {
+  fail('Dependencies', 'could not read the installed tree');
+} else if (deps.problems.length === 0) {
   line('Dependencies', 'installed tree valid', true);
 } else {
-  fail('Dependencies', 'installed tree has problems');
+  fail('Dependencies', `${deps.problems.length} problem${deps.problems.length === 1 ? '' : 's'}`);
+  for (const problem of deps.problems.slice(0, 10)) console.log(`    ${problem}`);
 }
 
 // --- Prisma client ---
@@ -326,11 +357,13 @@ if (envResult) {
     line('Topology', 'unknown', null);
   }
 } else if (!envResult) {
-  if (!existsSync(resolve(ROOT, '.env'))) {
+  // Every file the application and the certification ladder read, not just `.env`. Checking
+  // `.env` alone reported a machine configured through `.env.local` as having no configuration.
+  if (!ENV_FILES.some((file) => existsSync(resolve(ROOT, file)))) {
     fail('Application DB', 'not configured');
     fail('Direct DB', 'not configured');
     actionRequired(
-      'No .env file found. Provision environment variables from\n' +
+      `No ${ENV_FILES.join(' or ')} file found. Provision environment variables from\n` +
       '  the team\'s secure secrets source. See docs/NEW_MACHINE.md.\n' +
       '  Reference template: .env.example\n\n' +
       '  Do NOT copy .env.example directly — it contains placeholder\n' +
@@ -351,7 +384,26 @@ if (migOrderResult.ok) {
 
 // --- Migration status (READINESS GATE) ---
 if (envResult && (envResult.database.application || envResult.database.direct)) {
-  const migStatusResult = safeExec('npx prisma migrate status');
+  // Spawned through node, not `npx prisma` — see PRISMA_MIGRATE_STATUS_ARGS.
+  //
+  // The env files have to be loaded HERE. `doctor-env-check.ts` merges them into its own
+  // process, which is a child; nothing propagates back, so this process still has no
+  // DATABASE_URL and Prisma failed with `Environment variable not found: DIRECT_URL` — reported
+  // as "status check failed", which reads as a schema problem rather than a missing variable.
+  const parsedEnvFiles = {};
+  for (const file of ENV_FILES) {
+    const filePath = resolve(ROOT, file);
+    if (!existsSync(filePath)) continue;
+    try {
+      parsedEnvFiles[file] = parseEnvFile(readFileSync(filePath, 'utf8'));
+    } catch {
+      // An unreadable env file is reported by the checks above; do not fail the whole run here.
+    }
+  }
+  const migStatusResult = safeExec(
+    `"${process.execPath}" ${PRISMA_MIGRATE_STATUS_ARGS.map((a) => `"${a}"`).join(' ')}`,
+    { timeout: 120_000, env: mergeEnvFiles(process.env, parsedEnvFiles) },
+  );
   const migrationsDir = resolve(ROOT, 'prisma', 'migrations');
   let totalMigrations = 0;
   if (existsSync(migrationsDir)) {
@@ -372,6 +424,12 @@ if (envResult && (envResult.database.application || envResult.database.direct)) 
     line('Migrations', migrationInfo, true);
   } else {
     fail('Migrations', 'status check failed');
+    // Prisma says which migrations are pending, or why it could not connect. Reporting only
+    // "status check failed" made a broken invocation look like a schema that was behind.
+    const detail = `${migStatusResult.stdout}\n${migStatusResult.stderr}`;
+    for (const detailLine of detail.split('\n').slice(0, 12)) {
+      if (detailLine.trim()) console.log(`    ${detailLine.trimEnd()}`);
+    }
   }
 }
 
@@ -427,7 +485,12 @@ if (envResult) {
   if (envResult.dryRunEnabled) {
     line('Email dry-run', 'enabled', true);
   } else {
-    fail('Email dry-run', 'DISABLED — live email sending is active');
+    fail(
+      'Email dry-run',
+      envResult.dryRunSet
+        ? 'DISABLED — live email sending is active'
+        : 'not set (defaults to dry-run ON, but must be explicit)',
+    );
     actionRequired(
       'EMAIL_SEND_DRY_RUN is not "true". Set it to "true" in .env\n' +
       '  to prevent live email sending in development.',
@@ -437,7 +500,12 @@ if (envResult) {
   if (envResult.autosendDisabled) {
     line('Sequence autosend', 'disabled', true);
   } else {
-    fail('Sequence autosend', 'ENABLED — sequences will send live email');
+    fail(
+      'Sequence autosend',
+      envResult.autosendSet
+        ? 'ENABLED — sequences will send live email'
+        : 'not set (defaults to autosend OFF, but must be explicit)',
+    );
     actionRequired(
       'SEQUENCE_AUTOSEND_ENABLED is not "false". Set it to "false" in .env\n' +
       '  to prevent automated sequence email sending in development.',
@@ -447,11 +515,22 @@ if (envResult) {
 
 // --- TypeScript ---
 console.log();
-const tscResult = safeExecCode('npx tsc --noEmit');
-if (tscResult.ok) {
-  line('TypeScript', 'pass', true);
+// Spawned through node directly. `npx tsc` cannot run in a checkout whose path contains an
+// `&`, and the failure was reported as "TypeScript errors" on a tree that has none.
+const tscResult = safeExecCode(
+  `"${process.execPath}" ${TYPECHECK_ARGS.map((a) => `"${a}"`).join(' ')}`,
+  { timeout: 600_000, env: { ...process.env, NODE_OPTIONS: TYPECHECK_NODE_OPTIONS } },
+);
+const tscVerdict = classifyTypecheckResult(tscResult);
+if (tscVerdict.ok) {
+  line('TypeScript', tscVerdict.summary, true);
 } else {
-  fail('TypeScript', 'errors');
+  fail('TypeScript', tscVerdict.summary);
+  // Print the diagnostics. Reporting only the word "errors" made a broken invocation and a
+  // genuine type error indistinguishable, which is how this went unnoticed.
+  for (const detailLine of tscVerdict.detail.split('\n').slice(0, 15)) {
+    if (detailLine.trim()) console.log(`    ${detailLine.trimEnd()}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
