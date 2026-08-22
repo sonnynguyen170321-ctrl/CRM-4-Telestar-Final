@@ -253,7 +253,7 @@ All three pieces are required — both compose files, `APP_ENV_FILE`, and `--env
 
 ```bash
 cd /opt/crm-4-u
-sudo APP_ENV_FILE=.env.production docker compose   -f docker-compose.yml -f docker-compose.aws.yml   --env-file .env.production   up -d --no-deps web worker
+sudo APP_ENV_FILE=.env.production docker compose   -f docker-compose.yml -f docker-compose.gcp.yml   --env-file .env.production   up -d --no-deps web worker
 ```
 
 `--no-deps` matters: the base compose still defines a local `postgres` service this box does not
@@ -264,7 +264,7 @@ compose actually resolved, which is the only way to know the invocation is right
 touches anything running:
 
 ```bash
-sudo APP_ENV_FILE=.env.production docker compose   -f docker-compose.yml -f docker-compose.aws.yml   --env-file .env.production config --images
+sudo APP_ENV_FILE=.env.production docker compose   -f docker-compose.yml -f docker-compose.gcp.yml   --env-file .env.production config --images
 ```
 
 > **The failure mode to know about.** If you edit `IMAGE_TAG` and *then* the compose command
@@ -353,7 +353,7 @@ deploy is `pull`, never `build` — `docker-compose.build.yml` is an optional ov
 *not* what runs. The deployment record's "built on the VM from source" was stale.
 
 **Every compose command needs `--env-file .env.production`.** There is no `.env` in
-`/opt/crm-4-u`, and `docker-compose.aws.yml` sets `DATABASE_URL`, `AUTH_SECRET`,
+`/opt/crm-4-u`, and `docker-compose.yml` and `docker-compose.gcp.yml` set `DATABASE_URL`, `AUTH_SECRET`,
 `ENCRYPTION_KEY`, `NEXTAUTH_URL` and `CRON_SECRET` purely by `${VAR}` interpolation. Without
 the flag those resolve to empty strings, and a bare `docker compose up -d` will recreate the
 containers with a blank database URL and a blank encryption key. **This is the single easiest
@@ -391,7 +391,7 @@ The manual equivalent, if you need to do it by hand:
 ```bash
 # 0 — shorthand, since every command repeats it
 cd /opt/crm-4-u
-DC="sudo docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.aws.yml"
+DC="sudo docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.gcp.yml"
 
 # 1 — back up. NOTE: run this from Cloud Shell, not the VM. The VM's service account
 #     lacks the sqladmin scope and fails with ACCESS_TOKEN_SCOPE_INSUFFICIENT.
