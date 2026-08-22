@@ -1,8 +1,8 @@
 ▲ Next.js 16.3.0
 - Local:         http://localhost:3000
 - Network:       http://192.168.100.67:3000
-✓ Ready in 517ms
-✓ Running next.config.ts took 168ms
+✓ Ready in 599ms
+✓ Running next.config.ts took 104ms
 [env] Gmail OAuth not configured (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI) — related features disabled
 [env] Microsoft OAuth not configured (MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, MICROSOFT_REDIRECT_URI) — related features disabled
 [env] Cron auth not configured (CRON_SECRET) — related features disabled

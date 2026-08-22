@@ -1,64 +1,140 @@
 {
   "$comment": "GENERATED FILE. Regenerate with node scripts/certification/render-tracker.mjs. Counts are computed by the validator from the evidence manifest; nothing here is typed.",
   "program": "Telestar Production Certification",
-  "candidateSourceSha": "daa8ffb679b7bee87a907d4913123318b697eab6",
-  "releaseTag": "telestar-internal-rc-2026-08-21",
-  "generatedAt": "2026-08-21T03:24:00.348Z",
+  "candidateSourceSha": "9fa36d3bcac6532f0c6f07af9045825a9d97844f",
+  "releaseTag": "telestar-internal-rc-2026-08-22",
+  "generatedAt": "2026-08-22T07:37:45.809Z",
   "verdict": "NO-GO",
   "eligible": false,
   "requirements": {
     "total": 108,
-    "verified": 103,
-    "notVerified": 5,
+    "verified": 2,
+    "notVerified": 106,
     "byDomain": {
       "IMP": {
         "total": 13,
-        "verified": 13
+        "verified": 0
       },
       "MAIL": {
         "total": 12,
-        "verified": 12
+        "verified": 0
       },
       "SEC": {
         "total": 15,
-        "verified": 15
+        "verified": 0
       },
       "ROLE": {
         "total": 12,
-        "verified": 12
+        "verified": 0
       },
       "AI": {
         "total": 14,
-        "verified": 14
+        "verified": 0
       },
       "DR": {
         "total": 10,
-        "verified": 8
+        "verified": 1
       },
       "REL": {
         "total": 8,
-        "verified": 5
+        "verified": 1
       },
       "OPS": {
         "total": 24,
-        "verified": 24
+        "verified": 0
       }
     }
   },
   "defects": {
-    "open": 17,
-    "openP0": 2,
-    "openP1": 9,
-    "openP2": 6,
+    "open": 45,
+    "openP0": 5,
+    "openP1": 25,
+    "openP2": 15,
     "openP3": 0,
     "ids": [
+      {
+        "id": "TEL-P2-024",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P2-023",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-037",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-034",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-035",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-036",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-033",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P2-022",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P0-005",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-029",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-030",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-031",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-032",
+        "status": "OPEN"
+      },
+      {
+        "id": "TEL-P0-006",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P0-004",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-038",
+        "status": "OPEN"
+      },
+      {
+        "id": "TEL-P2-026",
+        "status": "OPEN"
+      },
+      {
+        "id": "TEL-P2-027",
+        "status": "RESOLVED"
+      },
+      {
+        "id": "TEL-P2-025",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
       {
         "id": "TEL-P0-001",
         "status": "FIXED_PENDING_VERIFICATION"
       },
       {
         "id": "TEL-P0-002",
-        "status": "BLOCKED_EXTERNAL"
+        "status": "RESOLVED"
       },
       {
         "id": "TEL-P1-014",
@@ -78,7 +154,7 @@
       },
       {
         "id": "TEL-P1-018",
-        "status": "OPEN"
+        "status": "FIXED_PENDING_VERIFICATION"
       },
       {
         "id": "TEL-P2-013",
@@ -118,13 +194,50 @@
       },
       {
         "id": "TEL-P2-018",
-        "status": "BLOCKED_EXTERNAL"
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-023",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-024",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P2-019",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P2-020",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-025",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P2-021",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-026",
+        "status": "OPEN"
+      },
+      {
+        "id": "TEL-P1-027",
+        "status": "OPEN"
+      },
+      {
+        "id": "TEL-P1-028",
+        "status": "OPEN"
       }
     ]
   },
   "evidenceRecords": 23,
   "validationFailures": {
+    "A": 1,
     "L": 6,
-    "REQ": 5
+    "REQ": 106
   }
 }

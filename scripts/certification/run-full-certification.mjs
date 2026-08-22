@@ -240,10 +240,24 @@ function blockedGate(gateId, description, reason) {
 }
 
 /** Starts the built app so browser and health gates run against a production build. */
-async function withServer(fn) {
+async function withServer(fn, { candidateSha } = {}) {
   const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', String(SERVER_PORT)], {
     cwd: REPO_ROOT,
-    env: { ...process.env },
+    env: {
+      ...process.env,
+      // `APP_COMMIT` is baked into the image at build time by `--build-arg`, and `next build`
+      // here does no such thing — so the locally started server reported `commit: "unknown"`
+      // and gate 22 could never pass locally, however healthy the candidate was.
+      //
+      // Supplying it here is deliberately NOT the proof that the deployed release is the
+      // candidate: that would be circular, since the ladder would be checking a value it just
+      // handed over. What gate 22 verifies locally is the release-identity *plumbing* —
+      // environment to `readReleaseInfo` to the health response — which is a real path that can
+      // break. The non-circular check that the running bytes are the candidate is
+      // `EV-RELEASE-IDENTITY`, recorded against the live deployment and enforced by the
+      // validator's check S.
+      ...(candidateSha ? { APP_COMMIT: candidateSha, APP_VERSION: candidateSha } : {}),
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -532,7 +546,7 @@ async function main() {
     collected.push(await withWorker(() => gateWorkerReadiness(runLabel)));
     collected.push(await gateHealthSmoke(runLabel, candidateSha));
     return collected;
-  });
+  }, { candidateSha });
   browserGates.forEach(record);
 
   // Image gates need a container runtime. They RUN wherever one answers, and are recorded as

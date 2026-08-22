@@ -23,6 +23,8 @@ import {
 import {
   classifyTopology,
   evaluateStrictEmailSafety,
+  ENV_FILES,
+  mergeEnvFiles,
 } from './doctor-core.mjs';
 
 // ---------------------------------------------------------------------------
@@ -61,6 +63,9 @@ interface DoctorEnvResult {
   emailSafe: boolean;
   dryRunEnabled: boolean;
   autosendDisabled: boolean;
+  /** Whether the variable was set at all — an unset variable is safe, just not explicit. */
+  dryRunSet: boolean;
+  autosendSet: boolean;
   aiKeys: {
     groq: boolean;
     gemini: boolean;
@@ -70,6 +75,8 @@ interface DoctorEnvResult {
     reasons: string[];
   };
   envFileExists: boolean;
+  /** Which of ENV_FILES were actually present, so doctor.mjs can name them. */
+  envFiles: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -97,13 +104,21 @@ function buildDbInfo(key: string): DbInfo | null {
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const envFilePath = '.env';
-  const envFileExists = existsSync(envFilePath);
-  const envFileVars = envFileExists ? dotenv.parse(readFileSync(envFilePath)) : {};
+  // Read every file Next.js and the certification ladder read, in the same precedence order.
+  // Reading `.env` alone made Doctor report a correctly configured machine as NOT READY.
+  const parsedFiles: Record<string, Record<string, string>> = {};
+  const presentFiles: string[] = [];
+  for (const file of ENV_FILES) {
+    if (!existsSync(file)) continue;
+    presentFiles.push(file);
+    parsedFiles[file] = dotenv.parse(readFileSync(file));
+  }
+  const envFileExists = presentFiles.length > 0;
 
-  // Merge .env into process.env for checks (process.env takes precedence)
-  for (const [key, value] of Object.entries(envFileVars)) {
-    if (!process.env[key]) process.env[key] = value;
+  // process.env keeps precedence over every file, exactly as before.
+  const merged = mergeEnvFiles(process.env, parsedFiles);
+  for (const [key, value] of Object.entries(merged)) {
+    if (!process.env[key]) process.env[key] = value as string;
   }
 
   // --- Database ---
@@ -208,12 +223,15 @@ async function main(): Promise<void> {
     emailSafe: strictEmail.ok,
     dryRunEnabled: strictEmail.dryRunStrict,
     autosendDisabled: strictEmail.autosendStrict,
+    dryRunSet: strictEmail.dryRunSet,
+    autosendSet: strictEmail.autosendSet,
     aiKeys: { groq, gemini },
     workerConfig: {
       valid: workerReasons.length === 0,
       reasons: workerReasons,
     },
     envFileExists,
+    envFiles: presentFiles,
   };
 
   // Structured JSON — doctor.mjs parses this. No other output allowed.

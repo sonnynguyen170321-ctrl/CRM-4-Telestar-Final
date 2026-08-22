@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-RUN-1",
   "kind": "certification-run",
-  "candidateSha": "daa8ffb679b7bee87a907d4913123318b697eab6",
+  "candidateSha": "9fa36d3bcac6532f0c6f07af9045825a9d97844f",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
-  "command": "node scripts/certification/run-full-certification.mjs --candidate daa8ffb679b7bee87a907d4913123318b697eab6 --run 1",
-  "startedAt": "2026-08-21T02:41:25.907Z",
-  "finishedAt": "2026-08-21T02:50:06.633Z",
+  "command": "node scripts/certification/run-full-certification.mjs --candidate 9fa36d3bcac6532f0c6f07af9045825a9d97844f --run 1",
+  "startedAt": "2026-08-22T07:43:52.652Z",
+  "finishedAt": "2026-08-22T07:52:26.734Z",
   "exitCode": 1,
   "status": "FAIL",
   "metrics": {
@@ -17,9 +17,9 @@
         "durationMs": 0,
         "description": "the application source is exactly the frozen candidate",
         "metrics": {
-          "head": "80906532a30501981cba14682e8cb443bbf5df20",
-          "candidateSha": "daa8ffb679b7bee87a907d4913123318b697eab6",
-          "commitsSinceFreeze": 1,
+          "head": "4fca3b6514a513e5637b65775e5494742b77190e",
+          "candidateSha": "9fa36d3bcac6532f0c6f07af9045825a9d97844f",
+          "commitsSinceFreeze": 2,
           "uncommittedNonMetadataPaths": 0,
           "problems": []
         }
@@ -33,7 +33,7 @@
           "postgres": {
             "host": "localhost",
             "port": "5432",
-            "database": "telestar_audit_e2e_test",
+            "database": "telestar_crm",
             "reachable": true,
             "appliedMigrations": 50
           },
@@ -45,7 +45,7 @@
           "configuration": {
             "AUTH_SECRET": "present",
             "ENCRYPTION_KEY": "present",
-            "EMAIL_SEND_DRY_RUN": "1"
+            "EMAIL_SEND_DRY_RUN": "(unset)"
           },
           "problems": [],
           "status": "PASS"
@@ -54,37 +54,37 @@
       "03-typecheck": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 28109,
+        "durationMs": 28083,
         "description": "tsc --noEmit"
       },
       "04-lint": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 109843,
+        "durationMs": 49288,
         "description": "eslint across the whole tree"
       },
       "05-test-discipline": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 300,
+        "durationMs": 534,
         "description": "scripts/check-test-discipline.mjs"
       },
       "06-migration-validation": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 148,
+        "durationMs": 147,
         "description": "scripts/check-migration-order.mjs"
       },
       "07-database-integrity": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 1858,
+        "durationMs": 9166,
         "description": "scripts/verify-db-integrity.ts against the certification database"
       },
       "08-vitest": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 148048,
+        "durationMs": 158258,
         "description": "full Vitest suite against real Postgres and Redis",
         "metrics": {
           "files": {
@@ -292,6 +292,12 @@
               "failed": 0,
               "skipped": 0
             },
+            "tests/api-key-privilege-escalation.test.ts": {
+              "status": "passed",
+              "tests": 17,
+              "failed": 0,
+              "skipped": 0
+            },
             "tests/api-keys-and-integrations.test.ts": {
               "status": "passed",
               "tests": 5,
@@ -364,9 +370,39 @@
               "failed": 0,
               "skipped": 0
             },
+            "tests/certification-env-loading.test.ts": {
+              "status": "passed",
+              "tests": 8,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/certification-false-green.test.ts": {
+              "status": "passed",
+              "tests": 36,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/certification-image-gates.test.ts": {
+              "status": "passed",
+              "tests": 17,
+              "failed": 0,
+              "skipped": 0
+            },
             "tests/certification-role-evidence.test.ts": {
               "status": "passed",
               "tests": 14,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/certification-rollback-drill.test.ts": {
+              "status": "passed",
+              "tests": 32,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/certification-rpo-probe.test.ts": {
+              "status": "passed",
+              "tests": 18,
               "failed": 0,
               "skipped": 0
             },
@@ -460,15 +496,33 @@
               "failed": 0,
               "skipped": 0
             },
+            "tests/defect-ledger-consistency.test.ts": {
+              "status": "passed",
+              "tests": 21,
+              "failed": 0,
+              "skipped": 0
+            },
             "tests/defer-scheduling.test.ts": {
               "status": "passed",
               "tests": 4,
               "failed": 0,
               "skipped": 0
             },
+            "tests/demo-diagnostics-authorization.test.ts": {
+              "status": "passed",
+              "tests": 12,
+              "failed": 0,
+              "skipped": 0
+            },
             "tests/demo-email-barrier.test.ts": {
               "status": "passed",
               "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/deploy-script.test.ts": {
+              "status": "passed",
+              "tests": 31,
               "failed": 0,
               "skipped": 0
             },
@@ -526,6 +580,12 @@
               "failed": 0,
               "skipped": 0
             },
+            "tests/email-send-once-invariant.test.ts": {
+              "status": "passed",
+              "tests": 27,
+              "failed": 0,
+              "skipped": 0
+            },
             "tests/email-worker.test.ts": {
               "status": "passed",
               "tests": 34,
@@ -546,7 +606,7 @@
             },
             "tests/gitleaks-allowlist.test.ts": {
               "status": "passed",
-              "tests": 20,
+              "tests": 21,
               "failed": 0,
               "skipped": 0
             },
@@ -1072,6 +1132,12 @@
               "failed": 0,
               "skipped": 0
             },
+            "tests/webhook-ssrf-and-authorization.test.ts": {
+              "status": "passed",
+              "tests": 69,
+              "failed": 0,
+              "skipped": 0
+            },
             "tests/webhooks-scoring.test.ts": {
               "status": "passed",
               "tests": 5,
@@ -1139,9 +1205,9 @@
               "skipped": 0
             }
           },
-          "testFiles": 175,
-          "testFilesPassed": 175,
-          "testsPassed": 2340,
+          "testFiles": 186,
+          "testFilesPassed": 186,
+          "testsPassed": 2629,
           "testsFailed": 0,
           "testsSkipped": 0
         }
@@ -1149,7 +1215,7 @@
       "09-redis-integration": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 3242,
+        "durationMs": 3364,
         "description": "Redis integration suite - must execute, never skip",
         "metrics": {
           "files": {
@@ -1184,118 +1250,146 @@
       "10-ai-certification": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 7305,
+        "durationMs": 7525,
         "description": "AI durable budget, stream governance, shared circuit, capability routing"
       },
       "11-email-safety": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 2082,
+        "durationMs": 2196,
         "description": "demo barrier, idempotency, safe-mode posture"
       },
       "12-import-fault-matrix": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 5261,
+        "durationMs": 8962,
         "description": "import durable-write failpoint matrix"
       },
       "13-queue-load": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 23458,
+        "durationMs": 37374,
         "description": "IMPORT_SYSTEM_QUEUE_BENCHMARK over real Redis and BullMQ"
       },
       "14-security-suite": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 4112,
+        "durationMs": 3904,
         "description": "tenant isolation, object auth, mass assignment, XSS, formula injection, secrets"
       },
       "15-production-build": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 124081,
+        "durationMs": 140492,
         "description": "next build"
       },
       "16-playwright-roles": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 30442,
-        "description": "six-role real browser acceptance"
+        "durationMs": 32193,
+        "description": "six-role real browser acceptance",
+        "metrics": {
+          "playwright": {
+            "parsed": true,
+            "reason": null,
+            "total": 15,
+            "passed": 15,
+            "failed": 0,
+            "skipped": 0,
+            "flaky": 0,
+            "timedOut": 0,
+            "interrupted": 0
+          },
+          "unaccounted": 0
+        }
       },
       "16-playwright-roles-evidence": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 155,
+        "durationMs": 137,
         "description": "aggregate six-role observations into EV-ROLE-BROWSER"
       },
       "17-golden-browser-journey": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 14770,
-        "description": "cross-role golden journey in a real browser"
+        "durationMs": 15603,
+        "description": "cross-role golden journey in a real browser",
+        "metrics": {
+          "playwright": {
+            "parsed": true,
+            "reason": null,
+            "total": 15,
+            "passed": 15,
+            "failed": 0,
+            "skipped": 0,
+            "flaky": 0,
+            "timedOut": 0,
+            "interrupted": 0
+          },
+          "unaccounted": 0
+        }
       },
       "18-worker-readiness": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 3339,
+        "durationMs": 3532,
         "description": "worker healthcheck: a job is enqueued and a real worker drains it"
       },
       "22-health-smoke": {
-        "status": "PASS",
-        "exitCode": 0,
-        "durationMs": 41,
-        "description": "web health endpoints answer and report release identity",
+        "status": "FAIL",
+        "exitCode": 1,
+        "durationMs": 13,
+        "description": "web health endpoints answer 200 with ok=true and report the candidate SHA",
         "metrics": {
           "endpoints": {
             "/api/health": {
               "status": 200,
-              "body": "{\"ok\":true,\"ts\":1787280604778,\"commit\":\"unknown\",\"version\":\"unknown\",\"builtAt\":\"unknown\",\"schema\":\"ready\"}"
-            },
-            "/api/health/db": {
-              "status": 404,
-              "body": "<!DOCTYPE html><html lang=\"en\" class=\"h-full antialiased montserrat_749aa487-module__uhke3q__variable jetbrains_mono_cae79820-module__QvYvBa__variable\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/42gcb8tnhmq7r.css\" data-precedence=\"next\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/1onf9fi"
-            },
-            "/api/health/redis": {
-              "status": 404,
-              "body": "<!DOCTYPE html><html lang=\"en\" class=\"h-full antialiased montserrat_749aa487-module__uhke3q__variable jetbrains_mono_cae79820-module__QvYvBa__variable\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/42gcb8tnhmq7r.css\" data-precedence=\"next\"/><link rel=\"stylesheet\" href=\"/_next/static/chunks/1onf9fi"
+              "commit": "unknown",
+              "findings": [
+                "/api/health: reports commit unknown, expected the candidate 9fa36d3"
+              ]
             }
-          }
+          },
+          "findings": [
+            "/api/health: reports commit unknown, expected the candidate 9fa36d3"
+          ]
         }
       },
       "19-docker-build": {
         "status": "BLOCKED_EXTERNAL",
         "exitCode": 127,
         "durationMs": 0,
-        "description": "Docker image build from the candidate SHA",
+        "description": "Docker image build from candidate SHA",
         "metrics": {
-          "reason": "no container runtime on the certification workstation; see TEL-P1-018"
+          "reason": "no container runtime answers on this machine (docker/podman); install one and re-run"
         }
       },
       "20-image-inspection": {
         "status": "BLOCKED_EXTERNAL",
         "exitCode": 127,
         "durationMs": 0,
-        "description": "image digest captured by digest, never by floating tag",
+        "description": "Image digest captured by digest, never by floating tag",
         "metrics": {
-          "reason": "no image exists to inspect; see TEL-P1-018"
+          "reason": "no container runtime answers on this machine, so no image exists to inspect"
         }
       },
       "21-compose-validation": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 468,
+        "durationMs": 454,
         "description": "scripts/check-production-compose.mjs"
       },
       "23-validator-selftest": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 1347,
+        "durationMs": 887,
         "description": "the validator rejects every injected false-green state"
       }
     },
     "missingGates": [],
-    "failedGates": [],
+    "failedGates": [
+      "22-health-smoke"
+    ],
     "blockedGates": [
       "19-docker-build",
       "20-image-inspection"
@@ -1305,78 +1399,78 @@
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/run1-02-environment.log",
-      "sizeBytes": 477,
-      "sha256": "43c8440331e83250d3d56b6476dced69a6bf97830eedb7597d9a7c6b89c2abc6"
+      "sizeBytes": 472,
+      "sha256": "89777ccb436735761d85a968d2046002a2c584c52f598fadb5a3ea59700c7f79"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-03-typecheck.log",
       "sizeBytes": 261,
-      "sha256": "45f1527d3d7fdba74251a783618fbf9a983593a8be54a3cefca0e1002dffdd33"
+      "sha256": "2be8efa749b1443fddc99ed855736cb348127940a157f38b3614f422bf7b10c1"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-04-lint.log",
       "sizeBytes": 782,
-      "sha256": "2982eea9654da06eb74d1998dde283df58e659f2394f02b12ca0c0fc2aa24452"
+      "sha256": "ea66999535f36555c4328b900f297aea2144a1f33cb92e0f5117f4275f3de9df"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-05-test-discipline.log",
       "sizeBytes": 324,
-      "sha256": "7a43e59423166944ecb333216fd67d3f8df75c0c4d5eab0ecc34b2dcf682f8ae"
+      "sha256": "fbaaf6c51241487ba225fafddb0700c9ce67790b5188fea35abe1228179f41e7"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-06-migration-validation.log",
       "sizeBytes": 337,
-      "sha256": "b907e68c187b787f6dd15c61073dafdee280c004e0e1a00f527855e23d7a1833"
+      "sha256": "0692a8cb24bdd8fc58e0a81beef861846bdb2264654649435dc8f41b730ae267"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-07-database-integrity.log",
-      "sizeBytes": 1672,
-      "sha256": "6e7e034a7684546ceb29913aa2ad7fc646c8195f657a9e7e35baaede4caac6e3"
+      "sizeBytes": 1757,
+      "sha256": "c3f664bdbf584f2d50f0bce301ebfd589ff1b36044635e76215fe3cabe09f157"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-08-vitest.log",
       "sizeBytes": 443,
-      "sha256": "8e5706f8f659b1fc88546acb11d213b97f5018e33297f06cd17dc976c9c8a91d"
+      "sha256": "7376494f059b13fbb43de4467527857e01ebab9138717dbe8cd53cbd1859c7bb"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-09-redis-integration.log",
       "sizeBytes": 547,
-      "sha256": "e9b6c98bb179d7f284f98bfae34ab8dc99449413b4965773007b72a973c7328c"
+      "sha256": "4861e29934d39508f18501138c7a20c81e6ec9131c3ffef49e18299e52cd4a8c"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-10-ai-certification.log",
-      "sizeBytes": 761,
-      "sha256": "3b492b2973c848419b867f11b57ef15f2e793a9e7820feb8aa2f6c6156e09bc3"
+      "sizeBytes": 762,
+      "sha256": "d44adb46628eb316503883294eecf51c957ca3b5ff01f4d64df453c932411c73"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-11-email-safety.log",
       "sizeBytes": 617,
-      "sha256": "60e9bb6286eeacd0775585c849a15f0f26c4d936f1711c51f4dd37aa84119081"
+      "sha256": "f0e671df4e1cf493896422645d9ab98b948bc133479bd18e5a97a42b08997b51"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-12-import-fault-matrix.log",
       "sizeBytes": 596,
-      "sha256": "d258123bbf63dbd7ebfda6e8dc763ac4622ed6af46ae388353ddfa6bc63e0dfd"
+      "sha256": "d8590c4ec0efa296fef80c4e6be8e48be2942102f11a9a3b5cebbec7dcaa24e4"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-13-queue-load.log",
-      "sizeBytes": 523,
-      "sha256": "eec8dc7e56bfeca699ebbb3aad281581ff1d422c44fe35eb057dbc24fc493a53"
+      "sizeBytes": 524,
+      "sha256": "72de1bb61534764b182e0c44bfc18c7f43ea6f64513da19aa2e8a4477eb6cdbc"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-14-security-suite.log",
       "sizeBytes": 769,
-      "sha256": "8891a73659b0db562eb6ce6b243a0677b33be6ff15f0c5eebc600163e304fac2"
+      "sha256": "a9065d6f67d6821de90f9d3c6a7c35c509e1e205e909936801d2996935be4a9f"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-15-production-build.log",
-      "sizeBytes": 8267,
-      "sha256": "8e15a2c5dbc28d971bc044989d895fe09cedd976ac969119cd4c0c22d7512643"
+      "sizeBytes": 8253,
+      "sha256": "6e35642b7464803846c88c4923a3b0f411c61aeb9852a8393adff8d024cdb2aa"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-16-playwright-roles.log",
       "sizeBytes": 2174,
-      "sha256": "5b2503cd1eb412d38f3f9f7d26b85a198da38d4fbed61aa333831c0d2c7df755"
+      "sha256": "558e8dbb9f8ce499de5714b453208829976fb9caeca57c780906e5460216f402"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-16-playwright-roles-evidence.log",
@@ -1385,18 +1479,23 @@
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-17-golden-browser-journey.log",
-      "sizeBytes": 2218,
-      "sha256": "c600770d5e1f40d9114d37115949193b17fa522ed8181d6eaadc3374f73799a7"
+      "sizeBytes": 2217,
+      "sha256": "dde5342210d513313dad931b4c420e5db2e51104231af5f7988ba46b0b8b6156"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-18-worker-readiness.log",
       "sizeBytes": 187,
-      "sha256": "3768151e76da389baca2dfacbd704dd649eb06aa938c20279f9b095b09a1300a"
+      "sha256": "3cec3b49a62a2b66e1e5e48342a3fc8e5cfac33a502a59aaadadc93432e31a5f"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/run1-22-health-smoke.log",
+      "sizeBytes": 321,
+      "sha256": "71f75cc1cea4045bcdca2abb08f513f4cc54797e730290056fcc469a17aca6d8"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-21-compose-validation.log",
       "sizeBytes": 1413,
-      "sha256": "0f633a226b05dbd780aebb0df983ad2f492c06a52e87728aac1d77b8157777be"
+      "sha256": "ccc7d6f858dac1c58accbf385ad682fe133c1c6403f09984e0632d77514711e9"
     },
     {
       "path": "docs/production-certification/evidence/raw/run1-23-validator-selftest.log",

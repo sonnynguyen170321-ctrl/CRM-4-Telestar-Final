@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-SECURITY-INVENTORY",
   "kind": "security-inventory",
-  "candidateSha": "daa8ffb679b7bee87a907d4913123318b697eab6",
+  "candidateSha": "9fa36d3bcac6532f0c6f07af9045825a9d97844f",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "derived from C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-21T02:58:13.515Z",
-  "finishedAt": "2026-08-21T03:00:27.582Z",
+  "startedAt": "2026-08-22T07:45:20.420Z",
+  "finishedAt": "2026-08-22T07:47:58.678Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -33,9 +33,9 @@
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/run3-08-vitest.log",
+      "path": "docs/production-certification/evidence/raw/run1-08-vitest.log",
       "sizeBytes": 443,
-      "sha256": "94c38898a256a2f60921795d33dd5cd90e2286ba7205f250797062128157953f"
+      "sha256": "7376494f059b13fbb43de4467527857e01ebab9138717dbe8cd53cbd1859c7bb"
     }
   ]
 }

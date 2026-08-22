@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-VITEST",
   "kind": "vitest",
-  "candidateSha": "daa8ffb679b7bee87a907d4913123318b697eab6",
+  "candidateSha": "9fa36d3bcac6532f0c6f07af9045825a9d97844f",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-21T02:58:13.515Z",
-  "finishedAt": "2026-08-21T03:00:27.582Z",
+  "startedAt": "2026-08-22T07:45:20.420Z",
+  "finishedAt": "2026-08-22T07:47:58.678Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -214,6 +214,12 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/api-key-privilege-escalation.test.ts": {
+        "status": "passed",
+        "tests": 17,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/api-keys-and-integrations.test.ts": {
         "status": "passed",
         "tests": 5,
@@ -286,9 +292,39 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/certification-env-loading.test.ts": {
+        "status": "passed",
+        "tests": 8,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/certification-false-green.test.ts": {
+        "status": "passed",
+        "tests": 36,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/certification-image-gates.test.ts": {
+        "status": "passed",
+        "tests": 17,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/certification-role-evidence.test.ts": {
         "status": "passed",
         "tests": 14,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/certification-rollback-drill.test.ts": {
+        "status": "passed",
+        "tests": 32,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/certification-rpo-probe.test.ts": {
+        "status": "passed",
+        "tests": 18,
         "failed": 0,
         "skipped": 0
       },
@@ -382,15 +418,33 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/defect-ledger-consistency.test.ts": {
+        "status": "passed",
+        "tests": 21,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/defer-scheduling.test.ts": {
         "status": "passed",
         "tests": 4,
         "failed": 0,
         "skipped": 0
       },
+      "tests/demo-diagnostics-authorization.test.ts": {
+        "status": "passed",
+        "tests": 12,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/demo-email-barrier.test.ts": {
         "status": "passed",
         "tests": 4,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/deploy-script.test.ts": {
+        "status": "passed",
+        "tests": 31,
         "failed": 0,
         "skipped": 0
       },
@@ -448,6 +502,12 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/email-send-once-invariant.test.ts": {
+        "status": "passed",
+        "tests": 27,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/email-worker.test.ts": {
         "status": "passed",
         "tests": 34,
@@ -468,7 +528,7 @@
       },
       "tests/gitleaks-allowlist.test.ts": {
         "status": "passed",
-        "tests": 20,
+        "tests": 21,
         "failed": 0,
         "skipped": 0
       },
@@ -994,6 +1054,12 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/webhook-ssrf-and-authorization.test.ts": {
+        "status": "passed",
+        "tests": 69,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/webhooks-scoring.test.ts": {
         "status": "passed",
         "tests": 5,
@@ -1061,17 +1127,17 @@
         "skipped": 0
       }
     },
-    "testFiles": 175,
-    "testFilesPassed": 175,
-    "testsPassed": 2340,
+    "testFiles": 186,
+    "testFilesPassed": 186,
+    "testsPassed": 2629,
     "testsFailed": 0,
     "testsSkipped": 0
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/run3-08-vitest.log",
+      "path": "docs/production-certification/evidence/raw/run1-08-vitest.log",
       "sizeBytes": 443,
-      "sha256": "94c38898a256a2f60921795d33dd5cd90e2286ba7205f250797062128157953f"
+      "sha256": "7376494f059b13fbb43de4467527857e01ebab9138717dbe8cd53cbd1859c7bb"
     }
   ]
 }
