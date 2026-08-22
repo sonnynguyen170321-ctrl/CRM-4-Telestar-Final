@@ -272,4 +272,21 @@ describe('the ladder wires both corrections', () => {
   it('fails a Playwright gate that exited 0 while skipping tests', () => {
     expect(runner).toMatch(/gate\.status === 'PASS' && counts\.parsed && unaccounted === 0/);
   });
+
+  it('gives the locally started server the candidate identity', () => {
+    // Gate 22 requires health to report the candidate commit. APP_COMMIT is baked into the
+    // image by --build-arg, and `next build` here does not do that, so the local server
+    // reported "unknown" and the gate could never pass locally — measured on run 1.
+    expect(runner).toContain('APP_COMMIT: candidateSha');
+    // The call site passes it through; the callback body between them is long, so match the
+    // closing argument rather than trying to span the whole block.
+    expect(runner).toContain('}, { candidateSha });');
+  });
+
+  it('records why supplying that identity is not circular', () => {
+    // If this reasoning is ever lost, someone will reasonably mistake gate 22 for
+    // self-certification and either delete it or trust it too far.
+    const server = runner.slice(runner.indexOf('async function withServer'));
+    expect(server.slice(0, 1400)).toContain('EV-RELEASE-IDENTITY');
+  });
 });
