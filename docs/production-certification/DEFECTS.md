@@ -24,10 +24,10 @@ last two attempts at this table were both wrong.
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 5 | 0 | 0 | **4** |
-| **P1** (Critical) | 40 | 9 | 4 | **27** |
+| **P1** (Critical) | 41 | 9 | 4 | **28** |
 | **P2** (Important) | 31 | 8 | 4 | **18** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **76** | **17** | **8** | **49** |
+| **TOTAL** | **77** | **17** | **8** | **50** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -1710,6 +1710,66 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
 - **Do not "fix" this by removing the prompt or defaulting `backupVerified` to true.** The
   prompt is the last thing standing between an unrecoverable migration and no backup.
 - **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-039` — The Ladder Certified A Server It Did Not Start
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION` — fixed in `063d49e`
+- **Measured**: certification run 1 against candidate `e968ce7`, executed while a `next dev`
+  server was listening on port 3000. From `evidence/raw/certification-server.log`:
+
+  ```
+  ⨯ Failed to start server
+  Error: listen EADDRINUSE: address already in use :::3000
+  ```
+
+  What the run then did, in order:
+
+  | Step | What happened |
+  |---|---|
+  | 1 | the ladder's `next start -p 3000` exited immediately |
+  | 2 | nothing checked whether the child was still alive |
+  | 3 | the readiness probe fetched `/login`, got **200 from the dev server**, set `ready = true` |
+  | 4 | gates 16 and 17 ran **30 Playwright tests against a development build** and reported PASS |
+  | 5 | gate 18 reported the worker ready |
+  | 6 | gate 22 failed — the only gate that noticed, and only because a dev server carries no `APP_COMMIT` and answered `commit: "unknown"` |
+
+- **Why it is P1 and not P2**: the run produced *evidence*. Thirty green browser tests describing
+  a build that was never under test is worse than no evidence, because a reader has no way to
+  tell the difference. Every gate that talks to `BASE_URL` was affected; the two that failed are
+  the only reason it was caught at all.
+
+- **Root cause**: `withServer`'s readiness loop treated `response.status < 500` as the sole
+  condition. Any process that answers `/login` satisfies it. The ladder never established that
+  the server answering was the one it spawned.
+
+- **Second symptom, same cause**: the stray `next dev` also held the Prisma query engine DLL
+  open, so gate 15 failed with
+  `EPERM: operation not permitted, rename query_engine-windows.dll.node.tmp9244 -> query_engine-windows.dll.node`.
+  One process, three corrupted gates and one accidental catch.
+
+- **Fix** (`scripts/certification/lib/serverGuard.mjs`):
+  - `probePort` / `describePortConflict` — the port must be free **before** spawning. A busy
+    port is a hard failure naming what would otherwise happen, not something to probe around.
+  - `serverHasExited` / `describeServerExit` — the spawned child must still be alive, checked
+    inside the readiness loop **and again after it**, because the child can die between the last
+    check and a successful probe from whatever took the port.
+
+- **Verification** — all three symptoms re-measured after the fix, on the next run:
+
+  | Gate | Before | After |
+  |---|---|---|
+  | 15-production-build | `EPERM ... rename query_engine-windows.dll.node` | `exitCode: 0`, `✓ Compiled successfully in 55s` |
+  | 22-health-smoke | `commit: "unknown"` | `commit: e968ce7b585fb…`, `findings: none` |
+  | server ownership | `EADDRINUSE`, dev server answered | `✓ Ready in 418ms`, 0 occurrences of EADDRINUSE |
+
+  The guard was also exercised against the live conflict rather than a simulated one: with the
+  dev server still running, `probePort(3000)` returned `EADDRINUSE` and produced the refusal.
+
+- **Regression tests**: `tests/certification-server-ownership.test.ts` — 19 tests, all negative.
+- **The evidence from the tainted run was discarded, not committed.**
+- **Evidence ID**: *(none yet — belongs to the re-frozen candidate's runs)*
 
 ---
 

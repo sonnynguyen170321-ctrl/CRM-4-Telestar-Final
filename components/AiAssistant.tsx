@@ -104,7 +104,7 @@ function CopilotIcon({ hasUnread, isThinking }: { hasUnread: boolean; isThinking
 }
 
 export default function AiAssistant() {
-  const { currentUserId, currentUser, currentRole, isSessionLoading } = useAppContext();
+  const { currentUserId, currentUser, isSessionLoading } = useAppContext();
   const pathname = usePathname();
   const isDesktop = useIsDesktop();
 
