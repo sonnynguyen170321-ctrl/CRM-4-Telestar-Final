@@ -25,9 +25,9 @@ last two attempts at this table were both wrong.
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 5 | 0 | 0 | **4** |
 | **P1** (Critical) | 40 | 9 | 4 | **27** |
-| **P2** (Important) | 28 | 8 | 4 | **15** |
+| **P2** (Important) | 30 | 8 | 4 | **17** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **73** | **17** | **8** | **46** |
+| **TOTAL** | **75** | **17** | **8** | **48** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -1582,6 +1582,72 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
   3. Correct or withdraw the Phase 15 note.
 
   Steps 2 and 3 touch production and need explicit operator authorization.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P2-028` — Doctor Reported Five False Or Unreadable Results About This Machine
+- **Severity**: P2
+- **Status**: `FIXED_PENDING_VERIFICATION` — fixed in `d7dad04`
+- **Why it is a certification defect and not a developer-experience one**: `CLAUDE.md` instructs
+  every agent to run `npm run agent -- doctor` *before running anything*, and doctor describes
+  itself as reporting what this machine can actually run. Its answers are the premise other
+  decisions are built on. It reported **NOT READY** on a machine where the application, the full
+  Vitest suite and the certification ladder all ran — so the correct response to doctor became
+  "ignore it", which is the failure mode, not the noise.
+- **Measured, each verified against the thing it describes**:
+
+  | Doctor said | Reality | Cause |
+  |---|---|---|
+  | `TypeScript  errors` | `tsc --noEmit` exit 0, 0 errors | `npx tsc` cannot run in a path containing `&`; output discarded |
+  | `Migrations  status check failed` | all 50 applied | same `npx` breakage + doctor never loaded the env files into its own process |
+  | `Required env vars missing: DATABASE_URL, …` | present in `.env.local` | doctor read `.env` only; Next.js and `loadEnv.mjs` read `.env.local` first |
+  | `Email dry-run  DISABLED — live email sending is active` | unset ⇒ dry-run **ON** | message states the opposite of `lib/emailSafety.ts` |
+  | `Dependencies  installed tree has problems` | two named violations | `npm ls` JSON was run through the credential sanitizer and stopped parsing |
+
+- **The fourth one is the dangerous one.** `lib/emailSafety.ts` fails closed by design, and its
+  header records that failing *open* was a previous defect. Doctor told operators that an unset
+  variable means live sending is active. Anyone acting on that could "fix" the default and
+  reintroduce exactly that bug. The strict requirement that both variables be set explicitly is
+  retained — only the false claim about current behaviour was corrected.
+- **Fix**: decision logic moved into `scripts/doctor-core.mjs` as pure functions
+  (`ENV_FILES`, `parseEnvFile`, `mergeEnvFiles`, `TYPECHECK_ARGS`, `classifyTypecheckResult`,
+  `PRISMA_MIGRATE_STATUS_ARGS`, `summarizeDependencyProblems`), subprocesses spawned through
+  `process.execPath` instead of `npx`, and every failing check now prints what the tool said.
+- **Regression tests**: `tests/doctor-machine-truth.test.ts` — 45 tests. Mutating `ENV_FILES`
+  to `['.env']` and forcing the type-error counter kills 7 of them, so the suite can fail.
+- **Verification after the fix**: `Migrations 50 / 50 applied ✓`, `TypeScript pass ✓`,
+  `Dependencies 2 problems` with both named. Doctor still exits 1, now for reasons that are true.
+- **Evidence ID**: *(none yet — belongs to the next ladder run)*
+
+---
+
+### `TEL-P2-029` — Two Peer-Dependency Violations Were Hidden Behind One Doctor Line
+- **Severity**: P2
+- **Status**: `OPEN` — deliberately not fixed during certification
+- **Measured** (`npm ls --all --json`, surfaced by the `TEL-P2-028` fix):
+
+  ```
+  invalid: nodemailer@9.0.5   next-auth@5.0.0-beta.32 and @auth/core@0.41.3 require ^7.0.7 || ^8.0.5
+  invalid: ws@7.5.11          openai@7.5.0 requires ^8.18.0
+  ```
+
+  `nodemailer@9` is hoisted from this project's own `"nodemailer": "^9.0.5"`; `ws@7.5.11` is
+  hoisted from `webpack-bundle-analyzer`, a dev dependency, and is the copy `openai` resolves.
+- **Why it matters**: a peer-dependency violation means a package is running against an API it
+  never declared support for. It is silent until the unsupported path is taken.
+- **Why it is not being changed now** — checked, not assumed:
+  - **`nodemailer`**: next-auth needs it only for its email/Nodemailer provider. This codebase
+    does not configure one; the only `EmailProvider` identifier in the tree is the *Prisma enum*
+    in `lib/email/oauthAccounts.ts`. Application mail goes through `lib/email/EmailService`,
+    which uses nodemailer directly and is built against v9.
+  - **`ws`**: `openai` needs it only for the realtime/WebSocket API. No `realtime`,
+    `RealtimeClient` or `WebSocket` usage exists under `app/`, `lib/` or `workers/`.
+  - Changing the dependency tree during final certification would invalidate the frozen
+    candidate and require a full re-run. The risk of the change exceeds the risk of the finding.
+- **Remediation, after this release**: raise the `ws` floor (or drop
+  `@next/bundle-analyzer` from the hoisted tree) and reconcile `nodemailer` with next-auth's
+  supported range — most cleanly by upgrading `next-auth` past its beta once it accepts v9.
 - **Evidence ID**: *(none yet)*
 
 ---
