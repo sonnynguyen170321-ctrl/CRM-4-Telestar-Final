@@ -129,6 +129,18 @@ describe('the drill can be reviewed before it is run', () => {
     expect(drill).toMatch(/if \(dryRun\)[\s\S]{0,200}No evidence written/);
   });
 
+  it('writes no raw phase logs on a dry run either', () => {
+    // Measured, not assumed: the first version wrote three dr-rollback-*.log files during a
+    // dry run, describing a drill that never happened. Reviewing a plan must not leave
+    // artifacts that look like results.
+    const phaseFn = drill.slice(drill.indexOf('function runPhase'));
+    const guard = phaseFn.indexOf('if (dryRun) return phase;');
+    const write = phaseFn.indexOf('writeFileSync(');
+    expect(guard).toBeGreaterThan(-1);
+    expect(write).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(write);
+  });
+
   it('records which environment the drill ran against', () => {
     // A drill against a local root and a drill against production are different claims.
     expect(drill).toMatch(/environment: host \?/);

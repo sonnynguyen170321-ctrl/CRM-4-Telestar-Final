@@ -208,6 +208,11 @@ function runPhase({ name, label, digest }) {
     durationMs,
   };
 
+  // A dry run must leave the tree exactly as it found it. The first version wrote these logs
+  // unconditionally, so reviewing the plan created three artifacts describing a drill that
+  // never happened — small, but it is the same species as evidence for work not done.
+  if (dryRun) return phase;
+
   writeFileSync(
     path.join(RAW_DIR, `dr-rollback-${name}.log`),
     [
