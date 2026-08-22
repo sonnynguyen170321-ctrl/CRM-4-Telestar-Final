@@ -297,6 +297,10 @@ domains:
       - scripts/post-deploy-*.sh
       - scripts/canary-*
       - scripts/build.cjs
+      # Doctor decides whether this machine may run anything at all, and validates the same
+      # environment contract this domain owns (lib/env-contract.ts, .env.production.example).
+      # Its tests were already classified here; the scripts themselves were not.
+      - scripts/doctor*
       - next.config.ts
       - lib/env.ts
       - lib/env-contract.ts
@@ -309,6 +313,7 @@ domains:
       - tests/prod-env.test.ts
       - tests/cutover-preflight.test.ts
       - tests/doctor.test.ts
+      - tests/doctor-machine-truth.test.ts
     gates:
       - npm run check:production-compose
     verification: independent
