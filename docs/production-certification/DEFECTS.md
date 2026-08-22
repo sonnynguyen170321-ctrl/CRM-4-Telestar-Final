@@ -25,9 +25,9 @@ last two attempts at this table were both wrong.
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 5 | 0 | 0 | **4** |
 | **P1** (Critical) | 40 | 9 | 4 | **27** |
-| **P2** (Important) | 30 | 8 | 4 | **17** |
+| **P2** (Important) | 31 | 8 | 4 | **18** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **75** | **17** | **8** | **48** |
+| **TOTAL** | **76** | **17** | **8** | **49** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -1648,6 +1648,67 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
 - **Remediation, after this release**: raise the `ws` floor (or drop
   `@next/bundle-analyzer` from the hoisted tree) and reconcile `nodemailer` with next-auth's
   supported range — most cleanly by upgrading `next-auth` past its beta once it accepts v9.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P2-030` — The Pre-Deploy Backup Check Can Never Pass From The Production VM
+- **Severity**: P2
+- **Status**: `OPEN`
+- **Measured** during the deploy of `e968ce7` on 2026-08-22. The deploy aborted before touching
+  production — correctly — with:
+
+  ```
+  WARNING: This machine's credentials cannot read Cloud SQL (scope insufficient); backup not verified.
+  DEPLOY_EXIT=1
+  ```
+
+- **Root cause**: `telestar-crm-vm` runs as `589324791591-compute@developer.gserviceaccount.com`
+  with the legacy default scope set:
+
+  ```
+  devstorage.read_only · logging.write · monitoring.write · pubsub
+  service.management.readonly · servicecontrol · trace.append
+  ```
+
+  No `cloud-platform`, no `sqlservice.admin`. `verify_backup_exists()` shells out to
+  `gcloud sql backups describe`, which returns `ACCESS_TOKEN_SCOPE_INSUFFICIENT`, so the helper
+  returns 2 — "could not ask" — every time, on every deploy, forever.
+
+- **Why it matters**: `DEPLOY-002` exists because the backup prompt used to accept any non-empty
+  string, and `Telestar2026` — the published demo password — was accepted on three separate
+  deploys with no backup behind it. The fix added real verification. On this VM that verification
+  is unreachable, so every production deploy falls through to the manual branch and asks the
+  operator to type `UNVERIFIED`. That is safer than the original defect — it fails closed, the
+  record carries `backupVerified: false`, and the deploy stops outright if nobody answers — but a
+  check that can never pass is a check nobody reads, which is how the first version rotted.
+
+- **What was done for this deploy**: the backup was verified out of band, from an authenticated
+  account, before deploying:
+
+  ```
+  gcloud sql backups list --instance=telestar-db --project=telestar-crm-final
+  1787393280319   2026-08-22T10:08:00.319+00:00   SUCCESSFUL   ON_DEMAND
+  ```
+
+  `UNVERIFIED` was then supplied, because it is the truthful answer to *what the VM observed*.
+  The deploy record says `backupVerified: false`, and that is accurate — it must not be edited to
+  say otherwise. The evidence that a backup existed is this entry, not the record field.
+
+- **Remediation** (production change, needs operator authorization; scopes can only be set on a
+  **stopped** instance, so it costs a restart):
+  1. `gcloud compute instances stop telestar-crm-vm --zone=asia-southeast1-a`
+  2. `gcloud compute instances set-service-account telestar-crm-vm --zone=asia-southeast1-a
+     --service-account=<sa> --scopes=cloud-platform`
+  3. Grant that service account `roles/cloudsql.viewer` — viewer is sufficient;
+     `describe` is a read, and a deploy host has no business holding admin.
+  4. Start the instance and confirm `deploy.sh` prints `backup : <id> (verified)`.
+
+  Preferably with a dedicated service account rather than the default compute one, which is
+  over-broad by project convention.
+
+- **Do not "fix" this by removing the prompt or defaulting `backupVerified` to true.** The
+  prompt is the last thing standing between an unrecoverable migration and no backup.
 - **Evidence ID**: *(none yet)*
 
 ---
