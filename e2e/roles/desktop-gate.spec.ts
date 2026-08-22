@@ -11,6 +11,7 @@
  */
 import { test, expect } from '../support/test';
 import { storageStatePath } from '../support/fixture';
+import { settledHorizontalOverflow } from '../support/layout';
 
 test.use({ storageState: storageStatePath('director') as string });
 
@@ -38,9 +39,13 @@ for (const vp of SUPPORTED) {
     ).toHaveCount(0);
 
     // The page must not scroll sideways at a supported width.
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
-    );
+    //
+    // Measured once the width has stopped moving, not at `domcontentloaded`. Parts of the app
+    // mount client-side only — `ClientLayoutAddons` loads the AI assistant with
+    // `dynamic(..., { ssr: false })` — so the old immediate measurement sampled a half-mounted
+    // page and read a transient 59px of overflow on CI, failing a release gate that the same
+    // commit passed on re-run.
+    const overflow = await settledHorizontalOverflow(page);
     expect(overflow, `horizontal overflow of ${overflow}px at ${vp.label}`).toBeLessThanOrEqual(1);
   });
 }

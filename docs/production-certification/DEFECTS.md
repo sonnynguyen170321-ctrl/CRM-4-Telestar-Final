@@ -24,10 +24,10 @@ last two attempts at this table were both wrong.
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 5 | 0 | 0 | **4** |
-| **P1** (Critical) | 41 | 9 | 4 | **28** |
-| **P2** (Important) | 31 | 8 | 4 | **18** |
+| **P1** (Critical) | 42 | 9 | 4 | **29** |
+| **P2** (Important) | 32 | 8 | 4 | **19** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **77** | **17** | **8** | **50** |
+| **TOTAL** | **79** | **17** | **8** | **52** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -1770,6 +1770,75 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
 - **Regression tests**: `tests/certification-server-ownership.test.ts` — 19 tests, all negative.
 - **The evidence from the tainted run was discarded, not committed.**
 - **Evidence ID**: *(none yet — belongs to the re-frozen candidate's runs)*
+
+---
+
+### `TEL-P1-040` — The Desktop Gate Was Passing By Luck, Not By Being Correct
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **How it surfaced**: CI on PR #103 failed `e2e/roles/desktop-gate.spec.ts` with
+  `horizontal overflow of 59px at 1024x768`. Re-running the **identical commit** passed. Same
+  commit, opposite result — non-determinism, which says the gate is unreliable but says nothing
+  about which of the two answers was right.
+- **Measured**: the same page, measured two ways, against the build that existed *before* any
+  fix:
+
+  ```
+  overflowAtDomContentLoaded:  0            <- what the test measured, and why it usually passed
+  overflowAfterSettling:      25            <- what was actually on screen
+  distinctWidthsObserved:     [1024, 1049]
+  ```
+
+  So the gate was **flaky-passing**, not flaky-failing. The one red CI run was the only honest
+  result it has produced.
+- **Root cause**: the spec navigated with `waitUntil: 'domcontentloaded'` and measured
+  `scrollWidth - clientWidth` immediately. Parts of the app mount client-side only —
+  `components/ClientLayoutAddons.tsx` loads the AI assistant via
+  `dynamic(..., { ssr: false })` — so the measurement sampled a half-mounted document.
+- **Why this is P1**: it is the same family as `TEL-P1-039`. A release gate that reports green
+  on a page it measured too early is not weaker evidence, it is misleading evidence, and this
+  one was concealing a real defect (`TEL-P2-031`) for as long as it has existed.
+- **Fix**: `e2e/support/layout.ts` — `settledHorizontalOverflow()` waits for `networkidle`
+  first, then for the document width to hold steady across consecutive animation frames, and
+  only then measures.
+- **The first attempt at this fix was also wrong**, and is worth recording: frame-stability
+  alone (five identical frames) settles during the quiet gap while a dynamic import is still in
+  flight, so it reported the same false zero. Waiting for the network is what makes the frame
+  loop meaningful. A fix that looks right and a fix that works are different things.
+- **Verification**: with the layout defect corrected, `overflow: 0`,
+  `distinctWidthsObserved: [1024]`, `widthChangedAfterDomContentLoaded: false`;
+  `desktop-gate.spec.ts` 12 passed, exit 0.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P2-031` — Horizontal Overflow At The Documented Lower-Bound Width On `/leads`
+- **Severity**: P2
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Measured** at 1024x768, the width `e2e/roles/desktop-gate.spec.ts` declares supported, as
+  `director`:
+
+  ```
+  html                     1024 -> 1049   (+25 document overflow)
+   └ div.flex-1.min-w-0    1024 -> 1049
+     └ main                 808 ->  833
+       └ div.space-y-6      756 ->  807   (+51)
+         └ div.glass-card   754 ->  806   overflow-x: visible   <- leaks
+           └ label "Archived"  right 1049, 52px past the card
+  ```
+
+- **Root cause**: the leads filter toolbar (`app/leads/page.tsx`) was a single non-wrapping flex
+  row. At 1024px it is wider than its card, and because the card is `overflow-x: visible` the
+  excess propagates all the way to the document and produces horizontal scroll.
+- **Why nobody hit it**: the chip only renders when `canSeeArchived` is true, which is every
+  role except `sdr`. The role that spends most time on this page is the one that could not see
+  the defect.
+- **Fix**: the row wraps (`flex-wrap`). Nothing changes at 1280px and above, where it already
+  fitted on one line.
+- **Verification**: document overflow at 1024x768 went 25 -> 0; the only width observed across
+  40 animation frames is now 1024; `desktop-gate.spec.ts` passes, and it now passes for the
+  right reason rather than by measuring early.
+- **Evidence ID**: *(none yet)*
 
 ---
 
