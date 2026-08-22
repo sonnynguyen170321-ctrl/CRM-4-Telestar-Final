@@ -8,9 +8,9 @@
 -->
 
 **Verdict**: **NO-GO — BLOCKERS REMAIN**
-**Generated**: 2026-08-21T03:24:02.023Z
-**Candidate SHA**: `daa8ffb679b7bee87a907d4913123318b697eab6`
-**Release tag**: `telestar-internal-rc-2026-08-21`
+**Generated**: 2026-08-22T06:38:54.447Z
+**Candidate SHA**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
+**Release tag**: `telestar-internal-rc-2026-08-22`
 **Evidence records**: 23
 
 ---
@@ -19,12 +19,12 @@
 
 | Field | Value |
 |---|---|
-| APPLICATION_SOURCE_SHA | `daa8ffb679b7bee87a907d4913123318b697eab6` |
-| CI_RUN_ID | `32418164738` |
-| IMAGE_DIGEST | `sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49` |
-| WEB_DIGEST | `sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49` |
-| WORKER_DIGEST | `sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49` |
-| HEALTH_SHA | `daa8ffb679b7bee87a907d4913123318b697eab6` |
+| APPLICATION_SOURCE_SHA | `9fa36d3bcac6532f0c6f07af9045825a9d97844f` |
+| CI_RUN_ID | `32524242612` |
+| IMAGE_DIGEST | `sha256:f4b2b741d167a3cf865859025f5a056311fdc0f2daa7bac2118bf4f6ab2421b8` |
+| WEB_DIGEST | `sha256:f4b2b741d167a3cf865859025f5a056311fdc0f2daa7bac2118bf4f6ab2421b8` |
+| WORKER_DIGEST | `sha256:f4b2b741d167a3cf865859025f5a056311fdc0f2daa7bac2118bf4f6ab2421b8` |
+| HEALTH_SHA | `9fa36d3bcac6532f0c6f07af9045825a9d97844f` |
 
 ## 2. Test execution
 
@@ -79,18 +79,18 @@ Detail: [BACKUP_RESTORE.md](BACKUP_RESTORE.md).
 
 ## 6. Requirements
 
-**103 of 108 verified.**
+**1 of 108 verified.**
 
 | Domain | Verified | Total |
 |---|---:|---:|
-| `IMP` | 13 | 13 |
-| `MAIL` | 12 | 12 |
-| `SEC` | 15 | 15 |
-| `ROLE` | 12 | 12 |
-| `AI` | 14 | 14 |
-| `DR` | 8 | 10 |
-| `REL` | 5 | 8 |
-| `OPS` | 24 | 24 |
+| `IMP` | 0 | 13 |
+| `MAIL` | 0 | 12 |
+| `SEC` | 0 | 15 |
+| `ROLE` | 0 | 12 |
+| `AI` | 0 | 14 |
+| `DR` | 0 | 10 |
+| `REL` | 1 | 8 |
+| `OPS` | 0 | 24 |
 
 Status is computed per requirement from the evidence manifest, never asserted. Detail:
 [REQUIREMENT_TRACEABILITY.md](REQUIREMENT_TRACEABILITY.md).
@@ -107,18 +107,37 @@ Status is computed per requirement from the evidence manifest, never asserted. D
 
 | Severity | Open |
 |---|---:|
-| P0 | 2 |
-| P1 | 9 |
-| P2 | 6 |
+| P0 | 5 |
+| P1 | 25 |
+| P2 | 15 |
 | P3 | 0 |
 
+- `TEL-P2-024` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-023` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-037` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-034` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-035` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-036` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-033` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-022` — FIXED_PENDING_VERIFICATION
+- `TEL-P0-005` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-029` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-030` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-031` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-032` — OPEN
+- `TEL-P0-006` — FIXED_PENDING_VERIFICATION
+- `TEL-P0-004` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-038` — OPEN
+- `TEL-P2-026` — OPEN
+- `TEL-P2-027` — RESOLVED
+- `TEL-P2-025` — FIXED_PENDING_VERIFICATION
 - `TEL-P0-001` — FIXED_PENDING_VERIFICATION
-- `TEL-P0-002` — BLOCKED_EXTERNAL
+- `TEL-P0-002` — RESOLVED
 - `TEL-P1-014` — FIXED_PENDING_VERIFICATION
 - `TEL-P1-015` — FIXED_PENDING_VERIFICATION
 - `TEL-P1-016` — FIXED_PENDING_VERIFICATION
 - `TEL-P1-017` — FIXED_PENDING_VERIFICATION
-- `TEL-P1-018` — OPEN
+- `TEL-P1-018` — FIXED_PENDING_VERIFICATION
 - `TEL-P2-013` — FIXED_PENDING_VERIFICATION
 - `TEL-P2-014` — FIXED_PENDING_VERIFICATION
 - `TEL-P2-015` — FIXED_PENDING_VERIFICATION
@@ -128,11 +147,24 @@ Status is computed per requirement from the evidence manifest, never asserted. D
 - `TEL-P1-020` — FIXED_PENDING_VERIFICATION
 - `TEL-P1-021` — FIXED_PENDING_VERIFICATION
 - `TEL-P1-022` — FIXED_PENDING_VERIFICATION
-- `TEL-P2-018` — BLOCKED_EXTERNAL
+- `TEL-P2-018` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-023` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-024` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-019` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-020` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-025` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-021` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-026` — OPEN
+- `TEL-P1-027` — OPEN
+- `TEL-P1-028` — OPEN
 
 Detail: [DEFECTS.md](DEFECTS.md).
 
 ## 9. What stands between this and GO
+
+**Check `A`** — 2 finding(s)
+  - docs/production-certification/EVIDENCE.md still references non-candidate SHA daa8ffb (candidate is 9fa36d3)
+  - docs/production-certification/FINAL_CERTIFICATE.md still references non-candidate SHA daa8ffb (candidate is 9fa36d3)
 
 **Check `L`** — 6 finding(s)
   - run 1 gate "19-docker-build" is BLOCKED_EXTERNAL
@@ -142,12 +174,14 @@ Detail: [DEFECTS.md](DEFECTS.md).
   - run 3 gate "19-docker-build" is BLOCKED_EXTERNAL
   - run 3 gate "20-image-inspection" is BLOCKED_EXTERNAL
 
-**Check `REQ`** — 5 finding(s)
-  - DR-003 is not VERIFIED: evidence of kind "dr-rollback" is NOT_EXECUTED, not PASS
-  - DR-007 is not VERIFIED: evidence of kind "dr-rpo" is BLOCKED_EXTERNAL, not PASS
-  - REL-003 is not VERIFIED: evidence of kind "certification-run" is FAIL, not PASS
-  - REL-004 is not VERIFIED: evidence of kind "certification-run" is FAIL, not PASS
-  - REL-005 is not VERIFIED: evidence of kind "certification-run" is FAIL, not PASS
+**Check `REQ`** — 107 finding(s)
+  - IMP-001 is not VERIFIED: evidence of kind "vitest" exists but none is for candidate 9fa36d3
+  - IMP-002 is not VERIFIED: evidence of kind "vitest" exists but none is for candidate 9fa36d3
+  - IMP-003 is not VERIFIED: evidence of kind "vitest" exists but none is for candidate 9fa36d3
+  - IMP-004 is not VERIFIED: evidence of kind "vitest" exists but none is for candidate 9fa36d3
+  - IMP-005 is not VERIFIED: evidence of kind "vitest" exists but none is for candidate 9fa36d3
+  - IMP-006 is not VERIFIED: evidence of kind "vitest" exists but none is for candidate 9fa36d3
+  - …and 101 more
 
 ---
 

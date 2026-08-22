@@ -7,10 +7,10 @@
 -->
 
 **Verdict**: **NO-GO**
-**Candidate SHA**: `daa8ffb679b7bee87a907d4913123318b697eab6`
-**Requirements verified**: 103 / 108
+**Candidate SHA**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
+**Requirements verified**: 1 / 108
 **Evidence records**: 23
-**Generated**: 2026-08-21T03:24:00.348Z
+**Generated**: 2026-08-22T06:38:21.676Z
 
 > This file and `progress.json` are rendered from the same computation. They used to be
 > maintained by hand, and both said 108/108 VERIFIED and CERTIFIED_APPROVED — which proved
@@ -22,15 +22,15 @@
 
 | Domain | Total | Verified | Not verified |
 |---|---:|---:|---:|
-| `IMP` | 13 | 13 | 0 |
-| `MAIL` | 12 | 12 | 0 |
-| `SEC` | 15 | 15 | 0 |
-| `ROLE` | 12 | 12 | 0 |
-| `AI` | 14 | 14 | 0 |
-| `DR` | 10 | 8 | 2 |
-| `REL` | 8 | 5 | 3 |
-| `OPS` | 24 | 24 | 0 |
-| **TOTAL** | **108** | **103** | **5** |
+| `IMP` | 13 | 0 | 13 |
+| `MAIL` | 12 | 0 | 12 |
+| `SEC` | 15 | 0 | 15 |
+| `ROLE` | 12 | 0 | 12 |
+| `AI` | 14 | 0 | 14 |
+| `DR` | 10 | 0 | 10 |
+| `REL` | 8 | 1 | 7 |
+| `OPS` | 24 | 0 | 24 |
+| **TOTAL** | **108** | **1** | **107** |
 
 Detail, with the blocking reason on every unverified row:
 [REQUIREMENT_TRACEABILITY.md](REQUIREMENT_TRACEABILITY.md).
@@ -39,19 +39,38 @@ Detail, with the blocking reason on every unverified row:
 
 | Severity | Open |
 |---|---:|
-| P0 | 2 |
-| P1 | 9 |
-| P2 | 6 |
+| P0 | 5 |
+| P1 | 25 |
+| P2 | 15 |
 | P3 | 0 |
-| **Total** | **17** |
+| **Total** | **45** |
 
+- `TEL-P2-024` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-023` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-037` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-034` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-035` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-036` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-033` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-022` — FIXED_PENDING_VERIFICATION
+- `TEL-P0-005` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-029` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-030` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-031` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-032` — OPEN
+- `TEL-P0-006` — FIXED_PENDING_VERIFICATION
+- `TEL-P0-004` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-038` — OPEN
+- `TEL-P2-026` — OPEN
+- `TEL-P2-027` — RESOLVED
+- `TEL-P2-025` — FIXED_PENDING_VERIFICATION
 - `TEL-P0-001` — FIXED_PENDING_VERIFICATION
-- `TEL-P0-002` — BLOCKED_EXTERNAL
+- `TEL-P0-002` — RESOLVED
 - `TEL-P1-014` — FIXED_PENDING_VERIFICATION
 - `TEL-P1-015` — FIXED_PENDING_VERIFICATION
 - `TEL-P1-016` — FIXED_PENDING_VERIFICATION
 - `TEL-P1-017` — FIXED_PENDING_VERIFICATION
-- `TEL-P1-018` — OPEN
+- `TEL-P1-018` — FIXED_PENDING_VERIFICATION
 - `TEL-P2-013` — FIXED_PENDING_VERIFICATION
 - `TEL-P2-014` — FIXED_PENDING_VERIFICATION
 - `TEL-P2-015` — FIXED_PENDING_VERIFICATION
@@ -61,14 +80,24 @@ Detail, with the blocking reason on every unverified row:
 - `TEL-P1-020` — FIXED_PENDING_VERIFICATION
 - `TEL-P1-021` — FIXED_PENDING_VERIFICATION
 - `TEL-P1-022` — FIXED_PENDING_VERIFICATION
-- `TEL-P2-018` — BLOCKED_EXTERNAL
+- `TEL-P2-018` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-023` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-024` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-019` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-020` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-025` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-021` — FIXED_PENDING_VERIFICATION
+- `TEL-P1-026` — OPEN
+- `TEL-P1-027` — OPEN
+- `TEL-P1-028` — OPEN
 
 ## 3. What the validator is currently reporting
 
 | Check | Failures |
 |---|---:|
+| `REQ` | 107 |
 | `L` | 6 |
-| `REQ` | 5 |
+| `A` | 4 |
 
 Check meanings are in [PROTOCOL.md](PROTOCOL.md) §6.
 

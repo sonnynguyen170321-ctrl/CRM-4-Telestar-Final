@@ -6,9 +6,9 @@
   Regenerate: node scripts/certification/render-evidence-ledger.mjs
 -->
 
-**Candidate SHA**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+**Candidate SHA**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 **Evidence records**: 23
-**Requirements verified**: 103 / 108
+**Requirements verified**: 1 / 108
 **Verdict**: NO-GO
 
 > This ledger is generated. The previous one was maintained by hand and drifted: it declared
@@ -47,29 +47,29 @@
 
 | Evidence ID | Kind | Candidate | Status | Exit | Artifacts |
 |---|---|---|---|---:|---:|
-| `EV-AI-CAPABILITY-ROUTING` | `ai-capability-routing` | `daa8ffb` | **PASS** | 0 | 1 |
-| `EV-AI-DURABLE-BUDGET` | `ai-durable-budget` | `daa8ffb` | **PASS** | 0 | 1 |
-| `EV-AI-SHARED-CIRCUIT` | `ai-shared-circuit` | `daa8ffb` | **PASS** | 0 | 1 |
-| `EV-AI-STREAM-GOVERNANCE` | `ai-stream-governance` | `daa8ffb` | **PASS** | 0 | 1 |
-| `EV-CI-RUN` | `ci-run` | `daa8ffb` | **PASS** | 0 | 1 |
-| `EV-DR-BACKUP` | `dr-backup` | `daa8ffb` | **PASS** | 0 | 3 |
-| `EV-DR-NEGATIVE-CONTROL` | `dr-negative-control` | `daa8ffb` | **PASS** | 0 | 1 |
-| `EV-DR-RESTORE` | `dr-restore` | `daa8ffb` | **PASS** | 0 | 3 |
-| `EV-DR-ROLLBACK` | `dr-rollback` | `daa8ffb` | NOT_EXECUTED | 127 | 0 |
-| `EV-DR-RPO` | `dr-rpo` | `daa8ffb` | BLOCKED_EXTERNAL | 127 | 0 |
-| `EV-FAILURE-MATRIX` | `failure-matrix` | `daa8ffb` | **PASS** | 0 | 1 |
-| `EV-GATE-TEST-DISCIPLINE` | `gate` | `daa8ffb` | **PASS** | 0 | 1 |
-| `EV-LOAD-HANDLER` | `load-benchmark` | `daa8ffb` | **PASS** | 0 | 0 |
-| `EV-LOAD-QUEUE` | `load-benchmark` | `daa8ffb` | **PASS** | 0 | 1 |
-| `EV-REDIS-INTEGRATION` | `redis-integration` | `daa8ffb` | **PASS** | 0 | 1 |
-| `EV-RELEASE-IDENTITY` | `release-identity` | `daa8ffb` | **PASS** | 0 | 0 |
-| `EV-ROLE-BROWSER` | `role-browser` | `daa8ffb` | **PASS** | 0 | 6 |
-| `EV-RUN-1` | `certification-run` | `daa8ffb` | **FAIL** | 1 | 20 |
-| `EV-RUN-2` | `certification-run` | `daa8ffb` | **FAIL** | 1 | 20 |
-| `EV-RUN-3` | `certification-run` | `daa8ffb` | **FAIL** | 1 | 20 |
-| `EV-SECURITY-INVENTORY` | `security-inventory` | `daa8ffb` | **PASS** | 0 | 1 |
-| `EV-VALIDATOR-SELFTEST` | `validator-self` | `daa8ffb` | **PASS** | 0 | 1 |
-| `EV-VITEST` | `vitest` | `daa8ffb` | **PASS** | 0 | 1 |
+| `EV-AI-CAPABILITY-ROUTING` | `ai-capability-routing` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
+| `EV-AI-DURABLE-BUDGET` | `ai-durable-budget` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
+| `EV-AI-SHARED-CIRCUIT` | `ai-shared-circuit` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
+| `EV-AI-STREAM-GOVERNANCE` | `ai-stream-governance` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
+| `EV-CI-RUN` | `ci-run` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
+| `EV-DR-BACKUP` | `dr-backup` | `daa8ffb` ⚠ | **PASS** | 0 | 3 |
+| `EV-DR-NEGATIVE-CONTROL` | `dr-negative-control` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
+| `EV-DR-RESTORE` | `dr-restore` | `daa8ffb` ⚠ | **PASS** | 0 | 3 |
+| `EV-DR-ROLLBACK` | `dr-rollback` | `daa8ffb` ⚠ | NOT_EXECUTED | 127 | 0 |
+| `EV-DR-RPO` | `dr-rpo` | `daa8ffb` ⚠ | BLOCKED_EXTERNAL | 127 | 0 |
+| `EV-FAILURE-MATRIX` | `failure-matrix` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
+| `EV-GATE-TEST-DISCIPLINE` | `gate` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
+| `EV-LOAD-HANDLER` | `load-benchmark` | `daa8ffb` ⚠ | **PASS** | 0 | 0 |
+| `EV-LOAD-QUEUE` | `load-benchmark` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
+| `EV-REDIS-INTEGRATION` | `redis-integration` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
+| `EV-RELEASE-IDENTITY` | `release-identity` | `9fa36d3` | **PASS** | 0 | 0 |
+| `EV-ROLE-BROWSER` | `role-browser` | `daa8ffb` ⚠ | **PASS** | 0 | 6 |
+| `EV-RUN-1` | `certification-run` | `daa8ffb` ⚠ | **FAIL** | 1 | 20 |
+| `EV-RUN-2` | `certification-run` | `daa8ffb` ⚠ | **FAIL** | 1 | 20 |
+| `EV-RUN-3` | `certification-run` | `daa8ffb` ⚠ | **FAIL** | 1 | 20 |
+| `EV-SECURITY-INVENTORY` | `security-inventory` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
+| `EV-VALIDATOR-SELFTEST` | `validator-self` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
+| `EV-VITEST` | `vitest` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
 
 ---
 
@@ -218,10 +218,10 @@
   - `docs/production-certification/evidence/raw/run3-09-redis-integration.log` — 547 bytes, sha256 `830acee60b902a35…`
 ### `EV-RELEASE-IDENTITY`
 - **Kind**: `release-identity`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 - **Environment**: win32 / node 24.16.0 / deploy host
 - **Command**: `docker buildx imagetools inspect; docker inspect; curl /api/health`
-- **Ran**: 2026-08-21T03:23:49.816Z → 2026-08-21T03:23:49.818Z
+- **Ran**: 2026-08-22T06:38:07.408Z → 2026-08-22T06:38:07.410Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**: none
 ### `EV-ROLE-BROWSER`

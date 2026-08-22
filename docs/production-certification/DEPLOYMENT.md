@@ -9,8 +9,8 @@
 **Requirement**: `REL-001`
 **Defect**: `TEL-P1-018`
 **Chain status**: **COMPLETE**
-**Candidate SHA**: `daa8ffb679b7bee87a907d4913123318b697eab6`
-**Release tag**: `telestar-internal-rc-2026-08-21`
+**Candidate SHA**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
+**Release tag**: `telestar-internal-rc-2026-08-22`
 
 ---
 
@@ -29,13 +29,13 @@ running.
 
 | Link | Value | How to establish it |
 |---|---|---|
-| APPLICATION_SOURCE_SHA | `daa8ffb679b7bee87a907d4913123318b697eab6` | — |
-| CI_RUN_ID | `32418164738` | — |
-| IMAGE_DIGEST | `sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49` | — |
-| WEB_DIGEST | `sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49` | — |
-| WORKER_DIGEST | `sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49` | — |
-| HEALTH_SHA | `daa8ffb679b7bee87a907d4913123318b697eab6` | — |
-| Deployment timestamp | `2026-08-21T03:23:49.816Z` | — |
+| APPLICATION_SOURCE_SHA | `9fa36d3bcac6532f0c6f07af9045825a9d97844f` | — |
+| CI_RUN_ID | `32524242612` | — |
+| IMAGE_DIGEST | `sha256:f4b2b741d167a3cf865859025f5a056311fdc0f2daa7bac2118bf4f6ab2421b8` | — |
+| WEB_DIGEST | `sha256:f4b2b741d167a3cf865859025f5a056311fdc0f2daa7bac2118bf4f6ab2421b8` | — |
+| WORKER_DIGEST | `sha256:f4b2b741d167a3cf865859025f5a056311fdc0f2daa7bac2118bf4f6ab2421b8` | — |
+| HEALTH_SHA | `9fa36d3bcac6532f0c6f07af9045825a9d97844f` | — |
+| Deployment timestamp | `2026-08-22T06:38:07.408Z` | — |
 | Migration set | `50` | — |
 
 ## 3. Identity assertions
