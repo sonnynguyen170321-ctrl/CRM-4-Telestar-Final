@@ -286,7 +286,15 @@ describe('the ladder wires both corrections', () => {
   it('records why supplying that identity is not circular', () => {
     // If this reasoning is ever lost, someone will reasonably mistake gate 22 for
     // self-certification and either delete it or trust it too far.
-    const server = runner.slice(runner.indexOf('async function withServer'));
-    expect(server.slice(0, 1400)).toContain('EV-RELEASE-IDENTITY');
+    //
+    // Scoped to the whole function rather than its first N characters. The original
+    // `slice(0, 1400)` broke the moment the port-ownership guard (TEL-P1-039) was added ahead
+    // of the comment — a test that fails because an unrelated fix landed above it is measuring
+    // character offsets, not the thing it claims to protect.
+    const start = runner.indexOf('async function withServer');
+    const end = runner.indexOf('async function withWorker');
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    expect(runner.slice(start, end)).toContain('EV-RELEASE-IDENTITY');
   });
 });

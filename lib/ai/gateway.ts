@@ -434,10 +434,13 @@ export class AiGateway {
         let attemptEstimateUsd: number;
         try {
           attemptEstimateUsd = estimateAttemptCostUsd(model, opts);
-        } catch (err) {
+        } catch {
           // A registered model whose price will not resolve. Spending money the ledger cannot
           // measure is worse than not answering, so this model is skipped rather than called
           // at an unknown rate (§11: never reconcile a real call as $0).
+          //
+          // The error itself is deliberately not bound: the decision is the same whatever the
+          // pricing lookup threw, and the skip is already recorded in `attempts` below.
           await circuitBreaker.exitHalfOpen(model.provider, model.modelId);
           attempts.push({
             provider: model.provider,

@@ -30,6 +30,12 @@ import { loadCertificationEnv, missingOperatorEnv } from './lib/loadEnv.mjs';
 import { containerRuntime, gateDockerBuild, gateImageInspection } from './lib/imageGates.mjs';
 import { HEALTH_ENDPOINTS, evaluateHealthGate } from './lib/healthGate.mjs';
 import {
+  probePort,
+  describePortConflict,
+  serverHasExited,
+  describeServerExit,
+} from './lib/serverGuard.mjs';
+import {
   parsePlaywrightReport,
   unaccountedResults,
   describePlaywright,
@@ -241,6 +247,14 @@ function blockedGate(gateId, description, reason) {
 
 /** Starts the built app so browser and health gates run against a production build. */
 async function withServer(fn, { candidateSha } = {}) {
+  // The port must be OURS. When a `next dev` already held 3000, `next start` died with
+  // EADDRINUSE, the readiness probe below got a healthy 200 from that dev server, and the run
+  // certified it: 30 Playwright tests passed against a development build. Refuse up front
+  // rather than probing around whatever answers.
+  const portProbe = await probePort(SERVER_PORT);
+  const conflict = describePortConflict(SERVER_PORT, portProbe);
+  if (conflict) throw new Error(conflict);
+
   const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', String(SERVER_PORT)], {
     cwd: REPO_ROOT,
     env: {
@@ -273,6 +287,9 @@ async function withServer(fn, { candidateSha } = {}) {
     const deadline = Date.now() + 120_000;
     let ready = false;
     while (Date.now() < deadline) {
+      // Check liveness BEFORE the probe. A dead child with something else on the port answers
+      // 200 forever, which is exactly how the dev server got certified.
+      if (serverHasExited(server)) throw new Error(describeServerExit(server, output));
       try {
         const response = await fetch(`${BASE_URL}/login`);
         if (response.status < 500) {
@@ -285,6 +302,9 @@ async function withServer(fn, { candidateSha } = {}) {
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
     if (!ready) throw new Error(`server did not become ready at ${BASE_URL}`);
+    // Re-check after the loop: the process can die between the last liveness check and a
+    // successful probe, and then every gate runs against whoever took the port.
+    if (serverHasExited(server)) throw new Error(describeServerExit(server, output));
     return await fn();
   } finally {
     server.kill();

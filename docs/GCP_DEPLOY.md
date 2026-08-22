@@ -15,7 +15,7 @@ HTTPS. This is the full production topology.
 
 | Component | Service | Notes |
 |---|---|---|
-| Database | Cloud SQL for PostgreSQL 16 | External by requirement — `scripts/prod-check-env.ts` rejects a DB host of `localhost`/`127.0.0.1`/`::1`/`postgres`, and `docker-compose.aws.yml` disables the compose-local postgres via a profile |
+| Database | Cloud SQL for PostgreSQL 16 | External by requirement — `scripts/prod-check-env.ts` rejects a DB host of `localhost`/`127.0.0.1`/`::1`/`postgres`, and `docker-compose.gcp.yml` disables the compose-local postgres via a profile |
 | Queue & cache | Redis 7 container on the VM | `docker-compose.yml` already runs it healthchecked with an appendonly volume. Memorystore is optional and **not** used here — see "Optional: Memorystore" |
 | App host | GCE VM (`e2-standard-2`, Ubuntu 22.04) | Web + worker + redis + Caddy via Docker Compose |
 | TLS | Caddy 2 | Automatic Let's Encrypt certificate, triggered by setting `CADDY_SITE_ADDRESS` to a bare hostname |
@@ -251,7 +251,7 @@ Three things here are load-bearing and easy to get wrong:
 ## Phase 7 — Build, gate, migrate, seed, launch
 
 ```bash
-DC="docker compose -f docker-compose.yml -f docker-compose.aws.yml -f docker-compose.build.yml --env-file .env.production"
+DC="docker compose -f docker-compose.yml -f docker-compose.gcp.yml -f docker-compose.build.yml --env-file .env.production"
 ```
 
 That overlay stack is what produces this topology: the base file defines all services, the
@@ -389,7 +389,7 @@ mode for a throwaway internal demo, then cut over to a domain.
 ## Optional: Memorystore instead of the local Redis
 
 Only worth it if you need queue state to survive VM loss. It costs money, requires the VM on
-the same VPC, and — importantly — `docker-compose.aws.yml` disables the local `postgres`
+the same VPC, and — importantly — `docker-compose.gcp.yml` disables the local `postgres`
 service but **not** `redis`. Pointing `REDIS_URL` at Memorystore without further changes
 leaves a redundant Redis container running that `web` and `worker` still `depends_on`. If you
 go this route, also disable the `redis` service, or accept the idle container.

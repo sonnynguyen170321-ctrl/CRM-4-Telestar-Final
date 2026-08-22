@@ -561,7 +561,12 @@ export default function LeadsPage() {
 
       {/* Filters Toolbar — progressive disclosure */}
       <div className="glass-card rounded-xl p-3">
-        <div className="flex flex-row items-center gap-3">
+        {/* Wraps rather than overflowing. At 1024px — the documented lower bound — a role that
+            can see the Archived chip pushed this row 52px past the card, and because the card
+            is `overflow-x: visible` that became 25px of horizontal scroll on the whole
+            document. Nothing changes at 1280px and above, where the row already fits on one
+            line. See e2e/roles/desktop-gate.spec.ts. */}
+        <div className="flex flex-row flex-wrap items-center gap-3">
           {/* Search */}
           <div className="relative max-w-xs flex-shrink-0">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-text-muted">

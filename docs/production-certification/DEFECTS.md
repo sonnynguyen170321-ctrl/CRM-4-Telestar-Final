@@ -24,10 +24,10 @@ last two attempts at this table were both wrong.
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 5 | 0 | 0 | **4** |
-| **P1** (Critical) | 40 | 9 | 4 | **27** |
-| **P2** (Important) | 30 | 8 | 4 | **17** |
+| **P1** (Critical) | 42 | 9 | 4 | **29** |
+| **P2** (Important) | 32 | 8 | 4 | **19** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **75** | **17** | **8** | **48** |
+| **TOTAL** | **79** | **17** | **8** | **52** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -1648,6 +1648,196 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
 - **Remediation, after this release**: raise the `ws` floor (or drop
   `@next/bundle-analyzer` from the hoisted tree) and reconcile `nodemailer` with next-auth's
   supported range — most cleanly by upgrading `next-auth` past its beta once it accepts v9.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P2-030` — The Pre-Deploy Backup Check Can Never Pass From The Production VM
+- **Severity**: P2
+- **Status**: `OPEN`
+- **Measured** during the deploy of `e968ce7` on 2026-08-22. The deploy aborted before touching
+  production — correctly — with:
+
+  ```
+  WARNING: This machine's credentials cannot read Cloud SQL (scope insufficient); backup not verified.
+  DEPLOY_EXIT=1
+  ```
+
+- **Root cause**: `telestar-crm-vm` runs as `589324791591-compute@developer.gserviceaccount.com`
+  with the legacy default scope set:
+
+  ```
+  devstorage.read_only · logging.write · monitoring.write · pubsub
+  service.management.readonly · servicecontrol · trace.append
+  ```
+
+  No `cloud-platform`, no `sqlservice.admin`. `verify_backup_exists()` shells out to
+  `gcloud sql backups describe`, which returns `ACCESS_TOKEN_SCOPE_INSUFFICIENT`, so the helper
+  returns 2 — "could not ask" — every time, on every deploy, forever.
+
+- **Why it matters**: `DEPLOY-002` exists because the backup prompt used to accept any non-empty
+  string, and `Telestar2026` — the published demo password — was accepted on three separate
+  deploys with no backup behind it. The fix added real verification. On this VM that verification
+  is unreachable, so every production deploy falls through to the manual branch and asks the
+  operator to type `UNVERIFIED`. That is safer than the original defect — it fails closed, the
+  record carries `backupVerified: false`, and the deploy stops outright if nobody answers — but a
+  check that can never pass is a check nobody reads, which is how the first version rotted.
+
+- **What was done for this deploy**: the backup was verified out of band, from an authenticated
+  account, before deploying:
+
+  ```
+  gcloud sql backups list --instance=telestar-db --project=telestar-crm-final
+  1787393280319   2026-08-22T10:08:00.319+00:00   SUCCESSFUL   ON_DEMAND
+  ```
+
+  `UNVERIFIED` was then supplied, because it is the truthful answer to *what the VM observed*.
+  The deploy record says `backupVerified: false`, and that is accurate — it must not be edited to
+  say otherwise. The evidence that a backup existed is this entry, not the record field.
+
+- **Remediation** (production change, needs operator authorization; scopes can only be set on a
+  **stopped** instance, so it costs a restart):
+  1. `gcloud compute instances stop telestar-crm-vm --zone=asia-southeast1-a`
+  2. `gcloud compute instances set-service-account telestar-crm-vm --zone=asia-southeast1-a
+     --service-account=<sa> --scopes=cloud-platform`
+  3. Grant that service account `roles/cloudsql.viewer` — viewer is sufficient;
+     `describe` is a read, and a deploy host has no business holding admin.
+  4. Start the instance and confirm `deploy.sh` prints `backup : <id> (verified)`.
+
+  Preferably with a dedicated service account rather than the default compute one, which is
+  over-broad by project convention.
+
+- **Do not "fix" this by removing the prompt or defaulting `backupVerified` to true.** The
+  prompt is the last thing standing between an unrecoverable migration and no backup.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-039` — The Ladder Certified A Server It Did Not Start
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION` — fixed in `063d49e`
+- **Measured**: certification run 1 against candidate `e968ce7`, executed while a `next dev`
+  server was listening on port 3000. From `evidence/raw/certification-server.log`:
+
+  ```
+  ⨯ Failed to start server
+  Error: listen EADDRINUSE: address already in use :::3000
+  ```
+
+  What the run then did, in order:
+
+  | Step | What happened |
+  |---|---|
+  | 1 | the ladder's `next start -p 3000` exited immediately |
+  | 2 | nothing checked whether the child was still alive |
+  | 3 | the readiness probe fetched `/login`, got **200 from the dev server**, set `ready = true` |
+  | 4 | gates 16 and 17 ran **30 Playwright tests against a development build** and reported PASS |
+  | 5 | gate 18 reported the worker ready |
+  | 6 | gate 22 failed — the only gate that noticed, and only because a dev server carries no `APP_COMMIT` and answered `commit: "unknown"` |
+
+- **Why it is P1 and not P2**: the run produced *evidence*. Thirty green browser tests describing
+  a build that was never under test is worse than no evidence, because a reader has no way to
+  tell the difference. Every gate that talks to `BASE_URL` was affected; the two that failed are
+  the only reason it was caught at all.
+
+- **Root cause**: `withServer`'s readiness loop treated `response.status < 500` as the sole
+  condition. Any process that answers `/login` satisfies it. The ladder never established that
+  the server answering was the one it spawned.
+
+- **Second symptom, same cause**: the stray `next dev` also held the Prisma query engine DLL
+  open, so gate 15 failed with
+  `EPERM: operation not permitted, rename query_engine-windows.dll.node.tmp9244 -> query_engine-windows.dll.node`.
+  One process, three corrupted gates and one accidental catch.
+
+- **Fix** (`scripts/certification/lib/serverGuard.mjs`):
+  - `probePort` / `describePortConflict` — the port must be free **before** spawning. A busy
+    port is a hard failure naming what would otherwise happen, not something to probe around.
+  - `serverHasExited` / `describeServerExit` — the spawned child must still be alive, checked
+    inside the readiness loop **and again after it**, because the child can die between the last
+    check and a successful probe from whatever took the port.
+
+- **Verification** — all three symptoms re-measured after the fix, on the next run:
+
+  | Gate | Before | After |
+  |---|---|---|
+  | 15-production-build | `EPERM ... rename query_engine-windows.dll.node` | `exitCode: 0`, `✓ Compiled successfully in 55s` |
+  | 22-health-smoke | `commit: "unknown"` | `commit: e968ce7b585fb…`, `findings: none` |
+  | server ownership | `EADDRINUSE`, dev server answered | `✓ Ready in 418ms`, 0 occurrences of EADDRINUSE |
+
+  The guard was also exercised against the live conflict rather than a simulated one: with the
+  dev server still running, `probePort(3000)` returned `EADDRINUSE` and produced the refusal.
+
+- **Regression tests**: `tests/certification-server-ownership.test.ts` — 19 tests, all negative.
+- **The evidence from the tainted run was discarded, not committed.**
+- **Evidence ID**: *(none yet — belongs to the re-frozen candidate's runs)*
+
+---
+
+### `TEL-P1-040` — The Desktop Gate Was Passing By Luck, Not By Being Correct
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **How it surfaced**: CI on PR #103 failed `e2e/roles/desktop-gate.spec.ts` with
+  `horizontal overflow of 59px at 1024x768`. Re-running the **identical commit** passed. Same
+  commit, opposite result — non-determinism, which says the gate is unreliable but says nothing
+  about which of the two answers was right.
+- **Measured**: the same page, measured two ways, against the build that existed *before* any
+  fix:
+
+  ```
+  overflowAtDomContentLoaded:  0            <- what the test measured, and why it usually passed
+  overflowAfterSettling:      25            <- what was actually on screen
+  distinctWidthsObserved:     [1024, 1049]
+  ```
+
+  So the gate was **flaky-passing**, not flaky-failing. The one red CI run was the only honest
+  result it has produced.
+- **Root cause**: the spec navigated with `waitUntil: 'domcontentloaded'` and measured
+  `scrollWidth - clientWidth` immediately. Parts of the app mount client-side only —
+  `components/ClientLayoutAddons.tsx` loads the AI assistant via
+  `dynamic(..., { ssr: false })` — so the measurement sampled a half-mounted document.
+- **Why this is P1**: it is the same family as `TEL-P1-039`. A release gate that reports green
+  on a page it measured too early is not weaker evidence, it is misleading evidence, and this
+  one was concealing a real defect (`TEL-P2-031`) for as long as it has existed.
+- **Fix**: `e2e/support/layout.ts` — `settledHorizontalOverflow()` waits for `networkidle`
+  first, then for the document width to hold steady across consecutive animation frames, and
+  only then measures.
+- **The first attempt at this fix was also wrong**, and is worth recording: frame-stability
+  alone (five identical frames) settles during the quiet gap while a dynamic import is still in
+  flight, so it reported the same false zero. Waiting for the network is what makes the frame
+  loop meaningful. A fix that looks right and a fix that works are different things.
+- **Verification**: with the layout defect corrected, `overflow: 0`,
+  `distinctWidthsObserved: [1024]`, `widthChangedAfterDomContentLoaded: false`;
+  `desktop-gate.spec.ts` 12 passed, exit 0.
+- **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P2-031` — Horizontal Overflow At The Documented Lower-Bound Width On `/leads`
+- **Severity**: P2
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Measured** at 1024x768, the width `e2e/roles/desktop-gate.spec.ts` declares supported, as
+  `director`:
+
+  ```
+  html                     1024 -> 1049   (+25 document overflow)
+   └ div.flex-1.min-w-0    1024 -> 1049
+     └ main                 808 ->  833
+       └ div.space-y-6      756 ->  807   (+51)
+         └ div.glass-card   754 ->  806   overflow-x: visible   <- leaks
+           └ label "Archived"  right 1049, 52px past the card
+  ```
+
+- **Root cause**: the leads filter toolbar (`app/leads/page.tsx`) was a single non-wrapping flex
+  row. At 1024px it is wider than its card, and because the card is `overflow-x: visible` the
+  excess propagates all the way to the document and produces horizontal scroll.
+- **Why nobody hit it**: the chip only renders when `canSeeArchived` is true, which is every
+  role except `sdr`. The role that spends most time on this page is the one that could not see
+  the defect.
+- **Fix**: the row wraps (`flex-wrap`). Nothing changes at 1280px and above, where it already
+  fitted on one line.
+- **Verification**: document overflow at 1024x768 went 25 -> 0; the only width observed across
+  40 animation frames is now 1024; `desktop-gate.spec.ts` passes, and it now passes for the
+  right reason rather than by measuring early.
 - **Evidence ID**: *(none yet)*
 
 ---
