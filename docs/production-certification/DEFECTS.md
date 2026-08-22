@@ -1466,7 +1466,7 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
 
 ### `TEL-P1-026` — DR-003 Has No Script That Can Ever Produce A Pass
 - **Severity**: P1
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION` — orchestration added; the drill has not yet been run
 - **Discovered by**: checking that the planned remediation would actually reach GO, before
   spending three ladder runs finding out.
 - **Detail**: `DR-003` ("Rollback drill to previous immutable container image") is `mandatory`
@@ -1505,12 +1505,25 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
 
   **Verified with a mutation test, not just a green run**: forcing `evaluateDrill` to always
   return `PASS` fails 7 of the 27 tests. A rule nothing can violate would prove nothing.
-- **Remaining**: the orchestration shell that drives `scripts/rollback.sh` through the three
-  phases and collects the health responses. It needs a live container runtime to develop
-  against; writing it blind would produce a script nobody has run, which is the same class of
-  defect this requirement exists to close.
-- **Regression test**: `tests/certification-rollback-drill.test.ts` — 27 passed, exit 0.
-- **Evidence ID**: `EV-DR-ROLLBACK` (still `NOT_EXECUTED` — no drill has run)
+- **Resolved**: `scripts/certification/dr-rollback-drill.mjs` is that orchestration. It drives
+  `scripts/rollback.sh` through the three phases, times each from its own clock, and reads state
+  back rather than assuming it — service digests from `docker inspect` on the running
+  containers, web identity from `/api/health` resolved against the real hostname, worker
+  identity from `printenv APP_COMMIT` **inside** the running container, and worker liveness from
+  the queue-registration line. Nothing in it decides the verdict: observations go to
+  `buildRollbackEvidence`, which derives `PASS` or `FAIL`.
+
+  It has a `--dry-run` that prints every command and writes no evidence, because a script that
+  swaps production images must be reviewable before it is run. Dry run exercised against the
+  production host: all nine commands printed, nothing changed.
+
+- **Still to do**: run it. That is a production action — three image swaps on the live box — and
+  needs explicit operator authorization for that action, separately from a deploy.
+- **Regression tests**: `tests/certification-rollback-drill.test.ts` (the rules) and
+  `tests/certification-rollback-orchestration.test.ts` (the orchestration) — 49 passed, exit 0.
+  Forcing the drill to exit 0 regardless of the derived verdict fails 2 of the 17 orchestration
+  tests, so they can fail.
+- **Evidence ID**: `EV-DR-ROLLBACK` (still `NOT_EXECUTED` — the drill exists now but has not run)
 
 ---
 
