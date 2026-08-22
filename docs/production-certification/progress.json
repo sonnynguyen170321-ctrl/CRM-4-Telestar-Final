@@ -1,15 +1,15 @@
 {
   "$comment": "GENERATED FILE. Regenerate with node scripts/certification/render-tracker.mjs. Counts are computed by the validator from the evidence manifest; nothing here is typed.",
   "program": "Telestar Production Certification",
-  "candidateSourceSha": "9fa36d3bcac6532f0c6f07af9045825a9d97844f",
+  "candidateSourceSha": "e968ce7b585fb6afaa64c8aae7ee24d1ba013dd6",
   "releaseTag": "telestar-internal-rc-2026-08-22",
-  "generatedAt": "2026-08-22T07:37:45.809Z",
+  "generatedAt": "2026-08-22T10:03:19.109Z",
   "verdict": "NO-GO",
   "eligible": false,
   "requirements": {
     "total": 108,
-    "verified": 2,
-    "notVerified": 106,
+    "verified": 0,
+    "notVerified": 108,
     "byDomain": {
       "IMP": {
         "total": 13,
@@ -33,11 +33,11 @@
       },
       "DR": {
         "total": 10,
-        "verified": 1
+        "verified": 0
       },
       "REL": {
         "total": 8,
-        "verified": 1
+        "verified": 0
       },
       "OPS": {
         "total": 24,
@@ -46,10 +46,10 @@
     }
   },
   "defects": {
-    "open": 45,
+    "open": 47,
     "openP0": 5,
     "openP1": 25,
-    "openP2": 15,
+    "openP2": 17,
     "openP3": 0,
     "ids": [
       {
@@ -231,13 +231,22 @@
       {
         "id": "TEL-P1-028",
         "status": "OPEN"
+      },
+      {
+        "id": "TEL-P2-028",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P2-029",
+        "status": "OPEN"
       }
     ]
   },
   "evidenceRecords": 23,
   "validationFailures": {
-    "A": 1,
-    "L": 6,
-    "REQ": 106
+    "A": 5,
+    "L": 7,
+    "S": 1,
+    "REQ": 108
   }
 }

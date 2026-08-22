@@ -7,10 +7,10 @@
 -->
 
 **Verdict**: **NO-GO**
-**Candidate SHA**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
-**Requirements verified**: 2 / 108
+**Candidate SHA**: `e968ce7b585fb6afaa64c8aae7ee24d1ba013dd6`
+**Requirements verified**: 0 / 108
 **Evidence records**: 23
-**Generated**: 2026-08-22T07:37:45.809Z
+**Generated**: 2026-08-22T10:03:19.109Z
 
 > This file and `progress.json` are rendered from the same computation. They used to be
 > maintained by hand, and both said 108/108 VERIFIED and CERTIFIED_APPROVED — which proved
@@ -27,10 +27,10 @@
 | `SEC` | 15 | 0 | 15 |
 | `ROLE` | 12 | 0 | 12 |
 | `AI` | 14 | 0 | 14 |
-| `DR` | 10 | 1 | 9 |
-| `REL` | 8 | 1 | 7 |
+| `DR` | 10 | 0 | 10 |
+| `REL` | 8 | 0 | 8 |
 | `OPS` | 24 | 0 | 24 |
-| **TOTAL** | **108** | **2** | **106** |
+| **TOTAL** | **108** | **0** | **108** |
 
 Detail, with the blocking reason on every unverified row:
 [REQUIREMENT_TRACEABILITY.md](REQUIREMENT_TRACEABILITY.md).
@@ -41,9 +41,9 @@ Detail, with the blocking reason on every unverified row:
 |---|---:|
 | P0 | 5 |
 | P1 | 25 |
-| P2 | 15 |
+| P2 | 17 |
 | P3 | 0 |
-| **Total** | **45** |
+| **Total** | **47** |
 
 - `TEL-P2-024` — FIXED_PENDING_VERIFICATION
 - `TEL-P2-023` — FIXED_PENDING_VERIFICATION
@@ -90,14 +90,17 @@ Detail, with the blocking reason on every unverified row:
 - `TEL-P1-026` — OPEN
 - `TEL-P1-027` — OPEN
 - `TEL-P1-028` — OPEN
+- `TEL-P2-028` — FIXED_PENDING_VERIFICATION
+- `TEL-P2-029` — OPEN
 
 ## 3. What the validator is currently reporting
 
 | Check | Failures |
 |---|---:|
-| `REQ` | 106 |
-| `L` | 6 |
-| `A` | 1 |
+| `REQ` | 108 |
+| `L` | 7 |
+| `A` | 5 |
+| `S` | 1 |
 
 Check meanings are in [PROTOCOL.md](PROTOCOL.md) §6.
 

@@ -6,9 +6,9 @@
   Regenerate: node scripts/certification/render-evidence-ledger.mjs
 -->
 
-**Candidate SHA**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
+**Candidate SHA**: `e968ce7b585fb6afaa64c8aae7ee24d1ba013dd6`
 **Evidence records**: 23
-**Requirements verified**: 2 / 108
+**Requirements verified**: 0 / 108
 **Verdict**: NO-GO
 
 > This ledger is generated. The previous one was maintained by hand and drifted: it declared
@@ -47,29 +47,29 @@
 
 | Evidence ID | Kind | Candidate | Status | Exit | Artifacts |
 |---|---|---|---|---:|---:|
-| `EV-AI-CAPABILITY-ROUTING` | `ai-capability-routing` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
-| `EV-AI-DURABLE-BUDGET` | `ai-durable-budget` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
-| `EV-AI-SHARED-CIRCUIT` | `ai-shared-circuit` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
-| `EV-AI-STREAM-GOVERNANCE` | `ai-stream-governance` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
+| `EV-AI-CAPABILITY-ROUTING` | `ai-capability-routing` | `9fa36d3` ⚠ | **PASS** | 0 | 1 |
+| `EV-AI-DURABLE-BUDGET` | `ai-durable-budget` | `9fa36d3` ⚠ | **PASS** | 0 | 1 |
+| `EV-AI-SHARED-CIRCUIT` | `ai-shared-circuit` | `9fa36d3` ⚠ | **PASS** | 0 | 1 |
+| `EV-AI-STREAM-GOVERNANCE` | `ai-stream-governance` | `9fa36d3` ⚠ | **PASS** | 0 | 1 |
 | `EV-CI-RUN` | `ci-run` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
 | `EV-DR-BACKUP` | `dr-backup` | `daa8ffb` ⚠ | **PASS** | 0 | 3 |
 | `EV-DR-NEGATIVE-CONTROL` | `dr-negative-control` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
 | `EV-DR-RESTORE` | `dr-restore` | `daa8ffb` ⚠ | **PASS** | 0 | 3 |
-| `EV-DR-ROLLBACK` | `dr-rollback` | `9fa36d3` | **PASS** | 0 | 0 |
+| `EV-DR-ROLLBACK` | `dr-rollback` | `9fa36d3` ⚠ | **PASS** | 0 | 0 |
 | `EV-DR-RPO` | `dr-rpo` | `daa8ffb` ⚠ | BLOCKED_EXTERNAL | 127 | 0 |
-| `EV-FAILURE-MATRIX` | `failure-matrix` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
-| `EV-GATE-TEST-DISCIPLINE` | `gate` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
-| `EV-LOAD-HANDLER` | `load-benchmark` | `daa8ffb` ⚠ | **PASS** | 0 | 0 |
-| `EV-LOAD-QUEUE` | `load-benchmark` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
-| `EV-REDIS-INTEGRATION` | `redis-integration` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
-| `EV-RELEASE-IDENTITY` | `release-identity` | `9fa36d3` | **PASS** | 0 | 0 |
-| `EV-ROLE-BROWSER` | `role-browser` | `daa8ffb` ⚠ | **PASS** | 0 | 6 |
-| `EV-RUN-1` | `certification-run` | `daa8ffb` ⚠ | **FAIL** | 1 | 20 |
+| `EV-FAILURE-MATRIX` | `failure-matrix` | `9fa36d3` ⚠ | **PASS** | 0 | 1 |
+| `EV-GATE-TEST-DISCIPLINE` | `gate` | `9fa36d3` ⚠ | **PASS** | 0 | 1 |
+| `EV-LOAD-HANDLER` | `load-benchmark` | `9fa36d3` ⚠ | **PASS** | 0 | 0 |
+| `EV-LOAD-QUEUE` | `load-benchmark` | `9fa36d3` ⚠ | **PASS** | 0 | 1 |
+| `EV-REDIS-INTEGRATION` | `redis-integration` | `9fa36d3` ⚠ | **PASS** | 0 | 1 |
+| `EV-RELEASE-IDENTITY` | `release-identity` | `9fa36d3` ⚠ | **PASS** | 0 | 0 |
+| `EV-ROLE-BROWSER` | `role-browser` | `9fa36d3` ⚠ | **PASS** | 0 | 6 |
+| `EV-RUN-1` | `certification-run` | `9fa36d3` ⚠ | **FAIL** | 1 | 21 |
 | `EV-RUN-2` | `certification-run` | `daa8ffb` ⚠ | **FAIL** | 1 | 20 |
 | `EV-RUN-3` | `certification-run` | `daa8ffb` ⚠ | **FAIL** | 1 | 20 |
-| `EV-SECURITY-INVENTORY` | `security-inventory` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
-| `EV-VALIDATOR-SELFTEST` | `validator-self` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
-| `EV-VITEST` | `vitest` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
+| `EV-SECURITY-INVENTORY` | `security-inventory` | `9fa36d3` ⚠ | **PASS** | 0 | 1 |
+| `EV-VALIDATOR-SELFTEST` | `validator-self` | `9fa36d3` ⚠ | **PASS** | 0 | 1 |
+| `EV-VITEST` | `vitest` | `9fa36d3` ⚠ | **PASS** | 0 | 1 |
 
 ---
 
@@ -77,40 +77,40 @@
 
 ### `EV-AI-CAPABILITY-ROUTING`
 - **Kind**: `ai-capability-routing`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
 - **Command**: `derived from C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json`
-- **Ran**: 2026-08-21T02:58:13.515Z → 2026-08-21T03:00:27.582Z
+- **Ran**: 2026-08-22T07:45:20.420Z → 2026-08-22T07:47:58.678Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/run3-08-vitest.log` — 443 bytes, sha256 `94c38898a256a2f6…`
+  - `docs/production-certification/evidence/raw/run1-08-vitest.log` — 443 bytes, sha256 `7376494f059b13fb…`
 ### `EV-AI-DURABLE-BUDGET`
 - **Kind**: `ai-durable-budget`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
 - **Command**: `derived from C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json`
-- **Ran**: 2026-08-21T02:58:13.515Z → 2026-08-21T03:00:27.582Z
+- **Ran**: 2026-08-22T07:45:20.420Z → 2026-08-22T07:47:58.678Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/run3-08-vitest.log` — 443 bytes, sha256 `94c38898a256a2f6…`
+  - `docs/production-certification/evidence/raw/run1-08-vitest.log` — 443 bytes, sha256 `7376494f059b13fb…`
 ### `EV-AI-SHARED-CIRCUIT`
 - **Kind**: `ai-shared-circuit`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
 - **Command**: `derived from C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json`
-- **Ran**: 2026-08-21T02:58:13.515Z → 2026-08-21T03:00:27.582Z
+- **Ran**: 2026-08-22T07:45:20.420Z → 2026-08-22T07:47:58.678Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/run3-08-vitest.log` — 443 bytes, sha256 `94c38898a256a2f6…`
+  - `docs/production-certification/evidence/raw/run1-08-vitest.log` — 443 bytes, sha256 `7376494f059b13fb…`
 ### `EV-AI-STREAM-GOVERNANCE`
 - **Kind**: `ai-stream-governance`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
 - **Command**: `derived from C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json`
-- **Ran**: 2026-08-21T02:58:13.515Z → 2026-08-21T03:00:27.582Z
+- **Ran**: 2026-08-22T07:45:20.420Z → 2026-08-22T07:47:58.678Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/run3-08-vitest.log` — 443 bytes, sha256 `94c38898a256a2f6…`
+  - `docs/production-certification/evidence/raw/run1-08-vitest.log` — 443 bytes, sha256 `7376494f059b13fb…`
 ### `EV-CI-RUN`
 - **Kind**: `ci-run`
 - **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
@@ -171,50 +171,50 @@
 - **Artifacts**: none
 ### `EV-FAILURE-MATRIX`
 - **Kind**: `failure-matrix`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
 - **Command**: `derived from C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json`
-- **Ran**: 2026-08-21T02:58:13.515Z → 2026-08-21T03:00:27.582Z
+- **Ran**: 2026-08-22T07:45:20.420Z → 2026-08-22T07:47:58.678Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/run3-08-vitest.log` — 443 bytes, sha256 `94c38898a256a2f6…`
+  - `docs/production-certification/evidence/raw/run1-08-vitest.log` — 443 bytes, sha256 `7376494f059b13fb…`
 ### `EV-GATE-TEST-DISCIPLINE`
 - **Kind**: `gate`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
 - **Command**: `C:\Program Files\nodejs\node.exe scripts/check-test-discipline.mjs`
-- **Ran**: 2026-08-21T02:58:11.055Z → 2026-08-21T02:58:11.405Z
+- **Ran**: 2026-08-22T07:45:10.569Z → 2026-08-22T07:45:11.103Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/run3-05-test-discipline.log` — 324 bytes, sha256 `ec4f8c739d65285c…`
+  - `docs/production-certification/evidence/raw/run1-05-test-discipline.log` — 324 bytes, sha256 `fbaaf6c51241487b…`
 ### `EV-LOAD-HANDLER`
 - **Kind**: `load-benchmark`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / BullMQ mocked
 - **Command**: `node node_modules/vitest/vitest.mjs run tests/import-load-benchmark.test.ts`
-- **Ran**: 2026-08-21T02:58:18.078Z → 2026-08-21T02:58:58.350Z
+- **Ran**: 2026-08-22T07:45:46.525Z → 2026-08-22T07:46:24.607Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Note**: Handler throughput only. BullMQ is mocked and the worker handler is invoked directly, so queue wait, redelivery and retry are out of scope by construction.
 - **Artifacts**: none
 ### `EV-LOAD-QUEUE`
 - **Kind**: `load-benchmark`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / real Redis / real BullMQ
 - **Command**: `npx tsx scripts/certification/queue-load-benchmark.ts`
-- **Ran**: 2026-08-21T03:00:48.088Z → 2026-08-21T03:01:07.405Z
+- **Ran**: 2026-08-22T07:48:22.068Z → 2026-08-22T07:48:58.056Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Note**: Real Redis, real BullMQ, real worker, real queue. Nothing mocked. Distinct from IMPORT_HANDLER_BENCHMARK, which calls the handler directly.
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/load-queue-benchmark.log` — 2063 bytes, sha256 `fa651a2f7e7ec84d…`
+  - `docs/production-certification/evidence/raw/load-queue-benchmark.log` — 2066 bytes, sha256 `83e9e6700fa2e99a…`
 ### `EV-REDIS-INTEGRATION`
 - **Kind**: `redis-integration`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
 - **Command**: `C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/redis-integration.test.ts tests/ai-shared-circuit.test.ts tests/redis-readiness.test.ts --reporter=json --outputFile=.certification/redis.json`
-- **Ran**: 2026-08-21T03:00:27.602Z → 2026-08-21T03:00:31.107Z
+- **Ran**: 2026-08-22T07:47:58.699Z → 2026-08-22T07:48:02.063Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/run3-09-redis-integration.log` — 547 bytes, sha256 `830acee60b902a35…`
+  - `docs/production-certification/evidence/raw/run1-09-redis-integration.log` — 547 bytes, sha256 `4861e29934d39508…`
 ### `EV-RELEASE-IDENTITY`
 - **Kind**: `release-identity`
 - **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
@@ -225,45 +225,46 @@
 - **Artifacts**: none
 ### `EV-ROLE-BROWSER`
 - **Kind**: `role-browser`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 - **Environment**: win32 / node 24.16.0 / next start / real Postgres / real Redis / Chromium 1440x900
 - **Command**: `node node_modules/@playwright/test/cli.js test --project=certification-roles`
-- **Ran**: 2026-08-21T03:03:03.382Z → 2026-08-21T03:03:03.382Z
+- **Ran**: 2026-08-22T07:51:58.182Z → 2026-08-22T07:51:58.182Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/role-screenshots/director.png` — 151257 bytes, sha256 `d386bcfe8e24b916…`
-  - `docs/production-certification/evidence/raw/role-screenshots/floor_manager.png` — 219467 bytes, sha256 `577f615896dcfa91…`
-  - `docs/production-certification/evidence/raw/role-screenshots/leadgen.png` — 83723 bytes, sha256 `9e39c3e443a4123c…`
-  - `docs/production-certification/evidence/raw/role-screenshots/leadgen_manager.png` — 137939 bytes, sha256 `40bfaa486f5af7a5…`
-  - `docs/production-certification/evidence/raw/role-screenshots/sdr.png` — 92706 bytes, sha256 `a1ebfba37e26bf51…`
-  - `docs/production-certification/evidence/raw/role-screenshots/team_lead.png` — 217040 bytes, sha256 `d5028a2f9746573b…`
+  - `docs/production-certification/evidence/raw/role-screenshots/director.png` — 229894 bytes, sha256 `8bcd4cddfd00f1f1…`
+  - `docs/production-certification/evidence/raw/role-screenshots/floor_manager.png` — 220063 bytes, sha256 `d809ab393454056a…`
+  - `docs/production-certification/evidence/raw/role-screenshots/leadgen.png` — 271314 bytes, sha256 `8b88763e672d0f8b…`
+  - `docs/production-certification/evidence/raw/role-screenshots/leadgen_manager.png` — 138849 bytes, sha256 `6e8600beaec4304e…`
+  - `docs/production-certification/evidence/raw/role-screenshots/sdr.png` — 120099 bytes, sha256 `93ce54bd4b107359…`
+  - `docs/production-certification/evidence/raw/role-screenshots/team_lead.png` — 217583 bytes, sha256 `52fb88688d96119f…`
 ### `EV-RUN-1`
 - **Kind**: `certification-run`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
-- **Command**: `node scripts/certification/run-full-certification.mjs --candidate daa8ffb679b7bee87a907d4913123318b697eab6 --run 1`
-- **Ran**: 2026-08-21T02:41:25.907Z → 2026-08-21T02:50:06.633Z
+- **Command**: `node scripts/certification/run-full-certification.mjs --candidate 9fa36d3bcac6532f0c6f07af9045825a9d97844f --run 1`
+- **Ran**: 2026-08-22T07:43:52.652Z → 2026-08-22T07:52:26.734Z
 - **Exit code**: 1 · **Status**: **FAIL**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/run1-02-environment.log` — 477 bytes, sha256 `43c8440331e83250…`
-  - `docs/production-certification/evidence/raw/run1-03-typecheck.log` — 261 bytes, sha256 `45f1527d3d7fdba7…`
-  - `docs/production-certification/evidence/raw/run1-04-lint.log` — 782 bytes, sha256 `2982eea9654da06e…`
-  - `docs/production-certification/evidence/raw/run1-05-test-discipline.log` — 324 bytes, sha256 `7a43e59423166944…`
-  - `docs/production-certification/evidence/raw/run1-06-migration-validation.log` — 337 bytes, sha256 `b907e68c187b787f…`
-  - `docs/production-certification/evidence/raw/run1-07-database-integrity.log` — 1672 bytes, sha256 `6e7e034a7684546c…`
-  - `docs/production-certification/evidence/raw/run1-08-vitest.log` — 443 bytes, sha256 `8e5706f8f659b1fc…`
-  - `docs/production-certification/evidence/raw/run1-09-redis-integration.log` — 547 bytes, sha256 `e9b6c98bb179d7f2…`
-  - `docs/production-certification/evidence/raw/run1-10-ai-certification.log` — 761 bytes, sha256 `3b492b2973c84841…`
-  - `docs/production-certification/evidence/raw/run1-11-email-safety.log` — 617 bytes, sha256 `60e9bb6286eeacd0…`
-  - `docs/production-certification/evidence/raw/run1-12-import-fault-matrix.log` — 596 bytes, sha256 `d258123bbf63dbd7…`
-  - `docs/production-certification/evidence/raw/run1-13-queue-load.log` — 523 bytes, sha256 `eec8dc7e56bfeca6…`
-  - `docs/production-certification/evidence/raw/run1-14-security-suite.log` — 769 bytes, sha256 `8891a73659b0db56…`
-  - `docs/production-certification/evidence/raw/run1-15-production-build.log` — 8267 bytes, sha256 `8e15a2c5dbc28d97…`
-  - `docs/production-certification/evidence/raw/run1-16-playwright-roles.log` — 2174 bytes, sha256 `5b2503cd1eb412d3…`
+  - `docs/production-certification/evidence/raw/run1-02-environment.log` — 472 bytes, sha256 `89777ccb43673576…`
+  - `docs/production-certification/evidence/raw/run1-03-typecheck.log` — 261 bytes, sha256 `2be8efa749b1443f…`
+  - `docs/production-certification/evidence/raw/run1-04-lint.log` — 782 bytes, sha256 `ea66999535f36555…`
+  - `docs/production-certification/evidence/raw/run1-05-test-discipline.log` — 324 bytes, sha256 `fbaaf6c51241487b…`
+  - `docs/production-certification/evidence/raw/run1-06-migration-validation.log` — 337 bytes, sha256 `0692a8cb24bdd8fc…`
+  - `docs/production-certification/evidence/raw/run1-07-database-integrity.log` — 1757 bytes, sha256 `c3f664bdbf584f2d…`
+  - `docs/production-certification/evidence/raw/run1-08-vitest.log` — 443 bytes, sha256 `7376494f059b13fb…`
+  - `docs/production-certification/evidence/raw/run1-09-redis-integration.log` — 547 bytes, sha256 `4861e29934d39508…`
+  - `docs/production-certification/evidence/raw/run1-10-ai-certification.log` — 762 bytes, sha256 `d44adb46628eb316…`
+  - `docs/production-certification/evidence/raw/run1-11-email-safety.log` — 617 bytes, sha256 `f0e671df4e1cf493…`
+  - `docs/production-certification/evidence/raw/run1-12-import-fault-matrix.log` — 596 bytes, sha256 `d8590c4ec0efa296…`
+  - `docs/production-certification/evidence/raw/run1-13-queue-load.log` — 524 bytes, sha256 `72de1bb61534764b…`
+  - `docs/production-certification/evidence/raw/run1-14-security-suite.log` — 769 bytes, sha256 `a9065d6f67d6821d…`
+  - `docs/production-certification/evidence/raw/run1-15-production-build.log` — 8253 bytes, sha256 `6e35642b74648038…`
+  - `docs/production-certification/evidence/raw/run1-16-playwright-roles.log` — 2174 bytes, sha256 `558e8dbb9f8ce499…`
   - `docs/production-certification/evidence/raw/run1-16-playwright-roles-evidence.log` — 156 bytes, sha256 `576a1d9f71438d9f…`
-  - `docs/production-certification/evidence/raw/run1-17-golden-browser-journey.log` — 2218 bytes, sha256 `c600770d5e1f40d9…`
-  - `docs/production-certification/evidence/raw/run1-18-worker-readiness.log` — 187 bytes, sha256 `3768151e76da389b…`
-  - `docs/production-certification/evidence/raw/run1-21-compose-validation.log` — 1413 bytes, sha256 `0f633a226b05dbd7…`
+  - `docs/production-certification/evidence/raw/run1-17-golden-browser-journey.log` — 2217 bytes, sha256 `dde5342210d51331…`
+  - `docs/production-certification/evidence/raw/run1-18-worker-readiness.log` — 187 bytes, sha256 `3cec3b49a62a2b66…`
+  - `docs/production-certification/evidence/raw/run1-22-health-smoke.log` — 321 bytes, sha256 `71f75cc1cea4045b…`
+  - `docs/production-certification/evidence/raw/run1-21-compose-validation.log` — 1413 bytes, sha256 `ccc7d6f858dac1c5…`
   - `docs/production-certification/evidence/raw/run1-23-validator-selftest.log` — 1554 bytes, sha256 `f0aa07d6c388d17c…`
 ### `EV-RUN-2`
 - **Kind**: `certification-run`
@@ -323,31 +324,31 @@
   - `docs/production-certification/evidence/raw/run3-23-validator-selftest.log` — 1554 bytes, sha256 `f0aa07d6c388d17c…`
 ### `EV-SECURITY-INVENTORY`
 - **Kind**: `security-inventory`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
 - **Command**: `derived from C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json`
-- **Ran**: 2026-08-21T02:58:13.515Z → 2026-08-21T03:00:27.582Z
+- **Ran**: 2026-08-22T07:45:20.420Z → 2026-08-22T07:47:58.678Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/run3-08-vitest.log` — 443 bytes, sha256 `94c38898a256a2f6…`
+  - `docs/production-certification/evidence/raw/run1-08-vitest.log` — 443 bytes, sha256 `7376494f059b13fb…`
 ### `EV-VALIDATOR-SELFTEST`
 - **Kind**: `validator-self`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
 - **Command**: `C:\Program Files\nodejs\node.exe scripts/certification/validator-selftest.mjs`
-- **Ran**: 2026-08-21T03:03:30.021Z → 2026-08-21T03:03:30.822Z
+- **Ran**: 2026-08-22T07:52:25.846Z → 2026-08-22T07:52:26.733Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/run3-23-validator-selftest.log` — 1554 bytes, sha256 `f0aa07d6c388d17c…`
+  - `docs/production-certification/evidence/raw/run1-23-validator-selftest.log` — 1554 bytes, sha256 `f0aa07d6c388d17c…`
 ### `EV-VITEST`
 - **Kind**: `vitest`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
 - **Command**: `C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json`
-- **Ran**: 2026-08-21T02:58:13.515Z → 2026-08-21T03:00:27.582Z
+- **Ran**: 2026-08-22T07:45:20.420Z → 2026-08-22T07:47:58.678Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/run3-08-vitest.log` — 443 bytes, sha256 `94c38898a256a2f6…`
+  - `docs/production-certification/evidence/raw/run1-08-vitest.log` — 443 bytes, sha256 `7376494f059b13fb…`
 ---
 
 ## 4. Raw output

@@ -9,7 +9,7 @@
 **Requirement**: `REL-001`
 **Defect**: `TEL-P1-018`
 **Chain status**: **COMPLETE**
-**Candidate SHA**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
+**Candidate SHA**: `e968ce7b585fb6afaa64c8aae7ee24d1ba013dd6`
 **Release tag**: `telestar-internal-rc-2026-08-22`
 
 ---
@@ -29,7 +29,7 @@ running.
 
 | Link | Value | How to establish it |
 |---|---|---|
-| APPLICATION_SOURCE_SHA | `9fa36d3bcac6532f0c6f07af9045825a9d97844f` | — |
+| APPLICATION_SOURCE_SHA | `e968ce7b585fb6afaa64c8aae7ee24d1ba013dd6` | — |
 | CI_RUN_ID | `32524242612` | — |
 | IMAGE_DIGEST | `sha256:f4b2b741d167a3cf865859025f5a056311fdc0f2daa7bac2118bf4f6ab2421b8` | — |
 | WEB_DIGEST | `sha256:f4b2b741d167a3cf865859025f5a056311fdc0f2daa7bac2118bf4f6ab2421b8` | — |
@@ -40,7 +40,7 @@ running.
 
 ## 3. Identity assertions
 
-- `APPLICATION_SOURCE_SHA == HEALTH_SHA` — **holds**
+- `APPLICATION_SOURCE_SHA == HEALTH_SHA` — **FAILS**
 - `IMAGE_DIGEST == WEB_DIGEST` — **holds**
 - `IMAGE_DIGEST == WORKER_DIGEST` — **holds**
 
