@@ -46,10 +46,7 @@ running.
 
 ## 4. Rollback
 
-**NOT_EXECUTED** — docker is not installed on this machine, so no image has been built and no digest exists to roll between.
-
-A rollback drill needs two immutable image digests to move between, so it is blocked by the
-same gap as §2. The previously published "38 seconds" is withdrawn: it was never measured.
+Executed. Rolled from `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:f4b2b741d167a3cf865859025f5a056311fdc0f2daa7bac2118bf4f6ab2421b8` to `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49` in 35.39s.
 
 ## 5. Post-deployment gate
 

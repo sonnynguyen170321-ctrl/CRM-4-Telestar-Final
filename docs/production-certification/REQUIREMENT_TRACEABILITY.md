@@ -7,7 +7,7 @@
 -->
 
 **Candidate SHA**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
-**Verified**: 1 / 108
+**Verified**: 2 / 108
 **Verdict**: NO-GO
 
 > Status in this document is **computed**, never asserted. `requirements.json` has no status
@@ -26,10 +26,10 @@
 | **Security, Multi-Tenant Isolation & RBAC** | `SEC` | 15 | 0 | 15 |
 | **6-Role Operational Workflows** | `ROLE` | 12 | 0 | 12 |
 | **AI Reliability & Cost Governance** | `AI` | 14 | 0 | 14 |
-| **Disaster Recovery & Infrastructure** | `DR` | 10 | 0 | 10 |
+| **Disaster Recovery & Infrastructure** | `DR` | 10 | 1 | 9 |
 | **Release Identity & Gate Auditing** | `REL` | 8 | 1 | 7 |
 | **Operational Lifecycle & Sequences** | `OPS` | 24 | 0 | 24 |
-| **TOTAL** | | **108** | **1** | **107** |
+| **TOTAL** | | **108** | **2** | **106** |
 
 ---
 
@@ -132,7 +132,7 @@
 |---|---|---|---|---|---|---|
 | `DR-001` | Backup creation and verification of pg_dump file integrity | P1 | dr-backup | NOT_VERIFIED | evidence of kind "dr-backup" exists but none is for candidate 9fa36d3 | — |
 | `DR-002` | Restore drill into isolated database with schema migration check | P1 | dr-restore | NOT_VERIFIED | evidence of kind "dr-restore" exists but none is for candidate 9fa36d3 | — |
-| `DR-003` | Rollback drill to previous immutable container image | P1 | dr-rollback | NOT_VERIFIED | evidence of kind "dr-rollback" exists but none is for candidate 9fa36d3 | — |
+| `DR-003` | Rollback drill to previous immutable container image | P1 | dr-rollback | **VERIFIED** | — | — |
 | `DR-004` | Failure matrix: database connection drop & graceful recovery | P1 | failure-matrix | NOT_VERIFIED | evidence of kind "failure-matrix" exists but none is for candidate 9fa36d3 | — |
 | `DR-005` | Failure matrix: Redis disconnection & fallback queue behavior | P1 | `tests/redis-readiness.test.ts`<br>redis-integration | NOT_VERIFIED | evidence of kind "vitest" exists but none is for candidate 9fa36d3 | — |
 | `DR-006` | Measured RTO (Recovery Time Objective) under 15 minutes | P2 | dr-restore (rtoSeconds) | NOT_VERIFIED | evidence of kind "dr-restore" exists but none is for candidate 9fa36d3 | — |

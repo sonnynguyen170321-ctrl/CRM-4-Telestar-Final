@@ -8,9 +8,9 @@
 
 **Verdict**: **NO-GO**
 **Candidate SHA**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
-**Requirements verified**: 1 / 108
+**Requirements verified**: 2 / 108
 **Evidence records**: 23
-**Generated**: 2026-08-22T06:38:21.676Z
+**Generated**: 2026-08-22T07:37:45.809Z
 
 > This file and `progress.json` are rendered from the same computation. They used to be
 > maintained by hand, and both said 108/108 VERIFIED and CERTIFIED_APPROVED — which proved
@@ -27,10 +27,10 @@
 | `SEC` | 15 | 0 | 15 |
 | `ROLE` | 12 | 0 | 12 |
 | `AI` | 14 | 0 | 14 |
-| `DR` | 10 | 0 | 10 |
+| `DR` | 10 | 1 | 9 |
 | `REL` | 8 | 1 | 7 |
 | `OPS` | 24 | 0 | 24 |
-| **TOTAL** | **108** | **1** | **107** |
+| **TOTAL** | **108** | **2** | **106** |
 
 Detail, with the blocking reason on every unverified row:
 [REQUIREMENT_TRACEABILITY.md](REQUIREMENT_TRACEABILITY.md).
@@ -95,9 +95,9 @@ Detail, with the blocking reason on every unverified row:
 
 | Check | Failures |
 |---|---:|
-| `REQ` | 107 |
+| `REQ` | 106 |
 | `L` | 6 |
-| `A` | 4 |
+| `A` | 1 |
 
 Check meanings are in [PROTOCOL.md](PROTOCOL.md) §6.
 

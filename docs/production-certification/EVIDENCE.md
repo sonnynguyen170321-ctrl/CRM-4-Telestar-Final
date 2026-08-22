@@ -8,7 +8,7 @@
 
 **Candidate SHA**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
 **Evidence records**: 23
-**Requirements verified**: 1 / 108
+**Requirements verified**: 2 / 108
 **Verdict**: NO-GO
 
 > This ledger is generated. The previous one was maintained by hand and drifted: it declared
@@ -55,7 +55,7 @@
 | `EV-DR-BACKUP` | `dr-backup` | `daa8ffb` ⚠ | **PASS** | 0 | 3 |
 | `EV-DR-NEGATIVE-CONTROL` | `dr-negative-control` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
 | `EV-DR-RESTORE` | `dr-restore` | `daa8ffb` ⚠ | **PASS** | 0 | 3 |
-| `EV-DR-ROLLBACK` | `dr-rollback` | `daa8ffb` ⚠ | NOT_EXECUTED | 127 | 0 |
+| `EV-DR-ROLLBACK` | `dr-rollback` | `9fa36d3` | **PASS** | 0 | 0 |
 | `EV-DR-RPO` | `dr-rpo` | `daa8ffb` ⚠ | BLOCKED_EXTERNAL | 127 | 0 |
 | `EV-FAILURE-MATRIX` | `failure-matrix` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
 | `EV-GATE-TEST-DISCIPLINE` | `gate` | `daa8ffb` ⚠ | **PASS** | 0 | 1 |
@@ -154,12 +154,11 @@
   - `docs/production-certification/evidence/raw/dr-restore-integrity.log` — 2143 bytes, sha256 `4eddc5a15970ef9b…`
 ### `EV-DR-ROLLBACK`
 - **Kind**: `dr-rollback`
-- **Candidate**: `daa8ffb679b7bee87a907d4913123318b697eab6`
-- **Environment**: certification workstation - no container runtime installed
-- **Command**: `(not executed) rollback between two immutable image digests`
-- **Ran**: 2026-08-21T03:04:24.204Z → 2026-08-21T03:04:24.204Z
-- **Exit code**: 127 · **Status**: NOT_EXECUTED
-- **Reason**: docker is not installed on this machine, so no image has been built and no digest exists to roll between.
+- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
+- **Environment**: telestar-crm-vm / docker compose / GCE ubuntu-2204-lts
+- **Command**: `scripts/deploy.sh + scripts/rollback.sh, observed over three phases`
+- **Ran**: 2026-08-22T07:05:00.000Z → 2026-08-22T07:37:23.282Z
+- **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**: none
 ### `EV-DR-RPO`
 - **Kind**: `dr-rpo`
