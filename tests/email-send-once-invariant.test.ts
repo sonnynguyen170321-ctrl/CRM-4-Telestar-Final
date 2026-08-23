@@ -1,5 +1,7 @@
 import { vi, describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import crypto from 'crypto';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 /**
  * Phase 13 — ONE LOGICAL EMAIL STEP = AT MOST ONE INTENDED PHYSICAL SEND.
@@ -48,7 +50,7 @@ vi.mock('@/lib/emailSafety', () => ({
 
 const { prisma, tenantStorage } = await import('@/lib/prisma');
 const { handleEmailSend } = await import('@/workers/email');
-const { OUTBOUND_STATUS } = await import('@/lib/email/idempotency');
+const { OUTBOUND_STATUS, SENDING_CLAIM_LEASE_MS } = await import('@/lib/email/idempotency');
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 const T = 'sendonce-tenant';
@@ -301,6 +303,106 @@ describe.skipIf(!hasDb)('one logical step sends at most one physical email', () 
 
     await run(() => handleEmailSend(payloadFor(message.id)));
     expect(sendCalls).toHaveLength(0);
+  });
+});
+
+/**
+ * A live claim is not an abandoned one.
+ *
+ * The ten-worker race above found this, but only under load: with DB-level RLS enabled its
+ * extra round-trips widen the gap between the winner's claim and its provider write enough that
+ * losers reliably read `sending` before a `providerMessageId` exists. The handler then treated
+ * that as a crashed attempt and parked a perfectly healthy send into `reconciliation_required`
+ * — a state nothing in the send path may move out of, so clearing it takes a human.
+ *
+ * Reproducing that by racing is exactly the kind of test that passes on a fast day. These drive
+ * the two states directly, so the distinction is asserted rather than raced for.
+ */
+describe.skipIf(!hasDb)('a sending claim is judged by its age, not its existence', () => {
+  beforeEach(() => {
+    sendCalls.length = 0;
+    sendBehaviour = async () => `provider-${crypto.randomUUID()}`;
+  });
+
+  /** Put a row into `sending` with a claim of a chosen age, as a live worker would leave it. */
+  async function claimedAgo(key: string, msAgo: number) {
+    const message = await createMessage(key);
+    await run(() =>
+      prisma.outboundMessage.update({
+        where: { id: message.id },
+        data: {
+          status: OUTBOUND_STATUS.SENDING,
+          claimedAt: new Date(Date.now() - msAgo),
+          providerMessageId: null,
+        },
+      }),
+    );
+    return message;
+  }
+
+  it('stands down for a claim seconds old, and does not park it', async () => {
+    const message = await claimedAgo(`live-${crypto.randomUUID()}`, 2_000);
+
+    const result = await run(() => handleEmailSend(payloadFor(message.id)));
+    expect(result).toMatchObject({ skipped: true, reason: 'claim_in_flight' });
+    expect(sendCalls).toHaveLength(0);
+
+    // Still `sending`, so the worker that owns it can finish. Parking here is what turned a
+    // healthy send into work for a human.
+    const after = await run(() => prisma.outboundMessage.findUnique({ where: { id: message.id } }));
+    expect(after?.status).toBe(OUTBOUND_STATUS.SENDING);
+  });
+
+  it('parks a claim older than the lease, because nobody is coming back for it', async () => {
+    const message = await claimedAgo(`stale-${crypto.randomUUID()}`, SENDING_CLAIM_LEASE_MS + 60_000);
+
+    const result = await run(() => handleEmailSend(payloadFor(message.id)));
+    expect(result).toMatchObject({ skipped: true, reason: 'reconciliation_required' });
+    expect(sendCalls).toHaveLength(0);
+
+    const after = await run(() => prisma.outboundMessage.findUnique({ where: { id: message.id } }));
+    expect(after?.status).toBe(OUTBOUND_STATUS.RECONCILIATION_REQUIRED);
+  });
+
+  it('parks a claim with no claimedAt at all', async () => {
+    // Predates the claim timestamp, so there is no evidence anyone is working on it.
+    const message = await createMessage(`noclaim-${crypto.randomUUID()}`);
+    await run(() =>
+      prisma.outboundMessage.update({
+        where: { id: message.id },
+        data: { status: OUTBOUND_STATUS.SENDING, claimedAt: null, providerMessageId: null },
+      }),
+    );
+
+    const result = await run(() => handleEmailSend(payloadFor(message.id)));
+    expect(result).toMatchObject({ skipped: true, reason: 'reconciliation_required' });
+  });
+
+  it('still settles a live claim that already reached the provider', async () => {
+    // A recorded provider id means the send got through and only the final write was lost.
+    // That is knowable, so it is settled rather than deferred — even inside the lease.
+    const message = await claimedAgo(`settled-${crypto.randomUUID()}`, 2_000);
+    await run(() =>
+      prisma.outboundMessage.update({
+        where: { id: message.id },
+        data: { providerMessageId: 'provider-already-sent' },
+      }),
+    );
+
+    const result = await run(() => handleEmailSend(payloadFor(message.id)));
+    expect(result).toMatchObject({ skipped: true, reason: 'already_sent_provider_reconcile' });
+
+    const after = await run(() => prisma.outboundMessage.findUnique({ where: { id: message.id } }));
+    expect(after?.status).toBe(OUTBOUND_STATUS.SENT);
+    expect(sendCalls).toHaveLength(0);
+  });
+
+  it('shares one lease window with the maintenance sweeper', () => {
+    // Two independent constants could drift into disagreeing, and both would then act on the
+    // same row: the sweeper recovering it while a worker still believes it owns it.
+    const maintenance = readFileSync(join(process.cwd(), 'workers', 'maintenance.ts'), 'utf8');
+    expect(maintenance).toContain('SENDING_CLAIM_LEASE_MS');
+    expect(maintenance).not.toMatch(/STALE_SENDING_THRESHOLD_MS = \d/);
   });
 });
 
