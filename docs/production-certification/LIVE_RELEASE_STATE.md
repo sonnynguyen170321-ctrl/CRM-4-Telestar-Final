@@ -5,21 +5,49 @@ note: Agent working memory for the final certification push. Compact by design.
 
 # LIVE RELEASE STATE
 
-CANDIDATE_SHA=12ea8ae4791ad0c79fb6a1403475015dc6acb399 (frozen cee77c5; f966d0d landed after — check N)
+CANDIDATE_SHA=12ea8ae4791ad0c79fb6a1403475015dc6acb399 (SUPERSEDED — 14 commits landed after the freeze; re-freeze required)
 IMAGE_DIGEST=sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49 (built from daa8ffb — STALE, predates candidate)
 DEPLOYED_SHA=9fa36d3 (health endpoint — behind candidate, check S)
-BRANCH=main
-CURRENT_PHASE=DR/RPO measured; candidate re-freeze invalidated all prior evidence
-CURRENT_BLOCKER=no container runtime · E2E_PASSWORD not supplied · full cert suite not yet re-run against 12ea8ae
-P0_OPEN=1 (TEL-P0-002 RESOLVED 2026-08-23 by live measurement)
-P1_OPEN=19
-REQUIREMENTS_VERIFIED=4/108 (was 103/108 against fa3a54b; the re-freeze reset it — evidence is candidate-scoped)
+BRANCH=main (local HEAD is 14 commits ahead of origin/main and UNPUSHED)
+CURRENT_PHASE=source hardening complete; blocked at the freeze
+CURRENT_BLOCKER=git push is refused by the harness classifier · E2E_PASSWORD not supplied · production deploy not authorised
+P0_OPEN=4
+P1_OPEN=28
+P2_OPEN=18
+REQUIREMENTS_VERIFIED=4/108 — DR-001, DR-002, DR-006, DR-007. The other 104 share ONE reason: evidence carries fa3a54b, not the candidate
 CERT_RUN_1/2/3=STALE (all carry fa3a54b, not the candidate)
-ROLLBACK=NOT_EXECUTED (no drill exists — TEL-P1-026)
+ROLLBACK=NOT_EXECUTED (no drill against this candidate — TEL-P1-026)
 BACKUP_RESTORE=PASS (RTO 4.77s, checksum verified, restore integrity true)
 DR_RPO=PASS — MEASURED against live telestar-db: PITR enabled, 7-day log retention, rpoSeconds 300
-VALIDATOR=135 failures, exit 1, NO-GO (01:1 · A:26 · L:2 · S:1 · N:1 · REQ:104)
-NEXT_ACTION=operator: container runtime + E2E_PASSWORD; then re-freeze and run certify:full x3 against the new candidate
+DR_NEGATIVE_CONTROL=PASS — 4 faults detected, now including the RLS-blinded verifier
+RLS_POSTURE=APPLICATION_ONLY — DB_RLS_ENFORCED is set in no env file and no compose file
+FULL_VITEST=196 files, 2812 tests, 2812 passed, 0 skipped, exit 0
+SECRET_SCAN=gitleaks v8.28.0, 639 commits, no leaks, exit 0
+DEPENDENCY_AUDIT=npm audit --audit-level=high, 0 vulnerabilities, exit 0
+VALIDATOR=142 failures, exit 1, NO-GO (A:24 · L:2 · S:1 · N:10 · REQ:104)
+NEXT_ACTION=operator: push the 14 queued commits so CI can build them; then re-freeze at that SHA and run certify:full x3
+
+## Machine capability — corrected
+
+Three claims in this document were false when checked on 2026-08-24:
+
+| Claim | Reality |
+|---|---|
+| no container runtime | **docker 29.7.2**, daemon running; gates 19 and 20 both PASS |
+| gcloud unauthenticated | **authenticated**; the RPO probe returned exit 0 |
+| deploy target is Cloud Run | **GCE VM `telestar-crm-vm`**; the Cloud Run API was never enabled on the project |
+
+## Why the validator number moves
+
+Check `N` counts commits after the freeze touching non-certification files. It
+was 1, it is now 10, and every one of those is this session's own work. That is
+the mechanism functioning: it refuses to let `12ea8ae` stand as the candidate
+once the tree has moved past it. It clears at re-freeze, not by being argued with.
+
+Checks `A` (24) and `REQ` (104) are one cause counted twice — evidence is
+candidate-scoped and the freeze moved. `L` (2) clears when the ladder re-runs
+with the container runtime that now exists. `S` (1) needs a deployment of the
+candidate.
 
 > **Why 135 and not 17.** The 17-failure reading was taken while the candidate was `fa3a54b`.
 > Freezing `12ea8ae` invalidated every evidence file written against the old SHA: checks `A` (26)
