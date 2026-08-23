@@ -39,6 +39,7 @@ vi.mock('@/lib/ai/generation', () => ({
 }));
 
 import { prisma } from '@/lib/prisma';
+import { createTestTenant } from './helpers/testTenant';
 import { randomUUID } from 'crypto';
 import { tenantStorage } from '@/lib/tenant-context';
 import { occupancyKeyFor } from '@/lib/sequences/occupancy';
@@ -108,7 +109,7 @@ describe('Phase 8b — reply classification and handoff', () => {
     mockGenerateStructured.mockReset();
 
     tenantId = `t8b-${randomUUID()}`;
-    await prisma.tenant.create({ data: { id: tenantId, name: 'Replies' } });
+    await createTestTenant(tenantId, 'Replies');
 
     await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
       const user = await prisma.user.create({

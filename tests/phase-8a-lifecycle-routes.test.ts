@@ -21,6 +21,7 @@ vi.mock('@/lib/auth', async (importOriginal) => {
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { createTestTenant } from './helpers/testTenant';
 import { randomUUID } from 'crypto';
 import { tenantStorage } from '@/lib/tenant-context';
 import { occupancyKeyFor } from '@/lib/sequences/occupancy';
@@ -97,7 +98,7 @@ describe('Phase 8a — sequence lifecycle routes and occurrence ownership', () =
 
   beforeEach(async () => {
     tenantId = `t8lc-${randomUUID()}`;
-    await prisma.tenant.create({ data: { id: tenantId, name: 'Lifecycle' } });
+    await createTestTenant(tenantId, 'Lifecycle');
 
     await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
       const user = await prisma.user.create({

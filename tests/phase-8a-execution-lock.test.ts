@@ -31,6 +31,7 @@ vi.mock('@/lib/bullmq/queues', () => ({
 }));
 
 import { prisma } from '@/lib/prisma';
+import { createTestTenant } from './helpers/testTenant';
 import { randomUUID } from 'crypto';
 import { tenantStorage } from '@/lib/tenant-context';
 import { occupancyKeyFor } from '@/lib/sequences/occupancy';
@@ -67,7 +68,7 @@ describe('Phase 8a — task execution lock', () => {
     vi.setSystemTime(new Date('2026-08-12T10:00:00Z'));
 
     tenantId = `t8el-${randomUUID()}`;
-    await prisma.tenant.create({ data: { id: tenantId, name: 'Lock' } });
+    await createTestTenant(tenantId, 'Lock');
 
     await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
       const user = await prisma.user.create({

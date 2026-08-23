@@ -27,6 +27,7 @@ vi.mock('@/lib/bullmq/queues', () => ({
 }));
 
 import { prisma } from '@/lib/prisma';
+import { createTestTenant } from './helpers/testTenant';
 import { randomUUID } from 'crypto';
 import { tenantStorage } from '@/lib/tenant-context';
 import { ensureJob } from '@/lib/bullmq/ensureJob';
@@ -73,7 +74,7 @@ describe('Phase 8a — durable queue ensure', () => {
     queueGetJob.mockReset().mockResolvedValue(null);
 
     tenantId = `t8q-${randomUUID()}`;
-    await prisma.tenant.create({ data: { id: tenantId, name: 'Queue' } });
+    await createTestTenant(tenantId, 'Queue');
 
     await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
       const user = await prisma.user.create({

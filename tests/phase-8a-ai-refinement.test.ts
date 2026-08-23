@@ -96,6 +96,7 @@ vi.stubGlobal(
 );
 
 import { prisma } from '@/lib/prisma';
+import { createTestTenant } from './helpers/testTenant';
 import { randomUUID } from 'crypto';
 import { tenantStorage } from '@/lib/tenant-context';
 import { executeAccountResearch, executeContactResearch } from '@/lib/research/engine';
@@ -126,7 +127,7 @@ describe('Phase 8a — AI refinement and drafting at the provider boundary', () 
     nextGeneration = { ok: true };
 
     tenantA = `t8ai-${randomUUID()}`;
-    await prisma.tenant.create({ data: { id: tenantA, name: 'Tenant AI' } });
+    await createTestTenant(tenantA, 'Tenant AI');
 
     await tenantStorage.run({ tenantId: tenantA, bypassRls: true }, async () => {
       const account = await prisma.account.create({

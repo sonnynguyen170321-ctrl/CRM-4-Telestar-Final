@@ -117,6 +117,7 @@ vi.stubGlobal(
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { prisma } from '@/lib/prisma';
+import { createTestTenant } from './helpers/testTenant';
 import { randomUUID } from 'crypto';
 import { tenantStorage } from '@/lib/tenant-context';
 import {
@@ -184,12 +185,8 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
     tenantA = `test-tenant-a-${randomUUID()}`;
     tenantB = `test-tenant-b-${randomUUID()}`;
 
-    await prisma.tenant.createMany({
-      data: [
-        { id: tenantA, name: 'Tenant A' },
-        { id: tenantB, name: 'Tenant B' },
-      ],
-    });
+    await createTestTenant(tenantA, 'Tenant A');
+    await createTestTenant(tenantB, 'Tenant B');
 
     await tenantStorage.run({ tenantId: tenantA, bypassRls: true }, async () => {
       const accA = await prisma.account.create({ data: { tenantId: tenantA, name: 'Acme Corp A' } });

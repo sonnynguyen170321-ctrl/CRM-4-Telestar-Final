@@ -47,6 +47,7 @@ vi.stubGlobal(
 );
 
 import { prisma } from '@/lib/prisma';
+import { createTestTenant } from './helpers/testTenant';
 import { randomUUID } from 'crypto';
 import { tenantStorage } from '@/lib/tenant-context';
 import { planWorkOrderSteps } from '@/lib/workorders/plan';
@@ -132,12 +133,8 @@ describe('Phase 8a — AI-managed prospecting', () => {
     tenantA = `t8a-a-${randomUUID()}`;
     tenantB = `t8a-b-${randomUUID()}`;
 
-    await prisma.tenant.createMany({
-      data: [
-        { id: tenantA, name: 'Tenant A' },
-        { id: tenantB, name: 'Tenant B' },
-      ],
-    });
+    await createTestTenant(tenantA, 'Tenant A');
+    await createTestTenant(tenantB, 'Tenant B');
 
     await tenantStorage.run({ tenantId: tenantA, bypassRls: true }, async () => {
       const acc = await prisma.account.create({ data: { tenantId: tenantA, name: 'Acme Corp' } });

@@ -52,6 +52,7 @@ vi.mock('@google/generative-ai', () => ({
 }));
 
 import { prisma } from '@/lib/prisma';
+import { createTestTenant } from './helpers/testTenant';
 import { randomUUID } from 'crypto';
 import { tenantStorage } from '@/lib/tenant-context';
 import { generateStructured, isGenerationAvailable } from '@/lib/ai/generation';
@@ -148,7 +149,7 @@ describe('Phase 8a — provider routing and failover', () => {
     process.env.GEMINI_API_KEY = 'gemini-key';
 
     tenantId = `t8routing-${randomUUID()}`;
-    await prisma.tenant.create({ data: { id: tenantId, name: 'Routing' } });
+    await createTestTenant(tenantId, 'Routing');
   });
 
   afterEach(() => {

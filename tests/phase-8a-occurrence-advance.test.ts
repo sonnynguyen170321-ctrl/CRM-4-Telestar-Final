@@ -78,6 +78,7 @@ vi.mock('@/lib/bullmq/queues', () => ({
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { createTestTenant } from './helpers/testTenant';
 import { randomUUID } from 'crypto';
 import { tenantStorage } from '@/lib/tenant-context';
 import { occupancyKeyFor } from '@/lib/sequences/occupancy';
@@ -169,7 +170,7 @@ describe('Phase 8a — occurrence identity through run-now and advancement', () 
     jobStore.clear();
 
     tenantId = `t8oa-${randomUUID()}`;
-    await prisma.tenant.create({ data: { id: tenantId, name: 'Advance' } });
+    await createTestTenant(tenantId, 'Advance');
 
     await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
       const user = await prisma.user.create({

@@ -10,6 +10,7 @@ vi.mock('@/auth', () => ({
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { prisma } from '@/lib/prisma';
+import { createTestTenant } from './helpers/testTenant';
 import { randomUUID } from 'crypto';
 import { tenantStorage } from '@/lib/tenant-context';
 import { occupancyKeyFor } from '@/lib/sequences/occupancy';
@@ -84,7 +85,7 @@ describe('Phase 8a — enrollment occupancy', () => {
 
   beforeEach(async () => {
     tenantId = `t8occ-${randomUUID()}`;
-    await prisma.tenant.create({ data: { id: tenantId, name: 'Occupancy' } });
+    await createTestTenant(tenantId, 'Occupancy');
 
     await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
       const user = await prisma.user.create({
