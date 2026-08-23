@@ -960,7 +960,14 @@ with a misleading one. With Redis it passes, 4/4.
 
 It still fails without Redis, and that is correct: the SIGTERM contract cannot be exercised
 without a worker that reaches ready, and a silent pass would be a green light on a shutdown
-path that never ran. `agent doctor` classifies this suite BLOCKED_EXTERNAL for that reason.
+path that never ran.
+
+> **Correction (2026-08-23, later the same day).** The sentence that stood here said `agent
+> doctor` classifies this suite BLOCKED_EXTERNAL and left it there. That was wrong. Redis was
+> running the whole time — the worker could not reach it because `lib/bullmq/connection.ts`
+> defaulted to `redis://localhost:6379`, which resolves to an IPv6 loopback Docker does not
+> serve. DR-010 was a second real defect hiding behind a first one, and calling it
+> BLOCKED_EXTERNAL is what stopped anyone looking. See **Finding 8**; it now passes 4/4.
 
 The same bug class was searched for elsewhere. `scripts/certification/dr-drill.mjs:202` looks
 similar but is safe — its listener attaches synchronously in the same tick as `stdin.end()`, so
@@ -1096,6 +1103,96 @@ that always rolls back, and the enforcement overhead **measured rather than assu
 
 It refuses to run as a superuser. RLS does not apply to one, so such a run would report seven
 passes and prove nothing — the precise trap `roles.sql` was written to close.
+
+### Finding 8 — `localhost` is not `127.0.0.1`, and three separate things were blamed first ✅ (2026-08-23)
+
+`lib/cache.ts` and `lib/bullmq/connection.ts` both defaulted to `redis://localhost:6379`. On
+Windows that name resolves to the IPv6 loopback first; Docker Desktop's port proxy accepts the
+connection and then resets it, and the driver waits out its whole default window. Measured
+against one running container, one machine, minutes apart:
+
+```
+redis://127.0.0.1:6379   first GET:      60 ms
+redis://localhost:6379   FAILED after 30,023 ms   (ECONNRESET)
+```
+
+Thirty seconds, on every request that touched the cache. `GET /api/admin/overview` calls
+`cacheGet`, so three admin suites blew their 20-second budget, and `DR-010` — which needs a
+worker to reach ready — failed with BullMQ reporting `Command timed out`.
+
+**Three wrong diagnoses came first, and each looked well-supported:**
+
+1. *Concurrent load.* Another agent was seeding heavily and the database did have 32 active
+   connections. Disproved: the same tests passed in isolation on a quiet database.
+2. *Test-tenant bloat.* Real, and separately worth fixing — 74,974 tenants, 430,835 leads. But
+   after purging 73,704 of them the admin tests **still failed at 20 seconds**, which is what
+   finally ruled it out.
+3. *BLOCKED_EXTERNAL.* `DR-010` was recorded as needing Redis — in this document and in a commit
+   message on `main`. Redis was running the entire time.
+
+What kept all three alive was measuring Redis by the address that works. Every probe used
+`127.0.0.1` and answered in milliseconds; the application used `localhost` and could not
+connect. The database was idle throughout — 129 transactions in a 40-second window — which
+should have pointed here far sooner.
+
+**Three fixes.**
+
+Both default URLs now use `127.0.0.1`.
+
+`lib/cache.ts` gained `connectTimeout` and `commandTimeout` of one second. This is the one that
+matters beyond this machine: `cacheGet` already swallows every error and every call site falls
+back to the database, so the cache was *designed* to be optional — but with no deadline it was
+not. A Redis that accepts a connection and stalls held a user-facing request for as long as the
+driver would wait. Failing in a second and serving uncached is strictly better.
+
+`agent doctor` now issues a real `PING` through ioredis against the configured `REDIS_URL`
+instead of opening a TCP socket to `127.0.0.1`. A port check **cannot** detect this: `net.connect`
+on a dual-stack name tries both families and reports success on whichever answers, while the
+driver does not — so the old probe passed while the application hung. It was measuring something
+the application never does, which is worse than not checking at all, because it pointed the
+investigation away for hours.
+
+```
+ok    redis   PING answered in 51ms
+MISS  redis   no usable Redis at localhost:6379 — try redis://127.0.0.1:6379;
+              a dual-stack name can resolve somewhere the server is not
+```
+
+**Result:** the full suite went from 4 failures and 495 s to **194 files, 2,777 tests, zero
+failures, zero skips, 207 s**. `DR-010` passes 4/4 and is no longer BLOCKED_EXTERNAL on this
+machine — that classification was wrong, not merely stale.
+
+### Finding 9 — the tests leaked a tenant per test case ✅ (2026-08-23)
+
+Eleven suites created a tenant in `beforeEach` with a fresh `randomUUID()` and had no teardown
+at all. On the development database: **74,974 tenants and 430,835 leads**, oldest 2026-08-12,
+**14,041 in the preceding 24 hours**. Telestar is one BPO with one tenant.
+
+`tests/helpers/testTenant.ts` creates the tenant and registers its own delete through
+`onTestFinished`. That is per test, matching how they are created — an `afterAll` would leave
+every tenant but the last — and it registers from inside the hook that creates, so eleven files
+with different `describe` nesting were fixed with one line each rather than by hand-placing
+teardown blocks. Verified: the eleven suites ran 240 tests and left **zero** tenants behind.
+
+`tests/test-tenant-leak.test.ts` keeps it fixed. It flags only the leaking shape — a random
+tenant id created without registered cleanup — so the 29 suites that reuse a fixed id and delete
+it are untouched. Red-green verified against a planted leaker.
+
+`scripts/purge-test-tenants.mjs` clears the residue on machines that already have it. Dry run by
+default. Two things it had to learn the hard way:
+
+- **Deleting a tenant does not simply cascade.** `Task.userId` references `User` with no
+  `onDelete`, so Prisma applies Restrict. It sweeps every tenant-owned table repeatedly,
+  tolerating only foreign-key violations, until a pass removes nothing — deriving the order
+  rather than hardcoding one, for the same reason `rls.sql` derives its table list.
+- **72 single-column foreign keys have no index on the child column**, 23 of them pointing at
+  `User` and 9 at `Lead`. PostgreSQL does not index the referencing side, so deleting a parent
+  scans every child table: a single `DELETE FROM "Lead"` ran past six minutes. The script builds
+  those indexes first and drops them after. Whether any belong in `prisma/schema.prisma`
+  permanently is a real decision with write-amplification on the other side and is **left open**.
+
+Purged 73,704 tenants in 612 s; 46 kept — `default-tenant`, `demo-telestar`, and 44 fixed-id
+fixtures.
 
 **Dependency graph** was enabled on the repository on 2026-08-08, so `Dependency review`
 should now report properly instead of "not supported on this repository".
