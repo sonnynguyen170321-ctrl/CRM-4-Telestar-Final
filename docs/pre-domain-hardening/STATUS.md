@@ -1023,6 +1023,80 @@ and which is absent from PATH here, and the file uses `\set` meta-commands no ot
 understands. Recorded in the header so the discovery happens before the change window rather
 than inside it.
 
+### Finding 7 — the policy was correct and unusable ✅ (2026-08-23)
+
+Every RLS check until now ran against a throwaway database holding a handful of rows. Run
+against the development database — 417,472 leads, 72,668 tenants — the isolation was perfect
+and the performance was not:
+
+```
+1000 rows of one tenant, as crm_app under the policy      1071 ms cold / 145 ms warm
+the same rows, same predicate, without the bypass OR         10 ms  (Bitmap Index Scan)
+```
+
+`EXPLAIN` named it exactly: **Parallel Seq Scan on "Lead"**, 138,805 rows discarded per worker,
+to return a thousand. The policy was
+
+```sql
+current_setting('app.bypass_rls', true) = 'true'
+  OR "tenantId" = current_setting('app.current_tenant_id', true)
+```
+
+and the first branch references no column, so PostgreSQL cannot turn the predicate into an
+index condition. Every `tenantId` index on all 66 tenant-owned tables became dead weight the
+moment RLS was enforced. Not a tuning question for later — the difference between an index scan
+and a full table scan on every query the product makes, on a dataset that only grows.
+
+**The fix is one policy per role.** `crm_app` gets
+`USING ("tenantId" = current_setting('app.current_tenant_id', true))` — one predicate, on an
+indexed column. `crm_maintenance` gets `USING (true)`. Only policies whose `TO` matches the
+current role are applied, so the planner sees a single indexable expression again. Measured
+after, on the same database: **8 ms**, Bitmap Index Scan, against a 4 ms control.
+
+It also closes a hole `roles.sql` could only describe. That file said `crm_app` must not be
+able to set `app.bypass_rls` and read across tenants, and admitted "Postgres has no per-GUC
+permission for custom settings, so the separation is by connection string" — nothing enforced
+it. Now nothing needs to: `crm_app` has no policy that reads the flag, so setting it is inert.
+`verify-rls-enablement` asserts exactly that.
+
+**What it costs the application.** Anything that legitimately crosses tenants must connect as
+`crm_maintenance`. `CRM_MAINTENANCE_URL` is new, optional, and inert when unset — every
+deployment today is unaffected — but **mandatory wherever RLS is enabled**:
+
+| Surface | Why it crosses tenants |
+|---|---|
+| `lib/prisma.ts` worker DSN | a worker resolves a `JobRun` before it knows the tenant |
+| `lib/prisma.ts` `withBypassRaw` | the reservation sweep and the test truncations |
+| `lib/client-reports/shareLinks.ts` | answers with no session, so there is no tenant to scope to |
+| `lib/db/adminClient.mjs` | audits, health checks, provisioning, integrity sweeps |
+
+Misconfigured, none of that raises. That silent-zero-rows shape has now been found four times
+in this initiative, so it is a **startup check** rather than a runbook line:
+`checkRlsContract` in `lib/env-contract.ts` refuses to build the client when
+`DB_RLS_ENFORCED=true` and `CRM_MAINTENANCE_URL` is absent. Verified in both directions — the
+import throws without it and succeeds with it — and unit-tested in
+`tests/rls-env-contract.test.ts`.
+
+**A bug in the verifiers themselves, found the hard way.** All three harnesses created roles
+named `crm_app` and `crm_maintenance`. PostgreSQL roles are **cluster-wide, not per-database**,
+so on this machine — where those roles now genuinely exist — a rehearsal found them already
+present, skipped creating them, failed to authenticate with its own generated password, and its
+teardown then tried to `DROP` them. The drop failed only because the roles held grants in the
+development database, and the error was swallowed by a `.catch(() => {})`. Each run now
+generates its own suffixed role namespace and drops only what it created.
+
+### `node scripts/verify-rls-live.mjs`
+
+The fourth verifier, and the one that found all of the above. The others build a throwaway
+database with a few seeded rows, which is right for testing policy logic and useless for
+testing whether the result is usable. This one runs against an existing populated database:
+fail-closed with no context, a scoped read returning exactly its tenant, another tenant
+unreachable by direct id, DDL refused, a write reaching every owned row inside a transaction
+that always rolls back, and the enforcement overhead **measured rather than assumed**.
+
+It refuses to run as a superuser. RLS does not apply to one, so such a run would report seven
+passes and prove nothing — the precise trap `roles.sql` was written to close.
+
 **Dependency graph** was enabled on the repository on 2026-08-08, so `Dependency review`
 should now report properly instead of "not supported on this repository".
 
