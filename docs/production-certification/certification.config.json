@@ -3,9 +3,13 @@
   "schemaVersion": 1,
   "program": "Telestar CRM Production Certification",
   "releaseTag": "telestar-internal-rc-2026-08-22",
-  "candidateSha": "7feaa81b280646b2c142ecf77150116fb451a55a",
-  "candidateFrozenAt": "2026-08-23T11:49:00.000Z",
+  "candidateSha": "e24f06270cae5aefbff0f11c324ab404e7ed76ad",
+  "candidateFrozenAt": "2026-08-23T11:52:00.000Z",
   "previousCandidates": [
+    {
+      "sha": "7feaa81b280646b2c142ecf77150116fb451a55a",
+      "invalidatedReason": "superseded within the same session: the Redis IPv6-loopback fix (e24f062) is application code and landed after this freeze, so gate 01 could never accept it. e24f062 is the same work plus that fix."
+    },
     {
       "sha": "4db4c03430e93a61f9fbabe45d24d8bcd73ec75d",
       "invalidatedReason": "superseded: eleven test suites minted a tenant per test case with no teardown, leaking 73,704 tenants into the development database and timing out the admin overview suite. Fixed in 7feaa81, which this candidate names."
