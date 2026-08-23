@@ -72,24 +72,22 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates openssl \
   && rm -rf /var/lib/apt/lists/*
 
-COPY package.json package-lock.json ./
-COPY prisma ./prisma
+COPY --chown=node:node package.json package-lock.json ./
+COPY --chown=node:node prisma ./prisma
 RUN npm ci --omit=dev \
   && npx prisma generate \
   && npm cache clean --force
 
-COPY --from=builder /app/.next ./.next
-COPY public ./public
-COPY app ./app
-COPY components ./components
-COPY context ./context
-COPY hooks ./hooks
-COPY lib ./lib
-COPY workers ./workers
-COPY scripts ./scripts
-COPY auth.config.ts auth.ts instrumentation.ts next.config.ts proxy.ts tsconfig.json ./
-
-RUN chown -R node:node /app
+COPY --chown=node:node --from=builder /app/.next ./.next
+COPY --chown=node:node public ./public
+COPY --chown=node:node app ./app
+COPY --chown=node:node components ./components
+COPY --chown=node:node context ./context
+COPY --chown=node:node hooks ./hooks
+COPY --chown=node:node lib ./lib
+COPY --chown=node:node workers ./workers
+COPY --chown=node:node scripts ./scripts
+COPY --chown=node:node auth.config.ts auth.ts instrumentation.ts next.config.ts proxy.ts tsconfig.json ./
 
 USER node
 

@@ -122,6 +122,10 @@ describe('operational tooling uses the admin client', () => {
     // assertion in it while proving nothing at all.
     [join('scripts', 'verify-rls.mjs'), 'verifies enforcement'],
     [join('tests', 'rls-policy-coverage.test.ts'), 'verifies enforcement'],
+    // Rehearses the enablement sequence by connecting as the real crm_migrator and crm_app
+    // with their own credentials. Routing it through the admin client would set the bypass on
+    // every connection and the isolation checks would pass without isolation.
+    [join('scripts', 'verify-rls-enablement.mjs'), 'verifies enforcement'],
     // The harness. Its bare clients are deliberate red controls — probes 3, 5 and the last one
     // assert that an unbypassed client sees nothing.
     [join('scripts', 'verify-rls-app-paths.probe.ts'), 'red controls'],

@@ -39,6 +39,7 @@
     "worker:healthcheck": "node node_modules/tsx/dist/cli.mjs scripts/worker-healthcheck.ts",
     "verify:rls": "node scripts/verify-rls.mjs",
     "verify:rls-app-paths": "node scripts/verify-rls-app-paths.mjs",
+    "verify:rls-enablement": "node scripts/verify-rls-enablement.mjs",
     "demo:seed": "node node_modules/tsx/dist/cli.mjs scripts/demo-seed.ts",
     "demo:reset": "node node_modules/tsx/dist/cli.mjs scripts/demo-seed.ts --reset",
     "purge:demo": "node node_modules/tsx/dist/cli.mjs scripts/purge-demo-tenant.ts",

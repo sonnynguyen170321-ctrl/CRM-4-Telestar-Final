@@ -1,8 +1,19 @@
 -- ============================================================================
 -- Telestar SDR CRM — database roles for RLS
 -- ============================================================================
--- Apply AFTER supabase/rls.sql, against the production database:
+-- Apply BEFORE supabase/rls.sql, against the target database:
 --     psql "$DIRECT_URL" -f supabase/roles.sql
+--
+-- This file previously said "apply AFTER rls.sql", which contradicted the sequence recorded in
+-- docs/pre-domain-hardening/STATUS.md ("apply roles.sql, repoint DATABASE_URL at crm_app, apply
+-- rls.sql"). Two authoritative documents giving opposite orders for an R4 operation is a defect
+-- in whichever one is wrong, and the one that is wrong is this one: `crm_app` has to exist
+-- before DATABASE_URL can be repointed at it, and nothing in rls.sql refers to a role. The
+-- roles-first order is the one `npm run verify:rls-enablement` rehearses end to end.
+--
+-- `psql` is required and is NOT installed on the machines this project is developed on, and the
+-- `\set` lines below are psql meta-commands no other client understands. Install psql, or read
+-- `scripts/verify-rls-enablement.mjs`, which substitutes them to run the same script from Node.
 --
 -- ---------------------------------------------------------------------------
 -- WHY THIS FILE EXISTS

@@ -90,9 +90,10 @@
     "test",
     "verify:rls",
     "verify:rls-app-paths",
+    "verify:rls-enablement",
     "worker:dev",
     "worker:healthcheck",
     "worker:start"
   ],
-  "scriptCount": 51
+  "scriptCount": 52
 }

@@ -86,6 +86,7 @@ domains:
       - scripts/verify-rls.mjs
       - scripts/verify-rls-app-paths.mjs
       - scripts/verify-rls-app-paths.probe.ts
+      - scripts/verify-rls-enablement.mjs
       - scripts/verify-db-integrity.ts
       - scripts/check-relational-integrity.ts
       - scripts/apply-p8-migration.mjs

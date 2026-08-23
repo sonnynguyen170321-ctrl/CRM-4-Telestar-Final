@@ -9,11 +9,13 @@ note: Live resume pointer.
 > [`PLAN.md`](./PLAN.md). Tick the box there and update this file when a task lands.
 
 **Current phase:** closing out — every task in `PLAN.md` is written.
-**Next task:** none in the repository. All three enablement blockers found on 2026-08-23 are
-closed and `npm run verify:rls-app-paths` exits 0. What remains is the ops sequence itself —
-apply `roles.sql`, repoint `DATABASE_URL` at `crm_app`, apply `rls.sql`, set
-`DB_RLS_ENFORCED=true`, staging first — which needs a staging target. See **Outstanding —
-needs an environment or a human** below.
+**Next task:** none in the repository. The enablement blockers found on 2026-08-23 are closed;
+`npm run verify:rls-app-paths` and `npm run verify:rls-enablement` both exit 0. What remains is
+the ops sequence itself — apply `roles.sql`, repoint `DATABASE_URL` at `crm_app`, apply
+`rls.sql`, set `DB_RLS_ENFORCED=true`, staging first — which needs a staging target and
+explicit operator authorization. It is rehearsed end to end against a throwaway database, so
+what is untested is the environment, not the sequence. See **Outstanding — needs an environment
+or a human** below.
 **Blockers:** none in the repo.
 
 > Said the same thing on 2026-08-08 and it was wrong for a fortnight. The difference now is
@@ -967,6 +969,59 @@ the spawn and the listener.
 
 **Worth keeping:** a wrong diagnosis survived two commits because it was plausible and never
 run. The instrumentation that settled it took one spawn and thirty seconds.
+
+### Finding 6 — step one of the enablement sequence had never been executed ✅ (2026-08-23)
+
+`supabase/roles.sql` is ninety-six lines of role creation, grants and default privileges, and
+it is the first step of the enablement runbook. Searching for it across `scripts/`, `tests/`
+and `.github/` returns nothing: no script, no test, no CI job had ever run it. The first
+opportunity to find a defect in it would have been the night someone enabled RLS on a live
+database.
+
+`verify-rls.mjs` and `verify-rls-app-paths.mjs` both create their own ad-hoc `NOSUPERUSER` role
+inline, because what they test is the policy layer. Neither touches the roles the deployment
+will actually use.
+
+**`npm run verify:rls-enablement`** now rehearses the whole sequence against a throwaway
+database: create the database owned by `crm_migrator`, apply the datamodel *as* `crm_migrator`,
+apply `roles.sql`, apply `rls.sql`, then connect as the real `crm_app` and behave like the
+application. Nine checks, all passing on the first execution:
+
+```
+PASS  the datamodel applies as crm_migrator
+PASS  supabase/roles.sql applies cleanly
+PASS  all three roles exist and none is privileged
+PASS  supabase/rls.sql applies cleanly
+PASS  crm_app can write through an explicit bypass
+PASS  crm_app reads its own tenant
+PASS  crm_app cannot read another tenant by direct id
+PASS  crm_app is refused DDL
+PASS  a table a later migration creates is readable by crm_app
+```
+
+The good news is that `roles.sql` is correct. Two of those checks are worth keeping for reasons
+beyond today: `crm_app is refused DDL`, because an application role that can drop a policy is
+not constrained by one; and the last, which exercises
+`ALTER DEFAULT PRIVILEGES FOR ROLE crm_migrator`. That clause only reaches objects
+`crm_migrator` itself creates, so the schema is applied as that role rather than as the
+superuser — applying it any other way would leave the clause untested and silently inert, and
+the symptom in production would be a new model the application cannot read, "fixed" by handing
+someone a superuser DSN.
+
+**Two documentation defects, found by reading before running.**
+
+The runbook contradicted itself on ordering. `roles.sql` said "Apply AFTER supabase/rls.sql";
+this document said "apply `roles.sql`, repoint `DATABASE_URL` at `crm_app`, apply `rls.sql`" in
+two places. Opposite orders for an R4 operation, with nothing to break the tie at 2am. The
+header was the wrong one — `crm_app` has to exist before `DATABASE_URL` can point at it, and
+nothing in `rls.sql` refers to a role — and it now states the roles-first order the rehearsal
+proves.
+
+The documented application method does not exist on the machines this project is developed on.
+`psql "$DIRECT_URL" -f supabase/roles.sql` requires psql, which `agent doctor` does not report
+and which is absent from PATH here, and the file uses `\set` meta-commands no other client
+understands. Recorded in the header so the discovery happens before the change window rather
+than inside it.
 
 **Dependency graph** was enabled on the repository on 2026-08-08, so `Dependency review`
 should now report properly instead of "not supported on this repository".
