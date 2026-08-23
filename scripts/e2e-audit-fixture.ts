@@ -13,15 +13,16 @@
  * same team lead and share one campaign so §8 (IDOR) has a real pair: each owns a lead the
  * other must not be able to reach.
  *
- * Uses a bare `PrismaClient` on purpose. The extension in `lib/prisma.ts` resolves the tenant
+ * Uses `createAdminClient` on purpose. The extension in `lib/prisma.ts` resolves the tenant
  * from the session, and there is no session in a CLI script; passing `tenantId` explicitly is
- * both simpler and more honest about what is being written where.
+ * both simpler and more honest about what is being written where. The admin client is the
+ * unextended one, and additionally carries `app.bypass_rls` so it keeps working once
+ * PostgreSQL enforces the policies — see `lib/db/adminClient.mjs`.
  *
  * Usage:
  *   ALLOW_E2E_FIXTURE=1 E2E_PASSWORD='<strong>' node node_modules/tsx/dist/cli.mjs scripts/e2e-audit-fixture.ts
  *   ALLOW_E2E_FIXTURE=1 node node_modules/tsx/dist/cli.mjs scripts/e2e-audit-fixture.ts --prune
  */
-import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
