@@ -1,6 +1,20 @@
 import { Redis } from 'ioredis';
 
-const DEFAULT_REDIS_URL = 'redis://localhost:6379';
+/**
+ * `127.0.0.1`, not `localhost`, and that is not a style choice.
+ *
+ * `localhost` resolves to the IPv6 loopback `::1` first on Windows. Docker Desktop's port proxy
+ * accepts that connection and then resets it, and ioredis waits out its full default window
+ * before giving up. Measured on 2026-08-23, same machine, same container:
+ *
+ *     redis://127.0.0.1:6379   first GET:  60 ms
+ *     redis://localhost:6379   FAILED after 30,023 ms  (ECONNRESET)
+ *
+ * That 30 seconds landed on every request touching this cache. Three admin suites began failing
+ * their 20-second budget, and the cause looked for a while like a slow database — it was not
+ * one: the database was idle throughout, 129 transactions in a 40-second window.
+ */
+const DEFAULT_REDIS_URL = 'redis://127.0.0.1:6379';
 const CACHE_PREFIX = 'crm4u:cache:';
 
 let client: Redis | null = null;
@@ -14,6 +28,13 @@ function getClient(): Redis | null {
       enableReadyCheck: false,
       maxRetriesPerRequest: 1,
       retryStrategy: () => null,
+      // A cache is optional by definition — every call site here already falls back to the
+      // database when it returns null. Without deadlines it stops being optional: a Redis that
+      // accepts a connection and then stalls will hold a user-facing request for as long as the
+      // driver is willing to wait, which by default is tens of seconds. Failing in one second
+      // and serving the request uncached is always the better trade.
+      connectTimeout: 1_000,
+      commandTimeout: 1_000,
     });
     return client;
   } catch {

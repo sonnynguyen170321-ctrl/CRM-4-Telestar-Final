@@ -1,6 +1,14 @@
 import { Redis, type RedisOptions } from 'ioredis';
 
-const DEFAULT_REDIS_URL = 'redis://localhost:6379';
+/**
+ * `127.0.0.1`, not `localhost` — the same reason as `lib/cache.ts`. `localhost` resolves to the
+ * IPv6 loopback first on Windows, Docker Desktop's port proxy accepts that and then resets it,
+ * and the driver waits out its whole window. Measured 2026-08-23: a first GET took 60 ms over
+ * `127.0.0.1` and failed after 30,023 ms over `localhost`, against the same container. Here it
+ * surfaced as BullMQ reporting `Command timed out` against a Redis that answered `PING`
+ * instantly when addressed by IP.
+ */
+const DEFAULT_REDIS_URL = 'redis://127.0.0.1:6379';
 
 export function getRedisConfig(): { url: string; opts: RedisOptions } {
   const url = process.env.REDIS_URL || DEFAULT_REDIS_URL;
