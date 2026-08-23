@@ -6,9 +6,11 @@
  * `deleteMany` — `prisma/seed-demo.ts` has 17 of those and is guarded accordingly; this script has
  * to be safe to run repeatedly in front of an audience, which is a different requirement entirely.
  *
- * Uses a bare `PrismaClient` on purpose: the extension in `lib/prisma.ts` resolves the tenant from
+ * Uses `createAdminClient` on purpose: the extension in `lib/prisma.ts` resolves the tenant from
  * a session, and a CLI script has none. Passing `tenantId` explicitly is both simpler and more
- * honest about what is being written where.
+ * honest about what is being written where. That client is the unextended one, and additionally
+ * carries `app.bypass_rls` so this keeps working once PostgreSQL enforces the policies — see
+ * `lib/db/adminClient.mjs`.
  *
  * ```bash
  * npm run demo:seed     # create / refresh the demo tenant
@@ -21,7 +23,6 @@
  * on unless explicitly set to `"false"` (`lib/emailSafety.ts`). The real send pipeline stays
  * visible end to end — `OutboundMessage`, the queue, the worker — and nothing leaves the building.
  */
-import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { resolveDemoPassword } from '@/lib/seed-guard';
 import { createAdminClient } from '@/lib/db/adminClient.mjs';
