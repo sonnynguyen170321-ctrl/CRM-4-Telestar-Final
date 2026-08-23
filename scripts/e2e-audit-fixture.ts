@@ -25,8 +25,9 @@ import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
-const prisma = new PrismaClient();
+const prisma = createAdminClient();
 
 export const TENANT_A = 'pw-audit-tenant-a';
 export const TENANT_B = 'pw-audit-tenant-b';

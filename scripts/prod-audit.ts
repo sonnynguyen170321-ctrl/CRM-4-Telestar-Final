@@ -2,6 +2,7 @@ import { spawnSync } from 'child_process';
 import { PrismaClient } from '@prisma/client';
 import IORedis from 'ioredis';
 import { loadEnvFile } from './prod-env';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
 type Level = 'PASS' | 'WARN' | 'FAIL';
 const results: Array<{ level: Level; message: string }> = [];
@@ -41,7 +42,7 @@ async function main() {
   if (envCheck.status === 0) record('PASS', 'required env validation passed');
   else record('FAIL', 'required env validation failed');
 
-  const prisma = new PrismaClient();
+  const prisma = createAdminClient();
   try {
     try {
       await prisma.$queryRaw`SELECT 1`;

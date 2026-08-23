@@ -5,10 +5,10 @@
  * Validates Sections 10–18 of the Production Certification Plan.
  */
 
-import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
+import { createAdminClient } from '../lib/db/adminClient.mjs';
 
-const prisma = new PrismaClient();
+const prisma = createAdminClient();
 
 async function main() {
   console.log('======================================================================');

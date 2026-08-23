@@ -5,11 +5,11 @@
  * Runs zero-dependency ESM checks against Cloud SQL, Redis, BullMQ, DNS, and Worker.
  */
 
-import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 import dns from 'dns/promises';
+import { createAdminClient } from '../lib/db/adminClient.mjs';
 
-const prisma = new PrismaClient();
+const prisma = createAdminClient();
 const redisUrl = process.env.REDIS_URL || 'redis://crm-4-u-redis-1:6379';
 const redis = new Redis(redisUrl, { maxRetriesPerRequest: 2, connectTimeout: 5000 });
 

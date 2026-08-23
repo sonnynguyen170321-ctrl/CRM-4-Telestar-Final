@@ -24,8 +24,9 @@
 import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { resolveDemoPassword } from '@/lib/seed-guard';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
-const prisma = new PrismaClient();
+const prisma = createAdminClient();
 
 export const DEMO_TENANT_ID = 'demo-telestar';
 export const DEMO_PASSWORD = resolveDemoPassword();

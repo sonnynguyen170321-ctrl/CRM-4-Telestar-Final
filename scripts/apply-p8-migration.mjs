@@ -1,8 +1,8 @@
-import { PrismaClient } from '@prisma/client';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { createAdminClient } from '../lib/db/adminClient.mjs';
 
-const prisma = new PrismaClient({ datasourceUrl: process.env.DIRECT_URL });
+const prisma = createAdminClient(process.env.DIRECT_URL);
 
 async function run() {
   const baseDir = join(process.cwd(), 'prisma', 'migrations');

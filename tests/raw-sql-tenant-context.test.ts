@@ -103,6 +103,114 @@ describe('raw SQL carries a tenant context', () => {
   });
 });
 
+/**
+ * The same question for the other client that sets no GUCs: a bare `new PrismaClient()`.
+ *
+ * Tooling holds one on purpose — it is cross-tenant admin work and opts out of the extension
+ * deliberately. Under enforcement `DATABASE_URL` points at `crm_app`, which is `NOSUPERUSER`
+ * and therefore subject to `FORCE`, so a bare client reads zero rows and an audit reports a
+ * clean, empty, wrong answer. `createAdminClient` sets `app.bypass_rls` at connection start.
+ */
+describe('operational tooling uses the admin client', () => {
+  /**
+   * The ones that must NOT be converted, each because a bypass would defeat what they exist
+   * to do. This list is the dangerous one to get wrong in the *other* direction, so each entry
+   * says what would break.
+   */
+  const MUST_STAY_BARE = new Map<string, string>([
+    // Exists to prove the policies keep tenants apart. A bypassed client would pass every
+    // assertion in it while proving nothing at all.
+    [join('scripts', 'verify-rls.mjs'), 'verifies enforcement'],
+    [join('tests', 'rls-policy-coverage.test.ts'), 'verifies enforcement'],
+    // The harness. Its bare clients are deliberate red controls — probes 3, 5 and the last one
+    // assert that an unbypassed client sees nothing.
+    [join('scripts', 'verify-rls-app-paths.probe.ts'), 'red controls'],
+    [join('scripts', 'verify-rls-app-paths.mjs'), 'superuser setup'],
+    // The tenant extension and the helper itself.
+    [join('lib', 'prisma.ts'), 'defines the extension'],
+    [join('lib', 'db', 'adminClient.mjs'), 'defines the helper'],
+    // A request path, not tooling. It gets its bypass per statement, scoped to a validated
+    // share token — see lib/client-reports/shareLinks.ts.
+    [join('lib', 'client-reports', 'shareLinks.ts'), 'request path, bypasses per statement'],
+    // Reads `pg_policies` and nothing else. A system catalog carries no `tenantId`, so no
+    // policy applies and this cannot silently return zero rows the way the converted tools
+    // would have. Exempt on those grounds only — it is still the leftover debugging script
+    // STATUS has wanted gone since 2026-08-08, and deleting it remains the better fix.
+    ['inspect_policies.ts', 'system catalog only'],
+  ]);
+
+  const TOOLING_ROOTS = ['scripts', 'prisma', 'tests', 'lib', 'workers', 'app'] as const;
+
+  const toolingFiles = TOOLING_ROOTS.flatMap((root) => {
+    try {
+      return walk(join(process.cwd(), root));
+    } catch {
+      return [];
+    }
+  })
+    .concat(
+      // `.mjs` tooling is not picked up by `walk`, which only collects TypeScript.
+      ['scripts', join('scripts', 'certification'), join('lib', 'db')].flatMap((dir) => {
+        try {
+          return readdirSync(dir)
+            .filter((f) => f.endsWith('.mjs'))
+            .map((f) => join(process.cwd(), dir, f));
+        } catch {
+          return [];
+        }
+      })
+    )
+    .concat(
+      // The repository root, non-recursively. `inspect_policies.ts` has been sitting there
+      // since 2026-08-08 and no directory scan reaches it — a guard with a hole where the
+      // known stray lives is not much of a guard.
+      readdirSync(process.cwd())
+        .filter((f) => f.endsWith('.ts') || f.endsWith('.mjs'))
+        .map((f) => join(process.cwd(), f))
+    )
+    .map((f) => relative(process.cwd(), f));
+
+  /**
+   * Comments are stripped before matching. `lib/seed-guard.ts` explains at length why the seed
+   * uses a bare client and would otherwise be reported for describing the thing it guards —
+   * and a check that cannot tell prose from code trains people to add exemptions, which is how
+   * an exemption list stops meaning anything.
+   */
+  const stripComments = (src: string) =>
+    src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  const bare = toolingFiles.filter((file) => {
+    const key = file.split('/').join(sep);
+    if (MUST_STAY_BARE.has(key) || key === join('tests', 'raw-sql-tenant-context.test.ts')) {
+      return false;
+    }
+    return /new PrismaClient\(/.test(stripComments(readFileSync(file, 'utf8')));
+  });
+
+  it('has no un-exempted bare new PrismaClient()', () => {
+    expect(bare).toEqual([]);
+  });
+
+  it('still has the enforcement verifiers using a bare client', () => {
+    // The inverse failure, and the worse one. If `verify-rls.mjs` ever gained the bypass it
+    // would pass every assertion while proving nothing — a green light on isolation that was
+    // never tested. Same for the harness red controls.
+    for (const [file, why] of MUST_STAY_BARE) {
+      if (why !== 'verifies enforcement' && why !== 'red controls') continue;
+      const source = readFileSync(file, 'utf8');
+      expect(source, `${file} must keep a bare client — it ${why}`).toMatch(/new PrismaClient\(/);
+      // The harness is the one place both belong: it holds bare clients as red controls AND
+      // exercises `createAdminClient` as the thing under test. Only the pure verifiers must be
+      // free of it — a bypass there would turn every assertion green while proving nothing.
+      if (why === 'verifies enforcement') {
+        expect(source, `${file} must not use createAdminClient — it ${why}`).not.toContain(
+          'createAdminClient('
+        );
+      }
+    }
+  });
+});
+
 describe('the helpers themselves', () => {
   const source = readFileSync(HELPER_FILE, 'utf8');
 

@@ -9,12 +9,12 @@
  *   npm run create-user -- --email sdr@telestar.vn --password 'strong-pass' --role sdr
  *   npm run create-user -- --email sdr@telestar.vn --deactivate
  */
-import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
-const raw = new PrismaClient();
+const raw = createAdminClient();
 const roles = ['director', 'floor_manager', 'team_lead', 'sdr', 'leadgen_manager', 'leadgen'] as const;
 type Role = (typeof roles)[number];
 

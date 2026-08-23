@@ -225,6 +225,49 @@ async function main() {
     );
   }
 
+  // ── 9. The shape the operational scripts need ────────────────────────────────
+  // Scripts hold a bare `new PrismaClient()` on purpose — they are cross-tenant admin tooling
+  // and opt out of the extension deliberately. Probe 3 already showed such a client sees
+  // nothing under enforcement. Wrapping every statement in nineteen scripts is not the answer;
+  // PostgreSQL can set the GUC at connection start instead, via the libpq `options` parameter,
+  // which applies to every connection Prisma opens in that pool rather than one transaction.
+  //
+  // This exercises `createAdminClient` itself rather than an inline reconstruction of it, so
+  // the thing proved here is the thing the nineteen scripts actually call.
+  const { createAdminClient } = await import('@/lib/db/adminClient.mjs');
+  const scriptStyle = createAdminClient();
+  try {
+    const count = await scriptStyle.lead.count();
+    record(
+      'createAdminClient reaches rows a bare client cannot',
+      count === 1,
+      `Lead count = ${count} (expected 1; 0 means the options parameter did not take)`
+    );
+  } catch (err) {
+    record('createAdminClient reaches rows a bare client cannot', false, `threw: ${(err as Error).message}`);
+  } finally {
+    await scriptStyle.$disconnect();
+  }
+
+  // The red control for it. Probe 3 already showed an unbypassed bare client seeing nothing,
+  // but that was a share-link lookup; this is the same `lead` query as above, differing only
+  // in the connection option — so the option is unambiguously what makes the difference.
+  const plain = new PrismaClient();
+  try {
+    const count = await plain.lead.count();
+    record(
+      'the same client without the option sees nothing',
+      count === 0,
+      count === 0
+        ? 'Lead count = 0, as the policy requires'
+        : `Lead count = ${count}; RLS is not being enforced and the probe above proves nothing`
+    );
+  } catch (err) {
+    record('the same client without the option sees nothing', false, `threw: ${(err as Error).message}`);
+  } finally {
+    await plain.$disconnect();
+  }
+
   await prisma.$disconnect();
 
   console.log('---PROBE-JSON-START---');

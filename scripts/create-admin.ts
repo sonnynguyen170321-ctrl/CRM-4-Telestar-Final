@@ -9,12 +9,12 @@
  *   # or via env:
  *   ADMIN_EMAIL=you@co.com ADMIN_PASSWORD='strong-pass' ADMIN_NAME='Your Name' npm run create-admin
  */
-import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
-const raw = new PrismaClient();
+const raw = createAdminClient();
 
 function arg(flag: string): string | undefined {
   const i = process.argv.indexOf(flag);

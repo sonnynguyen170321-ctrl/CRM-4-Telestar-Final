@@ -1,7 +1,8 @@
-import { PrismaClient, SequenceEnrollmentStatus } from '@prisma/client';
+import { SequenceEnrollmentStatus } from '@prisma/client';
 import { occupancyFor } from '@/lib/sequences/occupancy';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
-const prisma = new PrismaClient();
+const prisma = createAdminClient();
 
 async function main() {
   console.log('Fetching all leads currently associated with a sequence...');

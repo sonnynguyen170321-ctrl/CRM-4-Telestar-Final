@@ -9,20 +9,25 @@ note: Live resume pointer.
 > [`PLAN.md`](./PLAN.md). Tick the box there and update this file when a task lands.
 
 **Current phase:** closing out — every task in `PLAN.md` is written.
-**Next task:** give the operational scripts a tenant context under RLS — the last of the three
-enablement blockers found on 2026-08-23, and the only one still open. Everything else remaining
-needs a live box, a staging target, Docker, or a browser — see **Outstanding — needs an
-environment or a human** below.
+**Next task:** none in the repository. All three enablement blockers found on 2026-08-23 are
+closed and `npm run verify:rls-app-paths` exits 0. What remains is the ops sequence itself —
+apply `roles.sql`, repoint `DATABASE_URL` at `crm_app`, apply `rls.sql`, set
+`DB_RLS_ENFORCED=true`, staging first — which needs a staging target. See **Outstanding —
+needs an environment or a human** below.
 **Blockers:** none in the repo.
 
+> Said the same thing on 2026-08-08 and it was wrong for a fortnight. The difference now is
+> that a harness runs the real code against a database that is actually enforcing, so the claim
+> is measured rather than asserted. Run `npm run verify:rls-app-paths` before believing it.
+
 > **2026-08-23 — the "nothing left in the repo" line above was wrong for a fortnight.**
-> Re-deriving the `new PrismaClient()` inventory turned up a defect that would have broken every
-> client report share link the moment RLS was enabled (Finding 3, fixed), 25 raw SQL statements
-> with the same flaw including the one that reserves email quota (Finding 4, fixed), and
-> eighteen operational scripts still in that position (open). Both fixes are proved by
-> `npm run verify:rls-app-paths`, which runs the real code against a database that is actually
-> enforcing — the thing no suite here was doing. Task 6 was marked complete on 2026-08-08. It
-> was not.
+> Re-deriving the `new PrismaClient()` inventory turned up three defects, each of which would
+> have broken something the moment RLS was enabled: every client report share link (Finding 3),
+> 25 raw SQL statements including the one that reserves email quota, whose failure stops
+> outbound silently (Finding 4), and 22 operational tools that would have reported clean, empty,
+> wrong answers (Finding 5). All three are fixed and proved by `npm run verify:rls-app-paths`,
+> which runs the real code against a database that is actually enforcing — the thing no suite
+> here was doing. Task 6 was marked complete on 2026-08-08. It was not.
 
 > **2026-08-14 — the create-user session-revocation item is CLOSED.** `scripts/create-user.ts`
 > now increments `authVersion` whenever a change governs access — password, role, or active state
@@ -620,13 +625,8 @@ before the enforcement matrix passes in staging.
 - ~~**The raw-SQL gap, Finding 4.**~~ **Closed 2026-08-23.** All 25 statements now carry a
   tenant context; `npm run verify:rls-app-paths` exits 0. The remaining enablement blocker is
   the scripts, below.
-- **Enforcement will break the scripts, seeds and test setup.** Eighteen of the nineteen bare
-  `new PrismaClient()` sites are operational tooling. Enabling RLS repoints `DATABASE_URL` at
-  `crm_app`, which is `NOSUPERUSER` and therefore subject to `FORCE` — so `prod-certify.mjs`,
-  `worker-healthcheck.ts`, `create-admin.ts` and the rest would read zero rows and report a
-  clean, empty, wrong answer. Not fixed here: the right shape is one shared bypass helper
-  those tools import, and choosing it is a design decision, not a mechanical edit. **It must
-  be settled before staging enablement, not after.**
+- ~~**Enforcement will break the scripts, seeds and test setup.**~~ **Closed 2026-08-23.**
+  All 22 tooling sites now use `createAdminClient`. See Finding 5.
 - **Product decision, needs a human:** `User.email` is currently `@unique` — globally unique
   across tenants. Two tenants therefore cannot both have `sonny@telestar.vn`. If per-tenant
   uniqueness is wanted it becomes `@@unique([tenantId, email])`, which changes login lookup
@@ -874,6 +874,57 @@ that only appeared to work comes apart there.
 It remains **not** a CI gate: it needs PostgreSQL and a NOSUPERUSER role. The cheap half of the
 question — whether a new call site has appeared — is a source check that does run on every
 commit, in `tests/raw-sql-tenant-context.test.ts`.
+
+### Finding 5 — the operational tooling was in the same position ✅ (2026-08-23)
+
+Twenty-two scripts, seeds and test-setup files hold a bare `new PrismaClient()`. That is
+correct and stays correct: they are cross-tenant admin work — audits, health checks,
+provisioning, integrity sweeps — and opt out of the tenant extension deliberately.
+
+Under enforcement `DATABASE_URL` points at `crm_app`, which `supabase/roles.sql` creates
+`NOSUPERUSER`, so `FORCE` applies. A bare client sets none of the GUCs, matches no policy, and
+reads zero rows. `prod-certify.mjs` would certify an empty database. `check-relational-integrity`
+would report no inconsistencies because it could not see any rows to compare. The answer is
+clean, empty and wrong, which is worse than a failure.
+
+**`lib/db/adminClient.mjs`** — `createAdminClient(url?)`. It sets the GUC at *connection start*
+rather than per statement, using PostgreSQL's `options=-c app.bypass_rls=true`, so every
+connection Prisma opens in the pool carries it before any query runs. Nothing in the 22 files
+changed but the constructor: no transactions, no wrappers, no statement that can be missed.
+
+`.mjs` rather than `.ts` because `prod-certify.mjs`, `canary-live-drill.mjs`,
+`diagnose-import.mjs`, `apply-p8-migration.mjs` and `probe-environment.mjs` run under plain
+`node`, which cannot import TypeScript. A second TypeScript copy for the tsx callers is exactly
+the duplication that drifts, and a *bypass* helper that drifts is a security problem rather
+than an untidiness one.
+
+**Seven files keep a bare client, and the test asserts they keep it.** `verify-rls.mjs` and
+`rls-policy-coverage.test.ts` exist to prove the policies hold; a bypassed client would pass
+every assertion in them while proving nothing — a green light on isolation that was never
+tested. The harness holds bare clients as red controls. `lib/prisma.ts` and the helper define
+the mechanisms. `shareLinks.ts` is a request path and bypasses per statement against a
+validated token. `tests/raw-sql-tenant-context.test.ts` checks both directions: no new bare
+client appears, *and* those seven still have theirs.
+
+**Two things this turned up that reasoning had not.**
+
+`inspect_policies.ts` sits at the repository root, where no directory scan reached it — a guard
+with a hole exactly where the known stray lives. The scan now covers the root. It is exempt on
+its merits (it reads `pg_policies`, a system catalog with no `tenantId`, so no policy applies)
+but it is still the leftover STATUS has wanted gone since 2026-08-08, and deleting it remains
+the better fix.
+
+More seriously: **the conversion shipped a startup crash that `tsc` and all 2770 tests passed
+over.** A bare `new PrismaClient()` resolves `env("DATABASE_URL")` through Prisma's own loader.
+Reading `process.env.DATABASE_URL` directly does not — and this repository has no `.env` at
+all, only `.env.local`. Every converted tool died immediately with "no DATABASE_URL set" on a
+machine set up exactly as the project documents. It was caught by *running*
+`check-relational-integrity`, not by any gate. `createAdminClient` now loads `.env.local` then
+`.env` with `override: false`, matching `scripts/certification/lib/loadEnv.mjs`, which learned
+the same lesson in the certification ladder.
+
+The lesson generalises: a green type checker and a green suite say nothing about whether a
+script still starts. Converted tooling gets run.
 
 **Dependency graph** was enabled on the repository on 2026-08-08, so `Dependency review`
 should now report properly instead of "not supported on this repository".

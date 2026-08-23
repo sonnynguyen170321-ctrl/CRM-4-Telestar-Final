@@ -21,6 +21,7 @@ import { PrismaClient } from '@prisma/client';
 
 import { getConnection } from '@/lib/bullmq/connection';
 import { closeAllQueues } from '@/lib/bullmq/queues';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
 export const DEFAULT_TIMEOUT_MS = 60_000;
 const POLL_INTERVAL_MS = 2_000;
@@ -111,7 +112,7 @@ export async function runWorkerHealthcheck(options: {
 }
 
 async function main(): Promise<void> {
-  const prisma = new PrismaClient();
+  const prisma = createAdminClient();
   let completed = false;
   try {
     const result = await runWorkerHealthcheck({ prisma, tenantId: process.env.CUTOVER_TENANT_ID });

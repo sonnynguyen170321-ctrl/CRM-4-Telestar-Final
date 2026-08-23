@@ -1,6 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
-const prisma = new PrismaClient();
+const prisma = createAdminClient();
 const DEMO_TENANT_ID = 'demo-telestar';
 
 async function main() {

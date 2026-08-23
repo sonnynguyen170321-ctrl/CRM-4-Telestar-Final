@@ -17,9 +17,9 @@
  * Read-only. Prints to stdout so it lands in the CI job log, which is retrievable through the
  * API — the step summary is not.
  */
-import { PrismaClient } from '@prisma/client';
+import { createAdminClient } from '../lib/db/adminClient.mjs';
 
-const prisma = new PrismaClient();
+const prisma = createAdminClient();
 const j = (v) => JSON.stringify(v, (_k, x) => (typeof x === 'bigint' ? String(x) : x), 2);
 
 async function main() {

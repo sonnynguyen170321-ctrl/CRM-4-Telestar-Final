@@ -32,6 +32,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 
 import { PrismaClient } from '@prisma/client';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
 /** Models whose counts are reconciled across a backup/restore cycle (DR-002 §10.3). */
 const REPRESENTATIVE_MODELS = [
@@ -381,7 +382,7 @@ async function main() {
     process.exit(2);
   }
 
-  const db = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
+  const db = createAdminClient(databaseUrl);
   const startedAt = new Date().toISOString();
   let counts: Record<string, number> = {};
   const results: CheckResult[] = [];
