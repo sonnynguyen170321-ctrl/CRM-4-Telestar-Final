@@ -1,0 +1,49 @@
+{
+  "evidenceId": "EV-RLS-POSTURE",
+  "kind": "rls-posture",
+  "candidateSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
+  "environment": "certification workstation - local PostgreSQL 16; each script builds its own throwaway database and roles",
+  "command": "node scripts/verify-rls.mjs; node scripts/verify-rls-app-paths.mjs; node scripts/verify-rls-enablement.mjs; node scripts/verify-rls-live.mjs",
+  "startedAt": "2026-08-23T18:10:04.738Z",
+  "finishedAt": "2026-08-23T18:10:04.738Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {
+    "productionPosture": "APPLICATION_ONLY",
+    "dbRlsEnforcedInProduction": false,
+    "reason": "DB_RLS_ENFORCED appears in no environment file and no compose file, so database-level RLS is NOT enforced in production. Production tenant isolation rests on the application-layer Prisma extension. DB-level RLS is available and now proven to work; enabling it is a separate infrastructure decision.",
+    "gates": {
+      "verify-rls": {
+        "exitCode": 0,
+        "result": "policies keep tenant A out of tenant B, and fail closed with no tenant context"
+      },
+      "verify-rls-app-paths": {
+        "exitCode": 0,
+        "probes": 10,
+        "result": "all ten application paths survive enforcement, including share links and raw SQL via withTenantRaw/withBypassRaw"
+      },
+      "verify-rls-enablement": {
+        "exitCode": 0,
+        "result": "the documented roles.sql enablement sequence produces a working isolated system"
+      },
+      "verify-rls-live": {
+        "exitCode": 0,
+        "result": "unprivileged role against a populated database: 1000 of 2340 leads scoped to its tenant, cross-tenant unreachable, DDL refused, write path rolled back"
+      }
+    },
+    "measuredOverhead": {
+      "rows": 1000,
+      "underPolicyMs": 6,
+      "controlMs": 3
+    },
+    "staleClaimCorrected": "scripts/verify-rls-app-paths.mjs asserted in its own header that it exits 1, describing ~25 raw statements running with no tenant context. It exits 0. That comment is the stated gate on enabling DB_RLS_ENFORCED, so leaving it stale argued indefinitely against enabling the control it was written to protect.",
+    "enablementPrecondition": "MET - verify-rls-app-paths.mjs reaches 0. Enabling remains a deliberate infrastructure decision requiring CRM_MAINTENANCE_URL and a verified backup, because the RLS failure mode is silent: a statement with no tenant context matches no policy and returns zero rows without raising."
+  },
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/rls-posture-gates.log",
+      "sizeBytes": 4850,
+      "sha256": "244b3c4b29e8a858cb03da30be1faff6610b999303ee9df896ba4b2196a28e71"
+    }
+  ]
+}

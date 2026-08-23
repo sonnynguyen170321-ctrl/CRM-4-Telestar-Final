@@ -7,7 +7,7 @@
 -->
 
 **Candidate SHA**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
-**Evidence records**: 23
+**Evidence records**: 24
 **Requirements verified**: 4 / 108
 **Verdict**: NO-GO
 
@@ -63,6 +63,7 @@
 | `EV-LOAD-QUEUE` | `load-benchmark` | `fa3a54b` ⚠ | **PASS** | 0 | 1 |
 | `EV-REDIS-INTEGRATION` | `redis-integration` | `fa3a54b` ⚠ | **PASS** | 0 | 1 |
 | `EV-RELEASE-IDENTITY` | `release-identity` | `9fa36d3` ⚠ | **PASS** | 0 | 0 |
+| `EV-RLS-POSTURE` | `rls-posture` | `12ea8ae` | **PASS** | 0 | 1 |
 | `EV-ROLE-BROWSER` | `role-browser` | `fa3a54b` ⚠ | **PASS** | 0 | 6 |
 | `EV-RUN-1` | `certification-run` | `fa3a54b` ⚠ | **PASS** | 0 | 23 |
 | `EV-RUN-2` | `certification-run` | `fa3a54b` ⚠ | **PASS** | 0 | 23 |
@@ -224,6 +225,16 @@
 - **Ran**: 2026-08-22T06:38:07.408Z → 2026-08-22T06:38:07.410Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**: none
+### `EV-RLS-POSTURE`
+- **Kind**: `rls-posture`
+- **Candidate**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
+- **Environment**: certification workstation - local PostgreSQL 16; each script builds its own throwaway database and roles
+- **Command**: `node scripts/verify-rls.mjs; node scripts/verify-rls-app-paths.mjs; node scripts/verify-rls-enablement.mjs; node scripts/verify-rls-live.mjs`
+- **Ran**: 2026-08-23T18:10:04.738Z → 2026-08-23T18:10:04.738Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Reason**: DB_RLS_ENFORCED appears in no environment file and no compose file, so database-level RLS is NOT enforced in production. Production tenant isolation rests on the application-layer Prisma extension. DB-level RLS is available and now proven to work; enabling it is a separate infrastructure decision.
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/rls-posture-gates.log` — 4850 bytes, sha256 `244b3c4b29e8a858…`
 ### `EV-ROLE-BROWSER`
 - **Kind**: `role-browser`
 - **Candidate**: `fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb`

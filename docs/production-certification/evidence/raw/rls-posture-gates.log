@@ -1,0 +1,109 @@
+===== verify-rls.mjs (policy isolation matrix) =====
+Verifying RLS enforcement in throwaway database crm_rls_verify_926c4919
+Admin host: localhost:5432
+
+Connected as an unprivileged role holding tenant A context:
+
+  PASS  reads its own tenant's rows
+  PASS  cannot read another tenant's rows
+  PASS  cannot read another tenant's row by direct id
+  PASS  cannot read tenant B Meeting by direct id
+  PASS  cannot read tenant B Opportunity by direct id
+  PASS  cannot read tenant B CampaignPlaybook by direct id
+  PASS  cannot read tenant B PlaybookProposal by direct id
+  PASS  cannot read tenant B OutcomeSignal by direct id
+  PASS  cannot read tenant B SequenceEnrollment by direct id
+  PASS  cannot read tenant B SequenceStepCopy by direct id
+  PASS  cannot update another tenant's row
+  PASS  cannot delete another tenant's row
+  PASS  cannot insert a row attributed to another tenant
+  PASS  fails closed with no tenant context
+
+Control — the same read as a superuser:
+  PASS  superuser sees both tenants (2 rows) — RLS does not apply to superusers
+
+Cleaned up crm_rls_verify_926c4919 and crm_rls_app_ecb283.
+
+All checks passed — PostgreSQL enforces tenant isolation.
+
+===== verify-rls-app-paths.mjs (application paths under enforcement) =====
+Verifying application paths under RLS in throwaway database crm_rls_apppaths_7c62bf59
+Admin host: localhost:5432
+
+Application paths, as a NOSUPERUSER role with DB_RLS_ENFORCED=true:
+
+  PASS  verifyAndFetchSharedReport resolves a valid token under enforcement
+        returned "Weekly report" for "Acme"
+  PASS  the view-counter write lands under enforcement
+        viewCount = 1 after one view (expected 1)
+  PASS  the same lookup with no bypass returns nothing — the fix is what makes probe 1 pass
+        null, as the policy requires
+  PASS  a model operation through the extension sees its tenant
+        Lead count = 1 (expected 1)
+  PASS  bare raw SQL sees nothing — the extension cannot reach root operations
+        Lead count via bare $queryRaw = 0, as the policy requires
+  PASS  withTenantRaw gives raw SQL its tenant context
+        Lead count via withTenantRaw = 1 (expected 1)
+  PASS  withBypassRaw reaches rows for deliberately cross-tenant maintenance
+        Lead count via withBypassRaw = 1 (expected 1)
+  PASS  the AI budget path reserves and settles under enforcement
+        reserved 1 then settled to used 1 / reserved 0 (expected 1, 1, 0)
+  PASS  createAdminClient reaches rows a bare client cannot
+        Lead count = 1 (expected 1; 0 means the options parameter did not take)
+  PASS  the same client without the option sees nothing
+        Lead count = 0, as the policy requires
+
+Cleaned up crm_rls_apppaths_7c62bf59 and crm_rls_appuser_e9d209.
+
+All application paths survive DB-level RLS.
+
+===== verify-rls-enablement.mjs (documented enablement sequence) =====
+Rehearsing the RLS enablement sequence in throwaway database crm_rls_enable_0da4210b
+Admin host: localhost:5432
+
+  PASS  the datamodel applies as crm_migrator
+        DDL only, no superuser
+  PASS  supabase/roles.sql applies cleanly
+        crm_migrator_c59ed5, crm_app_c59ed5, crm_maintenance_c59ed5 created and granted
+  PASS  all three roles exist and none is privileged
+        RLS can actually apply to them
+  PASS  supabase/rls.sql applies cleanly
+        policies derived from the catalog
+  PASS  crm_maintenance writes across tenants
+        the seed, worker and script path
+  PASS  crm_app cannot bypass, even setting the GUC itself
+        no rows — the flag is inert for this role
+  PASS  crm_app reads its own tenant
+        1 row, lead-a
+  PASS  crm_app cannot read another tenant by direct id
+        no rows, as the policy requires
+  PASS  crm_app is refused DDL
+        CREATE TABLE rejected
+  PASS  a table a later migration creates is readable by crm_app
+        ALTER DEFAULT PRIVILEGES carries the grant forward
+
+Cleaned up crm_rls_enable_0da4210b and crm_migrator_c59ed5, crm_app_c59ed5, crm_maintenance_c59ed5.
+
+The documented enablement sequence produces a working, isolated system.
+
+===== verify-rls-live.mjs (populated database, unprivileged role) =====
+Verifying RLS on a populated database as crm_app
+
+  PASS  the role under test is not a superuser
+        crm_app, rolsuper=false
+  busiest tenant load-tenant: 1000 of 2340 leads
+
+  PASS  no tenant context sees nothing
+        0 of 2340 leads
+  PASS  a scoped read returns exactly its tenant
+        1000 leads in 8ms
+  PASS  another tenant is unreachable by direct id
+        no rows, as the policy requires
+  PASS  DDL is refused
+        CREATE TABLE rejected
+  PASS  writes reach every row the tenant owns
+        1000 rows, rolled back
+  PASS  enforcement overhead is measured, not assumed
+        1000 rows — 6ms under policy, 3ms as the control
+
+The application role behaves correctly against the populated database.

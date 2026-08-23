@@ -24,13 +24,27 @@
  * Exit 0 means every probe in `verify-rls-app-paths.probe.ts` behaved. A non-zero exit names
  * which application path RLS would break.
  *
- * **This script exits 1 today, and that is the accurate answer.** The share-link probes pass;
- * the raw-SQL probe does not, because ~25 raw statements across `lib/ai/budget.ts`,
- * `lib/leadgen/qualification.ts`, `lib/research/cache.ts`, `lib/search/accentSearch.ts` and
- * `workers/email.ts` still run with no tenant context. Fixing that is a design decision rather
- * than a mechanical edit — see `docs/pre-domain-hardening/STATUS.md`, Finding 4 — so this is
- * deliberately NOT a CI gate. It is the gate on turning `DB_RLS_ENFORCED` on: it must reach 0
- * before enablement in any environment.
+ * **This script exited 1 when it was written, and it exits 0 as of 2026-08-24** — all ten
+ * probes pass, including the raw-SQL paths. The original note here read "this script exits 1
+ * today, and that is the accurate answer", describing ~25 raw statements across
+ * `lib/ai/budget.ts`, `lib/leadgen/qualification.ts`, `lib/research/cache.ts`,
+ * `lib/search/accentSearch.ts` and `workers/email.ts` that ran with no tenant context. Those
+ * were given context — `withTenantRaw` and `withBypassRaw` are both exercised below and both
+ * pass.
+ *
+ * The note is corrected rather than deleted because a comment asserting a failure state that
+ * has since been fixed is the same defect this repository kept finding elsewhere: a constant
+ * that cannot notice it has expired. It said gcloud was not installed after gcloud was
+ * installed, and that no container runtime existed while docker was building the candidate
+ * image. Here the cost is higher than confusion — this comment is the stated gate on a
+ * security control, so leaving it stale argues indefinitely against enabling the control it
+ * was written to protect.
+ *
+ * This remains deliberately NOT a CI gate: it needs a superuser DSN and builds a throwaway
+ * database and cluster-wide roles. It is the gate on turning `DB_RLS_ENFORCED` on, and the
+ * precondition it states — reach 0 first — is now met. Enabling it in any environment is still
+ * a deliberate infrastructure decision with its own backup, maintenance-role and rollback
+ * checks; a green run here is the permission to consider that, not the decision itself.
  *
  * Requires a superuser DSN for setup. Override with ADMIN_DATABASE_URL.
  */
