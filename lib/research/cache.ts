@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { prisma, withTenantRaw } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
@@ -168,7 +168,11 @@ export async function insertOrClaimAccountResearch(
 
   // Re-claim attempt (for failed, expired, or stale pending rows)
   const currentVersion = preReclaim.version;
-  const updateRes = await prisma.$executeRaw`
+  // Raw SQL is outside the tenant extension, so it needs its context set explicitly — see
+  // `withTenantRaw` in `lib/prisma.ts`. Unwrapped under RLS this UPDATE matches nothing and
+  // returns 0, which reads here as "someone else won the race" rather than as a failure, so
+  // every claim would decline forever and no research would ever run.
+  const updateRes = await withTenantRaw(tenantId, (db) => db.$executeRaw`
     UPDATE "AccountResearchCache"
     SET status = 'pending', "claimToken" = ${token}, "claimedBy" = ${claimedBy ?? 'worker'}, "claimedAt" = ${reclaimAt}, version = ${currentVersion + 1}
     WHERE "tenantId" = ${tenantId} AND "accountId" = ${accountId} AND version = ${currentVersion}
@@ -177,7 +181,7 @@ export async function insertOrClaimAccountResearch(
       OR (status = 'completed' AND "expiresAt" < ${reclaimAt})
       OR (status = 'pending' AND "claimedAt" < ${new Date(reclaimAt.getTime() - staleAfterMs)})
     )
-  `;
+  `);
 
   if (updateRes === 1) {
     return {
@@ -402,7 +406,8 @@ export async function insertOrClaimContactResearch(
   }
 
   const currentVersion = preReclaim.version;
-  const updateRes = await prisma.$executeRaw`
+  // Same reasoning as the account cache above.
+  const updateRes = await withTenantRaw(tenantId, (db) => db.$executeRaw`
     UPDATE "ContactResearchCache"
     SET status = 'pending', "claimToken" = ${token}, "claimedBy" = ${claimedBy ?? 'worker'}, "claimedAt" = ${reclaimAt}, version = ${currentVersion + 1}
     WHERE "tenantId" = ${tenantId} AND "contactId" = ${contactId} AND version = ${currentVersion}
@@ -411,7 +416,7 @@ export async function insertOrClaimContactResearch(
       OR (status = 'completed' AND "expiresAt" < ${reclaimAt})
       OR (status = 'pending' AND "claimedAt" < ${new Date(reclaimAt.getTime() - staleAfterMs)})
     )
-  `;
+  `);
 
   if (updateRes === 1) {
     return {

@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { prisma, withTenantRaw } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { canAccessLead, type SessionUser } from '@/lib/auth';
 import { normalizeEmail, normalizePhone, normalizeLinkedIn } from '@/lib/leads/normalize';
@@ -364,6 +364,14 @@ async function findDuplicateLeadIds(
   return rows.map((row) => row.id);
 }
 
+/**
+ * Raw SQL is outside the tenant extension, so each tier query sets its own context via
+ * `withTenantRaw` — see the note in `lib/prisma.ts`. Unwrapped under RLS these return no rows,
+ * which reads as "no duplicate found" and would let every duplicate through silently.
+ *
+ * Wrapped per statement rather than around the whole switch: the `default` branch calls
+ * `fallbackKeyScan`, which uses model operations, and those open their own transaction.
+ */
 async function matchByTier(
   tenantId: string,
   leadId: string,
@@ -373,29 +381,29 @@ async function matchByTier(
 ): Promise<Array<{ id: string }>> {
   switch (tier) {
     case 'email':
-      return prisma.$queryRaw<Array<{ id: string }>>`
+      return withTenantRaw(tenantId, (db) => db.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM "Lead"
         WHERE "tenantId" = ${tenantId} AND id <> ${leadId}
           AND lower(btrim(email)) = ${value}
-      `;
+      `);
     case 'phone':
-      return prisma.$queryRaw<Array<{ id: string }>>`
+      return withTenantRaw(tenantId, (db) => db.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM "Lead"
         WHERE "tenantId" = ${tenantId} AND id <> ${leadId}
           AND (email IS NULL OR btrim(email) = '')
           AND regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') = ${value}
-      `;
+      `);
     case 'linkedin':
-      return prisma.$queryRaw<Array<{ id: string }>>`
+      return withTenantRaw(tenantId, (db) => db.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM "Lead"
         WHERE "tenantId" = ${tenantId} AND id <> ${leadId}
           AND (email IS NULL OR btrim(email) = '')
           AND (phone IS NULL OR btrim(phone) = '')
           AND lower(btrim("linkedIn")) = ${value}
-      `;
+      `);
     case 'name': {
       const [firstName, lastName, company] = value.split('|');
-      return prisma.$queryRaw<Array<{ id: string }>>`
+      return withTenantRaw(tenantId, (db) => db.$queryRaw<Array<{ id: string }>>`
         SELECT id FROM "Lead"
         WHERE "tenantId" = ${tenantId} AND id <> ${leadId}
           AND (email IS NULL OR btrim(email) = '')
@@ -404,7 +412,7 @@ async function matchByTier(
           AND lower(btrim("firstName")) = ${firstName}
           AND lower(btrim("lastName")) = ${lastName}
           AND lower(btrim(company)) = ${company}
-      `;
+      `);
     }
     default:
       // An unrecognised tier means `buildPoolDuplicateKey` grew a case this query has not been

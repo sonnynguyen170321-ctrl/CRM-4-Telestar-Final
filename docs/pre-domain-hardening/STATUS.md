@@ -9,18 +9,20 @@ note: Live resume pointer.
 > [`PLAN.md`](./PLAN.md). Tick the box there and update this file when a task lands.
 
 **Current phase:** closing out — every task in `PLAN.md` is written.
-**Next task:** decide how raw SQL acquires a tenant context — see Task 6, **Finding 4**
-(2026-08-23). `npm run verify:rls-app-paths` exits 1 until it lands, and RLS must not be
-enabled anywhere before it exits 0. Everything else remaining needs a live box, a staging
-target, Docker, or a browser — see **Outstanding — needs an environment or a human** below.
+**Next task:** give the operational scripts a tenant context under RLS — the last of the three
+enablement blockers found on 2026-08-23, and the only one still open. Everything else remaining
+needs a live box, a staging target, Docker, or a browser — see **Outstanding — needs an
+environment or a human** below.
 **Blockers:** none in the repo.
 
 > **2026-08-23 — the "nothing left in the repo" line above was wrong for a fortnight.**
 > Re-deriving the `new PrismaClient()` inventory turned up a defect that would have broken every
-> client report share link the moment RLS was enabled (Finding 3, fixed and now proved
-> behaviourally), eighteen operational scripts in the same position, and — once there was a
-> harness able to measure it — about 25 raw SQL statements with the same flaw (Finding 4, open).
-> Task 6 was marked complete on 2026-08-08. It was not.
+> client report share link the moment RLS was enabled (Finding 3, fixed), 25 raw SQL statements
+> with the same flaw including the one that reserves email quota (Finding 4, fixed), and
+> eighteen operational scripts still in that position (open). Both fixes are proved by
+> `npm run verify:rls-app-paths`, which runs the real code against a database that is actually
+> enforcing — the thing no suite here was doing. Task 6 was marked complete on 2026-08-08. It
+> was not.
 
 > **2026-08-14 — the create-user session-revocation item is CLOSED.** `scripts/create-user.ts`
 > now increments `authVersion` whenever a change governs access — password, role, or active state
@@ -615,11 +617,9 @@ before the enforcement matrix passes in staging.
   that creates its own database, applies schema + `rls.sql` + `roles.sql`, connects as
   `crm_app`, and asserts cross-tenant read/update/delete all fail.
 - **Staging enablement**, then production. Blocked on having a staging target.
-- **The raw-SQL gap, Finding 4.** About 25 statements run with no tenant context and would
-  touch zero rows under enforcement, silently. `npm run verify:rls-app-paths` exits 1 on it
-  today. **This is the blocker on enablement**, and it needs a design decision about how to
-  wrap raw operations without breaking the advisory locks that legitimately run inside an
-  existing transaction.
+- ~~**The raw-SQL gap, Finding 4.**~~ **Closed 2026-08-23.** All 25 statements now carry a
+  tenant context; `npm run verify:rls-app-paths` exits 0. The remaining enablement blocker is
+  the scripts, below.
 - **Enforcement will break the scripts, seeds and test setup.** Eighteen of the nineteen bare
   `new PrismaClient()` sites are operational tooling. Enabling RLS repoints `DATABASE_URL` at
   `crm_app`, which is `NOSUPERUSER` and therefore subject to `FORCE` — so `prod-certify.mjs`,
@@ -760,7 +760,7 @@ PASS  the same lookup with no bypass returns nothing — the fix is what makes p
 The third is the red control. Without it, the first passing would be equally consistent with
 RLS simply not being on.
 
-### Finding 4 — every raw SQL statement has the same defect, and there are about 25 (2026-08-23)
+### Finding 4 — every raw SQL statement had the same defect, and there were 25 ✅ (2026-08-23)
 
 Finding 3 turned out to be one instance of a structural gap, not a one-off.
 
@@ -792,18 +792,46 @@ Not affected, and deliberately so: `SELECT 1` in the two health routes and the h
 worker, `_prisma_migrations` in `lib/db/migrationStatus.ts`, and the two
 `pg_advisory_xact_lock` calls — none touches a table carrying `tenantId`, so no policy applies.
 
-**Why this is not fixed in the same change.** The obvious repair is to extend the client-level
-`query` hook to cover the raw operations too. That is a blast-radius-of-everything edit, and
-one call site already shows why it needs care: `app/api/booking-links/route.ts:136` issues
-`pg_advisory_xact_lock` on a transaction client, inside an interactive transaction. A wrapper
-that opened its own transaction to set the GUC would take that lock in a different transaction
-and drop it immediately — silently re-opening the duplicate-default-link race the comment above
-it records as measured at seven rounds in eight. So the fix has to distinguish a raw call
-already inside a transaction from one that is not, which Prisma extensions do not report
-directly.
+**The repair, and the one that was rejected.** The obvious fix is to extend the client-level
+`query` hook so every raw operation is wrapped automatically. That was not taken. It is a
+blast-radius-of-everything edit, and one call site shows why: `app/api/booking-links/route.ts:136`
+issues `pg_advisory_xact_lock` on a transaction client, *inside* an interactive transaction. A
+wrapper opening its own transaction to set the GUC would take that lock in a different
+transaction and drop it immediately — silently re-opening the duplicate-default-link race the
+comment above it records as measured at seven rounds in eight. Prisma extensions do not report
+whether a raw call is already inside a transaction, so the automatic version cannot tell the two
+apart.
 
-Recorded, not decided. It is R3 by the risk table — data integrity plus authorization — and
-wants independent verification.
+Instead, two explicit helpers in `lib/prisma.ts`, imported at each call site:
+
+- **`withTenantRaw(tenantId, run)`** — sets `app.bypass_rls` to `false` and
+  `app.current_tenant_id` to the tenant, both transaction-locally. Clearing the bypass first
+  matters: the policy is an `OR`, so a bypass left standing from earlier in the same transaction
+  would win over the scope.
+- **`withBypassRaw(run)`** — for statements that are cross-tenant *by design*: the reservation
+  sweep, the test-support truncations. Deliberately a separate function rather than a
+  `tenantId == null` branch of the first, so a forgotten argument cannot silently become a
+  cross-tenant read.
+
+Both call straight through when `DB_RLS_ENFORCED` is unset, so the ordinary deployment pays
+nothing.
+
+**One statement per wrapper, deliberately.** Each raw statement is already its own implicit
+transaction, so a one-statement explicit transaction preserves exactly the atomicity it has
+today. Grouping several would be fewer round-trips and would quietly move where a rollback
+lands — `checkAndReserveAiBudget` compensates a failed insert by hand *precisely because* the
+claim before it has already committed, and merging those two would turn that compensation into
+dead code. The same reasoning forbids wrapping a whole function: `matchByTier`'s `default`
+branch calls `fallbackKeyScan`, which uses model operations, and those open a transaction of
+their own.
+
+**Five call sites keep bare raw SQL, and are exempt for a checked reason.** Three `SELECT 1`
+health pings, `_prisma_migrations` in `lib/db/migrationStatus.ts`, and the `tenantId`-less
+branch of `accentSearch` — where the only thing that would "work" is a cross-tenant bypass, and
+silently widening a search to every tenant is worse than returning nothing.
+`tests/raw-sql-tenant-context.test.ts` does not take the exemption list on trust: it re-reads
+each exempt file and fails if one grows a raw query beyond what it was exempted for. A
+hardcoded list nobody re-verifies is how `rls.sql` came to miss seventeen tables.
 
 ### `npm run verify:rls-app-paths`
 
@@ -820,10 +848,32 @@ in a child process holding the unprivileged DSN with `DB_RLS_ENFORCED=true` and
 at import time, and `NODE_ENV` short of `production` sets `isLocalOrScript`, whose blanket
 bypass would make the whole comparison vacuous.
 
-**It exits 1 today.** Three probes pass, one fails, and the failure is Finding 4. That is the
-honest state, so it is deliberately not wired into CI — a permanently-red required check trains
-people to ignore checks. It is the gate on *enablement*: `DB_RLS_ENFORCED` must not be set in
-any environment until this reaches 0.
+**It exits 0 as of 2026-08-23**, across eight probes:
+
+```
+PASS  verifyAndFetchSharedReport resolves a valid token under enforcement
+PASS  the view-counter write lands under enforcement
+PASS  the same lookup with no bypass returns nothing
+PASS  a model operation through the extension sees its tenant
+PASS  bare raw SQL sees nothing — the extension cannot reach root operations
+PASS  withTenantRaw gives raw SQL its tenant context
+PASS  withBypassRaw reaches rows for deliberately cross-tenant maintenance
+PASS  the AI budget path reserves and settles under enforcement
+```
+
+Two of those are red controls, and the script is close to worthless without them. Probe 3 and
+probe 5 assert that the *unfixed* shapes still see nothing; if either ever returns a row, RLS
+has stopped being enforced in the throwaway database and every other probe is passing
+vacuously.
+
+Probe 8 is the one that tests a feature rather than a helper. The AI budget path is the densest
+raw-SQL user in the codebase — eighteen statements, a claim that must see its own seeded period,
+a settlement that must find the row the claim wrote, each in a separate transaction. A helper
+that only appeared to work comes apart there.
+
+It remains **not** a CI gate: it needs PostgreSQL and a NOSUPERUSER role. The cheap half of the
+question — whether a new call site has appeared — is a source check that does run on every
+commit, in `tests/raw-sql-tenant-context.test.ts`.
 
 **Dependency graph** was enabled on the repository on 2026-08-08, so `Dependency review`
 should now report properly instead of "not supported on this repository".

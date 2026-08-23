@@ -17,7 +17,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { prisma, tenantStorage } from '@/lib/prisma';
+import { prisma, tenantStorage, withTenantRaw, withBypassRaw } from '@/lib/prisma';
 import { hashToken, verifyAndFetchSharedReport } from '@/lib/client-reports/shareLinks';
 
 const TOKEN = process.env.PROBE_TOKEN!;
@@ -117,10 +117,19 @@ async function main() {
     record('a model operation through the extension sees its tenant', false, `threw: ${(err as Error).message}`);
   }
 
-  // ── 5. Raw SQL through the very same client ──────────────────────────────────
+  // ── 5. The red control for probe 6 ───────────────────────────────────────────
   // `$queryRaw` is a ROOT client operation. The extension is `query.$allModels`, which cannot
   // observe it, so no `set_config` runs and the statement arrives with no tenant context at
-  // all. Same client, same tenant context in `AsyncLocalStorage`, same table as probe 4.
+  // all. Same client, same tenant context in `AsyncLocalStorage`, same table as probe 4 — and
+  // it must see NOTHING.
+  //
+  // This is the shape of the defect, kept executable. It is asserted as zero rather than as a
+  // failure for the same reason probe 3 is: without it, probe 6 passing would be equally
+  // consistent with RLS not being enforced at all. If this ever returns 1, the enforcement
+  // this whole script depends on has stopped happening and every other probe is vacuous.
+  //
+  // Whether the application still CONTAINS such call sites is a different question, and a
+  // source-level one — `tests/raw-sql-tenant-context.test.ts` answers it.
   try {
     const rows = await tenantStorage.run({ tenantId: TENANT }, async () => {
       // Awaited inside the scope for the same reason as probe 4.
@@ -128,12 +137,92 @@ async function main() {
     });
     const seen = Number(rows[0]?.count ?? -1);
     record(
-      'raw SQL through the same client also sees its tenant',
-      seen === 1,
-      `Lead count via $queryRaw = ${seen} (expected 1; 0 means the statement ran with no tenant context)`
+      'bare raw SQL sees nothing — the extension cannot reach root operations',
+      seen === 0,
+      seen === 0
+        ? 'Lead count via bare $queryRaw = 0, as the policy requires'
+        : `Lead count via bare $queryRaw = ${seen}; RLS is NOT being enforced and every probe here is vacuous`
     );
   } catch (err) {
-    record('raw SQL through the same client also sees its tenant', false, `threw: ${(err as Error).message}`);
+    record(
+      'bare raw SQL sees nothing — the extension cannot reach root operations',
+      false,
+      `threw: ${(err as Error).message}`
+    );
+  }
+
+  // ── 6. The repair: raw SQL routed through `withTenantRaw` ────────────────────
+  // Probe 5 is the defect; this is the fix for it. Same statement, same table, same tenant —
+  // the only difference is that the GUC is set on the connection the statement runs on.
+  try {
+    const rows = await withTenantRaw(TENANT, (db) =>
+      db.$queryRaw<Array<{ count: bigint }>>`SELECT count(*)::int AS count FROM "Lead"`
+    );
+    const seen = Number(rows[0]?.count ?? -1);
+    record(
+      'withTenantRaw gives raw SQL its tenant context',
+      seen === 1,
+      `Lead count via withTenantRaw = ${seen} (expected 1)`
+    );
+  } catch (err) {
+    record('withTenantRaw gives raw SQL its tenant context', false, `threw: ${(err as Error).message}`);
+  }
+
+  // ── 7. The cross-tenant escape hatch ─────────────────────────────────────────
+  // Sweeps and truncations are cross-tenant on purpose and cannot name one tenant. This must
+  // reach the row too, or `sweepExpiredReservations` silently stops expiring anything.
+  try {
+    const rows = await withBypassRaw((db) =>
+      db.$queryRaw<Array<{ count: bigint }>>`SELECT count(*)::int AS count FROM "Lead"`
+    );
+    const seen = Number(rows[0]?.count ?? -1);
+    record(
+      'withBypassRaw reaches rows for deliberately cross-tenant maintenance',
+      seen === 1,
+      `Lead count via withBypassRaw = ${seen} (expected 1)`
+    );
+  } catch (err) {
+    record(
+      'withBypassRaw reaches rows for deliberately cross-tenant maintenance',
+      false,
+      `threw: ${(err as Error).message}`
+    );
+  }
+
+  // ── 8. A real repaired path, end to end ──────────────────────────────────────
+  // Probes 6 and 7 test the helpers in isolation; this drives an actual feature through them.
+  // The AI budget path is the densest use — eighteen raw statements, a claim that must observe
+  // its own seeded period, and a settlement that must find the row the claim wrote. Every step
+  // is a separate transaction, so a helper that only appeared to work would come apart here.
+  try {
+    const { ensureBudgetPeriod, checkAndReserveAiBudget, getTenantBudgetState } = await import(
+      '@/lib/ai/budget'
+    );
+
+    await ensureBudgetPeriod(TENANT);
+    const reservation = await checkAndReserveAiBudget({
+      tenantId: TENANT,
+      estimatedCostUsd: 1,
+      operation: 'rls-probe',
+    });
+    if (!reservation) throw new Error('checkAndReserveAiBudget returned null');
+
+    const held = await getTenantBudgetState(TENANT);
+    await reservation.reconcile(1);
+    const settled = await getTenantBudgetState(TENANT);
+
+    const ok = held.reservedUsd === 1 && settled.usedUsd === 1 && settled.reservedUsd === 0;
+    record(
+      'the AI budget path reserves and settles under enforcement',
+      ok,
+      `reserved ${held.reservedUsd} then settled to used ${settled.usedUsd} / reserved ${settled.reservedUsd} (expected 1, 1, 0)`
+    );
+  } catch (err) {
+    record(
+      'the AI budget path reserves and settles under enforcement',
+      false,
+      `threw: ${(err as Error).message}`
+    );
   }
 
   await prisma.$disconnect();

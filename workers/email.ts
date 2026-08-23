@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { prisma, withTenantRaw } from '@/lib/prisma';
 import { createAppWorker } from '@/lib/bullmq';
 import { enqueueReschedule } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
@@ -71,9 +71,15 @@ function nextQuotaResetAt(now: Date = new Date()): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 5, 0, 0);
 }
 
-async function atomicReserveQuota(accountId: string): Promise<boolean> {
+/**
+ * `withTenantRaw` because this is raw SQL, and raw SQL is outside the tenant extension — see
+ * the note on the helper in `lib/prisma.ts`. Under RLS an unwrapped statement here would match
+ * no policy, update zero rows, and return `false` without raising: every send would look like
+ * a mailbox permanently at its cap, and outbound would stop with no error anywhere.
+ */
+async function atomicReserveQuota(tenantId: string, accountId: string): Promise<boolean> {
   const today = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
-  const result = await prisma.$executeRaw`
+  const result = await withTenantRaw(tenantId, (db) => db.$executeRaw`
     UPDATE "EmailAccount"
     SET
       "dailySendCount" = CASE
@@ -87,7 +93,7 @@ async function atomicReserveQuota(accountId: string): Promise<boolean> {
         OR "dailySendDate" < ${today}
         OR "dailySendCount" < "dailyCap"
       )
-  `;
+  `);
   return result > 0;
 }
 
@@ -271,7 +277,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
   }
 
   // Atomically reserve quota
-  const quotaOk = await atomicReserveQuota(accountId);
+  const quotaOk = await atomicReserveQuota(existing.tenantId, accountId);
   if (!quotaOk) {
     // Quota is a temporary condition, not a delivery failure, so the row goes back into
     // the claimable pool rather than to `failed`. It must be re-enqueued in the same
