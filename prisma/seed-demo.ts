@@ -8,11 +8,11 @@
  * The guard below runs BEFORE the Prisma client is constructed. A guard that runs after the
  * connection is open has already lost.
  */
-import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 import {
   assertDestructiveSeedAllowed,
   describeSeedTarget,
@@ -50,7 +50,7 @@ if (!process.env.DEMO_SEED_PASSWORD) {
   console.log(`  Set DEMO_SEED_PASSWORD to choose your own.\n`);
 }
 
-const raw = new PrismaClient();
+const raw = createAdminClient();
 
 const TODAY = new Date();
 const d = (offsetDays: number, hour = 10) => {

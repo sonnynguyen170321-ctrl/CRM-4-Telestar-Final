@@ -1,7 +1,7 @@
-import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
-const prisma = new PrismaClient();
+const prisma = createAdminClient();
 const TENANT_ID = 'default-tenant';
 const PASSWORD_RAW = 'Telestar2026';
 

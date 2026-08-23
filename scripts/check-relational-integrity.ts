@@ -28,6 +28,7 @@
  * Exit code is 1 when any inconsistency is found, so it can gate a deploy step.
  */
 import { PrismaClient } from '@prisma/client';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
 /** Ids and tenant ids only — enough to investigate, no names, emails or URLs. */
 interface Finding {
@@ -103,7 +104,7 @@ const CHECKS: Check[] = [
 
 async function main(): Promise<void> {
   const asJson = process.argv.includes('--json');
-  const db = new PrismaClient();
+  const db = createAdminClient();
 
   try {
     const results: Array<{ check: Check; findings: Finding[] }> = [];

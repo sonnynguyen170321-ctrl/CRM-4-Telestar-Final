@@ -149,15 +149,30 @@ export function staticRoi(n = 40): StaticRoi {
     }
     if (parents.length === 0) continue;
 
+    // `--name-status`, not `--name-only`, so a deletion can be told from an edit.
+    //
+    // A path this commit DELETED is skipped. Routing exists to pick the tests and skills a
+    // change should load, and there is nothing to load for a file that no longer exists — but
+    // more concretely, keeping them made deleting an unglobbed file impossible. `agent-routing`
+    // demanded the vanished path be classified in `domains.yaml`, and `registry-integrity`
+    // rejected the entry because the file was gone. Two checks, opposite demands, no state
+    // satisfying both. Found by deleting `inspect_policies.ts`, a seventeen-line stray the
+    // status document had wanted removed since 2026-08-08.
+    //
+    // Renames report as `R100\told\tnew`; the new path is what carries forward, so the last
+    // field is taken. Everything else keeps its single path and is routed as before.
     let files: string[] = [];
     try {
-      files = execFileSync('git', ['show', '--name-only', '--format=', sha], {
+      files = execFileSync('git', ['show', '--name-status', '--format=', sha], {
         encoding: 'utf8',
         cwd: ROOT,
       })
         .trim()
         .split('\n')
-        .filter(Boolean);
+        .filter(Boolean)
+        .map((line) => line.split('\t'))
+        .filter((parts) => parts.length > 1 && !parts[0].startsWith('D'))
+        .map((parts) => parts[parts.length - 1]);
     } catch {
       continue;
     }

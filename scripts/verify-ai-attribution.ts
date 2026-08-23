@@ -17,12 +17,12 @@
  */
 
 import { config } from 'dotenv';
-import { PrismaClient } from '@prisma/client';
 import { findModelMetadata, MODEL_REGISTRY } from '@/lib/ai/registry';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
 config({ path: process.env.SMOKE_ENV_FILE || '.env.local' });
 
-const prisma = new PrismaClient();
+const prisma = createAdminClient();
 
 const SINCE_MINUTES = Number(process.env.SINCE_MINUTES || 120);
 const OPERATION = process.env.OPERATION || null;

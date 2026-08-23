@@ -21,7 +21,7 @@
  * more coverage than they had before.
  */
 
-import { PrismaClient } from '@prisma/client';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
 /** The subset a session fixture needs to be revalidatable. */
 export type SeedableSessionUser = {
@@ -40,7 +40,7 @@ const DEFAULT_TENANT_ID = 'default-tenant';
 
 // A bare client: this runs before any tenant context exists, and the extended client in
 // lib/prisma.ts resolves tenant context per query.
-const raw = new PrismaClient();
+const raw = createAdminClient();
 
 /**
  * Upsert a `User` row for each fixture, plus its tenant.

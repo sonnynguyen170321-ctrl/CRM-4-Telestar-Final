@@ -35,6 +35,18 @@ vi.mock('@/lib/prisma', () => ({
     },
     $executeRaw: (...args: unknown[]) => mockExecuteRaw(...args),
   },
+  /**
+   * `atomicReserveQuota` routes its raw UPDATE through this so the statement carries a tenant
+   * context under RLS — raw SQL is outside the tenant extension, and unwrapped it would update
+   * zero rows and read as a mailbox permanently at its cap.
+   *
+   * The stand-in hands the callback the same mocked client, which keeps `mockExecuteRaw` the
+   * single place the quota result is controlled from. It deliberately does NOT model the
+   * transaction: what these tests assert is quota and claim behaviour, and the transaction is
+   * proved for real against an enforcing database by `npm run verify:rls-app-paths`.
+   */
+  withTenantRaw: (_tenantId: string, run: (db: unknown) => unknown) =>
+    run({ $executeRaw: (...args: unknown[]) => mockExecuteRaw(...args) }),
 }));
 
 vi.mock('@/lib/email/EmailService', () => ({

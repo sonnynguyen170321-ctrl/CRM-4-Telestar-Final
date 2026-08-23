@@ -1,8 +1,8 @@
 import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
 import { encrypt } from '@/lib/crypto';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
-const prisma = new PrismaClient();
+const prisma = createAdminClient();
 
 async function main() {
   console.log('🔐 Encrypting existing OAuth tokens...');

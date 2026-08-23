@@ -19,6 +19,7 @@ domains:
     paths:
       - lib/ai/**
       - lib/agent/**
+      - lib/research/**
       - lib/workorders/**
       - app/api/ai/**
       - components/AiAssistant.tsx
@@ -81,10 +82,13 @@ domains:
       - lib/prisma.ts
       - lib/seed-guard.ts
       - supabase/**
+      - lib/db/**
       - scripts/verify-rls.mjs
       - scripts/verify-rls-app-paths.mjs
       - scripts/verify-rls-app-paths.probe.ts
       - scripts/verify-db-integrity.ts
+      - scripts/check-relational-integrity.ts
+      - scripts/apply-p8-migration.mjs
       - scripts/demo-seed.ts
       - prisma/seed-demo.ts
       - scripts/backfill-*
@@ -112,6 +116,7 @@ domains:
       - lib/bullmq/**
       - scripts/worker-*.ts
       - scripts/worker-*.cjs
+      - scripts/diagnose-import.mjs
       - app/api/cron/**
     tests:
       - tests/*-worker.test.ts
@@ -136,6 +141,7 @@ domains:
       - lib/emailSafety.ts
       - lib/replies/**
       - app/api/sequences/**
+      - scripts/sync-sequence-enrollments.ts
     tests:
       - tests/sequence-*.test.ts
       - tests/scheduling.test.ts
@@ -175,6 +181,7 @@ domains:
     paths:
       - lib/leadgen/**
       - lib/contact-intelligence/**
+      - lib/search/**
       - app/api/leadgen/**
       - app/leadgen/**
       - app/leadgen-manager/**
@@ -295,6 +302,7 @@ domains:
       - scripts/deploy*
       - scripts/rollback*
       - scripts/prod-*
+      - scripts/cutover-preflight.ts
       - scripts/verify-container-secrets.sh
       - scripts/post-deploy-*.sh
       - scripts/canary-*
@@ -329,6 +337,7 @@ domains:
       - lib/crypto.ts
       - lib/audit.ts
       - lib/security/**
+      - scripts/encrypt-existing-tokens.ts
       - .gitleaks.toml
     tests:
       - tests/security-injection.test.ts

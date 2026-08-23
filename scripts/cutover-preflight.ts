@@ -28,6 +28,7 @@ import { PrismaClient } from '@prisma/client';
 import { compare } from 'bcryptjs';
 import IORedis from 'ioredis';
 import { loadEnvFile } from './prod-env';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
 /** The password published in this repository. It must not open anything. */
 const PUBLISHED_DEMO_PASSWORD = 'telestar2026';
@@ -396,7 +397,7 @@ async function main(): Promise<void> {
   const backupAtRaw = process.env.CUTOVER_BACKUP_AT;
   const backupTakenAt = backupAtRaw ? new Date(backupAtRaw) : null;
 
-  const prisma = new PrismaClient();
+  const prisma = createAdminClient();
   const facts: CutoverFacts = {
     baseUrl,
     httpRedirectStatus: null,

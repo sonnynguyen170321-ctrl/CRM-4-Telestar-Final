@@ -204,6 +204,61 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = basePrisma;
 export const prisma = basePrisma as unknown as TenantOptionalClient<PrismaClient>;
 
 /**
+ * The client raw SQL must go through once PostgreSQL is enforcing RLS.
+ *
+ * The extension above is registered as `query.$allModels`. `$queryRaw` and `$executeRaw` are
+ * **root client operations**, so they are outside it by construction: no `set_config` runs and
+ * the statement reaches PostgreSQL with no tenant context at all. Under
+ * `FORCE ROW LEVEL SECURITY` it then matches no policy and touches zero rows — silently, because
+ * an empty result is not an error. Measured on 2026-08-23 by `npm run verify:rls-app-paths`:
+ * the same client, holding the same tenant context, saw its row through `prisma.lead.count()`
+ * and nothing at all through `$queryRaw ... FROM "Lead"`.
+ *
+ * These wrap **one statement at a time, deliberately.** Each raw statement is its own implicit
+ * transaction today, so a one-statement explicit transaction preserves exactly the atomicity it
+ * already has. Grouping several into one wrapper would be fewer round-trips and would quietly
+ * move where a rollback lands — `checkAndReserveAiBudget` in particular compensates a failed
+ * insert by hand precisely because the claim before it has already committed.
+ *
+ * They are also **not** a general replacement for raw SQL inside an existing interactive
+ * transaction. A caller already holding a `tx` must set the GUC on that `tx` itself: opening a
+ * second transaction from inside one takes a different connection, which for
+ * `pg_advisory_xact_lock` would take the lock somewhere else and drop it immediately. That is
+ * why `app/api/booking-links/route.ts` is left alone — its raw statements are lock acquisitions
+ * on tables with no `tenantId`, so no policy applies to them anyway.
+ *
+ * When RLS is not enforced both call straight through, so the ordinary deployment pays nothing.
+ */
+export async function withTenantRaw<T>(
+  tenantId: string,
+  run: (db: PrismaClient) => Promise<T>
+): Promise<T> {
+  if (!DB_RLS_ENFORCED) return run(basePrisma as PrismaClient);
+  return (basePrisma as PrismaClient).$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.bypass_rls', 'false', true)`;
+    await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+    return run(tx as unknown as PrismaClient);
+  });
+}
+
+/**
+ * The same, for raw SQL that is cross-tenant *by design*.
+ *
+ * Deliberately separate from `withTenantRaw` rather than a `tenantId === null` branch of it:
+ * these are the statements that reach across every tenant — the reservation sweep, the
+ * test-support truncations — and they should have to say so at the call site. A helper that
+ * silently degraded to a bypass when a tenant id happened to be undefined would turn a missing
+ * argument into a cross-tenant read.
+ */
+export async function withBypassRaw<T>(run: (db: PrismaClient) => Promise<T>): Promise<T> {
+  if (!DB_RLS_ENFORCED) return run(basePrisma as PrismaClient);
+  return (basePrisma as PrismaClient).$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.bypass_rls', 'true', true)`;
+    return run(tx as unknown as PrismaClient);
+  });
+}
+
+/**
  * Bootstrap helper for resolving the tenantId of a JobRun record.
  * Bypasses model-level tenant extension and queries JobRun directly
  * inside a raw transaction with app.bypass_rls=true.

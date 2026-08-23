@@ -121,16 +121,48 @@ describe('DR-010: the worker shuts down cleanly on SIGTERM', () => {
       output += String(chunk);
     });
 
+    // Attached HERE, before anything is awaited, and deliberately not after the wait below.
+    //
+    // `exit` fires once and is not replayed to a listener added afterwards. With no Redis to
+    // attach to, `main()` rejects and the worker exits by itself in about seven seconds — so a
+    // listener registered after the sixty-second wait attaches to a process that is already
+    // gone, never resolves, and loses the race below. That reported
+    // "worker did not exit within 30s of SIGTERM", which is the opposite of what happened: the
+    // worker had exited promptly and unprompted. Ninety seconds of wall clock to produce a
+    // diagnosis pointing at the wrong component.
+    //
+    // Read synchronously below to decide whether the wait is still worth doing. Held on an
+    // object rather than in a bare `let` because control-flow analysis does not track
+    // assignments made inside a callback: a plain `let` initialised to null narrows to `never`
+    // at the check, and the compiler rejects reading `.code` off it.
+    type WorkerExit = { code: number | null; signal: NodeJS.Signals | null };
+    const state: { exit: WorkerExit | null } = { exit: null };
+    const exited = new Promise<WorkerExit>((resolve) => {
+      worker.on('exit', (code, signal) => {
+        state.exit = { code, signal };
+        resolve(state.exit);
+      });
+    });
+
     // Wait until it reports ready, so SIGTERM lands on a running worker rather than a
-    // half-initialised one.
+    // half-initialised one. Stop early if it dies first — there is nothing left to wait for.
     const readyDeadline = Date.now() + 60_000;
-    while (Date.now() < readyDeadline && !/\[worker\] ready\b/.test(output)) {
+    while (Date.now() < readyDeadline && !state.exit && !/\[worker\] ready\b/.test(output)) {
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
 
-    const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
-      worker.on('exit', (code, signal) => resolve({ code, signal }));
-    });
+    if (state.exit) {
+      // It exited before it was ever ready, so the SIGTERM contract was never exercised. Say
+      // that, rather than sending a signal to a dead process and blaming the result on it.
+      // Locally this means Redis: `agent doctor` reports whether anything is on 6379, and this
+      // suite is BLOCKED_EXTERNAL without it. Failing is correct — a silent pass here would be
+      // a green light on a shutdown path that was never run.
+      throw new Error(
+        `worker exited before becoming ready (code=${state.exit.code}, signal=${state.exit.signal}), ` +
+          `so SIGTERM handling was never exercised. This is usually an unreachable Redis; ` +
+          `check \`npm run agent -- doctor\`.\nOutput:\n${output.slice(-2000)}`
+      );
+    }
 
     worker.kill('SIGTERM');
 

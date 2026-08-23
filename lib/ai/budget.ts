@@ -35,7 +35,7 @@
 
 import { randomUUID } from 'node:crypto';
 
-import { prisma } from '@/lib/prisma';
+import { withTenantRaw, withBypassRaw } from '@/lib/prisma';
 
 export const MICROS_PER_USD = 1_000_000;
 
@@ -114,7 +114,11 @@ export async function ensureBudgetPeriod(
   const limitMicros = usdToMicros(getTenantMonthlyLimit(tenantId));
   const { start, end } = periodBounds(periodKey);
 
-  await prisma.$executeRaw`
+  // Every statement in this file is raw, and raw SQL is outside the tenant extension — see
+  // `withTenantRaw` in `lib/prisma.ts`. Unwrapped under RLS none of it touches a row, and the
+  // failure is silent: periods never seed, reservations never claim, holds never settle, and
+  // the budget appears to be permanently exhausted with nothing logged.
+  await withTenantRaw(tenantId, (db) => db.$executeRaw`
     INSERT INTO "TenantAiBudgetPeriod"
       ("id", "tenantId", "periodKey", "limitMicros", "usedMicros", "reservedMicros", "createdAt", "updatedAt")
     SELECT
@@ -128,7 +132,7 @@ export async function ensureBudgetPeriod(
       ), 0),
       0, NOW(), NOW()
     ON CONFLICT ("tenantId", "periodKey") DO NOTHING
-  `;
+  `);
 
   // The stored cap is deliberately NOT re-synced from configuration on every call.
   //
@@ -139,11 +143,11 @@ export async function ensureBudgetPeriod(
   // changes therefore apply to periods created after them; to change the current period, call
   // `setTenantMonthlyLimit` explicitly.
 
-  const rows = await prisma.$queryRaw<PeriodRow[]>`
+  const rows = await withTenantRaw(tenantId, (db) => db.$queryRaw<PeriodRow[]>`
     SELECT "id", "limitMicros", "usedMicros", "reservedMicros"
     FROM "TenantAiBudgetPeriod"
     WHERE "tenantId" = ${tenantId} AND "periodKey" = ${periodKey}
-  `;
+  `);
   if (rows.length === 0) {
     throw new Error(`Failed to establish AI budget period ${periodKey} for tenant ${tenantId}`);
   }
@@ -205,11 +209,11 @@ export async function setTenantMonthlyLimit(
   periodKey: string = currentPeriodKey(),
 ): Promise<void> {
   await ensureBudgetPeriod(tenantId, periodKey);
-  await prisma.$executeRaw`
+  await withTenantRaw(tenantId, (db) => db.$executeRaw`
     UPDATE "TenantAiBudgetPeriod"
     SET "limitMicros" = ${usdToMicros(Math.max(0, limitUsd))}, "updatedAt" = NOW()
     WHERE "tenantId" = ${tenantId} AND "periodKey" = ${periodKey}
-  `;
+  `);
 }
 
 /** Sets settled spend directly. Test and administrative correction only. */
@@ -219,11 +223,11 @@ export async function setTenantCurrentSpend(
   periodKey: string = currentPeriodKey(),
 ): Promise<void> {
   await ensureBudgetPeriod(tenantId, periodKey);
-  await prisma.$executeRaw`
+  await withTenantRaw(tenantId, (db) => db.$executeRaw`
     UPDATE "TenantAiBudgetPeriod"
     SET "usedMicros" = ${usdToMicros(Math.max(0, spendUsd))}, "updatedAt" = NOW()
     WHERE "tenantId" = ${tenantId} AND "periodKey" = ${periodKey}
-  `;
+  `);
 }
 
 export interface ReserveBudgetOptions {
@@ -271,17 +275,17 @@ export async function checkAndReserveAiBudget(
   // The gate. One statement, so concurrent callers serialise on the row lock and the sum
   // can never cross the limit regardless of how many processes race here.
   const claimed = isEssential
-    ? await prisma.$executeRaw`
+    ? await withTenantRaw(tenantId, (db) => db.$executeRaw`
         UPDATE "TenantAiBudgetPeriod"
         SET "reservedMicros" = "reservedMicros" + ${amountMicros}, "updatedAt" = NOW()
         WHERE "id" = ${period.id}
-      `
-    : await prisma.$executeRaw`
+      `)
+    : await withTenantRaw(tenantId, (db) => db.$executeRaw`
         UPDATE "TenantAiBudgetPeriod"
         SET "reservedMicros" = "reservedMicros" + ${amountMicros}, "updatedAt" = NOW()
         WHERE "id" = ${period.id}
           AND "usedMicros" + "reservedMicros" + ${amountMicros} <= "limitMicros"
-      `;
+      `);
 
   if (claimed === 0) {
     const state = await getTenantBudgetState(tenantId, periodKey);
@@ -295,21 +299,21 @@ export async function checkAndReserveAiBudget(
 
   const reservationId = randomUUID();
   try {
-    await prisma.$executeRaw`
+    await withTenantRaw(tenantId, (db) => db.$executeRaw`
       INSERT INTO "TenantAiBudgetReservation"
         ("id", "tenantId", "periodId", "amountMicros", "operation", "status", "createdAt", "expiresAt")
       VALUES (
         ${reservationId}, ${tenantId}, ${period.id}, ${amountMicros}, ${operation ?? null},
         'held', NOW(), ${new Date(Date.now() + RESERVATION_TTL_MS)}
       )
-    `;
+    `);
   } catch (error) {
     // Give the hold back rather than leaking it; the caller never got a reservation.
-    await prisma.$executeRaw`
+    await withTenantRaw(tenantId, (db) => db.$executeRaw`
       UPDATE "TenantAiBudgetPeriod"
       SET "reservedMicros" = GREATEST(0, "reservedMicros" - ${amountMicros}), "updatedAt" = NOW()
       WHERE "id" = ${period.id}
-    `;
+    `);
     throw error;
   }
 
@@ -318,8 +322,9 @@ export async function checkAndReserveAiBudget(
     tenantId,
     periodKey,
     estimatedCostUsd,
-    reconcile: (actualCostUsd: number) => settle(reservationId, period.id, amountMicros, actualCostUsd),
-    release: () => settle(reservationId, period.id, amountMicros, null),
+    reconcile: (actualCostUsd: number) =>
+      settle(tenantId, reservationId, period.id, amountMicros, actualCostUsd),
+    release: () => settle(tenantId, reservationId, period.id, amountMicros, null),
   };
 }
 
@@ -330,6 +335,7 @@ export async function checkAndReserveAiBudget(
  * `reconcile` or a `release` after `reconcile` is a no-op rather than a double accounting.
  */
 async function settle(
+  tenantId: string,
   reservationId: string,
   periodId: string,
   amountMicros: bigint,
@@ -338,20 +344,20 @@ async function settle(
   const actualMicros = actualCostUsd === null ? null : usdToMicros(Math.max(0, actualCostUsd));
   const nextStatus = actualCostUsd === null ? 'released' : 'reconciled';
 
-  const transitioned = await prisma.$executeRaw`
+  const transitioned = await withTenantRaw(tenantId, (db) => db.$executeRaw`
     UPDATE "TenantAiBudgetReservation"
     SET "status" = ${nextStatus}, "settledAt" = NOW(), "settledMicros" = ${actualMicros}
     WHERE "id" = ${reservationId} AND "status" = 'held'
-  `;
+  `);
   if (transitioned === 0) return;
 
-  await prisma.$executeRaw`
+  await withTenantRaw(tenantId, (db) => db.$executeRaw`
     UPDATE "TenantAiBudgetPeriod"
     SET "reservedMicros" = GREATEST(0, "reservedMicros" - ${amountMicros}),
         "usedMicros" = "usedMicros" + ${actualMicros ?? BigInt(0)},
         "updatedAt" = NOW()
     WHERE "id" = ${periodId}
-  `;
+  `);
 }
 
 /**
@@ -360,16 +366,19 @@ async function settle(
  * budget and recording the reservation.
  */
 export async function sweepExpiredReservations(now: Date = new Date()): Promise<number> {
-  const expired = await prisma.$queryRaw<Array<{ id: string; periodId: string }>>`
+  // `withBypassRaw`, not `withTenantRaw`: the sweep has no tenant and must not have one. It
+  // expires stale holds across every tenant, which is the whole point of it, so it says so
+  // explicitly rather than passing an absent id into a scoped helper.
+  const expired = await withBypassRaw((db) => db.$queryRaw<Array<{ id: string; periodId: string }>>`
     UPDATE "TenantAiBudgetReservation"
     SET "status" = 'expired', "settledAt" = NOW()
     WHERE "status" = 'held' AND "expiresAt" < ${now}
     RETURNING "id", "periodId"
-  `;
+  `);
 
   const periodIds = [...new Set(expired.map((row) => row.periodId))];
   for (const periodId of periodIds) {
-    await prisma.$executeRaw`
+    await withBypassRaw((db) => db.$executeRaw`
       UPDATE "TenantAiBudgetPeriod" p
       SET "reservedMicros" = COALESCE((
             SELECT SUM(r."amountMicros")
@@ -378,7 +387,7 @@ export async function sweepExpiredReservations(now: Date = new Date()): Promise<
           ), 0),
           "updatedAt" = NOW()
       WHERE p."id" = ${periodId}
-    `;
+    `);
   }
 
   return expired.length;
@@ -387,10 +396,15 @@ export async function sweepExpiredReservations(now: Date = new Date()): Promise<
 /** Clears budget state. Test-support only. */
 export async function clearBudgetReservations(tenantId?: string): Promise<void> {
   if (tenantId) {
-    await prisma.$executeRaw`DELETE FROM "TenantAiBudgetReservation" WHERE "tenantId" = ${tenantId}`;
-    await prisma.$executeRaw`DELETE FROM "TenantAiBudgetPeriod" WHERE "tenantId" = ${tenantId}`;
+    await withTenantRaw(tenantId, (db) =>
+      db.$executeRaw`DELETE FROM "TenantAiBudgetReservation" WHERE "tenantId" = ${tenantId}`
+    );
+    await withTenantRaw(tenantId, (db) =>
+      db.$executeRaw`DELETE FROM "TenantAiBudgetPeriod" WHERE "tenantId" = ${tenantId}`
+    );
     return;
   }
-  await prisma.$executeRaw`DELETE FROM "TenantAiBudgetReservation"`;
-  await prisma.$executeRaw`DELETE FROM "TenantAiBudgetPeriod"`;
+  // No tenant named means every tenant, which only a bypass can express.
+  await withBypassRaw((db) => db.$executeRaw`DELETE FROM "TenantAiBudgetReservation"`);
+  await withBypassRaw((db) => db.$executeRaw`DELETE FROM "TenantAiBudgetPeriod"`);
 }

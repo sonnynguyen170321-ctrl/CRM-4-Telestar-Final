@@ -14,7 +14,7 @@
  * several suites call `deleteMany()` in `beforeEach` against a shared database, and a
  * setup file that dropped the tenant would take the other files down with it.
  */
-import { PrismaClient } from '@prisma/client';
+import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
 /** The tenant id `lib/prisma.ts` falls back to when no session is present. */
 export const DEFAULT_TEST_TENANT_ID = 'default-tenant';
@@ -37,7 +37,7 @@ export const RUN_NOW_TEST_TENANT_ID = 'test-tenant-run-now';
 
 // A bare client on purpose: the extended client in `lib/prisma.ts` resolves tenant context
 // per query, and this has to run before any context exists.
-const raw = new PrismaClient();
+const raw = createAdminClient();
 
 try {
   await raw.tenant.createMany({

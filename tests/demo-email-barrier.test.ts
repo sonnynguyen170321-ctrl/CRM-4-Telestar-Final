@@ -57,6 +57,15 @@ vi.mock('@/lib/prisma', () => ({
       update: vi.fn().mockResolvedValue({}),
     },
   },
+  /**
+   * `atomicReserveQuota` routes its raw UPDATE through this so the statement carries a tenant
+   * context under RLS — raw SQL is outside the tenant extension. The stand-in hands the
+   * callback a client whose `$executeRaw` reports one row reserved, which is what this suite
+   * needs: the barrier under test is the transport, and a send that never got past quota would
+   * pass vacuously.
+   */
+  withTenantRaw: (_tenantId: string, run: (db: unknown) => unknown) =>
+    run({ $executeRaw: vi.fn().mockResolvedValue(1) }),
 }));
 
 const { prisma } = await import('@/lib/prisma');

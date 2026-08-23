@@ -11,7 +11,7 @@
  */
 import net from 'node:net';
 
-import { PrismaClient } from '@prisma/client';
+import { createAdminClient } from '../../lib/db/adminClient.mjs';
 
 function checkTcp(host, port, timeoutMs = 3000) {
   return new Promise((resolve) => {
@@ -40,7 +40,7 @@ async function main() {
   } else {
     const url = new URL(databaseUrl);
     report.postgres = { host: url.hostname, port: url.port, database: url.pathname.slice(1) };
-    const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
+    const prisma = createAdminClient(databaseUrl);
     try {
       await prisma.$queryRaw`SELECT 1`;
       const [{ count }] = await prisma.$queryRawUnsafe(
