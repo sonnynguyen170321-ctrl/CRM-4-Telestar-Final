@@ -926,6 +926,44 @@ the same lesson in the certification ladder.
 The lesson generalises: a green type checker and a green suite say nothing about whether a
 script still starts. Converted tooling gets run.
 
+### DR-010 was a test defect, not a worker defect ✅ (2026-08-23)
+
+`tests/failure-matrix.test.ts` reported `worker did not exit within 30s of SIGTERM` on any
+machine without Redis, and took about 110 seconds to say so. It was recorded here and in the
+commit log as evidence of an unbounded `shutdown()` in `workers/index.ts` — a deploy hanging
+past the orchestrator grace period.
+
+**That diagnosis was wrong, and it was never measured.** Instrumenting the spawn shows the
+worker exiting **on its own at 7.0s with code 1**, long before any signal is sent: `main()`
+awaits `waitUntilReady()`, Redis refuses the connection, the promise rejects, and
+`main().catch()` logs `[worker] fatal:` and calls `process.exit(1)`. That is correct fail-fast
+behaviour. There is no hang in the worker.
+
+The hang was in the test. It registered `worker.on('exit')` **after** a sixty-second loop
+waiting for `[worker] ready`. `exit` fires once and is not replayed to a listener attached
+later, so the listener bound to a process that had already been dead for fifty-three seconds,
+its promise never settled, and the 30s race reported a SIGTERM failure that never happened. The
+second case in the same describe block passes precisely because it registers its listener
+immediately after spawn.
+
+**Fixed at the root:** the listener is attached before anything is awaited, the wait stops early
+if the child dies, and a child that exits before becoming ready now fails with what actually
+happened — naming the exit code and pointing at `agent doctor` — instead of blaming SIGTERM.
+Without Redis it now fails in **8 seconds with an accurate message** rather than 110 seconds
+with a misleading one. With Redis it passes, 4/4.
+
+It still fails without Redis, and that is correct: the SIGTERM contract cannot be exercised
+without a worker that reaches ready, and a silent pass would be a green light on a shutdown
+path that never ran. `agent doctor` classifies this suite BLOCKED_EXTERNAL for that reason.
+
+The same bug class was searched for elsewhere. `scripts/certification/dr-drill.mjs:202` looks
+similar but is safe — its listener attaches synchronously in the same tick as `stdin.end()`, so
+no event-loop turn can intervene. DR-010 was vulnerable only because an `await` loop sat between
+the spawn and the listener.
+
+**Worth keeping:** a wrong diagnosis survived two commits because it was plausible and never
+run. The instrumentation that settled it took one spawn and thirty seconds.
+
 **Dependency graph** was enabled on the repository on 2026-08-08, so `Dependency review`
 should now report properly instead of "not supported on this repository".
 
