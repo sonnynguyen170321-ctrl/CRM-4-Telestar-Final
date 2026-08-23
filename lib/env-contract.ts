@@ -161,6 +161,56 @@ export const checkEmailSafety = (env: Record<string, string | undefined>): Email
 };
 
 // ---------------------------------------------------------------------------
+// RLS enablement contract
+// ---------------------------------------------------------------------------
+
+export type RlsContractResult = {
+  /** Whether PostgreSQL is expected to be enforcing the policies. */
+  enforced: boolean;
+  /** Whether a cross-tenant connection is configured. */
+  maintenanceConfigured: boolean;
+  ok: boolean;
+  reason: string | null;
+};
+
+/**
+ * `DB_RLS_ENFORCED=true` without `CRM_MAINTENANCE_URL` is a silent outage.
+ *
+ * Since `supabase/rls.sql` made the policies role-targeted, the application role has no
+ * policy that consults `app.bypass_rls` — setting that flag grants it nothing. Everything
+ * that legitimately crosses tenants (the workers, the seeds, the operational scripts, and
+ * the public share-link lookup, which answers with no session and therefore no tenant) has
+ * to connect as `crm_maintenance` instead.
+ *
+ * Misconfigured, none of that raises. A worker reads zero rows and reports a clean, empty,
+ * wrong answer; a share link reads as revoked; outbound stops because the quota reserve
+ * matches nothing. That exact shape has now been found four separate times in this codebase,
+ * which is why this is a startup check and not a line in a runbook.
+ *
+ * Pure, so it is tested without a database or a process to boot — see
+ * `tests/rls-env-contract.test.ts`.
+ */
+export const checkRlsContract = (env: Record<string, string | undefined>): RlsContractResult => {
+  const enforced = normalize(env.DB_RLS_ENFORCED) === 'true';
+  const maintenanceConfigured = Boolean((env.CRM_MAINTENANCE_URL || '').trim());
+
+  if (enforced && !maintenanceConfigured) {
+    return {
+      enforced,
+      maintenanceConfigured,
+      ok: false,
+      reason:
+        'DB_RLS_ENFORCED=true but CRM_MAINTENANCE_URL is not set. The policies in ' +
+        'supabase/rls.sql are role-targeted, so the application role cannot read across ' +
+        'tenants at all — workers, seeds, scripts and the public share-link lookup would ' +
+        'silently read zero rows. Set CRM_MAINTENANCE_URL to the crm_maintenance DSN.',
+    };
+  }
+
+  return { enforced, maintenanceConfigured, ok: true, reason: null };
+};
+
+// ---------------------------------------------------------------------------
 // Dev-context required env vars
 // ---------------------------------------------------------------------------
 

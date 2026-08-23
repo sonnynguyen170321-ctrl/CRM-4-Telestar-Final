@@ -2,6 +2,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { cache } from 'react';
 import { auditExtension } from './audit';
 import { tenantStorage } from './tenant-context';
+import { checkRlsContract } from './env-contract';
 import { applyScopedTenant, applyBypassTenant } from './tenant-inject';
 import {
   RELATION_SCOPED_OPS,
@@ -17,6 +18,13 @@ export { tenantStorage };
 // Postgres), the app-layer `tenantId` arg injection below is the isolation layer, and we
 // SKIP the per-query `set_config` transaction — saving ~3 round-trips on every query.
 const DB_RLS_ENFORCED = process.env.DB_RLS_ENFORCED === 'true';
+
+// Refuse to start misconfigured rather than serve zero rows quietly. Inert unless RLS is
+// actually enforced, so no existing deployment or test is affected. See `checkRlsContract`.
+{
+  const contract = checkRlsContract(process.env);
+  if (!contract.ok) throw new Error(`Invalid RLS configuration: ${contract.reason}`);
+}
 
 // Models that actually carry a `tenantId` column. The root `Tenant` model does not, so we
 // must never inject a `tenantId` filter/value for it. Derived from the DMMF so it stays in
