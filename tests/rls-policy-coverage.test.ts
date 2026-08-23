@@ -140,6 +140,31 @@ describe.skipIf(!isolatedRlsEnabled)('supabase/rls.sql applied to an isolated da
         return u.toString();
       };
 
+      // `rls.sql` refuses to run unless the roles its policies name already exist, and this
+      // test used to depend on someone having applied `supabase/roles.sql` to the cluster by
+      // hand. That is true on a developer machine and false on a fresh Postgres service
+      // container, so CI failed here — with a message about roles — while every developer clone
+      // passed. A test that only works on a machine already configured by hand is not testing
+      // the file, it is testing the machine.
+      //
+      // The roles are created here instead, and NAMESPACED, for the reason
+      // `scripts/verify-rls-enablement.mjs` records: PostgreSQL roles are CLUSTER-wide, not
+      // per-database. Using the literal names would find `crm_app` already present on a real
+      // deployment sharing the server, and the teardown below would then DROP a role live
+      // databases depend on. A per-run suffix cannot collide, so creating and dropping it is
+      // safe anywhere.
+      //
+      // NOLOGIN deliberately: the policies only need the roles to *exist* and to be nameable as
+      // policy targets. Nothing here connects as them, so no test-created credential exists.
+      const roleSuffix = randomBytes(3).toString('hex');
+      const BASE_ROLES = ['crm_app', 'crm_maintenance'] as const;
+      const roleName = (base: string) => `${base}_${roleSuffix}`;
+      const namespaceRoles = (sql: string) =>
+        BASE_ROLES.reduce(
+          (acc, base) => acc.replace(new RegExp(`\\b${base}\\b`, 'g'), roleName(base)),
+          sql
+        );
+
       // The one thing this test must never do.
       //
       // It applies `supabase/rls.sql`, which ENABLEs and FORCEs row-level security on every
@@ -156,6 +181,11 @@ describe.skipIf(!isolatedRlsEnabled)('supabase/rls.sql applied to an isolated da
       const admin = new PrismaClient({ datasources: { db: { url: adminUrl } } });
       try {
         await admin.$executeRawUnsafe(`CREATE DATABASE "${dbName}"`);
+        for (const base of BASE_ROLES) {
+          await admin.$executeRawUnsafe(
+            `CREATE ROLE "${roleName(base)}" NOLOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOINHERIT`
+          );
+        }
       } finally {
         await admin.$disconnect();
       }
@@ -190,7 +220,7 @@ describe.skipIf(!isolatedRlsEnabled)('supabase/rls.sql applied to an isolated da
         );
         expect(before[0]?.relrowsecurity).toBe(false);
 
-        await target.$executeRawUnsafe(readFileSync('supabase/rls.sql', 'utf8'));
+        await target.$executeRawUnsafe(namespaceRoles(readFileSync('supabase/rls.sql', 'utf8')));
 
         const rows = await target.$queryRawUnsafe<
           Array<{ relname: string; relrowsecurity: boolean; relforcerowsecurity: boolean; policies: bigint }>
@@ -226,6 +256,11 @@ describe.skipIf(!isolatedRlsEnabled)('supabase/rls.sql applied to an isolated da
             `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${dbName}'`
           );
           await cleanup.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${dbName}"`);
+          // After the database, never before: the policies inside it depend on these roles, and
+          // the suffix guarantees they belong to this run alone.
+          for (const base of BASE_ROLES) {
+            await cleanup.$executeRawUnsafe(`DROP ROLE IF EXISTS "${roleName(base)}"`);
+          }
         } finally {
           await cleanup.$disconnect();
         }
