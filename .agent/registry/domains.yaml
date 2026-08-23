@@ -311,6 +311,14 @@ domains:
       - scripts/post-deploy-*.sh
       - scripts/canary-*
       - scripts/build.cjs
+      # Asserts the GCP compose topology invariants — Cloud SQL wiring, local Postgres
+      # disabled, no port exposure. It validates this domain's own artifacts, so it belongs
+      # here rather than with the database domain its DSN fixture happens to mention.
+      - scripts/check-production-compose.mjs
+      # Drives a real browser against a deployed environment and submits real login attempts.
+      # It defaulted to the production IP until 2026-08-24 and now fails closed on BASE_URL;
+      # either way, what it can reach is production, which is what sets its risk class.
+      - scripts/live-role-audit.ts
       # Doctor decides whether this machine may run anything at all, and validates the same
       # environment contract this domain owns (lib/env-contract.ts, .env.production.example).
       # Its tests were already classified here; the scripts themselves were not.
