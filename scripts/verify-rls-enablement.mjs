@@ -268,12 +268,17 @@ async function main() {
           await tx.$executeRawUnsafe(`SELECT set_config('app.bypass_rls','true',true)`);
           return tx.$queryRawUnsafe(`SELECT id FROM "Lead"`);
         });
-        rows.length === 0
-          ? pass('crm_app cannot bypass, even setting the GUC itself', 'no rows — the flag is inert for this role')
-          : fail(
-              'crm_app cannot bypass, even setting the GUC itself',
-              `saw ${rows.length} row(s) — the application can still read across tenants`
-            );
+        if (rows.length === 0) {
+          pass(
+            'crm_app cannot bypass, even setting the GUC itself',
+            'no rows — the flag is inert for this role'
+          );
+        } else {
+          fail(
+            'crm_app cannot bypass, even setting the GUC itself',
+            `saw ${rows.length} row(s) — the application can still read across tenants`
+          );
+        }
       } catch (err) {
         fail('crm_app cannot bypass, even setting the GUC itself', err.message.split('\n')[0]);
       }

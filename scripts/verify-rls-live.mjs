@@ -103,9 +103,11 @@ async function main() {
   // ── 1. no context: must fail closed ────────────────────────────────────────
   try {
     const [{ n }] = await app.$queryRawUnsafe(`SELECT count(*)::int AS n FROM "Lead"`);
-    n === 0
-      ? pass('no tenant context sees nothing', `0 of ${total} leads`)
-      : fail('no tenant context sees nothing', `saw ${n} rows — RLS is not being enforced here`);
+    if (n === 0) {
+      pass('no tenant context sees nothing', `0 of ${total} leads`);
+    } else {
+      fail('no tenant context sees nothing', `saw ${n} rows — RLS is not being enforced here`);
+    }
   } catch (e) {
     fail('no tenant context sees nothing', e.message.split('\n')[0]);
   }
@@ -115,9 +117,11 @@ async function main() {
     const t0 = process.hrtime.bigint();
     const [{ n }] = await scoped(seed.tenantId, `SELECT count(*)::int AS n FROM "Lead"`);
     const took = since(t0);
-    n === seed.n
-      ? pass('a scoped read returns exactly its tenant', `${n} leads in ${took.toFixed(0)}ms`)
-      : fail('a scoped read returns exactly its tenant', `expected ${seed.n}, saw ${n}`);
+    if (n === seed.n) {
+      pass('a scoped read returns exactly its tenant', `${n} leads in ${took.toFixed(0)}ms`);
+    } else {
+      fail('a scoped read returns exactly its tenant', `expected ${seed.n}, saw ${n}`);
+    }
   } catch (e) {
     fail('a scoped read returns exactly its tenant', e.message.split('\n')[0]);
   }
@@ -131,9 +135,11 @@ async function main() {
       console.log('  SKIP  only one tenant holds leads; cross-tenant read not exercised');
     } else {
       const rows = await scoped(seed.tenantId, `SELECT id FROM "Lead" WHERE id = $$${other.id}$$`);
-      rows.length === 0
-        ? pass('another tenant is unreachable by direct id', 'no rows, as the policy requires')
-        : fail('another tenant is unreachable by direct id', `saw ${rows.length} row(s)`);
+      if (rows.length === 0) {
+        pass('another tenant is unreachable by direct id', 'no rows, as the policy requires');
+      } else {
+        fail('another tenant is unreachable by direct id', `saw ${rows.length} row(s)`);
+      }
     }
   } catch (e) {
     fail('another tenant is unreachable by direct id', e.message.split('\n')[0]);
