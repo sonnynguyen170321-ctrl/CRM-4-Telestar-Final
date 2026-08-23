@@ -126,6 +126,7 @@ describe('operational tooling uses the admin client', () => {
     // with their own credentials. Routing it through the admin client would set the bypass on
     // every connection and the isolation checks would pass without isolation.
     [join('scripts', 'verify-rls-enablement.mjs'), 'verifies enforcement'],
+    [join('scripts', 'verify-rls-live.mjs'), 'verifies enforcement'],
     // The harness. Its bare clients are deliberate red controls — probes 3, 5 and the last one
     // assert that an unbypassed client sees nothing.
     [join('scripts', 'verify-rls-app-paths.probe.ts'), 'red controls'],
