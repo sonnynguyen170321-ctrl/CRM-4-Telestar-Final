@@ -39,3 +39,31 @@
 - **Reversal condition**: if `npm audit --audit-level=high` later reports a high or critical
   advisory that one of these PRs closes, that PR becomes `REQUIRED_FOR_RELEASE`, and taking it
   invalidates the candidate and restarts certification at run 1. That is the intended cost.
+
+### DEC-005: Branch Governance at Release Closure
+- **Date**: 2026-08-24
+- **Decision**: Classify every remote branch before protection is enabled, and delete nothing
+  during the certification window. Deletion is a post-release action; the classification is what
+  this decision fixes.
+- **Method**: for each branch, `git merge-base --is-ancestor <branch> origin/main` plus
+  ahead/behind counts. Merged status is computed, not inferred from the name.
+
+  | Class | Count | Branches | Disposition |
+  |---|---:|---|---|
+  | `MERGED` | 15 | `chore/dependabot-safe-bumps`, `chore/freeze-9fa36d3`, `chore/freeze-e968ce7`, `feat/agent-intelligence-os`, `feat/dr-rollback-drill`, `fix/api-key-privilege-escalation`, `fix/email-claim-lease`, `fix/generated-readme-eol`, `fix/public-share-under-rls`, `fix/raw-sql-tenant-context`, `fix/release-gates-and-deploy-guards`, `fix/rls-verifier-connection-pinning`, `fix/telestar-ai-three-provider`, `release/evidence-locked-certification`, `release/final-production-certification` | Fully contained in `main` — every commit is an ancestor. Safe to delete post-release. No code is lost by deleting them; the commits remain reachable from `main`. |
+  | `MAJOR_UPGRADE_DEFER` / `SAFE_PATCH_BUT_DEFER` | 4 | the four Dependabot branches | Per `DEC-004`. Each is 1 ahead and 208–346 behind, so all four should be **recreated from post-release main** rather than merged from stale history. |
+  | **`NEEDS MANUAL REVIEW`** | 1 | `feat/telestar-ai-2` | **34 commits not in `main`, 110 behind it.** 80 files, +4583/−4143. Per-role AI policies with drift checking, tool-call outcome recording including refusals, prompt-ordering assertions, model-registry/evidence cross-checks, and a fix stopping an unverified AI-written claim from reading as established fact. It also deletes several `revenue-*` test files, so it is not purely additive. |
+
+- **On `feat/telestar-ai-2` specifically**: this is not merge material for this release. It is
+  110 commits behind, it removes tests as well as adding them, and its content is squarely R3 —
+  AI tool authorization and prompt construction. Taking it would invalidate the candidate and
+  restart certification at run 1, for work that is not closing a launch blocker.
+
+  It is also not disposable. The named work is the kind that gets re-derived expensively if the
+  branch is deleted and forgotten. It should become a backlog item and be rebased onto
+  post-release `main` for review as its own change, not folded into a release closure.
+
+- **Not done deliberately**: no branch was deleted. Deleting merged branches during the
+  certification window changes the repository while a candidate is being frozen against it, for
+  no benefit that cannot wait. The classification above is what makes the deletion safe to do
+  later.
