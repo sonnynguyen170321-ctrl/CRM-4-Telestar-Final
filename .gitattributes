@@ -5,3 +5,14 @@
 # hash on a fresh clone. core.autocrlf is true on the certification workstation.
 docs/production-certification/evidence/** -text
 docs/production-certification/evidence/raw/** -text
+
+# `agent check` compares every generated fact file byte for byte against a freshly generated
+# one, and the generator writes LF. With core.autocrlf true — as it is on the Windows machines
+# this project is developed on — checkout rewrites them to CRLF, so the comparison fails on a
+# clean tree and the gate reports "1 stale" for a reason that has nothing to do with the facts
+# being out of date. `npm run agent -- facts` then appears to fix it by writing LF back, which
+# leaves the tree dirty with a zero-line diff and teaches people to ignore the check.
+#
+# Same reasoning as the certification evidence above: a file that is byte-compared must not be
+# line-ending converted on the way in or out.
+.agent/generated/** -text
