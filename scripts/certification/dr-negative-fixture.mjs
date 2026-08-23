@@ -46,7 +46,7 @@ function psql(database, sql) {
   });
 }
 
-function verifyIntegrity(database) {
+function verifyIntegrity(database, extraEnv = {}) {
   const result = spawnSync(
     process.execPath,
     ['node_modules/tsx/dist/cli.mjs', 'scripts/verify-db-integrity.ts'],
@@ -56,6 +56,7 @@ function verifyIntegrity(database) {
       env: {
         ...process.env,
         DATABASE_URL: `postgresql://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT}/${database}`,
+        ...extraEnv,
       },
       maxBuffer: 32 * 1024 * 1024,
     },
@@ -159,6 +160,41 @@ async function main() {
       transcript.push(broken.output);
 
       psql(FIXTURE_DB, `SET session_replication_role = replica; DELETE FROM "Client" WHERE id = 'dr-neg-client';`);
+    }
+
+    // ---- Case 4: a verifier that RLS has blinded. ----
+    //
+    // Every other case here breaks the DATA and asks whether the verifier notices. This one
+    // leaves the data intact and breaks the VERIFIER'S VIEW of it, which is the failure this
+    // fixture most needs to cover and the only one that produces a clean, empty, wrong PASS.
+    //
+    // The policies in supabase/rls.sql are role-targeted, so `app.bypass_rls` grants the
+    // application role nothing. A tool connecting through DATABASE_URL with DB_RLS_ENFORCED=true
+    // and no maintenance DSN therefore reads zero rows from every table — and zero orphaned
+    // foreign keys, zero null tenantIds, zero of everything the other cases look for. It would
+    // report PASS on a database it cannot see. `prod-certify.mjs` would certify an empty result.
+    //
+    // `createAdminClient` guards that with `assertRlsContract()`. Nothing exercised the guard
+    // from here, so this asserts the guard fires rather than trusting that it exists: a guard
+    // no test drives is indistinguishable from a guard that was refactored away.
+    //
+    // Run before case 3, which drops a table and leaves the fixture genuinely broken.
+    console.log('[case 4] RLS-blinded verifier');
+    const blinded = verifyIntegrity(FIXTURE_DB, {
+      DB_RLS_ENFORCED: 'true',
+      CRM_MAINTENANCE_URL: '',
+    });
+    {
+      const detected =
+        blinded.exitCode !== 0 && /CRM_MAINTENANCE_URL is not set/.test(blinded.output);
+      cases.push({
+        name: 'rls-blinded-verifier',
+        expected: 'FAIL',
+        detected,
+        exitCode: blinded.exitCode,
+      });
+      record('case 4', `exit ${blinded.exitCode}; detected=${detected}`);
+      transcript.push(blinded.output);
     }
 
     // ---- Case 3: a dropped table. A partial restore. ----

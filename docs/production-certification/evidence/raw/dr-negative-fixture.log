@@ -1,6 +1,6 @@
 # verify-db-integrity.ts negative control
-# startedAt: 2026-08-23T14:47:55.984Z
-# finishedAt: 2026-08-23T14:48:09.586Z
+# startedAt: 2026-08-23T18:15:14.409Z
+# finishedAt: 2026-08-23T18:15:26.009Z
 # cases: [
   {
     "name": "empty-database",
@@ -16,6 +16,12 @@
   },
   {
     "name": "orphaned-foreign-key",
+    "expected": "FAIL",
+    "detected": true,
+    "exitCode": 1
+  },
+  {
+    "name": "rls-blinded-verifier",
     "expected": "FAIL",
     "detected": true,
     "exitCode": 1
@@ -99,6 +105,27 @@ representative counts:
   ImportBatch          0
 ========================================================================
 RESULT: FAIL
+
+
+### case 4
+exit 1; detected=true
+C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\lib\db\adminClient.mjs:77
+    throw new Error(
+          ^
+
+Error: createAdminClient: DB_RLS_ENFORCED=true but CRM_MAINTENANCE_URL is not set. The policies in supabase/rls.sql are role-targeted, so app.bypass_rls grants the application role nothing — this client would read zero rows and report a clean, empty, wrong answer. Set CRM_MAINTENANCE_URL to the crm_maintenance DSN.
+    at assertRlsContract (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\lib\db\adminClient.mjs:77:11)
+    at createAdminClient (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\lib\db\adminClient.mjs:151:3)
+    at main (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\scripts\verify-db-integrity.ts:385:14)
+    at path (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\scripts\verify-db-integrity.ts:445:6)
+    at Object.<anonymous> (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\scripts\verify-db-integrity.ts:445:11)
+    at Module._compile (node:internal/modules/cjs/loader:1854:14)
+    at Object.transformer (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\tsx\dist\register-C557imBs.cjs:9:3619)
+    at Module.load (node:internal/modules/cjs/loader:1577:32)
+    at Module._load (node:internal/modules/cjs/loader:1379:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+
+Node.js v24.16.0
 
 
 ### case 3

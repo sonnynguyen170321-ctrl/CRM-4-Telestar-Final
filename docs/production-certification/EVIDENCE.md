@@ -137,11 +137,11 @@
 - **Candidate**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
 - **Environment**: win32 / node 24.16.0 / postgres 16
 - **Command**: `node scripts/certification/dr-negative-fixture.mjs`
-- **Ran**: 2026-08-23T14:47:55.984Z → 2026-08-23T14:48:09.586Z
+- **Ran**: 2026-08-23T18:15:14.409Z → 2026-08-23T18:15:26.009Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Note**: Proves verify-db-integrity.ts is not a rubber stamp: it fails on deliberately broken databases and passes on a sound one.
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/dr-negative-fixture.log` — 4641 bytes, sha256 `f7ef56e927ff1abc…`
+  - `docs/production-certification/evidence/raw/dr-negative-fixture.log` — 6199 bytes, sha256 `cca70da75d0ead24…`
 ### `EV-DR-RESTORE`
 - **Kind**: `dr-restore`
 - **Candidate**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`

@@ -4,8 +4,8 @@
   "candidateSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
   "environment": "win32 / node 24.16.0 / postgres 16",
   "command": "node scripts/certification/dr-negative-fixture.mjs",
-  "startedAt": "2026-08-23T14:47:55.984Z",
-  "finishedAt": "2026-08-23T14:48:09.586Z",
+  "startedAt": "2026-08-23T18:15:14.409Z",
+  "finishedAt": "2026-08-23T18:15:26.009Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -30,20 +30,26 @@
         "exitCode": 1
       },
       {
+        "name": "rls-blinded-verifier",
+        "expected": "FAIL",
+        "detected": true,
+        "exitCode": 1
+      },
+      {
         "name": "dropped-table",
         "expected": "FAIL",
         "detected": true,
         "exitCode": 1
       }
     ],
-    "faultsInjected": 3,
-    "faultsDetected": 3
+    "faultsInjected": 4,
+    "faultsDetected": 4
   },
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/dr-negative-fixture.log",
-      "sizeBytes": 4641,
-      "sha256": "f7ef56e927ff1abc969ee21c86a9d486cc40a3f8b0dd13224e0e16672841b488"
+      "sizeBytes": 6199,
+      "sha256": "cca70da75d0ead24ca3d84224ad6114aba9e2590b9dcf441db4ee744e6e975cb"
     }
   ]
 }
