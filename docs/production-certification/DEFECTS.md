@@ -763,7 +763,7 @@ operator decision, not a documentation one.
 
 ### `TEL-P2-027` — An Orphaned One-Off Container Has Been Running Five Days On A Different Image
 - **Severity**: P2
-- **Status**: `RESOLVED` — removed and verified 2026-08-22
+- **Status**: `VERIFIED` — orphan container removed and re-checked on the VM 2026-08-22
 - **Measured on the VM**: alongside `crm-4-u-web-1` and `crm-4-u-worker-1`, both correctly on
   `f2e807bb7812`, a third container `crm-4-u-web-run-acdfd691c452` has been **up 5 days** on
   image **`47cae338dcb6`** — a different build. It is a `docker compose run` one-off, the kind
@@ -848,7 +848,12 @@ operator decision, not a documentation one.
 
 ### `TEL-P0-002` — Production Backup Posture Contradicts Itself; RPO Unsubstantiated
 - **Severity**: P0 (Launch Blocker)
-- **Status**: `RESOLVED` — measured 2026-08-21; superseded by `TEL-P1-027`
+- **Status**: `VERIFIED` — settled 2026-08-23 by describing the live `telestar-db`: automated
+  backups enabled, PITR enabled, 7-day transaction-log retention, 7 retained backups. The
+  three documents that disagreed were reconciled against the instance rather than against each
+  other, and `docs/CLOUD_RUN_DEPLOY.md` was the wrong one — it created the instance with
+  `--no-backup`. Regression cover: `tests/certification-rpo-probe.test.ts` CASE A/B/C/F.
+  Evidence: `EV-DR-RPO`. Successor `TEL-P1-027` tracks the separate posture question
 - **Discovered by**: attempting to derive RPO from real configuration instead of restating a target.
 - **Detail**: three repository documents make incompatible statements about whether the
   production database has any automated backup at all.

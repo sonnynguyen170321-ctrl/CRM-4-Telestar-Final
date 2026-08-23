@@ -102,6 +102,28 @@ describe('the defect ledger parses at all', () => {
     expect(malformed.map((e) => e.id)).toEqual([]);
   });
 
+  /**
+   * PROTOCOL.md defines the lifecycle as
+   * `OPEN -> IN_PROGRESS -> FIXED_PENDING_VERIFICATION -> VERIFIED`, in that order only.
+   *
+   * The check above proves a status is PRESENT; it never proved the status was one the protocol
+   * defines. Two entries had drifted to `RESOLVED`, which reads as closed to a human and is not
+   * closed to any tool: `render-tracker.mjs` counts everything that is not exactly `VERIFIED` as
+   * open, so both were silently inflating the open-defect count they appeared to have left.
+   *
+   * A vocabulary nobody enforces is a vocabulary that grows synonyms, and each synonym is a
+   * state some counter does not recognise.
+   */
+  it('every status is one the protocol defines', () => {
+    const LIFECYCLE = ['OPEN', 'IN_PROGRESS', 'FIXED_PENDING_VERIFICATION', 'VERIFIED'];
+    const offVocabulary = active
+      .filter((e) => !LIFECYCLE.includes(e.status))
+      .map((e) => `${e.id}=${e.status}`);
+    expect(offVocabulary, 'statuses outside PROTOCOL.md section on the defect lifecycle').toEqual(
+      [],
+    );
+  });
+
   it('finds the reopened and retained-verified tables', () => {
     expect(reopened.length).toBeGreaterThan(0);
     expect(verified.length).toBeGreaterThan(0);
@@ -136,9 +158,17 @@ describe('the summary table matches the defects it summarises', () => {
         summaryRow(severity);
 
       const entries = active.filter((e) => e.severity === severity);
-      // A RESOLVED entry keeps its place in section 2 for the reasoning, but is not open work.
-      const openEntries = entries.filter((e) => e.status !== 'RESOLVED');
-      const resolvedEntries = entries.filter((e) => e.status === 'RESOLVED');
+      /**
+       * Closed means `VERIFIED`, the terminal state PROTOCOL.md defines — and it has to mean the
+       * same thing here as it does everywhere else.
+       *
+       * This read `status !== 'RESOLVED'`, which codified a status the protocol does not define.
+       * `render-tracker.mjs` counts everything that is not exactly `VERIFIED` as open. So the
+       * same two entries were closed to this test and open to the tracker: one ledger, two
+       * different open-defect counts, and no way to tell which number a reader was quoting.
+       */
+      const openEntries = entries.filter((e) => e.status !== 'VERIFIED');
+      const resolvedEntries = entries.filter((e) => e.status === 'VERIFIED');
       const verifiedCount = verified.filter((id) => id.includes(`-${severity}-`)).length;
       const reopenedCount = reopened.filter((id) => id.includes(`-${severity}-`)).length;
 

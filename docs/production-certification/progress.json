@@ -3,7 +3,7 @@
   "program": "Telestar Production Certification",
   "candidateSourceSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
   "releaseTag": "telestar-internal-rc-2026-08-22",
-  "generatedAt": "2026-08-23T17:46:03.152Z",
+  "generatedAt": "2026-08-23T18:20:28.199Z",
   "verdict": "NO-GO",
   "eligible": false,
   "requirements": {
@@ -46,10 +46,10 @@
     }
   },
   "defects": {
-    "open": 52,
-    "openP0": 5,
+    "open": 50,
+    "openP0": 4,
     "openP1": 28,
-    "openP2": 19,
+    "openP2": 18,
     "openP3": 0,
     "ids": [
       {
@@ -121,20 +121,12 @@
         "status": "OPEN"
       },
       {
-        "id": "TEL-P2-027",
-        "status": "RESOLVED"
-      },
-      {
         "id": "TEL-P2-025",
         "status": "FIXED_PENDING_VERIFICATION"
       },
       {
         "id": "TEL-P0-001",
         "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P0-002",
-        "status": "RESOLVED"
       },
       {
         "id": "TEL-P1-014",
@@ -262,13 +254,13 @@
       }
     ]
   },
-  "evidenceRecords": 23,
+  "evidenceRecords": 25,
   "validationFailures": {
     "01": 1,
     "A": 30,
     "L": 2,
     "S": 1,
-    "N": 3,
+    "N": 8,
     "REQ": 104
   },
   "release": {
@@ -276,7 +268,7 @@
     "candidateSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
     "repository": {
       "mainSha": "f966d0d4a0c6908892e14f4d067891c85af8010d",
-      "localHeadSha": "b34854e7b1d679ae9f9cdb4c00017f2cb9ceed19"
+      "localHeadSha": "ff1be50522c20534464319a5ee9fc7eb07824ec3"
     },
     "ci": {
       "runId": "32639980424",
