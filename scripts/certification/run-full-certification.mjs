@@ -450,6 +450,14 @@ async function main() {
     process.exit(2);
   }
 
+  const fixtureResult = shell(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'scripts/e2e-audit-fixture.ts'], {
+    env: { ALLOW_E2E_FIXTURE: '1', E2E_PASSWORD: process.env.E2E_PASSWORD },
+  });
+  if (fixtureResult.status !== 0) {
+    console.error(`Failed to seed e2e audit fixture: ${fixtureResult.stderr || fixtureResult.stdout}`);
+    process.exit(2);
+  }
+
   const runLabel = `run${runNumber}`;
   const startedAt = new Date();
   const gateResults = [];
