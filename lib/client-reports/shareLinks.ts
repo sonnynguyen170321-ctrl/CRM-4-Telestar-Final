@@ -30,11 +30,9 @@ import { ClientReportSnapshot } from './types';
  * then see is still decided by `toClientSafeSnapshot`. The client is module-scoped so the
  * process opens one extra pool, not one per request.
  */
-const publicShareDb = new PrismaClient(
-  process.env.CRM_MAINTENANCE_URL
-    ? { datasources: { db: { url: process.env.CRM_MAINTENANCE_URL } } }
-    : {}
-);
+const publicShareDb = process.env.CRM_MAINTENANCE_URL
+  ? new PrismaClient({ datasources: { db: { url: process.env.CRM_MAINTENANCE_URL } } })
+  : new PrismaClient();
 
 /**
  * Whether PostgreSQL itself is enforcing tenant isolation, mirroring `lib/prisma.ts`.

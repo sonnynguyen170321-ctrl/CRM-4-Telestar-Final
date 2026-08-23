@@ -54,9 +54,17 @@ async function main() {
   // without raising — so a fix that covered only the read would look entirely healthy here.
   // Reading the counter needs its own bypass, which is what this transaction is for.
   const bare = new PrismaClient();
+  // Read back through the maintenance role, not a bypass GUC. Since the policies became
+  // role-targeted, `app.bypass_rls` grants the application role nothing — a reader relying on
+  // it sees zero rows and reports the write as missing when the write in fact landed.
+  const reader = process.env.CRM_MAINTENANCE_URL
+    ? new PrismaClient({ datasources: { db: { url: process.env.CRM_MAINTENANCE_URL } } })
+    : bare;
   try {
-    const [row] = await bare.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT set_config('app.bypass_rls', 'true', true)`;
+    const [row] = await reader.$transaction(async (tx) => {
+      if (!process.env.CRM_MAINTENANCE_URL) {
+        await tx.$executeRaw`SELECT set_config('app.bypass_rls', 'true', true)`;
+      }
       return tx.$queryRaw<Array<{ viewCount: number }>>`
         SELECT "viewCount" FROM "ClientReportShareLink" WHERE "tokenHash" = ${hashToken(TOKEN)}
       `;
@@ -94,6 +102,7 @@ async function main() {
     );
   } finally {
     await bare.$disconnect();
+    if (reader !== bare) await reader.$disconnect();
   }
 
   // ── 4. A model operation through the tenant extension ────────────────────────
