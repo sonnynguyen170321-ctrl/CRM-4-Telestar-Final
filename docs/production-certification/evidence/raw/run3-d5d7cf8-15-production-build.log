@@ -1,0 +1,248 @@
+# gate: 15-production-build — next build
+# command: C:\Program Files\nodejs\node.exe scripts/build.cjs
+# startedAt: 2026-08-23T19:34:05.783Z
+# finishedAt: 2026-08-23T19:35:19.953Z
+# exitCode: 0
+
+--- stdout ---
+Prisma schema loaded from prisma\schema.prisma
+
+✔ Generated Prisma Client (v6.2.1) to .\node_modules\@prisma\client in 2.36s
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Interested in query caching in just a few lines of code? Try Accelerate today! https://pris.ly/tip-3-accelerate
+
+▲ Next.js 16.3.0 (Turbopack)
+- Environments: .env.local
+✓ Running next.config.ts took 308ms
+- Experiments (use with caution):
+  · optimizePackageImports
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 19.2s
+  Running TypeScript ...
+  Finished TypeScript in 32.5s ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/96) ...
+  Generating static pages using 3 workers (24/96) 
+  Generating static pages using 3 workers (48/96) 
+  Generating static pages using 3 workers (72/96) 
+✓ Generating static pages using 3 workers (96/96) in 4.3s
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /admin
+├ ○ /admin/audit
+├ ○ /admin/campaigns
+├ ƒ /admin/campaigns/[id]/members
+├ ○ /admin/clients
+├ ○ /admin/imports
+├ ○ /admin/jobs
+├ ○ /admin/outbound
+├ ○ /admin/teams
+├ ○ /admin/transfer-work
+├ ○ /admin/users
+├ ○ /admin/worker-health
+├ ○ /ai
+├ ƒ /api/activities
+├ ƒ /api/admin/assignments
+├ ƒ /api/admin/audit-log
+├ ƒ /api/admin/imports
+├ ƒ /api/admin/imports/[id]
+├ ƒ /api/admin/jobs
+├ ƒ /api/admin/outbound
+├ ƒ /api/admin/overview
+├ ƒ /api/admin/transfer-work
+├ ƒ /api/admin/users
+├ ƒ /api/admin/users/[id]/sign-out-all
+├ ƒ /api/admin/worker-health
+├ ƒ /api/ai/attention
+├ ƒ /api/ai/briefing
+├ ƒ /api/ai/chat
+├ ƒ /api/ai/console
+├ ƒ /api/ai/daily-briefing
+├ ƒ /api/ai/draft-outcome
+├ ƒ /api/ai/draft-reply
+├ ƒ /api/ai/enrich-lead
+├ ƒ /api/ai/memory
+├ ƒ /api/ai/nba
+├ ƒ /api/ai/onboarding
+├ ƒ /api/ai/proposals
+├ ƒ /api/ai/proposals/[id]
+├ ƒ /api/ai/status
+├ ƒ /api/approvals
+├ ƒ /api/approvals/[id]
+├ ƒ /api/auth/[...nextauth]
+├ ƒ /api/auth/revoke-self
+├ ƒ /api/automation/accounts/[id]/cap
+├ ƒ /api/automation/stats
+├ ƒ /api/booking-links
+├ ƒ /api/booking-links/[id]
+├ ƒ /api/campaigns
+├ ƒ /api/campaigns/[id]
+├ ƒ /api/campaigns/[id]/assign-internal-inventory
+├ ƒ /api/campaigns/[id]/member-impact/[userId]
+├ ƒ /api/campaigns/[id]/members
+├ ƒ /api/campaigns/[id]/requirements/preview-internal-match
+├ ƒ /api/client-reports
+├ ƒ /api/client-reports/[id]
+├ ƒ /api/client-reports/[id]/approve
+├ ƒ /api/client-reports/[id]/export/csv
+├ ƒ /api/client-reports/[id]/export/pdf
+├ ƒ /api/client-reports/[id]/share
+├ ƒ /api/client-reports/preview
+├ ƒ /api/client-reports/public/[token]
+├ ƒ /api/clients
+├ ƒ /api/clients/[id]
+├ ƒ /api/contacts/[id]/generate-memory
+├ ƒ /api/contacts/[id]/intelligence
+├ ƒ /api/cron/email-health
+├ ƒ /api/cron/inbox-sync
+├ ƒ /api/cron/maintenance
+├ ƒ /api/cron/sequence-engine
+├ ƒ /api/csp-report
+├ ƒ /api/demo/diagnostics
+├ ƒ /api/demo/environment
+├ ƒ /api/demo/inbound-reply
+├ ƒ /api/developer/keys
+├ ƒ /api/developer/keys/[id]
+├ ƒ /api/dialer/config
+├ ƒ /api/email-health/accounts
+├ ƒ /api/email-health/accounts/[id]
+├ ƒ /api/email-health/accounts/[id]/cap
+├ ƒ /api/email-health/accounts/[id]/pause
+├ ƒ /api/email-health/accounts/[id]/resume
+├ ƒ /api/email-health/alerts
+├ ƒ /api/email-health/alerts/[id]/acknowledge
+├ ƒ /api/email-health/alerts/[id]/resolve
+├ ƒ /api/email-health/campaigns
+├ ƒ /api/email-health/domains
+├ ƒ /api/email-health/domains/[domain]/check
+├ ƒ /api/email-health/export/csv
+├ ƒ /api/email-health/overview
+├ ƒ /api/email/accounts
+├ ƒ /api/email/accounts/[id]
+├ ƒ /api/email/oauth/google
+├ ƒ /api/email/oauth/google/callback
+├ ƒ /api/email/oauth/microsoft
+├ ƒ /api/email/oauth/microsoft/callback
+├ ƒ /api/email/providers
+├ ƒ /api/email/send
+├ ƒ /api/health
+├ ƒ /api/inbox
+├ ƒ /api/inbox/threads/[id]/reply
+├ ƒ /api/leadgen-pool
+├ ƒ /api/leadgen-pool/[id]
+├ ƒ /api/leadgen-pool/assign
+├ ƒ /api/leadgen-pool/assignable-reps
+├ ƒ /api/leadgen-pool/convert
+├ ƒ /api/leadgen-pool/export
+├ ƒ /api/leadgen-pool/metrics
+├ ƒ /api/leadgen-pool/qualify
+├ ƒ /api/leadgen-pool/requirements
+├ ƒ /api/leadgen-pool/requirements/[id]
+├ ƒ /api/leadgen/assign
+├ ƒ /api/leadgen/health
+├ ƒ /api/leadgen/scope
+├ ƒ /api/leadgen/team-progress
+├ ƒ /api/leads
+├ ƒ /api/leads/[id]
+├ ƒ /api/leads/[id]/restore
+├ ƒ /api/leads/import
+├ ƒ /api/leads/recalculate-scores
+├ ƒ /api/leads/scoring-rules
+├ ƒ /api/meetings
+├ ƒ /api/meetings/[id]
+├ ƒ /api/meetings/[id]/convert-to-opportunity
+├ ƒ /api/meetings/[id]/outcome
+├ ƒ /api/notes
+├ ƒ /api/notes/[id]
+├ ƒ /api/notifications
+├ ƒ /api/notifications/check
+├ ƒ /api/opportunities
+├ ƒ /api/opportunities/[id]
+├ ƒ /api/opportunities/[id]/activity
+├ ƒ /api/opportunities/[id]/handoff
+├ ƒ /api/opportunities/[id]/stage
+├ ƒ /api/opportunities/metrics
+├ ƒ /api/prospects/[id]/assist
+├ ƒ /api/prospects/[id]/handback
+├ ƒ /api/prospects/[id]/handoff
+├ ƒ /api/reminders
+├ ƒ /api/reminders/[id]
+├ ƒ /api/seed
+├ ƒ /api/sequences
+├ ƒ /api/sequences/[id]
+├ ƒ /api/sequences/[id]/analytics
+├ ƒ /api/sequences/[id]/enroll
+├ ƒ /api/sequences/[id]/enrollments
+├ ƒ /api/sequences/[id]/enrollments/[enrollmentId]/logs
+├ ƒ /api/sequences/[id]/enrollments/[enrollmentId]/run-now
+├ ƒ /api/sequences/[id]/enrollments/[enrollmentId]/status
+├ ƒ /api/sequences/[id]/enrollments/bulk-action
+├ ƒ /api/sequences/analytics
+├ ƒ /api/sequences/preview
+├ ƒ /api/sequences/team-analytics
+├ ƒ /api/settings
+├ ƒ /api/settings/password
+├ ƒ /api/tasks
+├ ƒ /api/tasks/[id]
+├ ƒ /api/tasks/[id]/run-now
+├ ƒ /api/tasks/bulk
+├ ƒ /api/team/alerts
+├ ƒ /api/team/campaigns
+├ ƒ /api/team/campaigns/[id]
+├ ƒ /api/team/leaderboard
+├ ƒ /api/team/meetings
+├ ƒ /api/team/sdr-progress
+├ ƒ /api/templates
+├ ƒ /api/templates/[id]
+├ ƒ /api/templates/[id]/ab-test
+├ ƒ /api/templates/[id]/attachments
+├ ƒ /api/templates/[id]/attachments/[attachmentId]
+├ ƒ /api/templates/analytics
+├ ƒ /api/unsubscribe
+├ ƒ /api/users
+├ ƒ /api/users/[id]
+├ ƒ /api/users/[id]/impact
+├ ƒ /api/v1/calls
+├ ƒ /api/v1/enrich
+├ ƒ /api/v1/leads
+├ ƒ /api/v1/openapi.json
+├ ƒ /api/webhooks
+├ ƒ /api/webhooks/test
+├ ƒ /api/work-orders
+├ ƒ /api/work-orders/[id]/dispatch
+├ ○ /automation
+├ ƒ /client-reports
+├ ƒ /client-reports/[id]
+├ ƒ /client-reports/public/[token]
+├ ○ /director
+├ ○ /docs
+├ ○ /docs/typography
+├ ○ /email-health
+├ ○ /inbox
+├ ○ /leadgen
+├ ○ /leadgen-manager
+├ ○ /leads
+├ ○ /login
+├ ○ /meetings
+├ ○ /opportunities
+├ ○ /sequences
+├ ○ /sequences/performance
+├ ○ /settings
+├ ○ /team
+└ ○ /templates
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+--- stderr ---
+(empty)

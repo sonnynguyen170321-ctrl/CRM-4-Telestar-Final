@@ -7,10 +7,10 @@
 -->
 
 **Verdict**: **PASS**
-**Candidate SHA**: `fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb`
+**Candidate SHA**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
 **Release tag**: `telestar-internal-rc-2026-08-22`
 **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
-**Ran**: 2026-08-23T12:48:54.499Z → 2026-08-23T13:13:42.477Z (24.8 min)
+**Ran**: 2026-08-23T18:52:03.437Z → 2026-08-23T19:09:42.624Z (17.7 min)
 
 ---
 
@@ -27,36 +27,36 @@ No mandatory gate was omitted.
 |---|---|---:|---:|---|
 | `01-source-identity` | **PASS** | 0 | 0.0s | — |
 | `02-environment` | **PASS** | 0 | 0.3s | — |
-| `03-typecheck` | **PASS** | 0 | 28.3s | — |
-| `04-lint` | **PASS** | 0 | 56.7s | — |
-| `05-test-discipline` | **PASS** | 0 | 0.3s | — |
-| `06-migration-validation` | **PASS** | 0 | 0.2s | — |
-| `07-database-integrity` | **PASS** | 0 | 4.8s | — |
-| `08-vitest` | **PASS** | 0 | 172.9s | — |
-| `09-redis-integration` | **PASS** | 0 | 4.2s | — |
-| `10-ai-certification` | **PASS** | 0 | 8.9s | — |
-| `11-email-safety` | **PASS** | 0 | 2.4s | — |
-| `12-import-fault-matrix` | **PASS** | 0 | 8.2s | — |
-| `13-queue-load` | **PASS** | 0 | 24.5s | — |
-| `14-security-suite` | **PASS** | 0 | 4.2s | — |
-| `15-production-build` | **PASS** | 0 | 191.6s | — |
-| `16-playwright-roles` | **PASS** | 0 | 33.8s | — |
+| `03-typecheck` | **PASS** | 0 | 30.4s | — |
+| `04-lint` | **PASS** | 0 | 113.9s | — |
+| `05-test-discipline` | **PASS** | 0 | 0.4s | — |
+| `06-migration-validation` | **PASS** | 0 | 0.1s | — |
+| `07-database-integrity` | **PASS** | 0 | 4.4s | — |
+| `08-vitest` | **PASS** | 0 | 176.6s | — |
+| `09-redis-integration` | **PASS** | 0 | 3.9s | — |
+| `10-ai-certification` | **PASS** | 0 | 8.7s | — |
+| `11-email-safety` | **PASS** | 0 | 2.5s | — |
+| `12-import-fault-matrix` | **PASS** | 0 | 8.5s | — |
+| `13-queue-load` | **PASS** | 0 | 24.8s | — |
+| `14-security-suite` | **PASS** | 0 | 4.1s | — |
+| `15-production-build` | **PASS** | 0 | 124.6s | — |
+| `16-playwright-roles` | **PASS** | 0 | 37.4s | — |
 | `16-playwright-roles-evidence` | **PASS** | 0 | 0.2s | — |
-| `17-golden-browser-journey` | **PASS** | 0 | 16.3s | — |
-| `18-worker-readiness` | **PASS** | 0 | 51.8s | — |
+| `17-golden-browser-journey` | **PASS** | 0 | 16.0s | — |
+| `18-worker-readiness` | **PASS** | 0 | 3.6s | — |
 | `22-health-smoke` | **PASS** | 0 | 0.0s | — |
-| `19-docker-build` | **PASS** | 0 | 849.8s | — |
-| `20-image-inspection` | **PASS** | 0 | 0.2s | — |
-| `21-compose-validation` | **PASS** | 0 | 1.5s | — |
-| `23-validator-selftest` | **PASS** | 0 | 1.6s | — |
+| `19-docker-build` | **PASS** | 0 | 479.8s | — |
+| `20-image-inspection` | **PASS** | 0 | 0.3s | — |
+| `21-compose-validation` | **PASS** | 0 | 2.7s | — |
+| `23-validator-selftest` | **PASS** | 0 | 3.8s | — |
 
 ## 3. Test execution
 
 | Measure | Value |
 |---|---:|
-| Test files | 194 |
-| Test files passed | 194 |
-| Tests passed | 2780 |
+| Test files | 196 |
+| Test files passed | 196 |
+| Tests passed | 2812 |
 | Tests failed | 0 |
 | Tests skipped | 0 |
 

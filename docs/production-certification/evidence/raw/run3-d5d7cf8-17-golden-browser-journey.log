@@ -1,0 +1,27 @@
+# cross-role golden journey in a real browser
+# exitCode: 0
+
+--- stdout ---
+
+Running 15 tests using 1 worker
+
+  ok  1 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate director (666ms)
+  ok  2 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate floorManager (512ms)
+  ok  3 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate teamLead (505ms)
+  ok  4 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate sdrA (517ms)
+  ok  5 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate sdrB (509ms)
+  ok  6 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate leadgenManager (529ms)
+  ok  7 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate leadgen (630ms)
+  ok  8 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate directorB (497ms)
+  ok  9 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate sdrTenantB (523ms)
+  ok 10 [certification-journey] › e2e\certification\golden-journey.spec.ts:55:9 › cross-role golden journey › 1. leadgen sources the prospect › leadgen submits a prospect and its own page renders (1.3s)
+  ok 11 [certification-journey] › e2e\certification\golden-journey.spec.ts:86:9 › cross-role golden journey › 2. leadgen manager reviews and qualifies › the manager sees the submission and qualifies it (1.0s)
+  ok 12 [certification-journey] › e2e\certification\golden-journey.spec.ts:119:9 › cross-role golden journey › 3. allocation into the CRM › the qualified prospect is allocated to an SDR as a CRM lead (578ms)
+  ok 13 [certification-journey] › e2e\certification\golden-journey.spec.ts:145:9 › cross-role golden journey › 4-5. the SDR owns and works it › the SDR sees the prospect on their own page and logs outreach (1.1s)
+  ok 14 [certification-journey] › e2e\certification\golden-journey.spec.ts:186:9 › cross-role golden journey › 6. the pod lead sees it › the team lead sees the outreach on the prospect timeline (940ms)
+  ok 15 [certification-journey] › e2e\certification\golden-journey.spec.ts:214:9 › cross-role golden journey › 7. management sees the progress › floor manager and director both see the reflected activity (972ms)
+
+  15 passed (13.5s)
+
+--- stderr ---
+(empty)
