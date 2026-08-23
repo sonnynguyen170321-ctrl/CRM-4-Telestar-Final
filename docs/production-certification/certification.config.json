@@ -3,9 +3,13 @@
   "schemaVersion": 1,
   "program": "Telestar CRM Production Certification",
   "releaseTag": "telestar-internal-rc-2026-08-22",
-  "candidateSha": "e24f06270cae5aefbff0f11c324ab404e7ed76ad",
-  "candidateFrozenAt": "2026-08-23T11:52:00.000Z",
+  "candidateSha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
+  "candidateFrozenAt": "2026-08-23T12:48:00.000Z",
   "previousCandidates": [
+    {
+      "sha": "e24f06270cae5aefbff0f11c324ab404e7ed76ad",
+      "invalidatedReason": "superseded: never built into an image. CI builds the pushed head, and e24f062 was frozen before the push, so the image was produced for a later commit — the same defect that invalidated 28669f0. Four commits then landed after it: the lib/cache.ts routing gap CI caught, an rls-policy-coverage test that depended on roles applied to the cluster by hand, the three-index FK migration, and two source-matching tests that could be satisfied by a comment rather than by code."
+    },
     {
       "sha": "7feaa81b280646b2c142ecf77150116fb451a55a",
       "invalidatedReason": "superseded within the same session: the Redis IPv6-loopback fix (e24f062) is application code and landed after this freeze, so gate 01 could never accept it. e24f062 is the same work plus that fix."
