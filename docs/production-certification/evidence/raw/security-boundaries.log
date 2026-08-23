@@ -1,0 +1,15 @@
+===== 13 security boundary suites =====
+
+ RUN  v4.1.10 C:/Users/admin/Desktop/Sonny & AI/CRM-4-Telestar-Final
+
+
+ Test Files  13 passed (13)
+      Tests  168 passed (168)
+   Start at  01:22:44
+   Duration  11.35s (transform 2.06s, setup 4.42s, import 15.92s, tests 4.97s, environment 4ms)
+
+
+===== gitleaks secret scan (docker, same image and config as CI) =====
+6:24PM INF 639 commits scanned.
+6:24PM INF scanned ~14350097 bytes (14.35 MB) in 33.1s
+6:24PM INF no leaks found

@@ -7,7 +7,7 @@
 -->
 
 **Candidate SHA**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
-**Evidence records**: 25
+**Evidence records**: 27
 **Requirements verified**: 4 / 108
 **Verdict**: NO-GO
 
@@ -66,9 +66,11 @@
 | `EV-RELEASE-IDENTITY` | `release-identity` | `9fa36d3` ⚠ | **PASS** | 0 | 0 |
 | `EV-RLS-POSTURE` | `rls-posture` | `12ea8ae` | **PASS** | 0 | 1 |
 | `EV-ROLE-BROWSER` | `role-browser` | `fa3a54b` ⚠ | **PASS** | 0 | 6 |
+| `EV-ROLE-MODEL` | `role-model` | `12ea8ae` | **PASS** | 0 | 1 |
 | `EV-RUN-1` | `certification-run` | `fa3a54b` ⚠ | **PASS** | 0 | 23 |
 | `EV-RUN-2` | `certification-run` | `fa3a54b` ⚠ | **PASS** | 0 | 23 |
 | `EV-RUN-3` | `certification-run` | `daa8ffb` ⚠ | **FAIL** | 1 | 20 |
+| `EV-SECURITY-BOUNDARIES` | `security-boundaries` | `12ea8ae` | **PASS** | 0 | 1 |
 | `EV-SECURITY-INVENTORY` | `security-inventory` | `fa3a54b` ⚠ | **PASS** | 0 | 1 |
 | `EV-VALIDATOR-SELFTEST` | `validator-self` | `fa3a54b` ⚠ | **PASS** | 0 | 1 |
 | `EV-VITEST` | `vitest` | `fa3a54b` ⚠ | **PASS** | 0 | 1 |
@@ -259,6 +261,15 @@
   - `docs/production-certification/evidence/raw/role-screenshots/leadgen_manager.png` — 139153 bytes, sha256 `22120c018ed6c562…`
   - `docs/production-certification/evidence/raw/role-screenshots/sdr.png` — 119415 bytes, sha256 `71bb4f922f45fa5a…`
   - `docs/production-certification/evidence/raw/role-screenshots/team_lead.png` — 217815 bytes, sha256 `0bd3a5eff9db75b7…`
+### `EV-ROLE-MODEL`
+- **Kind**: `role-model`
+- **Candidate**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
+- **Environment**: certification workstation - real PostgreSQL
+- **Command**: `vitest run tests/role-journeys tests/phase-9-role-surfaces tests/floor-manager-administration tests/leadgen tests/leadgen-redesign tests/ai-briefing-scope tests/client-report-scope tests/certification-role-evidence`
+- **Ran**: 2026-08-23T18:25:37.736Z → 2026-08-23T18:25:37.736Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/role-model-suites.log` — 275 bytes, sha256 `2fca0542829964cc…`
 ### `EV-RUN-1`
 - **Kind**: `certification-run`
 - **Candidate**: `fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb`
@@ -349,6 +360,15 @@
   - `docs/production-certification/evidence/raw/run3-18-worker-readiness.log` — 187 bytes, sha256 `aed5273b83519656…`
   - `docs/production-certification/evidence/raw/run3-21-compose-validation.log` — 1413 bytes, sha256 `3227f3c7e3189920…`
   - `docs/production-certification/evidence/raw/run3-23-validator-selftest.log` — 1554 bytes, sha256 `f0aa07d6c388d17c…`
+### `EV-SECURITY-BOUNDARIES`
+- **Kind**: `security-boundaries`
+- **Candidate**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
+- **Environment**: certification workstation - real PostgreSQL; gitleaks v8.28.0 in docker
+- **Command**: `vitest run (13 security suites); docker run zricethezav/gitleaks:v8.28.0 detect --config=.gitleaks.toml --exit-code 1`
+- **Ran**: 2026-08-23T18:25:37.736Z → 2026-08-23T18:25:37.736Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/security-boundaries.log` — 492 bytes, sha256 `ed3f6ef84ed9c35c…`
 ### `EV-SECURITY-INVENTORY`
 - **Kind**: `security-inventory`
 - **Candidate**: `fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb`

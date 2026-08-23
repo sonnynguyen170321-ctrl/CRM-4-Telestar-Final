@@ -1,0 +1,39 @@
+{
+  "evidenceId": "EV-ROLE-MODEL",
+  "kind": "role-model",
+  "candidateSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
+  "environment": "certification workstation - real PostgreSQL",
+  "command": "vitest run tests/role-journeys tests/phase-9-role-surfaces tests/floor-manager-administration tests/leadgen tests/leadgen-redesign tests/ai-briefing-scope tests/client-report-scope tests/certification-role-evidence",
+  "startedAt": "2026-08-23T18:25:37.736Z",
+  "finishedAt": "2026-08-23T18:25:37.736Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {
+    "testFiles": 8,
+    "tests": 88,
+    "passed": 88,
+    "failed": 0,
+    "skipped": 0,
+    "rolesExercised": {
+      "director": 10,
+      "floor_manager": 10,
+      "team_lead": 8,
+      "sdr": 17,
+      "leadgen_manager": 12,
+      "leadgen": 4
+    },
+    "allSixRolesCovered": true,
+    "forbiddenActionsTested": true,
+    "whyThatMatters": "Authorization is asserted by invoking the domain function as the wrong role and as the wrong tenant, not by checking that a control is hidden. A hidden control is a UI decision; the domain call is the boundary.",
+    "NOT_VERIFIED": [
+      "Live six-role acceptance against the deployed environment (Phase 23). These are local suites; the browser gates 16 and 17 run in the ladder, and the live journeys need a deployed candidate."
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/role-model-suites.log",
+      "sizeBytes": 275,
+      "sha256": "2fca0542829964cc5121a57f2ba71b6bed5b31cb219e35422f072804e84a8007"
+    }
+  ]
+}

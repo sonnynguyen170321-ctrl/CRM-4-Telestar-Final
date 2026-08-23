@@ -1,0 +1,54 @@
+{
+  "evidenceId": "EV-SECURITY-BOUNDARIES",
+  "kind": "security-boundaries",
+  "candidateSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
+  "environment": "certification workstation - real PostgreSQL; gitleaks v8.28.0 in docker",
+  "command": "vitest run (13 security suites); docker run zricethezav/gitleaks:v8.28.0 detect --config=.gitleaks.toml --exit-code 1",
+  "startedAt": "2026-08-23T18:25:37.736Z",
+  "finishedAt": "2026-08-23T18:25:37.736Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {
+    "testFiles": 13,
+    "tests": 168,
+    "passed": 168,
+    "failed": 0,
+    "skipped": 0,
+    "secretScan": {
+      "tool": "gitleaks v8.28.0",
+      "exitCode": 0,
+      "commitsScanned": 639,
+      "bytesScanned": 14350097,
+      "result": "no leaks found",
+      "note": "Full history, not just the working tree. Covers every commit made in this session."
+    },
+    "suitesRun": [
+      "security-injection",
+      "object-auth-red-team",
+      "mass-assignment",
+      "webhook-ssrf-and-authorization",
+      "tenant-context",
+      "tenant-includes",
+      "tenant-inject",
+      "test-tenant-leak",
+      "raw-sql-tenant-context",
+      "public-share-rls",
+      "agent-object-authorization",
+      "demo-diagnostics-authorization",
+      "work-order-object-rbac"
+    ],
+    "authorizationTestedAtTheDomainLayer": true,
+    "whyThatMatters": "object-auth-red-team.test.ts calls canAccessLead and getVisibleCampaignIds directly under an attacker tenant context, rather than asserting a button is hidden. Hidden UI is not an authorization control; the underlying call is.",
+    "NOT_VERIFIED": [
+      "No live deployed environment was exercised. These run against local PostgreSQL, not the running production system.",
+      "Rate limiting under real load, and auth abuse against a live endpoint, were not exercised here."
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/security-boundaries.log",
+      "sizeBytes": 492,
+      "sha256": "ed3f6ef84ed9c35c6a5ca1cddba538c8623532bdde4fb340f418ccf4cf335a31"
+    }
+  ]
+}
