@@ -19,6 +19,7 @@ domains:
     paths:
       - lib/ai/**
       - lib/agent/**
+      - lib/research/**
       - lib/workorders/**
       - app/api/ai/**
       - components/AiAssistant.tsx
@@ -175,6 +176,7 @@ domains:
     paths:
       - lib/leadgen/**
       - lib/contact-intelligence/**
+      - lib/search/**
       - app/api/leadgen/**
       - app/leadgen/**
       - app/leadgen-manager/**
