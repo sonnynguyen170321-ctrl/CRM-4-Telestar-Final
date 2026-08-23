@@ -32,6 +32,48 @@ import { ClientReportSnapshot } from './types';
  */
 const publicShareDb = new PrismaClient();
 
+/**
+ * Whether PostgreSQL itself is enforcing tenant isolation, mirroring `lib/prisma.ts`.
+ *
+ * This client is unextended, so it sets none of the GUCs `supabase/rls.sql` reads. Under
+ * `FORCE ROW LEVEL SECURITY` that means `current_setting('app.bypass_rls', true)` and
+ * `current_setting('app.current_tenant_id', true)` both return NULL, both halves of the policy
+ * are false, and every query here returns **zero rows** — reproducing, by a different route,
+ * exactly the "Invalid or expired report link" bug the header above describes as already fixed.
+ *
+ * Measured before it shipped, against a non-superuser on a database with the policies applied:
+ * `Lead` returned 0 rows with no GUCs set and 362,018 with `app.bypass_rls = 'true'` — the same
+ * count a superuser sees. A local suite run proves nothing here, because the local role is a
+ * superuser and RLS never applies to one.
+ */
+const DB_RLS_ENFORCED = process.env.DB_RLS_ENFORCED === 'true';
+
+/**
+ * Run one public-share query with an explicit RLS bypass.
+ *
+ * The bypass is legitimate *here specifically*: the token is the credential — 32 random bytes,
+ * stored only as a SHA-256 hash, revocable and expirable — and it is validated immediately after
+ * the lookup, before anything is returned. What the customer may then see is still decided by
+ * `toClientSafeSnapshot`. This grants no more reach than the endpoint has today with RLS off.
+ *
+ * `set_config(..., true)` is transaction-local, so the bypass lasts exactly this transaction and
+ * cannot leak into anything else on this pool. When RLS is not enforced the transaction is
+ * skipped entirely, so the ordinary deployment pays nothing.
+ *
+ * Interactive rather than the array form deliberately: the array form takes *unexecuted*
+ * PrismaPromises, so a callback passed to it would have already started its query outside the
+ * transaction — where the GUC does not apply, and the bypass would silently do nothing.
+ */
+async function withPublicShareBypass<T>(
+  run: (db: Pick<PrismaClient, 'clientReportShareLink'>) => Promise<T>
+): Promise<T> {
+  if (!DB_RLS_ENFORCED) return run(publicShareDb);
+  return publicShareDb.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.bypass_rls', 'true', true)`;
+    return run(tx as unknown as Pick<PrismaClient, 'clientReportShareLink'>);
+  });
+}
+
 export function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
@@ -142,17 +184,19 @@ export async function verifyAndFetchSharedReport(
 ): Promise<{ snapshot: ClientReportSnapshot; title: string; clientName: string; requiresPassword?: boolean }> {
   const tokenHash = hashToken(token);
 
-  const shareLink = await publicShareDb.clientReportShareLink.findUnique({
-    where: { tokenHash },
-    include: {
-      report: {
-        include: {
-          client: { select: { id: true, name: true } },
-          campaign: { select: { id: true, name: true } },
+  const shareLink = await withPublicShareBypass((db) =>
+    db.clientReportShareLink.findUnique({
+      where: { tokenHash },
+      include: {
+        report: {
+          include: {
+            client: { select: { id: true, name: true } },
+            campaign: { select: { id: true, name: true } },
+          },
         },
       },
-    },
-  });
+    }),
+  );
 
   if (!shareLink) {
     throw new Error('Invalid or expired report link');
@@ -182,13 +226,15 @@ export async function verifyAndFetchSharedReport(
   }
 
   // Same client: the view counter is written on behalf of an unauthenticated visitor.
-  await publicShareDb.clientReportShareLink.update({
-    where: { id: shareLink.id },
-    data: {
-      viewCount: { increment: 1 },
-      lastViewedAt: new Date(),
-    },
-  });
+  await withPublicShareBypass((db) =>
+    db.clientReportShareLink.update({
+      where: { id: shareLink.id },
+      data: {
+        viewCount: { increment: 1 },
+        lastViewedAt: new Date(),
+      },
+    }),
+  );
 
   const snapshot = toClientSafeSnapshot(
     shareLink.report.snapshotJson as unknown as ClientReportSnapshot

@@ -9,10 +9,18 @@ note: Live resume pointer.
 > [`PLAN.md`](./PLAN.md). Tick the box there and update this file when a task lands.
 
 **Current phase:** closing out — every task in `PLAN.md` is written.
-**Next task:** none that can be done from the repository. What remains needs a live box, a
-staging target, Docker, or a browser — see **Outstanding — needs an environment or a human**
-below.
+**Next task:** decide how raw SQL acquires a tenant context — see Task 6, **Finding 4**
+(2026-08-23). `npm run verify:rls-app-paths` exits 1 until it lands, and RLS must not be
+enabled anywhere before it exits 0. Everything else remaining needs a live box, a staging
+target, Docker, or a browser — see **Outstanding — needs an environment or a human** below.
 **Blockers:** none in the repo.
+
+> **2026-08-23 — the "nothing left in the repo" line above was wrong for a fortnight.**
+> Re-deriving the `new PrismaClient()` inventory turned up a defect that would have broken every
+> client report share link the moment RLS was enabled (Finding 3, fixed and now proved
+> behaviourally), eighteen operational scripts in the same position, and — once there was a
+> harness able to measure it — about 25 raw SQL statements with the same flaw (Finding 4, open).
+> Task 6 was marked complete on 2026-08-08. It was not.
 
 > **2026-08-14 — the create-user session-revocation item is CLOSED.** `scripts/create-user.ts`
 > now increments `authVersion` whenever a change governs access — password, role, or active state
@@ -607,6 +615,18 @@ before the enforcement matrix passes in staging.
   that creates its own database, applies schema + `rls.sql` + `roles.sql`, connects as
   `crm_app`, and asserts cross-tenant read/update/delete all fail.
 - **Staging enablement**, then production. Blocked on having a staging target.
+- **The raw-SQL gap, Finding 4.** About 25 statements run with no tenant context and would
+  touch zero rows under enforcement, silently. `npm run verify:rls-app-paths` exits 1 on it
+  today. **This is the blocker on enablement**, and it needs a design decision about how to
+  wrap raw operations without breaking the advisory locks that legitimately run inside an
+  existing transaction.
+- **Enforcement will break the scripts, seeds and test setup.** Eighteen of the nineteen bare
+  `new PrismaClient()` sites are operational tooling. Enabling RLS repoints `DATABASE_URL` at
+  `crm_app`, which is `NOSUPERUSER` and therefore subject to `FORCE` — so `prod-certify.mjs`,
+  `worker-healthcheck.ts`, `create-admin.ts` and the rest would read zero rows and report a
+  clean, empty, wrong answer. Not fixed here: the right shape is one shared bypass helper
+  those tools import, and choosing it is a design decision, not a mechanical edit. **It must
+  be settled before staging enablement, not after.**
 - **Product decision, needs a human:** `User.email` is currently `@unique` — globally unique
   across tenants. Two tenants therefore cannot both have `sonny@telestar.vn`. If per-tenant
   uniqueness is wanted it becomes `@@unique([tenantId, email])`, which changes login lookup
@@ -620,6 +640,18 @@ Bare `new PrismaClient()` — bypasses the tenant extension entirely: `prisma/se
 `scripts/encrypt-existing-tokens.ts`, `scripts/sync-sequence-enrollments.ts`,
 `tests/setup/db-baseline.ts`, and a stray `inspect_policies.ts` at the repository root that
 looks like a leftover debugging script and should probably go.
+
+> **Re-derived 2026-08-23, and it had gone stale.** The list above was written on 2026-08-08
+> and names eight sites; `grep -rn "new PrismaClient()" lib app scripts prisma tests` now
+> finds nineteen. The additions are `lib/client-reports/shareLinks.ts` and the scripts
+> `canary-live-drill.mjs`, `check-relational-integrity.ts`, `cutover-preflight.ts`,
+> `demo-seed.ts`, `diagnose-import.mjs`, `e2e-audit-fixture.ts`, `prod-certify.mjs`,
+> `provision-telestar-organization.ts`, `purge-demo-tenant.ts`, `verify-ai-attribution.ts`,
+> `worker-healthcheck.ts`. `inspect_policies.ts` is still at the repository root.
+>
+> Exactly one of the nineteen is on a request path — `shareLinks.ts`, addressed below. The
+> rest are scripts, seeds and test setup, which matters for a different reason: see
+> **Outstanding** for what enforcement does to them.
 
 Raw SQL (`$queryRaw` / `$executeRaw`, not intercepted by the extension): `lib/prisma.ts`,
 `workers/email.ts`, `workers/healthcheck.ts`, `lib/search/accentSearch.ts`,
@@ -667,6 +699,131 @@ live isolation. Enabling is an ops sequence, not a code change: apply `roles.sql
 `DATABASE_URL` at `crm_app`, apply `rls.sql`, set `DB_RLS_ENFORCED=true` — staging first.
 That last step is the only part still outstanding, and it is blocked on having a staging
 target rather than on any work in this repository.
+
+### Finding 3 — enabling RLS would have broken every client report share link (2026-08-23)
+
+Found while re-deriving the inventory above, not by a failing test — and it could not have
+been found by one, because the local role is a superuser and RLS never applies to a superuser.
+
+`lib/client-reports/shareLinks.ts` holds a deliberately unextended `PrismaClient`. Its header
+explains why: the public share endpoint is the one route in the product that answers with no
+session, so there is no tenant context, and `tenantStorage.run({ bypassRls: true })` does not
+reach it because Next splits the `AsyncLocalStorage` across chunks.
+
+Unextended means it sets none of the GUCs `supabase/rls.sql` reads. Under `FORCE ROW LEVEL
+SECURITY` both `current_setting('app.bypass_rls', true)` and
+`current_setting('app.current_tenant_id', true)` return NULL, both halves of the policy are
+false, and every query in that file returns **zero rows** — which surfaces as "Invalid or
+expired report link" for a perfectly valid token. That is the same user-visible bug the file's
+header records as already fixed once, arrived at by a second route.
+
+Measured before the fix, as a non-superuser against a database with the policies applied:
+
+```
+no GUCs set            Lead visible:       0
+app.bypass_rls = true  Lead visible: 362,018   (identical to the superuser control)
+```
+
+**The fix.** A `withPublicShareBypass` helper wraps both call sites — the token lookup and the
+view-counter write. When `DB_RLS_ENFORCED` is unset it calls straight through, so today's
+deployment pays nothing. When enforcement is on it opens an interactive transaction and sets
+`app.bypass_rls` with `is_local = true`, so the bypass dies with the transaction and cannot
+ride a pooled connection into whatever runs next.
+
+Interactive rather than the array form deliberately. The array form takes *unexecuted*
+`PrismaPromise`s, so a callback handed to it would already have started its query outside the
+transaction — where the GUC does not apply, and the bypass would silently do nothing. The same
+failure it exists to prevent.
+
+**Why the bypass is defensible here.** The token *is* the credential: 32 random bytes, stored
+only as a SHA-256 hash, revocable and expirable, and validated immediately after the lookup
+before anything is returned. What the customer then sees is still decided by
+`toClientSafeSnapshot`. This grants the endpoint no reach it does not already have with RLS
+off.
+
+`tests/public-share-rls.test.ts` pins the shape: both call sites routed, transaction-local,
+interactive form, zero cost when unenforced, the same `DB_RLS_ENFORCED` switch `lib/prisma.ts`
+reads, and token validation still ordered before the return. It asserts on source text, which
+proves nothing about runtime — so the behaviour is proved separately by
+**`npm run verify:rls-app-paths`**, below. Measured 2026-08-23, as a NOSUPERUSER role against a
+database with the policies applied:
+
+```
+PASS  verifyAndFetchSharedReport resolves a valid token under enforcement
+      returned "Weekly report" for "Acme"
+PASS  the view-counter write lands under enforcement
+      viewCount = 1 after one view
+PASS  the same lookup with no bypass returns nothing — the fix is what makes probe 1 pass
+      null, as the policy requires
+```
+
+The third is the red control. Without it, the first passing would be equally consistent with
+RLS simply not being on.
+
+### Finding 4 — every raw SQL statement has the same defect, and there are about 25 (2026-08-23)
+
+Finding 3 turned out to be one instance of a structural gap, not a one-off.
+
+The tenant extension in `lib/prisma.ts` is registered as `query.$allModels`. `$queryRaw` and
+`$executeRaw` are **root client operations**, so they are outside it by construction — no
+`set_config` runs, and the statement reaches PostgreSQL with no tenant context. Under
+enforcement it matches no policy and touches zero rows, without raising.
+
+Measured, not inferred. Same client, same `tenantStorage` context, same table, same process:
+
+```
+PASS  a model operation through the extension sees its tenant
+      Lead count = 1 (expected 1)
+FAIL  raw SQL through the same client also sees its tenant
+      Lead count via $queryRaw = 0 (expected 1)
+```
+
+**The affected statements**, all on tenant-owned tables:
+
+| File | Sites | Tables | What breaks |
+|---|---|---|---|
+| `lib/ai/budget.ts` | 18 | `TenantAiBudgetPeriod`, `TenantAiBudgetReservation`, `AiCall` | AI spend accounting: reservations never commit, periods never roll |
+| `lib/leadgen/qualification.ts` | 4 | `Lead` | qualification queues come back empty |
+| `lib/research/cache.ts` | 2 | `AccountResearchCache`, `ContactResearchCache` | the claim UPDATE matches nothing, so every claim declines |
+| `workers/email.ts` | 1 | `EmailAccount` | `atomicReserveQuota` reserves nothing and returns false — **sending stops** |
+| `lib/search/accentSearch.ts` | 1 | `Lead`, `LeadPoolItem` | accent-insensitive search silently returns no matches |
+
+Not affected, and deliberately so: `SELECT 1` in the two health routes and the healthcheck
+worker, `_prisma_migrations` in `lib/db/migrationStatus.ts`, and the two
+`pg_advisory_xact_lock` calls — none touches a table carrying `tenantId`, so no policy applies.
+
+**Why this is not fixed in the same change.** The obvious repair is to extend the client-level
+`query` hook to cover the raw operations too. That is a blast-radius-of-everything edit, and
+one call site already shows why it needs care: `app/api/booking-links/route.ts:136` issues
+`pg_advisory_xact_lock` on a transaction client, inside an interactive transaction. A wrapper
+that opened its own transaction to set the GUC would take that lock in a different transaction
+and drop it immediately — silently re-opening the duplicate-default-link race the comment above
+it records as measured at seven rounds in eight. So the fix has to distinguish a raw call
+already inside a transaction from one that is not, which Prisma extensions do not report
+directly.
+
+Recorded, not decided. It is R3 by the risk table — data integrity plus authorization — and
+wants independent verification.
+
+### `npm run verify:rls-app-paths`
+
+`verify:rls` asks whether the policies keep tenant A out of tenant B's rows. It sets the tenant
+GUC itself in every statement, so every statement it issues arrives *with* a context — which is
+exactly the case the application cannot be relied on to produce. It could never have caught
+Finding 3 or Finding 4.
+
+The new script asks the complementary question: does the **application** still work when the
+database is enforcing? It creates a throwaway database, applies the schema and `rls.sql`,
+creates a `NOSUPERUSER` role, seeds a shared report, and then runs the real exported functions
+in a child process holding the unprivileged DSN with `DB_RLS_ENFORCED=true` and
+`NODE_ENV=production`. The child process is not ceremony: both modules read their configuration
+at import time, and `NODE_ENV` short of `production` sets `isLocalOrScript`, whose blanket
+bypass would make the whole comparison vacuous.
+
+**It exits 1 today.** Three probes pass, one fails, and the failure is Finding 4. That is the
+honest state, so it is deliberately not wired into CI — a permanently-red required check trains
+people to ignore checks. It is the gate on *enablement*: `DB_RLS_ENFORCED` must not be set in
+any environment until this reaches 0.
 
 **Dependency graph** was enabled on the repository on 2026-08-08, so `Dependency review`
 should now report properly instead of "not supported on this repository".

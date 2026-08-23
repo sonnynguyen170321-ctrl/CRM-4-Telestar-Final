@@ -82,6 +82,8 @@ domains:
       - lib/seed-guard.ts
       - supabase/**
       - scripts/verify-rls.mjs
+      - scripts/verify-rls-app-paths.mjs
+      - scripts/verify-rls-app-paths.probe.ts
       - scripts/verify-db-integrity.ts
       - scripts/demo-seed.ts
       - prisma/seed-demo.ts
