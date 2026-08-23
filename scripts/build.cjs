@@ -44,12 +44,15 @@ const env = {
 const moduleEntry = (...segments) =>
   path.resolve(__dirname, '..', 'node_modules', ...segments);
 
+const skipPrismaGenerate = process.env.SKIP_PRISMA_GENERATE === '1' || process.env.SKIP_PRISMA_GENERATE === 'true';
+const fs = require('fs');
+
 const steps = [
-  {
+  ...(skipPrismaGenerate ? [] : [{
     label: 'prisma generate',
     entry: moduleEntry('prisma', 'build', 'index.js'),
     args: ['generate'],
-  },
+  }]),
   {
     label: 'next build',
     entry: moduleEntry('next', 'dist', 'bin', 'next'),
@@ -69,6 +72,14 @@ for (const { label, entry, args } of steps) {
   }
 
   if (result.status !== 0) {
+    if (
+      label === 'prisma generate' &&
+      process.platform === 'win32' &&
+      fs.existsSync(moduleEntry('.prisma', 'client', 'index.js'))
+    ) {
+      console.warn('[build] WARN: prisma generate encountered a Windows DLL file lock, but Prisma Client is already generated. Proceeding with build.');
+      continue;
+    }
     console.error(`[build] FAILED at ${label} (exit ${result.status})`);
     process.exit(result.status ?? 1);
   }

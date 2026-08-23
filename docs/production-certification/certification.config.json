@@ -3,9 +3,13 @@
   "schemaVersion": 1,
   "program": "Telestar CRM Production Certification",
   "releaseTag": "telestar-internal-rc-2026-08-22",
-  "candidateSha": "e968ce7b585fb6afaa64c8aae7ee24d1ba013dd6",
-  "candidateFrozenAt": "2026-08-22T10:03:06.133Z",
+  "candidateSha": "ab99e9b12ff670cc30b3b4ad06141c404d5c0b6a",
+  "candidateFrozenAt": "2026-08-23T07:47:00.000Z",
   "previousCandidates": [
+    {
+      "sha": "e968ce7b585fb6afaa64c8aae7ee24d1ba013dd6",
+      "invalidatedReason": "superseded: PR #106, #107, #108 integrated all RLS, raw SQL tenant context, Cloud SQL PITR posture, and platform portability fixes into main (ab99e9b)."
+    },
     {
       "sha": "9fa36d3bcac6532f0c6f07af9045825a9d97844f",
       "invalidatedReason": "superseded: check N found three commits after the freeze touching non-certification files — the gate-22 fix (60ca2e4), the doctor truthfulness fixes (d7dad04, TEL-P2-028) and the domain classification those needed (71fbad0). 9fa36d3 is still the commit serving traffic at the time of this freeze; e968ce7 is the merge commit CI built and published an image for, and is the commit to deploy."
