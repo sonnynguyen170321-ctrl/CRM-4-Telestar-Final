@@ -18,6 +18,7 @@ import path from 'node:path';
 import { CONFIG_PATH, EVIDENCE_DIR, RAW_DIR } from './lib/paths.mjs';
 import { runCommand } from './lib/exec.mjs';
 import { RPO_OUTCOME, probeRpo } from './lib/rpoProbe.mjs';
+import { containerRuntime } from './lib/imageGates.mjs';
 
 const SQL_INSTANCE = process.env.DEPLOY_SQL_INSTANCE || 'telestar-crm-db';
 const SQL_PROJECT = process.env.DEPLOY_SQL_PROJECT || 'telestar-crm-final';
@@ -25,28 +26,72 @@ const SQL_PROJECT = process.env.DEPLOY_SQL_PROJECT || 'telestar-crm-final';
 const shell = runCommand;
 
 /**
- * Still genuinely not executable here. A rollback drill needs two immutable digests and a
- * runtime to swap between them; there is no honest way to synthesise one.
+ * A blocker must be observed, never asserted.
+ *
+ * `EV-DR-ROLLBACK` was a constant here declaring "docker is not installed on this machine".
+ * True when written, false by 2026-08-23 — docker 29.7.2 builds the candidate image in gates 19
+ * and 20 of every ladder run. A constant cannot notice it has expired, so the record went on
+ * reporting a blocker that no longer existed.
+ *
+ * That is the same defect `probeRpo` was added to fix for gcloud, in the sibling record of this
+ * same file. Fixing one constant and leaving the other is precisely why this one went stale
+ * unnoticed: a partial fix to a class of defect leaves the unfixed half looking maintained.
+ *
+ * So this asks `containerRuntime` — the probe gates 19 and 20 already use — rather than keeping
+ * a second, staler opinion about the same machine.
  */
-const BLOCKED = [
-  {
-    evidenceId: 'EV-DR-ROLLBACK',
-    kind: 'dr-rollback',
-    command: '(not executed) rollback between two immutable image digests',
-    status: 'NOT_EXECUTED',
-    exitCode: 127,
-    environment: 'certification workstation - no container runtime installed',
-    metrics: {
-      reason:
-        'docker is not installed on this machine, so no image has been built and no digest exists to roll between.',
-      rollbackSeconds: null,
-      priorPublishedValueWithdrawn: '38 seconds - never measured',
-      defect: 'TEL-P1-018',
-      closesWhen:
-        'a controlled rollback records candidate digest, previous digest, command, start, finish, web health, worker health, schema compatibility, and redeployment of the candidate',
+function buildBlockedRecords(shell) {
+  const runtime = containerRuntime(shell);
+  const reason = runtime
+    ? `a container runtime is available (${runtime.command} ${runtime.version}), so this is not ` +
+      'blocked on tooling. The drill has simply not been run against the frozen candidate: run ' +
+      'scripts/certification/dr-rollback-drill.mjs on the deployment host, passing both ' +
+      '--candidate-digest and --previous-digest explicitly.'
+    : 'no container runtime answers on this machine (docker/podman), so no image can be built ' +
+      'and no digest exists to roll between.';
+
+  return [
+    {
+      evidenceId: 'EV-DR-ROLLBACK',
+      kind: 'dr-rollback',
+      command: '(not executed) rollback between two immutable image digests',
+      status: 'NOT_EXECUTED',
+      exitCode: 127,
+      environment: runtime
+        ? `certification workstation - ${runtime.command} ${runtime.version}`
+        : 'certification workstation - no container runtime installed',
+      metrics: {
+        reason,
+        rollbackSeconds: null,
+        priorPublishedValueWithdrawn: '38 seconds - never measured',
+        defect: 'TEL-P1-018',
+        closesWhen:
+          'a controlled rollback records candidate digest, previous digest, command, start, finish, web health, worker health, schema compatibility, and redeployment of the candidate',
+      },
     },
-  },
-];
+  ];
+}
+
+/**
+ * Refuse to overwrite a record that was actually executed.
+ *
+ * Every record written from here states that something did NOT happen. If a real run already
+ * produced one, replacing it destroys the only proof of that run and substitutes a claim that is
+ * false. `EV-DR-ROLLBACK` on disk carried a genuine PASS — real candidate and previous digests,
+ * rollbackSeconds 35.39, restoreSeconds 25.79 — and re-running this script would have replaced it
+ * with exitCode 127 and "no container runtime installed".
+ *
+ * A blocked record is an upgrade over nothing. It is never an upgrade over evidence.
+ */
+function executedRecordAt(filePath) {
+  let existing;
+  try {
+    existing = JSON.parse(readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+  return existing.status === 'PASS' || existing.status === 'FAIL' ? existing : null;
+}
 
 function main() {
   const config = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
@@ -58,7 +103,19 @@ function main() {
   mkdirSync(EVIDENCE_DIR, { recursive: true });
   const now = new Date().toISOString();
 
-  for (const entry of BLOCKED) {
+  let refused = 0;
+  for (const entry of buildBlockedRecords(shell)) {
+    const target = path.join(EVIDENCE_DIR, `${entry.evidenceId}.json`);
+    const real = executedRecordAt(target);
+    if (real) {
+      refused += 1;
+      console.error(
+        `${entry.evidenceId}: REFUSING to overwrite — on disk is ${real.status} for candidate ` +
+          `${String(real.candidateSha).slice(0, 7)}. Writing NOT_EXECUTED here would destroy real ` +
+          'evidence and replace it with a false statement. Re-run the drill instead.',
+      );
+      continue;
+    }
     const record = {
       evidenceId: entry.evidenceId,
       kind: entry.kind,
@@ -72,14 +129,18 @@ function main() {
       metrics: entry.metrics,
       artifacts: [],
     };
-    writeFileSync(
-      path.join(EVIDENCE_DIR, `${entry.evidenceId}.json`),
-      `${JSON.stringify(record, null, 2)}\n`,
-    );
+    writeFileSync(target, `${JSON.stringify(record, null, 2)}
+`);
     console.log(`${entry.evidenceId}: ${entry.status} — ${entry.metrics.reason}`);
   }
 
   writeRpoEvidence(config.candidateSha, now);
+
+  if (refused > 0) {
+    console.error(`
+${refused} record(s) left untouched because real evidence already exists.`);
+    process.exitCode = 3;
+  }
 }
 
 /**

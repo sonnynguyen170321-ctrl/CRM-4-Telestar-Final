@@ -458,7 +458,26 @@ async function main() {
     process.exit(2);
   }
 
-  const runLabel = `run${runNumber}`;
+  /**
+   * The candidate belongs in the artifact path, not just in the record that points at it.
+   *
+   * Raw gate logs were named by run ORDINAL alone — run1-03-typecheck.log — so every ladder
+   * execution overwrote the previous one's files at the same paths. The superseded EV-RUN-N
+   * still declares sha256 hashes for those paths, so from the moment a new run starts until it
+   * writes its own record, check G/H reports mismatches for the whole previous run. The bytes
+   * really did change; nothing was tampered with; the artifacts were legitimately replaced by a
+   * different run that happened to reuse the filename.
+   *
+   * Both of us misread that signal tonight — 17 findings once, 5 another time — and filed it as
+   * "measuring during a write". The write was only half of it: the other half is that the
+   * destination was shared. A check whose failures are routinely explained away stops being a
+   * check, so the fix is to stop generating the false ones rather than to learn to ignore them.
+   *
+   * With the candidate in the name, a superseded record keeps pointing at the exact bytes it
+   * hashed, and a G/H mismatch means what it claims again. Nothing parses these filenames —
+   * verified across scripts/certification and tests — so the only effect is the path.
+   */
+  const runLabel = `run${runNumber}-${candidateSha.slice(0, 7)}`;
   const startedAt = new Date();
   const gateResults = [];
 

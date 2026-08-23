@@ -235,8 +235,54 @@ function runPhase({ name, label, digest }) {
   return phase;
 }
 
-const candidateDigest = arg('candidate-digest') ?? `${repo}:${candidateSha}`;
-const previousDigest = arg('previous-digest') ?? `${repo}:${previousSha}`;
+/**
+ * Both digests must be content-addressed, and this tool will not invent one.
+ *
+ * These defaulted to `${repo}:${sha}` — a TAG. `scripts/rollback.sh:36` accepts either
+ * `@sha256:<64>` or `:<40-char sha>`, so the fallback sailed through the guard written to
+ * prevent exactly this and recorded a mutable reference as the release identity. A tag can be
+ * repointed; a digest cannot. REL-001 and the release-identity invariant both require the
+ * immutable form, and a rollback target that can move is not a rollback target.
+ *
+ * A guard that accepts two forms will be fed the weaker one by any default that does not think
+ * about it. The mitigation until now was "remember to pass two flags by hand" — a runbook line,
+ * relied upon during the single production action of the whole programme, performed at a console
+ * during an incident, with nothing watching the argv. That is the mitigation this codebase has
+ * been burned by repeatedly, so the tool now refuses instead of assuming.
+ *
+ * Digests are recoverable without a registry call: EV-RELEASE-IDENTITY carries imageDigest for
+ * the deployed release, and EV-DR-ROLLBACK carries candidateDigest and previousDigest for the
+ * last drill. Two independent writers agreeing on a value is better provenance than a lookup.
+ */
+function requireContentAddressed(flag, value, sha) {
+  if (!value) {
+    console.error(`${flag} is required — this drill will not synthesise an image reference.`);
+    console.error(`  No default is applied for ${sha.slice(0, 7)}: the old fallback was`);
+    console.error(`  ${repo}:<sha>, a tag, which rollback.sh accepts and which can be repointed.`);
+    console.error('  Recover the digest from EV-RELEASE-IDENTITY (imageDigest) or EV-DR-ROLLBACK');
+    console.error('  (candidateDigest / previousDigest), then pass it explicitly.');
+    process.exit(2);
+  }
+  if (!/@sha256:[0-9a-f]{64}$/.test(value)) {
+    console.error(`${flag} must be content-addressed, ending @sha256:<64 hex>.`);
+    console.error(`  got: ${value}`);
+    console.error('  A tag can be repointed after the drill records it, so the evidence would');
+    console.error('  attest to an artifact that no longer exists at that reference.');
+    process.exit(2);
+  }
+  return value;
+}
+
+const candidateDigest = requireContentAddressed(
+  '--candidate-digest',
+  arg('candidate-digest'),
+  candidateSha,
+);
+const previousDigest = requireContentAddressed(
+  '--previous-digest',
+  arg('previous-digest'),
+  previousSha,
+);
 
 const command = `node scripts/certification/dr-rollback-drill.mjs --candidate ${candidateSha} --previous ${previousSha}`;
 const startedAt = new Date().toISOString();
