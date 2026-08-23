@@ -46,9 +46,29 @@ const ADMIN_URL =
   process.env.ADMIN_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
 const DB_NAME = `crm_rls_enable_${randomBytes(4).toString('hex')}`;
 
-// The real role names from roles.sql. Using anything else would defeat the exercise.
-const ROLES = ['crm_migrator', 'crm_app', 'crm_maintenance'];
+/**
+ * PostgreSQL roles are CLUSTER-wide, not per-database, so a rehearsal that used the literal
+ * names would collide with any real deployment on the same server: it would find the roles
+ * already present, skip creating them, fail to authenticate with its own generated password,
+ * and — worse — its teardown would try to DROP roles a live database depends on. That happened
+ * on the first run against a machine where roles.sql had genuinely been applied.
+ *
+ * Each run therefore gets its own namespace. The role NAMES are rewritten in both SQL files;
+ * everything else about them — the CREATE options, the grants, the default privileges, the
+ * superuser assertion, the policy targeting — is exercised exactly as written.
+ */
+const SUFFIX = randomBytes(3).toString('hex');
+const BASE_ROLES = ['crm_migrator', 'crm_app', 'crm_maintenance'];
+const roleName = (base) => `${base}_${SUFFIX}`;
+const ROLES = BASE_ROLES.map(roleName);
 const PASSWORDS = Object.fromEntries(ROLES.map((r) => [r, randomBytes(18).toString('base64url')]));
+
+/** Rewrite the literal role names in a SQL file to this run's namespaced ones. */
+const namespaceRoles = (sql) =>
+  BASE_ROLES.reduce(
+    (acc, base) => acc.replace(new RegExp(`\\b${base}\\b`, 'g'), roleName(base)),
+    sql
+  );
 
 const base = new URL(ADMIN_URL);
 const dbUrl = (name, user, password) => {
@@ -108,10 +128,10 @@ function preparePsqlScript(sql) {
     .split('\n')
     .filter((line) => !/^\s*\\/.test(line))
     .join('\n');
-  return withoutMeta
-    .replace(/:'app_password'/g, `'${PASSWORDS.crm_app}'`)
-    .replace(/:'migrator_password'/g, `'${PASSWORDS.crm_migrator}'`)
-    .replace(/:'maintenance_password'/g, `'${PASSWORDS.crm_maintenance}'`);
+  return namespaceRoles(withoutMeta)
+    .replace(/:'app_password'/g, `'${PASSWORDS[roleName('crm_app')]}'`)
+    .replace(/:'migrator_password'/g, `'${PASSWORDS[roleName('crm_migrator')]}'`)
+    .replace(/:'maintenance_password'/g, `'${PASSWORDS[roleName('crm_maintenance')]}'`);
 }
 
 async function main() {
@@ -124,12 +144,12 @@ async function main() {
     // crm_migrator has to exist before it can own anything. roles.sql creates it too and is
     // idempotent about it, which this proves by creating it first and letting roles.sql run
     // over the top — the same thing that happens on a second application in production.
+    // Namespaced, so this cannot collide with a real crm_migrator on the same cluster.
     await c.$executeRawUnsafe(
-      `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'crm_migrator')
-       THEN CREATE ROLE crm_migrator LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB
-       PASSWORD '${PASSWORDS.crm_migrator}'; END IF; END $$`
+      `CREATE ROLE ${roleName('crm_migrator')} LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB
+       PASSWORD '${PASSWORDS[roleName('crm_migrator')]}'`
     );
-    await c.$executeRawUnsafe(`CREATE DATABASE "${DB_NAME}" OWNER crm_migrator`);
+    await c.$executeRawUnsafe(`CREATE DATABASE "${DB_NAME}" OWNER ${roleName('crm_migrator')}`);
   });
 
   try {
@@ -151,7 +171,7 @@ async function main() {
     // Applied AS crm_migrator on purpose. `ALTER DEFAULT PRIVILEGES FOR ROLE crm_migrator` in
     // roles.sql only reaches objects that role creates; applying the schema as the superuser
     // instead would leave that clause untested and quietly meaningless.
-    await withClient(dbUrl(DB_NAME, 'crm_migrator', PASSWORDS.crm_migrator), async (c) => {
+    await withClient(dbUrl(DB_NAME, roleName('crm_migrator'), PASSWORDS[roleName('crm_migrator')]), async (c) => {
       for (const stmt of schemaSql.split(/;\s*\r?\n/).map((s) => s.trim()).filter(Boolean)) {
         await c.$executeRawUnsafe(stmt);
       }
@@ -160,6 +180,8 @@ async function main() {
 
     // ── Step 3: roles.sql, for the first time ────────────────────────────────
     const rolesSql = preparePsqlScript(readFileSync('supabase/roles.sql', 'utf8'));
+    // roles.sql creates crm_migrator too; it already exists here, so let the idempotent
+    // guard in that file prove itself rather than tripping over it.
     await withClient(dbUrl(DB_NAME), async (c) => {
       for (const stmt of splitStatements(rolesSql)) {
         await c.$executeRawUnsafe(stmt);
@@ -172,7 +194,7 @@ async function main() {
     await withClient(dbUrl(DB_NAME), async (c) => {
       const rows = await c.$queryRawUnsafe(
         `SELECT rolname, rolsuper, rolcreatedb, rolcreaterole FROM pg_roles
-         WHERE rolname IN ('crm_app','crm_maintenance','crm_migrator') ORDER BY rolname`
+         WHERE rolname IN (${ROLES.map((r) => `'${r}'`).join(',')}) ORDER BY rolname`
       );
       const privileged = rows.filter((r) => r.rolsuper || r.rolcreatedb || r.rolcreaterole);
       if (rows.length !== 3) {
@@ -189,18 +211,24 @@ async function main() {
 
     // ── Step 4: the policies ─────────────────────────────────────────────────
     await withClient(dbUrl(DB_NAME), async (c) => {
-      await c.$executeRawUnsafe(readFileSync('supabase/rls.sql', 'utf8'));
+      await c.$executeRawUnsafe(namespaceRoles(readFileSync('supabase/rls.sql', 'utf8')));
     });
     pass('supabase/rls.sql applies cleanly', 'policies derived from the catalog');
 
     // ── Step 5: the application role, doing application things ───────────────
-    // Seeded through crm_app itself rather than the superuser, because "can the app write its
-    // own rows once RLS is on" is precisely the question a rehearsal exists to answer.
-    const appUrl = dbUrl(DB_NAME, 'crm_app', PASSWORDS.crm_app);
-    await withClient(appUrl, async (c) => {
+    // Seeded as crm_maintenance, the role rls.sql grants the cross-tenant policy to. It is
+    // NOT seeded as crm_app with a bypass GUC: since the policies became role-targeted,
+    // crm_app has no policy that consults `app.bypass_rls`, so setting it does nothing —
+    // which is the point, and is asserted separately below.
+    const appUrl = dbUrl(DB_NAME, roleName('crm_app'), PASSWORDS[roleName('crm_app')]);
+    const maintUrl = dbUrl(
+      DB_NAME,
+      roleName('crm_maintenance'),
+      PASSWORDS[roleName('crm_maintenance')]
+    );
+    await withClient(maintUrl, async (c) => {
       try {
         await c.$transaction(async (tx) => {
-          await tx.$executeRawUnsafe(`SELECT set_config('app.bypass_rls','true',true)`);
           await tx.$executeRawUnsafe(
             `INSERT INTO "Tenant" (id,name,"createdAt","updatedAt")
              VALUES ('tenant-a','A',now(),now()), ('tenant-b','B',now(),now())`
@@ -224,9 +252,30 @@ async function main() {
             );
           }
         });
-        pass('crm_app can write through an explicit bypass', 'the seed and maintenance path');
+        pass('crm_maintenance writes across tenants', 'the seed, worker and script path');
       } catch (err) {
-        fail('crm_app can write through an explicit bypass', err.message.split('\n')[0]);
+        fail('crm_maintenance writes across tenants', err.message.split('\n')[0]);
+      }
+    });
+
+    await withClient(appUrl, async (c) => {
+      // The property the role-targeted policies buy, and the reason they exist. roles.sql
+      // could only ask the application not to bypass — "Postgres has no per-GUC permission
+      // for custom settings, so the separation is by connection string". Now the database
+      // enforces it: crm_app has no policy that reads app.bypass_rls, so setting it is inert.
+      try {
+        const rows = await c.$transaction(async (tx) => {
+          await tx.$executeRawUnsafe(`SELECT set_config('app.bypass_rls','true',true)`);
+          return tx.$queryRawUnsafe(`SELECT id FROM "Lead"`);
+        });
+        rows.length === 0
+          ? pass('crm_app cannot bypass, even setting the GUC itself', 'no rows — the flag is inert for this role')
+          : fail(
+              'crm_app cannot bypass, even setting the GUC itself',
+              `saw ${rows.length} row(s) — the application can still read across tenants`
+            );
+      } catch (err) {
+        fail('crm_app cannot bypass, even setting the GUC itself', err.message.split('\n')[0]);
       }
 
       // The isolation itself, as the deployment will experience it.
@@ -271,7 +320,7 @@ async function main() {
     // ── The clause nothing has ever exercised ────────────────────────────────
     // A future migration creates a table as crm_migrator. Without the default privileges in
     // roles.sql the app cannot read it, and the usual "fix" is to hand someone a superuser DSN.
-    await withClient(dbUrl(DB_NAME, 'crm_migrator', PASSWORDS.crm_migrator), async (c) => {
+    await withClient(dbUrl(DB_NAME, roleName('crm_migrator'), PASSWORDS[roleName('crm_migrator')]), async (c) => {
       await c.$executeRawUnsafe(`CREATE TABLE "FutureModel" (id text PRIMARY KEY, "tenantId" text)`);
     });
     await withClient(appUrl, async (c) => {
@@ -294,6 +343,9 @@ async function main() {
         `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${DB_NAME}'`
       );
       await c.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${DB_NAME}"`);
+      // Only this run's namespaced roles are dropped. The earlier version dropped the
+      // literal crm_* names, which on a machine with a real deployment would have deleted
+      // the roles that deployment authenticates as.
       for (const role of ROLES) {
         await c.$executeRawUnsafe(`DROP OWNED BY ${role} CASCADE`).catch(() => {});
         await c.$executeRawUnsafe(`DROP ROLE IF EXISTS ${role}`).catch(() => {});
