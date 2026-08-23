@@ -61,7 +61,15 @@ function createPrismaClient() {
   // Supabase). Prisma keeps the pool warm, so there is no per-request cold-start latency.
   // Workers prefer DIRECT_URL (an unpooled connection) for multi-step transactional work.
   const isWorker = process.env.IS_WORKER === 'true';
-  const connectionString = isWorker ? (process.env.DIRECT_URL || process.env.DATABASE_URL) : process.env.DATABASE_URL;
+  // A worker is cross-tenant by nature: it resolves a JobRun before it knows the tenant, and
+  // sweeps expired rows across all of them. Since `supabase/rls.sql` made the policies
+  // role-targeted, `app.bypass_rls` grants the application role nothing, so a worker on the
+  // ordinary DSN would read zero rows — silently. When a maintenance DSN is configured it
+  // connects as that role instead, which is the one holding the cross-tenant policy.
+  // Unset, this is exactly the previous behaviour.
+  const connectionString = isWorker
+    ? (process.env.CRM_MAINTENANCE_URL || process.env.DIRECT_URL || process.env.DATABASE_URL)
+    : process.env.DATABASE_URL;
 
   const log: Prisma.LogLevel[] = process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'];
 
@@ -252,10 +260,35 @@ export async function withTenantRaw<T>(
  */
 export async function withBypassRaw<T>(run: (db: PrismaClient) => Promise<T>): Promise<T> {
   if (!DB_RLS_ENFORCED) return run(basePrisma as PrismaClient);
+
+  // Prefer the maintenance role. `rls.sql` grants the cross-tenant policy to it by name, and
+  // grants the application role no policy that consults `app.bypass_rls` — so on a database
+  // with role-targeted policies the GUC below is inert and this would quietly touch nothing.
+  const maintenance = maintenanceClient();
+  if (maintenance) return run(maintenance);
+
   return (basePrisma as PrismaClient).$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('app.bypass_rls', 'true', true)`;
     return run(tx as unknown as PrismaClient);
   });
+}
+
+/**
+ * A connection as `crm_maintenance`, the role `supabase/rls.sql` grants the cross-tenant
+ * policy to. Returns null when none is configured, which is every deployment that has not
+ * enabled DB-level RLS — callers then keep their previous behaviour.
+ *
+ * Lazily created and cached: most processes never touch it, and one extra pool per process is
+ * the cost of having it at all. Deliberately NOT the client `prisma` is built on — the whole
+ * point is that ordinary request traffic cannot reach across tenants, so the privileged
+ * connection has to be a separate object that a caller opts into by name.
+ */
+let cachedMaintenance: PrismaClient | null | undefined;
+function maintenanceClient(): PrismaClient | null {
+  if (cachedMaintenance !== undefined) return cachedMaintenance;
+  const url = process.env.CRM_MAINTENANCE_URL;
+  cachedMaintenance = url ? new PrismaClient({ datasources: { db: { url } } }) : null;
+  return cachedMaintenance;
 }
 
 /**
@@ -264,6 +297,17 @@ export async function withBypassRaw<T>(run: (db: PrismaClient) => Promise<T>): P
  * inside a raw transaction with app.bypass_rls=true.
  */
 export async function resolveWorkerJobTenant(jobRunId: string): Promise<string | null> {
+  // This runs before the tenant is known, so it is cross-tenant by definition. On a
+  // role-targeted database the GUC grants the application role nothing; the maintenance
+  // connection is what can actually see the row.
+  const maintenance = maintenanceClient();
+  if (maintenance) {
+    const rows = await maintenance.$queryRaw<Array<{ tenantId: string }>>`
+      SELECT "tenantId" FROM "JobRun" WHERE "id" = ${jobRunId} LIMIT 1
+    `;
+    return rows[0]?.tenantId ?? null;
+  }
+
   return (basePrisma as PrismaClient).$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('app.bypass_rls', 'true', true)`;
     const rows = await tx.$queryRaw<Array<{ tenantId: string }>>`

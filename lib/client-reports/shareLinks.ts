@@ -30,7 +30,11 @@ import { ClientReportSnapshot } from './types';
  * then see is still decided by `toClientSafeSnapshot`. The client is module-scoped so the
  * process opens one extra pool, not one per request.
  */
-const publicShareDb = new PrismaClient();
+const publicShareDb = new PrismaClient(
+  process.env.CRM_MAINTENANCE_URL
+    ? { datasources: { db: { url: process.env.CRM_MAINTENANCE_URL } } }
+    : {}
+);
 
 /**
  * Whether PostgreSQL itself is enforcing tenant isolation, mirroring `lib/prisma.ts`.
@@ -60,6 +64,12 @@ const DB_RLS_ENFORCED = process.env.DB_RLS_ENFORCED === 'true';
  * cannot leak into anything else on this pool. When RLS is not enforced the transaction is
  * skipped entirely, so the ordinary deployment pays nothing.
  *
+ * On a database whose policies are role-targeted — see the note in `supabase/rls.sql` — the GUC
+ * grants the application role nothing, and the client above connects as `crm_maintenance`
+ * instead. The transaction is then pure overhead, so it is skipped: the role already carries
+ * the cross-tenant policy. This is the one route in the product that legitimately needs it,
+ * because the endpoint answers with no session and therefore no tenant to scope to.
+ *
  * Interactive rather than the array form deliberately: the array form takes *unexecuted*
  * PrismaPromises, so a callback passed to it would have already started its query outside the
  * transaction — where the GUC does not apply, and the bypass would silently do nothing.
@@ -68,6 +78,8 @@ async function withPublicShareBypass<T>(
   run: (db: Pick<PrismaClient, 'clientReportShareLink'>) => Promise<T>
 ): Promise<T> {
   if (!DB_RLS_ENFORCED) return run(publicShareDb);
+  // Connected as the maintenance role: the policy is already granted, no GUC required.
+  if (process.env.CRM_MAINTENANCE_URL) return run(publicShareDb);
   return publicShareDb.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('app.bypass_rls', 'true', true)`;
     return run(tx as unknown as Pick<PrismaClient, 'clientReportShareLink'>);
