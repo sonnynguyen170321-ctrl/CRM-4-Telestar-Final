@@ -4,14 +4,14 @@
   "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe scripts/certification/validator-selftest.mjs",
-  "startedAt": "2026-08-23T19:09:38.831Z",
-  "finishedAt": "2026-08-23T19:09:42.621Z",
+  "startedAt": "2026-08-23T19:27:33.359Z",
+  "finishedAt": "2026-08-23T19:27:35.925Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {},
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/run1-d5d7cf8-23-validator-selftest.log",
+      "path": "docs/production-certification/evidence/raw/run2-d5d7cf8-23-validator-selftest.log",
       "sizeBytes": 1760,
       "sha256": "d9c1458150e71773d926241672664eb5d594474bf14d467e8ca35a83dee8ff72"
     }
