@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { checkRlsContract } from '@/lib/env-contract';
 
 /**
@@ -16,6 +18,48 @@ import { checkRlsContract } from '@/lib/env-contract';
  * expensive to find — the previous three were each found by measuring, not by a failing test.
  * So the fourth is a startup check instead of a line in a runbook.
  */
+/**
+ * The contract is stated twice, and that is not an accident to be tidied away.
+ *
+ * `checkRlsContract` is enforced at the top of `lib/prisma.ts`, which covers the application
+ * and anything running under tsx. It cannot cover `lib/db/adminClient.mjs`, whose callers —
+ * `prod-certify.mjs`, `canary-live-drill.mjs`, `diagnose-import.mjs`,
+ * `certification/probe-environment.mjs` — run under plain node and cannot import a TypeScript
+ * module. So the rule is restated there in JavaScript.
+ *
+ * Two statements of one rule drift. This pins them together: if either side stops keying on
+ * DB_RLS_ENFORCED === 'true' and the presence of CRM_MAINTENANCE_URL, this fails.
+ */
+describe('the contract is enforced at both entry points', () => {
+  // Comment-stripped. The guard's own docblock in adminClient.mjs quotes DB_RLS_ENFORCED,
+  // CRM_MAINTENANCE_URL and "zero rows" while explaining what it prevents, so a test matching
+  // raw source would pass even if the guard itself were deleted — an anti-hollow-green test
+  // that was hollow. Caught in review before it ever landed, which is the third instance of
+  // this exact shape tonight.
+  const adminClient = readFileSync(join(process.cwd(), 'lib', 'db', 'adminClient.mjs'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+
+  it('adminClient.mjs refuses to build a client when the contract is broken', () => {
+    // A silent zero-row client is the failure this whole line of work keeps producing. The
+    // tooling entry point has to throw, not degrade.
+    expect(adminClient).toMatch(/DB_RLS_ENFORCED/);
+    expect(adminClient).toMatch(/CRM_MAINTENANCE_URL/);
+    expect(adminClient).toMatch(/throw new Error/);
+  });
+
+  it('keys on the same two conditions as checkRlsContract', () => {
+    // Same trigger on both sides: enforcement on, maintenance connection absent.
+    expect(adminClient).toMatch(/DB_RLS_ENFORCED\s*\|\|\s*''\)\s*\)?\.trim\(\)\.toLowerCase\(\) === 'true'/);
+    expect(adminClient).toMatch(/Boolean\(\(process\.env\.CRM_MAINTENANCE_URL \|\| ''\)\.trim\(\)\)/);
+    expect(adminClient).toMatch(/enforced && !maintenanceConfigured/);
+  });
+
+  it('says what breaks, because the symptom it prevents is silence', () => {
+    expect(adminClient).toMatch(/zero rows/i);
+  });
+});
+
 describe('the RLS enablement contract', () => {
   it('is satisfied when RLS is not enforced — every deployment today', () => {
     // The check must be completely inert until someone turns RLS on, or it becomes a startup

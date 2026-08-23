@@ -19,6 +19,15 @@ function finding(check, message, extra = {}) {
   return { check, message, severity: 'FAIL', ...extra };
 }
 
+/** Evidence records, which declare their candidate in a field rather than in prose. */
+function evidenceRecordFiles(scope = defaultScope()) {
+  const dir = path.join(scope.certDir, 'evidence');
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((file) => file.endsWith('.json'))
+    .map((file) => path.join(dir, file));
+}
+
 /**
  * Scope of a validation pass. Tests point this at a fixture tree; the real run
  * points it at the repository. Nothing else about the checks changes.
@@ -45,7 +54,30 @@ function certDocs(scope = defaultScope()) {
 
 const SHA40_RE = /\b[0-9a-f]{40}\b/g;
 
-/** A: every SHA-declaring file must agree with the configured candidate SHA. */
+/**
+ * A: every SHA-declaring file must agree with the configured candidate SHA.
+ *
+ * Two populations declare a SHA, and for a long time this checked only the first.
+ *
+ * `config.shaDeclaringFiles` names five prose documents, scanned for any 40-character hex
+ * string. The evidence records under `evidence/` each carry a `candidateSha` field, and there
+ * are around twenty of them — the larger population by far, and the one that actually decides
+ * whether a verdict describes the frozen candidate.
+ *
+ * Most evidence was covered by accident rather than by this check: `resolveRequirements` filters
+ * `record.candidateSha === candidateSha`, so a record left at an older commit fails whatever
+ * requirement claims its `kind`. That is real coverage, but it is not this check, and it has a
+ * gap — an evidence kind no requirement claims is filtered by nothing. `dr-negative-control` was
+ * exactly that: `EV-DR-NEGATIVE-CONTROL.json` sat at `daa8ffb` while the candidate was
+ * `fa3a54b`, and no check in the ladder had an opinion. A negative control is the artifact that
+ * proves the restore drill is capable of failing, so a stale one silently weakens every DR
+ * verdict that leans on it.
+ *
+ * Scanning both populations here means the check does what it is named for, and a record whose
+ * kind nothing claims is no longer invisible. Overlap with `resolveRequirements` on the claimed
+ * kinds is deliberate: two independent checks agreeing costs a duplicate line in the report and
+ * buys a defect that has to defeat both to survive.
+ */
 export function checkCandidateShaAgreement(config, scope = defaultScope()) {
   const findings = [];
   const candidate = config.candidateSha;
@@ -75,6 +107,29 @@ export function checkCandidateShaAgreement(config, scope = defaultScope()) {
       }
     }
   }
+
+  for (const abs of evidenceRecordFiles(scope)) {
+    const relative = relativeTo(scope, abs);
+    let record;
+    try {
+      record = JSON.parse(readFileSync(abs, 'utf8'));
+    } catch {
+      // Shape and parseability are lib/evidence.mjs's job; reporting it twice helps nobody.
+      continue;
+    }
+    const sha = record?.candidateSha;
+    if (typeof sha !== 'string' || sha.length === 0) continue;
+    if (!known.has(sha)) {
+      findings.push(finding('A', `${relative} declares unknown SHA ${sha.slice(0, 7)}`));
+      continue;
+    }
+    if (candidate && sha !== candidate) {
+      findings.push(
+        finding('A', `${relative} carries evidence for non-candidate SHA ${sha.slice(0, 7)} (candidate is ${candidate.slice(0, 7)})`),
+      );
+    }
+  }
+
   return findings;
 }
 

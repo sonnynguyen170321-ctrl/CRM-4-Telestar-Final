@@ -15,7 +15,7 @@
  *
  * Exits non-zero if any injected fault goes undetected.
  */
-import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -57,6 +57,22 @@ function expectRed(name, findings, detail) {
   console.log(`  [${detected ? 'RED ' : 'MISS'}] ${name}`);
 }
 
+/**
+ * The other half of a control. `expectRed` alone cannot distinguish a check that caught the
+ * injected fault from a check that was already unhappy about something else in the sandbox —
+ * and the sandbox is a copy of the real tree, so it is rarely pristine. Asserting the clean
+ * case is silent first makes the red that follows attributable to the injection.
+ */
+function expectGreen(name, findings, detail) {
+  const clean = Array.isArray(findings) ? findings.length === 0 : !findings;
+  results.push({
+    name,
+    detected: clean,
+    detail: clean ? '' : `${detail}: ${JSON.stringify(findings)}`,
+  });
+  console.log(`  [${clean ? 'CLEAN' : 'NOISY'}] ${name}`);
+}
+
 function main() {
   const config = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
   const registry = JSON.parse(readFileSync(path.join(CERT_DIR, 'requirements.json'), 'utf8'));
@@ -84,6 +100,52 @@ function main() {
       ),
       'check A did not notice a document naming a different candidate',
     );
+    rmSync(sandbox.root, { recursive: true, force: true });
+  }
+
+  // ── A: an evidence record left at an older candidate ──────────────────────
+  {
+    // The gap this closes: an evidence kind that no requirement claims is filtered by nothing.
+    // `resolveRequirements` only inspects records whose `kind` some requirement asks for, so
+    // `dr-negative-control` — claimed by no requirement — was checked by neither it nor this.
+    //
+    // The sandbox is a copy of the real certification tree, which today holds records at older
+    // candidates. Leaving them in place would turn this red without exercising the new scan at
+    // all. Clearing the directory first makes the verdict answerable only by what is written
+    // here, and the clean case below proves the red that follows is the injection talking.
+    const sandbox = makeSandbox();
+    const evidenceDir = path.join(sandbox.certDir, 'evidence');
+    rmSync(evidenceDir, { recursive: true, force: true });
+    mkdirSync(evidenceDir, { recursive: true });
+    const record = (sha) =>
+      JSON.stringify({ evidenceId: 'EV-SELFTEST', kind: 'selftest', candidateSha: sha });
+    const scanOnly = { ...config, shaDeclaringFiles: [] };
+    const target = path.join(evidenceDir, 'EV-SELFTEST.json');
+
+    writeFileSync(target, record(candidate));
+    expectGreen(
+      'A — an evidence record at the frozen candidate is not reported',
+      checkCandidateShaAgreement(scanOnly, sandbox.scope),
+      'check A reported a record that is at the candidate',
+    );
+
+    writeFileSync(target, record('a'.repeat(40)));
+    expectRed(
+      'A — an evidence record declaring a foreign candidate SHA',
+      checkCandidateShaAgreement(scanOnly, sandbox.scope),
+      'check A did not notice an evidence record naming a different candidate',
+    );
+
+    const previous = (config.previousCandidates || [])[0]?.sha;
+    if (previous) {
+      writeFileSync(target, record(previous));
+      expectRed(
+        'A — an evidence record left at a previous candidate',
+        checkCandidateShaAgreement(scanOnly, sandbox.scope),
+        'check A accepted a record left at a superseded candidate',
+      );
+    }
+
     rmSync(sandbox.root, { recursive: true, force: true });
   }
 
