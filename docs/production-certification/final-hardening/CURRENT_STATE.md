@@ -1,3 +1,15 @@
+---
+classification: HISTORICAL
+note: |
+  SUPERSEDED — NOT AUTHORITATIVE FOR THE CURRENT RELEASE.
+  Names main as dedf68d and a working branch `release/final-production-push` that no longer
+  exists on the remote. Reports OPEN P0 = 0 and OPEN P1 = 0, and a Cloud SQL posture of
+  "Verified ... RPO < 1 hour satisfied" that had not been measured when written — TEL-P0-002
+  was open at the time and was only settled by probing the live instance on 2026-08-23.
+---
+
+> **HISTORICAL — SUPERSEDED. NOT AUTHORITATIVE FOR THE CURRENT RELEASE.**
+
 # CURRENT STATE
 
 - **CURRENT MAIN SHA**: `dedf68df72648fbccb676f68c34f0c793ba6f59b` (PR #107 merged)

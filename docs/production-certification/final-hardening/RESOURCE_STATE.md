@@ -1,3 +1,11 @@
+---
+classification: CURRENT_REFERENCE
+note: |
+  Machine capability snapshot. Verified accurate on 2026-08-24 against `agent doctor`:
+  node v24.16.0, npm 11.13.0, docker 29.7.2, gcloud 581.0.0 all match. This is a description
+  of the workstation, not a claim about release status.
+---
+
 # RESOURCE STATE
 
 - **OS**: Windows

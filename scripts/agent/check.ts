@@ -272,16 +272,34 @@ const VALID_CLASSIFICATIONS = [
 ];
 
 /**
+ * Which documents must declare whether they are current.
+ *
+ * The original pattern was `(STATUS|RESUME_HERE)\.md$`, and it could not see the documents most
+ * likely to go stale. `final-hardening/CURRENT_STATE.md` — a file whose title is itself a claim
+ * to currency — carried no classification while asserting `OPEN P0: 0`, `OPEN P1: 0`, a branch
+ * that had since been deleted, and an RPO figure nobody had measured. `LIVE_RELEASE_STATE.md`,
+ * `MASTER_TRACKER.md` and `FINAL_CERTIFICATE.md` were invisible on the same technicality.
+ *
+ * A gate that cannot see the failure it exists to prevent is decoration.
+ *
+ * The scope is deliberately "documents asserting where the release is now" — state, trackers,
+ * blockers, the certificate — and deliberately not ledgers or reference material like
+ * `DEFECTS.md` or `PROTOCOL.md`. Requiring a currency stamp on those would be noise, and a
+ * noisy gate is one people learn to skip.
+ */
+export function isStatusDocument(filePath: string): boolean {
+  const base = path.basename(filePath);
+  return /^(.*_)?(STATUS|STATE|TRACKER|BLOCKERS|RESUME_HERE|CERTIFICATE)\.md$/.test(base);
+}
+
+/**
  * A status document with no classification is the specific failure this repository already
  * had: fourteen resume pointers, several describing finished initiatives in the present
  * tense, and no way for a reader to tell which was live.
  */
 function checkDocumentClassification(): CheckResult {
   const findings: string[] = [];
-  const docs = walk(
-    path.join(ROOT, 'docs'),
-    (f) => /(STATUS|RESUME_HERE)\.md$/.test(path.basename(f)),
-  );
+  const docs = walk(path.join(ROOT, 'docs'), isStatusDocument);
 
   for (const file of docs) {
     const relative = path.relative(ROOT, file).split(path.sep).join('/');

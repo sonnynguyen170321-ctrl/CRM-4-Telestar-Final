@@ -1,3 +1,18 @@
+---
+classification: HISTORICAL
+note: |
+  SUPERSEDED — NOT AUTHORITATIVE FOR THE CURRENT RELEASE.
+  This document declares itself the "single authoritative source of truth" and reports
+  "FULL PRODUCTION READY & OFFICIALLY CERTIFIED" as of 2026-08-19. Both claims are false for
+  the current candidate: `npm run certify:validate` exits non-zero and FINAL_CERTIFICATE.md
+  records NO-GO. The certification it describes was invalidated when its candidate was
+  superseded. Authoritative status is computed by the validator, never asserted in prose.
+---
+
+> **HISTORICAL — SUPERSEDED. NOT AUTHORITATIVE FOR THE CURRENT RELEASE.**
+> The certification claim below belongs to a superseded candidate. For current status run
+> `npm run certify:validate`.
+
 # Production State — Telestar CRM
 
 > **Status:** 🟢 **FULL PRODUCTION READY & OFFICIALLY CERTIFIED**  
