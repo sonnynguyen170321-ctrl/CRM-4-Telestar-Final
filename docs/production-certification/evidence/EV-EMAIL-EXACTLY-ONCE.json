@@ -1,0 +1,54 @@
+{
+  "evidenceId": "EV-EMAIL-EXACTLY-ONCE",
+  "kind": "email-exactly-once",
+  "candidateSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
+  "environment": "certification workstation - real PostgreSQL; only the provider and the queue are substituted",
+  "command": "node node_modules/vitest/vitest.mjs run tests/email-send-once-invariant.test.ts tests/email-idempotency.test.ts tests/email-worker.test.ts tests/email-safety.test.ts tests/demo-email-barrier.test.ts tests/sequence-worker.test.ts tests/sequence-execute.test.ts",
+  "startedAt": "2026-08-23T18:17:47.168Z",
+  "finishedAt": "2026-08-23T18:17:47.168Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {
+    "testFiles": 7,
+    "tests": 166,
+    "passed": 166,
+    "failed": 0,
+    "skipped": 0,
+    "countsPhysicalProviderInvocations": true,
+    "whyThatMatters": "tests/email-worker.test.ts mocks Prisma entirely, including the outboundMessage.updateMany that IS the compare-and-set the invariant rests on. A mocked CAS cannot prove a CAS. email-send-once-invariant.test.ts runs the real handler against real Postgres and counts entries pushed by the substituted provider, so \"sent once\" is measured physically rather than logically.",
+    "scenariosCovered": [
+      "ten workers race the same message - exactly one physical send",
+      "the same job delivered twice in sequence",
+      "the same logical step upserted twice yields one row",
+      "ambiguous provider outcome does not re-send",
+      "crash between provider acceptance and the status write does not re-send",
+      "suppressed recipient never receives, even on a fresh message",
+      "a message already marked sent is never re-sent",
+      "live claim respected; claim older than the lease is parked; claim with no claimedAt is parked",
+      "unsubscribe stops the NEXT step, not only the triggering one",
+      "hard bounce stops later steps; soft bounce does not suppress",
+      "paused inbox and deactivated sender send nothing, and say why",
+      "suppression is matched per tenant, not globally",
+      "duplicate webhook: bounce, reply and unsubscribe each applied exactly once across redelivery",
+      "reassignment does not duplicate an already-sent message",
+      "global pause honoured (EMAIL_GLOBAL_PAUSE)"
+    ],
+    "postureInTemplate": {
+      "EMAIL_SEND_DRY_RUN": "true",
+      "SEQUENCE_AUTOSEND_ENABLED": "false",
+      "LIVE_EMAIL_CANARY_MODE": "true",
+      "LIVE_EMAIL_ALLOWED_RECIPIENTS": "restricted list"
+    },
+    "NOT_VERIFIED": [
+      "The LIVE production email posture. The values above are from .env.production.example, the template. The running configuration is .env.production on the deployment VM, which this checkout cannot read. Certifying the template is not certifying production: a template says what should be set, not what is set.",
+      "No live provider send was performed. Phase 24 canary sending requires explicit operator authorization and was not attempted."
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/email-exactly-once.log",
+      "sizeBytes": 247,
+      "sha256": "4ee73aca8682a4bc89e45e173e7849f21fdeecc56e845ee73633898055241b6b"
+    }
+  ]
+}

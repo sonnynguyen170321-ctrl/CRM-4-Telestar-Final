@@ -7,7 +7,7 @@
 -->
 
 **Candidate SHA**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
-**Evidence records**: 24
+**Evidence records**: 25
 **Requirements verified**: 4 / 108
 **Verdict**: NO-GO
 
@@ -57,6 +57,7 @@
 | `EV-DR-RESTORE` | `dr-restore` | `12ea8ae` | **PASS** | 0 | 3 |
 | `EV-DR-ROLLBACK` | `dr-rollback` | `9fa36d3` ⚠ | **PASS** | 0 | 0 |
 | `EV-DR-RPO` | `dr-rpo` | `12ea8ae` | **PASS** | 0 | 1 |
+| `EV-EMAIL-EXACTLY-ONCE` | `email-exactly-once` | `12ea8ae` | **PASS** | 0 | 1 |
 | `EV-FAILURE-MATRIX` | `failure-matrix` | `fa3a54b` ⚠ | **PASS** | 0 | 1 |
 | `EV-GATE-TEST-DISCIPLINE` | `gate` | `fa3a54b` ⚠ | **PASS** | 0 | 1 |
 | `EV-LOAD-HANDLER` | `load-benchmark` | `fa3a54b` ⚠ | **PASS** | 0 | 0 |
@@ -171,6 +172,15 @@
 - **Reason**: point-in-time recovery is enabled, so recovery is bounded by transaction-log durability rather than by the backup interval
 - **Artifacts**:
   - `docs/production-certification/evidence/raw/dr-rpo-gcloud.log` — 2021 bytes, sha256 `e2ea8c74b6cedc6f…`
+### `EV-EMAIL-EXACTLY-ONCE`
+- **Kind**: `email-exactly-once`
+- **Candidate**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
+- **Environment**: certification workstation - real PostgreSQL; only the provider and the queue are substituted
+- **Command**: `node node_modules/vitest/vitest.mjs run tests/email-send-once-invariant.test.ts tests/email-idempotency.test.ts tests/email-worker.test.ts tests/email-safety.test.ts tests/demo-email-barrier.test.ts tests/sequence-worker.test.ts tests/sequence-execute.test.ts`
+- **Ran**: 2026-08-23T18:17:47.168Z → 2026-08-23T18:17:47.168Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/email-exactly-once.log` — 247 bytes, sha256 `4ee73aca8682a4bc…`
 ### `EV-FAILURE-MATRIX`
 - **Kind**: `failure-matrix`
 - **Candidate**: `fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb`

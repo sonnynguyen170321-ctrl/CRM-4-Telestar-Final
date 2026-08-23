@@ -1,0 +1,9 @@
+
+ RUN  v4.1.10 C:/Users/admin/Desktop/Sonny & AI/CRM-4-Telestar-Final
+
+
+ Test Files  7 passed (7)
+      Tests  166 passed (166)
+   Start at  01:16:28
+   Duration  17.57s (transform 2.37s, setup 2.45s, import 21.35s, tests 8.29s, environment 4ms)
+
