@@ -773,15 +773,27 @@ jobs:
           # The mandatory dependency-security gate: repo-owned tooling, every event, every plan.
           require "dependency-audit"  "$DEPENDENCY_AUDIT" success
 
-          # Platform-dependent additional signals. Both need capabilities this repository's plan
-          # may not grant, and neither is the only coverage for what it checks: `quality` runs
-          # lint and types, and `dependency-audit` runs the dependency scan. Requiring them here
-          # would make the merge gate depend on a GitHub plan rather than on the code.
-          require "codeql"            "$CODEQL"       success skipped failure
+          # These two were previously allowed to produce `failure`, on the reasoning that they
+          # need GitHub capabilities this repository's plan may not grant. That reasoning was
+          # checkable, and it does not hold here:
+          #
+          #   CodeQL            success on three consecutive main runs (f966d0d, 12ea8ae, fa3a54b)
+          #   Dependency Review success on #57, #58 and #92 — this repository is public, where it
+          #                     is available at no cost
+          #
+          # With the capability demonstrably present, accepting `failure` means a genuine security
+          # finding merges silently, which is the opposite of what a scanner is for. `skipped`
+          # stays acceptable — forks and path filters legitimately produce it, and a scanner that
+          # did not run has reported nothing rather than reported nothing wrong.
+          #
+          # If the plan ever loses these capabilities the jobs will fail for that reason, and the
+          # correct response is to widen this line deliberately, citing the evidence — not to
+          # pre-authorise silence for a failure mode that has not happened.
+          require "codeql"            "$CODEQL"       success skipped
 
           # Runs only on pull requests; a push to `main` has no base ref to diff against.
           if [ "$EVENT" = "pull_request" ]; then
-            require "dependency-review" "$DEPENDENCY_REVIEW" success skipped failure
+            require "dependency-review" "$DEPENDENCY_REVIEW" success skipped
           else
             require "dependency-review" "$DEPENDENCY_REVIEW" skipped
           fi
