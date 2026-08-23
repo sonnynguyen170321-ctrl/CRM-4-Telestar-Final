@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'child_process';
-import { readFileSync, writeFileSync, mkdtempSync, chmodSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdtempSync, chmodSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -15,6 +15,16 @@ import { join } from 'path';
 
 const LIB = join(process.cwd(), 'scripts', 'deploy-lib.sh');
 
+function getBashExecutable(): string {
+  if (process.platform === 'win32') {
+    const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe';
+    if (existsSync(gitBash)) return gitBash;
+    const gitUsrBash = 'C:\\Program Files\\Git\\usr\\bin\\bash.exe';
+    if (existsSync(gitUsrBash)) return gitUsrBash;
+  }
+  return 'bash';
+}
+
 function shellQuote(value: string): string {
   return "'" + value.split("'").join("'\\''") + "'";
 }
@@ -27,7 +37,7 @@ function shellQuote(value: string): string {
 function callStatus(fn: string, ...args: string[]): { out: string; code: number } {
   const quoted = args.map(shellQuote).join(' ');
   const script = `. ${shellQuote(LIB)}; ${fn} ${quoted}; echo "__CODE__$?"`;
-  const raw = execFileSync('bash', ['-c', script], { encoding: 'utf8' });
+  const raw = execFileSync(getBashExecutable(), ['-c', script], { encoding: 'utf8' });
   const match = raw.match(/__CODE__(\d+)\s*$/);
   return { out: raw.replace(/__CODE__\d+\s*$/, '').trim(), code: Number(match?.[1] ?? -1) };
 }
@@ -62,7 +72,7 @@ describe('DEPLOY-002 — the pre-deploy backup prompt', () => {
       'verify_backup_exists 1755412345678 telestar-db telestar-crm-final',
       'echo "__CODE__$?"',
     ].join('\n');
-    const raw = execFileSync('bash', ['-c', script], { encoding: 'utf8' });
+    const raw = execFileSync(getBashExecutable(), ['-c', script], { encoding: 'utf8' });
     expect(raw).toMatch(/__CODE__2/);
     expect(raw).toContain('not installed');
   });

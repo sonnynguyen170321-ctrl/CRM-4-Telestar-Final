@@ -59,7 +59,15 @@ async function checkGeneratedFacts(): Promise<CheckResult> {
     const target = path.join(ROOT, fact.file);
     const next = JSON.stringify(fact.data, null, 2) + '\n';
     const current = existsSync(target) ? readFileSync(target, 'utf8') : '';
-    if (current !== next) stale.push(fact.file);
+    // Compared with line endings normalised. The generator writes LF; a checkout with
+    // core.autocrlf true rewrites these to CRLF, and a raw comparison then reports every file
+    // stale on a clean tree — a failure with nothing to do with the facts being out of date,
+    // which `npm run agent -- facts` appears to fix by writing LF back and leaving the tree
+    // dirty with a zero-line diff. `.gitattributes` marks this directory `-text` so the
+    // conversion stops happening at all; this is the belt to that pair of braces, because the
+    // attribute cannot help a file that arrived some other way, and a gate that fails for a
+    // reason nobody can act on is one people learn to skip.
+    if (current.replace(/\r\n/g, '\n') !== next) stale.push(fact.file);
   }
   return {
     id: 'generated-facts',
