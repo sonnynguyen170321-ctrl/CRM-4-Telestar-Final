@@ -12,6 +12,7 @@ import {
   OUTBOUND_STATUS,
   TERMINAL_STATUSES,
   classifySendFailure,
+  isClaimLive,
 } from '@/lib/email/idempotency';
 import { isHtml, stripHtml } from '@/lib/email/sanitize';
 /** Minimal account shape the deliverability preflight needs. */
@@ -95,8 +96,16 @@ async function atomicReserveQuota(accountId: string): Promise<boolean> {
  *
  * Deliberately not `failed`: `failed` means "definitely not delivered" and is claimable
  * again. This state is the one thing standing between an ambiguous provider call and a
- * duplicate delivery, so nothing in the send path may move a row out of it.
- * `workers/maintenance.ts` resolves it.
+ * duplicate delivery. `workers/maintenance.ts` resolves it.
+ *
+ * Nothing may *claim* a row out of this state — `reconciliation_required` is absent from
+ * `CLAIMABLE_STATUSES` and the guard above returns early on it, so no second send can start.
+ *
+ * One write does leave it, and should: the worker that was already sending when the sweeper
+ * parked the row (a provider call slower than the lease) finishes and records `sent` with a
+ * real `providerMessageId`. That is evidence the send happened, from the only process in a
+ * position to have it. An earlier version of this comment said nothing could move a row out at
+ * all, which was simply not true of the code beneath it.
  */
 async function markReconciliationRequired(outboundMessageId: string, reason: string): Promise<void> {
   await prisma.outboundMessage.update({
@@ -148,9 +157,31 @@ async function handleEmailSend(payload: EmailSendPayload) {
         providerMessageId: existing.providerMessageId,
       };
     }
+    // Another worker may be sending this RIGHT NOW. Status alone cannot tell a crashed
+    // attempt from a live one, and treating a live claim as dead parks a perfectly healthy
+    // send into `reconciliation_required` — a state nothing here may move it out of, so it
+    // takes a human to clear. `claimedAt` is what distinguishes them.
+    //
+    // Found by enabling DB-level RLS: its extra round-trips widen the gap between the winner's
+    // claim and its provider write enough that losers reliably land here. Without RLS the
+    // losers usually read `pending` first and stop at the CAS below, so the race existed but
+    // the test passed on timing.
+    //
+    // The trade this makes, stated because it is a real one: if the winner dies immediately,
+    // this row now waits for `repairStaleSending` rather than being parked here at once, so a
+    // crashed send takes up to the lease to become visible. That is the sweeper's job and it
+    // runs on the same threshold. The previous behaviour reached a human faster but was wrong
+    // in the common case, and being wrong quickly is not better.
+    if (isClaimLive(existing.claimedAt)) {
+      return { skipped: true, reason: 'claim_in_flight' };
+    }
+
+    // Past the lease the claim is genuinely abandoned. `workers/maintenance.ts` sweeps on the
+    // same threshold and owns the recovery; parking it here keeps the row out of the claimable
+    // pool until it does.
     await markReconciliationRequired(
       outboundMessageId,
-      'Re-entered while already claimed — provider outcome unknown'
+      'Re-entered after an abandoned claim — provider outcome unknown'
     );
     return { skipped: true, reason: 'reconciliation_required' };
   }

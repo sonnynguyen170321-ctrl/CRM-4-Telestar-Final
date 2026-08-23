@@ -3,11 +3,16 @@ import { createAppWorker } from '@/lib/bullmq';
 import { JobType } from '@/lib/bullmq/types';
 import { enrollmentIdFromStepTaskId, enrollmentStepTaskId } from '@/lib/sequences/identity';
 import type { MaintenanceRepairPayload } from '@/lib/bullmq/types';
-import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
+import { OUTBOUND_STATUS, SENDING_CLAIM_LEASE_MS } from '@/lib/email/idempotency';
 import { enqueueReschedule } from '@/lib/bullmq/enqueue';
 import { ensureOccurrenceStepTask } from '@/lib/sequences/occurrenceTask';
 
-const STALE_SENDING_THRESHOLD_MS = 30 * 60 * 1000;
+/**
+ * Shared with the send path, which uses the same window to decide whether a `sending` claim is
+ * still live. Two independent constants could drift into disagreeing, and both would then act
+ * on the same row — the sweeper recovering it while a worker still believes it owns it.
+ */
+const STALE_SENDING_THRESHOLD_MS = SENDING_CLAIM_LEASE_MS;
 const STUCK_RUNNING_THRESHOLD_MS = 15 * 60 * 1000;
 /** How long an ambiguous send may wait for delivery evidence before we give up on it. */
 const RECONCILE_GRACE_MS = 24 * 60 * 60 * 1000;

@@ -24,10 +24,10 @@ last two attempts at this table were both wrong.
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 5 | 0 | 0 | **4** |
-| **P1** (Critical) | 42 | 9 | 4 | **29** |
+| **P1** (Critical) | 43 | 9 | 4 | **30** |
 | **P2** (Important) | 32 | 8 | 4 | **19** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **79** | **17** | **8** | **52** |
+| **TOTAL** | **80** | **17** | **8** | **53** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -1904,6 +1904,92 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
   40 animation frames is now 1024; `desktop-gate.spec.ts` passes, and it now passes for the
   right reason rather than by measuring early.
 - **Evidence ID**: *(none yet)*
+
+---
+
+### `TEL-P1-041` — A Live Send Was Mistaken For A Crashed One And Parked For Human Reconciliation
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Discovered by**: enabling database-level RLS (`TEL-P1-038`) and running the full suite. The
+  defect is not in RLS; RLS only made it reliable.
+- **Measured**: with `DB_RLS_ENFORCED=true`, the full suite failed one test —
+  *sends exactly once when ten workers race the same message*:
+
+  ```
+  AssertionError: expected 'reconciliation_required' to be 'sent'
+  ```
+
+  The assertion that failed sits **after** the send-count check, so **exactly one physical send
+  still happened**. The send-once invariant held throughout. What broke was the confirmation.
+
+- **Root cause**: `handleEmailSend` reads the row, checks its status, and *then* runs the
+  compare-and-set claim. The order matters:
+
+  | | |
+  |---|---|
+  | winner | reads `pending`, claims (`status = sending`, `claimedAt = now`), calls the provider |
+  | loser | reads **after** that claim, sees `sending` with no `providerMessageId` yet |
+
+  The `sending` branch treated that as *"a previous attempt claimed this row and did not
+  finish"* and called `markReconciliationRequired`. That state is deliberately un-claimable, so
+  clearing it takes a human. A perfectly healthy in-flight send became an operator task.
+
+  Status alone cannot distinguish *the previous attempt crashed* from *another worker is sending
+  right now*. `claimedAt` can, and the claim already wrote it — nothing consulted it.
+
+- **Why it had never been caught**: without RLS all ten racers read `pending` before anyone
+  claims, so they fall through to the CAS and nine get `claim_lost`. RLS wraps every query in
+  `$transaction([set_config, query])`, which widens the gap between the winner's claim and its
+  provider write enough that losers land in the `sending` branch every time. The test was
+  passing on timing.
+
+- **Fix**:
+  - `SENDING_CLAIM_LEASE_MS` and `isClaimLive()` in `lib/email/idempotency.ts`.
+  - Inside the lease the send path returns `{ skipped: true, reason: 'claim_in_flight' }` and
+    leaves the row alone. It returns *before* quota reservation and before the provider, so a
+    stood-down loser consumes nothing.
+  - Beyond the lease the row is parked as before.
+  - `workers/maintenance.ts` now imports the same constant instead of its own
+    `STALE_SENDING_THRESHOLD_MS`. Two independent windows could drift into disagreeing, and both
+    would then act on the same row — the sweeper recovering it while a worker still believes it
+    owns it.
+
+- **The trade this makes, stated because it is a real one**: a winner that dies immediately now
+  leaves the row for `repairStaleSending` rather than parking it at once, so a crashed send takes
+  up to the lease to surface. That is the sweeper's job and it runs on the same threshold. The
+  previous behaviour reached a human faster but was wrong in the common case, and being wrong
+  quickly is not better.
+
+- **A comment that was lying, found while checking this.** `markReconciliationRequired` claimed
+  *"nothing in the send path may move a row out of it"*. The success write is an unconditional
+  `update` by id, so a worker whose provider call outran the lease finishes and writes `SENT`
+  over a parked row. That behaviour is correct — it carries a real `providerMessageId`, evidence
+  from the only process in a position to have it, and no duplicate is possible because
+  `reconciliation_required` is not claimable. The comment asserted a guarantee the code beneath
+  it did not provide, and now describes what actually happens.
+
+- **Verification** — the first attempt at verifying this was insufficient and is recorded because
+  the lesson is the point. Running the single test file with the fix reverted still **passed**:
+  the race needs the whole suite's database contention to reproduce. A green single-file run
+  proved nothing. The defect was made deterministic instead:
+
+  | Check | Result |
+  |---|---|
+  | 4 database tests driving `sending` states directly | pass |
+  | 7 pure boundary tests for `isClaimLive` | pass |
+  | mutation `isClaimLive` always false | *stands down for a claim seconds old* fails |
+  | mutation `<=` instead of `<` at the boundary | the exact-boundary test fails, alone |
+  | mutation always live | 2 tests fail |
+  | full suite, `DB_RLS_ENFORCED=true` | 190 files, 2750 passed, exit 0 |
+  | full suite, RLS off | 190 files, 2750 passed, exit 0 |
+
+  Boundary exclusivity was checked rather than assumed: at exactly the lease, `isClaimLive` is
+  false and the sweeper's `claimedAt < cutoff` is also false, so the two can never both claim the
+  same row at the same instant.
+
+- **Regression tests**: `tests/email-send-once-invariant.test.ts` (the states, against real
+  Postgres) and `tests/email-idempotency.test.ts` (the boundary, pure).
+- **Evidence ID**: *(none yet — belongs to the re-frozen candidate's runs)*
 
 ---
 

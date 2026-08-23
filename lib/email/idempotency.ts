@@ -106,6 +106,34 @@ export const TERMINAL_STATUSES: readonly string[] = [
 ];
 
 /**
+ * How long a `sending` claim is presumed live.
+ *
+ * A worker that finds a row already `sending` cannot tell, from the status alone, whether the
+ * previous attempt **crashed** or is **still running right now**. Treating both as a dead claim
+ * is what turned healthy concurrent sends into `reconciliation_required`: the winner claims,
+ * and a loser reading a moment later sees `sending` with no `providerMessageId` yet and parks
+ * the row — a state nothing in the send path may move out of, requiring a human.
+ *
+ * `claimedAt` distinguishes them. Within this window the claim is someone else's live work and
+ * the loser must simply stand down; beyond it, `workers/maintenance.ts` owns the row and sweeps
+ * it on exactly this threshold. Shared from here so the send path and the sweeper cannot drift
+ * into disagreeing about what "stale" means — if the sweeper's window were shorter, both would
+ * act on the same row.
+ */
+export const SENDING_CLAIM_LEASE_MS = 30 * 60 * 1000;
+
+/**
+ * Is this `sending` claim still someone else's live work?
+ *
+ * A row with no `claimedAt` is treated as stale: it predates the claim timestamp, so there is
+ * no evidence anyone is working on it.
+ */
+export function isClaimLive(claimedAt: Date | null | undefined, now: Date = new Date()): boolean {
+  if (!claimedAt) return false;
+  return now.getTime() - claimedAt.getTime() < SENDING_CLAIM_LEASE_MS;
+}
+
+/**
  * Decide whether a failed provider call definitely did not deliver.
  *
  * Only errors that prove the message never left are treated as `not_sent` and made

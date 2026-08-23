@@ -2,10 +2,12 @@ import { describe, it, expect } from 'vitest';
 import {
   buildIdempotencyKey,
   classifySendFailure,
+  isClaimLive,
   newRequestId,
   CLAIMABLE_STATUSES,
   TERMINAL_STATUSES,
   OUTBOUND_STATUS,
+  SENDING_CLAIM_LEASE_MS,
 } from '@/lib/email/idempotency';
 
 describe('buildIdempotencyKey', () => {
@@ -108,5 +110,52 @@ describe('status sets', () => {
 
   it('treats sent and permanently_failed as terminal', () => {
     expect([...TERMINAL_STATUSES].sort()).toEqual(['permanently_failed', 'sent']);
+  });
+});
+
+/**
+ * `isClaimLive` decides whether a `sending` row belongs to a worker that is still running.
+ *
+ * Getting it wrong in one direction parks a healthy in-flight send into
+ * `reconciliation_required`, which takes a human to clear. Getting it wrong in the other lets a
+ * genuinely abandoned claim sit in `sending` forever. The database tests drive the two states
+ * through the real handler; these pin the boundary itself, where no race can be arranged.
+ */
+describe('isClaimLive', () => {
+  const now = new Date('2026-08-23T12:00:00.000Z');
+  const ago = (ms: number) => new Date(now.getTime() - ms);
+
+  it('is live for a claim made moments ago', () => {
+    expect(isClaimLive(ago(1_000), now)).toBe(true);
+  });
+
+  it('is live just inside the lease', () => {
+    expect(isClaimLive(ago(SENDING_CLAIM_LEASE_MS - 1), now)).toBe(true);
+  });
+
+  it('is not live exactly at the lease boundary', () => {
+    // Exclusive, so the sweeper's `claimedAt < cutoff` and this cannot both consider the same
+    // row theirs at the same instant.
+    expect(isClaimLive(ago(SENDING_CLAIM_LEASE_MS), now)).toBe(false);
+  });
+
+  it('is not live past the lease', () => {
+    expect(isClaimLive(ago(SENDING_CLAIM_LEASE_MS + 1), now)).toBe(false);
+  });
+
+  it('treats a missing claimedAt as not live', () => {
+    // Predates the claim timestamp, so there is no evidence anyone is working on it.
+    expect(isClaimLive(null, now)).toBe(false);
+    expect(isClaimLive(undefined, now)).toBe(false);
+  });
+
+  it('treats a future claimedAt as live rather than stale', () => {
+    // Clock skew between an application host and the database. Erring towards "someone else is
+    // working on this" costs a delay; erring the other way parks a live send.
+    expect(isClaimLive(new Date(now.getTime() + 60_000), now)).toBe(true);
+  });
+
+  it('shares its window with the maintenance sweeper', () => {
+    expect(SENDING_CLAIM_LEASE_MS).toBe(30 * 60 * 1000);
   });
 });
