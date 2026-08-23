@@ -2,11 +2,11 @@
   "evidenceId": "EV-LOAD-QUEUE",
   "kind": "load-benchmark",
   "benchmark": "IMPORT_SYSTEM_QUEUE_BENCHMARK",
-  "candidateSha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
+  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
   "environment": "win32 / node 24.16.0 / postgres 16 / real Redis / real BullMQ",
   "command": "npx tsx scripts/certification/queue-load-benchmark.ts",
-  "startedAt": "2026-08-23T13:28:18.604Z",
-  "finishedAt": "2026-08-23T13:28:47.421Z",
+  "startedAt": "2026-08-23T18:57:54.990Z",
+  "finishedAt": "2026-08-23T18:58:18.219Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -16,22 +16,22 @@
       "120": {
         "rows": 120,
         "chunks": 3,
-        "totalDurationMs": 1775,
-        "rowsPerSecond": 67.61,
+        "totalDurationMs": 1446,
+        "rowsPerSecond": 82.99,
         "queueWaitMs": {
-          "p50": 14,
-          "p95": 19,
-          "p99": 19
+          "p50": 6,
+          "p95": 7,
+          "p99": 7
         },
         "jobProcessingMs": {
-          "p50": 1361,
-          "p95": 1467,
-          "p99": 1467
+          "p50": 1281,
+          "p95": 1291,
+          "p99": 1291
         },
-        "enqueueStartedAt": "2026-08-23T13:28:22.040Z",
-        "firstWorkerStartAt": "2026-08-23T13:28:22.065Z",
-        "lastRowTerminalAt": "2026-08-23T13:28:23.518Z",
-        "batchCommittedAt": "2026-08-23T13:28:23.815Z",
+        "enqueueStartedAt": "2026-08-23T18:57:58.166Z",
+        "firstWorkerStartAt": "2026-08-23T18:57:58.195Z",
+        "lastRowTerminalAt": "2026-08-23T18:57:59.603Z",
+        "batchCommittedAt": "2026-08-23T18:57:59.612Z",
         "failedJobs": 0,
         "retries": 0,
         "lostRows": 0,
@@ -45,22 +45,22 @@
       "500": {
         "rows": 500,
         "chunks": 10,
-        "totalDurationMs": 5652,
-        "rowsPerSecond": 88.46,
+        "totalDurationMs": 4237,
+        "rowsPerSecond": 118.01,
         "queueWaitMs": {
-          "p50": 1715,
-          "p95": 4148,
-          "p99": 4148
+          "p50": 1058,
+          "p95": 3028,
+          "p99": 3028
         },
         "jobProcessingMs": {
-          "p50": 1467,
-          "p95": 1752,
-          "p99": 1752
+          "p50": 1052,
+          "p95": 1108,
+          "p99": 1108
         },
-        "enqueueStartedAt": "2026-08-23T13:28:26.924Z",
-        "firstWorkerStartAt": "2026-08-23T13:28:26.937Z",
-        "lastRowTerminalAt": "2026-08-23T13:28:32.569Z",
-        "batchCommittedAt": "2026-08-23T13:28:32.576Z",
+        "enqueueStartedAt": "2026-08-23T18:58:02.271Z",
+        "firstWorkerStartAt": "2026-08-23T18:58:02.283Z",
+        "lastRowTerminalAt": "2026-08-23T18:58:06.501Z",
+        "batchCommittedAt": "2026-08-23T18:58:06.508Z",
         "failedJobs": 0,
         "retries": 0,
         "lostRows": 0,
@@ -74,22 +74,22 @@
       "1000": {
         "rows": 1000,
         "chunks": 20,
-        "totalDurationMs": 9410,
-        "rowsPerSecond": 106.27,
+        "totalDurationMs": 7173,
+        "rowsPerSecond": 139.41,
         "queueWaitMs": {
-          "p50": 3838,
-          "p95": 7852,
-          "p99": 7852
+          "p50": 3018,
+          "p95": 5950,
+          "p99": 5950
         },
         "jobProcessingMs": {
-          "p50": 1282,
-          "p95": 1583,
-          "p99": 1604
+          "p50": 991,
+          "p95": 1189,
+          "p99": 1192
         },
-        "enqueueStartedAt": "2026-08-23T13:28:38.000Z",
-        "firstWorkerStartAt": "2026-08-23T13:28:38.010Z",
-        "lastRowTerminalAt": "2026-08-23T13:28:47.403Z",
-        "batchCommittedAt": "2026-08-23T13:28:47.410Z",
+        "enqueueStartedAt": "2026-08-23T18:58:11.036Z",
+        "firstWorkerStartAt": "2026-08-23T18:58:11.047Z",
+        "lastRowTerminalAt": "2026-08-23T18:58:18.202Z",
+        "batchCommittedAt": "2026-08-23T18:58:18.209Z",
         "failedJobs": 0,
         "retries": 0,
         "lostRows": 0,
@@ -105,8 +105,8 @@
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/load-queue-benchmark.log",
-      "sizeBytes": 2070,
-      "sha256": "c9f16faa3b7a52c10e51dcfb385306af593025db179b6a50d8d03ba0f07e8974"
+      "sizeBytes": 2067,
+      "sha256": "b901fded4bacf420bde57221d41afa6f770c696f12d780bcfd8ac190d0097272"
     }
   ]
 }

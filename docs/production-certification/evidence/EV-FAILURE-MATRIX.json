@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-FAILURE-MATRIX",
   "kind": "failure-matrix",
-  "candidateSha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
+  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "derived from C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-23T13:23:47.596Z",
-  "finishedAt": "2026-08-23T13:27:44.760Z",
+  "startedAt": "2026-08-23T18:54:33.144Z",
+  "finishedAt": "2026-08-23T18:57:29.781Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -24,9 +24,9 @@
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/run2-08-vitest.log",
+      "path": "docs/production-certification/evidence/raw/run1-d5d7cf8-08-vitest.log",
       "sizeBytes": 443,
-      "sha256": "1c0fea1d5e3085e72071b16b6ea6ceaffa96174f61a1e6e0a34e8304313664fa"
+      "sha256": "916ad9ee18dc4f856c035f7f92a92903809979aee4af08367ef4c84b2f529bdb"
     }
   ]
 }

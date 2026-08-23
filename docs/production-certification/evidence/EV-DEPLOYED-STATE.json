@@ -1,0 +1,41 @@
+{
+  "evidenceId": "EV-DEPLOYED-STATE",
+  "kind": "deployed-state",
+  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+  "environment": "read-only probe of the live production health endpoint from the certification workstation",
+  "command": "curl -s https://crm.telestar.cloud/api/health",
+  "startedAt": "2026-08-23T18:54:31.239Z",
+  "finishedAt": "2026-08-23T18:54:31.239Z",
+  "exitCode": 0,
+  "status": "FAIL",
+  "metrics": {
+    "reachable": true,
+    "ok": true,
+    "schema": "ready",
+    "deployedSha": "e968ce7b585fb6afaa64c8aae7ee24d1ba013dd6",
+    "deployedBuiltAt": "2026-08-22T10:02:02Z",
+    "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+    "deployedMatchesCandidate": false,
+    "discrepancy": {
+      "finding": "The live deployment does not serve the SHA the release evidence records. EV-RELEASE-IDENTITY declares healthSha 9fa36d3bcac6532f0c6f07af9045825a9d97844f, deployed at 2026-08-22T06:38:07.408Z. The endpoint reports e968ce7b585fb6afaa64c8aae7ee24d1ba013dd6, built 2026-08-22T10:02:02Z — roughly three and a half hours later.",
+      "recordedHealthSha": "9fa36d3bcac6532f0c6f07af9045825a9d97844f",
+      "recordedDeployedAt": "2026-08-22T06:38:07.408Z",
+      "measuredHealthSha": "e968ce7b585fb6afaa64c8aae7ee24d1ba013dd6",
+      "measuredBuiltAt": "2026-08-22T10:02:02Z",
+      "interpretation": "Production was redeployed to e968ce7 after the release-identity evidence was written, and the evidence was never regenerated. certification.config.json already anticipated this: the note superseding 9fa36d3 says e968ce7 \"is the merge commit CI built and published an image for, and is the commit to deploy\". The deploy happened as planned; only the record was left behind.",
+      "whyItMatters": "Nothing in the repository could have detected this. Every check that reads the deployed SHA reads it from EV-RELEASE-IDENTITY, so the stale value was self-consistent across the whole certification package. It took probing the live endpoint to see it. A release record that is never re-measured describes the deployment it was written for, not the one that is running."
+    },
+    "NOT_VERIFIED": [
+      "Web and worker image digests. The health endpoint reports the commit, not the running image digest; confirming the digests needs access to the deployment host, which this checkout does not have.",
+      "Whether the worker is on the same build as web. A mixed deployment would not be visible from this endpoint."
+    ],
+    "closesWhen": "the candidate is deployed and /api/health reports the candidate SHA, with web and worker digests confirmed equal to the certified image digest"
+  },
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/deployed-health-probe.log",
+      "sizeBytes": 211,
+      "sha256": "75e90939f1946704f3e2304dd7dfacd498f18634297bef6773df45c18d799ad0"
+    }
+  ]
+}

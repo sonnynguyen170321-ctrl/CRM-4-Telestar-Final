@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-REDIS-INTEGRATION",
   "kind": "redis-integration",
-  "candidateSha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
+  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run tests/redis-integration.test.ts tests/ai-shared-circuit.test.ts tests/redis-readiness.test.ts --reporter=json --outputFile=.certification/redis.json",
-  "startedAt": "2026-08-23T13:27:44.800Z",
-  "finishedAt": "2026-08-23T13:27:49.060Z",
+  "startedAt": "2026-08-23T18:57:29.805Z",
+  "finishedAt": "2026-08-23T18:57:33.720Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -39,9 +39,9 @@
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/run2-09-redis-integration.log",
+      "path": "docs/production-certification/evidence/raw/run1-d5d7cf8-09-redis-integration.log",
       "sizeBytes": 547,
-      "sha256": "fb9db0e4dd38d0e57c073f561222008514ea76c74cdcf33d814ef2f345cae13c"
+      "sha256": "42073bec60be2075dbab582e98be67aa252c482d1dbdb11454973d0ecda241b8"
     }
   ]
 }

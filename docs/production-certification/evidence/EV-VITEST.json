@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-VITEST",
   "kind": "vitest",
-  "candidateSha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
+  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-23T13:23:47.596Z",
-  "finishedAt": "2026-08-23T13:27:44.760Z",
+  "startedAt": "2026-08-23T18:54:33.144Z",
+  "finishedAt": "2026-08-23T18:57:29.781Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -66,7 +66,7 @@
       },
       "tests/agent-check.test.ts": {
         "status": "passed",
-        "tests": 3,
+        "tests": 5,
         "failed": 0,
         "skipped": 0
       },
@@ -298,6 +298,12 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/certification-evidence-redaction.test.ts": {
+        "status": "passed",
+        "tests": 13,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/certification-false-green.test.ts": {
         "status": "passed",
         "tests": 38,
@@ -330,7 +336,7 @@
       },
       "tests/certification-rpo-probe.test.ts": {
         "status": "passed",
-        "tests": 18,
+        "tests": 25,
         "failed": 0,
         "skipped": 0
       },
@@ -343,6 +349,12 @@
       "tests/certification-validator.test.ts": {
         "status": "passed",
         "tests": 44,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/ci-required-checks.test.ts": {
+        "status": "passed",
+        "tests": 6,
         "failed": 0,
         "skipped": 0
       },
@@ -432,7 +444,7 @@
       },
       "tests/defect-ledger-consistency.test.ts": {
         "status": "passed",
-        "tests": 21,
+        "tests": 22,
         "failed": 0,
         "skipped": 0
       },
@@ -894,7 +906,7 @@
       },
       "tests/rls-env-contract.test.ts": {
         "status": "passed",
-        "tests": 5,
+        "tests": 8,
         "failed": 0,
         "skipped": 0
       },
@@ -1175,17 +1187,17 @@
         "skipped": 0
       }
     },
-    "testFiles": 194,
-    "testFilesPassed": 194,
-    "testsPassed": 2780,
+    "testFiles": 196,
+    "testFilesPassed": 196,
+    "testsPassed": 2812,
     "testsFailed": 0,
     "testsSkipped": 0
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/run2-08-vitest.log",
+      "path": "docs/production-certification/evidence/raw/run1-d5d7cf8-08-vitest.log",
       "sizeBytes": 443,
-      "sha256": "1c0fea1d5e3085e72071b16b6ea6ceaffa96174f61a1e6e0a34e8304313664fa"
+      "sha256": "916ad9ee18dc4f856c035f7f92a92903809979aee4af08367ef4c84b2f529bdb"
     }
   ]
 }

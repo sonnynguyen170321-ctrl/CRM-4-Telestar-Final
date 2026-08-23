@@ -1,0 +1,11 @@
+# health smoke
+# candidate: d5d7cf83679faa1187ffd1ab095a37c28f5136f4
+# findings: none
+
+{
+  "/api/health": {
+    "status": 200,
+    "commit": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+    "findings": []
+  }
+}
