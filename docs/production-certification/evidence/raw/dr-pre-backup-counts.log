@@ -1,13 +1,13 @@
 # pre-backup source integrity
 # command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json
-# startedAt: 2026-08-23T14:47:36.948Z
-# finishedAt: 2026-08-23T14:47:41.516Z
+# startedAt: 2026-08-23T19:45:22.108Z
+# finishedAt: 2026-08-23T19:45:28.421Z
 # exitCode: 0
 
 --- stdout ---
 {
-  "startedAt": "2026-08-23T14:47:37.535Z",
-  "finishedAt": "2026-08-23T14:47:41.472Z",
+  "startedAt": "2026-08-23T19:45:22.668Z",
+  "finishedAt": "2026-08-23T19:45:28.387Z",
   "database": "telestar_crm",
   "status": "PASS",
   "checks": [
@@ -59,11 +59,11 @@
     "User": 132,
     "Client": 56,
     "Campaign": 53,
-    "Account": 248,
-    "Contact": 2294,
-    "Lead": 2339,
+    "Account": 252,
+    "Contact": 2298,
+    "Lead": 2343,
     "Task": 76,
-    "Activity": 2450,
+    "Activity": 2454,
     "Sequence": 11,
     "SequenceEnrollment": 10,
     "OutboundMessage": 7,

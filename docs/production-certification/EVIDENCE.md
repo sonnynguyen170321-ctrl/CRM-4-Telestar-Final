@@ -8,7 +8,7 @@
 
 **Candidate SHA**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
 **Evidence records**: 28
-**Requirements verified**: 101 / 108
+**Requirements verified**: 106 / 108
 **Verdict**: NO-GO
 
 > This ledger is generated. The previous one was maintained by hand and drifted: it declared
@@ -51,27 +51,27 @@
 | `EV-AI-DURABLE-BUDGET` | `ai-durable-budget` | `d5d7cf8` | **PASS** | 0 | 1 |
 | `EV-AI-SHARED-CIRCUIT` | `ai-shared-circuit` | `d5d7cf8` | **PASS** | 0 | 1 |
 | `EV-AI-STREAM-GOVERNANCE` | `ai-stream-governance` | `d5d7cf8` | **PASS** | 0 | 1 |
-| `EV-CI-RUN` | `ci-run` | `fa3a54b` ⚠ | **PASS** | 0 | 1 |
+| `EV-CI-RUN` | `ci-run` | `d5d7cf8` | **PASS** | 0 | 1 |
 | `EV-DEPLOYED-STATE` | `deployed-state` | `d5d7cf8` | **FAIL** | 0 | 1 |
-| `EV-DR-BACKUP` | `dr-backup` | `12ea8ae` ⚠ | **PASS** | 0 | 3 |
-| `EV-DR-NEGATIVE-CONTROL` | `dr-negative-control` | `12ea8ae` ⚠ | **PASS** | 0 | 1 |
-| `EV-DR-RESTORE` | `dr-restore` | `12ea8ae` ⚠ | **PASS** | 0 | 3 |
+| `EV-DR-BACKUP` | `dr-backup` | `d5d7cf8` | **PASS** | 0 | 3 |
+| `EV-DR-NEGATIVE-CONTROL` | `dr-negative-control` | `d5d7cf8` | **PASS** | 0 | 1 |
+| `EV-DR-RESTORE` | `dr-restore` | `d5d7cf8` | **PASS** | 0 | 3 |
 | `EV-DR-ROLLBACK` | `dr-rollback` | `9fa36d3` ⚠ | **PASS** | 0 | 0 |
-| `EV-DR-RPO` | `dr-rpo` | `12ea8ae` ⚠ | **PASS** | 0 | 1 |
-| `EV-EMAIL-EXACTLY-ONCE` | `email-exactly-once` | `12ea8ae` ⚠ | **PASS** | 0 | 1 |
+| `EV-DR-RPO` | `dr-rpo` | `d5d7cf8` | **PASS** | 0 | 1 |
+| `EV-EMAIL-EXACTLY-ONCE` | `email-exactly-once` | `d5d7cf8` | **PASS** | 0 | 1 |
 | `EV-FAILURE-MATRIX` | `failure-matrix` | `d5d7cf8` | **PASS** | 0 | 1 |
 | `EV-GATE-TEST-DISCIPLINE` | `gate` | `d5d7cf8` | **PASS** | 0 | 1 |
 | `EV-LOAD-HANDLER` | `load-benchmark` | `d5d7cf8` | **PASS** | 0 | 0 |
 | `EV-LOAD-QUEUE` | `load-benchmark` | `d5d7cf8` | **PASS** | 0 | 1 |
 | `EV-REDIS-INTEGRATION` | `redis-integration` | `d5d7cf8` | **PASS** | 0 | 1 |
 | `EV-RELEASE-IDENTITY` | `release-identity` | `9fa36d3` ⚠ | **PASS** | 0 | 0 |
-| `EV-RLS-POSTURE` | `rls-posture` | `12ea8ae` ⚠ | **PASS** | 0 | 1 |
+| `EV-RLS-POSTURE` | `rls-posture` | `d5d7cf8` | **PASS** | 0 | 1 |
 | `EV-ROLE-BROWSER` | `role-browser` | `d5d7cf8` | **PASS** | 0 | 6 |
-| `EV-ROLE-MODEL` | `role-model` | `12ea8ae` ⚠ | **PASS** | 0 | 1 |
+| `EV-ROLE-MODEL` | `role-model` | `d5d7cf8` | **PASS** | 0 | 1 |
 | `EV-RUN-1` | `certification-run` | `d5d7cf8` | **PASS** | 0 | 23 |
 | `EV-RUN-2` | `certification-run` | `d5d7cf8` | **PASS** | 0 | 23 |
 | `EV-RUN-3` | `certification-run` | `d5d7cf8` | **PASS** | 0 | 23 |
-| `EV-SECURITY-BOUNDARIES` | `security-boundaries` | `12ea8ae` ⚠ | **PASS** | 0 | 1 |
+| `EV-SECURITY-BOUNDARIES` | `security-boundaries` | `d5d7cf8` | **PASS** | 0 | 1 |
 | `EV-SECURITY-INVENTORY` | `security-inventory` | `d5d7cf8` | **PASS** | 0 | 1 |
 | `EV-VALIDATOR-SELFTEST` | `validator-self` | `d5d7cf8` | **PASS** | 0 | 1 |
 | `EV-VITEST` | `vitest` | `d5d7cf8` | **PASS** | 0 | 1 |
@@ -118,13 +118,13 @@
   - `docs/production-certification/evidence/raw/run3-d5d7cf8-08-vitest.log` — 443 bytes, sha256 `5639ba1918334cd0…`
 ### `EV-CI-RUN`
 - **Kind**: `ci-run`
-- **Candidate**: `fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb`
+- **Candidate**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
 - **Environment**: GitHub Actions
-- **Command**: `gh run view 32639980424`
-- **Ran**: 2026-08-23T12:38:42Z → 2026-08-23T12:44:53Z
+- **Command**: `gh run view 32658798987`
+- **Ran**: 2026-08-23T18:40:49Z → 2026-08-23T18:47:01Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/ci-run-32639980424.log` — 29927 bytes, sha256 `b574c029b6d41b74…`
+  - `docs/production-certification/evidence/raw/ci-run-32658798987.log` — 29927 bytes, sha256 `1c9dafd92e56b5b3…`
 ### `EV-DEPLOYED-STATE`
 - **Kind**: `deployed-state`
 - **Candidate**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
@@ -136,36 +136,36 @@
   - `docs/production-certification/evidence/raw/deployed-health-probe.log` — 211 bytes, sha256 `75e90939f1946704…`
 ### `EV-DR-BACKUP`
 - **Kind**: `dr-backup`
-- **Candidate**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
+- **Candidate**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / source telestar_crm
-- **Command**: `C:\Program Files\PostgreSQL\16\bin\pg_dump.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_crm --format=custom --no-owner --no-acl --snapshot 00000003-0008CE71-1 --file C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\.dr-artifacts\telestar_2026-08-23T14-47-36-944Z.dump`
-- **Ran**: 2026-08-23T14:47:42.496Z → 2026-08-23T14:47:47.145Z
+- **Command**: `C:\Program Files\PostgreSQL\16\bin\pg_dump.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_crm --format=custom --no-owner --no-acl --snapshot 00000003-000B3A46-1 --file C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\.dr-artifacts\telestar_2026-08-23T19-45-22-091Z.dump`
+- **Ran**: 2026-08-23T19:45:29.600Z → 2026-08-23T19:45:36.027Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/dr-pre-backup-counts.log` — 1976 bytes, sha256 `08b70ceb23a231cd…`
-  - `docs/production-certification/evidence/raw/dr-backup-command.log` — 437 bytes, sha256 `37e6e0d795d242a1…`
-  - `docs/production-certification/evidence/raw/dr-backup-sha256.log` — 292 bytes, sha256 `63a28cb2c6bac52c…`
+  - `docs/production-certification/evidence/raw/dr-pre-backup-counts.log` — 1976 bytes, sha256 `2e5b509d264a65c3…`
+  - `docs/production-certification/evidence/raw/dr-backup-command.log` — 437 bytes, sha256 `0ab0595ec14a1d7d…`
+  - `docs/production-certification/evidence/raw/dr-backup-sha256.log` — 292 bytes, sha256 `28b672b16dedbed8…`
 ### `EV-DR-NEGATIVE-CONTROL`
 - **Kind**: `dr-negative-control`
-- **Candidate**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
+- **Candidate**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
 - **Environment**: win32 / node 24.16.0 / postgres 16
 - **Command**: `node scripts/certification/dr-negative-fixture.mjs`
-- **Ran**: 2026-08-23T18:15:14.409Z → 2026-08-23T18:15:26.009Z
+- **Ran**: 2026-08-23T19:46:14.714Z → 2026-08-23T19:46:30.190Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Note**: Proves verify-db-integrity.ts is not a rubber stamp: it fails on deliberately broken databases and passes on a sound one.
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/dr-negative-fixture.log` — 6199 bytes, sha256 `cca70da75d0ead24…`
+  - `docs/production-certification/evidence/raw/dr-negative-fixture.log` — 6199 bytes, sha256 `615096abca5fca8e…`
 ### `EV-DR-RESTORE`
 - **Kind**: `dr-restore`
-- **Candidate**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
+- **Candidate**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / source telestar_crm
-- **Command**: `C:\Program Files\PostgreSQL\16\bin\pg_restore.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_dr_drill_20260823t144736 --no-owner --no-acl --exit-on-error C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\.dr-artifacts\telestar_2026-08-23T14-47-36-944Z.dump`
-- **Ran**: 2026-08-23T14:47:48.325Z → 2026-08-23T14:47:53.722Z
+- **Command**: `C:\Program Files\PostgreSQL\16\bin\pg_restore.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_dr_drill_20260823t194522 --no-owner --no-acl --exit-on-error C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\.dr-artifacts\telestar_2026-08-23T19-45-22-091Z.dump`
+- **Ran**: 2026-08-23T19:45:39.203Z → 2026-08-23T19:45:46.038Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/dr-createdb.log` — 275 bytes, sha256 `578dc21c8f3a9f3e…`
-  - `docs/production-certification/evidence/raw/dr-restore-command.log` — 426 bytes, sha256 `455999038fc3a4b2…`
-  - `docs/production-certification/evidence/raw/dr-restore-integrity.log` — 2095 bytes, sha256 `320cb8912dacd821…`
+  - `docs/production-certification/evidence/raw/dr-createdb.log` — 275 bytes, sha256 `9417e58918b20bb1…`
+  - `docs/production-certification/evidence/raw/dr-restore-command.log` — 426 bytes, sha256 `7a0f9018972a02f0…`
+  - `docs/production-certification/evidence/raw/dr-restore-integrity.log` — 2095 bytes, sha256 `addd695d7ee3f054…`
 ### `EV-DR-ROLLBACK`
 - **Kind**: `dr-rollback`
 - **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
@@ -176,23 +176,23 @@
 - **Artifacts**: none
 ### `EV-DR-RPO`
 - **Kind**: `dr-rpo`
-- **Candidate**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
+- **Candidate**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
 - **Environment**: certification workstation - gcloud probe outcome MEASURED
 - **Command**: `gcloud sql instances describe telestar-db --project=telestar-crm-final --format=json`
-- **Ran**: 2026-08-23T17:24:34.314Z → 2026-08-23T17:24:39.963Z
+- **Ran**: 2026-08-23T19:45:52.290Z → 2026-08-23T19:46:00.026Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Reason**: point-in-time recovery is enabled, so recovery is bounded by transaction-log durability rather than by the backup interval
 - **Artifacts**:
   - `docs/production-certification/evidence/raw/dr-rpo-gcloud.log` — 2021 bytes, sha256 `e2ea8c74b6cedc6f…`
 ### `EV-EMAIL-EXACTLY-ONCE`
 - **Kind**: `email-exactly-once`
-- **Candidate**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
+- **Candidate**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
 - **Environment**: certification workstation - real PostgreSQL; only the provider and the queue are substituted
 - **Command**: `node node_modules/vitest/vitest.mjs run tests/email-send-once-invariant.test.ts tests/email-idempotency.test.ts tests/email-worker.test.ts tests/email-safety.test.ts tests/demo-email-barrier.test.ts tests/sequence-worker.test.ts tests/sequence-execute.test.ts`
-- **Ran**: 2026-08-23T18:17:47.168Z → 2026-08-23T18:17:47.168Z
+- **Ran**: 2026-08-23T19:49:41.237Z → 2026-08-23T19:49:41.237Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/email-exactly-once.log` — 247 bytes, sha256 `4ee73aca8682a4bc…`
+  - `docs/production-certification/evidence/raw/email-exactly-once.log` — 245 bytes, sha256 `c08486466891fe0d…`
 ### `EV-FAILURE-MATRIX`
 - **Kind**: `failure-matrix`
 - **Candidate**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
@@ -249,14 +249,14 @@
 - **Artifacts**: none
 ### `EV-RLS-POSTURE`
 - **Kind**: `rls-posture`
-- **Candidate**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
+- **Candidate**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
 - **Environment**: certification workstation - local PostgreSQL 16; each script builds its own throwaway database and roles
 - **Command**: `node scripts/verify-rls.mjs; node scripts/verify-rls-app-paths.mjs; node scripts/verify-rls-enablement.mjs; node scripts/verify-rls-live.mjs`
-- **Ran**: 2026-08-23T18:10:04.738Z → 2026-08-23T18:10:04.738Z
+- **Ran**: 2026-08-23T19:49:41.091Z → 2026-08-23T19:49:41.091Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Reason**: DB_RLS_ENFORCED appears in no environment file and no compose file, so database-level RLS is NOT enforced in production. Production tenant isolation rests on the application-layer Prisma extension. DB-level RLS is available and now proven to work; enabling it is a separate infrastructure decision.
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/rls-posture-gates.log` — 4850 bytes, sha256 `244b3c4b29e8a858…`
+  - `docs/production-certification/evidence/raw/rls-posture-gates.log` — 4850 bytes, sha256 `df6073d9ad2ccda1…`
 ### `EV-ROLE-BROWSER`
 - **Kind**: `role-browser`
 - **Candidate**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
@@ -273,13 +273,13 @@
   - `docs/production-certification/evidence/raw/role-screenshots/team_lead.png` — 188305 bytes, sha256 `8305ae263041a0da…`
 ### `EV-ROLE-MODEL`
 - **Kind**: `role-model`
-- **Candidate**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
+- **Candidate**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
 - **Environment**: certification workstation - real PostgreSQL
 - **Command**: `vitest run tests/role-journeys tests/phase-9-role-surfaces tests/floor-manager-administration tests/leadgen tests/leadgen-redesign tests/ai-briefing-scope tests/client-report-scope tests/certification-role-evidence`
-- **Ran**: 2026-08-23T18:25:37.736Z → 2026-08-23T18:25:37.736Z
+- **Ran**: 2026-08-23T19:49:41.382Z → 2026-08-23T19:49:41.382Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/role-model-suites.log` — 275 bytes, sha256 `2fca0542829964cc…`
+  - `docs/production-certification/evidence/raw/role-model-suites.log` — 275 bytes, sha256 `d4ed710993d6be2c…`
 ### `EV-RUN-1`
 - **Kind**: `certification-run`
 - **Candidate**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
@@ -375,13 +375,13 @@
   - `docs/production-certification/evidence/raw/run3-d5d7cf8-23-validator-selftest.log` — 1760 bytes, sha256 `d9c1458150e71773…`
 ### `EV-SECURITY-BOUNDARIES`
 - **Kind**: `security-boundaries`
-- **Candidate**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
+- **Candidate**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
 - **Environment**: certification workstation - real PostgreSQL; gitleaks v8.28.0 in docker
 - **Command**: `vitest run (13 security suites); docker run zricethezav/gitleaks:v8.28.0 detect --config=.gitleaks.toml --exit-code 1`
-- **Ran**: 2026-08-23T18:25:37.736Z → 2026-08-23T18:25:37.736Z
+- **Ran**: 2026-08-23T19:49:41.382Z → 2026-08-23T19:49:41.382Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/security-boundaries.log` — 492 bytes, sha256 `ed3f6ef84ed9c35c…`
+  - `docs/production-certification/evidence/raw/security-boundaries.log` — 490 bytes, sha256 `0025d8c71eee0382…`
 ### `EV-SECURITY-INVENTORY`
 - **Kind**: `security-inventory`
 - **Candidate**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`

@@ -1,47 +1,47 @@
 {
   "$comment": "GENERATED FILE. Regenerate with node scripts/certification/render-tracker.mjs. Counts are computed by the validator from the evidence manifest; nothing here is typed.",
   "program": "Telestar Production Certification",
-  "candidateSourceSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
+  "candidateSourceSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
   "releaseTag": "telestar-internal-rc-2026-08-22",
-  "generatedAt": "2026-08-23T18:44:56.904Z",
+  "generatedAt": "2026-08-23T19:50:22.519Z",
   "verdict": "NO-GO",
   "eligible": false,
   "requirements": {
     "total": 108,
-    "verified": 4,
-    "notVerified": 104,
+    "verified": 106,
+    "notVerified": 2,
     "byDomain": {
       "IMP": {
         "total": 13,
-        "verified": 0
+        "verified": 13
       },
       "MAIL": {
         "total": 12,
-        "verified": 0
+        "verified": 12
       },
       "SEC": {
         "total": 15,
-        "verified": 0
+        "verified": 15
       },
       "ROLE": {
         "total": 12,
-        "verified": 0
+        "verified": 12
       },
       "AI": {
         "total": 14,
-        "verified": 0
+        "verified": 14
       },
       "DR": {
         "total": 10,
-        "verified": 4
+        "verified": 9
       },
       "REL": {
         "total": 8,
-        "verified": 0
+        "verified": 7
       },
       "OPS": {
         "total": 24,
-        "verified": 0
+        "verified": 24
       }
     }
   },
@@ -254,13 +254,11 @@
       }
     ]
   },
-  "evidenceRecords": 27,
+  "evidenceRecords": 28,
   "validationFailures": {
-    "A": 23,
-    "L": 2,
+    "A": 4,
     "S": 1,
-    "N": 11,
-    "REQ": 104
+    "REQ": 2
   },
   "releaseIdentity": "release-identity.json"
 }

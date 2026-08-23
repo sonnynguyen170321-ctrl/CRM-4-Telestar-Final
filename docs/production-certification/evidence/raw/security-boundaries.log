@@ -5,11 +5,11 @@
 
  Test Files  13 passed (13)
       Tests  168 passed (168)
-   Start at  01:22:44
-   Duration  11.35s (transform 2.06s, setup 4.42s, import 15.92s, tests 4.97s, environment 4ms)
+   Start at  02:47:35
+   Duration  8.57s (transform 1.74s, setup 4.35s, import 6.33s, tests 6.05s, environment 5ms)
 
 
 ===== gitleaks secret scan (docker, same image and config as CI) =====
-6:24PM INF 639 commits scanned.
-6:24PM INF scanned ~14350097 bytes (14.35 MB) in 33.1s
-6:24PM INF no leaks found
+7:48PM INF 650 commits scanned.
+7:48PM INF scanned ~14615289 bytes (14.62 MB) in 33.6s
+7:48PM INF no leaks found

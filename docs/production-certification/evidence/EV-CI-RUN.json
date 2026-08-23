@@ -1,18 +1,18 @@
 {
   "evidenceId": "EV-CI-RUN",
   "kind": "ci-run",
-  "candidateSha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
+  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
   "environment": "GitHub Actions",
-  "command": "gh run view 32639980424",
-  "startedAt": "2026-08-23T12:38:42Z",
-  "finishedAt": "2026-08-23T12:44:53Z",
+  "command": "gh run view 32658798987",
+  "startedAt": "2026-08-23T18:40:49Z",
+  "finishedAt": "2026-08-23T18:47:01Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
-    "runId": "32639980424",
+    "runId": "32658798987",
     "workflowName": "CI",
-    "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32639980424",
-    "headSha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
+    "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32658798987",
+    "headSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
     "headBranch": "main",
     "conclusion": "success",
     "runStatus": "completed",
@@ -21,22 +21,12 @@
     "sourceMatchesCandidate": true,
     "jobs": [
       {
-        "name": "Dependency audit",
-        "conclusion": "success",
-        "status": "completed"
-      },
-      {
         "name": "Build · Playwright",
         "conclusion": "success",
         "status": "completed"
       },
       {
-        "name": "Docker build",
-        "conclusion": "success",
-        "status": "completed"
-      },
-      {
-        "name": "Lint · types · tests",
+        "name": "Migration validation",
         "conclusion": "success",
         "status": "completed"
       },
@@ -46,12 +36,22 @@
         "status": "completed"
       },
       {
-        "name": "CodeQL",
+        "name": "Lint · types · tests",
         "conclusion": "success",
         "status": "completed"
       },
       {
-        "name": "Migration validation",
+        "name": "Dependency audit",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
+        "name": "Docker build",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
+        "name": "CodeQL",
         "conclusion": "success",
         "status": "completed"
       },
@@ -69,9 +69,9 @@
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/ci-run-32639980424.log",
+      "path": "docs/production-certification/evidence/raw/ci-run-32658798987.log",
       "sizeBytes": 29927,
-      "sha256": "b574c029b6d41b74829e7ee1a4045fdbfda5f18b9a37189d2c5ce316d5d7663a"
+      "sha256": "1c9dafd92e56b5b3ba9059ab67f829d355e02778e424dac080641fc41070017c"
     }
   ]
 }

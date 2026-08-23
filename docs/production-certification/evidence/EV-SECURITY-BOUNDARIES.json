@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-SECURITY-BOUNDARIES",
   "kind": "security-boundaries",
-  "candidateSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
+  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
   "environment": "certification workstation - real PostgreSQL; gitleaks v8.28.0 in docker",
   "command": "vitest run (13 security suites); docker run zricethezav/gitleaks:v8.28.0 detect --config=.gitleaks.toml --exit-code 1",
-  "startedAt": "2026-08-23T18:25:37.736Z",
-  "finishedAt": "2026-08-23T18:25:37.736Z",
+  "startedAt": "2026-08-23T19:49:41.382Z",
+  "finishedAt": "2026-08-23T19:49:41.382Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -47,8 +47,8 @@
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/security-boundaries.log",
-      "sizeBytes": 492,
-      "sha256": "ed3f6ef84ed9c35c6a5ca1cddba538c8623532bdde4fb340f418ccf4cf335a31"
+      "sizeBytes": 490,
+      "sha256": "0025d8c71eee0382bb73b880a4ffee992936dc509e517e6f5fea8de7ba25021c"
     }
   ]
 }

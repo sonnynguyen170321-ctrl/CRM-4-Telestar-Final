@@ -1,14 +1,14 @@
 # verify-db-integrity
-# command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json --expect-counts C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\.dr-artifacts\counts-2026-08-23T14-47-36-944Z.json
-# startedAt: 2026-08-23T14:47:53.723Z
-# finishedAt: 2026-08-23T14:47:55.307Z
+# command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json --expect-counts C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\.dr-artifacts\counts-2026-08-23T19-45-22-091Z.json
+# startedAt: 2026-08-23T19:45:46.041Z
+# finishedAt: 2026-08-23T19:45:47.702Z
 # exitCode: 0
 
 --- stdout ---
 {
-  "startedAt": "2026-08-23T14:47:54.271Z",
-  "finishedAt": "2026-08-23T14:47:55.274Z",
-  "database": "telestar_dr_drill_20260823t144736",
+  "startedAt": "2026-08-23T19:45:46.738Z",
+  "finishedAt": "2026-08-23T19:45:47.679Z",
+  "database": "telestar_dr_drill_20260823t194522",
   "status": "PASS",
   "checks": [
     {
@@ -59,11 +59,11 @@
     "User": 132,
     "Client": 56,
     "Campaign": 53,
-    "Account": 248,
-    "Contact": 2294,
-    "Lead": 2339,
+    "Account": 252,
+    "Contact": 2298,
+    "Lead": 2343,
     "Task": 76,
-    "Activity": 2450,
+    "Activity": 2454,
     "Sequence": 11,
     "SequenceEnrollment": 10,
     "OutboundMessage": 7,

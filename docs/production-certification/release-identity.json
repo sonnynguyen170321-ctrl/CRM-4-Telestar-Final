@@ -1,15 +1,15 @@
 {
   "$comment": "Every identity that must name the same release. matchesCandidate is computed; a false value is a fact about the release, not an error in this file.",
-  "candidateSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
+  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
   "repository": {
-    "mainSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
-    "localHeadSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4"
+    "mainSha": "75450a16de93b8b0bbcbf08d1039344fae1ca748",
+    "localHeadSha": "8aab64e15c061032d83d4577534f4328e0508692"
   },
   "ci": {
-    "runId": "32639980424",
-    "headSha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
+    "runId": "32658798987",
+    "headSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
     "conclusion": "success",
-    "matchesCandidate": false
+    "matchesCandidate": true
   },
   "image": {
     "digest": "sha256:f4b2b741d167a3cf865859025f5a056311fdc0f2daa7bac2118bf4f6ab2421b8",

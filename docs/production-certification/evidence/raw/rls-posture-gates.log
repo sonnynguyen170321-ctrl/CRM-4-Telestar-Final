@@ -1,5 +1,5 @@
 ===== verify-rls.mjs (policy isolation matrix) =====
-Verifying RLS enforcement in throwaway database crm_rls_verify_926c4919
+Verifying RLS enforcement in throwaway database crm_rls_verify_53c5b8b9
 Admin host: localhost:5432
 
 Connected as an unprivileged role holding tenant A context:
@@ -22,12 +22,12 @@ Connected as an unprivileged role holding tenant A context:
 Control — the same read as a superuser:
   PASS  superuser sees both tenants (2 rows) — RLS does not apply to superusers
 
-Cleaned up crm_rls_verify_926c4919 and crm_rls_app_ecb283.
+Cleaned up crm_rls_verify_53c5b8b9 and crm_rls_app_93d817.
 
 All checks passed — PostgreSQL enforces tenant isolation.
 
 ===== verify-rls-app-paths.mjs (application paths under enforcement) =====
-Verifying application paths under RLS in throwaway database crm_rls_apppaths_7c62bf59
+Verifying application paths under RLS in throwaway database crm_rls_apppaths_b82065ca
 Admin host: localhost:5432
 
 Application paths, as a NOSUPERUSER role with DB_RLS_ENFORCED=true:
@@ -53,18 +53,18 @@ Application paths, as a NOSUPERUSER role with DB_RLS_ENFORCED=true:
   PASS  the same client without the option sees nothing
         Lead count = 0, as the policy requires
 
-Cleaned up crm_rls_apppaths_7c62bf59 and crm_rls_appuser_e9d209.
+Cleaned up crm_rls_apppaths_b82065ca and crm_rls_appuser_ea9650.
 
 All application paths survive DB-level RLS.
 
 ===== verify-rls-enablement.mjs (documented enablement sequence) =====
-Rehearsing the RLS enablement sequence in throwaway database crm_rls_enable_0da4210b
+Rehearsing the RLS enablement sequence in throwaway database crm_rls_enable_f114a96c
 Admin host: localhost:5432
 
   PASS  the datamodel applies as crm_migrator
         DDL only, no superuser
   PASS  supabase/roles.sql applies cleanly
-        crm_migrator_c59ed5, crm_app_c59ed5, crm_maintenance_c59ed5 created and granted
+        crm_migrator_4d9074, crm_app_4d9074, crm_maintenance_4d9074 created and granted
   PASS  all three roles exist and none is privileged
         RLS can actually apply to them
   PASS  supabase/rls.sql applies cleanly
@@ -82,7 +82,7 @@ Admin host: localhost:5432
   PASS  a table a later migration creates is readable by crm_app
         ALTER DEFAULT PRIVILEGES carries the grant forward
 
-Cleaned up crm_rls_enable_0da4210b and crm_migrator_c59ed5, crm_app_c59ed5, crm_maintenance_c59ed5.
+Cleaned up crm_rls_enable_f114a96c and crm_migrator_4d9074, crm_app_4d9074, crm_maintenance_4d9074.
 
 The documented enablement sequence produces a working, isolated system.
 
@@ -91,12 +91,12 @@ Verifying RLS on a populated database as crm_app
 
   PASS  the role under test is not a superuser
         crm_app, rolsuper=false
-  busiest tenant load-tenant: 1000 of 2340 leads
+  busiest tenant load-tenant: 1000 of 2343 leads
 
   PASS  no tenant context sees nothing
-        0 of 2340 leads
+        0 of 2343 leads
   PASS  a scoped read returns exactly its tenant
-        1000 leads in 8ms
+        1000 leads in 9ms
   PASS  another tenant is unreachable by direct id
         no rows, as the policy requires
   PASS  DDL is refused

@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-RLS-POSTURE",
   "kind": "rls-posture",
-  "candidateSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
+  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
   "environment": "certification workstation - local PostgreSQL 16; each script builds its own throwaway database and roles",
   "command": "node scripts/verify-rls.mjs; node scripts/verify-rls-app-paths.mjs; node scripts/verify-rls-enablement.mjs; node scripts/verify-rls-live.mjs",
-  "startedAt": "2026-08-23T18:10:04.738Z",
-  "finishedAt": "2026-08-23T18:10:04.738Z",
+  "startedAt": "2026-08-23T19:49:41.091Z",
+  "finishedAt": "2026-08-23T19:49:41.091Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -43,7 +43,7 @@
     {
       "path": "docs/production-certification/evidence/raw/rls-posture-gates.log",
       "sizeBytes": 4850,
-      "sha256": "244b3c4b29e8a858cb03da30be1faff6610b999303ee9df896ba4b2196a28e71"
+      "sha256": "df6073d9ad2ccda1ce3ed579eb08c4f807b85440004b3330167c2f9cc4b6b04e"
     }
   ]
 }

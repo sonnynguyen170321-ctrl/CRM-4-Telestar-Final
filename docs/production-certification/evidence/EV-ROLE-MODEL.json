@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-ROLE-MODEL",
   "kind": "role-model",
-  "candidateSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
+  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
   "environment": "certification workstation - real PostgreSQL",
   "command": "vitest run tests/role-journeys tests/phase-9-role-surfaces tests/floor-manager-administration tests/leadgen tests/leadgen-redesign tests/ai-briefing-scope tests/client-report-scope tests/certification-role-evidence",
-  "startedAt": "2026-08-23T18:25:37.736Z",
-  "finishedAt": "2026-08-23T18:25:37.736Z",
+  "startedAt": "2026-08-23T19:49:41.382Z",
+  "finishedAt": "2026-08-23T19:49:41.382Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -33,7 +33,7 @@
     {
       "path": "docs/production-certification/evidence/raw/role-model-suites.log",
       "sizeBytes": 275,
-      "sha256": "2fca0542829964cc5121a57f2ba71b6bed5b31cb219e35422f072804e84a8007"
+      "sha256": "d4ed710993d6be2c1b715bb13389d4567ffb1c625a2e28b9eb76cd789ca60d4b"
     }
   ]
 }
