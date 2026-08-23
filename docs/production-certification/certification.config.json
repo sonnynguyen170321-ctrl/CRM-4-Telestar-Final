@@ -14,9 +14,13 @@
     "imageRepository": "telestar-crm-candidate",
     "demoSqlInstance": "telestar-crm-db"
   },
-  "candidateSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
-  "candidateFrozenAt": "2026-08-23T14:46:00.000Z",
+  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+  "candidateFrozenAt": "2026-08-23T18:51:22.785Z",
   "previousCandidates": [
+    {
+      "sha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
+      "invalidatedReason": "superseded: fifteen commits landed after the freeze, and check N caught every one of them. They fixed defects that made certification itself unreliable rather than the product: an evidence writer that republished production endpoint IPs, the server CA certificate and the GCP project number into this public repository on every run, undoing any hand redaction; a production Cloud SQL identity supplied by a `||` default, which is how the demo instance came to be queried against the production project and its 404 reported as \"gcloud is not installed\"; a merge gate that accepted CodeQL=failure on the premise that the capability was unavailable, when CodeQL succeeds on this repository; a DR negative control with no RLS-blinded case, the one fault class that produces a clean, empty, wrong PASS; a classification gate that could not see CURRENT_STATE.md, LIVE_RELEASE_STATE.md, MASTER_TRACKER.md or FINAL_CERTIFICATE.md; a script that drove a real browser at production by default; and a defect ledger whose test and whose tracker disagreed about what \"closed\" meant. 12ea8ae could not carry any of that, and its evidence predates all of it."
+    },
     {
       "sha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
       "invalidatedReason": "superseded: two consecutive 24/24 ladder runs passed on it, but gate 07 ran verify-db-integrity.ts through createAdminClient while the DR negative control at daa8ffb validated the bare-PrismaClient path it replaced — so the artifact proving that gate is not a rubber stamp did not speak to the code the gate runs. createAdminClient also lacked the RLS contract guard, so once DB_RLS_ENFORCED is set it would read zero rows and report a clean, empty, wrong answer. Regenerating the control at fa3a54b would have proved it against a candidate that still carried the hole. 12ea8ae adds the guard, extends check A to evidence records, and fixes a self-test whose fixture could satisfy the assertion instead of the property."
