@@ -89,7 +89,6 @@ domains:
       - scripts/verify-db-integrity.ts
       - scripts/check-relational-integrity.ts
       - scripts/apply-p8-migration.mjs
-      - scripts/diagnose-import.mjs
       - scripts/demo-seed.ts
       - prisma/seed-demo.ts
       - scripts/backfill-*
@@ -117,6 +116,7 @@ domains:
       - lib/bullmq/**
       - scripts/worker-*.ts
       - scripts/worker-*.cjs
+      - scripts/diagnose-import.mjs
       - app/api/cron/**
     tests:
       - tests/*-worker.test.ts

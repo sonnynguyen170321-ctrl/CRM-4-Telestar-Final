@@ -639,7 +639,8 @@ Bare `new PrismaClient()` — bypasses the tenant extension entirely: `prisma/se
 `scripts/create-admin.ts`, `scripts/create-user.ts`, `scripts/prod-audit.ts`,
 `scripts/encrypt-existing-tokens.ts`, `scripts/sync-sequence-enrollments.ts`,
 `tests/setup/db-baseline.ts`, and a stray `inspect_policies.ts` at the repository root that
-looks like a leftover debugging script and should probably go.
+looks like a leftover debugging script and should probably go. *(Deleted 2026-08-23 — see
+Finding 5.)*
 
 > **Re-derived 2026-08-23, and it had gone stale.** The list above was written on 2026-08-08
 > and names eight sites; `grep -rn "new PrismaClient()" lib app scripts prisma tests` now
@@ -647,7 +648,8 @@ looks like a leftover debugging script and should probably go.
 > `canary-live-drill.mjs`, `check-relational-integrity.ts`, `cutover-preflight.ts`,
 > `demo-seed.ts`, `diagnose-import.mjs`, `e2e-audit-fixture.ts`, `prod-certify.mjs`,
 > `provision-telestar-organization.ts`, `purge-demo-tenant.ts`, `verify-ai-attribution.ts`,
-> `worker-healthcheck.ts`. `inspect_policies.ts` is still at the repository root.
+> `worker-healthcheck.ts`. `inspect_policies.ts` was still at the repository root then; it is
+> gone as of 2026-08-23.
 >
 > Exactly one of the nineteen is on a request path — `shareLinks.ts`, addressed below. The
 > rest are scripts, seeds and test setup, which matters for a different reason: see
@@ -908,11 +910,13 @@ client appears, *and* those seven still have theirs.
 
 **Two things this turned up that reasoning had not.**
 
-`inspect_policies.ts` sits at the repository root, where no directory scan reached it — a guard
-with a hole exactly where the known stray lives. The scan now covers the root. It is exempt on
-its merits (it reads `pg_policies`, a system catalog with no `tenantId`, so no policy applies)
-but it is still the leftover STATUS has wanted gone since 2026-08-08, and deleting it remains
-the better fix.
+`inspect_policies.ts` sat at the repository root, where no directory scan reached it — a guard
+with a hole exactly where the known stray lived. The scan now sweeps the root, and the file is
+**deleted** (2026-08-23). It was seventeen lines dumping `SELECT * FROM pg_policies` with no
+assertions, arrived in the initial migration commit, and was referenced by no script and no
+import. `verify-rls.mjs` and `tests/rls-policy-coverage.test.ts` answer the same question
+properly, across all 41 tenant-owned tables and derived from the catalog. The root sweep stays:
+a stray landed there once.
 
 More seriously: **the conversion shipped a startup crash that `tsc` and all 2770 tests passed
 over.** A bare `new PrismaClient()` resolves `env("DATABASE_URL")` through Prisma's own loader.

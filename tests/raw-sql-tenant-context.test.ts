@@ -132,11 +132,6 @@ describe('operational tooling uses the admin client', () => {
     // A request path, not tooling. It gets its bypass per statement, scoped to a validated
     // share token — see lib/client-reports/shareLinks.ts.
     [join('lib', 'client-reports', 'shareLinks.ts'), 'request path, bypasses per statement'],
-    // Reads `pg_policies` and nothing else. A system catalog carries no `tenantId`, so no
-    // policy applies and this cannot silently return zero rows the way the converted tools
-    // would have. Exempt on those grounds only — it is still the leftover debugging script
-    // STATUS has wanted gone since 2026-08-08, and deleting it remains the better fix.
-    ['inspect_policies.ts', 'system catalog only'],
   ]);
 
   const TOOLING_ROOTS = ['scripts', 'prisma', 'tests', 'lib', 'workers', 'app'] as const;
@@ -161,9 +156,9 @@ describe('operational tooling uses the admin client', () => {
       })
     )
     .concat(
-      // The repository root, non-recursively. `inspect_policies.ts` has been sitting there
-      // since 2026-08-08 and no directory scan reaches it — a guard with a hole where the
-      // known stray lives is not much of a guard.
+      // The repository root, non-recursively. Nothing lives here today — `inspect_policies.ts`
+      // was deleted on 2026-08-23 — but a stray script landed at the root once and no
+      // directory scan reached it, so the root is swept rather than assumed empty.
       readdirSync(process.cwd())
         .filter((f) => f.endsWith('.ts') || f.endsWith('.mjs'))
         .map((f) => join(process.cwd(), f))
