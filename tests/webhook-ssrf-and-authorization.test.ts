@@ -269,8 +269,13 @@ describe('webhook administration requires a management capability', () => {
 
   it('never returns a webhook signing secret on read', () => {
     // The secret is enough to forge payloads the client's systems accept as ours.
+    //
+    // Matches the redaction, not the expression that produced the list. The original pattern
+    // was pinned to `(cached || [])`, which was really an assertion that the route read from
+    // Redis — so making the database the authority (TEL-P1-032) broke a test about secrets for
+    // reasons that had nothing to do with secrets.
     expect(route).toContain('redactSecret');
-    expect(route).toMatch(/webhooks: \(cached \|\| \[\]\)\.map\(redactSecret\)/);
+    expect(route).toMatch(/webhooks: \w+\.map\(redactSecret\)/);
   });
 
   it('validates the destination shape on create', () => {

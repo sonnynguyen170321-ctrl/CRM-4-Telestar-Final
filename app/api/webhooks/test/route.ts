@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { requireManager, type SessionUser } from '@/lib/auth';
-import { deliverWebhook, type WebhookConfig } from '@/lib/webhooks/dispatcher';
+import { deliverWebhook } from '@/lib/webhooks/dispatcher';
 import { checkDestinationShape } from '@/lib/webhooks/ssrfGuard';
-import { cacheGet } from '@/lib/cache';
+import { listWebhooks } from '@/lib/webhooks/store';
 
 /**
  * Sending a test ping is webhook administration, so it needs the same management capability as
@@ -34,8 +34,9 @@ export async function POST(req: NextRequest) {
     let signingSecret = `whsec_probe_${crypto.randomBytes(24).toString('hex')}`;
 
     if (typeof webhookId === 'string' && webhookId) {
-      const saved =
-        (await cacheGet<WebhookConfig[]>(`webhooks:configs:${user.tenantId}`)) || [];
+      // Read from the durable authority, not the cache. A webhook that Redis has forgotten —
+      // evicted, flushed, or simply older than the old 30-day TTL — still exists (TEL-P1-032).
+      const saved = await listWebhooks(user.tenantId);
       const match = saved.find((w) => w.id === webhookId);
       if (!match) {
         return NextResponse.json({ error: 'Webhook not found' }, { status: 404 });

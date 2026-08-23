@@ -533,7 +533,7 @@ not evidence of anything.
 
 ### `TEL-P1-032` — Webhook Configuration Has No Durable Authority And Writes Can Fail Silently
 - **Severity**: P1
-- **Status**: `OPEN` — remediation needs a migration, which is R4
+- **Status**: `FIXED_PENDING_VERIFICATION` — implemented 2026-08-23 on explicit operator authorization
 - **Discovered by**: the directed durability audit.
 - **Measured**: there is **no `Webhook` model in `prisma/schema.prisma`** — the word does not
   appear in the schema at all. Every webhook configuration lives only in Redis, written by
@@ -558,10 +558,62 @@ not evidence of anything.
   successful save. Concurrent create/update/delete then need testing against the database
   rather than against a read-modify-write of a cached array, which is itself lossy under
   concurrency.
-- **Why not fixed in this pass**: it requires a schema migration, and `AGENTS.md` classifies
-  migrations as **R4 — independent verification plus explicit operator authorization**. The
-  analysis is complete and the change is ready to make on authorization.
-- **Evidence ID**: *(none yet)*
+- **Authorization**: the operator was given the trade-off explicitly — implement now and restart
+  the certification cycle, accept it as a known open P1 with a named owner, or defer the
+  decision until after the three runs — and chose to implement. Recorded here because an R4
+  change with no record of who authorised it is indistinguishable from one nobody authorised.
+
+- **Implemented**:
+
+  | Piece | What it does |
+  |---|---|
+  | `model Webhook` in `prisma/schema.prisma` | the durable authority: tenant-scoped, cascade delete, `@@index([tenantId, isActive])` |
+  | `prisma/migrations/20260822000000_durable_webhook_config` | creates the table, indexes and foreign key |
+  | `lib/webhooks/store.ts` | the domain service — database first, cache invalidated after |
+  | `app/api/webhooks/route.ts` | GET/POST/DELETE read and write the authority |
+  | `app/api/webhooks/test/route.ts` | the test ping resolves the webhook from the authority |
+
+  `events` is a `String[]` rather than a database enum, for the same reason `User.role` is a
+  String: the set changes with product, and an enum turns adding one into a migration. Drift is
+  caught by a test, not by the column type.
+
+  `lastDeliveryAt` and `lastStatus` are nullable so that *never delivered* stays distinguishable
+  from *delivered and failed* — `0` would not be.
+
+- **Each of the three original failures, re-measured against the implementation**:
+
+  | Failure | Test that now holds it |
+  |---|---|
+  | expired after 30 days | *is still there after the cache is emptied* — clears the cache entirely, the webhook survives |
+  | did not survive Redis | *is still there when the cache never worked at all* — reads and writes both fail, behaviour unchanged |
+  | a write could silently do nothing | *persists to the database even when the cache write fails*, and *throws rather than returning when the database write fails* |
+
+- **Two defects the tests found in the new code**, neither present in the original report:
+  1. **A delete that matched nothing returned success.** The old route filtered a list and
+     always answered `{ success: true }`, so deleting another tenant's id — or a typo — reported
+     success. It is now a 404.
+  2. **Reusing another tenant's id collided on the primary key.** That both crashes and confirms
+     the id exists somewhere, which is an oracle for a neighbour's identifiers. An unmatched id
+     now always creates a fresh one, so a typo and a neighbour's id are indistinguishable from
+     outside.
+
+- **Regression tests**: `tests/webhook-durability.test.ts` — 25 tests against real Postgres, with
+  the cache substituted so "Redis is empty" and "Redis is broken" are reproducible rather than
+  theoretical. Reverting the read to the old cache-only behaviour fails 7 of them, so they can
+  fail.
+- **One existing test needed rescoping, and it is worth naming.**
+  `never returns a webhook signing secret on read` was pinned to
+  `/webhooks: \(cached \|\| \[\]\)\.map\(redactSecret\)/` — which was really an assertion that
+  the route read from Redis. Making the database the authority broke a test about *secrets* for
+  reasons that had nothing to do with secrets. It now matches the redaction, not the expression
+  that produced the list.
+- **Verification**: vitest full 190 files / 2738 tests passed exit 0; `tsc --noEmit` 0 errors
+  exit 0; eslint 0 errors 0 warnings exit 0; `check:migration-order` exit 0;
+  `check:stale-models` exit 0.
+- **Not yet applied to production.** The migration has run against the local database only.
+  Applying it is part of the next deploy, which `scripts/deploy.sh` performs with the new image
+  before swapping containers.
+- **Evidence ID**: *(none yet — belongs to the re-frozen candidate's runs)*
 
 ---
 
