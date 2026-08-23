@@ -71,6 +71,46 @@ function version(command: string, args: string[]): string | null {
 }
 
 /** A TCP connect, because "the package is installed" is not "the service is listening". */
+/**
+ * A real Redis round trip, with deadlines, against the URL the application would use.
+ *
+ * Deliberately not a port check — see the note at the call site. The timeouts mirror
+ * `lib/cache.ts`: if a PING cannot complete in a second on a developer machine, whatever is
+ * there is not usable as a cache and saying "available" would be a lie.
+ */
+async function pingRedis(url: string): Promise<{ ok: boolean; detail: string }> {
+  let client: import('ioredis').Redis | undefined;
+  try {
+    const { Redis } = await import('ioredis');
+    client = new Redis(url, {
+      lazyConnect: true,
+      enableReadyCheck: false,
+      maxRetriesPerRequest: 1,
+      retryStrategy: () => null,
+      connectTimeout: 1_000,
+      commandTimeout: 1_000,
+    });
+    const started = Date.now();
+    await client.ping();
+    return { ok: true, detail: `PING answered in ${Date.now() - started}ms` };
+  } catch {
+    const host = (() => {
+      try {
+        return new URL(url).hostname;
+      } catch {
+        return url;
+      }
+    })();
+    const hint =
+      host !== '127.0.0.1'
+        ? ` — try redis://127.0.0.1:6379; a dual-stack name can resolve somewhere the server is not`
+        : '';
+    return { ok: false, detail: `no usable Redis at ${host}:6379${hint}` };
+  } finally {
+    client?.disconnect();
+  }
+}
+
 function portOpen(host: string, port: number, timeoutMs = 700): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = new net.Socket();
@@ -138,12 +178,29 @@ export async function capabilities(): Promise<Capability[]> {
     blocks: docker ? [] : ['docker build gate', 'compose topology smoke'],
   });
 
-  const redis = await portOpen('127.0.0.1', 6379);
+  // Probe Redis the way the application does — a real client command, not a port check.
+  //
+  // This used to open a TCP socket to `127.0.0.1:6379` while `lib/cache.ts` and
+  // `lib/bullmq/connection.ts` both defaulted to `redis://localhost:6379`. Measured 2026-08-23
+  // against one running container: a first ioredis GET took 60 ms over `127.0.0.1` and failed
+  // after 30,023 ms with ECONNRESET over `localhost`. Doctor reported redis available
+  // throughout, so three admin suites blew their 20-second budget and DR-010 was written off as
+  // BLOCKED_EXTERNAL for want of a Redis that was running the whole time.
+  //
+  // A port check cannot see this, and that is the point worth remembering: `net.connect` on a
+  // dual-stack name tries both families and reports success on whichever answers, while the
+  // driver does not. The probe was measuring something the application never does. So it now
+  // issues a PING through ioredis against the configured URL, with deadlines, and reports what
+  // the application would experience.
+  const redisUrl = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+  const redisProbe = await pingRedis(redisUrl);
   out.push({
     id: 'redis',
-    status: redis ? 'available' : 'unavailable',
-    detail: redis ? 'listening on 6379' : 'nothing listening on 6379',
-    blocks: redis ? [] : ['tests/redis-integration.test.ts', 'worker SIGTERM suite', 'queue integration'],
+    status: redisProbe.ok ? 'available' : 'unavailable',
+    detail: redisProbe.detail,
+    blocks: redisProbe.ok
+      ? []
+      : ['tests/redis-integration.test.ts', 'worker SIGTERM suite', 'queue integration'],
   });
 
   const postgres = await portOpen('127.0.0.1', 5432);

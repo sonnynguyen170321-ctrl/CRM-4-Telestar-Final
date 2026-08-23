@@ -220,6 +220,8 @@ domains:
     risk: R2
     paths:
       - app/api/**
+      # Response caching for the route handlers above — every consumer of it is one of them.
+      - lib/cache.ts
       - lib/api/**
       - lib/validation*.ts
       - lib/validation/**
