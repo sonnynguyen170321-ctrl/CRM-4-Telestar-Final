@@ -24,10 +24,10 @@ last two attempts at this table were both wrong.
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 5 | 0 | 0 | **4** |
-| **P1** (Critical) | 43 | 9 | 4 | **30** |
-| **P2** (Important) | 32 | 8 | 4 | **19** |
+| **P1** (Critical) | 43 | 9 | 4 | **29** |
+| **P2** (Important) | 33 | 8 | 4 | **20** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **80** | **17** | **8** | **53** |
+| **TOTAL** | **81** | **17** | **8** | **53** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -1586,11 +1586,28 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
 
 ### `TEL-P1-027` — Measured RPO Is 24 Hours; DR-007 Requires Under One Hour
 - **Severity**: P1
-- **Status**: `OPEN`
+- **Status**: `VERIFIED` — the remediation this defect asked for was performed on the live
+  instance, and re-measuring on 2026-08-23 confirmed it.
 - **Discovered by**: measuring RPO against the live instance instead of restating a target.
-- **Measured**: automated daily backups at 17:00 UTC, 7 retained, **point-in-time recovery not
-  enabled**. Worst-case data loss is therefore everything written since the last daily backup —
-  up to **86,400 seconds**. `DR-007` is `mandatory` and reads *"Measured RPO under 1 hour"*.
+- **Measured 2026-08-21**: automated daily backups at 17:00 UTC, 7 retained, **point-in-time
+  recovery not enabled**. Worst-case data loss was therefore everything written since the last
+  daily backup — up to **86,400 seconds**. `DR-007` is `mandatory` and reads *"Measured RPO under
+  1 hour"*, so the measured value failed it.
+- **Re-measured 2026-08-23**, `gcloud sql instances describe telestar-db
+  --project=telestar-crm-final`, exit 0: `pointInTimeRecoveryEnabled: true`,
+  `transactionLogRetentionDays: 7`, `enabled: true`, `startTime: 17:00`. Recovery is now bounded
+  by transaction-log durability rather than by the backup interval, giving a measured RPO of
+  **300 seconds** against a 3,600-second requirement. `DR-007` passes on the evidence rather than
+  on the assertion.
+- **How it closed**: not by a change in this repository. PITR was enabled on the production
+  instance between the two measurements — the exact remediation this entry specified, carried out
+  as the production configuration change it correctly insisted on. Nobody closed the defect
+  afterwards, so it went on reporting a 24-hour RPO that had already been fixed. It was found by
+  re-running the probe rather than by reading the ledger, which is the argument for probing.
+- **Evidence**: `EV-DR-RPO`, with the redacted raw `describe` output attached and hashed.
+- **Regression cover**: `tests/certification-rpo-probe.test.ts` — `deriveRpoSeconds` returns the
+  PITR bound when point-in-time recovery is on, and `UNBOUNDED` when no automated backup exists,
+  so a future regression in the posture changes the derived value rather than being absorbed.
 - **Why this is a change, not a restatement**: `DR-007` was previously `NOT_VERIFIED` because
   nothing could measure it. It is now measured, and the measured value **fails** the
   requirement. Authenticating `gcloud` did not turn DR-007 green; it turned an unknown into a
@@ -1612,6 +1629,42 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
 - **Evidence ID**: `EV-DR-RPO` — will record `MEASURED` / `DAILY_BACKUP` / `86400`
 
 ---
+
+### `TEL-P2-032` — The Production Database Can Be Deleted, And Nothing Says So
+- **Severity**: P2
+- **Status**: `OPEN`
+- **Discovered by**: reading the whole instance configuration while re-measuring RPO on
+  2026-08-23, rather than only the `backupConfiguration` block the RPO probe needed.
+- **Measured**, `gcloud sql instances describe telestar-db --project=telestar-crm-final`:
+
+  ```
+  deletionProtectionEnabled  false
+  connectorEnforcement       NOT_REQUIRED
+  ```
+
+- **Why it matters**: `deletionProtectionEnabled: false` means a single `gcloud sql instances
+  delete`, or a console misclick, destroys the production database. Backups and PITR reduce what
+  that costs; they do not prevent it, and recovery from a deleted instance is a restore rather
+  than a rollback. `connectorEnforcement: NOT_REQUIRED` means connections may bypass the Cloud SQL
+  connector entirely and arrive directly over the public IP, which is what makes `TEL-P1-028`'s
+  `requireSsl: false` reachable rather than theoretical.
+- **Why P2 rather than P1**: neither is an active vulnerability. `authorizedNetworks` is a single
+  `/32` — the VM's own external address — so the exposure is bounded, and deletion requires
+  credentials that already grant far more. This is missing defence in depth, not an open door.
+- **Not covered by any requirement**: `DR-001` through `DR-010` cover backup, restore, rollback,
+  RTO, RPO and failure modes. None of them covers deletion protection, high availability, or
+  transport encryption. The certification can reach 108/108 with the production database
+  deletable, single-zone and accepting plaintext. That gap is the finding worth recording, more
+  than either setting on its own.
+- **Required remediation**: `gcloud sql instances patch telestar-db --project=telestar-crm-final
+  --deletion-protection`. This is a **production configuration change** and needs explicit
+  operator authorization for that action; it is purely protective and causes no downtime, but it
+  is still not covered by any instruction to make certification green. Connector enforcement and
+  `requireSsl` are tracked by `TEL-P1-028` and must not be changed without first confirming the
+  running `DATABASE_URL` already sets `sslmode=require` — that value lives in `.env.production`
+  on the VM and is not readable from this checkout.
+- **Evidence**: `EV-DR-RPO` retains both fields deliberately; `scripts/certification/lib/redact.mjs`
+  keeps `deletionProtectionEnabled` and `availabilityType` through redaction for this reason.
 
 ### `TEL-P1-028` — Phase 15 Claims Private VPC Transport; The Instance Has A Public IP And Permits Unencrypted Connections
 - **Severity**: P1

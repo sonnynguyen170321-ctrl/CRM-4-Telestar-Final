@@ -3,7 +3,7 @@
   "program": "Telestar Production Certification",
   "candidateSourceSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
   "releaseTag": "telestar-internal-rc-2026-08-22",
-  "generatedAt": "2026-08-23T18:30:55.790Z",
+  "generatedAt": "2026-08-23T18:44:56.904Z",
   "verdict": "NO-GO",
   "eligible": false,
   "requirements": {
@@ -48,8 +48,8 @@
   "defects": {
     "open": 50,
     "openP0": 4,
-    "openP1": 28,
-    "openP2": 18,
+    "openP1": 27,
+    "openP2": 19,
     "openP3": 0,
     "ids": [
       {
@@ -217,7 +217,7 @@
         "status": "FIXED_PENDING_VERIFICATION"
       },
       {
-        "id": "TEL-P1-027",
+        "id": "TEL-P2-032",
         "status": "OPEN"
       },
       {
@@ -256,11 +256,10 @@
   },
   "evidenceRecords": 27,
   "validationFailures": {
-    "01": 1,
-    "A": 30,
+    "A": 23,
     "L": 2,
     "S": 1,
-    "N": 10,
+    "N": 11,
     "REQ": 104
   },
   "releaseIdentity": "release-identity.json"
