@@ -46,6 +46,14 @@ function pgTool(name) {
   return existsSync(candidate) ? candidate : name;
 }
 
+function shaTool() {
+  if (process.platform === 'win32') {
+    const gitSha = 'C:/Program Files/Git/usr/bin/sha256sum.exe';
+    if (existsSync(gitSha)) return gitSha;
+  }
+  return 'sha256sum';
+}
+
 function run(label, command, args, logPath, { env: extraEnv = {}, cwd } = {}) {
   const startedAt = new Date();
   const result = spawnSync(command, args, {
@@ -226,7 +234,7 @@ async function main() {
   // so it runs from the artifact directory.
   const checksum = run(
     'sha256sum -c',
-    'sha256sum',
+    shaTool(),
     ['-c', path.basename(checksumFile)],
     path.join(RAW_DIR, 'dr-backup-sha256.log'),
     { cwd: backupDir },
