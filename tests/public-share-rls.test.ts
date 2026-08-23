@@ -30,9 +30,25 @@ import { join } from 'path';
  * applies to a superuser. `scripts/verify-rls.mjs` connects as a non-superuser for that reason.
  */
 
-const source = readFileSync(
-  join(process.cwd(), 'lib', 'client-reports', 'shareLinks.ts'),
-  'utf8',
+/**
+ * Comments are stripped before any of these assertions run.
+ *
+ * `tests/rls-policy-coverage.test.ts` asserted that `supabase/rls.sql` reads
+ * `current_setting('app.bypass_rls', true)`. The role-targeted rewrite removed that flag from
+ * the policy entirely, and the test kept passing — because the file's header comment still
+ * *described* the old form while explaining why it changed. It asserted a property that had
+ * stopped being true, and nothing would have caught a revert to the policy shape that turned
+ * every tenantId index into a sequential scan.
+ *
+ * Every assertion below was checked against comment-stripped source when this was written, and
+ * all of them hold against code rather than prose. Stripping keeps it that way: a source-level
+ * test is only worth anything if a comment can neither satisfy it nor break it.
+ */
+const stripComments = (src: string) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+const source = stripComments(
+  readFileSync(join(process.cwd(), 'lib', 'client-reports', 'shareLinks.ts'), 'utf8')
 );
 
 describe('the public share path survives database-level RLS', () => {
@@ -75,7 +91,7 @@ describe('the public share path survives database-level RLS', () => {
   it('reads the same switch lib/prisma.ts reads', () => {
     // Two different switches would let the application enter RLS mode while this file did not.
     expect(source).toContain("process.env.DB_RLS_ENFORCED === 'true'");
-    const prismaSource = readFileSync(join(process.cwd(), 'lib', 'prisma.ts'), 'utf8');
+    const prismaSource = stripComments(readFileSync(join(process.cwd(), 'lib', 'prisma.ts'), 'utf8'));
     expect(prismaSource).toContain("process.env.DB_RLS_ENFORCED === 'true'");
   });
 

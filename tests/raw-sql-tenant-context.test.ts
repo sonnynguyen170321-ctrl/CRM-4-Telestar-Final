@@ -26,6 +26,18 @@ import { join, relative, sep } from 'path';
  * and RLS never applies to a superuser.
  */
 
+/**
+ * Comments are stripped before matching, everywhere in this file.
+ *
+ * `lib/seed-guard.ts` explains at length why the seed uses a bare client, and would otherwise
+ * be reported for describing the thing it guards. The reverse costs more: a sibling test once
+ * passed because a header comment still described the code it was asserting on, so the check
+ * was green while the property was gone. A source-level test is only worth something if a
+ * comment can neither satisfy it nor break it.
+ */
+const stripComments = (src: string) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
 const ROOTS = ['app', 'lib', 'workers'] as const;
 
 /**
@@ -70,8 +82,10 @@ const files = ROOTS.flatMap((root) => walk(join(process.cwd(), root))).map((f) =
 const offenders = files.filter((file) => {
   const key = file.split('/').join(sep);
   if (key === HELPER_FILE || ALLOWED.has(key)) return false;
-  const source = readFileSync(file, 'utf8');
-  return /prisma\.\$(query|execute)Raw/.test(source);
+  // Comment-stripped, like the tooling scan below. A file that merely *describes* a raw call —
+  // as `lib/seed-guard.ts` describes the bare client it guards — is not making one, and failing
+  // the build over prose teaches people to add exemptions until the list means nothing.
+  return /prisma\.\$(query|execute)Raw/.test(stripComments(readFileSync(file, 'utf8')));
 });
 
 describe('raw SQL carries a tenant context', () => {
@@ -169,15 +183,6 @@ describe('operational tooling uses the admin client', () => {
         .map((f) => join(process.cwd(), f))
     )
     .map((f) => relative(process.cwd(), f));
-
-  /**
-   * Comments are stripped before matching. `lib/seed-guard.ts` explains at length why the seed
-   * uses a bare client and would otherwise be reported for describing the thing it guards —
-   * and a check that cannot tell prose from code trains people to add exemptions, which is how
-   * an exemption list stops meaning anything.
-   */
-  const stripComments = (src: string) =>
-    src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
   const bare = toolingFiles.filter((file) => {
     const key = file.split('/').join(sep);
