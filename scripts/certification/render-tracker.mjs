@@ -13,7 +13,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
-import { CERT_DIR, PROGRESS_PATH } from './lib/paths.mjs';
+import { CERT_DIR, PROGRESS_PATH, RELEASE_IDENTITY_PATH } from './lib/paths.mjs';
 import { validateCertification } from './validate-certification.mjs';
 
 /** Counts unclosed defects straight out of DEFECTS.md, by severity. */
@@ -147,9 +147,16 @@ function main() {
     },
     evidenceRecords: result.evidenceRecordCount,
     validationFailures: Object.fromEntries(failuresByCheck),
-    release: releaseIdentity(result.candidateSha),
+    releaseIdentity: 'release-identity.json',
   };
   writeFileSync(PROGRESS_PATH, `${JSON.stringify(progress, null, 2)}\n`);
+
+  // Written separately because it names SHAs that are deliberately NOT the candidate. See
+  // RELEASE_IDENTITY_PATH in lib/paths.mjs for why that cannot live in a declaring file.
+  writeFileSync(
+    RELEASE_IDENTITY_PATH,
+    `${JSON.stringify(releaseIdentity(result.candidateSha), null, 2)}\n`,
+  );
 
   const domainRows = Object.entries(result.requirements.byDomain)
     .map(([domain, counts]) => `| \`${domain}\` | ${counts.total} | ${counts.verified} | ${counts.total - counts.verified} |`)
