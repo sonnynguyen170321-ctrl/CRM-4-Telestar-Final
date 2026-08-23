@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "program": "Telestar CRM Production Certification",
   "releaseTag": "telestar-internal-rc-2026-08-22",
-  "candidateSha": "1d33b552fa8a1bfba9a6136d2c4e2db95561be7d",
-  "candidateFrozenAt": "2026-08-23T07:57:00.000Z",
+  "candidateSha": "12a527519ace1e432177c6b5bfd93fa2ff04511b",
+  "candidateFrozenAt": "2026-08-23T08:28:00.000Z",
   "previousCandidates": [
     {
       "sha": "e968ce7b585fb6afaa64c8aae7ee24d1ba013dd6",
