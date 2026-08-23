@@ -124,7 +124,7 @@ log('Validating GCP production compose topology invariants');
 
 const testDigest = 'sha256:47cae338dcb6c3a0197033570eb56937430a67092c72a57d9208b1a127b4266d';
 const testImage = `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@${testDigest}`;
-const testDbUrl = 'postgresql://crm_user:secret_pass@136.110.29.201:5432/telestar_crm?sslmode=require';
+const testDbUrl = 'postgresql://crm_user:secret_pass@192.0.2.10:5432/telestar_crm?sslmode=require';
 
 const dummyEnv = {
   ...process.env,

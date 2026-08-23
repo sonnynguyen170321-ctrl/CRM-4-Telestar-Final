@@ -52,7 +52,7 @@ describe('gitleaks allowlist', () => {
     // A credentialled DSN pointing anywhere that is not loopback must still fail the
     // build. This is the assertion that stops the local-database exemption from quietly
     // becoming "any database".
-    ['remote Postgres with a password', 'postgresql://crm:hunter2@34.142.236.46:5432/telestar_crm'],
+    ['remote Postgres with a password', 'postgresql://crm:hunter2@198.51.100.7:5432/telestar_crm'],
     ['managed Postgres', 'postgresql://crm:pw@db.abc.neon.tech:5432/main'],
     ['Cloud SQL socket', 'postgresql://crm:pw@10.20.30.40:5432/telestar_crm'],
     ['remote Redis with auth', 'rediss://user:realpass@prod-cache.example.net:6380'],

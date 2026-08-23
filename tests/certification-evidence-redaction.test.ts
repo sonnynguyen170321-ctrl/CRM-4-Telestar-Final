@@ -13,6 +13,10 @@ import { redactCloudSqlDescribe } from '../scripts/certification/lib/redact.mjs'
  * authorized-network ACL. None of those are credentials, and none of them are needed to prove
  * anything about backups.
  *
+ * The fixture below uses RFC 5737 documentation addresses and a zeroed project number on
+ * purpose: a test proving that production identifiers get stripped should not itself commit
+ * production identifiers to a public repository.
+ *
  * A human redacted the file once, by hand. The next run of the evidence writer put all of it
  * back, because the writer dumped `probe.raw` verbatim. That is the real defect: a redaction
  * that lives in a manual edit is not a redaction, it is a race against the next re-run. So the
@@ -29,15 +33,15 @@ const SAMPLE = {
   instanceType: 'CLOUD_SQL_INSTANCE',
   backendType: 'SECOND_GEN',
   createTime: '2026-08-03T16:51:25.190Z',
-  etag: '9925e2197d66a178701925c34241a520522722e1ab9b01897cf4e89d977b7cd8',
+  etag: '0000e2197d66a178701925c34241a520522722e1ab9b01897cf4e89d977b0000',
   connectionName: 'telestar-crm-final:asia-southeast1:telestar-db',
   gceZone: 'asia-southeast1-c',
   selfLink: 'https://sqladmin.googleapis.com/sql/v1beta4/projects/telestar-crm-final/instances/telestar-db',
-  serviceAccountEmailAddress: 'p589324791591-l9qonk@gcp-sa-cloud-sql.iam.gserviceaccount.com',
+  serviceAccountEmailAddress: 'p000000000000-example@gcp-sa-cloud-sql.iam.gserviceaccount.com',
   serverCaCert: { cert: '-----BEGIN CERTIFICATE-----\nMIIDcTCC\n-----END CERTIFICATE-----' },
   ipAddresses: [
-    { ipAddress: '136.110.29.201', type: 'PRIMARY' },
-    { ipAddress: '136.110.52.105', type: 'OUTGOING' },
+    { ipAddress: '192.0.2.10', type: 'PRIMARY' },
+    { ipAddress: '192.0.2.11', type: 'OUTGOING' },
   ],
   settings: {
     tier: 'db-custom-2-7680',
@@ -54,7 +58,7 @@ const SAMPLE = {
     ipConfiguration: {
       ipv4Enabled: true,
       requireSsl: false,
-      authorizedNetworks: [{ value: '34.142.236.46/32' }],
+      authorizedNetworks: [{ value: '198.51.100.7/32' }],
     },
   },
 };
@@ -85,8 +89,8 @@ describe('redactCloudSqlDescribe', () => {
   });
 
   it('removes the endpoint IP addresses', () => {
-    expect(JSON.stringify(redacted())).not.toContain('136.110.29.201');
-    expect(JSON.stringify(redacted())).not.toContain('136.110.52.105');
+    expect(JSON.stringify(redacted())).not.toContain('192.0.2.10');
+    expect(JSON.stringify(redacted())).not.toContain('192.0.2.11');
   });
 
   it('removes the server CA certificate', () => {
@@ -94,17 +98,17 @@ describe('redactCloudSqlDescribe', () => {
   });
 
   it('removes the service account address that encodes the project number', () => {
-    expect(JSON.stringify(redacted())).not.toContain('589324791591');
+    expect(JSON.stringify(redacted())).not.toContain('000000000000');
     expect(JSON.stringify(redacted())).not.toContain('gcp-sa-cloud-sql');
   });
 
   it('removes the authorized-network ACL', () => {
-    expect(JSON.stringify(redacted())).not.toContain('34.142.236.46');
+    expect(JSON.stringify(redacted())).not.toContain('198.51.100.7');
   });
 
   it('removes etag, selfLink, connectionName and zone', () => {
     const text = JSON.stringify(redacted());
-    expect(text).not.toContain('9925e2197d66a178');
+    expect(text).not.toContain('0000e2197d66a178');
     expect(text).not.toContain('sqladmin.googleapis.com');
     expect(text).not.toContain('asia-southeast1-c');
     expect(text).not.toContain('telestar-crm-final:asia-southeast1:telestar-db');

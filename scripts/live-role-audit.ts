@@ -1,6 +1,27 @@
 import { chromium } from '@playwright/test';
 
-const BASE_URL = process.env.BASE_URL || 'http://34.142.236.46';
+/**
+ * The target must be named. There is no default, and specifically not production.
+ *
+ * This read `process.env.BASE_URL || 'http://<production-ip>'`. Running the file with no
+ * environment set therefore drove a real browser against the live CRM — including the
+ * deliberate bad-credential login below, which is an authentication failure recorded against
+ * production by anyone who ran the script to see what it did.
+ *
+ * It is the same defect as the Cloud SQL `||` default that had certification measuring the wrong
+ * database: a fallback lets a tool proceed confidently against a target nobody chose. The
+ * fallback being production rather than a demo only makes it worse.
+ */
+const BASE_URL = process.env.BASE_URL;
+
+if (!BASE_URL) {
+  console.error(
+    'Missing BASE_URL. This audit drives a real browser and submits real login attempts, so it ' +
+      'will not assume a target. Set BASE_URL explicitly — e.g. BASE_URL=http://localhost:3000 — ' +
+      'and note that pointing it at production records failed logins there.',
+  );
+  process.exit(2);
+}
 
 interface AuditResult {
   category: string;

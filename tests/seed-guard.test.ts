@@ -75,7 +75,7 @@ describe('assertDestructiveSeedAllowed — refusals', () => {
   });
 
   it('refuses any non-local hostname', () => {
-    const url = 'postgresql://u:p@136.110.29.201:5432/telestar_crm_dev';
+    const url = 'postgresql://u:p@192.0.2.10:5432/telestar_crm_dev';
     expect(() => assertDestructiveSeedAllowed(ok({ databaseUrl: url }))).toThrow(/not local/);
   });
 
