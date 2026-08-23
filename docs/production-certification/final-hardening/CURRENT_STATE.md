@@ -1,13 +1,21 @@
 # CURRENT STATE
 
-- **CURRENT MAIN SHA**: `76b737786d09f2120ddc6ed22df6e21c5ae9ba22`
+- **CURRENT MAIN SHA**: `dedf68df72648fbccb676f68c34f0c793ba6f59b` (PR #107 merged)
 - **OUR BRANCH**: `release/final-production-push`
-- **OUR SHA**: `76b737786d09f2120ddc6ed22df6e21c5ae9ba22`
-- **CURRENT PHASE**: PHASE A — TRUTH BASELINE & CONTROL PLANE INITIALIZATION
-- **CURRENT DEFECT**: None
-- **LAST LOCKED CHECKPOINT**: None
-- **EXTERNAL PR STATUS**: PR #107 OPEN (`fix/raw-sql-tenant-context` at `44a3cea8afbfb62e35385c62cbe3640fe150280c`)
+- **OUR SHA**: `4b8dee677a28e8f815a5198ecffc4f74d0a6c6e7`
+- **CURRENT PHASE**: PHASE S — HARDENED PRODUCTION CANDIDATE INTEGRATED & VERIFIED
+- **LAST LOCKED CHECKPOINT**: CP-POST-107-VERIFIED
+- **EXTERNAL PR STATUS**: All external PRs (#105, #106, #107) MERGED
 - **OPEN P0**: 0
 - **OPEN P1**: 0
-- **CURRENT BLOCKER**: None (Advancing independent GREEN tracks)
-- **NEXT ACTION**: Gather baseline facts (Production identity, PITR, migrations, webhooks, role journeys)
+- **CLOUD SQL POSTURE**: Verified. Automated backups active, PITR enabled (`pointInTimeRecoveryEnabled: true`), RPO < 1 hour satisfied.
+- **TEST VERIFICATION STATUS**:
+  - `tsc --noEmit`: PASS (0 errors)
+  - `eslint`: PASS (0 errors)
+  - `vitest`: 192 test files, 2,770 tests passed (100% pass)
+  - `scripts/verify-rls-app-paths.mjs`: PASS (all 10 application paths survive DB RLS)
+  - `check:migration-order`: PASS (51 migrations valid)
+  - `check:production-compose`: PASS (GCP topology valid)
+  - `certify:selftest`: PASS (19 detected, 0 missed)
+  - `scripts/build.cjs`: PASS (Next.js 16.3 Turbopack production build succeeded)
+- **NEXT ACTION**: Candidate SHA freeze, container packaging & certification ladder runs.
