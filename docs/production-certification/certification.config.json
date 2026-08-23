@@ -3,6 +3,17 @@
   "schemaVersion": 1,
   "program": "Telestar CRM Production Certification",
   "releaseTag": "telestar-internal-rc-2026-08-22",
+  "productionResources": {
+    "$comment": "The one place production resource identity is declared. Certification tooling reads these and fails closed when they are absent; it never assumes a default. telestar-crm-db is the DEMO instance and is rejected for production certification - querying it was reported for weeks as a missing gcloud install (TEL-P0-002).",
+    "gcpProject": "telestar-crm-final",
+    "sqlInstance": "telestar-db",
+    "sqlDatabase": "telestar_crm",
+    "region": "asia-southeast1",
+    "vmName": "telestar-crm-vm",
+    "vmZone": "asia-southeast1-a",
+    "imageRepository": "telestar-crm-candidate",
+    "demoSqlInstance": "telestar-crm-db"
+  },
   "candidateSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
   "candidateFrozenAt": "2026-08-23T14:46:00.000Z",
   "previousCandidates": [

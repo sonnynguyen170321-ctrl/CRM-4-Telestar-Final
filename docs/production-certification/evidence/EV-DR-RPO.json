@@ -4,8 +4,8 @@
   "candidateSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
   "environment": "certification workstation - gcloud probe outcome MEASURED",
   "command": "gcloud sql instances describe telestar-db --project=telestar-crm-final --format=json",
-  "startedAt": "2026-08-23T16:31:25.043Z",
-  "finishedAt": "2026-08-23T16:31:33.723Z",
+  "startedAt": "2026-08-23T17:24:34.314Z",
+  "finishedAt": "2026-08-23T17:24:39.963Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -31,15 +31,14 @@
     "priorPublishedValueWithdrawn": "15 minutes (BACKUP_RESTORE.md) and under 5 minutes (BACKUP_RESTORE_RUNBOOK.md) - neither was measured",
     "contradiction": "docs/CLOUD_RUN_DEPLOY.md creates the instance with --no-backup and docs/DEPLOY.md records no backup schedule as of 2026-08-05, while docs/BACKUP_RESTORE_RUNBOOK.md claims automated backups and 7-day PITR are enabled",
     "defect": "TEL-P0-002",
-    "closesWhen": "raw gcloud output for backupConfiguration.enabled, pointInTimeRecoveryEnabled and transactionLogRetentionDays is attached as an artifact (attached, redacted by allowlist - those three fields retained verbatim)"
+    "closesWhen": "raw gcloud output for backupConfiguration.enabled, pointInTimeRecoveryEnabled and transactionLogRetentionDays is attached as an artifact"
   },
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/dr-rpo-gcloud.log",
-      "sizeBytes": 2040,
-      "sha256": "6890d769940170de2cffeb3cd48fa467294abff3a62b81e7cd306a104e5084b6",
-      "redacted": true,
-      "note": "allowlist redaction for public repository; backupConfiguration retained verbatim"
+      "sizeBytes": 2021,
+      "sha256": "e2ea8c74b6cedc6fee70a601e058641ea68d20d74f1e28676cfc4516b783dd9b",
+      "redacted": true
     }
   ]
 }

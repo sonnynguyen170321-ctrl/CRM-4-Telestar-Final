@@ -168,6 +168,107 @@ describe('runCommand — Windows batch shims', () => {
   });
 });
 
+/**
+ * The probe asked the right question of the wrong database for weeks.
+ *
+ * `telestar-crm-db` does not exist; the resulting 404 was reported as "gcloud is not installed",
+ * and the test suite asserted the non-existent name, which is what held the defect in place. The
+ * real production instance is `telestar-db` in `telestar-crm-final`.
+ *
+ * A certification probe must therefore never supply a default identity. Guessing which database
+ * production is cannot be done safely: guessing right proves nothing and guessing wrong produces
+ * a confident PASS about a resource nobody asked for. Absent identity is an error, not a default.
+ */
+describe('production Cloud SQL identity is never assumed', () => {
+  const answering = () => ({ status: 0, stdout: '{}', stderr: '' });
+
+  it('CASE A — queries exactly the project and instance it was given', () => {
+    const shell = vi.fn((command: string, args: string[]) => {
+      if (args[0] === 'version') return { status: 0, stdout: '', stderr: '' };
+      return {
+        status: 0,
+        stdout: JSON.stringify({ settings: { backupConfiguration: { enabled: true } } }),
+        stderr: '',
+      };
+    });
+
+    probeRpo(shell, INSTANCE);
+
+    const describeCall = shell.mock.calls.find((call) => call[1][0] === 'sql');
+    expect(describeCall?.[1]).toEqual([
+      'sql',
+      'instances',
+      'describe',
+      'telestar-db',
+      '--project=telestar-crm-final',
+      '--format=json',
+    ]);
+  });
+
+  it('CASE B — refuses to run at all when the instance is absent', () => {
+    expect(() => probeRpo(answering, { project: 'telestar-crm-final' } as never)).toThrow(
+      /DEPLOY_SQL_INSTANCE/,
+    );
+  });
+
+  it('CASE B — refuses to run at all when the project is absent', () => {
+    expect(() => probeRpo(answering, { instance: 'telestar-db' } as never)).toThrow(
+      /DEPLOY_SQL_PROJECT/,
+    );
+  });
+
+  it('CASE B — the failure names both required settings and assumes no default', () => {
+    let message = '';
+    try {
+      probeRpo(answering, {} as never);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toContain('DEPLOY_SQL_PROJECT');
+    expect(message).toContain('DEPLOY_SQL_INSTANCE');
+    expect(message).toMatch(/no default/i);
+    // The whole point: it must not name a candidate database in the error and invite a guess.
+    expect(message).not.toContain('telestar-db');
+  });
+
+  it('CASE C — rejects the demo instance when certifying production', () => {
+    expect(() =>
+      probeRpo(answering, { instance: 'telestar-crm-db', project: 'telestar-crm-final' }),
+    ).toThrow(/telestar-crm-db/);
+  });
+
+  it('CASE F — a genuine 404 names the exact project and instance queried', () => {
+    const shell = shellReturning({
+      version: { status: 0 },
+      describe: {
+        status: 1,
+        stderr:
+          'ERROR: (gcloud.sql.instances.describe) HTTPError 404: The Cloud SQL instance does not exist.',
+      },
+    });
+
+    const result = probeRpo(shell, INSTANCE);
+
+    expect(result.outcome).toBe(RPO_OUTCOME.NOT_FOUND);
+    expect(result.reason).toContain('telestar-db');
+    expect(result.reason).toContain('telestar-crm-final');
+    // A 404 is a fact about a named resource, never a measurement.
+    expect(result.outcome).not.toBe(RPO_OUTCOME.MEASURED);
+  });
+
+  it('CASE F — a 404 is not reported as an install or credentials problem', () => {
+    const shell = shellReturning({
+      version: { status: 0 },
+      describe: { status: 1, stderr: 'HTTPError 404: The Cloud SQL instance does not exist.' },
+    });
+
+    const result = probeRpo(shell, INSTANCE);
+
+    expect(result.reason).not.toMatch(/not installed/i);
+    expect(result.reason).not.toMatch(/auth login/i);
+  });
+});
+
 describe('EV-DR-RPO is no longer a constant', () => {
   const source = readFileSync(
     join(process.cwd(), 'scripts', 'certification', 'record-blocked-evidence.mjs'),

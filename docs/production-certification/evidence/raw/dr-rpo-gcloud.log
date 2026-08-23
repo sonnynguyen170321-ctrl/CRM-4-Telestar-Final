@@ -1,8 +1,8 @@
 {
   "_redaction": {
     "redacted": true,
-    "reason": "This repository is public. The unredacted describe output contained production endpoint IPs, the Cloud SQL server CA certificate, the managed service-account address (which carries the GCP project number), the etag and the authorized-network ACL. None were credentials; all were infrastructure disclosure.",
-    "method": "allowlist - only the fields below were carried over from the raw output",
+    "method": "allowlist — only the fields named below are carried over from the raw output",
+    "reason": "This repository is public. The raw describe output carries production endpoint IPs, the server CA certificate, the managed service-account address (which encodes the GCP project number), the etag, the selfLink and the authorized-network ACL. None are credentials; all are infrastructure disclosure that is permanent once in git history.",
     "fieldsRetained": {
       "top": [
         "name",
@@ -22,9 +22,7 @@
         "edition"
       ]
     },
-    "sufficientFor": "EV-DR-RPO closesWhen requires backupConfiguration.enabled, pointInTimeRecoveryEnabled and transactionLogRetentionDays, all retained verbatim",
-    "unredactedSha256OfOriginal": "dd42bf0bb697dd67939b710e2212758b0fa95e77321b06a5f0d2ca29c2f2c12f",
-    "redactedAt": "2026-08-24"
+    "sufficientFor": "EV-DR-RPO closesWhen requires backupConfiguration.enabled, pointInTimeRecoveryEnabled and transactionLogRetentionDays — all retained verbatim, alongside the instance identity that proves which database was measured."
   },
   "name": "telestar-db",
   "project": "telestar-crm-final",

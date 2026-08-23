@@ -165,11 +165,11 @@
 - **Candidate**: `12ea8ae4791ad0c79fb6a1403475015dc6acb399`
 - **Environment**: certification workstation - gcloud probe outcome MEASURED
 - **Command**: `gcloud sql instances describe telestar-db --project=telestar-crm-final --format=json`
-- **Ran**: 2026-08-23T16:31:25.043Z → 2026-08-23T16:31:33.723Z
+- **Ran**: 2026-08-23T17:24:34.314Z → 2026-08-23T17:24:39.963Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Reason**: point-in-time recovery is enabled, so recovery is bounded by transaction-log durability rather than by the backup interval
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/dr-rpo-gcloud.log` — 2040 bytes, sha256 `6890d769940170de…`
+  - `docs/production-certification/evidence/raw/dr-rpo-gcloud.log` — 2021 bytes, sha256 `e2ea8c74b6cedc6f…`
 ### `EV-FAILURE-MATRIX`
 - **Kind**: `failure-matrix`
 - **Candidate**: `fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb`

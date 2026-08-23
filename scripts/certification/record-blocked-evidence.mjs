@@ -13,15 +13,43 @@
  *   node scripts/certification/record-blocked-evidence.mjs
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 
-import { CONFIG_PATH, EVIDENCE_DIR, RAW_DIR } from './lib/paths.mjs';
+import { CONFIG_PATH, EVIDENCE_DIR, RAW_DIR, REPO_ROOT } from './lib/paths.mjs';
 import { runCommand } from './lib/exec.mjs';
 import { RPO_OUTCOME, probeRpo } from './lib/rpoProbe.mjs';
 import { containerRuntime } from './lib/imageGates.mjs';
+import { redactCloudSqlDescribe } from './lib/redact.mjs';
 
-const SQL_INSTANCE = process.env.DEPLOY_SQL_INSTANCE || 'telestar-db';
-const SQL_PROJECT = process.env.DEPLOY_SQL_PROJECT || 'telestar-crm-final';
+/**
+ * Production resource identity comes from the certification config, never from a literal here.
+ *
+ * This file used to read `process.env.DEPLOY_SQL_INSTANCE || 'telestar-crm-db'`. The fallback
+ * named the demo instance, which does not exist in the production project, so the probe drew a
+ * 404 that was then reported as "gcloud is not installed on this machine" — a wrong answer to a
+ * question nobody had asked, believed for weeks (TEL-P0-002).
+ *
+ * A `||` default is what made that possible: it let the tool proceed confidently with an
+ * identity no one had chosen. So identity now resolves from the canonical config, an env var may
+ * override it deliberately, and absence is an error rather than a guess.
+ */
+function productionResources() {
+  const config = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+  const declared = config.productionResources;
+  if (!declared) {
+    throw new Error(
+      `Missing production resource identity: ${path.basename(CONFIG_PATH)} declares no ` +
+        '"productionResources" block. Required: gcpProject and sqlInstance. ' +
+        'No default will be assumed.',
+    );
+  }
+  return declared;
+}
+
+const RESOURCES = productionResources();
+const SQL_INSTANCE = process.env.DEPLOY_SQL_INSTANCE || RESOURCES.sqlInstance;
+const SQL_PROJECT = process.env.DEPLOY_SQL_PROJECT || RESOURCES.gcpProject;
 
 const shell = runCommand;
 
@@ -157,8 +185,23 @@ function writeRpoEvidence(candidateSha, now) {
   if (probe.raw) {
     mkdirSync(RAW_DIR, { recursive: true });
     const rawPath = path.join(RAW_DIR, 'dr-rpo-gcloud.log');
-    writeFileSync(rawPath, `${probe.raw}\n`);
-    artifacts.push(path.relative(path.join(EVIDENCE_DIR, '..'), rawPath).split(path.sep).join('/'));
+
+    // Redact in the writer, not by hand afterwards. A hand-redacted artifact was restored in
+    // full by the next run of this script, because this line used to write `probe.raw` verbatim
+    // into a public repository.
+    const body = redactCloudSqlDescribe(probe.raw);
+    writeFileSync(rawPath, body);
+
+    // Describe the artifact the way every other evidence record does: path, size and content
+    // hash. This used to push a bare relative string, which is why `render-evidence-ledger.mjs`
+    // crashed on `artifact.sha256.slice()` — the artifact was referenced but never checksummed,
+    // so nothing detected if it changed underneath the record vouching for it.
+    artifacts.push({
+      path: path.relative(REPO_ROOT, rawPath).split(path.sep).join('/'),
+      sizeBytes: Buffer.byteLength(body),
+      sha256: createHash('sha256').update(body).digest('hex'),
+      redacted: true,
+    });
   }
 
   const record = {
