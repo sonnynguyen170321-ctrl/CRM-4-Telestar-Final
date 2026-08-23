@@ -54,15 +54,14 @@ export async function findAccentInsensitiveIds(
   // no tenant to set, a cross-tenant bypass is the only thing that would work, and quietly
   // widening a search to every tenant is worse than returning nothing. So the unscoped call
   // keeps today's behaviour and the scoped one gets its context.
+  // Built once. Writing it into both arms of the branch below would let a future edit reach one
+  // and not the other, and the two would then differ only under RLS — the hardest place to
+  // notice.
+  const statement = Prisma.sql`SELECT "id" FROM ${tableRef} WHERE ${tenantClause}${where} LIMIT 5000`;
+
   const rows = tenantId
-    ? await withTenantRaw(tenantId, (db) =>
-        db.$queryRaw<Array<{ id: string }>>(
-          Prisma.sql`SELECT "id" FROM ${tableRef} WHERE ${tenantClause}${where} LIMIT 5000`
-        )
-      )
-    : await prisma.$queryRaw<Array<{ id: string }>>(
-        Prisma.sql`SELECT "id" FROM ${tableRef} WHERE ${tenantClause}${where} LIMIT 5000`
-      );
+    ? await withTenantRaw(tenantId, (db) => db.$queryRaw<Array<{ id: string }>>(statement))
+    : await prisma.$queryRaw<Array<{ id: string }>>(statement);
 
   return rows.map((r) => r.id);
 }
