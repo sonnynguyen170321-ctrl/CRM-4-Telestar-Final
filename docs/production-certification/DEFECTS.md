@@ -533,7 +533,7 @@ not evidence of anything.
 
 ### `TEL-P1-032` — Webhook Configuration Has No Durable Authority And Writes Can Fail Silently
 - **Severity**: P1
-- **Status**: `OPEN` — remediation needs a migration, which is R4
+- **Status**: `FIXED_PENDING_VERIFICATION` — implemented 2026-08-23 on explicit operator authorization
 - **Discovered by**: the directed durability audit.
 - **Measured**: there is **no `Webhook` model in `prisma/schema.prisma`** — the word does not
   appear in the schema at all. Every webhook configuration lives only in Redis, written by
@@ -558,10 +558,62 @@ not evidence of anything.
   successful save. Concurrent create/update/delete then need testing against the database
   rather than against a read-modify-write of a cached array, which is itself lossy under
   concurrency.
-- **Why not fixed in this pass**: it requires a schema migration, and `AGENTS.md` classifies
-  migrations as **R4 — independent verification plus explicit operator authorization**. The
-  analysis is complete and the change is ready to make on authorization.
-- **Evidence ID**: *(none yet)*
+- **Authorization**: the operator was given the trade-off explicitly — implement now and restart
+  the certification cycle, accept it as a known open P1 with a named owner, or defer the
+  decision until after the three runs — and chose to implement. Recorded here because an R4
+  change with no record of who authorised it is indistinguishable from one nobody authorised.
+
+- **Implemented**:
+
+  | Piece | What it does |
+  |---|---|
+  | `model Webhook` in `prisma/schema.prisma` | the durable authority: tenant-scoped, cascade delete, `@@index([tenantId, isActive])` |
+  | `prisma/migrations/20260822000000_durable_webhook_config` | creates the table, indexes and foreign key |
+  | `lib/webhooks/store.ts` | the domain service — database first, cache invalidated after |
+  | `app/api/webhooks/route.ts` | GET/POST/DELETE read and write the authority |
+  | `app/api/webhooks/test/route.ts` | the test ping resolves the webhook from the authority |
+
+  `events` is a `String[]` rather than a database enum, for the same reason `User.role` is a
+  String: the set changes with product, and an enum turns adding one into a migration. Drift is
+  caught by a test, not by the column type.
+
+  `lastDeliveryAt` and `lastStatus` are nullable so that *never delivered* stays distinguishable
+  from *delivered and failed* — `0` would not be.
+
+- **Each of the three original failures, re-measured against the implementation**:
+
+  | Failure | Test that now holds it |
+  |---|---|
+  | expired after 30 days | *is still there after the cache is emptied* — clears the cache entirely, the webhook survives |
+  | did not survive Redis | *is still there when the cache never worked at all* — reads and writes both fail, behaviour unchanged |
+  | a write could silently do nothing | *persists to the database even when the cache write fails*, and *throws rather than returning when the database write fails* |
+
+- **Two defects the tests found in the new code**, neither present in the original report:
+  1. **A delete that matched nothing returned success.** The old route filtered a list and
+     always answered `{ success: true }`, so deleting another tenant's id — or a typo — reported
+     success. It is now a 404.
+  2. **Reusing another tenant's id collided on the primary key.** That both crashes and confirms
+     the id exists somewhere, which is an oracle for a neighbour's identifiers. An unmatched id
+     now always creates a fresh one, so a typo and a neighbour's id are indistinguishable from
+     outside.
+
+- **Regression tests**: `tests/webhook-durability.test.ts` — 25 tests against real Postgres, with
+  the cache substituted so "Redis is empty" and "Redis is broken" are reproducible rather than
+  theoretical. Reverting the read to the old cache-only behaviour fails 7 of them, so they can
+  fail.
+- **One existing test needed rescoping, and it is worth naming.**
+  `never returns a webhook signing secret on read` was pinned to
+  `/webhooks: \(cached \|\| \[\]\)\.map\(redactSecret\)/` — which was really an assertion that
+  the route read from Redis. Making the database the authority broke a test about *secrets* for
+  reasons that had nothing to do with secrets. It now matches the redaction, not the expression
+  that produced the list.
+- **Verification**: vitest full 190 files / 2738 tests passed exit 0; `tsc --noEmit` 0 errors
+  exit 0; eslint 0 errors 0 warnings exit 0; `check:migration-order` exit 0;
+  `check:stale-models` exit 0.
+- **Not yet applied to production.** The migration has run against the local database only.
+  Applying it is part of the next deploy, which `scripts/deploy.sh` performs with the new image
+  before swapping containers.
+- **Evidence ID**: *(none yet — belongs to the re-frozen candidate's runs)*
 
 ---
 
@@ -1466,7 +1518,7 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
 
 ### `TEL-P1-026` — DR-003 Has No Script That Can Ever Produce A Pass
 - **Severity**: P1
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION` — orchestration added; the drill has not yet been run
 - **Discovered by**: checking that the planned remediation would actually reach GO, before
   spending three ladder runs finding out.
 - **Detail**: `DR-003` ("Rollback drill to previous immutable container image") is `mandatory`
@@ -1505,12 +1557,25 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
 
   **Verified with a mutation test, not just a green run**: forcing `evaluateDrill` to always
   return `PASS` fails 7 of the 27 tests. A rule nothing can violate would prove nothing.
-- **Remaining**: the orchestration shell that drives `scripts/rollback.sh` through the three
-  phases and collects the health responses. It needs a live container runtime to develop
-  against; writing it blind would produce a script nobody has run, which is the same class of
-  defect this requirement exists to close.
-- **Regression test**: `tests/certification-rollback-drill.test.ts` — 27 passed, exit 0.
-- **Evidence ID**: `EV-DR-ROLLBACK` (still `NOT_EXECUTED` — no drill has run)
+- **Resolved**: `scripts/certification/dr-rollback-drill.mjs` is that orchestration. It drives
+  `scripts/rollback.sh` through the three phases, times each from its own clock, and reads state
+  back rather than assuming it — service digests from `docker inspect` on the running
+  containers, web identity from `/api/health` resolved against the real hostname, worker
+  identity from `printenv APP_COMMIT` **inside** the running container, and worker liveness from
+  the queue-registration line. Nothing in it decides the verdict: observations go to
+  `buildRollbackEvidence`, which derives `PASS` or `FAIL`.
+
+  It has a `--dry-run` that prints every command and writes no evidence, because a script that
+  swaps production images must be reviewable before it is run. Dry run exercised against the
+  production host: all nine commands printed, nothing changed.
+
+- **Still to do**: run it. That is a production action — three image swaps on the live box — and
+  needs explicit operator authorization for that action, separately from a deploy.
+- **Regression tests**: `tests/certification-rollback-drill.test.ts` (the rules) and
+  `tests/certification-rollback-orchestration.test.ts` (the orchestration) — 49 passed, exit 0.
+  Forcing the drill to exit 0 regardless of the derived verdict fails 2 of the 17 orchestration
+  tests, so they can fail.
+- **Evidence ID**: `EV-DR-ROLLBACK` (still `NOT_EXECUTED` — the drill exists now but has not run)
 
 ---
 

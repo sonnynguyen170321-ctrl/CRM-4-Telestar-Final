@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { requireManager, type SessionUser } from '@/lib/auth';
-import { cacheGet, cacheSet } from '@/lib/cache';
 import type { WebhookConfig, WebhookEvent } from '@/lib/webhooks/dispatcher';
 import { checkDestinationShape } from '@/lib/webhooks/ssrfGuard';
+import { listWebhooks, saveWebhook, deleteWebhook } from '@/lib/webhooks/store';
 
 /**
  * Webhook administration is a management capability, not merely an authenticated one.
@@ -23,12 +22,6 @@ function redactSecret(webhook: WebhookConfig): Omit<WebhookConfig, 'secret'> & {
 
 export const dynamic = 'force-dynamic';
 
-const WEBHOOK_CACHE_TTL = 3600 * 24 * 30; // 30 days in Redis
-
-function getCacheKey(tenantId: string): string {
-  return `webhooks:configs:${tenantId}`;
-}
-
 export async function GET() {
   const userOrRes = await requireManager();
   if (userOrRes instanceof NextResponse) return userOrRes;
@@ -38,8 +31,8 @@ export async function GET() {
     return NextResponse.json({ error: 'No tenant context' }, { status: 403 });
   }
 
-  const cached = await cacheGet<WebhookConfig[]>(getCacheKey(user.tenantId));
-  return NextResponse.json({ webhooks: (cached || []).map(redactSecret) });
+  const webhooks = await listWebhooks(user.tenantId);
+  return NextResponse.json({ webhooks: webhooks.map(redactSecret) });
 }
 
 export async function POST(req: NextRequest) {
@@ -67,27 +60,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'At least one event must be selected' }, { status: 400 });
     }
 
-    const current = (await cacheGet<WebhookConfig[]>(getCacheKey(user.tenantId))) || [];
-    const webhookId = body.id || `wh_${crypto.randomUUID().slice(0, 8)}`;
-
-    const newWebhook: WebhookConfig = {
-      id: webhookId,
-      url: url.trim(),
-      secret: secret && typeof secret === 'string' ? secret.trim() : crypto.randomBytes(24).toString('hex'),
+    // Durable write. If this throws, the caller learns the webhook was NOT saved — the old
+    // Redis-only path answered `{ success: true }` with Redis down and stored nothing.
+    const saved = await saveWebhook(user.tenantId, {
+      id: typeof body.id === 'string' && body.id ? body.id : null,
+      url,
       events: events as WebhookEvent[],
-      isActive: isActive !== false,
-      tenantId: user.tenantId,
-      createdAt: new Date().toISOString(),
-      lastDeliveryAt: null,
-      lastStatus: null,
-    };
+      isActive,
+      secret: typeof secret === 'string' ? secret : null,
+    });
 
-    const updated = current.filter((w) => w.id !== webhookId).concat(newWebhook);
-    await cacheSet(getCacheKey(user.tenantId), updated, WEBHOOK_CACHE_TTL);
-
-    // Echo the generated secret exactly once, on creation, so it can be copied into the
-    // receiving system. It is never readable again.
-    return NextResponse.json({ success: true, webhook: redactSecret(newWebhook), secret: newWebhook.secret });
+    // Echo the secret exactly once, on creation, so it can be copied into the receiving system.
+    // It is never readable again.
+    return NextResponse.json({ success: true, webhook: redactSecret(saved), secret: saved.secret });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to save webhook' }, { status: 500 });
   }
@@ -109,9 +94,12 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Webhook id is required' }, { status: 400 });
     }
 
-    const current = (await cacheGet<WebhookConfig[]>(getCacheKey(user.tenantId))) || [];
-    const updated = current.filter((w) => w.id !== id);
-    await cacheSet(getCacheKey(user.tenantId), updated, WEBHOOK_CACHE_TTL);
+    const deleted = await deleteWebhook(user.tenantId, id);
+    if (!deleted) {
+      // Scoped by tenant, so an id belonging to another tenant reaches here rather than
+      // deleting anything — and gets the same answer as an id that never existed.
+      return NextResponse.json({ error: 'Webhook not found' }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true, deletedId: id });
   } catch (err: any) {

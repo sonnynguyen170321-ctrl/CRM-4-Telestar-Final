@@ -2041,6 +2041,51 @@ model Tenant {
   contactEvidence          ContactEvidence[]
   aiBudgetPeriods          TenantAiBudgetPeriod[]
   aiBudgetReservations     TenantAiBudgetReservation[]
+  webhooks                 Webhook[]
+}
+
+// ─── Durable Webhook Configuration (TEL-P1-032) ──────────────────────────────
+
+/// An outbound webhook subscription.
+///
+/// This lived only in Redis under `webhooks:configs:<tenantId>` with a 30-day TTL, which broke
+/// three ways: it silently expired after 30 days; it did not survive a restart without
+/// persistence, a flush or an eviction; and `cacheSet` swallows errors, so creating a webhook
+/// with Redis down returned `{ success: true }` and stored nothing.
+///
+/// That is configuration, not a cached projection of something durable — there was no source of
+/// truth to rebuild from, against the `AGENTS.md` invariant that the database is workflow truth
+/// and queues are rebuildable from it. This model is that source of truth. Redis may still cache
+/// reads; it may never be the authority.
+model Webhook {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  url String
+
+  /// The signing secret. Write-only over the API: echoed once on creation and never read back,
+  /// because it is enough to forge payloads the receiving system would accept as ours
+  /// (TEL-P1-031).
+  secret String
+
+  /// Event names from `WebhookEvent` in `lib/webhooks/dispatcher.ts`. A String[] rather than an
+  /// enum for the same reason `User.role` is: the set changes with product, and a database enum
+  /// turns adding one into a migration. Drift is caught by a test, not by the column type.
+  events String[]
+
+  isActive Boolean @default(true)
+
+  /// Last delivery attempt and the status it returned. Nullable because a webhook that has never
+  /// fired must be distinguishable from one that fired and failed — `0` would not be.
+  lastDeliveryAt DateTime?
+  lastStatus     Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, isActive])
 }
 
 // ─── Durable AI Budget Governance (TEL-P1-015) ───────────────────────────────
