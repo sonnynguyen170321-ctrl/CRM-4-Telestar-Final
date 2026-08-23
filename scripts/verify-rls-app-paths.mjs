@@ -44,6 +44,17 @@ const ADMIN_URL =
   process.env.ADMIN_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
 const DB_NAME = `crm_rls_apppaths_${randomBytes(4).toString('hex')}`;
 const APP_ROLE = `crm_rls_appuser_${randomBytes(3).toString('hex')}`;
+/**
+ * rls.sql targets its policies at `crm_app` and `crm_maintenance` by name, and PostgreSQL
+ * roles are CLUSTER-wide — creating those literal names here would collide with a real
+ * deployment on the same server and the teardown would drop the roles it authenticates as.
+ * The names are rewritten to this run's throwaway roles instead.
+ */
+const MAINT_ROLE = `crm_rls_maintuser_${randomBytes(3).toString('hex')}`;
+const namespaceRoles = (sql) =>
+  sql
+    .replace(/\bcrm_maintenance\b/g, MAINT_ROLE)
+    .replace(/\bcrm_app\b/g, APP_ROLE);
 const APP_PASSWORD = randomBytes(18).toString('base64url');
 
 // The share token the probe will present. Only its SHA-256 hash is stored, exactly as
@@ -109,20 +120,23 @@ async function main() {
       for (const stmt of schemaSql.split(/;\s*\r?\n/).map((s) => s.trim()).filter(Boolean)) {
         await c.$executeRawUnsafe(stmt);
       }
-      await c.$executeRawUnsafe(readFileSync('supabase/rls.sql', 'utf8'));
-
       // NOSUPERUSER is the whole point: FORCE closes the table-owner loophole, nothing
       // closes the superuser one. A probe run as `postgres` would pass while proving nothing.
-      await c.$executeRawUnsafe(
-        `CREATE ROLE "${APP_ROLE}" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '${APP_PASSWORD}'`
-      );
-      await c.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO "${APP_ROLE}"`);
-      await c.$executeRawUnsafe(
-        `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "${APP_ROLE}"`
-      );
-      await c.$executeRawUnsafe(
-        `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "${APP_ROLE}"`
-      );
+      // Created BEFORE rls.sql, which refuses to run until the roles it targets exist.
+      for (const role of [APP_ROLE, MAINT_ROLE]) {
+        await c.$executeRawUnsafe(
+          `CREATE ROLE "${role}" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '${APP_PASSWORD}'`
+        );
+        await c.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO "${role}"`);
+        await c.$executeRawUnsafe(
+          `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "${role}"`
+        );
+        await c.$executeRawUnsafe(
+          `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "${role}"`
+        );
+      }
+
+      await c.$executeRawUnsafe(namespaceRoles(readFileSync('supabase/rls.sql', 'utf8')));
 
       // One tenant with one shared report. Seeded with the bypass on, session-wide, because
       // this connection is doing nothing else.
@@ -171,6 +185,10 @@ async function main() {
           ...process.env,
           DATABASE_URL: dbUrl(DB_NAME, APP_ROLE, APP_PASSWORD),
           DIRECT_URL: dbUrl(DB_NAME, APP_ROLE, APP_PASSWORD),
+          // The cross-tenant role. Since the policies became role-targeted, `app.bypass_rls`
+          // grants nothing to the application role — the worker, seed, script and public
+          // share-link paths have to connect as this one instead.
+          CRM_MAINTENANCE_URL: dbUrl(DB_NAME, MAINT_ROLE, APP_PASSWORD),
           DB_RLS_ENFORCED: 'true',
           // Anything other than production makes `isLocalOrScript` true, which grants a
           // blanket bypass and would make probes 4 and 5 measure nothing.
@@ -201,7 +219,10 @@ async function main() {
         `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${DB_NAME}'`
       );
       await c.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${DB_NAME}"`);
-      await c.$executeRawUnsafe(`DROP ROLE IF EXISTS "${APP_ROLE}"`);
+      for (const role of [APP_ROLE, MAINT_ROLE]) {
+        await c.$executeRawUnsafe(`DROP OWNED BY "${role}" CASCADE`).catch(() => {});
+        await c.$executeRawUnsafe(`DROP ROLE IF EXISTS "${role}"`);
+      }
     });
     console.log(`\nCleaned up ${DB_NAME} and ${APP_ROLE}.`);
   }
