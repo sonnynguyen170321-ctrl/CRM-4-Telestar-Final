@@ -1,53 +1,53 @@
 {
   "evidenceId": "EV-DR-BACKUP",
   "kind": "dr-backup",
-  "candidateSha": "daa8ffb679b7bee87a907d4913123318b697eab6",
-  "environment": "win32 / node 24.16.0 / postgres 16 / source telestar_audit_e2e_test",
-  "command": "C:\\Program Files\\PostgreSQL\\16\\bin\\pg_dump.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_audit_e2e_test --format=custom --no-owner --no-acl --snapshot 00000003-0004144D-1 --file C:\\Users\\admin\\Desktop\\Sonny & AI\\CRM-4-Telestar-Final\\.dr-artifacts\\telestar_2026-08-21T03-04-00-363Z.dump",
-  "startedAt": "2026-08-21T03:04:02.575Z",
-  "finishedAt": "2026-08-21T03:04:03.753Z",
+  "candidateSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
+  "environment": "win32 / node 24.16.0 / postgres 16 / source telestar_crm",
+  "command": "C:\\Program Files\\PostgreSQL\\16\\bin\\pg_dump.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_crm --format=custom --no-owner --no-acl --snapshot 00000003-0008CE71-1 --file C:\\Users\\admin\\Desktop\\Sonny & AI\\CRM-4-Telestar-Final\\.dr-artifacts\\telestar_2026-08-23T14-47-36-944Z.dump",
+  "startedAt": "2026-08-23T14:47:42.496Z",
+  "finishedAt": "2026-08-23T14:47:47.145Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
-    "sourceDatabase": "telestar_audit_e2e_test",
-    "backupArtifact": ".dr-artifacts/telestar_2026-08-21T03-04-00-363Z.dump",
-    "backupSizeBytes": 1911816,
-    "backupSha256": "b1e332498f272cec5cab4bcb2fb8c3dc58c6cf1524a003f2148e7a7070c47512",
+    "sourceDatabase": "telestar_crm",
+    "backupArtifact": ".dr-artifacts/telestar_2026-08-23T14-47-36-944Z.dump",
+    "backupSizeBytes": 1661090,
+    "backupSha256": "6177ba85e90ac73b61ae1e1041827b184ded1cf0d32308da73d38a01ee8f4eea",
     "checksumVerified": true,
     "checksumCommand": "sha256sum -c",
-    "backupDurationSeconds": 1.18,
-    "snapshotId": "00000003-0004144D-1",
+    "backupDurationSeconds": 4.65,
+    "snapshotId": "00000003-0008CE71-1",
     "snapshotCounts": {
-      "Tenant": 380,
-      "User": 409,
-      "Client": 281,
-      "Campaign": 379,
-      "Account": 349,
-      "Contact": 2318,
-      "Lead": 4110,
-      "Task": 121,
-      "Activity": 2380,
-      "Sequence": 250,
-      "SequenceEnrollment": 153,
-      "OutboundMessage": 8,
+      "Tenant": 46,
+      "User": 132,
+      "Client": 56,
+      "Campaign": 53,
+      "Account": 248,
+      "Contact": 2294,
+      "Lead": 2339,
+      "Task": 76,
+      "Activity": 2450,
+      "Sequence": 11,
+      "SequenceEnrollment": 10,
+      "OutboundMessage": 7,
       "ImportBatch": 7
     }
   },
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/dr-pre-backup-counts.log",
-      "sizeBytes": 2035,
-      "sha256": "6503bee444a9f0028618578a0845956edd9261ca1a1a073b4a4b4503e90fb314"
+      "sizeBytes": 1976,
+      "sha256": "08b70ceb23a231cd2d90061bcab61cdb9442e4ead63efd07ee66665bb99a6de5"
     },
     {
       "path": "docs/production-certification/evidence/raw/dr-backup-command.log",
-      "sizeBytes": 448,
-      "sha256": "c1017426d0ede8175f3403389ae2f3e477943253e7c1813de617dc36eb83342b"
+      "sizeBytes": 437,
+      "sha256": "37e6e0d795d242a1d4c4a09148e7a94414b4988cb3154f9fc0f1a504bfa210ab"
     },
     {
       "path": "docs/production-certification/evidence/raw/dr-backup-sha256.log",
-      "sizeBytes": 259,
-      "sha256": "7a0c24ed4e50a6404f83cae016d0ebbd82470eb7dd33786ca93130cdb61b9c30"
+      "sizeBytes": 292,
+      "sha256": "63a28cb2c6bac52c51879296ae55bc8cdc34e2a7e35f08d260c9397cd032a378"
     }
   ]
 }

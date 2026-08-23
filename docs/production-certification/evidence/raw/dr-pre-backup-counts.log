@@ -1,49 +1,49 @@
 # pre-backup source integrity
 # command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json
-# startedAt: 2026-08-21T03:04:00.369Z
-# finishedAt: 2026-08-21T03:04:02.126Z
+# startedAt: 2026-08-23T14:47:36.948Z
+# finishedAt: 2026-08-23T14:47:41.516Z
 # exitCode: 0
 
 --- stdout ---
 {
-  "startedAt": "2026-08-21T03:04:00.847Z",
-  "finishedAt": "2026-08-21T03:04:02.102Z",
-  "database": "telestar_audit_e2e_test",
+  "startedAt": "2026-08-23T14:47:37.535Z",
+  "finishedAt": "2026-08-23T14:47:41.472Z",
+  "database": "telestar_crm",
   "status": "PASS",
   "checks": [
     {
       "key": "tables",
       "title": "Every datamodel model has a table",
       "status": "PASS",
-      "detail": "67/67 declared tables present",
+      "detail": "68/68 declared tables present",
       "findings": []
     },
     {
       "key": "migrations",
       "title": "Migration ledger is complete and fully applied",
       "status": "PASS",
-      "detail": "50/50 migrations applied successfully",
+      "detail": "52/52 migrations applied successfully (1 superseded rolled-back attempt(s), which is normal)",
       "findings": []
     },
     {
       "key": "foreign-keys",
       "title": "No foreign key points at a missing row",
       "status": "PASS",
-      "detail": "212 single-column foreign keys checked",
+      "detail": "213 single-column foreign keys checked",
       "findings": []
     },
     {
       "key": "tenant-ownership",
       "title": "No tenant-owned row has a null tenantId",
       "status": "PASS",
-      "detail": "65 tenant-owned tables checked",
+      "detail": "66 tenant-owned tables checked",
       "findings": []
     },
     {
       "key": "rls",
       "title": "Row-level security configuration",
-      "status": "SKIPPED",
-      "detail": "0/65 tenant-owned tables have RLS enabled - pass --require-rls to fail on this (RLS is applied from supabase/rls.sql, not by migrations)",
+      "status": "PASS",
+      "detail": "66/66 tenant-owned tables have RLS enabled",
       "findings": []
     },
     {
@@ -55,18 +55,18 @@
     }
   ],
   "counts": {
-    "Tenant": 380,
-    "User": 409,
-    "Client": 281,
-    "Campaign": 379,
-    "Account": 349,
-    "Contact": 2318,
-    "Lead": 4110,
-    "Task": 121,
-    "Activity": 2380,
-    "Sequence": 250,
-    "SequenceEnrollment": 153,
-    "OutboundMessage": 8,
+    "Tenant": 46,
+    "User": 132,
+    "Client": 56,
+    "Campaign": 53,
+    "Account": 248,
+    "Contact": 2294,
+    "Lead": 2339,
+    "Task": 76,
+    "Activity": 2450,
+    "Sequence": 11,
+    "SequenceEnrollment": 10,
+    "OutboundMessage": 7,
     "ImportBatch": 7
   }
 }

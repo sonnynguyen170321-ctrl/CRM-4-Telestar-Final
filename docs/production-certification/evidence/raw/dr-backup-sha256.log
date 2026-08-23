@@ -1,11 +1,11 @@
 # sha256sum -c
-# command: sha256sum -c telestar_2026-08-21T03-04-00-363Z.dump.sha256
-# startedAt: 2026-08-21T03:04:03.866Z
-# finishedAt: 2026-08-21T03:04:03.958Z
+# command: C:/Program Files/Git/usr/bin/sha256sum.exe -c telestar_2026-08-23T14-47-36-944Z.dump.sha256
+# startedAt: 2026-08-23T14:47:47.327Z
+# finishedAt: 2026-08-23T14:47:47.443Z
 # exitCode: 0
 
 --- stdout ---
-telestar_2026-08-21T03-04-00-363Z.dump: OK
+telestar_2026-08-23T14-47-36-944Z.dump: OK
 
 --- stderr ---
 (empty)
