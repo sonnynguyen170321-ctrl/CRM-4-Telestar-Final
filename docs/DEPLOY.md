@@ -524,7 +524,41 @@ of that old number.
   per-request nonce wiring and would otherwise break inline styles). Add it at the edge/proxy
   or in a follow-up once nonces are wired.
 - **Row-Level Security**: app-layer tenant scoping is the isolation layer. To additionally
-  enforce Postgres RLS, apply `supabase/rls.sql` and set `DB_RLS_ENFORCED=true`.
+  enforce Postgres RLS, follow the full sequence below — `rls.sql` alone is not enough and has
+  not been since 2026-08-23.
+
+  > **2026-08-23 — the enablement sequence changed. Read this before enabling RLS anywhere.**
+  >
+  > The policies are now **role-targeted**. `crm_app` gets a single indexable predicate;
+  > `crm_maintenance` gets the cross-tenant one. The previous shape put both in one policy
+  > joined by `OR`, which cost every `tenantId` index in the product: measured against 417,472
+  > leads, the same 1,000-row read went from a 10 ms Bitmap Index Scan to a 1,296 ms Parallel
+  > Seq Scan discarding 138,805 rows per worker. It also means `app.bypass_rls` now grants the
+  > application role **nothing** — the privilege is which role you connect as, which the
+  > database enforces rather than trusts.
+  >
+  > The sequence, in this order:
+  >
+  > ```bash
+  > psql "$DIRECT_URL" -f supabase/roles.sql   # 1. creates crm_migrator / crm_app / crm_maintenance
+  > psql "$DIRECT_URL" -f supabase/rls.sql     # 2. refuses to run until those roles exist
+  > # 3. repoint DATABASE_URL        -> crm_app
+  > # 4. set   CRM_MAINTENANCE_URL   -> crm_maintenance
+  > # 5. set   DB_RLS_ENFORCED=true
+  > ```
+  >
+  > **`CRM_MAINTENANCE_URL` is mandatory, not optional.** Everything that legitimately crosses
+  > tenants connects as that role: the workers (a worker resolves a `JobRun` before it knows
+  > the tenant), the seeds, the operational scripts, and the public share-link lookup, which
+  > answers with no session and therefore has no tenant to scope to. Without it those read
+  > zero rows and raise nothing — a worker reports a clean empty answer, a share link reads as
+  > revoked, and outbound stops because the quota reserve matches no row. `lib/prisma.ts`
+  > refuses to start in that configuration rather than let it happen quietly.
+  >
+  > Rehearse before touching a real database. `npm run verify:rls-enablement` runs the whole
+  > sequence against a throwaway one; `npm run verify:rls-app-paths` runs the real application
+  > code under enforcement; `node scripts/verify-rls-live.mjs` checks an existing populated
+  > database and measures the query cost rather than assuming it.
 
   > **2026-08-14:** `scripts/verify-rls.mjs` now covers the AI, learning and sequence models as
   > well — `Meeting`, `Opportunity`, `CampaignPlaybook`, `PlaybookProposal`, `OutcomeSignal`,
@@ -545,6 +579,10 @@ of that old number.
   > node node_modules/prisma/build/index.js migrate deploy
   > psql "$DIRECT_URL" -f supabase/rls.sql      # required on RLS-enabled deployments
   > ```
+  >
+  > Reapplying `rls.sql` needs the roles to exist, which they will on any database where RLS
+  > is already enabled. It recreates both policies on every tenant-owned table, so a new
+  > table gets `tenant_isolation` and `maintenance_bypass` together.
   >
   > Until it is reapplied, a newly migrated table has **no** database-level policy and is
   > protected only by the application layer. `node scripts/verify-rls.mjs` proves enforcement
