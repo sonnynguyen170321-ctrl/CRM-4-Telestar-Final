@@ -22,6 +22,20 @@ import { PrismaClient } from '@prisma/client';
 
 const rlsSql = readFileSync('supabase/rls.sql', 'utf8');
 
+/**
+ * The same file with `--` comment lines removed.
+ *
+ * These assertions used to run against the raw text, and one of them checked that the policy
+ * reads `current_setting('app.bypass_rls', true)`. That stopped being true when the policies
+ * became role-targeted — the flag was removed from the policy deliberately — and the test kept
+ * passing anyway, because the header still *describes* the old form in prose. A test that can
+ * be satisfied by a comment is not testing the file.
+ */
+const rlsCode = rlsSql
+  .split('\n')
+  .filter((line) => !line.trim().startsWith('--'))
+  .join('\n');
+
 /** Tenant-owned models, straight from the schema. `Tenant` itself carries no tenantId. */
 function tenantModelsFromSchema(): string[] {
   const schema = readFileSync('prisma/schema.prisma', 'utf8');
@@ -46,11 +60,50 @@ describe('supabase/rls.sql', () => {
     expect(rlsSql).toMatch(/ENABLE ROW LEVEL SECURITY/);
   });
 
-  it('reads the same GUCs the application sets', () => {
-    // lib/prisma.ts sets app.bypass_rls and app.current_tenant_id per transaction. If
-    // these names drift apart the policy silently denies everything, or allows it.
-    expect(rlsSql).toMatch(/current_setting\('app\.bypass_rls', true\)/);
-    expect(rlsSql).toMatch(/current_setting\('app\.current_tenant_id', true\)/);
+  it('reads the same GUC the application sets', () => {
+    // lib/prisma.ts sets app.current_tenant_id per transaction. If these names drift apart the
+    // policy silently denies everything, or allows it.
+    expect(rlsCode).toMatch(/current_setting\('app\.current_tenant_id', true\)/);
+  });
+
+  it('grants the application role a predicate with no bypass in it', () => {
+    // Two properties in one assertion, and both were paid for.
+    //
+    // Security: `supabase/roles.sql` wanted `crm_app` to be unable to set `app.bypass_rls` and
+    // read across tenants, and admitted nothing enforced it — "Postgres has no per-GUC
+    // permission for custom settings". A policy that does not mention the flag cannot be
+    // tricked by it, so the privilege now lives in which role you connect as.
+    //
+    // Performance: the previous single policy was `bypass = 'true' OR "tenantId" = ...`, and the
+    // first branch references no column, so PostgreSQL could not turn the predicate into an
+    // index condition. Measured against 417,472 leads on 2026-08-23, the same 1,000-row read
+    // took 10 ms as a Bitmap Index Scan and 1,296 ms as a Parallel Seq Scan discarding 138,805
+    // rows per worker. Every tenantId index in the product went dead the moment RLS was on.
+    //
+    // Reverting either property means putting `app.bypass_rls` back into this policy, so its
+    // absence is the thing worth asserting.
+    const tenantPolicy = rlsCode.slice(
+      rlsCode.indexOf('CREATE POLICY tenant_isolation'),
+      rlsCode.indexOf('CREATE POLICY maintenance_bypass')
+    );
+    expect(tenantPolicy).toContain('TO crm_app');
+    expect(tenantPolicy).toMatch(/USING \("tenantId" = current_setting\('app\.current_tenant_id', true\)\)/);
+    expect(tenantPolicy).not.toContain('app.bypass_rls');
+    expect(tenantPolicy).not.toMatch(/\bOR\b/);
+  });
+
+  it('gives cross-tenant access its own role-targeted policy', () => {
+    // Workers, seeds, scripts and the public share-link lookup legitimately cross tenants. They
+    // connect as crm_maintenance now rather than raising a flag the application could raise too.
+    expect(rlsCode).toContain('CREATE POLICY maintenance_bypass');
+    expect(rlsCode).toContain('TO crm_maintenance');
+  });
+
+  it('refuses to run before the roles its policies target exist', () => {
+    // CREATE POLICY ... TO <role> fails per table if the role is missing. Failing once, up
+    // front, with the name of the file to apply first, beats forty confusing failures.
+    expect(rlsCode).toMatch(/pg_roles/);
+    expect(rlsCode).toMatch(/roles\.sql/);
   });
 
   it('refuses to report success against an unmigrated database', () => {
@@ -223,11 +276,19 @@ describe.skipIf(!isolatedRlsEnabled)('supabase/rls.sql applied to an isolated da
         await target.$executeRawUnsafe(namespaceRoles(readFileSync('supabase/rls.sql', 'utf8')));
 
         const rows = await target.$queryRawUnsafe<
-          Array<{ relname: string; relrowsecurity: boolean; relforcerowsecurity: boolean; policies: bigint }>
+          Array<{
+            relname: string;
+            relrowsecurity: boolean;
+            relforcerowsecurity: boolean;
+            policies: bigint;
+            bypass_policies: bigint;
+          }>
         >(
           `SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity,
                   (SELECT count(*) FROM pg_policy p
-                     WHERE p.polrelid = c.oid AND p.polname = 'tenant_isolation') AS policies
+                     WHERE p.polrelid = c.oid AND p.polname = 'tenant_isolation') AS policies,
+                  (SELECT count(*) FROM pg_policy p
+                     WHERE p.polrelid = c.oid AND p.polname = 'maintenance_bypass') AS bypass_policies
              FROM pg_class c
              JOIN pg_namespace n ON n.oid = c.relnamespace
              JOIN pg_attribute a ON a.attrelid = c.oid
@@ -241,6 +302,13 @@ describe.skipIf(!isolatedRlsEnabled)('supabase/rls.sql applied to an isolated da
           expect(row.relrowsecurity, `${row.relname} ENABLE`).toBe(true);
           expect(row.relforcerowsecurity, `${row.relname} FORCE`).toBe(true);
           expect(Number(row.policies), `${row.relname} tenant_isolation policies`).toBe(1);
+          // Both, not just the first. A table that got tenant_isolation without
+          // maintenance_bypass is unreachable by workers, seeds, scripts and the public
+          // share-link lookup — and unreachable silently, as zero rows rather than an error.
+          expect(
+            Number(row.bypass_policies),
+            `${row.relname} maintenance_bypass policies`
+          ).toBe(1);
         }
 
         // The five Phase 7 tables specifically, named so a silent omission cannot pass.
