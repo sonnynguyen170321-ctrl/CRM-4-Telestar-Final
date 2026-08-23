@@ -874,6 +874,8 @@ model SequenceStep {
   @@unique([sequenceId, order])
   @@index([sequenceId])
   @@index([tenantId])
+  // Same reason as OutboundMessage above: deleting a Template nulls this column.
+  @@index([templateId])
 }
 
 // ─── Tasks ───────────────────────────────────────────────────────────────────
@@ -1217,6 +1219,14 @@ model OutboundMessage {
   @@index([accountId])
   @@index([status])
   @@index([idempotencyKey])
+  // Deleting a Template or an AbTestVariant sets these to NULL on every matching row. Without
+  // an index that is a full scan of this table, which is one of the largest in the schema, on
+  // an action a user can take from the UI. Measured 2026-08-23: 72 foreign keys in this schema
+  // have no index on the child column, but only these and SequenceStep.templateId point at a
+  // parent the application actually deletes — the rest guard deletes that only tests and the
+  // purge script perform, and indexing those would be write amplification for nothing.
+  @@index([templateId])
+  @@index([abVariantId])
   @@index([providerMessageId])
   @@index([tenantId])
   // Deliverability rollups: per-inbox 24h/7d windows, and tenant-wide status slices.
