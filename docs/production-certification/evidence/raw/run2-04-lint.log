@@ -1,19 +1,10 @@
 # gate: 04-lint — eslint across the whole tree
 # command: C:\Program Files\nodejs\node.exe node_modules/eslint/bin/eslint.js app components lib context tests workers scripts e2e
-# startedAt: 2026-08-21T02:50:47.204Z
-# finishedAt: 2026-08-21T02:51:37.672Z
+# startedAt: 2026-08-23T13:21:42.779Z
+# finishedAt: 2026-08-23T13:23:40.955Z
 # exitCode: 0
 
 --- stdout ---
-
-C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\components\AiAssistant.tsx
-  107:39  warning  'currentRole' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-
-C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\lib\ai\gateway.ts
-  437:18  warning  'err' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
-
-✖ 2 problems (0 errors, 2 warnings)
-
-
+(empty)
 --- stderr ---
 (empty)

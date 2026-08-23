@@ -1,8 +1,8 @@
 ▲ Next.js 16.3.0
 - Local:         http://localhost:3000
 - Network:       http://192.168.100.67:3000
-✓ Ready in 5.1s
-✓ Running next.config.ts took 461ms
+✓ Ready in 585ms
+✓ Running next.config.ts took 112ms
 [env] Gmail OAuth not configured (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI) — related features disabled
 [env] Microsoft OAuth not configured (MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, MICROSOFT_REDIRECT_URI) — related features disabled
 [login-throttle] count read failed, failing open: Stream isn't writeable and enableOfflineQueue options is false

@@ -1,39 +1,39 @@
 # gate: 07-database-integrity — scripts/verify-db-integrity.ts against the certification database
 # command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts
-# startedAt: 2026-08-21T02:51:38.138Z
-# finishedAt: 2026-08-21T02:51:39.840Z
+# startedAt: 2026-08-23T13:23:41.898Z
+# finishedAt: 2026-08-23T13:23:47.594Z
 # exitCode: 0
 
 --- stdout ---
-database integrity verification — telestar_audit_e2e_test
+database integrity verification — telestar_crm
 ========================================================================
 [PASS   ] Every datamodel model has a table
-          67/67 declared tables present
+          68/68 declared tables present
 [PASS   ] Migration ledger is complete and fully applied
-          50/50 migrations applied successfully
+          52/52 migrations applied successfully (1 superseded rolled-back attempt(s), which is normal)
 [PASS   ] No foreign key points at a missing row
-          212 single-column foreign keys checked
+          213 single-column foreign keys checked
 [PASS   ] No tenant-owned row has a null tenantId
-          65 tenant-owned tables checked
-[SKIPPED] Row-level security configuration
-          0/65 tenant-owned tables have RLS enabled - pass --require-rls to fail on this (RLS is applied from supabase/rls.sql, not by migrations)
+          66 tenant-owned tables checked
+[PASS   ] Row-level security configuration
+          66/66 tenant-owned tables have RLS enabled
 [SKIPPED] Representative record counts
           no --expect-counts snapshot supplied; counts recorded but not reconciled
 ------------------------------------------------------------------------
 representative counts:
-  Tenant               4
-  User                 30
-  Client               7
-  Campaign             8
-  Account              26
-  Contact              25
-  Lead                 33
-  Task                 14
-  Activity             39
-  Sequence             4
-  SequenceEnrollment   1
-  OutboundMessage      6
-  ImportBatch          0
+  Tenant               46
+  User                 132
+  Client               56
+  Campaign             53
+  Account              247
+  Contact              2293
+  Lead                 2338
+  Task                 76
+  Activity             2449
+  Sequence             11
+  SequenceEnrollment   10
+  OutboundMessage      7
+  ImportBatch          7
 ========================================================================
 RESULT: PASS
 

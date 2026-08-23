@@ -59,12 +59,12 @@ Playwright traces are retained on failure by the shared config.
 
 | Artifact | Bytes | SHA-256 |
 |---|---:|---|
-| `docs/production-certification/evidence/raw/role-screenshots/director.png` | 230282 | `05659f659e3a1555…` |
-| `docs/production-certification/evidence/raw/role-screenshots/floor_manager.png` | 220281 | `2ca0c5c04c386110…` |
-| `docs/production-certification/evidence/raw/role-screenshots/leadgen.png` | 377098 | `f0384d97c0335b37…` |
-| `docs/production-certification/evidence/raw/role-screenshots/leadgen_manager.png` | 139344 | `ec2640610fc2de05…` |
-| `docs/production-certification/evidence/raw/role-screenshots/sdr.png` | 119746 | `78d77a51db54504a…` |
-| `docs/production-certification/evidence/raw/role-screenshots/team_lead.png` | 217810 | `bd80ffc531e9f60d…` |
+| `docs/production-certification/evidence/raw/role-screenshots/director.png` | 230320 | `523befec6c750a17…` |
+| `docs/production-certification/evidence/raw/role-screenshots/floor_manager.png` | 220283 | `c34c5403fee0538f…` |
+| `docs/production-certification/evidence/raw/role-screenshots/leadgen.png` | 387422 | `edeee760aad37e26…` |
+| `docs/production-certification/evidence/raw/role-screenshots/leadgen_manager.png` | 139153 | `22120c018ed6c562…` |
+| `docs/production-certification/evidence/raw/role-screenshots/sdr.png` | 119415 | `71bb4f922f45fa5a…` |
+| `docs/production-certification/evidence/raw/role-screenshots/team_lead.png` | 217815 | `0bd3a5eff9db75b7…` |
 
 ## 5. Scope
 

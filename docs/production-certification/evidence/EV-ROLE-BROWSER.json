@@ -4,8 +4,8 @@
   "candidateSha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
   "environment": "win32 / node 24.16.0 / next start / real Postgres / real Redis / Chromium 1440x900",
   "command": "node node_modules/@playwright/test/cli.js test --project=certification-roles",
-  "startedAt": "2026-08-23T12:58:12.395Z",
-  "finishedAt": "2026-08-23T12:58:12.395Z",
+  "startedAt": "2026-08-23T13:31:51.051Z",
+  "finishedAt": "2026-08-23T13:31:51.051Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -117,33 +117,33 @@
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/director.png",
-      "sizeBytes": 230282,
-      "sha256": "05659f659e3a15552186aba4b12e279148bf0cb146bc297c35a43b27c0f62420"
+      "sizeBytes": 230320,
+      "sha256": "523befec6c750a17c63d384444f509450f23b37dd5b3f441bd1b934c3f661621"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/floor_manager.png",
-      "sizeBytes": 220281,
-      "sha256": "2ca0c5c04c386110eca97a06d88241ab49149425348a02ec0b3b1d3bf1949418"
+      "sizeBytes": 220283,
+      "sha256": "c34c5403fee0538ffddec76abd9e43ddc4ddf8a6566a6b71feed25c175d1bfb5"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/leadgen.png",
-      "sizeBytes": 377098,
-      "sha256": "f0384d97c0335b374e8b734dc931e126ef614cfb1ecd471c6b252b6a4bebcaaa"
+      "sizeBytes": 387422,
+      "sha256": "edeee760aad37e26c7a3a7d9d616c99a2f32f341a26b5d5604a2136603181c36"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/leadgen_manager.png",
-      "sizeBytes": 139344,
-      "sha256": "ec2640610fc2de054c7d74a6743c1c089e9f2fad33a35d3cdbe931bf45b8cd80"
+      "sizeBytes": 139153,
+      "sha256": "22120c018ed6c56298fa794b77e3ce3107603e631ed731793bcb81123425d0f0"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/sdr.png",
-      "sizeBytes": 119746,
-      "sha256": "78d77a51db54504aa57251a5514f731d684cc6af2c7430d7d479d8a0e6597d5c"
+      "sizeBytes": 119415,
+      "sha256": "71bb4f922f45fa5a8185aa800d40c06c3679423c4face36132d6be8f4d472cc9"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/team_lead.png",
-      "sizeBytes": 217810,
-      "sha256": "bd80ffc531e9f60dafb4a88f872d4c1cea3210910ac9ca2d7f91240fba73c10a"
+      "sizeBytes": 217815,
+      "sha256": "0bd3a5eff9db75b7a84442cdf074a2fc15ab4cc1f01058c48c94c65d0973cb7f"
     }
   ]
 }

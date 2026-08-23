@@ -4,8 +4,8 @@
   "candidateSha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "derived from C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-23T12:50:25.220Z",
-  "finishedAt": "2026-08-23T12:53:18.123Z",
+  "startedAt": "2026-08-23T13:23:47.596Z",
+  "finishedAt": "2026-08-23T13:27:44.760Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -33,9 +33,9 @@
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/run1-08-vitest.log",
+      "path": "docs/production-certification/evidence/raw/run2-08-vitest.log",
       "sizeBytes": 443,
-      "sha256": "10c4ec061577f213385f515f60a1bce429c85e167bfdc0044f96ef236895631c"
+      "sha256": "1c0fea1d5e3085e72071b16b6ea6ceaffa96174f61a1e6e0a34e8304313664fa"
     }
   ]
 }
