@@ -8,7 +8,7 @@
     "port": "5432",
     "database": "telestar_crm",
     "reachable": true,
-    "appliedMigrations": 50
+    "appliedMigrations": 52
   },
   "redis": {
     "host": "127.0.0.1",
@@ -18,7 +18,7 @@
   "configuration": {
     "AUTH_SECRET": "present",
     "ENCRYPTION_KEY": "present",
-    "EMAIL_SEND_DRY_RUN": "(unset)"
+    "EMAIL_SEND_DRY_RUN": "true"
   },
   "problems": [],
   "status": "PASS"

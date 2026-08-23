@@ -1,18 +1,18 @@
 {
   "evidenceId": "EV-CI-RUN",
   "kind": "ci-run",
-  "candidateSha": "daa8ffb679b7bee87a907d4913123318b697eab6",
+  "candidateSha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
   "environment": "GitHub Actions",
-  "command": "gh run view 32418164738",
-  "startedAt": "2026-08-20T21:12:02Z",
-  "finishedAt": "2026-08-20T21:17:34Z",
+  "command": "gh run view 32639980424",
+  "startedAt": "2026-08-23T12:38:42Z",
+  "finishedAt": "2026-08-23T12:44:53Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
-    "runId": "32418164738",
+    "runId": "32639980424",
     "workflowName": "CI",
-    "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32418164738",
-    "headSha": "daa8ffb679b7bee87a907d4913123318b697eab6",
+    "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32639980424",
+    "headSha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
     "headBranch": "main",
     "conclusion": "success",
     "runStatus": "completed",
@@ -20,21 +20,6 @@
     "nonMetadataCommitsBetween": 0,
     "sourceMatchesCandidate": true,
     "jobs": [
-      {
-        "name": "Migration validation",
-        "conclusion": "success",
-        "status": "completed"
-      },
-      {
-        "name": "Docker build",
-        "conclusion": "success",
-        "status": "completed"
-      },
-      {
-        "name": "Secret scan",
-        "conclusion": "success",
-        "status": "completed"
-      },
       {
         "name": "Dependency audit",
         "conclusion": "success",
@@ -46,12 +31,27 @@
         "status": "completed"
       },
       {
+        "name": "Docker build",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
         "name": "Lint · types · tests",
         "conclusion": "success",
         "status": "completed"
       },
       {
+        "name": "Secret scan",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
         "name": "CodeQL",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
+        "name": "Migration validation",
         "conclusion": "success",
         "status": "completed"
       },
@@ -69,9 +69,9 @@
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/ci-run-32418164738.log",
+      "path": "docs/production-certification/evidence/raw/ci-run-32639980424.log",
       "sizeBytes": 29927,
-      "sha256": "643bcff0a59a8e5b38f8cf37b9c3100078658ba839066a185f061d5aba8f6ad2"
+      "sha256": "b574c029b6d41b74829e7ee1a4045fdbfda5f18b9a37189d2c5ce316d5d7663a"
     }
   ]
 }

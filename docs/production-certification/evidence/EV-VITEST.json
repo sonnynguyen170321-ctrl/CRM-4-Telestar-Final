@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-VITEST",
   "kind": "vitest",
-  "candidateSha": "9fa36d3bcac6532f0c6f07af9045825a9d97844f",
+  "candidateSha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-22T07:45:20.420Z",
-  "finishedAt": "2026-08-22T07:47:58.678Z",
+  "startedAt": "2026-08-23T12:50:25.220Z",
+  "finishedAt": "2026-08-23T12:53:18.123Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -300,7 +300,7 @@
       },
       "tests/certification-false-green.test.ts": {
         "status": "passed",
-        "tests": 36,
+        "tests": 38,
         "failed": 0,
         "skipped": 0
       },
@@ -322,9 +322,21 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/certification-rollback-orchestration.test.ts": {
+        "status": "passed",
+        "tests": 18,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/certification-rpo-probe.test.ts": {
         "status": "passed",
         "tests": 18,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/certification-server-ownership.test.ts": {
+        "status": "passed",
+        "tests": 19,
         "failed": 0,
         "skipped": 0
       },
@@ -448,6 +460,12 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/doctor-machine-truth.test.ts": {
+        "status": "passed",
+        "tests": 45,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/doctor.test.ts": {
         "status": "passed",
         "tests": 32,
@@ -486,7 +504,7 @@
       },
       "tests/email-idempotency.test.ts": {
         "status": "passed",
-        "tests": 23,
+        "tests": 30,
         "failed": 0,
         "skipped": 0
       },
@@ -504,7 +522,7 @@
       },
       "tests/email-send-once-invariant.test.ts": {
         "status": "passed",
-        "tests": 27,
+        "tests": 32,
         "failed": 0,
         "skipped": 0
       },
@@ -808,9 +826,21 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/public-share-rls.test.ts": {
+        "status": "passed",
+        "tests": 10,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/queue-reconciliation.test.ts": {
         "status": "passed",
         "tests": 8,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/raw-sql-tenant-context.test.ts": {
+        "status": "passed",
+        "tests": 10,
         "failed": 0,
         "skipped": 0
       },
@@ -862,9 +892,15 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/rls-env-contract.test.ts": {
+        "status": "passed",
+        "tests": 5,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/rls-policy-coverage.test.ts": {
         "status": "passed",
-        "tests": 6,
+        "tests": 9,
         "failed": 0,
         "skipped": 0
       },
@@ -1030,6 +1066,12 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/test-tenant-leak.test.ts": {
+        "status": "passed",
+        "tests": 2,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/typography-design-system.test.ts": {
         "status": "passed",
         "tests": 4,
@@ -1051,6 +1093,12 @@
       "tests/variant-attribution.test.ts": {
         "status": "passed",
         "tests": 8,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/webhook-durability.test.ts": {
+        "status": "passed",
+        "tests": 25,
         "failed": 0,
         "skipped": 0
       },
@@ -1127,9 +1175,9 @@
         "skipped": 0
       }
     },
-    "testFiles": 186,
-    "testFilesPassed": 186,
-    "testsPassed": 2629,
+    "testFiles": 194,
+    "testFilesPassed": 194,
+    "testsPassed": 2780,
     "testsFailed": 0,
     "testsSkipped": 0
   },
@@ -1137,7 +1185,7 @@
     {
       "path": "docs/production-certification/evidence/raw/run1-08-vitest.log",
       "sizeBytes": 443,
-      "sha256": "7376494f059b13fbb43de4467527857e01ebab9138717dbe8cd53cbd1859c7bb"
+      "sha256": "10c4ec061577f213385f515f60a1bce429c85e167bfdc0044f96ef236895631c"
     }
   ]
 }

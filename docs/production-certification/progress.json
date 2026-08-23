@@ -1,55 +1,55 @@
 {
   "$comment": "GENERATED FILE. Regenerate with node scripts/certification/render-tracker.mjs. Counts are computed by the validator from the evidence manifest; nothing here is typed.",
   "program": "Telestar Production Certification",
-  "candidateSourceSha": "e968ce7b585fb6afaa64c8aae7ee24d1ba013dd6",
+  "candidateSourceSha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
   "releaseTag": "telestar-internal-rc-2026-08-22",
-  "generatedAt": "2026-08-22T10:03:19.109Z",
+  "generatedAt": "2026-08-23T13:14:42.308Z",
   "verdict": "NO-GO",
   "eligible": false,
   "requirements": {
     "total": 108,
-    "verified": 0,
-    "notVerified": 108,
+    "verified": 99,
+    "notVerified": 9,
     "byDomain": {
       "IMP": {
         "total": 13,
-        "verified": 0
+        "verified": 13
       },
       "MAIL": {
         "total": 12,
-        "verified": 0
+        "verified": 12
       },
       "SEC": {
         "total": 15,
-        "verified": 0
+        "verified": 15
       },
       "ROLE": {
         "total": 12,
-        "verified": 0
+        "verified": 12
       },
       "AI": {
         "total": 14,
-        "verified": 0
+        "verified": 14
       },
       "DR": {
         "total": 10,
-        "verified": 0
+        "verified": 5
       },
       "REL": {
         "total": 8,
-        "verified": 0
+        "verified": 4
       },
       "OPS": {
         "total": 24,
-        "verified": 0
+        "verified": 24
       }
     }
   },
   "defects": {
-    "open": 47,
+    "open": 52,
     "openP0": 5,
-    "openP1": 25,
-    "openP2": 17,
+    "openP1": 28,
+    "openP2": 19,
     "openP3": 0,
     "ids": [
       {
@@ -102,7 +102,7 @@
       },
       {
         "id": "TEL-P1-032",
-        "status": "OPEN"
+        "status": "FIXED_PENDING_VERIFICATION"
       },
       {
         "id": "TEL-P0-006",
@@ -222,7 +222,7 @@
       },
       {
         "id": "TEL-P1-026",
-        "status": "OPEN"
+        "status": "FIXED_PENDING_VERIFICATION"
       },
       {
         "id": "TEL-P1-027",
@@ -239,14 +239,34 @@
       {
         "id": "TEL-P2-029",
         "status": "OPEN"
+      },
+      {
+        "id": "TEL-P2-030",
+        "status": "OPEN"
+      },
+      {
+        "id": "TEL-P1-039",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-040",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P2-031",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-041",
+        "status": "FIXED_PENDING_VERIFICATION"
       }
     ]
   },
   "evidenceRecords": 23,
   "validationFailures": {
     "A": 5,
-    "L": 7,
+    "L": 4,
     "S": 1,
-    "REQ": 108
+    "REQ": 9
   }
 }

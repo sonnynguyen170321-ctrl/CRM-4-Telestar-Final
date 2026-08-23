@@ -1,0 +1,485 @@
+# Docker image build from candidate SHA
+# exitCode: 0
+
+--- stdout ---
+(empty)
+--- stderr ---
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile:
+#1 transferring dockerfile: 3.54kB 0.1s done
+#1 DONE 0.2s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1
+#2 DONE 3.9s
+
+#3 docker-image://docker.io/docker/dockerfile:1@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32
+#3 resolve docker.io/docker/dockerfile:1@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32 0.1s done
+#3 CACHED
+
+#4 [internal] load metadata for docker.io/library/node:24.18.0-bookworm-slim
+#4 DONE 1.5s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 358B 0.0s done
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 ...
+
+#7 [deps 1/5] FROM docker.io/library/node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d
+#7 resolve docker.io/library/node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d 0.1s done
+#7 DONE 0.1s
+
+#8 [deps 2/5] WORKDIR /app
+#8 CACHED
+
+#6 [internal] load build context
+#6 transferring context: 20.43MB 4.9s
+#6 transferring context: 50.92MB 10.0s
+#6 ...
+
+#9 [runner  3/16] RUN apt-get update   && apt-get install -y --no-install-recommends ca-certificates openssl   && rm -rf /var/lib/apt/lists/*
+#9 6.307 Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
+#9 6.445 Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+#9 6.526 Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [34.8 kB]
+#9 6.911 Get:4 http://deb.debian.org/debian bookworm/main amd64 Packages [8790 kB]
+#9 8.903 Get:5 http://deb.debian.org/debian bookworm-updates/main amd64 Packages [6924 B]
+#9 8.903 Get:6 http://deb.debian.org/debian-security bookworm-security/main amd64 Packages [335 kB]
+#9 ...
+
+#6 [internal] load build context
+#6 transferring context: 87.17MB 15.1s
+#6 transferring context: 125.59MB 20.1s
+#6 ...
+
+#9 [runner  3/16] RUN apt-get update   && apt-get install -y --no-install-recommends ca-certificates openssl   && rm -rf /var/lib/apt/lists/*
+#9 12.14 Fetched 9374 kB in 6s (1565 kB/s)
+#9 12.14 Reading package lists...
+#9 14.98 Reading package lists...
+#9 17.86 Building dependency tree...
+#9 18.16 Reading state information...
+#9 18.68 The following additional packages will be installed:
+#9 18.68   libssl3
+#9 18.83 The following NEW packages will be installed:
+#9 18.84   ca-certificates libssl3 openssl
+#9 19.02 0 upgraded, 3 newly installed, 0 to remove and 0 not upgraded.
+#9 19.02 Need to get 3637 kB of archives.
+#9 19.02 After this operation, 8940 kB of additional disk space will be used.
+#9 19.02 Get:1 http://deb.debian.org/debian bookworm/main amd64 libssl3 amd64 3.0.20-1~deb12u2 [2036 kB]
+#9 19.54 Get:2 http://deb.debian.org/debian bookworm/main amd64 openssl amd64 3.0.20-1~deb12u2 [1439 kB]
+#9 19.80 Get:3 http://deb.debian.org/debian-security bookworm-security/main amd64 ca-certificates all 20250419~deb12u1 [162 kB]
+#9 20.88 debconf: delaying package configuration, since apt-utils is not installed
+#9 20.98 Fetched 3637 kB in 1s (3834 kB/s)
+#9 21.13 Selecting previously unselected package libssl3:amd64.
+#9 21.13 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 6096 files and directories currently installed.)
+#9 21.31 Preparing to unpack .../libssl3_3.0.20-1~deb12u2_amd64.deb ...
+#9 21.33 Unpacking libssl3:amd64 (3.0.20-1~deb12u2) ...
+#9 21.98 Selecting previously unselected package openssl.
+#9 21.98 Preparing to unpack .../openssl_3.0.20-1~deb12u2_amd64.deb ...
+#9 22.00 Unpacking openssl (3.0.20-1~deb12u2) ...
+#9 ...
+
+#6 [internal] load build context
+#6 transferring context: 163.25MB 25.1s
+#6 transferring context: 186.29MB 30.2s
+#6 ...
+
+#9 [runner  3/16] RUN apt-get update   && apt-get install -y --no-install-recommends ca-certificates openssl   && rm -rf /var/lib/apt/lists/*
+#9 22.39 Selecting previously unselected package ca-certificates.
+#9 22.39 Preparing to unpack .../ca-certificates_20250419~deb12u1_all.deb ...
+#9 22.42 Unpacking ca-certificates (20250419~deb12u1) ...
+#9 22.72 Setting up libssl3:amd64 (3.0.20-1~deb12u2) ...
+#9 22.77 Setting up openssl (3.0.20-1~deb12u2) ...
+#9 22.82 Setting up ca-certificates (20250419~deb12u1) ...
+#9 23.16 debconf: unable to initialize frontend: Dialog
+#9 23.16 debconf: (TERM is not set, so the dialog frontend is not usable.)
+#9 23.16 debconf: falling back to frontend: Readline
+#9 23.16 debconf: unable to initialize frontend: Readline
+#9 23.16 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC contains: /etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.36.0 /usr/local/share/perl/5.36.0 /usr/lib/x86_64-linux-gnu/perl5/5.36 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.36 /usr/share/perl/5.36 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 7.)
+#9 23.16 debconf: falling back to frontend: Teletype
+#9 25.28 Updating certificates in /etc/ssl/certs...
+#9 29.39 150 added, 0 removed; done.
+#9 29.93 Processing triggers for libc-bin (2.36-9+deb12u14) ...
+#9 30.56 Processing triggers for ca-certificates (20250419~deb12u1) ...
+#9 30.59 Updating certificates in /etc/ssl/certs...
+#9 ...
+
+#6 [internal] load build context
+#6 ...
+
+#9 [runner  3/16] RUN apt-get update   && apt-get install -y --no-install-recommends ca-certificates openssl   && rm -rf /var/lib/apt/lists/*
+#9 33.24 0 added, 0 removed; done.
+#9 33.24 Running hooks in /etc/ca-certificates/update.d...
+#9 33.25 done.
+#9 DONE 34.1s
+
+#6 [internal] load build context
+#6 transferring context: 210.74MB 35.3s
+#6 transferring context: 249.38MB 40.4s
+#6 transferring context: 294.89MB 45.1s done
+#6 DONE 45.2s
+
+#10 [deps 3/5] RUN apt-get update   && apt-get install -y --no-install-recommends ca-certificates openssl   && rm -rf /var/lib/apt/lists/*
+#10 CACHED
+
+#11 [deps 4/5] COPY package.json package-lock.json ./
+#11 CACHED
+
+#12 [deps 5/5] RUN npm ci
+#12 CACHED
+
+#13 [builder 4/6] COPY --from=deps /app/node_modules ./node_modules
+#13 CACHED
+
+#14 [builder 5/6] COPY . .
+#14 ...
+
+#15 [runner  4/16] COPY --chown=node:node package.json package-lock.json ./
+#15 DONE 0.4s
+
+#16 [runner  5/16] COPY --chown=node:node prisma ./prisma
+#16 DONE 0.2s
+
+#14 [builder 5/6] COPY . .
+#14 ...
+
+#17 [runner  6/16] RUN npm ci --omit=dev   && npx prisma generate   && npm cache clean --force
+#17 49.84 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+#17 55.23 npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+#17 ...
+
+#14 [builder 5/6] COPY . .
+#14 DONE 59.2s
+
+#18 [builder 6/6] RUN npm run build
+#18 3.832 
+#18 3.832 > telestar-sdr-crm@0.1.0 build
+#18 3.832 > node scripts/build.cjs
+#18 3.832 
+#18 8.287 Prisma schema loaded from prisma/schema.prisma
+#18 27.40 
+#18 27.40 ✔ Generated Prisma Client (v6.2.1) to ./node_modules/@prisma/client in 9.37s
+#18 27.40 
+#18 27.40 Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+#18 27.40 
+#18 27.40 Tip: Want real-time updates to your database without manual polling? Discover how with Pulse: https://pris.ly/tip-0-pulse
+#18 27.40 
+#18 29.55 ▲ Next.js 16.3.0 (Turbopack)
+#18 29.92 ✓ Running next.config.ts took 367ms
+#18 29.96 - Experiments (use with caution):
+#18 29.96   · optimizePackageImports
+#18 29.96 
+#18 30.13   Creating an optimized production build ...
+#18 ...
+
+#17 [runner  6/16] RUN npm ci --omit=dev   && npx prisma generate   && npm cache clean --force
+#17 136.5 
+#17 136.5 added 315 packages, and audited 316 packages in 2m
+#17 136.5 
+#17 136.5 73 packages are looking for funding
+#17 136.5   run `npm fund` for details
+#17 136.5 
+#17 136.5 found 0 vulnerabilities
+#17 136.5 npm warn allow-scripts 5 packages have install scripts not yet covered by allowScripts:
+#17 136.5 npm warn allow-scripts   @prisma/client@6.2.1 (postinstall: node scripts/postinstall.js)
+#17 136.5 npm warn allow-scripts   @prisma/engines@6.2.1 (postinstall: node scripts/postinstall.js)
+#17 136.5 npm warn allow-scripts   esbuild@0.28.1 (postinstall: node install.js)
+#17 136.5 npm warn allow-scripts   msgpackr-extract@3.0.4 (install: node-gyp-build-optional-packages)
+#17 136.5 npm warn allow-scripts   prisma@6.2.1 (preinstall: node scripts/preinstall-entry.js)
+#17 136.5 npm warn allow-scripts
+#17 136.5 npm warn allow-scripts Run `npm approve-scripts --allow-scripts-pending` to review, or `npm approve-scripts <pkg>` to allow.
+#17 136.5 npm notice
+#17 136.5 npm notice New major version of npm available! 11.16.0 -> 12.0.2
+#17 136.5 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#17 136.5 npm notice To update run: npm install -g npm@12.0.2
+#17 136.5 npm notice
+#17 144.4 Prisma schema loaded from prisma/schema.prisma
+#17 155.4 
+#17 155.4 ✔ Generated Prisma Client (v6.2.1) to ./node_modules/@prisma/client in 7.16s
+#17 155.4 
+#17 155.4 Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+#17 155.4 
+#17 155.4 Tip: Curious about the SQL queries Prisma ORM generates? Optimize helps you enhance your visibility: https://pris.ly/tip-2-optimize
+#17 155.4 
+#17 162.1 npm warn using --force Recommended protections disabled.
+#17 DONE 164.1s
+
+#18 [builder 6/6] RUN npm run build
+#18 173.8 ✓ Compiled successfully in 2.4min
+#18 173.8   Running TypeScript ...
+#18 199.7 ✓ Finished writing to filesystem cache in 26.1s
+#18 418.8   Finished TypeScript in 4.1min ...
+#18 419.0   Collecting page data using 3 workers ...
+#18 443.0   Generating static pages using 3 workers (0/96) ...
+#18 444.6   Generating static pages using 3 workers (24/96) 
+#18 445.6   Generating static pages using 3 workers (48/96) 
+#18 447.2   Generating static pages using 3 workers (72/96) 
+#18 453.3 ✓ Generating static pages using 3 workers (96/96) in 10.3s
+#18 453.3   Finalizing page optimization ...
+#18 453.4 
+#18 453.4 Route (app)
+#18 453.4 ┌ ○ /
+#18 453.4 ├ ○ /_not-found
+#18 453.4 ├ ○ /admin
+#18 453.4 ├ ○ /admin/audit
+#18 453.4 ├ ○ /admin/campaigns
+#18 453.4 ├ ƒ /admin/campaigns/[id]/members
+#18 453.4 ├ ○ /admin/clients
+#18 453.4 ├ ○ /admin/imports
+#18 453.4 ├ ○ /admin/jobs
+#18 453.4 ├ ○ /admin/outbound
+#18 453.4 ├ ○ /admin/teams
+#18 453.4 ├ ○ /admin/transfer-work
+#18 453.4 ├ ○ /admin/users
+#18 453.4 ├ ○ /admin/worker-health
+#18 453.4 ├ ○ /ai
+#18 453.4 ├ ƒ /api/activities
+#18 453.4 ├ ƒ /api/admin/assignments
+#18 453.4 ├ ƒ /api/admin/audit-log
+#18 453.4 ├ ƒ /api/admin/imports
+#18 453.4 ├ ƒ /api/admin/imports/[id]
+#18 453.4 ├ ƒ /api/admin/jobs
+#18 453.4 ├ ƒ /api/admin/outbound
+#18 453.4 ├ ƒ /api/admin/overview
+#18 453.4 ├ ƒ /api/admin/transfer-work
+#18 453.4 ├ ƒ /api/admin/users
+#18 453.4 ├ ƒ /api/admin/users/[id]/sign-out-all
+#18 453.4 ├ ƒ /api/admin/worker-health
+#18 453.4 ├ ƒ /api/ai/attention
+#18 453.4 ├ ƒ /api/ai/briefing
+#18 453.4 ├ ƒ /api/ai/chat
+#18 453.4 ├ ƒ /api/ai/console
+#18 453.4 ├ ƒ /api/ai/daily-briefing
+#18 453.4 ├ ƒ /api/ai/draft-outcome
+#18 453.4 ├ ƒ /api/ai/draft-reply
+#18 453.4 ├ ƒ /api/ai/enrich-lead
+#18 453.4 ├ ƒ /api/ai/memory
+#18 453.4 ├ ƒ /api/ai/nba
+#18 453.4 ├ ƒ /api/ai/onboarding
+#18 453.4 ├ ƒ /api/ai/proposals
+#18 453.4 ├ ƒ /api/ai/proposals/[id]
+#18 453.4 ├ ƒ /api/ai/status
+#18 453.4 ├ ƒ /api/approvals
+#18 453.4 ├ ƒ /api/approvals/[id]
+#18 453.4 ├ ƒ /api/auth/[...nextauth]
+#18 453.4 ├ ƒ /api/auth/revoke-self
+#18 453.4 ├ ƒ /api/automation/accounts/[id]/cap
+#18 453.4 ├ ƒ /api/automation/stats
+#18 453.4 ├ ƒ /api/booking-links
+#18 453.4 ├ ƒ /api/booking-links/[id]
+#18 453.4 ├ ƒ /api/campaigns
+#18 453.4 ├ ƒ /api/campaigns/[id]
+#18 453.4 ├ ƒ /api/campaigns/[id]/assign-internal-inventory
+#18 453.4 ├ ƒ /api/campaigns/[id]/member-impact/[userId]
+#18 453.4 ├ ƒ /api/campaigns/[id]/members
+#18 453.4 ├ ƒ /api/campaigns/[id]/requirements/preview-internal-match
+#18 453.4 ├ ƒ /api/client-reports
+#18 453.4 ├ ƒ /api/client-reports/[id]
+#18 453.4 ├ ƒ /api/client-reports/[id]/approve
+#18 453.4 ├ ƒ /api/client-reports/[id]/export/csv
+#18 453.4 ├ ƒ /api/client-reports/[id]/export/pdf
+#18 453.4 ├ ƒ /api/client-reports/[id]/share
+#18 453.4 ├ ƒ /api/client-reports/preview
+#18 453.4 ├ ƒ /api/client-reports/public/[token]
+#18 453.4 ├ ƒ /api/clients
+#18 453.4 ├ ƒ /api/clients/[id]
+#18 453.4 ├ ƒ /api/contacts/[id]/generate-memory
+#18 453.4 ├ ƒ /api/contacts/[id]/intelligence
+#18 453.4 ├ ƒ /api/cron/email-health
+#18 453.4 ├ ƒ /api/cron/inbox-sync
+#18 453.4 ├ ƒ /api/cron/maintenance
+#18 453.4 ├ ƒ /api/cron/sequence-engine
+#18 453.4 ├ ƒ /api/csp-report
+#18 453.4 ├ ƒ /api/demo/diagnostics
+#18 453.4 ├ ƒ /api/demo/environment
+#18 453.4 ├ ƒ /api/demo/inbound-reply
+#18 453.4 ├ ƒ /api/developer/keys
+#18 453.4 ├ ƒ /api/developer/keys/[id]
+#18 453.4 ├ ƒ /api/dialer/config
+#18 453.4 ├ ƒ /api/email-health/accounts
+#18 453.4 ├ ƒ /api/email-health/accounts/[id]
+#18 453.4 ├ ƒ /api/email-health/accounts/[id]/cap
+#18 453.4 ├ ƒ /api/email-health/accounts/[id]/pause
+#18 453.4 ├ ƒ /api/email-health/accounts/[id]/resume
+#18 453.4 ├ ƒ /api/email-health/alerts
+#18 453.4 ├ ƒ /api/email-health/alerts/[id]/acknowledge
+#18 453.4 ├ ƒ /api/email-health/alerts/[id]/resolve
+#18 453.4 ├ ƒ /api/email-health/campaigns
+#18 453.4 ├ ƒ /api/email-health/domains
+#18 453.4 ├ ƒ /api/email-health/domains/[domain]/check
+#18 453.4 ├ ƒ /api/email-health/export/csv
+#18 453.4 ├ ƒ /api/email-health/overview
+#18 453.4 ├ ƒ /api/email/accounts
+#18 453.4 ├ ƒ /api/email/accounts/[id]
+#18 453.4 ├ ƒ /api/email/oauth/google
+#18 453.4 ├ ƒ /api/email/oauth/google/callback
+#18 453.4 ├ ƒ /api/email/oauth/microsoft
+#18 453.4 ├ ƒ /api/email/oauth/microsoft/callback
+#18 453.4 ├ ƒ /api/email/providers
+#18 453.4 ├ ƒ /api/email/send
+#18 453.4 ├ ƒ /api/health
+#18 453.4 ├ ƒ /api/inbox
+#18 453.4 ├ ƒ /api/inbox/threads/[id]/reply
+#18 453.4 ├ ƒ /api/leadgen-pool
+#18 453.4 ├ ƒ /api/leadgen-pool/[id]
+#18 453.4 ├ ƒ /api/leadgen-pool/assign
+#18 453.4 ├ ƒ /api/leadgen-pool/assignable-reps
+#18 453.4 ├ ƒ /api/leadgen-pool/convert
+#18 453.4 ├ ƒ /api/leadgen-pool/export
+#18 453.4 ├ ƒ /api/leadgen-pool/metrics
+#18 453.4 ├ ƒ /api/leadgen-pool/qualify
+#18 453.4 ├ ƒ /api/leadgen-pool/requirements
+#18 453.4 ├ ƒ /api/leadgen-pool/requirements/[id]
+#18 453.4 ├ ƒ /api/leadgen/assign
+#18 453.4 ├ ƒ /api/leadgen/health
+#18 453.4 ├ ƒ /api/leadgen/scope
+#18 453.4 ├ ƒ /api/leadgen/team-progress
+#18 453.4 ├ ƒ /api/leads
+#18 453.4 ├ ƒ /api/leads/[id]
+#18 453.4 ├ ƒ /api/leads/[id]/restore
+#18 453.4 ├ ƒ /api/leads/import
+#18 453.4 ├ ƒ /api/leads/recalculate-scores
+#18 453.4 ├ ƒ /api/leads/scoring-rules
+#18 453.4 ├ ƒ /api/meetings
+#18 453.4 ├ ƒ /api/meetings/[id]
+#18 453.4 ├ ƒ /api/meetings/[id]/convert-to-opportunity
+#18 453.4 ├ ƒ /api/meetings/[id]/outcome
+#18 453.4 ├ ƒ /api/notes
+#18 453.4 ├ ƒ /api/notes/[id]
+#18 453.4 ├ ƒ /api/notifications
+#18 453.4 ├ ƒ /api/notifications/check
+#18 453.4 ├ ƒ /api/opportunities
+#18 453.4 ├ ƒ /api/opportunities/[id]
+#18 453.4 ├ ƒ /api/opportunities/[id]/activity
+#18 453.4 ├ ƒ /api/opportunities/[id]/handoff
+#18 453.4 ├ ƒ /api/opportunities/[id]/stage
+#18 453.4 ├ ƒ /api/opportunities/metrics
+#18 453.4 ├ ƒ /api/prospects/[id]/assist
+#18 453.4 ├ ƒ /api/prospects/[id]/handback
+#18 453.4 ├ ƒ /api/prospects/[id]/handoff
+#18 453.4 ├ ƒ /api/reminders
+#18 453.4 ├ ƒ /api/reminders/[id]
+#18 453.4 ├ ƒ /api/seed
+#18 453.4 ├ ƒ /api/sequences
+#18 453.4 ├ ƒ /api/sequences/[id]
+#18 453.4 ├ ƒ /api/sequences/[id]/analytics
+#18 453.4 ├ ƒ /api/sequences/[id]/enroll
+#18 453.4 ├ ƒ /api/sequences/[id]/enrollments
+#18 453.4 ├ ƒ /api/sequences/[id]/enrollments/[enrollmentId]/logs
+#18 453.4 ├ ƒ /api/sequences/[id]/enrollments/[enrollmentId]/run-now
+#18 453.4 ├ ƒ /api/sequences/[id]/enrollments/[enrollmentId]/status
+#18 453.4 ├ ƒ /api/sequences/[id]/enrollments/bulk-action
+#18 453.4 ├ ƒ /api/sequences/analytics
+#18 453.4 ├ ƒ /api/sequences/preview
+#18 453.4 ├ ƒ /api/sequences/team-analytics
+#18 453.4 ├ ƒ /api/settings
+#18 453.4 ├ ƒ /api/settings/password
+#18 453.4 ├ ƒ /api/tasks
+#18 453.4 ├ ƒ /api/tasks/[id]
+#18 453.4 ├ ƒ /api/tasks/[id]/run-now
+#18 453.4 ├ ƒ /api/tasks/bulk
+#18 453.4 ├ ƒ /api/team/alerts
+#18 453.4 ├ ƒ /api/team/campaigns
+#18 453.4 ├ ƒ /api/team/campaigns/[id]
+#18 453.4 ├ ƒ /api/team/leaderboard
+#18 453.4 ├ ƒ /api/team/meetings
+#18 453.4 ├ ƒ /api/team/sdr-progress
+#18 453.4 ├ ƒ /api/templates
+#18 453.4 ├ ƒ /api/templates/[id]
+#18 453.4 ├ ƒ /api/templates/[id]/ab-test
+#18 453.4 ├ ƒ /api/templates/[id]/attachments
+#18 453.4 ├ ƒ /api/templates/[id]/attachments/[attachmentId]
+#18 453.4 ├ ƒ /api/templates/analytics
+#18 453.4 ├ ƒ /api/unsubscribe
+#18 453.4 ├ ƒ /api/users
+#18 453.4 ├ ƒ /api/users/[id]
+#18 453.4 ├ ƒ /api/users/[id]/impact
+#18 453.4 ├ ƒ /api/v1/calls
+#18 453.4 ├ ƒ /api/v1/enrich
+#18 453.4 ├ ƒ /api/v1/leads
+#18 453.4 ├ ƒ /api/v1/openapi.json
+#18 453.4 ├ ƒ /api/webhooks
+#18 453.4 ├ ƒ /api/webhooks/test
+#18 453.4 ├ ƒ /api/work-orders
+#18 453.4 ├ ƒ /api/work-orders/[id]/dispatch
+#18 453.4 ├ ○ /automation
+#18 453.4 ├ ƒ /client-reports
+#18 453.4 ├ ƒ /client-reports/[id]
+#18 453.4 ├ ƒ /client-reports/public/[token]
+#18 453.4 ├ ○ /director
+#18 453.4 ├ ○ /docs
+#18 453.4 ├ ○ /docs/typography
+#18 453.4 ├ ○ /email-health
+#18 453.4 ├ ○ /inbox
+#18 453.4 ├ ○ /leadgen
+#18 453.4 ├ ○ /leadgen-manager
+#18 453.4 ├ ○ /leads
+#18 453.4 ├ ○ /login
+#18 453.4 ├ ○ /meetings
+#18 453.4 ├ ○ /opportunities
+#18 453.4 ├ ○ /sequences
+#18 453.4 ├ ○ /sequences/performance
+#18 453.4 ├ ○ /settings
+#18 453.4 ├ ○ /team
+#18 453.4 └ ○ /templates
+#18 453.4 
+#18 453.4 
+#18 453.4 ƒ Proxy (Middleware)
+#18 453.4 
+#18 453.4 ○  (Static)   prerendered as static content
+#18 453.4 ƒ  (Dynamic)  server-rendered on demand
+#18 453.4 
+#18 454.6 npm notice
+#18 454.6 npm notice New major version of npm available! 11.16.0 -> 12.0.2
+#18 454.6 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#18 454.6 npm notice To update run: npm install -g npm@12.0.2
+#18 454.6 npm notice
+#18 DONE 455.4s
+
+#19 [runner  7/16] COPY --chown=node:node --from=builder /app/.next ./.next
+#19 DONE 26.4s
+
+#20 [runner  8/16] COPY --chown=node:node public ./public
+#20 DONE 0.4s
+
+#21 [runner  9/16] COPY --chown=node:node app ./app
+#21 DONE 0.6s
+
+#22 [runner 10/16] COPY --chown=node:node components ./components
+#22 DONE 0.5s
+
+#23 [runner 11/16] COPY --chown=node:node context ./context
+#23 DONE 0.3s
+
+#24 [runner 12/16] COPY --chown=node:node hooks ./hooks
+#24 DONE 0.3s
+
+#25 [runner 13/16] COPY --chown=node:node lib ./lib
+#25 DONE 0.5s
+
+#26 [runner 14/16] COPY --chown=node:node workers ./workers
+#26 DONE 0.3s
+
+#27 [runner 15/16] COPY --chown=node:node scripts ./scripts
+#27 DONE 0.5s
+
+#28 [runner 16/16] COPY --chown=node:node auth.config.ts auth.ts instrumentation.ts next.config.ts proxy.ts tsconfig.json ./
+#28 DONE 0.4s
+
+#29 exporting to image
+#29 exporting layers
+#29 exporting layers 126.6s done
+#29 exporting manifest sha256:ed45a812ab1ea819b462e8688eeb726417d176d58e9c6653b2a9fc2a51d9f4bc 0.1s done
+#29 exporting config sha256:5f86eb2b37142bdad2b053ce0e359cfaf294ad0ca27b740217690cb122af62a3
+#29 exporting config sha256:5f86eb2b37142bdad2b053ce0e359cfaf294ad0ca27b740217690cb122af62a3 0.1s done
+#29 exporting attestation manifest sha256:72f225ac98f3bcba8c60478698c7f46e6a8944c8bb0cc353a1889065e35dfe30
+#29 exporting attestation manifest sha256:72f225ac98f3bcba8c60478698c7f46e6a8944c8bb0cc353a1889065e35dfe30 0.1s done
+#29 exporting manifest list sha256:06aa2bcc181363fe7c5e5a6592fa8e9fcde95ea2926192e65f8594f9cb1ac293
+#29 exporting manifest list sha256:06aa2bcc181363fe7c5e5a6592fa8e9fcde95ea2926192e65f8594f9cb1ac293 0.1s done
+#29 naming to docker.io/library/telestar-crm-candidate:fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb 0.0s done
+#29 unpacking to docker.io/library/telestar-crm-candidate:fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb
+#29 unpacking to docker.io/library/telestar-crm-candidate:fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb 102.9s done
+#29 DONE 230.8s
+

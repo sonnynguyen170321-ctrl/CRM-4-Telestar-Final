@@ -1,34 +1,34 @@
 # gate: 15-production-build — next build
 # command: C:\Program Files\nodejs\node.exe scripts/build.cjs
-# startedAt: 2026-08-22T07:49:02.034Z
-# finishedAt: 2026-08-22T07:51:22.526Z
+# startedAt: 2026-08-23T12:54:10.542Z
+# finishedAt: 2026-08-23T12:57:22.127Z
 # exitCode: 0
 
 --- stdout ---
 Prisma schema loaded from prisma\schema.prisma
 
-✔ Generated Prisma Client (v6.2.1) to .\node_modules\@prisma\client in 2.26s
+✔ Generated Prisma Client (v6.2.1) to .\node_modules\@prisma\client in 2.29s
 
 Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
 
-Tip: Want to react to database changes in your app as they happen? Discover how with Pulse: https://pris.ly/tip-1-pulse
+Tip: Want real-time updates to your database without manual polling? Discover how with Pulse: https://pris.ly/tip-0-pulse
 
 ▲ Next.js 16.3.0 (Turbopack)
 - Environments: .env.local
-✓ Running next.config.ts took 324ms
+✓ Running next.config.ts took 773ms
 - Experiments (use with caution):
   · optimizePackageImports
 
   Creating an optimized production build ...
-✓ Compiled successfully in 57s
+✓ Compiled successfully in 54s
   Running TypeScript ...
-  Finished TypeScript in 49s ...
+  Finished TypeScript in 69s ...
   Collecting page data using 3 workers ...
   Generating static pages using 3 workers (0/96) ...
   Generating static pages using 3 workers (24/96) 
   Generating static pages using 3 workers (48/96) 
   Generating static pages using 3 workers (72/96) 
-✓ Generating static pages using 3 workers (96/96) in 4.4s
+✓ Generating static pages using 3 workers (96/96) in 29.9s
   Finalizing page optimization ...
 
 Route (app)
@@ -245,14 +245,4 @@ Route (app)
 
 
 --- stderr ---
-┌─────────────────────────────────────────────────────────┐
-│  Update available 6.2.1 -> 7.9.1                        │
-│                                                         │
-│  This is a major update - please follow the guide at    │
-│  https://pris.ly/d/major-version-upgrade                │
-│                                                         │
-│  Run the following to update                            │
-│    npm i --save-dev prisma@latest                       │
-│    npm i @prisma/client@latest                          │
-└─────────────────────────────────────────────────────────┘
-
+(empty)

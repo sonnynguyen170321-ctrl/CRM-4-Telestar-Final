@@ -2,11 +2,11 @@
   "evidenceId": "EV-LOAD-HANDLER",
   "kind": "load-benchmark",
   "benchmark": "IMPORT_HANDLER_BENCHMARK",
-  "candidateSha": "9fa36d3bcac6532f0c6f07af9045825a9d97844f",
+  "candidateSha": "fa3a54be4276d79ea7d24d63aab4e89ae3ff0bbb",
   "environment": "win32 / node 24.16.0 / postgres 16 / BullMQ mocked",
   "command": "node node_modules/vitest/vitest.mjs run tests/import-load-benchmark.test.ts",
-  "startedAt": "2026-08-22T07:45:46.525Z",
-  "finishedAt": "2026-08-22T07:46:24.607Z",
+  "startedAt": "2026-08-23T12:50:32.528Z",
+  "finishedAt": "2026-08-23T12:51:13.809Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -15,45 +15,45 @@
     "scales": {
       "120": {
         "batchSize": 120,
-        "totalDurationMs": 2776,
-        "throughputRowsPerSec": 43.23,
-        "p50Ms": 546,
-        "p95Ms": 648,
-        "p99Ms": 648,
+        "totalDurationMs": 3111,
+        "throughputRowsPerSec": 38.57,
+        "p50Ms": 653,
+        "p95Ms": 676,
+        "p99Ms": 676,
         "createdLeads": 120,
         "createdAccounts": 20,
         "createdContacts": 120,
         "lostRows": 0,
         "duplicateRows": 0,
-        "memoryUsedMb": 1.58
+        "memoryUsedMb": 4.96
       },
       "500": {
         "batchSize": 500,
-        "totalDurationMs": 11419,
-        "throughputRowsPerSec": 43.79,
-        "p50Ms": 958,
-        "p95Ms": 1081,
-        "p99Ms": 1081,
+        "totalDurationMs": 11786,
+        "throughputRowsPerSec": 42.42,
+        "p50Ms": 990,
+        "p95Ms": 1197,
+        "p99Ms": 1197,
         "createdLeads": 500,
         "createdAccounts": 20,
         "createdContacts": 500,
         "lostRows": 0,
         "duplicateRows": 0,
-        "memoryUsedMb": 1.83
+        "memoryUsedMb": -1.73
       },
       "1000": {
         "batchSize": 1000,
-        "totalDurationMs": 23886,
-        "throughputRowsPerSec": 41.87,
-        "p50Ms": 1002,
-        "p95Ms": 1258,
-        "p99Ms": 1258,
+        "totalDurationMs": 26384,
+        "throughputRowsPerSec": 37.9,
+        "p50Ms": 1086,
+        "p95Ms": 2027,
+        "p99Ms": 2027,
         "createdLeads": 1000,
         "createdAccounts": 20,
         "createdContacts": 1000,
         "lostRows": 0,
         "duplicateRows": 0,
-        "memoryUsedMb": -1.39
+        "memoryUsedMb": 3.6
       }
     }
   },
