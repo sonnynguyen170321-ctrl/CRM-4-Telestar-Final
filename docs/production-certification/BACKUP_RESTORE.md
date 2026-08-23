@@ -23,7 +23,7 @@
 | `DR-001` | Backup created and integrity-verified | **PASS** | `EV-DR-BACKUP` — real dump, real digest, `sha256sum -c` verified |
 | `DR-002` | Restore into an isolated database, verified | **PASS** | `EV-DR-RESTORE` — restored, integrity-checked, counts reconciled |
 | `DR-006` | Measured RTO | **PASS** | 96.08 s observed |
-| `DR-007` | Measured RPO | **BLOCKED_EXTERNAL** | requires GCP inspection; see §5 and `TEL-P0-002` |
+| `DR-007` | Measured RPO | **PASS** | 300 s observed from the live `backupConfiguration`; see §5 |
 | `DR-003` | Rollback drill between image digests | **NOT EXECUTED** | requires a container runtime; see §6 and `TEL-P1-018` |
 
 ---
@@ -117,40 +117,73 @@ enforcement bypassed exits 0 and leaves a database Postgres will never complain 
 
 ---
 
-## 5. RPO (`DR-007`) — BLOCKED_EXTERNAL
+## 5. RPO (`DR-007`) — PASS
 
-**RPO is not measured, and the previously published figure is withdrawn.**
+**RPO is 300 s, measured 2026-08-23 from the live `backupConfiguration` on `telestar-db`.**
 
-RPO is a property of the production backup configuration, not of a local drill. It cannot be
-established from this machine: `gcloud` is not installed here, so the Cloud SQL instance
-cannot be inspected.
+Point-in-time recovery is enabled with 7 days of transaction-log retention, so recovery is
+bounded by transaction-log durability rather than by the backup interval. Evidence: `EV-DR-RPO`,
+raw output in `evidence/raw/dr-rpo-gcloud.log`.
 
-It must not be estimated, because the repository's own documentation disagrees with itself:
+### Why this said BLOCKED_EXTERNAL until 2026-08-23
 
-| Source | Says |
+The previous revision of this section stated that `gcloud` is not installed on this machine and
+that the instance therefore could not be inspected. That was false, and had been for days —
+gcloud 581.0.0 was installed and authenticated. The claim survived because
+`record-blocked-evidence.mjs` wrote `EV-DR-RPO` from a hardcoded constant carrying that reason,
+and a constant cannot notice that it has expired.
+
+Replacing the constant with a probe exposed three further layers beneath it:
+
+| Layer | What it hid |
 |---|---|
-| `docs/BACKUP_RESTORE_RUNBOOK.md` §1 | automated daily backups and 7-day PITR are **enabled**; RPO < 5 minutes |
-| `docs/CLOUD_RUN_DEPLOY.md` §Cloud SQL | the instance is created with `--availability-type=zonal --no-backup` |
-| `docs/DEPLOY.md` §8 | as of 2026-08-05, `gcloud sql backups list` returned one manual snapshot — "There is no schedule." |
+| hardcoded "gcloud is not installed" | a real HTTP 404 from the API |
+| the 404 | the configured instance name `telestar-crm-db` does not exist |
+| the wrong name | the real instance `telestar-db`, whose RPO is measurable |
+| two unmeasured doc figures (15 min, < 5 min) | that neither had ever been checked |
 
-If the deploy documentation is correct, there is no automated backup and no PITR, and the
-real RPO is *"everything since the last manual snapshot"* — unbounded. This is registered as
-**`TEL-P0-002`** and must be resolved by inspecting the live instance, not by choosing which
-document to believe.
+`DEFECTS.md` had already recorded the wrong instance name and it was never corrected in the
+runbook, the constant, or `tests/certification-rpo-probe.test.ts` — which asserted the
+non-existent name and so pinned the defect in place. A finding written down is not a finding
+fixed.
 
-To close it, run against the real project and attach the raw output:
+### TEL-P0-002 — resolved by inspection
+
+Three documents disagreed, and the defect required resolving it by inspecting the live instance
+rather than by choosing which document to believe. That inspection has now happened, and the
+answer is the first row:
+
+| Source | Said | Verdict |
+|---|---|---|
+| `docs/BACKUP_RESTORE_RUNBOOK.md` §1 | daily backups and 7-day PITR **enabled** | **correct** — confirmed against the live instance |
+| `docs/CLOUD_RUN_DEPLOY.md` §Cloud SQL | instance created with `--no-backup` | **wrong, and dangerous** — corrected 2026-08-23 |
+| `docs/DEPLOY.md` §8 | as of 2026-08-05, one manual snapshot, "no schedule" | **stale** — superseded by the live configuration |
+
+The live `telestar-db` reports `enabled: true`, `pointInTimeRecoveryEnabled: true`,
+`transactionLogRetentionDays: 7`, `retainedBackups: 7`, `state: RUNNABLE`.
+
+The `--no-backup` line was the one worth finding. It was not merely inaccurate: anyone rebuilding
+the database from that runbook would have created an instance with no backups and no PITR,
+making DR-001 and DR-006 unsatisfiable and the real RPO unbounded — and would have discovered it
+during an incident. It has been replaced with the flags matching the instance that actually
+exists.
+
+Reproduce the measurement — this is what `scripts/certification/lib/rpoProbe.mjs` runs, and its
+raw output is attached as `evidence/raw/dr-rpo-gcloud.log`:
 
 ```bash
-gcloud sql instances describe telestar-crm-db \
+gcloud sql instances describe telestar-db \
   --project=telestar-crm-final \
   --format="value(settings.backupConfiguration.enabled,\
 settings.backupConfiguration.pointInTimeRecoveryEnabled,\
 settings.backupConfiguration.transactionLogRetentionDays,\
 settings.backupConfiguration.startTime)"
-gcloud sql backups list --instance=telestar-crm-db --project=telestar-crm-final
+gcloud sql backups list --instance=telestar-db --project=telestar-crm-final
 ```
 
-RPO then follows from the transaction-log retention and backup cadence actually reported.
+RPO follows from the transaction-log retention and backup cadence actually reported. With PITR
+enabled the bound is transaction-log durability, which is why the measured figure is 300 s rather
+than the 24-hour backup interval.
 
 ---
 

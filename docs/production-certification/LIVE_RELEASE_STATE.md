@@ -5,20 +5,42 @@ note: Agent working memory for the final certification push. Compact by design.
 
 # LIVE RELEASE STATE
 
-CANDIDATE_SHA=daa8ffb679b7bee87a907d4913123318b697eab6 (SUPERSEDED — re-freeze required)
-IMAGE_DIGEST=sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49
-DEPLOYED_SHA=daa8ffb679b7bee87a907d4913123318b697eab6
-BRANCH=fix/release-gates-and-deploy-guards (PR #100)
-CURRENT_PHASE=1 complete — every repo-local gate green; blocked on operator
-CURRENT_BLOCKER=no container runtime · gcloud unauthenticated · E2E_PASSWORD not supplied
-P0_OPEN=2
+CANDIDATE_SHA=12ea8ae4791ad0c79fb6a1403475015dc6acb399 (frozen cee77c5; f966d0d landed after — check N)
+IMAGE_DIGEST=sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49 (built from daa8ffb — STALE, predates candidate)
+DEPLOYED_SHA=9fa36d3 (health endpoint — behind candidate, check S)
+BRANCH=main
+CURRENT_PHASE=DR/RPO measured; candidate re-freeze invalidated all prior evidence
+CURRENT_BLOCKER=no container runtime · E2E_PASSWORD not supplied · full cert suite not yet re-run against 12ea8ae
+P0_OPEN=1 (TEL-P0-002 RESOLVED 2026-08-23 by live measurement)
 P1_OPEN=19
-REQUIREMENTS_VERIFIED=103/108
-CERT_RUN_1/2/3=FAIL (only: gates 19/20 BLOCKED_EXTERNAL — stale, predate TEL-P1-023)
+REQUIREMENTS_VERIFIED=4/108 (was 103/108 against fa3a54b; the re-freeze reset it — evidence is candidate-scoped)
+CERT_RUN_1/2/3=STALE (all carry fa3a54b, not the candidate)
 ROLLBACK=NOT_EXECUTED (no drill exists — TEL-P1-026)
 BACKUP_RESTORE=PASS (RTO 4.77s, checksum verified, restore integrity true)
-VALIDATOR=17 failures, exit 1, NO-GO
-NEXT_ACTION=operator: container runtime + E2E_PASSWORD; then re-freeze and run certify:full x3
+DR_RPO=PASS — MEASURED against live telestar-db: PITR enabled, 7-day log retention, rpoSeconds 300
+VALIDATOR=135 failures, exit 1, NO-GO (01:1 · A:26 · L:2 · S:1 · N:1 · REQ:104)
+NEXT_ACTION=operator: container runtime + E2E_PASSWORD; then re-freeze and run certify:full x3 against the new candidate
+
+> **Why 135 and not 17.** The 17-failure reading was taken while the candidate was `fa3a54b`.
+> Freezing `12ea8ae` invalidated every evidence file written against the old SHA: checks `A` (26)
+> and `REQ` (104) are one cause counted twice — evidence is candidate-scoped by design. `EV-DR-RPO`
+> is currently the only evidence in the repository carrying the candidate SHA.
+
+## Open security finding — not part of TEL-P0-002
+
+The live `telestar-db` describe output reports `requireSsl: false` and
+`sslMode: ALLOW_UNENCRYPTED_AND_ENCRYPTED`: production Postgres accepts unencrypted connections.
+`authorizedNetworks` is a single `/32`, which bounds exposure but does not remove it. Found
+2026-08-23 while measuring RPO; **no defect ID assigned yet**, and it is not covered by any
+existing requirement.
+
+## Evidence redaction note
+
+This repository is **public**. `evidence/raw/dr-rpo-gcloud.log` is an allowlist redaction of the
+raw `gcloud sql instances describe` output — endpoint IPs, server CA certificate, managed
+service-account address (carries the GCP project number), etag and the authorized-network ACL
+were removed. `backupConfiguration` is retained verbatim, which is what `EV-DR-RPO.closesWhen`
+requires. The redaction is self-declared in the artifact's `_redaction` key.
 
 ## Machine capability (measured, `npm run agent -- doctor`)
 
@@ -28,12 +50,16 @@ NEXT_ACTION=operator: container runtime + E2E_PASSWORD; then re-freeze and run c
 | postgres :5432 · redis :6379 | ok, listening |
 | AI providers | OPENAI / GEMINI / GROQ keys SET |
 | **container runtime** | **ABSENT** — docker and podman both unresolved |
-| **gcloud** | **INSTALLED (SDK 581.0.0), NO CREDENTIALED ACCOUNTS** |
+| **gcloud** | **INSTALLED (SDK 581.0.0), AUTHENTICATED** — active account `sonnynguyenofficial@gmail.com`; probe returned exit 0 on 2026-08-23 |
 
 > `TEL-P0-002` and `EV-DR-RPO` both said "gcloud is not installed on the certification machine".
-> False. It is installed and unauthenticated. The blocker is `gcloud auth login`, not an install
-> — and because the evidence was a hardcoded constant, authenticating would not have changed it
-> either (`TEL-P1-024`).
+> False on both counts, and the correction took two rounds. It was installed and merely
+> unauthenticated (`TEL-P1-024`: the evidence was a hardcoded constant, so authenticating alone
+> would not have changed it). After authenticating, the probe still failed — with a real HTTP 404,
+> because the configured instance name `telestar-crm-db` does not exist. The instance is
+> `telestar-db`. Corrected 2026-08-23 in `record-blocked-evidence.mjs` and in
+> `tests/certification-rpo-probe.test.ts`, which had asserted the non-existent name and so held
+> the defect in place.
 
 ## What each operator action is worth
 
@@ -41,27 +67,40 @@ NEXT_ACTION=operator: container runtime + E2E_PASSWORD; then re-freeze and run c
 |---|---|---|
 | container runtime | gates 19/20 → REL-003/004/005 | 106/108 |
 | ↳ then finish the DR-003 drill | DR-003 | 107/108 |
-| `gcloud auth login` | DR-007 + settles `TEL-P0-002` | 108/108 |
+| ~~`gcloud auth login`~~ | ~~DR-007 + settles `TEL-P0-002`~~ | **DONE 2026-08-23** — both closed |
 
-Below 108/108 the verdict stays **NO-GO**: `TEL-P0-002` is an open **P0** — three repository
-documents disagree about whether production has any automated backup at all, and nothing in
-this checkout can settle it.
+Both "Reaches" figures above are **stale**: they were computed against candidate `fa3a54b`.
+The re-freeze to `12ea8ae` reset verified requirements to 4/108, because evidence is
+candidate-scoped. Reaching 108/108 now requires re-running the full suite against the
+candidate, not just the two operator actions listed.
+
+`TEL-P0-002` no longer blocks: the three documents that disagreed about production backups were
+settled on 2026-08-23 by inspecting the live instance rather than by choosing which document to
+believe. `docs/CLOUD_RUN_DEPLOY.md` was the wrong one — it created the instance with
+`--no-backup`.
 
 `E2E_PASSWORD` is additionally required for the browser gates. Run-scoped; the published demo
 password is refused by `e2e/support/fixture.ts`.
 
 ## Validator state (`npm run certify:validate`, exit 1)
 
-17 failures, in three groups. Nothing unexplained.
+135 failures as of 2026-08-23, in six groups. Nothing unexplained.
 
 | Check | Count | What it is |
 |---|---:|---|
-| `L` | 6 | gates 19/20 `BLOCKED_EXTERNAL` in the three stale runs. Fixed in code by `TEL-P1-023`; clears when the runs are re-executed with a container runtime |
-| `N` | 6 | this session's commits touch non-certification files after the freeze |
-| `REQ` | 5 | DR-003 · DR-007 · REL-003/004/005 |
+| `REQ` | 104 | evidence of the right kind exists but carries `fa3a54b`, not the candidate |
+| `A` | 26 | same cause, counted at the file level — evidence and rendered docs still name `fa3a54b` / `daa8ffb` / `9fa36d3` |
+| `L` | 2 | gates 19/20 `BLOCKED_EXTERNAL` in run 3. Fixed in code by `TEL-P1-023`; clears when the runs are re-executed with a container runtime |
+| `01` | 1 | uncommitted working tree at the time of the run |
+| `S` | 1 | deployed health SHA `9fa36d3` is behind candidate `12ea8ae` |
+| `N` | 1 | `f966d0d` touches non-certification files after the freeze |
+
+`REQ` and `A` are one cause counted twice: 130 of the 135 failures are the re-freeze
+invalidating evidence, not 130 distinct defects. Re-running `certify:full` against `12ea8ae`
+clears both — and needs a container runtime.
 
 Check `N` reads as the mechanism working, not as a defect: it caught every commit made here and
-refused to let `daa8ffb` stand as the candidate.
+refused to let a superseded SHA stand as the candidate.
 
 Check `J` also caught a dead reference in this file and was fixed. `npm run agent -- check`
 passed on the same file — the two link checkers differ in scope, so a green `agent check` is

@@ -33,7 +33,7 @@ bash as-is.
 export PROJECT_ID=telestar-crm-demo-$(date +%y%m%d)   # project ids are globally unique
 export REGION=asia-southeast1
 export SERVICE_NAME=telestar-crm-web
-export DB_INSTANCE=telestar-crm-db
+export DB_INSTANCE=telestar-db
 export DB_NAME=telestar_crm
 export DB_USER=crm_user
 export REPO=cloud-run-source-deploy
@@ -87,7 +87,16 @@ export DB_PASS=$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 28)  # a
 gcloud sql instances create $DB_INSTANCE \
   --database-version=POSTGRES_16 --edition=enterprise --tier=db-g1-small \
   --region=$REGION --storage-type=SSD --storage-size=10GB --no-storage-auto-increase \
-  --availability-type=zonal --no-backup
+  --availability-type=zonal \
+  --backup-start-time=17:00 --enable-point-in-time-recovery \
+  --retained-transaction-log-days=7 --backup-location=$REGION
+
+# NOT --no-backup. That flag was here until 2026-08-23 and it contradicts the certification
+# programme: DR-001 requires a verifiable backup and DR-007 requires a measured RPO, and an
+# instance created without backups can satisfy neither. The live instance telestar-db has
+# backups and point-in-time recovery ENABLED, so this command did not describe the database
+# it claims to create — anyone rebuilding from this runbook would have produced a
+# non-compliant instance and only discovered it during an incident.
 
 gcloud sql databases create $DB_NAME --instance=$DB_INSTANCE
 gcloud sql users create $DB_USER --instance=$DB_INSTANCE --password="$DB_PASS"

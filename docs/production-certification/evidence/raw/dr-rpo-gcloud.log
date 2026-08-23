@@ -1,0 +1,57 @@
+{
+  "_redaction": {
+    "redacted": true,
+    "reason": "This repository is public. The unredacted describe output contained production endpoint IPs, the Cloud SQL server CA certificate, the managed service-account address (which carries the GCP project number), the etag and the authorized-network ACL. None were credentials; all were infrastructure disclosure.",
+    "method": "allowlist - only the fields below were carried over from the raw output",
+    "fieldsRetained": {
+      "top": [
+        "name",
+        "project",
+        "region",
+        "instanceType",
+        "backendType",
+        "createTime",
+        "databaseVersion",
+        "databaseInstalledVersion",
+        "state"
+      ],
+      "settings": [
+        "backupConfiguration",
+        "availabilityType",
+        "deletionProtectionEnabled",
+        "edition"
+      ]
+    },
+    "sufficientFor": "EV-DR-RPO closesWhen requires backupConfiguration.enabled, pointInTimeRecoveryEnabled and transactionLogRetentionDays, all retained verbatim",
+    "unredactedSha256OfOriginal": "dd42bf0bb697dd67939b710e2212758b0fa95e77321b06a5f0d2ca29c2f2c12f",
+    "redactedAt": "2026-08-24"
+  },
+  "name": "telestar-db",
+  "project": "telestar-crm-final",
+  "region": "asia-southeast1",
+  "instanceType": "CLOUD_SQL_INSTANCE",
+  "backendType": "SECOND_GEN",
+  "createTime": "2026-08-03T16:51:25.190Z",
+  "databaseVersion": "POSTGRES_16",
+  "databaseInstalledVersion": "POSTGRES_16_14",
+  "state": "RUNNABLE",
+  "settings": {
+    "backupConfiguration": {
+      "backupRetentionSettings": {
+        "retainedBackups": 7,
+        "retentionUnit": "COUNT"
+      },
+      "backupTier": "STANDARD",
+      "enabled": true,
+      "kind": "sql#backupConfiguration",
+      "pointInTimeRecoveryEnabled": true,
+      "replicationLogArchivingEnabled": true,
+      "startTime": "17:00",
+      "transactionLogRetentionDays": 7,
+      "transactionalLogStorageState": "CLOUD_STORAGE"
+    },
+    "availabilityType": "ZONAL",
+    "deletionProtectionEnabled": false,
+    "edition": "ENTERPRISE"
+  }
+}

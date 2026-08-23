@@ -238,6 +238,66 @@ before that day's migration. There is no schedule.
 > `CRM_IMAGE`, so `IMAGE_TAG` must be replaced with a `CRM_IMAGE` digest in the same change.
 > Do it deliberately, not mid-incident.
 
+### Updating the box's checkout — the procedure
+
+Written down because the warning above says what must not be done without saying how to do it,
+and an unwritten procedure for an R4 change is how boxes end up half-updated.
+
+The ordering constraint is the whole difficulty. The repo's `docker-compose.yml` declares
+`${CRM_IMAGE:?...}`, which makes compose **refuse to start** when the variable is absent. The
+box's `.env.production` currently supplies `IMAGE_TAG` and no `CRM_IMAGE`. So pulling the new
+compose without setting `CRM_IMAGE` first leaves the box unable to start its own services — the
+pull and the variable must land together, and the variable must land first.
+
+Run it on the box, not from a workstation. `/opt/crm-4-u` does not exist anywhere else.
+
+```bash
+cd /opt/crm-4-u
+
+# 1. Record what is serving now, before changing anything. This is the rollback target if
+#    anything below goes wrong, and after the update nothing else remembers it.
+sudo docker inspect --format '{{index .Config.Image}}' crm-4-u-web-1
+grep -E '^IMAGE_TAG=' .env.production
+
+# 2. Resolve the tag that is serving to an immutable digest. A tag can move; this is the whole
+#    reason for the change.
+sudo docker inspect --format '{{index .RepoDigests 0}}' crm-4-u-web-1
+
+# 3. Write CRM_IMAGE *before* the pull, using the digest from step 2. Keep IMAGE_TAG for now:
+#    the old compose still reads it, and until step 4 the old compose is what is on disk.
+sudo cp .env.production .env.production.bak
+echo "CRM_IMAGE=<digest-from-step-2>" | sudo tee -a .env.production
+
+# 4. Now update the checkout. After this, compose reads CRM_IMAGE and ignores IMAGE_TAG.
+sudo git -C /opt/crm-4-u fetch origin main
+sudo git -C /opt/crm-4-u checkout <candidate-sha>
+
+# 5. Verify BEFORE restarting anything. `config` resolves variables without touching containers.
+sudo APP_ENV_FILE=.env.production docker compose   -f docker-compose.yml -f docker-compose.gcp.yml   --env-file .env.production config --images
+
+# 6. Only if step 5 prints the digest from step 2 — deploy by digest.
+sudo ./scripts/deploy.sh <candidate-sha>
+```
+
+**After step 6, `scripts/rollback.sh` becomes available** — `deploy.sh` writes both `CRM_IMAGE`
+and `PREVIOUS_CRM_IMAGE` into the env file, and rollback reads the latter.
+
+**The first deploy after the update has no `PREVIOUS_CRM_IMAGE` yet**, because nothing has ever
+written one. Until `deploy.sh` has run twice, `./scripts/rollback.sh` with no argument has nothing
+to roll back to and will fail with "No PREVIOUS_CRM_IMAGE recorded". Pass the digest from step 2
+explicitly for that first window:
+
+```bash
+sudo ./scripts/rollback.sh ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:<digest>
+```
+
+That gap is the reason step 1 exists. Once the box has deployed twice through `deploy.sh`, the
+env file carries its own history and `deployments.ndjson` starts recording it.
+
+**If step 5 fails**, nothing has been restarted: `git checkout` the previous commit and remove the
+`CRM_IMAGE` line. The running containers are untouched throughout steps 1-5 — only step 6 changes
+what serves traffic.
+
 ### The exact command that works on this box
 
 Written down because it is not obvious and getting it wrong fails in a way that leaves the box

@@ -21,7 +21,7 @@ function shellReturning(byCommand: Record<string, { status: number | null; stdou
   });
 }
 
-const INSTANCE = { instance: 'telestar-crm-db', project: 'telestar-crm-final' };
+const INSTANCE = { instance: 'telestar-db', project: 'telestar-crm-final' };
 
 describe('deriveRpoSeconds', () => {
   it('is unbounded when no automated backup is configured', () => {

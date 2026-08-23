@@ -20,7 +20,7 @@ import { runCommand } from './lib/exec.mjs';
 import { RPO_OUTCOME, probeRpo } from './lib/rpoProbe.mjs';
 import { containerRuntime } from './lib/imageGates.mjs';
 
-const SQL_INSTANCE = process.env.DEPLOY_SQL_INSTANCE || 'telestar-crm-db';
+const SQL_INSTANCE = process.env.DEPLOY_SQL_INSTANCE || 'telestar-db';
 const SQL_PROJECT = process.env.DEPLOY_SQL_PROJECT || 'telestar-crm-final';
 
 const shell = runCommand;

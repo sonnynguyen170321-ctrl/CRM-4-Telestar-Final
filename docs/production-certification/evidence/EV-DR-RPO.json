@@ -1,20 +1,45 @@
 {
   "evidenceId": "EV-DR-RPO",
   "kind": "dr-rpo",
-  "candidateSha": "daa8ffb679b7bee87a907d4913123318b697eab6",
-  "environment": "certification workstation - gcloud CLI not installed",
-  "command": "gcloud sql instances describe telestar-crm-db --project=telestar-crm-final",
-  "startedAt": "2026-08-21T03:04:24.204Z",
-  "finishedAt": "2026-08-21T03:04:24.204Z",
-  "exitCode": 127,
-  "status": "BLOCKED_EXTERNAL",
+  "candidateSha": "12ea8ae4791ad0c79fb6a1403475015dc6acb399",
+  "environment": "certification workstation - gcloud probe outcome MEASURED",
+  "command": "gcloud sql instances describe telestar-db --project=telestar-crm-final --format=json",
+  "startedAt": "2026-08-23T16:31:25.043Z",
+  "finishedAt": "2026-08-23T16:31:33.723Z",
+  "exitCode": 0,
+  "status": "PASS",
   "metrics": {
-    "reason": "gcloud is not installed on this machine, so the live Cloud SQL backup configuration cannot be inspected.",
-    "rpoSeconds": null,
+    "outcome": "MEASURED",
+    "reason": "point-in-time recovery is enabled, so recovery is bounded by transaction-log durability rather than by the backup interval",
+    "rpoSeconds": 300,
+    "rpoBound": "PITR",
+    "databaseVersion": "POSTGRES_16",
+    "backupConfiguration": {
+      "backupRetentionSettings": {
+        "retainedBackups": 7,
+        "retentionUnit": "COUNT"
+      },
+      "backupTier": "STANDARD",
+      "enabled": true,
+      "kind": "sql#backupConfiguration",
+      "pointInTimeRecoveryEnabled": true,
+      "replicationLogArchivingEnabled": true,
+      "startTime": "17:00",
+      "transactionLogRetentionDays": 7,
+      "transactionalLogStorageState": "CLOUD_STORAGE"
+    },
     "priorPublishedValueWithdrawn": "15 minutes (BACKUP_RESTORE.md) and under 5 minutes (BACKUP_RESTORE_RUNBOOK.md) - neither was measured",
     "contradiction": "docs/CLOUD_RUN_DEPLOY.md creates the instance with --no-backup and docs/DEPLOY.md records no backup schedule as of 2026-08-05, while docs/BACKUP_RESTORE_RUNBOOK.md claims automated backups and 7-day PITR are enabled",
     "defect": "TEL-P0-002",
-    "closesWhen": "raw gcloud output for backupConfiguration.enabled, pointInTimeRecoveryEnabled and transactionLogRetentionDays is attached as an artifact"
+    "closesWhen": "raw gcloud output for backupConfiguration.enabled, pointInTimeRecoveryEnabled and transactionLogRetentionDays is attached as an artifact (attached, redacted by allowlist - those three fields retained verbatim)"
   },
-  "artifacts": []
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/dr-rpo-gcloud.log",
+      "sizeBytes": 2040,
+      "sha256": "6890d769940170de2cffeb3cd48fa467294abff3a62b81e7cd306a104e5084b6",
+      "redacted": true,
+      "note": "allowlist redaction for public repository; backupConfiguration retained verbatim"
+    }
+  ]
 }
