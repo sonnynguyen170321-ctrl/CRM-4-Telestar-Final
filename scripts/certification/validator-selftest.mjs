@@ -23,11 +23,14 @@ import {
   checkBackupArtifactSanity,
   checkCandidateShaAgreement,
   checkCertificateVersusOpenDefects,
+  checkCiHeadSha,
   checkLoadResultAgreement,
   checkNoFileUrls,
   checkReferencedFilesExist,
   checkRegistryTestFilesExist,
   checkReleaseIdentity,
+  checkSourceAndRunProvenance,
+  checkTimingImpossibility,
 } from './lib/consistency.mjs';
 import { validateRecordShape, verifyArtifacts } from './lib/evidence.mjs';
 import { CERT_DIR, CONFIG_PATH, EVIDENCE_DIR, REPO_ROOT } from './lib/paths.mjs';
@@ -427,6 +430,79 @@ function main() {
       'ROLE — a failing role inside an otherwise passing browser record',
       resolved[0].status !== 'VERIFIED',
       'a failing role resolved as VERIFIED',
+    );
+  }
+
+  // ── Section 7: Time impossibility mutant ─────────────────────────────────
+  {
+    const config = { candidateFrozenAt: '2026-08-24T12:00:00.000Z', candidateSha: candidate };
+    const mutantRecords = [
+      {
+        evidenceId: 'EV-MUTANT-TIME',
+        kind: 'vitest',
+        startedAt: '2026-08-23T05:00:00.000Z', // predates candidate freeze by 31 hours!
+        status: 'PASS',
+      },
+    ];
+    const findings = checkTimingImpossibility(config, mutantRecords);
+    expectRed(
+      'TIME — candidate execution predating candidate freeze',
+      findings.length > 0,
+      'execution predating candidate freeze was not detected',
+    );
+  }
+
+  // ── Section 8: executedHeadSha mismatch mutant ────────────────────────────
+  {
+    const config = { candidateSha: candidate };
+    const mutantRecords = [
+      {
+        evidenceId: 'EV-MUTANT-SHA',
+        kind: 'vitest',
+        metrics: { executedHeadSha: '0000000000000000000000000000000000000000' },
+      },
+    ];
+    const findings = checkSourceAndRunProvenance(config, mutantRecords);
+    expectRed(
+      'SOURCE — executedHeadSha differs from candidate',
+      findings.length > 0,
+      'executedHeadSha mismatch was not detected',
+    );
+  }
+
+  // ── Section 30: rollback with empty artifacts ─────────────────────────────
+  {
+    const config = { candidateSha: candidate };
+    const mutantRecords = [
+      {
+        evidenceId: 'EV-DR-ROLLBACK',
+        kind: 'dr-rollback',
+        artifacts: [],
+      },
+    ];
+    const findings = checkSourceAndRunProvenance(config, mutantRecords);
+    expectRed(
+      'ROLLBACK — rollback record with empty artifacts',
+      findings.length > 0,
+      'empty rollback artifacts was not detected',
+    );
+  }
+
+  // ── Section 26: CI head SHA mismatch mutant ──────────────────────────────
+  {
+    const config = { candidateSha: candidate };
+    const mutantRecords = [
+      {
+        evidenceId: 'EV-CI-RUN',
+        kind: 'ci-run',
+        metrics: { workflowHeadSha: '1111111111111111111111111111111111111111' },
+      },
+    ];
+    const findings = checkCiHeadSha(config, mutantRecords);
+    expectRed(
+      'CI — CI run head SHA belongs to another commit',
+      findings.length > 0,
+      'CI head SHA mismatch was not detected',
     );
   }
 

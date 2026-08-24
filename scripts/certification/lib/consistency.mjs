@@ -340,6 +340,103 @@ export function checkCertificateOrdering(records, certificateText) {
   return findings;
 }
 
+/** Section 7: time impossibility check — evidence may not predate the candidate freeze. */
+export function checkTimingImpossibility(config, records) {
+  const findings = [];
+  if (!config.candidateFrozenAt) return findings;
+  const frozenAtMs = new Date(config.candidateFrozenAt).getTime();
+  const SKEW_TOLERANCE_MS = 60 * 1000;
+
+  for (const record of records) {
+    if (!record.startedAt) continue;
+    const startedAtMs = new Date(record.startedAt).getTime();
+    if (Number.isFinite(startedAtMs) && startedAtMs < frozenAtMs - SKEW_TOLERANCE_MS) {
+      findings.push(
+        finding(
+          'TIME_IMPOSSIBILITY',
+          `${record.evidenceId}: execution started at ${record.startedAt} which predates candidate freeze ${config.candidateFrozenAt}`,
+        ),
+      );
+    }
+  }
+  return findings;
+}
+
+/** Section 8 & 30: source identity & rollback artifact check. */
+export function checkSourceAndRunProvenance(config, records) {
+  const findings = [];
+  for (const record of records) {
+    if (record.metrics?.executedHeadSha && record.metrics.executedHeadSha !== config.candidateSha) {
+      findings.push(
+        finding(
+          'SOURCE_MISMATCH',
+          `${record.evidenceId}: executedHeadSha ${record.metrics.executedHeadSha.slice(0, 7)} differs from candidate ${config.candidateSha?.slice(0, 7)}`,
+        ),
+      );
+    }
+    if (record.kind === 'dr-rollback' && (!record.artifacts || record.artifacts.length === 0)) {
+      findings.push(
+        finding('ROLLBACK_ARTIFACTS', `${record.evidenceId}: rollback evidence may not carry empty artifacts: []`),
+      );
+    }
+  }
+  return findings;
+}
+
+/** Section 6 & 26: CI head SHA must match candidate SHA. */
+export function checkCiHeadSha(config, records) {
+  const findings = [];
+  for (const record of records) {
+    if (record.kind === 'ci-run') {
+      const headSha = record.metrics?.workflowHeadSha || record.metrics?.headSha;
+      if (headSha && config.candidateSha && headSha !== config.candidateSha) {
+        findings.push(
+          finding(
+            'CI_SHA_MISMATCH',
+            `CI run ${record.metrics?.runId || record.evidenceId} head SHA ${headSha.slice(0, 7)} differs from candidate ${config.candidateSha.slice(0, 7)}`,
+          ),
+        );
+      }
+    }
+  }
+  return findings;
+}
+
+/** Section 12: single verdict engine consistency across generated documents. */
+export function checkDocumentVerdictConsistency(scope = defaultScope()) {
+  const findings = [];
+  const certPath = path.join(scope.certDir, 'FINAL_CERTIFICATE.md');
+  const trackerPath = path.join(scope.certDir, 'MASTER_TRACKER.md');
+  const progressPath = path.join(scope.certDir, 'progress.json');
+
+  if (existsSync(certPath) && existsSync(trackerPath)) {
+    const certText = readFileSync(certPath, 'utf8');
+    const trackerText = readFileSync(trackerPath, 'utf8');
+    const certGo = certText.includes('GO — READY FOR TELESTAR INTERNAL LAUNCH') || certText.includes('GO — PRODUCTION EXCELLENCE CERTIFIED');
+    const trackerGo = trackerText.includes('VERDICT: GO');
+
+    if (certGo !== trackerGo) {
+      findings.push(
+        finding('VERDICT_MISMATCH', `FINAL_CERTIFICATE (GO=${certGo}) and MASTER_TRACKER (GO=${trackerGo}) disagree on verdict`),
+      );
+    }
+  }
+
+  if (existsSync(progressPath) && existsSync(certPath)) {
+    const progress = JSON.parse(readFileSync(progressPath, 'utf8'));
+    const certText = readFileSync(certPath, 'utf8');
+    const certGo = certText.includes('GO — READY FOR TELESTAR INTERNAL LAUNCH') || certText.includes('GO — PRODUCTION EXCELLENCE CERTIFIED');
+    const progressGo = progress.verdict === 'GO';
+
+    if (certGo !== progressGo) {
+      findings.push(
+        finding('VERDICT_MISMATCH', `FINAL_CERTIFICATE (GO=${certGo}) and progress.json (verdict=${progress.verdict}) disagree on verdict`),
+      );
+    }
+  }
+  return findings;
+}
+
 function git(args) {
   try {
     return execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8' }).trim();

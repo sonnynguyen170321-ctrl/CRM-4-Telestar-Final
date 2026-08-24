@@ -18,14 +18,18 @@ import {
   checkCandidateShaAgreement,
   checkCertificateOrdering,
   checkCertificateVersusOpenDefects,
+  checkCiHeadSha,
+  checkDocumentVerdictConsistency,
   checkLoadResultAgreement,
   checkNoFileUrls,
   checkPostFreezeCommits,
   checkReferencedFilesExist,
   checkRegistryTestFilesExist,
   checkReleaseIdentity,
+  checkSourceAndRunProvenance,
   checkSourceIdentity,
   checkTestTotalAgreement,
+  checkTimingImpossibility,
 } from './lib/consistency.mjs';
 import { loadEvidenceRecords, validateRecordShape, verifyArtifacts } from './lib/evidence.mjs';
 import {
@@ -170,6 +174,10 @@ export function validateCertification() {
     ...checkReleaseIdentity(config, records),
     ...checkCertificateOrdering(records, certificateText),
     ...checkPostFreezeCommits(config),
+    ...checkTimingImpossibility(config, records),
+    ...checkSourceAndRunProvenance(config, records),
+    ...checkCiHeadSha(config, records),
+    ...checkDocumentVerdictConsistency(),
   ];
 
   const unverifiedMandatory = resolved.filter(

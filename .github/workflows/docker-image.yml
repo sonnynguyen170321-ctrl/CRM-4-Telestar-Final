@@ -16,7 +16,6 @@ on:
     workflows: [CI]
     types: [completed]
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -31,11 +30,8 @@ env:
 jobs:
   publish:
     name: Build and push
-    # `workflow_run` fires on completion regardless of outcome. A cancelled run validated
-    # nothing, so it is excluded here; every other outcome is decided by the gate step below
-    # rather than by the workflow's overall conclusion.
+    # Runs only on completed CI workflow runs on main that were not cancelled
     if: >-
-      github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 30
