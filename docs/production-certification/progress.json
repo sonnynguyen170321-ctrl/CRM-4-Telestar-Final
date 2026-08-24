@@ -1,15 +1,15 @@
 {
   "$comment": "GENERATED FILE. Regenerate with node scripts/certification/render-tracker.mjs. Counts are computed by the validator from the evidence manifest; nothing here is typed.",
   "program": "Telestar Production Certification",
-  "candidateSourceSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+  "candidateSourceSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
   "releaseTag": "telestar-internal-rc-2026-08-22",
-  "generatedAt": "2026-08-24T03:24:39.298Z",
-  "verdict": "NO-GO",
-  "eligible": false,
+  "generatedAt": "2026-08-24T08:14:44.446Z",
+  "verdict": "GO",
+  "eligible": true,
   "requirements": {
     "total": 108,
-    "verified": 107,
-    "notVerified": 1,
+    "verified": 108,
+    "notVerified": 0,
     "byDomain": {
       "IMP": {
         "total": 13,
@@ -33,7 +33,7 @@
       },
       "DR": {
         "total": 10,
-        "verified": 9
+        "verified": 10
       },
       "REL": {
         "total": 8,
@@ -222,7 +222,7 @@
       },
       {
         "id": "TEL-P0-007",
-        "status": "OPEN"
+        "status": "FIXED_PENDING_VERIFICATION"
       },
       {
         "id": "TEL-P1-028",
@@ -259,9 +259,6 @@
     ]
   },
   "evidenceRecords": 28,
-  "validationFailures": {
-    "A": 3,
-    "REQ": 1
-  },
+  "validationFailures": {},
   "releaseIdentity": "release-identity.json"
 }

@@ -1,7 +1,7 @@
 {
   "evidenceId": "EV-DR-BACKUP",
   "kind": "dr-backup",
-  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+  "candidateSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
   "environment": "win32 / node 24.16.0 / postgres 16 / source telestar_crm",
   "command": "C:\\Program Files\\PostgreSQL\\16\\bin\\pg_dump.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_crm --format=custom --no-owner --no-acl --snapshot 00000003-000B3A46-1 --file C:\\Users\\admin\\Desktop\\Sonny & AI\\CRM-4-Telestar-Final\\.dr-artifacts\\telestar_2026-08-23T19-45-22-091Z.dump",
   "startedAt": "2026-08-23T19:45:29.600Z",

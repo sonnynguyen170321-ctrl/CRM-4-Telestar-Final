@@ -6,8 +6,8 @@
   Regenerate: node scripts/certification/render-traceability.mjs
 -->
 
-**Candidate SHA**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
-**Verified**: 107 / 108
+**Candidate SHA**: `42420a01a32c68a3a66418eebcd9ebf297cd044b`
+**Verified**: 108 / 108
 **Verdict**: NO-GO
 
 > Status in this document is **computed**, never asserted. `requirements.json` has no status
@@ -26,10 +26,10 @@
 | **Security, Multi-Tenant Isolation & RBAC** | `SEC` | 15 | 15 | 0 |
 | **6-Role Operational Workflows** | `ROLE` | 12 | 12 | 0 |
 | **AI Reliability & Cost Governance** | `AI` | 14 | 14 | 0 |
-| **Disaster Recovery & Infrastructure** | `DR` | 10 | 9 | 1 |
+| **Disaster Recovery & Infrastructure** | `DR` | 10 | 10 | 0 |
 | **Release Identity & Gate Auditing** | `REL` | 8 | 8 | 0 |
 | **Operational Lifecycle & Sequences** | `OPS` | 24 | 24 | 0 |
-| **TOTAL** | | **108** | **107** | **1** |
+| **TOTAL** | | **108** | **108** | **0** |
 
 ---
 
@@ -132,7 +132,7 @@
 |---|---|---|---|---|---|---|
 | `DR-001` | Backup creation and verification of pg_dump file integrity | P1 | dr-backup | **VERIFIED** | — | — |
 | `DR-002` | Restore drill into isolated database with schema migration check | P1 | dr-restore | **VERIFIED** | — | — |
-| `DR-003` | Rollback drill to previous immutable container image | P1 | dr-rollback | NOT_VERIFIED | evidence of kind "dr-rollback" exists but none is for candidate d5d7cf8 | — |
+| `DR-003` | Rollback drill to previous immutable container image | P1 | dr-rollback | **VERIFIED** | — | — |
 | `DR-004` | Failure matrix: database connection drop & graceful recovery | P1 | failure-matrix | **VERIFIED** | — | — |
 | `DR-005` | Failure matrix: Redis disconnection & fallback queue behavior | P1 | `tests/redis-readiness.test.ts`<br>redis-integration | **VERIFIED** | — | — |
 | `DR-006` | Measured RTO (Recovery Time Objective) under 15 minutes | P2 | dr-restore (rtoSeconds) | **VERIFIED** | — | — |

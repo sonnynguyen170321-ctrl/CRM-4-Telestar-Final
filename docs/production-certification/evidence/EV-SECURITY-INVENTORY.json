@@ -1,7 +1,7 @@
 {
   "evidenceId": "EV-SECURITY-INVENTORY",
   "kind": "security-inventory",
-  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+  "candidateSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "derived from C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
   "startedAt": "2026-08-23T19:30:34.754Z",

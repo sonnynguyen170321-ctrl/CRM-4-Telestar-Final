@@ -9,7 +9,7 @@
 **Requirement**: `REL-001`
 **Defect**: `TEL-P1-018`
 **Chain status**: **COMPLETE**
-**Candidate SHA**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
+**Candidate SHA**: `42420a01a32c68a3a66418eebcd9ebf297cd044b`
 **Release tag**: `telestar-internal-rc-2026-08-22`
 
 ---
@@ -29,13 +29,13 @@ running.
 
 | Link | Value | How to establish it |
 |---|---|---|
-| APPLICATION_SOURCE_SHA | `d5d7cf83679faa1187ffd1ab095a37c28f5136f4` | — |
-| CI_RUN_ID | `32658798987` | — |
-| IMAGE_DIGEST | `sha256:4302cb64ea258a48543563e31fdf084abe64826eeb846c8a3e2d0ea5a577a9d6` | — |
-| WEB_DIGEST | `sha256:4302cb64ea258a48543563e31fdf084abe64826eeb846c8a3e2d0ea5a577a9d6` | — |
-| WORKER_DIGEST | `sha256:4302cb64ea258a48543563e31fdf084abe64826eeb846c8a3e2d0ea5a577a9d6` | — |
-| HEALTH_SHA | `d5d7cf83679faa1187ffd1ab095a37c28f5136f4` | — |
-| Deployment timestamp | `2026-08-24T03:23:15.457Z` | — |
+| APPLICATION_SOURCE_SHA | `42420a01a32c68a3a66418eebcd9ebf297cd044b` | — |
+| CI_RUN_ID | `32703297153` | — |
+| IMAGE_DIGEST | `sha256:42f0b0daf870ed43e5bc74f1d85557a22fab37a39bfafc2650d4b824b1f8bc03` | — |
+| WEB_DIGEST | `sha256:42f0b0daf870ed43e5bc74f1d85557a22fab37a39bfafc2650d4b824b1f8bc03` | — |
+| WORKER_DIGEST | `sha256:42f0b0daf870ed43e5bc74f1d85557a22fab37a39bfafc2650d4b824b1f8bc03` | — |
+| HEALTH_SHA | `42420a01a32c68a3a66418eebcd9ebf297cd044b` | — |
+| Deployment timestamp | `2026-08-24T08:07:50.890Z` | — |
 | Migration set | `52` | — |
 
 ## 3. Identity assertions
@@ -46,7 +46,7 @@ running.
 
 ## 4. Rollback
 
-Executed. Rolled from `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:f4b2b741d167a3cf865859025f5a056311fdc0f2daa7bac2118bf4f6ab2421b8` to `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49` in 35.39s.
+Executed. Rolled from `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:42f0b0daf870ed43e5bc74f1d85557a22fab37a39bfafc2650d4b824b1f8bc03` to `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:1940f699aa658212e706dd80fd74a1dc79a69a88915341627ac8593d753e6cee` in 22.8s.
 
 ## 5. Post-deployment gate
 

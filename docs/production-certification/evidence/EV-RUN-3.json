@@ -1,9 +1,9 @@
 {
   "evidenceId": "EV-RUN-3",
   "kind": "certification-run",
-  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+  "candidateSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
-  "command": "node scripts/certification/run-full-certification.mjs --candidate d5d7cf83679faa1187ffd1ab095a37c28f5136f4 --run 3",
+  "command": "node scripts/certification/run-full-certification.mjs --candidate 42420a01a32c68a3a66418eebcd9ebf297cd044b --run 3",
   "startedAt": "2026-08-23T19:28:43.915Z",
   "finishedAt": "2026-08-23T19:44:19.223Z",
   "exitCode": 0,
@@ -18,7 +18,7 @@
         "description": "the application source is exactly the frozen candidate",
         "metrics": {
           "head": "e883ba780d8f7bf4f912156fae3621dc6f226a28",
-          "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+          "candidateSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
           "commitsSinceFreeze": 4,
           "uncommittedNonMetadataPaths": 0,
           "problems": []
@@ -1404,7 +1404,7 @@
           "endpoints": {
             "/api/health": {
               "status": 200,
-              "commit": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+              "commit": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
               "findings": []
             }
           },
@@ -1424,9 +1424,9 @@
         "description": "Image digest captured by digest, never by floating tag",
         "metrics": {
           "imageId": "sha256:37c71050c03a3b9d97b9700b95c75b4054f64e8934c2cbe30d5a52ccf0aea7d2",
-          "revision": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+          "revision": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
           "repoTags": [
-            "telestar-crm-candidate:d5d7cf83679faa1187ffd1ab095a37c28f5136f4"
+            "telestar-crm-candidate:42420a01a32c68a3a66418eebcd9ebf297cd044b"
           ],
           "findings": []
         }
@@ -1451,117 +1451,117 @@
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-02-environment.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-02-environment.log",
       "sizeBytes": 469,
       "sha256": "241d5ed30c07734c022d39e5602a081ef313530b2df47bc710acfbba281610eb"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-03-typecheck.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-03-typecheck.log",
       "sizeBytes": 261,
       "sha256": "bf13b5d95fdfffa2ca754d5add7ec98d50019cbf0c0251e34e18185bac0bd395"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-04-lint.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-04-lint.log",
       "sizeBytes": 318,
       "sha256": "f9fdb5d4853b5b84365bbaa7a4f56af5b6f94d7f6bdeec5dcd5c66f0905b1938"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-05-test-discipline.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-05-test-discipline.log",
       "sizeBytes": 324,
       "sha256": "4aa2ce0f212352c645332de35fdc6d1ee9bc6243b86d7e3def5e6c6496d9c5a0"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-06-migration-validation.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-06-migration-validation.log",
       "sizeBytes": 337,
       "sha256": "ab7259f41bdd4e2be45e66f527df9b90e110b2f19090d88cc7f7ed47cd783e10"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-07-database-integrity.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-07-database-integrity.log",
       "sizeBytes": 1635,
       "sha256": "3589e6a7dbd0556c11432578f1476a8d9445696202db4af42dc20793ee7d5d11"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-08-vitest.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-08-vitest.log",
       "sizeBytes": 443,
       "sha256": "5639ba1918334cd052679092b939029f0d2f89d89e645ad6dab39040cb39380e"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-09-redis-integration.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-09-redis-integration.log",
       "sizeBytes": 547,
       "sha256": "99245d5ecf1679e1ca941804894d3b2af2c4c6e5014b9129af889f7a5c68779b"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-10-ai-certification.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-10-ai-certification.log",
       "sizeBytes": 762,
       "sha256": "36cdd5faa06f8b106921335ad14f7de278568dca3a90ef8a2ae6d3c27c9e800d"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-11-email-safety.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-11-email-safety.log",
       "sizeBytes": 617,
       "sha256": "3c74404dbb259658ec15793f1ed366bc8db09246a8da0f78bba9b351aaac470f"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-12-import-fault-matrix.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-12-import-fault-matrix.log",
       "sizeBytes": 596,
       "sha256": "6cdb9c20e622fb53f90903252fc408cb7326933502197ab868af8dde840f0366"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-13-queue-load.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-13-queue-load.log",
       "sizeBytes": 524,
       "sha256": "b4340aa5e15d03ee6d94a0980b3ed09bbfafe5a027927e0647f319428fa5b7aa"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-14-security-suite.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-14-security-suite.log",
       "sizeBytes": 769,
       "sha256": "4398920faad832c66b26950353561158b55ab1e07ec0593526d9c075465d6401"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-15-production-build.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-15-production-build.log",
       "sizeBytes": 7393,
       "sha256": "ef82006c510cba622aff7ed23c224a82655c596ee7eee5179c16e26366d9e7d0"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-16-playwright-roles.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-16-playwright-roles.log",
       "sizeBytes": 2174,
       "sha256": "f9ad580b4fee495280cd38d9e80aca92864e08a856703d281530dfa5b9d44c17"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-16-playwright-roles-evidence.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-16-playwright-roles-evidence.log",
       "sizeBytes": 156,
       "sha256": "576a1d9f71438d9faa59093b3970cf411475968d66679fbac5a619519d3850ee"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-17-golden-browser-journey.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-17-golden-browser-journey.log",
       "sizeBytes": 2219,
       "sha256": "2d0e4b4d42b5b789ef437a945ca6918ba3777491ca539e51867d796b0fbd8d23"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-18-worker-readiness.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-18-worker-readiness.log",
       "sizeBytes": 187,
       "sha256": "a2ce2d1c3ba97a2dbf8c3e235cf2e7be2df17e1e4e59f506b92aa08a4b23a6dc"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-22-health-smoke.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-22-health-smoke.log",
       "sizeBytes": 210,
       "sha256": "453881481683c223cf3e5bc73459df29f12a5487c7dd6223ca58d144dbf46b20"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-19-docker-build.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-19-docker-build.log",
       "sizeBytes": 20437,
       "sha256": "5b9b4d75378f4a4258ef1c2304392a01c1f4821760feec3e4e072b27fe39243e"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-20-image-inspection.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-20-image-inspection.log",
       "sizeBytes": 275,
       "sha256": "51dd2c3fa658dcf2c14307e90770d5e30a4da5b714bb0897832243d972711a4f"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-21-compose-validation.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-21-compose-validation.log",
       "sizeBytes": 1413,
       "sha256": "eee33edbebad7434730dd7c3650c5f0641566ac1c28d3aa6c15591f4d8557c8d"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-23-validator-selftest.log",
+      "path": "docs/production-certification/evidence/raw/run3-42420a0-23-validator-selftest.log",
       "sizeBytes": 1760,
       "sha256": "d9c1458150e71773d926241672664eb5d594474bf14d467e8ca35a83dee8ff72"
     }

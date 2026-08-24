@@ -1,27 +1,27 @@
 {
   "evidenceId": "EV-DEPLOYED-STATE",
   "kind": "deployed-state",
-  "candidateSha": "ca248d40cab4d75170dcc620b3fe010b903d727a",
+  "candidateSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
   "environment": "read-only probe of the live production health endpoint from the certification workstation",
   "command": "curl -s https://crm.telestar.cloud/api/health",
-  "startedAt": "2026-08-24T05:42:19.000Z",
-  "finishedAt": "2026-08-24T05:42:19.000Z",
+  "startedAt": "2026-08-24T08:08:16.425Z",
+  "finishedAt": "2026-08-24T08:08:16.427Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
     "reachable": true,
     "ok": true,
     "schema": "ready",
-    "deployedSha": "ca248d40cab4d75170dcc620b3fe010b903d727a",
-    "deployedBuiltAt": "2026-08-24T05:13:31Z",
-    "candidateSha": "ca248d40cab4d75170dcc620b3fe010b903d727a",
+    "deployedSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
+    "deployedBuiltAt": "2026-08-24T07:55:48Z",
+    "candidateSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
     "deployedMatchesCandidate": true
   },
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/deployed-health-probe.log",
       "sizeBytes": 211,
-      "sha256": "f3072e7922aca67a389e2e555421125980ed08513345dec7787cfded86fa10c1"
+      "sha256": "a912423bb906c40378e4255a6d398c14b47af9051f3496f14f96f793d9c4caa0"
     }
   ]
 }

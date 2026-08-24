@@ -1,0 +1,29 @@
+# gate: 21-compose-validation — scripts/check-production-compose.mjs
+# command: C:\Program Files\nodejs\node.exe scripts/check-production-compose.mjs
+# startedAt: 2026-08-23T19:09:36.136Z
+# finishedAt: 2026-08-23T19:09:38.828Z
+# exitCode: 0
+
+--- stdout ---
+[1m==>[0m Checking required topology files
+  [32mPASS[0m docker-compose.yml exists
+  [32mPASS[0m docker-compose.gcp.yml exists
+  [32mPASS[0m scripts/production-compose.sh exists
+  [32mPASS[0m scripts/deploy.sh exists
+  [32mPASS[0m scripts/rollback.sh exists
+[1m==>[0m Testing scripts/production-compose.sh resolver logic
+  [32mPASS[0m DEPLOY_TARGET=gcp resolves to: -f docker-compose.yml -f docker-compose.gcp.yml
+  [32mPASS[0m DEPLOY_TARGET=self-hosted resolves to: -f docker-compose.yml
+  [32mPASS[0m Unknown DEPLOY_TARGET correctly rejected with non-zero exit code
+[1m==>[0m Validating GCP production compose topology invariants
+  [32mPASS[0m docker-compose.gcp.yml disables local postgres via profile
+  [32mPASS[0m docker-compose.gcp.yml overrides DATABASE_URL with external variable
+[1m==>[0m Verifying deploy/rollback scripts standardization
+  [32mPASS[0m scripts/deploy.sh uses production-compose.sh
+  [32mPASS[0m scripts/rollback.sh uses production-compose.sh
+  [32mPASS[0m scripts/deploy.sh standardizes on CRM_IMAGE
+
+[32mProduction Compose validation PASSED (all invariants hold).[0m
+
+--- stderr ---
+(empty)

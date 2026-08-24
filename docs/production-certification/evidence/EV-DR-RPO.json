@@ -1,7 +1,7 @@
 {
   "evidenceId": "EV-DR-RPO",
   "kind": "dr-rpo",
-  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+  "candidateSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
   "environment": "certification workstation - gcloud probe outcome MEASURED",
   "command": "gcloud sql instances describe telestar-db --project=telestar-crm-final --format=json",
   "startedAt": "2026-08-23T19:45:52.290Z",

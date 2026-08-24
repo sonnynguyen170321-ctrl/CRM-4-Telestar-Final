@@ -1,0 +1,41 @@
+# gate: 07-database-integrity — scripts/verify-db-integrity.ts against the certification database
+# command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts
+# startedAt: 2026-08-23T18:54:28.736Z
+# finishedAt: 2026-08-23T18:54:33.142Z
+# exitCode: 0
+
+--- stdout ---
+database integrity verification — telestar_crm
+========================================================================
+[PASS   ] Every datamodel model has a table
+          68/68 declared tables present
+[PASS   ] Migration ledger is complete and fully applied
+          52/52 migrations applied successfully (1 superseded rolled-back attempt(s), which is normal)
+[PASS   ] No foreign key points at a missing row
+          213 single-column foreign keys checked
+[PASS   ] No tenant-owned row has a null tenantId
+          66 tenant-owned tables checked
+[PASS   ] Row-level security configuration
+          66/66 tenant-owned tables have RLS enabled
+[SKIPPED] Representative record counts
+          no --expect-counts snapshot supplied; counts recorded but not reconciled
+------------------------------------------------------------------------
+representative counts:
+  Tenant               46
+  User                 132
+  Client               56
+  Campaign             53
+  Account              249
+  Contact              2295
+  Lead                 2340
+  Task                 76
+  Activity             2451
+  Sequence             11
+  SequenceEnrollment   10
+  OutboundMessage      7
+  ImportBatch          7
+========================================================================
+RESULT: PASS
+
+--- stderr ---
+(empty)

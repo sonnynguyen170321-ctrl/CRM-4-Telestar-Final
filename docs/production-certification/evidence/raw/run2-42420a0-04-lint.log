@@ -1,0 +1,10 @@
+# gate: 04-lint — eslint across the whole tree
+# command: C:\Program Files\nodejs\node.exe node_modules/eslint/bin/eslint.js app components lib context tests workers scripts e2e
+# startedAt: 2026-08-23T19:11:41.759Z
+# finishedAt: 2026-08-23T19:12:39.135Z
+# exitCode: 0
+
+--- stdout ---
+(empty)
+--- stderr ---
+(empty)
