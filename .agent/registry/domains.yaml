@@ -96,6 +96,7 @@ domains:
       - scripts/backfill-*
       - scripts/purge-*
       - scripts/repair-*
+      - scripts/cutover/**
     tests:
       - tests/migration-*.test.ts
       - tests/rls-policy-coverage.test.ts
