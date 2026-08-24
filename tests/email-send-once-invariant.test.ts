@@ -52,7 +52,15 @@ const { prisma, tenantStorage } = await import('@/lib/prisma');
 const { handleEmailSend } = await import('@/workers/email');
 const { OUTBOUND_STATUS, SENDING_CLAIM_LEASE_MS } = await import('@/lib/email/idempotency');
 
-const hasDb = Boolean(process.env.DATABASE_URL);
+let hasDb = false;
+try {
+  if (process.env.DATABASE_URL) {
+    await prisma.$queryRaw`SELECT 1`;
+    hasDb = true;
+  }
+} catch {
+  hasDb = false;
+}
 const T = 'sendonce-tenant';
 const OTHER_T = 'sendonce-other-tenant';
 const run = <R>(fn: () => Promise<R>) => tenantStorage.run({ tenantId: T, bypassRls: true }, fn);
@@ -165,26 +173,32 @@ const payloadFor = (id: string) => ({
  * Seeded once for the whole file. Both suites share the tenant chain, so tearing it down at the
  * end of the first `describe` left the second with a lead that no longer existed.
  */
-beforeAll(seed);
+beforeAll(async () => {
+  if (hasDb) {
+    await seed();
+  }
+});
 
 afterAll(async () => {
-  await run(async () => {
-    // A successful send writes an Activity against the lead and the user, so those rows have to
-    // go before the records they point at.
-    await prisma.inboundMessage.deleteMany({ where: { account: { tenantId: T } } });
-    await prisma.sequenceEnrollment.deleteMany({ where: { tenantId: T } });
-    await prisma.sequence.deleteMany({ where: { tenantId: T } });
-    await prisma.activity.deleteMany({ where: { tenantId: T } });
-    await prisma.outboundMessage.deleteMany({ where: { tenantId: T } });
-    await prisma.suppressionEntry.deleteMany({ where: { tenantId: OTHER_T } });
-    await prisma.suppressionEntry.deleteMany({ where: { tenantId: T } });
-    await prisma.lead.deleteMany({ where: { tenantId: T } });
-    await prisma.campaign.deleteMany({ where: { tenantId: T } });
-    await prisma.client.deleteMany({ where: { tenantId: T } });
-    await prisma.emailAccount.deleteMany({ where: { tenantId: T } });
-    await prisma.user.deleteMany({ where: { tenantId: T } });
-    await prisma.tenant.deleteMany({ where: { id: { in: [T, OTHER_T] } } });
-  });
+  if (hasDb) {
+    await run(async () => {
+      // A successful send writes an Activity against the lead and the user, so those rows have to
+      // go before the records they point at.
+      await prisma.inboundMessage.deleteMany({ where: { account: { tenantId: T } } });
+      await prisma.sequenceEnrollment.deleteMany({ where: { tenantId: T } });
+      await prisma.sequence.deleteMany({ where: { tenantId: T } });
+      await prisma.activity.deleteMany({ where: { tenantId: T } });
+      await prisma.outboundMessage.deleteMany({ where: { tenantId: T } });
+      await prisma.suppressionEntry.deleteMany({ where: { tenantId: OTHER_T } });
+      await prisma.suppressionEntry.deleteMany({ where: { tenantId: T } });
+      await prisma.lead.deleteMany({ where: { tenantId: T } });
+      await prisma.campaign.deleteMany({ where: { tenantId: T } });
+      await prisma.client.deleteMany({ where: { tenantId: T } });
+      await prisma.emailAccount.deleteMany({ where: { tenantId: T } });
+      await prisma.user.deleteMany({ where: { tenantId: T } });
+      await prisma.tenant.deleteMany({ where: { id: { in: [T, OTHER_T] } } });
+    });
+  }
 });
 
 describe.skipIf(!hasDb)('one logical step sends at most one physical email', () => {
