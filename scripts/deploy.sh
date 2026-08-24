@@ -133,21 +133,11 @@ esac
 
 DC="$DOCKER compose --env-file $ENV_FILE $COMPOSE_FILES"
 
-# ── 3. Migrate, using the NEW image ─────────────────────────────────────────
-# CRM_IMAGE is exported for this command so the one-off container is the same build that
-# is about to serve traffic.
-TOTAL_MIGRATIONS=$(ls -1 prisma/migrations | grep -E '^[0-9]{14}_' | wc -l | tr -d ' ')
-MIGRATION_LATEST=$(ls -1 prisma/migrations | grep -E '^[0-9]{14}_' | tail -1)
-
-log "Pending migrations"
-CRM_IMAGE="$NEW_IMAGE" $DC run --rm --no-deps web \
-  node node_modules/prisma/build/index.js migrate status || true
-
-log "Applying migrations"
-CRM_IMAGE="$NEW_IMAGE" $DC run --rm --no-deps web \
-  node node_modules/prisma/build/index.js migrate deploy
-
-# ── 4. Write the digest into the env file, keeping the one it replaces ──────
+# ── 3. Write the digest into the env file, keeping the one it replaces ──────
+# TEL-P0-007: This must happen BEFORE migrations run. Docker Compose resolves
+# ${CRM_IMAGE} from --env-file in preference to shell environment variables.
+# If we run migrations before pinning, the migration container resolves the
+# PREVIOUS image from $ENV_FILE and silently skips new migrations.
 log "Pinning ${ENV_FILE} to the new digest"
 cp "$ENV_FILE" "${ENV_FILE}.bak"
 grep -v -E '^(CRM_IMAGE|PREVIOUS_CRM_IMAGE)=' "${ENV_FILE}.bak" > "$ENV_FILE"
@@ -155,6 +145,20 @@ grep -v -E '^(CRM_IMAGE|PREVIOUS_CRM_IMAGE)=' "${ENV_FILE}.bak" > "$ENV_FILE"
   echo "CRM_IMAGE=${NEW_IMAGE}"
   echo "PREVIOUS_CRM_IMAGE=${PREVIOUS_IMAGE}"
 } >> "$ENV_FILE"
+
+# ── 4. Migrate, using the NEW image ─────────────────────────────────────────
+# Now that $ENV_FILE contains CRM_IMAGE=$NEW_IMAGE, $DC resolves the candidate
+# image correctly for migration commands.
+TOTAL_MIGRATIONS=$(ls -1 prisma/migrations | grep -E '^[0-9]{14}_' | wc -l | tr -d ' ')
+MIGRATION_LATEST=$(ls -1 prisma/migrations | grep -E '^[0-9]{14}_' | tail -1)
+
+log "Pending migrations"
+$DC run --rm --no-deps web \
+  node node_modules/prisma/build/index.js migrate status || true
+
+log "Applying migrations"
+$DC run --rm --no-deps web \
+  node node_modules/prisma/build/index.js migrate deploy
 
 # ── 5. Swap the containers ──────────────────────────────────────────────────
 # Recreate web and worker with new image digest

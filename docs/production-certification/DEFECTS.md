@@ -1668,7 +1668,7 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
 
 ### `TEL-P0-007` — `deploy.sh` Runs Migrations With The PREVIOUS Image, So Every Migration-Bearing Deploy Silently Skips Them
 - **Severity**: P0 (Launch Blocker)
-- **Status**: `OPEN` — deliberately NOT fixed during certification; see disposition below
+- **Status**: `FIXED_PENDING_VERIFICATION`
 - **Discovered by**: deploying candidate `d5d7cf8` to production on 2026-08-24. It is not a
   theoretical defect; it broke that deploy.
 - **Measured**, from the deploy transcript:
@@ -1688,7 +1688,7 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
   **52**. The migrate step reported 50, so it ran the PREVIOUS image, which cannot know about
   migrations the candidate introduces.
 
-- **Root cause**: `scripts/deploy.sh` lines 143 and 147 intend to override the image:
+- **Root cause**: `scripts/deploy.sh` lines 143 and 147 intended to override the image:
 
   ```
   DC="$DOCKER compose --env-file $ENV_FILE $COMPOSE_FILES"
@@ -1696,9 +1696,9 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
   ```
 
   `$DC` carries `--env-file .env.production`, and at that point in the script the file still
-  pins the PREVIOUS digest — the pinning step runs afterwards. Compose resolves `${CRM_IMAGE}`
+  pins the PREVIOUS digest — the pinning step ran afterwards. Compose resolves `${CRM_IMAGE}`
   for interpolation from `--env-file` in preference to the inherited shell environment, so the
-  `CRM_IMAGE=` prefix is silently inert. The override reads as if it works and does nothing.
+  `CRM_IMAGE=` prefix was silently inert. The override read as if it works and did nothing.
 
 - **Why P0**: the deploy proceeds to start the new code against a schema missing its migrations.
   Here the running application caught it — `/api/health` returned
@@ -1711,27 +1711,16 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
 - **Sequencing is the real bug**: migrations are applied BEFORE the digest is pinned. The step
   that decides what schema to apply runs while the environment still describes the old release.
 
-- **Immediate workaround, used on 2026-08-24**: after `deploy.sh` fails its smoke test, the
-  digest IS pinned, so re-running the migrate step picks up the correct image:
-
-  ```
-  sudo docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.gcp.yml     run --rm --no-deps web node node_modules/prisma/build/index.js migrate deploy
-  ```
-
-  That reported `52 migrations found`, applied both, and `/api/health` returned `ok: true` with
-  `schema: ready` and the candidate SHA. No restart was needed; the health check re-queries.
-
-- **Required remediation** (post-release): either pin `.env.production` to the new digest BEFORE
-  the migration steps, or pass the image to Compose in a way `--env-file` cannot override — for
-  example writing `CRM_IMAGE` into a temporary env file that is passed last, or invoking
-  `docker run` against `$NEW_IMAGE` directly for the migrate step. Add a regression test that
-  asserts the migrate container resolves to the NEW digest, since nothing currently does.
-- **Disposition for this release**: NOT fixed here. `scripts/deploy.sh` is application source;
-  changing it invalidates candidate `d5d7cf8`, which has three clean ladder runs, a green CI run
-  and a healthy production deployment. The defect is contained by two independent controls that
-  both fired today — the application's pending-migration check and the post-deploy smoke test —
-  and the workaround above is proven. It must be fixed before the next deploy that carries a
-  migration.
+- **Fix implemented on branch `fix/tel-p0-007-deploy-migration-image`**:
+  1. Re-sequenced `scripts/deploy.sh` so that `${ENV_FILE}` is pinned to `${NEW_IMAGE}`
+     (and `PREVIOUS_CRM_IMAGE=${PREVIOUS_IMAGE}`) BEFORE running `prisma migrate status` and
+     `prisma migrate deploy`.
+  2. Removed redundant inline `CRM_IMAGE="$NEW_IMAGE"` assignments from `$DC` invocations so
+     compose reliably interpolates from `--env-file $ENV_FILE`.
+  3. Added regression tests in `tests/deploy-script.test.ts` asserting that env file pinning
+     strictly precedes `migrate deploy` and that no inert inline variable assignment is used.
+- **Remaining before VERIFIED**: Candidate build, CI verification, and execution during the next
+  certification ladder run.
 
 ### `TEL-P1-028` — Phase 15 Claims Private VPC Transport; The Instance Has A Public IP And Permits Unencrypted Connections
 - **Severity**: P1

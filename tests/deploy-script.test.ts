@@ -226,6 +226,23 @@ describe('deploy.sh wires the guards in the right order', () => {
     // distinguish them, or an unverified deploy is indistinguishable from a verified one.
     expect(deploy).toContain('backupVerified');
   });
+
+  it('pins the env file to the new digest BEFORE running database migrations (TEL-P0-007)', () => {
+    // TEL-P0-007: Docker Compose prioritises --env-file over shell environment variables.
+    // Migrations must run AFTER the env file holds the new digest, otherwise the migrate
+    // container resolves the previous image and skips new migrations.
+    const pinEnv = deploy.indexOf('Pinning ${ENV_FILE} to the new digest');
+    const migrateDeploy = deploy.indexOf('migrate deploy');
+    expect(pinEnv).toBeGreaterThan(-1);
+    expect(migrateDeploy).toBeGreaterThan(-1);
+    expect(pinEnv).toBeLessThan(migrateDeploy);
+  });
+
+  it('does not rely on inline shell CRM_IMAGE override for migration (TEL-P0-007)', () => {
+    // Overriding CRM_IMAGE as an inline prefix on the $DC command line is silently inert
+    // when $DC carries --env-file.
+    expect(deploy).not.toMatch(/CRM_IMAGE="\$NEW_IMAGE"\s+\$DC\s+run.*migrate deploy/);
+  });
 });
 
 describe('rollback.sh carries the same guards', () => {
