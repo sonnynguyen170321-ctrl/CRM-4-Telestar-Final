@@ -1,0 +1,906 @@
+# gh run view 32703297153
+# capturedAt: 2026-08-24T07:59:49.015Z
+
+{
+  "conclusion": "success",
+  "createdAt": "2026-08-24T07:49:47Z",
+  "databaseId": 32703297153,
+  "headBranch": "main",
+  "headSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
+  "jobs": [
+    {
+      "completedAt": "2026-08-24T07:50:01Z",
+      "conclusion": "success",
+      "databaseId": 97359072981,
+      "name": "Secret scan",
+      "startedAt": "2026-08-24T07:49:50Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-08-24T07:49:52Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-08-24T07:49:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:49:54Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+          "number": 2,
+          "startedAt": "2026-08-24T07:49:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:49:59Z",
+          "conclusion": "success",
+          "name": "gitleaks",
+          "number": 3,
+          "startedAt": "2026-08-24T07:49:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:49:59Z",
+          "conclusion": "skipped",
+          "name": "Summarize gitleaks findings",
+          "number": 4,
+          "startedAt": "2026-08-24T07:49:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:49:59Z",
+          "conclusion": "skipped",
+          "name": "Upload gitleaks report",
+          "number": 5,
+          "startedAt": "2026-08-24T07:49:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:00Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+          "number": 10,
+          "startedAt": "2026-08-24T07:49:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:00Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-08-24T07:50:00Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32703297153/job/97359072981"
+    },
+    {
+      "completedAt": "2026-08-24T07:53:07Z",
+      "conclusion": "success",
+      "databaseId": 97359073213,
+      "name": "Lint · types · tests",
+      "startedAt": "2026-08-24T07:49:51Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-08-24T07:49:52Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-08-24T07:49:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:21Z",
+          "conclusion": "success",
+          "name": "Initialize containers",
+          "number": 2,
+          "startedAt": "2026-08-24T07:49:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:23Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+          "number": 3,
+          "startedAt": "2026-08-24T07:50:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:29Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444",
+          "number": 4,
+          "startedAt": "2026-08-24T07:50:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:29Z",
+          "conclusion": "success",
+          "name": "Verify runtime",
+          "number": 5,
+          "startedAt": "2026-08-24T07:50:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:48Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 6,
+          "startedAt": "2026-08-24T07:50:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:51Z",
+          "conclusion": "success",
+          "name": "Generate Prisma client",
+          "number": 7,
+          "startedAt": "2026-08-24T07:50:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:54Z",
+          "conclusion": "success",
+          "name": "Apply database migrations",
+          "number": 8,
+          "startedAt": "2026-08-24T07:50:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:51:20Z",
+          "conclusion": "success",
+          "name": "Lint",
+          "number": 9,
+          "startedAt": "2026-08-24T07:50:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:51:51Z",
+          "conclusion": "success",
+          "name": "Type check",
+          "number": 10,
+          "startedAt": "2026-08-24T07:51:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:51:53Z",
+          "conclusion": "success",
+          "name": "Production topology validation",
+          "number": 11,
+          "startedAt": "2026-08-24T07:51:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:51:54Z",
+          "conclusion": "success",
+          "name": "No retired AI model in runtime code",
+          "number": 12,
+          "startedAt": "2026-08-24T07:51:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:51:54Z",
+          "conclusion": "success",
+          "name": "Seed delete order covers every restricting child",
+          "number": 13,
+          "startedAt": "2026-08-24T07:51:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:51:54Z",
+          "conclusion": "success",
+          "name": "Project truth (agent control plane)",
+          "number": 14,
+          "startedAt": "2026-08-24T07:51:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:51:54Z",
+          "conclusion": "success",
+          "name": "Test discipline",
+          "number": 15,
+          "startedAt": "2026-08-24T07:51:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:53:03Z",
+          "conclusion": "success",
+          "name": "Tests",
+          "number": 16,
+          "startedAt": "2026-08-24T07:51:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:53:03Z",
+          "conclusion": "success",
+          "name": "No test was skipped",
+          "number": 17,
+          "startedAt": "2026-08-24T07:53:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:53:03Z",
+          "conclusion": "skipped",
+          "name": "Summarize failure",
+          "number": 18,
+          "startedAt": "2026-08-24T07:53:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:53:03Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444",
+          "number": 34,
+          "startedAt": "2026-08-24T07:53:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:53:03Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+          "number": 35,
+          "startedAt": "2026-08-24T07:53:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:53:04Z",
+          "conclusion": "success",
+          "name": "Stop containers",
+          "number": 36,
+          "startedAt": "2026-08-24T07:53:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:53:04Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 37,
+          "startedAt": "2026-08-24T07:53:04Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32703297153/job/97359073213"
+    },
+    {
+      "completedAt": "2026-08-24T07:52:57Z",
+      "conclusion": "success",
+      "databaseId": 97359073215,
+      "name": "Docker build",
+      "startedAt": "2026-08-24T07:49:50Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-08-24T07:49:52Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-08-24T07:49:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:49:53Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+          "number": 2,
+          "startedAt": "2026-08-24T07:49:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:04Z",
+          "conclusion": "success",
+          "name": "Run docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f",
+          "number": 3,
+          "startedAt": "2026-08-24T07:49:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:48Z",
+          "conclusion": "success",
+          "name": "Build image",
+          "number": 4,
+          "startedAt": "2026-08-24T07:50:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:51Z",
+          "conclusion": "success",
+          "name": "Operational scripts must run in the production image",
+          "number": 5,
+          "startedAt": "2026-08-24T07:52:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:51Z",
+          "conclusion": "skipped",
+          "name": "Summarize Docker build failure",
+          "number": 6,
+          "startedAt": "2026-08-24T07:52:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:56Z",
+          "conclusion": "success",
+          "name": "Post Run docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f",
+          "number": 11,
+          "startedAt": "2026-08-24T07:52:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:56Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+          "number": 12,
+          "startedAt": "2026-08-24T07:52:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:56Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 13,
+          "startedAt": "2026-08-24T07:52:56Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32703297153/job/97359073215"
+    },
+    {
+      "completedAt": "2026-08-24T07:55:28Z",
+      "conclusion": "success",
+      "databaseId": 97359073220,
+      "name": "Build · Playwright",
+      "startedAt": "2026-08-24T07:49:51Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-08-24T07:49:53Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-08-24T07:49:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:25Z",
+          "conclusion": "success",
+          "name": "Initialize containers",
+          "number": 2,
+          "startedAt": "2026-08-24T07:49:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:27Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+          "number": 3,
+          "startedAt": "2026-08-24T07:50:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:32Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444",
+          "number": 4,
+          "startedAt": "2026-08-24T07:50:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:32Z",
+          "conclusion": "success",
+          "name": "Verify runtime",
+          "number": 5,
+          "startedAt": "2026-08-24T07:50:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:54Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 6,
+          "startedAt": "2026-08-24T07:50:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:56Z",
+          "conclusion": "success",
+          "name": "Generate Prisma client",
+          "number": 7,
+          "startedAt": "2026-08-24T07:50:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:51:08Z",
+          "conclusion": "success",
+          "name": "Apply database migrations",
+          "number": 8,
+          "startedAt": "2026-08-24T07:50:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:51:08Z",
+          "conclusion": "success",
+          "name": "Mint a per-run demo password",
+          "number": 9,
+          "startedAt": "2026-08-24T07:51:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:51:09Z",
+          "conclusion": "success",
+          "name": "Run demo seed",
+          "number": 10,
+          "startedAt": "2026-08-24T07:51:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:51:10Z",
+          "conclusion": "success",
+          "name": "Build the audit fixture (setup + audit projects)",
+          "number": 11,
+          "startedAt": "2026-08-24T07:51:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:51:11Z",
+          "conclusion": "success",
+          "name": "Seed the demo tenant (demo project)",
+          "number": 12,
+          "startedAt": "2026-08-24T07:51:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:08Z",
+          "conclusion": "success",
+          "name": "Production build",
+          "number": 13,
+          "startedAt": "2026-08-24T07:51:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:33Z",
+          "conclusion": "success",
+          "name": "Install Playwright browsers",
+          "number": 14,
+          "startedAt": "2026-08-24T07:52:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:35Z",
+          "conclusion": "success",
+          "name": "Start the production server",
+          "number": 15,
+          "startedAt": "2026-08-24T07:52:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:38Z",
+          "conclusion": "success",
+          "name": "Start the background worker (BullMQ)",
+          "number": 16,
+          "startedAt": "2026-08-24T07:52:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:38Z",
+          "conclusion": "success",
+          "name": "Verify import worker consumer readiness",
+          "number": 17,
+          "startedAt": "2026-08-24T07:52:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:55:24Z",
+          "conclusion": "success",
+          "name": "Playwright",
+          "number": 18,
+          "startedAt": "2026-08-24T07:52:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:55:24Z",
+          "conclusion": "skipped",
+          "name": "Import chain diagnostic",
+          "number": 19,
+          "startedAt": "2026-08-24T07:55:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:55:24Z",
+          "conclusion": "skipped",
+          "name": "Summarize failure",
+          "number": 20,
+          "startedAt": "2026-08-24T07:55:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:55:24Z",
+          "conclusion": "skipped",
+          "name": "Upload Playwright artifacts",
+          "number": 21,
+          "startedAt": "2026-08-24T07:55:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:55:24Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444",
+          "number": 40,
+          "startedAt": "2026-08-24T07:55:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:55:24Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+          "number": 41,
+          "startedAt": "2026-08-24T07:55:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:55:25Z",
+          "conclusion": "success",
+          "name": "Stop containers",
+          "number": 42,
+          "startedAt": "2026-08-24T07:55:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:55:25Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 43,
+          "startedAt": "2026-08-24T07:55:25Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32703297153/job/97359073220"
+    },
+    {
+      "completedAt": "2026-08-24T07:50:55Z",
+      "conclusion": "success",
+      "databaseId": 97359073224,
+      "name": "Migration validation",
+      "startedAt": "2026-08-24T07:49:51Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-08-24T07:49:53Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-08-24T07:49:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:17Z",
+          "conclusion": "success",
+          "name": "Initialize containers",
+          "number": 2,
+          "startedAt": "2026-08-24T07:49:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:18Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+          "number": 3,
+          "startedAt": "2026-08-24T07:50:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:24Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444",
+          "number": 4,
+          "startedAt": "2026-08-24T07:50:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:24Z",
+          "conclusion": "success",
+          "name": "Verify runtime",
+          "number": 5,
+          "startedAt": "2026-08-24T07:50:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:46Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 6,
+          "startedAt": "2026-08-24T07:50:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:46Z",
+          "conclusion": "success",
+          "name": "Fetch base branch for the migration preflight",
+          "number": 7,
+          "startedAt": "2026-08-24T07:50:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:47Z",
+          "conclusion": "success",
+          "name": "Validate Prisma schema",
+          "number": 8,
+          "startedAt": "2026-08-24T07:50:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:47Z",
+          "conclusion": "success",
+          "name": "Migration order preflight",
+          "number": 9,
+          "startedAt": "2026-08-24T07:50:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:48Z",
+          "conclusion": "success",
+          "name": "Create shadow database",
+          "number": 10,
+          "startedAt": "2026-08-24T07:50:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:49Z",
+          "conclusion": "success",
+          "name": "Replay migrations from empty and fail on schema drift",
+          "number": 11,
+          "startedAt": "2026-08-24T07:50:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:51Z",
+          "conclusion": "success",
+          "name": "Verify PostgreSQL RLS tenant isolation",
+          "number": 12,
+          "startedAt": "2026-08-24T07:50:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:52Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444",
+          "number": 22,
+          "startedAt": "2026-08-24T07:50:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:52Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+          "number": 23,
+          "startedAt": "2026-08-24T07:50:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:53Z",
+          "conclusion": "success",
+          "name": "Stop containers",
+          "number": 24,
+          "startedAt": "2026-08-24T07:50:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:53Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 25,
+          "startedAt": "2026-08-24T07:50:53Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32703297153/job/97359073224"
+    },
+    {
+      "completedAt": "2026-08-24T07:50:01Z",
+      "conclusion": "success",
+      "databaseId": 97359073278,
+      "name": "Dependency audit",
+      "startedAt": "2026-08-24T07:49:51Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-08-24T07:49:52Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-08-24T07:49:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:49:54Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+          "number": 2,
+          "startedAt": "2026-08-24T07:49:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:49:58Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+          "number": 3,
+          "startedAt": "2026-08-24T07:49:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:00Z",
+          "conclusion": "success",
+          "name": "npm audit (high and above)",
+          "number": 4,
+          "startedAt": "2026-08-24T07:49:58Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:00Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+          "number": 7,
+          "startedAt": "2026-08-24T07:50:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:00Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+          "number": 8,
+          "startedAt": "2026-08-24T07:50:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:00Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-08-24T07:50:00Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32703297153/job/97359073278"
+    },
+    {
+      "completedAt": "2026-08-24T07:52:45Z",
+      "conclusion": "success",
+      "databaseId": 97359073280,
+      "name": "CodeQL",
+      "startedAt": "2026-08-24T07:49:51Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-08-24T07:49:53Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-08-24T07:49:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:49:55Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+          "number": 2,
+          "startedAt": "2026-08-24T07:49:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:49:55Z",
+          "conclusion": "success",
+          "name": "Can this repository accept code scanning results?",
+          "number": 3,
+          "startedAt": "2026-08-24T07:49:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:50:07Z",
+          "conclusion": "success",
+          "name": "Run github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b",
+          "number": 4,
+          "startedAt": "2026-08-24T07:49:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:41Z",
+          "conclusion": "success",
+          "name": "Run github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b",
+          "number": 5,
+          "startedAt": "2026-08-24T07:50:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:41Z",
+          "conclusion": "skipped",
+          "name": "Record CodeQL as BLOCKED_EXTERNAL",
+          "number": 6,
+          "startedAt": "2026-08-24T07:52:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:41Z",
+          "conclusion": "success",
+          "name": "Post Run github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b",
+          "number": 10,
+          "startedAt": "2026-08-24T07:52:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:42Z",
+          "conclusion": "success",
+          "name": "Post Run github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b",
+          "number": 11,
+          "startedAt": "2026-08-24T07:52:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:42Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+          "number": 12,
+          "startedAt": "2026-08-24T07:52:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:52:42Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 13,
+          "startedAt": "2026-08-24T07:52:42Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32703297153/job/97359073280"
+    },
+    {
+      "completedAt": "2026-08-24T07:49:47Z",
+      "conclusion": "skipped",
+      "databaseId": 97359074303,
+      "name": "Dependency review",
+      "startedAt": "2026-08-24T07:49:48Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32703297153/job/97359074303"
+    },
+    {
+      "completedAt": "2026-08-24T07:55:35Z",
+      "conclusion": "success",
+      "databaseId": 97360389065,
+      "name": "CI required checks",
+      "startedAt": "2026-08-24T07:55:32Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-08-24T07:55:33Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-08-24T07:55:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:55:33Z",
+          "conclusion": "success",
+          "name": "Fail unless every required job produced an acceptable result",
+          "number": 2,
+          "startedAt": "2026-08-24T07:55:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-08-24T07:55:33Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 3,
+          "startedAt": "2026-08-24T07:55:33Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32703297153/job/97360389065"
+    }
+  ],
+  "status": "completed",
+  "updatedAt": "2026-08-24T07:55:36Z",
+  "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32703297153",
+  "workflowName": "CI"
+}

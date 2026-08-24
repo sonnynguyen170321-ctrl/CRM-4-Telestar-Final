@@ -1,18 +1,18 @@
 {
   "evidenceId": "EV-CI-RUN",
   "kind": "ci-run",
-  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+  "candidateSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
   "environment": "GitHub Actions",
-  "command": "gh run view 32658798987",
-  "startedAt": "2026-08-23T18:40:49Z",
-  "finishedAt": "2026-08-23T18:47:01Z",
+  "command": "gh run view 32703297153",
+  "startedAt": "2026-08-24T07:49:47Z",
+  "finishedAt": "2026-08-24T07:55:36Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
-    "runId": "32658798987",
+    "runId": "32703297153",
     "workflowName": "CI",
-    "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32658798987",
-    "headSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+    "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32703297153",
+    "headSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
     "headBranch": "main",
     "conclusion": "success",
     "runStatus": "completed",
@@ -20,16 +20,6 @@
     "nonMetadataCommitsBetween": 0,
     "sourceMatchesCandidate": true,
     "jobs": [
-      {
-        "name": "Build · Playwright",
-        "conclusion": "success",
-        "status": "completed"
-      },
-      {
-        "name": "Migration validation",
-        "conclusion": "success",
-        "status": "completed"
-      },
       {
         "name": "Secret scan",
         "conclusion": "success",
@@ -41,12 +31,22 @@
         "status": "completed"
       },
       {
-        "name": "Dependency audit",
+        "name": "Docker build",
         "conclusion": "success",
         "status": "completed"
       },
       {
-        "name": "Docker build",
+        "name": "Build · Playwright",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
+        "name": "Migration validation",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
+        "name": "Dependency audit",
         "conclusion": "success",
         "status": "completed"
       },
@@ -69,9 +69,9 @@
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/ci-run-32658798987.log",
+      "path": "docs/production-certification/evidence/raw/ci-run-32703297153.log",
       "sizeBytes": 29927,
-      "sha256": "1c9dafd92e56b5b3ba9059ab67f829d355e02778e424dac080641fc41070017c"
+      "sha256": "5cddccd3ef4f116ded97b036c5d481a5f18056b080f25115f2c83819ab1babf0"
     }
   ]
 }

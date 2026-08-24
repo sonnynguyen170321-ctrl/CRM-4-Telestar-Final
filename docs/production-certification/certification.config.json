@@ -14,9 +14,13 @@
     "imageRepository": "telestar-crm-candidate",
     "demoSqlInstance": "telestar-crm-db"
   },
-  "candidateSha": "ca248d40cab4d75170dcc620b3fe010b903d727a",
-  "candidateFrozenAt": "2026-08-24T05:18:00.000Z",
+  "candidateSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
+  "candidateFrozenAt": "2026-08-24T07:58:00.000Z",
   "previousCandidates": [
+    {
+      "sha": "ca248d40cab4d75170dcc620b3fe010b903d727a",
+      "invalidatedReason": "superseded: tests/email-send-once-invariant.test.ts database reachability probe updated in 42420a0"
+    },
     {
       "sha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
       "invalidatedReason": "superseded: deploy.sh fixed in ca248d4 to pin env file before running database migrations (TEL-P0-007)"
