@@ -5,14 +5,14 @@ note: Agent working memory for the final certification push. Compact by design.
 
 # LIVE RELEASE STATE
 
-CANDIDATE_SHA=12ea8ae4791ad0c79fb6a1403475015dc6acb399 (SUPERSEDED — 14 commits landed after the freeze; re-freeze required)
-IMAGE_DIGEST=sha256:f2e807bb7812287bb733b4d5bed9e8c1d1cba10007cc926a896950dac584ce49 (built from daa8ffb — STALE, predates candidate)
-DEPLOYED_SHA=9fa36d3 (health endpoint — behind candidate, check S)
-BRANCH=main (local HEAD is 14 commits ahead of origin/main and UNPUSHED)
-CURRENT_PHASE=source hardening complete; blocked at the freeze
-CURRENT_BLOCKER=git push is refused by the harness classifier · E2E_PASSWORD not supplied · production deploy not authorised
-P0_OPEN=4
-P1_OPEN=28
+CANDIDATE_SHA=ca248d40cab4d75170dcc620b3fe010b903d727a (frozen 2026-08-24 after TEL-P0-007 deploy.sh migration fix)
+IMAGE_DIGEST=pending CI build from ca248d4
+DEPLOYED_SHA=d5d7cf8 (health endpoint on production VM — behind candidate ca248d4, check S)
+BRANCH=main (pushed to origin/main)
+CURRENT_PHASE=Candidate frozen at ca248d4; awaiting CI image build & 3-run certification ladder
+CURRENT_BLOCKER=CI image build for ca248d4 in progress on GitHub
+P0_OPEN=4 (TEL-P0-007 FIXED_PENDING_VERIFICATION)
+P1_OPEN=27
 P2_OPEN=18
 REQUIREMENTS_VERIFIED=4/108 — DR-001, DR-002, DR-006, DR-007. The other 104 share ONE reason: evidence carries fa3a54b, not the candidate
 CERT_RUN_1/2/3=STALE (all carry fa3a54b, not the candidate)
