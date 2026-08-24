@@ -117,7 +117,7 @@ async function planMode(): Promise<PurgeManifest> {
 
     let modelDel = 0;
     let modelKeep = 0;
-    let modelRev = 0;
+    const modelRev = 0;
 
     for (const row of rows) {
       if (model === 'tenant') {

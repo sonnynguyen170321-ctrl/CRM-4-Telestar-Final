@@ -18,7 +18,6 @@ for (const block of defectBlocks) {
   const severityMatch = block.match(/\*\*Severity\*\*:\s*`?([A-Z0-9]+)/i);
   const statusMatch = block.match(/\*\*Status\*\*:\s*`?([A-Z_]+)/i);
   const rootCauseMatch = block.match(/\*\*Root cause\*\*:\s*([^\n]+)/i);
-  const fixMatch = block.match(/\*\*Fix implemented\*\*:\s*([^\n]+)/i);
   const fixShaMatch = block.match(/\b([0-9a-f]{7,40})\b/);
   const evidenceMatch = block.match(/`?(EV-[A-Z0-9-]+)`?/i);
 
