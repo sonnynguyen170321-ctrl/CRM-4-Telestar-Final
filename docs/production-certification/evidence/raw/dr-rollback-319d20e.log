@@ -1,0 +1,11 @@
+{
+  "rollbackDrill": "DR-003",
+  "candidateSha": "319d20ee31646408dd8c0f55f71346a483ab16d1",
+  "candidateDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:904fa6c51775f39b1f584abc79b6adc0a94fcd259ce170a3acd2fb7bd86ed0d8",
+  "previousSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
+  "previousDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:42f0b0daf870ed43e5bc74f1d85557a22fab37a39bfafc2650d4b824b1f8bc03",
+  "executedAt": "2026-08-24T09:21:18.911Z",
+  "rollbackSeconds": 1.5,
+  "restoreSeconds": 1.5,
+  "status": "PASS"
+}

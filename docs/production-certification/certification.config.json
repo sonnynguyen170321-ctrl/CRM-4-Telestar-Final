@@ -14,9 +14,17 @@
     "imageRepository": "telestar-crm-candidate",
     "demoSqlInstance": "telestar-crm-db"
   },
-  "candidateSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
-  "candidateFrozenAt": "2026-08-24T07:58:00.000Z",
+  "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
+  "candidateFrozenAt": "2026-08-24T09:28:00.000Z",
   "previousCandidates": [
+    {
+      "sha": "319d20ee31646408dd8c0f55f71346a483ab16d1",
+      "invalidatedReason": "superseded: safe cutover helper ordering refined in c7bf639"
+    },
+    {
+      "sha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
+      "invalidatedReason": "superseded: certifier red-team checks, release chain guard, and safe cutover tooling integrated in 319d20e"
+    },
     {
       "sha": "ca248d40cab4d75170dcc620b3fe010b903d727a",
       "invalidatedReason": "superseded: tests/email-send-once-invariant.test.ts database reachability probe updated in 42420a0"

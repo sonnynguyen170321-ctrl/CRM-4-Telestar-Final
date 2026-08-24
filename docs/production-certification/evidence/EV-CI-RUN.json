@@ -1,18 +1,18 @@
 {
   "evidenceId": "EV-CI-RUN",
   "kind": "ci-run",
-  "candidateSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
+  "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
   "environment": "GitHub Actions",
-  "command": "gh run view 32703297153",
-  "startedAt": "2026-08-24T07:49:47Z",
-  "finishedAt": "2026-08-24T07:55:36Z",
+  "command": "gh run view 32711776013",
+  "startedAt": "2026-08-24T09:28:55Z",
+  "finishedAt": "2026-08-24T09:34:40Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
-    "runId": "32703297153",
+    "runId": "32711776013",
     "workflowName": "CI",
-    "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32703297153",
-    "headSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
+    "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32711776013",
+    "headSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
     "headBranch": "main",
     "conclusion": "success",
     "runStatus": "completed",
@@ -21,22 +21,12 @@
     "sourceMatchesCandidate": true,
     "jobs": [
       {
-        "name": "Secret scan",
-        "conclusion": "success",
-        "status": "completed"
-      },
-      {
-        "name": "Lint · types · tests",
-        "conclusion": "success",
-        "status": "completed"
-      },
-      {
         "name": "Docker build",
         "conclusion": "success",
         "status": "completed"
       },
       {
-        "name": "Build · Playwright",
+        "name": "CodeQL",
         "conclusion": "success",
         "status": "completed"
       },
@@ -46,12 +36,22 @@
         "status": "completed"
       },
       {
+        "name": "Secret scan",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
+        "name": "Build · Playwright",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
         "name": "Dependency audit",
         "conclusion": "success",
         "status": "completed"
       },
       {
-        "name": "CodeQL",
+        "name": "Lint · types · tests",
         "conclusion": "success",
         "status": "completed"
       },
@@ -69,9 +69,9 @@
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/ci-run-32703297153.log",
+      "path": "docs/production-certification/evidence/raw/ci-run-32711776013.log",
       "sizeBytes": 29927,
-      "sha256": "5cddccd3ef4f116ded97b036c5d481a5f18056b080f25115f2c83819ab1babf0"
+      "sha256": "2f262b7e8aceb0ec27f95f0b62e2c908440d14771e944f6de5888c50e856f799"
     }
   ]
 }

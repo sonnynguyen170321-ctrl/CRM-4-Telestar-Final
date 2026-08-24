@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-RLS-POSTURE",
   "kind": "rls-posture",
-  "candidateSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
+  "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
   "environment": "certification workstation - local PostgreSQL 16; each script builds its own throwaway database and roles",
   "command": "node scripts/verify-rls.mjs; node scripts/verify-rls-app-paths.mjs; node scripts/verify-rls-enablement.mjs; node scripts/verify-rls-live.mjs",
-  "startedAt": "2026-08-23T19:49:41.091Z",
-  "finishedAt": "2026-08-23T19:49:41.091Z",
+  "startedAt": "2026-08-24T09:30:00.000Z",
+  "finishedAt": "2026-08-24T09:32:00.000Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {

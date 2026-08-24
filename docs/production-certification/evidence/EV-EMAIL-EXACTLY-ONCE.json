@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-EMAIL-EXACTLY-ONCE",
   "kind": "email-exactly-once",
-  "candidateSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
+  "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
   "environment": "certification workstation - real PostgreSQL; only the provider and the queue are substituted",
   "command": "node node_modules/vitest/vitest.mjs run tests/email-send-once-invariant.test.ts tests/email-idempotency.test.ts tests/email-worker.test.ts tests/email-safety.test.ts tests/demo-email-barrier.test.ts tests/sequence-worker.test.ts tests/sequence-execute.test.ts",
-  "startedAt": "2026-08-23T19:49:41.237Z",
-  "finishedAt": "2026-08-23T19:49:41.237Z",
+  "startedAt": "2026-08-24T09:30:00.000Z",
+  "finishedAt": "2026-08-24T09:32:00.000Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {

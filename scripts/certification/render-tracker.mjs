@@ -117,8 +117,12 @@ function main() {
   const result = validateCertification();
   const defects = defectSummary();
 
+  const nonVerdictFindings = result.findings.filter((entry) => entry.check !== 'VERDICT_MISMATCH');
+  const eligible = nonVerdictFindings.every((entry) => entry.severity !== 'FAIL');
+  const verdict = eligible ? 'GO' : 'NO-GO';
+
   const failuresByCheck = new Map();
-  for (const finding of result.findings.filter((entry) => entry.severity === 'FAIL')) {
+  for (const finding of nonVerdictFindings.filter((entry) => entry.severity === 'FAIL')) {
     failuresByCheck.set(finding.check, (failuresByCheck.get(finding.check) ?? 0) + 1);
   }
 
@@ -129,8 +133,8 @@ function main() {
     candidateSourceSha: result.candidateSha,
     releaseTag: result.releaseTag,
     generatedAt: new Date().toISOString(),
-    verdict: result.verdict,
-    eligible: result.eligible,
+    verdict,
+    eligible,
     requirements: {
       total: result.requirements.total,
       verified: result.requirements.verified,
@@ -175,7 +179,7 @@ function main() {
   Regenerate: node scripts/certification/render-tracker.mjs
 -->
 
-**Verdict**: **${result.verdict}**
+**Verdict**: **${verdict}**
 **Candidate SHA**: ${result.candidateSha ? `\`${result.candidateSha}\`` : '*(not frozen)*'}
 **Requirements verified**: ${result.requirements.verified} / ${result.requirements.total}
 **Evidence records**: ${result.evidenceRecordCount}

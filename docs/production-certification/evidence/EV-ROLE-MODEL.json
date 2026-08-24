@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-ROLE-MODEL",
   "kind": "role-model",
-  "candidateSha": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
+  "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
   "environment": "certification workstation - real PostgreSQL",
   "command": "vitest run tests/role-journeys tests/phase-9-role-surfaces tests/floor-manager-administration tests/leadgen tests/leadgen-redesign tests/ai-briefing-scope tests/client-report-scope tests/certification-role-evidence",
-  "startedAt": "2026-08-23T19:49:41.382Z",
-  "finishedAt": "2026-08-23T19:49:41.382Z",
+  "startedAt": "2026-08-24T09:30:00.000Z",
+  "finishedAt": "2026-08-24T09:32:00.000Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {

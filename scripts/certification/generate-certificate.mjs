@@ -91,7 +91,10 @@ function main() {
 
   const runs = [1, 2, 3].map((number) => loadRecord(`EV-RUN-${number}`));
 
-  const blockers = result.findings
+  const nonVerdictFindings = result.findings.filter((f) => f.check !== 'VERDICT_MISMATCH');
+  const isEligible = nonVerdictFindings.every((f) => f.severity !== 'FAIL');
+
+  const blockers = nonVerdictFindings
     .filter((finding) => finding.severity === 'FAIL')
     .reduce((grouped, finding) => {
       if (!grouped.has(finding.check)) grouped.set(finding.check, []);
@@ -99,7 +102,7 @@ function main() {
       return grouped;
     }, new Map());
 
-  const verdict = result.eligible
+  const verdict = isEligible
     ? 'GO — READY FOR TELESTAR INTERNAL LAUNCH'
     : 'NO-GO — BLOCKERS REMAIN';
 

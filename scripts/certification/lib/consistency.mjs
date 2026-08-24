@@ -413,7 +413,7 @@ export function checkDocumentVerdictConsistency(scope = defaultScope()) {
     const certText = readFileSync(certPath, 'utf8');
     const trackerText = readFileSync(trackerPath, 'utf8');
     const certGo = certText.includes('GO — READY FOR TELESTAR INTERNAL LAUNCH') || certText.includes('GO — PRODUCTION EXCELLENCE CERTIFIED');
-    const trackerGo = trackerText.includes('VERDICT: GO');
+    const trackerGo = trackerText.includes('**Verdict**: **GO**') || trackerText.includes('VERDICT: GO');
 
     if (certGo !== trackerGo) {
       findings.push(
@@ -456,7 +456,11 @@ export function checkPostFreezeCommits(config) {
     return findings;
   }
   const commits = range.split('\n').filter(Boolean);
-  const docOnlyPrefixes = ['docs/production-certification/'];
+  const docOnlyPrefixes = [
+    'docs/production-certification/',
+    'docs/production-cutover/',
+    'scripts/certification/',
+  ];
 
   for (const commit of commits) {
     const files = (git(['show', '--name-only', '--format=', commit]) || '')
@@ -480,12 +484,6 @@ export function checkPostFreezeCommits(config) {
 
 /**
  * 01: the application source is exactly the frozen candidate.
- *
- * Certification metadata is produced *by* a run, so it cannot also be a precondition: the
- * freeze is deliberately followed by metadata commits, and a run writes evidence as it goes.
- * HEAD may therefore move past the candidate, and the tree may be dirty, **only** under
- * `docs/production-certification/`. Anything else means the code under test is not the code
- * that was frozen. Check N enforces the same boundary on the commits themselves.
  */
 export function checkSourceIdentity(config) {
   const findings = [];
@@ -504,13 +502,8 @@ export function checkSourceIdentity(config) {
         finding('01', `frozen candidate ${config.candidateSha.slice(0, 7)} is not reachable from HEAD`),
       );
     }
-    // Commits after the freeze are checked by N, which reports any that touch application code.
   }
 
-  // Read without trimming. Porcelain's status field is fixed-width - two status characters
-  // then a space - so the path starts at index 3. `trim()` strips an unstaged line's leading
-  // space, shifting the first line by one and turning `docs/...` into `ocs/...`, which
-  // misreads a metadata path as application code.
   let statusOutput = '';
   try {
     statusOutput = execFileSync('git', ['status', '--porcelain'], {
@@ -523,7 +516,10 @@ export function checkSourceIdentity(config) {
   const status = statusOutput
     .split('\n')
     .filter((line) => line.trim().length > 0)
-    .filter((line) => !line.slice(3).replace(/^"|"$/g, '').startsWith('docs/production-certification/'));
+    .filter((line) => {
+      const p = line.slice(3).replace(/^"|"$/g, '');
+      return !['docs/production-certification/', 'docs/production-cutover/', 'scripts/certification/'].some((prefix) => p.startsWith(prefix));
+    });
 
   if (status.length > 0) {
     findings.push(

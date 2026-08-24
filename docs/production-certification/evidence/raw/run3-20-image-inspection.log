@@ -1,0 +1,10 @@
+# image identity inspection
+# exitCode: 0
+
+--- stdout ---
+sha256:37c71050c03a3b9d97b9700b95c75b4054f64e8934c2cbe30d5a52ccf0aea7d2	d5d7cf83679faa1187ffd1ab095a37c28f5136f4	telestar-crm-candidate:d5d7cf83679faa1187ffd1ab095a37c28f5136f4
+
+
+findings: none
+--- stderr ---
+(empty)

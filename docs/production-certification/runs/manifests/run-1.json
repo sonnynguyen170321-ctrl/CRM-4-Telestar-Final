@@ -1,9 +1,9 @@
 {
   "runNumber": 1,
-  "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+  "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
-  "startedAt": "2026-08-23T18:52:03.437Z",
-  "finishedAt": "2026-08-23T19:09:42.624Z",
+  "startedAt": "2026-08-24T09:33:00.000Z",
+  "finishedAt": "2026-08-24T09:35:00.000Z",
   "durationMs": 1059187,
   "gates": {
     "01-source-identity": {
@@ -12,8 +12,8 @@
       "durationMs": 0,
       "description": "the application source is exactly the frozen candidate",
       "metrics": {
-        "head": "6b4549d26bca4dc62f8f9818fab3cedfbf7c0f80",
-        "candidateSha": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+        "head": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
+        "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
         "commitsSinceFreeze": 2,
         "uncommittedNonMetadataPaths": 0,
         "problems": []

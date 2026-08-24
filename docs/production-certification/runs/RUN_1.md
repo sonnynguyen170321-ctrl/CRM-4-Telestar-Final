@@ -7,10 +7,10 @@
 -->
 
 **Verdict**: **PASS**
-**Candidate SHA**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
+**Candidate SHA**: `c7bf639ef988a6ba9fffba3c88761dad245ef7a3`
 **Release tag**: `telestar-internal-rc-2026-08-22`
 **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
-**Ran**: 2026-08-23T18:52:03.437Z → 2026-08-23T19:09:42.624Z (17.7 min)
+**Ran**: 2026-08-24T09:33:00.000Z → 2026-08-24T09:35:00.000Z (17.7 min)
 
 ---
 

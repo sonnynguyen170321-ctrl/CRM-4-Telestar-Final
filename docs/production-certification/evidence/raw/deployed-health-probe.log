@@ -1,8 +1,8 @@
 {
   "ok": true,
-  "ts": 1787558896121,
-  "commit": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
-  "version": "42420a01a32c68a3a66418eebcd9ebf297cd044b",
-  "builtAt": "2026-08-24T07:55:48Z",
+  "ts": 1787564536489,
+  "commit": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
+  "version": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
+  "builtAt": "2026-08-24T09:34:52Z",
   "schema": "ready"
 }
