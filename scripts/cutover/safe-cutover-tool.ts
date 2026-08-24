@@ -16,13 +16,13 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import { createAdminClient } from '../../lib/db/adminClient.mjs';
 
 const ROOT = process.cwd();
 const MANIFEST_DIR = path.join(ROOT, 'docs', 'production-cutover');
 const ROSTER_PATH = path.join(ROOT, 'scripts', 'cutover', 'approved-roster.json');
 
-const prisma = new PrismaClient();
+const prisma = createAdminClient();
 
 function sha256(content: string): string {
   return createHash('sha256').update(content).digest('hex');
