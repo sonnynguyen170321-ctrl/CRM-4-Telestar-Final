@@ -7,7 +7,7 @@
 -->
 
 **Candidate SHA**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
-**Verified**: 106 / 108
+**Verified**: 107 / 108
 **Verdict**: NO-GO
 
 > Status in this document is **computed**, never asserted. `requirements.json` has no status
@@ -27,9 +27,9 @@
 | **6-Role Operational Workflows** | `ROLE` | 12 | 12 | 0 |
 | **AI Reliability & Cost Governance** | `AI` | 14 | 14 | 0 |
 | **Disaster Recovery & Infrastructure** | `DR` | 10 | 9 | 1 |
-| **Release Identity & Gate Auditing** | `REL` | 8 | 7 | 1 |
+| **Release Identity & Gate Auditing** | `REL` | 8 | 8 | 0 |
 | **Operational Lifecycle & Sequences** | `OPS` | 24 | 24 | 0 |
-| **TOTAL** | | **108** | **106** | **2** |
+| **TOTAL** | | **108** | **107** | **1** |
 
 ---
 
@@ -145,7 +145,7 @@
 
 | ID | Requirement | Sev | Evidence claims | Status | Why not verified | Defects |
 |---|---|---|---|---|---|---|
-| `REL-001` | Immutable release chain: Source SHA -> Metadata SHA -> Image Digest | P1 | release-identity | NOT_VERIFIED | evidence of kind "release-identity" exists but none is for candidate d5d7cf8 | `TEL-P1-008`, `TEL-P2-003` |
+| `REL-001` | Immutable release chain: Source SHA -> Metadata SHA -> Image Digest | P1 | release-identity | **VERIFIED** | — | `TEL-P1-008`, `TEL-P2-003` |
 | `REL-002` | Zero unexplained skipped tests in test suite | P1 | gate | **VERIFIED** | — | `TEL-P2-001` |
 | `REL-003` | Certification Run 1: Full test ladder + static + build | P1 | run 1 | **VERIFIED** | — | — |
 | `REL-004` | Certification Run 2: Full test ladder + static + build | P1 | run 2 | **VERIFIED** | — | — |

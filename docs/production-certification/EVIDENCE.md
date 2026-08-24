@@ -8,7 +8,7 @@
 
 **Candidate SHA**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
 **Evidence records**: 28
-**Requirements verified**: 106 / 108
+**Requirements verified**: 107 / 108
 **Verdict**: NO-GO
 
 > This ledger is generated. The previous one was maintained by hand and drifted: it declared
@@ -64,7 +64,7 @@
 | `EV-LOAD-HANDLER` | `load-benchmark` | `d5d7cf8` | **PASS** | 0 | 0 |
 | `EV-LOAD-QUEUE` | `load-benchmark` | `d5d7cf8` | **PASS** | 0 | 1 |
 | `EV-REDIS-INTEGRATION` | `redis-integration` | `d5d7cf8` | **PASS** | 0 | 1 |
-| `EV-RELEASE-IDENTITY` | `release-identity` | `9fa36d3` ⚠ | **PASS** | 0 | 0 |
+| `EV-RELEASE-IDENTITY` | `release-identity` | `d5d7cf8` | **PASS** | 0 | 0 |
 | `EV-RLS-POSTURE` | `rls-posture` | `d5d7cf8` | **PASS** | 0 | 1 |
 | `EV-ROLE-BROWSER` | `role-browser` | `d5d7cf8` | **PASS** | 0 | 6 |
 | `EV-ROLE-MODEL` | `role-model` | `d5d7cf8` | **PASS** | 0 | 1 |
@@ -241,10 +241,10 @@
   - `docs/production-certification/evidence/raw/run3-d5d7cf8-09-redis-integration.log` — 547 bytes, sha256 `99245d5ecf1679e1…`
 ### `EV-RELEASE-IDENTITY`
 - **Kind**: `release-identity`
-- **Candidate**: `9fa36d3bcac6532f0c6f07af9045825a9d97844f`
+- **Candidate**: `d5d7cf83679faa1187ffd1ab095a37c28f5136f4`
 - **Environment**: win32 / node 24.16.0 / deploy host
 - **Command**: `docker buildx imagetools inspect; docker inspect; curl /api/health`
-- **Ran**: 2026-08-22T06:38:07.408Z → 2026-08-22T06:38:07.410Z
+- **Ran**: 2026-08-24T03:23:15.457Z → 2026-08-24T03:23:15.458Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**: none
 ### `EV-RLS-POSTURE`

@@ -23,11 +23,11 @@ last two attempts at this table were both wrong.
 
 | Severity | Discovered | Verified Closed | Reopened | Active / Open |
 |---|---|---|---|---|
-| **P0** (Launch Blocker) | 5 | 0 | 0 | **4** |
+| **P0** (Launch Blocker) | 6 | 0 | 0 | **5** |
 | **P1** (Critical) | 43 | 9 | 4 | **29** |
 | **P2** (Important) | 33 | 8 | 4 | **20** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | 0 |
-| **TOTAL** | **81** | **17** | **8** | **53** |
+| **TOTAL** | **82** | **17** | **8** | **54** |
 
 Every id sits in exactly one bucket: active, resolved-in-place, retained-verified, or reopened.
 `Discovered` is their sum, not a free-standing tally — that identity is what previously went
@@ -1665,6 +1665,73 @@ Incidentally this validated `DEPLOY-002` against reality: real backup run ids lo
   on the VM and is not readable from this checkout.
 - **Evidence**: `EV-DR-RPO` retains both fields deliberately; `scripts/certification/lib/redact.mjs`
   keeps `deletionProtectionEnabled` and `availabilityType` through redaction for this reason.
+
+### `TEL-P0-007` — `deploy.sh` Runs Migrations With The PREVIOUS Image, So Every Migration-Bearing Deploy Silently Skips Them
+- **Severity**: P0 (Launch Blocker)
+- **Status**: `OPEN` — deliberately NOT fixed during certification; see disposition below
+- **Discovered by**: deploying candidate `d5d7cf8` to production on 2026-08-24. It is not a
+  theoretical defect; it broke that deploy.
+- **Measured**, from the deploy transcript:
+
+  ```
+  ==> Pending migrations
+      50 migrations found in prisma/migrations
+      Database schema is up to date!
+  ==> Applying migrations
+      50 migrations found in prisma/migrations
+      No pending migrations to apply.
+  ==> Pinning .env.production to the new digest
+  ==> Starting web and worker on the new digest
+  ```
+
+  `e968ce7` (the previous release) contains **50** migration directories. `d5d7cf8` contains
+  **52**. The migrate step reported 50, so it ran the PREVIOUS image, which cannot know about
+  migrations the candidate introduces.
+
+- **Root cause**: `scripts/deploy.sh` lines 143 and 147 intend to override the image:
+
+  ```
+  DC="$DOCKER compose --env-file $ENV_FILE $COMPOSE_FILES"
+  CRM_IMAGE="$NEW_IMAGE" $DC run --rm --no-deps web ...
+  ```
+
+  `$DC` carries `--env-file .env.production`, and at that point in the script the file still
+  pins the PREVIOUS digest — the pinning step runs afterwards. Compose resolves `${CRM_IMAGE}`
+  for interpolation from `--env-file` in preference to the inherited shell environment, so the
+  `CRM_IMAGE=` prefix is silently inert. The override reads as if it works and does nothing.
+
+- **Why P0**: the deploy proceeds to start the new code against a schema missing its migrations.
+  Here the running application caught it — `/api/health` returned
+  `{"ok":false,"reason":"pending_migrations"}` naming both files — and the post-deploy smoke test
+  failed on that, so the deploy reported failure rather than success. That containment is
+  incidental: it comes from a *separate* control in the application, not from the deploy script.
+  Without the app's self-check, this ships new code against an old schema and the first symptom
+  is a query against a table that does not exist.
+
+- **Sequencing is the real bug**: migrations are applied BEFORE the digest is pinned. The step
+  that decides what schema to apply runs while the environment still describes the old release.
+
+- **Immediate workaround, used on 2026-08-24**: after `deploy.sh` fails its smoke test, the
+  digest IS pinned, so re-running the migrate step picks up the correct image:
+
+  ```
+  sudo docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.gcp.yml     run --rm --no-deps web node node_modules/prisma/build/index.js migrate deploy
+  ```
+
+  That reported `52 migrations found`, applied both, and `/api/health` returned `ok: true` with
+  `schema: ready` and the candidate SHA. No restart was needed; the health check re-queries.
+
+- **Required remediation** (post-release): either pin `.env.production` to the new digest BEFORE
+  the migration steps, or pass the image to Compose in a way `--env-file` cannot override — for
+  example writing `CRM_IMAGE` into a temporary env file that is passed last, or invoking
+  `docker run` against `$NEW_IMAGE` directly for the migrate step. Add a regression test that
+  asserts the migrate container resolves to the NEW digest, since nothing currently does.
+- **Disposition for this release**: NOT fixed here. `scripts/deploy.sh` is application source;
+  changing it invalidates candidate `d5d7cf8`, which has three clean ladder runs, a green CI run
+  and a healthy production deployment. The defect is contained by two independent controls that
+  both fired today — the application's pending-migration check and the post-deploy smoke test —
+  and the workaround above is proven. It must be fixed before the next deploy that carries a
+  migration.
 
 ### `TEL-P1-028` — Phase 15 Claims Private VPC Transport; The Instance Has A Public IP And Permits Unencrypted Connections
 - **Severity**: P1

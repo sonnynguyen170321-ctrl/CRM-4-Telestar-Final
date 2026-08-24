@@ -30,17 +30,17 @@ running.
 | Link | Value | How to establish it |
 |---|---|---|
 | APPLICATION_SOURCE_SHA | `d5d7cf83679faa1187ffd1ab095a37c28f5136f4` | — |
-| CI_RUN_ID | `32524242612` | — |
-| IMAGE_DIGEST | `sha256:f4b2b741d167a3cf865859025f5a056311fdc0f2daa7bac2118bf4f6ab2421b8` | — |
-| WEB_DIGEST | `sha256:f4b2b741d167a3cf865859025f5a056311fdc0f2daa7bac2118bf4f6ab2421b8` | — |
-| WORKER_DIGEST | `sha256:f4b2b741d167a3cf865859025f5a056311fdc0f2daa7bac2118bf4f6ab2421b8` | — |
-| HEALTH_SHA | `9fa36d3bcac6532f0c6f07af9045825a9d97844f` | — |
-| Deployment timestamp | `2026-08-22T06:38:07.408Z` | — |
-| Migration set | `50` | — |
+| CI_RUN_ID | `32658798987` | — |
+| IMAGE_DIGEST | `sha256:4302cb64ea258a48543563e31fdf084abe64826eeb846c8a3e2d0ea5a577a9d6` | — |
+| WEB_DIGEST | `sha256:4302cb64ea258a48543563e31fdf084abe64826eeb846c8a3e2d0ea5a577a9d6` | — |
+| WORKER_DIGEST | `sha256:4302cb64ea258a48543563e31fdf084abe64826eeb846c8a3e2d0ea5a577a9d6` | — |
+| HEALTH_SHA | `d5d7cf83679faa1187ffd1ab095a37c28f5136f4` | — |
+| Deployment timestamp | `2026-08-24T03:23:15.457Z` | — |
+| Migration set | `52` | — |
 
 ## 3. Identity assertions
 
-- `APPLICATION_SOURCE_SHA == HEALTH_SHA` — **FAILS**
+- `APPLICATION_SOURCE_SHA == HEALTH_SHA` — **holds**
 - `IMAGE_DIGEST == WEB_DIGEST` — **holds**
 - `IMAGE_DIGEST == WORKER_DIGEST` — **holds**
 
