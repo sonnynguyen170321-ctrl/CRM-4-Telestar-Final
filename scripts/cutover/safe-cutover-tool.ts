@@ -19,8 +19,20 @@ import path from 'node:path';
 import { createAdminClient } from '../../lib/db/adminClient.mjs';
 
 const ROOT = process.cwd();
-const MANIFEST_DIR = path.join(ROOT, 'docs', 'production-cutover');
+const DEFAULT_MANIFEST_DIR = path.join(ROOT, 'docs', 'production-cutover');
 const ROSTER_PATH = path.join(ROOT, 'scripts', 'cutover', 'approved-roster.json');
+
+function resolveManifestPath(): string {
+  const custom = parseArg('manifest') || parseArg('outFile');
+  if (custom) return custom;
+  try {
+    mkdirSync(DEFAULT_MANIFEST_DIR, { recursive: true });
+    return path.join(DEFAULT_MANIFEST_DIR, 'purge-manifest.json');
+  } catch {
+    const tmpDir = '/tmp';
+    return path.join(tmpDir, 'purge-manifest.json');
+  }
+}
 
 const prisma = createAdminClient();
 
@@ -185,7 +197,7 @@ async function planMode(): Promise<PurgeManifest> {
     rowsRequiringReview,
   };
 
-  const manifestPath = path.join(MANIFEST_DIR, 'purge-manifest.json');
+  const manifestPath = resolveManifestPath();
   const serialized = JSON.stringify(manifest, null, 2) + '\n';
   writeFileSync(manifestPath, serialized);
   const manifestHash = sha256(serialized);
@@ -195,9 +207,9 @@ async function planMode(): Promise<PurgeManifest> {
   return manifest;
 }
 
-async function verifyMode(manifestPath?: string) {
+async function verifyMode(customPath?: string) {
   console.log('🔍 Executing VERIFY mode (pre-cutover safety assertions)...');
-  const targetPath = manifestPath || path.join(MANIFEST_DIR, 'purge-manifest.json');
+  const targetPath = customPath || resolveManifestPath();
   if (!existsSync(targetPath)) {
     throw new Error(`Manifest not found at ${targetPath}. Run --mode=PLAN first.`);
   }
@@ -279,7 +291,7 @@ async function executeMode(manifestPath?: string) {
     deletedCounts,
   };
 
-  const auditPath = path.join(MANIFEST_DIR, 'cutover-audit-log.json');
+  const auditPath = path.join(path.dirname(resolveManifestPath()), 'cutover-audit-log.json');
   writeFileSync(auditPath, JSON.stringify(auditLog, null, 2) + '\n');
   console.log(`📝 Audit log recorded: ${auditPath}`);
 }
