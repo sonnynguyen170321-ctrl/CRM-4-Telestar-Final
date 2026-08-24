@@ -19,26 +19,8 @@ import path from 'node:path';
 import { createAdminClient } from '../../lib/db/adminClient.mjs';
 
 const ROOT = process.cwd();
-const DEFAULT_MANIFEST_DIR = path.join(ROOT, 'docs', 'production-cutover');
+const MANIFEST_DIR = path.join(ROOT, 'docs', 'production-cutover');
 const ROSTER_PATH = path.join(ROOT, 'scripts', 'cutover', 'approved-roster.json');
-
-function resolveManifestPath(): string {
-  const custom = parseArg('manifest') || parseArg('outFile');
-  if (custom) return custom;
-  try {
-    mkdirSync(DEFAULT_MANIFEST_DIR, { recursive: true });
-    return path.join(DEFAULT_MANIFEST_DIR, 'purge-manifest.json');
-  } catch {
-    const tmpDir = '/tmp';
-    return path.join(tmpDir, 'purge-manifest.json');
-  }
-}
-
-const prisma = createAdminClient();
-
-function sha256(content: string): string {
-  return createHash('sha256').update(content).digest('hex');
-}
 
 function parseArg(name: string): string | null {
   const arg = process.argv.find((a) => a.startsWith(`--${name}=`));
@@ -49,6 +31,23 @@ function parseArg(name: string): string | null {
 }
 
 const hasFlag = (name: string) => process.argv.includes(`--${name}`);
+
+function resolveManifestPath(): string {
+  const custom = parseArg('manifest') || parseArg('outFile');
+  if (custom) return custom;
+  try {
+    mkdirSync(MANIFEST_DIR, { recursive: true });
+    return path.join(MANIFEST_DIR, 'purge-manifest.json');
+  } catch {
+    return '/tmp/purge-manifest.json';
+  }
+}
+
+const prisma = createAdminClient();
+
+function sha256(content: string): string {
+  return createHash('sha256').update(content).digest('hex');
+}
 
 // ── Models in strict topological child-before-parent order ─────────────────
 const TOPOLOGICAL_MODELS = [
