@@ -374,6 +374,37 @@ export function checkSourceAndRunProvenance(config, records) {
         ),
       );
     }
+    /**
+     * Directive section 60: validate the ACTUAL head, not the declared one.
+     *
+     * `record.candidateSha === config.candidateSha` proves only that the same
+     * value was typed twice. The head that was really checked out is what gate
+     * 01 measured, so it is read back from the gate's own metrics — and its
+     * absence is a failure, not a pass. The check above fires only when
+     * executedHeadSha is present, so a run that simply omitted it said nothing
+     * and was believed.
+     */
+    if (record.kind === 'certification-run') {
+      const measuredHead =
+        record.metrics?.actualHeadSha ?? record.metrics?.gates?.['01-source-identity']?.metrics?.head ?? null;
+
+      if (!measuredHead) {
+        findings.push(
+          finding(
+            'SOURCE_MISMATCH',
+            `${record.evidenceId}: records no measured head; gate 01-source-identity did not report the commit that was actually checked out`,
+          ),
+        );
+      } else if (config.candidateSha && measuredHead !== config.candidateSha) {
+        findings.push(
+          finding(
+            'SOURCE_MISMATCH',
+            `${record.evidenceId}: gate 01 measured head ${measuredHead.slice(0, 7)}, which is not candidate ${config.candidateSha.slice(0, 7)}`,
+          ),
+        );
+      }
+    }
+
     if (record.kind === 'dr-rollback' && (!record.artifacts || record.artifacts.length === 0)) {
       findings.push(
         finding('ROLLBACK_ARTIFACTS', `${record.evidenceId}: rollback evidence may not carry empty artifacts: []`),

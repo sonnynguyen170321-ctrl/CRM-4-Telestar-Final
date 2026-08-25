@@ -2,8 +2,8 @@
   "$comment": "Every identity that must name the same release. matchesCandidate is computed; a false value is a fact about the release, not an error in this file.",
   "candidateSha": "5985ec474bc1eb3da05ae5db7560e83a4e70969d",
   "repository": {
-    "mainSha": "016e0205b5ece66aab5266a94e744fb9fd2ed2ad",
-    "localHeadSha": "250338a75556ccd507a6ce0a9f21225ec7684a97"
+    "mainSha": "b57769d48abce5306eb4e63a07769c46da1a8e85",
+    "localHeadSha": "b57769d48abce5306eb4e63a07769c46da1a8e85"
   },
   "ci": {
     "runId": "32711776013",

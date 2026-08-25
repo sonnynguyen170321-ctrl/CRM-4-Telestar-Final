@@ -14,6 +14,7 @@
  * if any mandatory gate failed.
  */
 import { spawnSync, spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -662,9 +663,22 @@ async function main() {
     };
   }
 
+  // Directive section 11: every candidate-scoped execution records its own
+  // identity. Without it, three run records are indistinguishable from one run
+  // copied three times — checkRunExecutionIdentity found exactly that gap in
+  // EV-RUN-1/2/3, which carried no executionId at all.
+  //
+  // actualHeadSha is read back from the source-identity gate rather than from
+  // candidateSha, because candidateSha is the value being verified: comparing it
+  // to itself proves only that someone typed it twice (directive section 60).
+  const executionId = randomUUID();
+  const actualHeadSha = gatesMap['01-source-identity']?.metrics?.head ?? null;
+
   const manifest = {
     runNumber,
+    executionId,
     candidateSha,
+    actualHeadSha,
     environment: describeEnvironment(),
     startedAt: startedAt.toISOString(),
     finishedAt: finishedAt.toISOString(),
@@ -710,6 +724,8 @@ async function main() {
         status: runPassed ? 'PASS' : 'FAIL',
         metrics: {
           runNumber,
+          executionId,
+          actualHeadSha,
           gates: gatesMap,
           missingGates,
           failedGates,
