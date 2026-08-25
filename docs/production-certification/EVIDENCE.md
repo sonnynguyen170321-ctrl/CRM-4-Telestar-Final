@@ -7,7 +7,7 @@
 -->
 
 **Candidate SHA**: `5985ec474bc1eb3da05ae5db7560e83a4e70969d`
-**Evidence records**: 40
+**Evidence records**: 41
 **Requirements verified**: 0 / 108
 **Verdict**: NO-GO
 
@@ -51,6 +51,7 @@
 | `EV-AI-DURABLE-BUDGET` | `ai-durable-budget` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
 | `EV-AI-SHARED-CIRCUIT` | `ai-shared-circuit` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
 | `EV-AI-STREAM-GOVERNANCE` | `ai-stream-governance` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-BRANCH-PROTECTION` | `branch-governance` | `016e020` ⚠ | **PASS** | 0 | 1 |
 | `EV-CI-RUN` | `ci-run` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
 | `EV-DEPLOYED-STATE` | `deployed-state` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
 | `EV-DR-BACKUP` | `dr-backup` | `c7bf639` ⚠ | **PASS** | 0 | 3 |
@@ -128,6 +129,15 @@
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
   - `docs/production-certification/evidence/raw/run3-d5d7cf8-08-vitest.log` — 443 bytes, sha256 `5639ba1918334cd0…`
+### `EV-BRANCH-PROTECTION`
+- **Kind**: `branch-governance`
+- **Candidate**: `016e0205b5ece66aab5266a94e744fb9fd2ed2ad`
+- **Environment**: GitHub REST API and git push against sonnynguyen170321-ctrl/CRM-4-Telestar-Final from the certification workstation
+- **Command**: `gh api -X PUT .../branches/main/protection; gh pr create; gh api -X PUT .../pulls/111/merge; git push origin main`
+- **Ran**: 2026-08-25T09:46:01.958Z → 2026-08-25T10:16:01.959Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/branch-protection-behavioral-proof.log` — 2790 bytes, sha256 `44c5e18353ace61d…`
 ### `EV-CI-RUN`
 - **Kind**: `ci-run`
 - **Candidate**: `c7bf639ef988a6ba9fffba3c88761dad245ef7a3`
