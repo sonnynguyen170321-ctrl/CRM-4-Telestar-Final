@@ -1,36 +1,70 @@
-const PROD_URL = 'https://crm.telestar.cloud';
-const PASSWORD_RAW = 'Telestar2026';
+const PROD_URL = process.env.PROD_URL || 'https://crm.telestar.cloud';
+const PASSWORD_RAW = process.env.PROD_PASSWORD || 'Telestar2026';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'dean@telestar.vn';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Telestar2026';
 
-const USERS_TO_SYNC = [
-  // ── Team Leads ────────────────────────────────────────────────────────────
-  { email: 'branndon@itelestar.com', firstName: 'Branndon', lastName: '', role: 'team_lead' },
-  { email: 'vie@itelestar.com', firstName: 'Vie', lastName: '', role: 'team_lead' },
-  { email: 'jackie@itelestar.com', firstName: 'Jackie', lastName: '', role: 'team_lead' },
+interface UserSpec {
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: 'director' | 'floor_manager' | 'team_lead' | 'sdr' | 'leadgen_manager' | 'leadgen';
+  managerEmail?: string | null;
+}
 
-  // ── Branndon SDRs ─────────────────────────────────────────────────────────
+const USERS_TO_SYNC: UserSpec[] = [
+  // ── Floor Managers & Leadgen Managers ──────────────────────────────────────
+  { email: 'sonny@telestar.vn', firstName: 'Sonny', lastName: 'Nguyen', role: 'floor_manager', managerEmail: 'dean@telestar.vn' },
+  { email: 'sonny@itelestar.com', firstName: 'Sonny', lastName: 'Nguyen', role: 'floor_manager', managerEmail: 'dean@telestar.vn' },
+  { email: 'alayna@telestar.vn', firstName: 'Alayna', lastName: '', role: 'floor_manager', managerEmail: 'dean@telestar.vn' },
+  { email: 'alayna@itelestar.com', firstName: 'Alayna', lastName: '', role: 'floor_manager', managerEmail: 'dean@telestar.vn' },
+  { email: 'dominic@telestar.vn', firstName: 'Dominic', lastName: '', role: 'leadgen_manager', managerEmail: 'dean@telestar.vn' },
+  { email: 'dominic@itelestar.com', firstName: 'Dominic', lastName: '', role: 'leadgen_manager', managerEmail: 'dean@telestar.vn' },
+
+  // ── Leadgen Reps ─────────────────────────────────────────────────────────
+  { email: 'alex@telestar.vn', firstName: 'Alex', lastName: '', role: 'leadgen', managerEmail: 'dominic@telestar.vn' },
+  { email: 'priya@telestar.vn', firstName: 'Priya', lastName: '', role: 'leadgen', managerEmail: 'dominic@telestar.vn' },
+
+  // ── Team Leads (@telestar.vn & @itelestar.com) ────────────────────────────
+  { email: 'brandon@telestar.vn', firstName: 'Brandon', lastName: '', role: 'team_lead', managerEmail: 'sonny@telestar.vn' },
+  { email: 'branndon@itelestar.com', firstName: 'Branndon', lastName: '', role: 'team_lead', managerEmail: 'sonny@itelestar.com' },
+  { email: 'jackie@telestar.vn', firstName: 'Jackie', lastName: '', role: 'team_lead', managerEmail: 'sonny@telestar.vn' },
+  { email: 'jackie@itelestar.com', firstName: 'Jackie', lastName: '', role: 'team_lead', managerEmail: 'sonny@itelestar.com' },
+  { email: 'vie@telestar.vn', firstName: 'Vie', lastName: '', role: 'team_lead', managerEmail: 'sonny@telestar.vn' },
+  { email: 'vie@itelestar.com', firstName: 'Vie', lastName: '', role: 'team_lead', managerEmail: 'sonny@itelestar.com' },
+  { email: 'meixi@telestar.vn', firstName: 'Meixi', lastName: '', role: 'team_lead', managerEmail: 'sonny@telestar.vn' },
+  { email: 'hayden@telestar.vn', firstName: 'Hayden', lastName: '', role: 'team_lead', managerEmail: 'alayna@telestar.vn' },
+  { email: 'selina@telestar.vn', firstName: 'Selina', lastName: '', role: 'team_lead', managerEmail: 'alayna@telestar.vn' },
+  { email: 'kim@telestar.vn', firstName: 'Kim', lastName: '', role: 'team_lead', managerEmail: 'alayna@telestar.vn' },
+
+  // ── SDRs (@telestar.vn) ───────────────────────────────────────────────────
+  { email: 'lan.pham@telestar.vn', firstName: 'Lan', lastName: 'Pham', role: 'sdr', managerEmail: 'brandon@telestar.vn' },
+  { email: 'david.miller@telestar.vn', firstName: 'David', lastName: 'Miller', role: 'sdr', managerEmail: 'brandon@telestar.vn' },
+  { email: 'vy.hoang@telestar.vn', firstName: 'Vy', lastName: 'Hoang', role: 'sdr', managerEmail: 'jackie@telestar.vn' },
+  { email: 'carlos.reyes@telestar.vn', firstName: 'Carlos', lastName: 'Reyes', role: 'sdr', managerEmail: 'vie@telestar.vn' },
+
+  // ── SDRs (@itelestar.com) ─────────────────────────────────────────────────
   { email: 'eli@itelestar.com', firstName: 'Eli', lastName: '', role: 'sdr', managerEmail: 'branndon@itelestar.com' },
   { email: 'quinn@itelestar.com', firstName: 'Quinn', lastName: '', role: 'sdr', managerEmail: 'branndon@itelestar.com' },
   { email: 'mavis@itelestar.com', firstName: 'Mavis', lastName: '', role: 'sdr', managerEmail: 'branndon@itelestar.com' },
   { email: 'vincent@itelestar.com', firstName: 'Vincent', lastName: '', role: 'sdr', managerEmail: 'branndon@itelestar.com' },
   { email: 'annie@itelestar.com', firstName: 'Annie', lastName: '', role: 'sdr', managerEmail: 'branndon@itelestar.com' },
-
-  // ── Vie SDRs ──────────────────────────────────────────────────────────────
   { email: 'dan@itelestar.com', firstName: 'Dan', lastName: '', role: 'sdr', managerEmail: 'vie@itelestar.com' },
   { email: 'ann@itelestar.com', firstName: 'Ann', lastName: '', role: 'sdr', managerEmail: 'vie@itelestar.com' },
   { email: 'kate@itelestar.com', firstName: 'Kate', lastName: '', role: 'sdr', managerEmail: 'vie@itelestar.com' },
   { email: 'arthur@itelestar.com', firstName: 'Arthur', lastName: '', role: 'sdr', managerEmail: 'vie@itelestar.com' },
   { email: 'emily@itelestar.com', firstName: 'Emily', lastName: '', role: 'sdr', managerEmail: 'vie@itelestar.com' },
-
-  // ── Jackie SDRs ───────────────────────────────────────────────────────────
   { email: 'danny@itelestar.com', firstName: 'Danny', lastName: '', role: 'sdr', managerEmail: 'jackie@itelestar.com' },
   { email: 'helen@itelestar.com', firstName: 'Helen', lastName: '', role: 'sdr', managerEmail: 'jackie@itelestar.com' },
   { email: 'aimee@itelestar.com', firstName: 'Aimee', lastName: '', role: 'sdr', managerEmail: 'jackie@itelestar.com' },
   { email: 'caine@itelestar.com', firstName: 'Caine', lastName: '', role: 'sdr', managerEmail: 'jackie@itelestar.com' },
 ];
 
-async function loginAsDean(): Promise<string> {
-  console.log('1. Authenticating as Dean on production...');
+async function loginAsAdmin(): Promise<string> {
+  console.log(`1. Authenticating as ${ADMIN_EMAIL} on ${PROD_URL}...`);
   const csrfRes = await fetch(`${PROD_URL}/api/auth/csrf`);
+  if (!csrfRes.ok) {
+    throw new Error(`Failed to reach ${PROD_URL}/api/auth/csrf: ${csrfRes.status} ${csrfRes.statusText}`);
+  }
   const csrfData = await csrfRes.json();
   const csrfToken = csrfData.csrfToken;
   const initialCookies = csrfRes.headers.get('set-cookie') || '';
@@ -42,36 +76,47 @@ async function loginAsDean(): Promise<string> {
       'Cookie': initialCookies,
     },
     body: new URLSearchParams({
-      email: 'dean@telestar.vn',
-      password: 'Telestar2026',
+      email: ADMIN_EMAIL,
+      password: ADMIN_PASSWORD,
       csrfToken,
       json: 'true',
     }),
     redirect: 'manual',
   });
 
-  const sessionCookie = loginRes.headers.get('set-cookie');
-  if (!sessionCookie || !sessionCookie.includes('session-token')) {
-    throw new Error('Failed to obtain production session cookie');
+  const setCookies = typeof loginRes.headers.getSetCookie === 'function'
+    ? loginRes.headers.getSetCookie()
+    : [loginRes.headers.get('set-cookie') || ''];
+
+  const allCookiesStr = setCookies.join('; ');
+  const redirectLoc = loginRes.headers.get('location');
+
+  if (redirectLoc && redirectLoc.includes('error=')) {
+    throw new Error(`Authentication failed on production: redirect to ${redirectLoc}`);
   }
 
-  // Extract session token cookie
-  const match = sessionCookie.match(/__Secure-authjs\.session-token=([^;]+)/);
+  const match =
+    allCookiesStr.match(/__Secure-authjs\.session-token=([^;]+)/) ||
+    allCookiesStr.match(/authjs\.session-token=([^;]+)/);
+
   if (!match) {
-    throw new Error('Session token not found in cookies');
+    throw new Error(
+      `Failed to obtain session token on production. Status: ${loginRes.status}, Location: ${redirectLoc}, Cookies: ${setCookies.map(c => c.split(';')[0]).join(', ')}`
+    );
   }
 
-  const cookieHeader = `__Secure-authjs.session-token=${match[1]}`;
-  console.log('   ✅ Dean authenticated on production');
+  const cookieName = match[0].split('=')[0];
+  const cookieHeader = `${cookieName}=${match[1]}`;
+  console.log(`   ✅ ${ADMIN_EMAIL} authenticated successfully on production`);
   return cookieHeader;
 }
 
 async function main() {
   console.log('========================================================================');
-  console.log('🚀 LIVE PRODUCTION SYNC: PROVISIONING USERS TO crm.telestar.cloud');
+  console.log(`🚀 LIVE PRODUCTION SYNC: PROVISIONING USERS TO ${PROD_URL}`);
   console.log('========================================================================\n');
 
-  const cookie = await loginAsDean();
+  const cookie = await loginAsAdmin();
 
   // 1. Fetch current users on production
   console.log('\n2. Fetching current production users...');
@@ -83,16 +128,15 @@ async function main() {
   }
   const adminData = await adminRes.json();
   const existingUsers: any[] = adminData.users || [];
-  console.log(`   Found ${existingUsers.length} existing users on production:`);
-  console.log(existingUsers.map((u: any) => `   - ${u.email} (${u.role})`).join('\n'));
+  console.log(`   Found ${existingUsers.length} existing users on production.`);
 
   const emailToId = new Map<string, string>();
   existingUsers.forEach((u: any) => emailToId.set(u.email.toLowerCase(), u.id));
 
-  // 2. Create/Update Team Leads first
-  console.log('\n3. Provisioning Team Leads on production...');
-  const teamLeads = USERS_TO_SYNC.filter((u) => u.role === 'team_lead');
-  for (const tl of teamLeads) {
+  // 2. Create/Update Non-SDRs (Managers and Team Leads) first
+  console.log('\n3. Provisioning Managers & Team Leads on production...');
+  const managersAndLeads = USERS_TO_SYNC.filter((u) => u.role !== 'sdr');
+  for (const u of managersAndLeads) {
     const createRes = await fetch(`${PROD_URL}/api/users`, {
       method: 'POST',
       headers: {
@@ -100,27 +144,27 @@ async function main() {
         Cookie: cookie,
       },
       body: JSON.stringify({
-        email: tl.email,
-        firstName: tl.firstName,
-        lastName: tl.lastName || 'Lead',
-        role: tl.role,
+        email: u.email,
+        firstName: u.firstName,
+        lastName: u.lastName || 'Staff',
+        role: u.role,
         password: PASSWORD_RAW,
       }),
     });
 
-    const resJson = await createRes.json();
+    const resJson = await createRes.json().catch(() => ({}));
     if (createRes.ok || createRes.status === 409) {
-      const userRes = await fetch(`${PROD_URL}/api/admin/users`, { headers: { Cookie: cookie } });
-      const currentList = (await userRes.json()).users;
-      const found = currentList.find((u: any) => u.email.toLowerCase() === tl.email.toLowerCase());
-      if (found) {
-        emailToId.set(tl.email.toLowerCase(), found.id);
-        console.log(`   ✅ Team Lead ready on production: ${tl.firstName} (${tl.email}) [ID: ${found.id}]`);
-      }
+      console.log(`   ✅ ${u.role}: ${u.firstName} (${u.email}) is ready`);
     } else {
-      console.error(`   ❌ Failed to create ${tl.email}:`, resJson);
+      console.error(`   ❌ Failed on ${u.email}:`, resJson);
     }
   }
+
+  // Refresh user map for manager IDs
+  const refreshedRes = await fetch(`${PROD_URL}/api/admin/users`, { headers: { Cookie: cookie } });
+  const refreshedData = await refreshedRes.json();
+  const refreshedUsers: any[] = refreshedData.users || [];
+  refreshedUsers.forEach((u: any) => emailToId.set(u.email.toLowerCase(), u.id));
 
   // 3. Create SDRs with manager linkages
   console.log('\n4. Provisioning SDRs on production...');
@@ -144,11 +188,11 @@ async function main() {
       }),
     });
 
-    const resJson = await createRes.json();
+    const resJson = await createRes.json().catch(() => ({}));
     if (createRes.ok) {
-      console.log(`   ✅ SDR created on production: ${sdr.firstName} (${sdr.email}) -> Manager: ${sdr.managerEmail}`);
+      console.log(`   ✅ SDR created: ${sdr.firstName} (${sdr.email}) -> Manager: ${sdr.managerEmail ?? 'None'}`);
     } else if (createRes.status === 409) {
-      console.log(`   ℹ️ SDR already exists on production: ${sdr.firstName} (${sdr.email})`);
+      console.log(`   ℹ️ SDR already exists: ${sdr.firstName} (${sdr.email})`);
     } else {
       console.error(`   ❌ Failed to create SDR ${sdr.email}:`, resJson);
     }
@@ -162,14 +206,14 @@ async function main() {
   const finalData = await finalRes.json();
   const allFinalUsers: any[] = finalData.users || [];
 
-  console.log('========================================================================');
-  console.log(`🎉 LIVE PRODUCTION ROSTER (https://crm.telestar.cloud) — ${allFinalUsers.length} Users`);
+  console.log('\n========================================================================');
+  console.log(`🎉 LIVE PRODUCTION ROSTER (${PROD_URL}) — ${allFinalUsers.length} Users Active`);
   console.log('========================================================================\n');
 
   console.table(
     allFinalUsers.map((u: any) => ({
       email: u.email,
-      name: u.name,
+      name: `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() || u.name,
       role: u.role,
       active: u.isActive,
       manager: u.managerName ?? 'None',

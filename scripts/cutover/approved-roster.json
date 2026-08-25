@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "lastUpdated": "2026-08-24T08:40:00.000Z",
+  "lastUpdated": "2026-08-25T11:58:00.000Z",
   "approvedTenants": [
     {
       "id": "default-tenant",
@@ -10,8 +10,8 @@
   ],
   "approvedUsers": [
     {
-      "email": "sonnynguyenofficial@gmail.com",
-      "name": "Sonny Nguyen",
+      "email": "dean@telestar.vn",
+      "name": "Dean Nguyen",
       "role": "director",
       "tenantId": "default-tenant",
       "status": "ACTIVE"
