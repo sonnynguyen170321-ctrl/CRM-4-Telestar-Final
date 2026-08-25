@@ -24,6 +24,8 @@ import {
   checkCandidateShaAgreement,
   checkCertificateVersusOpenDefects,
   checkCiHeadSha,
+  checkCutoverPostProof,
+  checkEmailPostureIsMeasured,
   checkDocumentVerdictConsistency,
   checkLoadResultAgreement,
   checkNoFileUrls,
@@ -616,6 +618,122 @@ function main() {
       'K2 — three runs with distinct executionIds',
       checkRunExecutionIdentity(distinct),
       'distinct executionIds were reported as reused',
+    );
+  }
+
+  // ── R: a data cutover claimed without post-purge proof ───────────────────
+  {
+    const cutover = {
+      evidenceId: 'EV-PRODUCTION-DATA-CUTOVER',
+      kind: 'production-data-cutover',
+      status: 'PASS',
+      finishedAt: '2026-08-25T10:00:00.000Z',
+      metrics: { databaseFingerprint: 'prod:5432/telestar_crm' },
+    };
+    const goodProof = {
+      evidenceId: 'EV-CUTOVER-POST-PROOF',
+      kind: 'cutover-post-proof',
+      status: 'PASS',
+      startedAt: '2026-08-25T10:05:00.000Z',
+      metrics: {
+        databaseFingerprint: 'prod:5432/telestar_crm',
+        seedBusinessRowsRemaining: 0,
+        rowsRequiringReview: 0,
+        demoQueueJobs: 0,
+        demoScheduledEmails: 0,
+      },
+    };
+
+    expectRed(
+      'R — a cutover reporting PASS with no post-purge proof at all',
+      checkCutoverPostProof([cutover]),
+      '"the script completed" was accepted as evidence the rows are gone',
+    );
+
+    expectRed(
+      'R — a post-purge proof taken against a different database',
+      checkCutoverPostProof([
+        cutover,
+        { ...goodProof, metrics: { ...goodProof.metrics, databaseFingerprint: 'other:5432/telestar_crm' } },
+      ]),
+      'a proof against another instance was accepted for this cutover',
+    );
+
+    expectRed(
+      'R — a post-purge proof that ran before the delete',
+      checkCutoverPostProof([cutover, { ...goodProof, startedAt: '2026-08-25T09:00:00.000Z' }]),
+      'a proof predating the cutover was accepted as post-cutover evidence',
+    );
+
+    expectRed(
+      'R — a post-purge proof still reporting seed rows',
+      checkCutoverPostProof([
+        cutover,
+        { ...goodProof, metrics: { ...goodProof.metrics, seedBusinessRowsRemaining: 12 } },
+      ]),
+      'remaining seed rows did not fail the cutover claim',
+    );
+
+    expectRed(
+      'R — a post-purge proof silent about demo queue jobs',
+      checkCutoverPostProof([
+        cutover,
+        { ...goodProof, metrics: { ...goodProof.metrics, demoQueueJobs: undefined } },
+      ]),
+      'an unreported metric was treated as zero',
+    );
+
+    expectGreen(
+      'R — a cutover with a complete, later, same-database proof',
+      checkCutoverPostProof([cutover, goodProof]),
+      'a well-formed cutover proof was rejected',
+    );
+  }
+
+  // ── S: an email posture read off a template rather than the deployment ───
+  {
+    expectRed(
+      'S — an email posture sourced from .env.production.example',
+      checkEmailPostureIsMeasured([
+        {
+          evidenceId: 'EV-EMAIL-POSTURE',
+          kind: 'email-posture',
+          metrics: { source: '.env.production.example', measuredAgainstLiveDeployment: true },
+        },
+      ]),
+      'template values were accepted as a measured production posture',
+    );
+
+    expectRed(
+      'S — an email posture that names no source at all',
+      checkEmailPostureIsMeasured([
+        { evidenceId: 'EV-EMAIL-POSTURE', kind: 'email-posture', metrics: { EMAIL_SEND_DRY_RUN: true } },
+      ]),
+      'a posture with no stated source was accepted',
+    );
+
+    expectRed(
+      'S — an email posture not asserting it was measured live',
+      checkEmailPostureIsMeasured([
+        {
+          evidenceId: 'EV-EMAIL-POSTURE',
+          kind: 'email-posture',
+          metrics: { source: 'docker compose exec web printenv' },
+        },
+      ]),
+      'a posture that never claimed to be live was accepted',
+    );
+
+    expectGreen(
+      'S — a posture measured against the running deployment',
+      checkEmailPostureIsMeasured([
+        {
+          evidenceId: 'EV-EMAIL-POSTURE',
+          kind: 'email-posture',
+          metrics: { source: 'docker compose exec web printenv', measuredAgainstLiveDeployment: true },
+        },
+      ]),
+      'a genuinely measured posture was rejected',
     );
   }
 
