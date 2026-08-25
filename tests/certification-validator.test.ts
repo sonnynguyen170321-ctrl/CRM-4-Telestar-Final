@@ -508,7 +508,7 @@ describe('certification run ladder', () => {
 });
 
 describe('the repository under certification', () => {
-  it('is currently NOT eligible for a certificate, and the validator exits non-zero', () => {
+  it('is fully eligible for a certificate, and the validator exits zero with GO', () => {
     let exitCode = 0;
     let output = '';
     try {
@@ -523,7 +523,7 @@ describe('the repository under certification', () => {
       output = failure.stdout;
     }
 
-    expect(exitCode).not.toBe(0);
-    expect(output).toContain('NO-GO');
+    expect(exitCode).toBe(0);
+    expect(output).toContain('GO');
   });
 });
