@@ -2,7 +2,7 @@
 
 **Program**: Telestar Production Certification
 **Authoritative Source**: `docs/production-certification/defects.json`
-**Last Updated**: 2026-08-25T16:50:10.909Z
+**Last Updated**: 2026-08-25T17:06:21.528Z
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -551,9 +551,9 @@
 - **Status**: `OPEN`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: N/A
+- **Root cause**: Phase 15 claimed private VPC transport. Measured on the live instance: ipv4Enabled true, privateNetwork absent, primary address 136.110.29.201, and sslMode ALLOW_UNENCRYPTED_AND_ENCRYPTED — a public endpoint that would accept a plaintext connection. The single mitigating control was authorizedNetworks holding one /32, the application VM at 34.142.236.46. Two independent claims in one defect: the instance is publicly addressable, and it permitted unencrypted transport.
 - **Fix SHA**: `N/A`
-- **Verification evidence**: `N/A`
+- **Verification evidence**: `PARTIALLY RESOLVED — the transport half is closed, the public-IP half is not. Transport: the application was measured first, from inside the running web container, and was already connecting over TLS — pg_stat_ssl reported ssl true, TLSv1.3, TLS_AES_256_GCM_SHA384 — so enforcing encryption could not change how it connects. sslMode was then set to ENCRYPTED_ONLY under explicit operator authorization on 2026-08-25, read back from the API as ENCRYPTED_ONLY, and verified by a live read through the application client: 44 users returned, ssl true, TLSv1.3. Health HTTP 200 on three consecutive checks, all four containers up, worker queues ready. Still open: the instance remains publicly addressable — ipv4Enabled true and no privateNetwork — so closing this defect requires either Private Service Access or an explicit operator decision to accept a public endpoint bounded by the single-/32 authorizedNetworks entry.`
 
 ### `TEL-P2-028` — Doctor Reported Five False Or Unreadable Results About This Machine
 
