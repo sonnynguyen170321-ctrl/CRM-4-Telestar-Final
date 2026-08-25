@@ -631,6 +631,21 @@ jobs:
         run: npm audit --audit-level=high
         shell: bash
 
+      # `npm audit` answers "is anything here known-vulnerable". It says nothing about whether
+      # the tree npm actually built satisfies the ranges its packages declare, and those are
+      # different questions: TEL-P2-029 was two unmet peer ranges — `openai` requiring
+      # `ws@^8.18.0` while `webpack-bundle-analyzer` hoisted `ws@7.5.11` to the root, and
+      # `next-auth` requiring `nodemailer@^7 || ^8` against a direct dependency on 9. Neither
+      # is a vulnerability, both make `npm ls` exit non-zero, and nothing in CI looked.
+      #
+      # `npm ci` does not catch them either: it fails on a lockfile out of sync with the
+      # manifest, and installs an unsatisfiable peer graph with a warning.
+      - name: npm ls (the installed tree satisfies every declared range)
+        run: |
+          npm ci --no-audit --no-fund
+          npm ls --all > /dev/null
+        shell: bash
+
   # ── New dependencies must not arrive with known vulnerabilities ──────────
   # Pull requests only: the action diffs the PR's manifest against the base branch.
   # Additional signal — see `dependency-audit` above for the mandatory one.

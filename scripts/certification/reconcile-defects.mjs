@@ -70,9 +70,15 @@ const INCOMPLETE_SIGNALS = [
   /still needs/i,
 ];
 
-/** The signal a commit gives that it does not close what it names, or null. */
+/**
+ * The signal a commit gives that it does not close what it names, or null.
+ *
+ * Inline code spans are stripped first: a pattern inside backticks is being *named*, not
+ * asserted. A commit describing this list — "still matched by `half of`" — otherwise matches
+ * itself, and blocks a closure that has nothing to do with a partial fix.
+ */
 function incompletenessSignal(sha) {
-  const body = git(['show', '--format=%s%n%b', '--no-patch', sha]);
+  const body = git(['show', '--format=%s%n%b', '--no-patch', sha]).replace(/`[^`\n]*`/g, ' ');
   for (const pattern of INCOMPLETE_SIGNALS) {
     const match = body.match(pattern);
     if (match) return match[0];

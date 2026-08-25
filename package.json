@@ -68,7 +68,9 @@
   "_prisma_seed_removed": "The `prisma.seed` key is intentionally absent. It made `prisma migrate dev` and `prisma migrate reset` invoke the destructive demo seed automatically, with no prompt — a mistyped DATABASE_URL emptied the target database. Run `npm run db:seed` explicitly instead; it is guarded by lib/seed-guard.ts. See docs/pre-domain-hardening/PLAN.md Task 1.",
   "overrides": {
     "postcss": "^8.5.10",
-    "html-to-text": "^10.0.1"
+    "html-to-text": "^10.0.1",
+    "ws": "^8.18.0",
+    "nodemailer": "$nodemailer"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
