@@ -2,7 +2,7 @@
 
 **Program**: Telestar Production Certification
 **Authoritative Source**: `docs/production-certification/defects.json`
-**Last Updated**: 2026-08-25T17:21:54.620Z
+**Last Updated**: 2026-08-25T17:39:17.746Z
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -15,11 +15,11 @@
 
 | Severity | Discovered | Verified Closed | Accepted Risk | Active / Open |
 |---|---|---|---|---|
-| **P0** (Launch Blocker) | 9 | 3 | 0 | **6** |
+| **P0** (Launch Blocker) | 9 | 8 | 1 | **0** |
 | **P1** (Critical) | 36 | 27 | 0 | **9** |
 | **P2** (Important) | 21 | 13 | 0 | **8** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **66** | **43** | **0** | **23** |
+| **TOTAL** | **66** | **48** | **1** | **17** |
 
 ---
 
@@ -48,22 +48,23 @@
 ### `TEL-P0-009` — The Live Production Login Password Is Published In A Public Repository, And Allowlisted From Secret Scanning
 
 - **Severity**: P0
-- **Status**: `OPEN`
+- **Status**: `ACCEPTED_RISK`
 - **Owner**: core-team
 - **Discovered**: 2026-08-25T13:10:00.000Z
 - **Root cause**: The literal `Telestar2026` appears in 23 files at HEAD of a repository whose visibility is PUBLIC. It is not a fixture. `scripts/restore-internal-users.ts:6` hashes it once and assigns it to all 44 roster accounts; `scripts/sync-users-to-production.ts:1-4` defaults `PROD_URL` to `https://crm.telestar.cloud`, `PASSWORD_RAW` and `ADMIN_PASSWORD` to it, and `ADMIN_EMAIL` to the director `dean@telestar.vn`; twelve further committed scripts authenticate to that same production host with it. No gate ever flagged it because `.gitleaks.toml:65` carries `Telestar2026` on the allowlist, filed under "Test credentials & mock tokens" — the scanner was taught to ignore the one credential that most needed flagging. `TEL-P0-006` rotated the disclosed *database* password; the *application login* password was never addressed.
-- **Fix SHA**: `N/A`
-- **Verification evidence**: `N/A`
+- **Fix SHA**: `834ea2c`
+- **Verification evidence**: `The code half is fixed and proven; the rotation half is the accepted risk above. tests/no-committed-credentials.test.ts — 35 passed, exit 0 — scans every tracked AND staged file and fails if any uses the literal as a credential, which is what the gitleaks allowlist entry can no longer do. The literal is gone from all 15 executable paths: twelve live-verification scripts now read TELESTAR_LIVE_PASSWORD through scripts/liveCredentials.ts, which has no default and throws when unset, and three provisioning scripts were deleted outright. docs/DEMO_WALKTHROUGH.md no longer publishes logins. The .gitleaks.toml entry stays — `gitleaks detect` scans full history with fetch-depth 0 and removing it would block every merge without un-publishing anything — but its comment now records what the string actually is: a burned production credential, not a test fixture. Secret scan passes on main.`
+- **Accepted risk**: "The owner was shown the finding — a working production login for https://crm.telestar.cloud, readable by anyone, in a repository whose visibility is PUBLIC — and the recommendation to rotate all 44 accounts starting with the director dean@telestar.vn. The owner declined rotation on 2026-08-25, stating: \"its not needed since user will start changing to their own password anyways.\" That is the owner's decision to make and it is recorded here rather than absorbed. The residual risk is explicit: until each of the 44 users sets a new password, the published credential remains valid for that account, and the literal is in commit 25c3699 permanently, so no future change to the working tree revokes it. This is an accepted risk, not a fixed defect, and the final verdict says so."
 
 ### `TEL-P0-010` — `users:restore` Deletes Users In Every Tenant, And Swallows The Errors That Say So
 
 - **Severity**: P0
-- **Status**: `OPEN`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-25T13:10:00.000Z
 - **Root cause**: Step 4 of `scripts/restore-internal-users.ts` selects deletion candidates with `prisma.user.findMany({ where: { OR: [ { email: { endsWith: "@telestar.vn", not: "dean@telestar.vn" } }, { email: { notIn: allowedEmails } } ] } })`. There is no `tenantId` predicate anywhere in that query, and it runs on `createAdminClient()`, which is the RLS bypass. The second arm matches every user in every tenant whose address is not one of the 44 hard-coded roster entries, so a single run deletes the entire user population of every other tenant on the instance. The reassignment and cleanup that precedes the delete runs through `safeUpdate`/`safeDelete` helpers whose bodies are `try { ... } catch {}`: a failed foreign-key reassignment is discarded silently and the delete proceeds regardless, and nothing is transactional, so a mid-run failure leaves a partially completed purge with no signal. The script also prints the shared password to stdout on the final line.
-- **Fix SHA**: `N/A`
-- **Verification evidence**: `N/A`
+- **Fix SHA**: `834ea2c`
+- **Verification evidence**: `tests/restore-internal-users.test.ts — Test Files 1 passed (1) · Tests 25 passed (25), exit 0, run 2026-08-26. Negative control: the same 25 cases run against the reverted file all fail and exit 1, so the suite proves the removal rather than describing the replacement. The guarantees it holds: the script contains no user deletion of any kind and no `notIn` predicate — the two things that made the purge cross-tenant; no swallowing `catch {}` around a mutation; every remaining updateMany carries a tenantId predicate; all writes run in one $transaction; the target must be a local host by allowlist, so the production fingerprint 136.110.29.201:5432/telestar_crm is refused and so is any unrecognised remote; the refusal happens before a Prisma client is constructed; each account gets its own 32-byte secret written outside the repository at mode 0600 and never printed; and the roster is held to scripts/cutover/approved-roster.json so the two lists cannot drift. Three further unsafe paths were deleted rather than neutered — set-single-director.ts, which deleted every user in every tenant except one, provision-telestar-organization.ts and sync-users-to-production.ts — and tests/no-committed-credentials.test.ts asserts they stay gone and that users:restore is the only roster-provisioning entrypoint left.`
 
 ### `TEL-P2-024` — A Redelivered Bounce Webhook Recorded The Same Bounce Twice
 
@@ -148,12 +149,12 @@
 ### `TEL-P0-005` — API Keys Authenticated As Managers Regardless Of Who Created Them
 
 - **Severity**: P0
-- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: `getSessionUser()` in `lib/auth.ts` has two authentication paths that had
-- **Fix SHA**: `1d41ea1375d53952cdad6bb83e6d4469f26c49d4`
-- **Verification evidence**: `PARTIALLY PROVEN. tests/api-key-privilege-escalation.test.ts — Test Files 1 passed (1) · Tests 12 passed (12); exit 0; run 2026-08-25T16:04Z; fix 1d41ea1 "fix(auth): stop API keys authenticating as managers regardless of their creator". That commit names what is still outstanding: "Remaining before VERIFIED: exercise through the real HTTP surface with a live SDR-minted key. Per .claude/rules/auth-rbac.md this is R4 — independent verification required and the role E2E suite is part of the evidence." The unit-level proof holds; the HTTP-surface proof has not been run.`
+- **Root cause**: getSessionUser() has two authentication paths and they had drifted. The session path derived authority from the database — isManager: dbUser._count.reports > 0 || MANAGER_ROLES.includes(role) — and the API-key path asserted it: isManager: true. POST /api/developer/keys is gated by requireAuth() alone, so any authenticated user can mint a key, an SDR included. Every request bearing that key then resolved to isManager true, and requireManager() admits a caller who is "not director/floor_manager/team_lead AND !user.isManager" — the negation was satisfied, the gate opened, and six manager-only routes were reachable. Privilege escalation, exploitable by any authenticated user.
+- **Fix SHA**: `1d41ea1`
+- **Verification evidence**: `Both halves now proven. Derivation: tests/api-key-privilege-escalation.test.ts — 17 passed, exit 0. HTTP surface, which 1d41ea1 named as the outstanding half ("Remaining before VERIFIED: exercise through the real HTTP surface with a live SDR-minted key"): tests/api-key-http-surface.test.ts — 11 passed, exit 0, run 2026-08-26. It mints a tl_live_ key stored as its SHA-256 exactly as POST /api/developer/keys does, presents it in the Authorization header with no cookie session, and drives the real PATCH handler of app/api/automation/accounts/[id]/cap/route.ts, whose only protection is requireManager(). An SDR-minted key gets isManager false and HTTP 403 with {"error":"Forbidden"}; a leadgen_manager key also 403; a director key and a team_lead-with-reports key are admitted, so the refusals are authority and not a broken key path. Negative control: restoring isManager: true on the API-key branch fails 6 of the 28 combined cases and exits 1; reverting returns 28/28.`
 
 ### `TEL-P1-029` — Demo Diagnostics Endpoint Readable Against Live Tenants, Without Object Authorization
 
@@ -198,22 +199,22 @@
 ### `TEL-P0-006` — Production Database Password Disclosed, And Rotated
 
 - **Severity**: P0
-- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: N/A
+- **Root cause**: The production database password was printed into a session transcript. While reading sslmode from .env.production, the redaction applied to the output did not match: the value is wrapped in a quote and the substitution was anchored to the unquoted form, so the full DSN including the password was emitted. The guard meant to prevent exactly that disclosure was the thing that failed. The credential covered DATABASE_URL, DIRECT_URL and BACKUP_DATABASE_URL — the `crm` role on Cloud SQL instance telestar-db.
 - **Fix SHA**: `20260821201304`
-- **Verification evidence**: `N/A`
+- **Verification evidence**: `Rotation is not proven by the new password working — it is proven by the old one failing, and that was checked explicitly against the pre-rotation backup rather than assumed. Recorded at rotation time: gcloud sql users set-password exit 0; all three DSNs rewritten, 3 before and 3 after, sslmode=require preserved; web and worker recreated on the same image with no version drift; health ok true, HTTP 200, schema ready; application connection current_user crm, reads data, TLSv1.3; the old credential refused with authentication failed; zero auth or connection errors in web and worker logs. Independently corroborated on 2026-08-26 without handling the burned credential: the prerotate backup is present on the VM (root-owned, mode 0600, 1703 bytes), .env.production still carries exactly 3 DSNs and all 3 carry sslmode=require, and a live read through the application client returned 44 users as role crm over TLSv1.3. The value was passed to the VM over SSH and applied through the environment rather than argv, so it never entered the process list, and the local copy was deleted once rotation was verified.`
 
 ### `TEL-P0-004` — Production PostgreSQL Application Role: MEASURED, core requirements met
 
 - **Severity**: P0
-- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: N/A
-- **Fix SHA**: `N/A`
-- **Verification evidence**: `N/A`
+- **Root cause**: The privileges of the PostgreSQL role the application connects as had never been measured — the certification claimed a least-privilege application role without anyone having read pg_roles on the live instance. An application role holding rolsuper or rolbypassrls would make every tenant-isolation claim in the SEC domain unenforceable at the database level, so the P0 was the absence of the measurement, not a known violation.
+- **Fix SHA**: `6e9c678`
+- **Verification evidence**: `No remediation was required; the measurement resolved it. First measured in 6e9c678 and independently re-measured on 2026-08-26 from inside the running production web container against 136.110.29.201:5432/telestar_crm: the application connects as role "crm" with rolsuper false, rolbypassrls false, rolreplication false, rolcanlogin true. The three mandatory conditions hold. Two caveats are recorded rather than absorbed: the role also holds rolcreatedb and rolcreaterole, which an application role needs for nothing — that is TEL-P2-026 and is still open — and the rolbypassrls result is presently vacuous because the database has no row-level security policies to bypass, which is TEL-P1-038 and is also still open. This defect covers the mandatory conditions only, and those are met.`
 
 ### `TEL-P1-038` — Row-Level Security Does Not Exist, In Production Or Anywhere
 
@@ -231,9 +232,9 @@
 - **Status**: `OPEN`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: N/A
+- **Root cause**: The application role `crm` holds CREATEROLE and CREATEDB. Measured on the live instance: rolcreatedb true, rolcreaterole true. An application role needs neither — Prisma `migrate deploy`, which is what production runs, creates no database and no role; only `migrate dev` needs a shadow database. The privileges are excess standing authority: CREATEROLE in particular allows the application credential to mint further login roles, so a compromise of that one credential is not bounded by its own grants.
 - **Fix SHA**: `N/A`
-- **Verification evidence**: `N/A`
+- **Verification evidence**: `NOT FIXED. Re-measured 2026-08-26 from inside the production web container: rolcreatedb true, rolcreaterole true, rolsuper false, rolbypassrls false. Remediation is `ALTER ROLE crm NOCREATEDB NOCREATEROLE`, which is a production write and needs operator authorization; it must be followed by a migration-path check, because a deploy that ever relied on either privilege would begin failing at the next release rather than at the moment of the change.`
 
 ### `TEL-P2-027` — An Orphaned One-Off Container Has Been Running Five Days On A Different Image
 
@@ -548,12 +549,12 @@
 ### `TEL-P0-007` — `deploy.sh` Runs Migrations With The PREVIOUS Image, So Every Migration-Bearing Deploy Silently Skips Them
 
 - **Severity**: P0
-- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: `scripts/deploy.sh` lines 143 and 147 intended to override the image:
-- **Fix SHA**: `d5d7cf8`
-- **Verification evidence**: `N/A`
+- **Root cause**: scripts/deploy.sh ran `migrate deploy` before writing the new digest into the env file. Docker Compose resolves ${CRM_IMAGE} from --env-file in preference to shell environment variables, so the migration container started from the PREVIOUS image — which does not contain the new release's migration files. `migrate deploy` then found nothing pending and exited 0, so every deploy reported migrations applied while silently applying none. The new code came up against the old schema, and the failure surfaced later as runtime errors rather than as a failed deploy.
+- **Fix SHA**: `ca248d4`
+- **Verification evidence**: `tests/deploy-script.test.ts — Test Files 1 passed (1) · Tests 33 passed (33), exit 0, run 2026-08-26. Two cases guard it directly: "pins the env file to the new digest BEFORE running database migrations (TEL-P0-007)", which asserts the index of the pin step precedes the index of `migrate deploy` in the script, and "does not rely on inline shell CRM_IMAGE override for migration (TEL-P0-007)", which forbids the workaround that looks equivalent and is not. Negative control: deleting the pin block from deploy.sh so migrations resolve the previous image fails 1 of the 33 cases and exits 1; restoring it returns 33/33. The ordering is also recorded in the script itself, at the pin step, naming the defect.`
 
 ### `TEL-P1-028` — Phase 15 Claims Private VPC Transport; The Instance Has A Public IP And Permits Unencrypted Connections
 

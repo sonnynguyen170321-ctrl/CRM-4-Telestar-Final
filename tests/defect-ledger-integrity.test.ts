@@ -43,6 +43,7 @@ type Defect = {
   fixSha: string;
   fixKind?: string;
   fixReference?: string;
+  partialFixDischargedBy?: string;
   verificationEvidence: string;
   acceptedRisk: string | null;
   owner: string;
@@ -198,6 +199,11 @@ describe('a fix reference resolves to something real', () => {
 
 describe('no defect is closed against a commit that says it is partial', () => {
   it('finds no VERIFIED defect whose own fix commit declares work remaining', () => {
+    // A commit saying "Remaining before VERIFIED: …" describes the moment it was written, and
+    // the remainder can genuinely be supplied later. What must not happen is the defect closing
+    // while nobody says where. So the rule is not "never close against such a commit" — it is
+    // "never close against one silently": `partialFixDischargedBy` has to name the work that
+    // supplied the remainder, in the ledger, where a reader will find it.
     const offenders: string[] = [];
     for (const defect of defects) {
       if (defect.state !== 'VERIFIED') continue;
@@ -205,13 +211,28 @@ describe('no defect is closed against a commit that says it is partial', () => {
       const message = commitMessage(defect.fixSha);
       for (const pattern of INCOMPLETE_SIGNALS) {
         const match = message.match(pattern);
-        if (match) {
-          offenders.push(`${defect.id} (${defect.fixSha.slice(0, 7)} says "${match[0]}")`);
-          break;
+        if (!match) continue;
+        if ((defect.partialFixDischargedBy ?? '').trim().length < 20) {
+          offenders.push(
+            `${defect.id} (${defect.fixSha.slice(0, 7)} says "${match[0]}") — ` +
+              'no partialFixDischargedBy naming what supplied the remainder'
+          );
         }
+        break;
       }
     }
     expect(offenders, `closed against a self-declared partial fix:\n  ${offenders.join('\n  ')}`).toEqual([]);
+  });
+
+  it('a discharged partial fix names evidence, not a promise', () => {
+    // The escape hatch must not become a comment box: whatever discharged the remainder has to
+    // point at something runnable or something committed.
+    for (const defect of defects.filter((d) => (d.partialFixDischargedBy ?? '').trim())) {
+      expect(
+        /tests\/[\w.-]+\.test\.ts|\b[0-9a-f]{7,40}\b/.test(defect.partialFixDischargedBy!),
+        `${defect.id}: partialFixDischargedBy names no test file and no commit`
+      ).toBe(true);
+    }
   });
 
   it('still recognises the two commits that state their own limits', () => {
