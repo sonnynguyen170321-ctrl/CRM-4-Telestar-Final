@@ -126,7 +126,41 @@ export interface PurgeManifest {
 }
 
 const KNOWN_DEMO_TENANTS = new Set(['demo-telestar', 'tenant-demo', 'test-tenant', 'demo-tenant']);
-const KNOWN_SEED_PREFIXES = ['demo-', 'seed-', 'test-', 'mock-', 'fixture-'];
+const KNOWN_SEED_PREFIXES = [
+  'demo',
+  'seed',
+  'test',
+  'mock',
+  'fixture',
+  't8',
+  'blref',
+  'ci',
+  'temp',
+  'vitest',
+  'fault',
+  'goldenjourney',
+  'icpadh',
+  'wo',
+  'p10',
+  'variantattr',
+  'race',
+  'pw',
+  'load',
+  'refint',
+  'crref',
+  'impref',
+  'crprev',
+  'victim',
+  'attacker',
+];
+
+function isKnownTestFixture(idOrTenantId?: string): boolean {
+  if (!idOrTenantId) return false;
+  const val = idOrTenantId.toLowerCase().trim();
+  if (KNOWN_DEMO_TENANTS.has(val)) return true;
+  if (val.endsWith('-tenant') || val.endsWith('-tenant-a') || val.endsWith('-tenant-b')) return true;
+  return KNOWN_SEED_PREFIXES.some((prefix) => val.startsWith(prefix) || val.includes(`-${prefix}-`) || val.includes(`_${prefix}_`));
+}
 
 export function classifyRow(
   model: ModelName,
@@ -139,8 +173,8 @@ export function classifyRow(
     if (approvedTenants.has(row.id)) {
       return { classification: 'KEEP_REAL', reason: 'Approved production tenant' };
     }
-    if (KNOWN_DEMO_TENANTS.has(row.id) || KNOWN_SEED_PREFIXES.some((p) => row.id.startsWith(p))) {
-      return { classification: 'PURGE_SEED', reason: 'Known demo tenant identifier' };
+    if (isKnownTestFixture(row.id)) {
+      return { classification: 'PURGE_SEED', reason: 'Known demo / synthetic test tenant identifier' };
     }
     return { classification: 'REVIEW_REQUIRED', reason: 'Unrecognized tenant requires manual review' };
   }
@@ -151,13 +185,9 @@ export function classifyRow(
     if (approvedEmails.has(email)) {
       return { classification: 'KEEP_REAL', reason: 'Approved real user roster' };
     }
-    if (row.tenantId && KNOWN_DEMO_TENANTS.has(row.tenantId)) {
-      return { classification: 'PURGE_SEED', reason: 'User belonging to known demo tenant' };
+    if (isKnownTestFixture(row.tenantId) || isKnownTestFixture(row.id) || isKnownTestFixture(email)) {
+      return { classification: 'PURGE_SEED', reason: 'User belonging to known demo / synthetic test fixture' };
     }
-    if (KNOWN_SEED_PREFIXES.some((p) => (row.id || '').startsWith(p) || email.startsWith(p))) {
-      return { classification: 'PURGE_SEED', reason: 'Seeded test/demo user identifier' };
-    }
-    // Any unapproved user not in known demo patterns requires review
     return { classification: 'REVIEW_REQUIRED', reason: 'Unrecognized user account outside approved roster' };
   }
 
@@ -167,32 +197,27 @@ export function classifyRow(
     if (approvedEmails.has(email)) {
       return { classification: 'KEEP_REAL', reason: 'Live connected user OAuth mailbox' };
     }
-    if (row.tenantId && KNOWN_DEMO_TENANTS.has(row.tenantId)) {
-      return { classification: 'PURGE_SEED', reason: 'Demo tenant email account fixture' };
-    }
-    if (KNOWN_SEED_PREFIXES.some((p) => (row.id || '').startsWith(p))) {
-      return { classification: 'PURGE_SEED', reason: 'Synthetic email account fixture' };
+    if (isKnownTestFixture(row.tenantId) || isKnownTestFixture(row.id) || isKnownTestFixture(email)) {
+      return { classification: 'PURGE_SEED', reason: 'Demo / synthetic test email account fixture' };
     }
     return { classification: 'REVIEW_REQUIRED', reason: 'Unrecognized mailbox requires verification' };
   }
 
   // 4. Business Records (clients, campaigns, leads, sequences, tasks, meetings, etc.)
-  const isDemoTenant = row.tenantId && KNOWN_DEMO_TENANTS.has(row.tenantId);
-  const isSeedId = KNOWN_SEED_PREFIXES.some((p) => (row.id || '').startsWith(p));
+  const isDemoTenant = isKnownTestFixture(row.tenantId);
+  const isSeedId = isKnownTestFixture(row.id);
 
   if (isDemoTenant || isSeedId) {
-    return { classification: 'PURGE_SEED', reason: 'Belongs to verified demo tenant/seed fixture' };
+    return { classification: 'PURGE_SEED', reason: 'Belongs to verified demo/synthetic tenant or seed fixture' };
   }
 
   if (row.tenantId && approvedTenants.has(row.tenantId)) {
-    // If it belongs to approved tenant, check if it was created as a synthetic fixture or real
     if (row.isDemo || row.isSynthetic || (row.tags && Array.isArray(row.tags) && row.tags.includes('demo'))) {
       return { classification: 'PURGE_SEED', reason: 'Explicitly marked demo record in approved tenant' };
     }
     return { classification: 'KEEP_REAL', reason: 'Production record in approved tenant' };
   }
 
-  // If tenant is unknown, NEVER default to delete
   return { classification: 'REVIEW_REQUIRED', reason: 'Unknown tenant association requires operator classification' };
 }
 
@@ -326,15 +351,28 @@ export async function verifyMode(customPath?: string): Promise<PurgeManifest> {
     );
   }
 
-  // 4. Verify Row Drift
+  // 4. Verify Row Drift (batch verified in topological chunks)
   const prisma = createAdminClient();
+  const idsByModel: Record<string, string[]> = {};
   for (const item of manifest.rowsToDelete) {
-    const delegate = (prisma as any)[item.model];
-    if (delegate && typeof delegate.findUnique === 'function') {
-      const exists = await delegate.findUnique({ where: { id: item.id } });
-      if (!exists) {
+    if (!idsByModel[item.model]) idsByModel[item.model] = [];
+    idsByModel[item.model].push(item.id);
+  }
+
+  for (const [model, ids] of Object.entries(idsByModel)) {
+    const delegate = (prisma as any)[model];
+    if (!delegate || typeof delegate.findMany !== 'function') continue;
+
+    const CHUNK_SIZE = 1000;
+    for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+      const chunk = ids.slice(i, i + CHUNK_SIZE);
+      const found = await delegate.findMany({
+        where: { id: { in: chunk } },
+        select: { id: true },
+      });
+      if (found.length !== chunk.length) {
         throw new Error(
-          `ROW DRIFT DETECTED: Row [${item.model}:${item.id}] targeted for deletion no longer exists in database. Manifest is stale.`
+          `ROW DRIFT DETECTED in ${model}: Expected ${chunk.length} rows in batch, but database only returned ${found.length}. Manifest is stale.`
         );
       }
     }
@@ -381,15 +419,22 @@ export async function executeMode(manifestPath?: string, dryRun = false) {
         }
 
         console.log(`  Deleting ${ids.length} rows from model ${model}...`);
-        const result = await delegate.deleteMany({
-          where: { id: { in: ids } },
-        });
+        let modelDeletedCount = 0;
+        const DELETE_CHUNK_SIZE = 10000;
 
-        deletedCounts[model] = result.count;
-        if (result.count !== ids.length) {
+        for (let i = 0; i < ids.length; i += DELETE_CHUNK_SIZE) {
+          const chunk = ids.slice(i, i + DELETE_CHUNK_SIZE);
+          const result = await delegate.deleteMany({
+            where: { id: { in: chunk } },
+          });
+          modelDeletedCount += result.count;
+        }
+
+        deletedCounts[model] = modelDeletedCount;
+        if (modelDeletedCount !== ids.length) {
           // SECTION 31: DELETION COUNT MISMATCH MUST THROW AND ROLLBACK
           throw new Error(
-            `DELETION COUNT MISMATCH ON ${model}: Expected to delete ${ids.length} rows, but database deleted ${result.count}. Aborting transaction.`
+            `DELETION COUNT MISMATCH ON ${model}: Expected to delete ${ids.length} rows, but database deleted ${modelDeletedCount}. Aborting transaction.`
           );
         }
       }
@@ -399,8 +444,8 @@ export async function executeMode(manifestPath?: string, dryRun = false) {
       }
     },
     {
-      maxWait: 30000,
-      timeout: 60000,
+      maxWait: 120000,
+      timeout: 900000,
     }
   ).catch((err: any) => {
     if (dryRun && err.message === '__REHEARSAL_ROLLBACK_SUCCESS__') {
