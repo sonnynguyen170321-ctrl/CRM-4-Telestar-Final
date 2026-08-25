@@ -614,3 +614,129 @@ export function checkSourceIdentity(config) {
   }
   return findings;
 }
+
+/**
+ * Directive TEST R: a data cutover may not be VERIFIED without post-purge proof.
+ *
+ * "The script completed" is not evidence that the rows are gone (directive
+ * section 39). The proof is a separate, independent read of the database AFTER
+ * the delete, and it must be scoped to the same production database the cutover
+ * ran against — a postcheck against a different instance says nothing about the
+ * one that was changed.
+ *
+ * The failure this prevents is the cheapest false green in the whole program: an
+ * execution that reports SUCCESS, an operator who reads that as done, and nobody
+ * ever running the query that would show what remains.
+ */
+export function checkCutoverPostProof(records) {
+  const findings = [];
+  const execution = records.find((record) => record.kind === 'production-data-cutover');
+  if (!execution) return findings;
+
+  if (execution.status === 'PASS' || execution.status === 'VERIFIED') {
+    const proof = records.find((record) => record.kind === 'cutover-post-proof');
+
+    if (!proof) {
+      findings.push(
+        finding(
+          'CUTOVER_UNPROVEN',
+          `${execution.evidenceId} reports ${execution.status} with no post-cutover proof record; "the script completed" is not evidence the rows are gone`,
+        ),
+      );
+      return findings;
+    }
+
+    if (proof.status !== 'PASS') {
+      findings.push(
+        finding('CUTOVER_UNPROVEN', `post-cutover proof ${proof.evidenceId} is ${proof.status}, not PASS`),
+      );
+    }
+
+    const executionFingerprint = execution.metrics?.databaseFingerprint;
+    const proofFingerprint = proof.metrics?.databaseFingerprint;
+    if (!proofFingerprint || proofFingerprint !== executionFingerprint) {
+      findings.push(
+        finding(
+          'CUTOVER_UNPROVEN',
+          `post-cutover proof names database ${proofFingerprint ?? 'nothing'} but the cutover ran against ${executionFingerprint ?? 'an unrecorded database'}`,
+        ),
+      );
+    }
+
+    // A proof that ran before the delete proves the state that was about to be
+    // changed, not the state that was left behind.
+    const executedAt = Date.parse(execution.finishedAt ?? '');
+    const provedAt = Date.parse(proof.startedAt ?? '');
+    if (Number.isFinite(executedAt) && Number.isFinite(provedAt) && provedAt < executedAt) {
+      findings.push(
+        finding(
+          'CUTOVER_UNPROVEN',
+          `post-cutover proof started at ${proof.startedAt}, before the cutover finished at ${execution.finishedAt}`,
+        ),
+      );
+    }
+
+    for (const [metric, value] of Object.entries({
+      seedBusinessRowsRemaining: proof.metrics?.seedBusinessRowsRemaining,
+      rowsRequiringReview: proof.metrics?.rowsRequiringReview,
+      demoQueueJobs: proof.metrics?.demoQueueJobs,
+      demoScheduledEmails: proof.metrics?.demoScheduledEmails,
+    })) {
+      if (value === undefined || value === null) {
+        findings.push(finding('CUTOVER_UNPROVEN', `post-cutover proof does not report ${metric}`));
+      } else if (value !== 0) {
+        findings.push(finding('CUTOVER_UNPROVEN', `post-cutover proof reports ${metric}=${value}, expected 0`));
+      }
+    }
+  }
+
+  return findings;
+}
+
+/**
+ * Directive TEST S: live email posture must be MEASURED, never read off a template.
+ *
+ * `.env.production.example` will happily say EMAIL_SEND_DRY_RUN=true forever. It
+ * is a file in this repository, not a fact about the running deployment, and a
+ * posture record sourced from one is a claim about what somebody intended rather
+ * than what is configured (directive section 46).
+ *
+ * So a posture record must say where it read the values from, that source must
+ * be the live deployment, and it must not be an example/template file.
+ */
+export function checkEmailPostureIsMeasured(records) {
+  const findings = [];
+  for (const record of records) {
+    if (record.kind !== 'email-posture') continue;
+
+    const source = record.metrics?.source;
+    if (!source) {
+      findings.push(
+        finding(
+          'EMAIL_POSTURE_UNMEASURED',
+          `${record.evidenceId} reports an email posture without naming where the values were read from`,
+        ),
+      );
+      continue;
+    }
+
+    if (/example|template|sample|\.env\.production\.example/i.test(source)) {
+      findings.push(
+        finding(
+          'EMAIL_POSTURE_UNMEASURED',
+          `${record.evidenceId} read its posture from ${source}, which is a template rather than the running deployment`,
+        ),
+      );
+    }
+
+    if (record.metrics?.measuredAgainstLiveDeployment !== true) {
+      findings.push(
+        finding(
+          'EMAIL_POSTURE_UNMEASURED',
+          `${record.evidenceId} does not assert measuredAgainstLiveDeployment; template values do not count`,
+        ),
+      );
+    }
+  }
+  return findings;
+}
