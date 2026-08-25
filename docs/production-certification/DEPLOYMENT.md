@@ -9,7 +9,7 @@
 **Requirement**: `REL-001`
 **Defect**: `TEL-P1-018`
 **Chain status**: **COMPLETE**
-**Candidate SHA**: `5985ec474bc1eb3da05ae5db7560e83a4e70969d`
+**Candidate SHA**: `949eefe3a474ab76db1064cb3bb597715d9599bf`
 **Release tag**: `telestar-internal-rc-2026-08-22`
 
 ---
@@ -29,7 +29,7 @@ running.
 
 | Link | Value | How to establish it |
 |---|---|---|
-| APPLICATION_SOURCE_SHA | `5985ec474bc1eb3da05ae5db7560e83a4e70969d` | — |
+| APPLICATION_SOURCE_SHA | `949eefe3a474ab76db1064cb3bb597715d9599bf` | — |
 | CI_RUN_ID | `32711776013` | — |
 | IMAGE_DIGEST | `sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523` | — |
 | WEB_DIGEST | `sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523` | — |

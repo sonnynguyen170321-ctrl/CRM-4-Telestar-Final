@@ -1,7 +1,7 @@
 # gate: 12-import-fault-matrix — import durable-write failpoint matrix
 # command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/import-fault-injection.test.ts tests/import-race-stress.test.ts
-# startedAt: 2026-08-25T07:07:50.773Z
-# finishedAt: 2026-08-25T07:08:07.121Z
+# startedAt: 2026-08-25T10:49:12.449Z
+# finishedAt: 2026-08-25T10:49:29.364Z
 # exitCode: 0
 
 --- stdout ---
@@ -107,26 +107,26 @@ D:/Sonny Antigravity Project/Telestar-CRM-Final Production/CRM-4-Telestar-Final/
 → 919     prisma.activity.create(
 Unique constraint failed on the fields: (`idempotencyKey`)
 
- [32m✓[39m tests/import-fault-injection.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 7423[2mms[22m[39m
-       [33m[2m✓[22m[39m CRM import fails at after_account and converges cleanly on retry without duplicate records [33m 589[2mms[22m[39m
-       [33m[2m✓[22m[39m CRM import fails at after_contact and converges cleanly on retry without duplicate records [33m 349[2mms[22m[39m
-       [33m[2m✓[22m[39m CRM import fails at after_lead and converges cleanly on retry without duplicate records [33m 408[2mms[22m[39m
-       [33m[2m✓[22m[39m CRM import fails at after_import_row and converges cleanly on retry without duplicate records [33m 1988[2mms[22m[39m
-       [33m[2m✓[22m[39m CRM import fails at after_activity_lead_created and converges cleanly on retry without duplicate records [33m 933[2mms[22m[39m
-       [33m[2m✓[22m[39m CRM import fails at after_activity_sequence_enrolled and converges cleanly on retry without duplicate records [33m 478[2mms[22m[39m
-       [33m[2m✓[22m[39m CRM import fails at after_task and converges cleanly on retry without duplicate records [33m 446[2mms[22m[39m
-       [33m[2m✓[22m[39m Pool import fails at after_pool_item and converges cleanly on retry [33m 355[2mms[22m[39m
-       [33m[2m✓[22m[39m Pool import fails at after_pool_import_row and converges cleanly on retry [33m 307[2mms[22m[39m
-       [33m[2m✓[22m[39m Pool import fails at after_pool_activity and converges cleanly on retry [33m 302[2mms[22m[39m
-       [33m[2m✓[22m[39m executes identical chunk payload concurrently across 2 workers without duplicating leads or activities [33m 517[2mms[22m[39m
-       [33m[2m✓[22m[39m commit re-enqueues when chunks are in flight, then commits when chunks complete [33m 723[2mms[22m[39m
- [32m✓[39m tests/import-race-stress.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 11635[2mms[22m[39m
-     [33m[2m✓[22m[39m 120 concurrent rows across 40 shared accounts lose no lead [33m 11633[2mms[22m[39m
+ [32m✓[39m tests/import-race-stress.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 9990[2mms[22m[39m
+     [33m[2m✓[22m[39m 120 concurrent rows across 40 shared accounts lose no lead [33m 9987[2mms[22m[39m
+ [32m✓[39m tests/import-fault-injection.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 10255[2mms[22m[39m
+       [33m[2m✓[22m[39m CRM import fails at after_account and converges cleanly on retry without duplicate records [33m 986[2mms[22m[39m
+       [33m[2m✓[22m[39m CRM import fails at after_contact and converges cleanly on retry without duplicate records [33m 1574[2mms[22m[39m
+       [33m[2m✓[22m[39m CRM import fails at after_lead and converges cleanly on retry without duplicate records [33m 1007[2mms[22m[39m
+       [33m[2m✓[22m[39m CRM import fails at after_import_row and converges cleanly on retry without duplicate records [33m 937[2mms[22m[39m
+       [33m[2m✓[22m[39m CRM import fails at after_activity_lead_created and converges cleanly on retry without duplicate records [33m 864[2mms[22m[39m
+       [33m[2m✓[22m[39m CRM import fails at after_activity_sequence_enrolled and converges cleanly on retry without duplicate records [33m 858[2mms[22m[39m
+       [33m[2m✓[22m[39m CRM import fails at after_task and converges cleanly on retry without duplicate records [33m 814[2mms[22m[39m
+       [33m[2m✓[22m[39m Pool import fails at after_pool_item and converges cleanly on retry [33m 537[2mms[22m[39m
+       [33m[2m✓[22m[39m Pool import fails at after_pool_import_row and converges cleanly on retry [33m 544[2mms[22m[39m
+       [33m[2m✓[22m[39m Pool import fails at after_pool_activity and converges cleanly on retry [33m 443[2mms[22m[39m
+       [33m[2m✓[22m[39m executes identical chunk payload concurrently across 2 workers without duplicating leads or activities [33m 786[2mms[22m[39m
+       [33m[2m✓[22m[39m commit re-enqueues when chunks are in flight, then commits when chunks complete [33m 884[2mms[22m[39m
 
 [2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
 [2m      Tests [22m [1m[32m13 passed[39m[22m[90m (13)[39m
-[2m   Start at [22m 14:07:52
-[2m   Duration [22m 14.39s[2m (transform 1.69s, setup 581ms, import 3.46s, tests 19.06s, environment 1ms)[22m
+[2m   Start at [22m 17:49:15
+[2m   Duration [22m 13.73s[2m (transform 1.60s, setup 1.03s, import 3.95s, tests 20.25s, environment 0ms)[22m
 
 
 --- stderr ---

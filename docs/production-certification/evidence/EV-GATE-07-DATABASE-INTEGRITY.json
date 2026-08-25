@@ -1,19 +1,19 @@
 {
   "evidenceId": "EV-GATE-07-DATABASE-INTEGRITY",
   "kind": "gate",
-  "candidateSha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
+  "candidateSha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts",
-  "startedAt": "2026-08-25T07:06:53.598Z",
-  "finishedAt": "2026-08-25T07:06:57.659Z",
+  "startedAt": "2026-08-25T10:48:30.433Z",
+  "finishedAt": "2026-08-25T10:48:35.811Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {},
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/gate-07-database-integrity.log",
-      "sizeBytes": 1737,
-      "sha256": "787b56a9bc1282158b46897b1de810c3b24e367bb5a3f975176ae3e44c0ea523"
+      "sizeBytes": 1741,
+      "sha256": "f9c14f1f55fbf3e0be88a0bf1b59c52e23c5b0ae0e02dafe9ff3ed9154baf605"
     }
   ]
 }

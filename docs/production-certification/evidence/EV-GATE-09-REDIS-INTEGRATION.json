@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-GATE-09-REDIS-INTEGRATION",
   "kind": "gate",
-  "candidateSha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
+  "candidateSha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run tests/redis-integration.test.ts tests/ai-shared-circuit.test.ts tests/redis-readiness.test.ts --reporter=json --outputFile=.certification/redis.json",
-  "startedAt": "2026-08-25T07:07:04.685Z",
-  "finishedAt": "2026-08-25T07:07:10.952Z",
+  "startedAt": "2026-08-25T10:48:36.030Z",
+  "finishedAt": "2026-08-25T10:48:42.035Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -41,7 +41,7 @@
     {
       "path": "docs/production-certification/evidence/raw/gate-09-redis-integration.log",
       "sizeBytes": 572,
-      "sha256": "ffd6f1b512c074101c7e3e961a2c8354f09969ca5e383ab13fee92f7b75ddf81"
+      "sha256": "13e85bcb7f7fa48415ffd6e214df6cb90f8f3db85df0dfea3229059cc212ae09"
     }
   ]
 }

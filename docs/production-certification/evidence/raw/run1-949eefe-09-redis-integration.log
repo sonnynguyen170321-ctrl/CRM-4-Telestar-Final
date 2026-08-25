@@ -1,0 +1,11 @@
+# gate: 09-redis-integration — Redis integration suite - must execute, never skip
+# command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/redis-integration.test.ts tests/ai-shared-circuit.test.ts tests/redis-readiness.test.ts --reporter=json --outputFile=.certification/redis.json
+# startedAt: 2026-08-25T11:13:52.611Z
+# finishedAt: 2026-08-25T11:13:58.386Z
+# exitCode: 0
+
+--- stdout ---
+JSON report written to D:/Sonny Antigravity Project/Telestar-CRM-Final Production/CRM-4-Telestar-Final/.certification/redis.json
+
+--- stderr ---
+(empty)

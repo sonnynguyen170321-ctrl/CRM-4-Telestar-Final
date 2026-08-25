@@ -1,19 +1,19 @@
 {
   "evidenceId": "EV-VALIDATOR-SELFTEST",
   "kind": "validator-self",
-  "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
+  "candidateSha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe scripts/certification/validator-selftest.mjs",
-  "startedAt": "2026-08-24T09:30:00.000Z",
-  "finishedAt": "2026-08-24T09:32:00.000Z",
+  "startedAt": "2026-08-25T11:23:29.716Z",
+  "finishedAt": "2026-08-25T11:23:34.793Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {},
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/run3-d5d7cf8-23-validator-selftest.log",
-      "sizeBytes": 1760,
-      "sha256": "d9c1458150e71773d926241672664eb5d594474bf14d467e8ca35a83dee8ff72"
+      "path": "docs/production-certification/evidence/raw/run1-949eefe-23-validator-selftest.log",
+      "sizeBytes": 3175,
+      "sha256": "158e709c0dec9a91bf548d83b3b7b4ddf2af683adb2b25910580f0f55b91aa2b"
     }
   ]
 }

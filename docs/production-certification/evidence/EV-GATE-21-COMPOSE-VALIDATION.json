@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-GATE-21-COMPOSE-VALIDATION",
   "kind": "gate",
-  "candidateSha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
+  "candidateSha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe scripts/check-production-compose.mjs",
-  "startedAt": "2026-08-25T07:08:32.704Z",
-  "finishedAt": "2026-08-25T07:08:34.676Z",
+  "startedAt": "2026-08-25T10:49:43.336Z",
+  "finishedAt": "2026-08-25T10:49:50.979Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {},
@@ -13,7 +13,7 @@
     {
       "path": "docs/production-certification/evidence/raw/gate-21-compose-validation.log",
       "sizeBytes": 1413,
-      "sha256": "79dbff07be310b9b1ae45ee4ce9411887d5993fc72302a367b4963a9983bd732"
+      "sha256": "ab59832ce2f6132ee6c4961232ec0bd37984c37dc893bbc2fa72b41f3e1871bf"
     }
   ]
 }

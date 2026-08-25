@@ -6,17 +6,17 @@
   Regenerate: node scripts/certification/render-runs.mjs
 -->
 
-**Verdict**: **PASS**
-**Candidate SHA**: `c7bf639ef988a6ba9fffba3c88761dad245ef7a3`
+**Verdict**: **FAIL**
+**Candidate SHA**: `949eefe3a474ab76db1064cb3bb597715d9599bf`
 **Release tag**: `telestar-internal-rc-2026-08-22`
 **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
-**Ran**: 2026-08-24T09:33:00.000Z → 2026-08-24T09:35:00.000Z (17.7 min)
+**Ran**: 2026-08-25T11:03:36.146Z → 2026-08-25T11:23:34.794Z (20.0 min)
 
 ---
 
 ## 1. Scope
 
-This run executed **24 gates**: 24 passed, 0 failed, 0 blocked externally.
+This run executed **24 gates**: 22 passed, 1 failed, 1 blocked externally.
 Mandatory skips: **0**.
 
 No mandatory gate was omitted.
@@ -26,37 +26,37 @@ No mandatory gate was omitted.
 | Gate | Status | Exit | Duration | Notes |
 |---|---|---:|---:|---|
 | `01-source-identity` | **PASS** | 0 | 0.0s | — |
-| `02-environment` | **PASS** | 0 | 0.3s | — |
-| `03-typecheck` | **PASS** | 0 | 30.4s | — |
-| `04-lint` | **PASS** | 0 | 113.9s | — |
-| `05-test-discipline` | **PASS** | 0 | 0.4s | — |
-| `06-migration-validation` | **PASS** | 0 | 0.1s | — |
-| `07-database-integrity` | **PASS** | 0 | 4.4s | — |
-| `08-vitest` | **PASS** | 0 | 176.6s | — |
-| `09-redis-integration` | **PASS** | 0 | 3.9s | — |
-| `10-ai-certification` | **PASS** | 0 | 8.7s | — |
-| `11-email-safety` | **PASS** | 0 | 2.5s | — |
-| `12-import-fault-matrix` | **PASS** | 0 | 8.5s | — |
-| `13-queue-load` | **PASS** | 0 | 24.8s | — |
-| `14-security-suite` | **PASS** | 0 | 4.1s | — |
-| `15-production-build` | **PASS** | 0 | 124.6s | — |
-| `16-playwright-roles` | **PASS** | 0 | 37.4s | — |
-| `16-playwright-roles-evidence` | **PASS** | 0 | 0.2s | — |
-| `17-golden-browser-journey` | **PASS** | 0 | 16.0s | — |
-| `18-worker-readiness` | **PASS** | 0 | 3.6s | — |
+| `02-environment` | **PASS** | 0 | 0.4s | — |
+| `03-typecheck` | **PASS** | 0 | 35.5s | — |
+| `04-lint` | **PASS** | 0 | 101.8s | — |
+| `05-test-discipline` | **PASS** | 0 | 1.2s | — |
+| `06-migration-validation` | **PASS** | 0 | 1.2s | — |
+| `07-database-integrity` | **PASS** | 0 | 7.4s | — |
+| `08-vitest` | **PASS** | 0 | 468.4s | — |
+| `09-redis-integration` | **PASS** | 0 | 5.8s | — |
+| `10-ai-certification` | **PASS** | 0 | 15.8s | — |
+| `11-email-safety` | **PASS** | 0 | 5.1s | — |
+| `12-import-fault-matrix` | **PASS** | 0 | 12.2s | — |
+| `13-queue-load` | **PASS** | 0 | 60.4s | — |
+| `14-security-suite` | **PASS** | 0 | 8.1s | — |
+| `15-production-build` | **PASS** | 0 | 91.0s | — |
+| `16-playwright-roles` | **PASS** | 0 | 50.5s | — |
+| `16-playwright-roles-evidence` | **PASS** | 0 | 0.3s | — |
+| `17-golden-browser-journey` | **PASS** | 0 | 23.2s | — |
+| `18-worker-readiness` | **PASS** | 0 | 3.7s | — |
 | `22-health-smoke` | **PASS** | 0 | 0.0s | — |
-| `19-docker-build` | **PASS** | 0 | 479.8s | — |
-| `20-image-inspection` | **PASS** | 0 | 0.3s | — |
-| `21-compose-validation` | **PASS** | 0 | 2.7s | — |
-| `23-validator-selftest` | **PASS** | 0 | 3.8s | — |
+| `19-docker-build` | **FAIL** | 1 | 286.5s | — |
+| `20-image-inspection` | BLOCKED_EXTERNAL | 127 | 0.0s | gate 19 did not produce an image, so there is nothing to inspect |
+| `21-compose-validation` | **PASS** | 0 | 1.9s | — |
+| `23-validator-selftest` | **PASS** | 0 | 5.1s | — |
 
 ## 3. Test execution
 
 | Measure | Value |
 |---|---:|
-| Test files | 196 |
-| Test files passed | 196 |
-| Tests passed | 2812 |
+| Test files | 197 |
+| Test files passed | 197 |
+| Tests passed | 2847 |
 | Tests failed | 0 |
 | Tests skipped | 0 |
 
