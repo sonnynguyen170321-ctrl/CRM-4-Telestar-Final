@@ -11,7 +11,7 @@
  * Modes:
  *   --mode=PLAN       (read-only: inventories rows, classifies, generates purge-manifest.json + sha256)
  *   --mode=VERIFY     (validates safety preconditions, hashes, row drift, zero REVIEW_REQUIRED)
- *   --mode=REHEARSE   (dry-run transactional rehearsal against test/clone database)
+ *   --mode=REHEARSE   (dry-run transactional rehearsal against a RESTORED CLONE; requires --clone-of=<production-fingerprint>)
  *   --mode=EXECUTE    (atomic transactional deletion governed strictly by approved manifest)
  *   --mode=POSTCHECK  (independent verification confirming zero seed rows & referential integrity)
  */
@@ -181,6 +181,52 @@ export function evaluatePreconditions(evidencePath?: string | null): Preconditio
   });
 
   return checks;
+}
+
+/**
+ * Which database this run is allowed to touch (directive sections 27, 35, 36).
+ *
+ * Two opposite pairings, decided by whether this is a rehearsal:
+ *
+ * - **Execution** targets production, so the manifest's fingerprint must equal
+ *   the connected database. A manifest built for one instance cannot authorize
+ *   deletion on another.
+ * - **Rehearsal** targets a restore of production into an isolated environment,
+ *   so the manifest must name the production instance and the connected database
+ *   must NOT be it. A rehearsal that quietly ran against production is the more
+ *   dangerous of the two mistakes, which is why it is refused rather than warned
+ *   about.
+ */
+export function resolveTargetDatabase(args: {
+  manifestFingerprint: string;
+  currentFingerprint: string;
+  cloneOf?: string | null;
+}): { ok: true; note: string } | { ok: false; error: string } {
+  const { manifestFingerprint, currentFingerprint, cloneOf } = args;
+
+  if (cloneOf) {
+    if (manifestFingerprint !== cloneOf) {
+      return {
+        ok: false,
+        error: `CLONE ATTESTATION MISMATCH: --clone-of names [${cloneOf}], but the manifest was created for [${manifestFingerprint}]. Refusing.`,
+      };
+    }
+    if (currentFingerprint === cloneOf) {
+      return {
+        ok: false,
+        error: `REHEARSAL REFUSED: this process is connected to [${currentFingerprint}], which is the production instance the manifest targets. A rehearsal must run against a restored clone, never the instance it is rehearsing for.`,
+      };
+    }
+    return { ok: true, note: `rehearsing on clone [${currentFingerprint}] of production [${cloneOf}]` };
+  }
+
+  if (manifestFingerprint !== currentFingerprint) {
+    return {
+      ok: false,
+      error: `TARGET DATABASE MISMATCH: Manifest was created for [${manifestFingerprint}], but current DB is [${currentFingerprint}]. Refusing execution.`,
+    };
+  }
+  return { ok: true, note: `targeting [${currentFingerprint}], the instance the manifest names` };
 }
 
 export function getDatabaseFingerprint(): string {
@@ -468,7 +514,7 @@ export async function planMode(customRosterPath?: string): Promise<PurgeManifest
   return manifest;
 }
 
-export async function verifyMode(customPath?: string): Promise<PurgeManifest> {
+export async function verifyMode(customPath?: string, cloneOf?: string | null): Promise<PurgeManifest> {
   console.log('🔍 Executing VERIFY mode (pre-cutover safety assertions)...');
   const targetPath = customPath || resolveManifestPath();
   if (!existsSync(targetPath)) {
@@ -503,12 +549,22 @@ export async function verifyMode(customPath?: string): Promise<PurgeManifest> {
   }
 
   // 1. Verify Database Target
+  //
+  // A rehearsal deliberately runs somewhere else: directive section 36 requires
+  // the production backup be restored into an isolated environment and the exact
+  // manifest exercised THERE. So a rehearsal asserts the opposite pairing — the
+  // manifest must name the production instance, and this process must be
+  // connected to something that is not it. Both directions are checked, because
+  // a rehearsal that quietly ran against production would be the more dangerous
+  // of the two mistakes.
   const currentFingerprint = getDatabaseFingerprint();
-  if (manifest.productionDatabaseFingerprint !== currentFingerprint) {
-    throw new Error(
-      `TARGET DATABASE MISMATCH: Manifest was created for [${manifest.productionDatabaseFingerprint}], but current DB is [${currentFingerprint}]. Refusing execution.`
-    );
-  }
+  const target = resolveTargetDatabase({
+    manifestFingerprint: manifest.productionDatabaseFingerprint,
+    currentFingerprint,
+    cloneOf,
+  });
+  if (!target.ok) throw new Error(target.error);
+  console.log(`   ${target.note}`);
 
   // 2. Verify Approved Roster Hash
   const rosterFile = resolveRosterPath();
@@ -566,6 +622,19 @@ export async function executeMode(manifestPath?: string, dryRun = false) {
     throw new Error('EXECUTE REFUSED: Missing required flag --confirm-production-destructive-cutover');
   }
 
+  // Directive section 36: a rehearsal is exercised against the production backup
+  // restored into an isolated environment, not against the instance it is
+  // rehearsing for. REHEARSE was previously executeMode(dryRun=true) opening a
+  // transaction on the SAME database the manifest targets and rolling it back,
+  // which proves neither the restore nor the post-cutover application state, and
+  // holds long locks on production while it does so.
+  const cloneOf = dryRun ? parseArg('clone-of') : null;
+  if (dryRun && !cloneOf) {
+    throw new Error(
+      'REHEARSE REFUSED: --clone-of=<production-fingerprint> is required. A rehearsal runs against a restored clone; name the production instance it was restored from so the manifest can be matched to it.'
+    );
+  }
+
   // Directive section 30: every precondition must hold, or this exits non-zero
   // before the first delete. A rehearsal is non-destructive, so it reports the
   // same list without being blocked by it — that is how an operator sees what is
@@ -585,7 +654,7 @@ export async function executeMode(manifestPath?: string, dryRun = false) {
     console.log(`   (rehearsal continues; EXECUTE would refuse on ${unmet.length} unmet precondition(s))`);
   }
 
-  const manifest = await verifyMode(manifestPath);
+  const manifest = await verifyMode(manifestPath, dryRun ? cloneOf : null);
   const prisma = createAdminClient();
 
   const idsByModel: Record<string, string[]> = {};

@@ -2,7 +2,7 @@
 
 **Program**: Telestar Production Certification
 **Authoritative Source**: `docs/production-certification/defects.json`
-**Last Updated**: 2026-08-25T09:58:45.105Z
+**Last Updated**: 2026-08-25T10:20:36.795Z
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -628,12 +628,12 @@
 ### `TEL-P1-044` — REHEARSE Runs Against The Live Target, Not A Restored Backup Clone
 
 - **Severity**: P1
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION`
 - **Owner**: core-team
 - **Discovered**: 2026-08-25T00:00:00.000Z
 - **Root cause**: --mode=REHEARSE is executeMode(dryRun=true), which opens a transaction against the SAME database the manifest targets and rolls it back. Directive section 36 requires rehearsal against an isolated environment restored from the production backup, followed by application and worker boot, authentication and empty-state checks. A dry-run transaction on the live target proves neither the restore nor the post-cutover application state.
 - **Fix SHA**: `N/A`
-- **Verification evidence**: `N/A`
+- **Verification evidence**: `tests/safe-cutover-tool.test.ts — "Rehearsal targets a restored clone, not production (Sections 35, 36)", 5 cases; REHEARSE now requires --clone-of and refuses when connected to the instance the manifest targets`
 
 ### `TEL-P1-045` — VERIFY Omits The Backup, PITR, Email-Pause And Queue Preconditions
 

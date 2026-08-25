@@ -3,7 +3,7 @@
   "program": "Telestar Production Certification",
   "candidateSourceSha": "5985ec474bc1eb3da05ae5db7560e83a4e70969d",
   "releaseTag": "telestar-internal-rc-2026-08-22",
-  "generatedAt": "2026-08-25T10:16:38.021Z",
+  "generatedAt": "2026-08-25T10:20:59.995Z",
   "verdict": "NO-GO",
   "eligible": false,
   "requirements": {
@@ -270,7 +270,7 @@
       },
       {
         "id": "TEL-P1-044",
-        "status": "OPEN"
+        "status": "FIXED_PENDING_VERIFICATION"
       },
       {
         "id": "TEL-P1-045",
@@ -280,6 +280,7 @@
   },
   "evidenceRecords": 41,
   "validationFailures": {
+    "01": 1,
     "A": 43,
     "S": 1,
     "N": 3,
