@@ -1,0 +1,40 @@
+{
+  "evidenceId": "EV-BRANCH-PROTECTION",
+  "kind": "branch-governance",
+  "candidateSha": "016e0205b5ece66aab5266a94e744fb9fd2ed2ad",
+  "environment": "GitHub REST API and git push against sonnynguyen170321-ctrl/CRM-4-Telestar-Final from the certification workstation",
+  "command": "gh api -X PUT .../branches/main/protection; gh pr create; gh api -X PUT .../pulls/111/merge; git push origin main",
+  "startedAt": "2026-08-25T09:46:01.958Z",
+  "finishedAt": "2026-08-25T10:16:01.959Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {
+    "protectedBefore": false,
+    "requiredStatusChecks": [
+      "CI required checks"
+    ],
+    "strictUpToDate": true,
+    "enforceAdmins": true,
+    "requiredApprovingReviewCount": 0,
+    "requiredLinearHistory": true,
+    "allowForcePushes": false,
+    "allowDeletions": false,
+    "requiredConversationResolution": true,
+    "probePullRequest": 111,
+    "probeHeadSha": "06629ef481c899bd673a6ef47371fc88cbe35405",
+    "probeRequiredCheckConclusion": "FAILURE",
+    "probeMergeStateStatus": "BLOCKED",
+    "mergeAttemptHttpStatus": 405,
+    "mergeAttemptMessage": "Required status check \"CI required checks\" is failing.",
+    "directPushToMainRejected": true,
+    "directPushRejectionReason": "protected branch hook declined — changes must be made through a pull request",
+    "probeCleanedUp": true
+  },
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/branch-protection-behavioral-proof.log",
+      "sizeBytes": 2790,
+      "sha256": "44c5e18353ace61dc1b27269bf958f8b09f9dcf3d58d009d1c19ffacde0b6b83"
+    }
+  ]
+}
