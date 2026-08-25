@@ -1,7 +1,20 @@
 {
   "schemaVersion": 1,
-  "lastUpdated": "2026-08-25T17:06:21.528Z",
+  "lastUpdated": "2026-08-25T17:21:54.620Z",
   "defects": [
+    {
+      "id": "TEL-P1-047",
+      "severity": "P1",
+      "state": "FIXED_PENDING_VERIFICATION",
+      "title": "A Claim-Lease Test Failed The Build On Runner Load, Not On Behaviour",
+      "discoveredAt": "2026-08-26T00:15:00.000Z",
+      "rootCause": "tests/phase-7-knowledge.test.ts \"heartbeat holds a claim past the stale window\" compressed the staleness window to 200ms against a 50ms heartbeat, on the stated reasoning that this is the same relationship as 5 minutes against 60 seconds. That is true of the ratio and false of the robustness: five minutes tolerates a four-minute stall, 200ms tolerates a 150ms one, and a garbage-collection pause or a slow query against the CI Postgres service container exceeds 150ms routinely. When it did, the heartbeat missed a renewal, `heartbeat.lost()` fired at lib/research/engine.ts:200, executeAccountResearch returned status \"failed\", and the assertion read `expected 'failed' to be 'completed'` — a red build with nothing wrong in the code. A flaky mandatory test is a defect in its own right: it trains readers to re-run rather than investigate, and it is indistinguishable from a real regression at the moment it fires.",
+      "fixSha": "",
+      "fixKind": "commit",
+      "verificationEvidence": "",
+      "acceptedRisk": null,
+      "owner": "core-team"
+    },
     {
       "id": "TEL-P1-046",
       "severity": "P1",
