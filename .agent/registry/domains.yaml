@@ -27,6 +27,8 @@ domains:
       - scripts/check-stale-models.mjs
       - scripts/diagnose-ai-agent.ts
       - scripts/verify-ai-attribution.ts
+      - scripts/verify-ai-*.ts
+      - scripts/verify-new-ai-*.ts
     tests:
       - tests/ai-*.test.ts
       - tests/agent-*.test.ts
@@ -56,6 +58,7 @@ domains:
       - scripts/create-user.ts
       - scripts/create-admin.ts
       - scripts/restore-internal-users.ts
+      - scripts/liveCredentials.ts
     tests:
       - tests/access-control.test.ts
       - tests/admin-*.test.ts
