@@ -82,7 +82,7 @@ export async function scanNonDbState(): Promise<NonDbInventory> {
 
   // Check Redis keys for session tokens
   const sessionKeys = await redis.keys('session:*');
-  const rateLimitKeys = await redis.keys('rl:*');
+  const _rateLimitKeys = await redis.keys('rl:*');
   const demoKeys = await redis.keys('*demo*');
 
   const redisHost = REDIS_URL.replace(/:\/\/[^@]*@/, '://***@');
