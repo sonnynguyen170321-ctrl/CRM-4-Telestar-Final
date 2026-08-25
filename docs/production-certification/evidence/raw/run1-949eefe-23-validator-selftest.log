@@ -1,0 +1,55 @@
+# the validator rejects every injected false-green state
+# exitCode: 0
+
+--- stdout ---
+Validator self-test — every injected fault must turn the validator RED
+========================================================================
+  [RED ] A — a document declaring a foreign candidate SHA
+  [CLEAN] A — an evidence record at the frozen candidate is not reported
+  [RED ] A — an evidence record declaring a foreign candidate SHA
+  [RED ] A — an evidence record left at a previous candidate
+  [RED ] C — the certificate publishing a load figure the report does not contain
+  [RED ] I — a file:// reference in certification documentation
+  [RED ] J — documentation citing a nonexistent script
+  [RED ] J2 — a requirement citing a test file that was never written
+  [RED ] F — an APPROVED certificate while a P0 defect is open
+  [RED ] P/Q — a 48 MB backup carrying the empty-file SHA-256
+  [RED ] P — a backup declaring zero bytes
+  [RED ] R — no release identity record at all
+  [RED ] S — a deployed health SHA that is not the candidate
+  [RED ] T — web and worker on different images, undeclared
+  [RED ] D — an evidence record missing its provenance fields
+  [RED ] D — a record claiming PASS with a non-zero exit code
+  [RED ] G/H — a real artifact whose recorded hash has been altered
+  [RED ] REQ — evidence bound to a superseded candidate SHA
+  [RED ] K — a final run carrying a mandatory skip
+  [RED ] L — a run that omitted a mandatory gate
+  [RED ] Redis — a skipped integration suite reported as PASS
+  [RED ] ROLE — a failing role inside an otherwise passing browser record
+  [RED ] TIME — candidate execution predating candidate freeze
+  [RED ] SOURCE — executedHeadSha differs from candidate
+  [RED ] ROLLBACK — rollback record with empty artifacts
+  [RED ] CI — CI run head SHA belongs to another commit
+  [CLEAN] H — the repository documents agree with each other
+  [RED ] H — FINAL_CERTIFICATE says GO while MASTER_TRACKER says NO-GO
+  [RED ] H — FINAL_CERTIFICATE says GO while progress.json says NO-GO
+  [RED ] C2 — a run declaring the candidate while gate 01 measured another commit
+  [RED ] C2 — a run that reports no measured head at all
+  [CLEAN] C2 — a run whose measured head is the candidate
+  [RED ] K2 — three runs sharing one executionId
+  [CLEAN] K2 — three runs with distinct executionIds
+  [RED ] R — a cutover reporting PASS with no post-purge proof at all
+  [RED ] R — a post-purge proof taken against a different database
+  [RED ] R — a post-purge proof that ran before the delete
+  [RED ] R — a post-purge proof still reporting seed rows
+  [RED ] R — a post-purge proof silent about demo queue jobs
+  [CLEAN] R — a cutover with a complete, later, same-database proof
+  [RED ] S — an email posture sourced from .env.production.example
+  [RED ] S — an email posture that names no source at all
+  [RED ] S — an email posture not asserting it was measured live
+  [CLEAN] S — a posture measured against the running deployment
+========================================================================
+44 detected, 0 missed, 0 skipped
+
+--- stderr ---
+(empty)

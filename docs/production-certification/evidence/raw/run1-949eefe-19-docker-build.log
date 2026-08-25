@@ -1,0 +1,279 @@
+# Docker image build from candidate SHA
+# exitCode: 1
+
+--- stdout ---
+(empty)
+--- stderr ---
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 3.54kB 0.1s done
+#1 DONE 0.1s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1
+#2 ...
+
+#3 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1
+#2 DONE 3.6s
+
+#4 docker-image://docker.io/docker/dockerfile:1@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32
+#4 resolve docker.io/docker/dockerfile:1@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32 0.1s done
+#4 CACHED
+
+#5 [internal] load metadata for docker.io/library/node:24.18.0-bookworm-slim
+#5 ...
+
+#6 [auth] library/node:pull token for registry-1.docker.io
+#6 DONE 0.0s
+
+#5 [internal] load metadata for docker.io/library/node:24.18.0-bookworm-slim
+#5 DONE 1.6s
+
+#7 [internal] load .dockerignore
+#7 transferring context: 358B 0.0s done
+#7 DONE 0.1s
+
+#8 [internal] load build context
+#8 ...
+
+#9 [deps 1/5] FROM docker.io/library/node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d
+#9 resolve docker.io/library/node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d 0.1s done
+#9 DONE 0.2s
+
+#10 [deps 2/5] WORKDIR /app
+#10 CACHED
+
+#8 [internal] load build context
+#8 transferring context: 1.32MB 1.0s done
+#8 DONE 1.0s
+
+#11 [runner  3/16] RUN apt-get update   && apt-get install -y --no-install-recommends ca-certificates openssl   && rm -rf /var/lib/apt/lists/*
+#11 1.640 Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
+#11 2.145 Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+#11 2.496 Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [34.8 kB]
+#11 2.765 Get:4 http://deb.debian.org/debian bookworm/main amd64 Packages [8790 kB]
+#11 ...
+
+#12 [deps 3/5] RUN apt-get update   && apt-get install -y --no-install-recommends ca-certificates openssl   && rm -rf /var/lib/apt/lists/*
+#12 1.541 Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
+#12 1.857 Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+#12 2.044 Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [34.8 kB]
+#12 2.173 Get:4 http://deb.debian.org/debian bookworm/main amd64 Packages [8790 kB]
+#12 88.84 Get:5 http://deb.debian.org/debian bookworm-updates/main amd64 Packages [6924 B]
+#12 88.91 Get:6 http://deb.debian.org/debian-security bookworm-security/main amd64 Packages [335 kB]
+#12 ...
+
+#11 [runner  3/16] RUN apt-get update   && apt-get install -y --no-install-recommends ca-certificates openssl   && rm -rf /var/lib/apt/lists/*
+#11 91.31 Get:5 http://deb.debian.org/debian bookworm-updates/main amd64 Packages [6924 B]
+#11 91.31 Get:6 http://deb.debian.org/debian-security bookworm-security/main amd64 Packages [335 kB]
+#11 95.54 Fetched 9374 kB in 1min 34s (99.6 kB/s)
+#11 95.54 Reading package lists...
+#11 97.34 Reading package lists...
+#11 ...
+
+#12 [deps 3/5] RUN apt-get update   && apt-get install -y --no-install-recommends ca-certificates openssl   && rm -rf /var/lib/apt/lists/*
+#12 93.01 Fetched 9374 kB in 1min 32s (102 kB/s)
+#12 93.01 Reading package lists...
+#12 95.83 Reading package lists...
+#12 97.42 Building dependency tree...
+#12 97.71 Reading state information...
+#12 98.18 The following additional packages will be installed:
+#12 98.19   libssl3
+#12 98.28 The following NEW packages will be installed:
+#12 98.28   ca-certificates libssl3 openssl
+#12 98.51 0 upgraded, 3 newly installed, 0 to remove and 0 not upgraded.
+#12 98.51 Need to get 3637 kB of archives.
+#12 98.51 After this operation, 8940 kB of additional disk space will be used.
+#12 98.51 Get:1 http://deb.debian.org/debian bookworm/main amd64 libssl3 amd64 3.0.20-1~deb12u2 [2036 kB]
+#12 ...
+
+#11 [runner  3/16] RUN apt-get update   && apt-get install -y --no-install-recommends ca-certificates openssl   && rm -rf /var/lib/apt/lists/*
+#11 97.34 Reading package lists...
+#11 99.05 Building dependency tree...
+#11 99.45 Reading state information...
+#11 100.3 The following additional packages will be installed:
+#11 100.3   libssl3
+#11 100.4 The following NEW packages will be installed:
+#11 100.4   ca-certificates libssl3 openssl
+#11 100.6 0 upgraded, 3 newly installed, 0 to remove and 0 not upgraded.
+#11 100.6 Need to get 3637 kB of archives.
+#11 100.6 After this operation, 8940 kB of additional disk space will be used.
+#11 100.6 Get:1 http://deb.debian.org/debian bookworm/main amd64 libssl3 amd64 3.0.20-1~deb12u2 [2036 kB]
+#11 101.3 Get:2 http://deb.debian.org/debian bookworm/main amd64 openssl amd64 3.0.20-1~deb12u2 [1439 kB]
+#11 101.9 Get:3 http://deb.debian.org/debian-security bookworm-security/main amd64 ca-certificates all 20250419~deb12u1 [162 kB]
+#11 102.3 debconf: delaying package configuration, since apt-utils is not installed
+#11 102.4 Fetched 3637 kB in 1s (2541 kB/s)
+#11 102.5 Selecting previously unselected package libssl3:amd64.
+#11 102.5 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 6096 files and directories currently installed.)
+#11 102.5 Preparing to unpack .../libssl3_3.0.20-1~deb12u2_amd64.deb ...
+#11 102.6 Unpacking libssl3:amd64 (3.0.20-1~deb12u2) ...
+#11 103.1 Selecting previously unselected package openssl.
+#11 103.1 Preparing to unpack .../openssl_3.0.20-1~deb12u2_amd64.deb ...
+#11 103.1 Unpacking openssl (3.0.20-1~deb12u2) ...
+#11 103.7 Selecting previously unselected package ca-certificates.
+#11 103.7 Preparing to unpack .../ca-certificates_20250419~deb12u1_all.deb ...
+#11 103.8 Unpacking ca-certificates (20250419~deb12u1) ...
+#11 104.1 Setting up libssl3:amd64 (3.0.20-1~deb12u2) ...
+#11 104.1 Setting up openssl (3.0.20-1~deb12u2) ...
+#11 104.3 Setting up ca-certificates (20250419~deb12u1) ...
+#11 104.5 debconf: unable to initialize frontend: Dialog
+#11 104.5 debconf: (TERM is not set, so the dialog frontend is not usable.)
+#11 104.5 debconf: falling back to frontend: Readline
+#11 104.5 debconf: unable to initialize frontend: Readline
+#11 104.5 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC contains: /etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.36.0 /usr/local/share/perl/5.36.0 /usr/lib/x86_64-linux-gnu/perl5/5.36 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.36 /usr/share/perl/5.36 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 7.)
+#11 104.5 debconf: falling back to frontend: Teletype
+#11 106.7 Updating certificates in /etc/ssl/certs...
+#11 ...
+
+#12 [deps 3/5] RUN apt-get update   && apt-get install -y --no-install-recommends ca-certificates openssl   && rm -rf /var/lib/apt/lists/*
+#12 99.47 Get:2 http://deb.debian.org/debian bookworm/main amd64 openssl amd64 3.0.20-1~deb12u2 [1439 kB]
+#12 100.0 Get:3 http://deb.debian.org/debian-security bookworm-security/main amd64 ca-certificates all 20250419~deb12u1 [162 kB]
+#12 100.7 debconf: delaying package configuration, since apt-utils is not installed
+#12 100.9 Fetched 3637 kB in 2s (2043 kB/s)
+#12 101.1 Selecting previously unselected package libssl3:amd64.
+#12 101.1 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 6096 files and directories currently installed.)
+#12 101.3 Preparing to unpack .../libssl3_3.0.20-1~deb12u2_amd64.deb ...
+#12 101.4 Unpacking libssl3:amd64 (3.0.20-1~deb12u2) ...
+#12 102.1 Selecting previously unselected package openssl.
+#12 102.1 Preparing to unpack .../openssl_3.0.20-1~deb12u2_amd64.deb ...
+#12 102.1 Unpacking openssl (3.0.20-1~deb12u2) ...
+#12 102.6 Selecting previously unselected package ca-certificates.
+#12 102.6 Preparing to unpack .../ca-certificates_20250419~deb12u1_all.deb ...
+#12 102.6 Unpacking ca-certificates (20250419~deb12u1) ...
+#12 102.9 Setting up libssl3:amd64 (3.0.20-1~deb12u2) ...
+#12 102.9 Setting up openssl (3.0.20-1~deb12u2) ...
+#12 103.0 Setting up ca-certificates (20250419~deb12u1) ...
+#12 103.3 debconf: unable to initialize frontend: Dialog
+#12 103.3 debconf: (TERM is not set, so the dialog frontend is not usable.)
+#12 103.3 debconf: falling back to frontend: Readline
+#12 103.3 debconf: unable to initialize frontend: Readline
+#12 103.3 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC contains: /etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.36.0 /usr/local/share/perl/5.36.0 /usr/lib/x86_64-linux-gnu/perl5/5.36 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.36 /usr/share/perl/5.36 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 7.)
+#12 103.3 debconf: falling back to frontend: Teletype
+#12 105.3 Updating certificates in /etc/ssl/certs...
+#12 108.5 150 added, 0 removed; done.
+#12 108.6 Processing triggers for libc-bin (2.36-9+deb12u14) ...
+#12 108.9 Processing triggers for ca-certificates (20250419~deb12u1) ...
+#12 108.9 Updating certificates in /etc/ssl/certs...
+#12 ...
+
+#11 [runner  3/16] RUN apt-get update   && apt-get install -y --no-install-recommends ca-certificates openssl   && rm -rf /var/lib/apt/lists/*
+#11 109.7 150 added, 0 removed; done.
+#11 109.9 Processing triggers for libc-bin (2.36-9+deb12u14) ...
+#11 110.0 Processing triggers for ca-certificates (20250419~deb12u1) ...
+#11 110.1 Updating certificates in /etc/ssl/certs...
+#11 ...
+
+#12 [deps 3/5] RUN apt-get update   && apt-get install -y --no-install-recommends ca-certificates openssl   && rm -rf /var/lib/apt/lists/*
+#12 111.1 0 added, 0 removed; done.
+#12 111.1 Running hooks in /etc/ca-certificates/update.d...
+#12 111.1 done.
+#12 DONE 111.5s
+
+#13 [deps 4/5] COPY package.json package-lock.json ./
+#13 DONE 0.5s
+
+#11 [runner  3/16] RUN apt-get update   && apt-get install -y --no-install-recommends ca-certificates openssl   && rm -rf /var/lib/apt/lists/*
+#11 112.4 0 added, 0 removed; done.
+#11 112.4 Running hooks in /etc/ca-certificates/update.d...
+#11 112.4 done.
+#11 DONE 112.5s
+
+#14 [deps 5/5] RUN npm ci
+#14 ...
+
+#15 [runner  4/16] COPY --chown=node:node package.json package-lock.json ./
+#15 DONE 0.4s
+
+#16 [runner  5/16] COPY --chown=node:node prisma ./prisma
+#16 DONE 0.6s
+
+#14 [deps 5/5] RUN npm ci
+#14 ...
+
+#17 [runner  6/16] RUN npm ci --omit=dev   && npx prisma generate   && npm cache clean --force
+#17 31.92 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+#17 40.90 npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+#17 ...
+
+#14 [deps 5/5] RUN npm ci
+#14 48.58 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+#14 65.61 npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+#14 ...
+
+#17 [runner  6/16] RUN npm ci --omit=dev   && npx prisma generate   && npm cache clean --force
+#17 127.0 npm warn allow-scripts 5 packages have install scripts not yet covered by allowScripts:
+#17 127.0 npm warn allow-scripts   @prisma/client@6.2.1 (postinstall: node scripts/postinstall.js)
+#17 127.0 npm warn allow-scripts   @prisma/engines@6.2.1 (postinstall: node scripts/postinstall.js)
+#17 127.0 npm warn allow-scripts   esbuild@0.28.1 (postinstall: node install.js)
+#17 127.0 npm warn allow-scripts   msgpackr-extract@3.0.4 (install: node-gyp-build-optional-packages)
+#17 127.0 npm warn allow-scripts   prisma@6.2.1 (preinstall: node scripts/preinstall-entry.js)
+#17 127.0 npm warn allow-scripts
+#17 127.0 npm warn allow-scripts Run `npm approve-scripts --allow-scripts-pending` to review, or `npm approve-scripts <pkg>` to allow.
+#17 127.0 
+#17 127.0 added 315 packages, and audited 316 packages in 2m
+#17 127.0 
+#17 127.0 73 packages are looking for funding
+#17 127.0   run `npm fund` for details
+#17 127.0 
+#17 127.0 found 0 vulnerabilities
+#17 127.0 npm notice
+#17 127.0 npm notice New major version of npm available! 11.16.0 -> 12.0.2
+#17 127.0 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#17 127.0 npm notice To update run: npm install -g npm@12.0.2
+#17 127.0 npm notice
+#17 ...
+
+#14 [deps 5/5] RUN npm ci
+#14 128.6 
+#14 128.6 added 640 packages, and audited 641 packages in 2m
+#14 128.6 
+#14 128.6 209 packages are looking for funding
+#14 128.6   run `npm fund` for details
+#14 128.6 
+#14 128.6 found 0 vulnerabilities
+#14 128.6 npm warn allow-scripts 6 packages have install scripts not yet covered by allowScripts:
+#14 128.6 npm warn allow-scripts   @prisma/client@6.2.1 (postinstall: node scripts/postinstall.js)
+#14 128.6 npm warn allow-scripts   @prisma/engines@6.2.1 (postinstall: node scripts/postinstall.js)
+#14 128.6 npm warn allow-scripts   esbuild@0.28.1 (postinstall: node install.js)
+#14 128.6 npm warn allow-scripts   msgpackr-extract@3.0.4 (install: node-gyp-build-optional-packages)
+#14 128.6 npm warn allow-scripts   prisma@6.2.1 (preinstall: node scripts/preinstall-entry.js)
+#14 128.6 npm warn allow-scripts   unrs-resolver@1.12.2 (postinstall: node postinstall.js)
+#14 128.6 npm warn allow-scripts
+#14 128.6 npm warn allow-scripts Run `npm approve-scripts --allow-scripts-pending` to review, or `npm approve-scripts <pkg>` to allow.
+#14 128.6 npm notice
+#14 128.6 npm notice New major version of npm available! 11.16.0 -> 12.0.2
+#14 128.6 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#14 128.6 npm notice To update run: npm install -g npm@12.0.2
+#14 128.6 npm notice
+#14 DONE 131.6s
+
+#17 [runner  6/16] RUN npm ci --omit=dev   && npx prisma generate   && npm cache clean --force
+#17 131.8 Prisma schema loaded from prisma/schema.prisma
+#17 138.9 
+#17 138.9 ✔ Generated Prisma Client (v6.2.1) to ./node_modules/@prisma/client in 3.90s
+#17 138.9 
+#17 138.9 Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+#17 138.9 
+#17 138.9 Help us improve the Prisma ORM for everyone. Share your feedback in a short 2-min survey: https://pris.ly/orm/survey/release-5-22
+#17 138.9 
+#17 139.6 npm warn using --force Recommended protections disabled.
+#17 DONE 140.6s
+
+#18 [builder 4/6] COPY --from=deps /app/node_modules ./node_modules
+#18 ERROR: write /var/lib/docker/buildkit/containerd-overlayfs/metadata_v2.db: read-only file system
+------
+ > [builder 4/6] COPY --from=deps /app/node_modules ./node_modules:
+------
+Dockerfile:22
+--------------------
+  20 |       && rm -rf /var/lib/apt/lists/*
+  21 |     
+  22 | >>> COPY --from=deps /app/node_modules ./node_modules
+  23 |     COPY . .
+  24 |     
+--------------------
+ERROR: failed to build: failed to solve: write /var/lib/docker/buildkit/containerd-overlayfs/metadata_v2.db: read-only file system
+

@@ -1,91 +1,13 @@
 ▲ Next.js 16.3.0
 - Local:         http://localhost:3000
 - Network:       http://192.168.1.26:3000
-✓ Ready in 1043ms
-✓ Running next.config.ts took 340ms
+✓ Ready in 496ms
+✓ Running next.config.ts took 106ms
 [env] Gmail OAuth not configured (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI) — related features disabled
 [env] Microsoft OAuth not configured (MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, MICROSOFT_REDIRECT_URI) — related features disabled
 [login-throttle] count read failed, failing open: Stream isn't writeable and enableOfflineQueue options is false
-⨯ Error [PrismaClientKnownRequestError]: 
-Invalid `prisma.user.findUnique()` invocation:
-
-
-Can't reach database server at `localhost:5432`
-
-Please make sure your database server is running at `localhost:5432`.
-    at async Array.$allOperations (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\.next\server\chunks\lib_prisma_ts_1-34p_a._.js:1:7727)
-    at async (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\.next\server\chunks\[root-of-the-server]__1xur5nx._.js:1:4303)
-    at async m (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\.next\server\chunks\[root-of-the-server]__1xur5nx._.js:1:4830)
-    at async s (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\.next\server\chunks\_1zbyc_4._.js:1:2588) {
-  code: 'P1001',
-  clientVersion: '6.2.1',
-  meta: {
-    modelName: 'User',
-    database_host: 'localhost',
-    database_port: 5432
-  }
-}
-⨯ Error [PrismaClientKnownRequestError]: 
-Invalid `prisma.user.findUnique()` invocation:
-
-
-Can't reach database server at `localhost:5432`
-
-Please make sure your database server is running at `localhost:5432`.
-    at async Array.$allOperations (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\.next\server\chunks\lib_prisma_ts_1-34p_a._.js:1:7727)
-    at async (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\.next\server\chunks\[root-of-the-server]__1xur5nx._.js:1:4303)
-    at async m (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\.next\server\chunks\[root-of-the-server]__1xur5nx._.js:1:4830)
-    at async q (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\.next\server\chunks\_05rdnpu._.js:1:29936) {
-  code: 'P1001',
-  clientVersion: '6.2.1',
-  meta: {
-    modelName: 'User',
-    database_host: 'localhost',
-    database_port: 5432
-  }
-}
-⨯ Error [PrismaClientKnownRequestError]: 
-Invalid `prisma.user.findUnique()` invocation:
-
-
-Can't reach database server at `localhost:5432`
-
-Please make sure your database server is running at `localhost:5432`.
-    at async Array.$allOperations (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\.next\server\chunks\lib_prisma_ts_1-34p_a._.js:1:7727)
-    at async (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\.next\server\chunks\[root-of-the-server]__1xur5nx._.js:1:4303)
-    at async m (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\.next\server\chunks\[root-of-the-server]__1xur5nx._.js:1:4830)
-    at async i (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\.next\server\chunks\[root-of-the-server]__0kikhvc._.js:1:1737) {
-  code: 'P1001',
-  clientVersion: '6.2.1',
-  meta: {
-    modelName: 'User',
-    database_host: 'localhost',
-    database_port: 5432
-  }
-}
 [ioredis] Unhandled error event: Error: Command timed out
     at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\.next\server\chunks\node_modules_1lrvs3o._.js:139:8334)
     at listOnTimeout (node:internal/timers:605:17)
     at process.processTimers (node:internal/timers:541:7)
 [bullmq] Redis connected
-prisma:error 
-Invalid `prisma.user.findUnique()` invocation:
-
-
-Can't reach database server at `localhost:5432`
-
-Please make sure your database server is running at `localhost:5432`.
-prisma:error 
-Invalid `prisma.user.findUnique()` invocation:
-
-
-Can't reach database server at `localhost:5432`
-
-Please make sure your database server is running at `localhost:5432`.
-prisma:error 
-Invalid `prisma.user.findUnique()` invocation:
-
-
-Can't reach database server at `localhost:5432`
-
-Please make sure your database server is running at `localhost:5432`.

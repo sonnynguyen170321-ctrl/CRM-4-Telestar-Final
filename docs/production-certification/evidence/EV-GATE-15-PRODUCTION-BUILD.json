@@ -1,0 +1,19 @@
+{
+  "evidenceId": "EV-GATE-15-PRODUCTION-BUILD",
+  "kind": "gate",
+  "candidateSha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
+  "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
+  "command": "C:\\Program Files\\nodejs\\node.exe scripts/build.cjs",
+  "startedAt": "2026-08-25T11:00:33.703Z",
+  "finishedAt": "2026-08-25T11:02:52.843Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {},
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/gate-15-production-build.log",
+      "sizeBytes": 7394,
+      "sha256": "813304ac16d2056f541c468fa638e41204d2536bd32b9712abd87890e226da13"
+    }
+  ]
+}

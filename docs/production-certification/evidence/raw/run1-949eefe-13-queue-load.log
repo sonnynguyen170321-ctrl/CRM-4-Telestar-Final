@@ -1,0 +1,19 @@
+# IMPORT_SYSTEM_QUEUE_BENCHMARK over real Redis and BullMQ
+# exitCode: 0
+
+--- stdout ---
+redis   : localhost:6379
+scales  : 120, 500, 1000
+
+[120 rows] enqueuing real BullMQ jobs
+[bullmq] Redis connected
+           3.03s, 39.58 rows/s, queue wait p95 14ms, lost 0, dup 0
+[500 rows] enqueuing real BullMQ jobs
+           11.85s, 42.19 rows/s, queue wait p95 9394ms, lost 0, dup 0
+[1000 rows] enqueuing real BullMQ jobs
+           22.56s, 44.32 rows/s, queue wait p95 19746ms, lost 0, dup 0
+
+RESULT: PASS
+
+--- stderr ---
+(empty)

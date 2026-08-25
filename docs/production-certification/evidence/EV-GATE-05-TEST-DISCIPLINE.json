@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-GATE-05-TEST-DISCIPLINE",
   "kind": "gate",
-  "candidateSha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
-  "environment": "win32 / node 24.16.0 / postgres 16 / redis absent",
+  "candidateSha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
+  "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe scripts/check-test-discipline.mjs",
-  "startedAt": "2026-08-25T07:03:26.684Z",
-  "finishedAt": "2026-08-25T07:03:29.146Z",
+  "startedAt": "2026-08-25T10:48:27.945Z",
+  "finishedAt": "2026-08-25T10:48:28.814Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {},
@@ -13,7 +13,7 @@
     {
       "path": "docs/production-certification/evidence/raw/gate-05-test-discipline.log",
       "sizeBytes": 324,
-      "sha256": "d9f09f3413024c17d5318af3464876be6f2d8080eefe837cc93f81d508c5ea2b"
+      "sha256": "ad3daf9dcb5ee34d48f771e970d8dee8acf8a119ffbaf30dc278e99382cca4c5"
     }
   ]
 }

@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-ROLE-BROWSER",
   "kind": "role-browser",
-  "candidateSha": "5985ec474bc1eb3da05ae5db7560e83a4e70969d",
+  "candidateSha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
   "environment": "win32 / node 24.16.0 / next start / real Postgres / real Redis / Chromium 1440x900",
   "command": "node node_modules/@playwright/test/cli.js test --project=certification-roles",
-  "startedAt": "2026-08-25T09:40:40.453Z",
-  "finishedAt": "2026-08-25T09:40:40.453Z",
+  "startedAt": "2026-08-25T11:18:05.920Z",
+  "finishedAt": "2026-08-25T11:18:05.920Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -117,33 +117,33 @@
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/director.png",
-      "sizeBytes": 151151,
-      "sha256": "b3aaa583479eb75ddd5e9bd9ddb531edb497d8fe4e80cdfc28b5a4c77d6b38d7"
+      "sizeBytes": 151007,
+      "sha256": "995827fb34a50eebb7b8167e4bba920af8707c003b2e7c2b219b87c60f7b6cde"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/floor_manager.png",
-      "sizeBytes": 219462,
-      "sha256": "c80756b16a989c82651236e298d044a61e2c1f096fa2bd5221ca605b892111c6"
+      "sizeBytes": 183614,
+      "sha256": "fbc00dbfbfb8c42b43fa153ffee10763f6b22e0c6b60b275a45bf2f7c19a053a"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/leadgen.png",
-      "sizeBytes": 83453,
-      "sha256": "891f2c1ed8c9da9b29894cff8ca462d5ea37ee250600fc7d25b808c1b555bd0c"
+      "sizeBytes": 92840,
+      "sha256": "bb0aa3ec996694aa5e026326170cff37bb66f03e38cf12ca46b2b6106e5ee2c8"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/leadgen_manager.png",
-      "sizeBytes": 81430,
-      "sha256": "1a4b8d136953ff60c6d78ecd2ae36a6800bbe021ed183f0e134158015e02ec39"
+      "sizeBytes": 137181,
+      "sha256": "2fcb1291836acb819856bc005fd23cff394211a2ea045f74839128e50167e623"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/sdr.png",
-      "sizeBytes": 92706,
-      "sha256": "a1ebfba37e26bf51d661dda9000a021ef79e24aac839445ad21435dcbc5f3be4"
+      "sizeBytes": 100037,
+      "sha256": "247200242d60c62ca561bbace800a6e6c9a7d0d79b7f530eb6c062a627ff83a9"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/team_lead.png",
-      "sizeBytes": 217033,
-      "sha256": "fe05760f1b76b4552384f9bf9711db82d41ccea3cadd17fd070a0542ead94f8a"
+      "sizeBytes": 216554,
+      "sha256": "2120b0bfb9d07adb9b8cf7dc4cf75a8508162bf4b7d5209de87aa6f7a33a7f96"
     }
   ]
 }

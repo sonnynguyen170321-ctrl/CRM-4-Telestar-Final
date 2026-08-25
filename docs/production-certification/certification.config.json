@@ -14,9 +14,13 @@
     "imageRepository": "telestar-crm-candidate",
     "demoSqlInstance": "telestar-crm-db"
   },
-  "candidateSha": "5985ec474bc1eb3da05ae5db7560e83a4e70969d",
-  "candidateFrozenAt": "2026-08-25T14:21:00.000Z",
+  "candidateSha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
+  "candidateFrozenAt": "2026-08-25T10:45:00.000Z",
   "previousCandidates": [
+    {
+      "sha": "5985ec474bc1eb3da05ae5db7560e83a4e70969d",
+      "invalidatedReason": "superseded: eight commits landed after freeze including negative controls and governance; re-frozen to 949eefe"
+    },
     {
       "sha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
       "invalidatedReason": "superseded: loadCertificationEnv wired into collect-evidence.mjs in 5985ec4"
