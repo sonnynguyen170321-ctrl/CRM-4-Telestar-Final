@@ -16,10 +16,10 @@
 | Severity | Discovered | Verified Closed | Accepted Risk | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 9 | 8 | 1 | **0** |
-| **P1** (Critical) | 37 | 32 | 0 | **5** |
-| **P2** (Important) | 21 | 18 | 0 | **3** |
+| **P1** (Critical) | 37 | 34 | 0 | **3** |
+| **P2** (Important) | 21 | 19 | 0 | **2** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **67** | **58** | **1** | **8** |
+| **TOTAL** | **67** | **61** | **1** | **5** |
 
 ---
 
@@ -38,22 +38,22 @@
 ### `TEL-P1-047` — A Claim-Lease Test Failed The Build On Runner Load, Not On Behaviour
 
 - **Severity**: P1
-- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-26T00:15:00.000Z
 - **Root cause**: tests/phase-7-knowledge.test.ts "heartbeat holds a claim past the stale window" compressed the staleness window to 200ms against a 50ms heartbeat, on the stated reasoning that this is the same relationship as 5 minutes against 60 seconds. That is true of the ratio and false of the robustness: five minutes tolerates a four-minute stall, 200ms tolerates a 150ms one, and a garbage-collection pause or a slow query against the CI Postgres service container exceeds 150ms routinely. When it did, the heartbeat missed a renewal, `heartbeat.lost()` fired at lib/research/engine.ts:200, executeAccountResearch returned status "failed", and the assertion read `expected 'failed' to be 'completed'` — a red build with nothing wrong in the code. A flaky mandatory test is a defect in its own right: it trains readers to re-run rather than investigate, and it is indistinguishable from a real regression at the moment it fires.
-- **Fix SHA**: `N/A`
-- **Verification evidence**: `N/A`
+- **Fix SHA**: `7060857`
+- **Verification evidence**: `Heartbeat ratio was scaled by 10x (2s claim window, 500ms heartbeat) in tests/phase-7-knowledge.test.ts, increasing absolute headroom before a stall breaks it from 150ms to 1.5s while preserving claim semantics. Scoped deliberately so non-racing tests remain untouched. Verified with 5/5 consecutive full-file runs passing 27/27 tests (exit 0).`
 
 ### `TEL-P1-046` — The Cutover Manifest Reports Zero Rows Needing Review Because It Never Looks At 39 Of The 68 Models
 
 - **Severity**: P1
-- **Status**: `OPEN`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-25T17:00:00.000Z
 - **Root cause**: TOPOLOGICAL_MODELS in scripts/cutover/safe-cutover-tool.ts is a hand-maintained literal of 29 model names, and prisma/schema.prisma declares 68 models. planMode iterates only that literal, so 39 model types are never read, never classified, and never appear in countsByModel — there is no warning, because nothing went wrong: the loop simply has no entry for them. Measured against live production on 2026-08-25: the manifest reported totalRowsScanned 45 (44 User + 1 Tenant) and rowsRequiringReviewCount 0 for a database holding roughly 990 rows, with Contact 36, Account 35, ContactIntelligence 36, AuditLog 656, AiCall 75, JobRun 21 and TenantAiBudgetReservation 28 among the models it did not open. The delegate guard `if (!delegate || typeof delegate.findMany !== "function") continue` is a second silent skip on the same loop, and would hide a renamed model the same way. It cannot delete data it never classified, so the failure is not destructive — it is worse placed than that. Directive section 23 makes rowsRequiringReviewCount the gate that blocks a cutover: REVIEW_UNKNOWN > 0 means CUTOVER BLOCKED. That gate reads 0 here because 39 model types were never examined, so the one precondition designed to stop an under-informed cutover reports a green it did not earn, and POSTCHECK computes its "zero seed rows remain" claim over the same partial list.
-- **Fix SHA**: `N/A`
-- **Verification evidence**: `N/A`
+- **Fix SHA**: `a357a2d`
+- **Verification evidence**: `allModelDelegateNames() in scripts/cutover/safe-cutover-tool.ts now reads models dynamically from the generated Prisma DMMF, ensuring all 68 schema models are scanned. Topologically sorted list is retained strictly for delete ordering (29 models); any seed data found on non-deletable models is flagged for review rather than skipped or deleted out of order. Verified by tests/safe-cutover-tool.test.ts (31/31 passing), asserting schema models > topological models, all models scanned, populated models covered, and delete order is a strict subset.`
 
 ### `TEL-P0-009` — The Live Production Login Password Is Published In A Public Repository, And Allowlisted From Secret Scanning
 
@@ -349,12 +349,12 @@
 ### `TEL-P2-014` — Master Evidence Ledger Stale
 
 - **Severity**: P2
-- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: N/A
-- **Fix SHA**: `cf23182`
-- **Verification evidence**: `N/A`
+- **Root cause**: EVIDENCE.md was maintained manually and declared candidate cf23182 and 149 files / 1,880 tests while the certificate declared a6d8c0d and 154 / 1,922, drifting silently with no automated consistency check.
+- **Fix SHA**: `3d3ca88`
+- **Verification evidence**: `Replaced static EVIDENCE.md with dynamic renderer scripts/certification/render-evidence-ledger.mjs that parses all docs/production-certification/evidence/*.json, verifying candidate SHA, status, command, and SHA-256 hashes of all raw artifacts across 15 certification domains. validateCertification() checks consistency between evidence manifests, certificates, and actual artifact digests.`
 
 ### `TEL-P2-015` — Load Results Contradict Certificate
 
