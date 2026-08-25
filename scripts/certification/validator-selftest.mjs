@@ -546,6 +546,49 @@ function main() {
     rmSync(sandbox.root, { recursive: true, force: true });
   }
 
+  // ── C2: a run whose ACTUAL head is not the candidate ─────────────────────
+  // Directive section 60: the declared candidateSha proves only that the value
+  // was typed twice. What gate 01 measured is the commit that was really checked
+  // out, and a run that reports no measured head at all must fail rather than
+  // pass by saying nothing.
+  {
+    const config = { candidateSha: candidate };
+
+    expectRed(
+      'C2 — a run declaring the candidate while gate 01 measured another commit',
+      checkSourceAndRunProvenance(config, [
+        {
+          evidenceId: 'EV-RUN-1',
+          kind: 'certification-run',
+          candidateSha: candidate,
+          metrics: { gates: { '01-source-identity': { metrics: { head: 'a'.repeat(40) } } } },
+        },
+      ]),
+      'a run whose measured head is not the candidate was not detected',
+    );
+
+    expectRed(
+      'C2 — a run that reports no measured head at all',
+      checkSourceAndRunProvenance(config, [
+        { evidenceId: 'EV-RUN-2', kind: 'certification-run', candidateSha: candidate, metrics: {} },
+      ]),
+      'a run with no measured head was accepted',
+    );
+
+    expectGreen(
+      'C2 — a run whose measured head is the candidate',
+      checkSourceAndRunProvenance(config, [
+        {
+          evidenceId: 'EV-RUN-3',
+          kind: 'certification-run',
+          candidateSha: candidate,
+          metrics: { actualHeadSha: candidate },
+        },
+      ]),
+      'a correctly measured run was reported as a mismatch',
+    );
+  }
+
   // ── K2: two certification runs reusing one execution identity ────────────
   // Three runs are required to be three executions. Reusing an executionId is how
   // one run is made to count as three without anything being run again.
