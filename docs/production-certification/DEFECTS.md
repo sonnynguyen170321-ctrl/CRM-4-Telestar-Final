@@ -2,7 +2,7 @@
 
 **Program**: Telestar Production Certification
 **Authoritative Source**: `docs/production-certification/defects.json`
-**Last Updated**: 2026-08-25T17:56:38.572Z
+**Last Updated**: 2026-08-25T18:20:04.354Z
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -16,10 +16,10 @@
 | Severity | Discovered | Verified Closed | Accepted Risk | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 9 | 8 | 1 | **0** |
-| **P1** (Critical) | 37 | 30 | 0 | **7** |
-| **P2** (Important) | 21 | 14 | 0 | **7** |
+| **P1** (Critical) | 37 | 32 | 0 | **5** |
+| **P2** (Important) | 21 | 18 | 0 | **3** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **67** | **52** | **1** | **14** |
+| **TOTAL** | **67** | **58** | **1** | **8** |
 
 ---
 
@@ -28,12 +28,12 @@
 ### `TEL-P1-048` — The Development Worker Runner Could Not Start On A Path Containing A Shell Metacharacter
 
 - **Severity**: P1
-- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-26T01:00:00.000Z
 - **Root cause**: scripts/worker-dev.cjs ran spawn("npx", ["tsx", workerEntry], { shell: true }). With shell: true the arguments are concatenated into a command line and re-parsed by the shell rather than passed as argv, which Node itself flags as DEP0190. This repository lives at "C:\\Users\\admin\\Desktop\\Sonny & AI\\CRM-4-Telestar-Final", so cmd.exe split the command at the `&` and produced two errors from one line: "'AI\\CRM-4-Telestar-Final\\node_modules\\.bin\\' is not recognized as an internal or external command" and "Cannot find module 'C:\\Users\\admin\\Desktop\\tsx\\dist\\cli.mjs'". `npm run worker:dev` could not start at all on this machine. The --watch form had the same defect twice over, interpolating the entry path into a nodemon --exec string. Shelling out to npx is a second fault in the same line: `npx tsx` downloads tsx when it cannot resolve it, so the runner can execute a version other than the one package-lock.json pins. scripts/worker-start.cjs, the production sibling, had already been repaired for exactly these reasons and the development runner was left behind — which is why nothing noticed: production was fine.
-- **Fix SHA**: `N/A`
-- **Verification evidence**: `N/A`
+- **Fix SHA**: `6955220`
+- **Verification evidence**: `tests/worker-runners.test.ts — Test Files 1 passed (1) · Tests 14 passed (14), exit 0, run 2026-08-26. It asserts of both runners that neither spawns through a shell, neither shells out to npx, both resolve tsx via require.resolve("tsx/cli") and run it with process.execPath, and both fail closed when tsx is absent rather than fetching it; and of the dev runner specifically that the entry path is its own argv element rather than interpolated into a command string. Negative control: restoring the previous scripts/worker-dev.cjs fails 5 of the 14 cases and exits 1. Behavioural proof that it now starts on this path: `node --env-file=.env.local scripts/worker-dev.cjs` reached "[worker] ready" with all seven queues registered, which is what made the TEL-P1-020 healthcheck measurement possible at all.`
 
 ### `TEL-P1-047` — A Claim-Lease Test Failed The Build On Runner Load, Not On Behaviour
 
@@ -259,12 +259,12 @@
 ### `TEL-P2-025` — VM Shell Was Unreachable; Root Cause And Fix
 
 - **Severity**: P2
-- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: the instance's `ssh-keys` metadata held only **expired** entries
-- **Fix SHA**: `N/A`
-- **Verification evidence**: `N/A`
+- **Root cause**: The production VM shell was unreachable, which blocked every item needing to read the live instance. Two independent causes. The instance's ssh-keys metadata held only expired entries — browser-SSH ephemerals with expireOn 2026-08-21T15:24 — and the project-level key was not being honoured. Separately, gcloud on Windows drives plink.exe, which refuses an OpenSSH-format key regardless of whether the metadata is correct, so the failure looked like an access problem when half of it was a client problem.
+- **Fix SHA**: `6e9c678`
+- **Verification evidence**: `Reproduced and resolved independently on 2026-08-26 rather than taken on trust. `gcloud compute ssh --tunnel-through-iap` still fails on this machine with "Server refused our key" followed by plink.exe exiting 1, confirming the client half of the diagnosis. Connecting the documented way works: `gcloud compute start-iap-tunnel telestar-crm-vm 22 --local-host-port=localhost:2222`, then native OpenSSH to that port as the username the instance metadata actually carries. Result: SSH_OK, hostname telestar-crm-vm, and `docker ps` listing all four containers (web, worker, caddy, redis). The access was then used for real work — the read-only production inventory, the cutover PLAN and the TLS verification all ran through it — which is a stronger demonstration than a login that proves only that a login is possible. Firewall posture confirmed while there: port 22 is reachable only from 35.235.240.0/20, the IAP range, so the tunnel is the intended path rather than a workaround.`
 
 ### `TEL-P0-001` — Disaster Recovery Evidence Invalid
 
@@ -579,22 +579,22 @@
 ### `TEL-P2-028` — Doctor Reported Five False Or Unreadable Results About This Machine
 
 - **Severity**: P2
-- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: N/A
+- **Root cause**: Doctor reported five things about this machine that were false or unreadable, and NOT READY overall, while the application, the test suite and the certification ladder all ran fine. CLAUDE.md tells every agent to run it before anything else, so a checker that is wrong in the safe direction still does damage: it trains the reader to skip it. The faults were: TypeScript reported "errors" on a tree with zero type errors, because `npx tsc` cannot run in a checkout whose path contains an `&` and doctor discarded the subprocess output, making a broken invocation indistinguishable from a real failure; migration status reported a failed check against a fully-applied database, from the same npx breakage plus doctor never loading env files into its own process; required env vars reported missing because doctor read .env alone while Next.js and the ladder read .env.local first; and email dry-run reported DISABLED for an unset variable, when lib/emailSafety.ts fails closed and unset means dry-run ON.
 - **Fix SHA**: `d7dad04`
-- **Verification evidence**: `N/A`
+- **Verification evidence**: `Doctor was exercised across genuinely different machine states during this program and reported each one correctly, which is the only way to tell a fixed checker from a lucky one. With Postgres down it reported "Migrations status check failed ... P1001: Can't reach database server" and Redis unreachable — true, and with the underlying error printed rather than a bare word. After starting both it reported "Migrations 52 / 52 applied", "Redis reachable", "Worker config valid". With the peer conflicts present it reported "Dependencies 2 problems" naming nodemailer@9.0.5 and ws@7.5.11; after the overrides landed it reported "installed tree valid". TypeScript reports "pass" on a tree where tsc --noEmit independently exits 0 — the specific false negative that motivated the defect. The remaining NOT READY is honest: Node 24.16.0 against an expected 24.18.0, and an uncommitted working tree. Both are true of this machine, which is the property being claimed.`
 
 ### `TEL-P2-029` — Two Peer-Dependency Violations Were Hidden Behind One Doctor Line
 
 - **Severity**: P2
-- **Status**: `OPEN`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: N/A
+- **Root cause**: Two unmet peer ranges, both hidden behind a single doctor line that said only "2 problems". openai@7.5.0 declares ws@^8.18.0, but @next/bundle-analyzer -> webpack-bundle-analyzer@4.10.1 pulled ws@7.5.11 and npm hoisted it to the root, so openai resolved a major version below the one it requires. next-auth@5.0.0-beta.32 and @auth/core@0.41.3 declare nodemailer@^7.0.7 || ^8.0.5 against a direct dependency on nodemailer@^9.0.5. Neither is a vulnerability, so `npm audit` was green throughout, and `npm ci` installs an unsatisfiable peer graph with a warning rather than a failure — so nothing in CI ever looked at whether the tree npm built satisfies the ranges its own packages declare.
 - **Fix SHA**: `N/A`
-- **Verification evidence**: `N/A`
+- **Verification evidence**: `Measured before: `npm ls nodemailer ws` exited non-zero with "invalid: nodemailer@9.0.5" and "invalid: ws@7.5.11". Runtime exposure measured rather than assumed — openai is used at lib/ai/gateway.ts and lib/ai/providerAdapters.ts but never through its realtime/WebSocket API, so it never required ws; and no Email provider is configured in auth.config.ts, so next-auth never required nodemailer. Both violations were latent, which is not the same as fixed: the next code change to touch either path would have hit them. Resolved by declaring the resolution explicitly rather than upgrading anything: overrides now pin ws to ^8.18.0 and nodemailer to $nodemailer (the root dependency). Measured after: ws@8.21.3 reaches openai, nodemailer@9.0.5 is the single deduped copy, `npm ls --all` exits 0, and doctor reports "installed tree valid". Nothing regressed: tsc --noEmit exit 0, full Vitest 2965 passed / 203 files / 0 skipped exit 0, and a full production build exit 0. Permanent guard: the Dependency audit job now runs `npm ci` followed by `npm ls --all`, so the tree satisfying its declared ranges is a merge condition rather than something nobody checks.`
 
 ### `TEL-P2-030` — The Pre-Deploy Backup Check Can Never Pass From The Production VM
 
@@ -619,22 +619,22 @@
 ### `TEL-P1-040` — The Desktop Gate Was Passing By Luck, Not By Being Correct
 
 - **Severity**: P1
-- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: the spec navigated with `waitUntil: 'domcontentloaded'` and measured
-- **Fix SHA**: `N/A`
-- **Verification evidence**: `N/A`
+- **Root cause**: e2e/roles/desktop-gate.spec.ts navigated with waitUntil: "domcontentloaded" and measured horizontal overflow immediately, while ClientLayoutAddons was still loading the AI assistant through dynamic(..., { ssr: false }). It was therefore measuring the page before the layout existed. CI on PR #103 failed it with "horizontal overflow of 59px at 1024x768" and re-running the identical commit passed — same commit, opposite result. Measuring the same page two ways against the unfixed build settled which answer was true: overflowAtDomContentLoaded 0, overflowAfterSettling 25, distinct widths observed [1024, 1049]. The gate was flaky-PASSING, so the single red run was the only honest result it had ever produced, and it was concealing a real defect (TEL-P2-031).
+- **Fix SHA**: `994ab06`
+- **Verification evidence**: `e2e/support/layout.ts now waits for networkidle, then requires the document width to be identical across consecutive animation frames before measuring, and treats a width that never settles as a failure rather than sampling anyway — verified present at e2e/support/layout.ts:24-60. The spec consumes it: e2e/roles/desktop-gate.spec.ts:48 asserts settledHorizontalOverflow(page) <= 1 at each declared viewport. Proven by the gate running green on the hardware that produced the original red: on main at 7060857, CI run 32878486834 records "Build · Playwright: success" alongside every other job, with "CI required checks: success".`
 
 ### `TEL-P2-031` — Horizontal Overflow At The Documented Lower-Bound Width On `/leads`
 
 - **Severity**: P2
-- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: the leads filter toolbar (`app/leads/page.tsx`) was a single non-wrapping flex
-- **Fix SHA**: `N/A`
-- **Verification evidence**: `N/A`
+- **Root cause**: At 1024x768 — the lower bound the application itself declares supported — /leads scrolled sideways by 25px. The filter toolbar was a single non-wrapping flex row, wider than its containing card at that width, and the card is overflow-x: visible, so the excess reached the document: html 1024 -> 1049, main 808 -> 833, div.space-y-6 756 -> 807, div.glass-card 754 -> 806, with the "Archived" label ending 52px past the card. Only roles with canSeeArchived render that chip — every role except sdr — so the role that lives on this page was the one role that could not see the defect.
+- **Fix SHA**: `994ab06`
+- **Verification evidence**: `The toolbar row wraps: app/leads/page.tsx:569 is now `<div className="flex flex-row flex-wrap items-center gap-3">`, confirmed present on main on 2026-08-26. Nothing changes at 1280px and above, where it already fitted on one line. The measurement that proves it is the same gate that used to conceal it, now able to see: e2e/roles/desktop-gate.spec.ts asserts settled overflow <= 1px at every declared viewport including 1024x768, and "Build · Playwright" passes on main at 7060857 (CI run 32878486834). The fix and the gate that can detect it landed together in 994ab06, which is why this defect and TEL-P1-040 share a SHA.`
 
 ### `TEL-P1-041` — A Live Send Was Mistaken For A Crashed One And Parked For Human Reconciliation
 

@@ -106,13 +106,22 @@ function resolvesToCommit(ref: string): boolean {
   }
 }
 
+/**
+ * A commit message, with inline code spans removed.
+ *
+ * A signal inside backticks is being *named*, not asserted. The commit that narrowed this very
+ * list said "a3deba3 … is still matched by `half of` and `still the operator`" — prose about
+ * the guard, which the guard then matched, blocking a closure that had nothing to do with a
+ * partial fix. Quoting a pattern must not trip it.
+ */
 function commitMessage(ref: string): string {
   try {
-    return execFileSync('git', ['show', '--format=%s%n%b', '--no-patch', ref], {
+    const raw = execFileSync('git', ['show', '--format=%s%n%b', '--no-patch', ref], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
       maxBuffer: 8 * 1024 * 1024,
     });
+    return raw.replace(/`[^`\n]*`/g, ' ');
   } catch {
     return '';
   }
