@@ -602,9 +602,9 @@
 - **Status**: `OPEN`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: `telestar-crm-vm` runs as `589324791591-compute@developer.gserviceaccount.com`
-- **Fix SHA**: `e968ce7`
-- **Verification evidence**: `N/A`
+- **Root cause**: telestar-crm-vm runs as default compute service account (589324791591-compute@developer.gserviceaccount.com) with legacy scopes (no cloud-platform or sqlservice scope), so gcloud sql backups describe returns ACCESS_TOKEN_SCOPE_INSUFFICIENT and verify_backup_exists() returns code 2 on every deploy. deploy.sh fails closed by requiring manual UNVERIFIED confirmation.
+- **Fix SHA**: `2921684`
+- **Verification evidence**: `Fail-closed behavior verified by tests/deploy-script.test.ts (33/33 passed). Permanent infrastructure fix requires stopping telestar-crm-vm and updating access scopes to include cloud-platform / sqlservice.`
 
 ### `TEL-P1-039` — The Ladder Certified A Server It Did Not Start
 
