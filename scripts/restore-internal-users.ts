@@ -37,6 +37,12 @@ const OFFICIAL_USERS: RosterUser[] = [
   { email: 'kim@itelestar.com', firstName: 'Kim', lastName: '', role: 'team_lead', managerEmail: 'alayna@itelestar.com' },
 
   // ── SDRs (@itelestar.com) ─────────────────────────────────────────────────
+  // Meixi's Pod
+  { email: 'nancy@itelestar.com', firstName: 'Nancy', lastName: '', role: 'sdr', managerEmail: 'meixi@itelestar.com' },
+  { email: 'jay@itelestar.com', firstName: 'Jay', lastName: '', role: 'sdr', managerEmail: 'meixi@itelestar.com' },
+  { email: 'victor@itelestar.com', firstName: 'Victor', lastName: '', role: 'sdr', managerEmail: 'meixi@itelestar.com' },
+  { email: 'lily@itelestar.com', firstName: 'Lily', lastName: '', role: 'sdr', managerEmail: 'meixi@itelestar.com' },
+
   // Hayden's Pod
   { email: 'cecilia@itelestar.com', firstName: 'Cecilia', lastName: '', role: 'sdr', managerEmail: 'hayden@itelestar.com' },
   { email: 'kai@itelestar.com', firstName: 'Kai', lastName: '', role: 'sdr', managerEmail: 'hayden@itelestar.com' },

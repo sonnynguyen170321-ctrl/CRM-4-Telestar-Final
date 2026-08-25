@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "lastUpdated": "2026-08-25T12:36:00.000Z",
+  "lastUpdated": "2026-08-25T12:38:00.000Z",
   "approvedTenants": [
     {
       "id": "default-tenant",
@@ -23,6 +23,10 @@
     { "email": "hayden@itelestar.com", "name": "Hayden", "role": "team_lead", "tenantId": "default-tenant", "status": "ACTIVE" },
     { "email": "selina@itelestar.com", "name": "Selina", "role": "team_lead", "tenantId": "default-tenant", "status": "ACTIVE" },
     { "email": "kim@itelestar.com", "name": "Kim", "role": "team_lead", "tenantId": "default-tenant", "status": "ACTIVE" },
+    { "email": "nancy@itelestar.com", "name": "Nancy", "role": "sdr", "tenantId": "default-tenant", "status": "ACTIVE" },
+    { "email": "jay@itelestar.com", "name": "Jay", "role": "sdr", "tenantId": "default-tenant", "status": "ACTIVE" },
+    { "email": "victor@itelestar.com", "name": "Victor", "role": "sdr", "tenantId": "default-tenant", "status": "ACTIVE" },
+    { "email": "lily@itelestar.com", "name": "Lily", "role": "sdr", "tenantId": "default-tenant", "status": "ACTIVE" },
     { "email": "cecilia@itelestar.com", "name": "Cecilia", "role": "sdr", "tenantId": "default-tenant", "status": "ACTIVE" },
     { "email": "kai@itelestar.com", "name": "Kai", "role": "sdr", "tenantId": "default-tenant", "status": "ACTIVE" },
     { "email": "gigi@itelestar.com", "name": "Gigi", "role": "sdr", "tenantId": "default-tenant", "status": "ACTIVE" },
