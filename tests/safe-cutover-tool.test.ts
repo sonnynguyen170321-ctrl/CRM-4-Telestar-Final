@@ -6,6 +6,7 @@ import {
   classifyRow,
   evaluatePreconditions,
   PurgeManifest,
+  resolveTargetDatabase,
   sha256,
   TOPOLOGICAL_MODELS,
 } from '../scripts/cutover/safe-cutover-tool';
@@ -263,6 +264,57 @@ describe('Safe Production Cutover Tool — Behavioral & Fail-Closed Suite', () =
       } finally {
         unlinkSync(file);
       }
+    });
+  });
+
+  describe('Rehearsal targets a restored clone, not production (Sections 35, 36)', () => {
+    const PROD = 'prod-host:5432/telestar_crm';
+    const CLONE = 'clone-host:5432/telestar_crm_restore';
+
+    it('refuses execution against a database the manifest was not built for', () => {
+      const result = resolveTargetDatabase({
+        manifestFingerprint: PROD,
+        currentFingerprint: 'other-host:5432/telestar_crm',
+      });
+      expect(result.ok).toBe(false);
+      expect((result as { error: string }).error).toContain('TARGET DATABASE MISMATCH');
+    });
+
+    it('allows execution against exactly the database the manifest names', () => {
+      const result = resolveTargetDatabase({ manifestFingerprint: PROD, currentFingerprint: PROD });
+      expect(result.ok).toBe(true);
+    });
+
+    it('refuses a rehearsal that is connected to production itself', () => {
+      // The defect this replaces: REHEARSE was executeMode(dryRun=true) against
+      // the very instance the manifest targets.
+      const result = resolveTargetDatabase({
+        manifestFingerprint: PROD,
+        currentFingerprint: PROD,
+        cloneOf: PROD,
+      });
+      expect(result.ok).toBe(false);
+      expect((result as { error: string }).error).toContain('REHEARSAL REFUSED');
+    });
+
+    it('allows a rehearsal on a clone that attests to the production instance', () => {
+      const result = resolveTargetDatabase({
+        manifestFingerprint: PROD,
+        currentFingerprint: CLONE,
+        cloneOf: PROD,
+      });
+      expect(result.ok).toBe(true);
+      expect((result as { note: string }).note).toContain(CLONE);
+    });
+
+    it('refuses a clone attestation that names a different production instance', () => {
+      const result = resolveTargetDatabase({
+        manifestFingerprint: PROD,
+        currentFingerprint: CLONE,
+        cloneOf: 'a-different-prod:5432/telestar_crm',
+      });
+      expect(result.ok).toBe(false);
+      expect((result as { error: string }).error).toContain('CLONE ATTESTATION MISMATCH');
     });
   });
 

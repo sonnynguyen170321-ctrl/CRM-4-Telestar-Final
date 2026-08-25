@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "lastUpdated": "2026-08-25T09:58:45.105Z",
+  "lastUpdated": "2026-08-25T10:20:36.795Z",
   "defects": [
     {
       "id": "TEL-P2-024",
@@ -725,12 +725,12 @@
     {
       "id": "TEL-P1-044",
       "severity": "P1",
-      "state": "OPEN",
+      "state": "FIXED_PENDING_VERIFICATION",
       "title": "REHEARSE Runs Against The Live Target, Not A Restored Backup Clone",
       "discoveredAt": "2026-08-25T00:00:00.000Z",
       "rootCause": "--mode=REHEARSE is executeMode(dryRun=true), which opens a transaction against the SAME database the manifest targets and rolls it back. Directive section 36 requires rehearsal against an isolated environment restored from the production backup, followed by application and worker boot, authentication and empty-state checks. A dry-run transaction on the live target proves neither the restore nor the post-cutover application state.",
       "fixSha": "",
-      "verificationEvidence": "",
+      "verificationEvidence": "tests/safe-cutover-tool.test.ts — \"Rehearsal targets a restored clone, not production (Sections 35, 36)\", 5 cases; REHEARSE now requires --clone-of and refuses when connected to the instance the manifest targets",
       "acceptedRisk": null,
       "owner": "core-team"
     },
