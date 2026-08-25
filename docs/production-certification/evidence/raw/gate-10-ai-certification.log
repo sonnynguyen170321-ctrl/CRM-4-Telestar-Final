@@ -1,42 +1,38 @@
 # gate: 10-ai-certification — AI durable budget, stream governance, shared circuit, capability routing
 # command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/ai-durable-budget.test.ts tests/ai-stream-governance.test.ts tests/ai-shared-circuit.test.ts tests/ai-capability-routing.test.ts tests/ai-structured-budget.test.ts tests/ai-down-resilience.test.ts
-# startedAt: 2026-08-25T10:48:42.271Z
-# finishedAt: 2026-08-25T10:49:04.267Z
+# startedAt: 2026-08-25T21:42:42.978Z
+# finishedAt: 2026-08-25T21:42:59.158Z
 # exitCode: 0
 
 --- stdout ---
 
-[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/Sonny Antigravity Project/Telestar-CRM-Final Production/CRM-4-Telestar-Final[39m
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mC:/Users/admin/Desktop/Sonny & AI/CRM-4-Telestar-Final[39m
 
 [90mstdout[2m | tests/ai-stream-governance.test.ts[2m > [22m[2ma successful stream is billed and attributed[2m > [22m[2myields content, records attribution, and reconciles the reservation
 [22m[39m[bullmq] Redis connected
 
- [32m✓[39m tests/ai-stream-governance.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 10548[2mms[22m[39m
-     [33m[2m✓[22m[39m yields content, records attribution, and reconciles the reservation [33m 879[2mms[22m[39m
-     [33m[2m✓[22m[39m records a timeout as unavailable and stops waiting [33m 1477[2mms[22m[39m
-     [33m[2m✓[22m[39m releases the reservation when the consumer stops reading [33m 1408[2mms[22m[39m
-     [33m[2m✓[22m[39m charges both providers when a billable attempt fails over to another [33m 2826[2mms[22m[39m
-     [33m[2m✓[22m[39m does not double-settle when cancellation follows a completed stream [33m 2172[2mms[22m[39m
-     [33m[2m✓[22m[39m refuses to open a stream at all once the cap is reached [33m 745[2mms[22m[39m
-     [33m[2m✓[22m[39m emits the degraded message and holds no budget when every provider fails [33m 309[2mms[22m[39m
- [32m✓[39m tests/ai-durable-budget.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 12578[2mms[22m[39m
-     [33m[2m✓[22m[39m a fresh process observes spend recorded by an earlier one [33m 2680[2mms[22m[39m
-     [33m[2m✓[22m[39m lets exactly as many concurrent processes through as the budget affords [33m 8289[2mms[22m[39m
-     [33m[2m✓[22m[39m never lets concurrent in-process reservations exceed the cap [33m 310[2mms[22m[39m
- [32m✓[39m tests/ai-shared-circuit.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 624[2mms[22m[39m
-     [33m[2m✓[22m[39m expires a lease whose holder never came back [33m 523[2mms[22m[39m
-[90mstdout[2m | EventEmitter.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\lib\bullmq\connection.ts:91:13)
+ [32m✓[39m tests/ai-structured-budget.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 2672[2mms[22m[39m
+     [33m[2m✓[22m[39m allows reservation when tenant spend is under monthly limit [33m 2232[2mms[22m[39m
+ [32m✓[39m tests/ai-stream-governance.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 3836[2mms[22m[39m
+     [33m[2m✓[22m[39m yields content, records attribution, and reconciles the reservation [33m 2312[2mms[22m[39m
+     [33m[2m✓[22m[39m records a timeout as unavailable and stops waiting [33m 532[2mms[22m[39m
+[90mstdout[2m | tests/ai-shared-circuit.test.ts
 [22m[39m[bullmq] Redis connected
 
- [32m✓[39m tests/ai-structured-budget.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 944[2mms[22m[39m
-     [33m[2m✓[22m[39m allows reservation when tenant spend is under monthly limit [33m 512[2mms[22m[39m
- [32m✓[39m tests/ai-capability-routing.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 34[2mms[22m[39m
- [32m✓[39m tests/ai-down-resilience.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 68[2mms[22m[39m
+ [32m✓[39m tests/ai-shared-circuit.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 752[2mms[22m[39m
+     [33m[2m✓[22m[39m expires a lease whose holder never came back [33m 518[2mms[22m[39m
+ [32m✓[39m tests/ai-down-resilience.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 132[2mms[22m[39m
+ [32m✓[39m tests/ai-capability-routing.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m tests/ai-durable-budget.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 12247[2mms[22m[39m
+     [33m[2m✓[22m[39m converts USD to micro-dollars without floating point drift [33m 2103[2mms[22m[39m
+     [33m[2m✓[22m[39m a fresh process observes spend recorded by an earlier one [33m 2783[2mms[22m[39m
+     [33m[2m✓[22m[39m lets exactly as many concurrent processes through as the budget affords [33m 4489[2mms[22m[39m
+     [33m[2m✓[22m[39m never lets concurrent in-process reservations exceed the cap [33m 2189[2mms[22m[39m
 
 [2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
 [2m      Tests [22m [1m[32m75 passed[39m[22m[90m (75)[39m
-[2m   Start at [22m 17:48:44
-[2m   Duration [22m 20.01s[2m (transform 1.38s, setup 2.77s, import 5.44s, tests 24.80s, environment 2ms)[22m
+[2m   Start at [22m 04:42:43
+[2m   Duration [22m 15.35s[2m (transform 940ms, setup 14.79s, import 2.94s, tests 19.66s, environment 1ms)[22m
 
 
 --- stderr ---
@@ -44,31 +40,31 @@
 [22m[39m[ai-circuit] failed to clear shared circuit state: Stream isn't writeable and enableOfflineQueue options is false
 
 [90mstderr[2m | tests/ai-stream-governance.test.ts[2m > [22m[2mprovider failure[2m > [22m[2mfails over to a fallback when the first provider dies before any token
-[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"openai","model":"gpt-5.6-luna","failure":"provider_outage","latencyMs":5}
-
-[90mstderr[2m | tests/ai-stream-governance.test.ts[2m > [22m[2mprovider failure[2m > [22m[2mdoes not fail over mid-stream, because that would splice two completions together
-[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"openai","model":"gpt-5.6-luna","failure":"provider_outage","latencyMs":5}
-
-[90mstderr[2m | tests/ai-stream-governance.test.ts[2m > [22m[2mprovider failure[2m > [22m[2mrecords a timeout as unavailable and stops waiting
-[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"openai","model":"gpt-5.6-luna","failure":"timeout","latencyMs":148}
-
-[90mstderr[2m | tests/ai-stream-governance.test.ts[2m > [22m[2mprovider failure[2m > [22m[2mrecords a timeout as unavailable and stops waiting
-[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"google","model":"gemini-3.6-flash","failure":"timeout","latencyMs":117}
-
-[90mstderr[2m | tests/ai-stream-governance.test.ts[2m > [22m[2mprovider failure[2m > [22m[2mrecords a timeout as unavailable and stops waiting
-[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"groq","model":"openai/gpt-oss-20b","failure":"timeout","latencyMs":182}
-
-[90mstderr[2m | tests/ai-stream-governance.test.ts[2m > [22m[2mconsumer cancellation[2m > [22m[2mcharges both providers when a billable attempt fails over to another
 [22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"openai","model":"gpt-5.6-luna","failure":"provider_outage","latencyMs":6}
 
-[90mstderr[2m | tests/ai-stream-governance.test.ts[2m > [22m[2mAI down still degrades gracefully[2m > [22m[2memits the degraded message and holds no budget when every provider fails
-[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"openai","model":"gpt-5.6-luna","failure":"provider_outage","latencyMs":18}
+[90mstderr[2m | tests/ai-stream-governance.test.ts[2m > [22m[2mprovider failure[2m > [22m[2mdoes not fail over mid-stream, because that would splice two completions together
+[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"openai","model":"gpt-5.6-luna","failure":"provider_outage","latencyMs":7}
+
+[90mstderr[2m | tests/ai-stream-governance.test.ts[2m > [22m[2mprovider failure[2m > [22m[2mrecords a timeout as unavailable and stops waiting
+[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"openai","model":"gpt-5.6-luna","failure":"timeout","latencyMs":131}
+
+[90mstderr[2m | tests/ai-stream-governance.test.ts[2m > [22m[2mprovider failure[2m > [22m[2mrecords a timeout as unavailable and stops waiting
+[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"google","model":"gemini-3.6-flash","failure":"timeout","latencyMs":127}
+
+[90mstderr[2m | tests/ai-stream-governance.test.ts[2m > [22m[2mprovider failure[2m > [22m[2mrecords a timeout as unavailable and stops waiting
+[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"groq","model":"openai/gpt-oss-20b","failure":"timeout","latencyMs":128}
+
+[90mstderr[2m | tests/ai-stream-governance.test.ts[2m > [22m[2mconsumer cancellation[2m > [22m[2mcharges both providers when a billable attempt fails over to another
+[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"openai","model":"gpt-5.6-luna","failure":"provider_outage","latencyMs":5}
 
 [90mstderr[2m | tests/ai-stream-governance.test.ts[2m > [22m[2mAI down still degrades gracefully[2m > [22m[2memits the degraded message and holds no budget when every provider fails
-[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"google","model":"gemini-3.6-flash","failure":"provider_outage","latencyMs":16}
+[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"openai","model":"gpt-5.6-luna","failure":"provider_outage","latencyMs":5}
 
 [90mstderr[2m | tests/ai-stream-governance.test.ts[2m > [22m[2mAI down still degrades gracefully[2m > [22m[2memits the degraded message and holds no budget when every provider fails
-[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"groq","model":"openai/gpt-oss-20b","failure":"provider_outage","latencyMs":5}
+[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"google","model":"gemini-3.6-flash","failure":"provider_outage","latencyMs":6}
+
+[90mstderr[2m | tests/ai-stream-governance.test.ts[2m > [22m[2mAI down still degrades gracefully[2m > [22m[2memits the degraded message and holds no budget when every provider fails
+[22m[39m[ai/gateway] provider attempt failed {"operation":"gateway_inference","turnId":null,"executionId":null,"tenantId":"tenant-stream-governance","userId":"user-stream-test","provider":"groq","model":"openai/gpt-oss-20b","failure":"provider_outage","latencyMs":6}
 
 [90mstderr[2m | tests/ai-shared-circuit.test.ts[2m > [22m[2mbehaviour when Redis is unavailable is defined, not accidental[2m > [22m[2mreading returns no shared state rather than erasing the local view
 [22m[39m[ai-circuit] failed to read shared circuit state: connection refused

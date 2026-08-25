@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-GATE-08-VITEST",
   "kind": "gate",
-  "candidateSha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
+  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
-  "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-25T10:51:20.268Z",
-  "finishedAt": "2026-08-25T11:00:27.043Z",
+  "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --maxWorkers=4 --reporter=json --outputFile=.certification/vitest.json",
+  "startedAt": "2026-08-25T21:44:51.413Z",
+  "finishedAt": "2026-08-25T21:50:28.216Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -90,7 +90,7 @@
       },
       "tests/agent-routing.test.ts": {
         "status": "passed",
-        "tests": 32,
+        "tests": 33,
         "failed": 0,
         "skipped": 0
       },
@@ -214,6 +214,12 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/api-key-http-surface.test.ts": {
+        "status": "passed",
+        "tests": 11,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/api-key-privilege-escalation.test.ts": {
         "status": "passed",
         "tests": 17,
@@ -313,6 +319,12 @@
       "tests/certification-image-gates.test.ts": {
         "status": "passed",
         "tests": 17,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/certification-one-verdict-engine.test.ts": {
+        "status": "passed",
+        "tests": 9,
         "failed": 0,
         "skipped": 0
       },
@@ -445,6 +457,12 @@
       "tests/defect-ledger-consistency.test.ts": {
         "status": "passed",
         "tests": 30,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/defect-ledger-integrity.test.ts": {
+        "status": "passed",
+        "tests": 17,
         "failed": 0,
         "skipped": 0
       },
@@ -682,6 +700,12 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/no-committed-credentials.test.ts": {
+        "status": "passed",
+        "tests": 35,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/notif-prefs.test.ts": {
         "status": "passed",
         "tests": 10,
@@ -886,6 +910,12 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/restore-internal-users.test.ts": {
+        "status": "passed",
+        "tests": 25,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/revenue-intelligence-trio.test.ts": {
         "status": "passed",
         "tests": 3,
@@ -936,7 +966,7 @@
       },
       "tests/safe-cutover-tool.test.ts": {
         "status": "passed",
-        "tests": 25,
+        "tests": 31,
         "failed": 0,
         "skipped": 0
       },
@@ -1191,19 +1221,25 @@
         "tests": 6,
         "failed": 0,
         "skipped": 0
+      },
+      "tests/worker-runners.test.ts": {
+        "status": "passed",
+        "tests": 14,
+        "failed": 0,
+        "skipped": 0
       }
     },
-    "testFiles": 197,
-    "testFilesPassed": 197,
-    "testsPassed": 2847,
+    "testFiles": 203,
+    "testFilesPassed": 203,
+    "testsPassed": 2965,
     "testsFailed": 0,
     "testsSkipped": 0
   },
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/gate-08-vitest.log",
-      "sizeBytes": 468,
-      "sha256": "7c9f29e3c387ce0539bae2cb3e6fd09874517cf99937c102fbf3672f2039b074"
+      "sizeBytes": 458,
+      "sha256": "269a57595920fe76cfb3550fbce7c72e931d4f9822d460b3530f9a829d8127a3"
     }
   ]
 }

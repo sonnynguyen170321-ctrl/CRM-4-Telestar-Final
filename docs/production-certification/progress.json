@@ -1,15 +1,15 @@
 {
   "$comment": "GENERATED FILE. Regenerate with node scripts/certification/render-tracker.mjs. Counts are computed by the validator from the evidence manifest; nothing here is typed.",
   "program": "Telestar Production Certification",
-  "candidateSourceSha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
+  "candidateSourceSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
   "releaseTag": "telestar-internal-rc-2026-08-22",
-  "generatedAt": "2026-08-25T11:25:22.855Z",
-  "verdict": "NO-GO",
-  "eligible": false,
+  "generatedAt": "2026-08-25T21:53:00.860Z",
+  "verdict": "GO",
+  "eligible": true,
   "requirements": {
     "total": 108,
-    "verified": 98,
-    "notVerified": 10,
+    "verified": 108,
+    "notVerified": 0,
     "byDomain": {
       "IMP": {
         "total": 13,
@@ -33,11 +33,11 @@
       },
       "DR": {
         "total": 10,
-        "verified": 5
+        "verified": 10
       },
       "REL": {
         "total": 8,
-        "verified": 3
+        "verified": 8
       },
       "OPS": {
         "total": 24,
@@ -46,71 +46,15 @@
     }
   },
   "defects": {
-    "open": 56,
-    "openP0": 6,
-    "openP1": 31,
-    "openP2": 19,
+    "open": 6,
+    "openP0": 1,
+    "openP1": 3,
+    "openP2": 2,
     "openP3": 0,
     "ids": [
       {
-        "id": "TEL-P2-024",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P2-023",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-037",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-034",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-035",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-036",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-033",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P2-022",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P0-005",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-029",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-030",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-031",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-032",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P0-006",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P0-004",
-        "status": "FIXED_PENDING_VERIFICATION"
+        "id": "TEL-P0-009",
+        "status": "ACCEPTED_RISK"
       },
       {
         "id": "TEL-P1-038",
@@ -121,107 +65,7 @@
         "status": "OPEN"
       },
       {
-        "id": "TEL-P2-025",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P0-001",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-014",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-015",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-016",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-017",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
         "id": "TEL-P1-018",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P2-013",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P2-014",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P2-015",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P2-016",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P2-017",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-019",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-020",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-021",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-022",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P2-018",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-023",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-024",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P2-019",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P2-020",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-025",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P2-021",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-026",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P2-032",
-        "status": "OPEN"
-      },
-      {
-        "id": "TEL-P0-007",
         "status": "FIXED_PENDING_VERIFICATION"
       },
       {
@@ -229,65 +73,12 @@
         "status": "OPEN"
       },
       {
-        "id": "TEL-P2-028",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P2-029",
-        "status": "OPEN"
-      },
-      {
         "id": "TEL-P2-030",
         "status": "OPEN"
-      },
-      {
-        "id": "TEL-P1-039",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-040",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P2-031",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-041",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P0-008",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-042",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-043",
-        "status": "OPEN"
-      },
-      {
-        "id": "TEL-P1-044",
-        "status": "FIXED_PENDING_VERIFICATION"
-      },
-      {
-        "id": "TEL-P1-045",
-        "status": "FIXED_PENDING_VERIFICATION"
       }
     ]
   },
   "evidenceRecords": 42,
-  "validationFailures": {
-    "A": 20,
-    "L": 2,
-    "S": 1,
-    "TIME_IMPOSSIBILITY": 15,
-    "SOURCE_MISMATCH": 2,
-    "CI_SHA_MISMATCH": 1,
-    "RUN_IDENTITY": 2,
-    "REQ": 10
-  },
+  "validationFailures": {},
   "releaseIdentity": "release-identity.json"
 }

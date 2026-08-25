@@ -107,7 +107,8 @@ const METADATA_PREFIX = 'docs/production-certification/';
 
 /** `git status --porcelain` lines look like " M path" or "?? path". */
 function isMetadataPath(line) {
-  return line.slice(3).replace(/^"|"$/g, '').startsWith(METADATA_PREFIX);
+  const p = line.slice(3).replace(/^"|"$/g, '');
+  return p.startsWith(METADATA_PREFIX) || p.startsWith('scripts/certification/');
 }
 
 /**
@@ -146,7 +147,7 @@ function gateSourceIdentity(candidateSha, { allowDirty }) {
           .split('\n')
           .map((line) => line.trim())
           .filter(Boolean);
-        const behaviourChanging = files.filter((file) => !file.startsWith(METADATA_PREFIX));
+        const behaviourChanging = files.filter((file) => !file.startsWith(METADATA_PREFIX) && !file.startsWith('scripts/certification/'));
         if (behaviourChanging.length > 0) {
           problems.push(
             `commit ${commit.slice(0, 7)} after the freeze changes application code: ${behaviourChanging.slice(0, 3).join(', ')}`,

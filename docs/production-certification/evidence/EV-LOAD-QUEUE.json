@@ -2,11 +2,11 @@
   "evidenceId": "EV-LOAD-QUEUE",
   "kind": "load-benchmark",
   "benchmark": "IMPORT_SYSTEM_QUEUE_BENCHMARK",
-  "candidateSha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
+  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
   "environment": "win32 / node 24.16.0 / postgres 16 / real Redis / real BullMQ",
   "command": "npx tsx scripts/certification/queue-load-benchmark.ts",
-  "startedAt": "2026-08-25T11:14:33.488Z",
-  "finishedAt": "2026-08-25T11:15:31.590Z",
+  "startedAt": "2026-08-25T21:28:19.285Z",
+  "finishedAt": "2026-08-25T21:29:19.566Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -16,22 +16,22 @@
       "120": {
         "rows": 120,
         "chunks": 3,
-        "totalDurationMs": 3032,
-        "rowsPerSecond": 39.58,
+        "totalDurationMs": 8594,
+        "rowsPerSecond": 13.96,
         "queueWaitMs": {
-          "p50": 6,
-          "p95": 14,
-          "p99": 14
+          "p50": 5,
+          "p95": 4072,
+          "p99": 4072
         },
         "jobProcessingMs": {
-          "p50": 2830,
-          "p95": 2850,
-          "p99": 2850
+          "p50": 2132,
+          "p95": 4265,
+          "p99": 4265
         },
-        "enqueueStartedAt": "2026-08-25T11:14:40.910Z",
-        "firstWorkerStartAt": "2026-08-25T11:14:40.982Z",
-        "lastRowTerminalAt": "2026-08-25T11:14:43.931Z",
-        "batchCommittedAt": "2026-08-25T11:14:43.942Z",
+        "enqueueStartedAt": "2026-08-25T21:28:23.920Z",
+        "firstWorkerStartAt": "2026-08-25T21:28:23.945Z",
+        "lastRowTerminalAt": "2026-08-25T21:28:32.491Z",
+        "batchCommittedAt": "2026-08-25T21:28:32.514Z",
         "failedJobs": 0,
         "retries": 0,
         "lostRows": 0,
@@ -45,22 +45,22 @@
       "500": {
         "rows": 500,
         "chunks": 10,
-        "totalDurationMs": 11850,
-        "rowsPerSecond": 42.19,
+        "totalDurationMs": 8546,
+        "rowsPerSecond": 58.51,
         "queueWaitMs": {
-          "p50": 3699,
-          "p95": 9394,
-          "p99": 9394
+          "p50": 1998,
+          "p95": 6234,
+          "p99": 6234
         },
         "jobProcessingMs": {
-          "p50": 2979,
-          "p95": 3748,
-          "p99": 3748
+          "p50": 2123,
+          "p95": 2226,
+          "p99": 2226
         },
-        "enqueueStartedAt": "2026-08-25T11:14:48.244Z",
-        "firstWorkerStartAt": "2026-08-25T11:14:48.258Z",
-        "lastRowTerminalAt": "2026-08-25T11:15:00.082Z",
-        "batchCommittedAt": "2026-08-25T11:15:00.094Z",
+        "enqueueStartedAt": "2026-08-25T21:28:42.372Z",
+        "firstWorkerStartAt": "2026-08-25T21:28:42.389Z",
+        "lastRowTerminalAt": "2026-08-25T21:28:50.906Z",
+        "batchCommittedAt": "2026-08-25T21:28:50.918Z",
         "failedJobs": 0,
         "retries": 0,
         "lostRows": 0,
@@ -74,22 +74,22 @@
       "1000": {
         "rows": 1000,
         "chunks": 20,
-        "totalDurationMs": 22563,
-        "rowsPerSecond": 44.32,
+        "totalDurationMs": 14230,
+        "rowsPerSecond": 70.27,
         "queueWaitMs": {
-          "p50": 9904,
-          "p95": 19746,
-          "p99": 19746
+          "p50": 6068,
+          "p95": 11942,
+          "p99": 11942
         },
         "jobProcessingMs": {
-          "p50": 3129,
-          "p95": 4010,
-          "p99": 4076
+          "p50": 2016,
+          "p95": 2120,
+          "p99": 2141
         },
-        "enqueueStartedAt": "2026-08-25T11:15:09.005Z",
-        "firstWorkerStartAt": "2026-08-25T11:15:09.015Z",
-        "lastRowTerminalAt": "2026-08-25T11:15:31.283Z",
-        "batchCommittedAt": "2026-08-25T11:15:31.568Z",
+        "enqueueStartedAt": "2026-08-25T21:29:03.239Z",
+        "firstWorkerStartAt": "2026-08-25T21:29:03.248Z",
+        "lastRowTerminalAt": "2026-08-25T21:29:17.459Z",
+        "batchCommittedAt": "2026-08-25T21:29:17.469Z",
         "failedJobs": 0,
         "retries": 0,
         "lostRows": 0,
@@ -105,8 +105,8 @@
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/load-queue-benchmark.log",
-      "sizeBytes": 2072,
-      "sha256": "09c4a644fb0acf1917aa180e8b1829517810b864c6bd25137f1901a7bbc68bda"
+      "sizeBytes": 2075,
+      "sha256": "66b2ed377faf2fc57b589c66094be9df0c454b23e415ee0259c554bd7e294e45"
     }
   ]
 }
