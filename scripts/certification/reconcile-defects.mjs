@@ -59,7 +59,10 @@ const INCOMPLETE_SIGNALS = [
   /\bhalf of\b/i,
   /\bpart of (?:TEL|DEPLOY)-/i,
   /still the operator/i,
-  /\buntouched\b/i,
+  // A bare `untouched` was here and fired on 99f6b8d, whose message says ordinary activities
+  // "are untouched" by a new unique index — that is the fix's blast radius, not work left
+  // undone, and it blocked a legitimate closure. a3deba3, the commit the word was added for,
+  // is still matched by `half of` and by `still the operator`.
   /does not close/i,
   /remains? open/i,
   /not yet verified/i,

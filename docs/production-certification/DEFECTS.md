@@ -2,7 +2,7 @@
 
 **Program**: Telestar Production Certification
 **Authoritative Source**: `docs/production-certification/defects.json`
-**Last Updated**: 2026-08-25T17:39:17.746Z
+**Last Updated**: 2026-08-25T17:56:38.572Z
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -16,14 +16,24 @@
 | Severity | Discovered | Verified Closed | Accepted Risk | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 9 | 8 | 1 | **0** |
-| **P1** (Critical) | 36 | 27 | 0 | **9** |
-| **P2** (Important) | 21 | 13 | 0 | **8** |
+| **P1** (Critical) | 37 | 30 | 0 | **7** |
+| **P2** (Important) | 21 | 14 | 0 | **7** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **66** | **48** | **1** | **17** |
+| **TOTAL** | **67** | **52** | **1** | **14** |
 
 ---
 
 ## 2. Defects Ledger
+
+### `TEL-P1-048` — The Development Worker Runner Could Not Start On A Path Containing A Shell Metacharacter
+
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Owner**: core-team
+- **Discovered**: 2026-08-26T01:00:00.000Z
+- **Root cause**: scripts/worker-dev.cjs ran spawn("npx", ["tsx", workerEntry], { shell: true }). With shell: true the arguments are concatenated into a command line and re-parsed by the shell rather than passed as argv, which Node itself flags as DEP0190. This repository lives at "C:\\Users\\admin\\Desktop\\Sonny & AI\\CRM-4-Telestar-Final", so cmd.exe split the command at the `&` and produced two errors from one line: "'AI\\CRM-4-Telestar-Final\\node_modules\\.bin\\' is not recognized as an internal or external command" and "Cannot find module 'C:\\Users\\admin\\Desktop\\tsx\\dist\\cli.mjs'". `npm run worker:dev` could not start at all on this machine. The --watch form had the same defect twice over, interpolating the entry path into a nodemon --exec string. Shelling out to npx is a second fault in the same line: `npx tsx` downloads tsx when it cannot resolve it, so the runner can execute a version other than the one package-lock.json pins. scripts/worker-start.cjs, the production sibling, had already been repaired for exactly these reasons and the development runner was left behind — which is why nothing noticed: production was fine.
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `N/A`
 
 ### `TEL-P1-047` — A Claim-Lease Test Failed The Build On Runner Load, Not On Behaviour
 
@@ -389,42 +399,42 @@
 ### `TEL-P1-020` — `worker-healthcheck` Never Exits When The Check Succeeds
 
 - **Severity**: P1
-- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: enqueuing opens a BullMQ queue and its Redis connection, and both keep the Node
-- **Fix SHA**: `N/A`
-- **Verification evidence**: `N/A`
+- **Root cause**: scripts/worker-healthcheck.ts enqueues a maintenance job and polls its JobRun. Enqueuing opens a BullMQ queue and its Redis connection, and both hold the Node event loop open. Nothing closed them, so the process never exited when the check SUCCEEDED — it only ever terminated because the failure path calls process.exit(1). A health check that hangs when everything is fine is worse than one that fails: a deploy gate waits forever and the symptom reads as an infrastructure problem rather than as a bug in the check. The consequence was observed rather than predicted — an orphaned healthcheck container was found still running after five days (TEL-P2-027).
+- **Fix SHA**: `925ce53`
+- **Verification evidence**: `Proven on the success path, which is the only path that could ever show it. Ran against a real local worker on 2026-08-26: started scripts/worker-dev.cjs and waited for "[worker] ready", then ran CUTOVER_TENANT_ID=default-tenant node --env-file=.env.local tsx scripts/worker-healthcheck.ts under `timeout 120`. Result: "job cmt8ym3pk0001vwpcjyzt23f6 completed", exit code 0, elapsed 3 seconds. The timeout did not fire — the process terminated on its own after a successful check, which is exactly the behaviour that was missing. Permanent guard: tests/worker-runners.test.ts — 14 passed, exit 0 — asserts the mechanism that makes it true: closeAllQueues() and getConnection().disconnect() both run inside the finally, the cleanup precedes the exit, and the exit is process.exit(completed ? 0 : 1) rather than a failure-only exit. Negative control: removing the closeAllQueues call fails 2 of the 14 cases and exits 1.`
 
 ### `TEL-P1-021` — AI Circuit State Was Not Namespaced Per Deployment
 
 - **Severity**: P1
-- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: `TEL-P1-017` moved circuit state to Redis keyed only by `provider:model`, with no
-- **Fix SHA**: `N/A`
-- **Verification evidence**: `EV-VITEST`
+- **Root cause**: TEL-P1-017 moved AI circuit-breaker state to Redis keyed only by `provider:model`, with no deployment scope. Any process that exercises the gateway without API keys fails every provider call and therefore opens every circuit — for every other consumer of that Redis, and for 24 hours. Sharing circuit state between the instances of one deployment is the feature; sharing it between different deployments on one Redis is the defect, and it means a staging run that exhausts a provider opens production’s circuits. It surfaced as four failures in ai-stream-governance during the first full ladder run, all returning the AI-unavailable message and all passing in isolation; inspecting Redis afterwards showed six of the seven model circuits OPEN.
+- **Fix SHA**: `edd05e3`
+- **Verification evidence**: `Keys are now `crm4u:ai:circuit:{namespace}:`, following the existing `crm4u:` convention in lib/cache.ts, with the namespace taken from AI_CIRCUIT_NAMESPACE else NODE_ENV — verified present at lib/ai/sharedCircuit.ts:56-66. Re-run 2026-08-26 against a live Redis: tests/ai-shared-circuit.test.ts + tests/ai-stream-governance.test.ts — Test Files 2 passed (2) · Tests 25 passed (25), exit 0. Three of those cases test the property directly: it does not leak an open circuit from one namespace into another, it keeps probe leases separate across namespaces, and it clears only its own namespace. Negative control: removing the namespace segment from both key builders fails exactly those 3 cases and exits 1; restoring it returns 25/25.`
 
 ### `TEL-P1-022` — Concurrent Duplicate Job Delivery Could Still Fail The Chunk
 
 - **Severity**: P1
-- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: when two workers get the same chunk, one `lead.create` wins and the other
-- **Fix SHA**: `32323964277`
-- **Verification evidence**: `EV-CI-RUN`
+- **Root cause**: When two workers receive the same import chunk, one `lead.create` wins and the other receives P2002 on (tenantId, campaignId, normalizedEmail). The loser is supposed to adopt the winner’s row rather than duplicate it, and it re-read exactly once. The constraint firing proves the row exists but not that it is committed, so a read landing inside that window returned null, the handler rethrew, and the whole chunk failed. Fixing only that exposed the second half: the lead was no longer duplicated but two `lead_created` activities were, because three writes in that path used the same check-then-act shape — findFirst, then create — which is not atomic under concurrency.
+- **Fix SHA**: `99f6b8d`
+- **Verification evidence**: `Two fixes, both present and both structurally checkable. workers/import.ts:746 `findLeadAfterConflict` re-reads up to 5 times with a 100ms delay and returns null only after genuinely exhausting them, so the caller still rethrows on a real failure rather than swallowing it. workers/import.ts:725 `createOnceByKey` replaced check-then-act with a unique `Activity.idempotencyKey` (prisma/schema.prisma:1014, migration 20260820000000_activity_idempotency_key, applied in production and confirmed finished on 2026-08-26): P2002 is now the success signal meaning the row exists, and any other error still propagates. The behavioural proof is a CI run, not a local one, and deliberately so — the race window is milliseconds wide and this workstation does not reproduce it. Re-running the suite locally with the retry count reduced back to 1 still passes 12/12, which is precisely why a local green was never evidence here. On the same job and the same CI hardware: discovery run 32323964277 (64b2ebc) recorded "Lint · types · tests: failure"; the fix run 32326078931 (99f6b8d) recorded "Lint · types · tests: success". That run’s overall conclusion is "failure" only because CodeQL and Dependency review were red, which .claude/rules/production.md classifies as additional signals rather than mandatory gates — and both have since gone green (TEL-P2-018).`
 
 ### `TEL-P2-018` — Two CI Jobs Cannot Run On This Repository
 
 - **Severity**: P2
-- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
-- **Root cause**: N/A
-- **Fix SHA**: `32323964277`
-- **Verification evidence**: `EV-CI-RUN`
+- **Root cause**: CodeQL and Dependency review could not complete on this repository, so two of the eight CI jobs were permanently red. Observed in run 32323964277. The cost was not the jobs themselves but what a permanently red check does to a release gate: an overall CI conclusion of "failure" stops distinguishing a broken test suite from a scanner that never works, and readers learn to ignore the aggregate.
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `Both jobs run and pass. Checked across six consecutive ci.yml runs on 2026-08-21 (32487639659, 32486606317, 32486554961, 32443270100, 32418164738, 32416213512): CodeQL success throughout, Dependency review success on pull_request events and correctly skipped on push events. Independently re-measured on 2026-08-26 on PR #118 run 32877488690: CodeQL pass (1m19s), Dependency review pass (11s), and the aggregate "CI required checks" pass — the first time in this program that the aggregate has been green, which is the property that actually mattered.`
 
 ### `TEL-P1-023` — The Image Gates Were Blocked By A Constant, Not By The Machine
 
