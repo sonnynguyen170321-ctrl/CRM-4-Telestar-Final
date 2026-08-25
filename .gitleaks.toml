@@ -61,8 +61,26 @@ regexes = [
   # within a test process. It has never protected stored data. Left in place rather than
   # regenerated: some suites encrypt and decrypt within a single run, and rotating a
   # constant that guards nothing would be motion without benefit.
-  # ── Test credentials & mock tokens ──────────────────────────────────────────
+  # ── A compromised production credential, not a test one (TEL-P0-009) ────────
+  # `Telestar2026` was filed here as a "test credential" and it never was one. It was the
+  # live login password: `restore-internal-users.ts` hashed it once and assigned it to all
+  # 44 roster accounts, `sync-users-to-production.ts` authenticated to
+  # https://crm.telestar.cloud with it as a director, and twelve verification scripts signed
+  # in to that same host with it. This repository is public. This allowlist entry is the
+  # reason no gate ever objected.
+  #
+  # It stays, because it cannot leave: `secret-scan` runs `gitleaks detect` over the full
+  # history with `fetch-depth: 0`, and the literal is in commit 25c3699 permanently. Removing
+  # the entry would not un-publish it — it would only make every future merge impossible.
+  #
+  # So the entry is scoped to what it actually is: a **burned** credential that must be
+  # treated as public forever, and rotated on every account it was ever set on. The guarantee
+  # that it is not in use is enforced where it can be — `tests/no-committed-credentials.test.ts`
+  # fails if any file assigns it as a password again. Do not add a new literal here to make a
+  # scan pass; that is the mistake this comment exists to record.
   '''Telestar2026''',
+
+  # ── Test credentials & mock tokens ──────────────────────────────────────────
   '''telestarPass123''',
   '''tl_live_[A-Za-z0-9_]+''',
   '''tl_test_[A-Za-z0-9_]+''',

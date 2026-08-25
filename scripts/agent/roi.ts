@@ -189,7 +189,21 @@ export function staticRoi(n = 40): StaticRoi {
 
     const impact = analyze(files);
     classified += files.length - impact.unclassified.length;
-    for (const file of impact.unclassified) unclassified.add(file);
+    // Only a path that still exists can be a routing gap.
+    //
+    // The `D` filter in `replayCommits` catches the commit that removed a file, but not the
+    // earlier commits that *edited* it — those list it as an ordinary change, so a file
+    // modified in commit N and deleted in commit N+1 stayed unmapped forever. Deleting
+    // `set-single-director.ts` and `sync-users-to-production.ts` (TEL-P0-010) hit exactly
+    // that: `agent-routing` demanded the vanished paths be classified, `registry-integrity`
+    // rejected the entries because the files were gone, and no state satisfied both.
+    //
+    // Existence on disk is the precise form of the rule the `D` filter approximates: routing
+    // picks the tests and skills a change should load, and there is nothing to load for a
+    // file nobody can change any more.
+    for (const file of impact.unclassified) {
+      if (existsSync(path.join(ROOT, file))) unclassified.add(file);
+    }
     for (const skill of impact.skills) counts.set(skill, (counts.get(skill) ?? 0) + 1);
   }
 

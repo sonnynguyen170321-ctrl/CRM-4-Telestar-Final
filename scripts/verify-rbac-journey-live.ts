@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { requireLivePassword } from './liveCredentials';
 
 interface RoleCheck {
   roleName: string;
@@ -60,7 +61,7 @@ async function main() {
       // 1. Authenticate
       await page.goto('/login', { waitUntil: 'domcontentloaded' });
       await page.fill('input[type="email"], input[name="email"]', role.email);
-      await page.fill('input[type="password"], input[name="password"]', 'Telestar2026');
+      await page.fill('input[type="password"], input[name="password"]', requireLivePassword());
       await page.click('button[type="submit"]');
       await page.waitForTimeout(3000);
 
@@ -96,7 +97,7 @@ async function main() {
   const sdrPage = await sdrContext.newPage();
   await sdrPage.goto('/login', { waitUntil: 'networkidle' });
   await sdrPage.fill('input[type="email"], input[name="email"]', 'lan.pham@itelestar.com');
-  await sdrPage.fill('input[type="password"], input[name="password"]', 'Telestar2026');
+  await sdrPage.fill('input[type="password"], input[name="password"]', requireLivePassword());
   await sdrPage.click('button[type="submit"]');
   await sdrPage.waitForTimeout(3000);
 

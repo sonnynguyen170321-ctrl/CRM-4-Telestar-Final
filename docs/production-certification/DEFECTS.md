@@ -2,7 +2,7 @@
 
 **Program**: Telestar Production Certification
 **Authoritative Source**: `docs/production-certification/defects.json`
-**Last Updated**: 2026-08-25T10:20:36.795Z
+**Last Updated**: 2026-08-25T15:09:26.922Z
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -15,15 +15,35 @@
 
 | Severity | Discovered | Verified Closed | Accepted Risk | Active / Open |
 |---|---|---|---|---|
-| **P0** (Launch Blocker) | 7 | 1 | 0 | **6** |
+| **P0** (Launch Blocker) | 9 | 1 | 0 | **8** |
 | **P1** (Critical) | 34 | 1 | 0 | **33** |
 | **P2** (Important) | 21 | 1 | 0 | **20** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **62** | **3** | **0** | **59** |
+| **TOTAL** | **64** | **3** | **0** | **61** |
 
 ---
 
 ## 2. Defects Ledger
+
+### `TEL-P0-009` — The Live Production Login Password Is Published In A Public Repository, And Allowlisted From Secret Scanning
+
+- **Severity**: P0
+- **Status**: `OPEN`
+- **Owner**: core-team
+- **Discovered**: 2026-08-25T13:10:00.000Z
+- **Root cause**: The literal `Telestar2026` appears in 23 files at HEAD of a repository whose visibility is PUBLIC. It is not a fixture. `scripts/restore-internal-users.ts:6` hashes it once and assigns it to all 44 roster accounts; `scripts/sync-users-to-production.ts:1-4` defaults `PROD_URL` to `https://crm.telestar.cloud`, `PASSWORD_RAW` and `ADMIN_PASSWORD` to it, and `ADMIN_EMAIL` to the director `dean@telestar.vn`; twelve further committed scripts authenticate to that same production host with it. No gate ever flagged it because `.gitleaks.toml:65` carries `Telestar2026` on the allowlist, filed under "Test credentials & mock tokens" — the scanner was taught to ignore the one credential that most needed flagging. `TEL-P0-006` rotated the disclosed *database* password; the *application login* password was never addressed.
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `N/A`
+
+### `TEL-P0-010` — `users:restore` Deletes Users In Every Tenant, And Swallows The Errors That Say So
+
+- **Severity**: P0
+- **Status**: `OPEN`
+- **Owner**: core-team
+- **Discovered**: 2026-08-25T13:10:00.000Z
+- **Root cause**: Step 4 of `scripts/restore-internal-users.ts` selects deletion candidates with `prisma.user.findMany({ where: { OR: [ { email: { endsWith: "@telestar.vn", not: "dean@telestar.vn" } }, { email: { notIn: allowedEmails } } ] } })`. There is no `tenantId` predicate anywhere in that query, and it runs on `createAdminClient()`, which is the RLS bypass. The second arm matches every user in every tenant whose address is not one of the 44 hard-coded roster entries, so a single run deletes the entire user population of every other tenant on the instance. The reassignment and cleanup that precedes the delete runs through `safeUpdate`/`safeDelete` helpers whose bodies are `try { ... } catch {}`: a failed foreign-key reassignment is discarded silently and the delete proceeds regardless, and nothing is transactional, so a mid-run failure leaves a partially completed purge with no signal. The script also prints the shared password to stdout on the final line.
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `N/A`
 
 ### `TEL-P2-024` — A Redelivered Bounce Webhook Recorded The Same Bounce Twice
 

@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import * as path from 'path';
 import * as fs from 'fs';
+import { requireLivePassword } from './liveCredentials';
 
 interface RoleTestConfig {
   roleName: string;
@@ -14,35 +15,35 @@ const ROLES: RoleTestConfig[] = [
   {
     roleName: 'director',
     email: 'dean@telestar.vn',
-    password: 'Telestar2026',
+    password: requireLivePassword(),
     expectedGreeting: 'Dean',
     specificPages: ['/', '/leads', '/campaigns', '/sequences', '/tasks'],
   },
   {
     roleName: 'floor_manager',
     email: 'sonny@itelestar.com',
-    password: 'Telestar2026',
+    password: requireLivePassword(),
     expectedGreeting: 'Sonny',
     specificPages: ['/', '/leads', '/tasks', '/sequences', '/campaigns'],
   },
   {
     roleName: 'floor_manager_alayna',
     email: 'alayna@itelestar.com',
-    password: 'Telestar2026',
+    password: requireLivePassword(),
     expectedGreeting: 'Alayna',
     specificPages: ['/', '/leads', '/tasks', '/sequences', '/campaigns'],
   },
   {
     roleName: 'team_lead_brandon',
     email: 'branndon@itelestar.com',
-    password: 'Telestar2026',
+    password: requireLivePassword(),
     expectedGreeting: 'Brandon',
     specificPages: ['/', '/leads', '/tasks', '/campaigns'],
   },
   {
     roleName: 'team_lead_jackie',
     email: 'jackie@itelestar.com',
-    password: 'Telestar2026',
+    password: requireLivePassword(),
     expectedGreeting: 'Jackie',
     specificPages: ['/', '/leads', '/tasks', '/campaigns'],
   },

@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
+import { requireLivePassword } from './liveCredentials';
 
 const BASE_URL = 'https://crm.telestar.cloud';
 const SCREENSHOT_DIR = path.join(process.cwd(), 'screenshots', 'impeccable_deep_audit');
@@ -56,7 +57,7 @@ async function runAudit() {
     console.log(`\n👤 Authenticating persona: ${persona.name} (${persona.email})`);
     await page.goto('/login', { waitUntil: 'networkidle' });
     await page.fill('input[type="email"], input[name="email"]', persona.email);
-    await page.fill('input[type="password"], input[name="password"]', 'Telestar2026');
+    await page.fill('input[type="password"], input[name="password"]', requireLivePassword());
     await page.click('button[type="submit"]');
     await page.waitForTimeout(3000);
 

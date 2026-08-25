@@ -86,10 +86,8 @@
     "prod:cutover:postcheck",
     "prod:cutover:rehearse",
     "prod:cutover:verify",
-    "prod:sync-users",
     "repair:approved-proposals",
     "setup:dev",
-    "single-director:clean",
     "start",
     "sync-enrollments",
     "test",
@@ -101,5 +99,5 @@
     "worker:healthcheck",
     "worker:start"
   ],
-  "scriptCount": 58
+  "scriptCount": 56
 }

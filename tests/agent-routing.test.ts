@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { analyze } from '@/scripts/agent/impact';
 import { compile } from '@/scripts/agent/brief';
@@ -205,6 +207,25 @@ describe('routing coverage (§XXI)', () => {
     const { unclassifiedPaths, classified } = staticRoi(60);
     expect(classified).toBeGreaterThan(100);
     expect(unclassifiedPaths, 'unmapped paths — add them to .agent/registry/domains.yaml').toEqual([]);
+  });
+
+  it('reports no gap for a path that no longer exists', () => {
+    // Two checks used to make deleting a mapped file impossible. This one demanded every path
+    // in the replay window be classified in `domains.yaml`; `registry-integrity` rejected a
+    // domain owning a path that does not exist. A file edited in one commit and deleted in a
+    // later one satisfied neither — `replayCommits` only drops a path from the commit that
+    // deleted it, so the earlier edits kept it in the window. Deleting
+    // `set-single-director.ts` and `sync-users-to-production.ts` (TEL-P0-010) hit it.
+    //
+    // Routing selects the tests and skills a change should load. There is nothing to load for
+    // a file nobody can change, so existence is the precondition for being a gap at all.
+    const { unclassifiedPaths } = staticRoi(60);
+    for (const file of unclassifiedPaths) {
+      expect(
+        existsSync(join(process.cwd(), file)),
+        `${file} is reported as a routing gap but does not exist — a deleted path is not a gap`
+      ).toBe(true);
+    }
   });
 
   it('selects at least one skill for the domains that see real churn', () => {
