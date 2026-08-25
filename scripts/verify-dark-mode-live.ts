@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { requireLivePassword } from './liveCredentials';
 
 async function main() {
   console.log('======================================================================');
@@ -17,7 +18,7 @@ async function main() {
   console.log('1. Authenticating as Sonny (Floor Manager)...');
   await page.goto('/login', { waitUntil: 'networkidle', timeout: 30000 });
   await page.fill('input[type="email"], input[name="email"]', 'sonny@itelestar.com');
-  await page.fill('input[type="password"], input[name="password"]', 'Telestar2026');
+  await page.fill('input[type="password"], input[name="password"]', requireLivePassword());
   await page.click('button[type="submit"]');
   await page.waitForTimeout(4000);
   console.log('   🔑 Authentication: SUCCESS\n');

@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { requireLivePassword } from './liveCredentials';
 
 async function testEmailSend() {
   const browser = await chromium.launch({ headless: true });
@@ -7,7 +8,7 @@ async function testEmailSend() {
   console.log('1. Logging in as sonny@itelestar.com...');
   await page.goto('https://crm.telestar.cloud/login', { waitUntil: 'networkidle' });
   await page.fill('input[type="email"], input[name="email"]', 'sonny@itelestar.com');
-  await page.fill('input[type="password"], input[name="password"]', 'Telestar2026');
+  await page.fill('input[type="password"], input[name="password"]', requireLivePassword());
   await page.click('button[type="submit"]');
   await page.waitForTimeout(3000);
 

@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import * as path from 'path';
 import * as fs from 'fs';
+import { requireLivePassword } from './liveCredentials';
 
 interface AuditResult {
   role: string;
@@ -25,7 +26,7 @@ const PERSONAS = [
     role: 'director',
     name: 'Dean (Director)',
     email: 'dean@telestar.vn',
-    password: 'Telestar2026',
+    password: requireLivePassword(),
     items: [
       { name: 'Dashboard', route: '/' },
       { name: 'AI Command Center', route: '/ai' },
@@ -49,7 +50,7 @@ const PERSONAS = [
     role: 'floor_manager',
     name: 'Sonny (Floor Manager)',
     email: 'sonny@telestar.vn',
-    password: 'Telestar2026',
+    password: requireLivePassword(),
     items: [
       { name: 'Dashboard', route: '/' },
       { name: 'AI Command Center', route: '/ai' },
@@ -72,7 +73,7 @@ const PERSONAS = [
     role: 'sdr',
     name: 'Carlos Reyes (SDR)',
     email: 'carlos.reyes@telestar.vn',
-    password: 'Telestar2026',
+    password: requireLivePassword(),
     items: [
       { name: 'Dashboard', route: '/' },
       { name: 'AI Command Center', route: '/ai' },
@@ -93,7 +94,7 @@ const PERSONAS = [
     role: 'leadgen_manager',
     name: 'Dominic (Leadgen Manager)',
     email: 'dominic@telestar.vn',
-    password: 'Telestar2026',
+    password: requireLivePassword(),
     items: [
       { name: 'Leadgen Workspace', route: '/leadgen' },
       { name: 'Internal Database Pool', route: '/leadgen-manager?tab=pool' },

@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { requireLivePassword } from './liveCredentials';
 
 async function testSendAPI() {
   const browser = await chromium.launch({ headless: true });
@@ -11,7 +12,7 @@ async function testSendAPI() {
   console.log('1. Logging in as dean@telestar.vn...');
   await page.goto('/login', { waitUntil: 'networkidle' });
   await page.fill('input[type="email"], input[name="email"]', 'dean@telestar.vn');
-  await page.fill('input[type="password"], input[name="password"]', 'Telestar2026');
+  await page.fill('input[type="password"], input[name="password"]', requireLivePassword());
   await page.click('button[type="submit"]');
   await page.waitForTimeout(3500);
   console.log(`   🔑 Authentication: SUCCESS (Current URL: ${page.url()})`);

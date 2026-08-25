@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import * as path from 'path';
 import * as fs from 'fs';
+import { requireLivePassword } from './liveCredentials';
 
 async function main() {
   console.log('🚀 Starting Director Persona Live E2E Verification on https://crm.telestar.cloud...\n');
@@ -25,7 +26,7 @@ async function main() {
     
     console.log('   Filling credentials (dean@telestar.vn)...');
     await page.fill('input[type="email"], input[name="email"]', 'dean@telestar.vn');
-    await page.fill('input[type="password"], input[name="password"]', 'Telestar2026');
+    await page.fill('input[type="password"], input[name="password"]', requireLivePassword());
     
     console.log('   Submitting login form...');
     await Promise.all([

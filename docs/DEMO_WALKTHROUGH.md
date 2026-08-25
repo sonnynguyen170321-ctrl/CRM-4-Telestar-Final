@@ -6,15 +6,20 @@
 
 ---
 
-## 🎭 Persona Credentials Reference
+## 🎭 Persona Reference
 
-| Persona | Email | Password | Primary Surface |
-| :--- | :--- | :--- | :--- |
-| **Director** | `dean@telestar.vn` | `Telestar2026` | Executive Brief, Campaign ROI, Revenue Health |
-| **Floor Manager** | `sonny@itelestar.com` | `Telestar2026` | SDR Attention Matrix, Workload Reassignment |
-| **Team Lead** | `branndon@itelestar.com` | `Telestar2026` | 1-on-1 Coaching, Queue Management |
-| **SDR** | `lan.pham@itelestar.com` | `Telestar2026` | AI Copilot, 1-Click Dialing, Icebreaker Generator |
-| **Leadgen Manager** | `dominic@itelestar.com` | `Telestar2026` | Lead Pool, ICP Adherence, Batch Conversion |
+> **Passwords are not published here, and no persona shares one.** This table used to carry
+> a single live password for all five accounts against `https://crm.telestar.cloud`, in a
+> public repository (TEL-P0-009). Get the credential for the account you are demoing from
+> the operator, out of band, and never write it into this tree.
+
+| Persona | Email | Primary Surface |
+| :--- | :--- | :--- |
+| **Director** | `dean@telestar.vn` | Executive Brief, Campaign ROI, Revenue Health |
+| **Floor Manager** | `sonny@itelestar.com` | SDR Attention Matrix, Workload Reassignment |
+| **Team Lead** | `branndon@itelestar.com` | 1-on-1 Coaching, Queue Management |
+| **SDR** | `lan.pham@itelestar.com` | AI Copilot, 1-Click Dialing, Icebreaker Generator |
+| **Leadgen Manager** | `dominic@itelestar.com` | Lead Pool, ICP Adherence, Batch Conversion |
 
 ---
 
