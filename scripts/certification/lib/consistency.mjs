@@ -543,6 +543,7 @@ export function checkPostFreezeCommits(config) {
     'docs/production-certification/',
     'docs/production-cutover/',
     'scripts/certification/',
+    'tests/certification-',
   ];
 
   for (const commit of commits) {
