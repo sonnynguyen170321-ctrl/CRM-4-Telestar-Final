@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { readFileSync, existsSync, writeFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import {
   canonicalManifestHash,
   classifyRow,
+  evaluatePreconditions,
   PurgeManifest,
   sha256,
   TOPOLOGICAL_MODELS,
@@ -154,6 +155,114 @@ describe('Safe Production Cutover Tool — Behavioral & Fail-Closed Suite', () =
       const changedCount: PurgeManifest = JSON.parse(JSON.stringify(manifest));
       changedCount.summary.rowsToDeleteCount = 2;
       expect(canonicalManifestHash(changedCount)).not.toBe(signature);
+    });
+  });
+
+  describe('Fail-closed preconditions (Section 30)', () => {
+    const ENV_KEYS = ['EMAIL_GLOBAL_PAUSE', 'SEQUENCE_AUTOSEND_ENABLED', 'IMPORTS_PAUSED', 'QUEUES_PAUSED'];
+    const saved: Record<string, string | undefined> = {};
+
+    beforeEach(() => {
+      for (const key of ENV_KEYS) saved[key] = process.env[key];
+    });
+
+    afterEach(() => {
+      for (const key of ENV_KEYS) {
+        if (saved[key] === undefined) delete process.env[key];
+        else process.env[key] = saved[key];
+      }
+    });
+
+    it('refuses when no operator recovery evidence was supplied at all', () => {
+      const unmet = evaluatePreconditions(null).filter((c) => !c.satisfied);
+      expect(unmet.map((c) => c.name)).toContain('operator recovery evidence supplied');
+    });
+
+    it('names email pause, autosend, imports and queues among its checks', () => {
+      const names = evaluatePreconditions(null).map((c) => c.name);
+      expect(names).toContain('EMAIL_GLOBAL_PAUSE is true');
+      expect(names).toContain('SEQUENCE_AUTOSEND_ENABLED is not true');
+      expect(names).toContain('imports are blocked');
+      expect(names).toContain('queues are paused');
+    });
+
+    it('treats an unset EMAIL_GLOBAL_PAUSE as unsatisfied, never as absent-so-fine', () => {
+      delete process.env.EMAIL_GLOBAL_PAUSE;
+      const pause = evaluatePreconditions(null).find((c) => c.name === 'EMAIL_GLOBAL_PAUSE is true');
+      expect(pause!.satisfied).toBe(false);
+
+      process.env.EMAIL_GLOBAL_PAUSE = 'true';
+      const paused = evaluatePreconditions(null).find((c) => c.name === 'EMAIL_GLOBAL_PAUSE is true');
+      expect(paused!.satisfied).toBe(true);
+    });
+
+    it('treats an explicitly enabled autosend as unsatisfied', () => {
+      process.env.SEQUENCE_AUTOSEND_ENABLED = 'true';
+      const autosend = evaluatePreconditions(null).find((c) => c.name === 'SEQUENCE_AUTOSEND_ENABLED is not true');
+      expect(autosend!.satisfied).toBe(false);
+    });
+
+    it('rejects recovery evidence that names a different database', () => {
+      const file = path.join(process.cwd(), `.precond-${Date.now()}.json`);
+      writeFileSync(
+        file,
+        JSON.stringify({
+          backupVerified: true,
+          backupId: 'backup-1',
+          backupCompletedAt: new Date().toISOString(),
+          pitrEnabled: true,
+          recoveryAccessVerified: true,
+          databaseFingerprint: 'some-other-host:5432/some_other_db',
+        })
+      );
+      try {
+        const target = evaluatePreconditions(file).find(
+          (c) => c.name === 'the evidence names the database being targeted'
+        );
+        expect(target!.satisfied).toBe(false);
+      } finally {
+        unlinkSync(file);
+      }
+    });
+
+    it('rejects a backup older than the cutover window', () => {
+      const file = path.join(process.cwd(), `.precond-old-${Date.now()}.json`);
+      const threeDaysAgo = new Date(Date.now() - 72 * 3600 * 1000).toISOString();
+      writeFileSync(
+        file,
+        JSON.stringify({
+          backupVerified: true,
+          backupId: 'backup-old',
+          backupCompletedAt: threeDaysAgo,
+          pitrEnabled: true,
+          recoveryAccessVerified: true,
+        })
+      );
+      try {
+        const fresh = evaluatePreconditions(file).find((c) => c.name.startsWith('the backup is younger'));
+        expect(fresh!.satisfied).toBe(false);
+      } finally {
+        unlinkSync(file);
+      }
+    });
+
+    it('rejects evidence that simply omits PITR rather than denying it', () => {
+      const file = path.join(process.cwd(), `.precond-nopitr-${Date.now()}.json`);
+      writeFileSync(
+        file,
+        JSON.stringify({
+          backupVerified: true,
+          backupId: 'backup-2',
+          backupCompletedAt: new Date().toISOString(),
+          recoveryAccessVerified: true,
+        })
+      );
+      try {
+        const pitr = evaluatePreconditions(file).find((c) => c.name === 'point-in-time recovery is enabled');
+        expect(pitr!.satisfied).toBe(false);
+      } finally {
+        unlinkSync(file);
+      }
     });
   });
 

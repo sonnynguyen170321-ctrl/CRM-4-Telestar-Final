@@ -2,7 +2,7 @@
 
 **Program**: Telestar Production Certification
 **Authoritative Source**: `docs/production-certification/defects.json`
-**Last Updated**: 2026-08-25T09:47:07.830Z
+**Last Updated**: 2026-08-25T09:58:45.105Z
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -638,10 +638,10 @@
 ### `TEL-P1-045` — VERIFY Omits The Backup, PITR, Email-Pause And Queue Preconditions
 
 - **Severity**: P1
-- **Status**: `OPEN`
+- **Status**: `FIXED_PENDING_VERIFICATION`
 - **Owner**: core-team
 - **Discovered**: 2026-08-25T00:00:00.000Z
 - **Root cause**: Directive section 30 lists the preconditions prod:cutover:verify must fail closed on. verifyMode checks database fingerprint, roster hash, zero review and row drift. It does not check: backup verified and recent, PITR enabled, recovery access, EMAIL_GLOBAL_PAUSE true, SEQUENCE_AUTOSEND_ENABLED false, queues paused or drained, imports prevented, candidate deployment healthy, candidate identity expected.
 - **Fix SHA**: `N/A`
-- **Verification evidence**: `N/A`
+- **Verification evidence**: `tests/safe-cutover-tool.test.ts — "Fail-closed preconditions (Section 30)", 7 cases; executeMode refuses on any unmet precondition before the first delete`
 

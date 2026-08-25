@@ -65,6 +65,124 @@ export function sha256(content: string): string {
   return createHash('sha256').update(content).digest('hex');
 }
 
+export interface Precondition {
+  name: string;
+  satisfied: boolean;
+  detail: string;
+}
+
+/**
+ * The preconditions EXECUTE may not proceed without (directive section 30).
+ *
+ * Fail-closed means the absence of proof is a refusal, not a warning. Each entry
+ * below is either proven from something observable at run time, or it is not
+ * satisfied — there is no "probably fine" state, and no flag that asserts one.
+ *
+ * Backup, PITR and recovery access cannot be observed from inside this process:
+ * they are facts about the Cloud SQL instance. They are supplied by an operator
+ * evidence file whose path is given with `--preconditions=<file>`, and its
+ * contents are reported verbatim into the cutover record so a reader can check
+ * them against the console. No file, no execution.
+ */
+export function evaluatePreconditions(evidencePath?: string | null): Precondition[] {
+  const checks: Precondition[] = [];
+  const normalize = (value?: string) => (value ?? '').trim().toLowerCase();
+
+  // Mail must be unable to leave the system while rows are being deleted: a
+  // sequence firing mid-cutover would send against half-purged state.
+  checks.push({
+    name: 'EMAIL_GLOBAL_PAUSE is true',
+    satisfied: normalize(process.env.EMAIL_GLOBAL_PAUSE) === 'true',
+    detail: `EMAIL_GLOBAL_PAUSE=${process.env.EMAIL_GLOBAL_PAUSE === undefined ? 'NOT SET' : 'SET'}`,
+  });
+
+  // Unset means off, which is the safe default, so anything other than an
+  // explicit "true" satisfies this.
+  checks.push({
+    name: 'SEQUENCE_AUTOSEND_ENABLED is not true',
+    satisfied: normalize(process.env.SEQUENCE_AUTOSEND_ENABLED) !== 'true',
+    detail: `SEQUENCE_AUTOSEND_ENABLED=${process.env.SEQUENCE_AUTOSEND_ENABLED === undefined ? 'NOT SET' : 'SET'}`,
+  });
+
+  checks.push({
+    name: 'imports are blocked',
+    satisfied: normalize(process.env.IMPORTS_PAUSED) === 'true',
+    detail: `IMPORTS_PAUSED=${process.env.IMPORTS_PAUSED === undefined ? 'NOT SET' : 'SET'}`,
+  });
+
+  checks.push({
+    name: 'queues are paused',
+    satisfied: normalize(process.env.QUEUES_PAUSED) === 'true',
+    detail: `QUEUES_PAUSED=${process.env.QUEUES_PAUSED === undefined ? 'NOT SET' : 'SET'}`,
+  });
+
+  if (!evidencePath) {
+    checks.push({
+      name: 'operator recovery evidence supplied',
+      satisfied: false,
+      detail: 'no --preconditions=<file> given; backup, PITR and recovery access are unproven',
+    });
+    return checks;
+  }
+
+  if (!existsSync(evidencePath)) {
+    checks.push({
+      name: 'operator recovery evidence supplied',
+      satisfied: false,
+      detail: `--preconditions file not found at ${evidencePath}`,
+    });
+    return checks;
+  }
+
+  let evidence: any;
+  try {
+    evidence = JSON.parse(readFileSync(evidencePath, 'utf8'));
+  } catch (err: any) {
+    checks.push({
+      name: 'operator recovery evidence supplied',
+      satisfied: false,
+      detail: `--preconditions file is not readable JSON: ${err.message}`,
+    });
+    return checks;
+  }
+
+  const backupAt = Date.parse(evidence.backupCompletedAt ?? '');
+  const backupAgeHours = Number.isFinite(backupAt) ? (Date.now() - backupAt) / 3_600_000 : Infinity;
+  const MAX_BACKUP_AGE_HOURS = 24;
+
+  checks.push({
+    name: 'a verified backup exists',
+    satisfied: evidence.backupVerified === true && Number.isFinite(backupAt),
+    detail: `backupVerified=${evidence.backupVerified === true} backupId=${evidence.backupId ?? 'ABSENT'}`,
+  });
+  checks.push({
+    name: `the backup is younger than ${MAX_BACKUP_AGE_HOURS}h`,
+    satisfied: backupAgeHours <= MAX_BACKUP_AGE_HOURS,
+    detail: Number.isFinite(backupAgeHours)
+      ? `backup is ${backupAgeHours.toFixed(1)}h old`
+      : 'backupCompletedAt is missing or unparseable',
+  });
+  checks.push({
+    name: 'point-in-time recovery is enabled',
+    satisfied: evidence.pitrEnabled === true,
+    detail: `pitrEnabled=${evidence.pitrEnabled === true}`,
+  });
+  checks.push({
+    name: 'recovery access is available',
+    satisfied: evidence.recoveryAccessVerified === true,
+    detail: `recoveryAccessVerified=${evidence.recoveryAccessVerified === true}`,
+  });
+  checks.push({
+    name: 'the evidence names the database being targeted',
+    satisfied:
+      typeof evidence.databaseFingerprint === 'string' &&
+      evidence.databaseFingerprint === getDatabaseFingerprint(),
+    detail: `evidence names ${evidence.databaseFingerprint ?? 'nothing'}; this process is connected to ${getDatabaseFingerprint()}`,
+  });
+
+  return checks;
+}
+
 export function getDatabaseFingerprint(): string {
   const dbUrl = process.env.DATABASE_URL || '';
   const match = dbUrl.match(/@([^:/]+)(?::(\d+))?\/([^?]+)/);
@@ -446,6 +564,25 @@ export async function executeMode(manifestPath?: string, dryRun = false) {
 
   if (!dryRun && !hasFlag('confirm-production-destructive-cutover')) {
     throw new Error('EXECUTE REFUSED: Missing required flag --confirm-production-destructive-cutover');
+  }
+
+  // Directive section 30: every precondition must hold, or this exits non-zero
+  // before the first delete. A rehearsal is non-destructive, so it reports the
+  // same list without being blocked by it — that is how an operator sees what is
+  // still outstanding before asking for authorization.
+  const preconditions = evaluatePreconditions(parseArg('preconditions'));
+  const unmet = preconditions.filter((check) => !check.satisfied);
+  console.log(`\n🔐 Cutover preconditions (${preconditions.length - unmet.length}/${preconditions.length} satisfied):`);
+  for (const check of preconditions) {
+    console.log(`   ${check.satisfied ? '✅' : '❌'} ${check.name} — ${check.detail}`);
+  }
+  if (unmet.length > 0) {
+    if (!dryRun) {
+      throw new Error(
+        `EXECUTE REFUSED: ${unmet.length} precondition(s) not satisfied: ${unmet.map((c) => c.name).join('; ')}`
+      );
+    }
+    console.log(`   (rehearsal continues; EXECUTE would refuse on ${unmet.length} unmet precondition(s))`);
   }
 
   const manifest = await verifyMode(manifestPath);
