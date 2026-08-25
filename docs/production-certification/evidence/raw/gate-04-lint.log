@@ -1,19 +1,10 @@
 # gate: 04-lint — eslint across the whole tree
 # command: C:\Program Files\nodejs\node.exe node_modules/eslint/bin/eslint.js app components lib context tests workers scripts e2e
-# startedAt: 2026-08-25T10:49:58.208Z
-# finishedAt: 2026-08-25T10:51:16.508Z
+# startedAt: 2026-08-25T21:41:37.367Z
+# finishedAt: 2026-08-25T21:42:29.868Z
 # exitCode: 0
 
 --- stdout ---
-
-D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\scripts\cutover\inventory-non-db.ts
-  85:9  warning  'rateLimitKeys' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-
-D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\tests\safe-cutover-tool.test.ts
-  10:3  warning  'sha256' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-
-✖ 2 problems (0 errors, 2 warnings)
-
-
+(empty)
 --- stderr ---
 (empty)

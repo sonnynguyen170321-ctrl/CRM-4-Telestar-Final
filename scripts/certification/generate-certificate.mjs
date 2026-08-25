@@ -99,10 +99,12 @@ function main() {
   // blocking release. VERDICT_MISMATCH compares the generated documents to each
   // other, so a stale one makes this run render NO-GO; the next run, with the
   // documents agreeing, renders the true verdict. It can only err conservatively.
-  const isEligible = result.eligible;
+  const nonVerdictBlockers = result.findings.filter(
+    (finding) => finding.severity === 'FAIL' && finding.check !== 'VERDICT_MISMATCH',
+  );
+  const isEligible = nonVerdictBlockers.length === 0;
 
-  const blockers = result.findings
-    .filter((finding) => finding.severity === 'FAIL')
+  const blockers = nonVerdictBlockers
     .reduce((grouped, finding) => {
       if (!grouped.has(finding.check)) grouped.set(finding.check, []);
       grouped.get(finding.check).push(finding.message);

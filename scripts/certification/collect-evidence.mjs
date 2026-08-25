@@ -56,7 +56,7 @@ export const GATES = {
   },
   '08-vitest': {
     description: 'full Vitest suite against real Postgres and Redis',
-    command: [process.execPath, ['node_modules/vitest/vitest.mjs', 'run', '--reporter=json', '--outputFile=.certification/vitest.json']],
+    command: [process.execPath, ['node_modules/vitest/vitest.mjs', 'run', '--maxWorkers=4', '--reporter=json', '--outputFile=.certification/vitest.json']],
     parser: 'vitest',
   },
   '09-redis-integration': {

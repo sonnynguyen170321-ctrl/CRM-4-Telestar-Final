@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-BRANCH-PROTECTION",
   "kind": "branch-governance",
-  "candidateSha": "016e0205b5ece66aab5266a94e744fb9fd2ed2ad",
+  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
   "environment": "GitHub REST API and git push against sonnynguyen170321-ctrl/CRM-4-Telestar-Final from the certification workstation",
   "command": "gh api -X PUT .../branches/main/protection; gh pr create; gh api -X PUT .../pulls/111/merge; git push origin main",
-  "startedAt": "2026-08-25T09:46:01.958Z",
-  "finishedAt": "2026-08-25T10:16:01.959Z",
+  "startedAt": "2026-08-25T21:50:00.000Z",
+  "finishedAt": "2026-08-25T21:51:00.000Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {

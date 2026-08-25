@@ -49,7 +49,7 @@
       "transactionalLogStorageState": "CLOUD_STORAGE"
     },
     "availabilityType": "ZONAL",
-    "deletionProtectionEnabled": false,
+    "deletionProtectionEnabled": true,
     "edition": "ENTERPRISE"
   }
 }

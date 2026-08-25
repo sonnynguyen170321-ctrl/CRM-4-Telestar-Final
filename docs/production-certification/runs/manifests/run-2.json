@@ -1,10 +1,12 @@
 {
   "runNumber": 2,
-  "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
+  "executionId": "e2126ee1-cff2-4e17-814c-9fd33149efbf",
+  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+  "actualHeadSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
-  "startedAt": "2026-08-24T09:36:00.000Z",
-  "finishedAt": "2026-08-24T09:38:00.000Z",
-  "durationMs": 1007196,
+  "startedAt": "2026-08-25T21:00:36.254Z",
+  "finishedAt": "2026-08-25T21:20:37.987Z",
+  "durationMs": 1201733,
   "gates": {
     "01-source-identity": {
       "status": "PASS",
@@ -12,9 +14,9 @@
       "durationMs": 0,
       "description": "the application source is exactly the frozen candidate",
       "metrics": {
-        "head": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
-        "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
-        "commitsSinceFreeze": 3,
+        "head": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+        "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+        "commitsSinceFreeze": 0,
         "uncommittedNonMetadataPaths": 0,
         "problems": []
       }
@@ -22,7 +24,7 @@
     "02-environment": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 309,
+      "durationMs": 2336,
       "description": "Postgres and Redis reachable; required configuration present",
       "metrics": {
         "postgres": {
@@ -49,37 +51,37 @@
     "03-typecheck": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 52420,
+      "durationMs": 45313,
       "description": "tsc --noEmit"
     },
     "04-lint": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 57376,
+      "durationMs": 56496,
       "description": "eslint across the whole tree"
     },
     "05-test-discipline": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 408,
+      "durationMs": 533,
       "description": "scripts/check-test-discipline.mjs"
     },
     "06-migration-validation": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 156,
+      "durationMs": 259,
       "description": "scripts/check-migration-order.mjs"
     },
     "07-database-integrity": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 5353,
+      "durationMs": 5541,
       "description": "scripts/verify-db-integrity.ts against the certification database"
     },
     "08-vitest": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 178863,
+      "durationMs": 351576,
       "description": "full Vitest suite against real Postgres and Redis",
       "metrics": {
         "files": {
@@ -163,7 +165,7 @@
           },
           "tests/agent-routing.test.ts": {
             "status": "passed",
-            "tests": 32,
+            "tests": 33,
             "failed": 0,
             "skipped": 0
           },
@@ -287,6 +289,12 @@
             "failed": 0,
             "skipped": 0
           },
+          "tests/api-key-http-surface.test.ts": {
+            "status": "passed",
+            "tests": 11,
+            "failed": 0,
+            "skipped": 0
+          },
           "tests/api-key-privilege-escalation.test.ts": {
             "status": "passed",
             "tests": 17,
@@ -386,6 +394,12 @@
           "tests/certification-image-gates.test.ts": {
             "status": "passed",
             "tests": 17,
+            "failed": 0,
+            "skipped": 0
+          },
+          "tests/certification-one-verdict-engine.test.ts": {
+            "status": "passed",
+            "tests": 9,
             "failed": 0,
             "skipped": 0
           },
@@ -517,7 +531,13 @@
           },
           "tests/defect-ledger-consistency.test.ts": {
             "status": "passed",
-            "tests": 22,
+            "tests": 30,
+            "failed": 0,
+            "skipped": 0
+          },
+          "tests/defect-ledger-integrity.test.ts": {
+            "status": "passed",
+            "tests": 17,
             "failed": 0,
             "skipped": 0
           },
@@ -541,7 +561,7 @@
           },
           "tests/deploy-script.test.ts": {
             "status": "passed",
-            "tests": 31,
+            "tests": 33,
             "failed": 0,
             "skipped": 0
           },
@@ -755,6 +775,12 @@
             "failed": 0,
             "skipped": 0
           },
+          "tests/no-committed-credentials.test.ts": {
+            "status": "passed",
+            "tests": 35,
+            "failed": 0,
+            "skipped": 0
+          },
           "tests/notif-prefs.test.ts": {
             "status": "passed",
             "tests": 10,
@@ -959,6 +985,12 @@
             "failed": 0,
             "skipped": 0
           },
+          "tests/restore-internal-users.test.ts": {
+            "status": "passed",
+            "tests": 25,
+            "failed": 0,
+            "skipped": 0
+          },
           "tests/revenue-intelligence-trio.test.ts": {
             "status": "passed",
             "tests": 3,
@@ -1004,6 +1036,12 @@
           "tests/run-now-immediate.test.ts": {
             "status": "passed",
             "tests": 3,
+            "failed": 0,
+            "skipped": 0
+          },
+          "tests/safe-cutover-tool.test.ts": {
+            "status": "passed",
+            "tests": 31,
             "failed": 0,
             "skipped": 0
           },
@@ -1258,11 +1296,17 @@
             "tests": 6,
             "failed": 0,
             "skipped": 0
+          },
+          "tests/worker-runners.test.ts": {
+            "status": "passed",
+            "tests": 14,
+            "failed": 0,
+            "skipped": 0
           }
         },
-        "testFiles": 196,
-        "testFilesPassed": 196,
-        "testsPassed": 2812,
+        "testFiles": 203,
+        "testFilesPassed": 203,
+        "testsPassed": 2965,
         "testsFailed": 0,
         "testsSkipped": 0
       }
@@ -1270,7 +1314,7 @@
     "09-redis-integration": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 3735,
+      "durationMs": 5441,
       "description": "Redis integration suite - must execute, never skip",
       "metrics": {
         "files": {
@@ -1305,43 +1349,43 @@
     "10-ai-certification": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 8178,
+      "durationMs": 15618,
       "description": "AI durable budget, stream governance, shared circuit, capability routing"
     },
     "11-email-safety": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 2217,
+      "durationMs": 4267,
       "description": "demo barrier, idempotency, safe-mode posture"
     },
     "12-import-fault-matrix": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 8332,
+      "durationMs": 21336,
       "description": "import durable-write failpoint matrix"
     },
     "13-queue-load": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 24058,
+      "durationMs": 130557,
       "description": "IMPORT_SYSTEM_QUEUE_BENCHMARK over real Redis and BullMQ"
     },
     "14-security-suite": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 4103,
+      "durationMs": 9755,
       "description": "tenant isolation, object auth, mass assignment, XSS, formula injection, secrets"
     },
     "15-production-build": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 76062,
+      "durationMs": 73396,
       "description": "next build"
     },
     "16-playwright-roles": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 31954,
+      "durationMs": 30844,
       "description": "six-role real browser acceptance",
       "metrics": {
         "playwright": {
@@ -1361,13 +1405,13 @@
     "16-playwright-roles-evidence": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 251,
+      "durationMs": 146,
       "description": "aggregate six-role observations into EV-ROLE-BROWSER"
     },
     "17-golden-browser-journey": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 16239,
+      "durationMs": 16068,
       "description": "cross-role golden journey in a real browser",
       "metrics": {
         "playwright": {
@@ -1387,19 +1431,19 @@
     "18-worker-readiness": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 3463,
+      "durationMs": 7401,
       "description": "worker healthcheck: a job is enqueued and a real worker drains it"
     },
     "22-health-smoke": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 18,
+      "durationMs": 20,
       "description": "web health endpoints answer 200 with ok=true and report the candidate SHA",
       "metrics": {
         "endpoints": {
           "/api/health": {
             "status": 200,
-            "commit": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+            "commit": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
             "findings": []
           }
         },
@@ -1409,19 +1453,19 @@
     "19-docker-build": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 514500,
+      "durationMs": 404646,
       "description": "Docker image build from candidate SHA"
     },
     "20-image-inspection": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 246,
+      "durationMs": 328,
       "description": "Image digest captured by digest, never by floating tag",
       "metrics": {
-        "imageId": "sha256:2b29682b1e657680265b7e98ba7195d3225ed90e8ab30a2e6271b8337ab3cfde",
-        "revision": "d5d7cf83679faa1187ffd1ab095a37c28f5136f4",
+        "imageId": "sha256:592bacc2ee119b2d661707cecee78d4de65bbe26984b48143450782ff993d316",
+        "revision": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
         "repoTags": [
-          "telestar-crm-candidate:d5d7cf83679faa1187ffd1ab095a37c28f5136f4"
+          "telestar-crm-candidate:9b2b44c9f0987139e2f48ee21b14ec36e10690a8"
         ],
         "findings": []
       }
@@ -1429,13 +1473,13 @@
     "21-compose-validation": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 3130,
+      "durationMs": 2398,
       "description": "scripts/check-production-compose.mjs"
     },
     "23-validator-selftest": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 2566,
+      "durationMs": 5585,
       "description": "the validator rejects every injected false-green state"
     }
   },
@@ -1525,7 +1569,7 @@
       },
       "tests/agent-routing.test.ts": {
         "status": "passed",
-        "tests": 32,
+        "tests": 33,
         "failed": 0,
         "skipped": 0
       },
@@ -1649,6 +1693,12 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/api-key-http-surface.test.ts": {
+        "status": "passed",
+        "tests": 11,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/api-key-privilege-escalation.test.ts": {
         "status": "passed",
         "tests": 17,
@@ -1748,6 +1798,12 @@
       "tests/certification-image-gates.test.ts": {
         "status": "passed",
         "tests": 17,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/certification-one-verdict-engine.test.ts": {
+        "status": "passed",
+        "tests": 9,
         "failed": 0,
         "skipped": 0
       },
@@ -1879,7 +1935,13 @@
       },
       "tests/defect-ledger-consistency.test.ts": {
         "status": "passed",
-        "tests": 22,
+        "tests": 30,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/defect-ledger-integrity.test.ts": {
+        "status": "passed",
+        "tests": 17,
         "failed": 0,
         "skipped": 0
       },
@@ -1903,7 +1965,7 @@
       },
       "tests/deploy-script.test.ts": {
         "status": "passed",
-        "tests": 31,
+        "tests": 33,
         "failed": 0,
         "skipped": 0
       },
@@ -2117,6 +2179,12 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/no-committed-credentials.test.ts": {
+        "status": "passed",
+        "tests": 35,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/notif-prefs.test.ts": {
         "status": "passed",
         "tests": 10,
@@ -2321,6 +2389,12 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/restore-internal-users.test.ts": {
+        "status": "passed",
+        "tests": 25,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/revenue-intelligence-trio.test.ts": {
         "status": "passed",
         "tests": 3,
@@ -2366,6 +2440,12 @@
       "tests/run-now-immediate.test.ts": {
         "status": "passed",
         "tests": 3,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/safe-cutover-tool.test.ts": {
+        "status": "passed",
+        "tests": 31,
         "failed": 0,
         "skipped": 0
       },
@@ -2620,11 +2700,17 @@
         "tests": 6,
         "failed": 0,
         "skipped": 0
+      },
+      "tests/worker-runners.test.ts": {
+        "status": "passed",
+        "tests": 14,
+        "failed": 0,
+        "skipped": 0
       }
     },
-    "testFiles": 196,
-    "testFilesPassed": 196,
-    "testsPassed": 2812,
+    "testFiles": 203,
+    "testFilesPassed": 203,
+    "testsPassed": 2965,
     "testsFailed": 0,
     "testsSkipped": 0
   }

@@ -1,13 +1,9 @@
 ▲ Next.js 16.3.0
 - Local:         http://localhost:3000
-- Network:       http://192.168.1.26:3000
-✓ Ready in 496ms
-✓ Running next.config.ts took 106ms
+- Network:       http://172.23.0.1:3000
+✓ Ready in 524ms
+✓ Running next.config.ts took 99ms
 [env] Gmail OAuth not configured (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI) — related features disabled
 [env] Microsoft OAuth not configured (MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, MICROSOFT_REDIRECT_URI) — related features disabled
 [login-throttle] count read failed, failing open: Stream isn't writeable and enableOfflineQueue options is false
-[ioredis] Unhandled error event: Error: Command timed out
-    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\.next\server\chunks\node_modules_1lrvs3o._.js:139:8334)
-    at listOnTimeout (node:internal/timers:605:17)
-    at process.processTimers (node:internal/timers:541:7)
 [bullmq] Redis connected

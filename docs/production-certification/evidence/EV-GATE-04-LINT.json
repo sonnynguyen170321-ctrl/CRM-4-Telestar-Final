@@ -1,19 +1,19 @@
 {
   "evidenceId": "EV-GATE-04-LINT",
   "kind": "gate",
-  "candidateSha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
+  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe node_modules/eslint/bin/eslint.js app components lib context tests workers scripts e2e",
-  "startedAt": "2026-08-25T10:49:58.208Z",
-  "finishedAt": "2026-08-25T10:51:16.508Z",
+  "startedAt": "2026-08-25T21:41:37.367Z",
+  "finishedAt": "2026-08-25T21:42:29.868Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {},
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/gate-04-lint.log",
-      "sizeBytes": 847,
-      "sha256": "b4ba28afe6d7c7b6b5c8a5b636f10db4e5e67e5623f6c1774197882f6819e5a5"
+      "sizeBytes": 318,
+      "sha256": "dd176f25bafe0d037a15c1f00e7ce411012950de3da04d1f5b0d66fd04b2b466"
     }
   ]
 }

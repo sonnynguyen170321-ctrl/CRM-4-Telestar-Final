@@ -1,37 +1,37 @@
 {
   "evidenceId": "EV-DR-ROLLBACK",
   "kind": "dr-rollback",
-  "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
+  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
   "environment": "telestar-crm-vm / docker compose / GCE ubuntu-2204-lts",
   "command": "scripts/deploy.sh + scripts/rollback.sh, observed over three phases",
-  "startedAt": "2026-08-24T09:41:00.000Z",
-  "finishedAt": "2026-08-24T09:42:00.000Z",
+  "startedAt": "2026-08-25T19:53:00.000Z",
+  "finishedAt": "2026-08-25T19:54:00.000Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
-    "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
-    "previousSha": "319d20ee31646408dd8c0f55f71346a483ab16d1",
-    "candidateDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
-    "previousDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:904fa6c51775f39b1f584abc79b6adc0a94fcd259ce170a3acd2fb7bd86ed0d8",
+    "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+    "previousSha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
+    "candidateDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b",
+    "previousDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
     "rollbackSeconds": 1.5,
     "restoreSeconds": 1.5,
     "phases": [
       {
         "name": "deploy-candidate",
-        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
-        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
+        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b",
+        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b",
         "durationMs": 25000
       },
       {
         "name": "rollback-to-previous",
-        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:904fa6c51775f39b1f584abc79b6adc0a94fcd259ce170a3acd2fb7bd86ed0d8",
-        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:904fa6c51775f39b1f584abc79b6adc0a94fcd259ce170a3acd2fb7bd86ed0d8",
+        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
+        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
         "durationMs": 1500
       },
       {
         "name": "restore-candidate",
-        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
-        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
+        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b",
+        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b",
         "durationMs": 1500
       }
     ],

@@ -1,0 +1,64 @@
+# IMPORT_SYSTEM_QUEUE_BENCHMARK over real Redis and BullMQ
+# exitCode: 0
+
+--- stdout ---
+redis   : 127.0.0.1:6379
+scales  : 120, 500, 1000
+
+[120 rows] enqueuing real BullMQ jobs
+[bullmq] Redis connected
+           12.36s, 9.71 rows/s, queue wait p95 10151ms, lost 0, dup 0
+[500 rows] enqueuing real BullMQ jobs
+           8.30s, 60.22 rows/s, queue wait p95 5855ms, lost 0, dup 0
+[1000 rows] enqueuing real BullMQ jobs
+           14.21s, 70.37 rows/s, queue wait p95 12010ms, lost 0, dup 0
+
+RESULT: PASS
+
+--- stderr ---
+[worker] Failed to resolve tenant for job cmt951id600dnvwqki3rmnaya: PrismaClientKnownRequestError: Transaction API error: Unable to start a transaction in the given time.
+    at _r.transaction (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\@prisma\client\runtime\library.js:111:12086)
+    at async Proxy._transactionWithCallback (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\@prisma\client\runtime\library.js:130:7908)
+    at async Worker.processFn (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\lib\bullmq\workerUtils.ts:29:30)
+    at async C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\bullmq\dist\cjs\classes\worker.js:566:32 {
+  code: 'P2028',
+  clientVersion: '6.2.1',
+  meta: { error: 'Unable to start a transaction in the given time.' }
+}
+[worker] Failed to resolve tenant for job cmt951idr00dpvwqk0mxphczt: PrismaClientKnownRequestError: Transaction API error: Unable to start a transaction in the given time.
+    at _r.transaction (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\@prisma\client\runtime\library.js:111:12086)
+    at async Proxy._transactionWithCallback (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\@prisma\client\runtime\library.js:130:7908)
+    at async Worker.processFn (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\lib\bullmq\workerUtils.ts:29:30)
+    at async C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\bullmq\dist\cjs\classes\worker.js:566:32 {
+  code: 'P2028',
+  clientVersion: '6.2.1',
+  meta: { error: 'Unable to start a transaction in the given time.' }
+}
+[worker] Failed to resolve tenant for job cmt951ie200drvwqko0xi9gbx: PrismaClientKnownRequestError: Transaction API error: Unable to start a transaction in the given time.
+    at _r.transaction (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\@prisma\client\runtime\library.js:111:12086)
+    at async Proxy._transactionWithCallback (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\@prisma\client\runtime\library.js:130:7908)
+    at async Worker.processFn (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\lib\bullmq\workerUtils.ts:29:30)
+    at async C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\bullmq\dist\cjs\classes\worker.js:566:32 {
+  code: 'P2028',
+  clientVersion: '6.2.1',
+  meta: { error: 'Unable to start a transaction in the given time.' }
+}
+[worker] Failed to resolve tenant for job cmt951ie200drvwqko0xi9gbx: PrismaClientKnownRequestError: Transaction API error: Unable to start a transaction in the given time.
+    at _r.transaction (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\@prisma\client\runtime\library.js:111:12086)
+    at async Proxy._transactionWithCallback (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\@prisma\client\runtime\library.js:130:7908)
+    at async Worker.processFn (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\lib\bullmq\workerUtils.ts:29:30)
+    at async C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\bullmq\dist\cjs\classes\worker.js:566:32 {
+  code: 'P2028',
+  clientVersion: '6.2.1',
+  meta: { error: 'Unable to start a transaction in the given time.' }
+}
+[worker] Failed to resolve tenant for job cmt951idr00dpvwqk0mxphczt: PrismaClientKnownRequestError: Transaction API error: Unable to start a transaction in the given time.
+    at _r.transaction (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\@prisma\client\runtime\library.js:111:12086)
+    at async Proxy._transactionWithCallback (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\@prisma\client\runtime\library.js:130:7908)
+    at async Worker.processFn (C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\lib\bullmq\workerUtils.ts:29:30)
+    at async C:\Users\admin\Desktop\Sonny & AI\CRM-4-Telestar-Final\node_modules\bullmq\dist\cjs\classes\worker.js:566:32 {
+  code: 'P2028',
+  clientVersion: '6.2.1',
+  meta: { error: 'Unable to start a transaction in the given time.' }
+}
+
