@@ -24,7 +24,19 @@ export const PROGRESS_PATH = path.join(CERT_DIR, 'progress.json');
  */
 export const RELEASE_IDENTITY_PATH = path.join(CERT_DIR, 'release-identity.json');
 export const CERTIFICATE_PATH = path.join(CERT_DIR, 'FINAL_CERTIFICATE.md');
+
+/** The rendered document. Generated from the ledger below — never edited, never read as truth. */
 export const DEFECTS_PATH = path.join(CERT_DIR, 'DEFECTS.md');
+
+/**
+ * The authoritative defect state.
+ *
+ * It had no constant here while the document *generated from it* did, so four scripts each
+ * rebuilt the path with their own `path.join(CERT_DIR, 'defects.json')`. Four literals
+ * pointing at the one file the whole certification verdict is computed from is exactly the
+ * shape that drifts.
+ */
+export const DEFECT_LEDGER_PATH = path.join(CERT_DIR, 'defects.json');
 
 /** SHA-256 of the empty byte sequence. An artifact with content can never hash to this. */
 export const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
