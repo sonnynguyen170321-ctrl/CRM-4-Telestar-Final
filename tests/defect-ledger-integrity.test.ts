@@ -56,13 +56,24 @@ const CLOSED = ['VERIFIED', 'ACCEPTED_RISK'];
 const CRITICAL = ['P0', 'P1'];
 const FIX_KINDS = ['commit', 'credential-rotation', 'container', 'cloudsql-backup', 'ci-run', 'infrastructure'];
 
-/** Signals a commit gives that it does not close what it names. Mirrors reconcile-defects.mjs. */
+/**
+ * Signals a commit gives that it does not close what it names. Mirrors reconcile-defects.mjs.
+ *
+ * A bare `untouched` was on this list and had to come off. `99f6b8d` fixed TEL-P1-022 in full
+ * and its message reads "ordinary activities — dozens of email_sent rows on one lead — are
+ * untouched, while a keyed write is guaranteed once by the database". That describes the blast
+ * radius of the fix, not work left undone, and the guard blocked a legitimate closure.
+ *
+ * Removing it costs nothing: `a3deba3`, the commit the word was added for, is still matched by
+ * `half of` and by `still the operator`, and the case below asserts exactly that so this cannot
+ * silently stop catching it. A signal that fires on the wrong sentence is worse than one fewer
+ * signal — it teaches the reader to override the guard.
+ */
 const INCOMPLETE_SIGNALS = [
   /remaining before verified/i,
   /\bhalf of\b/i,
   /\bpart of (?:TEL|DEPLOY)-/i,
   /still the operator/i,
-  /\buntouched\b/i,
   /does not close/i,
   /remains? open/i,
   /not yet verified/i,
