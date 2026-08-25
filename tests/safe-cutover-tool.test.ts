@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { readFileSync, existsSync, writeFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import {
+  allModelDelegateNames,
   canonicalManifestHash,
   classifyRow,
   evaluatePreconditions,
@@ -334,5 +335,68 @@ describe('Safe Production Cutover Tool — Behavioral & Fail-Closed Suite', () =
       expect(sonny).toBeDefined();
       expect(sonny.role).toBe('director');
     });
+  });
+});
+
+/**
+ * The manifest must have looked at everything before it says nothing needs review (TEL-P1-046).
+ *
+ * `planMode` iterated `TOPOLOGICAL_MODELS` — 29 hand-maintained names — while the schema
+ * declares 68 models. The other 39 were never read, never classified, and never appeared in
+ * `countsByModel`. Nothing failed; the loop simply had no entry for them.
+ *
+ * Measured against live production on 2026-08-25, the manifest reported
+ * `totalRowsScanned: 45` and `rowsRequiringReviewCount: 0` for a database holding ~990 rows,
+ * having never opened Contact (36), Account (35), ContactIntelligence (36), AuditLog (656),
+ * AiCall (75), JobRun (21) or TenantAiBudgetReservation (28).
+ *
+ * Nothing could be deleted that was never classified, so this destroyed no data. It is worse
+ * placed than that: directive section 23 makes `rowsRequiringReviewCount` the gate that blocks
+ * a cutover, and the gate read zero because nothing had looked.
+ */
+describe('the scan covers every model, not just the deletable ones (TEL-P1-046)', () => {
+  const schema = readFileSync(path.join(process.cwd(), 'prisma', 'schema.prisma'), 'utf8');
+  const schemaModels = [...schema.matchAll(/^model\s+(\w+)\s*\{/gm)].map((m) => m[1]);
+  const asDelegate = (name: string) => name.charAt(0).toLowerCase() + name.slice(1);
+
+  it('the schema declares substantially more models than the delete order lists', () => {
+    // If these were ever equal the test below would pass vacuously.
+    expect(schemaModels.length).toBeGreaterThan(TOPOLOGICAL_MODELS.length);
+  });
+
+  it('reads the model set from the generated client rather than a literal', () => {
+    const scanned = allModelDelegateNames();
+    expect(scanned.length).toBe(schemaModels.length);
+  });
+
+  it('scans every model the schema declares', () => {
+    const scanned = new Set(allModelDelegateNames());
+    const unscanned = schemaModels.map(asDelegate).filter((m) => !scanned.has(m));
+    expect(unscanned, `models the manifest would never look at: ${unscanned.join(', ')}`).toEqual([]);
+  });
+
+  it('scans the models whose absence produced the false green', () => {
+    // Named individually: these are the ones measured as populated in production while the
+    // manifest reported zero rows requiring review.
+    const scanned = new Set(allModelDelegateNames());
+    for (const model of ['contact', 'account', 'contactIntelligence', 'auditLog', 'aiCall', 'jobRun']) {
+      expect(scanned.has(model), `${model} is not scanned`).toBe(true);
+    }
+  });
+
+  it('keeps the delete order a strict subset of what is scanned', () => {
+    // A name in the delete order that no longer exists in the schema would silently never match.
+    const scanned = new Set(allModelDelegateNames());
+    const orphaned = (TOPOLOGICAL_MODELS as readonly string[]).filter((m) => !scanned.has(m));
+    expect(orphaned, `delete-order names with no model: ${orphaned.join(', ')}`).toEqual([]);
+  });
+
+  it('does not claim a delete position for a model it has not ordered', () => {
+    // The correctness of the split: everything is classified, only the ordered set is deletable.
+    const scanned = allModelDelegateNames();
+    const deletable = new Set(TOPOLOGICAL_MODELS as readonly string[]);
+    const scannedButNotDeletable = scanned.filter((m) => !deletable.has(m));
+    expect(scannedButNotDeletable.length).toBeGreaterThan(0);
+    expect(deletable.size).toBeLessThan(scanned.length);
   });
 });

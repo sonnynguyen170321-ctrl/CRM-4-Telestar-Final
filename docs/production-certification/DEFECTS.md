@@ -2,7 +2,7 @@
 
 **Program**: Telestar Production Certification
 **Authoritative Source**: `docs/production-certification/defects.json`
-**Last Updated**: 2026-08-25T16:23:59.196Z
+**Last Updated**: 2026-08-25T16:50:10.909Z
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -16,14 +16,24 @@
 | Severity | Discovered | Verified Closed | Accepted Risk | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 9 | 3 | 0 | **6** |
-| **P1** (Critical) | 34 | 27 | 0 | **7** |
+| **P1** (Critical) | 35 | 27 | 0 | **8** |
 | **P2** (Important) | 21 | 13 | 0 | **8** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **64** | **43** | **0** | **21** |
+| **TOTAL** | **65** | **43** | **0** | **22** |
 
 ---
 
 ## 2. Defects Ledger
+
+### `TEL-P1-046` — The Cutover Manifest Reports Zero Rows Needing Review Because It Never Looks At 39 Of The 68 Models
+
+- **Severity**: P1
+- **Status**: `OPEN`
+- **Owner**: core-team
+- **Discovered**: 2026-08-25T17:00:00.000Z
+- **Root cause**: TOPOLOGICAL_MODELS in scripts/cutover/safe-cutover-tool.ts is a hand-maintained literal of 29 model names, and prisma/schema.prisma declares 68 models. planMode iterates only that literal, so 39 model types are never read, never classified, and never appear in countsByModel — there is no warning, because nothing went wrong: the loop simply has no entry for them. Measured against live production on 2026-08-25: the manifest reported totalRowsScanned 45 (44 User + 1 Tenant) and rowsRequiringReviewCount 0 for a database holding roughly 990 rows, with Contact 36, Account 35, ContactIntelligence 36, AuditLog 656, AiCall 75, JobRun 21 and TenantAiBudgetReservation 28 among the models it did not open. The delegate guard `if (!delegate || typeof delegate.findMany !== "function") continue` is a second silent skip on the same loop, and would hide a renamed model the same way. It cannot delete data it never classified, so the failure is not destructive — it is worse placed than that. Directive section 23 makes rowsRequiringReviewCount the gate that blocks a cutover: REVIEW_UNKNOWN > 0 means CUTOVER BLOCKED. That gate reads 0 here because 39 model types were never examined, so the one precondition designed to stop an under-informed cutover reports a green it did not earn, and POSTCHECK computes its "zero seed rows remain" claim over the same partial list.
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `N/A`
 
 ### `TEL-P0-009` — The Live Production Login Password Is Published In A Public Repository, And Allowlisted From Secret Scanning
 
