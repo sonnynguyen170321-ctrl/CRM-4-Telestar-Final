@@ -37,16 +37,28 @@ const OFFICIAL_USERS: RosterUser[] = [
   { email: 'kim@itelestar.com', firstName: 'Kim', lastName: '', role: 'team_lead', managerEmail: 'alayna@itelestar.com' },
 
   // ── SDRs (@itelestar.com) ─────────────────────────────────────────────────
+  // Hayden's Pod
+  { email: 'cecilia@itelestar.com', firstName: 'Cecilia', lastName: '', role: 'sdr', managerEmail: 'hayden@itelestar.com' },
+  { email: 'kai@itelestar.com', firstName: 'Kai', lastName: '', role: 'sdr', managerEmail: 'hayden@itelestar.com' },
+  { email: 'gigi@itelestar.com', firstName: 'Gigi', lastName: '', role: 'sdr', managerEmail: 'hayden@itelestar.com' },
+  { email: 'jacob@itelestar.com', firstName: 'Jacob', lastName: '', role: 'sdr', managerEmail: 'hayden@itelestar.com' },
+  { email: 'amber@itelestar.com', firstName: 'Amber', lastName: '', role: 'sdr', managerEmail: 'hayden@itelestar.com' },
+
+  // Branndon's Pod
   { email: 'eli@itelestar.com', firstName: 'Eli', lastName: '', role: 'sdr', managerEmail: 'branndon@itelestar.com' },
   { email: 'quinn@itelestar.com', firstName: 'Quinn', lastName: '', role: 'sdr', managerEmail: 'branndon@itelestar.com' },
   { email: 'mavis@itelestar.com', firstName: 'Mavis', lastName: '', role: 'sdr', managerEmail: 'branndon@itelestar.com' },
   { email: 'vincent@itelestar.com', firstName: 'Vincent', lastName: '', role: 'sdr', managerEmail: 'branndon@itelestar.com' },
   { email: 'annie@itelestar.com', firstName: 'Annie', lastName: '', role: 'sdr', managerEmail: 'branndon@itelestar.com' },
+
+  // Vie's Pod
   { email: 'dan@itelestar.com', firstName: 'Dan', lastName: '', role: 'sdr', managerEmail: 'vie@itelestar.com' },
   { email: 'ann@itelestar.com', firstName: 'Ann', lastName: '', role: 'sdr', managerEmail: 'vie@itelestar.com' },
   { email: 'kate@itelestar.com', firstName: 'Kate', lastName: '', role: 'sdr', managerEmail: 'vie@itelestar.com' },
   { email: 'arthur@itelestar.com', firstName: 'Arthur', lastName: '', role: 'sdr', managerEmail: 'vie@itelestar.com' },
   { email: 'emily@itelestar.com', firstName: 'Emily', lastName: '', role: 'sdr', managerEmail: 'vie@itelestar.com' },
+
+  // Jackie's Pod
   { email: 'danny@itelestar.com', firstName: 'Danny', lastName: '', role: 'sdr', managerEmail: 'jackie@itelestar.com' },
   { email: 'helen@itelestar.com', firstName: 'Helen', lastName: '', role: 'sdr', managerEmail: 'jackie@itelestar.com' },
   { email: 'aimee@itelestar.com', firstName: 'Aimee', lastName: '', role: 'sdr', managerEmail: 'jackie@itelestar.com' },
