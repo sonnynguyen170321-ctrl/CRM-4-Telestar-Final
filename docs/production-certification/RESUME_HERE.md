@@ -4,7 +4,7 @@ classification: CURRENT_CANONICAL
 
 # Production certification — resume here
 
-**Written**: 2026-08-25, at the end of the session that landed `a95fbd7`..`949eefe`
+**Written**: 2026-08-25, at the end of the session that landed `a95fbd7`..`2d59a97`
 **Supersedes**: nothing. Delete this file when the program reaches a final verdict.
 
 This is the handoff for the autonomous production-excellence, certification-integrity
@@ -17,13 +17,41 @@ nothing below is authoritative once the code moves.
 
 | Fact | Value | How to re-check |
 |---|---|---|
-| main | `949eefe` — protected, CI green | `git log --oneline -1 origin/main` |
-| Verdict | **NO-GO**, 185 validator failures | `npm run certify:validate` |
-| Requirements | **0 / 108** verified | same |
+| main | `2d59a97` — protected, CI green | `git log --oneline -1 origin/main` |
+| Verdict | **NO-GO**, 52 validator failures | `npm run certify:validate` |
+| Requirements | **98 / 108** verified | same |
 | Defects | 62 tracked, 51 unresolved (5×P0, 27×P1, 19×P2) | `docs/production-certification/defects.json` |
 | Validator self-test | 44 injected faults, 44 detected, 0 missed | `npm run certify:selftest` |
+| Last ladder run | 22/24 gates PASS on `949eefe`, status FAIL | `docs/production-certification/evidence/EV-RUN-1.json` |
 | Production | **untouched**, serving `c7bf639` | `curl -s https://crm.telestar.cloud/api/health` |
 | Production database | **never altered by this tooling** | `docs/production-cutover/README.md` |
+
+### The ladder run of 2026-08-25
+
+`EV-RUN-1` is the first run carrying its own execution identity: `executionId`
+`3d66f67f-b49f-4711-95ff-7e7b7aca37a7`, and an `actualHeadSha` read back from gate 01 that
+equals the candidate. 24 gates recorded, 0 missing, 0 mandatory skips, all 22 raw artifacts
+re-hashing to their recorded digests.
+
+Two gates did not pass, and both are **this workstation, not the product**:
+
+```
+19-docker-build      FAIL   buildkit could not write its metadata database:
+                            "read-only file system" on
+                            /var/lib/docker/buildkit/containerd-overlayfs
+20-image-inspection  BLOCKED_EXTERNAL (127)   consequent: no image to inspect
+```
+
+**Fix Docker before the next ladder run.** Resetting Docker Desktop's disk image clears it.
+Until then gates 19 and 20 cannot pass on this machine, the run status stays FAIL, and
+REL-003/004/005 stay unverified. `BLOCKED_EXTERNAL` is not green.
+
+### What the remaining 52 failures are
+
+- DR evidence (`dr-backup`, `dr-restore`, `dr-rollback`, `dr-rpo`) still bound to `c7bf639`
+- `release-identity` and `ci-run` records still naming `c7bf639`
+- `EV-RUN-2` and `EV-RUN-3` predate the identity fields — re-run the ladder, never edit them
+- the image and deployment chain unproven for this candidate
 
 `NO-GO` is the correct answer, not a problem to fix. It is computed from evidence, and
 the evidence does not support a release.
