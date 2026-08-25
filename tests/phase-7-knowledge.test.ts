@@ -424,8 +424,22 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
     async () => {
       // The staleness window is compressed rather than the clock advanced: the fence compares
       // stored `claimedAt` against wall time, so a fake timer would move the test and not the
-      // fence. A 200ms window against a 50ms heartbeat is the same relationship as 5 minutes
-      // against 60 seconds. `staleAfterMs: 200` is the thing under test and does not move.
+      // fence.
+      //
+      // The window was 200ms against a 50ms heartbeat, on the reasoning that it is the same
+      // relationship as 5 minutes against 60 seconds. That is true of the ratio and false of
+      // the robustness. Five minutes tolerates a four-minute stall; 200ms tolerates a 150ms
+      // one, and a garbage collection pause or a slow query on a loaded CI runner exceeds that
+      // easily. When it did, the heartbeat missed a renewal, `heartbeat.lost()` fired in
+      // lib/research/engine.ts, and the run returned `failed` — the test read
+      // `expected 'failed' to be 'completed'` while nothing was wrong with the code.
+      //
+      // Both numbers are scaled by ten. The ratio, and therefore the property under test, is
+      // unchanged; the absolute headroom before a stall breaks it goes from 150ms to 1.5s.
+      // The cost is about two seconds of runtime against a 60s budget.
+      const STALE_WINDOW_MS = 2_000;
+      const HEARTBEAT_MS = 500;
+
       openTavilyGate();
 
       const runPromise = inTenantA(() =>
@@ -433,7 +447,7 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
           tenantId: tenantA,
           accountId: accountA,
           userId: userA.id,
-          heartbeatIntervalMs: 50,
+          heartbeatIntervalMs: HEARTBEAT_MS,
         })
       );
 
@@ -449,7 +463,7 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
       await waitUntil(async () => {
         const row = await readRow();
         const renewed = !!row?.claimedAt && row.claimedAt.getTime() > claimedAtFirst.getTime();
-        const pastWindow = Date.now() - claimedAtFirst.getTime() > 200;
+        const pastWindow = Date.now() - claimedAtFirst.getTime() > STALE_WINDOW_MS;
         return renewed && pastWindow;
       }, 'the heartbeat to renew a claim that is already older than the stale window');
 
@@ -459,7 +473,7 @@ describe('Phase 7 — Knowledge Architecture & Research Engine', () => {
       const reads = vi.spyOn(prisma.accountResearchCache, 'findUnique');
       const readsBefore = reads.mock.calls.length;
       const competitorPromise = insertOrClaimAccountResearch(tenantA, accountA, 'competitor', {
-        staleAfterMs: 200,
+        staleAfterMs: STALE_WINDOW_MS,
       });
       // Call 1 is the waiter's initial read, call 2 is its first poll tick: it is in the loop.
       await waitUntil(

@@ -2,7 +2,7 @@
 
 **Program**: Telestar Production Certification
 **Authoritative Source**: `docs/production-certification/defects.json`
-**Last Updated**: 2026-08-25T17:06:21.528Z
+**Last Updated**: 2026-08-25T17:21:54.620Z
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -16,14 +16,24 @@
 | Severity | Discovered | Verified Closed | Accepted Risk | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 9 | 3 | 0 | **6** |
-| **P1** (Critical) | 35 | 27 | 0 | **8** |
+| **P1** (Critical) | 36 | 27 | 0 | **9** |
 | **P2** (Important) | 21 | 13 | 0 | **8** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **65** | **43** | **0** | **22** |
+| **TOTAL** | **66** | **43** | **0** | **23** |
 
 ---
 
 ## 2. Defects Ledger
+
+### `TEL-P1-047` — A Claim-Lease Test Failed The Build On Runner Load, Not On Behaviour
+
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Owner**: core-team
+- **Discovered**: 2026-08-26T00:15:00.000Z
+- **Root cause**: tests/phase-7-knowledge.test.ts "heartbeat holds a claim past the stale window" compressed the staleness window to 200ms against a 50ms heartbeat, on the stated reasoning that this is the same relationship as 5 minutes against 60 seconds. That is true of the ratio and false of the robustness: five minutes tolerates a four-minute stall, 200ms tolerates a 150ms one, and a garbage-collection pause or a slow query against the CI Postgres service container exceeds 150ms routinely. When it did, the heartbeat missed a renewal, `heartbeat.lost()` fired at lib/research/engine.ts:200, executeAccountResearch returned status "failed", and the assertion read `expected 'failed' to be 'completed'` — a red build with nothing wrong in the code. A flaky mandatory test is a defect in its own right: it trains readers to re-run rather than investigate, and it is indistinguishable from a real regression at the moment it fires.
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `N/A`
 
 ### `TEL-P1-046` — The Cutover Manifest Reports Zero Rows Needing Review Because It Never Looks At 39 Of The 68 Models
 
