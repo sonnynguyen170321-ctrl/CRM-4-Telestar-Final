@@ -19,34 +19,22 @@ const OFFICIAL_USERS: RosterUser[] = [
   { email: 'sonnynguyenofficial@gmail.com', firstName: 'Sonny', lastName: 'Nguyen', role: 'director', managerEmail: null },
 
   // ── Floor Managers ────────────────────────────────────────────────────────
-  { email: 'sonny@telestar.vn', firstName: 'Sonny', lastName: 'Nguyen', role: 'floor_manager', managerEmail: 'dean@telestar.vn' },
   { email: 'sonny@itelestar.com', firstName: 'Sonny', lastName: 'Nguyen', role: 'floor_manager', managerEmail: 'dean@telestar.vn' },
-  { email: 'alayna@telestar.vn', firstName: 'Alayna', lastName: '', role: 'floor_manager', managerEmail: 'dean@telestar.vn' },
   { email: 'alayna@itelestar.com', firstName: 'Alayna', lastName: '', role: 'floor_manager', managerEmail: 'dean@telestar.vn' },
 
   // ── Leadgen Managers & Leadgen ───────────────────────────────────────────
-  { email: 'dominic@telestar.vn', firstName: 'Dominic', lastName: '', role: 'leadgen_manager', managerEmail: 'dean@telestar.vn' },
   { email: 'dominic@itelestar.com', firstName: 'Dominic', lastName: '', role: 'leadgen_manager', managerEmail: 'dean@telestar.vn' },
-  { email: 'alex@telestar.vn', firstName: 'Alex', lastName: '', role: 'leadgen', managerEmail: 'dominic@telestar.vn' },
-  { email: 'priya@telestar.vn', firstName: 'Priya', lastName: '', role: 'leadgen', managerEmail: 'dominic@telestar.vn' },
+  { email: 'alex@itelestar.com', firstName: 'Alex', lastName: '', role: 'leadgen', managerEmail: 'dominic@itelestar.com' },
+  { email: 'priya@itelestar.com', firstName: 'Priya', lastName: '', role: 'leadgen', managerEmail: 'dominic@itelestar.com' },
 
   // ── Team Leads ────────────────────────────────────────────────────────────
-  { email: 'brandon@telestar.vn', firstName: 'Brandon', lastName: '', role: 'team_lead', managerEmail: 'sonny@telestar.vn' },
   { email: 'branndon@itelestar.com', firstName: 'Branndon', lastName: '', role: 'team_lead', managerEmail: 'sonny@itelestar.com' },
-  { email: 'jackie@telestar.vn', firstName: 'Jackie', lastName: '', role: 'team_lead', managerEmail: 'sonny@telestar.vn' },
   { email: 'jackie@itelestar.com', firstName: 'Jackie', lastName: '', role: 'team_lead', managerEmail: 'sonny@itelestar.com' },
-  { email: 'vie@telestar.vn', firstName: 'Vie', lastName: '', role: 'team_lead', managerEmail: 'sonny@telestar.vn' },
   { email: 'vie@itelestar.com', firstName: 'Vie', lastName: '', role: 'team_lead', managerEmail: 'sonny@itelestar.com' },
-  { email: 'meixi@telestar.vn', firstName: 'Meixi', lastName: '', role: 'team_lead', managerEmail: 'sonny@telestar.vn' },
-  { email: 'hayden@telestar.vn', firstName: 'Hayden', lastName: '', role: 'team_lead', managerEmail: 'alayna@telestar.vn' },
-  { email: 'selina@telestar.vn', firstName: 'Selina', lastName: '', role: 'team_lead', managerEmail: 'alayna@telestar.vn' },
-  { email: 'kim@telestar.vn', firstName: 'Kim', lastName: '', role: 'team_lead', managerEmail: 'alayna@telestar.vn' },
-
-  // ── SDRs (@telestar.vn) ───────────────────────────────────────────────────
-  { email: 'lan.pham@telestar.vn', firstName: 'Lan', lastName: 'Pham', role: 'sdr', managerEmail: 'brandon@telestar.vn' },
-  { email: 'david.miller@telestar.vn', firstName: 'David', lastName: 'Miller', role: 'sdr', managerEmail: 'brandon@telestar.vn' },
-  { email: 'vy.hoang@telestar.vn', firstName: 'Vy', lastName: 'Hoang', role: 'sdr', managerEmail: 'jackie@telestar.vn' },
-  { email: 'carlos.reyes@telestar.vn', firstName: 'Carlos', lastName: 'Reyes', role: 'sdr', managerEmail: 'vie@telestar.vn' },
+  { email: 'meixi@itelestar.com', firstName: 'Meixi', lastName: '', role: 'team_lead', managerEmail: 'sonny@itelestar.com' },
+  { email: 'hayden@itelestar.com', firstName: 'Hayden', lastName: '', role: 'team_lead', managerEmail: 'alayna@itelestar.com' },
+  { email: 'selina@itelestar.com', firstName: 'Selina', lastName: '', role: 'team_lead', managerEmail: 'alayna@itelestar.com' },
+  { email: 'kim@itelestar.com', firstName: 'Kim', lastName: '', role: 'team_lead', managerEmail: 'alayna@itelestar.com' },
 
   // ── SDRs (@itelestar.com) ─────────────────────────────────────────────────
   { email: 'eli@itelestar.com', firstName: 'Eli', lastName: '', role: 'sdr', managerEmail: 'branndon@itelestar.com' },
@@ -118,7 +106,69 @@ async function main() {
     }
   }
 
-  // 4. Output Summary Verification
+  // 4. Purge all other @telestar.vn accounts (only dean@telestar.vn is retained)
+  const deanId = emailToId.get('dean@telestar.vn');
+  const allowedEmails = new Set(OFFICIAL_USERS.map((u) => u.email.toLowerCase().trim()));
+
+  const extraUsers = await prisma.user.findMany({
+    where: {
+      OR: [
+        { email: { endsWith: '@telestar.vn', not: 'dean@telestar.vn' } },
+        { email: { notIn: Array.from(allowedEmails) } },
+      ],
+    },
+    select: { id: true, email: true },
+  });
+
+  if (extraUsers.length > 0 && deanId) {
+    console.log(`\n🧹 Purging ${extraUsers.length} extra/deprecated users (e.g. non-Dean @telestar.vn)...`);
+    const extraIds = extraUsers.map((u) => u.id);
+
+    // Reassign key relations to Dean
+    const safeUpdate = async (model: string, args: any) => {
+      try {
+        if ((prisma as any)[model]?.updateMany) {
+          await (prisma as any)[model].updateMany(args);
+        }
+      } catch {}
+    };
+
+    await safeUpdate('lead', { where: { assignedToId: { in: extraIds } }, data: { assignedToId: deanId } });
+    await safeUpdate('lead', { where: { claimedById: { in: extraIds } }, data: { claimedById: null } });
+    await safeUpdate('contact', { where: { assignedToId: { in: extraIds } }, data: { assignedToId: deanId } });
+    await safeUpdate('contact', { where: { relationshipOwnerId: { in: extraIds } }, data: { relationshipOwnerId: deanId } });
+    await safeUpdate('account', { where: { assignedToId: { in: extraIds } }, data: { assignedToId: deanId } });
+    await safeUpdate('campaign', { where: { managerId: { in: extraIds } }, data: { managerId: deanId } });
+    await safeUpdate('sequence', { where: { createdById: { in: extraIds } }, data: { createdById: deanId } });
+    await safeUpdate('template', { where: { createdById: { in: extraIds } }, data: { createdById: deanId } });
+    await safeUpdate('task', { where: { userId: { in: extraIds } }, data: { userId: deanId } });
+    await safeUpdate('task', { where: { assignedToId: { in: extraIds } }, data: { assignedToId: deanId } });
+    await safeUpdate('note', { where: { userId: { in: extraIds } }, data: { userId: deanId } });
+    await safeUpdate('note', { where: { createdById: { in: extraIds } }, data: { createdById: deanId } });
+    await safeUpdate('opportunity', { where: { ownerId: { in: extraIds } }, data: { ownerId: deanId } });
+    await safeUpdate('opportunity', { where: { createdById: { in: extraIds } }, data: { createdById: deanId } });
+    await safeUpdate('user', { where: { managerId: { in: extraIds } }, data: { managerId: deanId } });
+
+    // Clean up personal join records
+    const safeDelete = async (model: string, args: any) => {
+      try {
+        if ((prisma as any)[model]?.deleteMany) {
+          await (prisma as any)[model].deleteMany(args);
+        }
+      } catch {}
+    };
+
+    await safeDelete('notification', { where: { userId: { in: extraIds } } });
+    await safeDelete('activity', { where: { userId: { in: extraIds } } });
+    await safeDelete('emailAccount', { where: { userId: { in: extraIds } } });
+    await safeDelete('userRoleAssignment', { where: { userId: { in: extraIds } } });
+
+    // Delete users
+    await prisma.user.deleteMany({ where: { id: { in: extraIds } } });
+    console.log(`✅ Cleaned up ${extraUsers.length} deprecated user accounts.`);
+  }
+
+  // 5. Output Summary Verification
   const activeUsers = await prisma.user.findMany({
     where: { tenantId: TENANT_ID },
     select: {
@@ -130,9 +180,9 @@ async function main() {
     orderBy: [{ role: 'asc' }, { email: 'asc' }],
   });
 
-  console.log(`\n✅ Successfully restored and confirmed ${activeUsers.length} active internal accounts:`);
+  console.log(`\n✅ Active Official Team Roster (${activeUsers.length} accounts):`);
   console.table(activeUsers);
-  console.log(`\n🔑 Default Password for restored accounts: "${DEFAULT_PASSWORD}"`);
+  console.log(`\n🔑 Default Password for all accounts: "${DEFAULT_PASSWORD}"`);
 }
 
 main()
