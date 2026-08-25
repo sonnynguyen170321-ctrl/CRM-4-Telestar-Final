@@ -17,6 +17,9 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } 
 import path from 'node:path';
 
 import { EVIDENCE_DIR, RAW_DIR, REPO_ROOT, repoRelative } from './lib/paths.mjs';
+import { loadCertificationEnv } from './lib/loadEnv.mjs';
+
+loadCertificationEnv();
 
 /**
  * The gate catalogue. Each entry is exactly what runs, so a gate cannot be "executed" by
