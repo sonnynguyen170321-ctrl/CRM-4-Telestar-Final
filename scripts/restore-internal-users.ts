@@ -35,8 +35,15 @@ const OFFICIAL_USERS: RosterUser[] = [
   { email: 'hayden@itelestar.com', firstName: 'Hayden', lastName: '', role: 'team_lead', managerEmail: 'alayna@itelestar.com' },
   { email: 'selina@itelestar.com', firstName: 'Selina', lastName: '', role: 'team_lead', managerEmail: 'alayna@itelestar.com' },
   { email: 'kim@itelestar.com', firstName: 'Kim', lastName: '', role: 'team_lead', managerEmail: 'alayna@itelestar.com' },
+  { email: 'celine.phan@itelestar.com', firstName: 'Celine', lastName: 'Phan', role: 'team_lead', managerEmail: 'alayna@itelestar.com' },
 
   // ── SDRs (@itelestar.com) ─────────────────────────────────────────────────
+  // Celine's Pod
+  { email: 'jason@itelestar.com', firstName: 'Jason', lastName: '', role: 'sdr', managerEmail: 'celine.phan@itelestar.com' },
+  { email: 'andrew@itelestar.com', firstName: 'Andrew', lastName: '', role: 'sdr', managerEmail: 'celine.phan@itelestar.com' },
+  { email: 'tina@itelestar.com', firstName: 'Tina', lastName: '', role: 'sdr', managerEmail: 'celine.phan@itelestar.com' },
+  { email: 'channy@itelestar.com', firstName: 'Channy', lastName: '', role: 'sdr', managerEmail: 'celine.phan@itelestar.com' },
+  { email: 'kade@itelestar.com', firstName: 'Kade', lastName: '', role: 'sdr', managerEmail: 'celine.phan@itelestar.com' },
   // Meixi's Pod
   { email: 'nancy@itelestar.com', firstName: 'Nancy', lastName: '', role: 'sdr', managerEmail: 'meixi@itelestar.com' },
   { email: 'jay@itelestar.com', firstName: 'Jay', lastName: '', role: 'sdr', managerEmail: 'meixi@itelestar.com' },
