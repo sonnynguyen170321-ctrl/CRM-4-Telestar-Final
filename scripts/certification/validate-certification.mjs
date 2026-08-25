@@ -20,6 +20,7 @@ import {
   checkCertificateVersusOpenDefects,
   checkCiHeadSha,
   checkDocumentVerdictConsistency,
+  checkRunExecutionIdentity,
   checkLoadResultAgreement,
   checkNoFileUrls,
   checkPostFreezeCommits,
@@ -178,6 +179,7 @@ export function validateCertification() {
     ...checkSourceAndRunProvenance(config, records),
     ...checkCiHeadSha(config, records),
     ...checkDocumentVerdictConsistency(),
+    ...checkRunExecutionIdentity(records),
   ];
 
   const unverifiedMandatory = resolved.filter(

@@ -402,6 +402,58 @@ export function checkCiHeadSha(config, records) {
   return findings;
 }
 
+/**
+ * Section 13: the three required runs must be three executions.
+ *
+ * Every other run check reads a run record on its own terms, so one execution
+ * copied into three records satisfies all of them individually — same gates, same
+ * candidate, same clean result, three times. Only comparing the records to each
+ * other shows that nothing was run twice. Raw artifact paths are compared for the
+ * same reason: distinct executionIds over one set of logs is the same forgery
+ * wearing different labels.
+ */
+export function checkRunExecutionIdentity(records) {
+  const findings = [];
+  const runs = records.filter((record) => record.kind === 'certification-run');
+
+  const seenExecutions = new Map();
+  const seenArtifacts = new Map();
+
+  for (const record of runs) {
+    const executionId = record.metrics?.executionId;
+    if (!executionId) {
+      // Reported, but the artifact comparison below still runs: a run with no
+      // execution identity is exactly the one whose raw logs need checking.
+      findings.push(finding('RUN_IDENTITY', `${record.evidenceId} records no executionId`));
+    } else if (seenExecutions.has(executionId)) {
+      findings.push(
+        finding(
+          'RUN_IDENTITY',
+          `${record.evidenceId} reuses executionId ${executionId}, already claimed by ${seenExecutions.get(executionId)}`,
+        ),
+      );
+    } else {
+      seenExecutions.set(executionId, record.evidenceId);
+    }
+
+    for (const artifact of record.artifacts ?? []) {
+      if (!artifact?.path) continue;
+      if (seenArtifacts.has(artifact.path)) {
+        findings.push(
+          finding(
+            'RUN_IDENTITY',
+            `${record.evidenceId} cites raw artifact ${artifact.path}, already cited by ${seenArtifacts.get(artifact.path)}`,
+          ),
+        );
+      } else {
+        seenArtifacts.set(artifact.path, record.evidenceId);
+      }
+    }
+  }
+
+  return findings;
+}
+
 /** Section 12: single verdict engine consistency across generated documents. */
 export function checkDocumentVerdictConsistency(scope = defaultScope()) {
   const findings = [];

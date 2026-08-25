@@ -92,10 +92,16 @@ function main() {
 
   const runs = [1, 2, 3].map((number) => loadRecord(`EV-RUN-${number}`));
 
-  const nonVerdictFindings = result.findings.filter((f) => f.check !== 'VERDICT_MISMATCH');
-  const isEligible = nonVerdictFindings.every((f) => f.severity !== 'FAIL');
+  // One verdict engine (directive section 14): eligibility is whatever
+  // validateCertification computed, including its VERDICT_MISMATCH findings. This
+  // renderer previously stripped that check before deciding, which is the one
+  // exclusion the directive names — a document disagreement would have stopped
+  // blocking release. VERDICT_MISMATCH compares the generated documents to each
+  // other, so a stale one makes this run render NO-GO; the next run, with the
+  // documents agreeing, renders the true verdict. It can only err conservatively.
+  const isEligible = result.eligible;
 
-  const blockers = nonVerdictFindings
+  const blockers = result.findings
     .filter((finding) => finding.severity === 'FAIL')
     .reduce((grouped, finding) => {
       if (!grouped.has(finding.check)) grouped.set(finding.check, []);

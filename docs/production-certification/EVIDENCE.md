@@ -6,8 +6,8 @@
   Regenerate: node scripts/certification/render-evidence-ledger.mjs
 -->
 
-**Candidate SHA**: `00661af99e645060dafefcfc85a1c5ca3a0d0c13`
-**Evidence records**: 28
+**Candidate SHA**: `5985ec474bc1eb3da05ae5db7560e83a4e70969d`
+**Evidence records**: 40
 **Requirements verified**: 0 / 108
 **Verdict**: NO-GO
 
@@ -25,9 +25,9 @@
 
 | Certification domain | Evidence |
 |---|---|
-| Static analysis | `EV-GATE-TEST-DISCIPLINE` |
-| Production build | `EV-GATE-TEST-DISCIPLINE` |
-| Database integrity | `EV-GATE-TEST-DISCIPLINE` |
+| Static analysis | `EV-GATE-03-TYPECHECK`, `EV-GATE-04-LINT`, `EV-GATE-05-TEST-DISCIPLINE`, `EV-GATE-06-MIGRATION-VALIDATION`, `EV-GATE-07-DATABASE-INTEGRITY`, `EV-GATE-08-VITEST`, `EV-GATE-09-REDIS-INTEGRATION`, `EV-GATE-10-AI-CERTIFICATION`, `EV-GATE-11-EMAIL-SAFETY`, `EV-GATE-12-IMPORT-FAULT-MATRIX`, `EV-GATE-14-SECURITY-SUITE`, `EV-GATE-21-COMPOSE-VALIDATION`, `EV-GATE-TEST-DISCIPLINE` |
+| Production build | `EV-GATE-03-TYPECHECK`, `EV-GATE-04-LINT`, `EV-GATE-05-TEST-DISCIPLINE`, `EV-GATE-06-MIGRATION-VALIDATION`, `EV-GATE-07-DATABASE-INTEGRITY`, `EV-GATE-08-VITEST`, `EV-GATE-09-REDIS-INTEGRATION`, `EV-GATE-10-AI-CERTIFICATION`, `EV-GATE-11-EMAIL-SAFETY`, `EV-GATE-12-IMPORT-FAULT-MATRIX`, `EV-GATE-14-SECURITY-SUITE`, `EV-GATE-21-COMPOSE-VALIDATION`, `EV-GATE-TEST-DISCIPLINE` |
+| Database integrity | `EV-GATE-03-TYPECHECK`, `EV-GATE-04-LINT`, `EV-GATE-05-TEST-DISCIPLINE`, `EV-GATE-06-MIGRATION-VALIDATION`, `EV-GATE-07-DATABASE-INTEGRITY`, `EV-GATE-08-VITEST`, `EV-GATE-09-REDIS-INTEGRATION`, `EV-GATE-10-AI-CERTIFICATION`, `EV-GATE-11-EMAIL-SAFETY`, `EV-GATE-12-IMPORT-FAULT-MATRIX`, `EV-GATE-14-SECURITY-SUITE`, `EV-GATE-21-COMPOSE-VALIDATION`, `EV-GATE-TEST-DISCIPLINE` |
 | Unit and integration tests | `EV-VITEST` |
 | Redis integration | `EV-REDIS-INTEGRATION` |
 | Import load — handler | `EV-LOAD-HANDLER`, `EV-LOAD-QUEUE` |
@@ -60,13 +60,25 @@
 | `EV-DR-RPO` | `dr-rpo` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
 | `EV-EMAIL-EXACTLY-ONCE` | `email-exactly-once` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
 | `EV-FAILURE-MATRIX` | `failure-matrix` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-GATE-03-TYPECHECK` | `gate` | `00661af` ⚠ | **PASS** | 0 | 1 |
+| `EV-GATE-04-LINT` | `gate` | `00661af` ⚠ | **PASS** | 0 | 1 |
+| `EV-GATE-05-TEST-DISCIPLINE` | `gate` | `00661af` ⚠ | **PASS** | 0 | 1 |
+| `EV-GATE-06-MIGRATION-VALIDATION` | `gate` | `00661af` ⚠ | **PASS** | 0 | 1 |
+| `EV-GATE-07-DATABASE-INTEGRITY` | `gate` | `00661af` ⚠ | **PASS** | 0 | 1 |
+| `EV-GATE-08-VITEST` | `gate` | `00661af` ⚠ | **FAIL** | 1 | 1 |
+| `EV-GATE-09-REDIS-INTEGRATION` | `gate` | `00661af` ⚠ | **PASS** | 0 | 1 |
+| `EV-GATE-10-AI-CERTIFICATION` | `gate` | `00661af` ⚠ | **PASS** | 0 | 1 |
+| `EV-GATE-11-EMAIL-SAFETY` | `gate` | `00661af` ⚠ | **PASS** | 0 | 1 |
+| `EV-GATE-12-IMPORT-FAULT-MATRIX` | `gate` | `00661af` ⚠ | **PASS** | 0 | 1 |
+| `EV-GATE-14-SECURITY-SUITE` | `gate` | `00661af` ⚠ | **PASS** | 0 | 1 |
+| `EV-GATE-21-COMPOSE-VALIDATION` | `gate` | `00661af` ⚠ | **PASS** | 0 | 1 |
 | `EV-GATE-TEST-DISCIPLINE` | `gate` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
-| `EV-LOAD-HANDLER` | `load-benchmark` | `c7bf639` ⚠ | **PASS** | 0 | 0 |
-| `EV-LOAD-QUEUE` | `load-benchmark` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-LOAD-HANDLER` | `load-benchmark` | `5985ec4` | **PASS** | 0 | 0 |
+| `EV-LOAD-QUEUE` | `load-benchmark` | `5985ec4` | **PASS** | 0 | 1 |
 | `EV-REDIS-INTEGRATION` | `redis-integration` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
 | `EV-RELEASE-IDENTITY` | `release-identity` | `c7bf639` ⚠ | **PASS** | 0 | 0 |
 | `EV-RLS-POSTURE` | `rls-posture` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
-| `EV-ROLE-BROWSER` | `role-browser` | `c7bf639` ⚠ | **PASS** | 0 | 6 |
+| `EV-ROLE-BROWSER` | `role-browser` | `5985ec4` | **PASS** | 0 | 6 |
 | `EV-ROLE-MODEL` | `role-model` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
 | `EV-RUN-1` | `certification-run` | `c7bf639` ⚠ | **PASS** | 0 | 23 |
 | `EV-RUN-2` | `certification-run` | `c7bf639` ⚠ | **PASS** | 0 | 23 |
@@ -203,6 +215,114 @@
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
   - `docs/production-certification/evidence/raw/run3-d5d7cf8-08-vitest.log` — 443 bytes, sha256 `5639ba1918334cd0…`
+### `EV-GATE-03-TYPECHECK`
+- **Kind**: `gate`
+- **Candidate**: `00661af99e645060dafefcfc85a1c5ca3a0d0c13`
+- **Environment**: win32 / node 24.16.0 / postgres 16 / redis absent
+- **Command**: `C:\Program Files\nodejs\node.exe node_modules/typescript/bin/tsc --noEmit`
+- **Ran**: 2026-08-25T06:58:19.681Z → 2026-08-25T07:00:14.014Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/gate-03-typecheck.log` — 261 bytes, sha256 `7e493fec3f90b9a5…`
+### `EV-GATE-04-LINT`
+- **Kind**: `gate`
+- **Candidate**: `00661af99e645060dafefcfc85a1c5ca3a0d0c13`
+- **Environment**: win32 / node 24.16.0 / postgres 16 / redis absent
+- **Command**: `C:\Program Files\nodejs\node.exe node_modules/eslint/bin/eslint.js app components lib context tests workers scripts e2e`
+- **Ran**: 2026-08-25T07:00:22.067Z → 2026-08-25T07:03:08.150Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/gate-04-lint.log` — 1250 bytes, sha256 `e924d4b8d97493c2…`
+### `EV-GATE-05-TEST-DISCIPLINE`
+- **Kind**: `gate`
+- **Candidate**: `00661af99e645060dafefcfc85a1c5ca3a0d0c13`
+- **Environment**: win32 / node 24.16.0 / postgres 16 / redis absent
+- **Command**: `C:\Program Files\nodejs\node.exe scripts/check-test-discipline.mjs`
+- **Ran**: 2026-08-25T07:03:26.684Z → 2026-08-25T07:03:29.146Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/gate-05-test-discipline.log` — 324 bytes, sha256 `d9f09f3413024c17…`
+### `EV-GATE-06-MIGRATION-VALIDATION`
+- **Kind**: `gate`
+- **Candidate**: `00661af99e645060dafefcfc85a1c5ca3a0d0c13`
+- **Environment**: win32 / node 24.16.0 / postgres 16 / redis absent
+- **Command**: `C:\Program Files\nodejs\node.exe scripts/check-migration-order.mjs`
+- **Ran**: 2026-08-25T07:03:36.848Z → 2026-08-25T07:03:37.352Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/gate-06-migration-validation.log` — 337 bytes, sha256 `92c0dd98a4f86d0c…`
+### `EV-GATE-07-DATABASE-INTEGRITY`
+- **Kind**: `gate`
+- **Candidate**: `00661af99e645060dafefcfc85a1c5ca3a0d0c13`
+- **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
+- **Command**: `C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts`
+- **Ran**: 2026-08-25T07:06:53.598Z → 2026-08-25T07:06:57.659Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/gate-07-database-integrity.log` — 1737 bytes, sha256 `787b56a9bc128215…`
+### `EV-GATE-08-VITEST`
+- **Kind**: `gate`
+- **Candidate**: `00661af99e645060dafefcfc85a1c5ca3a0d0c13`
+- **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
+- **Command**: `C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json`
+- **Ran**: 2026-08-25T07:08:40.518Z → 2026-08-25T07:19:15.464Z
+- **Exit code**: 1 · **Status**: **FAIL**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/gate-08-vitest.log` — 468 bytes, sha256 `55abc191ff4f409b…`
+### `EV-GATE-09-REDIS-INTEGRATION`
+- **Kind**: `gate`
+- **Candidate**: `00661af99e645060dafefcfc85a1c5ca3a0d0c13`
+- **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
+- **Command**: `C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/redis-integration.test.ts tests/ai-shared-circuit.test.ts tests/redis-readiness.test.ts --reporter=json --outputFile=.certification/redis.json`
+- **Ran**: 2026-08-25T07:07:04.685Z → 2026-08-25T07:07:10.952Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/gate-09-redis-integration.log` — 572 bytes, sha256 `ffd6f1b512c07410…`
+### `EV-GATE-10-AI-CERTIFICATION`
+- **Kind**: `gate`
+- **Candidate**: `00661af99e645060dafefcfc85a1c5ca3a0d0c13`
+- **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
+- **Command**: `C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/ai-durable-budget.test.ts tests/ai-stream-governance.test.ts tests/ai-shared-circuit.test.ts tests/ai-capability-routing.test.ts tests/ai-structured-budget.test.ts tests/ai-down-resilience.test.ts`
+- **Ran**: 2026-08-25T07:07:15.739Z → 2026-08-25T07:07:32.737Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/gate-10-ai-certification.log` — 9278 bytes, sha256 `adf0159eac8ebaf0…`
+### `EV-GATE-11-EMAIL-SAFETY`
+- **Kind**: `gate`
+- **Candidate**: `00661af99e645060dafefcfc85a1c5ca3a0d0c13`
+- **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
+- **Command**: `C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/demo-email-barrier.test.ts tests/email-idempotency.test.ts tests/email-safety.test.ts`
+- **Ran**: 2026-08-25T07:07:41.377Z → 2026-08-25T07:07:44.724Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/gate-11-email-safety.log` — 1116 bytes, sha256 `701f27ef6a25293a…`
+### `EV-GATE-12-IMPORT-FAULT-MATRIX`
+- **Kind**: `gate`
+- **Candidate**: `00661af99e645060dafefcfc85a1c5ca3a0d0c13`
+- **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
+- **Command**: `C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/import-fault-injection.test.ts tests/import-race-stress.test.ts`
+- **Ran**: 2026-08-25T07:07:50.773Z → 2026-08-25T07:08:07.121Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/gate-12-import-fault-matrix.log` — 9715 bytes, sha256 `ea5963eda0426cef…`
+### `EV-GATE-14-SECURITY-SUITE`
+- **Kind**: `gate`
+- **Candidate**: `00661af99e645060dafefcfc85a1c5ca3a0d0c13`
+- **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
+- **Command**: `C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/tenant-inject.test.ts tests/object-auth-red-team.test.ts tests/mass-assignment.test.ts tests/security-injection.test.ts tests/gitleaks-allowlist.test.ts tests/csp.test.ts tests/login-throttle.test.ts`
+- **Ran**: 2026-08-25T07:08:15.915Z → 2026-08-25T07:08:23.550Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/gate-14-security-suite.log` — 2060 bytes, sha256 `6c0a339ae85e9f0d…`
+### `EV-GATE-21-COMPOSE-VALIDATION`
+- **Kind**: `gate`
+- **Candidate**: `00661af99e645060dafefcfc85a1c5ca3a0d0c13`
+- **Environment**: win32 / node 24.16.0 / postgres 16 / redis real
+- **Command**: `C:\Program Files\nodejs\node.exe scripts/check-production-compose.mjs`
+- **Ran**: 2026-08-25T07:08:32.704Z → 2026-08-25T07:08:34.676Z
+- **Exit code**: 0 · **Status**: **PASS**
+- **Artifacts**:
+  - `docs/production-certification/evidence/raw/gate-21-compose-validation.log` — 1413 bytes, sha256 `79dbff07be310b9b…`
 ### `EV-GATE-TEST-DISCIPLINE`
 - **Kind**: `gate`
 - **Candidate**: `c7bf639ef988a6ba9fffba3c88761dad245ef7a3`
@@ -214,23 +334,23 @@
   - `docs/production-certification/evidence/raw/run3-d5d7cf8-05-test-discipline.log` — 324 bytes, sha256 `4aa2ce0f212352c6…`
 ### `EV-LOAD-HANDLER`
 - **Kind**: `load-benchmark`
-- **Candidate**: `c7bf639ef988a6ba9fffba3c88761dad245ef7a3`
+- **Candidate**: `5985ec474bc1eb3da05ae5db7560e83a4e70969d`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / BullMQ mocked
 - **Command**: `node node_modules/vitest/vitest.mjs run tests/import-load-benchmark.test.ts`
-- **Ran**: 2026-08-24T09:30:00.000Z → 2026-08-24T09:32:00.000Z
+- **Ran**: 2026-08-25T09:19:07.685Z → 2026-08-25T09:22:41.958Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Note**: Handler throughput only. BullMQ is mocked and the worker handler is invoked directly, so queue wait, redelivery and retry are out of scope by construction.
 - **Artifacts**: none
 ### `EV-LOAD-QUEUE`
 - **Kind**: `load-benchmark`
-- **Candidate**: `c7bf639ef988a6ba9fffba3c88761dad245ef7a3`
+- **Candidate**: `5985ec474bc1eb3da05ae5db7560e83a4e70969d`
 - **Environment**: win32 / node 24.16.0 / postgres 16 / real Redis / real BullMQ
 - **Command**: `npx tsx scripts/certification/queue-load-benchmark.ts`
-- **Ran**: 2026-08-24T09:30:00.000Z → 2026-08-24T09:32:00.000Z
+- **Ran**: 2026-08-25T09:28:54.173Z → 2026-08-25T09:30:03.697Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Note**: Real Redis, real BullMQ, real worker, real queue. Nothing mocked. Distinct from IMPORT_HANDLER_BENCHMARK, which calls the handler directly.
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/load-queue-benchmark.log` — 2061 bytes, sha256 `af8da07750f27147…`
+  - `docs/production-certification/evidence/raw/load-queue-benchmark.log` — 2075 bytes, sha256 `1089a40590473470…`
 ### `EV-REDIS-INTEGRATION`
 - **Kind**: `redis-integration`
 - **Candidate**: `c7bf639ef988a6ba9fffba3c88761dad245ef7a3`
@@ -260,18 +380,18 @@
   - `docs/production-certification/evidence/raw/rls-posture-gates.log` — 4850 bytes, sha256 `df6073d9ad2ccda1…`
 ### `EV-ROLE-BROWSER`
 - **Kind**: `role-browser`
-- **Candidate**: `c7bf639ef988a6ba9fffba3c88761dad245ef7a3`
+- **Candidate**: `5985ec474bc1eb3da05ae5db7560e83a4e70969d`
 - **Environment**: win32 / node 24.16.0 / next start / real Postgres / real Redis / Chromium 1440x900
 - **Command**: `node node_modules/@playwright/test/cli.js test --project=certification-roles`
-- **Ran**: 2026-08-24T09:30:00.000Z → 2026-08-24T09:32:00.000Z
+- **Ran**: 2026-08-25T09:40:40.453Z → 2026-08-25T09:40:40.453Z
 - **Exit code**: 0 · **Status**: **PASS**
 - **Artifacts**:
-  - `docs/production-certification/evidence/raw/role-screenshots/director.png` — 230325 bytes, sha256 `79fb46fb6100ce1e…`
-  - `docs/production-certification/evidence/raw/role-screenshots/floor_manager.png` — 219771 bytes, sha256 `6dabebb37d180605…`
-  - `docs/production-certification/evidence/raw/role-screenshots/leadgen.png` — 429862 bytes, sha256 `d42b7f125ca7fec3…`
-  - `docs/production-certification/evidence/raw/role-screenshots/leadgen_manager.png` — 138408 bytes, sha256 `8bbcb0684f600291…`
-  - `docs/production-certification/evidence/raw/role-screenshots/sdr.png` — 119896 bytes, sha256 `e5507d5cd81d8343…`
-  - `docs/production-certification/evidence/raw/role-screenshots/team_lead.png` — 188305 bytes, sha256 `8305ae263041a0da…`
+  - `docs/production-certification/evidence/raw/role-screenshots/director.png` — 151151 bytes, sha256 `b3aaa583479eb75d…`
+  - `docs/production-certification/evidence/raw/role-screenshots/floor_manager.png` — 219462 bytes, sha256 `c80756b16a989c82…`
+  - `docs/production-certification/evidence/raw/role-screenshots/leadgen.png` — 83453 bytes, sha256 `891f2c1ed8c9da9b…`
+  - `docs/production-certification/evidence/raw/role-screenshots/leadgen_manager.png` — 81430 bytes, sha256 `1a4b8d136953ff60…`
+  - `docs/production-certification/evidence/raw/role-screenshots/sdr.png` — 92706 bytes, sha256 `a1ebfba37e26bf51…`
+  - `docs/production-certification/evidence/raw/role-screenshots/team_lead.png` — 217033 bytes, sha256 `fe05760f1b76b455…`
 ### `EV-ROLE-MODEL`
 - **Kind**: `role-model`
 - **Candidate**: `c7bf639ef988a6ba9fffba3c88761dad245ef7a3`

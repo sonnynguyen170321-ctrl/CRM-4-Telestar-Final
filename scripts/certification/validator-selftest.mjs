@@ -24,11 +24,13 @@ import {
   checkCandidateShaAgreement,
   checkCertificateVersusOpenDefects,
   checkCiHeadSha,
+  checkDocumentVerdictConsistency,
   checkLoadResultAgreement,
   checkNoFileUrls,
   checkReferencedFilesExist,
   checkRegistryTestFilesExist,
   checkReleaseIdentity,
+  checkRunExecutionIdentity,
   checkSourceAndRunProvenance,
   checkTimingImpossibility,
 } from './lib/consistency.mjs';
@@ -503,6 +505,74 @@ function main() {
       'CI — CI run head SHA belongs to another commit',
       findings.length > 0,
       'CI head SHA mismatch was not detected',
+    );
+  }
+
+  // ── H: generated documents disagreeing about the verdict ─────────────────
+  // Directive section 14: one mismatch between the generated states is a
+  // certification failure, and section 65 forbids repairing it by hand. This is
+  // the control that the check exists at all — it was exported and wired into the
+  // validator but never shown failing, and both renderers used to strip its
+  // findings before deciding eligibility.
+  {
+    const sandbox = makeSandbox();
+    expectGreen(
+      'H — the repository documents agree with each other',
+      checkDocumentVerdictConsistency(sandbox.scope),
+      'the sandbox already disagreed about the verdict before injection',
+    );
+
+    writeFileSync(
+      path.join(sandbox.certDir, 'FINAL_CERTIFICATE.md'),
+      '**Verdict**: **GO — READY FOR TELESTAR INTERNAL LAUNCH**\n',
+    );
+    writeFileSync(path.join(sandbox.certDir, 'MASTER_TRACKER.md'), '**Verdict**: **NO-GO**\n');
+    expectRed(
+      'H — FINAL_CERTIFICATE says GO while MASTER_TRACKER says NO-GO',
+      checkDocumentVerdictConsistency(sandbox.scope),
+      'check H did not notice the certificate and the tracker disagreeing',
+    );
+
+    const progressPath = path.join(sandbox.certDir, 'progress.json');
+    const progress = JSON.parse(readFileSync(progressPath, 'utf8'));
+    writeFileSync(progressPath, JSON.stringify({ ...progress, verdict: 'NO-GO' }, null, 2));
+    writeFileSync(path.join(sandbox.certDir, 'MASTER_TRACKER.md'), '**Verdict**: **GO**\n');
+    expectRed(
+      'H — FINAL_CERTIFICATE says GO while progress.json says NO-GO',
+      checkDocumentVerdictConsistency(sandbox.scope),
+      'check H did not notice the certificate and progress.json disagreeing',
+    );
+
+    rmSync(sandbox.root, { recursive: true, force: true });
+  }
+
+  // ── K2: two certification runs reusing one execution identity ────────────
+  // Three runs are required to be three executions. Reusing an executionId is how
+  // one run is made to count as three without anything being run again.
+  {
+    const shared = 'exec-0000-shared';
+    const mutantRecords = [1, 2, 3].map((number) => ({
+      evidenceId: `EV-RUN-${number}`,
+      kind: 'certification-run',
+      candidateSha: candidate,
+      metrics: { executionId: shared, run: number },
+    }));
+    expectRed(
+      'K2 — three runs sharing one executionId',
+      checkRunExecutionIdentity(mutantRecords),
+      'a reused executionId across the three required runs was not detected',
+    );
+
+    const distinct = [1, 2, 3].map((number) => ({
+      evidenceId: `EV-RUN-${number}`,
+      kind: 'certification-run',
+      candidateSha: candidate,
+      metrics: { executionId: `exec-${number}`, run: number },
+    }));
+    expectGreen(
+      'K2 — three runs with distinct executionIds',
+      checkRunExecutionIdentity(distinct),
+      'distinct executionIds were reported as reused',
     );
   }
 

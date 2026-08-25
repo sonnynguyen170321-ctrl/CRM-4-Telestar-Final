@@ -117,12 +117,13 @@ function main() {
   const result = validateCertification();
   const defects = defectSummary();
 
-  const nonVerdictFindings = result.findings.filter((entry) => entry.check !== 'VERDICT_MISMATCH');
-  const eligible = nonVerdictFindings.every((entry) => entry.severity !== 'FAIL');
+  // One verdict engine (directive section 14). See generate-certificate.mjs for
+  // why stripping VERDICT_MISMATCH here was the exclusion the directive forbids.
+  const eligible = result.eligible;
   const verdict = eligible ? 'GO' : 'NO-GO';
 
   const failuresByCheck = new Map();
-  for (const finding of nonVerdictFindings.filter((entry) => entry.severity === 'FAIL')) {
+  for (const finding of result.findings.filter((entry) => entry.severity === 'FAIL')) {
     failuresByCheck.set(finding.check, (failuresByCheck.get(finding.check) ?? 0) + 1);
   }
 

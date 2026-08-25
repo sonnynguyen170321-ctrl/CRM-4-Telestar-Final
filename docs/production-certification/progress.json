@@ -1,9 +1,9 @@
 {
   "$comment": "GENERATED FILE. Regenerate with node scripts/certification/render-tracker.mjs. Counts are computed by the validator from the evidence manifest; nothing here is typed.",
   "program": "Telestar Production Certification",
-  "candidateSourceSha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
+  "candidateSourceSha": "5985ec474bc1eb3da05ae5db7560e83a4e70969d",
   "releaseTag": "telestar-internal-rc-2026-08-22",
-  "generatedAt": "2026-08-25T06:57:18.680Z",
+  "generatedAt": "2026-08-25T09:53:30.911Z",
   "verdict": "NO-GO",
   "eligible": false,
   "requirements": {
@@ -46,9 +46,9 @@
     }
   },
   "defects": {
-    "open": 51,
-    "openP0": 5,
-    "openP1": 27,
+    "open": 56,
+    "openP0": 6,
+    "openP1": 31,
     "openP2": 19,
     "openP3": 0,
     "ids": [
@@ -255,15 +255,37 @@
       {
         "id": "TEL-P1-041",
         "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P0-008",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-042",
+        "status": "FIXED_PENDING_VERIFICATION"
+      },
+      {
+        "id": "TEL-P1-043",
+        "status": "OPEN"
+      },
+      {
+        "id": "TEL-P1-044",
+        "status": "OPEN"
+      },
+      {
+        "id": "TEL-P1-045",
+        "status": "OPEN"
       }
     ]
   },
-  "evidenceRecords": 28,
+  "evidenceRecords": 40,
   "validationFailures": {
-    "A": 32,
+    "A": 40,
     "S": 1,
-    "TIME_IMPOSSIBILITY": 28,
+    "N": 1,
+    "TIME_IMPOSSIBILITY": 40,
     "CI_SHA_MISMATCH": 1,
+    "RUN_IDENTITY": 3,
     "REQ": 108
   },
   "releaseIdentity": "release-identity.json"
