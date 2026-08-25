@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/db/adminClient.mjs';
 
 const prisma = createAdminClient();
 const TENANT_ID = 'default-tenant';
-const DEFAULT_PASSWORD = process.env.USER_RESTORE_PASSWORD || 'telestar2026';
+const DEFAULT_PASSWORD = process.env.USER_RESTORE_PASSWORD || 'Telestar2026';
 
 interface RosterUser {
   email: string;
