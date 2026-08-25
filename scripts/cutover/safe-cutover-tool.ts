@@ -19,6 +19,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { Prisma } from '@prisma/client';
+
 import { createAdminClient } from '../../lib/db/adminClient.mjs';
 
 const ROOT = process.cwd();
@@ -239,7 +241,41 @@ export function getDatabaseFingerprint(): string {
   return `${host}:${port}/${dbName}`;
 }
 
+/**
+ * Every model in the schema, as the generated client actually knows them (TEL-P1-046).
+ *
+ * `TOPOLOGICAL_MODELS` below is a hand-maintained list of 29 names and the schema declares 68.
+ * `planMode` iterated only that list, so 39 model types were never read, never classified, and
+ * never appeared in `countsByModel` — with no warning, because nothing failed: the loop simply
+ * had no entry for them. Measured against production on 2026-08-25 the manifest reported
+ * `totalRowsScanned: 45` and `rowsRequiringReviewCount: 0` for a database holding ~990 rows,
+ * having never opened Contact (36), Account (35), AuditLog (656), AiCall (75) or JobRun (21).
+ *
+ * That is not a data-loss bug — nothing can be deleted that was never classified. It is worse
+ * placed than that. Section 23 makes `rowsRequiringReviewCount` the gate that blocks a cutover,
+ * and the gate read zero because nothing had looked.
+ *
+ * Scanning is therefore derived from the client's own DMMF rather than from a literal anyone
+ * has to remember to update. A model added to `schema.prisma` tomorrow is scanned tomorrow.
+ */
+export function allModelDelegateNames(): string[] {
+  const models = (Prisma as any)?.dmmf?.datamodel?.models;
+  if (!Array.isArray(models) || models.length === 0) {
+    throw new Error(
+      'REFUSED: cannot read the Prisma datamodel, so the set of models to scan cannot be established. ' +
+        'A cutover manifest that guesses its own scope is the defect this check exists to prevent (TEL-P1-046).'
+    );
+  }
+  // Delegate names are the model name with a lowercased first character.
+  return models.map((m: { name: string }) => m.name.charAt(0).toLowerCase() + m.name.slice(1));
+}
+
 // ── Models in strict topological child-before-parent order ─────────────────
+//
+// This list is the DELETE order, and only the delete order. Removing a row from a model that is
+// not here has no proven parent-before-child position, so `planMode` refuses to mark such a row
+// for deletion rather than guessing an order that could fail a foreign key mid-purge. Scanning
+// is not restricted to it — see `allModelDelegateNames` above.
 export const TOPOLOGICAL_MODELS = [
   'activity',
   'notification',
@@ -272,7 +308,15 @@ export const TOPOLOGICAL_MODELS = [
   'tenant',
 ] as const;
 
-export type ModelName = (typeof TOPOLOGICAL_MODELS)[number];
+/** A model with a proven child-before-parent position, and therefore safe to delete from. */
+export type DeletableModelName = (typeof TOPOLOGICAL_MODELS)[number];
+
+/**
+ * Any model the schema declares. Classification covers all 68; deletion covers the ordered 29.
+ * These were the same type while the scan was restricted to the delete-order list, which is
+ * precisely the conflation that let 39 models go unscanned (TEL-P1-046).
+ */
+export type ModelName = string;
 
 export type ClassificationType = 'SYSTEM_KEEP' | 'KEEP_REAL' | 'PURGE_SEED' | 'REVIEW_REQUIRED';
 
@@ -434,9 +478,22 @@ export async function planMode(customRosterPath?: string): Promise<PurgeManifest
 
   let totalRowsScanned = 0;
 
-  for (const model of TOPOLOGICAL_MODELS) {
+  // Scan every model the schema declares, not the delete-order list (TEL-P1-046).
+  const scanModels = allModelDelegateNames();
+  const deletable = new Set<string>(TOPOLOGICAL_MODELS as readonly string[]);
+
+  for (const model of scanModels) {
     const delegate = (prisma as any)[model];
-    if (!delegate || typeof delegate.findMany !== 'function') continue;
+    if (!delegate || typeof delegate.findMany !== 'function') {
+      // Previously `continue`. A model the client cannot address is a model whose rows were
+      // never counted, and the manifest would report a total that silently excluded them —
+      // the same false green, arrived at from the other direction.
+      throw new Error(
+        `REFUSED: the schema declares model "${model}" but the generated client exposes no findMany for it. ` +
+          'The manifest cannot report a row count it did not take. Regenerate the Prisma client against this ' +
+          'schema and re-run PLAN (TEL-P1-046).'
+      );
+    }
 
     const rows = await delegate.findMany();
     totalRowsScanned += rows.length;
@@ -456,6 +513,20 @@ export async function planMode(customRosterPath?: string): Promise<PurgeManifest
       };
 
       if (classification === 'PURGE_SEED') {
+        // A row can only be queued for deletion from a model with a proven child-before-parent
+        // position. Anything else becomes a review item: the operator decides, rather than the
+        // purge discovering a foreign-key order it cannot satisfy halfway through.
+        if (!deletable.has(model)) {
+          rowsRequiringReview.push({
+            ...entry,
+            classification: 'REVIEW_REQUIRED',
+            reason:
+              `classified as seed data, but "${model}" has no position in the topological delete order, ` +
+              'so it cannot be deleted safely — requires manual review (TEL-P1-046)',
+          });
+          modelRev++;
+          continue;
+        }
         rowsToDelete.push(entry);
         modelDel++;
       } else if (classification === 'KEEP_REAL' || classification === 'SYSTEM_KEEP') {
