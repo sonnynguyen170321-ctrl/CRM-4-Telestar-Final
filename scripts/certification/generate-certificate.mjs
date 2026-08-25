@@ -45,22 +45,23 @@ function value(record, pathParts, fallback = 'not established') {
 }
 
 function openDefects() {
-  const defectsPath = path.join(CERT_DIR, 'DEFECTS.md');
-  if (!existsSync(defectsPath)) return { counts: {}, ids: [] };
-  const text = readFileSync(defectsPath, 'utf8');
+  const defectsJsonPath = path.join(CERT_DIR, 'defects.json');
+  if (!existsSync(defectsJsonPath)) return { counts: {}, ids: [] };
+  const data = JSON.parse(readFileSync(defectsJsonPath, 'utf8'));
+  const defectsList = data.defects || [];
 
   const ids = [];
-  const sectionRe = /### `(TEL-P\d-\d+)`[\s\S]*?- \*\*Status\*\*: `([A-Z_]+)`/g;
-  for (const match of text.matchAll(sectionRe)) {
-    const [, id, status] = match;
-    if (status !== 'VERIFIED') ids.push({ id, status });
+  const counts = { P0: 0, P1: 0, P2: 0, P3: 0 };
+
+  for (const defect of defectsList) {
+    if (defect.state !== 'VERIFIED' && defect.state !== 'ACCEPTED_RISK') {
+      ids.push({ id: defect.id, status: defect.state, severity: defect.severity });
+      if (counts[defect.severity] !== undefined) {
+        counts[defect.severity] += 1;
+      }
+    }
   }
 
-  const counts = { P0: 0, P1: 0, P2: 0, P3: 0 };
-  for (const entry of ids) {
-    const severity = entry.id.split('-')[1];
-    if (counts[severity] !== undefined) counts[severity] += 1;
-  }
   return { counts, ids };
 }
 

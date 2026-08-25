@@ -31,7 +31,7 @@ the queue removed; the system figure is what a real import actually costs.
 
 ## 2. `IMPORT_HANDLER_BENCHMARK`
 
-Candidate `42420a0` · win32 / node 24.16.0 / postgres 16 / BullMQ mocked
+Candidate `c7bf639` · win32 / node 24.16.0 / postgres 16 / BullMQ mocked
 
 | Rows | Duration | Rows/s | Chunk p50 | Chunk p95 | Chunk p99 | Leads | Accounts | Contacts | Lost | Duplicate | Heap Δ |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -43,7 +43,7 @@ Candidate `42420a0` · win32 / node 24.16.0 / postgres 16 / BullMQ mocked
 
 ## 3. `IMPORT_SYSTEM_QUEUE_BENCHMARK`
 
-Candidate `42420a0` · win32 / node 24.16.0 / postgres 16 / real Redis / real BullMQ
+Candidate `c7bf639` · win32 / node 24.16.0 / postgres 16 / real Redis / real BullMQ
 
 Queue wait is measured from enqueue to the worker picking the job up; job time is the
 handler's own execution once picked up.

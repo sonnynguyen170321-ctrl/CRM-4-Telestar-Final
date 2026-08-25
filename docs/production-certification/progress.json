@@ -3,9 +3,9 @@
   "program": "Telestar Production Certification",
   "candidateSourceSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
   "releaseTag": "telestar-internal-rc-2026-08-22",
-  "generatedAt": "2026-08-24T09:50:01.539Z",
-  "verdict": "GO",
-  "eligible": true,
+  "generatedAt": "2026-08-25T05:46:47.515Z",
+  "verdict": "NO-GO",
+  "eligible": false,
   "requirements": {
     "total": 108,
     "verified": 108,
@@ -259,6 +259,9 @@
     ]
   },
   "evidenceRecords": 28,
-  "validationFailures": {},
+  "validationFailures": {
+    "01": 1,
+    "N": 8
+  },
   "releaseIdentity": "release-identity.json"
 }
