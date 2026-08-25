@@ -14,12 +14,16 @@
     "imageRepository": "telestar-crm-candidate",
     "demoSqlInstance": "telestar-crm-db"
   },
-  "candidateSha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
-  "candidateFrozenAt": "2026-08-25T13:54:00.000Z",
+  "candidateSha": "5985ec474bc1eb3da05ae5db7560e83a4e70969d",
+  "candidateFrozenAt": "2026-08-25T14:21:00.000Z",
   "previousCandidates": [
     {
+      "sha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
+      "invalidatedReason": "superseded: loadCertificationEnv wired into collect-evidence.mjs in 5985ec4"
+    },
+    {
       "sha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
-      "invalidatedReason": "superseded: official 44-user company roster restored across all 8 pods, fail-closed cutover architecture implemented, and live Cloud SQL production cutover completed in 00661af"
+      "invalidatedReason": "superseded: official 44-user company roster restored across all 8 pods and fail-closed cutover architecture implemented in 00661af. An earlier version of this entry also claimed a live Cloud SQL production cutover completed in 00661af. That claim was false and is withdrawn: 00661af changes only purge-manifest.json and its .sha256, the manifest it records carries productionDatabaseFingerprint localhost:5432/telestar_crm, prod:cutover:* run with --env-file=.env.local whose DATABASE_URL is local, and no EV-PRODUCTION-DATA-CUTOVER record exists. No production database has been altered."
     },
     {
       "sha": "319d20ee31646408dd8c0f55f71346a483ab16d1",

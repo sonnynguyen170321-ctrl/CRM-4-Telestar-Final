@@ -140,41 +140,54 @@ export interface PurgeManifest {
   manifestSha256?: string;
 }
 
-const KNOWN_DEMO_TENANTS = new Set(['demo-telestar', 'tenant-demo', 'test-tenant', 'demo-tenant']);
-const KNOWN_SEED_PREFIXES = [
-  'demo',
-  'seed',
-  'test',
-  'mock',
-  'fixture',
-  't8',
-  'blref',
-  'ci',
-  'temp',
-  'vitest',
-  'fault',
-  'goldenjourney',
-  'icpadh',
-  'wo',
-  'p10',
-  'variantattr',
-  'race',
-  'pw',
-  'load',
-  'refint',
-  'crref',
-  'impref',
-  'crprev',
-  'victim',
-  'attacker',
+/**
+ * Demo/synthetic identity is decided by PROVENANCE, never by appearance.
+ *
+ * The previous implementation matched loose substrings ('test', 'ci', 'wo', 'load')
+ * and `endsWith('-tenant')`. That made `default-tenant` — the approved PRODUCTION
+ * tenant — match as a synthetic fixture, so every one of its rows was classified
+ * PURGE_SEED and the manifest reported 0 rows requiring review. Executing it would
+ * have deleted real business data. A row is now demo only if its tenant is on an
+ * explicit list, or matches an anchored pattern for a tenant this repository's own
+ * test suites generate. Anything else is REVIEW_REQUIRED — never delete.
+ */
+const KNOWN_DEMO_TENANT_IDS = new Set(['demo-telestar', 'tenant-demo', 'test-tenant', 'demo-tenant']);
+
+/**
+ * Tenants minted by this repository's automated suites. Each pattern is anchored
+ * end to end and requires the generator's structural suffix, so a real tenant
+ * cannot match by sharing an opening substring.
+ */
+const AUTOMATED_TEST_TENANT_PATTERNS: RegExp[] = [
+  // t8a-a-<uuid>, t8a-b-<uuid>, t8ai-<uuid> — tenant-isolation suite fixtures
+  /^t8[a-z]*(?:-[a-z])?-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  // test-tenant-bullmq, test-tenant-run-now — named integration fixtures
+  /^test-tenant-[a-z0-9]+(?:-[a-z0-9]+)*$/,
 ];
 
-function isKnownTestFixture(idOrTenantId?: string): boolean {
-  if (!idOrTenantId) return false;
-  const val = idOrTenantId.toLowerCase().trim();
-  if (KNOWN_DEMO_TENANTS.has(val)) return true;
-  if (val.endsWith('-tenant') || val.endsWith('-tenant-a') || val.endsWith('-tenant-b')) return true;
-  return KNOWN_SEED_PREFIXES.some((prefix) => val.startsWith(prefix) || val.includes(`-${prefix}-`) || val.includes(`_${prefix}_`));
+function isKnownDemoTenantId(tenantId?: string | null): boolean {
+  if (!tenantId) return false;
+  const val = String(tenantId).toLowerCase().trim();
+  if (KNOWN_DEMO_TENANT_IDS.has(val)) return true;
+  return AUTOMATED_TEST_TENANT_PATTERNS.some((pattern) => pattern.test(val));
+}
+
+/**
+ * The manifest's own hash cannot cover the field that carries it, so it is taken
+ * over the manifest with `manifestSha256` omitted. PLAN previously hashed the
+ * pre-stamp serialization and then wrote the stamped one, so re-hashing the file
+ * on disk could never reproduce the recorded digest — which is why VERIFY did not
+ * check it, and why a hand-edited manifest would have passed.
+ */
+export function canonicalManifestHash(manifest: PurgeManifest): string {
+  const { manifestSha256: _omitted, ...rest } = manifest;
+  return sha256(JSON.stringify(rest, null, 2) + '\n');
+}
+
+/** A row the application itself marked as demo data, inside an approved tenant. */
+function carriesExplicitDemoMarker(row: any): boolean {
+  if (row?.isDemo === true || row?.isSynthetic === true) return true;
+  return Array.isArray(row?.tags) && row.tags.includes('demo');
 }
 
 export function classifyRow(
@@ -183,12 +196,13 @@ export function classifyRow(
   approvedEmails: Set<string>,
   approvedTenants: Set<string>
 ): { classification: ClassificationType; reason: string } {
-  // 1. Tenants
+  // 1. Tenants — the approved list is consulted first, so an approved tenant can
+  //    never fall through into demo classification however it happens to be named.
   if (model === 'tenant') {
     if (approvedTenants.has(row.id)) {
       return { classification: 'KEEP_REAL', reason: 'Approved production tenant' };
     }
-    if (isKnownTestFixture(row.id)) {
+    if (isKnownDemoTenantId(row.id)) {
       return { classification: 'PURGE_SEED', reason: 'Known demo / synthetic test tenant identifier' };
     }
     return { classification: 'REVIEW_REQUIRED', reason: 'Unrecognized tenant requires manual review' };
@@ -200,8 +214,8 @@ export function classifyRow(
     if (approvedEmails.has(email)) {
       return { classification: 'KEEP_REAL', reason: 'Approved real user roster' };
     }
-    if (isKnownTestFixture(row.tenantId) || isKnownTestFixture(row.id) || isKnownTestFixture(email)) {
-      return { classification: 'PURGE_SEED', reason: 'User belonging to known demo / synthetic test fixture' };
+    if (isKnownDemoTenantId(row.tenantId)) {
+      return { classification: 'PURGE_SEED', reason: 'User belonging to known demo / synthetic test tenant' };
     }
     return { classification: 'REVIEW_REQUIRED', reason: 'Unrecognized user account outside approved roster' };
   }
@@ -212,22 +226,21 @@ export function classifyRow(
     if (approvedEmails.has(email)) {
       return { classification: 'KEEP_REAL', reason: 'Live connected user OAuth mailbox' };
     }
-    if (isKnownTestFixture(row.tenantId) || isKnownTestFixture(row.id) || isKnownTestFixture(email)) {
-      return { classification: 'PURGE_SEED', reason: 'Demo / synthetic test email account fixture' };
+    if (isKnownDemoTenantId(row.tenantId)) {
+      return { classification: 'PURGE_SEED', reason: 'Mailbox belonging to known demo / synthetic test tenant' };
     }
     return { classification: 'REVIEW_REQUIRED', reason: 'Unrecognized mailbox requires verification' };
   }
 
   // 4. Business Records (clients, campaigns, leads, sequences, tasks, meetings, etc.)
-  const isDemoTenant = isKnownTestFixture(row.tenantId);
-  const isSeedId = isKnownTestFixture(row.id);
-
-  if (isDemoTenant || isSeedId) {
-    return { classification: 'PURGE_SEED', reason: 'Belongs to verified demo/synthetic tenant or seed fixture' };
+  //    Tenant provenance is the only signal that may condemn a row. A row whose
+  //    tenant cannot be placed is kept and surfaced for operator classification.
+  if (isKnownDemoTenantId(row.tenantId)) {
+    return { classification: 'PURGE_SEED', reason: 'Belongs to verified demo / synthetic test tenant' };
   }
 
   if (row.tenantId && approvedTenants.has(row.tenantId)) {
-    if (row.isDemo || row.isSynthetic || (row.tags && Array.isArray(row.tags) && row.tags.includes('demo'))) {
+    if (carriesExplicitDemoMarker(row)) {
       return { classification: 'PURGE_SEED', reason: 'Explicitly marked demo record in approved tenant' };
     }
     return { classification: 'KEEP_REAL', reason: 'Production record in approved tenant' };
@@ -317,8 +330,7 @@ export async function planMode(customRosterPath?: string): Promise<PurgeManifest
   };
 
   const manifestPath = resolveManifestPath();
-  const serialized = JSON.stringify(manifest, null, 2) + '\n';
-  const manifestSha256 = sha256(serialized);
+  const manifestSha256 = canonicalManifestHash(manifest);
   manifest.manifestSha256 = manifestSha256;
 
   try {
@@ -347,6 +359,30 @@ export async function verifyMode(customPath?: string): Promise<PurgeManifest> {
 
   const raw = readFileSync(targetPath, 'utf8');
   const manifest: PurgeManifest = JSON.parse(raw);
+
+  // 0. Verify the manifest has not been edited since PLAN produced it. This must
+  //    run before any other assertion: every later check trusts these contents.
+  if (!manifest.manifestSha256) {
+    throw new Error('MANIFEST UNSIGNED: no manifestSha256 recorded. Regenerate with --mode=PLAN.');
+  }
+  const recomputed = canonicalManifestHash(manifest);
+  if (recomputed !== manifest.manifestSha256) {
+    throw new Error(
+      `MANIFEST TAMPERING DETECTED: recorded hash ${manifest.manifestSha256} does not match recomputed ${recomputed}. Refusing execution.`
+    );
+  }
+
+  // 0b. The summary counts are what the operator authorizes against; they must
+  //     agree with the rows actually listed.
+  if (
+    manifest.summary.rowsToDeleteCount !== manifest.rowsToDelete.length ||
+    manifest.summary.rowsToKeepCount !== manifest.rowsToKeep.length ||
+    manifest.summary.rowsRequiringReviewCount !== manifest.rowsRequiringReview.length
+  ) {
+    throw new Error(
+      `MANIFEST SUMMARY MISMATCH: summary claims ${manifest.summary.rowsToDeleteCount}/${manifest.summary.rowsToKeepCount}/${manifest.summary.rowsRequiringReviewCount} (delete/keep/review) but the manifest lists ${manifest.rowsToDelete.length}/${manifest.rowsToKeep.length}/${manifest.rowsRequiringReview.length}.`
+    );
+  }
 
   // 1. Verify Database Target
   const currentFingerprint = getDatabaseFingerprint();

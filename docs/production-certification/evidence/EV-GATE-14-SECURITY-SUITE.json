@@ -1,0 +1,19 @@
+{
+  "evidenceId": "EV-GATE-14-SECURITY-SUITE",
+  "kind": "gate",
+  "candidateSha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
+  "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
+  "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run tests/tenant-inject.test.ts tests/object-auth-red-team.test.ts tests/mass-assignment.test.ts tests/security-injection.test.ts tests/gitleaks-allowlist.test.ts tests/csp.test.ts tests/login-throttle.test.ts",
+  "startedAt": "2026-08-25T07:08:15.915Z",
+  "finishedAt": "2026-08-25T07:08:23.550Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {},
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/gate-14-security-suite.log",
+      "sizeBytes": 2060,
+      "sha256": "6c0a339ae85e9f0d11f99ab363a605f4a1ece771cd73870c98dcc17f27ca6bac"
+    }
+  ]
+}

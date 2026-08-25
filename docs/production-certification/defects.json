@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "lastUpdated": "2026-08-24T08:38:28.407Z",
+  "lastUpdated": "2026-08-25T09:47:07.830Z",
   "defects": [
     {
       "id": "TEL-P2-024",
@@ -682,6 +682,66 @@
       "discoveredAt": "2026-08-22T00:00:00.000Z",
       "rootCause": "`handleEmailSend` reads the row, checks its status, and *then* runs the",
       "fixSha": "a6d8c0d",
+      "verificationEvidence": "",
+      "acceptedRisk": null,
+      "owner": "core-team"
+    },
+    {
+      "id": "TEL-P0-008",
+      "severity": "P0",
+      "state": "FIXED_PENDING_VERIFICATION",
+      "title": "The Cutover Classifier Condemned The Approved Production Tenant By Name Shape",
+      "discoveredAt": "2026-08-25T00:00:00.000Z",
+      "rootCause": "scripts/cutover/safe-cutover-tool.ts decided demo-vs-real from how an identifier looked. isKnownTestFixture() returned true for any value ending in '-tenant', which matches 'default-tenant' — the approved PRODUCTION tenant — and for any value opening with a loose prefix ('ci', 'wo', 'test', 'load', 'temp'), which matches real addresses such as cindy@itelestar.com. Every business row is classified from its tenant, so the whole production tenant classified PURGE_SEED: the generated manifest queued 68,983 of 69,028 scanned rows for deletion and reported zero rows requiring review. Executing it would have deleted real business data. Directive section 24 forbids classifying by name appearance; section 23 forbids defaulting an unknown business row to delete.",
+      "fixSha": "",
+      "verificationEvidence": "tests/safe-cutover-tool.test.ts — \"Classification must not condemn a row by appearance (regression)\", 6 cases",
+      "acceptedRisk": null,
+      "owner": "core-team"
+    },
+    {
+      "id": "TEL-P1-042",
+      "severity": "P1",
+      "state": "FIXED_PENDING_VERIFICATION",
+      "title": "The Purge Manifest Hash Could Never Be Reproduced, So VERIFY Never Checked It",
+      "discoveredAt": "2026-08-25T00:00:00.000Z",
+      "rootCause": "planMode hashed the manifest serialization taken BEFORE manifestSha256 was stamped onto it, then wrote the stamped object. Re-hashing the file on disk could therefore never reproduce the recorded digest, and verifyMode did not attempt it — so a hand-edited manifest (changed id, changed classification, changed count) passed every precondition. Directive sections 22, 26 and 33 require the manifest hash to be verified before execution.",
+      "fixSha": "",
+      "verificationEvidence": "tests/safe-cutover-tool.test.ts — \"Manifest integrity (Sections 26, 33)\", 2 cases; verifyMode now recomputes canonicalManifestHash and cross-checks summary counts against listed rows",
+      "acceptedRisk": null,
+      "owner": "core-team"
+    },
+    {
+      "id": "TEL-P1-043",
+      "severity": "P1",
+      "state": "OPEN",
+      "title": "Renderers Strip VERDICT_MISMATCH Before Computing Eligibility",
+      "discoveredAt": "2026-08-25T00:00:00.000Z",
+      "rootCause": "generate-certificate.mjs and render-tracker.mjs both filter findings with check !== 'VERDICT_MISMATCH' and then compute eligibility from what remains. Directive section 14 states VERDICT_MISMATCH must never be removed before eligibility is computed. Today other FAIL findings keep the verdict at NO-GO, so the effect is latent rather than active, but the path by which a document disagreement stops blocking release exists in the renderer.",
+      "fixSha": "",
+      "verificationEvidence": "",
+      "acceptedRisk": null,
+      "owner": "core-team"
+    },
+    {
+      "id": "TEL-P1-044",
+      "severity": "P1",
+      "state": "OPEN",
+      "title": "REHEARSE Runs Against The Live Target, Not A Restored Backup Clone",
+      "discoveredAt": "2026-08-25T00:00:00.000Z",
+      "rootCause": "--mode=REHEARSE is executeMode(dryRun=true), which opens a transaction against the SAME database the manifest targets and rolls it back. Directive section 36 requires rehearsal against an isolated environment restored from the production backup, followed by application and worker boot, authentication and empty-state checks. A dry-run transaction on the live target proves neither the restore nor the post-cutover application state.",
+      "fixSha": "",
+      "verificationEvidence": "",
+      "acceptedRisk": null,
+      "owner": "core-team"
+    },
+    {
+      "id": "TEL-P1-045",
+      "severity": "P1",
+      "state": "OPEN",
+      "title": "VERIFY Omits The Backup, PITR, Email-Pause And Queue Preconditions",
+      "discoveredAt": "2026-08-25T00:00:00.000Z",
+      "rootCause": "Directive section 30 lists the preconditions prod:cutover:verify must fail closed on. verifyMode checks database fingerprint, roster hash, zero review and row drift. It does not check: backup verified and recent, PITR enabled, recovery access, EMAIL_GLOBAL_PAUSE true, SEQUENCE_AUTOSEND_ENABLED false, queues paused or drained, imports prevented, candidate deployment healthy, candidate identity expected.",
+      "fixSha": "",
       "verificationEvidence": "",
       "acceptedRisk": null,
       "owner": "core-team"

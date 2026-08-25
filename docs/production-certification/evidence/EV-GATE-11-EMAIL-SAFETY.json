@@ -1,0 +1,19 @@
+{
+  "evidenceId": "EV-GATE-11-EMAIL-SAFETY",
+  "kind": "gate",
+  "candidateSha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
+  "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
+  "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run tests/demo-email-barrier.test.ts tests/email-idempotency.test.ts tests/email-safety.test.ts",
+  "startedAt": "2026-08-25T07:07:41.377Z",
+  "finishedAt": "2026-08-25T07:07:44.724Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {},
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/gate-11-email-safety.log",
+      "sizeBytes": 1116,
+      "sha256": "701f27ef6a25293acd9b6be46cb31aefd97ddd097969387648b8344fca36f239"
+    }
+  ]
+}

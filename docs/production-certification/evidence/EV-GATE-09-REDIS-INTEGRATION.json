@@ -1,0 +1,47 @@
+{
+  "evidenceId": "EV-GATE-09-REDIS-INTEGRATION",
+  "kind": "gate",
+  "candidateSha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
+  "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
+  "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run tests/redis-integration.test.ts tests/ai-shared-circuit.test.ts tests/redis-readiness.test.ts --reporter=json --outputFile=.certification/redis.json",
+  "startedAt": "2026-08-25T07:07:04.685Z",
+  "finishedAt": "2026-08-25T07:07:10.952Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {
+    "files": {
+      "tests/ai-shared-circuit.test.ts": {
+        "status": "passed",
+        "tests": 14,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/redis-integration.test.ts": {
+        "status": "passed",
+        "tests": 5,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/redis-readiness.test.ts": {
+        "status": "passed",
+        "tests": 17,
+        "failed": 0,
+        "skipped": 0
+      }
+    },
+    "testFiles": 3,
+    "testFilesPassed": 3,
+    "testsPassed": 36,
+    "testsFailed": 0,
+    "testsSkipped": 0,
+    "executed": true,
+    "skipped": 0
+  },
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/gate-09-redis-integration.log",
+      "sizeBytes": 572,
+      "sha256": "ffd6f1b512c074101c7e3e961a2c8354f09969ca5e383ab13fee92f7b75ddf81"
+    }
+  ]
+}

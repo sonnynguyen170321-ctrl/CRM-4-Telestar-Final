@@ -1,0 +1,133 @@
+# gate: 12-import-fault-matrix — import durable-write failpoint matrix
+# command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/import-fault-injection.test.ts tests/import-race-stress.test.ts
+# startedAt: 2026-08-25T07:39:28.262Z
+# finishedAt: 2026-08-25T07:39:51.363Z
+# exitCode: 0
+
+--- stdout ---
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/Sonny Antigravity Project/Telestar-CRM-Final Production/CRM-4-Telestar-Final[39m
+
+[90mstdout[2m | tests/import-fault-injection.test.ts[2m > [22m[2mTEL-P1-001 / TEL-P1-005 / TEL-P1-006 / TEL-P1-007 / TEL-P2-011: Import Hardening & Full Failpoint Matrix[2m > [22m[2mTEL-P1-006 / TEL-P2-011: Complete CRM Import Failpoint Convergence[2m > [22m[2mCRM import fails at after_lead and converges cleanly on retry without duplicate records
+[22m[39mprisma:error 
+Invalid `prisma.lead.create()` invocation in
+D:/Sonny Antigravity Project/Telestar-CRM-Final Production/CRM-4-Telestar-Final/workers/import.ts:849:43
+
+  846 if (!createdLead) {
+  847   try {
+  848     const leadNormalizedEmail = data.forceDuplicateLead ? null : normalizedEmail || null;
+→ 849     createdLead = await prisma.lead.create(
+Unique constraint failed on the fields: (`tenantId`,`campaignId`,`normalizedEmail`)
+
+[90mstdout[2m | tests/import-fault-injection.test.ts[2m > [22m[2mTEL-P1-001 / TEL-P1-005 / TEL-P1-006 / TEL-P1-007 / TEL-P2-011: Import Hardening & Full Failpoint Matrix[2m > [22m[2mTEL-P1-006 / TEL-P2-011: Complete CRM Import Failpoint Convergence[2m > [22m[2mCRM import fails at after_activity_lead_created and converges cleanly on retry without duplicate records
+[22m[39mprisma:error 
+Invalid `prisma.activity.create()` invocation in
+D:/Sonny Antigravity Project/Telestar-CRM-Final Production/CRM-4-Telestar-Final/workers/import.ts:919:27
+
+  916 await createOnceByKey(
+  917   `import:lead_created:${createdLead.id}`,
+  918   (idempotencyKey) =>
+→ 919     prisma.activity.create(
+Unique constraint failed on the fields: (`idempotencyKey`)
+
+[90mstdout[2m | tests/import-fault-injection.test.ts[2m > [22m[2mTEL-P1-001 / TEL-P1-005 / TEL-P1-006 / TEL-P1-007 / TEL-P2-011: Import Hardening & Full Failpoint Matrix[2m > [22m[2mTEL-P1-006 / TEL-P2-011: Complete CRM Import Failpoint Convergence[2m > [22m[2mCRM import fails at after_activity_sequence_enrolled and converges cleanly on retry without duplicate records
+[22m[39mprisma:error 
+Invalid `prisma.activity.create()` invocation in
+D:/Sonny Antigravity Project/Telestar-CRM-Final Production/CRM-4-Telestar-Final/workers/import.ts:919:27
+
+  916 await createOnceByKey(
+  917   `import:lead_created:${createdLead.id}`,
+  918   (idempotencyKey) =>
+→ 919     prisma.activity.create(
+Unique constraint failed on the fields: (`idempotencyKey`)
+
+[90mstdout[2m | tests/import-fault-injection.test.ts[2m > [22m[2mTEL-P1-001 / TEL-P1-005 / TEL-P1-006 / TEL-P1-007 / TEL-P2-011: Import Hardening & Full Failpoint Matrix[2m > [22m[2mTEL-P1-006 / TEL-P2-011: Complete CRM Import Failpoint Convergence[2m > [22m[2mCRM import fails at after_activity_sequence_enrolled and converges cleanly on retry without duplicate records
+[22m[39mprisma:error 
+Invalid `prisma.activity.create()` invocation in
+D:/Sonny Antigravity Project/Telestar-CRM-Final Production/CRM-4-Telestar-Final/workers/import.ts:939:29
+
+  936 await createOnceByKey(
+  937   `import:sequence_enrolled:${createdLead.id}:${sequence.id}`,
+  938   (idempotencyKey) =>
+→ 939     prisma.activity.create(
+Unique constraint failed on the fields: (`idempotencyKey`)
+
+[90mstdout[2m | tests/import-fault-injection.test.ts[2m > [22m[2mTEL-P1-001 / TEL-P1-005 / TEL-P1-006 / TEL-P1-007 / TEL-P2-011: Import Hardening & Full Failpoint Matrix[2m > [22m[2mTEL-P1-006 / TEL-P2-011: Complete CRM Import Failpoint Convergence[2m > [22m[2mCRM import fails at after_task and converges cleanly on retry without duplicate records
+[22m[39mprisma:error 
+Invalid `prisma.activity.create()` invocation in
+D:/Sonny Antigravity Project/Telestar-CRM-Final Production/CRM-4-Telestar-Final/workers/import.ts:919:27
+
+  916 await createOnceByKey(
+  917   `import:lead_created:${createdLead.id}`,
+  918   (idempotencyKey) =>
+→ 919     prisma.activity.create(
+Unique constraint failed on the fields: (`idempotencyKey`)
+
+[90mstdout[2m | tests/import-fault-injection.test.ts[2m > [22m[2mTEL-P1-001 / TEL-P1-005 / TEL-P1-006 / TEL-P1-007 / TEL-P2-011: Import Hardening & Full Failpoint Matrix[2m > [22m[2mTEL-P1-006 / TEL-P2-011: Complete CRM Import Failpoint Convergence[2m > [22m[2mCRM import fails at after_task and converges cleanly on retry without duplicate records
+[22m[39mprisma:error 
+Invalid `prisma.activity.create()` invocation in
+D:/Sonny Antigravity Project/Telestar-CRM-Final Production/CRM-4-Telestar-Final/workers/import.ts:939:29
+
+  936 await createOnceByKey(
+  937   `import:sequence_enrolled:${createdLead.id}:${sequence.id}`,
+  938   (idempotencyKey) =>
+→ 939     prisma.activity.create(
+Unique constraint failed on the fields: (`idempotencyKey`)
+
+[90mstdout[2m | tests/import-fault-injection.test.ts[2m > [22m[2mTEL-P1-001 / TEL-P1-005 / TEL-P1-006 / TEL-P1-007 / TEL-P2-011: Import Hardening & Full Failpoint Matrix[2m > [22m[2mTEL-P1-006 / TEL-P2-011: Complete CRM Import Failpoint Convergence[2m > [22m[2mCRM import fails at after_task and converges cleanly on retry without duplicate records
+[22m[39mprisma:error 
+Invalid `prisma.task.create()` invocation in
+D:/Sonny Antigravity Project/Telestar-CRM-Final Production/CRM-4-Telestar-Final/lib/sequences/engine.ts:124:30
+
+  121   priority: Task['priority'];
+  122 }): Promise<Task> {
+  123   try {
+→ 124     return await prisma.task.create(
+Unique constraint failed on the fields: (`id`)
+
+[90mstdout[2m | tests/import-fault-injection.test.ts[2m > [22m[2mTEL-P1-001 / TEL-P1-005 / TEL-P1-006 / TEL-P1-007 / TEL-P2-011: Import Hardening & Full Failpoint Matrix[2m > [22m[2mTEL-P1-007: Concurrent Duplicate Job Delivery[2m > [22m[2mexecutes identical chunk payload concurrently across 2 workers without duplicating leads or activities
+[22m[39mprisma:error 
+Invalid `prisma.lead.create()` invocation in
+D:/Sonny Antigravity Project/Telestar-CRM-Final Production/CRM-4-Telestar-Final/workers/import.ts:849:43
+
+  846 if (!createdLead) {
+  847   try {
+  848     const leadNormalizedEmail = data.forceDuplicateLead ? null : normalizedEmail || null;
+→ 849     createdLead = await prisma.lead.create(
+Unique constraint failed on the fields: (`tenantId`,`campaignId`,`normalizedEmail`)
+
+[90mstdout[2m | tests/import-fault-injection.test.ts[2m > [22m[2mTEL-P1-001 / TEL-P1-005 / TEL-P1-006 / TEL-P1-007 / TEL-P2-011: Import Hardening & Full Failpoint Matrix[2m > [22m[2mTEL-P1-007: Concurrent Duplicate Job Delivery[2m > [22m[2mexecutes identical chunk payload concurrently across 2 workers without duplicating leads or activities
+[22m[39mprisma:error 
+Invalid `prisma.activity.create()` invocation in
+D:/Sonny Antigravity Project/Telestar-CRM-Final Production/CRM-4-Telestar-Final/workers/import.ts:919:27
+
+  916 await createOnceByKey(
+  917   `import:lead_created:${createdLead.id}`,
+  918   (idempotencyKey) =>
+→ 919     prisma.activity.create(
+Unique constraint failed on the fields: (`idempotencyKey`)
+
+ [32m✓[39m tests/import-race-stress.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 14095[2mms[22m[39m
+     [33m[2m✓[22m[39m 120 concurrent rows across 40 shared accounts lose no lead [33m 14092[2mms[22m[39m
+ [32m✓[39m tests/import-fault-injection.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 16008[2mms[22m[39m
+       [33m[2m✓[22m[39m CRM import fails at after_account and converges cleanly on retry without duplicate records [33m 2775[2mms[22m[39m
+       [33m[2m✓[22m[39m CRM import fails at after_contact and converges cleanly on retry without duplicate records [33m 1390[2mms[22m[39m
+       [33m[2m✓[22m[39m CRM import fails at after_lead and converges cleanly on retry without duplicate records [33m 1002[2mms[22m[39m
+       [33m[2m✓[22m[39m CRM import fails at after_import_row and converges cleanly on retry without duplicate records [33m 750[2mms[22m[39m
+       [33m[2m✓[22m[39m CRM import fails at after_activity_lead_created and converges cleanly on retry without duplicate records [33m 912[2mms[22m[39m
+       [33m[2m✓[22m[39m CRM import fails at after_activity_sequence_enrolled and converges cleanly on retry without duplicate records [33m 1508[2mms[22m[39m
+       [33m[2m✓[22m[39m CRM import fails at after_task and converges cleanly on retry without duplicate records [33m 1069[2mms[22m[39m
+       [33m[2m✓[22m[39m Pool import fails at after_pool_item and converges cleanly on retry [33m 642[2mms[22m[39m
+       [33m[2m✓[22m[39m Pool import fails at after_pool_import_row and converges cleanly on retry [33m 781[2mms[22m[39m
+       [33m[2m✓[22m[39m Pool import fails at after_pool_activity and converges cleanly on retry [33m 1044[2mms[22m[39m
+       [33m[2m✓[22m[39m executes identical chunk payload concurrently across 2 workers without duplicating leads or activities [33m 1953[2mms[22m[39m
+       [33m[2m✓[22m[39m commit re-enqueues when chunks are in flight, then commits when chunks complete [33m 2170[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m13 passed[39m[22m[90m (13)[39m
+[2m   Start at [22m 14:39:30
+[2m   Duration [22m 20.68s[2m (transform 3.18s, setup 1.41s, import 5.81s, tests 30.10s, environment 1ms)[22m
+
+
+--- stderr ---
+(empty)

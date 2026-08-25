@@ -1,0 +1,19 @@
+{
+  "evidenceId": "EV-GATE-06-MIGRATION-VALIDATION",
+  "kind": "gate",
+  "candidateSha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
+  "environment": "win32 / node 24.16.0 / postgres 16 / redis absent",
+  "command": "C:\\Program Files\\nodejs\\node.exe scripts/check-migration-order.mjs",
+  "startedAt": "2026-08-25T07:03:36.848Z",
+  "finishedAt": "2026-08-25T07:03:37.352Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {},
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/gate-06-migration-validation.log",
+      "sizeBytes": 337,
+      "sha256": "92c0dd98a4f86d0c5137d917c887b6d620d6190c238e10a728bed3bf302c52f6"
+    }
+  ]
+}

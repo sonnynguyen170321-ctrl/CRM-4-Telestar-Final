@@ -106,48 +106,37 @@ export interface StaticRoi {
   neverSelected: string[];
 }
 
-/** Replay routing over the last `n` commits. */
-export function staticRoi(n = 40): StaticRoi {
-  let shas: string[] = [];
+interface ReplayedCommit {
+  sha: string;
+  parents: string[];
+  files: string[];
+}
+
+/**
+ * One `git log` call carries the sha, its parents and its name-status for every
+ * commit in the window. The previous shape spawned three git processes per commit
+ * — 180 for the default window — which cost 47s on Windows and overran the test's
+ * timeout. Process creation was the whole cost; the routing analysis is trivial.
+ */
+function replayCommits(n: number): ReplayedCommit[] {
+  let raw = '';
   try {
-    shas = execFileSync('git', ['log', '-n', String(n), '--format=%H'], { encoding: 'utf8', cwd: ROOT })
-      .trim()
-      .split('\n')
-      .filter(Boolean);
+    raw = execFileSync('git', ['log', '-n', String(n), '--format=%x00%H %P', '--name-status'], {
+      encoding: 'utf8',
+      cwd: ROOT,
+      maxBuffer: 64 * 1024 * 1024,
+    });
   } catch {
-    shas = [];
+    return [];
   }
 
-  const counts = new Map<string, number>();
-  const unclassified = new Set<string>();
-  let classified = 0;
+  const commits: ReplayedCommit[] = [];
+  for (const record of raw.split('\0')) {
+    const lines = record.split('\n').filter(Boolean);
+    if (lines.length === 0) continue;
 
-  for (const sha of shas) {
-    // A commit with no parent is either the repository root or the boundary of a shallow
-    // clone. `git show --name-only` reports both as having added every file in the tree,
-    // which is not a change set anyone routed — it is the whole repository.
-    //
-    // CI checks out at depth 1 by default, so the tip has no parent there and this replay
-    // reported all 123 top-level paths as unclassified: `.dockerignore`, `.env.example`,
-    // `.github/CODEOWNERS`. The routing test failed on a machine-shaped artefact while
-    // passing on any developer clone, which has real history behind the tip.
-    //
-    // Skipping such commits is right in both cases: the initial commit carries no routing
-    // signal either, since "every file changed at once" says nothing about which domain a
-    // change belongs to.
-    let parents: string[] = [];
-    try {
-      parents = execFileSync('git', ['rev-list', '--parents', '-n', '1', sha], {
-        encoding: 'utf8',
-        cwd: ROOT,
-      })
-        .trim()
-        .split(/\s+/)
-        .slice(1);
-    } catch {
-      continue;
-    }
-    if (parents.length === 0) continue;
+    const [sha, ...parents] = lines[0].trim().split(/\s+/);
+    if (!sha) continue;
 
     // `--name-status`, not `--name-only`, so a deletion can be told from an edit.
     //
@@ -161,21 +150,41 @@ export function staticRoi(n = 40): StaticRoi {
     //
     // Renames report as `R100\told\tnew`; the new path is what carries forward, so the last
     // field is taken. Everything else keeps its single path and is routed as before.
-    let files: string[] = [];
-    try {
-      files = execFileSync('git', ['show', '--name-status', '--format=', sha], {
-        encoding: 'utf8',
-        cwd: ROOT,
-      })
-        .trim()
-        .split('\n')
-        .filter(Boolean)
-        .map((line) => line.split('\t'))
-        .filter((parts) => parts.length > 1 && !parts[0].startsWith('D'))
-        .map((parts) => parts[parts.length - 1]);
-    } catch {
-      continue;
-    }
+    const files = lines
+      .slice(1)
+      .map((line) => line.split('\t'))
+      .filter((parts) => parts.length > 1 && !parts[0].startsWith('D'))
+      .map((parts) => parts[parts.length - 1]);
+
+    commits.push({ sha, parents, files });
+  }
+  return commits;
+}
+
+/** Replay routing over the last `n` commits. */
+export function staticRoi(n = 40): StaticRoi {
+  const commits = replayCommits(n);
+
+  const counts = new Map<string, number>();
+  const unclassified = new Set<string>();
+  let classified = 0;
+
+  for (const commit of commits) {
+    // A commit with no parent is either the repository root or the boundary of a shallow
+    // clone. Its name-status reports every file in the tree as added, which is not a change
+    // set anyone routed — it is the whole repository.
+    //
+    // CI checks out at depth 1 by default, so the tip has no parent there and this replay
+    // reported all 123 top-level paths as unclassified: `.dockerignore`, `.env.example`,
+    // `.github/CODEOWNERS`. The routing test failed on a machine-shaped artefact while
+    // passing on any developer clone, which has real history behind the tip.
+    //
+    // Skipping such commits is right in both cases: the initial commit carries no routing
+    // signal either, since "every file changed at once" says nothing about which domain a
+    // change belongs to.
+    if (commit.parents.length === 0) continue;
+
+    const files = commit.files;
     if (files.length === 0) continue;
 
     const impact = analyze(files);
@@ -194,7 +203,7 @@ export function staticRoi(n = 40): StaticRoi {
     .filter((id) => !counts.has(id));
 
   return {
-    commits: shas.length,
+    commits: commits.length,
     classified,
     unclassifiedPaths: [...unclassified].sort(),
     frequency,

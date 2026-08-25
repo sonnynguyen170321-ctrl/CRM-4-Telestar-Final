@@ -57,6 +57,8 @@ domains:
       - scripts/create-admin.ts
       - scripts/provision-telestar-organization.ts
       - scripts/sync-users-to-production.ts
+      - scripts/restore-internal-users.ts
+      - scripts/set-single-director.ts
     tests:
       - tests/access-control.test.ts
       - tests/admin-*.test.ts

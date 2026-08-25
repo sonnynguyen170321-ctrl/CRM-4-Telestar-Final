@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-ROLE-BROWSER",
   "kind": "role-browser",
-  "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
+  "candidateSha": "5985ec474bc1eb3da05ae5db7560e83a4e70969d",
   "environment": "win32 / node 24.16.0 / next start / real Postgres / real Redis / Chromium 1440x900",
   "command": "node node_modules/@playwright/test/cli.js test --project=certification-roles",
-  "startedAt": "2026-08-24T09:30:00.000Z",
-  "finishedAt": "2026-08-24T09:32:00.000Z",
+  "startedAt": "2026-08-25T09:40:40.453Z",
+  "finishedAt": "2026-08-25T09:40:40.453Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -39,7 +39,7 @@
         "networkFailures": 0,
         "consoleErrorSamples": [],
         "networkFailureSamples": [],
-        "screenshot": "C:\\Users\\admin\\Desktop\\Sonny & AI\\CRM-4-Telestar-Final\\docs\\production-certification\\evidence\\raw\\role-screenshots\\director.png",
+        "screenshot": "D:\\Sonny Antigravity Project\\Telestar-CRM-Final Production\\CRM-4-Telestar-Final\\docs\\production-certification\\evidence\\raw\\role-screenshots\\director.png",
         "trace": null
       },
       "floor_manager": {
@@ -53,7 +53,7 @@
         "networkFailures": 0,
         "consoleErrorSamples": [],
         "networkFailureSamples": [],
-        "screenshot": "C:\\Users\\admin\\Desktop\\Sonny & AI\\CRM-4-Telestar-Final\\docs\\production-certification\\evidence\\raw\\role-screenshots\\floor_manager.png",
+        "screenshot": "D:\\Sonny Antigravity Project\\Telestar-CRM-Final Production\\CRM-4-Telestar-Final\\docs\\production-certification\\evidence\\raw\\role-screenshots\\floor_manager.png",
         "trace": null
       },
       "leadgen": {
@@ -67,7 +67,7 @@
         "networkFailures": 0,
         "consoleErrorSamples": [],
         "networkFailureSamples": [],
-        "screenshot": "C:\\Users\\admin\\Desktop\\Sonny & AI\\CRM-4-Telestar-Final\\docs\\production-certification\\evidence\\raw\\role-screenshots\\leadgen.png",
+        "screenshot": "D:\\Sonny Antigravity Project\\Telestar-CRM-Final Production\\CRM-4-Telestar-Final\\docs\\production-certification\\evidence\\raw\\role-screenshots\\leadgen.png",
         "trace": null
       },
       "leadgen_manager": {
@@ -81,7 +81,7 @@
         "networkFailures": 0,
         "consoleErrorSamples": [],
         "networkFailureSamples": [],
-        "screenshot": "C:\\Users\\admin\\Desktop\\Sonny & AI\\CRM-4-Telestar-Final\\docs\\production-certification\\evidence\\raw\\role-screenshots\\leadgen_manager.png",
+        "screenshot": "D:\\Sonny Antigravity Project\\Telestar-CRM-Final Production\\CRM-4-Telestar-Final\\docs\\production-certification\\evidence\\raw\\role-screenshots\\leadgen_manager.png",
         "trace": null
       },
       "sdr": {
@@ -95,7 +95,7 @@
         "networkFailures": 0,
         "consoleErrorSamples": [],
         "networkFailureSamples": [],
-        "screenshot": "C:\\Users\\admin\\Desktop\\Sonny & AI\\CRM-4-Telestar-Final\\docs\\production-certification\\evidence\\raw\\role-screenshots\\sdr.png",
+        "screenshot": "D:\\Sonny Antigravity Project\\Telestar-CRM-Final Production\\CRM-4-Telestar-Final\\docs\\production-certification\\evidence\\raw\\role-screenshots\\sdr.png",
         "trace": null
       },
       "team_lead": {
@@ -109,7 +109,7 @@
         "networkFailures": 0,
         "consoleErrorSamples": [],
         "networkFailureSamples": [],
-        "screenshot": "C:\\Users\\admin\\Desktop\\Sonny & AI\\CRM-4-Telestar-Final\\docs\\production-certification\\evidence\\raw\\role-screenshots\\team_lead.png",
+        "screenshot": "D:\\Sonny Antigravity Project\\Telestar-CRM-Final Production\\CRM-4-Telestar-Final\\docs\\production-certification\\evidence\\raw\\role-screenshots\\team_lead.png",
         "trace": null
       }
     }
@@ -117,33 +117,33 @@
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/director.png",
-      "sizeBytes": 230325,
-      "sha256": "79fb46fb6100ce1ed5c8b09726114e685616ff43ee262be2073e49e61f644b71"
+      "sizeBytes": 151151,
+      "sha256": "b3aaa583479eb75ddd5e9bd9ddb531edb497d8fe4e80cdfc28b5a4c77d6b38d7"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/floor_manager.png",
-      "sizeBytes": 219771,
-      "sha256": "6dabebb37d18060503e6d740079ad0e81db7fb29a8c7ac5764ad49279a216494"
+      "sizeBytes": 219462,
+      "sha256": "c80756b16a989c82651236e298d044a61e2c1f096fa2bd5221ca605b892111c6"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/leadgen.png",
-      "sizeBytes": 429862,
-      "sha256": "d42b7f125ca7fec374f797a4e8798ceda07db1c3b0c214c904f8685e0fe2450d"
+      "sizeBytes": 83453,
+      "sha256": "891f2c1ed8c9da9b29894cff8ca462d5ea37ee250600fc7d25b808c1b555bd0c"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/leadgen_manager.png",
-      "sizeBytes": 138408,
-      "sha256": "8bbcb0684f600291a4991a0d29ba1f9f267471beaaadfb576db19b4c73c634be"
+      "sizeBytes": 81430,
+      "sha256": "1a4b8d136953ff60c6d78ecd2ae36a6800bbe021ed183f0e134158015e02ec39"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/sdr.png",
-      "sizeBytes": 119896,
-      "sha256": "e5507d5cd81d8343120e26086d39e84baa8ec47302408389f6659ad486fe2240"
+      "sizeBytes": 92706,
+      "sha256": "a1ebfba37e26bf51d661dda9000a021ef79e24aac839445ad21435dcbc5f3be4"
     },
     {
       "path": "docs/production-certification/evidence/raw/role-screenshots/team_lead.png",
-      "sizeBytes": 188305,
-      "sha256": "8305ae263041a0da5b27057813e9a3f9c9a790236ffa9fa02f78d46d474ded17"
+      "sizeBytes": 217033,
+      "sha256": "fe05760f1b76b4552384f9bf9711db82d41ccea3cadd17fd070a0542ead94f8a"
     }
   ]
 }

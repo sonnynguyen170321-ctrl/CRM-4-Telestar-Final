@@ -72,7 +72,6 @@
     "db:push",
     "db:seed",
     "db:studio",
-    "demo:reset",
     "demo:seed",
     "dev",
     "doctor",
@@ -82,12 +81,19 @@
     "prod:audit",
     "prod:check-env",
     "prod:check-migrations",
-    "purge:demo",
+    "prod:cutover:execute",
+    "prod:cutover:plan",
+    "prod:cutover:postcheck",
+    "prod:cutover:rehearse",
+    "prod:cutover:verify",
+    "prod:sync-users",
     "repair:approved-proposals",
     "setup:dev",
+    "single-director:clean",
     "start",
     "sync-enrollments",
     "test",
+    "users:restore",
     "verify:rls",
     "verify:rls-app-paths",
     "verify:rls-enablement",
@@ -95,5 +101,5 @@
     "worker:healthcheck",
     "worker:start"
   ],
-  "scriptCount": 52
+  "scriptCount": 58
 }

@@ -1,0 +1,21 @@
+# gate: 08-vitest — full Vitest suite against real Postgres and Redis
+# command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json
+# startedAt: 2026-08-25T07:23:57.594Z
+# finishedAt: 2026-08-25T07:38:23.749Z
+# exitCode: 1
+
+--- stdout ---
+JSON report written to D:/Sonny Antigravity Project/Telestar-CRM-Final Production/CRM-4-Telestar-Final/.certification/vitest.json
+
+--- stderr ---
+┌─────────────────────────────────────────────────────────┐
+│  Update available 6.2.1 -> 7.9.1                        │
+│                                                         │
+│  This is a major update - please follow the guide at    │
+│  https://pris.ly/d/major-version-upgrade                │
+│                                                         │
+│  Run the following to update                            │
+│    npm i --save-dev prisma@latest                       │
+│    npm i @prisma/client@latest                          │
+└─────────────────────────────────────────────────────────┘
+

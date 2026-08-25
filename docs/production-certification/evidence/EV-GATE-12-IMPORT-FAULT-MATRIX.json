@@ -1,0 +1,19 @@
+{
+  "evidenceId": "EV-GATE-12-IMPORT-FAULT-MATRIX",
+  "kind": "gate",
+  "candidateSha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
+  "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
+  "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run tests/import-fault-injection.test.ts tests/import-race-stress.test.ts",
+  "startedAt": "2026-08-25T07:07:50.773Z",
+  "finishedAt": "2026-08-25T07:08:07.121Z",
+  "exitCode": 0,
+  "status": "PASS",
+  "metrics": {},
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/gate-12-import-fault-matrix.log",
+      "sizeBytes": 9715,
+      "sha256": "ea5963eda0426cefcc4d0c61ed84ec2e8ad2c84d2d791d088f15057bd29a5e20"
+    }
+  ]
+}

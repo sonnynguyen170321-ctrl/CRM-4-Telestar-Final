@@ -1,0 +1,22 @@
+# gate: 04-lint — eslint across the whole tree
+# command: C:\Program Files\nodejs\node.exe node_modules/eslint/bin/eslint.js app components lib context tests workers scripts e2e
+# startedAt: 2026-08-25T07:00:22.067Z
+# finishedAt: 2026-08-25T07:03:08.150Z
+# exitCode: 0
+
+--- stdout ---
+
+D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\scripts\cutover\inventory-non-db.ts
+  85:9  warning  'rateLimitKeys' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\tests\safe-cutover-tool.test.ts
+  2:36  warning  'writeFileSync' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  2:51  warning  'unlinkSync' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  6:3   warning  'PurgeManifest' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  7:3   warning  'sha256' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+
+✖ 5 problems (0 errors, 5 warnings)
+
+
+--- stderr ---
+(empty)

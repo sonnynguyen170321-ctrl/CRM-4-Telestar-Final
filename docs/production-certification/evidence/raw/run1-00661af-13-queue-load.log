@@ -1,0 +1,123 @@
+# IMPORT_SYSTEM_QUEUE_BENCHMARK over real Redis and BullMQ
+# exitCode: 0
+
+--- stdout ---
+redis   : localhost:6379
+scales  : 120, 500, 1000
+
+[120 rows] enqueuing real BullMQ jobs
+[bullmq] Redis connected
+           12.16s, 9.86 rows/s, queue wait p95 10ms, lost 0, dup 0
+[500 rows] enqueuing real BullMQ jobs
+[bullmq] Redis connected
+           65.24s, 7.66 rows/s, queue wait p95 52440ms, lost 0, dup 0
+[1000 rows] enqueuing real BullMQ jobs
+[bullmq] Redis connected
+           348.45s, 2.87 rows/s, queue wait p95 306881ms, lost 0, dup 0
+
+RESULT: PASS
+
+--- stderr ---
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+[bullmq] Redis connection closed
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Stream isn't writeable and enableOfflineQueue options is false
+    at EventEmitter.sendCommand (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Redis.js:406:32)
+    at EventEmitter.bzpopmin (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\utils\Commander.js:90:25)
+    at RedisQueueBackend.waitForJob (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\bullmq\dist\cjs\classes\redis-queue-backend.js:1832:34)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Worker.waitForJob (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\bullmq\dist\cjs\classes\worker.js:411:36)
+    at async Worker._getNextJob (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\bullmq\dist\cjs\classes\worker.js:358:35)
+    at async Worker.retryIfFailed (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\bullmq\dist\cjs\classes\worker.js:844:24)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+[bullmq] Redis connection closed
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+Error: Command timed out
+    at Timeout.<anonymous> (D:\Sonny Antigravity Project\Telestar-CRM-Final Production\CRM-4-Telestar-Final\node_modules\ioredis\built\Command.js:207:33)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+
