@@ -128,7 +128,11 @@ function proposalFor(defect) {
 
   const signal = incompletenessSignal(chosen.sha);
   if (signal) {
-    return { ...base, status: 'PARTIAL_FIX', signal };
+    // A remainder that has since been supplied is recorded in the ledger, not inferred here.
+    // Either way this script does not close it: the discharge is a human judgement about
+    // whether the later work actually covers what the commit said was missing.
+    const discharged = (defect.partialFixDischargedBy ?? '').trim().length >= 20;
+    return { ...base, status: discharged ? 'PARTIAL_FIX_DISCHARGED' : 'PARTIAL_FIX', signal };
   }
 
   // A defect nobody had claimed to fix is not closed by finding a commit that mentions it.
