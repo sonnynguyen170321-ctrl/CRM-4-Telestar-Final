@@ -22,25 +22,30 @@ import path from 'node:path';
 import { createAdminClient } from '../../lib/db/adminClient.mjs';
 
 const ROOT = process.cwd();
-const MANIFEST_DIR = path.join(ROOT, 'docs', 'production-cutover');
-const ROSTER_PATH = path.join(ROOT, 'scripts', 'cutover', 'approved-roster.json');
 
-export function parseArg(name: string): string | null {
-  const arg = process.argv.find((a) => a.startsWith(`--${name}=`));
-  if (arg) return arg.split('=')[1];
-  const idx = process.argv.indexOf(`--${name}`);
-  if (idx >= 0 && idx + 1 < process.argv.length) return process.argv[idx + 1];
-  return null;
+export function resolveRosterPath(): string {
+  const custom = parseArg('roster');
+  if (custom && existsSync(custom)) return custom;
+  const candidates = [
+    path.join(ROOT, 'scripts', 'cutover', 'approved-roster.json'),
+    '/app/scripts/cutover/approved-roster.json',
+    '/tmp/approved-roster.json',
+    path.join(__dirname, 'approved-roster.json'),
+  ];
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+  }
+  return path.join(ROOT, 'scripts', 'cutover', 'approved-roster.json');
 }
-
-export const hasFlag = (name: string) => process.argv.includes(`--${name}`);
 
 export function resolveManifestPath(): string {
   const custom = parseArg('manifest') || parseArg('outFile');
   if (custom) return custom;
+  
+  const defaultDir = path.join(ROOT, 'docs', 'production-cutover');
   try {
-    mkdirSync(MANIFEST_DIR, { recursive: true });
-    return path.join(MANIFEST_DIR, 'purge-manifest.json');
+    mkdirSync(defaultDir, { recursive: true });
+    return path.join(defaultDir, 'purge-manifest.json');
   } catch {
     return '/tmp/purge-manifest.json';
   }
@@ -223,10 +228,9 @@ export function classifyRow(
 
 export async function planMode(customRosterPath?: string): Promise<PurgeManifest> {
   console.log('🔍 Executing PLAN mode (read-only inventory & classification)...');
-  mkdirSync(MANIFEST_DIR, { recursive: true });
 
   const prisma = createAdminClient();
-  const rosterFile = customRosterPath || ROSTER_PATH;
+  const rosterFile = customRosterPath || resolveRosterPath();
   if (!existsSync(rosterFile)) {
     throw new Error(`Approved roster not found at ${rosterFile}`);
   }
@@ -307,8 +311,14 @@ export async function planMode(customRosterPath?: string): Promise<PurgeManifest
   const manifestSha256 = sha256(serialized);
   manifest.manifestSha256 = manifestSha256;
 
+  try {
+    mkdirSync(path.dirname(manifestPath), { recursive: true });
+  } catch {}
+
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-  writeFileSync(`${manifestPath}.sha256`, `${manifestSha256}  ${path.basename(manifestPath)}\n`);
+  try {
+    writeFileSync(`${manifestPath}.sha256`, `${manifestSha256}  ${path.basename(manifestPath)}\n`);
+  } catch {}
 
   console.log(`✅ Plan complete. Total rows scanned: ${totalRowsScanned}`);
   console.log(`   - To Purge:  ${rowsToDelete.length}`);
@@ -337,8 +347,9 @@ export async function verifyMode(customPath?: string): Promise<PurgeManifest> {
   }
 
   // 2. Verify Approved Roster Hash
-  if (existsSync(ROSTER_PATH)) {
-    const currentRosterHash = sha256(readFileSync(ROSTER_PATH, 'utf8'));
+  const rosterFile = resolveRosterPath();
+  if (existsSync(rosterFile)) {
+    const currentRosterHash = sha256(readFileSync(rosterFile, 'utf8'));
     if (manifest.approvedRosterHash !== currentRosterHash) {
       throw new Error(`ROSTER HASH MISMATCH: Approved roster has drifted since manifest generation.`);
     }
@@ -478,7 +489,8 @@ export async function postcheckMode() {
   console.log('🔍 Executing POSTCHECK mode (independent zero-seed verification)...');
   const prisma = createAdminClient();
 
-  const rosterRaw = existsSync(ROSTER_PATH) ? readFileSync(ROSTER_PATH, 'utf8') : '{}';
+  const rosterFile = resolveRosterPath();
+  const rosterRaw = existsSync(rosterFile) ? readFileSync(rosterFile, 'utf8') : '{}';
   const roster = JSON.parse(rosterRaw);
   const approvedEmails = new Set<string>((roster.approvedUsers || []).map((u: any) => u.email.toLowerCase().trim()));
   const approvedTenants = new Set<string>((roster.approvedTenants || []).map((t: any) => t.id));
