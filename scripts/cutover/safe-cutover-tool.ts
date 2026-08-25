@@ -23,6 +23,16 @@ import { createAdminClient } from '../../lib/db/adminClient.mjs';
 
 const ROOT = process.cwd();
 
+export function parseArg(name: string): string | null {
+  const arg = process.argv.find((a) => a.startsWith(`--${name}=`));
+  if (arg) return arg.split('=')[1];
+  const idx = process.argv.indexOf(`--${name}`);
+  if (idx >= 0 && idx + 1 < process.argv.length) return process.argv[idx + 1];
+  return null;
+}
+
+export const hasFlag = (name: string) => process.argv.includes(`--${name}`);
+
 export function resolveRosterPath(): string {
   const custom = parseArg('roster');
   if (custom && existsSync(custom)) return custom;
