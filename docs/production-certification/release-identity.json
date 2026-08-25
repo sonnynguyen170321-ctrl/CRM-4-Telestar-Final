@@ -1,20 +1,20 @@
 {
   "$comment": "Every identity that must name the same release. matchesCandidate is computed; a false value is a fact about the release, not an error in this file.",
-  "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
+  "candidateSha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
   "repository": {
-    "mainSha": "2933e53bf38189d25c51f18a7fab0894ce8ecc13",
-    "localHeadSha": "2933e53bf38189d25c51f18a7fab0894ce8ecc13"
+    "mainSha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
+    "localHeadSha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13"
   },
   "ci": {
     "runId": "32711776013",
     "headSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
     "conclusion": "success",
-    "matchesCandidate": true
+    "matchesCandidate": false
   },
   "image": {
     "digest": "sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
     "builtFromSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
-    "matchesCandidate": true
+    "matchesCandidate": false
   },
   "deployment": {
     "healthSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
@@ -22,6 +22,6 @@
     "workerDigest": "sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
     "deployedAt": "2026-08-24T09:41:35.285Z",
     "digestsAgree": true,
-    "matchesCandidate": true
+    "matchesCandidate": false
   }
 }

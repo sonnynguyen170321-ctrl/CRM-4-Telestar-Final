@@ -6,9 +6,9 @@
   Regenerate: node scripts/certification/render-evidence-ledger.mjs
 -->
 
-**Candidate SHA**: `c7bf639ef988a6ba9fffba3c88761dad245ef7a3`
+**Candidate SHA**: `00661af99e645060dafefcfc85a1c5ca3a0d0c13`
 **Evidence records**: 28
-**Requirements verified**: 108 / 108
+**Requirements verified**: 0 / 108
 **Verdict**: NO-GO
 
 > This ledger is generated. The previous one was maintained by hand and drifted: it declared
@@ -47,34 +47,34 @@
 
 | Evidence ID | Kind | Candidate | Status | Exit | Artifacts |
 |---|---|---|---|---:|---:|
-| `EV-AI-CAPABILITY-ROUTING` | `ai-capability-routing` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-AI-DURABLE-BUDGET` | `ai-durable-budget` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-AI-SHARED-CIRCUIT` | `ai-shared-circuit` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-AI-STREAM-GOVERNANCE` | `ai-stream-governance` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-CI-RUN` | `ci-run` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-DEPLOYED-STATE` | `deployed-state` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-DR-BACKUP` | `dr-backup` | `c7bf639` | **PASS** | 0 | 3 |
-| `EV-DR-NEGATIVE-CONTROL` | `dr-negative-control` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-DR-RESTORE` | `dr-restore` | `c7bf639` | **PASS** | 0 | 3 |
-| `EV-DR-ROLLBACK` | `dr-rollback` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-DR-RPO` | `dr-rpo` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-EMAIL-EXACTLY-ONCE` | `email-exactly-once` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-FAILURE-MATRIX` | `failure-matrix` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-GATE-TEST-DISCIPLINE` | `gate` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-LOAD-HANDLER` | `load-benchmark` | `c7bf639` | **PASS** | 0 | 0 |
-| `EV-LOAD-QUEUE` | `load-benchmark` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-REDIS-INTEGRATION` | `redis-integration` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-RELEASE-IDENTITY` | `release-identity` | `c7bf639` | **PASS** | 0 | 0 |
-| `EV-RLS-POSTURE` | `rls-posture` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-ROLE-BROWSER` | `role-browser` | `c7bf639` | **PASS** | 0 | 6 |
-| `EV-ROLE-MODEL` | `role-model` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-RUN-1` | `certification-run` | `c7bf639` | **PASS** | 0 | 23 |
-| `EV-RUN-2` | `certification-run` | `c7bf639` | **PASS** | 0 | 23 |
-| `EV-RUN-3` | `certification-run` | `c7bf639` | **PASS** | 0 | 23 |
-| `EV-SECURITY-BOUNDARIES` | `security-boundaries` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-SECURITY-INVENTORY` | `security-inventory` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-VALIDATOR-SELFTEST` | `validator-self` | `c7bf639` | **PASS** | 0 | 1 |
-| `EV-VITEST` | `vitest` | `c7bf639` | **PASS** | 0 | 1 |
+| `EV-AI-CAPABILITY-ROUTING` | `ai-capability-routing` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-AI-DURABLE-BUDGET` | `ai-durable-budget` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-AI-SHARED-CIRCUIT` | `ai-shared-circuit` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-AI-STREAM-GOVERNANCE` | `ai-stream-governance` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-CI-RUN` | `ci-run` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-DEPLOYED-STATE` | `deployed-state` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-DR-BACKUP` | `dr-backup` | `c7bf639` ⚠ | **PASS** | 0 | 3 |
+| `EV-DR-NEGATIVE-CONTROL` | `dr-negative-control` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-DR-RESTORE` | `dr-restore` | `c7bf639` ⚠ | **PASS** | 0 | 3 |
+| `EV-DR-ROLLBACK` | `dr-rollback` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-DR-RPO` | `dr-rpo` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-EMAIL-EXACTLY-ONCE` | `email-exactly-once` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-FAILURE-MATRIX` | `failure-matrix` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-GATE-TEST-DISCIPLINE` | `gate` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-LOAD-HANDLER` | `load-benchmark` | `c7bf639` ⚠ | **PASS** | 0 | 0 |
+| `EV-LOAD-QUEUE` | `load-benchmark` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-REDIS-INTEGRATION` | `redis-integration` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-RELEASE-IDENTITY` | `release-identity` | `c7bf639` ⚠ | **PASS** | 0 | 0 |
+| `EV-RLS-POSTURE` | `rls-posture` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-ROLE-BROWSER` | `role-browser` | `c7bf639` ⚠ | **PASS** | 0 | 6 |
+| `EV-ROLE-MODEL` | `role-model` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-RUN-1` | `certification-run` | `c7bf639` ⚠ | **PASS** | 0 | 23 |
+| `EV-RUN-2` | `certification-run` | `c7bf639` ⚠ | **PASS** | 0 | 23 |
+| `EV-RUN-3` | `certification-run` | `c7bf639` ⚠ | **PASS** | 0 | 23 |
+| `EV-SECURITY-BOUNDARIES` | `security-boundaries` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-SECURITY-INVENTORY` | `security-inventory` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-VALIDATOR-SELFTEST` | `validator-self` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
+| `EV-VITEST` | `vitest` | `c7bf639` ⚠ | **PASS** | 0 | 1 |
 
 ---
 

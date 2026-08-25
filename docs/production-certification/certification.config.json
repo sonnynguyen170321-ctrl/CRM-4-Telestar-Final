@@ -14,9 +14,13 @@
     "imageRepository": "telestar-crm-candidate",
     "demoSqlInstance": "telestar-crm-db"
   },
-  "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
-  "candidateFrozenAt": "2026-08-24T09:28:00.000Z",
+  "candidateSha": "00661af99e645060dafefcfc85a1c5ca3a0d0c13",
+  "candidateFrozenAt": "2026-08-25T13:54:00.000Z",
   "previousCandidates": [
+    {
+      "sha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
+      "invalidatedReason": "superseded: official 44-user company roster restored across all 8 pods, fail-closed cutover architecture implemented, and live Cloud SQL production cutover completed in 00661af"
+    },
     {
       "sha": "319d20ee31646408dd8c0f55f71346a483ab16d1",
       "invalidatedReason": "superseded: safe cutover helper ordering refined in c7bf639"
