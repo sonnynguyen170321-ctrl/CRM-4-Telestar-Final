@@ -259,15 +259,17 @@ describe('handleApplyReply', () => {
     expect(mockLeadUpdate).not.toHaveBeenCalled();
   });
 
-  it('skips when there is no active enrollment', async () => {
+  it('still processes sales reply when there is no active enrollment', async () => {
     mockLeadFindUnique.mockResolvedValue(baseLead);
     mockEnrollmentFindFirst.mockResolvedValue(null);
 
     const result = await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' });
 
-    expect(result).toEqual({ skipped: true, reason: 'sequence_not_active' });
-    expect(mockLeadUpdate).not.toHaveBeenCalled();
-    expect(mockHandoff).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ success: true, leadId: 'lead-1' });
+    expect(mockLeadUpdate).toHaveBeenCalledWith({
+      where: { id: 'lead-1' },
+      data: expect.objectContaining({ stage: 'replied' }),
+    });
   });
 
   it('gates on the enrollment, not the legacy Lead.sequenceStatus cache', async () => {
@@ -645,7 +647,7 @@ describe('handleEmailSync', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           email: { in: ['lead@acme.com'], mode: 'insensitive' },
-          assignedToId: 'user-1',
+          tenantId: 'tenant-1',
         }),
       })
     );
@@ -754,7 +756,7 @@ describe('handleEmailSync', () => {
     expect(mockInboundCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ isReply: true, leadId: 'lead-1' }),
     });
-    expect(result).toEqual({ success: true, accountId: 'acct-1', messagesProcessed: 1, replies: 0, bounces: 0, autoReplies: 0 });
+    expect(result).toEqual({ success: true, accountId: 'acct-1', messagesProcessed: 1, replies: 1, bounces: 0, autoReplies: 0 });
     expect(pauseEnrollmentOccurrence).not.toHaveBeenCalled();
   });
 
