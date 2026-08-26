@@ -1,8 +1,1 @@
-{
-  "ok": true,
-  "ts": 1787564536489,
-  "commit": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
-  "version": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
-  "builtAt": "2026-08-24T09:34:52Z",
-  "schema": "ready"
-}
+{"ok":true,"ts":1787720661543,"commit":"9b2b44c9f0987139e2f48ee21b14ec36e10690a8","version":"9b2b44c9f0987139e2f48ee21b14ec36e10690a8","builtAt":"2026-08-25T19:49:24Z","schema":"ready"}
