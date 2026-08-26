@@ -2,7 +2,7 @@
 
 **Program**: Telestar Production Certification
 **Authoritative Source**: `docs/production-certification/defects.json`
-**Last Updated**: 2026-08-26T06:05:00.000Z
+**Last Updated**: 2026-08-26T07:10:00.000Z
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -15,11 +15,11 @@
 
 | Severity | Discovered | Verified Closed | Accepted Risk | Active / Open |
 |---|---|---|---|---|
-| **P0** (Launch Blocker) | 11 | 9 | 1 | **1** |
-| **P1** (Critical) | 41 | 36 | 0 | **5** |
+| **P0** (Launch Blocker) | 12 | 9 | 1 | **2** |
+| **P1** (Critical) | 42 | 37 | 0 | **5** |
 | **P2** (Important) | 21 | 19 | 0 | **2** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **73** | **64** | **1** | **8** |
+| **TOTAL** | **75** | **65** | **1** | **9** |
 
 ---
 
@@ -739,12 +739,12 @@
 ### `TEL-P1-052` — The Deployed-State Record Asserts The Candidate While Citing A Health Probe From The Previous Release
 
 - **Severity**: P1
-- **Status**: `OPEN`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-26T05:10:00.000Z
 - **Root cause**: EV-DEPLOYED-STATE.json records metrics deployedSha 9b2b44c9f0987139e2f48ee21b14ec36e10690a8, deployedBuiltAt 2026-08-25T19:49:24Z and deployedMatchesCandidate true, with status PASS and the command "curl -s https://crm.telestar.cloud/api/health". The artifact it cites, docs/production-certification/evidence/raw/deployed-health-probe.log, contains a different probe entirely: commit and version c7bf639ef988a6ba9fffba3c88761dad245ef7a3, builtAt 2026-08-24T09:34:52Z, ts 1787564536489. The record therefore does not rest on the probe it names; the probe records the previous release. The record's claim is separately true - an independent live probe on 2026-08-26 returned commit 9b2b44c9f0987139e2f48ee21b14ec36e10690a8, builtAt 2026-08-25T19:49:24Z, schema ready - so the finding is not that production is on the wrong release. It is that the deployment gate is satisfied by a record whose evidence was never refreshed, and the record's hand-typed timestamps (21:50:00.000Z to 21:50:01.000Z) confirm it was authored rather than captured. Being accidentally right is not the same as being evidenced.
-- **Fix SHA**: `N/A`
-- **Verification evidence**: `NOT VERIFIED. Closing this needs the probe re-run by the collector against the frozen candidate so the artifact and the record are the same event, with timestamps from the process clock. Detection now exists: check U reports "EV-DEPLOYED-STATE: artifact ... names 1 commit(s) and none of them is the record's candidate 9b2b44c - the artifact belongs to c7bf639", and check V reports the composed duration. The record itself has not been regenerated.`
+- **Fix SHA**: `3aa2dab5d566737377a3744c637aaac12601280b`
+- **Verification evidence**: `scripts/certification/record-deployed-state.mjs now produces the record, and does not accept the deployed SHA as an argument - it probes the endpoint, writes the raw response as the artifact, hashes it, and compares what came back to certification.config.json. Three behavioural controls, all run 2026-08-26: (1) against production, exit 0, status PASS, deployedSha 9b2b44c9f0987139e2f48ee21b14ec36e10690a8 matching the candidate, schema ready, builtAt 2026-08-25T19:49:24Z, artifact deployed-health-probe.log re-hashing to the recorded sha256; (2) against a local stub answering c7bf639, exit 1, status FAIL, refusing to record a pass for a deployment on the wrong release; (3) against an unreachable port, exit 3 with nothing written at all, so a probe that could not run leaves no stale record behind. The regenerated record cleared check U, which had reported "EV-DEPLOYED-STATE: artifact ... names 1 commit(s) and none of them is the record's candidate 9b2b44c"; check U count fell from 2 to 1, the remaining one being TEL-P0-012. The permanent regression is checks U, U2 and V rather than a mocked test: hand-writing this record again around someone else's artifact, or with a composed duration, is reported by name.`
 
 ### `TEL-P1-053` — A Mandatory Gate Carried A Test Whose Subprocess Budget Its Own Runner Would Never Wait For
 
@@ -755,4 +755,24 @@
 - **Root cause**: vitest.config sets testTimeout: 20000. tests/certification-rpo-probe.test.ts granted its child processes larger budgets than that - runCommand('gcloud', ['version'], { timeoutMs: 120_000 }) at line 152, and two 30_000 budgets at lines 137 and 144 - with no per-test override. A budget the runner will never wait for is not a budget: vitest kills the test at 20 s, so the child deadline can never be reached and the only question left is whether the machine happened to be fast enough. On 2026-08-26 it was not. A full-suite run against real Postgres and Redis failed this one test at 25.24 s with a runner timeout rather than an assertion, while the same file passed alone in 11.4 s for all 25 tests. gcloud on Windows is gcloud.cmd, a Python process behind a batch shim, and under twelve parallel workers it exceeds 20 s. This is the same shape as TEL-P1-047: a test that fails on runner load, not on behaviour. It sat inside gate 08-vitest, so a mandatory gate could fail for a reason unrelated to the product.
 - **Fix SHA**: `c2d60a99a607c30f8644523162e0e4bc34202872`
 - **Verification evidence**: `Each of the three real-spawn tests now declares a timeout strictly greater than the budget it grants (45_000, 45_000 and 150_000), so the child deadline is the one that decides. Reproduction, before: full suite exit 1, 3003 tests, 3002 passed, 1 failed - tests/certification-rpo-probe.test.ts "resolves a batch-shim command that plain spawnSync cannot", duration 25240 ms, Error: STACK_TRACE_ERROR with no assertion in the trace. After: full suite against the same real Postgres and Redis, exit 0, numTotalTests 3003, numPassedTests 3003, numFailedTests 0, numPendingTests 0, success true. The measurement that confirms the diagnosis rather than merely the fix: in the passing run that same test took 15497 ms against the old 20000 ms ceiling - a 4.5 s margin on a real subprocess spawn, which is a flake by construction, not by accident. Isolated re-run also passes: 25 passed in 11.39 s, exit 0. Not claimed: a deterministic red-on-demand reproduction. The failure needs full-suite parallel load, and shrinking the runner timeout does not reproduce it because the other two spawns finish in milliseconds.`
+
+### `TEL-P0-013` — Two AI Routes Read Any Tenant’s Lead By Id, Inside A Scope That Had Switched Tenant Filtering Off
+
+- **Severity**: P0
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Owner**: core-team
+- **Discovered**: 2026-08-26T07:10:00.000Z
+- **Root cause**: app/api/ai/enrich-lead/route.ts and app/api/ai/draft-reply/route.ts each open tenantStorage.run({ tenantId, bypassRls: true }) and then call prisma.lead.findUnique({ where: { id: leadId } }), where leadId arrives in the request body. lib/prisma.ts states what bypassRls means in its own comment: "We deliberately do NOT add a tenantId WHERE-filter here, so cross-tenant reads (e.g. the worker's JobRun lookup before the tenant is known) keep working." The extension's automatic where:{tenantId} injection is therefore off for exactly those queries, and it is the ONLY tenant isolation this deployment has - the production database carries no row-level security (69 public tables, 0 with rowsecurity, 0 policies, measured 2026-08-26; TEL-P1-038). enrich-lead returns the lead with campaign, account, 3 notes and 5 activities; draft-reply returns it with account, 5 inbound and 5 outbound messages, which are real prospect email bodies, and then sends the content to a third-party AI provider. Any authenticated user of any tenant who knows or guesses a lead id reaches another tenant's data. The sibling routes were already correct and are the model for the fix: calculateNextBestAction uses findFirst({ where: { id: leadId, tenantId } }), and daily-briefing and getWhatNeedsAttention filter every query by tenantId. Neither defective route appeared in RLS_BYPASS_INVENTORY.md, which claims to be a "100% comprehensive, line-by-line audit" of every bypass - 11 files using bypassRls:true and 5 using a bare PrismaClient are absent from it (TEL-P1-054).
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `Reproduced before it was fixed, through the real route handlers with only the AI provider mocked. tests/ai-route-cross-tenant-red-team.test.ts, run against real Postgres as tenant-ai-attacker requesting tenant-ai-victim's lead id: 2 failed, 1 passed. enrich-lead returned {"success":true,"data":{"companySummary":"Victim Holdings AG is an active player...",...,"rationale":"Targeted at Chief Executive..."}}; draft-reply returned a drafted email reading "Hi Secret, ... would you be open to a quick 10-minute chat ... to see if Telestar could be a fit for Victim Holdings AG?". Both contain data that exists only in the victim tenant. Mechanism confirmed independently of the test harness by direct probe: victim scoped findFirst -> "Victim Holdings AG"; attacker bypass findUnique -> "Victim Holdings AG"; attacker bypass with an explicit tenantId filter -> null. After changing all three call sites to findFirst({ where: { id: leadId, tenantId } }): 3 passed, 0 failed. The third test is the control and goes through the same route - the owning tenant must still receive its own lead, so a fix that merely broke the lookup would not satisfy it. Regression: vitest ai-route-cross-tenant-red-team, object-auth-red-team, access-control, rls, raw-sql-tenant-context - 5 files, 30 tests, all passed. eslint exit 0, tsc --noEmit exit 0. Codebase sweep for the same shape: 30 prisma calls sit under a bypassRls:true scope with no tenantId in their WHERE, and each was read - the remainder are system-context cron sweeps that iterate tenants deliberately, pre-tenant auth lookups by key hash or token id, and BullMQ jobRun lookups by dedupeKey before the tenant is known, which is the case lib/prisma.ts documents as the reason the bypass exists. NOT YET VERIFIED: the fix is not deployed. Production is serving 9b2b44c, which contains the defect.`
+
+### `TEL-P1-054` — The RLS Bypass Inventory Claims To Be Complete, Asserts A Database Control That Does Not Exist, And Declares No Classification
+
+- **Severity**: P1
+- **Status**: `OPEN`
+- **Owner**: core-team
+- **Discovered**: 2026-08-26T07:10:00.000Z
+- **Root cause**: docs/production-certification/RLS_BYPASS_INVENTORY.md opens by stating that Telestar CRM enforces isolation through two layers, the second being "Postgres Row Level Security (RLS): Enforces database-level isolation policies on Postgres tables", and calls itself "a 100% comprehensive, line-by-line audit of every single location ... where RLS or tenant filtering is bypassed", concluding that "All instances of bypassRls, bare PrismaClient, and raw SQL queries are accounted for". Three things are wrong. First, no such database layer exists: 69 public tables, 0 with rowsecurity, 0 policies, and no migration containing ENABLE ROW LEVEL SECURITY, measured 2026-08-26. Second, the inventory is not complete: 11 files using bypassRls:true are absent from it - app/api/ai/attention, daily-briefing, draft-reply, enrich-lead and nba routes, plus scripts/backfill-contact-intelligence.ts, canary-sequence-drill.ts, certification/queue-load-benchmark.ts, list-users.ts, repair-approved-proposals.ts and repro-nested-include-leak.ts - as are 5 files constructing a bare PrismaClient, including lib/db/adminClient.mjs. Two of the absent files carried TEL-P0-013, a live cross-tenant read, which is what an inventory exists to prevent. Third, the file carries no classification frontmatter, which the kernel requires of every document.
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `NOT VERIFIED. Closing this needs the document corrected to describe the enforcement that exists rather than the one intended, regenerated or re-derived so its inventory matches the code, and given a classification. Better still, generated from the code rather than maintained by hand, so it cannot drift again - a hand-maintained list of every bypass in a growing codebase is a list that is wrong the week after it is written, which is what happened here.`
 
