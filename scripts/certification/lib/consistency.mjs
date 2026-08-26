@@ -197,20 +197,148 @@ export function checkLoadResultAgreement(scope = defaultScope()) {
   return findings;
 }
 
-/** F: no APPROVED certificate while P0/P1 defects are open. */
-export function checkCertificateVersusOpenDefects(certificateText, defectsText) {
+/**
+ * F: the defect ledger decides whether a release may proceed.
+ *
+ * The gate this replaces read DEFECTS.md prose and returned early unless the
+ * certificate said `Certificate Status: ISSUED & APPROVED`. This program emits a
+ * GO/NO-GO verdict and has never written that phrase, so the only defect gate in
+ * the validator was unreachable on every real run — and the self-test that
+ * "proved" it passed it the dead wording by hand. The repository published GO
+ * with two P1 defects OPEN (TEL-P0-011).
+ *
+ * Certificate wording is an OUTPUT of the verdict. It is not an input to it, so
+ * this function is not given the certificate at all: structured facts in, verdict
+ * out. Anything it cannot positively recognise as closed blocks the release.
+ */
+const CLOSED_DEFECT_STATE = 'VERIFIED';
+const KNOWN_DEFECT_STATES = new Set([
+  'OPEN',
+  'IN_PROGRESS',
+  'FIXED_PENDING_VERIFICATION',
+  'ACCEPTED_RISK',
+  CLOSED_DEFECT_STATE,
+]);
+
+/** Golden standard: P0, P1 and P2 all block. Overridable only by explicit configuration. */
+const DEFAULT_RELEASE_BLOCKING_SEVERITIES = ['P0', 'P1', 'P2'];
+
+/** A material production risk may not be signed away, however senior the signature. */
+const NEVER_ACCEPTABLE_SEVERITIES = new Set(['P0', 'P1']);
+
+function isEmptyEvidence(value) {
+  if (value === undefined || value === null) return true;
+  if (Array.isArray(value)) return value.length === 0;
+  return String(value).trim() === '';
+}
+
+export function checkDefectLedgerReleaseBlockers(config, ledger) {
   const findings = [];
-  const approved = /Certificate Status\*{0,2}:\s*ISSUED\s*&\s*APPROVED/i.test(certificateText);
-  if (!approved) return findings;
+  const blocking = new Set(
+    config?.releaseBlockingSeverities || DEFAULT_RELEASE_BLOCKING_SEVERITIES,
+  );
+  const authorized = new Map(
+    (config?.authorizedAcceptedRisks || [])
+      .filter((entry) => entry && entry.id && entry.owner && entry.authorization)
+      .map((entry) => [entry.id, entry]),
+  );
 
-  const openP0 = (defectsText.match(/`TEL-P0-\d+`/g) || []).length > 0;
-  const openBlock = /Status\*{0,2}:\s*`?(OPEN|IN_PROGRESS|FIXED_PENDING_VERIFICATION)`?/g;
-  const openCount = (defectsText.match(openBlock) || []).length;
+  for (const defect of ledger?.defects || []) {
+    const id = defect?.id || '(unidentified defect)';
+    const severity = defect?.severity;
+    const state = defect?.state;
 
-  if (openP0 || openCount > 0) {
-    findings.push(
-      finding('F', `certificate claims APPROVED while DEFECTS.md carries ${openCount} unclosed defect entr(ies)`),
-    );
+    if (!blocking.has(severity)) continue;
+
+    if (!KNOWN_DEFECT_STATES.has(state)) {
+      findings.push(
+        finding(
+          'F',
+          `${id} (${severity}) carries unrecognised state "${state ?? '(missing)'}"; only ${CLOSED_DEFECT_STATE} closes a defect`,
+        ),
+      );
+      continue;
+    }
+
+    if (state === 'ACCEPTED_RISK') {
+      if (!authorized.has(id)) {
+        findings.push(
+          finding(
+            'F',
+            `${id} (${severity}) is ACCEPTED_RISK but no authorization record in certification.config.json covers it`,
+          ),
+        );
+      } else if (NEVER_ACCEPTABLE_SEVERITIES.has(severity)) {
+        findings.push(
+          finding(
+            'F',
+            `${id} is ${severity} and may not be released as an accepted risk at any authorization level`,
+          ),
+        );
+      }
+      continue;
+    }
+
+    if (state !== CLOSED_DEFECT_STATE) {
+      findings.push(finding('F', `${id} (${severity}) is ${state} and blocks the release`));
+      continue;
+    }
+
+    // VERIFIED is a claim about work that was done. Directive section 39: it needs
+    // the commit that did it and the verification that observed it, or it is prose.
+    if (NEVER_ACCEPTABLE_SEVERITIES.has(severity)) {
+      const missing = [];
+      if (isEmptyEvidence(defect.fixSha) && defect.fixKind !== 'NO_CODE_CHANGE') {
+        missing.push('fixSha');
+      }
+      if (isEmptyEvidence(defect.verificationEvidence)) missing.push('verificationEvidence');
+      if (missing.length > 0) {
+        findings.push(
+          finding(
+            'F',
+            `${id} (${severity}) is ${CLOSED_DEFECT_STATE} with empty ${missing.join(' and ')}`,
+          ),
+        );
+      }
+    }
+  }
+  return findings;
+}
+
+/**
+ * F2: DEFECTS.md is generated from the ledger, so the two can only disagree if
+ * one of them was edited by hand. Either way the release stops until they agree.
+ */
+export function checkDefectDocumentMatchesLedger(documentText, ledger) {
+  const findings = [];
+  const text = documentText || '';
+
+  for (const defect of ledger?.defects || []) {
+    if (!defect?.id) continue;
+    // Defect identifiers are [A-Z0-9-] by construction, so a literal search is
+    // both correct and immune to the escaping mistakes a built regex invites.
+    const marker = '### `' + defect.id + '`';
+    const at = text.indexOf(marker);
+    if (at === -1) {
+      findings.push(
+        finding('F2', `DEFECTS.md omits ${defect.id}, which the ledger tracks as ${defect.state}`),
+      );
+      continue;
+    }
+    const section = text.slice(at, at + 4000);
+    const stated = /^-\s+\*\*(?:State|Status)\*\*:\s*`?([A-Z_]+)`?/m.exec(section);
+    if (!stated) {
+      findings.push(finding('F2', `DEFECTS.md section for ${defect.id} states no status`));
+      continue;
+    }
+    if (stated[1] !== defect.state) {
+      findings.push(
+        finding(
+          'F2',
+          `DEFECTS.md reports ${defect.id} as ${stated[1]} while the ledger holds ${defect.state}`,
+        ),
+      );
+    }
   }
   return findings;
 }
@@ -528,37 +656,79 @@ function git(args) {
   }
 }
 
+/**
+ * Paths whose content after a freeze is OUTPUT of the certification run: evidence
+ * records the ladder writes, and the documents rendered from them. A run cannot
+ * help but change these, so they cannot invalidate the candidate.
+ */
+const GENERATED_PREFIXES = ['docs/production-certification/', 'docs/production-cutover/'];
+
+/**
+ * Paths that ARE the certification authority: the verdict engine, the controls
+ * that prove it fails closed, and the contract it enforces.
+ *
+ * These were classified as "doc-only" and therefore exempt from the freeze
+ * (TEL-P1-051), which let the engine be edited after the candidate was frozen and
+ * then re-run to certify itself under the new rules. `tests/certification-` was
+ * added to that list in a0c12f4 for exactly that purpose, and the commit that
+ * followed inverted a test's expectation from NO-GO to GO.
+ *
+ * Changing any of these is legitimate work. It is not, however, work a frozen
+ * candidate survives: re-freeze and re-run the ladder.
+ */
+const AUTHORITY_PREFIXES = [
+  'scripts/certification/',
+  'tests/certification-',
+  'docs/production-certification/certification.config.json',
+  'docs/production-certification/defects.json',
+  'docs/production-certification/requirements.json',
+];
+
+function classifyAgainstFreeze(files) {
+  const authority = [];
+  const behaviour = [];
+  for (const file of files) {
+    if (AUTHORITY_PREFIXES.some((prefix) => file.startsWith(prefix))) {
+      authority.push(file);
+    } else if (!GENERATED_PREFIXES.some((prefix) => file.startsWith(prefix))) {
+      behaviour.push(file);
+    }
+  }
+  return { authority, behaviour };
+}
+
 /** N + O: no behaviour-changing source commit after the candidate freeze. */
-export function checkPostFreezeCommits(config) {
+export function checkPostFreezeCommits(config, deps = {}) {
+  const runGit = deps.git || git;
   const findings = [];
   if (!config.candidateSha) return findings;
 
-  const range = git(['log', '--format=%H', `${config.candidateSha}..HEAD`]);
+  const range = runGit(['log', '--format=%H', `${config.candidateSha}..HEAD`]);
   if (range === null) {
     findings.push(finding('N', `candidate SHA ${config.candidateSha.slice(0, 7)} is not reachable from HEAD`));
     return findings;
   }
   const commits = range.split('\n').filter(Boolean);
-  const docOnlyPrefixes = [
-    'docs/production-certification/',
-    'docs/production-cutover/',
-    'scripts/certification/',
-    'tests/certification-',
-  ];
 
   for (const commit of commits) {
-    const files = (git(['show', '--name-only', '--format=', commit]) || '')
+    const files = (runGit(['show', '--name-only', '--format=', commit]) || '')
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean);
-    const behaviourChanging = files.filter(
-      (file) => !docOnlyPrefixes.some((prefix) => file.startsWith(prefix)),
-    );
-    if (behaviourChanging.length > 0) {
+    const { authority, behaviour } = classifyAgainstFreeze(files);
+    if (behaviour.length > 0) {
       findings.push(
         finding(
           'N',
-          `commit ${commit.slice(0, 7)} after candidate freeze touches non-certification file(s): ${behaviourChanging.slice(0, 5).join(', ')}`,
+          `commit ${commit.slice(0, 7)} after candidate freeze touches non-certification file(s): ${behaviour.slice(0, 5).join(', ')}`,
+        ),
+      );
+    }
+    if (authority.length > 0) {
+      findings.push(
+        finding(
+          'N2',
+          `commit ${commit.slice(0, 7)} after candidate freeze changes the certification authority itself: ${authority.slice(0, 5).join(', ')} - re-freeze the candidate and re-run the ladder`,
         ),
       );
     }
@@ -602,14 +772,34 @@ export function checkSourceIdentity(config) {
     .filter((line) => line.trim().length > 0)
     .filter((line) => {
       const p = line.slice(3).replace(/^"|"$/g, '');
-      return !['docs/production-certification/', 'docs/production-cutover/', 'scripts/certification/'].some((prefix) => p.startsWith(prefix));
+      return !GENERATED_PREFIXES.some((prefix) => p.startsWith(prefix));
     });
 
-  if (status.length > 0) {
+  // An uncommitted change to the verdict engine is not the same failure as an
+  // uncommitted change to the application, and saying so makes the run report
+  // which one it is. `scripts/certification/` used to be exempt here as
+  // "metadata", so the engine could be modified and the source identity gate
+  // would still report a clean tree (TEL-P1-051).
+  const authorityPaths = status
+    .map((line) => line.slice(3).replace(/^"|"$/g, ''))
+    .filter((p) => AUTHORITY_PREFIXES.some((prefix) => p.startsWith(prefix)));
+  const sourcePaths = status
+    .map((line) => line.slice(3).replace(/^"|"$/g, ''))
+    .filter((p) => !AUTHORITY_PREFIXES.some((prefix) => p.startsWith(prefix)));
+
+  if (sourcePaths.length > 0) {
     findings.push(
       finding(
         '01',
-        `working tree has ${status.length} uncommitted non-metadata path(s): ${status.slice(0, 5).map((line) => line.slice(3)).join(', ')}`,
+        `working tree has ${sourcePaths.length} uncommitted non-metadata path(s): ${sourcePaths.slice(0, 5).join(', ')}`,
+      ),
+    );
+  }
+  if (authorityPaths.length > 0) {
+    findings.push(
+      finding(
+        '01',
+        `working tree has ${authorityPaths.length} uncommitted change(s) to the certification authority: ${authorityPaths.slice(0, 5).join(', ')}`,
       ),
     );
   }
