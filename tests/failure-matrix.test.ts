@@ -70,27 +70,46 @@ describe.skipIf(!hasDb)('DR-004: the database connection drops and the app recov
     const RECOVERY_BUDGET_MS = 30_000;
     const observed: number[] = [];
 
-    for (let round = 0; round < 3; round += 1) {
-      const [current] = await prisma.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`;
-      await prisma
-        .$queryRawUnsafe(`SELECT pg_terminate_backend(${current.pid})`)
-        .catch(() => undefined);
-
+    // The probe has to BE the query whose result the next round consumes. Probing with
+    // `SELECT 1` proved only that *a* connection answered at that instant, and each round then
+    // opened with an unretried `pg_backend_pid()` — a bare query at the top of a loop whose
+    // whole premise is that connections are being destroyed underneath it. Recovering and then
+    // immediately issuing an unguarded query is the gap CI fell through on 2026-08-26, with
+    // "Server has closed the connection" thrown from that line rather than from an assertion.
+    const backendPid = async (budgetMs: number): Promise<number | null> => {
       const startedAt = Date.now();
-      let recovered = false;
-      while (Date.now() - startedAt < RECOVERY_BUDGET_MS && !recovered) {
+      for (;;) {
         try {
-          await prisma.$queryRaw`SELECT 1`;
-          recovered = true;
+          const [row] = await prisma.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`;
+          return row.pid;
         } catch {
+          if (Date.now() - startedAt >= budgetMs) return null;
           await new Promise((resolve) => setTimeout(resolve, 300));
         }
       }
+    };
+
+    let pid = await backendPid(RECOVERY_BUDGET_MS);
+    expect(pid, 'no backend connection to begin with').not.toBeNull();
+
+    for (let round = 0; round < 3; round += 1) {
+      const killed = pid as number;
+      await prisma
+        .$queryRawUnsafe(`SELECT pg_terminate_backend(${killed})`)
+        .catch(() => undefined);
+
+      const startedAt = Date.now();
+      pid = await backendPid(RECOVERY_BUDGET_MS);
       observed.push(Date.now() - startedAt);
+
       expect(
-        recovered,
+        pid,
         `did not recover within ${RECOVERY_BUDGET_MS / 1000}s after termination round ${round + 1}`,
-      ).toBe(true);
+      ).not.toBeNull();
+      // A genuinely new backend, so recovery happened rather than the kill being a no-op.
+      // The sibling test above asserts this; this one did not, so a kill that silently
+      // stopped working would have gone on passing here.
+      expect(pid).not.toBe(killed);
     }
 
     expect(observed).toHaveLength(3);
