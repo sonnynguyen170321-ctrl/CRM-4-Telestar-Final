@@ -1,7 +1,50 @@
+# Build the application images from source instead of pulling a published one.
+#
+# NOT the production deploy path. docs/DEPLOY.md is explicit: "the deploy is `pull`, never
+# `build`", and `web`/`worker` run `${CRM_IMAGE:?...}`, which must be a digest or a full-SHA
+# tag. This overlay exists for local work and for a host that genuinely cannot pull.
+#
+# WHY THE ARGS ARE REQUIRED
+#
+# This file used to declare `build:` with no `args:` at all. The Dockerfile defaults
+# `APP_COMMIT`, `APP_VERSION` and `APP_BUILT_AT` to the literal `unknown`, so every image
+# built through here reported itself as `unknown` — and `lib/release.ts` treats that as no
+# provenance, which is correct and is the whole point.
+#
+# On 2026-08-26 production began answering
+#
+#   {"ok":true,"commit":"unknown","version":"unknown","builtAt":"unknown","schema":"ready"}
+#
+# having reported a real SHA earlier the same day. The publishing pipeline was healthy
+# throughout: `.github/workflows/docker-image.yml` passes all three args, and the image for
+# every merged commit carries the matching `org.opencontainers.image.revision` label. So the
+# running container did not come from that pipeline, and this overlay is the one path in the
+# repository that produces exactly that symptom — while `docs/GCP_DEPLOY.md` Phase 7 still
+# documents a production deploy that uses it (TEL-P1-055).
+#
+# A release that cannot name the commit it was built from is not a release this project can
+# certify: "Releases use immutable identity" is one of the kernel invariants, and a build that
+# silently discards identity defeats it quietly, which is the worst way.
+#
+# So the args have no defaults. Compose fails before building, with the message below, unless
+# the caller supplies them:
+#
+#   APP_COMMIT=$(git rev-parse HEAD) \
+#   APP_VERSION=$(git describe --tags --always --dirty) \
+#   APP_BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml build web worker
+#
+# Refusing is deliberate. Defaulting APP_COMMIT to something derived here would put a
+# plausible-looking SHA on an image nobody can trace, which is worse than `unknown`.
+
 x-app-build: &app-build
   build:
     context: .
     dockerfile: Dockerfile
+    args:
+      APP_COMMIT: ${APP_COMMIT:?APP_COMMIT is required. A locally built image must still name the commit it came from, or /api/health reports "unknown" and the release cannot be certified. Use APP_COMMIT=$(git rev-parse HEAD). If you wanted a published image, drop this overlay - docs/DEPLOY.md explains that the deploy is pull, never build.}
+      APP_VERSION: ${APP_VERSION:?APP_VERSION is required. Use the git tag when one exists, otherwise the full commit SHA - APP_VERSION=$(git describe --tags --always --dirty).}
+      APP_BUILT_AT: ${APP_BUILT_AT:?APP_BUILT_AT is required, as an RFC 3339 timestamp - APP_BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ).}
 
 services:
   web:
