@@ -2,48 +2,67 @@
   "evidenceId": "EV-RLS-POSTURE",
   "kind": "rls-posture",
   "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
-  "environment": "certification workstation - local PostgreSQL 16; each script builds its own throwaway database and roles",
+  "environment": "certification workstation, local PostgreSQL 16; each script builds and drops its own throwaway database and roles",
   "command": "node scripts/verify-rls.mjs; node scripts/verify-rls-app-paths.mjs; node scripts/verify-rls-enablement.mjs; node scripts/verify-rls-live.mjs",
-  "startedAt": "2026-08-25T21:50:00.000Z",
-  "finishedAt": "2026-08-25T21:51:00.000Z",
-  "exitCode": 0,
-  "status": "PASS",
+  "startedAt": "2026-08-26T05:47:40.636Z",
+  "finishedAt": "2026-08-26T05:48:07.234Z",
+  "exitCode": 1,
+  "status": "BLOCKED_EXTERNAL",
   "metrics": {
     "productionPosture": "APPLICATION_ONLY",
     "dbRlsEnforcedInProduction": false,
-    "reason": "DB_RLS_ENFORCED appears in no environment file and no compose file, so database-level RLS is NOT enforced in production. Production tenant isolation rests on the application-layer Prisma extension. DB-level RLS is available and now proven to work; enabling it is a separate infrastructure decision.",
+    "reason": "DB_RLS_ENFORCED appears in no environment file and no compose file, and the production database carries no policies: 69 public tables, 0 with rowsecurity, 0 policies, and no migration containing ENABLE ROW LEVEL SECURITY. Production tenant isolation rests on the application-layer Prisma extension alone. The database-level layer is built and proven to work; applying it is an infrastructure decision (TEL-P1-038).",
     "gates": {
       "verify-rls": {
+        "status": "PASS",
         "exitCode": 0,
-        "result": "policies keep tenant A out of tenant B, and fail closed with no tenant context"
+        "durationMs": 8170,
+        "description": "policies keep tenant A out of tenant B, and fail closed with no tenant context"
       },
       "verify-rls-app-paths": {
+        "status": "PASS",
         "exitCode": 0,
-        "probes": 10,
-        "result": "all ten application paths survive enforcement, including share links and raw SQL via withTenantRaw/withBypassRaw"
+        "durationMs": 8934,
+        "description": "every application path survives enforcement"
       },
       "verify-rls-enablement": {
+        "status": "PASS",
         "exitCode": 0,
-        "result": "the documented roles.sql enablement sequence produces a working isolated system"
+        "durationMs": 9308,
+        "description": "the documented roles.sql sequence produces a working isolated system"
       },
       "verify-rls-live": {
-        "exitCode": 0,
-        "result": "unprivileged role against a populated database: 1000 of 2340 leads scoped to its tenant, cross-tenant unreachable, DDL refused, write path rolled back"
+        "status": "NOT_RUN",
+        "exitCode": 2,
+        "durationMs": 177,
+        "description": "an unprivileged role against a populated database"
       }
     },
-    "measuredOverhead": {
-      "rows": 1000,
-      "underPolicyMs": 6,
-      "controlMs": 3
-    },
-    "staleClaimCorrected": "scripts/verify-rls-app-paths.mjs asserted in its own header that it exits 1, describing ~25 raw statements running with no tenant context. It exits 0. That comment is the stated gate on enabling DB_RLS_ENFORCED, so leaving it stale argued indefinitely against enabling the control it was written to protect.",
-    "enablementPrecondition": "MET - verify-rls-app-paths.mjs reaches 0. Enabling remains a deliberate infrastructure decision requiring CRM_MAINTENANCE_URL and a verified backup, because the RLS failure mode is silent: a statement with no tenant context matches no policy and returns zero rows without raising."
+    "scriptsRun": 4,
+    "scriptsNotRun": [
+      "verify-rls-live"
+    ]
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/rls-posture-gates.log",
-      "sizeBytes": 4850,
-      "sha256": "df6073d9ad2ccda1ce3ed579eb08c4f807b85440004b3330167c2f9cc4b6b04e"
+      "path": "docs/production-certification/evidence/raw/rls-verify-rls.log",
+      "sizeBytes": 1299,
+      "sha256": "2f12d2b1be20057d7cd519e5bf80e8700705acf8bbfab3ae00a19a7952baf2a7"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/rls-verify-rls-app-paths.log",
+      "sizeBytes": 2212,
+      "sha256": "0032c2a287167f348babe1d14b288c37b1a4be326f4ded3eddac2fcf1f0d8f8a"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/rls-verify-rls-enablement.log",
+      "sizeBytes": 1349,
+      "sha256": "ac10222aefcff5cf370e0d8bfa837f5cdbb8bd3c4c40226d073926ab51f9ee07"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/rls-verify-rls-live.log",
+      "sizeBytes": 211,
+      "sha256": "cf251f2c383dc22442e46967e361866de0f0bb8ef5e0210cec1f80f91998c9fa"
     }
   ]
 }
