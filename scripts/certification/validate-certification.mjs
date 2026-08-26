@@ -14,7 +14,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 
 import {
+  checkArtifactCorroboratesRecord,
   checkBackupArtifactSanity,
+  checkClaimedDigestsAppearInArtifacts,
+  checkTimestampsWereMeasured,
   checkCandidateShaAgreement,
   checkCertificateOrdering,
   checkDefectDocumentMatchesLedger,
@@ -178,6 +181,9 @@ export function validateCertification() {
     ...checkRegistryTestFilesExist(registry),
     ...checkRunLadder(config, records),
     ...checkBackupArtifactSanity(records),
+    ...checkArtifactCorroboratesRecord(records),
+    ...checkClaimedDigestsAppearInArtifacts(records),
+    ...checkTimestampsWereMeasured(records),
     ...checkReleaseIdentity(config, records),
     ...checkCertificateOrdering(records, certificateText),
     ...checkPostFreezeCommits(config),
