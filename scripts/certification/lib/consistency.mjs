@@ -285,10 +285,20 @@ export function checkDefectLedgerReleaseBlockers(config, ledger) {
     }
 
     // VERIFIED is a claim about work that was done. Directive section 39: it needs
-    // the commit that did it and the verification that observed it, or it is prose.
+    // the thing that did it and the verification that observed it, or it is prose.
+    //
+    // Not every fix is a commit, and demanding one where none exists makes the gate
+    // cry wolf. TEL-P1-027 was closed by enabling point-in-time recovery on the
+    // production instance and re-measuring: fixKind "infrastructure", no commit to
+    // name, and EV-DR-RPO recording pointInTimeRecoveryEnabled true. This ledger
+    // already carries credential-rotation, container, cloudsql-backup, ci-run and
+    // infrastructure alongside commit. A fixSha is required of the kinds that have
+    // one; verification evidence is required of all of them, because that is the
+    // half no fix kind is exempt from.
     if (NEVER_ACCEPTABLE_SEVERITIES.has(severity)) {
       const missing = [];
-      if (isEmptyEvidence(defect.fixSha) && defect.fixKind !== 'NO_CODE_CHANGE') {
+      const fixIsACommit = !defect.fixKind || defect.fixKind === 'commit';
+      if (isEmptyEvidence(defect.fixSha) && fixIsACommit) {
         missing.push('fixSha');
       }
       if (isEmptyEvidence(defect.verificationEvidence)) missing.push('verificationEvidence');
