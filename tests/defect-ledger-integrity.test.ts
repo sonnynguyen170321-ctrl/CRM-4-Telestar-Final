@@ -230,10 +230,12 @@ describe('a fix reference resolves to something real', () => {
         : `fixKind "commit" that is not reachable from HEAD: ${offenders.join(', ')}. ` +
           'This is what a rebase-merge does to a fixSha recorded on the branch: main requires ' +
           'a linear history, so the commit that lands has a different SHA than the one the ' +
-          'ledger was told about. Repair with `node scripts/certification/reconcile-defects.mjs`, ' +
-          'which proposes the commit on main whose message names the defect id — then check the ' +
-          'proposal, because the earliest commit naming a defect is sometimes the one that FILED ' +
-          'it rather than the one that fixed it.',
+          'ledger was told about. Repair with ' +
+          '`node scripts/certification/reconcile-rebased-fix-shas.mjs --apply`, which maps the ' +
+          'orphaned SHA to its subject and the subject to the commit that landed, and refuses ' +
+          'to guess when that is not exactly one commit. Prefer it to reconcile-defects.mjs for ' +
+          'this: that one picks the earliest commit naming the defect id, which is sometimes the ' +
+          'commit that FILED the defect rather than the one that fixed it.',
     ).toEqual([]);
   });
 
