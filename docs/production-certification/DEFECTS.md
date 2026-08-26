@@ -2,7 +2,7 @@
 
 **Program**: Telestar Production Certification
 **Authoritative Source**: `docs/production-certification/defects.json`
-**Last Updated**: 2026-08-26T07:54:15.739Z
+**Last Updated**: 2026-08-26T08:43:21.642Z
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -16,10 +16,10 @@
 | Severity | Discovered | Verified Closed | Accepted Risk | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 12 | 9 | 1 | **2** |
-| **P1** (Critical) | 42 | 38 | 0 | **4** |
+| **P1** (Critical) | 43 | 38 | 0 | **5** |
 | **P2** (Important) | 22 | 20 | 0 | **2** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **76** | **67** | **1** | **8** |
+| **TOTAL** | **77** | **67** | **1** | **9** |
 
 ---
 
@@ -785,4 +785,14 @@
 - **Root cause**: scripts/agent/doctor.ts probed Docker with `docker --version`, which reports the client binary and says nothing about whether anything can be built, then set blocks: [] - a positive claim that the docker build gate can run. On 2026-08-26 it printed "ok docker Docker version 29.7.2" while the engine answered HTTP 500 to every request, `docker builder prune` failed with "write /var/lib/docker/buildkit/containerd-overlayfs/metadata_v2.db: read-only file system", `docker buildx create` failed the same way against the containerd metadata store, and gate 19 could not run. The machine state behind it: the host C: drive was at 1.9 GB free, so Docker Desktop's WSL vhdx could not grow and the guest filesystem remounted read-only. This is the same defect class the Redis probe in the same file already carries a paragraph about - measuring something the work never does - and it is why the previous ladder run recorded 19-docker-build FAIL and 20-image-inspection BLOCKED_EXTERNAL while doctor called this machine ready.
 - **Fix SHA**: `ddb6a4d4023a00efee3d63ed5e6062d360c84733`
 - **Verification evidence**: `The probe now asks the daemon: `docker info --format {{.ServerVersion}}`, and reports available only when that answers with a version. Negative control run 2026-08-26 with DOCKER_HOST=tcp://127.0.0.1:1 - a live client against a dead endpoint - produced "MISS docker  Docker version 29.7.2, build a7dcaa6 installed, but the daemon does not answer", and the BLOCKED_EXTERNAL section correctly listed "docker build gate" and "compose topology smoke". The previous probe reported ok in exactly that state. Positive control with the daemon healthy: "ok docker daemon 29.7.2". The detail line states explicitly that a live daemon does not prove buildkit can write, because that was this machine's condition for the whole of the previous ladder run - the daemon answered, pulls worked, builds did not - and understating what a probe knows is the only safe direction for a file whose contract is what this machine can actually run. The underlying machine fault is also fixed and the fix is proven: clearing the npm cache (5.84 GB, pure cache, rebuilt on demand) took C: from 1.9 GB to 6.9 GB free, and `wsl --shutdown` plus a Docker Desktop restart remounted the guest filesystem read-write. `docker builder prune --all --force` then succeeded and reclaimed 3.184 GB where it had previously failed read-only. Both containers returned unattended - they carry restart=unless-stopped and named volumes - and the database was intact at 52 migrations, schema up to date. Gate 19 then ran here for the first time in this program: `docker build --build-arg APP_COMMIT=55d954bd3019e7643bdbe6077039f2dfb17755ff ... -t telestar-crm-candidate:55d954bd...` exited 0, exporting manifest list sha256:e913418bdcd9619a32820948381f1d7495cf1bfd8c9d46dd22109a339a39fed9 in 162.0s. eslint and tsc --noEmit exit 0.`
+
+### `TEL-P1-055` — Production Stopped Reporting Which Release It Is Running
+
+- **Severity**: P1
+- **Status**: `OPEN`
+- **Owner**: core-team
+- **Discovered**: 2026-08-26T10:15:00.000Z
+- **Root cause**: https://crm.telestar.cloud/api/health returned {"ok":true,"commit":"9b2b44c9f0987139e2f48ee21b14ec36e10690a8","version":"9b2b44c9f0987139e2f48ee21b14ec36e10690a8","builtAt":"2026-08-25T19:49:24Z","schema":"ready"} at 08:31 on 2026-08-26, and later the same day returns {"ok":true,"commit":"unknown","version":"unknown","builtAt":"unknown","schema":"ready"}. Confirmed persistent across three consecutive probes, HTTP 200 in 0.24s, schema ready - the application is serving, it simply no longer says what it is. The deployment therefore changed during the session, and the build now running carries none of APP_COMMIT, APP_VERSION or APP_BUILT_AT. Those are Dockerfile build arguments: an image built without them, or a container started from one, reports the literal "unknown" that the health route falls back to. Consequences, in the terms this program cares about: the release identity chain has no endpoint any more, so REL-001 cannot be satisfied by anything short of host access; gate 22 (health smoke, "web and worker health endpoints report release SHA") cannot pass; and record-deployed-state.mjs and verify-release-identity.mjs both correctly return FAIL against it. Most importantly, TEL-P0-013 - a cross-tenant read fixed in 927abc9 and ab1496d but not known to be deployed - can no longer be confirmed present or absent in production by any means available from this workstation. Whether the running build contains the fix is now unanswerable rather than merely unverified.
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `NOT VERIFIED. Closing this needs the deployment to be rebuilt or restarted with APP_COMMIT, APP_VERSION and APP_BUILT_AT supplied, so /api/health reports the SHA actually serving, and then a probe confirming it. scripts/certification/record-deployed-state.mjs answers the question in one command and refuses to record a pass it did not observe. Detection already exists and fired: run 2026-08-26 under a certification context, record-deployed-state reported status FAIL and "The deployment is not running the frozen candidate", exit 1. Two independent tools agree, and the raw probe is reproducible by anyone with curl. Not diagnosed from here: why the identity was lost. Whether a deploy ran without the build arguments, whether a container was recreated from an older image, or whether something restarted from a tag rather than a digest, are all answerable on the deployment host and nowhere else.`
 

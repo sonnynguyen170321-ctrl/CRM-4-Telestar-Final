@@ -180,7 +180,15 @@ function main() {
   const existing = safeRead(OUTPUT);
   if (!checkOnly) writeFileSync(OUTPUT, md);
 
-  const drifted = existing !== md;
+  // Compare content, not line endings.
+  //
+  // The generator writes LF. Git checks this file out as CRLF on Windows, so a byte
+  // comparison called every fresh Windows checkout "drift" and demanded a regeneration that
+  // changed nothing. The test asserting `drift : none` passed in CI, where the checkout is
+  // LF, and failed on the author's machine — the same local-versus-CI split as the fix SHAs,
+  // inverted, and it would have failed for every Windows developer.
+  const normalise = (text) => (text === null ? null : text.replace(/\r\n/g, '\n'));
+  const drifted = normalise(existing) !== normalise(md);
   console.log(`sites      : ${totalSites}`);
   console.log(`unreviewed : ${unreviewed.length}`);
   for (const entry of unreviewed) console.log(`  - ${entry}`);

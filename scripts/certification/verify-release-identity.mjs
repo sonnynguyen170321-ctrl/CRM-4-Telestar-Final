@@ -35,6 +35,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { CONFIG_PATH, EVIDENCE_DIR, RAW_DIR, repoRelative } from './lib/paths.mjs';
+import { mayWriteEvidence } from './lib/evidenceGuard.mjs';
 
 const SHA_RE = /^[0-9a-f]{40}$/;
 const DIGEST_RE = /^sha256:[0-9a-f]{64}$/;
@@ -69,6 +70,13 @@ function run(command, args) {
 async function main() {
   const config = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
   const candidateSha = config.candidateSha;
+  // Reading the candidate from config means this cannot be aimed at the wrong release.
+  // It does not stop an ad-hoc run replacing a ladder run's evidence, which is a
+  // different mistake and one made twice while verifying this session.
+  if (!mayWriteEvidence(candidateSha, { toolName: 'verify-release-identity' })) {
+    process.exitCode = 2;
+    return;
+  }
   if (!SHA_RE.test(candidateSha ?? '')) {
     console.error('certification.config.json has no frozen candidate SHA.');
     process.exit(2);
