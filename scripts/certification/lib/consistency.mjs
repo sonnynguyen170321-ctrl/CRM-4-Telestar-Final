@@ -767,25 +767,30 @@ export function checkSourceIdentity(config) {
   } catch {
     statusOutput = '';
   }
-  const status = statusOutput
-    .split('\n')
-    .filter((line) => line.trim().length > 0)
-    .filter((line) => {
-      const p = line.slice(3).replace(/^"|"$/g, '');
-      return !GENERATED_PREFIXES.some((prefix) => p.startsWith(prefix));
-    });
-
   // An uncommitted change to the verdict engine is not the same failure as an
   // uncommitted change to the application, and saying so makes the run report
   // which one it is. `scripts/certification/` used to be exempt here as
   // "metadata", so the engine could be modified and the source identity gate
   // would still report a clean tree (TEL-P1-051).
-  const authorityPaths = status
-    .map((line) => line.slice(3).replace(/^"|"$/g, ''))
-    .filter((p) => AUTHORITY_PREFIXES.some((prefix) => p.startsWith(prefix)));
-  const sourcePaths = status
-    .map((line) => line.slice(3).replace(/^"|"$/g, ''))
-    .filter((p) => !AUTHORITY_PREFIXES.some((prefix) => p.startsWith(prefix)));
+  //
+  // Authority is decided BEFORE the generated filter. certification.config.json,
+  // defects.json and requirements.json all live under
+  // `docs/production-certification/`, so filtering generated paths first would
+  // discard the three files the verdict is computed from.
+  const changedPaths = statusOutput
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => line.slice(3).replace(/^"|"$/g, ''));
+
+  const authorityPaths = [];
+  const sourcePaths = [];
+  for (const changed of changedPaths) {
+    if (AUTHORITY_PREFIXES.some((prefix) => changed.startsWith(prefix))) {
+      authorityPaths.push(changed);
+    } else if (!GENERATED_PREFIXES.some((prefix) => changed.startsWith(prefix))) {
+      sourcePaths.push(changed);
+    }
+  }
 
   if (sourcePaths.length > 0) {
     findings.push(
