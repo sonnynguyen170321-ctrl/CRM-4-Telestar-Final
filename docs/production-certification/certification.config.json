@@ -143,6 +143,10 @@
     }
   ],
   "requiredRunCount": 3,
+  "$releaseBlockingSeverities": "Which defect severities block a release. TEL-P0-011: the validator's only defect gate read DEFECTS.md prose and returned early unless the certificate said \"ISSUED & APPROVED\" - wording this program never emits - so no defect could block anything. The gate now reads defects.json, and this list is the contract it enforces. GOLDEN PRODUCTION READY requires P0, P1 and P2 all closed.",
+  "releaseBlockingSeverities": ["P0", "P1", "P2"],
+  "$authorizedAcceptedRisks": "An ACCEPTED_RISK blocks release unless it is named here with an owner and an authorization reference. P0 and P1 can never be accepted at any authorization level; only the risk itself may be closed.",
+  "authorizedAcceptedRisks": [],
   "fullCertificationGates": [
     {
       "id": "01-source-identity",

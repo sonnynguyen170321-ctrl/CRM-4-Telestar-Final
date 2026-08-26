@@ -22,7 +22,8 @@ import path from 'node:path';
 import {
   checkBackupArtifactSanity,
   checkCandidateShaAgreement,
-  checkCertificateVersusOpenDefects,
+  checkDefectDocumentMatchesLedger,
+  checkDefectLedgerReleaseBlockers,
   checkCiHeadSha,
   checkCutoverPostProof,
   checkEmailPostureIsMeasured,
@@ -220,14 +221,83 @@ function main() {
     );
   }
 
-  // ── F: an APPROVED certificate while defects remain open ──────────────────
+  // ── F: the ledger blocks the release, whatever the certificate says ───────
+  //
+  // The injection this replaces fed the gate '**Certificate Status**: ISSUED &
+  // APPROVED' — wording this program has never emitted. The gate early-returned on
+  // any other certificate, so the self-test stayed green while the production path
+  // was unreachable (TEL-P0-011). A control must inject a state the system can
+  // actually reach.
+  const blockingConfig = { releaseBlockingSeverities: ['P0', 'P1', 'P2'] };
+  for (const [severity, state] of [
+    ['P0', 'OPEN'],
+    ['P1', 'OPEN'],
+    ['P2', 'OPEN'],
+    ['P0', 'FIXED_PENDING_VERIFICATION'],
+    ['P1', 'FIXED_PENDING_VERIFICATION'],
+    ['P1', 'IN_PROGRESS'],
+  ]) {
+    expectRed(
+      `F — a ${severity} defect in state ${state}`,
+      checkDefectLedgerReleaseBlockers(blockingConfig, {
+        defects: [{ id: `TEL-${severity}-999`, severity, state }],
+      }),
+      `check F did not block a ${severity} defect in state ${state}`,
+    );
+  }
   expectRed(
-    'F — an APPROVED certificate while a P0 defect is open',
-    checkCertificateVersusOpenDefects(
-      '**Certificate Status**: ISSUED & APPROVED',
-      '### `TEL-P0-001` — something\n- **Status**: `OPEN`',
+    'F — a P0 accepted as a risk with no authorization record',
+    checkDefectLedgerReleaseBlockers(blockingConfig, {
+      defects: [{ id: 'TEL-P0-998', severity: 'P0', state: 'ACCEPTED_RISK' }],
+    }),
+    'check F did not block an unauthorized accepted risk',
+  );
+  expectRed(
+    'F — a P0 accepted as a risk even when an authorization record exists',
+    checkDefectLedgerReleaseBlockers(
+      {
+        ...blockingConfig,
+        authorizedAcceptedRisks: [{ id: 'TEL-P0-997', owner: 'operator', authorization: 'signed' }],
+      },
+      { defects: [{ id: 'TEL-P0-997', severity: 'P0', state: 'ACCEPTED_RISK' }] },
     ),
-    'check F did not notice APPROVED alongside an open defect',
+    'check F let a P0 be signed away',
+  );
+  expectRed(
+    'F — a P1 marked VERIFIED with no fix SHA and no verification evidence',
+    checkDefectLedgerReleaseBlockers(blockingConfig, {
+      defects: [
+        {
+          id: 'TEL-P1-996',
+          severity: 'P1',
+          state: 'VERIFIED',
+          fixSha: '',
+          verificationEvidence: '',
+        },
+      ],
+    }),
+    'check F accepted a VERIFIED claim carrying no evidence',
+  );
+  expectRed(
+    'F — an unrecognised defect state is not a closed defect',
+    checkDefectLedgerReleaseBlockers(blockingConfig, {
+      defects: [{ id: 'TEL-P1-995', severity: 'P1', state: 'PROBABLY_FINE' }],
+    }),
+    'check F treated an unknown state as closed',
+  );
+  expectRed(
+    'F2 — the rendered document disagrees with the ledger',
+    checkDefectDocumentMatchesLedger('### `TEL-P1-994` \u2014 x\n- **Status**: `VERIFIED`\n', {
+      defects: [{ id: 'TEL-P1-994', severity: 'P1', state: 'OPEN' }],
+    }),
+    'check F2 did not notice a hand-edited defect document',
+  );
+  expectRed(
+    'F2 — the rendered document omits a defect the ledger tracks',
+    checkDefectDocumentMatchesLedger('# Defects\n', {
+      defects: [{ id: 'TEL-P1-993', severity: 'P1', state: 'OPEN' }],
+    }),
+    'check F2 did not notice a defect missing from the document',
   );
 
   // ── P/Q: the exact disaster-recovery fabrication this program began with ──
