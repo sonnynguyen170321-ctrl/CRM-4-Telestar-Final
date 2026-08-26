@@ -94,9 +94,27 @@ const INCOMPLETE_SIGNALS = [
  * so these run everywhere and nothing is conditional. A shallow clone will fail them, and the
  * message says why.
  */
+/**
+ * Reachable from HEAD, not merely present in the object store.
+ *
+ * `rev-parse --verify` was the earlier test, and it passes for any object that happens
+ * to be lying around locally — including one a rebase orphaned. `main` here requires a
+ * linear history, so every merge rebases and every branch-local SHA is rewritten as it
+ * lands. A ledger entry recorded before the merge then names a commit that still exists
+ * in the author's clone and in nobody else's.
+ *
+ * That is not hypothetical: TEL-P0-011 and TEL-P1-051 recorded 5a7714f, which became
+ * bea37a5 on merge. The suite was green locally and the same test failed in CI, which is
+ * the worst shape a check can have — it is only honest on machines that did not make the
+ * mistake.
+ *
+ * Ancestry is the question actually worth asking. A fix SHA should name a commit in the
+ * history that produced this tree, and asking it that way makes a local run and a fresh
+ * clone give the same answer.
+ */
 function resolvesToCommit(ref: string): boolean {
   try {
-    execFileSync('git', ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], {
+    execFileSync('git', ['merge-base', '--is-ancestor', `${ref}^{commit}`, 'HEAD'], {
       cwd: REPO_ROOT,
       stdio: 'ignore',
     });
@@ -200,12 +218,23 @@ describe('a fix reference resolves to something real', () => {
     expect(offenders, `fixKind "commit" that is not a SHA: ${offenders.join(', ')}`).toEqual([]);
   });
 
-  it('every fixKind "commit" resolves to a commit in this repository', () => {
+  it('every fixKind "commit" is reachable from HEAD', () => {
     const offenders = defects
       .filter((d) => d.fixKind === 'commit' && d.fixSha)
       .filter((d) => !resolvesToCommit(d.fixSha))
       .map((d) => `${d.id}=${d.fixSha}`);
-    expect(offenders, `fixKind "commit" that is not a commit: ${offenders.join(', ')}`).toEqual([]);
+    expect(
+      offenders,
+      offenders.length === 0
+        ? ''
+        : `fixKind "commit" that is not reachable from HEAD: ${offenders.join(', ')}. ` +
+          'This is what a rebase-merge does to a fixSha recorded on the branch: main requires ' +
+          'a linear history, so the commit that lands has a different SHA than the one the ' +
+          'ledger was told about. Repair with `node scripts/certification/reconcile-defects.mjs`, ' +
+          'which proposes the commit on main whose message names the defect id — then check the ' +
+          'proposal, because the earliest commit naming a defect is sometimes the one that FILED ' +
+          'it rather than the one that fixed it.',
+    ).toEqual([]);
   });
 
   it('every non-commit remediation says what the identifier is', () => {
