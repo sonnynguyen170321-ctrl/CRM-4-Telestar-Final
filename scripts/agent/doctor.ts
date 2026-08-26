@@ -170,12 +170,34 @@ export async function capabilities(): Promise<Capability[]> {
     blocks: npm ? [] : ['dependency install'],
   });
 
-  const docker = version('docker', ['--version']);
+  // Ask the daemon, not the CLI.
+  //
+  // This used to be `docker --version`, which reports the client binary and nothing about
+  // whether anything can be built. On 2026-08-26 it printed "ok docker Docker version 29.7.2"
+  // for hours while the engine answered 500 to every request, `docker builder prune` failed
+  // with "write /var/lib/docker/buildkit/containerd-overlayfs/metadata_v2.db: read-only file
+  // system", and gate 19 could not run. The root cause was the host's C: drive down to 1.9 GB
+  // free, so the WSL vhdx could not grow and the guest filesystem remounted read-only.
+  //
+  // It is the same mistake the Redis probe below already carries a paragraph about: measuring
+  // something the work never does. `blocks: []` on a client version string is a claim that the
+  // docker build gate can run, and it was false.
+  //
+  // A daemon that answers still does not prove buildkit can write — that is exactly the state
+  // this machine was in for the whole of the previous ladder run, and the detail line says so
+  // rather than implying otherwise.
+  const dockerClient = version('docker', ['--version']);
+  const dockerServer = dockerClient ? version('docker', ['info', '--format', '{{.ServerVersion}}']) : null;
+  const dockerUsable = Boolean(dockerServer && /^\d/.test(dockerServer));
   out.push({
     id: 'docker',
-    status: docker ? 'available' : 'unavailable',
-    detail: docker ?? 'not installed',
-    blocks: docker ? [] : ['docker build gate', 'compose topology smoke'],
+    status: dockerUsable ? 'available' : 'unavailable',
+    detail: dockerUsable
+      ? `daemon ${dockerServer} · ${dockerClient} · a live daemon does not prove buildkit can write; gate 19 is the only thing that does`
+      : dockerClient
+        ? `${dockerClient} installed, but the daemon does not answer — start Docker Desktop, and check free disk on the drive holding its VM`
+        : 'not installed',
+    blocks: dockerUsable ? [] : ['docker build gate', 'compose topology smoke'],
   });
 
   // Probe Redis the way the application does — a real client command, not a port check.
