@@ -22,8 +22,11 @@ import path from 'node:path';
 import {
   checkBackupArtifactSanity,
   checkCandidateShaAgreement,
+  checkArtifactCorroboratesRecord,
+  checkClaimedDigestsAppearInArtifacts,
   checkDefectDocumentMatchesLedger,
   checkDefectLedgerReleaseBlockers,
+  checkTimestampsWereMeasured,
   checkCiHeadSha,
   checkCutoverPostProof,
   checkEmailPostureIsMeasured,
@@ -298,6 +301,118 @@ function main() {
       defects: [{ id: 'TEL-P1-993', severity: 'P1', state: 'OPEN' }],
     }),
     'check F2 did not notice a defect missing from the document',
+  );
+
+  // ── U/U2/V: a record composed around someone else's artifact ────────────
+  //
+  // EV-DR-ROLLBACK claimed candidate 9b2b44c and digest sha256:99fbfe..., and cited
+  // a log recording a drill run a day earlier for c7bf639. Every check of the day
+  // passed it: the artifact existed, its SHA-256 re-hashed, its shape was valid.
+  // None of them read the file.
+  {
+    const corroborationSandbox = makeSandbox();
+    const OTHER = 'd'.repeat(40);
+    const CLAIMED = 'e'.repeat(40);
+    mkdirSync(path.join(corroborationSandbox.root, 'raw'), { recursive: true });
+    writeFileSync(
+      path.join(corroborationSandbox.root, 'raw', 'someone-elses-drill.log'),
+      JSON.stringify({ candidateSha: OTHER, previousSha: 'f'.repeat(40) }),
+    );
+    writeFileSync(
+      path.join(corroborationSandbox.root, 'raw', 'no-digest.log'),
+      'rollback completed in 1.5s',
+    );
+
+    expectRed(
+      'U — a rollback record citing a log that names only other releases',
+      checkArtifactCorroboratesRecord(
+        [
+          {
+            evidenceId: 'EV-FAKE-ROLLBACK',
+            kind: 'dr-rollback',
+            candidateSha: CLAIMED,
+            artifacts: [{ path: 'raw/someone-elses-drill.log' }],
+          },
+        ],
+        corroborationSandbox.scope,
+      ),
+      'check U did not notice an artifact belonging to a different release',
+    );
+
+    expectGreen(
+      'U — an artifact that names the candidate it is cited for',
+      checkArtifactCorroboratesRecord(
+        [
+          {
+            evidenceId: 'EV-REAL-ROLLBACK',
+            kind: 'dr-rollback',
+            candidateSha: OTHER,
+            artifacts: [{ path: 'raw/someone-elses-drill.log' }],
+          },
+        ],
+        corroborationSandbox.scope,
+      ),
+      'check U flagged an artifact that does name its candidate',
+    );
+
+    expectRed(
+      'U2 — a digest claimed by a record and present in none of its artifacts',
+      checkClaimedDigestsAppearInArtifacts(
+        [
+          {
+            evidenceId: 'EV-FAKE-IDENTITY',
+            kind: 'release-identity',
+            candidateSha: CLAIMED,
+            metrics: { imageDigest: `sha256:${'a'.repeat(64)}` },
+            artifacts: [{ path: 'raw/no-digest.log' }],
+          },
+        ],
+        corroborationSandbox.scope,
+      ),
+      'check U2 did not notice a digest that exists only in the record asserting it',
+    );
+
+    expectRed(
+      'U2 — a release-identity record citing no artifact at all',
+      checkClaimedDigestsAppearInArtifacts(
+        [
+          {
+            evidenceId: 'EV-EMPTY-IDENTITY',
+            kind: 'release-identity',
+            candidateSha: CLAIMED,
+            metrics: { imageDigest: `sha256:${'a'.repeat(64)}` },
+            artifacts: [],
+          },
+        ],
+        corroborationSandbox.scope,
+      ),
+      'check U2 accepted a digest chain with no evidence behind it',
+    );
+
+    rmSync(corroborationSandbox.root, { recursive: true, force: true });
+  }
+
+  expectRed(
+    'V — a record whose start and finish were typed, not measured',
+    checkTimestampsWereMeasured([
+      {
+        evidenceId: 'EV-COMPOSED',
+        startedAt: '2026-08-25T19:53:00.000Z',
+        finishedAt: '2026-08-25T19:54:00.000Z',
+      },
+    ]),
+    'check V did not notice a whole-minute, zero-millisecond duration',
+  );
+  expectGreen(
+    'V — a record carrying the process clock',
+    checkTimestampsWereMeasured([
+      {
+        evidenceId: 'EV-MEASURED',
+        startedAt: '2026-08-25T21:42:36.897Z',
+        finishedAt: '2026-08-25T21:42:42.857Z',
+      },
+    ]),
+    'check V flagged a genuinely measured record',
   );
 
   // ── P/Q: the exact disaster-recovery fabrication this program began with ──

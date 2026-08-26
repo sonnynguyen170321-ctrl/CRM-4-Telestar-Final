@@ -425,6 +425,149 @@ export function checkBackupArtifactSanity(records) {
   return findings;
 }
 
+/**
+ * U: a record's cited artifact must be an artifact of the release the record claims.
+ *
+ * TEL-P0-012. EV-DR-ROLLBACK declared candidateSha 9b2b44c and candidateDigest
+ * sha256:99fbfe..., status PASS. Its only artifact recorded a drill executed a day
+ * earlier for candidate c7bf639, in which sha256:791210e... — the digest the record
+ * calls "previous" — was the CANDIDATE. The record had been composed around someone
+ * else's log, and every existing check passed it: the artifact was present, its
+ * SHA-256 re-hashed correctly, and its shape was valid. Nothing read what was inside
+ * it.
+ *
+ * The rule is deliberately narrow, because artifacts legitimately vary in what they
+ * mention. It fires only when an artifact identifies releases explicitly and the
+ * record's own candidate is not among them — an artifact that names commits, all of
+ * them other people's. An artifact that names no commit at all (a vitest log, a lint
+ * log) is not evidence of provenance either way and is left alone.
+ */
+const COMMIT_SHA_PATTERN = /\b[0-9a-f]{40}\b/g;
+const IMAGE_DIGEST_PATTERN = /sha256:[0-9a-f]{64}/g;
+
+/** Record kinds whose artifacts are release-specific by construction. */
+const RELEASE_BOUND_KINDS = new Set([
+  'dr-rollback',
+  'dr-restore',
+  'dr-backup',
+  'release-identity',
+  'deployed-state',
+  'ci-run',
+  'certification-run',
+  'cutover',
+]);
+
+export function checkArtifactCorroboratesRecord(records, scope = defaultScope()) {
+  const findings = [];
+
+  for (const record of records) {
+    if (!RELEASE_BOUND_KINDS.has(record.kind)) continue;
+    const claimedSha = record.candidateSha;
+    if (!claimedSha) continue;
+
+    for (const artifact of record.artifacts || []) {
+      const artifactPath = typeof artifact === 'string' ? artifact : artifact.path;
+      if (!artifactPath) continue;
+      const absolute = path.join(scope.repoRoot, artifactPath);
+      if (!existsSync(absolute)) continue;
+
+      let content = '';
+      try {
+        content = readFileSync(absolute, 'utf8');
+      } catch {
+        continue;
+      }
+
+      const shas = new Set(content.match(COMMIT_SHA_PATTERN) || []);
+      if (shas.size === 0) continue;
+      if (shas.has(claimedSha)) continue;
+
+      findings.push(
+        finding(
+          'U',
+          `${record.evidenceId}: artifact ${artifactPath} names ${shas.size} commit(s) and none of them is the record's candidate ${claimedSha.slice(0, 7)} - the artifact belongs to ${[...shas].slice(0, 3).map((sha) => sha.slice(0, 7)).join(', ')}`,
+        ),
+      );
+    }
+  }
+  return findings;
+}
+
+/**
+ * U2: a digest a record claims must appear in one of the artifacts it cites.
+ *
+ * The same record called sha256:99fbfe... the deployed candidate digest. That digest
+ * appears in no artifact anywhere in the evidence tree. A digest that exists only in
+ * the record asserting it is an assertion, not evidence.
+ */
+export function checkClaimedDigestsAppearInArtifacts(records, scope = defaultScope()) {
+  const findings = [];
+
+  for (const record of records) {
+    if (!RELEASE_BOUND_KINDS.has(record.kind)) continue;
+    const metrics = record.metrics || {};
+    const claimed = new Set(
+      Object.values(metrics)
+        .filter((value) => typeof value === 'string')
+        .flatMap((value) => value.match(IMAGE_DIGEST_PATTERN) || []),
+    );
+    if (claimed.size === 0) continue;
+
+    const seen = new Set();
+    for (const artifact of record.artifacts || []) {
+      const artifactPath = typeof artifact === 'string' ? artifact : artifact.path;
+      if (!artifactPath) continue;
+      const absolute = path.join(scope.repoRoot, artifactPath);
+      if (!existsSync(absolute)) continue;
+      let content = '';
+      try {
+        content = readFileSync(absolute, 'utf8');
+      } catch {
+        continue;
+      }
+      for (const digest of content.match(IMAGE_DIGEST_PATTERN) || []) seen.add(digest);
+    }
+
+    for (const digest of claimed) {
+      if (!seen.has(digest)) {
+        findings.push(
+          finding(
+            'U2',
+            `${record.evidenceId} claims image digest ${digest.slice(0, 20)}... which appears in none of its ${(record.artifacts || []).length} artifact(s)`,
+          ),
+        );
+      }
+    }
+  }
+  return findings;
+}
+
+/**
+ * V: a machine-generated record must carry a measured duration.
+ *
+ * TEL-P1-049. collect-evidence.mjs stamps startedAt and finishedAt from the process
+ * clock, so a genuine record has millisecond precision. Seven records in this tree
+ * carried whole-minute, zero-millisecond pairs — 21:50:00.000Z to 21:51:00.000Z —
+ * which a clock does not produce. They were authored rather than measured, and no
+ * check could tell the two apart.
+ */
+export function checkTimestampsWereMeasured(records) {
+  const findings = [];
+  for (const record of records) {
+    const { startedAt, finishedAt } = record;
+    if (!startedAt || !finishedAt) continue;
+    const bothWholeMinute = /:00\.000Z$/.test(startedAt) && /:00\.000Z$/.test(finishedAt);
+    if (!bothWholeMinute) continue;
+    findings.push(
+      finding(
+        'V',
+        `${record.evidenceId}: startedAt ${startedAt} and finishedAt ${finishedAt} are both whole-minute, zero-millisecond values - a measured record carries the process clock, so this one was composed`,
+      ),
+    );
+  }
+  return findings;
+}
+
 /** R + S + T: release identity chain must be complete and internally consistent. */
 export function checkReleaseIdentity(config, records) {
   const findings = [];

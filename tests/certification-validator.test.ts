@@ -17,6 +17,9 @@ import {
   checkCandidateShaAgreement,
   checkDefectLedgerReleaseBlockers,
   checkPostFreezeCommits,
+  checkArtifactCorroboratesRecord,
+  checkClaimedDigestsAppearInArtifacts,
+  checkTimestampsWereMeasured,
   checkDefectDocumentMatchesLedger,
   checkNoFileUrls,
   checkReferencedFilesExist,
@@ -655,6 +658,166 @@ describe('the rendered defect document must agree with the ledger', () => {
     const document = '### `TEL-P1-082` — something\n- **Status**: `OPEN`\n';
 
     expect(checkDefectDocumentMatchesLedger(document, ledger)).toEqual([]);
+  });
+});
+
+/**
+ * TEL-P0-012 and TEL-P1-049. Three records in this repository claimed one release
+ * while citing artifacts produced for another, and every existing check passed them:
+ * the artifact was present, its SHA-256 re-hashed correctly, and the record's shape
+ * was valid. Nothing read what was inside the file.
+ */
+describe('an evidence record must be corroborated by the artifacts it cites', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'cert-corroborate-'));
+    mkdirSync(path.join(dir, 'raw'), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function withArtifact(name: string, contents: string) {
+    writeFileSync(path.join(dir, 'raw', name), contents);
+    return `raw/${name}`;
+  }
+
+  const scope = () => ({ repoRoot: dir, certDir: dir });
+
+  it('flags a rollback record whose log names only other releases', () => {
+    const artifact = withArtifact(
+      'rollback.log',
+      JSON.stringify({ candidateSha: OTHER_SHA, previousSha: 'd'.repeat(40) }),
+    );
+    const record = {
+      evidenceId: 'EV-DR-ROLLBACK',
+      kind: 'dr-rollback',
+      candidateSha: CANDIDATE,
+      artifacts: [{ path: artifact }],
+    };
+
+    const findings = checkArtifactCorroboratesRecord([record], scope());
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].check).toBe('U');
+    expect(findings[0].message).toContain('EV-DR-ROLLBACK');
+    expect(findings[0].message).toContain(OTHER_SHA.slice(0, 7));
+  });
+
+  it('accepts a record whose artifact names the candidate among other commits', () => {
+    const artifact = withArtifact(
+      'rollback.log',
+      JSON.stringify({ candidateSha: CANDIDATE, previousSha: OTHER_SHA }),
+    );
+    const record = {
+      evidenceId: 'EV-DR-ROLLBACK',
+      kind: 'dr-rollback',
+      candidateSha: CANDIDATE,
+      artifacts: [{ path: artifact }],
+    };
+
+    expect(checkArtifactCorroboratesRecord([record], scope())).toEqual([]);
+  });
+
+  it('leaves alone an artifact that identifies no release at all', () => {
+    const artifact = withArtifact('vitest.log', 'Test Files 12 passed\nTests 340 passed\n');
+    const record = {
+      evidenceId: 'EV-GATE-08-VITEST',
+      kind: 'certification-run',
+      candidateSha: CANDIDATE,
+      artifacts: [{ path: artifact }],
+    };
+
+    expect(checkArtifactCorroboratesRecord([record], scope())).toEqual([]);
+  });
+
+  it('ignores record kinds that are not bound to a release', () => {
+    const artifact = withArtifact('other.log', OTHER_SHA);
+    const record = {
+      evidenceId: 'EV-ROLE-MODEL',
+      kind: 'role-model',
+      candidateSha: CANDIDATE,
+      artifacts: [{ path: artifact }],
+    };
+
+    expect(checkArtifactCorroboratesRecord([record], scope())).toEqual([]);
+  });
+
+  it('flags a claimed image digest that appears in none of the cited artifacts', () => {
+    const artifact = withArtifact('identity.log', 'sha256:' + 'b'.repeat(64));
+    const record = {
+      evidenceId: 'EV-RELEASE-IDENTITY',
+      kind: 'release-identity',
+      candidateSha: CANDIDATE,
+      metrics: { imageDigest: 'sha256:' + 'a'.repeat(64) },
+      artifacts: [{ path: artifact }],
+    };
+
+    const findings = checkClaimedDigestsAppearInArtifacts([record], scope());
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].check).toBe('U2');
+    expect(findings[0].message).toContain('EV-RELEASE-IDENTITY');
+  });
+
+  it('flags a digest claimed by a record that cites no artifact whatsoever', () => {
+    const record = {
+      evidenceId: 'EV-RELEASE-IDENTITY',
+      kind: 'release-identity',
+      candidateSha: CANDIDATE,
+      metrics: { imageDigest: 'sha256:' + 'a'.repeat(64) },
+      artifacts: [],
+    };
+
+    expect(checkClaimedDigestsAppearInArtifacts([record], scope())).toHaveLength(1);
+  });
+
+  it('accepts a digest the cited artifact actually contains', () => {
+    const digest = 'sha256:' + 'a'.repeat(64);
+    const artifact = withArtifact('identity.log', `resolved to ${digest}`);
+    const record = {
+      evidenceId: 'EV-RELEASE-IDENTITY',
+      kind: 'release-identity',
+      candidateSha: CANDIDATE,
+      metrics: { imageDigest: digest },
+      artifacts: [{ path: artifact }],
+    };
+
+    expect(checkClaimedDigestsAppearInArtifacts([record], scope())).toEqual([]);
+  });
+});
+
+describe('a machine-generated record must carry a measured duration', () => {
+  it('flags whole-minute, zero-millisecond start and finish times', () => {
+    const findings = checkTimestampsWereMeasured([
+      {
+        evidenceId: 'EV-DR-ROLLBACK',
+        startedAt: '2026-08-25T19:53:00.000Z',
+        finishedAt: '2026-08-25T19:54:00.000Z',
+      },
+    ]);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].check).toBe('V');
+    expect(findings[0].message).toContain('composed');
+  });
+
+  it('accepts a record carrying the process clock', () => {
+    const findings = checkTimestampsWereMeasured([
+      {
+        evidenceId: 'EV-GATE-08-VITEST',
+        startedAt: '2026-08-25T21:42:36.897Z',
+        finishedAt: '2026-08-25T21:42:42.857Z',
+      },
+    ]);
+
+    expect(findings).toEqual([]);
+  });
+
+  it('accepts a record with no timestamps rather than inventing a finding', () => {
+    expect(checkTimestampsWereMeasured([{ evidenceId: 'EV-X' }])).toEqual([]);
   });
 });
 

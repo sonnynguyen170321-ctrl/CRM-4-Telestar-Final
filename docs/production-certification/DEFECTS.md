@@ -2,7 +2,7 @@
 
 **Program**: Telestar Production Certification
 **Authoritative Source**: `docs/production-certification/defects.json`
-**Last Updated**: 2026-08-26T04:15:00.000Z
+**Last Updated**: 2026-08-26T05:10:00.000Z
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -16,10 +16,10 @@
 | Severity | Discovered | Verified Closed | Accepted Risk | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 11 | 9 | 1 | **1** |
-| **P1** (Critical) | 39 | 35 | 0 | **4** |
+| **P1** (Critical) | 40 | 35 | 0 | **5** |
 | **P2** (Important) | 21 | 19 | 0 | **2** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **71** | **63** | **1** | **7** |
+| **TOTAL** | **72** | **63** | **1** | **8** |
 
 ---
 
@@ -724,7 +724,7 @@
 - **Discovered**: 2026-08-26T04:15:00.000Z
 - **Root cause**: EV-DR-ROLLBACK.json claims candidateSha 9b2b44c9f0987139e2f48ee21b14ec36e10690a8, candidateDigest sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b, previousSha 949eefe3a474ab76db1064cb3bb597715d9599bf and previousDigest sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523, with status PASS. Its only artifact, docs/production-certification/evidence/raw/dr-rollback-c7bf639.log, records a different drill entirely: rollbackDrill DR-003, candidateSha c7bf639ef988a6ba9fffba3c88761dad245ef7a3, candidateDigest sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523, previousSha 319d20ee31646408dd8c0f55f71346a483ab16d1, executedAt 2026-08-24T09:41:35.000Z. The digest the record calls "previous" is the digest that log calls "candidate", one release earlier. The record was composed around an older drill rather than produced by running one: its startedAt and finishedAt are 2026-08-25T19:53:00.000Z and 2026-08-25T19:54:00.000Z, a whole minute typed by hand. No rollback has been executed for candidate 9b2b44c, and the digest sha256:99fbfe... appears in no drill artifact anywhere in the evidence tree. The validator passed it because no check compares a record's claims against the contents of the artifact it cites.
 - **Fix SHA**: `N/A`
-- **Verification evidence**: `NOT VERIFIED. Closing this needs two things. First, a real rollback rehearsal for the frozen candidate per directive section 46 — record the previous immutable digest, deploy the candidate digest, verify web and worker, roll back to the previous digest, verify the old version serves, redeploy the candidate, verify again — with the drill writing its own artifact and its own measured timestamps. Second, a validator check that reads each evidence record's cited artifact and fails when the SHAs and digests inside it do not match the SHAs and digests the record claims, so that a record can never again be pointed at someone else's log. Both are pending.`
+- **Verification evidence**: `NOT VERIFIED, and half-closed. The detection half is built and proven: checkArtifactCorroboratesRecord (check U) reads each release-bound record's cited artifact and fails when the artifact names commits and none of them is the record's candidate; checkClaimedDigestsAppearInArtifacts (check U2) fails when a claimed image digest appears in none of the record's artifacts. Against the real evidence tree both fire on this defect: "EV-DR-ROLLBACK: artifact docs/production-certification/evidence/raw/dr-rollback-c7bf639.log names 2 commit(s) and none of them is the record's candidate 9b2b44c - the artifact belongs to c7bf639, 319d20e" and "EV-DR-ROLLBACK claims image digest sha256:99fbfe8229e6f... which appears in none of its 1 artifact(s)". Covered by 7 tests in tests/certification-validator.test.ts and 4 controls in certify:selftest; mutation-proved by emptying RELEASE_BOUND_KINDS, which turned 4 tests RED and made the self-test report MISSED. What remains, and what keeps this OPEN: no rollback has actually been executed for the frozen candidate. Closing it requires the section 46 rehearsal - record the previous immutable digest, deploy the candidate digest, verify web and worker, roll back, verify the old version serves, redeploy, verify again - producing its own artifact with measured timestamps. That work needs deployment access to the production host, which this workstation does not have.`
 
 ### `TEL-P1-049` — Seven Evidence Records Carry Hand-Composed Timestamps Rather Than Measured Ones
 
@@ -734,5 +734,15 @@
 - **Discovered**: 2026-08-26T04:15:00.000Z
 - **Root cause**: A scan of all 42 evidence records for whole-minute, zero-millisecond start/finish pairs returned seven: EV-BRANCH-PROTECTION (21:50:00.000Z to 21:51:00.000Z), EV-DR-ROLLBACK (19:53:00.000Z to 19:54:00.000Z), EV-RLS-POSTURE (21:50:00.000Z to 21:51:00.000Z), and with second-level but still zero-millisecond bounds EV-DEPLOYED-STATE, EV-EMAIL-EXACTLY-ONCE, EV-ROLE-MODEL and EV-SECURITY-BOUNDARIES. Records written by collect-evidence.mjs carry millisecond precision from the process clock; these do not, which means they were authored rather than measured. Some describe work that demonstrably happened — EV-BRANCH-PROTECTION cites a 2790-byte transcript whose SHA-256 re-hashes correctly — so the finding is not that every claim is false, but that the record no longer testifies to when, or whether, its command ran. The validator has no check for it, so a fully hand-written record is indistinguishable from a measured one.
 - **Fix SHA**: `N/A`
-- **Verification evidence**: `NOT VERIFIED. Closing this needs each affected record regenerated by the tool that performs the work, so its timestamps come from the process clock, plus a validator check that treats a whole-minute zero-millisecond duration on a machine-generated record kind as a finding. Neither exists yet.`
+- **Verification evidence**: `NOT VERIFIED, and half-closed. Detection is built and proven: checkTimestampsWereMeasured (check V) fails any record whose startedAt and finishedAt are both whole-minute, zero-millisecond values, which a process clock does not produce. Against the real tree it names EV-BRANCH-PROTECTION, EV-DR-ROLLBACK and EV-RLS-POSTURE. Covered by 3 tests and 2 controls in certify:selftest, and mutation-proved. What remains, and what keeps this OPEN: the affected records have not been regenerated by the tools that perform the work, so their timestamps are still authored. Four further records - EV-DEPLOYED-STATE, EV-EMAIL-EXACTLY-ONCE, EV-ROLE-MODEL, EV-SECURITY-BOUNDARIES - carry second-level zero-millisecond bounds that check V deliberately does not fail on, because a whole-minute pair is the only signature that cannot be a coincidence; they are recorded here so the regeneration covers them too.`
+
+### `TEL-P1-052` — The Deployed-State Record Asserts The Candidate While Citing A Health Probe From The Previous Release
+
+- **Severity**: P1
+- **Status**: `OPEN`
+- **Owner**: core-team
+- **Discovered**: 2026-08-26T05:10:00.000Z
+- **Root cause**: EV-DEPLOYED-STATE.json records metrics deployedSha 9b2b44c9f0987139e2f48ee21b14ec36e10690a8, deployedBuiltAt 2026-08-25T19:49:24Z and deployedMatchesCandidate true, with status PASS and the command "curl -s https://crm.telestar.cloud/api/health". The artifact it cites, docs/production-certification/evidence/raw/deployed-health-probe.log, contains a different probe entirely: commit and version c7bf639ef988a6ba9fffba3c88761dad245ef7a3, builtAt 2026-08-24T09:34:52Z, ts 1787564536489. The record therefore does not rest on the probe it names; the probe records the previous release. The record's claim is separately true - an independent live probe on 2026-08-26 returned commit 9b2b44c9f0987139e2f48ee21b14ec36e10690a8, builtAt 2026-08-25T19:49:24Z, schema ready - so the finding is not that production is on the wrong release. It is that the deployment gate is satisfied by a record whose evidence was never refreshed, and the record's hand-typed timestamps (21:50:00.000Z to 21:50:01.000Z) confirm it was authored rather than captured. Being accidentally right is not the same as being evidenced.
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `NOT VERIFIED. Closing this needs the probe re-run by the collector against the frozen candidate so the artifact and the record are the same event, with timestamps from the process clock. Detection now exists: check U reports "EV-DEPLOYED-STATE: artifact ... names 1 commit(s) and none of them is the record's candidate 9b2b44c - the artifact belongs to c7bf639", and check V reports the composed duration. The record itself has not been regenerated.`
 
