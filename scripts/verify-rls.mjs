@@ -334,9 +334,16 @@ async function main() {
         // check reported "Invalid $queryRawUnsafe invocation" and passed — because the INSERT
         // named a type that is not in the ActivityType enum. It was refused for being
         // malformed, proving nothing about tenant isolation.
+        // Postgres reports the policy denial with an `ERROR:` line; Prisma reports a foreign
+        // key denial as "Foreign key constraint violated". Both are legitimate refusals and
+        // both must be named, because "refused" on its own cannot be told apart from a typo
+        // in the statement.
         childRefusedBy =
-          String(e?.message ?? e).split('\n').find((l) => /ERROR:/.test(l))?.trim().slice(0, 110)
-          ?? 'refused, reason not reported';
+          String(e?.message ?? e)
+            .split('\n')
+            .map((l) => l.trim())
+            .find((l) => /ERROR:|constraint|violat/i.test(l))
+            ?.slice(0, 110) ?? 'refused, reason not reported';
       }
       const crossChild = await admin(DB_NAME, (su) =>
         su.$queryRawUnsafe(
