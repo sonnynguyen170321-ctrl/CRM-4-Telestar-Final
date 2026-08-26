@@ -330,7 +330,25 @@ async function main() {
       return '';
     }
   })();
+  // Two conditions, because they catch different mistakes.
+  //
+  // CERT_CANDIDATE_SHA is set only by run-full-certification.mjs, per gate. It is the rule
+  // tests/import-load-benchmark.test.ts adopted in de170ac after an ordinary local `vitest
+  // run` rewrote EV-LOAD-HANDLER.json with a developer's numbers, and it stops an ad-hoc run
+  // writing at all.
+  //
+  // The frozen-candidate comparison catches the case that rule does not: a certification run
+  // pointed at the wrong release. Evidence must name the candidate under certification, and a
+  // ladder invoked with a stale or branch SHA would otherwise record it happily.
   const writeEvidence = !process.argv.includes('--no-evidence');
+  if (writeEvidence && !process.env.CERT_CANDIDATE_SHA) {
+    console.error(
+      'REFUSED: only a certification run may write into the evidence ledger.\n' +
+        '  CERT_CANDIDATE_SHA is unset, so this is an ad-hoc invocation.\n' +
+        '  Re-run with --no-evidence to measure without recording.',
+    );
+    process.exit(2);
+  }
   if (writeEvidence && frozenCandidate && candidateSha !== frozenCandidate) {
     console.error(
       `REFUSED: --candidate ${candidateSha.slice(0, 7)} is not the frozen candidate ${frozenCandidate.slice(0, 7)}.\n` +
