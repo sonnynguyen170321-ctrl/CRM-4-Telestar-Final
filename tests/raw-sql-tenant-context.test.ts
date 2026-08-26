@@ -145,6 +145,10 @@ describe('operational tooling uses the admin client', () => {
     // assert that an unbypassed client sees nothing.
     [join('scripts', 'verify-rls-app-paths.probe.ts'), 'red controls'],
     [join('scripts', 'verify-rls-app-paths.mjs'), 'superuser setup'],
+    // Looks for rows whose tenant differs from their parent's. The extension exists to make
+    // exactly those rows unreachable, so routing this through it would filter away the thing
+    // it is counting and report zero on a database full of them.
+    [join('scripts', 'audit-cross-tenant-rows.mjs'), 'must see across tenants to count them'],
     // The tenant extension and the helper itself.
     [join('lib', 'prisma.ts'), 'defines the extension'],
     [join('lib', 'db', 'adminClient.mjs'), 'defines the helper'],
