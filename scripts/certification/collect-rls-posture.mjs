@@ -24,6 +24,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { CONFIG_PATH, EVIDENCE_DIR, RAW_DIR, REPO_ROOT, repoRelative } from './lib/paths.mjs';
+import { mayWriteEvidence } from './lib/evidenceGuard.mjs';
 
 const SCRIPTS = [
   ['verify-rls', 'scripts/verify-rls.mjs', 'policies keep tenant A out of tenant B, and fail closed with no tenant context'],
@@ -47,6 +48,13 @@ function loadLocalEnv() {
 
 function main() {
   const config = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+  // Reading the candidate from config means this cannot be aimed at the wrong release.
+  // It does not stop an ad-hoc run replacing a ladder run's evidence, which is a
+  // different mistake and one made twice while verifying this session.
+  if (!mayWriteEvidence(config.candidateSha, { toolName: 'collect-rls-posture' })) {
+    process.exitCode = 2;
+    return;
+  }
   const env = { ...loadLocalEnv(), ...process.env };
   const startedAt = new Date().toISOString();
   mkdirSync(RAW_DIR, { recursive: true });

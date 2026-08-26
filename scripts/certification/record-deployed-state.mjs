@@ -23,6 +23,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { CONFIG_PATH, EVIDENCE_DIR, RAW_DIR, repoRelative } from './lib/paths.mjs';
+import { mayWriteEvidence } from './lib/evidenceGuard.mjs';
 import { readFileSync } from 'node:fs';
 
 const DEFAULT_URL = 'https://crm.telestar.cloud/api/health';
@@ -38,6 +39,13 @@ async function main() {
   const url = arg('url', DEFAULT_URL);
   const config = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
   const candidateSha = config.candidateSha;
+  // Reading the candidate from config means this cannot be aimed at the wrong release.
+  // It does not stop an ad-hoc run replacing a ladder run's evidence, which is a
+  // different mistake and one made twice while verifying this session.
+  if (!mayWriteEvidence(candidateSha, { toolName: 'record-deployed-state' })) {
+    process.exitCode = 2;
+    return;
+  }
 
   if (!SHA_RE.test(candidateSha ?? '')) {
     console.error('certification.config.json has no frozen candidate SHA to compare against.');
@@ -134,11 +142,15 @@ async function main() {
   if (!matches) {
     console.error('');
     console.error('The deployment is not running the frozen candidate. Recorded as FAIL.');
-    process.exit(1);
+    // exitCode, not exit(): fetch leaves undici handles closing, and exiting on top of them
+    // trips a libuv assertion on Windows that reports 127 - a crash dressed up as a verdict.
+    // verify-release-identity.mjs already carried this fix; this file was written first and
+    // did not, so a genuine FAIL exited 127 and looked like a broken tool.
+    process.exitCode = 1;
   }
 }
 
 main().catch((error) => {
   console.error(error);
-  process.exit(5);
+  process.exitCode = 5;
 });
