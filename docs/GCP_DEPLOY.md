@@ -250,6 +250,21 @@ Three things here are load-bearing and easy to get wrong:
 
 ## Phase 7 — Build, gate, migrate, seed, launch
 
+> **This phase builds on the box, and that is not how this system is deployed.**
+> `docs/DEPLOY.md` is the current rule: *"the deploy is `pull`, never `build` —
+> `docker-compose.build.yml` is an optional overlay that is **not** what runs."* Images are
+> published by `.github/workflows/docker-image.yml` after CI concludes, and `web`/`worker`
+> run `${CRM_IMAGE:?…}`, which must be a digest or a full-SHA tag.
+>
+> Building here was how production came to answer
+> `{"commit":"unknown","version":"unknown","builtAt":"unknown"}` on 2026-08-26: the build
+> overlay carried no build arguments, and the Dockerfile defaults all three to the literal
+> `unknown` (TEL-P1-055). The overlay now refuses to build without them, so the commands
+> below fail fast rather than producing an image that cannot say what it is.
+>
+> Use this phase only on a host that genuinely cannot pull from GHCR. For a normal
+> deployment, follow `docs/DEPLOY.md` and skip the `build` overlay entirely.
+
 ```bash
 DC="docker compose -f docker-compose.yml -f docker-compose.gcp.yml -f docker-compose.build.yml --env-file .env.production"
 ```
@@ -258,7 +273,14 @@ That overlay stack is what produces this topology: the base file defines all ser
 `aws` overlay disables local postgres and wires the external database, and the `build` overlay
 builds `web`/`worker` from source instead of pulling a published image.
 
+A build on the box still has to name the commit it came from, or the release cannot be
+certified and `/api/health` reports `unknown`:
+
 ```bash
+export APP_COMMIT=$(git rev-parse HEAD)
+export APP_VERSION=$(git describe --tags --always --dirty)
+export APP_BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
 $DC build web worker          # 10–15 min on e2-standard-2
 ```
 
