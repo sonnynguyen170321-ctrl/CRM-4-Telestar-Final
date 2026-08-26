@@ -310,6 +310,35 @@ async function main() {
     console.error('--candidate <40-char commit sha> is required so the evidence is bound to a candidate');
     process.exit(2);
   }
+
+  // Refuse to overwrite EV-LOAD-QUEUE for anything but the frozen candidate.
+  //
+  // Running this ad hoc to see the numbers is a reasonable thing to want, and on
+  // 2026-08-26 doing exactly that — with `--candidate $(git rev-parse HEAD)` on a working
+  // branch — silently replaced a measured record for the frozen candidate with one for a
+  // branch commit that will never be released, and rewrote its raw log too. It was caught
+  // by `git status` rather than by anything here.
+  //
+  // Evidence belongs to a ladder run on the frozen candidate. Measuring is still allowed:
+  // --no-evidence prints the numbers and writes nothing.
+  const frozenCandidate = (() => {
+    try {
+      return JSON.parse(
+        readFileSync(path.join(process.cwd(), 'docs/production-certification/certification.config.json'), 'utf8'),
+      ).candidateSha as string;
+    } catch {
+      return '';
+    }
+  })();
+  const writeEvidence = !process.argv.includes('--no-evidence');
+  if (writeEvidence && frozenCandidate && candidateSha !== frozenCandidate) {
+    console.error(
+      `REFUSED: --candidate ${candidateSha.slice(0, 7)} is not the frozen candidate ${frozenCandidate.slice(0, 7)}.\n` +
+        '  Writing evidence would replace a record belonging to the release under certification.\n' +
+        '  Re-run with --no-evidence to measure without recording, or freeze this candidate first.',
+    );
+    process.exit(2);
+  }
   const scales = arg('scales', '120,500,1000')
     .split(',')
     .map((value) => Number.parseInt(value, 10))
@@ -343,19 +372,24 @@ async function main() {
   const evidenceDir = path.join(repoRoot, 'docs/production-certification/evidence');
   mkdirSync(rawDir, { recursive: true });
 
+  // The raw log is evidence too. Gating only the JSON left `--no-evidence` overwriting the
+  // artifact the record cites while printing "left untouched" — true of the file it named
+  // and false of the evidence, which is the shape of every defect this program has found.
   const rawPath = path.join(rawDir, 'load-queue-benchmark.log');
-  writeFileSync(
-    rawPath,
-    [
-      '# IMPORT_SYSTEM_QUEUE_BENCHMARK',
-      `# startedAt: ${startedAt}`,
-      `# finishedAt: ${finishedAt}`,
-      `# redis: ${new URL(url).host}`,
-      '',
-      ...transcript,
-      '',
-    ].join('\n'),
-  );
+  if (writeEvidence) {
+    writeFileSync(
+      rawPath,
+      [
+        '# IMPORT_SYSTEM_QUEUE_BENCHMARK',
+        `# startedAt: ${startedAt}`,
+        `# finishedAt: ${finishedAt}`,
+        `# redis: ${new URL(url).host}`,
+        '',
+        ...transcript,
+        '',
+      ].join('\n'),
+    );
+  }
 
   const scaleMap: Record<string, ScaleResult> = {};
   for (const result of results) scaleMap[String(result.rows)] = result;
@@ -379,13 +413,21 @@ async function main() {
     artifacts: [
       {
         path: 'docs/production-certification/evidence/raw/load-queue-benchmark.log',
-        sizeBytes: statSync(rawPath).size,
-        sha256: createHash('sha256').update(readFileSync(rawPath)).digest('hex'),
+        // Under --no-evidence the log was not written, so on a fresh clone there is nothing
+        // to stat. The record is discarded in that mode anyway; it must not throw first.
+        sizeBytes: writeEvidence ? statSync(rawPath).size : 0,
+        sha256: writeEvidence ? createHash('sha256').update(readFileSync(rawPath)).digest('hex') : '',
       },
     ],
   };
 
-  writeFileSync(path.join(evidenceDir, 'EV-LOAD-QUEUE.json'), `${JSON.stringify(record, null, 2)}\n`);
+  if (writeEvidence) {
+    writeFileSync(path.join(evidenceDir, 'EV-LOAD-QUEUE.json'), `${JSON.stringify(record, null, 2)}\n`);
+  } else {
+    console.log(
+      '\n--no-evidence: measured only. Neither EV-LOAD-QUEUE.json nor its raw log was written.',
+    );
+  }
 
   await closeAllQueues();
   await prisma.$disconnect();
