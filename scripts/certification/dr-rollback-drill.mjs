@@ -40,6 +40,7 @@ import path from 'node:path';
 
 import { EVIDENCE_DIR, RAW_DIR } from './lib/paths.mjs';
 import { buildRollbackEvidence } from './lib/rollbackDrill.mjs';
+import { mayWriteEvidence } from './lib/evidenceGuard.mjs';
 
 const SHA_RE = /^[0-9a-f]{40}$/;
 
@@ -50,6 +51,13 @@ function arg(name, fallback = null) {
 const flag = (name) => process.argv.includes(`--${name}`);
 
 const candidateSha = arg('candidate');
+// Evidence names the candidate it belongs to, and this one comes from argv, so it
+// can be pointed at the wrong release. lib/evidenceGuard.mjs records the run that
+// proved that, and why the frozen-candidate comparison is the guard that matters
+// for a tool an operator runs by hand.
+if (!mayWriteEvidence(candidateSha, { requireCertRun: false, toolName: 'dr-rollback-drill' })) {
+  process.exit(2);
+}
 const previousSha = arg('previous');
 const host = arg('host');
 const port = arg('port', '2223');

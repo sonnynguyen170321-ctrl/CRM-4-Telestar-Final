@@ -15,6 +15,7 @@ import path from 'node:path';
 
 import { CERT_DIR, EVIDENCE_DIR, RAW_DIR, REPO_ROOT } from './lib/paths.mjs';
 import { buildRoleBrowserEvidence } from './lib/roleEvidence.mjs';
+import { mayWriteEvidence } from './lib/evidenceGuard.mjs';
 
 const OBSERVATION_DIR = path.join(REPO_ROOT, '.certification', 'role-observations');
 const SCREENSHOT_DIR = path.join(RAW_DIR, 'role-screenshots');
@@ -30,6 +31,13 @@ function statusCell(verdict) {
 
 function main() {
   const candidateSha = arg('candidate');
+  // Evidence names the candidate it belongs to, and this one comes from argv, so it
+  // can be pointed at the wrong release. lib/evidenceGuard.mjs records the run that
+  // proved that, and why the frozen-candidate comparison is the guard that matters
+  // for a tool an operator runs by hand.
+  if (!mayWriteEvidence(candidateSha, { requireCertRun: false, toolName: 'collect-role-evidence' })) {
+    process.exit(2);
+  }
   if (!candidateSha || !/^[0-9a-f]{40}$/.test(candidateSha)) {
     console.error('--candidate <40-char commit sha> is required');
     process.exit(2);

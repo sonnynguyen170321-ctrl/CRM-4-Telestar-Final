@@ -17,6 +17,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { EVIDENCE_DIR } from './lib/paths.mjs';
+import { mayWriteEvidence } from './lib/evidenceGuard.mjs';
 
 function arg(name, fallback = null) {
   const index = process.argv.indexOf(`--${name}`);
@@ -28,6 +29,13 @@ const SHA_RE = /^[0-9a-f]{40}$/;
 
 function main() {
   const candidateSha = arg('candidate');
+  // Evidence names the candidate it belongs to, and this one comes from argv, so it
+  // can be pointed at the wrong release. lib/evidenceGuard.mjs records the run that
+  // proved that, and why the frozen-candidate comparison is the guard that matters
+  // for a tool an operator runs by hand.
+  if (!mayWriteEvidence(candidateSha, { requireCertRun: false, toolName: 'record-release-identity' })) {
+    process.exit(2);
+  }
   const ciRunId = arg('ci-run');
   const imageDigest = arg('image');
   const webDigest = arg('web');
