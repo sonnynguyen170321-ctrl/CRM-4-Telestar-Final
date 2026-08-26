@@ -42,23 +42,25 @@ export default function MailComposerModal({ lead, onClose, task, onSent }: MailC
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const applyTemplate = useCallback((templateId: string, availableTemplates: Template[] = templates) => {
-    const t = availableTemplates.find(x => x.id === templateId);
-    if (!t) return;
+  const substituteLeadVars = useCallback((str: string) => {
     const replacements: Record<string, string> = {
       firstName: lead.firstName, lastName: lead.lastName, company: lead.company,
       title: lead.title, email: lead.email, phone: lead.phone || 'your phone number',
       sdrName: 'SDR', sdrTitle: 'Sales Development Representative',
     };
-    const substitute = (str: string) =>
-      Object.entries(replacements).reduce(
-        (s, [k, v]) => s.replace(new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`, 'g'), v), str);
+    return Object.entries(replacements).reduce(
+      (s, [k, v]) => s.replace(new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`, 'g'), v), str);
+  }, [lead.firstName, lead.lastName, lead.company, lead.title, lead.email, lead.phone]);
 
-    setSubject(substitute(t.subject ?? 'Following up'));
-    setBody(substitute(t.body));
-  }, [lead, templates]);
+  const applyTemplate = useCallback((templateId: string, availableTemplates: Template[]) => {
+    const t = availableTemplates.find(x => x.id === templateId);
+    if (!t) return;
+    setSubject(substituteLeadVars(t.subject ?? 'Following up'));
+    setBody(substituteLeadVars(t.body));
+  }, [substituteLeadVars]);
 
   useEffect(() => {
+    let isMounted = true;
     setLoadingAccount(true);
     Promise.all([
       fetch('/api/templates').then((r) => (r.ok ? r.json() : [])),
@@ -66,6 +68,7 @@ export default function MailComposerModal({ lead, onClose, task, onSent }: MailC
       lead.sequenceId ? fetch(`/api/sequences/${lead.sequenceId}`).then(r => r.ok ? r.json() : null) : Promise.resolve(null),
     ])
       .then(([tpls, accs, sequenceData]: [Template[], EmailAccount[], any]) => {
+        if (!isMounted) return;
         const validAccs = Array.isArray(accs) ? accs : [];
         setAccounts(validAccs);
         setAccount(validAccs.length > 0 ? validAccs[0] : null);
@@ -85,17 +88,26 @@ export default function MailComposerModal({ lead, onClose, task, onSent }: MailC
           setSelectedTemplateId(initialTemplateId);
           applyTemplate(initialTemplateId, emailTemplates);
         } else {
-          setSubject('Following up');
+          setSubject((prev) => prev || 'Following up');
         }
       })
-      .catch(() => setSubject('Following up'))
-      .finally(() => setLoadingAccount(false));
-  }, [lead, applyTemplate]);
+      .catch(() => {
+        if (isMounted) setSubject((prev) => prev || 'Following up');
+      })
+      .finally(() => {
+        if (isMounted) setLoadingAccount(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead.id, lead.sequenceId, lead.sequenceStep]);
 
   const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const tid = e.target.value;
     setSelectedTemplateId(tid);
-    if (tid) applyTemplate(tid);
+    if (tid) applyTemplate(tid, templates);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
