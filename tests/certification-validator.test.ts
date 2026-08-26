@@ -7,7 +7,7 @@
  * specific false-green state and asserts the validator turns RED.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -15,7 +15,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   checkCandidateShaAgreement,
-  checkCertificateVersusOpenDefects,
+  checkDefectLedgerReleaseBlockers,
+  checkPostFreezeCommits,
+  checkArtifactCorroboratesRecord,
+  checkClaimedDigestsAppearInArtifacts,
+  checkTimestampsWereMeasured,
+  checkDefectDocumentMatchesLedger,
   checkNoFileUrls,
   checkReferencedFilesExist,
   checkRegistryTestFilesExist,
@@ -389,23 +394,8 @@ describe('cross-document consistency checks', () => {
     expect(findings[0].check).toBe('J2');
     expect(findings[0].message).toContain('tests/never-written.test.ts');
   });
-
-  it('flags an APPROVED certificate while defects remain open', () => {
-    const certificate = '**Certificate Status**: ISSUED & APPROVED';
-    const defects = '### `TEL-P0-001` — something\n- **Status**: `OPEN`';
-
-    const findings = checkCertificateVersusOpenDefects(certificate, defects);
-
-    expect(findings[0].check).toBe('F');
-  });
-
-  it('does not flag an invalidated certificate carrying open defects', () => {
-    const certificate = '**Certificate Status**: INVALIDATED — RECONCILIATION IN PROGRESS';
-    const defects = '### `TEL-P0-001` — something\n- **Status**: `OPEN`';
-
-    expect(checkCertificateVersusOpenDefects(certificate, defects)).toEqual([]);
-  });
 });
+
 
 describe('release identity chain', () => {
   it('flags a missing release-identity record', () => {
@@ -507,15 +497,514 @@ describe('certification run ladder', () => {
   });
 });
 
+/**
+ * TEL-P0-011. The only defect gate the validator had read DEFECTS.md prose and
+ * returned early unless it matched `Certificate Status: ISSUED & APPROVED` — a
+ * phrase this program stopped emitting when it moved to a GO/NO-GO verdict. It
+ * was therefore dead code on every real run, and the self-test that "proved" it
+ * fed it the dead wording. The repository published GO with two P1 defects OPEN.
+ *
+ * The gate below reads the structured ledger and never looks at the certificate.
+ * Certificate wording cannot decide whether defects matter.
+ */
+describe('release blockers are computed from the defect ledger, not from prose', () => {
+  const config = { releaseBlockingSeverities: ['P0', 'P1', 'P2'] };
+
+  function ledger(defects: Array<Record<string, unknown>>) {
+    return { schemaVersion: 1, defects };
+  }
+
+  const verified = (id: string, severity: string) => ({
+    id,
+    severity,
+    state: 'VERIFIED',
+    fixSha: 'c'.repeat(40),
+    verificationEvidence: 'tests/example.test.ts, 4 passed',
+  });
+
+  it('passes when every tracked defect is VERIFIED', () => {
+    const findings = checkDefectLedgerReleaseBlockers(
+      config,
+      ledger([verified('TEL-P0-001', 'P0'), verified('TEL-P1-002', 'P1')]),
+    );
+
+    expect(findings).toEqual([]);
+  });
+
+  it.each([
+    ['P0', 'OPEN'],
+    ['P1', 'OPEN'],
+    ['P2', 'OPEN'],
+    ['P0', 'IN_PROGRESS'],
+    ['P1', 'IN_PROGRESS'],
+    ['P0', 'FIXED_PENDING_VERIFICATION'],
+    ['P1', 'FIXED_PENDING_VERIFICATION'],
+    ['P2', 'FIXED_PENDING_VERIFICATION'],
+  ])('blocks release on a %s defect in state %s', (severity, state) => {
+    const findings = checkDefectLedgerReleaseBlockers(
+      config,
+      ledger([{ id: 'TEL-X-001', severity, state }]),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].check).toBe('F');
+    expect(findings[0].severity).toBe('FAIL');
+    expect(findings[0].message).toContain('TEL-X-001');
+    expect(findings[0].message).toContain(state);
+  });
+
+  it('blocks an ACCEPTED_RISK that no authorization record covers', () => {
+    const findings = checkDefectLedgerReleaseBlockers(
+      config,
+      ledger([{ id: 'TEL-P0-009', severity: 'P0', state: 'ACCEPTED_RISK' }]),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].message).toContain('TEL-P0-009');
+    expect(findings[0].message).toMatch(/authoriz/i);
+  });
+
+  it('refuses to let a P0 or P1 be accepted as a risk even with an authorization record', () => {
+    const authorized = {
+      releaseBlockingSeverities: ['P0', 'P1', 'P2'],
+      authorizedAcceptedRisks: [
+        { id: 'TEL-P0-009', owner: 'operator', authorization: 'signed 2026-08-20' },
+      ],
+    };
+
+    const findings = checkDefectLedgerReleaseBlockers(
+      authorized,
+      ledger([{ id: 'TEL-P0-009', severity: 'P0', state: 'ACCEPTED_RISK' }]),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].message).toMatch(/P0/);
+  });
+
+  it('allows a P3 accepted risk that carries an owner and an authorization', () => {
+    const authorized = {
+      releaseBlockingSeverities: ['P0', 'P1', 'P2'],
+      authorizedAcceptedRisks: [
+        { id: 'TEL-P3-001', owner: 'operator', authorization: 'signed 2026-08-20' },
+      ],
+    };
+
+    const findings = checkDefectLedgerReleaseBlockers(
+      authorized,
+      ledger([{ id: 'TEL-P3-001', severity: 'P3', state: 'ACCEPTED_RISK' }]),
+    );
+
+    expect(findings).toEqual([]);
+  });
+
+  it('blocks an unknown defect state rather than treating it as closed', () => {
+    const findings = checkDefectLedgerReleaseBlockers(
+      config,
+      ledger([{ id: 'TEL-P1-077', severity: 'P1', state: 'PROBABLY_FINE' }]),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].message).toContain('PROBABLY_FINE');
+  });
+
+  it('blocks a defect whose state field is missing entirely', () => {
+    const findings = checkDefectLedgerReleaseBlockers(config, ledger([{ id: 'TEL-P1-078', severity: 'P1' }]));
+
+    expect(findings).toHaveLength(1);
+  });
+
+  it('is not silenced by certificate wording: the gate never receives it', () => {
+    expect(checkDefectLedgerReleaseBlockers.length).toBe(2);
+  });
+
+  /**
+   * Not every fix is a commit. TEL-P1-027 was closed by enabling point-in-time
+   * recovery on the production instance and re-measuring it — there is no commit
+   * to name, and demanding one made the gate report a defect that was properly
+   * closed. A gate that cries wolf gets ignored, which is how the last one died.
+   *
+   * The half no fix kind is exempt from is the verification.
+   */
+  it.each(['infrastructure', 'credential-rotation', 'container', 'cloudsql-backup', 'ci-run'])(
+    'accepts a VERIFIED %s fix that names no commit but carries its verification',
+    (fixKind) => {
+      const findings = checkDefectLedgerReleaseBlockers(
+        config,
+        ledger([
+          {
+            id: 'TEL-P1-083',
+            severity: 'P1',
+            state: 'VERIFIED',
+            fixKind,
+            fixSha: '',
+            verificationEvidence: 'EV-DR-RPO: pointInTimeRecoveryEnabled true, exit 0',
+          },
+        ]),
+      );
+
+      expect(findings).toEqual([]);
+    },
+  );
+
+  it('still demands a commit when the fix claims to be one', () => {
+    const findings = checkDefectLedgerReleaseBlockers(
+      config,
+      ledger([
+        {
+          id: 'TEL-P1-084',
+          severity: 'P1',
+          state: 'VERIFIED',
+          fixKind: 'commit',
+          fixSha: '',
+          verificationEvidence: 'some test ran',
+        },
+      ]),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].message).toContain('fixSha');
+  });
+
+  it('demands verification evidence whatever the fix kind', () => {
+    const findings = checkDefectLedgerReleaseBlockers(
+      config,
+      ledger([
+        {
+          id: 'TEL-P1-085',
+          severity: 'P1',
+          state: 'VERIFIED',
+          fixKind: 'infrastructure',
+          fixSha: '',
+          verificationEvidence: '',
+        },
+      ]),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].message).toContain('verificationEvidence');
+  });
+
+  it('requires a P0/P1 marked VERIFIED to carry a fix SHA and verification evidence', () => {
+    const findings = checkDefectLedgerReleaseBlockers(
+      config,
+      ledger([{ id: 'TEL-P1-079', severity: 'P1', state: 'VERIFIED', fixSha: '', verificationEvidence: '' }]),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].message).toContain('TEL-P1-079');
+  });
+});
+
+/**
+ * F2. The rendered document is generated from the ledger, so any disagreement
+ * between them means one of the two was hand-edited. Either way the release
+ * stops until they agree.
+ */
+describe('the rendered defect document must agree with the ledger', () => {
+  it('flags a document that omits a defect the ledger still tracks as open', () => {
+    const ledger = { defects: [{ id: 'TEL-P1-080', severity: 'P1', state: 'OPEN' }] };
+
+    const findings = checkDefectDocumentMatchesLedger('# Defects\n\nNothing to report.\n', ledger);
+
+    expect(findings[0].check).toBe('F2');
+    expect(findings[0].message).toContain('TEL-P1-080');
+  });
+
+  it('flags a document that states a different state than the ledger', () => {
+    const ledger = { defects: [{ id: 'TEL-P1-081', severity: 'P1', state: 'OPEN' }] };
+    const document = '### `TEL-P1-081` — something\n- **Status**: `VERIFIED`\n';
+
+    const findings = checkDefectDocumentMatchesLedger(document, ledger);
+
+    expect(findings[0].check).toBe('F2');
+    expect(findings[0].message).toContain('VERIFIED');
+  });
+
+  it('passes when the document reports the ledger state', () => {
+    const ledger = { defects: [{ id: 'TEL-P1-082', severity: 'P1', state: 'OPEN' }] };
+    const document = '### `TEL-P1-082` — something\n- **Status**: `OPEN`\n';
+
+    expect(checkDefectDocumentMatchesLedger(document, ledger)).toEqual([]);
+  });
+});
+
+/**
+ * TEL-P0-012 and TEL-P1-049. Three records in this repository claimed one release
+ * while citing artifacts produced for another, and every existing check passed them:
+ * the artifact was present, its SHA-256 re-hashed correctly, and the record's shape
+ * was valid. Nothing read what was inside the file.
+ */
+describe('an evidence record must be corroborated by the artifacts it cites', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'cert-corroborate-'));
+    mkdirSync(path.join(dir, 'raw'), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function withArtifact(name: string, contents: string) {
+    writeFileSync(path.join(dir, 'raw', name), contents);
+    return `raw/${name}`;
+  }
+
+  const scope = () => ({ repoRoot: dir, certDir: dir });
+
+  it('flags a rollback record whose log names only other releases', () => {
+    const artifact = withArtifact(
+      'rollback.log',
+      JSON.stringify({ candidateSha: OTHER_SHA, previousSha: 'd'.repeat(40) }),
+    );
+    const record = {
+      evidenceId: 'EV-DR-ROLLBACK',
+      kind: 'dr-rollback',
+      candidateSha: CANDIDATE,
+      artifacts: [{ path: artifact }],
+    };
+
+    const findings = checkArtifactCorroboratesRecord([record], scope());
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].check).toBe('U');
+    expect(findings[0].message).toContain('EV-DR-ROLLBACK');
+    expect(findings[0].message).toContain(OTHER_SHA.slice(0, 7));
+  });
+
+  it('accepts a record whose artifact names the candidate among other commits', () => {
+    const artifact = withArtifact(
+      'rollback.log',
+      JSON.stringify({ candidateSha: CANDIDATE, previousSha: OTHER_SHA }),
+    );
+    const record = {
+      evidenceId: 'EV-DR-ROLLBACK',
+      kind: 'dr-rollback',
+      candidateSha: CANDIDATE,
+      artifacts: [{ path: artifact }],
+    };
+
+    expect(checkArtifactCorroboratesRecord([record], scope())).toEqual([]);
+  });
+
+  it('leaves alone an artifact that identifies no release at all', () => {
+    const artifact = withArtifact('vitest.log', 'Test Files 12 passed\nTests 340 passed\n');
+    const record = {
+      evidenceId: 'EV-GATE-08-VITEST',
+      kind: 'certification-run',
+      candidateSha: CANDIDATE,
+      artifacts: [{ path: artifact }],
+    };
+
+    expect(checkArtifactCorroboratesRecord([record], scope())).toEqual([]);
+  });
+
+  it('ignores record kinds that are not bound to a release', () => {
+    const artifact = withArtifact('other.log', OTHER_SHA);
+    const record = {
+      evidenceId: 'EV-ROLE-MODEL',
+      kind: 'role-model',
+      candidateSha: CANDIDATE,
+      artifacts: [{ path: artifact }],
+    };
+
+    expect(checkArtifactCorroboratesRecord([record], scope())).toEqual([]);
+  });
+
+  it('flags a claimed image digest that appears in none of the cited artifacts', () => {
+    const artifact = withArtifact('identity.log', 'sha256:' + 'b'.repeat(64));
+    const record = {
+      evidenceId: 'EV-RELEASE-IDENTITY',
+      kind: 'release-identity',
+      candidateSha: CANDIDATE,
+      metrics: { imageDigest: 'sha256:' + 'a'.repeat(64) },
+      artifacts: [{ path: artifact }],
+    };
+
+    const findings = checkClaimedDigestsAppearInArtifacts([record], scope());
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].check).toBe('U2');
+    expect(findings[0].message).toContain('EV-RELEASE-IDENTITY');
+  });
+
+  it('flags a digest claimed by a record that cites no artifact whatsoever', () => {
+    const record = {
+      evidenceId: 'EV-RELEASE-IDENTITY',
+      kind: 'release-identity',
+      candidateSha: CANDIDATE,
+      metrics: { imageDigest: 'sha256:' + 'a'.repeat(64) },
+      artifacts: [],
+    };
+
+    expect(checkClaimedDigestsAppearInArtifacts([record], scope())).toHaveLength(1);
+  });
+
+  it('accepts a digest the cited artifact actually contains', () => {
+    const digest = 'sha256:' + 'a'.repeat(64);
+    const artifact = withArtifact('identity.log', `resolved to ${digest}`);
+    const record = {
+      evidenceId: 'EV-RELEASE-IDENTITY',
+      kind: 'release-identity',
+      candidateSha: CANDIDATE,
+      metrics: { imageDigest: digest },
+      artifacts: [{ path: artifact }],
+    };
+
+    expect(checkClaimedDigestsAppearInArtifacts([record], scope())).toEqual([]);
+  });
+});
+
+describe('a machine-generated record must carry a measured duration', () => {
+  it('flags whole-minute, zero-millisecond start and finish times', () => {
+    const findings = checkTimestampsWereMeasured([
+      {
+        evidenceId: 'EV-DR-ROLLBACK',
+        startedAt: '2026-08-25T19:53:00.000Z',
+        finishedAt: '2026-08-25T19:54:00.000Z',
+      },
+    ]);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].check).toBe('V');
+    expect(findings[0].message).toContain('composed');
+  });
+
+  it('accepts a record carrying the process clock', () => {
+    const findings = checkTimestampsWereMeasured([
+      {
+        evidenceId: 'EV-GATE-08-VITEST',
+        startedAt: '2026-08-25T21:42:36.897Z',
+        finishedAt: '2026-08-25T21:42:42.857Z',
+      },
+    ]);
+
+    expect(findings).toEqual([]);
+  });
+
+  it('accepts a record with no timestamps rather than inventing a finding', () => {
+    expect(checkTimestampsWereMeasured([{ evidenceId: 'EV-X' }])).toEqual([]);
+  });
+});
+
+/**
+ * TEL-P1-051. `checkPostFreezeCommits` and `checkSourceIdentity` bind the candidate
+ * to the source that was frozen, and neither had a single test. That is how
+ * `tests/certification-` was added to the doc-only allowlist in a0c12f4 with nothing
+ * objecting, and how the commit after it inverted a test's expectation from NO-GO to
+ * GO while the freeze gate reported no behaviour change.
+ *
+ * The certification engine, its controls and its contract are not documentation.
+ * Editing them after a freeze and re-running the engine is the engine certifying
+ * itself under rules it wrote after the fact.
+ */
+describe('a frozen candidate does not survive a change to the certification authority', () => {
+  const CONFIG = { candidateSha: CANDIDATE };
+
+  function gitReturning(commits: Record<string, string[]>) {
+    return (args: string[]) => {
+      if (args[0] === 'log') return Object.keys(commits).join('\n');
+      if (args[0] === 'show') {
+        const sha = args[args.length - 1];
+        return (commits[sha] || []).join('\n');
+      }
+      return '';
+    };
+  }
+
+  function checksFor(files: string[]) {
+    const sha = 'f'.repeat(40);
+    return checkPostFreezeCommits(CONFIG, { git: gitReturning({ [sha]: files }) });
+  }
+
+  it('accepts a commit that only writes generated evidence and rendered documents', () => {
+    const findings = checksFor([
+      'docs/production-certification/evidence/EV-GATE-08-VITEST.json',
+      'docs/production-certification/EVIDENCE.md',
+    ]);
+
+    expect(findings).toEqual([]);
+  });
+
+  it.each([
+    ['the verdict engine', 'scripts/certification/lib/consistency.mjs'],
+    ['the certificate generator', 'scripts/certification/generate-certificate.mjs'],
+    ['the engine\'s own controls', 'tests/certification-validator.test.ts'],
+    ['the contract', 'docs/production-certification/certification.config.json'],
+    ['the defect ledger', 'docs/production-certification/defects.json'],
+    ['the requirement registry', 'docs/production-certification/requirements.json'],
+  ])('invalidates the candidate when a commit changes %s', (_label, file) => {
+    const findings = checksFor([file]);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].check).toBe('N2');
+    expect(findings[0].severity).toBe('FAIL');
+    expect(findings[0].message).toContain(file);
+    expect(findings[0].message).toMatch(/re-freeze/);
+  });
+
+  it('still reports an ordinary source change as a behaviour change', () => {
+    const findings = checksFor(['lib/prisma.ts']);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].check).toBe('N');
+    expect(findings[0].message).toContain('lib/prisma.ts');
+  });
+
+  it('reports both when one commit changes source and authority together', () => {
+    const findings = checksFor(['lib/prisma.ts', 'scripts/certification/validate-certification.mjs']);
+
+    expect(findings.map((f) => f.check).sort()).toEqual(['N', 'N2']);
+  });
+
+  it('reports nothing at all when HEAD is the frozen candidate', () => {
+    const findings = checkPostFreezeCommits(CONFIG, { git: () => '' });
+
+    expect(findings).toEqual([]);
+  });
+
+  it('fails closed when the candidate is not reachable from HEAD', () => {
+    const findings = checkPostFreezeCommits(CONFIG, { git: () => null });
+
+    expect(findings[0].check).toBe('N');
+    expect(findings[0].message).toMatch(/not reachable/);
+  });
+});
+
+/**
+ * This test has been flipped twice in this repository's history to match whatever
+ * verdict was wanted at the time — asserting NO-GO while blockers were open, then
+ * rewritten to assert GO in `793ab19`. A test whose expectation is edited to match
+ * the outcome proves nothing about the outcome.
+ *
+ * So it asserts no verdict of its own. It asserts only that the validator agrees
+ * with the structured ledger: unresolved blocking defects must produce NO-GO and a
+ * non-zero exit, and a clean ledger must produce GO. It stays honest as the ledger
+ * moves, and it cannot be satisfied by editing the expectation.
+ */
 describe('the repository under certification', () => {
-  it('is currently NOT eligible for a certificate, and the validator exits non-zero', () => {
+  it('returns the verdict the defect ledger implies, in whichever direction', () => {
+    const repoRoot = path.resolve(__dirname, '..');
+    const ledger = JSON.parse(
+      readFileSync(path.join(repoRoot, 'docs/production-certification/defects.json'), 'utf8'),
+    ) as { defects: Array<{ id: string; severity: string; state: string }> };
+    const config = JSON.parse(
+      readFileSync(
+        path.join(repoRoot, 'docs/production-certification/certification.config.json'),
+        'utf8',
+      ),
+    ) as Record<string, unknown>;
+
+    const ledgerBlockers = checkDefectLedgerReleaseBlockers(config, ledger);
+
     let exitCode = 0;
     let output = '';
     try {
       output = execFileSync(
         process.execPath,
         ['scripts/certification/validate-certification.mjs', '--quiet'],
-        { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' },
+        { cwd: repoRoot, encoding: 'utf8' },
       );
     } catch (error) {
       const failure = error as { status: number; stdout: string };
@@ -523,7 +1012,14 @@ describe('the repository under certification', () => {
       output = failure.stdout;
     }
 
-    expect(exitCode).not.toBe(0);
-    expect(output).toContain('NO-GO');
+    if (ledgerBlockers.length > 0) {
+      expect(
+        exitCode,
+        `ledger holds ${ledgerBlockers.length} blocker(s) — first: ${ledgerBlockers[0].message}`,
+      ).not.toBe(0);
+      expect(output).toContain('NO-GO');
+    } else {
+      expect(output).toContain('GO');
+    }
   });
 });

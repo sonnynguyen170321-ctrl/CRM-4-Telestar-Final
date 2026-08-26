@@ -14,10 +14,14 @@
 import { existsSync, readFileSync } from 'node:fs';
 
 import {
+  checkArtifactCorroboratesRecord,
   checkBackupArtifactSanity,
+  checkClaimedDigestsAppearInArtifacts,
+  checkTimestampsWereMeasured,
   checkCandidateShaAgreement,
   checkCertificateOrdering,
-  checkCertificateVersusOpenDefects,
+  checkDefectDocumentMatchesLedger,
+  checkDefectLedgerReleaseBlockers,
   checkCiHeadSha,
   checkDocumentVerdictConsistency,
   checkCutoverPostProof,
@@ -39,6 +43,7 @@ import {
   CERTIFICATE_PATH,
   CONFIG_PATH,
   DEFECTS_PATH,
+  DEFECT_LEDGER_PATH,
   REQUIREMENTS_PATH,
 } from './lib/paths.mjs';
 import { resolveRequirements, summariseRequirements } from './lib/requirements.mjs';
@@ -157,6 +162,7 @@ export function validateCertification() {
   const records = loadEvidenceRecords();
   const certificateText = readTextOrEmpty(CERTIFICATE_PATH);
   const defectsText = readTextOrEmpty(DEFECTS_PATH);
+  const defectLedger = readJson(DEFECT_LEDGER_PATH);
 
   const resolved = resolveRequirements(registry, records, config.candidateSha);
   const summary = summariseRequirements(resolved);
@@ -168,12 +174,16 @@ export function validateCertification() {
     ...checkTestTotalAgreement(),
     ...checkLoadResultAgreement(),
     ...checkDocumentedVerifiedClaims(resolved),
-    ...checkCertificateVersusOpenDefects(certificateText, defectsText),
+    ...checkDefectLedgerReleaseBlockers(config, defectLedger),
+    ...checkDefectDocumentMatchesLedger(defectsText, defectLedger),
     ...checkNoFileUrls(),
     ...checkReferencedFilesExist(config),
     ...checkRegistryTestFilesExist(registry),
     ...checkRunLadder(config, records),
     ...checkBackupArtifactSanity(records),
+    ...checkArtifactCorroboratesRecord(records),
+    ...checkClaimedDigestsAppearInArtifacts(records),
+    ...checkTimestampsWereMeasured(records),
     ...checkReleaseIdentity(config, records),
     ...checkCertificateOrdering(records, certificateText),
     ...checkPostFreezeCommits(config),

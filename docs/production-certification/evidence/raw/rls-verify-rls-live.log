@@ -1,0 +1,5 @@
+$ node scripts/verify-rls-live.mjs
+verify-rls-live: needs DATABASE_URL (privileged) and CRM_APP_URL (the application role).
+CRM_APP_URL is written to .env.rls.local when supabase/roles.sql is applied.
+
+[exit 2]

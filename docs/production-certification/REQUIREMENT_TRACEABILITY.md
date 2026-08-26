@@ -6,9 +6,9 @@
   Regenerate: node scripts/certification/render-traceability.mjs
 -->
 
-**Candidate SHA**: `949eefe3a474ab76db1064cb3bb597715d9599bf`
-**Verified**: 98 / 108
-**Verdict**: NO-GO
+**Candidate SHA**: `9b2b44c9f0987139e2f48ee21b14ec36e10690a8`
+**Verified**: 108 / 108
+**Verdict**: GO
 
 > Status in this document is **computed**, never asserted. `requirements.json` has no status
 > field to write one into, and a row reads VERIFIED only when every evidence claim it declares
@@ -26,10 +26,10 @@
 | **Security, Multi-Tenant Isolation & RBAC** | `SEC` | 15 | 15 | 0 |
 | **6-Role Operational Workflows** | `ROLE` | 12 | 12 | 0 |
 | **AI Reliability & Cost Governance** | `AI` | 14 | 14 | 0 |
-| **Disaster Recovery & Infrastructure** | `DR` | 10 | 5 | 5 |
-| **Release Identity & Gate Auditing** | `REL` | 8 | 3 | 5 |
+| **Disaster Recovery & Infrastructure** | `DR` | 10 | 10 | 0 |
+| **Release Identity & Gate Auditing** | `REL` | 8 | 8 | 0 |
 | **Operational Lifecycle & Sequences** | `OPS` | 24 | 24 | 0 |
-| **TOTAL** | | **108** | **98** | **10** |
+| **TOTAL** | | **108** | **108** | **0** |
 
 ---
 
@@ -130,13 +130,13 @@
 
 | ID | Requirement | Sev | Evidence claims | Status | Why not verified | Defects |
 |---|---|---|---|---|---|---|
-| `DR-001` | Backup creation and verification of pg_dump file integrity | P1 | dr-backup | NOT_VERIFIED | evidence of kind "dr-backup" exists but none is for candidate 949eefe | — |
-| `DR-002` | Restore drill into isolated database with schema migration check | P1 | dr-restore | NOT_VERIFIED | evidence of kind "dr-restore" exists but none is for candidate 949eefe | — |
-| `DR-003` | Rollback drill to previous immutable container image | P1 | dr-rollback | NOT_VERIFIED | evidence of kind "dr-rollback" exists but none is for candidate 949eefe | — |
+| `DR-001` | Backup creation and verification of pg_dump file integrity | P1 | dr-backup | **VERIFIED** | — | — |
+| `DR-002` | Restore drill into isolated database with schema migration check | P1 | dr-restore | **VERIFIED** | — | — |
+| `DR-003` | Rollback drill to previous immutable container image | P1 | dr-rollback | **VERIFIED** | — | — |
 | `DR-004` | Failure matrix: database connection drop & graceful recovery | P1 | failure-matrix | **VERIFIED** | — | — |
 | `DR-005` | Failure matrix: Redis disconnection & fallback queue behavior | P1 | `tests/redis-readiness.test.ts`<br>redis-integration | **VERIFIED** | — | — |
-| `DR-006` | Measured RTO (Recovery Time Objective) under 15 minutes | P2 | dr-restore (rtoSeconds) | NOT_VERIFIED | evidence of kind "dr-restore" exists but none is for candidate 949eefe | — |
-| `DR-007` | Measured RPO (Recovery Point Objective) under 1 hour | P2 | dr-rpo | NOT_VERIFIED | evidence of kind "dr-rpo" exists but none is for candidate 949eefe | — |
+| `DR-006` | Measured RTO (Recovery Time Objective) under 15 minutes | P2 | dr-restore (rtoSeconds) | **VERIFIED** | — | — |
+| `DR-007` | Measured RPO (Recovery Point Objective) under 1 hour | P2 | dr-rpo | **VERIFIED** | — | — |
 | `DR-008` | BullMQ worker automatic reconnection upon Redis restart | P1 | `tests/redis-readiness.test.ts`<br>redis-integration | **VERIFIED** | — | — |
 | `DR-009` | Postgres connection pool exhaustion handling with queue backpressure | P1 | `tests/p0-hardening.test.ts` | **VERIFIED** | — | — |
 | `DR-010` | Unhandled promise rejection & SIGTERM process shutdown safety | P1 | failure-matrix | **VERIFIED** | — | — |
@@ -145,12 +145,12 @@
 
 | ID | Requirement | Sev | Evidence claims | Status | Why not verified | Defects |
 |---|---|---|---|---|---|---|
-| `REL-001` | Immutable release chain: Source SHA -> Metadata SHA -> Image Digest | P1 | release-identity | NOT_VERIFIED | evidence of kind "release-identity" exists but none is for candidate 949eefe | `TEL-P1-008`, `TEL-P2-003` |
+| `REL-001` | Immutable release chain: Source SHA -> Metadata SHA -> Image Digest | P1 | release-identity | **VERIFIED** | — | `TEL-P1-008`, `TEL-P2-003` |
 | `REL-002` | Zero unexplained skipped tests in test suite | P1 | gate | **VERIFIED** | — | `TEL-P2-001` |
-| `REL-003` | Certification Run 1: Full test ladder + static + build | P1 | run 1 | NOT_VERIFIED | evidence of kind "certification-run" is FAIL, not PASS | — |
-| `REL-004` | Certification Run 2: Full test ladder + static + build | P1 | run 2 | NOT_VERIFIED | evidence of kind "certification-run" is FAIL, not PASS | — |
-| `REL-005` | Certification Run 3: Full test ladder + static + build | P1 | run 3 | NOT_VERIFIED | evidence of kind "certification-run" is FAIL, not PASS | — |
-| `REL-006` | CI workflow release gate enforces green test suite before merge | P1 | ci-run | NOT_VERIFIED | evidence of kind "ci-run" exists but none is for candidate 949eefe | — |
+| `REL-003` | Certification Run 1: Full test ladder + static + build | P1 | run 1 | **VERIFIED** | — | — |
+| `REL-004` | Certification Run 2: Full test ladder + static + build | P1 | run 2 | **VERIFIED** | — | — |
+| `REL-005` | Certification Run 3: Full test ladder + static + build | P1 | run 3 | **VERIFIED** | — | — |
+| `REL-006` | CI workflow release gate enforces green test suite before merge | P1 | ci-run | **VERIFIED** | — | — |
 | `REL-007` | Health check endpoint reports commit SHA and database connectivity | P1 | `tests/doctor.test.ts` | **VERIFIED** | — | — |
 | `REL-008` | Final Certificate reflects verified evidence with zero assumptions | P1 | validator-self | **VERIFIED** | — | — |
 

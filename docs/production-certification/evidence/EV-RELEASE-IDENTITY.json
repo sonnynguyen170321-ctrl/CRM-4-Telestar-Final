@@ -1,23 +1,46 @@
 {
   "evidenceId": "EV-RELEASE-IDENTITY",
   "kind": "release-identity",
-  "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
-  "environment": "win32 / node 24.16.0 / deploy host",
-  "command": "docker buildx imagetools inspect; docker inspect; curl /api/health",
-  "startedAt": "2026-08-24T09:41:35.285Z",
-  "finishedAt": "2026-08-24T09:42:12.554Z",
-  "exitCode": 0,
-  "status": "PASS",
+  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+  "environment": "read-only observation from the certification workstation: container registry, GitHub API, live health endpoint",
+  "command": "node scripts/certification/verify-release-identity.mjs --image sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b --ci-run 32891125645 --url https://crm.telestar.cloud/api/health",
+  "startedAt": "2026-08-26T05:37:38.244Z",
+  "finishedAt": "2026-08-26T05:37:43.491Z",
+  "exitCode": 1,
+  "status": "FAIL",
   "metrics": {
-    "ciRunId": "32711776013",
-    "imageDigest": "sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
-    "webDigest": "sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
-    "workerDigest": "sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
-    "healthSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
-    "deployedAt": "2026-08-24T09:41:35.285Z",
-    "migrationCount": 52,
+    "ciRunId": "32891125645",
+    "ciHeadSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+    "ciConclusion": "success",
+    "imageDigest": "sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b",
+    "imageRevisionLabel": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+    "imageCreated": "2026-08-25T19:51:32.309597013Z",
+    "imageRevisionMatchesCandidate": true,
+    "webDigest": null,
+    "workerDigest": null,
+    "containerDigestsObserved": false,
+    "healthSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+    "healthMatchesCandidate": true,
     "separateImagesIntentional": false,
-    "chainProblems": []
+    "chainProblems": [
+      "web and worker container digests were not observed: only the deployment host can report which digest each running container was started from, and this workstation has no access to it"
+    ]
   },
-  "artifacts": []
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/release-identity-imagetools.log",
+      "sizeBytes": 14932,
+      "sha256": "f46cea408c52e33ecdba7e2304b342f23c37a743f981de93580b6de10cf19849"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/release-identity-ci-run.log",
+      "sizeBytes": 184,
+      "sha256": "58a542db6ad99a808aa46a19d196dfa86e98ca40bcc16e50bb04839af6a07e4f"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/release-identity-health.log",
+      "sizeBytes": 234,
+      "sha256": "5890eebe163786e29893d3d55748f9a3f503fb66fa557c35fd468da56874008d"
+    }
+  ]
 }

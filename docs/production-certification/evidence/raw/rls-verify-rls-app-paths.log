@@ -1,0 +1,38 @@
+$ node scripts/verify-rls-app-paths.mjs
+Verifying application paths under RLS in throwaway database crm_rls_apppaths_432efa07
+Admin host: localhost:5432
+
+Application paths, as a NOSUPERUSER role with DB_RLS_ENFORCED=true:
+
+  [32mPASS[0m  verifyAndFetchSharedReport resolves a valid token under enforcement
+        returned "Weekly report" for "Acme"
+  [32mPASS[0m  the view-counter write lands under enforcement
+        viewCount = 1 after one view (expected 1)
+  [32mPASS[0m  the same lookup with no bypass returns nothing — the fix is what makes probe 1 pass
+        null, as the policy requires
+  [32mPASS[0m  a model operation through the extension sees its tenant
+        Lead count = 1 (expected 1)
+  [32mPASS[0m  bare raw SQL sees nothing — the extension cannot reach root operations
+        Lead count via bare $queryRaw = 0, as the policy requires
+  [32mPASS[0m  withTenantRaw gives raw SQL its tenant context
+        Lead count via withTenantRaw = 1 (expected 1)
+  [32mPASS[0m  withBypassRaw reaches rows for deliberately cross-tenant maintenance
+        Lead count via withBypassRaw = 1 (expected 1)
+  [32mPASS[0m  the AI budget path reserves and settles under enforcement
+        reserved 1 then settled to used 1 / reserved 0 (expected 1, 1, 0)
+  [32mPASS[0m  createAdminClient reaches rows a bare client cannot
+        Lead count = 1 (expected 1; 0 means the options parameter did not take)
+  [32mPASS[0m  the same client without the option sees nothing
+        Lead count = 0, as the policy requires
+  [32mPASS[0m  a scoped read cannot reach another tenant lead by id (TEL-P0-013 under RLS)
+        null — refused by the extension and by the crm_app policy independently
+  [32mPASS[0m  the owning tenant still reads its own lead by id
+        returned "Co A" (expected Co A)
+  [32mPASS[0m  a bypassRls model read is inert for the application role, even for its own tenant
+        null — bypassRls sets app.bypass_rls, the crm_app policy reads app.current_tenant_id, and nothing sets it on that path; application routes must scope, not bypass
+
+Cleaned up crm_rls_apppaths_432efa07 and crm_rls_appuser_cf7597.
+
+All application paths survive DB-level RLS.
+
+[exit 0]

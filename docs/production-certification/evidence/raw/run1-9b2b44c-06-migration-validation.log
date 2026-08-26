@@ -1,0 +1,11 @@
+# gate: 06-migration-validation — scripts/check-migration-order.mjs
+# command: C:\Program Files\nodejs\node.exe scripts/check-migration-order.mjs
+# startedAt: 2026-08-25T20:43:28.944Z
+# finishedAt: 2026-08-25T20:43:29.127Z
+# exitCode: 0
+
+--- stdout ---
+[migration-order] ok — 52 migrations, no new migrations
+
+--- stderr ---
+(empty)

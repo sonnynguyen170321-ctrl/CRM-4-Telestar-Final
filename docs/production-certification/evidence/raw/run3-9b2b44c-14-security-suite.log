@@ -1,0 +1,34 @@
+# gate: 14-security-suite — tenant isolation, object auth, mass assignment, XSS, formula injection, secrets
+# command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/tenant-inject.test.ts tests/object-auth-red-team.test.ts tests/mass-assignment.test.ts tests/security-injection.test.ts tests/gitleaks-allowlist.test.ts tests/csp.test.ts tests/login-throttle.test.ts
+# startedAt: 2026-08-25T21:29:19.630Z
+# finishedAt: 2026-08-25T21:29:29.191Z
+# exitCode: 0
+
+--- stdout ---
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mC:/Users/admin/Desktop/Sonny & AI/CRM-4-Telestar-Final[39m
+
+ [32m✓[39m tests/login-throttle.test.ts [2m([22m[2m26 tests[22m[2m)[22m[32m 66[2mms[22m[39m
+ [32m✓[39m tests/mass-assignment.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m tests/gitleaks-allowlist.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m tests/security-injection.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m tests/object-auth-red-team.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1194[2mms[22m[39m
+     [33m[2m✓[22m[39m SEC-004: Attacker tenant cannot read victim lead by direct ID lookup [33m 321[2mms[22m[39m
+     [33m[2m✓[22m[39m SEC-004: Attacker tenant cannot delete victim lead by direct ID lookup [33m 394[2mms[22m[39m
+ [32m✓[39m tests/csp.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m tests/tenant-inject.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m7 passed[39m[22m[90m (7)[39m
+[2m      Tests [22m [1m[32m96 passed[39m[22m[90m (96)[39m
+[2m   Start at [22m 04:29:20
+[2m   Duration [22m 8.73s[2m (transform 844ms, setup 15.91s, import 3.69s, tests 1.38s, environment 3ms)[22m
+
+
+--- stderr ---
+[90mstderr[2m | tests/login-throttle.test.ts[2m > [22m[2mstore[2m > [22m[2mfails open when Redis is unreachable
+[22m[39m[login-throttle] count read failed, failing open: ECONNREFUSED
+
+[90mstderr[2m | tests/login-throttle.test.ts[2m > [22m[2mstore[2m > [22m[2mdoes not throw when recording fails
+[22m[39m[login-throttle] failure record failed: ECONNREFUSED
+
+

@@ -22,7 +22,11 @@ import path from 'node:path';
 import {
   checkBackupArtifactSanity,
   checkCandidateShaAgreement,
-  checkCertificateVersusOpenDefects,
+  checkArtifactCorroboratesRecord,
+  checkClaimedDigestsAppearInArtifacts,
+  checkDefectDocumentMatchesLedger,
+  checkDefectLedgerReleaseBlockers,
+  checkTimestampsWereMeasured,
   checkCiHeadSha,
   checkCutoverPostProof,
   checkEmailPostureIsMeasured,
@@ -220,14 +224,195 @@ function main() {
     );
   }
 
-  // ── F: an APPROVED certificate while defects remain open ──────────────────
+  // ── F: the ledger blocks the release, whatever the certificate says ───────
+  //
+  // The injection this replaces fed the gate '**Certificate Status**: ISSUED &
+  // APPROVED' — wording this program has never emitted. The gate early-returned on
+  // any other certificate, so the self-test stayed green while the production path
+  // was unreachable (TEL-P0-011). A control must inject a state the system can
+  // actually reach.
+  const blockingConfig = { releaseBlockingSeverities: ['P0', 'P1', 'P2'] };
+  for (const [severity, state] of [
+    ['P0', 'OPEN'],
+    ['P1', 'OPEN'],
+    ['P2', 'OPEN'],
+    ['P0', 'FIXED_PENDING_VERIFICATION'],
+    ['P1', 'FIXED_PENDING_VERIFICATION'],
+    ['P1', 'IN_PROGRESS'],
+  ]) {
+    expectRed(
+      `F — a ${severity} defect in state ${state}`,
+      checkDefectLedgerReleaseBlockers(blockingConfig, {
+        defects: [{ id: `TEL-${severity}-999`, severity, state }],
+      }),
+      `check F did not block a ${severity} defect in state ${state}`,
+    );
+  }
   expectRed(
-    'F — an APPROVED certificate while a P0 defect is open',
-    checkCertificateVersusOpenDefects(
-      '**Certificate Status**: ISSUED & APPROVED',
-      '### `TEL-P0-001` — something\n- **Status**: `OPEN`',
+    'F — a P0 accepted as a risk with no authorization record',
+    checkDefectLedgerReleaseBlockers(blockingConfig, {
+      defects: [{ id: 'TEL-P0-998', severity: 'P0', state: 'ACCEPTED_RISK' }],
+    }),
+    'check F did not block an unauthorized accepted risk',
+  );
+  expectRed(
+    'F — a P0 accepted as a risk even when an authorization record exists',
+    checkDefectLedgerReleaseBlockers(
+      {
+        ...blockingConfig,
+        authorizedAcceptedRisks: [{ id: 'TEL-P0-997', owner: 'operator', authorization: 'signed' }],
+      },
+      { defects: [{ id: 'TEL-P0-997', severity: 'P0', state: 'ACCEPTED_RISK' }] },
     ),
-    'check F did not notice APPROVED alongside an open defect',
+    'check F let a P0 be signed away',
+  );
+  expectRed(
+    'F — a P1 marked VERIFIED with no fix SHA and no verification evidence',
+    checkDefectLedgerReleaseBlockers(blockingConfig, {
+      defects: [
+        {
+          id: 'TEL-P1-996',
+          severity: 'P1',
+          state: 'VERIFIED',
+          fixSha: '',
+          verificationEvidence: '',
+        },
+      ],
+    }),
+    'check F accepted a VERIFIED claim carrying no evidence',
+  );
+  expectRed(
+    'F — an unrecognised defect state is not a closed defect',
+    checkDefectLedgerReleaseBlockers(blockingConfig, {
+      defects: [{ id: 'TEL-P1-995', severity: 'P1', state: 'PROBABLY_FINE' }],
+    }),
+    'check F treated an unknown state as closed',
+  );
+  expectRed(
+    'F2 — the rendered document disagrees with the ledger',
+    checkDefectDocumentMatchesLedger('### `TEL-P1-994` \u2014 x\n- **Status**: `VERIFIED`\n', {
+      defects: [{ id: 'TEL-P1-994', severity: 'P1', state: 'OPEN' }],
+    }),
+    'check F2 did not notice a hand-edited defect document',
+  );
+  expectRed(
+    'F2 — the rendered document omits a defect the ledger tracks',
+    checkDefectDocumentMatchesLedger('# Defects\n', {
+      defects: [{ id: 'TEL-P1-993', severity: 'P1', state: 'OPEN' }],
+    }),
+    'check F2 did not notice a defect missing from the document',
+  );
+
+  // ── U/U2/V: a record composed around someone else's artifact ────────────
+  //
+  // EV-DR-ROLLBACK claimed candidate 9b2b44c and digest sha256:99fbfe..., and cited
+  // a log recording a drill run a day earlier for c7bf639. Every check of the day
+  // passed it: the artifact existed, its SHA-256 re-hashed, its shape was valid.
+  // None of them read the file.
+  {
+    const corroborationSandbox = makeSandbox();
+    const OTHER = 'd'.repeat(40);
+    const CLAIMED = 'e'.repeat(40);
+    mkdirSync(path.join(corroborationSandbox.root, 'raw'), { recursive: true });
+    writeFileSync(
+      path.join(corroborationSandbox.root, 'raw', 'someone-elses-drill.log'),
+      JSON.stringify({ candidateSha: OTHER, previousSha: 'f'.repeat(40) }),
+    );
+    writeFileSync(
+      path.join(corroborationSandbox.root, 'raw', 'no-digest.log'),
+      'rollback completed in 1.5s',
+    );
+
+    expectRed(
+      'U — a rollback record citing a log that names only other releases',
+      checkArtifactCorroboratesRecord(
+        [
+          {
+            evidenceId: 'EV-FAKE-ROLLBACK',
+            kind: 'dr-rollback',
+            candidateSha: CLAIMED,
+            artifacts: [{ path: 'raw/someone-elses-drill.log' }],
+          },
+        ],
+        corroborationSandbox.scope,
+      ),
+      'check U did not notice an artifact belonging to a different release',
+    );
+
+    expectGreen(
+      'U — an artifact that names the candidate it is cited for',
+      checkArtifactCorroboratesRecord(
+        [
+          {
+            evidenceId: 'EV-REAL-ROLLBACK',
+            kind: 'dr-rollback',
+            candidateSha: OTHER,
+            artifacts: [{ path: 'raw/someone-elses-drill.log' }],
+          },
+        ],
+        corroborationSandbox.scope,
+      ),
+      'check U flagged an artifact that does name its candidate',
+    );
+
+    expectRed(
+      'U2 — a digest claimed by a record and present in none of its artifacts',
+      checkClaimedDigestsAppearInArtifacts(
+        [
+          {
+            evidenceId: 'EV-FAKE-IDENTITY',
+            kind: 'release-identity',
+            candidateSha: CLAIMED,
+            metrics: { imageDigest: `sha256:${'a'.repeat(64)}` },
+            artifacts: [{ path: 'raw/no-digest.log' }],
+          },
+        ],
+        corroborationSandbox.scope,
+      ),
+      'check U2 did not notice a digest that exists only in the record asserting it',
+    );
+
+    expectRed(
+      'U2 — a release-identity record citing no artifact at all',
+      checkClaimedDigestsAppearInArtifacts(
+        [
+          {
+            evidenceId: 'EV-EMPTY-IDENTITY',
+            kind: 'release-identity',
+            candidateSha: CLAIMED,
+            metrics: { imageDigest: `sha256:${'a'.repeat(64)}` },
+            artifacts: [],
+          },
+        ],
+        corroborationSandbox.scope,
+      ),
+      'check U2 accepted a digest chain with no evidence behind it',
+    );
+
+    rmSync(corroborationSandbox.root, { recursive: true, force: true });
+  }
+
+  expectRed(
+    'V — a record whose start and finish were typed, not measured',
+    checkTimestampsWereMeasured([
+      {
+        evidenceId: 'EV-COMPOSED',
+        startedAt: '2026-08-25T19:53:00.000Z',
+        finishedAt: '2026-08-25T19:54:00.000Z',
+      },
+    ]),
+    'check V did not notice a whole-minute, zero-millisecond duration',
+  );
+  expectGreen(
+    'V — a record carrying the process clock',
+    checkTimestampsWereMeasured([
+      {
+        evidenceId: 'EV-MEASURED',
+        startedAt: '2026-08-25T21:42:36.897Z',
+        finishedAt: '2026-08-25T21:42:42.857Z',
+      },
+    ]),
+    'check V flagged a genuinely measured record',
   );
 
   // ── P/Q: the exact disaster-recovery fabrication this program began with ──

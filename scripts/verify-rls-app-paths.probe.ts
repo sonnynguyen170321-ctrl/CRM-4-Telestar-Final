@@ -277,6 +277,98 @@ async function main() {
     await plain.$disconnect();
   }
 
+  // ── The shape of TEL-P0-013, under enforcement ───────────────────────────────
+  //
+  // Two AI routes opened `tenantStorage.run({ tenantId, bypassRls: true })` and then read
+  // `prisma.lead.findUnique({ where: { id: leadId } })` with `leadId` straight from the
+  // request body. With the application-layer filter switched off and no policies in the
+  // database, that returned another tenant's lead.
+  //
+  // `withBypassRaw` reaches across tenants above, and it is reasonable to assume this does
+  // too — it does not. That path prefers the `crm_maintenance` role, which `rls.sql` grants
+  // the cross-tenant policy to by name. This one runs on the ordinary application client,
+  // and the `crm_app` policy consults `app.current_tenant_id` alone: it has no branch that
+  // reads `app.bypass_rls`, so the application role cannot grant itself one.
+  //
+  // The claim being tested is therefore that DB-level RLS contains the exact defect the
+  // application layer let through. It is asserted in the TEL-P1-038 argument, so it is
+  // measured here rather than reasoned about.
+  const FOREIGN_TENANT = `${TENANT}-not-mine`;
+  try {
+    // async callback, deliberately: with a non-async arrow the AsyncLocalStorage context
+    // can be gone by the time Prisma's extension resolves it, and the read then returns
+    // null for want of any tenant at all. That looks exactly like containment and proves
+    // nothing, which is how the first version of this probe passed for the wrong reason.
+    const stolen = await tenantStorage.run({ tenantId: FOREIGN_TENANT, bypassRls: false }, async () =>
+      prisma.lead.findFirst({ where: { id: 'lead-a' } }),
+    );
+    record(
+      'a scoped read cannot reach another tenant lead by id (TEL-P0-013 under RLS)',
+      stolen === null,
+      stolen === null
+        ? 'null — refused by the extension and by the crm_app policy independently'
+        : `returned "${(stolen as { company?: string }).company}" — the boundary did NOT hold`,
+    );
+  } catch (err) {
+    // A policy violation that raises is also containment; only a returned row is a failure.
+    record(
+      'a scoped read cannot reach another tenant lead by id (TEL-P0-013 under RLS)',
+      true,
+      `refused with: ${(err as Error).message.split('\n')[0]}`,
+    );
+  }
+
+  // The control. The same read from the tenant that owns the row must still work, or the
+  // probe above passes because the lookup is broken for everybody.
+  try {
+    const { own, all, count } = await tenantStorage.run(
+      { tenantId: TENANT, bypassRls: false },
+      async () => ({
+        own: await prisma.lead.findFirst({ where: { id: 'lead-a' } }),
+        all: await prisma.lead.findMany({ select: { id: true, tenantId: true } }),
+        count: await prisma.lead.count(),
+      }),
+    );
+    record(
+      'the owning tenant still reads its own lead by id',
+      own !== null,
+      own !== null
+        ? `returned "${(own as { company?: string }).company}" (expected Co A)`
+        : `null — findMany saw ${JSON.stringify(all)}, count=${count}; tenant in context = ${TENANT}`,
+    );
+  } catch (err) {
+    record('the owning tenant still reads its own lead by id', false, `threw: ${(err as Error).message}`);
+  }
+
+  // Why the two routes above must be scoped rather than bypassed, measured rather than
+  // argued. `withBypassRaw` reaches across tenants by switching to `crm_maintenance`, and
+  // it is natural to assume a `bypassRls: true` model read does the same. It does not: it
+  // stays on the application client, and the `crm_app` policy matches on
+  // `app.current_tenant_id`, which the bypass path never sets. So under RLS a bypassed
+  // read returns nothing to ANYBODY — including the tenant that owns the row.
+  //
+  // That is a latent trap for any future route reaching for the flag out of habit, so it
+  // is recorded as a finding here rather than left to be discovered during a cutover.
+  try {
+    const bypassed = await tenantStorage.run({ tenantId: TENANT, bypassRls: true }, async () =>
+      prisma.lead.findFirst({ where: { id: 'lead-a', tenantId: TENANT } }),
+    );
+    record(
+      'a bypassRls model read is inert for the application role, even for its own tenant',
+      bypassed === null,
+      bypassed === null
+        ? 'null — bypassRls sets app.bypass_rls, the crm_app policy reads app.current_tenant_id, ' +
+          'and nothing sets it on that path; application routes must scope, not bypass'
+        : `returned "${(bypassed as { company?: string }).company}" — the assumption above is wrong, revisit it`,
+    );
+  } catch (err) {
+    record(
+      'a bypassRls model read is inert for the application role, even for its own tenant',
+      true,
+      `refused with: ${(err as Error).message.split('\n')[0]}`,
+    );
+  }
+
   await prisma.$disconnect();
 
   console.log('---PROBE-JSON-START---');

@@ -1,0 +1,22 @@
+# gate: 11-email-safety — demo barrier, idempotency, safe-mode posture
+# command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/demo-email-barrier.test.ts tests/email-idempotency.test.ts tests/email-safety.test.ts
+# startedAt: 2026-08-25T20:48:52.115Z
+# finishedAt: 2026-08-25T20:48:56.358Z
+# exitCode: 0
+
+--- stdout ---
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mC:/Users/admin/Desktop/Sonny & AI/CRM-4-Telestar-Final[39m
+
+ [32m✓[39m tests/email-safety.test.ts [2m([22m[2m33 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m tests/email-idempotency.test.ts [2m([22m[2m30 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m tests/demo-email-barrier.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[32m67 passed[39m[22m[90m (67)[39m
+[2m   Start at [22m 03:48:52
+[2m   Duration [22m 3.44s[2m (transform 417ms, setup 7.00s, import 764ms, tests 63ms, environment 1ms)[22m
+
+
+--- stderr ---
+(empty)

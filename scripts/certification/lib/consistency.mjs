@@ -197,20 +197,158 @@ export function checkLoadResultAgreement(scope = defaultScope()) {
   return findings;
 }
 
-/** F: no APPROVED certificate while P0/P1 defects are open. */
-export function checkCertificateVersusOpenDefects(certificateText, defectsText) {
+/**
+ * F: the defect ledger decides whether a release may proceed.
+ *
+ * The gate this replaces read DEFECTS.md prose and returned early unless the
+ * certificate said `Certificate Status: ISSUED & APPROVED`. This program emits a
+ * GO/NO-GO verdict and has never written that phrase, so the only defect gate in
+ * the validator was unreachable on every real run — and the self-test that
+ * "proved" it passed it the dead wording by hand. The repository published GO
+ * with two P1 defects OPEN (TEL-P0-011).
+ *
+ * Certificate wording is an OUTPUT of the verdict. It is not an input to it, so
+ * this function is not given the certificate at all: structured facts in, verdict
+ * out. Anything it cannot positively recognise as closed blocks the release.
+ */
+const CLOSED_DEFECT_STATE = 'VERIFIED';
+const KNOWN_DEFECT_STATES = new Set([
+  'OPEN',
+  'IN_PROGRESS',
+  'FIXED_PENDING_VERIFICATION',
+  'ACCEPTED_RISK',
+  CLOSED_DEFECT_STATE,
+]);
+
+/** Golden standard: P0, P1 and P2 all block. Overridable only by explicit configuration. */
+const DEFAULT_RELEASE_BLOCKING_SEVERITIES = ['P0', 'P1', 'P2'];
+
+/** A material production risk may not be signed away, however senior the signature. */
+const NEVER_ACCEPTABLE_SEVERITIES = new Set(['P0', 'P1']);
+
+function isEmptyEvidence(value) {
+  if (value === undefined || value === null) return true;
+  if (Array.isArray(value)) return value.length === 0;
+  return String(value).trim() === '';
+}
+
+export function checkDefectLedgerReleaseBlockers(config, ledger) {
   const findings = [];
-  const approved = /Certificate Status\*{0,2}:\s*ISSUED\s*&\s*APPROVED/i.test(certificateText);
-  if (!approved) return findings;
+  const blocking = new Set(
+    config?.releaseBlockingSeverities || DEFAULT_RELEASE_BLOCKING_SEVERITIES,
+  );
+  const authorized = new Map(
+    (config?.authorizedAcceptedRisks || [])
+      .filter((entry) => entry && entry.id && entry.owner && entry.authorization)
+      .map((entry) => [entry.id, entry]),
+  );
 
-  const openP0 = (defectsText.match(/`TEL-P0-\d+`/g) || []).length > 0;
-  const openBlock = /Status\*{0,2}:\s*`?(OPEN|IN_PROGRESS|FIXED_PENDING_VERIFICATION)`?/g;
-  const openCount = (defectsText.match(openBlock) || []).length;
+  for (const defect of ledger?.defects || []) {
+    const id = defect?.id || '(unidentified defect)';
+    const severity = defect?.severity;
+    const state = defect?.state;
 
-  if (openP0 || openCount > 0) {
-    findings.push(
-      finding('F', `certificate claims APPROVED while DEFECTS.md carries ${openCount} unclosed defect entr(ies)`),
-    );
+    if (!blocking.has(severity)) continue;
+
+    if (!KNOWN_DEFECT_STATES.has(state)) {
+      findings.push(
+        finding(
+          'F',
+          `${id} (${severity}) carries unrecognised state "${state ?? '(missing)'}"; only ${CLOSED_DEFECT_STATE} closes a defect`,
+        ),
+      );
+      continue;
+    }
+
+    if (state === 'ACCEPTED_RISK') {
+      if (!authorized.has(id)) {
+        findings.push(
+          finding(
+            'F',
+            `${id} (${severity}) is ACCEPTED_RISK but no authorization record in certification.config.json covers it`,
+          ),
+        );
+      } else if (NEVER_ACCEPTABLE_SEVERITIES.has(severity)) {
+        findings.push(
+          finding(
+            'F',
+            `${id} is ${severity} and may not be released as an accepted risk at any authorization level`,
+          ),
+        );
+      }
+      continue;
+    }
+
+    if (state !== CLOSED_DEFECT_STATE) {
+      findings.push(finding('F', `${id} (${severity}) is ${state} and blocks the release`));
+      continue;
+    }
+
+    // VERIFIED is a claim about work that was done. Directive section 39: it needs
+    // the thing that did it and the verification that observed it, or it is prose.
+    //
+    // Not every fix is a commit, and demanding one where none exists makes the gate
+    // cry wolf. TEL-P1-027 was closed by enabling point-in-time recovery on the
+    // production instance and re-measuring: fixKind "infrastructure", no commit to
+    // name, and EV-DR-RPO recording pointInTimeRecoveryEnabled true. This ledger
+    // already carries credential-rotation, container, cloudsql-backup, ci-run and
+    // infrastructure alongside commit. A fixSha is required of the kinds that have
+    // one; verification evidence is required of all of them, because that is the
+    // half no fix kind is exempt from.
+    if (NEVER_ACCEPTABLE_SEVERITIES.has(severity)) {
+      const missing = [];
+      const fixIsACommit = !defect.fixKind || defect.fixKind === 'commit';
+      if (isEmptyEvidence(defect.fixSha) && fixIsACommit) {
+        missing.push('fixSha');
+      }
+      if (isEmptyEvidence(defect.verificationEvidence)) missing.push('verificationEvidence');
+      if (missing.length > 0) {
+        findings.push(
+          finding(
+            'F',
+            `${id} (${severity}) is ${CLOSED_DEFECT_STATE} with empty ${missing.join(' and ')}`,
+          ),
+        );
+      }
+    }
+  }
+  return findings;
+}
+
+/**
+ * F2: DEFECTS.md is generated from the ledger, so the two can only disagree if
+ * one of them was edited by hand. Either way the release stops until they agree.
+ */
+export function checkDefectDocumentMatchesLedger(documentText, ledger) {
+  const findings = [];
+  const text = documentText || '';
+
+  for (const defect of ledger?.defects || []) {
+    if (!defect?.id) continue;
+    // Defect identifiers are [A-Z0-9-] by construction, so a literal search is
+    // both correct and immune to the escaping mistakes a built regex invites.
+    const marker = '### `' + defect.id + '`';
+    const at = text.indexOf(marker);
+    if (at === -1) {
+      findings.push(
+        finding('F2', `DEFECTS.md omits ${defect.id}, which the ledger tracks as ${defect.state}`),
+      );
+      continue;
+    }
+    const section = text.slice(at, at + 4000);
+    const stated = /^-\s+\*\*(?:State|Status)\*\*:\s*`?([A-Z_]+)`?/m.exec(section);
+    if (!stated) {
+      findings.push(finding('F2', `DEFECTS.md section for ${defect.id} states no status`));
+      continue;
+    }
+    if (stated[1] !== defect.state) {
+      findings.push(
+        finding(
+          'F2',
+          `DEFECTS.md reports ${defect.id} as ${stated[1]} while the ledger holds ${defect.state}`,
+        ),
+      );
+    }
   }
   return findings;
 }
@@ -293,6 +431,149 @@ export function checkBackupArtifactSanity(records) {
     if (metrics.backupSha256 === EMPTY_SHA256) {
       findings.push(finding('Q', `${record.evidenceId}: backup SHA-256 is the empty-file digest`));
     }
+  }
+  return findings;
+}
+
+/**
+ * U: a record's cited artifact must be an artifact of the release the record claims.
+ *
+ * TEL-P0-012. EV-DR-ROLLBACK declared candidateSha 9b2b44c and candidateDigest
+ * sha256:99fbfe..., status PASS. Its only artifact recorded a drill executed a day
+ * earlier for candidate c7bf639, in which sha256:791210e... — the digest the record
+ * calls "previous" — was the CANDIDATE. The record had been composed around someone
+ * else's log, and every existing check passed it: the artifact was present, its
+ * SHA-256 re-hashed correctly, and its shape was valid. Nothing read what was inside
+ * it.
+ *
+ * The rule is deliberately narrow, because artifacts legitimately vary in what they
+ * mention. It fires only when an artifact identifies releases explicitly and the
+ * record's own candidate is not among them — an artifact that names commits, all of
+ * them other people's. An artifact that names no commit at all (a vitest log, a lint
+ * log) is not evidence of provenance either way and is left alone.
+ */
+const COMMIT_SHA_PATTERN = /\b[0-9a-f]{40}\b/g;
+const IMAGE_DIGEST_PATTERN = /sha256:[0-9a-f]{64}/g;
+
+/** Record kinds whose artifacts are release-specific by construction. */
+const RELEASE_BOUND_KINDS = new Set([
+  'dr-rollback',
+  'dr-restore',
+  'dr-backup',
+  'release-identity',
+  'deployed-state',
+  'ci-run',
+  'certification-run',
+  'cutover',
+]);
+
+export function checkArtifactCorroboratesRecord(records, scope = defaultScope()) {
+  const findings = [];
+
+  for (const record of records) {
+    if (!RELEASE_BOUND_KINDS.has(record.kind)) continue;
+    const claimedSha = record.candidateSha;
+    if (!claimedSha) continue;
+
+    for (const artifact of record.artifacts || []) {
+      const artifactPath = typeof artifact === 'string' ? artifact : artifact.path;
+      if (!artifactPath) continue;
+      const absolute = path.join(scope.repoRoot, artifactPath);
+      if (!existsSync(absolute)) continue;
+
+      let content = '';
+      try {
+        content = readFileSync(absolute, 'utf8');
+      } catch {
+        continue;
+      }
+
+      const shas = new Set(content.match(COMMIT_SHA_PATTERN) || []);
+      if (shas.size === 0) continue;
+      if (shas.has(claimedSha)) continue;
+
+      findings.push(
+        finding(
+          'U',
+          `${record.evidenceId}: artifact ${artifactPath} names ${shas.size} commit(s) and none of them is the record's candidate ${claimedSha.slice(0, 7)} - the artifact belongs to ${[...shas].slice(0, 3).map((sha) => sha.slice(0, 7)).join(', ')}`,
+        ),
+      );
+    }
+  }
+  return findings;
+}
+
+/**
+ * U2: a digest a record claims must appear in one of the artifacts it cites.
+ *
+ * The same record called sha256:99fbfe... the deployed candidate digest. That digest
+ * appears in no artifact anywhere in the evidence tree. A digest that exists only in
+ * the record asserting it is an assertion, not evidence.
+ */
+export function checkClaimedDigestsAppearInArtifacts(records, scope = defaultScope()) {
+  const findings = [];
+
+  for (const record of records) {
+    if (!RELEASE_BOUND_KINDS.has(record.kind)) continue;
+    const metrics = record.metrics || {};
+    const claimed = new Set(
+      Object.values(metrics)
+        .filter((value) => typeof value === 'string')
+        .flatMap((value) => value.match(IMAGE_DIGEST_PATTERN) || []),
+    );
+    if (claimed.size === 0) continue;
+
+    const seen = new Set();
+    for (const artifact of record.artifacts || []) {
+      const artifactPath = typeof artifact === 'string' ? artifact : artifact.path;
+      if (!artifactPath) continue;
+      const absolute = path.join(scope.repoRoot, artifactPath);
+      if (!existsSync(absolute)) continue;
+      let content = '';
+      try {
+        content = readFileSync(absolute, 'utf8');
+      } catch {
+        continue;
+      }
+      for (const digest of content.match(IMAGE_DIGEST_PATTERN) || []) seen.add(digest);
+    }
+
+    for (const digest of claimed) {
+      if (!seen.has(digest)) {
+        findings.push(
+          finding(
+            'U2',
+            `${record.evidenceId} claims image digest ${digest.slice(0, 20)}... which appears in none of its ${(record.artifacts || []).length} artifact(s)`,
+          ),
+        );
+      }
+    }
+  }
+  return findings;
+}
+
+/**
+ * V: a machine-generated record must carry a measured duration.
+ *
+ * TEL-P1-049. collect-evidence.mjs stamps startedAt and finishedAt from the process
+ * clock, so a genuine record has millisecond precision. Seven records in this tree
+ * carried whole-minute, zero-millisecond pairs — 21:50:00.000Z to 21:51:00.000Z —
+ * which a clock does not produce. They were authored rather than measured, and no
+ * check could tell the two apart.
+ */
+export function checkTimestampsWereMeasured(records) {
+  const findings = [];
+  for (const record of records) {
+    const { startedAt, finishedAt } = record;
+    if (!startedAt || !finishedAt) continue;
+    const bothWholeMinute = /:00\.000Z$/.test(startedAt) && /:00\.000Z$/.test(finishedAt);
+    if (!bothWholeMinute) continue;
+    findings.push(
+      finding(
+        'V',
+        `${record.evidenceId}: startedAt ${startedAt} and finishedAt ${finishedAt} are both whole-minute, zero-millisecond values - a measured record carries the process clock, so this one was composed`,
+      ),
+    );
   }
   return findings;
 }
@@ -528,36 +809,79 @@ function git(args) {
   }
 }
 
+/**
+ * Paths whose content after a freeze is OUTPUT of the certification run: evidence
+ * records the ladder writes, and the documents rendered from them. A run cannot
+ * help but change these, so they cannot invalidate the candidate.
+ */
+const GENERATED_PREFIXES = ['docs/production-certification/', 'docs/production-cutover/'];
+
+/**
+ * Paths that ARE the certification authority: the verdict engine, the controls
+ * that prove it fails closed, and the contract it enforces.
+ *
+ * These were classified as "doc-only" and therefore exempt from the freeze
+ * (TEL-P1-051), which let the engine be edited after the candidate was frozen and
+ * then re-run to certify itself under the new rules. `tests/certification-` was
+ * added to that list in a0c12f4 for exactly that purpose, and the commit that
+ * followed inverted a test's expectation from NO-GO to GO.
+ *
+ * Changing any of these is legitimate work. It is not, however, work a frozen
+ * candidate survives: re-freeze and re-run the ladder.
+ */
+const AUTHORITY_PREFIXES = [
+  'scripts/certification/',
+  'tests/certification-',
+  'docs/production-certification/certification.config.json',
+  'docs/production-certification/defects.json',
+  'docs/production-certification/requirements.json',
+];
+
+function classifyAgainstFreeze(files) {
+  const authority = [];
+  const behaviour = [];
+  for (const file of files) {
+    if (AUTHORITY_PREFIXES.some((prefix) => file.startsWith(prefix))) {
+      authority.push(file);
+    } else if (!GENERATED_PREFIXES.some((prefix) => file.startsWith(prefix))) {
+      behaviour.push(file);
+    }
+  }
+  return { authority, behaviour };
+}
+
 /** N + O: no behaviour-changing source commit after the candidate freeze. */
-export function checkPostFreezeCommits(config) {
+export function checkPostFreezeCommits(config, deps = {}) {
+  const runGit = deps.git || git;
   const findings = [];
   if (!config.candidateSha) return findings;
 
-  const range = git(['log', '--format=%H', `${config.candidateSha}..HEAD`]);
+  const range = runGit(['log', '--format=%H', `${config.candidateSha}..HEAD`]);
   if (range === null) {
     findings.push(finding('N', `candidate SHA ${config.candidateSha.slice(0, 7)} is not reachable from HEAD`));
     return findings;
   }
   const commits = range.split('\n').filter(Boolean);
-  const docOnlyPrefixes = [
-    'docs/production-certification/',
-    'docs/production-cutover/',
-    'scripts/certification/',
-  ];
 
   for (const commit of commits) {
-    const files = (git(['show', '--name-only', '--format=', commit]) || '')
+    const files = (runGit(['show', '--name-only', '--format=', commit]) || '')
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean);
-    const behaviourChanging = files.filter(
-      (file) => !docOnlyPrefixes.some((prefix) => file.startsWith(prefix)),
-    );
-    if (behaviourChanging.length > 0) {
+    const { authority, behaviour } = classifyAgainstFreeze(files);
+    if (behaviour.length > 0) {
       findings.push(
         finding(
           'N',
-          `commit ${commit.slice(0, 7)} after candidate freeze touches non-certification file(s): ${behaviourChanging.slice(0, 5).join(', ')}`,
+          `commit ${commit.slice(0, 7)} after candidate freeze touches non-certification file(s): ${behaviour.slice(0, 5).join(', ')}`,
+        ),
+      );
+    }
+    if (authority.length > 0) {
+      findings.push(
+        finding(
+          'N2',
+          `commit ${commit.slice(0, 7)} after candidate freeze changes the certification authority itself: ${authority.slice(0, 5).join(', ')} - re-freeze the candidate and re-run the ladder`,
         ),
       );
     }
@@ -596,19 +920,44 @@ export function checkSourceIdentity(config) {
   } catch {
     statusOutput = '';
   }
-  const status = statusOutput
+  // An uncommitted change to the verdict engine is not the same failure as an
+  // uncommitted change to the application, and saying so makes the run report
+  // which one it is. `scripts/certification/` used to be exempt here as
+  // "metadata", so the engine could be modified and the source identity gate
+  // would still report a clean tree (TEL-P1-051).
+  //
+  // Authority is decided BEFORE the generated filter. certification.config.json,
+  // defects.json and requirements.json all live under
+  // `docs/production-certification/`, so filtering generated paths first would
+  // discard the three files the verdict is computed from.
+  const changedPaths = statusOutput
     .split('\n')
     .filter((line) => line.trim().length > 0)
-    .filter((line) => {
-      const p = line.slice(3).replace(/^"|"$/g, '');
-      return !['docs/production-certification/', 'docs/production-cutover/', 'scripts/certification/'].some((prefix) => p.startsWith(prefix));
-    });
+    .map((line) => line.slice(3).replace(/^"|"$/g, ''));
 
-  if (status.length > 0) {
+  const authorityPaths = [];
+  const sourcePaths = [];
+  for (const changed of changedPaths) {
+    if (AUTHORITY_PREFIXES.some((prefix) => changed.startsWith(prefix))) {
+      authorityPaths.push(changed);
+    } else if (!GENERATED_PREFIXES.some((prefix) => changed.startsWith(prefix))) {
+      sourcePaths.push(changed);
+    }
+  }
+
+  if (sourcePaths.length > 0) {
     findings.push(
       finding(
         '01',
-        `working tree has ${status.length} uncommitted non-metadata path(s): ${status.slice(0, 5).map((line) => line.slice(3)).join(', ')}`,
+        `working tree has ${sourcePaths.length} uncommitted non-metadata path(s): ${sourcePaths.slice(0, 5).join(', ')}`,
+      ),
+    );
+  }
+  if (authorityPaths.length > 0) {
+    findings.push(
+      finding(
+        '01',
+        `working tree has ${authorityPaths.length} uncommitted change(s) to the certification authority: ${authorityPaths.slice(0, 5).join(', ')}`,
       ),
     );
   }

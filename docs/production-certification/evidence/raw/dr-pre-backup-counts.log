@@ -1,13 +1,13 @@
 # pre-backup source integrity
 # command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json
-# startedAt: 2026-08-23T19:45:22.108Z
-# finishedAt: 2026-08-23T19:45:28.421Z
+# startedAt: 2026-08-25T19:53:41.159Z
+# finishedAt: 2026-08-25T19:53:42.851Z
 # exitCode: 0
 
 --- stdout ---
 {
-  "startedAt": "2026-08-23T19:45:22.668Z",
-  "finishedAt": "2026-08-23T19:45:28.387Z",
+  "startedAt": "2026-08-25T19:53:41.654Z",
+  "finishedAt": "2026-08-25T19:53:42.826Z",
   "database": "telestar_crm",
   "status": "PASS",
   "checks": [
@@ -22,7 +22,7 @@
       "key": "migrations",
       "title": "Migration ledger is complete and fully applied",
       "status": "PASS",
-      "detail": "52/52 migrations applied successfully (1 superseded rolled-back attempt(s), which is normal)",
+      "detail": "52/52 migrations applied successfully",
       "findings": []
     },
     {
@@ -42,8 +42,8 @@
     {
       "key": "rls",
       "title": "Row-level security configuration",
-      "status": "PASS",
-      "detail": "66/66 tenant-owned tables have RLS enabled",
+      "status": "SKIPPED",
+      "detail": "0/66 tenant-owned tables have RLS enabled - pass --require-rls to fail on this (RLS is applied from supabase/rls.sql, not by migrations)",
       "findings": []
     },
     {
@@ -55,19 +55,19 @@
     }
   ],
   "counts": {
-    "Tenant": 46,
-    "User": 132,
-    "Client": 56,
-    "Campaign": 53,
-    "Account": 252,
-    "Contact": 2298,
-    "Lead": 2343,
-    "Task": 76,
-    "Activity": 2454,
-    "Sequence": 11,
-    "SequenceEnrollment": 10,
-    "OutboundMessage": 7,
-    "ImportBatch": 7
+    "Tenant": 40,
+    "User": 51,
+    "Client": 42,
+    "Campaign": 43,
+    "Account": 25,
+    "Contact": 1005,
+    "Lead": 1042,
+    "Task": 3,
+    "Activity": 1007,
+    "Sequence": 10,
+    "SequenceEnrollment": 9,
+    "OutboundMessage": 1,
+    "ImportBatch": 6
   }
 }
 

@@ -22,6 +22,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'no
 import path from 'node:path';
 
 import { EVIDENCE_DIR, RAW_DIR, REPO_ROOT, repoRelative } from './lib/paths.mjs';
+import { mayWriteEvidence } from './lib/evidenceGuard.mjs';
 
 /** Mirrors REPRESENTATIVE_MODELS in scripts/verify-db-integrity.ts. */
 const REPRESENTATIVE_MODELS = [
@@ -107,6 +108,13 @@ function fail(message) {
 async function main() {
   const source = arg('source', 'telestar_crm');
   const candidateSha = arg('candidate');
+  // Evidence names the candidate it belongs to, and this one comes from argv, so it
+  // can be pointed at the wrong release. lib/evidenceGuard.mjs records the run that
+  // proved that, and why the frozen-candidate comparison is the guard that matters
+  // for a tool an operator runs by hand.
+  if (!mayWriteEvidence(candidateSha, { requireCertRun: false, toolName: 'dr-drill' })) {
+    process.exit(2);
+  }
   const keep = process.argv.includes('--keep');
 
   if (!candidateSha || !/^[0-9a-f]{40}$/.test(candidateSha)) {

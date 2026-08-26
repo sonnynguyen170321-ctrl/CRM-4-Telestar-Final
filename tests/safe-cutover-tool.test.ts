@@ -8,7 +8,6 @@ import {
   evaluatePreconditions,
   PurgeManifest,
   resolveTargetDatabase,
-  sha256,
   TOPOLOGICAL_MODELS,
 } from '../scripts/cutover/safe-cutover-tool';
 

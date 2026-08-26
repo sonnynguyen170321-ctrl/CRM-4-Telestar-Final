@@ -1,17 +1,17 @@
-# counts taken inside the transaction that exported snapshot 00000003-000B3A46-1
-SNAPSHOT=00000003-000B3A46-1
-Tenant=46
-User=132
-Client=56
-Campaign=53
-Account=252
-Contact=2298
-Lead=2343
-Task=76
-Activity=2454
-Sequence=11
-SequenceEnrollment=10
-OutboundMessage=7
-ImportBatch=7
+# counts taken inside the transaction that exported snapshot 00000003-0001FF27-1
+SNAPSHOT=00000003-0001FF27-1
+Tenant=40
+User=51
+Client=42
+Campaign=43
+Account=25
+Contact=1005
+Lead=1042
+Task=3
+Activity=1007
+Sequence=10
+SequenceEnrollment=9
+OutboundMessage=1
+ImportBatch=6
 
 

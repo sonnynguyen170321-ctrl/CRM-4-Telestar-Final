@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-DR-RPO",
   "kind": "dr-rpo",
-  "candidateSha": "c7bf639ef988a6ba9fffba3c88761dad245ef7a3",
+  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
   "environment": "certification workstation - gcloud probe outcome MEASURED",
   "command": "gcloud sql instances describe telestar-db --project=telestar-crm-final --format=json",
-  "startedAt": "2026-08-24T09:30:00.000Z",
-  "finishedAt": "2026-08-24T09:32:00.000Z",
+  "startedAt": "2026-08-25T21:39:52.641Z",
+  "finishedAt": "2026-08-25T21:39:59.127Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -36,8 +36,8 @@
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/dr-rpo-gcloud.log",
-      "sizeBytes": 2021,
-      "sha256": "e2ea8c74b6cedc6fee70a601e058641ea68d20d74f1e28676cfc4516b783dd9b",
+      "sizeBytes": 2020,
+      "sha256": "fe235077aa690f9656f299941af8c9340654d8d593cadda6decc31649ed5ea6b",
       "redacted": true
     }
   ]

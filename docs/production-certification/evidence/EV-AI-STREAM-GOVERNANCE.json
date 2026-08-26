@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-AI-STREAM-GOVERNANCE",
   "kind": "ai-stream-governance",
-  "candidateSha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
+  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
-  "command": "derived from C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-25T11:06:04.222Z",
-  "finishedAt": "2026-08-25T11:13:52.583Z",
+  "command": "derived from C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --maxWorkers=4 --reporter=json --outputFile=.certification/vitest.json",
+  "startedAt": "2026-08-25T21:22:49.549Z",
+  "finishedAt": "2026-08-25T21:27:33.861Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -20,9 +20,9 @@
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/run1-949eefe-08-vitest.log",
-      "sizeBytes": 468,
-      "sha256": "468aa6c8dd0b350e4bb10e65abdc0624e92b567ae70acada61a9b6fba5b15f62"
+      "path": "docs/production-certification/evidence/raw/run3-9b2b44c-08-vitest.log",
+      "sizeBytes": 458,
+      "sha256": "f69cb90edcbb08bfbc2036062426da992b97bdadb13bff65069a64e976084d88"
     }
   ]
 }

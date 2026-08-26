@@ -37,7 +37,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { threadId: _threadId, leadId, messageText, subject, customInstructions } = body;
 
-    return await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
+    // Scoped, not bypassed — see enrich-lead for the full reasoning. This route reads one
+    // lead belonging to the caller's own tenant and does nothing cross-tenant, so
+    // `bypassRls: true` bought nothing and cost the automatic `where: { tenantId }` that
+    // is the entire tenant boundary here (TEL-P0-013). It also keeps the route working
+    // if DB-level RLS is enabled, where a bypassed read returns nothing to anybody.
+    return await tenantStorage.run({ tenantId, bypassRls: false }, async () => {
       // 1. Resolve lead and conversation context
       let leadInfo: any = null;
       const threadHistory: Array<{ role: string; content: string }> = [];
@@ -45,8 +50,14 @@ export async function POST(req: NextRequest) {
       let emailSubject = subject || 'Re: Following up';
 
       if (leadId) {
-        leadInfo = await prisma.lead.findUnique({
-          where: { id: leadId },
+        // `bypassRls: true` switches OFF the extension's automatic `where: { tenantId }`,
+        // and the database carries no RLS policies, so this lookup is the whole of the
+        // tenant boundary. `leadId` arrives in the request body: without the explicit
+        // filter, any authenticated user could name another tenant's lead and receive it
+        // along with five inbound and five outbound messages — real prospect email
+        // bodies — which are then sent to an AI provider (TEL-P0-013).
+        leadInfo = await prisma.lead.findFirst({
+          where: { id: leadId, tenantId },
           include: {
             account: true,
             inboundMessages: { take: 5, orderBy: { date: 'desc' } },
@@ -62,8 +73,10 @@ export async function POST(req: NextRequest) {
       }
 
       if (!leadInfo && leadId) {
-        leadInfo = await prisma.lead.findUnique({
-          where: { id: leadId },
+        // Same boundary as above: the fallback lookup must be scoped too, or it becomes
+        // the bypass the first one no longer is.
+        leadInfo = await prisma.lead.findFirst({
+          where: { id: leadId, tenantId },
         });
       }
 
