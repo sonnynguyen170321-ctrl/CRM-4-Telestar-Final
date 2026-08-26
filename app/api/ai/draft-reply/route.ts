@@ -45,8 +45,14 @@ export async function POST(req: NextRequest) {
       let emailSubject = subject || 'Re: Following up';
 
       if (leadId) {
-        leadInfo = await prisma.lead.findUnique({
-          where: { id: leadId },
+        // `bypassRls: true` switches OFF the extension's automatic `where: { tenantId }`,
+        // and the database carries no RLS policies, so this lookup is the whole of the
+        // tenant boundary. `leadId` arrives in the request body: without the explicit
+        // filter, any authenticated user could name another tenant's lead and receive it
+        // along with five inbound and five outbound messages — real prospect email
+        // bodies — which are then sent to an AI provider (TEL-P0-013).
+        leadInfo = await prisma.lead.findFirst({
+          where: { id: leadId, tenantId },
           include: {
             account: true,
             inboundMessages: { take: 5, orderBy: { date: 'desc' } },
@@ -62,8 +68,10 @@ export async function POST(req: NextRequest) {
       }
 
       if (!leadInfo && leadId) {
-        leadInfo = await prisma.lead.findUnique({
-          where: { id: leadId },
+        // Same boundary as above: the fallback lookup must be scoped too, or it becomes
+        // the bypass the first one no longer is.
+        leadInfo = await prisma.lead.findFirst({
+          where: { id: leadId, tenantId },
         });
       }
 

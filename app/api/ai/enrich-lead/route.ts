@@ -38,8 +38,13 @@ export async function POST(req: NextRequest) {
     }
 
     return await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
-      const lead = await prisma.lead.findUnique({
-        where: { id: leadId },
+      // `bypassRls: true` switches OFF the extension's automatic `where: { tenantId }`,
+      // and the database carries no RLS policies, so this lookup is the whole of the
+      // tenant boundary. `leadId` arrives in the request body: without the explicit
+      // filter, any authenticated user could name another tenant's lead and receive it
+      // along with its campaign, account, notes and activities (TEL-P0-013).
+      const lead = await prisma.lead.findFirst({
+        where: { id: leadId, tenantId },
         include: {
           campaign: true,
           account: true,
