@@ -162,7 +162,7 @@ function main() {
     for (const site of sites) {
       const rationale = byPath.get(site.file);
       if (!rationale) unreviewed.push(`${category.id}: ${site.file}`);
-      const cell = rationale ? rationale.replace(/\|/g, '\\|') : '**UNREVIEWED** — no entry in `rls-bypass-rationales.json`';
+      const cell = rationale ? tableCell(rationale) : '**UNREVIEWED** — no entry in `rls-bypass-rationales.json`';
       md += `| \`${site.file}\` | ${site.lines.join(', ')} | ${cell} |\n`;
     }
     md += `\n`;
@@ -191,6 +191,22 @@ function main() {
     console.error('Every bypass needs a written reason. Add one to rls-bypass-rationales.json.');
   }
   process.exitCode = unreviewed.length > 0 || (checkOnly && drifted) ? 1 : 0;
+}
+
+/**
+ * One markdown table cell.
+ *
+ * The first version escaped `|` and nothing else, which CodeQL flagged as
+ * js/incomplete-sanitization: escaping the pipe without first escaping the backslash
+ * that escapes it means `a\|b` renders as `a\\|b` and splits the row anyway. Backslash
+ * first, then pipe, then newlines — a rationale containing a line break would otherwise
+ * end the row mid-sentence and silently drop every column after it.
+ */
+function tableCell(text) {
+  return String(text)
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\r?\n/g, ' ');
 }
 
 function safeRead(file) {
