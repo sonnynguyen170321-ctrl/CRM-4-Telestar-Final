@@ -1,0 +1,243 @@
+$ docker buildx imagetools inspect ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b
+{
+  "created": "2026-08-25T19:51:32.309597013Z",
+  "architecture": "amd64",
+  "os": "linux",
+  "config": {
+    "User": "node",
+    "ExposedPorts": {
+      "3000/tcp": {}
+    },
+    "Env": [
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "NODE_VERSION=24.18.0",
+      "YARN_VERSION=1.22.22",
+      "NODE_ENV=production",
+      "PORT=3000",
+      "HOSTNAME=0.0.0.0",
+      "DATABASE_URL=postgresql://invalid",
+      "DIRECT_URL=postgresql://invalid",
+      "AUTH_SECRET=",
+      "ENCRYPTION_KEY=REPLACE_AT_RUNTIME",
+      "APP_COMMIT=9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+      "APP_VERSION=9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+      "APP_BUILT_AT=2026-08-25T19:49:24Z"
+    ],
+    "Entrypoint": [
+      "docker-entrypoint.sh"
+    ],
+    "Cmd": [
+      "npm",
+      "run",
+      "start"
+    ],
+    "WorkingDir": "/app",
+    "Labels": {
+      "org.opencontainers.image.created": "2026-08-25T19:49:24Z",
+      "org.opencontainers.image.revision": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+      "org.opencontainers.image.source": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final",
+      "org.opencontainers.image.title": "CRM-4-Telestar-Final",
+      "org.opencontainers.image.version": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8"
+    },
+    "ArgsEscaped": true
+  },
+  "rootfs": {
+    "type": "layers",
+    "diff_ids": [
+      "sha256:81f823b9617547261c907396f63f770deaa554748ff739bedfa650e3bb74595a",
+      "sha256:e8e8bcb08674cd0ecf9850d66bc246bb95fa086eb6c988ab48d0404501029ddc",
+      "sha256:ec5d0255c8bf10ce4313e611ec0a35f9de699c6284e69e4c4fdcc5ea6e82adbf",
+      "sha256:625ca884ca91515900d06a970e88957ac4d2e8963c4a0cc699e069ef7e3c7371",
+      "sha256:7ad824b880674ec5cd6d6ef28d7d4783bcd5194ccf30ae225d5eeed0093ff31a",
+      "sha256:c52fc48495630c808b217a96b587b57a2baf7e229b2342a2d31325f83f4e52ea",
+      "sha256:8075ea027061277c10dd9f23ff902080286d8bd44ec1e26acd3ecf77f8e8eaed",
+      "sha256:b951d4d3a369276e8075ded65dc8666a52a6dfa9244472cb6edfe66ad545b614",
+      "sha256:aa90f51d47765ba82e2526233475f2e192b27d51ad9d3438c25aa8bacce806ec",
+      "sha256:859d90956df5b95e98f6eea2a8b38c21de5904ae4089c266365bc1e90ed7d5ee",
+      "sha256:2ab8ef832dce0d20b94254140251d087ebecdc5ca5056f6926161beb1c95f6db",
+      "sha256:e40e9ef2e250bcd41ea91188d7e47f0c6d73e5b6981dcf128a7d6aca5978e8a8",
+      "sha256:3d9d73f737de23147e8c306a8a0f66a7186e2907dd8d84ed7ee0fd16b735169e",
+      "sha256:35e8e0ebf2af11d56b986cfd37786790c1337be52b0177cce2ade5c33d802cad",
+      "sha256:e8ed0451f94c05a683197ca6c6c2ed013299c939849beacb70f3b6007114270c",
+      "sha256:10b831aefbfbdc5689c92ad961a4cdce396082a295306e3d2c27384695fcdc17",
+      "sha256:764adf523a954202ba8fcc7cb44408a6b43ee52f6d0825eb5501d4ce61be7ef4",
+      "sha256:84930376eeda7ee4c0ec38d3a9c39dc515372ff15a8c5a4078b397c7670c7fc5",
+      "sha256:70fe73a5c9a43f97ab4891929664e0e555c4919a7f0753e1d6c22f3d7fb7d43a",
+      "sha256:2dc815c46f6aefdf1fa2dcf465f1a8d069e1ed0543c4663f17977de636839190"
+    ]
+  },
+  "history": [
+    {
+      "created": "2026-07-13T00:00:00Z",
+      "created_by": "# debian.sh --arch 'amd64' out/ 'bookworm' '@1783900800'",
+      "comment": "debuerreotype 0.17"
+    },
+    {
+      "created": "2026-07-14T01:47:34.173816324Z",
+      "created_by": "RUN /bin/sh -c groupadd --gid 1000 node   \u0026\u0026 useradd --uid 1000 --gid node --shell /bin/bash --create-home node # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-07-14T01:47:52.523051311Z",
+      "created_by": "ENV NODE_VERSION=24.18.0",
+      "comment": "buildkit.dockerfile.v0",
+      "empty_layer": true
+    },
+    {
+      "created": "2026-07-14T01:47:52.523051311Z",
+      "created_by": "RUN /bin/sh -c ARCH= OPENSSL_ARCH= \u0026\u0026 dpkgArch=\"$(dpkg --print-architecture)\"     \u0026\u0026 case \"${dpkgArch##*-}\" in       amd64) ARCH='x64' OPENSSL_ARCH='linux-x86_64';;       ppc64el) ARCH='ppc64le' OPENSSL_ARCH='linux-ppc64le';;       s390x) ARCH='s390x' OPENSSL_ARCH='linux*-s390x';;       arm64) ARCH='arm64' OPENSSL_ARCH='linux-aarch64';;       armhf) ARCH='armv7l' OPENSSL_ARCH='linux-armv4';;       *) echo \"unsupported architecture\"; exit 1 ;;     esac     \u0026\u0026 set -ex     \u0026\u0026 apt-get update \u0026\u0026 apt-get install -y ca-certificates curl wget gnupg dirmngr xz-utils libatomic1 --no-install-recommends     \u0026\u0026 rm -rf /var/lib/apt/lists/*     \u0026\u0026 export GNUPGHOME=\"$(mktemp -d)\"     \u0026\u0026 for key in       5BE8A3F6C8A5C01D106C0AD820B1A390B168D356       DD792F5973C6DE52C432CBDAC77ABFA00DDBF2B7       CC68F5A3106FF448322E48ED27F5E38D5B0A215F       8FCCA13FEF1D0C2E91008E09770F7A9A5AE15600       890C08DB8579162FEE0DF9DB8BEAB4DFCF555EF4       C82FA3AE1CBEDC6BE46B9360C43CEC45C17AB93C       108F52B48DB57BB0CC439B2997B01419BD92F80A       A363A499291CBBC940DD62E41F10027AF002F8B0     ; do       { gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys \"$key\" \u0026\u0026 gpg --batch --fingerprint \"$key\"; } ||       { gpg --batch --keyserver keyserver.ubuntu.com --recv-keys \"$key\" \u0026\u0026 gpg --batch --fingerprint \"$key\"; } ;     done     \u0026\u0026 curl -fsSLO --compressed \"https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-$ARCH.tar.xz\"     \u0026\u0026 curl -fsSLO --compressed \"https://nodejs.org/dist/v$NODE_VERSION/SHASUMS256.txt.asc\"     \u0026\u0026 gpg --batch --decrypt --output SHASUMS256.txt SHASUMS256.txt.asc     \u0026\u0026 gpgconf --kill all     \u0026\u0026 rm -rf \"$GNUPGHOME\"     \u0026\u0026 grep \" node-v$NODE_VERSION-linux-$ARCH.tar.xz\\$\" SHASUMS256.txt | sha256sum -c -     \u0026\u0026 tar -xJf \"node-v$NODE_VERSION-linux-$ARCH.tar.xz\" -C /usr/local --strip-components=1 --no-same-owner     \u0026\u0026 rm \"node-v$NODE_VERSION-linux-$ARCH.tar.xz\" SHASUMS256.txt.asc SHASUMS256.txt     \u0026\u0026 find /usr/local/include/node/openssl/archs -mindepth 1 -maxdepth 1 ! -name \"$OPENSSL_ARCH\" -exec rm -rf {} \\;     \u0026\u0026 apt-mark auto '.*' \u003e /dev/null     \u0026\u0026 find /usr/local -type f -executable -exec ldd '{}' ';'       | awk '/=\u003e/ { so = $(NF-1); if (index(so, \"/usr/local/\") == 1) { next }; gsub(\"^/(usr/)?\", \"\", so); print so }'       | sort -u       | xargs -r dpkg-query --search       | cut -d: -f1       | sort -u       | xargs -r apt-mark manual     \u0026\u0026 apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false     \u0026\u0026 ln -s /usr/local/bin/node /usr/local/bin/nodejs     \u0026\u0026 node --version     \u0026\u0026 npm --version     \u0026\u0026 rm -rf /tmp/* # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-07-14T01:47:52.523051311Z",
+      "created_by": "ENV YARN_VERSION=1.22.22",
+      "comment": "buildkit.dockerfile.v0",
+      "empty_layer": true
+    },
+    {
+      "created": "2026-07-14T01:48:03.892467434Z",
+      "created_by": "RUN /bin/sh -c set -ex   \u0026\u0026 savedAptMark=\"$(apt-mark showmanual)\"   \u0026\u0026 apt-get update \u0026\u0026 apt-get install -y ca-certificates curl wget gnupg dirmngr --no-install-recommends   \u0026\u0026 rm -rf /var/lib/apt/lists/*   \u0026\u0026 export GNUPGHOME=\"$(mktemp -d)\"   \u0026\u0026 for key in     6A010C5166006599AA17F08146C2130DFD2497F5   ; do     { gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys \"$key\" \u0026\u0026 gpg --batch --fingerprint \"$key\"; } ||     { gpg --batch --keyserver keyserver.ubuntu.com --recv-keys \"$key\" \u0026\u0026 gpg --batch --fingerprint \"$key\"; } ;   done   \u0026\u0026 curl -fsSLO --compressed \"https://yarnpkg.com/downloads/$YARN_VERSION/yarn-v$YARN_VERSION.tar.gz\"   \u0026\u0026 curl -fsSLO --compressed \"https://yarnpkg.com/downloads/$YARN_VERSION/yarn-v$YARN_VERSION.tar.gz.asc\"   \u0026\u0026 gpg --batch --verify yarn-v$YARN_VERSION.tar.gz.asc yarn-v$YARN_VERSION.tar.gz   \u0026\u0026 gpgconf --kill all   \u0026\u0026 rm -rf \"$GNUPGHOME\"   \u0026\u0026 mkdir -p /opt   \u0026\u0026 tar -xzf yarn-v$YARN_VERSION.tar.gz -C /opt/   \u0026\u0026 ln -s /opt/yarn-v$YARN_VERSION/bin/yarn /usr/local/bin/yarn   \u0026\u0026 ln -s /opt/yarn-v$YARN_VERSION/bin/yarnpkg /usr/local/bin/yarnpkg   \u0026\u0026 rm yarn-v$YARN_VERSION.tar.gz.asc yarn-v$YARN_VERSION.tar.gz   \u0026\u0026 apt-mark auto '.*' \u003e /dev/null   \u0026\u0026 { [ -z \"$savedAptMark\" ] || apt-mark manual $savedAptMark \u003e /dev/null; }   \u0026\u0026 find /usr/local -type f -executable -exec ldd '{}' ';'     | awk '/=\u003e/ { so = $(NF-1); if (index(so, \"/usr/local/\") == 1) { next }; gsub(\"^/(usr/)?\", \"\", so); print so }'     | sort -u     | xargs -r dpkg-query --search     | cut -d: -f1     | sort -u     | xargs -r apt-mark manual   \u0026\u0026 apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false   \u0026\u0026 yarn --version   \u0026\u0026 rm -rf /tmp/* # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-07-14T01:48:03.920026999Z",
+      "created_by": "COPY docker-entrypoint.sh /usr/local/bin/ # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-07-14T01:48:03.920026999Z",
+      "created_by": "ENTRYPOINT [\"docker-entrypoint.sh\"]",
+      "comment": "buildkit.dockerfile.v0",
+      "empty_layer": true
+    },
+    {
+      "created": "2026-07-14T01:48:03.920026999Z",
+      "created_by": "CMD [\"node\"]",
+      "comment": "buildkit.dockerfile.v0",
+      "empty_layer": true
+    },
+    {
+      "created": "2026-08-25T19:49:36.689481949Z",
+      "created_by": "ARG APP_COMMIT=9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+      "comment": "buildkit.dockerfile.v0",
+      "empty_layer": true
+    },
+    {
+      "created": "2026-08-25T19:49:36.689481949Z",
+      "created_by": "ARG APP_VERSION=9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+      "comment": "buildkit.dockerfile.v0",
+      "empty_layer": true
+    },
+    {
+      "created": "2026-08-25T19:49:36.689481949Z",
+      "created_by": "ARG APP_BUILT_AT=2026-08-25T19:49:24Z",
+      "comment": "buildkit.dockerfile.v0",
+      "empty_layer": true
+    },
+    {
+      "created": "2026-08-25T19:49:36.689481949Z",
+      "created_by": "WORKDIR /app",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-08-25T19:49:36.689481949Z",
+      "created_by": "ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 DATABASE_URL=postgresql://invalid DIRECT_URL=postgresql://invalid AUTH_SECRET= ENCRYPTION_KEY=REPLACE_AT_RUNTIME APP_COMMIT=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 APP_VERSION=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 APP_BUILT_AT=2026-08-25T19:49:24Z",
+      "comment": "buildkit.dockerfile.v0",
+      "empty_layer": true
+    },
+    {
+      "created": "2026-08-25T19:49:36.689481949Z",
+      "created_by": "LABEL org.opencontainers.image.revision=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 org.opencontainers.image.version=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 org.opencontainers.image.created=2026-08-25T19:49:24Z org.opencontainers.image.source=https://github.com/sonnynguyen170321-ctrl/crm-4-telestar-final",
+      "comment": "buildkit.dockerfile.v0",
+      "empty_layer": true
+    },
+    {
+      "created": "2026-08-25T19:49:41.358193659Z",
+      "created_by": "RUN |3 APP_COMMIT=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 APP_VERSION=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 APP_BUILT_AT=2026-08-25T19:49:24Z /bin/sh -c apt-get update   \u0026\u0026 apt-get install -y --no-install-recommends ca-certificates openssl   \u0026\u0026 rm -rf /var/lib/apt/lists/* # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-08-25T19:49:41.382716946Z",
+      "created_by": "COPY --chown=node:node package.json package-lock.json ./ # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-08-25T19:49:41.411057673Z",
+      "created_by": "COPY --chown=node:node prisma ./prisma # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-08-25T19:50:08.308064795Z",
+      "created_by": "RUN |3 APP_COMMIT=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 APP_VERSION=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 APP_BUILT_AT=2026-08-25T19:49:24Z /bin/sh -c npm ci --omit=dev   \u0026\u0026 npx prisma generate   \u0026\u0026 npm cache clean --force # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-08-25T19:51:32.048626023Z",
+      "created_by": "COPY --chown=node:node /app/.next ./.next # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-08-25T19:51:32.094572455Z",
+      "created_by": "COPY --chown=node:node public ./public # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-08-25T19:51:32.150711379Z",
+      "created_by": "COPY --chown=node:node app ./app # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-08-25T19:51:32.180986695Z",
+      "created_by": "COPY --chown=node:node components ./components # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-08-25T19:51:32.192433091Z",
+      "created_by": "COPY --chown=node:node context ./context # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-08-25T19:51:32.20212094Z",
+      "created_by": "COPY --chown=node:node hooks ./hooks # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-08-25T19:51:32.245968835Z",
+      "created_by": "COPY --chown=node:node lib ./lib # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-08-25T19:51:32.259467834Z",
+      "created_by": "COPY --chown=node:node workers ./workers # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-08-25T19:51:32.286745349Z",
+      "created_by": "COPY --chown=node:node scripts ./scripts # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-08-25T19:51:32.309597013Z",
+      "created_by": "COPY --chown=node:node auth.config.ts auth.ts instrumentation.ts next.config.ts proxy.ts tsconfig.json ./ # buildkit",
+      "comment": "buildkit.dockerfile.v0"
+    },
+    {
+      "created": "2026-08-25T19:51:32.309597013Z",
+      "created_by": "USER node",
+      "comment": "buildkit.dockerfile.v0",
+      "empty_layer": true
+    },
+    {
+      "created": "2026-08-25T19:51:32.309597013Z",
+      "created_by": "EXPOSE [3000/tcp]",
+      "comment": "buildkit.dockerfile.v0",
+      "empty_layer": true
+    },
+    {
+      "created": "2026-08-25T19:51:32.309597013Z",
+      "created_by": "CMD [\"npm\" \"run\" \"start\"]",
+      "comment": "buildkit.dockerfile.v0",
+      "empty_layer": true
+    }
+  ]
+}
