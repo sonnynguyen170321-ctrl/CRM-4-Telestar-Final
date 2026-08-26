@@ -36,7 +36,7 @@ const execFileAsync = promisify(execFile);
 const TENANT = 'tenant-durable-budget-test';
 const REPO_ROOT = path.resolve(__dirname, '..');
 const DATABASE_URL =
-  process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/telestar_crm';
+  process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/telestar_crm';
 
 async function ensureTenant() {
   await prisma.$executeRaw`
