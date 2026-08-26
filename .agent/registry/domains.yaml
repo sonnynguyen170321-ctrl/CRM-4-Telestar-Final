@@ -306,6 +306,12 @@ domains:
       - docker-compose*.yml
       - Dockerfile*
       - .github/workflows/**
+      # Which dependency versions this repository will accept. It belongs with CI rather
+      # than with security-observability because what it actually governs is whether a
+      # bump can pass the gates in `.github/workflows/` at all — the Prisma group exists
+      # because the CLI and the client must move together or install fails, and the
+      # TypeScript ignore exists because @typescript-eslint pins the compiler below 7.
+      - .github/dependabot.yml
       - scripts/deploy*
       - scripts/rollback*
       - scripts/prod-*

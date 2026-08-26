@@ -20,3 +20,37 @@ updates:
       # patch updates to ESLint 9 still come through.
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
+
+      # The same shape as the ESLint entry above, one toolchain over. Every
+      # `@typescript-eslint/*` package in the tree declares `typescript: >=4.8.4 <6.1.0` —
+      # eslint-plugin, parser, project-service, tsconfig-utils, type-utils,
+      # typescript-estree, utils, and the `typescript-eslint` meta package — so TypeScript 7
+      # satisfies none of them.
+      #
+      # #57 (5.9.3 -> 7.0.2) therefore fails the dependency-graph gate before any type error
+      # is reported: `npm error invalid: typescript@7.0.2`, and the Dependency audit job
+      # exits 1. It is not a code incompatibility to be fixed in this repository; there is no
+      # combination of versions that works until @typescript-eslint publishes TypeScript 7
+      # support.
+      #
+      # Remove this ignore once it does. Minor and patch updates to TypeScript 5 still come
+      # through, which is where the value is anyway.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+
+    groups:
+      # Prisma ships the CLI and the client as separate packages that must be the same
+      # version. Ungrouped, dependabot raised #58 bumping `@prisma/client` to 7.9.1 while
+      # leaving `prisma` at ^6.2.1, which cannot work: five jobs failed in about 56 seconds
+      # each — install, generate, migration validation, docker build — because the client and
+      # the CLI disagreed. The pull request was not a failed upgrade so much as an upgrade
+      # that was never whole.
+      #
+      # Grouping them means the next Prisma bump arrives as one coherent change that CI can
+      # actually judge. It does not make a major upgrade safe — Prisma 7 still needs its own
+      # qualification against the tenant extension in lib/prisma.ts, the raw-SQL helpers and
+      # the migration suite — but it makes the question answerable.
+      prisma:
+        patterns:
+          - "prisma"
+          - "@prisma/*"
