@@ -132,18 +132,34 @@ describe('probeRpo', () => {
   });
 });
 
+/**
+ * These four spawn real processes, and three of them grant the child a budget larger
+ * than the suite's own `testTimeout: 20000`. A budget the runner will never wait for
+ * is not a budget: vitest kills the test first, so the child's deadline can never be
+ * reached and the only question is whether the machine happened to be fast enough.
+ *
+ * On 2026-08-26 it was not. Under the full suite's parallel load `gcloud version` —
+ * a Python process behind a Windows `.cmd` shim — took longer than 20 s, and the test
+ * failed at 25.2 s with a runner timeout rather than an assertion. It passed on its
+ * own in 11 s for the whole file. That is the same shape as TEL-P1-047: a test that
+ * fails on runner load, not on behaviour.
+ *
+ * Each test below now declares a timeout strictly greater than the budget it grants,
+ * so the child's deadline is the one that decides. These are ceilings, not costs —
+ * `gcloud version` answers in seconds when it answers at all.
+ */
 describe('runCommand — Windows batch shims', () => {
   it('finds a command that exists', () => {
     const result = runCommand(process.execPath, ['-e', 'console.log("hi")'], { timeoutMs: 30_000 });
     expect(result.status).toBe(0);
     expect(result.stdout.trim()).toBe('hi');
     expect(isMissingCommand(result)).toBe(false);
-  });
+  }, 45_000);
 
   it('reports a genuinely absent command as missing', () => {
     const result = runCommand('definitely-not-a-real-command-xyz', ['--version'], { timeoutMs: 30_000 });
     expect(result.status).not.toBe(0);
-  });
+  }, 45_000);
 
   it('resolves a batch-shim command that plain spawnSync cannot', () => {
     // gcloud on Windows is gcloud.cmd. Node 24 returns EINVAL for a .cmd without a shell, and
@@ -157,7 +173,7 @@ describe('runCommand — Windows batch shims', () => {
       const code = (result.error as NodeJS.ErrnoException | undefined)?.code;
       expect(code).not.toBe('EINVAL');
     }
-  });
+  }, 150_000);
 
   it('refuses to pass shell metacharacters through the shim path', () => {
     if (process.platform !== 'win32') return;

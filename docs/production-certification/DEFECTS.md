@@ -2,7 +2,7 @@
 
 **Program**: Telestar Production Certification
 **Authoritative Source**: `docs/production-certification/defects.json`
-**Last Updated**: 2026-08-26T05:10:00.000Z
+**Last Updated**: 2026-08-26T06:05:00.000Z
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -16,10 +16,10 @@
 | Severity | Discovered | Verified Closed | Accepted Risk | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 11 | 9 | 1 | **1** |
-| **P1** (Critical) | 40 | 35 | 0 | **5** |
+| **P1** (Critical) | 41 | 36 | 0 | **5** |
 | **P2** (Important) | 21 | 19 | 0 | **2** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **72** | **63** | **1** | **8** |
+| **TOTAL** | **73** | **64** | **1** | **8** |
 
 ---
 
@@ -745,4 +745,14 @@
 - **Root cause**: EV-DEPLOYED-STATE.json records metrics deployedSha 9b2b44c9f0987139e2f48ee21b14ec36e10690a8, deployedBuiltAt 2026-08-25T19:49:24Z and deployedMatchesCandidate true, with status PASS and the command "curl -s https://crm.telestar.cloud/api/health". The artifact it cites, docs/production-certification/evidence/raw/deployed-health-probe.log, contains a different probe entirely: commit and version c7bf639ef988a6ba9fffba3c88761dad245ef7a3, builtAt 2026-08-24T09:34:52Z, ts 1787564536489. The record therefore does not rest on the probe it names; the probe records the previous release. The record's claim is separately true - an independent live probe on 2026-08-26 returned commit 9b2b44c9f0987139e2f48ee21b14ec36e10690a8, builtAt 2026-08-25T19:49:24Z, schema ready - so the finding is not that production is on the wrong release. It is that the deployment gate is satisfied by a record whose evidence was never refreshed, and the record's hand-typed timestamps (21:50:00.000Z to 21:50:01.000Z) confirm it was authored rather than captured. Being accidentally right is not the same as being evidenced.
 - **Fix SHA**: `N/A`
 - **Verification evidence**: `NOT VERIFIED. Closing this needs the probe re-run by the collector against the frozen candidate so the artifact and the record are the same event, with timestamps from the process clock. Detection now exists: check U reports "EV-DEPLOYED-STATE: artifact ... names 1 commit(s) and none of them is the record's candidate 9b2b44c - the artifact belongs to c7bf639", and check V reports the composed duration. The record itself has not been regenerated.`
+
+### `TEL-P1-053` — A Mandatory Gate Carried A Test Whose Subprocess Budget Its Own Runner Would Never Wait For
+
+- **Severity**: P1
+- **Status**: `VERIFIED`
+- **Owner**: core-team
+- **Discovered**: 2026-08-26T06:05:00.000Z
+- **Root cause**: vitest.config sets testTimeout: 20000. tests/certification-rpo-probe.test.ts granted its child processes larger budgets than that - runCommand('gcloud', ['version'], { timeoutMs: 120_000 }) at line 152, and two 30_000 budgets at lines 137 and 144 - with no per-test override. A budget the runner will never wait for is not a budget: vitest kills the test at 20 s, so the child deadline can never be reached and the only question left is whether the machine happened to be fast enough. On 2026-08-26 it was not. A full-suite run against real Postgres and Redis failed this one test at 25.24 s with a runner timeout rather than an assertion, while the same file passed alone in 11.4 s for all 25 tests. gcloud on Windows is gcloud.cmd, a Python process behind a batch shim, and under twelve parallel workers it exceeds 20 s. This is the same shape as TEL-P1-047: a test that fails on runner load, not on behaviour. It sat inside gate 08-vitest, so a mandatory gate could fail for a reason unrelated to the product.
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `Each of the three real-spawn tests now declares a timeout strictly greater than the budget it grants (45_000, 45_000 and 150_000), so the child deadline is the one that decides. Reproduction, before: full suite exit 1, 3003 tests, 3002 passed, 1 failed - tests/certification-rpo-probe.test.ts "resolves a batch-shim command that plain spawnSync cannot", duration 25240 ms, Error: STACK_TRACE_ERROR with no assertion in the trace. After: full suite against the same real Postgres and Redis, exit 0, numTotalTests 3003, numPassedTests 3003, numFailedTests 0, numPendingTests 0, success true. The measurement that confirms the diagnosis rather than merely the fix: in the passing run that same test took 15497 ms against the old 20000 ms ceiling - a 4.5 s margin on a real subprocess spawn, which is a flake by construction, not by accident. Isolated re-run also passes: 25 passed in 11.39 s, exit 0. Not claimed: a deterministic red-on-demand reproduction. The failure needs full-suite parallel load, and shrinking the runner timeout does not reproduce it because the other two spawns finish in milliseconds.`
 
