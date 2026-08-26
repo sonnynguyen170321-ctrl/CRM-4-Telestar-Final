@@ -37,12 +37,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'leadId is required' }, { status: 400 });
     }
 
-    return await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
-      // `bypassRls: true` switches OFF the extension's automatic `where: { tenantId }`,
-      // and the database carries no RLS policies, so this lookup is the whole of the
-      // tenant boundary. `leadId` arrives in the request body: without the explicit
-      // filter, any authenticated user could name another tenant's lead and receive it
-      // along with its campaign, account, notes and activities (TEL-P0-013).
+    // Scoped, not bypassed. This route reads one lead belonging to the caller's own
+    // tenant and does nothing cross-tenant, so it never needed `bypassRls: true` — and
+    // that flag switched OFF the extension's automatic `where: { tenantId }`, which is
+    // the whole of the tenant boundary on a database with no RLS policies. `leadId`
+    // arrives in the request body, so the result was any tenant's lead (TEL-P0-013).
+    //
+    // Scoping also keeps the route working if DB-level RLS is ever enabled: the bypass
+    // path sets `app.bypass_rls` but never `app.current_tenant_id`, and the `crm_app`
+    // policy matches on that alone — so under RLS a bypassed read returns nothing at
+    // all, including to the tenant that owns the row.
+    return await tenantStorage.run({ tenantId, bypassRls: false }, async () => {
+      // The explicit filter stays as well. The extension injects the same predicate, and
+      // two independent reasons for this lookup to be tenant-correct is the point.
       const lead = await prisma.lead.findFirst({
         where: { id: leadId, tenantId },
         include: {

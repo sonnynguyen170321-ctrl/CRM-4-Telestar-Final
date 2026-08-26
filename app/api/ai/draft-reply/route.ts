@@ -37,7 +37,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { threadId: _threadId, leadId, messageText, subject, customInstructions } = body;
 
-    return await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
+    // Scoped, not bypassed — see enrich-lead for the full reasoning. This route reads one
+    // lead belonging to the caller's own tenant and does nothing cross-tenant, so
+    // `bypassRls: true` bought nothing and cost the automatic `where: { tenantId }` that
+    // is the entire tenant boundary here (TEL-P0-013). It also keeps the route working
+    // if DB-level RLS is enabled, where a bypassed read returns nothing to anybody.
+    return await tenantStorage.run({ tenantId, bypassRls: false }, async () => {
       // 1. Resolve lead and conversation context
       let leadInfo: any = null;
       const threadHistory: Array<{ role: string; content: string }> = [];
