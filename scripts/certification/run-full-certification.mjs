@@ -529,7 +529,11 @@ async function main() {
         '--scales',
         '120,500,1000',
       ],
-      { env: { IS_WORKER: 'true' }, runLabel },
+      // CERT_CANDIDATE_SHA is what tells the benchmark a certification run is asking. It is
+      // the same rule tests/import-load-benchmark.test.ts adopted in de170ac — only a
+      // certification run may write into the evidence ledger — and this gate was the one
+      // caller that did not set it, so the benchmark could not enforce it.
+      { env: { IS_WORKER: 'true', CERT_CANDIDATE_SHA: candidateSha }, runLabel },
     ),
   );
 
