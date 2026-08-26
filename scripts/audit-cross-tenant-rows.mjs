@@ -61,7 +61,7 @@ for (const model of models) {
 // development database. The repository keeps its real environment in dotenvx-encrypted
 // files, so `process.env.DATABASE_URL` is not populated for a bare `node scripts/...` run.
 const DB_URL =
-  process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/telestar_crm';
+  process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/telestar_crm';
 
 const prisma = new PrismaClient({ datasources: { db: { url: DB_URL } } });
 const violations = [];
