@@ -90,7 +90,7 @@ async function handleEmailSync(payload: EmailSyncPayload) {
     const existingLeads = await prisma.lead.findMany({
       where: {
         email: { in: lookupEmails, mode: 'insensitive' },
-        assignedToId: account.userId,
+        tenantId: account.tenantId,
       },
       select: { id: true, email: true, sequenceId: true, sequenceStatus: true, emailInvalid: true },
     });
@@ -178,10 +178,6 @@ async function handleEmailSync(payload: EmailSyncPayload) {
     // cadence and record why — and routing them anywhere else would be the second inbound
     // listener the architecture forbids.
     if (!c.isReply && !c.isAutoReply) continue;
-    // Sequence side effects only apply to leads with a sequenceId. The authoritative gate
-    // inside handleApplyReply checks SequenceEnrollment.status === 'active' so a stale
-    // Lead.sequenceStatus legacy cache value never drops a real reply (S3).
-    if (!c.lead.sequenceId) continue;
 
     await handleApplyReply({
       providerMessageId: c.msg.providerMessageId,
@@ -234,16 +230,10 @@ export async function handleApplyReply(payload: EmailApplyReplyPayload) {
     return { skipped: true, reason: 'already_processed' };
   }
 
-  // The authoritative gate. This used to read `Lead.sequenceStatus`, the legacy compatibility
-  // cache; a stale value there could drop a real reply before the handoff was ever reached.
-  // Resolved once here and passed down — nothing further along re-interprets sequence state.
   const activeEnrollment = await prisma.sequenceEnrollment.findFirst({
     where: { leadId, status: 'active' },
     select: { id: true, sequenceId: true },
   });
-  if (!activeEnrollment) {
-    return { skipped: true, reason: 'sequence_not_active' };
-  }
 
   // Classification decides everything below it. It never throws and never guesses: with no
   // provider it returns class D and a human reads the reply.
