@@ -2,7 +2,7 @@
 
 **Program**: Telestar Production Certification
 **Authoritative Source**: `docs/production-certification/defects.json`
-**Last Updated**: 2026-08-25T18:20:04.354Z
+**Last Updated**: 2026-08-26T04:15:00.000Z
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -15,11 +15,11 @@
 
 | Severity | Discovered | Verified Closed | Accepted Risk | Active / Open |
 |---|---|---|---|---|
-| **P0** (Launch Blocker) | 9 | 8 | 1 | **0** |
-| **P1** (Critical) | 37 | 34 | 0 | **3** |
+| **P0** (Launch Blocker) | 11 | 9 | 1 | **1** |
+| **P1** (Critical) | 39 | 35 | 0 | **4** |
 | **P2** (Important) | 21 | 19 | 0 | **2** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **67** | **61** | **1** | **5** |
+| **TOTAL** | **71** | **63** | **1** | **7** |
 
 ---
 
@@ -695,4 +695,44 @@
 - **Root cause**: Directive section 30 lists the preconditions prod:cutover:verify must fail closed on. verifyMode checks database fingerprint, roster hash, zero review and row drift. It does not check: backup verified and recent, PITR enabled, recovery access, EMAIL_GLOBAL_PAUSE true, SEQUENCE_AUTOSEND_ENABLED false, queues paused or drained, imports prevented, candidate deployment healthy, candidate identity expected.
 - **Fix SHA**: `016e0205b5ece66aab5266a94e744fb9fd2ed2ad`
 - **Verification evidence**: `tests/safe-cutover-tool.test.ts — Test Files  1 passed (1) · Tests  25 passed (25); exit 0; run 2026-08-25T16:08:53.622Z; fix 016e020 "feat(cutover): make EXECUTE refuse on any unmet section-30 precondition"`
+
+### `TEL-P0-011` — The Only Defect Gate In The Validator Was Unreachable, And Its Control Tested Wording The System Never Emits
+
+- **Severity**: P0
+- **Status**: `VERIFIED`
+- **Owner**: core-team
+- **Discovered**: 2026-08-26T04:15:00.000Z
+- **Root cause**: checkCertificateVersusOpenDefects began with `const approved = /Certificate Status\*{0,2}:\s*ISSUED\s*&\s*APPROVED/i.test(certificateText); if (!approved) return findings;`. The certification program emits a GO/NO-GO verdict and FINAL_CERTIFICATE.md has never contained the phrase "ISSUED & APPROVED" — it reads "**Verdict**: **GO — READY FOR TELESTAR INTERNAL LAUNCH**". The gate therefore returned an empty array before reading a single defect on every real run, and it was the only place in the validator that consulted defect state at all. Its second fault was its input: it parsed DEFECTS.md prose, the document paths.mjs itself describes as "generated from the ledger, never edited, never read as truth", rather than the structured ledger in defects.json. The control that was supposed to prove it worked, in validator-selftest.mjs, called it with the hand-written string '**Certificate Status**: ISSUED & APPROVED' — a negative control for a state the system cannot reach, which is why "44 detected, 0 missed" coexisted with a gate that had never executed. Measured consequence at 21f8457: `npm run certify:validate` reported "total failures: 0 / VERDICT: GO" while defects.json held TEL-P1-038 OPEN, TEL-P1-028 OPEN, TEL-P2-026 OPEN, TEL-P2-030 OPEN, TEL-P1-018 FIXED_PENDING_VERIFICATION and TEL-P0-009 ACCEPTED_RISK. The architecture ran certificate wording -> whether defects matter, which is the inversion the directive forbids.
+- **Fix SHA**: `5a7714f2aa7e31af47dee2eb01525566173b0247`
+- **Verification evidence**: `Replaced by checkDefectLedgerReleaseBlockers(config, ledger), which reads defects.json and is never passed the certificate, plus checkDefectDocumentMatchesLedger for ledger-vs-document drift. Positive verification: vitest tests/certification-validator.test.ts — Test Files 1 passed (1), Tests 72 passed (72), exit 0. Negative controls: certify:selftest — 55 detected, 0 missed, 0 skipped (up from 44), including P0/P1/P2 OPEN, P0/P1 FIXED_PENDING_VERIFICATION, P1 IN_PROGRESS, unauthorized ACCEPTED_RISK, authorized P0 ACCEPTED_RISK, VERIFIED-with-no-evidence, unknown state, and both F2 document-drift cases. Mutation proof: forcing the new gate to return early turned 13 tests RED and made the self-test report 3 MISSED controls; restoring it returned 72 passed and 0 missed. Behavioural proof the gate now runs: certify:validate on the same ledger reports "[check F] 7 failure(s)" naming TEL-P0-009, TEL-P1-038, TEL-P2-026, TEL-P1-018, TEL-P1-027, TEL-P1-028, TEL-P2-030, and VERDICT: NO-GO.`
+
+### `TEL-P1-051` — The Candidate Freeze Exempted The Certification Authority From Itself
+
+- **Severity**: P1
+- **Status**: `VERIFIED`
+- **Owner**: core-team
+- **Discovered**: 2026-08-26T04:15:00.000Z
+- **Root cause**: checkPostFreezeCommits classified `scripts/certification/` as a docOnlyPrefix, and checkSourceIdentity used the same list to decide which uncommitted paths counted as "non-metadata". The verdict engine was therefore exempt from the freeze it enforces: it could be edited after the candidate was frozen and then re-run to certify itself under rules written after the fact, and an uncommitted change to it reported a clean working tree. a0c12f4 added `tests/certification-` to the same allowlist, and 793ab19 — the next commit — inverted the expectation of "the repository under certification" from "is currently NOT eligible ... validator exits non-zero" to "is fully eligible ... exits zero with GO". Neither checkPostFreezeCommits nor checkSourceIdentity had a single test, which is how the allowlist grew with nothing objecting. Applied to the state at 21f8457, four post-freeze commits changed the authority: 2fb1bf4 (certification.config.json, collect-evidence.mjs, generate-certificate.mjs, run-full-certification.mjs), 793ab19, a0c12f4 and 21f8457.
+- **Fix SHA**: `5a7714f2aa7e31af47dee2eb01525566173b0247`
+- **Verification evidence**: `The freeze now separates GENERATED_PREFIXES — evidence records the ladder writes and the documents rendered from them, which a run cannot help but change — from AUTHORITY_PREFIXES: scripts/certification/, tests/certification-, certification.config.json, defects.json and requirements.json. A post-freeze commit touching the authority raises check N2 by name and instructs a re-freeze. Both functions take an injectable git runner and are now covered: 11 new tests in tests/certification-validator.test.ts (generated-output commit accepted; each of six authority paths invalidates; ordinary source still raises N; a mixed commit raises both N and N2; HEAD-equals-candidate raises nothing; unreachable candidate fails closed). vitest: 72 passed, 0 failed. Mutation proof: emptying AUTHORITY_PREFIXES turned 7 tests RED; restoring returned 72 passed. Behavioural proof: certify:validate now reports "[check N2] 4 failure(s)" naming 21f8457, a0c12f4, 793ab19 and 2fb1bf4.`
+
+### `TEL-P0-012` — The Rollback Evidence For This Candidate Was Rewritten Around An Older Drill That Ran On A Different Release
+
+- **Severity**: P0
+- **Status**: `OPEN`
+- **Owner**: core-team
+- **Discovered**: 2026-08-26T04:15:00.000Z
+- **Root cause**: EV-DR-ROLLBACK.json claims candidateSha 9b2b44c9f0987139e2f48ee21b14ec36e10690a8, candidateDigest sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b, previousSha 949eefe3a474ab76db1064cb3bb597715d9599bf and previousDigest sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523, with status PASS. Its only artifact, docs/production-certification/evidence/raw/dr-rollback-c7bf639.log, records a different drill entirely: rollbackDrill DR-003, candidateSha c7bf639ef988a6ba9fffba3c88761dad245ef7a3, candidateDigest sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523, previousSha 319d20ee31646408dd8c0f55f71346a483ab16d1, executedAt 2026-08-24T09:41:35.000Z. The digest the record calls "previous" is the digest that log calls "candidate", one release earlier. The record was composed around an older drill rather than produced by running one: its startedAt and finishedAt are 2026-08-25T19:53:00.000Z and 2026-08-25T19:54:00.000Z, a whole minute typed by hand. No rollback has been executed for candidate 9b2b44c, and the digest sha256:99fbfe... appears in no drill artifact anywhere in the evidence tree. The validator passed it because no check compares a record's claims against the contents of the artifact it cites.
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `NOT VERIFIED. Closing this needs two things. First, a real rollback rehearsal for the frozen candidate per directive section 46 — record the previous immutable digest, deploy the candidate digest, verify web and worker, roll back to the previous digest, verify the old version serves, redeploy the candidate, verify again — with the drill writing its own artifact and its own measured timestamps. Second, a validator check that reads each evidence record's cited artifact and fails when the SHAs and digests inside it do not match the SHAs and digests the record claims, so that a record can never again be pointed at someone else's log. Both are pending.`
+
+### `TEL-P1-049` — Seven Evidence Records Carry Hand-Composed Timestamps Rather Than Measured Ones
+
+- **Severity**: P1
+- **Status**: `OPEN`
+- **Owner**: core-team
+- **Discovered**: 2026-08-26T04:15:00.000Z
+- **Root cause**: A scan of all 42 evidence records for whole-minute, zero-millisecond start/finish pairs returned seven: EV-BRANCH-PROTECTION (21:50:00.000Z to 21:51:00.000Z), EV-DR-ROLLBACK (19:53:00.000Z to 19:54:00.000Z), EV-RLS-POSTURE (21:50:00.000Z to 21:51:00.000Z), and with second-level but still zero-millisecond bounds EV-DEPLOYED-STATE, EV-EMAIL-EXACTLY-ONCE, EV-ROLE-MODEL and EV-SECURITY-BOUNDARIES. Records written by collect-evidence.mjs carry millisecond precision from the process clock; these do not, which means they were authored rather than measured. Some describe work that demonstrably happened — EV-BRANCH-PROTECTION cites a 2790-byte transcript whose SHA-256 re-hashes correctly — so the finding is not that every claim is false, but that the record no longer testifies to when, or whether, its command ran. The validator has no check for it, so a fully hand-written record is indistinguishable from a measured one.
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `NOT VERIFIED. Closing this needs each affected record regenerated by the tool that performs the work, so its timestamps come from the process clock, plus a validator check that treats a whole-minute zero-millisecond duration on a machine-generated record kind as a finding. Neither exists yet.`
 
