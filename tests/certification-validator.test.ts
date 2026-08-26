@@ -617,6 +617,73 @@ describe('release blockers are computed from the defect ledger, not from prose',
     expect(checkDefectLedgerReleaseBlockers.length).toBe(2);
   });
 
+  /**
+   * Not every fix is a commit. TEL-P1-027 was closed by enabling point-in-time
+   * recovery on the production instance and re-measuring it — there is no commit
+   * to name, and demanding one made the gate report a defect that was properly
+   * closed. A gate that cries wolf gets ignored, which is how the last one died.
+   *
+   * The half no fix kind is exempt from is the verification.
+   */
+  it.each(['infrastructure', 'credential-rotation', 'container', 'cloudsql-backup', 'ci-run'])(
+    'accepts a VERIFIED %s fix that names no commit but carries its verification',
+    (fixKind) => {
+      const findings = checkDefectLedgerReleaseBlockers(
+        config,
+        ledger([
+          {
+            id: 'TEL-P1-083',
+            severity: 'P1',
+            state: 'VERIFIED',
+            fixKind,
+            fixSha: '',
+            verificationEvidence: 'EV-DR-RPO: pointInTimeRecoveryEnabled true, exit 0',
+          },
+        ]),
+      );
+
+      expect(findings).toEqual([]);
+    },
+  );
+
+  it('still demands a commit when the fix claims to be one', () => {
+    const findings = checkDefectLedgerReleaseBlockers(
+      config,
+      ledger([
+        {
+          id: 'TEL-P1-084',
+          severity: 'P1',
+          state: 'VERIFIED',
+          fixKind: 'commit',
+          fixSha: '',
+          verificationEvidence: 'some test ran',
+        },
+      ]),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].message).toContain('fixSha');
+  });
+
+  it('demands verification evidence whatever the fix kind', () => {
+    const findings = checkDefectLedgerReleaseBlockers(
+      config,
+      ledger([
+        {
+          id: 'TEL-P1-085',
+          severity: 'P1',
+          state: 'VERIFIED',
+          fixKind: 'infrastructure',
+          fixSha: '',
+          verificationEvidence: '',
+        },
+      ]),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].message).toContain('verificationEvidence');
+  });
+
   it('requires a P0/P1 marked VERIFIED to carry a fix SHA and verification evidence', () => {
     const findings = checkDefectLedgerReleaseBlockers(
       config,
