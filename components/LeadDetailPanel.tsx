@@ -1021,7 +1021,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                   <span className="text-[10px] font-medium font-mono">Meeting</span>
                 </button>
                 <a
-                  href={lead.linkedIn || '#'}
+                  href={lead.linkedIn ? (lead.linkedIn.startsWith('http') ? lead.linkedIn : `https://${lead.linkedIn}`) : '#'}
                   target="_blank"
                   rel="noreferrer"
                   className={`flex flex-col items-center justify-center p-2.5 rounded-xl transition-all text-center gap-1 ${
@@ -1247,6 +1247,22 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                     <div>
                       <span className="text-text-muted block text-[10px] uppercase">WhatsApp</span>
                       <span className="text-text-primary font-medium">{lead.whatsApp || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-text-muted block text-[10px] uppercase">LinkedIn</span>
+                      {lead.linkedIn ? (
+                        <a
+                          href={lead.linkedIn.startsWith('http') ? lead.linkedIn : `https://${lead.linkedIn}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-indigo-600 hover:text-indigo-700 hover:underline font-medium inline-flex items-center gap-1 truncate max-w-full"
+                        >
+                          <Linkedin className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                          <span className="truncate">{lead.linkedIn.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\/?/, '')}</span>
+                        </a>
+                      ) : (
+                        <span className="text-text-muted">N/A</span>
+                      )}
                     </div>
                     <div>
                       <span className="text-text-muted block text-[10px] uppercase">Lead Source</span>

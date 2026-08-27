@@ -30,7 +30,7 @@ export default function LiveFloorPulse({
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
       {/* Floor Daily Target Card */}
-      <div className="bg-gradient-to-br from-bg-card to-brand-red/[0.04] border border-card-border dark:border-zinc-800 rounded-2xl p-4.5 shadow-sm space-y-3 relative overflow-hidden">
+      <div className="bg-card-bg border border-card-border rounded-2xl p-4.5 shadow-xs space-y-3 relative overflow-hidden">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-brand-red/10 border border-brand-red/20 flex items-center justify-center text-brand-red">
@@ -51,13 +51,13 @@ export default function LiveFloorPulse({
             <span className="font-mono font-extrabold text-2xl text-text-primary">
               {meetingsToday} <span className="text-xs font-normal text-text-muted">/ {dailyTarget} booked</span>
             </span>
-            <span className="text-[11px] text-emerald-500 font-semibold flex items-center gap-0.5">
+            <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-0.5">
               <TrendingUp className="w-3 h-3" /> On Track
             </span>
           </div>
 
           {/* Progress Bar */}
-          <div className="w-full bg-bg-main dark:bg-zinc-800 h-2 rounded-full overflow-hidden border border-card-border/50">
+          <div className="w-full bg-bg-main h-2 rounded-full overflow-hidden border border-card-border/50">
             <div
               className="bg-gradient-to-r from-brand-red to-brand-orange h-full rounded-full transition-all duration-500"
               style={{ width: `${percent}%` }}
@@ -67,10 +67,10 @@ export default function LiveFloorPulse({
       </div>
 
       {/* Top SDRs Podium */}
-      <div className="bg-bg-card dark:bg-zinc-900 border border-card-border dark:border-zinc-800 rounded-2xl p-4.5 shadow-sm space-y-2.5">
+      <div className="bg-card-bg border border-card-border rounded-2xl p-4.5 shadow-xs space-y-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600">
               <Award className="w-4 h-4" />
             </div>
             <div>
@@ -85,16 +85,16 @@ export default function LiveFloorPulse({
           {topReps.slice(0, 3).map((rep, idx) => (
             <div
               key={rep.name}
-              className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-bg-main/60 dark:bg-zinc-800/40 border border-card-border/30"
+              className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-bg-main border border-card-border/50"
             >
               <div className="flex items-center gap-2">
                 <span
                   className={`font-mono text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ${
                     idx === 0
-                      ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
+                      ? 'bg-amber-500/20 text-amber-700 border border-amber-500/30'
                       : idx === 1
-                      ? 'bg-zinc-400/20 text-zinc-300 border border-zinc-400/30'
-                      : 'bg-amber-700/20 text-amber-600 border border-amber-700/30'
+                      ? 'bg-slate-200 text-slate-700 border border-slate-300'
+                      : 'bg-amber-700/15 text-amber-800 border border-amber-700/20'
                   }`}
                 >
                   {idx + 1}
@@ -102,7 +102,7 @@ export default function LiveFloorPulse({
                 <span className="font-semibold text-text-primary">{rep.name}</span>
               </div>
               <div className="flex items-center gap-2 font-mono text-[11px]">
-                <span className="text-emerald-500 font-bold">{rep.meetings} demos</span>
+                <span className="text-emerald-600 font-bold">{rep.meetings} demos</span>
                 <span className="text-text-muted text-[10px]">({rep.calls}c / {rep.emails}e)</span>
               </div>
             </div>
@@ -111,10 +111,10 @@ export default function LiveFloorPulse({
       </div>
 
       {/* Live Floor Activity Pulse */}
-      <div className="bg-bg-card dark:bg-zinc-900 border border-card-border dark:border-zinc-800 rounded-2xl p-4.5 shadow-sm space-y-2.5">
+      <div className="bg-card-bg border border-card-border rounded-2xl p-4.5 shadow-xs space-y-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600">
               <Activity className="w-4 h-4" />
             </div>
             <div>
@@ -122,18 +122,18 @@ export default function LiveFloorPulse({
               <p className="text-[11px] text-text-muted">Real-time floor events</p>
             </div>
           </div>
-          <span className="flex items-center gap-1 text-[10px] text-emerald-500 font-semibold">
+          <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-semibold">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
           </span>
         </div>
 
         <div className="space-y-1.5 text-[11px] text-text-secondary">
-          <div className="py-1.5 px-2.5 rounded-lg bg-emerald-500/[0.06] border border-emerald-500/20 text-emerald-400 flex items-center gap-2">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+          <div className="py-1.5 px-2.5 rounded-lg bg-emerald-50 border border-emerald-200/80 text-emerald-800 flex items-center gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span className="truncate">Lan Pham booked a demo with Acme Technologies</span>
           </div>
-          <div className="py-1.5 px-2.5 rounded-lg bg-bg-main/60 dark:bg-zinc-800/40 border border-card-border/30 text-text-muted flex items-center gap-2">
-            <Send className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+          <div className="py-1.5 px-2.5 rounded-lg bg-bg-main border border-card-border/50 text-text-secondary flex items-center gap-2">
+            <Send className="w-3.5 h-3.5 text-blue-500 shrink-0" />
             <span className="truncate">Cold Outreach sequence dispatched to 14 leads</span>
           </div>
         </div>

@@ -52,7 +52,7 @@ export default function FloatingBulkBar({
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-5 duration-200">
-      <div className="flex items-center gap-3 px-4 py-2.5 bg-bg-card/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-card-border/80 dark:border-zinc-700/80 rounded-2xl shadow-2xl text-xs text-text-primary">
+      <div className="flex items-center gap-3 px-4 py-2.5 bg-card-bg/95 backdrop-blur-xl border border-card-border/80 rounded-2xl shadow-2xl text-xs text-text-primary">
         {/* Count Badge */}
         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-brand-red/10 text-brand-red border border-brand-red/20 rounded-xl font-bold font-mono">
           <span className="w-2 h-2 rounded-full bg-brand-red animate-pulse" />
