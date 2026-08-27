@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma, withTenantRaw } from '@/lib/prisma';
-import { splitSearchTerms } from './terms';
+import { splitSearchTerms, getTitleSynonyms } from './terms';
 
 /**
  * Accent-insensitive id lookup, used as a pre-filter for list queries.
@@ -29,20 +29,40 @@ export async function findAccentInsensitiveIds(
 
   // Identifiers are from a fixed allowlist above, never user input.
   const tableRef = Prisma.raw(`"${table}"`);
+  const fullSynonyms = getTitleSynonyms(search ?? '');
+  const hasTitle = columns.includes('title');
 
   const perTerm = terms.map((term) => {
     const pattern = `%${term}%`;
+    const termSynonyms = getTitleSynonyms(term);
+
     const anyColumn = Prisma.join(
-      columns.map(
-        (col) =>
-          Prisma.sql`immutable_unaccent(lower(coalesce(${Prisma.raw(`"${col}"`)}, ''))) LIKE immutable_unaccent(lower(${pattern}))`
-      ),
+      columns.map((col) => {
+        const baseClause = Prisma.sql`immutable_unaccent(lower(coalesce(${Prisma.raw(`"${col}"`)}, ''))) LIKE immutable_unaccent(lower(${pattern}))`;
+        if (col === 'title' && termSynonyms.length > 0) {
+          const synClauses = termSynonyms.map(
+            (syn) =>
+              Prisma.sql`immutable_unaccent(lower(coalesce("title", ''))) LIKE immutable_unaccent(lower(${`%${syn}%`}))`
+          );
+          return Prisma.sql`(${baseClause} OR ${Prisma.join(synClauses, ' OR ')})`;
+        }
+        return baseClause;
+      }),
       ' OR '
     );
     return Prisma.sql`(${anyColumn})`;
   });
 
-  const where = Prisma.join(perTerm, ' AND ');
+  let where = Prisma.join(perTerm, ' AND ');
+
+  if (fullSynonyms.length > 0 && hasTitle && terms.length > 1) {
+    const synClauses = fullSynonyms.map(
+      (syn) =>
+        Prisma.sql`immutable_unaccent(lower(coalesce("title", ''))) LIKE immutable_unaccent(lower(${`%${syn}%`}))`
+    );
+    where = Prisma.sql`((${where}) OR (${Prisma.join(synClauses, ' OR ')}))`;
+  }
+
   const tenantClause = tenantId ? Prisma.sql`"tenantId" = ${tenantId} AND ` : Prisma.empty;
 
   // Raw SQL is outside the tenant extension (see `withTenantRaw` in `lib/prisma.ts`), so under

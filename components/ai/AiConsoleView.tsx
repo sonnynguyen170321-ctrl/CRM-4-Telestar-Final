@@ -199,9 +199,9 @@ export default function AiConsoleView() {
       </header>
 
       {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 type-meta text-red-700" role="alert">
+        <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 type-meta text-red-800 dark:text-red-300 font-medium" role="alert">
           {error}{' '}
-          <button type="button" onClick={() => void load()} className="underline focus-ring rounded">
+          <button type="button" onClick={() => void load()} className="underline focus-ring rounded cursor-pointer font-bold">
             Retry
           </button>
         </p>
@@ -233,7 +233,7 @@ export default function AiConsoleView() {
       )}
 
       {data && data.totals.blocked > 0 && (
-        <p className="flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-3 type-meta text-red-800">
+        <p className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 type-meta text-red-800 dark:text-red-300 font-medium">
           <ShieldAlert className="w-4 h-4 shrink-0" aria-hidden="true" />
           {data.totals.blocked} work {data.totals.blocked === 1 ? 'order has' : 'orders have'} stopped and need a look.
         </p>

@@ -300,13 +300,13 @@ export default function MeetingsPage() {
         <div className="flex flex-col lg:flex-row items-center gap-3">
           {/* Search */}
           <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted dark:text-zinc-400" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by prospect, company, meeting title, or client..."
-              className="w-full pl-9 pr-4 py-2 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
+              className="w-full pl-9 pr-4 py-2 bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-xl text-xs text-text-primary placeholder:text-text-muted dark:placeholder:text-zinc-500 shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red font-medium transition-all"
             />
           </div>
 
@@ -316,7 +316,7 @@ export default function MeetingsPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
+              className="px-3 py-2 bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-xl text-xs text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-medium cursor-pointer"
             >
               <option value="all">Status: All</option>
               <option value="link_sent">Link Sent</option>
@@ -331,7 +331,7 @@ export default function MeetingsPage() {
             <select
               value={outcomeFilter}
               onChange={(e) => setOutcomeFilter(e.target.value)}
-              className="px-3 py-2 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
+              className="px-3 py-2 bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-xl text-xs text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-medium cursor-pointer"
             >
               <option value="all">Outcome: All</option>
               <option value="pending">Outcome Pending</option>
@@ -347,7 +347,7 @@ export default function MeetingsPage() {
               <select
                 value={clientFilter}
                 onChange={(e) => setClientFilter(e.target.value)}
-                className="px-3 py-2 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
+                className="px-3 py-2 bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-xl text-xs text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-medium cursor-pointer"
               >
                 <option value="all">Client: All</option>
                 {clients.map((c) => (
@@ -361,7 +361,7 @@ export default function MeetingsPage() {
               <select
                 value={campaignFilter}
                 onChange={(e) => setCampaignFilter(e.target.value)}
-                className="px-3 py-2 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
+                className="px-3 py-2 bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-xl text-xs text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-medium cursor-pointer"
               >
                 <option value="all">Campaign: All</option>
                 {campaigns.map((cp) => (
@@ -375,7 +375,7 @@ export default function MeetingsPage() {
               <select
                 value={sdrFilter}
                 onChange={(e) => setSdrFilter(e.target.value)}
-                className="px-3 py-2 bg-bg-main border border-card-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-brand-red font-mono"
+                className="px-3 py-2 bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-xl text-xs text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-medium cursor-pointer"
               >
                 <option value="all">SDR: All</option>
                 {sdrs.map((s) => (

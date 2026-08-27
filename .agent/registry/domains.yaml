@@ -90,6 +90,15 @@ domains:
       - scripts/verify-rls-app-paths.probe.ts
       - scripts/verify-rls-enablement.mjs
       - scripts/verify-rls-live.mjs
+      # The tenant boundaries RLS cannot hold: foreign keys with no tenant component, and
+      # tables with no tenantId for rls.sql to find. Reported from the datamodel and from the
+      # data respectively.
+      - scripts/audit-tenant-integrity.mjs
+      - scripts/audit-cross-tenant-rows.mjs
+      # The composite-key migration toolchain.
+      - scripts/apply-composite-tenant-keys.mjs
+      - scripts/patch-composite-setnull.mjs
+      - scripts/preserve-referential-actions.mjs
       - scripts/verify-db-integrity.ts
       - scripts/check-relational-integrity.ts
       - scripts/apply-p8-migration.mjs

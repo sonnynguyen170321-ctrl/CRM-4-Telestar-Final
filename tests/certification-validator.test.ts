@@ -931,9 +931,16 @@ describe('a frozen candidate does not survive a change to the certification auth
     ['the verdict engine', 'scripts/certification/lib/consistency.mjs'],
     ['the certificate generator', 'scripts/certification/generate-certificate.mjs'],
     ['the engine\'s own controls', 'tests/certification-validator.test.ts'],
-    ['the contract', 'docs/production-certification/certification.config.json'],
-    ['the defect ledger', 'docs/production-certification/defects.json'],
-    ['the requirement registry', 'docs/production-certification/requirements.json'],
+    // The contract, the defect ledger and the requirement registry used to be listed here
+    // too, and that was wrong. A freeze necessarily commits a change to the contract, so
+    // this rule made every freeze report itself as tampering — unsatisfiable, and therefore
+    // destined to be bypassed. Recording a verification in the ledger during a run is
+    // likewise the normal thing to do.
+    //
+    // What actually protects them is stricter, not weaker: N3 compares the contract's
+    // content and allows only the freeze declaration to differ, and the ledger and registry
+    // are judged live by checks F, REQ and J2 on every run. See the satisfiability tests
+    // below.
   ])('invalidates the candidate when a commit changes %s', (_label, file) => {
     const findings = checksFor([file]);
 
@@ -969,6 +976,118 @@ describe('a frozen candidate does not survive a change to the certification auth
 
     expect(findings[0].check).toBe('N');
     expect(findings[0].message).toMatch(/not reachable/);
+  });
+});
+
+/**
+ * The first version of the freeze gate fired on ANY post-freeze commit touching
+ * certification.config.json — and a freeze necessarily writes candidateSha into that file.
+ * It could therefore never be satisfied by the real workflow: every freeze reported itself
+ * as tampering. A gate nobody can turn green is a gate that gets worked around, which is
+ * the failure this whole program exists to prevent.
+ *
+ * So the engine is compared by "was it touched" (N2) and the contract by content (N3): the
+ * freeze may name a new candidate and may change nothing else.
+ */
+describe('the freeze gate must be satisfiable by an actual freeze', () => {
+  const CONTRACT = 'docs/production-certification/certification.config.json';
+
+  function gitFor({
+    commits = {},
+    contractAtFreeze = null,
+  }: {
+    commits?: Record<string, string[]>;
+    contractAtFreeze?: Record<string, unknown> | null;
+  }) {
+    return (args: string[]): string | null => {
+      if (args[0] === 'log') return Object.keys(commits).join('\n');
+      if (args[0] === 'show' && args[1] && args[1].includes(`:${CONTRACT}`)) {
+        return contractAtFreeze === null ? null : JSON.stringify(contractAtFreeze);
+      }
+      if (args[0] === 'show') {
+        const sha = args[args.length - 1];
+        return (commits[sha] || []).join('\n');
+      }
+      return '';
+    };
+  }
+
+  const baseContract = {
+    candidateSha: CANDIDATE,
+    candidateFrozenAt: '2026-08-01T00:00:00.000Z',
+    previousCandidates: [],
+    releaseBlockingSeverities: ['P0', 'P1', 'P2'],
+    requiredRunCount: 3,
+  };
+
+  it('a freeze commit that only re-declares the candidate is accepted', () => {
+    const freezeCommit = 'a'.repeat(40);
+    const findings = checkPostFreezeCommits(
+      { ...baseContract, candidateSha: CANDIDATE, candidateFrozenAt: '2026-09-01T00:00:00.000Z', previousCandidates: [{ sha: OTHER_SHA }] },
+      {
+        git: gitFor({
+          commits: { [freezeCommit]: [CONTRACT] },
+          contractAtFreeze: baseContract,
+        }),
+      },
+    );
+
+    expect(findings, JSON.stringify(findings)).toEqual([]);
+  });
+
+  it('recording a verification in the defect ledger after the freeze is accepted', () => {
+    const commit = 'b'.repeat(40);
+    const findings = checkPostFreezeCommits(baseContract, {
+      git: gitFor({
+        commits: { [commit]: ['docs/production-certification/defects.json'] },
+        contractAtFreeze: baseContract,
+      }),
+    });
+
+    expect(findings, JSON.stringify(findings)).toEqual([]);
+  });
+
+  it('still refuses a post-freeze change to the engine', () => {
+    const commit = 'c'.repeat(40);
+    const findings = checkPostFreezeCommits(baseContract, {
+      git: gitFor({
+        commits: { [commit]: ['scripts/certification/lib/consistency.mjs'] },
+        contractAtFreeze: baseContract,
+      }),
+    });
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].check).toBe('N2');
+  });
+
+  it('refuses a relaxed blocking contract even when no commit looks suspicious', () => {
+    const findings = checkPostFreezeCommits(
+      { ...baseContract, releaseBlockingSeverities: ['P0'] },
+      { git: gitFor({ commits: {}, contractAtFreeze: baseContract }) },
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].check).toBe('N3');
+    expect(findings[0].message).toContain('releaseBlockingSeverities');
+  });
+
+  it('refuses an accepted-risk allowance added after the freeze', () => {
+    const findings = checkPostFreezeCommits(
+      { ...baseContract, authorizedAcceptedRisks: [{ id: 'TEL-P0-009' }] },
+      { git: gitFor({ commits: {}, contractAtFreeze: baseContract }) },
+    );
+
+    expect(findings[0].check).toBe('N3');
+    expect(findings[0].message).toContain('authorizedAcceptedRisks');
+  });
+
+  it('ignores commentary keys, which carry no contractual weight', () => {
+    const findings = checkPostFreezeCommits(
+      { ...baseContract, $comment: 'reworded' },
+      { git: gitFor({ commits: {}, contractAtFreeze: baseContract }) },
+    );
+
+    expect(findings).toEqual([]);
   });
 });
 

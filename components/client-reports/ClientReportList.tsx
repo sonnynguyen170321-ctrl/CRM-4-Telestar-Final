@@ -117,13 +117,13 @@ export default function ClientReportList() {
       {/* Filter and Search Bar */}
       <div className="p-4 bg-card-bg border border-card-border rounded-xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
         <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-2.5" />
+          <Search className="w-4 h-4 text-text-muted dark:text-zinc-400 absolute left-3 top-2.5" />
           <input
             type="text"
             placeholder="Search reports by client or title..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-bg-main border border-card-border rounded-lg pl-9 pr-3 py-1.5 text-xs text-text-primary placeholder:text-muted-foreground focus:ring-1 focus:ring-brand-red focus:outline-none"
+            className="w-full bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted dark:placeholder:text-zinc-500 shadow-2xs focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red font-medium transition-all focus:outline-none"
           />
         </div>
 
@@ -132,7 +132,7 @@ export default function ClientReportList() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:ring-1 focus:ring-brand-red focus:outline-none"
+            className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-medium cursor-pointer"
           >
             <option value="all">All Statuses</option>
             <option value="draft">Drafts</option>
@@ -145,7 +145,7 @@ export default function ClientReportList() {
           <select
             value={audienceFilter}
             onChange={(e) => setAudienceFilter(e.target.value)}
-            className="bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:ring-1 focus:ring-brand-red focus:outline-none"
+            className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-medium cursor-pointer"
           >
             <option value="all">All Audiences</option>
             <option value="client">Client-Facing</option>
