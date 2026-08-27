@@ -65,7 +65,7 @@ export default function FloatingBulkBar({
         <select
           value={bulkStage}
           onChange={(e) => setBulkStage(e.target.value)}
-          className="bg-bg-main/80 dark:bg-zinc-800 border border-card-border dark:border-zinc-700 rounded-xl px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red transition-colors"
+          className="bg-bg-main dark:bg-zinc-800 border border-card-border dark:border-zinc-700 rounded-xl px-2.5 py-1.5 text-xs text-text-primary font-medium focus:outline-none focus:border-brand-red transition-colors cursor-pointer"
         >
           <option value="">🏷️ Change Stage…</option>
           {['new', 'sequence_active', 'replied', 'meeting_booked', 'won', 'lost'].map((s) => (
@@ -78,7 +78,7 @@ export default function FloatingBulkBar({
           <select
             value={bulkSdr}
             onChange={(e) => setBulkSdr(e.target.value)}
-            className="bg-bg-main/80 dark:bg-zinc-800 border border-card-border dark:border-zinc-700 rounded-xl px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red transition-colors"
+            className="bg-bg-main dark:bg-zinc-800 border border-card-border dark:border-zinc-700 rounded-xl px-2.5 py-1.5 text-xs text-text-primary font-medium focus:outline-none focus:border-brand-red transition-colors cursor-pointer"
           >
             <option value="">👤 Assign Rep…</option>
             {users.map((u) => (
@@ -94,7 +94,7 @@ export default function FloatingBulkBar({
           <select
             value={bulkSeqId}
             onChange={(e) => setBulkSeqId(e.target.value)}
-            className="bg-bg-main/80 dark:bg-zinc-800 border border-card-border dark:border-zinc-700 rounded-xl px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red transition-colors"
+            className="bg-bg-main dark:bg-zinc-800 border border-card-border dark:border-zinc-700 rounded-xl px-2.5 py-1.5 text-xs text-text-primary font-medium focus:outline-none focus:border-brand-red transition-colors cursor-pointer"
           >
             <option value="">⚡ Add to Sequence…</option>
             {sequences.map((s) => (
@@ -110,10 +110,10 @@ export default function FloatingBulkBar({
           <button
             type="button"
             onClick={onBatchAiEnrich}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-500/15 to-teal-500/15 border border-emerald-500/30 hover:border-emerald-500/60 text-emerald-400 font-semibold rounded-xl transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 hover:border-emerald-500/60 text-emerald-700 dark:text-emerald-300 font-semibold rounded-xl transition-all cursor-pointer"
             title="Enrich company intelligence for all selected leads"
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span>AI Enrich</span>
           </button>
         )}
@@ -137,7 +137,7 @@ export default function FloatingBulkBar({
         <button
           type="button"
           onClick={onClear}
-          className="p-1.5 text-text-muted hover:text-text-primary rounded-xl hover:bg-card-border/30 transition-colors"
+          className="p-1.5 text-text-muted hover:text-text-primary rounded-xl hover:bg-card-border/30 transition-colors cursor-pointer"
           title="Clear Selection (ESC)"
         >
           <X className="w-4 h-4" />

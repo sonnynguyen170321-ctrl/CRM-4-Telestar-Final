@@ -313,19 +313,19 @@ export default function InboxPage() {
       {/* Search Header */}
       <div className="h-14 border-b border-card-border bg-card-bg px-5 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h1 className="text-lg font-bold text-text-primary">Unified Inbox</h1>
-          <span className="text-xs bg-brand-red/10 border border-brand-red/20 text-brand-red px-2 py-0.5 rounded-full uppercase font-bold">
+          <h1 className="text-base font-bold text-text-primary">Unified Inbox</h1>
+          <span className="text-xs bg-brand-red/10 border border-brand-red/20 text-brand-red px-2 py-0.5 rounded-full uppercase font-bold font-mono">
             Live
           </span>
         </div>
         <div className="relative w-72">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-text-muted" />
+          <Search className="absolute left-3 top-2.5 w-4 h-4 text-text-muted dark:text-zinc-400" />
           <input
             type="text"
             placeholder="Search messages..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-bg-main border border-card-border rounded-xl pl-9 pr-4 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red transition-all placeholder:text-text-muted"
+            className="w-full bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-xl pl-9 pr-4 py-1.5 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red font-medium transition-all placeholder:text-text-muted dark:placeholder:text-zinc-500 shadow-2xs"
           />
         </div>
       </div>
@@ -334,7 +334,7 @@ export default function InboxPage() {
         {/* COLUMN 1: Folder Navigation Folders */}
         <div className="w-56 border-r border-card-border bg-card-bg p-3 space-y-4 select-none text-left overflow-y-auto">
           <div className="space-y-1">
-            <span className="px-3 text-[9px] font-bold text-text-muted uppercase tracking-wider block">
+            <span className="px-3 text-[10px] font-bold text-text-secondary uppercase tracking-wider block">
               Folders
             </span>
             <button
@@ -402,76 +402,76 @@ export default function InboxPage() {
           {/* AI Reply Queues */}
           {folder === 'inbox' && (
             <div className="space-y-1 pt-2 border-t border-card-border">
-              <span className="px-3 text-[9px] font-bold text-text-muted uppercase tracking-wider block">
+              <span className="px-3 text-[10px] font-bold text-text-secondary uppercase tracking-wider block">
                 AI Reply Queues
               </span>
 
               <button
                 onClick={() => setClassFilter('needs_attention')}
-                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                   classFilter === 'needs_attention'
-                    ? 'bg-amber-500/15 text-amber-500 font-bold border border-amber-500/30'
+                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/40'
                     : 'text-text-secondary hover:bg-card-border/30 hover:text-text-primary'
                 }`}
               >
                 <span>Needs Attention</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-amber-500/20 rounded text-amber-400 font-bold">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-amber-500/20 rounded text-amber-800 dark:text-amber-300 font-bold">
                   {threads.filter((t) => t.lead?.operatingState === 'human_attention' || t.messages.some((m) => m.replyClass === 'C' || m.replyClass === 'D')).length}
                 </span>
               </button>
 
               <button
                 onClick={() => setClassFilter('C')}
-                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                   classFilter === 'C'
-                    ? 'bg-emerald-500/15 text-emerald-500 font-bold border border-emerald-500/30'
+                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-500/40'
                     : 'text-text-secondary hover:bg-card-border/30 hover:text-text-primary'
                 }`}
               >
                 <span>Sales Engagement (Class C)</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-500/20 rounded text-emerald-400 font-bold">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-500/20 rounded text-emerald-800 dark:text-emerald-300 font-bold">
                   {threads.filter((t) => t.messages.some((m) => m.replyClass === 'C')).length}
                 </span>
               </button>
 
               <button
                 onClick={() => setClassFilter('D')}
-                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                   classFilter === 'D'
-                    ? 'bg-amber-500/15 text-amber-500 font-bold border border-amber-500/30'
+                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/40'
                     : 'text-text-secondary hover:bg-card-border/30 hover:text-text-primary'
                 }`}
               >
-                <span>Human Review Required (Class D)</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-amber-500/20 rounded text-amber-400 font-bold">
+                <span>Review Required (Class D)</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-amber-500/20 rounded text-amber-800 dark:text-amber-300 font-bold">
                   {threads.filter((t) => t.messages.some((m) => m.replyClass === 'D')).length}
                 </span>
               </button>
 
               <button
                 onClick={() => setClassFilter('B')}
-                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                   classFilter === 'B'
-                    ? 'bg-gray-500/15 text-gray-400 font-bold border border-gray-500/30'
+                    ? 'bg-zinc-500/15 text-zinc-700 dark:text-zinc-300 font-bold border border-zinc-500/40'
                     : 'text-text-secondary hover:bg-card-border/30 hover:text-text-primary'
                 }`}
               >
-                <span>Administrative / OOO (Class B)</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-gray-500/20 rounded text-gray-400 font-bold">
+                <span>Admin / OOO (Class B)</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-zinc-500/20 rounded text-zinc-700 dark:text-zinc-300 font-bold">
                   {threads.filter((t) => t.messages.some((m) => m.replyClass === 'B')).length}
                 </span>
               </button>
 
               <button
                 onClick={() => setClassFilter('A')}
-                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                   classFilter === 'A'
-                    ? 'bg-red-500/15 text-red-500 font-bold border border-red-500/30'
+                    ? 'bg-red-500/15 text-red-700 dark:text-red-300 font-bold border border-red-500/40'
                     : 'text-text-secondary hover:bg-card-border/30 hover:text-text-primary'
                 }`}
               >
                 <span>Opt-Out / Stop (Class A)</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-red-500/20 rounded text-red-400 font-bold">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-red-500/20 rounded text-red-700 dark:text-red-300 font-bold">
                   {threads.filter((t) => t.messages.some((m) => m.replyClass === 'A')).length}
                 </span>
               </button>
@@ -663,29 +663,29 @@ export default function InboxPage() {
                           </span>
                         </div>
 
-                        {/* AI Reply Classification Banner (Phase 8b Integration & SDR Exception Workflows) */}
+                        {/* AI Reply Classification Banner */}
                         {!isOutbound && msg.replyClass && (
-                          <div className="p-3 rounded-xl border text-xs space-y-2 text-left bg-bg-main/60 border-card-border">
+                          <div className="p-3.5 rounded-xl border text-xs space-y-2 text-left bg-card-bg dark:bg-zinc-900 border-card-border dark:border-zinc-700/80 shadow-2xs">
                             <div className="flex items-center justify-between gap-2 flex-wrap">
                               <div className="flex items-center gap-1.5">
-                                <span className="font-mono font-bold text-[10px] text-text-muted uppercase">AI Classification:</span>
+                                <span className="font-mono font-bold text-[10px] text-text-secondary uppercase">AI Classification:</span>
                                 {msg.replyClass === 'A' && (
-                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-red-500/10 text-red-400 border border-red-500/20">
+                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-red-500/10 text-red-700 dark:text-red-300 border border-red-500/30 font-mono">
                                     Class A · Opt-Out / Stop
                                   </span>
                                 )}
                                 {msg.replyClass === 'B' && (
-                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-gray-500/10 text-gray-400 border border-gray-500/20">
+                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-zinc-500/10 text-zinc-700 dark:text-zinc-300 border border-zinc-500/30 font-mono">
                                     Class B · Administrative (OOO)
                                   </span>
                                 )}
                                 {msg.replyClass === 'C' && (
-                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-mono">
                                     Class C · Sales Engagement
                                   </span>
                                 )}
                                 {msg.replyClass === 'D' && (
-                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/30 font-mono">
                                     Class D · Human Review Required
                                   </span>
                                 )}
@@ -694,7 +694,7 @@ export default function InboxPage() {
                                 <button
                                   type="button"
                                   onClick={() => router.push(`/ai?leadId=${selectedThread.lead!.id}`)}
-                                  className="text-[10px] font-bold text-brand-red hover:underline flex items-center gap-1 ml-auto bg-brand-red/10 px-2 py-0.5 rounded-lg border border-brand-red/20"
+                                  className="text-[10px] font-bold text-brand-red hover:underline flex items-center gap-1 ml-auto bg-brand-red/10 px-2 py-0.5 rounded-lg border border-brand-red/20 cursor-pointer"
                                 >
                                   <span>{msg.replyClass === 'C' ? 'Review Handoff Workspace' : 'Review Prospect Workspace'}</span>
                                   <span>→</span>
@@ -704,28 +704,28 @@ export default function InboxPage() {
 
                             {/* Class-specific operational guidance */}
                             {msg.replyClass === 'A' && (
-                              <p className="text-[11px] text-red-400 font-medium bg-red-500/10 p-2 rounded-lg border border-red-500/20">
+                              <p className="text-xs text-red-800 dark:text-red-300 font-medium bg-red-500/10 p-2.5 rounded-lg border border-red-500/20 leading-relaxed">
                                 ✋ <strong>Opt-out / Stop:</strong> Autonomous outreach stopped. Prospect suppressed from sequence. No SDR task required.
                               </p>
                             )}
                             {msg.replyClass === 'B' && (
-                              <p className="text-[11px] text-gray-300 font-medium bg-gray-500/10 p-2 rounded-lg border border-gray-500/20">
+                              <p className="text-xs text-zinc-800 dark:text-zinc-300 font-medium bg-zinc-500/10 p-2.5 rounded-lg border border-zinc-500/20 leading-relaxed">
                                 ⏸ <strong>Administrative (OOO):</strong> Follow-up paused. Does not count as sales engagement. Cadence will resume when return period expires.
                               </p>
                             )}
                             {msg.replyClass === 'C' && (
-                              <p className="text-[11px] text-emerald-400 font-medium bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
+                              <p className="text-xs text-emerald-800 dark:text-emerald-300 font-medium bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20 leading-relaxed">
                                 🎯 <strong>Sales Engagement:</strong> AI outreach stopped. Prospect transferred to SDR for human-managed follow-up.
                               </p>
                             )}
                             {msg.replyClass === 'D' && (
-                              <p className="text-[11px] text-amber-400 font-medium bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+                              <p className="text-xs text-amber-900 dark:text-amber-300 font-medium bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20 leading-relaxed">
                                 🔍 <strong>Human Review Required:</strong> Classification intent uncertain. Inspect prospect context before resuming outreach.
                               </p>
                             )}
 
                             {(msg.replyKind || msg.classificationSource) && (
-                              <p className="text-[10px] text-text-secondary leading-snug">
+                              <p className="text-[10px] text-text-secondary leading-snug font-mono">
                                 {msg.replyKind ? `Kind: ${msg.replyKind}` : ''} {msg.classificationSource ? `· Source: ${msg.classificationSource}` : ''} {msg.replyConfidence != null ? `· Confidence: ${Math.round(msg.replyConfidence * 100)}%` : ''}
                               </p>
                             )}
@@ -838,25 +838,25 @@ export default function InboxPage() {
                 <form onSubmit={handleSendReply} className="border-t border-card-border p-4 bg-card-bg space-y-3">
                   {/* Smart Quick Reply Chips */}
                   <div className="flex flex-wrap items-center gap-1.5 pb-1">
-                    <span className="text-[10px] text-text-muted font-bold font-mono mr-1">QUICK CHIPS:</span>
+                    <span className="text-[10px] text-text-secondary font-bold font-mono mr-1">QUICK CHIPS:</span>
                     <button
                       type="button"
                       onClick={() => handleApplyAiDraft(`Hi ${selectedThread.lead?.firstName || 'there'},\n\nThanks for following up! Would you have 15 minutes this Thursday or Friday for a quick intro demo?\n\nYou can pick any slot that fits best here: https://cal.com/telestar-demo\n\nBest regards,\nSales Team`)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                     >
                       📅 Propose 15-Min Demo
                     </button>
                     <button
                       type="button"
                       onClick={() => handleApplyAiDraft(`Hi ${selectedThread.lead?.firstName || 'there'},\n\nGlad to hear from you. I've attached our latest client case study and solution brief detailing how we drove 3.4x pipeline growth.\n\nLet me know if you'd like to dive deeper on a quick call!\n\nBest regards,\nSales Team`)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                     >
                       📄 Share Case Study
                     </button>
                     <button
                       type="button"
                       onClick={() => handleApplyAiDraft(`Hi ${selectedThread.lead?.firstName || 'there'},\n\nUnderstood, thank you for letting us know. I will remove you from our outreach sequence immediately. Wishing you all the best!\n\nBest regards,\nSales Team`)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-400 border border-zinc-500/30 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-700 dark:text-zinc-300 border border-zinc-500/30 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                     >
                       🤝 Politely Disqualify
                     </button>

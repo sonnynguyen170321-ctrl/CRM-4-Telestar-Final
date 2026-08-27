@@ -731,13 +731,13 @@ export default function SequencesPage() {
 
                 <div className="space-y-3.5 text-xs">
                   <div>
-                    <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">
+                    <label className="text-[10px] font-bold text-text-secondary uppercase block mb-1">
                       Select Channel
                     </label>
                     <select
                       value={newStepChannel}
                       onChange={(e) => setNewStepChannel(e.target.value as SequenceStep['channel'])}
-                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red"
+                      className="w-full bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium cursor-pointer"
                     >
                       <option value="email">📧 Email outreach</option>
                       <option value="phone">📞 Phone call dial</option>
@@ -748,7 +748,7 @@ export default function SequencesPage() {
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">
+                      <label className="text-[10px] font-bold text-text-secondary uppercase block mb-1">
                         Wait Days
                       </label>
                       <input
@@ -757,11 +757,11 @@ export default function SequencesPage() {
                         max={30}
                         value={newStepDelayDays}
                         onChange={(e) => setNewStepDelayDays(Math.max(0, parseInt(e.target.value) || 0))}
-                        className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red text-xs font-mono"
+                        className="w-full bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red text-xs font-mono"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">
+                      <label className="text-[10px] font-bold text-text-secondary uppercase block mb-1">
                         Wait Hours
                       </label>
                       <input
@@ -770,7 +770,7 @@ export default function SequencesPage() {
                         max={23}
                         value={newStepDelayHours}
                         onChange={(e) => setNewStepDelayHours(Math.max(0, parseInt(e.target.value) || 0))}
-                        className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red text-xs font-mono"
+                        className="w-full bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red text-xs font-mono"
                       />
                     </div>
                   </div>
@@ -829,7 +829,7 @@ export default function SequencesPage() {
                   <select 
                     value={enrollmentFilters.step} 
                     onChange={e => setEnrollmentFilters(p => ({ ...p, step: e.target.value }))}
-                    className="bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red"
+                    className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red font-medium cursor-pointer shadow-2xs"
                   >
                     <option value="">All Steps</option>
                     {steps.map(s => (
@@ -839,7 +839,7 @@ export default function SequencesPage() {
                   <select 
                     value={enrollmentFilters.status} 
                     onChange={e => setEnrollmentFilters(p => ({ ...p, status: e.target.value }))}
-                    className="bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red"
+                    className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red font-medium cursor-pointer shadow-2xs"
                   >
                     <option value="">Status: Active & Paused</option>
                     <option value="active">Active</option>

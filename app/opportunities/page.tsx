@@ -144,7 +144,7 @@ export default function OpportunitiesPage() {
       <select
         value={statusFilter}
         onChange={e => setStatusFilter(e.target.value)}
-        className="rounded-lg border border-card-border bg-card-bg px-2.5 py-2 text-xs text-text-primary focus:outline-none"
+        className="rounded-lg border border-card-border dark:border-zinc-700 bg-card-bg dark:bg-zinc-900 px-2.5 py-2 text-xs text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-medium cursor-pointer"
       >
         <option value="all">All Status</option>
         <option value="open">Open</option>
@@ -155,7 +155,7 @@ export default function OpportunitiesPage() {
       <select
         value={handoffFilter}
         onChange={e => setHandoffFilter(e.target.value)}
-        className="rounded-lg border border-card-border bg-card-bg px-2.5 py-2 text-xs text-text-primary focus:outline-none"
+        className="rounded-lg border border-card-border dark:border-zinc-700 bg-card-bg dark:bg-zinc-900 px-2.5 py-2 text-xs text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-medium cursor-pointer"
       >
         <option value="all">All Handoff</option>
         <option value="pending">Pending</option>
@@ -167,7 +167,7 @@ export default function OpportunitiesPage() {
         <select
           value={clientFilter}
           onChange={e => setClientFilter(e.target.value)}
-          className="rounded-lg border border-card-border bg-card-bg px-2.5 py-2 text-xs text-text-primary focus:outline-none"
+          className="rounded-lg border border-card-border dark:border-zinc-700 bg-card-bg dark:bg-zinc-900 px-2.5 py-2 text-xs text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-medium cursor-pointer"
         >
           <option value="all">All Clients</option>
           {[...clients.entries()].map(([id, name]) => (
@@ -179,7 +179,7 @@ export default function OpportunitiesPage() {
         <select
           value={campaignFilter}
           onChange={e => setCampaignFilter(e.target.value)}
-          className="rounded-lg border border-card-border bg-card-bg px-2.5 py-2 text-xs text-text-primary focus:outline-none"
+          className="rounded-lg border border-card-border dark:border-zinc-700 bg-card-bg dark:bg-zinc-900 px-2.5 py-2 text-xs text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-medium cursor-pointer"
         >
           <option value="all">All Campaigns</option>
           {[...campaigns.entries()].map(([id, name]) => (
@@ -191,7 +191,7 @@ export default function OpportunitiesPage() {
         <select
           value={sdrFilter}
           onChange={e => setSdrFilter(e.target.value)}
-          className="rounded-lg border border-card-border bg-card-bg px-2.5 py-2 text-xs text-text-primary focus:outline-none"
+          className="rounded-lg border border-card-border dark:border-zinc-700 bg-card-bg dark:bg-zinc-900 px-2.5 py-2 text-xs text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-medium cursor-pointer"
         >
           <option value="all">All SDRs</option>
           {[...sdrs.entries()].map(([id, name]) => (
@@ -254,12 +254,12 @@ export default function OpportunitiesPage() {
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {activeTab !== 'review' && filterSelects}
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-text-muted" />
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-text-muted dark:text-zinc-400" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search opportunities..."
-              className="w-64 rounded-lg border border-card-border bg-card-bg py-2 pl-8 pr-3 text-sm text-text-primary placeholder:text-text-muted/50 focus:outline-none"
+              className="w-64 rounded-lg border border-card-border dark:border-zinc-700 bg-card-bg dark:bg-zinc-900 py-2 pl-8 pr-3 text-xs text-text-primary placeholder:text-text-muted dark:placeholder:text-zinc-500 shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red font-medium transition-all"
             />
           </div>
         </div>

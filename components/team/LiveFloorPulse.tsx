@@ -85,16 +85,16 @@ export default function LiveFloorPulse({
           {topReps.slice(0, 3).map((rep, idx) => (
             <div
               key={rep.name}
-              className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-bg-main border border-card-border/50"
+              className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-bg-main dark:bg-zinc-900 border border-card-border/50 dark:border-zinc-800"
             >
               <div className="flex items-center gap-2">
                 <span
                   className={`font-mono text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ${
                     idx === 0
-                      ? 'bg-amber-500/20 text-amber-700 border border-amber-500/30'
+                      ? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40'
                       : idx === 1
-                      ? 'bg-slate-200 text-slate-700 border border-slate-300'
-                      : 'bg-amber-700/15 text-amber-800 border border-amber-700/20'
+                      ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-600'
+                      : 'bg-amber-700/15 dark:bg-amber-700/25 text-amber-800 dark:text-amber-300 border border-amber-700/30'
                   }`}
                 >
                   {idx + 1}
@@ -102,8 +102,8 @@ export default function LiveFloorPulse({
                 <span className="font-semibold text-text-primary">{rep.name}</span>
               </div>
               <div className="flex items-center gap-2 font-mono text-[11px]">
-                <span className="text-emerald-600 font-bold">{rep.meetings} demos</span>
-                <span className="text-text-muted text-[10px]">({rep.calls}c / {rep.emails}e)</span>
+                <span className="text-emerald-700 dark:text-emerald-400 font-bold">{rep.meetings} demos</span>
+                <span className="text-text-secondary dark:text-zinc-400 text-[10px]">({rep.calls}c / {rep.emails}e)</span>
               </div>
             </div>
           ))}
@@ -114,7 +114,7 @@ export default function LiveFloorPulse({
       <div className="bg-card-bg border border-card-border rounded-2xl p-4.5 shadow-xs space-y-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
               <Activity className="w-4 h-4" />
             </div>
             <div>
@@ -122,17 +122,17 @@ export default function LiveFloorPulse({
               <p className="text-[11px] text-text-muted">Real-time floor events</p>
             </div>
           </div>
-          <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-semibold">
+          <span className="flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
           </span>
         </div>
 
         <div className="space-y-1.5 text-[11px] text-text-secondary">
-          <div className="py-1.5 px-2.5 rounded-lg bg-emerald-50 border border-emerald-200/80 text-emerald-800 flex items-center gap-2">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          <div className="py-1.5 px-2.5 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 font-medium flex items-center gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span className="truncate">Lan Pham booked a demo with Acme Technologies</span>
           </div>
-          <div className="py-1.5 px-2.5 rounded-lg bg-bg-main border border-card-border/50 text-text-secondary flex items-center gap-2">
+          <div className="py-1.5 px-2.5 rounded-lg bg-bg-main dark:bg-zinc-900 border border-card-border/50 dark:border-zinc-800 text-text-secondary flex items-center gap-2">
             <Send className="w-3.5 h-3.5 text-blue-500 shrink-0" />
             <span className="truncate">Cold Outreach sequence dispatched to 14 leads</span>
           </div>
