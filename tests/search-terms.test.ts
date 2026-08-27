@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildTermClauses, splitSearchTerms, stripAccents, termVariants } from '@/lib/search/terms';
+import { buildTermClauses, splitSearchTerms, stripAccents, termVariants, getTitleSynonyms } from '@/lib/search/terms';
 import { buildSearchClauses } from '@/lib/leads/listQuery';
 import { buildPoolWhere } from '@/lib/leadgen/pool';
 
@@ -34,6 +34,35 @@ describe('search term splitting', () => {
 
   it('returns nothing for an empty search so the filter is skipped', () => {
     expect(buildTermClauses('', ['firstName'])).toEqual([]);
+  });
+});
+
+describe('title synonym search alignment', () => {
+  it('resolves bidirectional synonyms for executive and common sales titles', () => {
+    expect(getTitleSynonyms('CEO')).toContain('chief executive officer');
+    expect(getTitleSynonyms('Chief Executive Officer')).toContain('ceo');
+    expect(getTitleSynonyms('CTO')).toContain('chief technology officer');
+    expect(getTitleSynonyms('Vice President')).toContain('vp');
+    expect(getTitleSynonyms('VP')).toContain('vice president');
+    expect(getTitleSynonyms('Founder')).toContain('co-founder');
+  });
+
+  it('expands title clauses when searching acronyms like CEO', () => {
+    const clauses = buildTermClauses<Record<string, unknown>>('CEO', ['title', 'company']);
+    expect(clauses).toHaveLength(1);
+    const orClauses = (clauses[0] as { OR: Array<Record<string, unknown>> }).OR;
+    const titleClauses = orClauses.filter((c) => 'title' in c);
+    const titleValues = titleClauses.map((c) => (c.title as { contains: string }).contains);
+    expect(titleValues).toContain('CEO');
+    expect(titleValues).toContain('chief executive officer');
+  });
+
+  it('expands full phrase search like Chief Executive Officer to match CEO in title', () => {
+    const clauses = buildTermClauses<Record<string, unknown>>('Chief Executive Officer', ['title', 'company']);
+    expect(clauses).toHaveLength(1);
+    const rootOr = (clauses[0] as { OR: Array<Record<string, unknown>> }).OR;
+    const directTitleMatch = rootOr.find((c) => 'title' in c && (c.title as { contains: string }).contains === 'ceo');
+    expect(directTitleMatch).toBeDefined();
   });
 });
 

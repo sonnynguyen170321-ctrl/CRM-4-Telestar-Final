@@ -57,10 +57,14 @@ export async function POST(req: NextRequest) {
         ...(researchSummary
           ? {
               notes: {
+                // No tenantId: the Note now reaches Lead through a composite key
+                // (leadId, tenantId), so Prisma takes the tenant from the parent and the
+                // nested input no longer accepts one. A note can no longer be attached to a
+                // lead in a different tenant, which is why the field is gone rather than
+                // merely redundant.
                 create: {
                   content: `🔍 [External Research Summary]\n${researchSummary}`,
                   createdById: user.id,
-                  tenantId,
                 },
               },
             }

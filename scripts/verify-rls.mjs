@@ -29,7 +29,7 @@ import { randomBytes } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 
 const ADMIN_URL =
-  process.env.ADMIN_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
+  process.env.ADMIN_DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/postgres';
 const DB_NAME = `crm_rls_verify_${randomBytes(4).toString('hex')}`;
 const APP_ROLE = `crm_rls_app_${randomBytes(3).toString('hex')}`;
 /**
@@ -290,6 +290,74 @@ async function main() {
         fail('INSERTED a row attributed to tenant B (WITH CHECK not enforced)');
       } catch {
         pass('cannot insert a row attributed to another tenant');
+      }
+
+      // Upsert is its own attack, not a spelling of INSERT. `ON CONFLICT DO UPDATE` reaches
+      // the conflicting row through a unique index, and index lookups do not consult RLS —
+      // so a policy that stops a plain UPDATE can still be walked around here unless the
+      // UPDATE arm's USING clause also refuses. Asserting on the error alone would be weak:
+      // what decides is that tenant B's row is untouched afterwards, read back as superuser.
+      let upsertRefusedBy = 'not refused';
+      try {
+        await asTenantA(
+          `INSERT INTO "Lead" (id,"firstName","lastName",company,email,stage,"assignedToId","campaignId","tenantId","createdAt","updatedAt")
+           VALUES ('lead-b','HIJACK','HIJACK','HIJACK','hijack@example.test','new','user-a','camp-a','tenant-a',now(),now())
+           ON CONFLICT (id) DO UPDATE SET company='HIJACKED', "firstName"='HIJACKED'`
+        );
+      } catch (e) {
+        upsertRefusedBy = String(e?.message ?? e).split('\n').find((l) => /policy|violat|denied/i.test(l))?.trim()
+          ?? 'refused';
+      }
+      const afterUpsert = await admin(DB_NAME, (su) =>
+        su.$queryRawUnsafe(`SELECT company FROM "Lead" WHERE id='lead-b'`)
+      );
+      if (afterUpsert[0]?.company === 'Co b') {
+        pass(`cannot upsert over another tenant's row (${upsertRefusedBy})`);
+      } else {
+        fail(`UPSERT modified a tenant B row — company is now '${afterUpsert[0]?.company}'`);
+      }
+
+      // A child row honestly labelled tenant A, pointing at tenant B's parent. RLS checks the
+      // row's own tenantId and is satisfied; the foreign key checks that 'lead-b' exists and is
+      // likewise satisfied, because FK validation does not run under the caller's policies.
+      // Nothing in either mechanism compares the two tenants. The reason it is refused is
+      // printed rather than assumed — a check that passes because the INSERT was malformed
+      // would be worse than no check, so the reason has to be visible in the output.
+      let childRefusedBy = 'not refused';
+      try {
+        await asTenantA(
+          `INSERT INTO "Activity" (id,"userId","leadId",type,description,"tenantId","createdAt")
+           VALUES ('act-cross','user-a','lead-b','note_added'::"ActivityType",'crosses a tenant boundary','tenant-a',now())`
+        );
+      } catch (e) {
+        // The DB's own ERROR line, not Prisma's wrapper preamble. An earlier version of this
+        // check reported "Invalid $queryRawUnsafe invocation" and passed — because the INSERT
+        // named a type that is not in the ActivityType enum. It was refused for being
+        // malformed, proving nothing about tenant isolation.
+        // Postgres reports the policy denial with an `ERROR:` line; Prisma reports a foreign
+        // key denial as "Foreign key constraint violated". Both are legitimate refusals and
+        // both must be named, because "refused" on its own cannot be told apart from a typo
+        // in the statement.
+        childRefusedBy =
+          String(e?.message ?? e)
+            .split('\n')
+            .map((l) => l.trim())
+            .find((l) => /ERROR:|constraint|violat/i.test(l))
+            ?.slice(0, 110) ?? 'refused, reason not reported';
+      }
+      const crossChild = await admin(DB_NAME, (su) =>
+        su.$queryRawUnsafe(
+          `SELECT a.id FROM "Activity" a JOIN "Lead" l ON l.id = a."leadId"
+           WHERE a.id='act-cross' AND a."tenantId" <> l."tenantId"`
+        )
+      );
+      if (crossChild.length === 0) {
+        pass(`cannot attach a child row to another tenant's parent (${childRefusedBy})`);
+      } else {
+        fail(
+          "CREATED an Activity in tenant A referencing tenant B's Lead — " +
+            'RLS cannot see this; it needs a composite (id, tenantId) foreign key'
+        );
       }
 
       // Missing context must fail closed, not open.

@@ -62,7 +62,7 @@ export default function CampaignOverview({
             Icon: Layers,
           },
         ].map(({ label, value, Icon }) => (
-          <div key={label} className="bg-bg-card border border-card-border rounded-xl p-4 shadow-xs flex items-center justify-between">
+          <div key={label} className="bg-card-bg border border-card-border rounded-xl p-4 shadow-xs flex items-center justify-between">
             <div className="space-y-0.5">
               <span className="text-[11px] font-medium text-text-muted">{label}</span>
               <p className="font-display font-bold text-2xl text-text-primary tracking-tight">{value}</p>

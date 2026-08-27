@@ -829,13 +829,37 @@ const GENERATED_PREFIXES = ['docs/production-certification/', 'docs/production-c
  * Changing any of these is legitimate work. It is not, however, work a frozen
  * candidate survives: re-freeze and re-run the ladder.
  */
-const AUTHORITY_PREFIXES = [
-  'scripts/certification/',
-  'tests/certification-',
-  'docs/production-certification/certification.config.json',
-  'docs/production-certification/defects.json',
-  'docs/production-certification/requirements.json',
-];
+const AUTHORITY_PREFIXES = ['scripts/certification/', 'tests/certification-'];
+
+/**
+ * The certification CONTRACT, as opposed to the engine that reads it.
+ *
+ * Compared by content rather than by "was this file touched", because a freeze necessarily
+ * writes `candidateSha` into this file. The first version of this check fired on any
+ * post-freeze commit that touched it, which made it unsatisfiable by the real workflow —
+ * every freeze would have reported itself as tampering. A gate nobody can turn green is a
+ * gate that gets worked around, which is the failure this whole program is about.
+ *
+ * defects.json and requirements.json are deliberately not treated as frozen either.
+ * Recording a verification during a certification run is the normal thing to do, and their
+ * current content is already fully judged: check F reads the live ledger, and REQ and J2
+ * read the live registry. A second rule forbidding them from changing would forbid the work
+ * while adding no protection.
+ */
+const CONTRACT_PATH = 'docs/production-certification/certification.config.json';
+
+/**
+ * The keys a freeze is supposed to change. Every other key must still match.
+ *
+ * `previousCandidates` is here because freezing is exactly what appends to it: the candidate
+ * being superseded moves into that list as part of the act. Treating it as frozen would make
+ * the second freeze report the first one as tampering.
+ */
+const FREEZE_DECLARATION_KEYS = new Set([
+  'candidateSha',
+  'candidateFrozenAt',
+  'previousCandidates',
+]);
 
 function classifyAgainstFreeze(files) {
   const authority = [];
@@ -881,12 +905,66 @@ export function checkPostFreezeCommits(config, deps = {}) {
       findings.push(
         finding(
           'N2',
-          `commit ${commit.slice(0, 7)} after candidate freeze changes the certification authority itself: ${authority.slice(0, 5).join(', ')} - re-freeze the candidate and re-run the ladder`,
+          `commit ${commit.slice(0, 7)} after candidate freeze changes the certification engine itself: ${authority.slice(0, 5).join(', ')} - re-freeze the candidate and re-run the ladder`,
+        ),
+      );
+    }
+  }
+
+  findings.push(...checkContractUnchangedSinceFreeze(config, runGit));
+  return findings;
+}
+
+/**
+ * N3: the contract may name a new candidate, and may change nothing else.
+ *
+ * This is what remains of treating certification.config.json as frozen. The freeze writes
+ * `candidateSha` and `candidateFrozenAt` into it, so those two keys are expected to differ.
+ * Every other key is the agreement the run is judged under — `releaseBlockingSeverities`,
+ * `authorizedAcceptedRisks`, `requiredRunCount`, the gate list — and quietly relaxing one
+ * of those after freezing is the same class of move as editing the engine: it changes what
+ * the verdict means without changing the code that computes it.
+ *
+ * Comparing content rather than commits matters here. A key changed and changed back leaves
+ * two commits and no difference, and should pass; a key relaxed in a commit that also
+ * touches something innocuous should fail.
+ */
+function checkContractUnchangedSinceFreeze(config, runGit) {
+  const atFreeze = runGit(['show', `${config.candidateSha}:${CONTRACT_PATH}`]);
+  // Blank counts as unavailable, not as malformed. `git show` of a path that did not exist
+  // at that commit returns nothing, and so do several thin wrappers around it; treating an
+  // empty answer as a parse failure would report tampering whenever the contract was newer
+  // than the candidate — a false accusation, and the loudest possible kind.
+  if (atFreeze === null || String(atFreeze).trim() === '') return [];
+
+  let frozen;
+  try {
+    frozen = JSON.parse(atFreeze);
+  } catch {
+    return [finding('N3', `the contract at ${config.candidateSha.slice(0, 7)} is not readable JSON`)];
+  }
+
+  const findings = [];
+  const keys = new Set([...Object.keys(frozen), ...Object.keys(config)]);
+  for (const key of keys) {
+    if (FREEZE_DECLARATION_KEYS.has(key) || key.startsWith('$')) continue;
+    const before = JSON.stringify(frozen[key]);
+    const after = JSON.stringify(config[key]);
+    if (before !== after) {
+      findings.push(
+        finding(
+          'N3',
+          `certification.config.json key "${key}" changed after the freeze: ${truncate(before)} -> ${truncate(after)}`,
         ),
       );
     }
   }
   return findings;
+}
+
+function truncate(value) {
+  const text = value === undefined ? '(absent)' : String(value);
+  return text.length > 60 ? `${text.slice(0, 57)}...` : text;
 }
 
 /**

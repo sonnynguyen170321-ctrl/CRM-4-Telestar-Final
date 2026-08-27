@@ -28,13 +28,13 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="w-full max-w-md bg-bg-card dark:bg-zinc-900 border border-card-border dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-card-border dark:border-zinc-800">
+      <div className="w-full max-w-md bg-card-bg border border-card-border rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-card-border">
           <div className="flex items-center gap-2">
             <Keyboard className="w-4 h-4 text-brand-red" />
-            <h3 className="font-display font-bold text-sm text-text-primary">
+            <h2 className="font-display font-bold text-sm text-text-primary">
               SDR Speedrun Keyboard Shortcuts
-            </h3>
+            </h2>
           </div>
           <button
             type="button"
@@ -49,10 +49,10 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }: Props) {
           {SHORTCUTS.map((item, idx) => (
             <div
               key={idx}
-              className="flex items-center justify-between py-1.5 px-2.5 rounded-xl hover:bg-card-border/20 dark:hover:bg-zinc-800/50 transition-colors"
+              className="flex items-center justify-between py-1.5 px-2.5 rounded-xl hover:bg-card-border/20 transition-colors"
             >
               <span className="text-xs text-text-secondary">{item.desc}</span>
-              <kbd className="px-2 py-0.5 bg-bg-main dark:bg-zinc-800 border border-card-border dark:border-zinc-700 rounded-md font-mono text-[11px] font-bold text-text-primary shadow-xs">
+              <kbd className="px-2 py-0.5 bg-bg-main border border-card-border rounded-md font-mono text-[11px] font-bold text-text-primary shadow-xs">
                 {item.key}
               </kbd>
             </div>

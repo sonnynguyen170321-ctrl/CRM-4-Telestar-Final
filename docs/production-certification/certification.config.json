@@ -14,8 +14,8 @@
     "imageRepository": "telestar-crm-candidate",
     "demoSqlInstance": "telestar-crm-db"
   },
-  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
-  "candidateFrozenAt": "2026-08-25T19:42:51.000Z",
+  "candidateSha": "3cd16c8eb773b627ee7f51b59c371ca67ad71075",
+  "candidateFrozenAt": "2026-08-27T05:46:42.011Z",
   "previousCandidates": [
     {
       "sha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
@@ -140,11 +140,19 @@
     {
       "sha": "99f6b8d00c3240c8be0fd07446ded1e710aa2b7b",
       "invalidatedReason": "superseded: DR drill snapshot correctness fix"
+    },
+    {
+      "sha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+      "invalidatedReason": "superseded: Landed composite tenant keys, Impeccable UI, and defect reconciliation"
     }
   ],
   "requiredRunCount": 3,
   "$releaseBlockingSeverities": "Which defect severities block a release. TEL-P0-011: the validator's only defect gate read DEFECTS.md prose and returned early unless the certificate said \"ISSUED & APPROVED\" - wording this program never emits - so no defect could block anything. The gate now reads defects.json, and this list is the contract it enforces. GOLDEN PRODUCTION READY requires P0, P1 and P2 all closed.",
-  "releaseBlockingSeverities": ["P0", "P1", "P2"],
+  "releaseBlockingSeverities": [
+    "P0",
+    "P1",
+    "P2"
+  ],
   "$authorizedAcceptedRisks": "An ACCEPTED_RISK blocks release unless it is named here with an owner and an authorization reference. P0 and P1 can never be accepted at any authorization level; only the risk itself may be closed.",
   "authorizedAcceptedRisks": [],
   "fullCertificationGates": [

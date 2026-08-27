@@ -221,10 +221,27 @@ describe.skipIf(!hasDb)('one logical step sends at most one physical email', () 
     expect(after?.providerMessageId).toBeTruthy();
 
     // Nine of the ten must have declined cleanly rather than thrown.
+    //
+    // The count on its own cannot say why a claimant failed to decline, and this assertion has
+    // been seen to fail at 8 under full-suite load while `sendCalls` was still 1 — so the
+    // send-once invariant held and something else threw. Report what, or the next person is
+    // left with a bare "expected 8 to be greater than or equal to 9" and a rerun that passes.
     const declined = results.filter(
       (r) => r.status === 'fulfilled' && (r.value as { skipped?: boolean })?.skipped,
     );
-    expect(declined.length).toBeGreaterThanOrEqual(9);
+    const rejections = results
+      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+      .map((r) => String(r.reason?.message ?? r.reason).split('\n')[0].slice(0, 160));
+    const oddFulfilments = results
+      .filter((r) => r.status === 'fulfilled' && !(r.value as { skipped?: boolean })?.skipped)
+      .map((r) => JSON.stringify((r as PromiseFulfilledResult<unknown>).value).slice(0, 160));
+
+    expect(
+      declined.length,
+      `ten racers, ${declined.length} declined cleanly, ${sendCalls.length} physical send(s).\n` +
+        `rejected (${rejections.length}): ${rejections.join(' | ') || 'none'}\n` +
+        `fulfilled but not skipped (${oddFulfilments.length}): ${oddFulfilments.join(' | ') || 'none'}`,
+    ).toBeGreaterThanOrEqual(9);
   });
 
   it('sends exactly once when the same job is delivered twice in sequence', async () => {

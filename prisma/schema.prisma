@@ -383,6 +383,7 @@ enum EvidenceReuseScope {
 // ─── Users ───────────────────────────────────────────────────────────────────
 
 model User {
+  @@unique([id, tenantId], map: "User_id_tenantId_key")
   id          String   @id @default(cuid())
   email       String   @unique
   password    String
@@ -390,7 +391,7 @@ model User {
   lastName    String
   role        Role     @default(sdr)
   managerId   String?
-  manager     User?    @relation("UserReports", fields: [managerId], references: [id])
+  manager     User?    @relation("UserReports", fields: [managerId, tenantId], references: [id, tenantId], onDelete: SetNull)
   reports     User[]   @relation("UserReports")
   avatarUrl   String?
   timezone    String   @default("UTC")
@@ -453,6 +454,7 @@ model User {
 // ─── Clients & Campaigns ─────────────────────────────────────────────────────
 
 model Client {
+  @@unique([id, tenantId], map: "Client_id_tenantId_key")
   id           String       @id @default(cuid())
   name         String
   industry     String
@@ -474,9 +476,10 @@ model Client {
 }
 
 model Campaign {
+  @@unique([id, tenantId], map: "Campaign_id_tenantId_key")
   id             String         @id @default(cuid())
   clientId       String
-  client         Client         @relation(fields: [clientId], references: [id])
+  client         Client         @relation(fields: [clientId, tenantId], references: [id, tenantId])
   name           String
   targetVertical String?
   targetGeo      String?
@@ -509,8 +512,8 @@ model Campaign {
 model CampaignSdr {
   campaignId String
   userId     String
-  campaign   Campaign @relation(fields: [campaignId], references: [id])
-  user       User     @relation(fields: [userId], references: [id])
+  campaign   Campaign @relation(fields: [campaignId, tenantId], references: [id, tenantId])
+  user       User     @relation(fields: [userId, tenantId], references: [id, tenantId])
   tenantId   String
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -521,6 +524,7 @@ model CampaignSdr {
 // ─── Account (company-level) — Premium Data Model (P8) ──────────────────────
 
 model Account {
+  @@unique([id, tenantId], map: "Account_id_tenantId_key")
   id              String   @id @default(cuid())
   name            String
   industry        String?
@@ -555,6 +559,7 @@ model Account {
 // ─── Contact (person-level) — Premium Data Model (P8) ───────────────────────
 
 model Contact {
+  @@unique([id, tenantId], map: "Contact_id_tenantId_key")
   id                       String   @id @default(cuid())
   fullName                 String?
   firstName                String
@@ -598,13 +603,14 @@ model Contact {
 // ─── Contact Intelligence (Permanent Derived Asset) ─────────────────────────
 
 model ContactIntelligence {
+  @@unique([contactId, tenantId], map: "ContactIntelligence_contactId_tenantId_key")
   id String @id @default(cuid())
 
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   contactId String  @unique
-  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contact   Contact @relation(fields: [contactId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   lifecycleState   ContactLifecycleState   @default(discovered)
   qualityClass     ContactQualityClass     @default(untested)
@@ -619,7 +625,7 @@ model ContactIntelligence {
   freshnessScore        Int?
 
   relationshipOwnerId String?
-  relationshipOwner   User?   @relation("ContactRelationshipOwner", fields: [relationshipOwnerId], references: [id], onDelete: SetNull)
+  relationshipOwner   User?   @relation("ContactRelationshipOwner", fields: [relationshipOwnerId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   relationshipStrength RelationshipStrength?
   relationshipType     RelationshipType?
@@ -673,13 +679,14 @@ model ContactIntelligence {
 // ─── Contact Evidence Ledger (Append-Only Historical Facts) ─────────────────
 
 model ContactEvidence {
+  @@unique([id, tenantId], map: "ContactEvidence_id_tenantId_key")
   id String @id @default(cuid())
 
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   contactId String
-  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contact   Contact @relation(fields: [contactId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   evidenceType ContactEvidenceType
 
@@ -693,18 +700,18 @@ model ContactEvidence {
 
   clientId      String?
   campaignId    String?
-  campaign      Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  campaign      Campaign?    @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: SetNull)
   leadId        String?
-  lead          Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  lead          Lead?        @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: SetNull)
   meetingId     String?
-  meeting       Meeting?     @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  meeting       Meeting?     @relation(fields: [meetingId, tenantId], references: [id, tenantId], onDelete: SetNull)
   opportunityId String?
-  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  opportunity   Opportunity? @relation(fields: [opportunityId, tenantId], references: [id, tenantId], onDelete: SetNull)
   activityId    String?
-  activity      Activity?    @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  activity      Activity?    @relation(fields: [activityId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   capturedById String?
-  capturedBy   User?   @relation("EvidenceCapturedBy", fields: [capturedById], references: [id], onDelete: SetNull)
+  capturedBy   User?   @relation("EvidenceCapturedBy", fields: [capturedById, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   confidence     Int?
   humanConfirmed Boolean @default(false)
@@ -718,7 +725,7 @@ model ContactEvidence {
   validUntil DateTime?
 
   supersedesId String?
-  supersedes   ContactEvidence?  @relation("EvidenceSupersedes", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersedes   ContactEvidence?  @relation("EvidenceSupersedes", fields: [supersedesId, tenantId], references: [id, tenantId], onDelete: SetNull)
   supersededBy ContactEvidence[] @relation("EvidenceSupersedes")
 
   createdAt DateTime @default(now())
@@ -733,9 +740,10 @@ model ContactEvidence {
 // ─── Leads (assignment-level) — Premium Data Model (P8) ─────────────────────
 
 model Lead {
+  @@unique([id, tenantId], map: "Lead_id_tenantId_key")
   id                 String                    @id @default(cuid())
   contactId          String?
-  contact            Contact?                  @relation(fields: [contactId], references: [id])
+  contact            Contact?                  @relation(fields: [contactId, tenantId], references: [id, tenantId], onDelete: SetNull)
   firstName          String
   lastName           String
   company            String
@@ -745,14 +753,14 @@ model Lead {
   linkedIn           String?
   whatsApp           String?
   accountId          String?
-  account            Account?                  @relation(fields: [accountId], references: [id])
+  account            Account?                  @relation(fields: [accountId, tenantId], references: [id, tenantId], onDelete: SetNull)
   stage              LeadStage                 @default(new)
   assignedToId       String
-  assignedTo         User                      @relation("LeadAssignee", fields: [assignedToId], references: [id])
+  assignedTo         User                      @relation("LeadAssignee", fields: [assignedToId, tenantId], references: [id, tenantId])
   campaignId         String
-  campaign           Campaign                  @relation(fields: [campaignId], references: [id])
+  campaign           Campaign                  @relation(fields: [campaignId, tenantId], references: [id, tenantId])
   sequenceId         String?
-  sequence           Sequence?                 @relation(fields: [sequenceId], references: [id])
+  sequence           Sequence?                 @relation(fields: [sequenceId, tenantId], references: [id, tenantId], onDelete: SetNull)
   sequenceStep       Int?
   sequenceStatus     SequenceEnrollmentStatus?
   timezone           String?
@@ -830,13 +838,14 @@ model Lead {
 // ─── Sequences ───────────────────────────────────────────────────────────────
 
 model Sequence {
+  @@unique([id, tenantId], map: "Sequence_id_tenantId_key")
   id          String   @id @default(cuid())
   name        String
   description String?
   isActive    Boolean  @default(true)
   isArchived  Boolean  @default(false)
   createdById String
-  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdBy   User     @relation(fields: [createdById, tenantId], references: [id, tenantId])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   tenantId    String
@@ -854,13 +863,13 @@ model Sequence {
 model SequenceStep {
   id                     String    @id @default(cuid())
   sequenceId             String
-  sequence               Sequence  @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  sequence               Sequence  @relation(fields: [sequenceId, tenantId], references: [id, tenantId], onDelete: Cascade)
   order                  Int
   channel                Channel
   delayDays              Int       @default(1)
   delayHours             Int       @default(0)
   templateId             String?
-  template               Template? @relation(fields: [templateId], references: [id])
+  template               Template? @relation(fields: [templateId, tenantId], references: [id, tenantId], onDelete: SetNull)
   instructions           String?
   autoComplete           Boolean   @default(false)
   version                Int       @default(1)
@@ -883,9 +892,9 @@ model SequenceStep {
 model Task {
   id           String       @id @default(cuid())
   leadId       String
-  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead         Lead         @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: Cascade)
   userId       String
-  user         User         @relation(fields: [userId], references: [id])
+  user         User         @relation(fields: [userId, tenantId], references: [id, tenantId])
   type         TaskType
   title        String
   description  String?
@@ -918,6 +927,7 @@ model Task {
 // ─── Templates ───────────────────────────────────────────────────────────────
 
 model Template {
+  @@unique([id, tenantId], map: "Template_id_tenantId_key")
   id          String   @id @default(cuid())
   name        String
   channel     Channel
@@ -925,7 +935,7 @@ model Template {
   body        String
   category    String?
   createdById String
-  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdBy   User     @relation(fields: [createdById, tenantId], references: [id, tenantId])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   tenantId    String
@@ -940,9 +950,10 @@ model Template {
 }
 
 model AbTestVariant {
+  @@unique([id, tenantId], map: "AbTestVariant_id_tenantId_key")
   id         String   @id @default(cuid())
   templateId String
-  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  template   Template @relation(fields: [templateId, tenantId], references: [id, tenantId], onDelete: Cascade)
   subject    String?
   body       String?
   version    String // "A" | "B"
@@ -966,10 +977,10 @@ model AbTestVariant {
 model Note {
   id          String   @id @default(cuid())
   leadId      String
-  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead        Lead     @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: Cascade)
   content     String
   createdById String
-  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdBy   User     @relation(fields: [createdById, tenantId], references: [id, tenantId])
   isPinned    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -985,9 +996,9 @@ model Note {
 model Reminder {
   id          String   @id @default(cuid())
   leadId      String?
-  lead        Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  lead        Lead?    @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: SetNull)
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
   text        String
   dueAt       DateTime
   isDismissed Boolean  @default(false)
@@ -1003,6 +1014,7 @@ model Reminder {
 // ─── Activities ──────────────────────────────────────────────────────────────
 
 model Activity {
+  @@unique([id, tenantId], map: "Activity_id_tenantId_key")
   id          String       @id @default(cuid())
   /// Deterministic key for writes that must happen exactly once per subject, such as the
   /// single `lead_created` row an import produces for a lead.
@@ -1013,11 +1025,11 @@ model Activity {
   /// two concurrent workers can both pass.
   idempotencyKey String?   @unique
   userId      String
-  user        User         @relation(fields: [userId], references: [id])
+  user        User         @relation(fields: [userId, tenantId], references: [id, tenantId])
   leadId      String?
-  lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  lead        Lead?        @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: SetNull)
   sequenceId  String?
-  sequence    Sequence?    @relation(fields: [sequenceId], references: [id])
+  sequence    Sequence?    @relation(fields: [sequenceId, tenantId], references: [id, tenantId], onDelete: SetNull)
   type        ActivityType
   channel     Channel?
   metadata    Json?
@@ -1040,9 +1052,10 @@ model Activity {
 // ─── Email Accounts ──────────────────────────────────────────────────────────
 
 model EmailAccount {
+  @@unique([id, tenantId], map: "EmailAccount_id_tenantId_key")
   id               String        @id @default(cuid())
   userId           String
-  user             User          @relation(fields: [userId], references: [id])
+  user             User          @relation(fields: [userId, tenantId], references: [id, tenantId])
   email            String
   provider         EmailProvider
   accessToken      String?       @db.Text
@@ -1095,7 +1108,7 @@ model EmailAccount {
 model Notification {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
   type      String
   title     String?
   text      String
@@ -1115,7 +1128,7 @@ model Notification {
 model AuditLog {
   id            String   @id @default(cuid())
   userId        String?
-  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user          User?    @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: SetNull)
   action        String // e.g. "update_lead", "create_lead", "connect_email"
   tableName     String
   recordId      String
@@ -1163,11 +1176,11 @@ model JobRun {
 model OutboundMessage {
   id                String       @id @default(cuid())
   leadId            String
-  lead              Lead         @relation(fields: [leadId], references: [id])
+  lead              Lead         @relation(fields: [leadId, tenantId], references: [id, tenantId])
   accountId         String
-  account           EmailAccount @relation(fields: [accountId], references: [id])
+  account           EmailAccount @relation(fields: [accountId, tenantId], references: [id, tenantId])
   templateId        String?
-  template          Template?    @relation(fields: [templateId], references: [id])
+  template          Template?    @relation(fields: [templateId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   /// Which A/B variant produced these words, recorded at send time.
   ///
@@ -1178,7 +1191,7 @@ model OutboundMessage {
   /// every send with no A/B pair, and every send whose copy was approved per prospect — an
   /// approval overrides variant selection, so attributing it to a variant would be a lie.
   abVariantId       String?
-  abVariant         AbTestVariant? @relation(fields: [abVariantId], references: [id], onDelete: SetNull)
+  abVariant         AbTestVariant? @relation(fields: [abVariantId, tenantId], references: [id, tenantId], onDelete: SetNull)
   /// The cadence and step this send belongs to, denormalised so variant reporting does not have
   /// to walk back through the task that may since have been completed, reassigned or deleted.
   sequenceId        String?
@@ -1250,7 +1263,7 @@ model SuppressionEntry {
   domain     String?
   company    String?
   campaignId String?
-  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+  campaign   Campaign? @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: SetNull)
   reason     String // hard_bounce | spam | manual | unsubscribed
   createdAt  DateTime  @default(now())
   tenantId   String
@@ -1270,11 +1283,12 @@ model SuppressionEntry {
 // ─── Sequence Enrollments ────────────────────────────────────────────────────
 
 model SequenceEnrollment {
+  @@unique([id, tenantId], map: "SequenceEnrollment_id_tenantId_key")
   id               String                   @id @default(cuid())
   leadId           String
-  lead             Lead                     @relation(fields: [leadId], references: [id])
+  lead             Lead                     @relation(fields: [leadId, tenantId], references: [id, tenantId])
   sequenceId       String
-  sequence         Sequence                 @relation(fields: [sequenceId], references: [id])
+  sequence         Sequence                 @relation(fields: [sequenceId, tenantId], references: [id, tenantId])
   status           SequenceEnrollmentStatus @default(active)
   /// "<tenantId>:<leadId>" while this enrollment occupies the lead (active or paused); null once
   /// it reaches a terminal status. The unique index below is what makes "one occupying
@@ -1314,7 +1328,7 @@ model SequenceEnrollment {
 model SequenceStepCopy {
   id           String             @id @default(cuid())
   enrollmentId String
-  enrollment   SequenceEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  enrollment   SequenceEnrollment @relation(fields: [enrollmentId, tenantId], references: [id, tenantId], onDelete: Cascade)
   /// Matches `SequenceStep.order`, not a step id: the builder reconciles steps by id but the
   /// cadence position is what an enrollment's `currentStep` names.
   stepOrder    Int
@@ -1326,7 +1340,7 @@ model SequenceStepCopy {
   aiGenerated  Boolean            @default(false)
   approvedAt   DateTime           @default(now())
   approvedById String?
-  approvedBy   User?              @relation(fields: [approvedById], references: [id])
+  approvedBy   User?              @relation(fields: [approvedById, tenantId], references: [id, tenantId], onDelete: SetNull)
   createdAt    DateTime           @default(now())
   tenantId     String
   tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -1350,7 +1364,7 @@ model SequenceDraftRecord {
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   leadId   String
-  lead     Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead     Lead   @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   /// A `DraftChannel` from `lib/research/sequenceDrafts.ts`.
   channel String
@@ -1370,7 +1384,7 @@ model SequenceDraftRecord {
   workOrderId String?
 
   draftedById String?
-  draftedBy   User?    @relation(fields: [draftedById], references: [id])
+  draftedBy   User?    @relation(fields: [draftedById, tenantId], references: [id, tenantId], onDelete: SetNull)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -1381,12 +1395,13 @@ model SequenceDraftRecord {
 // ─── Import ──────────────────────────────────────────────────────────────────
 
 model ImportBatch {
+  @@unique([id, tenantId], map: "ImportBatch_id_tenantId_key")
   id         String         @id @default(cuid())
   campaignId String?
-  campaign   Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  campaign   Campaign?      @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: SetNull)
   targetType String         @default("lead") // lead | pool
   userId     String
-  user       User           @relation(fields: [userId], references: [id])
+  user       User           @relation(fields: [userId, tenantId], references: [id, tenantId])
   filename   String?
   totalRows  Int            @default(0)
   parsedRows Int            @default(0)
@@ -1410,15 +1425,15 @@ model ImportBatch {
 model ImportRow {
   id         String        @id @default(cuid())
   batchId    String
-  batch      ImportBatch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batch      ImportBatch   @relation(fields: [batchId, tenantId], references: [id, tenantId], onDelete: Cascade)
   rowIndex   Int
   data       Json
   errors     Json?
   status     String        @default("pending") // pending | valid | error | imported
   leadId     String?
-  lead       Lead?         @relation(fields: [leadId], references: [id])
+  lead       Lead?         @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: SetNull)
   poolItemId String?
-  poolItem   LeadPoolItem? @relation(fields: [poolItemId], references: [id])
+  poolItem   LeadPoolItem? @relation(fields: [poolItemId, tenantId], references: [id, tenantId], onDelete: SetNull)
   createdAt  DateTime      @default(now())
   tenantId   String
   tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -1434,7 +1449,7 @@ model ImportRow {
 model AiMemory {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
   memory    String
   createdAt DateTime @default(now())
   tenantId  String
@@ -1446,11 +1461,12 @@ model AiMemory {
 // ─── Booking Links ───────────────────────────────────────────────────────────
 
 model BookingLink {
+  @@unique([id, tenantId], map: "BookingLink_id_tenantId_key")
   id                 String              @id @default(cuid())
   clientId           String
-  client             Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client             Client              @relation(fields: [clientId, tenantId], references: [id, tenantId], onDelete: Cascade)
   campaignId         String?
-  campaign           Campaign?           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign           Campaign?           @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Cascade)
   name               String
   url                String              @db.Text
   provider           BookingLinkProvider @default(other)
@@ -1463,7 +1479,7 @@ model BookingLink {
   isDefault          Boolean             @default(false)
   isActive           Boolean             @default(true)
   createdById        String?
-  createdBy          User?               @relation("BookingLinkCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy          User?               @relation("BookingLinkCreator", fields: [createdById, tenantId], references: [id, tenantId], onDelete: SetNull)
   meetings           Meeting[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
@@ -1481,17 +1497,18 @@ model BookingLink {
 // ─── Meetings ────────────────────────────────────────────────────────────────
 
 model Meeting {
+  @@unique([id, tenantId], map: "Meeting_id_tenantId_key")
   id                      String          @id @default(cuid())
   leadId                  String
-  lead                    Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead                    Lead            @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: Cascade)
   clientId                String
-  client                  Client          @relation(fields: [clientId], references: [id])
+  client                  Client          @relation(fields: [clientId, tenantId], references: [id, tenantId])
   campaignId              String
-  campaign                Campaign        @relation(fields: [campaignId], references: [id])
+  campaign                Campaign        @relation(fields: [campaignId, tenantId], references: [id, tenantId])
   sdrId                   String
-  sdr                     User            @relation("MeetingSdr", fields: [sdrId], references: [id])
+  sdr                     User            @relation("MeetingSdr", fields: [sdrId, tenantId], references: [id, tenantId])
   bookingLinkId           String?
-  bookingLink             BookingLink?    @relation(fields: [bookingLinkId], references: [id], onDelete: SetNull)
+  bookingLink             BookingLink?    @relation(fields: [bookingLinkId, tenantId], references: [id, tenantId], onDelete: SetNull)
   bookingLinkUrlSnapshot  String?         @db.Text
   bookingLinkNameSnapshot String?
   sourceChannel           Channel?
@@ -1512,7 +1529,7 @@ model Meeting {
   painPoints              String?         @db.Text
   nextStep                String?         @db.Text
   outcomeLoggedById       String?
-  outcomeLoggedBy         User?           @relation("MeetingOutcomeLogger", fields: [outcomeLoggedById], references: [id], onDelete: SetNull)
+  outcomeLoggedBy         User?           @relation("MeetingOutcomeLogger", fields: [outcomeLoggedById, tenantId], references: [id, tenantId], onDelete: SetNull)
   outcomeLoggedAt         DateTime?
   createdAt               DateTime        @default(now())
   updatedAt               DateTime        @updatedAt
@@ -1535,28 +1552,30 @@ model Meeting {
 // ─── Opportunities (Deal pipeline, after meeting booked) ────────────────────
 
 model Opportunity {
+  @@unique([id, tenantId], map: "Opportunity_id_tenantId_key")
+  @@unique([meetingId, tenantId], map: "Opportunity_meetingId_tenantId_key")
   id String @id @default(cuid())
 
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   clientId String
-  client   Client @relation(fields: [clientId], references: [id])
+  client   Client @relation(fields: [clientId, tenantId], references: [id, tenantId])
 
   campaignId String
-  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  campaign   Campaign @relation(fields: [campaignId, tenantId], references: [id, tenantId])
 
   leadId String?
-  lead   Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  lead   Lead?   @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   accountId String?
-  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  account   Account? @relation(fields: [accountId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   contactId String?
-  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  contact   Contact? @relation(fields: [contactId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   meetingId String?  @unique
-  meeting   Meeting? @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  meeting   Meeting? @relation(fields: [meetingId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   title        String
   company      String
@@ -1566,10 +1585,10 @@ model Opportunity {
   contactTitle String?
 
   ownerId String
-  owner   User   @relation("OpportunityOwner", fields: [ownerId], references: [id])
+  owner   User   @relation("OpportunityOwner", fields: [ownerId, tenantId], references: [id, tenantId])
 
   createdById String
-  createdBy   User   @relation("OpportunityCreator", fields: [createdById], references: [id])
+  createdBy   User   @relation("OpportunityCreator", fields: [createdById, tenantId], references: [id, tenantId])
 
   source        OpportunitySource @default(meeting_outcome)
   stage         OpportunityStage  @default(pending_client_review)
@@ -1627,10 +1646,10 @@ model Opportunity {
 model OpportunityActivity {
   id            String      @id @default(cuid())
   opportunityId String
-  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  opportunity   Opportunity @relation(fields: [opportunityId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   userId String
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId, tenantId], references: [id, tenantId])
 
   type        OpportunityActivityType
   description String?
@@ -1741,12 +1760,13 @@ enum ReportExportType {
 }
 
 model ClientReport {
+  @@unique([id, tenantId], map: "ClientReport_id_tenantId_key")
   id       String @id @default(cuid())
   clientId String
-  client   Client @relation(fields: [clientId], references: [id])
+  client   Client @relation(fields: [clientId, tenantId], references: [id, tenantId])
 
   campaignId String?
-  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+  campaign   Campaign? @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   title       String
   periodType  ReportPeriodType @default(weekly)
@@ -1765,10 +1785,10 @@ model ClientReport {
   snapshotJson Json
 
   generatedById String
-  generatedBy   User   @relation("ReportGeneratedBy", fields: [generatedById], references: [id])
+  generatedBy   User   @relation("ReportGeneratedBy", fields: [generatedById, tenantId], references: [id, tenantId])
 
   approvedById String?
-  approvedBy   User?     @relation("ReportApprovedBy", fields: [approvedById], references: [id])
+  approvedBy   User?     @relation("ReportApprovedBy", fields: [approvedById, tenantId], references: [id, tenantId], onDelete: SetNull)
   approvedAt   DateTime?
 
   sharedAt   DateTime?
@@ -1794,7 +1814,7 @@ model ClientReport {
 model ClientReportRecipient {
   id       String       @id @default(cuid())
   reportId String
-  report   ClientReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  report   ClientReport @relation(fields: [reportId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   name      String?
   email     String
@@ -1814,13 +1834,13 @@ model ClientReportRecipient {
 model ClientReportExport {
   id       String       @id @default(cuid())
   reportId String
-  report   ClientReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  report   ClientReport @relation(fields: [reportId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   type         ReportExportType
   fileUrl      String?
   fileName     String?
   exportedById String
-  exportedBy   User             @relation(fields: [exportedById], references: [id])
+  exportedBy   User             @relation(fields: [exportedById, tenantId], references: [id, tenantId])
   exportedAt   DateTime         @default(now())
 
   tenantId String
@@ -1834,7 +1854,7 @@ model ClientReportExport {
 model ClientReportShareLink {
   id       String       @id @default(cuid())
   reportId String
-  report   ClientReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  report   ClientReport @relation(fields: [reportId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   tokenHash    String    @unique
   expiresAt    DateTime?
@@ -1844,7 +1864,7 @@ model ClientReportShareLink {
   lastViewedAt DateTime?
 
   createdById String
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdBy   User   @relation(fields: [createdById, tenantId], references: [id, tenantId])
 
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -1857,11 +1877,12 @@ model ClientReportShareLink {
 }
 
 model LeadPoolItem {
+  @@unique([id, tenantId], map: "LeadPoolItem_id_tenantId_key")
   id        String   @id @default(cuid())
   accountId String?
-  account   Account? @relation(fields: [accountId], references: [id])
+  account   Account? @relation(fields: [accountId, tenantId], references: [id, tenantId], onDelete: SetNull)
   contactId String?
-  contact   Contact? @relation(fields: [contactId], references: [id])
+  contact   Contact? @relation(fields: [contactId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   firstName String?
   lastName  String?
@@ -1881,7 +1902,7 @@ model LeadPoolItem {
   sourceType    LeadSourceType          @default(csv_import)
   sourceName    String?
   importBatchId String?
-  importBatch   ImportBatch?            @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatch   ImportBatch?            @relation(fields: [importBatchId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   icpFitScore      Int?
   dataQualityScore Int?
@@ -1889,24 +1910,24 @@ model LeadPoolItem {
   emailScore       Int?
   duplicateKey     String?
   duplicateOfId    String?
-  duplicateOf      LeadPoolItem?  @relation("LeadPoolDuplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicateOf      LeadPoolItem?  @relation("LeadPoolDuplicates", fields: [duplicateOfId, tenantId], references: [id, tenantId], onDelete: SetNull)
   duplicates       LeadPoolItem[] @relation("LeadPoolDuplicates")
 
   qualifiedById      String?
-  qualifiedBy        User?     @relation("LeadPoolQualifiedBy", fields: [qualifiedById], references: [id])
+  qualifiedBy        User?     @relation("LeadPoolQualifiedBy", fields: [qualifiedById, tenantId], references: [id, tenantId], onDelete: SetNull)
   qualifiedAt        DateTime?
   disqualifiedReason String?
   qaNotes            String?
 
   assignedCampaignId String?
-  assignedCampaign   Campaign? @relation(fields: [assignedCampaignId], references: [id])
+  assignedCampaign   Campaign? @relation(fields: [assignedCampaignId, tenantId], references: [id, tenantId], onDelete: SetNull)
   assignedSdrId      String?
-  assignedSdr        User?     @relation("LeadPoolAssignedSdr", fields: [assignedSdrId], references: [id])
+  assignedSdr        User?     @relation("LeadPoolAssignedSdr", fields: [assignedSdrId, tenantId], references: [id, tenantId], onDelete: SetNull)
   convertedLeadId    String?
-  convertedLead      Lead?     @relation("LeadPoolConverted", fields: [convertedLeadId], references: [id])
+  convertedLead      Lead?     @relation("LeadPoolConverted", fields: [convertedLeadId, tenantId], references: [id, tenantId], onDelete: SetNull)
   assignedAt         DateTime?
   assignedById       String?
-  assignedBy         User?     @relation("LeadPoolAssignedBy", fields: [assignedById], references: [id])
+  assignedBy         User?     @relation("LeadPoolAssignedBy", fields: [assignedById, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   tags       String[]
   rawPayload Json?
@@ -1931,7 +1952,7 @@ model LeadPoolItem {
 model CampaignLeadRequirement {
   id         String   @id @default(cuid())
   campaignId String
-  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign   Campaign @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   requiredCount  Int
   deliveredCount Int @default(0)
@@ -1949,7 +1970,7 @@ model CampaignLeadRequirement {
 
   dueDate     DateTime?
   createdById String
-  createdBy   User      @relation("LeadRequirementCreatedBy", fields: [createdById], references: [id])
+  createdBy   User      @relation("LeadRequirementCreatedBy", fields: [createdById, tenantId], references: [id, tenantId])
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   tenantId    String
@@ -1963,9 +1984,9 @@ model CampaignLeadRequirement {
 model LeadgenActivity {
   id          String              @id @default(cuid())
   poolItemId  String?
-  poolItem    LeadPoolItem?       @relation(fields: [poolItemId], references: [id], onDelete: SetNull)
+  poolItem    LeadPoolItem?       @relation(fields: [poolItemId, tenantId], references: [id, tenantId], onDelete: SetNull)
   userId      String
-  user        User                @relation(fields: [userId], references: [id])
+  user        User                @relation(fields: [userId, tenantId], references: [id, tenantId])
   type        LeadgenActivityType
   description String?
   metadata    Json?
@@ -2046,6 +2067,7 @@ model Tenant {
   sequenceLaunches         SequenceLaunch[]
   outcomeSignals           OutcomeSignal[]
   playbookProposals        PlaybookProposal[]
+  playbookProposalEvidence PlaybookProposalEvidence[]
   apiKeys                  ApiKey[]
   contactIntelligences     ContactIntelligence[]
   contactEvidence          ContactEvidence[]
@@ -2121,6 +2143,7 @@ model Webhook {
 /// processes try at once. It needs no interactive transaction, which matters because the
 /// Neon HTTP driver does not have them.
 model TenantAiBudgetPeriod {
+  @@unique([id, tenantId], map: "TenantAiBudgetPeriod_id_tenantId_key")
   id       String @id @default(cuid())
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -2157,7 +2180,7 @@ model TenantAiBudgetReservation {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   periodId String
-  period   TenantAiBudgetPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  period   TenantAiBudgetPeriod @relation(fields: [periodId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   /// Amount held, in micro-dollars.
   amountMicros BigInt
@@ -2192,7 +2215,7 @@ model ApiKey {
   tenantId    String
   tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdById String
-  createdBy   User      @relation("UserApiKeys", fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy   User      @relation("UserApiKeys", fields: [createdById, tenantId], references: [id, tenantId], onDelete: Cascade)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -2210,18 +2233,21 @@ model ApiKey {
 /// operate. Restating ICP here would create two definitions that disagree, which is worse
 /// than one. Where policy needs ICP context it reads the requirement.
 model CampaignPlaybook {
+  @@unique([id, tenantId], map: "CampaignPlaybook_id_tenantId_key")
+  @@unique([campaignId, tenantId], map: "CampaignPlaybook_campaignId_tenantId_key")
+  @@unique([currentVersionId, tenantId], map: "CampaignPlaybook_currentVersionId_tenantId_key")
   id         String   @id @default(cuid())
   tenantId   String
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   campaignId String   @unique
-  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign   Campaign @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   name String
 
   /// The version currently in force. Null until a version is approved and activated —
   /// a campaign with a playbook but no approved policy runs exactly as it did before.
   currentVersionId String?                  @unique
-  currentVersion   CampaignPlaybookVersion? @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+  currentVersion   CampaignPlaybookVersion? @relation("CurrentVersion", fields: [currentVersionId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   versions CampaignPlaybookVersion[] @relation("PlaybookVersions")
   proposals PlaybookProposal[]
@@ -2251,11 +2277,13 @@ enum CampaignPlaybookVersionStatus {
 /// actions, because execution provenance should not rest on time inference once a writer
 /// exists — but a column nothing writes is not worth adding before then.
 model CampaignPlaybookVersion {
+  @@unique([id, tenantId], map: "CampaignPlaybookVersion_id_tenantId_key")
+  @@unique([fromProposalId, tenantId], map: "CampaignPlaybookVersion_fromProposalId_tenantId_key")
   id         String           @id @default(cuid())
   tenantId   String
   tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   playbookId String
-  playbook   CampaignPlaybook @relation("PlaybookVersions", fields: [playbookId], references: [id], onDelete: Cascade)
+  playbook   CampaignPlaybook @relation("PlaybookVersions", fields: [playbookId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   /// Human-readable and monotonic per playbook. **Not the authority** — the row id is the
   /// durable reference, and every future FK points at `id`, never at a number.
@@ -2287,7 +2315,7 @@ model CampaignPlaybookVersion {
   /// Unique, and that is the whole point: the database refuses a second draft for a proposal
   /// rather than leaving the service's statement ordering as the only thing preventing one.
   fromProposalId   String?                @unique
-  fromProposal     PlaybookProposal?      @relation("ProposalCreatedVersion", fields: [fromProposalId], references: [id], onDelete: SetNull)
+  fromProposal     PlaybookProposal?      @relation("ProposalCreatedVersion", fields: [fromProposalId, tenantId], references: [id, tenantId], onDelete: SetNull)
   /// Proposals written against this version as their starting point.
   proposalsBasedOn PlaybookProposal[]     @relation("ProposalBaseVersion")
 
@@ -2317,7 +2345,7 @@ model ProspectTransition {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   leadId String
-  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead   Lead   @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   /// 'handoff' | 'reengagement_eligible' | 'handback' | 'ai_reengagement_started'
   kind          String
@@ -2332,7 +2360,7 @@ model ProspectTransition {
   /// The work order whose execution caused this transition, when one did. Phase 6a is the
   /// model this column was waiting for, so it carries a real FK now.
   workOrderId String?
-  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  workOrder   WorkOrder? @relation(fields: [workOrderId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   /// 'pending' | 'state_applied' | 'completed'
   ///
@@ -2391,23 +2419,24 @@ model AutonomyPolicy {
 // ─── Agent Actions (Phase 5) ────────────────────────────────────────────────
 
 model AgentAction {
+  @@unique([id, tenantId], map: "AgentAction_id_tenantId_key")
   id                   String                   @id @default(cuid())
   actionKey            String
   tenantId             String
   tenant               Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId               String
-  user                 User                     @relation(fields: [userId], references: [id])
+  user                 User                     @relation(fields: [userId, tenantId], references: [id, tenantId])
   role                 Role
   capability           String
   tool                 String
   status               String                   @default("pending") // pending | running | completed | failed | refused
   authorizationOutcome String // ALLOW | REQUIRE_USER_APPROVAL | REQUIRE_MANAGER_APPROVAL | DENY
   playbookVersionId    String?
-  playbookVersion      CampaignPlaybookVersion? @relation(fields: [playbookVersionId], references: [id])
+  playbookVersion      CampaignPlaybookVersion? @relation(fields: [playbookVersionId, tenantId], references: [id, tenantId], onDelete: SetNull)
   /// The work order this action executed under, when it ran inside one. Null for interactive
   /// chat, which is a real producer and not a gap to be filled.
   workOrderId          String?
-  workOrder            WorkOrder?               @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  workOrder            WorkOrder?               @relation(fields: [workOrderId, tenantId], references: [id, tenantId], onDelete: SetNull)
   leadId               String?
   campaignId           String?
   result               Json?
@@ -2440,6 +2469,7 @@ model AgentAction {
 /// rather than one aggregate. Aggregating at write time would lose which iteration
 /// spent the tokens, which is the question cost review actually asks.
 model AiCall {
+  @@unique([id, tenantId], map: "AiCall_id_tenantId_key")
   id          String  @id @default(cuid())
   tenantId    String
   tenant      Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -2453,11 +2483,11 @@ model AiCall {
   /// and must outlive the work order it was spent on, for the same reason `leadId` carries no
   /// FK at all. Losing the row would silently reduce reported spend.
   workOrderId String?
-  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  workOrder   WorkOrder? @relation(fields: [workOrderId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   /// Linkage back to the executing AgentAction
   agentActionId String?
-  agentAction   AgentAction? @relation(fields: [agentActionId], references: [id])
+  agentAction   AgentAction? @relation(fields: [agentActionId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   /// What the call was for — 'chat', 'briefing', 'research', 'draft_reply', …
   operation String
@@ -2513,6 +2543,7 @@ model AiCall {
 /// is not worth adding early — the same reasoning that kept `playbookVersionId` off
 /// `CampaignPlaybookVersion`'s dependants until work orders existed to write it.
 model WorkOrder {
+  @@unique([id, tenantId], map: "WorkOrder_id_tenantId_key")
   id       String @id @default(cuid())
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -2532,9 +2563,9 @@ model WorkOrder {
   /// Scope. A batch order is campaign-scoped with no lead; a followup or reply review is
   /// lead-scoped. Both may be set — a lead-scoped order still belongs to its campaign.
   leadId     String?
-  lead       Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead       Lead?     @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: Cascade)
   campaignId String?
-  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign   Campaign? @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   /// **Exact** provenance, resolved once at activation and never recomputed.
   ///
@@ -2543,10 +2574,10 @@ model WorkOrder {
   /// authorities: where they disagree — a version activated mid-execution — the stored id is
   /// what this order actually ran under.
   playbookVersionId String?
-  playbookVersion   CampaignPlaybookVersion? @relation(fields: [playbookVersionId], references: [id])
+  playbookVersion   CampaignPlaybookVersion? @relation(fields: [playbookVersionId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   createdById String
-  createdBy   User   @relation("WorkOrdersCreated", fields: [createdById], references: [id])
+  createdBy   User   @relation("WorkOrdersCreated", fields: [createdById, tenantId], references: [id, tenantId])
 
   /// Budgets, validated against `BUDGET_BOUNDS` at the domain boundary. Four separate limits
   /// because they fail differently: tokens and research are money at different rates, tool
@@ -2625,10 +2656,10 @@ model WorkOrderLease {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   leadId String
-  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead   Lead   @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   workOrderId String
-  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  workOrder   WorkOrder @relation(fields: [workOrderId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   /// A `LeaseMode` from `lib/workorders/types.ts`.
   mode String
@@ -2688,12 +2719,12 @@ model AgentApprovalRequest {
   actionKey String
 
   workOrderId String?
-  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  workOrder   WorkOrder? @relation(fields: [workOrderId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   /// The ledger row that was refused, once one exists. Null when the request was raised before
   /// the action was ever attempted.
   agentActionId String?
-  agentAction   AgentAction? @relation(fields: [agentActionId], references: [id])
+  agentAction   AgentAction? @relation(fields: [agentActionId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   /// The intent, in enough detail for a human to judge it: which capability, which tool, and
   /// the exact arguments that would run. Stored rather than re-derived — a human approves what
@@ -2705,7 +2736,7 @@ model AgentApprovalRequest {
   leadId            String?
   campaignId        String?
   playbookVersionId String?
-  playbookVersion   CampaignPlaybookVersion? @relation(fields: [playbookVersionId], references: [id])
+  playbookVersion   CampaignPlaybookVersion? @relation(fields: [playbookVersionId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   /// 'user' | 'manager' — from the `AuthorizationOutcome` that raised this.
   requiredLevel String
@@ -2713,10 +2744,10 @@ model AgentApprovalRequest {
   status        String @default("pending")
 
   requestedById String
-  requestedBy   User   @relation("ApprovalRequestedBy", fields: [requestedById], references: [id])
+  requestedBy   User   @relation("ApprovalRequestedBy", fields: [requestedById, tenantId], references: [id, tenantId])
 
   approvedById String?
-  approvedBy   User?   @relation("ApprovalDecidedBy", fields: [approvedById], references: [id])
+  approvedBy   User?   @relation("ApprovalDecidedBy", fields: [approvedById, tenantId], references: [id, tenantId], onDelete: SetNull)
   /// Why it was rejected, or any note the approver left.
   decisionReason String?
 
@@ -2738,7 +2769,7 @@ model Attachment {
   contentType String
   content     String   @db.Text // Base64 encoded file data
   templateId  String
-  template    Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  template    Template @relation(fields: [templateId, tenantId], references: [id, tenantId], onDelete: Cascade)
   createdAt   DateTime @default(now())
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -2750,9 +2781,9 @@ model Attachment {
 model InboundMessage {
   id                String       @id @default(cuid())
   accountId         String
-  account           EmailAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account           EmailAccount @relation(fields: [accountId, tenantId], references: [id, tenantId], onDelete: Cascade)
   leadId            String?
-  lead              Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  lead              Lead?        @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: SetNull)
   fromEmail         String
   fromName          String?
   to                String
@@ -2834,9 +2865,9 @@ enum DnsCheckStatus {
 model EmailHealthSnapshot {
   id        String       @id @default(cuid())
   accountId String
-  account   EmailAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account   EmailAccount @relation(fields: [accountId, tenantId], references: [id, tenantId], onDelete: Cascade)
   userId    String
-  user      User         @relation(fields: [userId], references: [id])
+  user      User         @relation(fields: [userId, tenantId], references: [id, tenantId])
   domain    String?
 
   windowStart      DateTime
@@ -2903,9 +2934,9 @@ model EmailDomainHealth {
 model EmailHealthAlert {
   id         String        @id @default(cuid())
   accountId  String?
-  account    EmailAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account    EmailAccount? @relation(fields: [accountId, tenantId], references: [id, tenantId], onDelete: Cascade)
   campaignId String?
-  campaign   Campaign?     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign   Campaign?     @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Cascade)
   domain     String?
 
   type              String
@@ -2936,11 +2967,13 @@ model EmailHealthAlert {
 // ─── Phase 7 Knowledge Architecture & Research Engine ───────────────────────
 
 model AccountResearchCache {
+  @@unique([id, tenantId], map: "AccountResearchCache_id_tenantId_key")
+  @@unique([accountId, tenantId], map: "AccountResearchCache_accountId_tenantId_key")
   id          String         @id @default(cuid())
   tenantId    String
   tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   accountId   String         @unique
-  account     Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account     Account        @relation(fields: [accountId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   status      ResearchStatus @default(pending)
   claimedBy   String?
@@ -2962,11 +2995,13 @@ model AccountResearchCache {
 }
 
 model ContactResearchCache {
+  @@unique([id, tenantId], map: "ContactResearchCache_id_tenantId_key")
+  @@unique([contactId, tenantId], map: "ContactResearchCache_contactId_tenantId_key")
   id          String         @id @default(cuid())
   tenantId    String
   tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   contactId   String         @unique
-  contact     Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contact     Contact        @relation(fields: [contactId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   status      ResearchStatus @default(pending)
   claimedBy   String?
@@ -2991,14 +3026,14 @@ model CompanySignal {
   tenantId             String
   tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   accountId            String
-  account              Account               @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account              Account               @relation(fields: [accountId, tenantId], references: [id, tenantId], onDelete: Cascade)
   cacheId              String?
-  accountResearchCache AccountResearchCache? @relation(fields: [cacheId], references: [id], onDelete: SetNull)
+  accountResearchCache AccountResearchCache? @relation(fields: [cacheId, tenantId], references: [id, tenantId], onDelete: SetNull)
   accountResearchRunId String?
   workOrderId          String?
-  workOrder            WorkOrder?            @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  workOrder            WorkOrder?            @relation(fields: [workOrderId, tenantId], references: [id, tenantId], onDelete: SetNull)
   aiCallId             String?
-  aiCall               AiCall?               @relation(fields: [aiCallId], references: [id], onDelete: SetNull)
+  aiCall               AiCall?               @relation(fields: [aiCallId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   signalType           String
   summary              String
@@ -3020,14 +3055,14 @@ model AccountPainHypothesis {
   tenantId             String
   tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   accountId            String
-  account              Account               @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account              Account               @relation(fields: [accountId, tenantId], references: [id, tenantId], onDelete: Cascade)
   cacheId              String?
-  accountResearchCache AccountResearchCache? @relation(fields: [cacheId], references: [id], onDelete: SetNull)
+  accountResearchCache AccountResearchCache? @relation(fields: [cacheId, tenantId], references: [id, tenantId], onDelete: SetNull)
   accountResearchRunId String?
   workOrderId          String?
-  workOrder            WorkOrder?            @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  workOrder            WorkOrder?            @relation(fields: [workOrderId, tenantId], references: [id, tenantId], onDelete: SetNull)
   aiCallId             String?
-  aiCall               AiCall?               @relation(fields: [aiCallId], references: [id], onDelete: SetNull)
+  aiCall               AiCall?               @relation(fields: [aiCallId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   painType             String
   hypothesis           String
@@ -3048,18 +3083,18 @@ model PersonalizationHook {
   tenantId             String
   tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   contactId            String?
-  contact              Contact?              @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contact              Contact?              @relation(fields: [contactId, tenantId], references: [id, tenantId], onDelete: Cascade)
   accountId            String?
-  account              Account?              @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account              Account?              @relation(fields: [accountId, tenantId], references: [id, tenantId], onDelete: Cascade)
   leadId               String?
-  lead                 Lead?                 @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead                 Lead?                 @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: Cascade)
   cacheId              String?
-  contactResearchCache ContactResearchCache? @relation(fields: [cacheId], references: [id], onDelete: SetNull)
+  contactResearchCache ContactResearchCache? @relation(fields: [cacheId, tenantId], references: [id, tenantId], onDelete: SetNull)
   contactResearchRunId String?
   workOrderId          String?
-  workOrder            WorkOrder?            @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  workOrder            WorkOrder?            @relation(fields: [workOrderId, tenantId], references: [id, tenantId], onDelete: SetNull)
   aiCallId             String?
-  aiCall               AiCall?               @relation(fields: [aiCallId], references: [id], onDelete: SetNull)
+  aiCall               AiCall?               @relation(fields: [aiCallId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   hookType             String
   angle                String
@@ -3093,12 +3128,12 @@ model SequenceLaunch {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   leadId     String
-  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead       Lead     @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: Cascade)
   sequenceId String
-  sequence   Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  sequence   Sequence @relation(fields: [sequenceId, tenantId], references: [id, tenantId], onDelete: Cascade)
   /// The work order that owns this launch. One launch per order, enforced below.
   workOrderId String
-  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  workOrder   WorkOrder @relation(fields: [workOrderId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   /// Set once the enrollment exists. This is the association a resume checks.
   enrollmentId String?
@@ -3155,6 +3190,7 @@ enum OutcomeSignalKind {
 /// reduce the evidence behind an already-approved playbook version, which is the one thing this
 /// table exists to prevent. `tenantId` is the exception — a deleted tenant takes its data with it.
 model OutcomeSignal {
+  @@unique([id, tenantId], map: "OutcomeSignal_id_tenantId_key")
   id       String @id @default(cuid())
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -3216,19 +3252,20 @@ enum PlaybookProposalStatus {
 ///
 /// No agent may write `status`. Review is a human decision recorded with the reviewer's id.
 model PlaybookProposal {
+  @@unique([id, tenantId], map: "PlaybookProposal_id_tenantId_key")
   id       String @id @default(cuid())
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   playbookId String
-  playbook   CampaignPlaybook @relation(fields: [playbookId], references: [id], onDelete: Cascade)
+  playbook   CampaignPlaybook @relation(fields: [playbookId, tenantId], references: [id, tenantId], onDelete: Cascade)
   /// Denormalised for the manager surfaces, which filter by campaign far more than by playbook.
   campaignId String
 
   /// The version the proposal was written against. Null when the campaign has no approved policy
   /// yet — the proposal then describes a first draft rather than a change to one.
   basedOnVersionId String?
-  basedOnVersion   CampaignPlaybookVersion? @relation("ProposalBaseVersion", fields: [basedOnVersionId], references: [id], onDelete: SetNull)
+  basedOnVersion   CampaignPlaybookVersion? @relation("ProposalBaseVersion", fields: [basedOnVersionId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   /// Identifies the pattern, so a second run updates this row instead of filing a duplicate.
   proposalKey String
@@ -3274,17 +3311,27 @@ model PlaybookProposal {
 ///
 /// A join table rather than an id array so the evidence behind an approved change cannot drift
 /// into naming rows that no longer exist.
+/// Joins two tenant-owned tables and, until this column existed, carried no tenant of its own.
+/// `supabase/rls.sql` builds its policies by looping over tables that have a `tenantId`, so a
+/// table without one received no ENABLE and no policy while `GRANT ... ON ALL TABLES` still
+/// gave the application role full DML on it — readable by every tenant.
+/// `tests/rls-policy-coverage.test.ts` selects on the same column, so the table that needed the
+/// policy was the one table neither the generator nor its coverage test could see.
 model PlaybookProposalEvidence {
   id String @id @default(cuid())
 
   proposalId String
-  proposal   PlaybookProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposal   PlaybookProposal @relation(fields: [proposalId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   signalId String
-  signal   OutcomeSignal @relation(fields: [signalId], references: [id], onDelete: Cascade)
+  signal   OutcomeSignal @relation(fields: [signalId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   @@unique([proposalId, signalId])
   @@index([signalId])
+  @@index([tenantId])
 }
