@@ -17,9 +17,9 @@
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 12 | 11 | 0 | **1** |
 | **P1** (Critical) | 44 | 41 | 0 | **3** |
-| **P2** (Important) | 22 | 21 | 0 | **1** |
+| **P2** (Important) | 22 | 22 | 0 | **0** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **78** | **73** | **0** | **5** |
+| **TOTAL** | **78** | **74** | **0** | **4** |
 
 ---
 
@@ -599,12 +599,12 @@
 ### `TEL-P2-030` — The Pre-Deploy Backup Check Can Never Pass From The Production VM
 
 - **Severity**: P2
-- **Status**: `OPEN`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
 - **Root cause**: telestar-crm-vm runs as default compute service account (589324791591-compute@developer.gserviceaccount.com) with legacy scopes (no cloud-platform or sqlservice scope), so gcloud sql backups describe returns ACCESS_TOKEN_SCOPE_INSUFFICIENT and verify_backup_exists() returns code 2 on every deploy. deploy.sh fails closed by requiring manual UNVERIFIED confirmation.
 - **Fix SHA**: `2921684`
-- **Verification evidence**: `PARTIALLY RESOLVED, AND MEASURED AT EACH STEP. The defect names an OAuth scope as the cause; the scope is now correct and the call still fails, for a different and now-visible reason. Scope: telestar-crm-vm was stopped at 2026-08-27T16:52:28Z, its service account given https://www.googleapis.com/auth/sqlservice.admin alongside its seven existing scopes, and restarted at 16:54:21Z. Production health returned HTTP 200 at 16:55:34Z; total interruption 3m06s; all four containers returned on their own unless-stopped policy with no intervention. cloud-platform was deliberately NOT used, though the defect text suggests it. The service account is the default compute one, and cloud-platform would expose every permission it holds to anything running on the VM. sqlservice.admin is what the failing call needs. Verified: instance metadata lists sqlservice.admin, and a freshly fetched metadata token carries it, confirmed through the OAuth tokeninfo endpoint rather than by reading the instance configuration back. OUTSTANDING: `gcloud sql backups list --instance=telestar-db` from the VM now returns HTTP 403 "The client is not authorized to make this request" where it previously returned ACCESS_TOKEN_SCOPE_INSUFFICIENT. The scope is present; project IAM is what refuses. Closing this needs roles/cloudsql.viewer granted to 589324791591-compute@developer.gserviceaccount.com, a project IAM policy change requiring operator approval. The change in the error itself is the evidence that the scope work took effect, and is why this is recorded as measured rather than attempted.`
+- **Verification evidence**: `FIXED AND VERIFIED THROUGH THE FUNCTION THE DEPLOY ACTUALLY CALLS. The defect had two causes and named one. Reproduced first: gcloud sql backups list on the VM returned PERMISSION_DENIED ACCESS_TOKEN_SCOPE_INSUFFICIENT. Cause one, scope: telestar-crm-vm stopped 16:52:28Z, sqlservice.admin added to its seven existing scopes, restarted 16:54:21Z. cloud-platform was deliberately not used although the defect text suggests it - the account is the default compute service account and cloud-platform would hand every permission it holds to any process on the VM. Confirmed on the token rather than by reading the configuration back: a freshly fetched metadata token carries sqlservice.admin per the OAuth tokeninfo endpoint. Recovery measured: production health returned HTTP 200 at 16:55:34Z, a 3m06s interruption, and all four containers returned on their own unless-stopped policy with nothing started by hand. Cause two, IAM: the same call then returned HTTP 403 "The client is not authorized to make this request" rather than a scope error, which is what located the second cause. roles/cloudsql.viewer was granted to the service account - read-only, unable to create, patch, restore or delete an instance or backup, and the narrowest role covering cloudsql.backupRuns.list. Verified: gcloud sql backups list from the VM exits 0 and returns three SUCCESSFUL backups. Then the real path, which is what the defect is about: on /opt/crm-4-u, sourcing scripts/deploy-lib.sh and calling verify_backup_exists with a live backup id prints "Backup 1787829211329 verified on telestar-db." and returns 0, where it previously returned 2 on every deploy. An equivalent command passing is not the same claim, so both are recorded.`
 
 ### `TEL-P1-039` — The Ladder Certified A Server It Did Not Start
 
