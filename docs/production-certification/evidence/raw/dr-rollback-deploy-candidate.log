@@ -1,0 +1,34 @@
+# phase: deploy-candidate (candidate)
+# target digest: ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136
+# rollback.sh exit: 1
+# durationMs: 5335
+
+--- rollback.sh stdout ---
+
+--- rollback.sh stderr ---
+Warning: Permanently added '[localhost]:2223' (ED25519) to the list of known hosts.
+sudo: ./scripts/rollback.sh: command not found
+
+--- observed ---
+{
+  "name": "deploy-candidate",
+  "label": "candidate",
+  "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
+  "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
+  "webHealth": {
+    "ok": true,
+    "ts": 1787857505834,
+    "commit": "7592278d7e4190ea855cfc39de140299c1faa191",
+    "version": "7592278d7e4190ea855cfc39de140299c1faa191",
+    "builtAt": "2026-08-27T18:56:14Z",
+    "schema": "ready"
+  },
+  "workerHealth": {
+    "ok": true,
+    "ts": 1787857510318,
+    "commit": "7592278d7e4190ea855cfc39de140299c1faa191",
+    "version": "7592278d7e4190ea855cfc39de140299c1faa191",
+    "builtAt": "2026-08-27T18:56:14Z"
+  },
+  "durationMs": 5335
+}

@@ -331,6 +331,24 @@ domains:
       - scripts/post-deploy-*.sh
       - scripts/canary-*
       - scripts/build.cjs
+      # Four scripts that had never been mapped, because routing coverage only looks at
+      # paths changed in recent history and none of them had been touched. Setting the
+      # executable bit for TEL-P1-058 changed all four at once and surfaced the gap — the
+      # same class as TEL-P2-020, where rollback.sh itself was owned by no domain.
+      #
+      # `scripts/prod-*` does not match `production-compose.sh`: the glob requires a
+      # literal hyphen after `prod`. It resolves which compose files the deploy uses, so
+      # it is as much a deployment authority as deploy.sh is.
+      - scripts/production-compose.sh
+      # Drives a live email canary against a deployed environment. It belongs here with
+      # `canary-*` rather than with email-automation for the reason live-role-audit.ts
+      # does: what it can reach is production, and that is what sets its risk class.
+      - scripts/run-canary-sequence.sh
+      - scripts/prepare-phase-d-launch.sh
+      # The Postgres backup path. Backups are the precondition every deploy checks before
+      # it will proceed, and restoring one is the documented recovery for a migration that
+      # cannot be rolled back, so it belongs with release rather than with the schema.
+      - scripts/backup-postgres-r2.sh
       # Asserts the GCP compose topology invariants — Cloud SQL wiring, local Postgres
       # disabled, no port exposure. It validates this domain's own artifacts, so it belongs
       # here rather than with the database domain its DSN fixture happens to mention.

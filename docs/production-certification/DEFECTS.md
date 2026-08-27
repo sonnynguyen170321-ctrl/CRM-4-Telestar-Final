@@ -16,10 +16,10 @@
 | Severity | Discovered | Verified Closed | Accepted Risk | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 12 | 11 | 0 | **1** |
-| **P1** (Critical) | 45 | 41 | 0 | **4** |
+| **P1** (Critical) | 46 | 41 | 0 | **5** |
 | **P2** (Important) | 22 | 22 | 0 | **0** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **79** | **74** | **0** | **5** |
+| **TOTAL** | **80** | **74** | **0** | **6** |
 
 ---
 
@@ -815,4 +815,14 @@
 - **Root cause**: scripts/rollback.sh line 60 was an unconditional `read -r -p "  Proceed with rollback? [y/N] " reply` followed by `[ "$reply" = "y" ] || fail "Aborted."`. scripts/certification/dr-rollback-drill.mjs drives that script over `ssh host '<cmd>'`, deliberately, so that a drill exercises what an operator would actually run rather than a reimplementation of the swap. Over a non-interactive ssh command stdin is not a terminal: `read` returns immediately with an empty reply and the script aborts. Run against production on 2026-08-27 the drill reported `rollback.sh exited 1` for all three phases - deploy-candidate, rollback-to-previous, restore-candidate - swapped nothing, and returned DR-003 FAIL. The verdict was correct and told nobody anything about whether rollback works. TEL-P1-026 recorded that DR-003 had no script that could ever produce a pass and was closed when the drill was written; the drill was only half of it, and this is the other half. Nothing had caught it because every rollback.sh test asserted on the source text, which the interactive version satisfies.
 - **Fix SHA**: `N/A`
 - **Verification evidence**: `FIXED IN CODE, NOT YET PROVEN AGAINST PRODUCTION. rollback.sh now branches three ways: ROLLBACK_ASSUME_YES=1 skips the prompt and prints "confirm  : skipped - ROLLBACK_ASSUME_YES=1 set by <user>@<host>" so the transcript shows the last human checkpoint was not answered by a human; a non-terminal stdin without that variable fails with "stdin is not a terminal and ROLLBACK_ASSUME_YES is not set" rather than the indistinguishable "Aborted."; an operator at a terminal still gets the prompt, unchanged, as the default. It is an environment variable and not a flag deliberately - a flag is easy to add to a half-remembered command line. The drill passes it with `sudo -E`, which is required to carry it across the privilege boundary. Four tests in tests/deploy-script.test.ts RUN the script in a throwaway deployment root with a piped stdin rather than asserting on its text: 37/37 passed, exit 0. Negative control: against the pre-fix script, checked out from HEAD, three of the four fail and the fourth - the mutable-reference guard - passes, which is right, since that guard already existed and the test is a regression guard for it. STAYS FIXED_PENDING_VERIFICATION until DR-003 actually runs green against production on the candidate that carries this fix.`
+
+### `TEL-P1-058` — The Deploy And Rollback Scripts Were Not Executable In Git, And Worked Only Because Of An Unrecorded chmod
+
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Owner**: core-team
+- **Discovered**: 2026-08-27T19:10:00.000Z
+- **Root cause**: scripts/deploy.sh, scripts/rollback.sh, scripts/post-deploy-smoke.sh, scripts/production-compose.sh and four other host scripts were all recorded in git as mode 100644, while being invoked as `./scripts/x.sh` rather than `bash scripts/x.sh`. They ran on telestar-crm-vm only because someone had run chmod +x there by hand at some point, unrecorded. A local chmod survives exactly as long as git does not rewrite the file. TEL-P1-057 rewrote rollback.sh, so `git checkout 7592278` on the deployment host restored it at 644, and the DR-003 drill failed with `sudo: ./scripts/rollback.sh: command not found` - an error naming a missing file rather than a missing permission. deploy.sh, unchanged by that commit, kept its bit and still ran, which is the worst shape this fault can take: it appears only for the file that was touched, only after a checkout, and it disguises itself as something else. The operational consequence is that on any freshly provisioned host, or after any commit touching these files, the rollback path is unavailable at the moment it is needed.
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `FIXED IN GIT, NOT YET PROVEN AGAINST A FRESH CHECKOUT ON THE HOST. All eight directly-invoked scripts are now recorded 100755 via git update-index --chmod=+x; scripts/deploy-lib.sh stays 100644 because it is sourced with `.` and never executed, where the bit would be misleading. tests/host-script-executable-bit.test.ts reads the mode from the GIT INDEX rather than the filesystem, because a Windows working tree carries no POSIX executable bit and statSync would pass regardless of what is committed. It also derives the list it checks from the repository: a git grep for `./scripts/*.sh` across scripts, docker-compose files and .github must not turn up a path missing from the asserted set, so a new script invoked with ./ cannot reintroduce the defect silently. 10/10 passed, exit 0. Negative control: with the modes returned to 644, 8 of the 10 fail. STAYS FIXED_PENDING_VERIFICATION until the deployment host has checked out the commit carrying these modes and DR-003 has run green from it.`
 
