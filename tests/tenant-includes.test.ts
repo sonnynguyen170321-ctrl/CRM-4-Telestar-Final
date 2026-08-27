@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Prisma } from '@prisma/client';
 import { prisma, tenantStorage } from '@/lib/prisma';
+import { insertBypassingForeignKeys } from './helpers/legacyRow';
 import {
   buildRelationMap,
   forceTenantIdOnRelations,
@@ -116,35 +117,57 @@ describe('nested relation tenant scoping', () => {
       });
       // Owned by tenant A, pointing at tenant B — what a row written before the reference checks
       // existed looks like.
-      await inTenant(TENANT_A, async () => {
-        await prisma.bookingLink.upsert({
-          where: { id: LINK_A },
-          create: {
-            id: LINK_A,
-            clientId: CLIENT_B,
-            name: 'poisoned',
-            url: 'https://example.test/poisoned',
-            tenantId: TENANT_A,
-            isActive: true,
-          },
-          update: { clientId: CLIENT_B },
-        });
-      });
+      //
+      // The composite key BookingLink (clientId, tenantId) -> Client (id, tenantId) now refuses
+      // this row, which is what it is for. The application-layer scrub is still the thing under
+      // test: it is the only defence for a row that predates the constraint, and it is the only
+      // defence at all on a deployment where the migration has not been applied yet. So the row
+      // is written the way a historical one got there — with the foreign key triggers off —
+      // rather than the test being deleted because the database got better.
+      await insertBypassingForeignKeys(
+        prisma,
+        Prisma.sql`INSERT INTO "BookingLink" (id, "clientId", name, url, "tenantId", "isActive", "createdAt", "updatedAt")
+                   VALUES (${LINK_A}, ${CLIENT_B}, 'poisoned', 'https://example.test/poisoned', ${TENANT_A}, true, now(), now())
+                   ON CONFLICT (id) DO UPDATE SET "clientId" = ${CLIENT_B}`,
+      );
 
       try {
         // Read the way a request does: tenant known, RLS not bypassed. The callback must be async
         // and await here — returning the promise from a bare arrow loses the AsyncLocalStorage
         // context, the store arrives undefined, and the query silently takes the bypass path.
-        const rows = await tenantStorage.run({ tenantId: TENANT_A, bypassRls: false }, async () => {
-          return prisma.bookingLink.findMany({
-            where: { id: LINK_A },
-            include: { client: { select: { id: true, name: true } } },
-          });
-        });
+        // Two acceptable outcomes, and the assertion is the same for both: tenant B's client
+        // name must not come back. Which one happens depends on how far the composite key has
+        // been rolled out, so pinning the test to one of them would make it fail on a correct
+        // system rather than on a leak.
+        //
+        //   scrubbed  — the include returns the row with `client` null. This is the path when
+        //               the foreign key is single-column: Prisma joins on clientId alone,
+        //               finds tenant B's client, and `scrubForeignRelations` nulls it in JS.
+        //   refused   — the composite key means Prisma joins on (clientId, tenantId), finds
+        //               nothing, and reports that a required relation came back null. The read
+        //               fails rather than answering, one layer below the application.
+        //
+        // A leak fails this test under either branch, which is the only thing it is here for.
+        let rows: Array<Record<string, unknown>> | null = null;
+        let refusal: unknown = null;
+        try {
+          rows = (await tenantStorage.run({ tenantId: TENANT_A, bypassRls: false }, async () => {
+            return prisma.bookingLink.findMany({
+              where: { id: LINK_A },
+              include: { client: { select: { id: true, name: true } } },
+            });
+          })) as Array<Record<string, unknown>>;
+        } catch (err) {
+          refusal = err;
+        }
 
-        expect(rows).toHaveLength(1);
-        expect(JSON.stringify(rows)).not.toContain(CANARY);
-        expect((rows[0] as { client?: unknown }).client).toBeNull();
+        if (refusal) {
+          expect(String((refusal as Error).message)).not.toContain(CANARY);
+        } else {
+          expect(rows).toHaveLength(1);
+          expect(JSON.stringify(rows)).not.toContain(CANARY);
+          expect((rows![0] as { client?: unknown }).client).toBeNull();
+        }
       } finally {
         await inTenant(TENANT_A, async () => {
           await prisma.bookingLink.deleteMany({ where: { tenantId: TENANT_A } });

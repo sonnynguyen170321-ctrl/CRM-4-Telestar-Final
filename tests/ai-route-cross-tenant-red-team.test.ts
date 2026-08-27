@@ -40,6 +40,11 @@ const { ensureSessionUsers } = await import('./helpers/sessionUser');
 const { NextRequest } = await import('next/server');
 const { POST: enrichLead } = await import('@/app/api/ai/enrich-lead/route');
 const { POST: draftReply } = await import('@/app/api/ai/draft-reply/route');
+// The third route with the same shape: a request-controlled lead id inside
+// `bypassRls: true`. It was correct when this file was written and had no test, so
+// nothing stopped `where: { id, tenantId }` in `calculateNextBestAction` losing its
+// `tenantId` and reopening TEL-P0-013 on a route nobody was watching.
+const { GET: nextBestAction } = await import('@/app/api/ai/nba/route');
 
 const VICTIM = 'tenant-ai-victim';
 const ATTACKER = 'tenant-ai-attacker';
@@ -158,6 +163,11 @@ describe.skipIf(!hasDb)('TEL-P0-013: AI routes must not read another tenant lead
     });
   }
 
+  /** `nba` takes its lead id from the query string rather than a JSON body. */
+  function get(url: string) {
+    return new NextRequest(url, { method: 'GET' });
+  }
+
   /** Everything the provider was shown, flattened, so a leak anywhere in the prompt is caught. */
   function everythingSentToTheProvider() {
     return generateStructured.mock.calls.map((call) => JSON.stringify(call)).join('\n');
@@ -209,6 +219,44 @@ describe.skipIf(!hasDb)('TEL-P0-013: AI routes must not read another tenant lead
     expect(payload).not.toContain(SECRET_EMAIL);
     expect(everythingSentToTheProvider()).not.toContain(SECRET_COMPANY);
     expect(everythingSentToTheProvider()).not.toContain(SECRET_EMAIL);
+  });
+
+  /**
+   * The third route of the same shape. It was already correct — `calculateNextBestAction`
+   * filters on `{ id: leadId, tenantId }` — and that is exactly why it needs a test: the
+   * correctness lived in one WHERE clause that no assertion protected. Deleting `tenantId`
+   * there reopens TEL-P0-013 and, before this test, left the suite green.
+   */
+  it('nba does not compute an action for another tenant lead', async () => {
+    actAsAttacker();
+
+    const response = await nextBestAction(
+      get(`http://localhost/api/ai/nba?leadId=${VICTIM_LEAD}`),
+    );
+    const payload = JSON.stringify(await response.json().catch(() => ({})));
+
+    // Not found, rather than found-and-filtered: the lead must be invisible to this tenant.
+    expect(response.status).toBe(404);
+    expect(payload).not.toContain(SECRET_COMPANY);
+    expect(payload).not.toContain(SECRET_EMAIL);
+  });
+
+  /** The control, so a fix that merely broke the lookup for everyone cannot satisfy the above. */
+  it('nba still computes an action for the owning tenant', async () => {
+    vi.mocked(auth).mockResolvedValue({
+      user: {
+        id: 'usr-ai-victim',
+        email: 'owner@victim-holdings.test',
+        role: 'sdr',
+        tenantId: VICTIM,
+      },
+    } as never);
+
+    const response = await nextBestAction(
+      get(`http://localhost/api/ai/nba?leadId=${VICTIM_LEAD}`),
+    );
+
+    expect(response.status).toBe(200);
   });
 
   /**

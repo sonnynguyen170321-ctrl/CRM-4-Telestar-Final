@@ -220,11 +220,11 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
           title="Search leads, commands, actions (⌘K or /)"
         >
           <span className="flex items-center gap-2">
-            <Search className="w-3.5 h-3.5 text-zinc-400 group-hover:text-rose-500 transition-colors" />
-            <span className="font-medium text-zinc-500 dark:text-zinc-400">Search leads, commands, actions...</span>
+            <Search className="w-3.5 h-3.5 text-text-secondary group-hover:text-rose-500 transition-colors" />
+            <span className="font-medium text-text-secondary">Search leads, commands, actions...</span>
           </span>
           <span className="flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 text-zinc-400 dark:text-zinc-300 rounded-md">⌘K</kbd>
+            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 text-text-secondary dark:text-zinc-300 rounded-md">⌘K</kbd>
           </span>
         </button>
       </div>

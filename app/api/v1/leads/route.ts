@@ -192,7 +192,9 @@ export async function POST(req: NextRequest) {
         stage: 'new',
         crmPriorityScore: 'warm',
         engagementScore: 50,
-        notes: notes ? { create: { content: notes, createdById: user.id, tenantId } } : undefined,
+        // The nested Note takes its tenant from the Lead through the composite
+        // (leadId, tenantId) key, so it no longer accepts a tenantId of its own.
+        notes: notes ? { create: { content: notes, createdById: user.id } } : undefined,
       },
     })
   );
