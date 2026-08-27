@@ -1,48 +1,46 @@
 {
   "evidenceId": "EV-DR-ROLLBACK",
   "kind": "dr-rollback",
-  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
-  "environment": "telestar-crm-vm / docker compose / GCE ubuntu-2204-lts",
-  "command": "scripts/deploy.sh + scripts/rollback.sh, observed over three phases",
-  "startedAt": "2026-08-25T19:53:00.000Z",
-  "finishedAt": "2026-08-25T19:54:00.000Z",
-  "exitCode": 0,
-  "status": "PASS",
+  "candidateSha": "7592278d7e4190ea855cfc39de140299c1faa191",
+  "environment": "production (sonnynguyen170321@localhost)",
+  "command": "node scripts/certification/dr-rollback-drill.mjs --candidate 7592278d7e4190ea855cfc39de140299c1faa191 --previous 697b3aa57267ac88ffca651dc82542b0e07f9351",
+  "startedAt": "2026-08-27T19:04:55.286Z",
+  "finishedAt": "2026-08-27T19:05:37.253Z",
+  "exitCode": 1,
+  "status": "FAIL",
   "metrics": {
-    "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
-    "previousSha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
-    "candidateDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b",
-    "previousDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
-    "rollbackSeconds": 1.5,
-    "restoreSeconds": 1.5,
+    "candidateSha": "7592278d7e4190ea855cfc39de140299c1faa191",
+    "previousSha": "697b3aa57267ac88ffca651dc82542b0e07f9351",
+    "candidateDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
+    "previousDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:811447b57d1b51cc404617765c40dfe8e7384f3e418610d9bdcc9beaabe5881b",
+    "rollbackSeconds": 3.84,
+    "restoreSeconds": 3.79,
     "phases": [
       {
         "name": "deploy-candidate",
-        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b",
-        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b",
-        "durationMs": 25000
+        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
+        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
+        "durationMs": 5335
       },
       {
         "name": "rollback-to-previous",
-        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
-        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523",
-        "durationMs": 1500
+        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
+        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
+        "durationMs": 3844
       },
       {
         "name": "restore-candidate",
-        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b",
-        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b",
-        "durationMs": 1500
+        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
+        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
+        "durationMs": 3787
       }
     ],
-    "findings": [],
+    "findings": [
+      "rollback web: health reports commit 7592278, expected 697b3aa",
+      "rollback worker: health reports commit 7592278, expected 697b3aa",
+      "rollback: running ddea2d039136, expected the previous digest 9beaabe5881b"
+    ],
     "defect": "TEL-P1-026"
   },
-  "artifacts": [
-    {
-      "path": "docs/production-certification/evidence/raw/dr-rollback-c7bf639.log",
-      "sizeBytes": 565,
-      "sha256": "9d8263dd1e442d1a903712153427d2c0faad402197f733f292defb112e6ea4e0"
-    }
-  ]
+  "artifacts": []
 }
