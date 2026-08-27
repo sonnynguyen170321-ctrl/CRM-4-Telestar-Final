@@ -196,7 +196,14 @@ function runPhase({ name, label, digest }) {
   console.log(`\n==> ${name} — swapping to ${digest}`);
   const startedAt = Date.now();
 
-  const swap = onHost(`sudo ./scripts/rollback.sh ${digest}`);
+  // ROLLBACK_ASSUME_YES answers the interactive confirmation, which is the last human
+  // checkpoint before production changes and remains the default for an operator. Without
+  // it this drill cannot run at all: over `ssh host '<cmd>'` stdin is not a TTY, so `read`
+  // returns an empty reply and rollback.sh aborts — three phases, three exit 1s, and a
+  // FAIL that says nothing about whether rollback works. `sudo -E` is required to carry
+  // the variable across the privilege boundary; without it sudo strips it and the script
+  // takes the not-a-terminal branch instead.
+  const swap = onHost(`sudo -E ROLLBACK_ASSUME_YES=1 ./scripts/rollback.sh ${digest}`);
   if (!dryRun && swap.status !== 0) {
     console.error(`  rollback.sh exited ${swap.status}`);
     console.error(swap.stderr.split('\n').slice(-8).join('\n'));

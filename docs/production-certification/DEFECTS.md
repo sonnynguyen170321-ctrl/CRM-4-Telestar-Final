@@ -16,10 +16,10 @@
 | Severity | Discovered | Verified Closed | Accepted Risk | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 12 | 11 | 0 | **1** |
-| **P1** (Critical) | 44 | 41 | 0 | **3** |
+| **P1** (Critical) | 45 | 41 | 0 | **4** |
 | **P2** (Important) | 22 | 22 | 0 | **0** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **78** | **74** | **0** | **4** |
+| **TOTAL** | **79** | **74** | **0** | **5** |
 
 ---
 
@@ -805,4 +805,14 @@
 - **Root cause**: scripts/certification/record-branch-protection.mjs was written to close the timestamp half of TEL-P1-049 and reintroduced the fault class TEL-P1-049 is about. Every control was read as `prot.enforce_admins?.enabled ?? true`, so a repository whose protection had been switched off would have produced a record asserting it was on: undefined ?? true is true. Three further fields were not read at all - directPushToMainRejected: true, directPushRejectionReason and probeCleanedUp: true were constants in the object literal, asserting that a direct push and a failing-check pull request had been refused by a process that attempts neither. It then wrote its 295-byte API readout over docs/production-certification/evidence/raw/branch-protection-behavioral-proof.log, the 2790-byte transcript of the 2026-08-25 probe that is the only record of those refusals actually happening, and cited the file it had just truncated as the artifact supporting the behavioural claims. Directive section 32 forbids exactly this: an evidence-generating command must not destroy evidence from another measurement.
 - **Fix SHA**: `fd1bd703c1f7862a0e3ee29c3d8ce2f6cd23b615`
 - **Verification evidence**: `FIXED AND PROVEN BY NEGATIVE CONTROL. The reader is now readProtectionControls(), exported so the property is testable against the function rather than asserted about its source text, and every field is required: an absent control raises ProtectionEvidenceError instead of defaulting. The three fabricated constants are gone; behavioural enforcement is carried as behaviouralEnforcement { source, measuredOn: 2026-08-25, measuredByThisRun: false }, which states in the record itself that this run did not perform the probe. The API readout goes to a separate artifact, branch-protection-api-readout.log, and the 2790-byte transcript was restored from origin/main, is hashed from disk, and is never written. tests/branch-protection-recorder.test.ts carries the controls: five cases each remove exactly one protection field and require a refusal, which the defective version would have passed by returning true; one requires a disabled control to be reported disabled; one requires an absent review requirement to stay null rather than becoming a number. 15/15 passed with the db-role suite, exit 0. Re-run against the live repository records required checks [CI required checks], enforce_admins true, linear history true, exit 0.`
+
+### `TEL-P1-057` — The Rollback Drill Could Never Pass, Because The Script It Drives Demands A Terminal
+
+- **Severity**: P1
+- **Status**: `FIXED_PENDING_VERIFICATION`
+- **Owner**: core-team
+- **Discovered**: 2026-08-27T18:35:00.000Z
+- **Root cause**: scripts/rollback.sh line 60 was an unconditional `read -r -p "  Proceed with rollback? [y/N] " reply` followed by `[ "$reply" = "y" ] || fail "Aborted."`. scripts/certification/dr-rollback-drill.mjs drives that script over `ssh host '<cmd>'`, deliberately, so that a drill exercises what an operator would actually run rather than a reimplementation of the swap. Over a non-interactive ssh command stdin is not a terminal: `read` returns immediately with an empty reply and the script aborts. Run against production on 2026-08-27 the drill reported `rollback.sh exited 1` for all three phases - deploy-candidate, rollback-to-previous, restore-candidate - swapped nothing, and returned DR-003 FAIL. The verdict was correct and told nobody anything about whether rollback works. TEL-P1-026 recorded that DR-003 had no script that could ever produce a pass and was closed when the drill was written; the drill was only half of it, and this is the other half. Nothing had caught it because every rollback.sh test asserted on the source text, which the interactive version satisfies.
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `FIXED IN CODE, NOT YET PROVEN AGAINST PRODUCTION. rollback.sh now branches three ways: ROLLBACK_ASSUME_YES=1 skips the prompt and prints "confirm  : skipped - ROLLBACK_ASSUME_YES=1 set by <user>@<host>" so the transcript shows the last human checkpoint was not answered by a human; a non-terminal stdin without that variable fails with "stdin is not a terminal and ROLLBACK_ASSUME_YES is not set" rather than the indistinguishable "Aborted."; an operator at a terminal still gets the prompt, unchanged, as the default. It is an environment variable and not a flag deliberately - a flag is easy to add to a half-remembered command line. The drill passes it with `sudo -E`, which is required to carry it across the privilege boundary. Four tests in tests/deploy-script.test.ts RUN the script in a throwaway deployment root with a piped stdin rather than asserting on its text: 37/37 passed, exit 0. Negative control: against the pre-fix script, checked out from HEAD, three of the four fail and the fourth - the mutable-reference guard - passes, which is right, since that guard already existed and the test is a regression guard for it. STAYS FIXED_PENDING_VERIFICATION until DR-003 actually runs green against production on the candidate that carries this fix.`
 
