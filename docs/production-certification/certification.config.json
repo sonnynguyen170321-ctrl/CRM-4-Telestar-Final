@@ -14,8 +14,8 @@
     "imageRepository": "telestar-crm-candidate",
     "demoSqlInstance": "telestar-crm-db"
   },
-  "candidateSha": "3cd16c8eb773b627ee7f51b59c371ca67ad71075",
-  "candidateFrozenAt": "2026-08-27T05:46:42.011Z",
+  "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
+  "candidateFrozenAt": "2026-08-27T19:40:04.965Z",
   "previousCandidates": [
     {
       "sha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
@@ -144,6 +144,10 @@
     {
       "sha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
       "invalidatedReason": "superseded: Landed composite tenant keys, Impeccable UI, and defect reconciliation"
+    },
+    {
+      "sha": "3cd16c8eb773b627ee7f51b59c371ca67ad71075",
+      "invalidatedReason": "superseded: the first candidate on which a rollback can be exercised from a clean checkout. Two stacked defects had to be removed first: rollback.sh demanded a terminal (TEL-P1-057), and the host scripts were never executable in git so fixing the first one made the next checkout produce mode 644 (TEL-P1-058). CI run green on 396d365, image sha256:0b0f4977 published, deployed 19:39:53Z with backupVerified true and 6/6 post-deploy smoke checks"
     }
   ],
   "requiredRunCount": 3,
