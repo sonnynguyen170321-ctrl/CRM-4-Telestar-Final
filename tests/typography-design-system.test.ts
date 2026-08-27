@@ -3,11 +3,11 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 vi.mock('next/font/google', () => ({
-  Montserrat: () => ({
-    variable: '--font-montserrat',
-    className: 'className-montserrat',
+  IBM_Plex_Sans: () => ({
+    variable: '--font-plex-sans',
+    className: 'className-plex-sans',
   }),
-  JetBrains_Mono: () => ({
+  IBM_Plex_Mono: () => ({
     variable: '--font-mono',
     className: 'className-mono',
   }),
@@ -18,11 +18,11 @@ const { fontVariables } = await import('@/app/fonts');
 const ROOT = process.cwd();
 
 describe('Telestar Typography Transformation Architecture', () => {
-  it('loads Montserrat and JetBrains Mono fonts in app/fonts.ts', () => {
+  it('loads IBM Plex Sans and IBM Plex Mono fonts in app/fonts.ts', () => {
     expect(fontVariables).toBeDefined();
     expect(typeof fontVariables).toBe('string');
-    // Verifies CSS variables are generated for Montserrat and Mono
-    expect(fontVariables).toContain('--font-montserrat');
+    // Verifies CSS variables are generated for Plex Sans and Mono
+    expect(fontVariables).toContain('--font-plex-sans');
     expect(fontVariables).toContain('--font-mono');
   });
 
@@ -30,8 +30,8 @@ describe('Telestar Typography Transformation Architecture', () => {
     const css = readFileSync(path.join(ROOT, 'app', 'globals.css'), 'utf8');
 
     // Font family tokens
-    expect(css).toContain('--font-sans: var(--font-montserrat)');
-    expect(css).toContain('--font-brand: \'Futura\'');
+    expect(css).toContain('--font-sans: var(--font-plex-sans)');
+    expect(css).toContain('--font-brand: var(--font-plex-sans)');
     expect(css).toContain('--font-mono: var(--font-mono)');
 
     // 6-tier Type scale tokens
@@ -40,7 +40,7 @@ describe('Telestar Typography Transformation Architecture', () => {
     expect(css).toContain('--text-subsection: 16px;');
     expect(css).toContain('--text-body: 14px;');
     expect(css).toContain('--text-meta: 13px;');
-    expect(css).toContain('--text-micro: 11.5px;');
+    expect(css).toContain('--text-micro: 12px;');
 
     // Tabular numerals class
     expect(css).toContain('.tabular-nums');

@@ -537,8 +537,8 @@ export default function AiAssistant() {
               <CopilotIcon hasUnread={false} isThinking={isStreaming} />
               <div>
                 <div className="text-white font-semibold text-xs leading-tight">{assistantName}</div>
-                <div className="text-emerald-400 text-[10px] flex items-center gap-1.5 mt-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Live Context Connected
+                <div className="text-emerald-300 text-[10px] flex items-center gap-1.5 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-300"></span> Live Context Connected
                 </div>
               </div>
             </div>

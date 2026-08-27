@@ -37,7 +37,7 @@ export default function LiveFloorPulse({
               <Flame className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="font-display font-bold text-xs text-text-primary">Daily Meeting Target</h4>
+              <h2 className="font-display font-bold text-xs text-text-primary">Daily Meeting Target</h2>
               <p className="text-[11px] text-text-muted">Live sales floor quota</p>
             </div>
           </div>
@@ -74,7 +74,7 @@ export default function LiveFloorPulse({
               <Award className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="font-display font-bold text-xs text-text-primary">Floor Leaderboard</h4>
+              <h2 className="font-display font-bold text-xs text-text-primary">Floor Leaderboard</h2>
               <p className="text-[11px] text-text-muted">Top reps today</p>
             </div>
           </div>
@@ -118,7 +118,7 @@ export default function LiveFloorPulse({
               <Activity className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="font-display font-bold text-xs text-text-primary">Live Activity Pulse</h4>
+              <h2 className="font-display font-bold text-xs text-text-primary">Live Activity Pulse</h2>
               <p className="text-[11px] text-text-muted">Real-time floor events</p>
             </div>
           </div>

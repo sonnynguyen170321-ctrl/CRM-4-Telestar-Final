@@ -148,13 +148,13 @@ export default function DeveloperApiKeysPanel() {
   return (
     <div className="space-y-6">
       {/* Header Info */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-xl border border-border bg-card">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-xl border border-card-border bg-card-bg shadow-xs">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Key className="w-4 h-4 text-emerald-500" />
-            <h3 className="text-sm font-semibold text-foreground">API Keys & External Integrations</h3>
+            <Key className="w-4 h-4 text-emerald-600" />
+            <h2 className="text-sm font-semibold text-text-primary">API Keys &amp; External Integrations</h2>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-text-muted prose-measure">
             Authenticate external VOIP dialers (Aircall, Twilio), leadgen enrichers (Clay, Apollo), and Zapier workflows.
           </p>
         </div>
@@ -162,7 +162,7 @@ export default function DeveloperApiKeysPanel() {
         <div className="flex items-center gap-2">
           <Link
             href="/docs"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-lg bg-background hover:bg-muted text-foreground transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-card-border rounded-lg bg-bg-main hover:bg-card-border/40 text-text-primary transition-colors"
           >
             <Code className="w-3.5 h-3.5" />
             Interactive Docs
@@ -175,7 +175,7 @@ export default function DeveloperApiKeysPanel() {
               setNewlyCreatedKey(null);
               setIsModalOpen(true);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-red hover:bg-brand-red-hover text-white transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             Create API Key
@@ -184,65 +184,65 @@ export default function DeveloperApiKeysPanel() {
       </div>
 
       {/* Keys Table */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between">
-          <span className="text-xs font-semibold text-foreground">Active API Keys</span>
-          <span className="text-xs text-muted-foreground">{keys.length} keys active</span>
+      <div className="rounded-xl border border-card-border bg-card-bg overflow-hidden shadow-xs">
+        <div className="px-4 py-3 border-b border-card-border bg-bg-main/30 flex items-center justify-between">
+          <span className="text-xs font-semibold text-text-primary">Active API Keys</span>
+          <span className="text-xs text-text-muted">{keys.length} keys active</span>
         </div>
 
         {isLoading ? (
-          <div className="p-8 flex items-center justify-center text-muted-foreground">
+          <div className="p-8 flex items-center justify-center text-text-muted">
             <Loader2 className="w-5 h-5 animate-spin mr-2" />
             <span className="text-xs">Loading API keys...</span>
           </div>
         ) : keys.length === 0 ? (
           <div className="p-8 text-center space-y-2">
-            <Shield className="w-8 h-8 text-muted-foreground/40 mx-auto" />
-            <p className="text-xs font-medium text-foreground">No API keys created yet</p>
-            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+            <Shield className="w-8 h-8 text-text-muted/40 mx-auto" />
+            <p className="text-xs font-medium text-text-primary">No API keys created yet</p>
+            <p className="text-xs text-text-muted max-w-sm mx-auto prose-measure">
               Generate an API key to connect external dialers, lead research scrapers, or automation webhooks.
             </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-border bg-muted/20 text-muted-foreground">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="border-b border-card-border bg-bg-main/50 text-text-muted">
                 <tr>
-                  <th className="py-2.5 px-4 font-medium">Name</th>
-                  <th className="py-2.5 px-4 font-medium">Token Prefix</th>
-                  <th className="py-2.5 px-4 font-medium">Scopes</th>
-                  <th className="py-2.5 px-4 font-medium">Last Used</th>
-                  <th className="py-2.5 px-4 font-medium">Created</th>
-                  <th className="py-2.5 px-4 font-medium text-right">Actions</th>
+                  <th className="py-3 px-4 font-semibold">Name</th>
+                  <th className="py-3 px-4 font-semibold">Token Prefix</th>
+                  <th className="py-3 px-4 font-semibold">Scopes</th>
+                  <th className="py-3 px-4 font-semibold">Last Used</th>
+                  <th className="py-3 px-4 font-semibold">Created</th>
+                  <th className="py-3 px-4 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className="divide-y divide-card-border text-text-secondary">
                 {keys.map((k) => (
-                  <tr key={k.id} className="hover:bg-muted/10 transition-colors">
-                    <td className="py-3 px-4 font-semibold text-foreground">{k.name}</td>
-                    <td className="py-3 px-4 font-mono text-[11px] text-emerald-500">{k.keyPrefix}</td>
+                  <tr key={k.id} className="hover:bg-bg-main/40 transition-colors">
+                    <td className="py-3 px-4 font-semibold text-text-primary">{k.name}</td>
+                    <td className="py-3 px-4 font-mono text-[11px] text-emerald-600">{k.keyPrefix}</td>
                     <td className="py-3 px-4">
                       <div className="flex flex-wrap gap-1">
                         {k.scopes.map((s) => (
                           <span
                             key={s}
-                            className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-muted text-muted-foreground border border-border"
+                            className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-bg-main text-text-muted border border-card-border"
                           >
                             {s}
                           </span>
                         ))}
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-muted-foreground">
+                    <td className="py-3 px-4 text-text-muted">
                       {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleDateString() : 'Never'}
                     </td>
-                    <td className="py-3 px-4 text-muted-foreground">
+                    <td className="py-3 px-4 text-text-muted">
                       {new Date(k.createdAt).toLocaleDateString()}
                     </td>
                     <td className="py-3 px-4 text-right">
                       <button
                         onClick={() => handleRevokeKey(k.id, k.name)}
-                        className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        className="p-1.5 rounded hover:bg-rose-50 text-text-muted hover:text-rose-600 transition-colors"
                         title="Revoke API key"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -258,31 +258,31 @@ export default function DeveloperApiKeysPanel() {
 
       {/* Modal: Create API Key */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5 animate-scale-up">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl border border-card-border bg-card-bg p-6 shadow-2xl space-y-5">
             {!newlyCreatedKey ? (
               <form onSubmit={handleCreateKey} className="space-y-4">
                 <div className="space-y-1">
-                  <h3 className="text-base font-semibold text-foreground">Create API Key</h3>
-                  <p className="text-xs text-muted-foreground">
+                  <h3 className="text-base font-semibold text-text-primary">Create API Key</h3>
+                  <p className="text-xs text-text-muted prose-measure">
                     Assign a descriptive name and choose permission scopes for this integration.
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-foreground">Key Name</label>
+                  <label className="text-xs font-medium text-text-primary">Key Name</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. Aircall VOIP Caller, Clay Prospector"
                     value={keyName}
                     onChange={(e) => setKeyName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full px-3 py-2 rounded-lg border border-card-border bg-bg-main text-text-primary text-xs focus:outline-none focus:border-brand-red placeholder-text-muted"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-foreground">Permission Scopes</label>
+                  <label className="text-xs font-medium text-text-primary">Permission Scopes</label>
                   <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                     {AVAILABLE_SCOPES.map((sc) => (
                       <label
@@ -290,37 +290,37 @@ export default function DeveloperApiKeysPanel() {
                         onClick={() => toggleScope(sc.id)}
                         className={`flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors ${
                           selectedScopes.includes(sc.id)
-                            ? 'border-primary/50 bg-primary/5'
-                            : 'border-border hover:bg-muted/20'
+                            ? 'border-brand-red/50 bg-brand-red/5'
+                            : 'border-card-border hover:bg-bg-main/50'
                         }`}
                       >
                         <input
                           type="checkbox"
                           checked={selectedScopes.includes(sc.id)}
                           onChange={() => {}}
-                          className="mt-0.5 rounded border-border"
+                          className="mt-0.5 rounded border-card-border"
                         />
                         <div className="space-y-0.5 text-xs">
-                          <div className="font-semibold text-foreground">{sc.label}</div>
-                          <div className="text-[11px] text-muted-foreground">{sc.desc}</div>
+                          <div className="font-semibold text-text-primary">{sc.label}</div>
+                          <div className="text-[11px] text-text-muted">{sc.desc}</div>
                         </div>
                       </label>
                     ))}
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-card-border">
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="px-3.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:bg-muted"
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-medium text-text-muted hover:bg-bg-main"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isCreating}
-                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold bg-brand-red hover:bg-brand-red-hover text-white disabled:opacity-50"
                   >
                     {isCreating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                     Generate Key
@@ -329,30 +329,30 @@ export default function DeveloperApiKeysPanel() {
               </form>
             ) : (
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-emerald-500 font-semibold text-sm">
+                <div className="flex items-center gap-2 text-emerald-600 font-semibold text-sm">
                   <Check className="w-4 h-4" />
                   API Key Generated
                 </div>
 
-                <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-start gap-2 text-xs text-amber-300">
-                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <p>
+                <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-start gap-2 text-xs text-amber-900">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600" />
+                  <p className="prose-measure">
                     Please copy this secret key now. For your security, <strong>it will never be displayed again</strong>.
                   </p>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-foreground">Your Secret API Key</label>
+                  <label className="text-xs font-medium text-text-primary">Your Secret API Key</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       readOnly
                       value={newlyCreatedKey}
-                      className="w-full px-3 py-2 rounded-lg border border-border bg-muted/40 text-emerald-400 font-mono text-xs select-all"
+                      className="w-full px-3 py-2 rounded-lg border border-card-border bg-bg-main text-emerald-700 font-mono text-xs select-all"
                     />
                     <button
                       onClick={() => handleCopySecret(newlyCreatedKey)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold flex-shrink-0"
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-brand-red hover:bg-brand-red-hover text-white text-xs font-semibold flex-shrink-0"
                     >
                       {copiedSecret ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                       {copiedSecret ? 'Copied' : 'Copy'}
@@ -360,13 +360,13 @@ export default function DeveloperApiKeysPanel() {
                   </div>
                 </div>
 
-                <div className="pt-2 flex justify-end">
+                <div className="flex justify-end pt-2 border-t border-card-border">
                   <button
                     onClick={() => {
                       setIsModalOpen(false);
                       setNewlyCreatedKey(null);
                     }}
-                    className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-bg-main border border-card-border hover:bg-card-border/40 text-text-primary"
                   >
                     Done
                   </button>
