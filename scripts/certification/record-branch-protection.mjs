@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Records branch-protection evidence for EV-BRANCH-PROTECTION (TEL-P1-049).
  *
