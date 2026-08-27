@@ -22,6 +22,21 @@ interface PoolActionError {
 
 const MAX_REASONS_SHOWN = 3;
 
+/**
+ * Wording for the reason codes the pool service emits.
+ *
+ * The codes are stable identifiers for callers; this is what a person reads. Anything absent
+ * falls through unchanged, so a new code degrades to its raw form rather than to silence.
+ */
+const REASON_WORDING: Record<string, string> = {
+  already_a_lead_in_this_campaign: 'already a lead in this campaign',
+  no_sdr_available: 'no SDR selected to receive them',
+};
+
+function wordFor(reason: string): string {
+  return REASON_WORDING[reason] ?? reason;
+}
+
 export function formatPoolActionResult(okLabel: string, data: unknown): PoolActionResult {
   const body = isRecord(data) ? data : {};
   const count = typeof body.count === 'number' ? body.count : null;
@@ -45,7 +60,9 @@ export function formatPoolActionResult(okLabel: string, data: unknown): PoolActi
 
 /** Distinct reasons, capped — 200 duplicate rows should not render 200 identical clauses. */
 function describeReasons(errors: PoolActionError[]): string {
-  const reasons = [...new Set(errors.map((e) => (typeof e.reason === 'string' ? e.reason : 'unknown')))];
+  const reasons = [
+    ...new Set(errors.map((e) => wordFor(typeof e.reason === 'string' ? e.reason : 'unknown'))),
+  ];
   const shown = reasons.slice(0, MAX_REASONS_SHOWN).join(', ');
   return reasons.length > MAX_REASONS_SHOWN ? `${shown}, …` : shown;
 }

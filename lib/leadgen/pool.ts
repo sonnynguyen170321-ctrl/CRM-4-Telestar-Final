@@ -435,6 +435,37 @@ export async function assignPoolItems(params: {
   return { count: items.length };
 }
 
+/**
+ * Why a pool record did not become a lead.
+ *
+ * `existingLeadId` is set only for `already_a_lead_in_this_campaign`, where the useful next
+ * step is to look at the lead that already exists rather than to retry the conversion.
+ */
+export interface ConvertFailure {
+  poolItemId: string;
+  reason: string;
+  existingLeadId?: string;
+}
+
+/** Stable reason code — the UI and any caller match on this, never on driver text. */
+export const DUPLICATE_LEAD_REASON = 'already_a_lead_in_this_campaign';
+
+/** Postgres unique-violation code, as surfaced by Prisma. */
+const PRISMA_UNIQUE_VIOLATION = 'P2002';
+
+/**
+ * Map a thrown insert failure onto a reason code.
+ *
+ * The preflight above catches the ordinary case; this covers the race where a lead for the
+ * same address is created between the check and the insert. Same reason code either way, so
+ * callers never have to tell the two apart.
+ */
+function describeConvertFailure(err: unknown): string {
+  const code = (err as { code?: string } | null)?.code;
+  if (code === PRISMA_UNIQUE_VIOLATION) return DUPLICATE_LEAD_REASON;
+  return err instanceof Error ? err.message : 'unknown';
+}
+
 export async function convertPoolToLeads(params: {
   itemIds: string[];
   campaignId: string;
@@ -468,7 +499,7 @@ export async function convertPoolToLeads(params: {
   });
 
   const created: Array<{ poolItemId: string; leadId: string }> = [];
-  const errors: Array<{ poolItemId: string; reason: string }> = [];
+  const errors: Array<ConvertFailure> = [];
   const now = new Date();
 
   let index = 0;
@@ -483,6 +514,26 @@ export async function convertPoolToLeads(params: {
       const normalizedEmail = normalizeEmail(item.email);
       const normalizedPhone = normalizePhone(item.phone);
       const normalizedLinkedIn = normalizeLinkedIn(item.linkedIn);
+
+      // `Lead_tenant_campaign_email_uniq` allows one lead per tenant + campaign + email.
+      // Checked here rather than left to the insert so the caller learns *which* lead already
+      // holds the slot. Letting it throw produced `Invalid prisma.lead.create() invocation`
+      // in the errors array — text that tells a leadgen manager nothing about the fact that
+      // the prospect is already someone's pipeline, possibly a closed win.
+      if (normalizedEmail) {
+        const existing = await prisma.lead.findFirst({
+          where: { tenantId, campaignId, normalizedEmail },
+          select: { id: true },
+        });
+        if (existing) {
+          errors.push({
+            poolItemId: item.id,
+            reason: DUPLICATE_LEAD_REASON,
+            existingLeadId: existing.id,
+          });
+          continue;
+        }
+      }
 
       let account = await prisma.account.findUnique({
         where: { tenantId_name: { tenantId, name: item.company } },
@@ -577,7 +628,7 @@ export async function convertPoolToLeads(params: {
 
       created.push({ poolItemId: item.id, leadId: lead.id });
     } catch (err) {
-      errors.push({ poolItemId: item.id, reason: err instanceof Error ? err.message : 'unknown' });
+      errors.push({ poolItemId: item.id, reason: describeConvertFailure(err) });
     }
   }
 

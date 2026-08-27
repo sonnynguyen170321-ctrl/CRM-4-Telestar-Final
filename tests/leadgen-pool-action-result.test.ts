@@ -44,7 +44,7 @@ describe('formatPoolActionResult', () => {
 
     expect(result.tone).toBe('error');
     expect(result.message).toContain('2 failed');
-    expect(result.message).toContain('no_sdr_available');
+    expect(result.message).toContain('no SDR selected');
   });
 
   it('names distinct reasons rather than only the first one', () => {
@@ -57,7 +57,35 @@ describe('formatPoolActionResult', () => {
     });
 
     expect(result.message).toContain('duplicate email');
-    expect(result.message).toContain('no_sdr_available');
+    expect(result.message).toContain('no SDR selected');
+  });
+
+  it('renders known reason codes as words a manager can act on', () => {
+    const result = formatPoolActionResult('Converted', {
+      count: 0,
+      errors: [{ poolItemId: 'p1', reason: 'already_a_lead_in_this_campaign' }],
+    });
+
+    expect(result.message).toContain('already a lead in this campaign');
+    expect(result.message).not.toContain('already_a_lead_in_this_campaign');
+  });
+
+  it('renders the no-rep reason as words too', () => {
+    const result = formatPoolActionResult('Converted', {
+      count: 0,
+      errors: [{ poolItemId: 'p1', reason: 'no_sdr_available' }],
+    });
+
+    expect(result.message).toContain('no SDR selected');
+  });
+
+  it('passes through a reason it has no wording for', () => {
+    const result = formatPoolActionResult('Converted', {
+      count: 0,
+      errors: [{ poolItemId: 'p1', reason: 'database exploded' }],
+    });
+
+    expect(result.message).toContain('database exploded');
   });
 
   it('survives a response shape it does not recognise', () => {
