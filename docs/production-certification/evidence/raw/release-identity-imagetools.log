@@ -1,6 +1,6 @@
-$ docker buildx imagetools inspect ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b
+$ docker buildx imagetools inspect ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:78bd7eb087e86e867d604aaf01fb49deab897f94bdcd86bf01b2fc0007c5dc3b
 {
-  "created": "2026-08-25T19:51:32.309597013Z",
+  "created": "2026-08-27T11:16:00.893289281Z",
   "architecture": "amd64",
   "os": "linux",
   "config": {
@@ -19,9 +19,9 @@ $ docker buildx imagetools inspect ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar
       "DIRECT_URL=postgresql://invalid",
       "AUTH_SECRET=",
       "ENCRYPTION_KEY=REPLACE_AT_RUNTIME",
-      "APP_COMMIT=9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
-      "APP_VERSION=9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
-      "APP_BUILT_AT=2026-08-25T19:49:24Z"
+      "APP_COMMIT=c63673d1fb33b7fa8ed9e21b66711d28998fd53a",
+      "APP_VERSION=c63673d1fb33b7fa8ed9e21b66711d28998fd53a",
+      "APP_BUILT_AT=2026-08-27T11:13:40Z"
     ],
     "Entrypoint": [
       "docker-entrypoint.sh"
@@ -33,11 +33,11 @@ $ docker buildx imagetools inspect ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar
     ],
     "WorkingDir": "/app",
     "Labels": {
-      "org.opencontainers.image.created": "2026-08-25T19:49:24Z",
-      "org.opencontainers.image.revision": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+      "org.opencontainers.image.created": "2026-08-27T11:13:40Z",
+      "org.opencontainers.image.revision": "c63673d1fb33b7fa8ed9e21b66711d28998fd53a",
       "org.opencontainers.image.source": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final",
       "org.opencontainers.image.title": "CRM-4-Telestar-Final",
-      "org.opencontainers.image.version": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8"
+      "org.opencontainers.image.version": "c63673d1fb33b7fa8ed9e21b66711d28998fd53a"
     },
     "ArgsEscaped": true
   },
@@ -49,21 +49,21 @@ $ docker buildx imagetools inspect ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar
       "sha256:ec5d0255c8bf10ce4313e611ec0a35f9de699c6284e69e4c4fdcc5ea6e82adbf",
       "sha256:625ca884ca91515900d06a970e88957ac4d2e8963c4a0cc699e069ef7e3c7371",
       "sha256:7ad824b880674ec5cd6d6ef28d7d4783bcd5194ccf30ae225d5eeed0093ff31a",
-      "sha256:c52fc48495630c808b217a96b587b57a2baf7e229b2342a2d31325f83f4e52ea",
-      "sha256:8075ea027061277c10dd9f23ff902080286d8bd44ec1e26acd3ecf77f8e8eaed",
-      "sha256:b951d4d3a369276e8075ded65dc8666a52a6dfa9244472cb6edfe66ad545b614",
-      "sha256:aa90f51d47765ba82e2526233475f2e192b27d51ad9d3438c25aa8bacce806ec",
-      "sha256:859d90956df5b95e98f6eea2a8b38c21de5904ae4089c266365bc1e90ed7d5ee",
-      "sha256:2ab8ef832dce0d20b94254140251d087ebecdc5ca5056f6926161beb1c95f6db",
-      "sha256:e40e9ef2e250bcd41ea91188d7e47f0c6d73e5b6981dcf128a7d6aca5978e8a8",
-      "sha256:3d9d73f737de23147e8c306a8a0f66a7186e2907dd8d84ed7ee0fd16b735169e",
-      "sha256:35e8e0ebf2af11d56b986cfd37786790c1337be52b0177cce2ade5c33d802cad",
-      "sha256:e8ed0451f94c05a683197ca6c6c2ed013299c939849beacb70f3b6007114270c",
-      "sha256:10b831aefbfbdc5689c92ad961a4cdce396082a295306e3d2c27384695fcdc17",
-      "sha256:764adf523a954202ba8fcc7cb44408a6b43ee52f6d0825eb5501d4ce61be7ef4",
-      "sha256:84930376eeda7ee4c0ec38d3a9c39dc515372ff15a8c5a4078b397c7670c7fc5",
-      "sha256:70fe73a5c9a43f97ab4891929664e0e555c4919a7f0753e1d6c22f3d7fb7d43a",
-      "sha256:2dc815c46f6aefdf1fa2dcf465f1a8d069e1ed0543c4663f17977de636839190"
+      "sha256:e95bf4435178acc37de7a6e5003caa043b08f703597529c22f30b54be0844ffc",
+      "sha256:c1641977e636981a2432f94e9ae5b7e043802cc527c8148911fdbe2c7fdb3cf7",
+      "sha256:3e37295225384bad6c3bc4d5eadcceb0df5d9cbbf16139ba3438deeeeacce280",
+      "sha256:04751ab50885e9dcd2b4724587a91a7fc2f7a204a3f7608294a397f870ab77b0",
+      "sha256:eeb4dd33709d8560f9b90d7a80de744d7373b8f920f2636a59d575dad77afc28",
+      "sha256:f68ec8ee57771aea5fd076290afb32bd0658cc5a1c9684724146b8155f9addb5",
+      "sha256:ebce3b2cdac784f44d523447984a78e52b922ad241b14fa31db821006db8cdcc",
+      "sha256:2677519a0bd76433522810f89d7349727bf008fc76be4a9d7eb190ae3405b183",
+      "sha256:8f0a9c3c462b2ffb930c85d5d9038059257af6c7314fa444c158a6121f8cec56",
+      "sha256:cdb70c9626f2d176b2708fc28f5e203c430b75ca07b2af4bd432c044a4248bca",
+      "sha256:259585645562b35a3018fe30a8c9967dbf3eea2ea96e7251b070cf065e665f2e",
+      "sha256:c1bb72cb879366b352f84f42fe2fb947706e3963286a10b7b5c573f741eb3f45",
+      "sha256:23728e361580adc8b526f03efec4aac9351579dc340ccff26f830dbe97cc4175",
+      "sha256:b0fcf2582a2fb8227f279176a02cdc800e04c1a95e7a1fc28bafca64825e84d6",
+      "sha256:aa81026e7fe6ddc4d4c00d304593b18987bb533a2f284cf9a9cbfa01dd78b250"
     ]
   },
   "history": [
@@ -117,124 +117,124 @@ $ docker buildx imagetools inspect ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar
       "empty_layer": true
     },
     {
-      "created": "2026-08-25T19:49:36.689481949Z",
-      "created_by": "ARG APP_COMMIT=9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+      "created": "2026-08-27T11:14:02.640715775Z",
+      "created_by": "ARG APP_COMMIT=c63673d1fb33b7fa8ed9e21b66711d28998fd53a",
       "comment": "buildkit.dockerfile.v0",
       "empty_layer": true
     },
     {
-      "created": "2026-08-25T19:49:36.689481949Z",
-      "created_by": "ARG APP_VERSION=9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+      "created": "2026-08-27T11:14:02.640715775Z",
+      "created_by": "ARG APP_VERSION=c63673d1fb33b7fa8ed9e21b66711d28998fd53a",
       "comment": "buildkit.dockerfile.v0",
       "empty_layer": true
     },
     {
-      "created": "2026-08-25T19:49:36.689481949Z",
-      "created_by": "ARG APP_BUILT_AT=2026-08-25T19:49:24Z",
+      "created": "2026-08-27T11:14:02.640715775Z",
+      "created_by": "ARG APP_BUILT_AT=2026-08-27T11:13:40Z",
       "comment": "buildkit.dockerfile.v0",
       "empty_layer": true
     },
     {
-      "created": "2026-08-25T19:49:36.689481949Z",
+      "created": "2026-08-27T11:14:02.640715775Z",
       "created_by": "WORKDIR /app",
       "comment": "buildkit.dockerfile.v0"
     },
     {
-      "created": "2026-08-25T19:49:36.689481949Z",
-      "created_by": "ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 DATABASE_URL=postgresql://invalid DIRECT_URL=postgresql://invalid AUTH_SECRET= ENCRYPTION_KEY=REPLACE_AT_RUNTIME APP_COMMIT=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 APP_VERSION=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 APP_BUILT_AT=2026-08-25T19:49:24Z",
+      "created": "2026-08-27T11:14:02.640715775Z",
+      "created_by": "ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 DATABASE_URL=postgresql://invalid DIRECT_URL=postgresql://invalid AUTH_SECRET= ENCRYPTION_KEY=REPLACE_AT_RUNTIME APP_COMMIT=c63673d1fb33b7fa8ed9e21b66711d28998fd53a APP_VERSION=c63673d1fb33b7fa8ed9e21b66711d28998fd53a APP_BUILT_AT=2026-08-27T11:13:40Z",
       "comment": "buildkit.dockerfile.v0",
       "empty_layer": true
     },
     {
-      "created": "2026-08-25T19:49:36.689481949Z",
-      "created_by": "LABEL org.opencontainers.image.revision=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 org.opencontainers.image.version=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 org.opencontainers.image.created=2026-08-25T19:49:24Z org.opencontainers.image.source=https://github.com/sonnynguyen170321-ctrl/crm-4-telestar-final",
+      "created": "2026-08-27T11:14:02.640715775Z",
+      "created_by": "LABEL org.opencontainers.image.revision=c63673d1fb33b7fa8ed9e21b66711d28998fd53a org.opencontainers.image.version=c63673d1fb33b7fa8ed9e21b66711d28998fd53a org.opencontainers.image.created=2026-08-27T11:13:40Z org.opencontainers.image.source=https://github.com/sonnynguyen170321-ctrl/crm-4-telestar-final",
       "comment": "buildkit.dockerfile.v0",
       "empty_layer": true
     },
     {
-      "created": "2026-08-25T19:49:41.358193659Z",
-      "created_by": "RUN |3 APP_COMMIT=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 APP_VERSION=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 APP_BUILT_AT=2026-08-25T19:49:24Z /bin/sh -c apt-get update   \u0026\u0026 apt-get install -y --no-install-recommends ca-certificates openssl   \u0026\u0026 rm -rf /var/lib/apt/lists/* # buildkit",
+      "created": "2026-08-27T11:14:07.725003977Z",
+      "created_by": "RUN |3 APP_COMMIT=c63673d1fb33b7fa8ed9e21b66711d28998fd53a APP_VERSION=c63673d1fb33b7fa8ed9e21b66711d28998fd53a APP_BUILT_AT=2026-08-27T11:13:40Z /bin/sh -c apt-get update   \u0026\u0026 apt-get install -y --no-install-recommends ca-certificates openssl   \u0026\u0026 rm -rf /var/lib/apt/lists/* # buildkit",
       "comment": "buildkit.dockerfile.v0"
     },
     {
-      "created": "2026-08-25T19:49:41.382716946Z",
+      "created": "2026-08-27T11:14:07.876850395Z",
       "created_by": "COPY --chown=node:node package.json package-lock.json ./ # buildkit",
       "comment": "buildkit.dockerfile.v0"
     },
     {
-      "created": "2026-08-25T19:49:41.411057673Z",
+      "created": "2026-08-27T11:14:08.063408985Z",
       "created_by": "COPY --chown=node:node prisma ./prisma # buildkit",
       "comment": "buildkit.dockerfile.v0"
     },
     {
-      "created": "2026-08-25T19:50:08.308064795Z",
-      "created_by": "RUN |3 APP_COMMIT=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 APP_VERSION=9b2b44c9f0987139e2f48ee21b14ec36e10690a8 APP_BUILT_AT=2026-08-25T19:49:24Z /bin/sh -c npm ci --omit=dev   \u0026\u0026 npx prisma generate   \u0026\u0026 npm cache clean --force # buildkit",
+      "created": "2026-08-27T11:14:38.002779784Z",
+      "created_by": "RUN |3 APP_COMMIT=c63673d1fb33b7fa8ed9e21b66711d28998fd53a APP_VERSION=c63673d1fb33b7fa8ed9e21b66711d28998fd53a APP_BUILT_AT=2026-08-27T11:13:40Z /bin/sh -c npm ci --omit=dev   \u0026\u0026 npx prisma generate   \u0026\u0026 npm cache clean --force # buildkit",
       "comment": "buildkit.dockerfile.v0"
     },
     {
-      "created": "2026-08-25T19:51:32.048626023Z",
+      "created": "2026-08-27T11:15:59.671946475Z",
       "created_by": "COPY --chown=node:node /app/.next ./.next # buildkit",
       "comment": "buildkit.dockerfile.v0"
     },
     {
-      "created": "2026-08-25T19:51:32.094572455Z",
+      "created": "2026-08-27T11:15:59.725217729Z",
       "created_by": "COPY --chown=node:node public ./public # buildkit",
       "comment": "buildkit.dockerfile.v0"
     },
     {
-      "created": "2026-08-25T19:51:32.150711379Z",
+      "created": "2026-08-27T11:15:59.949189135Z",
       "created_by": "COPY --chown=node:node app ./app # buildkit",
       "comment": "buildkit.dockerfile.v0"
     },
     {
-      "created": "2026-08-25T19:51:32.180986695Z",
+      "created": "2026-08-27T11:16:00.002920663Z",
       "created_by": "COPY --chown=node:node components ./components # buildkit",
       "comment": "buildkit.dockerfile.v0"
     },
     {
-      "created": "2026-08-25T19:51:32.192433091Z",
+      "created": "2026-08-27T11:16:00.425255255Z",
       "created_by": "COPY --chown=node:node context ./context # buildkit",
       "comment": "buildkit.dockerfile.v0"
     },
     {
-      "created": "2026-08-25T19:51:32.20212094Z",
+      "created": "2026-08-27T11:16:00.441234682Z",
       "created_by": "COPY --chown=node:node hooks ./hooks # buildkit",
       "comment": "buildkit.dockerfile.v0"
     },
     {
-      "created": "2026-08-25T19:51:32.245968835Z",
+      "created": "2026-08-27T11:16:00.65423939Z",
       "created_by": "COPY --chown=node:node lib ./lib # buildkit",
       "comment": "buildkit.dockerfile.v0"
     },
     {
-      "created": "2026-08-25T19:51:32.259467834Z",
+      "created": "2026-08-27T11:16:00.671249747Z",
       "created_by": "COPY --chown=node:node workers ./workers # buildkit",
       "comment": "buildkit.dockerfile.v0"
     },
     {
-      "created": "2026-08-25T19:51:32.286745349Z",
+      "created": "2026-08-27T11:16:00.7083466Z",
       "created_by": "COPY --chown=node:node scripts ./scripts # buildkit",
       "comment": "buildkit.dockerfile.v0"
     },
     {
-      "created": "2026-08-25T19:51:32.309597013Z",
+      "created": "2026-08-27T11:16:00.893289281Z",
       "created_by": "COPY --chown=node:node auth.config.ts auth.ts instrumentation.ts next.config.ts proxy.ts tsconfig.json ./ # buildkit",
       "comment": "buildkit.dockerfile.v0"
     },
     {
-      "created": "2026-08-25T19:51:32.309597013Z",
+      "created": "2026-08-27T11:16:00.893289281Z",
       "created_by": "USER node",
       "comment": "buildkit.dockerfile.v0",
       "empty_layer": true
     },
     {
-      "created": "2026-08-25T19:51:32.309597013Z",
+      "created": "2026-08-27T11:16:00.893289281Z",
       "created_by": "EXPOSE [3000/tcp]",
       "comment": "buildkit.dockerfile.v0",
       "empty_layer": true
     },
     {
-      "created": "2026-08-25T19:51:32.309597013Z",
+      "created": "2026-08-27T11:16:00.893289281Z",
       "created_by": "CMD [\"npm\" \"run\" \"start\"]",
       "comment": "buildkit.dockerfile.v0",
       "empty_layer": true
