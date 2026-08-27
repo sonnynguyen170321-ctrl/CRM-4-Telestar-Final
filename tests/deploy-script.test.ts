@@ -1,6 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'child_process';
-import { existsSync, readFileSync, writeFileSync, mkdtempSync, chmodSync } from 'fs';
+import { execFileSync, spawnSync } from 'child_process';
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdtempSync,
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  rmSync,
+} from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -278,6 +287,95 @@ describe('rollback.sh carries the same guards', () => {
   it('still refuses a mutable image reference', () => {
     // Pre-existing invariant; the new guards must not have displaced it.
     expect(rollback).toContain('Refusing to roll back to a mutable reference');
+  });
+});
+
+describe('TEL-P1-057 — rollback.sh can be driven by the DR-003 drill', () => {
+  // The DR-003 drill drives this script rather than reimplementing the image swap, so that
+  // what a drill exercises is what an operator would actually run in an incident. That
+  // only works if the script can run without a terminal. It could not: over
+  // `ssh host './scripts/rollback.sh …'` stdin is not a TTY, `read` returned an empty
+  // reply, and the script aborted — three phases, three exit 1s, and a DR-003 FAIL that
+  // said nothing about whether rollback works.
+  //
+  // These run the real script. A source-text assertion would pass against a version that
+  // reads the variable and ignores it.
+  const repoRoot = process.cwd();
+
+  /** Runs rollback.sh in a throwaway deployment root, with no TTY on stdin. */
+  function runHeadless(env: NodeJS.ProcessEnv) {
+    const root = mkdtempSync(join(tmpdir(), 'rollback-drill-'));
+    mkdirSync(join(root, 'scripts'));
+    for (const file of ['rollback.sh', 'deploy-lib.sh', 'production-compose.sh']) {
+      copyFileSync(join(repoRoot, 'scripts', file), join(root, 'scripts', file));
+      chmodSync(join(root, 'scripts', file), 0o755);
+    }
+    writeFileSync(join(root, '.env.production'), 'DEPLOY_TARGET=gcp\nCRM_IMAGE=ghcr.io/x/y@sha256:' + 'a'.repeat(64) + '\n');
+
+    const target = 'ghcr.io/x/y@sha256:' + 'b'.repeat(64);
+    const result = spawnSync('bash', ['./scripts/rollback.sh', target], {
+      cwd: root,
+      encoding: 'utf8',
+      // 'pipe' rather than 'inherit': stdin must not be a terminal, which is the condition
+      // under test. A closed pipe is what ssh gives a remote command.
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, ...env, DOCKER: 'echo docker' },
+      timeout: 60_000,
+    });
+    rmSync(root, { recursive: true, force: true });
+    return { ...result, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
+  }
+
+  it('refuses, and says why, when stdin is not a terminal and consent was not given', () => {
+    const result = runHeadless({});
+
+    expect(result.status).not.toBe(0);
+    expect(result.output).toContain('stdin is not a terminal');
+    // The old failure was indistinguishable from a declined confirmation. The point of the
+    // guard is that the transcript names the real reason.
+    expect(result.output).not.toMatch(/Aborted\.\s*$/);
+  });
+
+  it('proceeds past the confirmation when ROLLBACK_ASSUME_YES=1', () => {
+    const result = runHeadless({ ROLLBACK_ASSUME_YES: '1' });
+
+    // It will still fail further down — there is no docker daemon and no real image here —
+    // but it must get past the checkpoint, and it must not silently pretend a human
+    // answered.
+    expect(result.output).toContain('confirm  : skipped');
+    expect(result.output).not.toContain('stdin is not a terminal');
+  });
+
+  it('announces the bypass rather than skipping quietly', () => {
+    // An unattended rollback is a legitimate thing to do and an unremarkable-looking
+    // transcript of one is not: whoever reads it later must be able to see that the last
+    // human checkpoint was not answered by a human.
+    const result = runHeadless({ ROLLBACK_ASSUME_YES: '1' });
+
+    expect(result.output).toMatch(/ROLLBACK_ASSUME_YES=1 set by \S+/);
+  });
+
+  it('still requires a content-addressed target when running unattended', () => {
+    // Consent to skip the prompt is not consent to roll back to a mutable tag.
+    const root = mkdtempSync(join(tmpdir(), 'rollback-drill-'));
+    mkdirSync(join(root, 'scripts'));
+    for (const file of ['rollback.sh', 'deploy-lib.sh', 'production-compose.sh']) {
+      copyFileSync(join(repoRoot, 'scripts', file), join(root, 'scripts', file));
+      chmodSync(join(root, 'scripts', file), 0o755);
+    }
+    writeFileSync(join(root, '.env.production'), 'DEPLOY_TARGET=gcp\n');
+
+    const result = spawnSync('bash', ['./scripts/rollback.sh', 'ghcr.io/x/y:latest'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, ROLLBACK_ASSUME_YES: '1', DOCKER: 'echo docker' },
+      timeout: 60_000,
+    });
+    rmSync(root, { recursive: true, force: true });
+
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain('mutable reference');
   });
 });
 

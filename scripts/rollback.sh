@@ -57,8 +57,27 @@ cat <<'WARNING'
   and compare with the `migration` field of the last two entries in deployments.ndjson.
 
 WARNING
-read -r -p "  Proceed with rollback? [y/N] " reply
-[ "$reply" = "y" ] || [ "$reply" = "Y" ] || fail "Aborted."
+
+# The prompt is the last human checkpoint before production changes, and it stays the
+# default. But it also made this script undrivable by anything without a terminal: over
+# `ssh host './scripts/rollback.sh …'` stdin is not a TTY, `read` returns immediately with
+# an empty reply, and the script aborts. That is why the DR-003 drill — which exists to
+# prove a rollback works, and drives THIS script rather than reimplementing the swap so
+# that what is exercised is what an operator would actually run — could never produce a
+# pass. TEL-P1-026 named the missing drill; this is the second half of the same gap.
+#
+# ROLLBACK_ASSUME_YES is deliberately an environment variable and not a flag: a flag is
+# easy to add to a half-remembered command line, whereas this has to be set on purpose,
+# and it announces itself in the output so the transcript shows the checkpoint was
+# bypassed and by whom.
+if [ "${ROLLBACK_ASSUME_YES:-}" = "1" ]; then
+  echo "  confirm  : skipped — ROLLBACK_ASSUME_YES=1 set by $(whoami)@$(hostname)"
+elif [ ! -t 0 ]; then
+  fail "stdin is not a terminal and ROLLBACK_ASSUME_YES is not set. Refusing to guess at the confirmation prompt: an unattended rollback must say so explicitly."
+else
+  read -r -p "  Proceed with rollback? [y/N] " reply
+  [ "$reply" = "y" ] || [ "$reply" = "Y" ] || fail "Aborted."
+fi
 
 DC="$DOCKER compose --env-file $ENV_FILE $COMPOSE_FILES"
 
