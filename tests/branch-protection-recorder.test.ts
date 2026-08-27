@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 
-// @ts-expect-error — certification tooling is plain ESM JavaScript with no type declarations.
 import { readProtectionControls, ProtectionEvidenceError } from '../scripts/certification/record-branch-protection.mjs';
 
 /**
