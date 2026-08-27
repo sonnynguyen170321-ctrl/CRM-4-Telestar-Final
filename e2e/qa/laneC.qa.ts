@@ -751,15 +751,15 @@ test('C5 campaign routing: assign then convert qualified records into working le
   let assignWorked = false;
   let sdrPickerOptions: string[] = [];
   if (pickedForAssign.selected > 0) {
-    await page.getByRole('button', { name: /Assign to Campaign \/ SDR/i }).click();
-    await expect(page.getByRole('heading', { name: 'Assign' })).toBeVisible();
+    await page.getByRole('button', { name: /Tag for Campaign \/ SDR/i }).click();
+    await expect(page.getByRole('heading', { name: 'Tag for Campaign / SDR' })).toBeVisible();
     await shot(page, LANE, 'c5-assign-dialog');
     await dialogCampaignSelect().selectOption({ label: LEADGEN_CAMPAIGN });
     sdrPickerOptions = (await repRows().allInnerTexts()).map((s) => s.replace(/\s+/g, ' ').trim());
     // Whoever the picker actually offers — see the roster recorded above.
     const firstRep = repRows().first();
     if (await firstRep.isVisible().catch(() => false)) await firstRep.locator('input').check();
-    await page.getByRole('button', { name: 'Apply Assignment' }).click();
+    await page.getByRole('button', { name: 'Apply Tags Only' }).click();
     await page.waitForTimeout(5000);
     assignWorked = true;
   }
