@@ -303,7 +303,10 @@ describe('TEL-P1-057 — rollback.sh can be driven by the DR-003 drill', () => {
   const repoRoot = process.cwd();
 
   /** Runs rollback.sh in a throwaway deployment root, with no TTY on stdin. */
-  function runHeadless(env: NodeJS.ProcessEnv) {
+  // Record<string, string> rather than NodeJS.ProcessEnv: this project augments ProcessEnv
+  // to require NODE_ENV, so a partial override object does not satisfy it. These are extra
+  // variables layered onto process.env, not a replacement environment.
+  function runHeadless(env: Record<string, string>) {
     const root = mkdtempSync(join(tmpdir(), 'rollback-drill-'));
     mkdirSync(join(root, 'scripts'));
     for (const file of ['rollback.sh', 'deploy-lib.sh', 'production-compose.sh']) {
