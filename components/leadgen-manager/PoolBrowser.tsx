@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { readApiError } from '@/lib/api/client';
+import { formatPoolActionResult } from '@/lib/leadgen/actionResult';
+import { isAwaitingConversion } from '@/lib/leadgen/poolItemState';
 
 type PoolItem = {
   id: string;
@@ -207,7 +209,11 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
       });
       if (!res.ok) throw new Error(await readApiError(res, 'Action failed'));
       const data = await res.json();
-      showToast(`${okMsg} (${data.count ?? ''})`.trim(), 'success');
+      // A 200 does not mean every record succeeded: convert reports per-record failures in
+      // `errors` and keeps going. Reading only `count` rendered a total failure as a green
+      // "Converted (0)" and threw the reasons away.
+      const outcome = formatPoolActionResult(okMsg, data);
+      showToast(outcome.message, outcome.tone);
       setSelected(new Set());
       loadRef();
     } catch (err) {
@@ -371,8 +377,12 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
           )}
 
           {(mode === 'pool' || mode === 'routing') && (
-            <button onClick={() => setShowAssign(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-400 text-xs font-bold rounded-lg">
-              <Route className="w-3.5 h-3.5" /> Assign to Campaign / SDR
+            <button
+              onClick={() => setShowAssign(true)}
+              title="Tags pool records only. The SDR sees nothing in their lead space until you convert."
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-400 text-xs font-bold rounded-lg"
+            >
+              <Route className="w-3.5 h-3.5" /> Tag for Campaign / SDR
             </button>
           )}
 
@@ -512,6 +522,16 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
                           {item.convertedLead && (
                             <div className="text-emerald-400">→ Lead · {item.convertedLead.stage}</div>
                           )}
+                          {isAwaitingConversion(item) && (
+                            <button
+                              onClick={() => { setSelected(new Set([item.id])); setShowConvert(true); }}
+                              title="Tagged but never converted — no Lead exists, so the rep cannot see this record."
+                              className="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 underline underline-offset-2"
+                            >
+                              <ArrowRightLeft className="w-2.5 h-2.5" />
+                              not converted
+                            </button>
+                          )}
                           {!item.assignedCampaign && !item.assignedSdr && <span>—</span>}
                         </div>
                       </td>
@@ -551,13 +571,37 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
           <div className="bg-card-bg border border-card-border rounded-2xl p-6 w-full max-w-md space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-display font-bold text-sm text-text-primary">
-                {showConvert ? 'Convert to Leads' : 'Assign'}
+                {showConvert ? 'Convert to Leads' : 'Tag for Campaign / SDR'}
               </h3>
               <button onClick={() => { setShowAssign(false); setShowConvert(false); }} className="text-text-muted hover:text-text-primary text-lg leading-none">×</button>
             </div>
             <p className="text-xs text-text-secondary">
               {selected.size} selected · {showConvert ? 'Creates Accounts/Contacts/Leads and routes to an SDR.' : 'Tags pool records for a campaign and/or SDR.'}
             </p>
+
+            {/* Tagging and conversion are different writes, and only conversion creates the
+                Lead a rep can work. Without this the two buttons look interchangeable, and a
+                manager can hand records to an SDR whose lead space stays empty. */}
+            {showAssign && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                <Flag className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <p className="text-[11px] text-amber-200 leading-relaxed">
+                  Tagging only — these records stay in the internal database. The SDR will
+                  <strong className="font-bold"> not </strong>
+                  see them in their lead space until they are converted.
+                  {/* Wording avoids the exact label of the toolbar's Convert button on
+                      purpose: two controls sharing an accessible name make every
+                      by-name lookup ambiguous. */}
+                  <button
+                    onClick={() => { setShowAssign(false); setShowConvert(true); }}
+                    className="ml-1 underline underline-offset-2 font-bold hover:text-amber-100"
+                  >
+                    Convert instead
+                  </button>
+                  .
+                </p>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label className="text-[10px] uppercase text-text-muted">Campaign</label>
@@ -610,7 +654,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
                 disabled={busy || selected.size === 0}
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg disabled:opacity-50"
               >
-                {busy ? 'Working…' : showConvert ? 'Convert & Assign' : 'Apply Assignment'}
+                {busy ? 'Working…' : showConvert ? 'Convert & Assign' : 'Apply Tags Only'}
               </button>
             </div>
           </div>
