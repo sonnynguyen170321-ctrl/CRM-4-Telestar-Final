@@ -14,8 +14,8 @@
     "imageRepository": "telestar-crm-candidate",
     "demoSqlInstance": "telestar-crm-db"
   },
-  "candidateSha": "3cd16c8eb773b627ee7f51b59c371ca67ad71075",
-  "candidateFrozenAt": "2026-08-27T05:46:42.011Z",
+  "candidateSha": "697b3aa57267ac88ffca651dc82542b0e07f9351",
+  "candidateFrozenAt": "2026-08-27T18:29:48.655Z",
   "previousCandidates": [
     {
       "sha": "949eefe3a474ab76db1064cb3bb597715d9599bf",
@@ -144,6 +144,10 @@
     {
       "sha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
       "invalidatedReason": "superseded: Landed composite tenant keys, Impeccable UI, and defect reconciliation"
+    },
+    {
+      "sha": "3cd16c8eb773b627ee7f51b59c371ca67ad71075",
+      "invalidatedReason": "superseded: the commit CI validated, published an image for, and that production is serving: run 33102432610 green on 697b3aa, image sha256:811447b5 published by run 33102963522, deployed 18:25:49Z with backupVerified true, and /api/health reports 697b3aa with schema ready. 3cd16c8 was frozen before six commits landed and was never built or deployed"
     }
   ],
   "requiredRunCount": 3,
