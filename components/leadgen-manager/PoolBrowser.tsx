@@ -21,6 +21,7 @@ import { useToast } from '@/context/ToastContext';
 import { readApiError } from '@/lib/api/client';
 import { formatPoolActionResult } from '@/lib/leadgen/actionResult';
 import { isAwaitingConversion } from '@/lib/leadgen/poolItemState';
+import { needsRoutingMetadata } from '@/lib/leadgen/poolModes';
 
 type PoolItem = {
   id: string;
@@ -180,8 +181,11 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
     setTeam(uRes);
   }, [assignCampaignId]);
 
+  // Every mode that renders the Tag/Convert buttons needs their lists — not just `routing`.
+  // The Internal Database tab showed both buttons and fetched neither list, so its convert
+  // dialog opened with "Select campaign (required)" as the only option and no reps at all.
   useEffect(() => {
-    if (mode === 'routing') loadMeta();
+    if (needsRoutingMetadata(mode)) loadMeta();
   }, [mode, loadMeta]);
 
   const toggle = (id: string) => {
