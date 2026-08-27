@@ -2,7 +2,7 @@
 
 **Program**: Telestar Production Certification
 **Authoritative Source**: `docs/production-certification/defects.json`
-**Last Updated**: 2026-08-27T05:39:34.228Z
+**Last Updated**: 2026-08-27T17:55:46.215Z
 
 > **Closure rule.** A defect moves `OPEN → IN_PROGRESS → FIXED_PENDING_VERIFICATION → VERIFIED`
 > only. `VERIFIED` requires: root cause, fix SHA, the specific test, the actual run result, and
@@ -803,6 +803,6 @@
 - **Owner**: core-team
 - **Discovered**: 2026-08-27T16:30:00.000Z
 - **Root cause**: scripts/certification/record-branch-protection.mjs was written to close the timestamp half of TEL-P1-049 and reintroduced the fault class TEL-P1-049 is about. Every control was read as `prot.enforce_admins?.enabled ?? true`, so a repository whose protection had been switched off would have produced a record asserting it was on: undefined ?? true is true. Three further fields were not read at all - directPushToMainRejected: true, directPushRejectionReason and probeCleanedUp: true were constants in the object literal, asserting that a direct push and a failing-check pull request had been refused by a process that attempts neither. It then wrote its 295-byte API readout over docs/production-certification/evidence/raw/branch-protection-behavioral-proof.log, the 2790-byte transcript of the 2026-08-25 probe that is the only record of those refusals actually happening, and cited the file it had just truncated as the artifact supporting the behavioural claims. Directive section 32 forbids exactly this: an evidence-generating command must not destroy evidence from another measurement.
-- **Fix SHA**: `f850c14`
+- **Fix SHA**: `fd1bd703c1f7862a0e3ee29c3d8ce2f6cd23b615`
 - **Verification evidence**: `FIXED AND PROVEN BY NEGATIVE CONTROL. The reader is now readProtectionControls(), exported so the property is testable against the function rather than asserted about its source text, and every field is required: an absent control raises ProtectionEvidenceError instead of defaulting. The three fabricated constants are gone; behavioural enforcement is carried as behaviouralEnforcement { source, measuredOn: 2026-08-25, measuredByThisRun: false }, which states in the record itself that this run did not perform the probe. The API readout goes to a separate artifact, branch-protection-api-readout.log, and the 2790-byte transcript was restored from origin/main, is hashed from disk, and is never written. tests/branch-protection-recorder.test.ts carries the controls: five cases each remove exactly one protection field and require a refusal, which the defective version would have passed by returning true; one requires a disabled control to be reported disabled; one requires an absent review requirement to stay null rather than becoming a number. 15/15 passed with the db-role suite, exit 0. Re-run against the live repository records required checks [CI required checks], enforce_admins true, linear history true, exit 0.`
 
