@@ -1,46 +1,58 @@
 {
   "evidenceId": "EV-DR-ROLLBACK",
   "kind": "dr-rollback",
-  "candidateSha": "7592278d7e4190ea855cfc39de140299c1faa191",
+  "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
   "environment": "production (sonnynguyen170321@localhost)",
-  "command": "node scripts/certification/dr-rollback-drill.mjs --candidate 7592278d7e4190ea855cfc39de140299c1faa191 --previous 697b3aa57267ac88ffca651dc82542b0e07f9351",
-  "startedAt": "2026-08-27T19:04:55.286Z",
-  "finishedAt": "2026-08-27T19:05:37.253Z",
-  "exitCode": 1,
-  "status": "FAIL",
+  "command": "node scripts/certification/dr-rollback-drill.mjs --candidate 396d3652c619c25f8f26005127e9b7291cdaeedf --previous 7592278d7e4190ea855cfc39de140299c1faa191",
+  "startedAt": "2026-08-27T19:44:16.534Z",
+  "finishedAt": "2026-08-27T19:45:42.362Z",
+  "exitCode": 0,
+  "status": "PASS",
   "metrics": {
-    "candidateSha": "7592278d7e4190ea855cfc39de140299c1faa191",
-    "previousSha": "697b3aa57267ac88ffca651dc82542b0e07f9351",
-    "candidateDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
-    "previousDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:811447b57d1b51cc404617765c40dfe8e7384f3e418610d9bdcc9beaabe5881b",
-    "rollbackSeconds": 3.84,
-    "restoreSeconds": 3.79,
+    "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
+    "previousSha": "7592278d7e4190ea855cfc39de140299c1faa191",
+    "candidateDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb",
+    "previousDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
+    "rollbackSeconds": 18.76,
+    "restoreSeconds": 18.78,
     "phases": [
       {
         "name": "deploy-candidate",
-        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
-        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
-        "durationMs": 5335
+        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb",
+        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb",
+        "durationMs": 19415
       },
       {
         "name": "rollback-to-previous",
         "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
         "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
-        "durationMs": 3844
+        "durationMs": 18758
       },
       {
         "name": "restore-candidate",
-        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
-        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
-        "durationMs": 3787
+        "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb",
+        "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb",
+        "durationMs": 18778
       }
     ],
-    "findings": [
-      "rollback web: health reports commit 7592278, expected 697b3aa",
-      "rollback worker: health reports commit 7592278, expected 697b3aa",
-      "rollback: running ddea2d039136, expected the previous digest 9beaabe5881b"
-    ],
+    "findings": [],
     "defect": "TEL-P1-026"
   },
-  "artifacts": []
+  "artifacts": [
+    {
+      "path": "docs/production-certification/evidence/raw/dr-rollback-deploy-candidate.log",
+      "sizeBytes": 4861,
+      "sha256": "deca2da44efac72caaaf05d708ba9563b5a6d613baa357b3e7ff62fb327fe6e2"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/dr-rollback-rollback-to-previous.log",
+      "sizeBytes": 4867,
+      "sha256": "2f999c206297e1b08eb8cbe6a9748b50e8d20675b9398f2e36249fb769aa71ce"
+    },
+    {
+      "path": "docs/production-certification/evidence/raw/dr-rollback-restore-candidate.log",
+      "sizeBytes": 4859,
+      "sha256": "7fdec011e5488a1e820a2f8adbdcf83feb5f76d9212367a954a3e76ed9679be1"
+    }
+  ]
 }

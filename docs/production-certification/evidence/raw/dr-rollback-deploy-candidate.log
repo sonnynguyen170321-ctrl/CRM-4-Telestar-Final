@@ -1,34 +1,84 @@
 # phase: deploy-candidate (candidate)
-# target digest: ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136
-# rollback.sh exit: 1
-# durationMs: 5335
+# target digest: ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb
+# rollback.sh exit: 0
+# durationMs: 19415
 
 --- rollback.sh stdout ---
+  target   : gcp
+  compose  : -f docker-compose.yml -f docker-compose.gcp.yml
+  current  : ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb
+  rollback : ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb
+
+  Migrations are NOT reversed. If the deployment being rolled back applied a migration
+  that the older image cannot run against, this will not fix the outage — restore the
+  Cloud SQL backup taken before the migration instead.
+
+  Check first:  ls -1 prisma/migrations | tail -3
+  and compare with the `migration` field of the last two entries in deployments.ndjson.
+
+  confirm  : skipped — ROLLBACK_ASSUME_YES=1 set by root@telestar-crm-vm
+
+[1m==> Pulling ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb[0m
+ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb: Pulling from sonnynguyen170321-ctrl/crm-4-telestar-final
+Digest: sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb
+Status: Image is up to date for ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb
+ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb
+
+[1m==> Pinning .env.production[0m
+
+[1m==> Restarting web and worker[0m
+NAME               IMAGE                                                                                                                         STATUS
+crm-4-u-caddy-1    caddy:2-alpine                                                                                                                Up 3 hours
+crm-4-u-redis-1    redis:7-bookworm                                                                                                              Up 3 hours (healthy)
+crm-4-u-web-1      ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb   Up Less than a second
+crm-4-u-worker-1   ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb   Up Less than a second
+
+[1m==> Post-deploy smoke test[0m
+Post-deploy smoke test against https://crm.telestar.cloud
+  [32mPASS[0m  /api/health ok (database reachable)
+  [32mPASS[0m  /admin redirects unauthenticated callers (307)
+  [32mPASS[0m  /login renders (200)
+  [32mPASS[0m  web and worker share image 0b0f49774e3b64d2d77
+  [32mPASS[0m  worker registered its queues
+
+Smoke test passed.
+
+[1m==> Recording the rollback in deployments.ndjson[0m
+{"at": "2026-08-27T19:44:33.252771+00:00", "kind": "rollback", "image": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb", "previousImage": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb", "deployTarget": "gcp", "operator": "root@telestar-crm-vm"}
+
+[1m==> Rolled back to ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb[0m
 
 --- rollback.sh stderr ---
 Warning: Permanently added '[localhost]:2223' (ED25519) to the list of known hosts.
-sudo: ./scripts/rollback.sh: command not found
+ Container crm-4-u-web-1 Recreate 
+ Container crm-4-u-worker-1 Recreate 
+ Container crm-4-u-web-1 Recreated 
+ Container crm-4-u-worker-1 Recreated 
+ Container crm-4-u-web-1 Starting 
+ Container crm-4-u-worker-1 Starting 
+ Container crm-4-u-web-1 Started 
+ Container crm-4-u-worker-1 Started 
 
 --- observed ---
 {
   "name": "deploy-candidate",
   "label": "candidate",
-  "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
-  "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136",
+  "webDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb",
+  "workerDigest": "ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb",
   "webHealth": {
     "ok": true,
-    "ts": 1787857505834,
-    "commit": "7592278d7e4190ea855cfc39de140299c1faa191",
-    "version": "7592278d7e4190ea855cfc39de140299c1faa191",
-    "builtAt": "2026-08-27T18:56:14Z",
+    "ts": 1787859880964,
+    "commit": "396d3652c619c25f8f26005127e9b7291cdaeedf",
+    "version": "396d3652c619c25f8f26005127e9b7291cdaeedf",
+    "builtAt": "2026-08-27T19:32:32Z",
     "schema": "ready"
   },
   "workerHealth": {
     "ok": true,
-    "ts": 1787857510318,
-    "commit": "7592278d7e4190ea855cfc39de140299c1faa191",
-    "version": "7592278d7e4190ea855cfc39de140299c1faa191",
-    "builtAt": "2026-08-27T18:56:14Z"
+    "ts": 1787859885558,
+    "commit": "396d3652c619c25f8f26005127e9b7291cdaeedf",
+    "version": "396d3652c619c25f8f26005127e9b7291cdaeedf",
+    "builtAt": "2026-08-27T19:32:32Z"
   },
-  "durationMs": 5335
+  "durationMs": 19415
 }

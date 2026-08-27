@@ -35,10 +35,11 @@
  * reviewed before a production run.
  */
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { EVIDENCE_DIR, RAW_DIR } from './lib/paths.mjs';
+import { EVIDENCE_DIR, RAW_DIR, repoRelative } from './lib/paths.mjs';
 import { buildRollbackEvidence } from './lib/rollbackDrill.mjs';
 import { mayWriteEvidence } from './lib/evidenceGuard.mjs';
 
@@ -228,9 +229,8 @@ function runPhase({ name, label, digest }) {
   // never happened — small, but it is the same species as evidence for work not done.
   if (dryRun) return phase;
 
-  writeFileSync(
-    path.join(RAW_DIR, `dr-rollback-${name}.log`),
-    [
+  const transcriptPath = path.join(RAW_DIR, `dr-rollback-${name}.log`);
+  const transcript = [
       `# phase: ${name} (${label})`,
       `# target digest: ${digest}`,
       `# rollback.sh exit: ${swap.status}`,
@@ -243,9 +243,17 @@ function runPhase({ name, label, digest }) {
       '--- observed ---',
       JSON.stringify(phase, null, 2),
       '',
-    ].join('\n'),
-    'utf8',
-  );
+    ].join('\n');
+
+  writeFileSync(transcriptPath, transcript, 'utf8');
+
+  // Cited by the evidence record, not merely written beside it. A record claiming two image
+  // digests with no artifact to re-derive them from is the shape of TEL-P0-012.
+  phase.artifact = {
+    path: repoRelative(transcriptPath),
+    sizeBytes: Buffer.byteLength(transcript, 'utf8'),
+    sha256: createHash('sha256').update(transcript, 'utf8').digest('hex'),
+  };
 
   return phase;
 }
@@ -329,6 +337,7 @@ const evidence = buildRollbackEvidence({
   command,
   startedAt,
   finishedAt: new Date().toISOString(),
+  artifacts: phases.map((phase) => phase.artifact).filter(Boolean),
 });
 
 writeFileSync(

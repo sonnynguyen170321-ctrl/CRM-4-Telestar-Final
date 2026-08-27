@@ -187,7 +187,7 @@ export function evaluateDrill({ candidateSha, previousSha, candidateDigest, prev
  * Build the evidence record. `status` comes from `evaluateDrill`, never from a caller, so a
  * drill that failed cannot be written down as one that passed.
  */
-export function buildRollbackEvidence({ candidateSha, previousSha, candidateDigest, previousDigest, phases, environment, command, startedAt, finishedAt }) {
+export function buildRollbackEvidence({ candidateSha, previousSha, candidateDigest, previousDigest, phases, environment, command, startedAt, finishedAt, artifacts = [] }) {
   const result = evaluateDrill({ candidateSha, previousSha, candidateDigest, previousDigest, phases });
 
   return {
@@ -216,6 +216,11 @@ export function buildRollbackEvidence({ candidateSha, previousSha, candidateDige
       findings: result.findings,
       defect: 'TEL-P1-026',
     },
-    artifacts: [],
+    // The drill writes one transcript per phase. They were being written and then not
+    // cited, which produced a record claiming two image digests that appeared in no
+    // artifact at all — the precise shape of TEL-P0-012, and the thing checks U and U2
+    // exist to catch. A passing drill with nothing to re-derive the pass from is not
+    // better than a failing one; it is harder to disbelieve.
+    artifacts,
   };
 }
