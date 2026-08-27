@@ -117,6 +117,7 @@ interface LeadDetail {
   aiLabel?: 'hot' | 'warm' | 'cold';
   aiInsights?: string[];
   aiRecommendation?: string;
+  timezone?: string | null;
 }
 
 interface UserOption {
@@ -1061,7 +1062,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                         'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
                       }`}
                     >
-                      {lead.aiScore}/100 · {lead.aiLabel.toUpperCase()}
+                      {lead.aiScore}/100{lead.aiLabel ? ` · ${lead.aiLabel.toUpperCase()}` : ''}
                     </span>
                   </div>
                   <div className="flex gap-2">

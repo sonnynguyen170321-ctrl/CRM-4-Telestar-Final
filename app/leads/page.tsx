@@ -607,34 +607,7 @@ export default function LeadsPage() {
             <option value="cold">❄️ Cold</option>
           </select>
 
-          {/* Campaign & SDR filters */}
-          <select
-            value={campaignFilter}
-            onChange={(e) => setCampaignFilter(e.target.value)}
-            className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2.5 py-1.5 text-text-primary shadow-2xs focus:outline-none focus:border-brand-red cursor-pointer font-medium"
-          >
-            <option value="all">All Campaigns</option>
-            {campaigns.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
 
-          {users.length > 0 && (
-            <select
-              value={sdrFilter}
-              onChange={(e) => setSdrFilter(e.target.value)}
-              className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2.5 py-1.5 text-text-primary shadow-2xs focus:outline-none focus:border-brand-red cursor-pointer font-medium"
-            >
-              <option value="all">All SDRs</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.firstName} {u.lastName}
-                </option>
-              ))}
-            </select>
-          )}
 
           {/* + Filters toggle */}
           <button
