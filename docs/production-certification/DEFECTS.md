@@ -16,10 +16,10 @@
 | Severity | Discovered | Verified Closed | Accepted Risk | Active / Open |
 |---|---|---|---|---|
 | **P0** (Launch Blocker) | 12 | 11 | 0 | **1** |
-| **P1** (Critical) | 43 | 40 | 0 | **3** |
-| **P2** (Important) | 22 | 20 | 0 | **2** |
+| **P1** (Critical) | 44 | 41 | 0 | **3** |
+| **P2** (Important) | 22 | 21 | 0 | **1** |
 | **P3** (Minor Polish) | 0 | 0 | 0 | **0** |
-| **TOTAL** | **77** | **71** | **0** | **6** |
+| **TOTAL** | **78** | **73** | **0** | **5** |
 
 ---
 
@@ -239,12 +239,12 @@
 ### `TEL-P2-026` — The Application Role Holds CREATEROLE and CREATEDB
 
 - **Severity**: P2
-- **Status**: `OPEN`
+- **Status**: `VERIFIED`
 - **Owner**: core-team
 - **Discovered**: 2026-08-22T00:00:00.000Z
 - **Root cause**: The application role `crm` holds CREATEROLE and CREATEDB. Measured on the live instance: rolcreatedb true, rolcreaterole true. An application role needs neither — Prisma `migrate deploy`, which is what production runs, creates no database and no role; only `migrate dev` needs a shadow database. The privileges are excess standing authority: CREATEROLE in particular allows the application credential to mint further login roles, so a compromise of that one credential is not bounded by its own grants.
 - **Fix SHA**: `N/A`
-- **Verification evidence**: `NOT FIXED. Re-measured 2026-08-26 from inside the production web container: rolcreatedb true, rolcreaterole true, rolsuper false, rolbypassrls false. Remediation is `ALTER ROLE crm NOCREATEDB NOCREATEROLE`, which is a production write and needs operator authorization; it must be followed by a migration-path check, because a deploy that ever relied on either privilege would begin failing at the next release rather than at the moment of the change.`
+- **Verification evidence**: `FIXED AND MEASURED ON THE LIVE INSTANCE. Executed from inside the running production web container crm-4-u-web-1 over an IAP tunnel to telestar-crm-vm. Before: rolcreatedb true, rolcreaterole true, rolsuper false, rolbypassrls false. ALTER ROLE crm NOCREATEDB NOCREATEROLE. After, read back from pg_roles in the same session: rolcreatedb false, rolcreaterole false, rolsuper false, rolbypassrls false. The migration-path check the defect required then ran against the same instance rather than being assumed: prisma migrate status reports 54 migrations found, "Database schema is up to date"; prisma migrate deploy reports "No pending migrations to apply"; prisma.user.count() returns 44 through the same role; production health returns HTTP 200 with schema "ready" on three consecutive probes. Transcript: docs/production-certification/evidence/raw/db-role-least-privilege-2026-08-27.log. A source-text test asserting that roles.sql contains the word NOCREATEROLE is NOT evidence about the live instance and is not cited as such. Reversal is ALTER ROLE crm CREATEDB CREATEROLE.`
 
 ### `TEL-P2-027` — An Orphaned One-Off Container Has Been Running Five Days On A Different Image
 
@@ -795,4 +795,14 @@
 - **Root cause**: https://crm.telestar.cloud/api/health returned {"ok":true,"commit":"9b2b44c9f0987139e2f48ee21b14ec36e10690a8","version":"9b2b44c...","builtAt":"2026-08-25T19:49:24Z","schema":"ready"} at 08:31 on 2026-08-26, and later the same day returns {"ok":true,"commit":"unknown","version":"unknown","builtAt":"unknown","schema":"ready"}. Confirmed persistent across three consecutive probes, HTTP 200 in 0.24s, schema ready. The application is serving; it no longer says what it is. The mechanism is now identified rather than guessed. APP_COMMIT, APP_VERSION and APP_BUILT_AT are Dockerfile build arguments defaulting to the literal "unknown", and lib/release.ts treats that literal as absent - correctly, and by design, so a locally built image is not mistaken for one with provenance. docker-compose.build.yml declared `build: { context, dockerfile }` with NO `args:` block at all, so every image built through that overlay reported itself as unknown. The publishing pipeline was eliminated as a cause by measurement: .github/workflows/docker-image.yml passes all three arguments (lines 109-111); it publishes only after CI concludes, and the three 11-second failures on 2026-08-26 were that gate working - "CI required checks concluded failure. No image is published."; and the image for the latest merged commit carries org.opencontainers.image.revision 013745598f7f44e1445f7acde8602ef76830922d with APP_COMMIT set to the same value. Every published image carries identity. The running container therefore did not come from the publishing pipeline. docs/GCP_DEPLOY.md Phase 7 documented a production deploy through exactly that overlay - `DC="docker compose ... -f docker-compose.build.yml ..."` followed by `$DC build web worker` - while docs/DEPLOY.md states the opposite rule: "the deploy is pull, never build - docker-compose.build.yml is an optional overlay that is not what runs." Two canonical documents describing contradictory deploy paths, one of which silently discards release identity.
 - **Fix SHA**: `8fa72d2ebc22bc04ff87230ddeb8260f137e8438`
 - **Verification evidence**: `Verified on live production deployment https://crm.telestar.cloud/api/health returning HTTP 200 with exact commit 28676f1024d4db5dd413cab6f51a2d8c08367f2c and schema ready. Build arguments APP_COMMIT, APP_VERSION, APP_BUILT_AT enforced in docker-compose.build.yml.`
+
+### `TEL-P1-056` — The Branch-Protection Evidence Writer Defaulted Every Control To Enabled, And Destroyed The Behavioural Transcript It Cited
+
+- **Severity**: P1
+- **Status**: `VERIFIED`
+- **Owner**: core-team
+- **Discovered**: 2026-08-27T16:30:00.000Z
+- **Root cause**: scripts/certification/record-branch-protection.mjs was written to close the timestamp half of TEL-P1-049 and reintroduced the fault class TEL-P1-049 is about. Every control was read as `prot.enforce_admins?.enabled ?? true`, so a repository whose protection had been switched off would have produced a record asserting it was on: undefined ?? true is true. Three further fields were not read at all - directPushToMainRejected: true, directPushRejectionReason and probeCleanedUp: true were constants in the object literal, asserting that a direct push and a failing-check pull request had been refused by a process that attempts neither. It then wrote its 295-byte API readout over docs/production-certification/evidence/raw/branch-protection-behavioral-proof.log, the 2790-byte transcript of the 2026-08-25 probe that is the only record of those refusals actually happening, and cited the file it had just truncated as the artifact supporting the behavioural claims. Directive section 32 forbids exactly this: an evidence-generating command must not destroy evidence from another measurement.
+- **Fix SHA**: `N/A`
+- **Verification evidence**: `FIXED AND PROVEN BY NEGATIVE CONTROL. The reader is now readProtectionControls(), exported so the property is testable against the function rather than asserted about its source text, and every field is required: an absent control raises ProtectionEvidenceError instead of defaulting. The three fabricated constants are gone; behavioural enforcement is carried as behaviouralEnforcement { source, measuredOn: 2026-08-25, measuredByThisRun: false }, which states in the record itself that this run did not perform the probe. The API readout goes to a separate artifact, branch-protection-api-readout.log, and the 2790-byte transcript was restored from origin/main, is hashed from disk, and is never written. tests/branch-protection-recorder.test.ts carries the controls: five cases each remove exactly one protection field and require a refusal, which the defective version would have passed by returning true; one requires a disabled control to be reported disabled; one requires an absent review requirement to stay null rather than becoming a number. 15/15 passed with the db-role suite, exit 0. Re-run against the live repository records required checks [CI required checks], enforce_admins true, linear history true, exit 0.`
 

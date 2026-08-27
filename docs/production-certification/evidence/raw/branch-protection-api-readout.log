@@ -1,0 +1,19 @@
+# Branch protection, read from the GitHub REST API
+# Repository: sonnynguyen170321-ctrl/CRM-4-Telestar-Final
+# Branch: main
+# Started:  2026-08-27T16:44:07.196Z
+# Finished: 2026-08-27T16:44:08.025Z
+# Command:  gh api repos/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/branches/main/protection
+
+required_status_checks.strict            = true
+required_status_checks.contexts          = ["CI required checks"]
+enforce_admins.enabled                   = true
+required_linear_history.enabled          = true
+allow_force_pushes.enabled               = false
+allow_deletions.enabled                  = false
+required_conversation_resolution.enabled = true
+required_approving_review_count          = 0
+
+# This file records configuration only. Whether the configuration is actually enforced
+# was measured behaviourally on 2026-08-25; see
+# docs/production-certification/evidence/raw/branch-protection-behavioral-proof.log.

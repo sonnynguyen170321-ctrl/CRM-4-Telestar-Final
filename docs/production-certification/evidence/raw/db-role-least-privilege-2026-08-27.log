@@ -1,0 +1,54 @@
+# TEL-P2-026 — application role least privilege, measured on production
+# Instance: telestar-db (telestar-crm-final, asia-southeast1)
+# Database: telestar_crm   Role: crm
+# Executed from inside the running production web container crm-4-u-web-1,
+# reached over an IAP tunnel to telestar-crm-vm. Operator authorized the write.
+# Date: 2026-08-27
+
+--- 1. privileges before (measured, not asserted) ---
+$ SELECT rolname, rolcreatedb, rolcreaterole, rolsuper, rolbypassrls
+    FROM pg_roles WHERE rolname = current_user;
+[{"rolname":"crm","rolcreatedb":true,"rolcreaterole":true,"rolsuper":false,"rolbypassrls":false}]
+
+--- 2. the change ---
+$ ALTER ROLE crm NOCREATEDB NOCREATEROLE;
+
+--- 3. privileges after (read back from pg_roles, same session) ---
+[{"rolname":"crm","rolcreatedb":false,"rolcreaterole":false,"rolsuper":false,"rolbypassrls":false}]
+
+--- 4. migration path still works without the revoked privileges ---
+#
+# This is the check the defect required: a deploy that had ever relied on CREATEDB or
+# CREATEROLE would begin failing at the next release rather than at the moment of the
+# change, so the migration path is exercised immediately rather than assumed.
+#
+$ prisma migrate status
+Datasource "db": PostgreSQL database "telestar_crm", schema "public" at "136.110.29.201:5432"
+54 migrations found in prisma/migrations
+Database schema is up to date!
+
+$ prisma migrate deploy
+54 migrations found in prisma/migrations
+No pending migrations to apply.
+
+--- 5. the application still reads through the same role ---
+$ prisma.user.count()
+users: 44
+
+--- 6. production health after the change, three consecutive probes ---
+$ curl -s https://crm.telestar.cloud/api/health
+http=200 {"ok":true,"commit":"c63673d1fb33b7fa8ed9e21b66711d28998fd53a","schema":"ready"}
+http=200 {"ok":true,"commit":"c63673d1fb33b7fa8ed9e21b66711d28998fd53a","schema":"ready"}
+http=200 {"ok":true,"commit":"c63673d1fb33b7fa8ed9e21b66711d28998fd53a","schema":"ready"}
+
+--- reversal path ---
+# ALTER ROLE crm CREATEDB CREATEROLE;
+# Recovery if the role could no longer alter itself: Cloud SQL retains an administrative
+# path through `gcloud sql users set-password postgres`, so the change is not one-way.
+
+--- what this log does NOT prove ---
+# It does not prove any source file contains the words NOCREATEDB or NOCREATEROLE.
+# tests/db-role-least-privilege.test.ts asserts that provisioning scripts declare those
+# attributes, which keeps a future re-provision from reintroducing the privileges. That is
+# a source-text property and is not evidence about the live instance. The live instance is
+# evidenced by sections 1-3 above and by nothing else.

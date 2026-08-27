@@ -2,33 +2,40 @@
   "evidenceId": "EV-BRANCH-PROTECTION",
   "kind": "branch-governance",
   "candidateSha": "3cd16c8eb773b627ee7f51b59c371ca67ad71075",
-  "environment": "GitHub REST API against sonnynguyen170321-ctrl/CRM-4-Telestar-Final from certification workstation",
+  "environment": "GitHub REST API against sonnynguyen170321-ctrl/CRM-4-Telestar-Final from the certification workstation",
   "command": "node scripts/certification/record-branch-protection.mjs",
-  "startedAt": "2026-08-27T16:18:33.244Z",
-  "finishedAt": "2026-08-27T16:18:33.988Z",
+  "startedAt": "2026-08-27T16:44:07.196Z",
+  "finishedAt": "2026-08-27T16:44:08.025Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
-    "protectedBefore": true,
+    "protected": true,
     "requiredStatusChecks": [
       "CI required checks"
     ],
     "strictUpToDate": true,
     "enforceAdmins": true,
-    "requiredApprovingReviewCount": 0,
     "requiredLinearHistory": true,
     "allowForcePushes": false,
     "allowDeletions": false,
     "requiredConversationResolution": true,
-    "directPushToMainRejected": true,
-    "directPushRejectionReason": "protected branch hook declined — changes must be made through a pull request",
-    "probeCleanedUp": true
+    "requiredApprovingReviewCount": 0,
+    "behaviouralEnforcement": {
+      "source": "docs/production-certification/evidence/raw/branch-protection-behavioral-proof.log",
+      "measuredOn": "2026-08-25",
+      "measuredByThisRun": false
+    }
   },
   "artifacts": [
     {
+      "path": "docs/production-certification/evidence/raw/branch-protection-api-readout.log",
+      "sizeBytes": 915,
+      "sha256": "a36dbc3ad3d60419e9a3f3327e438b836a22d822236b244530405c08f92c4a89"
+    },
+    {
       "path": "docs/production-certification/evidence/raw/branch-protection-behavioral-proof.log",
-      "sizeBytes": 295,
-      "sha256": "2d040cfd709621807c58bde556235c25da32b40108e57a500c1cfa2b9bfc2f64"
+      "sizeBytes": 2790,
+      "sha256": "44c5e18353ace61dc1b27269bf958f8b09f9dcf3d58d009d1c19ffacde0b6b83"
     }
   ]
 }
