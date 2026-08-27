@@ -1,7 +1,7 @@
 # gate: 08-vitest — full Vitest suite against real Postgres and Redis
 # command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run --maxWorkers=4 --reporter=json --outputFile=.certification/vitest.json
-# startedAt: 2026-08-27T20:27:52.662Z
-# finishedAt: 2026-08-27T20:31:35.993Z
+# startedAt: 2026-08-27T22:29:47.849Z
+# finishedAt: 2026-08-27T22:33:58.628Z
 # exitCode: 0
 
 --- stdout ---

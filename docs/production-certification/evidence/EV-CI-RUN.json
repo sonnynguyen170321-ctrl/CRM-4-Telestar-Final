@@ -1,18 +1,18 @@
 {
   "evidenceId": "EV-CI-RUN",
   "kind": "ci-run",
-  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+  "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
   "environment": "GitHub Actions",
-  "command": "gh run view 32891125645",
-  "startedAt": "2026-08-25T19:42:51Z",
-  "finishedAt": "2026-08-25T19:49:11Z",
+  "command": "gh run view 33108408475",
+  "startedAt": "2026-08-27T19:26:00Z",
+  "finishedAt": "2026-08-27T19:32:19Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
-    "runId": "32891125645",
+    "runId": "33108408475",
     "workflowName": "CI",
-    "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/32891125645",
-    "headSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+    "url": "https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/actions/runs/33108408475",
+    "headSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
     "headBranch": "main",
     "conclusion": "success",
     "runStatus": "completed",
@@ -21,22 +21,12 @@
     "sourceMatchesCandidate": true,
     "jobs": [
       {
-        "name": "Build · Playwright",
-        "conclusion": "success",
-        "status": "completed"
-      },
-      {
-        "name": "Lint · types · tests",
+        "name": "Secret scan",
         "conclusion": "success",
         "status": "completed"
       },
       {
         "name": "Dependency audit",
-        "conclusion": "success",
-        "status": "completed"
-      },
-      {
-        "name": "Secret scan",
         "conclusion": "success",
         "status": "completed"
       },
@@ -56,6 +46,16 @@
         "status": "completed"
       },
       {
+        "name": "Lint · types · tests",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
+        "name": "Build · Playwright",
+        "conclusion": "success",
+        "status": "completed"
+      },
+      {
         "name": "Dependency review",
         "conclusion": "skipped",
         "status": "completed"
@@ -69,9 +69,9 @@
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/ci-run-32891125645.log",
+      "path": "docs/production-certification/evidence/raw/ci-run-33108408475.log",
       "sizeBytes": 30216,
-      "sha256": "f5a67c206dff960cd4e4352eb9fc88d1c9f9a50f1589aa7b5ae56d676b3442de"
+      "sha256": "2d0cba85d29a09ecb0d8880f664b0f10ba0d9b83a90d491af936c71a1ac2a0f0"
     }
   ]
 }

@@ -1,19 +1,19 @@
 {
   "evidenceId": "EV-GATE-10-AI-CERTIFICATION",
   "kind": "gate",
-  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+  "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run tests/ai-durable-budget.test.ts tests/ai-stream-governance.test.ts tests/ai-shared-circuit.test.ts tests/ai-capability-routing.test.ts tests/ai-structured-budget.test.ts tests/ai-down-resilience.test.ts",
-  "startedAt": "2026-08-25T21:42:42.978Z",
-  "finishedAt": "2026-08-25T21:42:59.158Z",
+  "startedAt": "2026-08-27T20:55:00.344Z",
+  "finishedAt": "2026-08-27T20:55:08.148Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {},
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/gate-10-ai-certification.log",
-      "sizeBytes": 8532,
-      "sha256": "a30e2bab5d17cdb7af29148bd6b46bc29cc5cfcad9b4ac01423cccaf35044c79"
+      "sizeBytes": 762,
+      "sha256": "b3c189f81f0821db5fef677287906ebc0e36bc9847257e39802a6b3a718a0e2e"
     }
   ]
 }

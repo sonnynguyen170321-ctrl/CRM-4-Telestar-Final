@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-GATE-08-VITEST",
   "kind": "gate",
-  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+  "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --maxWorkers=4 --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-25T21:44:51.413Z",
-  "finishedAt": "2026-08-25T21:50:28.216Z",
+  "startedAt": "2026-08-27T20:52:06.054Z",
+  "finishedAt": "2026-08-27T20:54:56.402Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -190,6 +190,12 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/ai-route-cross-tenant-red-team.test.ts": {
+        "status": "passed",
+        "tests": 5,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/ai-shared-circuit.test.ts": {
         "status": "passed",
         "tests": 14,
@@ -269,6 +275,18 @@
         "skipped": 0
       },
       "tests/bounceDetection.test.ts": {
+        "status": "passed",
+        "tests": 8,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/branch-protection-recorder.test.ts": {
+        "status": "passed",
+        "tests": 10,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/build-overlay-identity.test.ts": {
         "status": "passed",
         "tests": 8,
         "failed": 0,
@@ -360,7 +378,7 @@
       },
       "tests/certification-validator.test.ts": {
         "status": "passed",
-        "tests": 44,
+        "tests": 92,
         "failed": 0,
         "skipped": 0
       },
@@ -454,6 +472,18 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/db-connection-defaults.test.ts": {
+        "status": "passed",
+        "tests": 7,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/db-role-least-privilege.test.ts": {
+        "status": "passed",
+        "tests": 5,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/defect-ledger-consistency.test.ts": {
         "status": "passed",
         "tests": 30,
@@ -486,7 +516,7 @@
       },
       "tests/deploy-script.test.ts": {
         "status": "passed",
-        "tests": 33,
+        "tests": 37,
         "failed": 0,
         "skipped": 0
       },
@@ -586,6 +616,12 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/host-script-executable-bit.test.ts": {
+        "status": "passed",
+        "tests": 10,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/icp-adherence.test.ts": {
         "status": "passed",
         "tests": 15,
@@ -643,6 +679,36 @@
       "tests/lead-reference-integrity.test.ts": {
         "status": "passed",
         "tests": 4,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/leadgen-pool-action-result.test.ts": {
+        "status": "passed",
+        "tests": 9,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/leadgen-pool-convert-duplicates.test.ts": {
+        "status": "passed",
+        "tests": 3,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/leadgen-pool-item-state.test.ts": {
+        "status": "passed",
+        "tests": 7,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/leadgen-pool-modes.test.ts": {
+        "status": "passed",
+        "tests": 4,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/leadgen-pool-qualify-duplicate.test.ts": {
+        "status": "passed",
+        "tests": 2,
         "failed": 0,
         "skipped": 0
       },
@@ -898,6 +964,12 @@
         "failed": 0,
         "skipped": 0
       },
+      "tests/release-identity-digest-parsing.test.ts": {
+        "status": "passed",
+        "tests": 7,
+        "failed": 0,
+        "skipped": 0
+      },
       "tests/release.test.ts": {
         "status": "passed",
         "tests": 15,
@@ -931,6 +1003,12 @@
       "tests/revenue-os-master-eval.test.ts": {
         "status": "passed",
         "tests": 9,
+        "failed": 0,
+        "skipped": 0
+      },
+      "tests/rls-bypass-inventory.test.ts": {
+        "status": "passed",
+        "tests": 2,
         "failed": 0,
         "skipped": 0
       },
@@ -984,7 +1062,7 @@
       },
       "tests/search-terms.test.ts": {
         "status": "passed",
-        "tests": 9,
+        "tests": 12,
         "failed": 0,
         "skipped": 0
       },
@@ -1229,9 +1307,9 @@
         "skipped": 0
       }
     },
-    "testFiles": 203,
-    "testFilesPassed": 203,
-    "testsPassed": 2965,
+    "testFiles": 216,
+    "testFilesPassed": 216,
+    "testsPassed": 3099,
     "testsFailed": 0,
     "testsSkipped": 0
   },
@@ -1239,7 +1317,7 @@
     {
       "path": "docs/production-certification/evidence/raw/gate-08-vitest.log",
       "sizeBytes": 458,
-      "sha256": "269a57595920fe76cfb3550fbce7c72e931d4f9822d460b3530f9a829d8127a3"
+      "sha256": "03a7158ff778704fcac29407ae71f0ed68461683332a9c8abddd4bc62b25f1a3"
     }
   ]
 }

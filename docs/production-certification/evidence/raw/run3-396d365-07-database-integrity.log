@@ -1,7 +1,7 @@
 # gate: 07-database-integrity — scripts/verify-db-integrity.ts against the certification database
 # command: C:\Program Files\nodejs\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts
-# startedAt: 2026-08-27T20:27:50.223Z
-# finishedAt: 2026-08-27T20:27:52.660Z
+# startedAt: 2026-08-27T22:29:45.224Z
+# finishedAt: 2026-08-27T22:29:47.847Z
 # exitCode: 0
 
 --- stdout ---
@@ -25,11 +25,11 @@ representative counts:
   User                 62
   Client               46
   Campaign             47
-  Account              87
-  Contact              2127
-  Lead                 2168
+  Account              93
+  Contact              2133
+  Lead                 2174
   Task                 3
-  Activity             2129
+  Activity             2135
   Sequence             10
   SequenceEnrollment   9
   OutboundMessage      1

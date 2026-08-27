@@ -1,7 +1,7 @@
 # gate: 21-compose-validation — scripts/check-production-compose.mjs
 # command: C:\Program Files\nodejs\node.exe scripts/check-production-compose.mjs
-# startedAt: 2026-08-27T20:25:34.987Z
-# finishedAt: 2026-08-27T20:25:37.304Z
+# startedAt: 2026-08-27T22:27:39.167Z
+# finishedAt: 2026-08-27T22:27:40.742Z
 # exitCode: 0
 
 --- stdout ---

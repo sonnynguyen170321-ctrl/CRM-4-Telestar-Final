@@ -4,8 +4,8 @@
   "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe scripts/check-test-discipline.mjs",
-  "startedAt": "2026-08-27T20:27:49.735Z",
-  "finishedAt": "2026-08-27T20:27:50.058Z",
+  "startedAt": "2026-08-27T22:29:44.733Z",
+  "finishedAt": "2026-08-27T22:29:45.074Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {},
@@ -13,7 +13,7 @@
     {
       "path": "docs/production-certification/evidence/raw/run3-396d365-05-test-discipline.log",
       "sizeBytes": 324,
-      "sha256": "c055f1574ac48422ae0fc813a628ab6286e59d9eeaad1a2cf7218d8630aa7a89"
+      "sha256": "c4feda9de72d465833ddf7875d0beac64587599cc31db2dd6e96aaa2a97c243f"
     }
   ]
 }

@@ -7,7 +7,7 @@
 -->
 
 **Candidate SHA**: `396d3652c619c25f8f26005127e9b7291cdaeedf`
-**Verified**: 107 / 108
+**Verified**: 108 / 108
 **Verdict**: NO-GO
 
 > Status in this document is **computed**, never asserted. `requirements.json` has no status
@@ -27,9 +27,9 @@
 | **6-Role Operational Workflows** | `ROLE` | 12 | 12 | 0 |
 | **AI Reliability & Cost Governance** | `AI` | 14 | 14 | 0 |
 | **Disaster Recovery & Infrastructure** | `DR` | 10 | 10 | 0 |
-| **Release Identity & Gate Auditing** | `REL` | 8 | 7 | 1 |
+| **Release Identity & Gate Auditing** | `REL` | 8 | 8 | 0 |
 | **Operational Lifecycle & Sequences** | `OPS` | 24 | 24 | 0 |
-| **TOTAL** | | **108** | **107** | **1** |
+| **TOTAL** | | **108** | **108** | **0** |
 
 ---
 
@@ -150,7 +150,7 @@
 | `REL-003` | Certification Run 1: Full test ladder + static + build | P1 | run 1 | **VERIFIED** | — | — |
 | `REL-004` | Certification Run 2: Full test ladder + static + build | P1 | run 2 | **VERIFIED** | — | — |
 | `REL-005` | Certification Run 3: Full test ladder + static + build | P1 | run 3 | **VERIFIED** | — | — |
-| `REL-006` | CI workflow release gate enforces green test suite before merge | P1 | ci-run | NOT_VERIFIED | evidence of kind "ci-run" exists but none is for candidate 396d365 | — |
+| `REL-006` | CI workflow release gate enforces green test suite before merge | P1 | ci-run | **VERIFIED** | — | — |
 | `REL-007` | Health check endpoint reports commit SHA and database connectivity | P1 | `tests/doctor.test.ts` | **VERIFIED** | — | — |
 | `REL-008` | Final Certificate reflects verified evidence with zero assumptions | P1 | validator-self | **VERIFIED** | — | — |
 

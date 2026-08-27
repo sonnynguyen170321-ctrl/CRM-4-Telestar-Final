@@ -3,13 +3,13 @@
   "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
   "repository": {
     "mainSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
-    "localHeadSha": "4ad9b9825ff782e593f8f1aa69d0dfb03bd79eb6"
+    "localHeadSha": "2bb1af1a7c916c6878db352a61ac17719c6c1c09"
   },
   "ci": {
-    "runId": "32891125645",
-    "headSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+    "runId": "33108408475",
+    "headSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
     "conclusion": "success",
-    "matchesCandidate": false
+    "matchesCandidate": true
   },
   "image": {
     "digest": "sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb",

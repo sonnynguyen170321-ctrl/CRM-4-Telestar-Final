@@ -1,12 +1,12 @@
 {
   "runNumber": 1,
-  "executionId": "a951fbda-5693-40f2-9da7-181a3dea5e15",
+  "executionId": "604b4c0d-1ff5-4a0c-9418-02619dd6af0c",
   "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
-  "actualHeadSha": "4ad9b9825ff782e593f8f1aa69d0dfb03bd79eb6",
+  "actualHeadSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
-  "startedAt": "2026-08-27T19:52:55.593Z",
-  "finishedAt": "2026-08-27T20:09:08.651Z",
-  "durationMs": 973058,
+  "startedAt": "2026-08-27T21:51:00.570Z",
+  "finishedAt": "2026-08-27T22:09:20.669Z",
+  "durationMs": 1100099,
   "gates": {
     "01-source-identity": {
       "status": "PASS",
@@ -14,9 +14,9 @@
       "durationMs": 0,
       "description": "the application source is exactly the frozen candidate",
       "metrics": {
-        "head": "4ad9b9825ff782e593f8f1aa69d0dfb03bd79eb6",
+        "head": "396d3652c619c25f8f26005127e9b7291cdaeedf",
         "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
-        "commitsSinceFreeze": 3,
+        "commitsSinceFreeze": 0,
         "uncommittedNonMetadataPaths": 0,
         "problems": []
       }
@@ -24,7 +24,7 @@
     "02-environment": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 398,
+      "durationMs": 265,
       "description": "Postgres and Redis reachable; required configuration present",
       "metrics": {
         "postgres": {
@@ -51,37 +51,37 @@
     "03-typecheck": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 31439,
+      "durationMs": 52657,
       "description": "tsc --noEmit"
     },
     "04-lint": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 54403,
+      "durationMs": 55199,
       "description": "eslint across the whole tree"
     },
     "05-test-discipline": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 323,
+      "durationMs": 333,
       "description": "scripts/check-test-discipline.mjs"
     },
     "06-migration-validation": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 154,
+      "durationMs": 150,
       "description": "scripts/check-migration-order.mjs"
     },
     "07-database-integrity": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 2701,
+      "durationMs": 2492,
       "description": "scripts/verify-db-integrity.ts against the certification database"
     },
     "08-vitest": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 180646,
+      "durationMs": 211916,
       "description": "full Vitest suite against real Postgres and Redis",
       "metrics": {
         "files": {
@@ -1392,7 +1392,7 @@
     "09-redis-integration": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 3385,
+      "durationMs": 3390,
       "description": "Redis integration suite - must execute, never skip",
       "metrics": {
         "files": {
@@ -1427,43 +1427,43 @@
     "10-ai-certification": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 7655,
+      "durationMs": 7832,
       "description": "AI durable budget, stream governance, shared circuit, capability routing"
     },
     "11-email-safety": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 2107,
+      "durationMs": 2129,
       "description": "demo barrier, idempotency, safe-mode posture"
     },
     "12-import-fault-matrix": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 6946,
+      "durationMs": 8127,
       "description": "import durable-write failpoint matrix"
     },
     "13-queue-load": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 43444,
+      "durationMs": 101205,
       "description": "IMPORT_SYSTEM_QUEUE_BENCHMARK over real Redis and BullMQ"
     },
     "14-security-suite": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 3566,
+      "durationMs": 3630,
       "description": "tenant isolation, object auth, mass assignment, XSS, formula injection, secrets"
     },
     "15-production-build": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 153146,
+      "durationMs": 78067,
       "description": "next build"
     },
     "16-playwright-roles": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 30129,
+      "durationMs": 27197,
       "description": "six-role real browser acceptance",
       "metrics": {
         "playwright": {
@@ -1483,13 +1483,13 @@
     "16-playwright-roles-evidence": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 162,
+      "durationMs": 134,
       "description": "aggregate six-role observations into EV-ROLE-BROWSER"
     },
     "17-golden-browser-journey": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 16812,
+      "durationMs": 15949,
       "description": "cross-role golden journey in a real browser",
       "metrics": {
         "playwright": {
@@ -1509,13 +1509,13 @@
     "18-worker-readiness": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 3346,
+      "durationMs": 3326,
       "description": "worker healthcheck: a job is enqueued and a real worker drains it"
     },
     "22-health-smoke": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 20,
+      "durationMs": 28,
       "description": "web health endpoints answer 200 with ok=true and report the candidate SHA",
       "metrics": {
         "endpoints": {
@@ -1531,16 +1531,16 @@
     "19-docker-build": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 410727,
+      "durationMs": 504749,
       "description": "Docker image build from candidate SHA"
     },
     "20-image-inspection": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 309,
+      "durationMs": 287,
       "description": "Image digest captured by digest, never by floating tag",
       "metrics": {
-        "imageId": "sha256:5ba4a01ba1a80e40667979f9c1c53d8cd3ba3067ec39026a91bbe48c1e385a35",
+        "imageId": "sha256:592f14f8ff464567880dbe794db743325608f2d1d6f7cad38498f6313bdd79db",
         "revision": "396d3652c619c25f8f26005127e9b7291cdaeedf",
         "repoTags": [
           "telestar-crm-candidate:396d3652c619c25f8f26005127e9b7291cdaeedf"
@@ -1551,13 +1551,13 @@
     "21-compose-validation": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 2505,
+      "durationMs": 1062,
       "description": "scripts/check-production-compose.mjs"
     },
     "23-validator-selftest": {
       "status": "PASS",
       "exitCode": 0,
-      "durationMs": 6427,
+      "durationMs": 8252,
       "description": "the validator rejects every injected false-green state"
     }
   },

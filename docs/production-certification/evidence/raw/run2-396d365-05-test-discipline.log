@@ -1,7 +1,7 @@
 # gate: 05-test-discipline — scripts/check-test-discipline.mjs
 # command: C:\Program Files\nodejs\node.exe scripts/check-test-discipline.mjs
-# startedAt: 2026-08-27T20:12:09.081Z
-# finishedAt: 2026-08-27T20:12:09.448Z
+# startedAt: 2026-08-27T22:11:04.964Z
+# finishedAt: 2026-08-27T22:11:05.301Z
 # exitCode: 0
 
 --- stdout ---

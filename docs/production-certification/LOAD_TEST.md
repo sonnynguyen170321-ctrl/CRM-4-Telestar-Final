@@ -35,9 +35,9 @@ Candidate `396d365` · win32 / node 24.16.0 / postgres 16 / BullMQ mocked
 
 | Rows | Duration | Rows/s | Chunk p50 | Chunk p95 | Chunk p99 | Leads | Accounts | Contacts | Lost | Duplicate | Heap Δ |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| **120** | 12.43s | 9.65 | 2602ms | 2688ms | 2688ms | 120 | 20 | 120 | 0 | 0 | -6.68 MB |
-| **500** | 79.10s | 6.32 | 5166ms | 14929ms | 14929ms | 500 | 20 | 500 | 0 | 0 | 1.67 MB |
-| **1000** | 122.48s | 8.16 | 4463ms | 9440ms | 9440ms | 1000 | 20 | 1000 | 0 | 0 | 2.71 MB |
+| **120** | 13.12s | 9.15 | 2463ms | 3183ms | 3183ms | 120 | 20 | 120 | 0 | 0 | -8.62 MB |
+| **500** | 56.72s | 8.81 | 5113ms | 5490ms | 5490ms | 500 | 20 | 500 | 0 | 0 | 4.58 MB |
+| **1000** | 170.81s | 5.85 | 6561ms | 12159ms | 12159ms | 1000 | 20 | 1000 | 0 | 0 | 1.97 MB |
 
 ---
 
@@ -50,14 +50,14 @@ handler's own execution once picked up.
 
 | Rows | Chunks | Duration | Rows/s | Wait p50 | Wait p95 | Wait p99 | Job p50 | Job p95 | Job p99 | Failed | Lost | Duplicate | Stuck |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| **120** | 3 | 2.73s | 44.02 | 4ms | 5ms | 5ms | 2575ms | 2576ms | 2576ms | 0 | 0 | 0 | 0 |
-| **500** | 10 | 10.93s | 45.73 | 2873ms | 8172ms | 8172ms | 2703ms | 2924ms | 2924ms | 0 | 0 | 0 | 0 |
-| **1000** | 20 | 18.94s | 52.8 | 8231ms | 16163ms | 16163ms | 2725ms | 2871ms | 2877ms | 0 | 0 | 0 | 0 |
+| **120** | 3 | 3.93s | 30.5 | 5ms | 8ms | 8ms | 3649ms | 3711ms | 3711ms | 0 | 0 | 0 | 0 |
+| **500** | 10 | 30.10s | 16.61 | 15235ms | 27656ms | 27656ms | 9480ms | 15291ms | 15291ms | 0 | 0 | 0 | 0 |
+| **1000** | 20 | 14.28s | 70.05 | 6032ms | 12133ms | 12133ms | 2018ms | 2171ms | 2199ms | 0 | 0 | 0 | 0 |
 
 ### What the queue measurement shows that the handler benchmark cannot
 
-Queue wait p95 rises from 5ms at the
-smallest scale to 16163ms at the
+Queue wait p95 rises from 8ms at the
+smallest scale to 12133ms at the
 largest. Jobs are enqueued far faster than a bounded worker pool drains them, so latency for
 an individual chunk is dominated by waiting, not by work. The handler benchmark reports only
 the work and is structurally incapable of showing this.

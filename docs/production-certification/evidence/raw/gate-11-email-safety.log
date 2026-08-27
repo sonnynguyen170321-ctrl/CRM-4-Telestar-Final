@@ -1,21 +1,18 @@
 # gate: 11-email-safety — demo barrier, idempotency, safe-mode posture
 # command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/demo-email-barrier.test.ts tests/email-idempotency.test.ts tests/email-safety.test.ts
-# startedAt: 2026-08-25T21:42:59.274Z
-# finishedAt: 2026-08-25T21:43:03.442Z
+# startedAt: 2026-08-27T20:55:08.319Z
+# finishedAt: 2026-08-27T20:55:10.748Z
 # exitCode: 0
 
 --- stdout ---
 
-[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mC:/Users/admin/Desktop/Sonny & AI/CRM-4-Telestar-Final[39m
+ RUN  v4.1.10 C:/Users/admin/Desktop/Sonny & AI/CRM-4-Telestar-Final
 
- [32m✓[39m tests/email-idempotency.test.ts [2m([22m[2m30 tests[22m[2m)[22m[32m 22[2mms[22m[39m
- [32m✓[39m tests/email-safety.test.ts [2m([22m[2m33 tests[22m[2m)[22m[32m 23[2mms[22m[39m
- [32m✓[39m tests/demo-email-barrier.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 17[2mms[22m[39m
 
-[2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
-[2m      Tests [22m [1m[32m67 passed[39m[22m[90m (67)[39m
-[2m   Start at [22m 04:43:00
-[2m   Duration [22m 3.36s[2m (transform 333ms, setup 6.95s, import 723ms, tests 63ms, environment 1ms)[22m
+ Test Files  3 passed (3)
+      Tests  67 passed (67)
+   Start at  03:55:09
+   Duration  1.53s (transform 549ms, setup 1.02s, import 928ms, tests 64ms, environment 5ms)
 
 
 --- stderr ---

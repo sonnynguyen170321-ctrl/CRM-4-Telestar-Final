@@ -1,7 +1,7 @@
 # gate: 06-migration-validation — scripts/check-migration-order.mjs
 # command: C:\Program Files\nodejs\node.exe scripts/check-migration-order.mjs
-# startedAt: 2026-08-27T19:54:22.468Z
-# finishedAt: 2026-08-27T19:54:22.622Z
+# startedAt: 2026-08-27T21:52:49.162Z
+# finishedAt: 2026-08-27T21:52:49.312Z
 # exitCode: 0
 
 --- stdout ---

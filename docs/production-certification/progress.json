@@ -3,13 +3,13 @@
   "program": "Telestar Production Certification",
   "candidateSourceSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
   "releaseTag": "telestar-internal-rc-2026-08-22",
-  "generatedAt": "2026-08-27T20:45:26.987Z",
+  "generatedAt": "2026-08-27T22:47:03.073Z",
   "verdict": "NO-GO",
   "eligible": false,
   "requirements": {
     "total": 108,
-    "verified": 107,
-    "notVerified": 1,
+    "verified": 108,
+    "notVerified": 0,
     "byDomain": {
       "IMP": {
         "total": 13,
@@ -37,7 +37,7 @@
       },
       "REL": {
         "total": 8,
-        "verified": 7
+        "verified": 8
       },
       "OPS": {
         "total": 24,
@@ -60,14 +60,11 @@
   },
   "evidenceRecords": 42,
   "validationFailures": {
-    "A": 23,
+    "A": 6,
     "F": 1,
     "U": 1,
     "N2": 1,
-    "TIME_IMPOSSIBILITY": 17,
-    "SOURCE_MISMATCH": 3,
-    "CI_SHA_MISMATCH": 1,
-    "REQ": 1
+    "TIME_IMPOSSIBILITY": 4
   },
   "releaseIdentity": "release-identity.json"
 }

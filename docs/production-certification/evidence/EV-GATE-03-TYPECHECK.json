@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-GATE-03-TYPECHECK",
   "kind": "gate",
-  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+  "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "C:\\Program Files\\nodejs\\node.exe node_modules/typescript/bin/tsc --noEmit",
-  "startedAt": "2026-08-25T21:40:48.528Z",
-  "finishedAt": "2026-08-25T21:41:37.186Z",
+  "startedAt": "2026-08-27T20:49:40.342Z",
+  "finishedAt": "2026-08-27T20:50:20.945Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {},
@@ -13,7 +13,7 @@
     {
       "path": "docs/production-certification/evidence/raw/gate-03-typecheck.log",
       "sizeBytes": 261,
-      "sha256": "12cd7cc1d78f40287b6dc7eeb8a87e579430b45f95111f19b2dcbaf0bd292689"
+      "sha256": "a6f2ea55b17a9a634f8f08fa48953dc943cfcf89322c8a81d79e88b40f84fd4f"
     }
   ]
 }
