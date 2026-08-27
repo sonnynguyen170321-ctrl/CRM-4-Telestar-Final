@@ -55,7 +55,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 
 const ADMIN_URL =
-  process.env.ADMIN_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
+  process.env.ADMIN_DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/postgres';
 const DB_NAME = `crm_rls_apppaths_${randomBytes(4).toString('hex')}`;
 const APP_ROLE = `crm_rls_appuser_${randomBytes(3).toString('hex')}`;
 /**

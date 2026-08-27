@@ -26,27 +26,27 @@ export default function AttentionBanner() {
   const topItem: AttentionItem = report.items[0];
 
   return (
-    <div className="relative z-20 border-b border-brand-gold/20 bg-gradient-to-r from-brand-gold/10 via-brand-gold/5 to-transparent px-4 py-2 text-xs transition-all">
+    <div className="relative z-20 border-b border-card-border bg-amber-500/10 px-4 py-2 text-xs transition-all">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
         <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-gold/20 text-brand-gold">
+          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-brand-gold-text">
             <Sparkles className="h-3 w-3" />
           </div>
 
           <div className="flex items-center gap-2 truncate">
-            <span className="font-semibold uppercase tracking-wider text-brand-gold text-[10px]">
+            <span className="font-semibold uppercase tracking-wider text-brand-gold-text text-[10px]">
               Attention Needed ({report.totalItems})
             </span>
-            <span className="text-muted-text">•</span>
-            <span className="font-medium text-foreground truncate">{topItem.title}</span>
-            <span className="hidden text-muted-text sm:inline truncate">— {topItem.summary}</span>
+            <span className="text-text-muted">•</span>
+            <span className="font-medium text-text-primary truncate">{topItem.title}</span>
+            <span className="hidden text-text-muted sm:inline truncate prose-measure">— {topItem.summary}</span>
           </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
           <Link
             href={topItem.targetUrl}
-            className="inline-flex items-center gap-1 rounded-md bg-brand-gold/20 px-2.5 py-1 text-[11px] font-medium text-brand-gold hover:bg-brand-gold hover:text-zinc-950 transition-colors"
+            className="inline-flex items-center gap-1 rounded-md bg-brand-gold-text/15 px-2.5 py-1 text-[11px] font-medium text-brand-gold-text hover:bg-brand-gold-text hover:text-white transition-colors"
           >
             <span>{topItem.actionLabel || 'Action'}</span>
             <ArrowRight className="h-3 w-3" />
@@ -54,7 +54,7 @@ export default function AttentionBanner() {
 
           <button
             onClick={() => setDismissed(true)}
-            className="rounded p-1 text-muted-text hover:text-foreground transition-colors"
+            className="rounded p-1 text-text-muted hover:text-text-primary transition-colors"
             title="Dismiss banner"
           >
             <X className="h-3.5 w-3.5" />

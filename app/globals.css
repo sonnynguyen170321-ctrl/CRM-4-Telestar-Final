@@ -15,7 +15,7 @@
   --text-subsection: 16px;
   --text-body: 14px;
   --text-meta: 13px;
-  --text-micro: 11.5px;
+  --text-micro: 12px;
 }
 
 /* ─── THEME TOKENS ─── */
@@ -39,10 +39,10 @@
   --channel-whatsapp: #10B981;
 
   /* Fonts */
-  --font-sans: var(--font-montserrat), 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-brand: 'Futura', 'Futura PT', 'Futura-Medium', 'Trebuchet MS', var(--font-montserrat), 'Montserrat', sans-serif;
+  --font-sans: var(--font-plex-sans), 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-brand: var(--font-plex-sans), 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-display: var(--font-brand);
-  --font-mono: var(--font-mono), 'JetBrains Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-mono: var(--font-mono), 'IBM Plex Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 /* LIGHT THEME — the only theme. `data-theme="light"` is set statically on <body>
@@ -434,6 +434,14 @@ table th, table td {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(128, 128, 128, 0.4);
+}
+
+/* Ensure placeholder text clears AA contrast */
+input::placeholder,
+textarea::placeholder,
+.placeholder-text-muted::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
 }
 
 /* Table styling helpers.

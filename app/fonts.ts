@@ -1,32 +1,26 @@
-import { Montserrat, JetBrains_Mono } from 'next/font/google';
+import { IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
 
 /**
- * Telestar Typography Architecture.
+ * Telestar Typography Architecture — Impeccable Non-AI Brand Stack.
  *
- * • Montserrat (--font-sans / --font-montserrat): Primary operational voice.
- *   Used for all UI chrome, body text, data cells, forms, navigation, and AI text.
+ * • IBM Plex Sans (--font-sans / --font-plex-sans): Primary operational voice.
  *   Loaded at build-time via next/font/google with full Latin + Vietnamese glyph coverage.
  *
- * • Futura (--font-brand / --font-futura): Brand identity voice.
- *   Used for wordmarks, top-level brand titles, major section accents, and high-impact cards.
- *   Configured in CSS with local font-face support and robust fallback stack:
- *   'Futura', 'Futura PT', 'Futura-Medium', 'Trebuchet MS', -apple-system, BlinkMacSystemFont, sans-serif.
- *
- * • JetBrains Mono (--font-mono): Technical monospace voice.
- *   Used for technical IDs, tokens, JSON, and code blocks.
+ * • IBM Plex Mono (--font-mono): Technical monospace voice.
+ *   Used for technical IDs, tokens, metrics, tabular numbers, and timestamps.
  */
 
-export const montserrat = Montserrat({
+export const plexSans = IBM_Plex_Sans({
   subsets: ['latin', 'vietnamese'],
   weight: ['400', '500', '600', '700'],
-  variable: '--font-montserrat',
+  variable: '--font-plex-sans',
   display: 'swap',
   preload: true,
 });
 
-export const mono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+export const mono = IBM_Plex_Mono({
+  subsets: ['latin', 'vietnamese'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-mono',
   display: 'swap',
   preload: false,
@@ -34,6 +28,6 @@ export const mono = JetBrains_Mono({
 
 /** Applied to <html> so CSS variables are in scope everywhere. */
 export const fontVariables = [
-  montserrat.variable,
+  plexSans.variable,
   mono.variable,
 ].join(' ');

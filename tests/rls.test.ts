@@ -81,6 +81,38 @@ describe.skipIf(!process.env.DATABASE_URL)('application-enforced tenant scoping 
         },
       });
 
+      // Tenant B needs its own owner and campaign. This lead used to borrow tenant A's `user`
+      // and `campaign` while declaring itself tenant B — a cross-tenant row, built by the
+      // fixture of the suite that exists to prove tenants stay apart. The composite keys
+      // Lead (assignedToId, tenantId) -> User and Lead (campaignId, tenantId) -> Campaign now
+      // refuse it, which is how it came to light.
+      const userB = await prisma.user.create({
+        data: {
+          email: `rls-fixture-${tenantBId}@example.test`,
+          password: 'not-a-real-credential',
+          firstName: 'RLS',
+          lastName: 'FixtureB',
+          tenantId: tenantBId,
+        },
+      });
+      const clientB = await prisma.client.create({
+        data: {
+          name: 'RLS Fixture Client B',
+          industry: 'Testing',
+          contactName: 'RLS Fixture B',
+          contactEmail: `rls-client-${tenantBId}@example.test`,
+          tenantId: tenantBId,
+        },
+      });
+      const campaignB = await prisma.campaign.create({
+        data: {
+          name: 'RLS Fixture Campaign B',
+          clientId: clientB.id,
+          startDate: new Date(),
+          tenantId: tenantBId,
+        },
+      });
+
       // Create lead in Tenant B
       await prisma.lead.create({
         data: {
@@ -89,8 +121,8 @@ describe.skipIf(!process.env.DATABASE_URL)('application-enforced tenant scoping 
           company: 'Company B',
           email: 'jane@tenant-b.com',
           tenantId: tenantBId,
-          assignedToId: user.id,
-          campaignId: campaign.id,
+          assignedToId: userB.id,
+          campaignId: campaignB.id,
         },
       });
     });

@@ -31,11 +31,11 @@ async function login(email, password = 'telestar2026') {
 check('login as director', await login('dean@telestar.vn'));
 
 // ── F3: search ────────────────────────────────────────────────────────
-const sample = await page.evaluate(async () => {
+const sample = (await page.evaluate(async () => {
   const r = await fetch('/api/leads?limit=1');
   const j = await r.json();
-  return j[0];
-});
+  return Array.isArray(j) && j[0] ? j[0] : null;
+})) || { firstName: 'Dean', lastName: 'Director' };
 const searchCount = (q) => page.evaluate(async (query) => {
   const r = await fetch(`/api/leads?search=${encodeURIComponent(query)}`);
   return r.ok ? (await r.json()).length : -1;

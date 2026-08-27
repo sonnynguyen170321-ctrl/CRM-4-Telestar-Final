@@ -200,7 +200,7 @@ export default function EmailHealthPage() {
                 value={healthLevel}
                 onChange={(e) => setHealthLevel(e.target.value)}
                 aria-label="Filter by health level"
-                className="bg-bg-main border border-card-border rounded-lg px-2 py-1 text-[11px] focus-ring cursor-pointer"
+                className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 text-text-primary rounded-lg px-2.5 py-1 text-xs font-medium focus:outline-none focus:border-brand-red cursor-pointer shadow-2xs"
               >
                 {HEALTH_FILTERS.map((f) => (
                   <option key={f.value} value={f.value}>{f.label}</option>

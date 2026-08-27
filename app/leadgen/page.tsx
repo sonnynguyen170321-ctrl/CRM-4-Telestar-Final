@@ -666,20 +666,20 @@ export default function LeadgenPage() {
           {/* Toolbar */}
           <div className="px-6 py-2.5 border-b border-card-border bg-bg-main flex items-center gap-3 flex-shrink-0">
             <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted dark:text-zinc-400" />
               <input
                 type="text"
                 placeholder="Search leads…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-card-bg border border-card-border rounded-lg text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-purple-500/50"
+                className="w-full pl-8 pr-3 py-1.5 bg-card-bg dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs text-text-primary placeholder:text-text-muted dark:placeholder:text-zinc-500 shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red font-medium transition-all"
               />
             </div>
 
             <select
               value={filterMember}
               onChange={(e) => setFilterMember(e.target.value)}
-              className="bg-card-bg border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-secondary focus:outline-none focus:border-purple-500/50"
+              className="bg-card-bg dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-medium cursor-pointer"
             >
               <option value="">All Members</option>
               {teamMembers.map((m) => (
@@ -692,21 +692,21 @@ export default function LeadgenPage() {
             <select
               value={filterPriority}
               onChange={(e) => setFilterPriority(e.target.value)}
-              className="bg-card-bg border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-secondary focus:outline-none focus:border-purple-500/50"
+              className="bg-card-bg dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-medium cursor-pointer"
             >
               <option value="">All Priorities</option>
-              <option value="hot">Hot</option>
-              <option value="warm">Warm</option>
-              <option value="cold">Cold</option>
+              <option value="hot">🔥 Hot</option>
+              <option value="warm">⚡ Warm</option>
+              <option value="cold">❄️ Cold</option>
             </select>
 
-            <div className="ml-auto flex items-center gap-1 bg-card-bg border border-card-border rounded-lg p-0.5">
+            <div className="ml-auto flex items-center gap-1 bg-card-bg dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg p-0.5">
               <button
                 onClick={() => setViewMode('kanban')}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
                   viewMode === 'kanban'
-                    ? 'bg-purple-500/15 text-purple-300'
-                    : 'text-text-muted hover:text-text-secondary'
+                    ? 'bg-brand-red/10 text-brand-red'
+                    : 'text-text-secondary hover:text-text-primary'
                 }`}
               >
                 <KanbanSquare className="w-3.5 h-3.5" />
@@ -714,10 +714,10 @@ export default function LeadgenPage() {
               </button>
               <button
                 onClick={() => setViewMode('table')}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
                   viewMode === 'table'
-                    ? 'bg-purple-500/15 text-purple-300'
-                    : 'text-text-muted hover:text-text-secondary'
+                    ? 'bg-brand-red/10 text-brand-red'
+                    : 'text-text-secondary hover:text-text-primary'
                 }`}
               >
                 <TableProperties className="w-3.5 h-3.5" />

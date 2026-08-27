@@ -61,7 +61,6 @@ async function main() {
                 templateId: template.id,
                 instructions: 'Phase C Automated Canary Dispatch — Step 1',
                 autoComplete: true,
-                tenantId,
               },
             ],
           },
