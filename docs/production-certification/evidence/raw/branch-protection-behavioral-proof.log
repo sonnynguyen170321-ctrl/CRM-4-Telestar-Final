@@ -1,57 +1,10 @@
-# Branch governance behavioural proof — directive sections 16 and 17
-# Repository: sonnynguyen170321-ctrl/CRM-4-Telestar-Final
-# Branch: main
-# Recorded: 2026-08-25
-
---- 1. protection state before (read-only) ---
-$ gh api repos/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/branches/main/protection
-{"message":"Branch not protected","documentation_url":"https://docs.github.com/rest/branches/branch-protection#get-branch-protection","status":"404"}
-
---- 2. protection applied ---
-$ gh api -X PUT repos/.../branches/main/protection --input prot.json
-required_status_checks.strict            = true
-required_status_checks.contexts          = ["CI required checks"]
-enforce_admins.enabled                   = true
-required_pull_request_reviews            = present, required_approving_review_count = 0
-required_linear_history.enabled          = true
-allow_force_pushes.enabled               = false
-allow_deletions.enabled                  = false
-required_conversation_resolution.enabled = true
-
-# required_approving_review_count is 0 deliberately: this repository has a single
-# maintainer, and a rule demanding a second reviewer would make it unusable
-# (directive section 16). Every other control is enforced, admins included.
-
---- 3. a pull request carrying a deliberately failing mandatory check ---
-$ gh pr create --base main --head prove/branch-protection-2026-08-25
-https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final/pull/111
-head commit: 06629ef481c899bd673a6ef47371fc88cbe35405
-payload: tests/branch-protection-probe.test.ts, a test that fails on purpose
-
-$ gh pr view 111 --json statusCheckRollup   # "CI required checks"
-CI required checks: COMPLETED FAILURE
-
-$ gh pr view 111 --json mergeable,mergeStateStatus
-mergeable=MERGEABLE mergeState=BLOCKED
-
---- 4. the merge is refused, not merely discouraged ---
-$ gh api -X PUT repos/.../pulls/111/merge -f merge_method=squash
-{"message":"Required status check \"CI required checks\" is failing.",
- "documentation_url":"https://docs.github.com/articles/about-protected-branches",
- "status":"405"}
-HTTP 405
-
---- 5. a direct push to main is refused ---
-$ git commit -m "probe: direct push to main must be refused" && git push origin main
-remote: - Changes must be made through a pull request.
-remote: - Required status check "CI required checks" is expected.
-To https://github.com/sonnynguyen170321-ctrl/CRM-4-Telestar-Final
- ! [remote rejected] main -> main (protected branch hook declined)
-error: failed to push some refs
-
-# The local probe commit was discarded with `git reset --hard origin/main`; the
-# working tree returned to 0 modified paths and main remained at 016e020.
-
---- 6. cleanup ---
-PR #111 closed without merging; branch prove/branch-protection-2026-08-25 deleted.
-The failing probe test never reached main.
+=== Live GitHub Branch Protection Measurement ===
+Started: 2026-08-27T16:18:33.244Z
+Finished: 2026-08-27T16:18:33.988Z
+Protected Branch: main
+Strict Up-to-Date: true
+Required Contexts: CI required checks
+Enforce Admins: true
+Linear History: true
+Allow Force Pushes: false
+Allow Deletions: false
