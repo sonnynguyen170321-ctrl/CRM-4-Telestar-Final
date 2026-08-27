@@ -1,0 +1,19 @@
+# gate: 14-security-suite — tenant isolation, object auth, mass assignment, XSS, formula injection, secrets
+# command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/tenant-inject.test.ts tests/object-auth-red-team.test.ts tests/mass-assignment.test.ts tests/security-injection.test.ts tests/gitleaks-allowlist.test.ts tests/csp.test.ts tests/login-throttle.test.ts
+# startedAt: 2026-08-27T20:32:51.335Z
+# finishedAt: 2026-08-27T20:32:54.944Z
+# exitCode: 0
+
+--- stdout ---
+
+ RUN  v4.1.10 C:/Users/admin/Desktop/Sonny & AI/CRM-4-Telestar-Final
+
+
+ Test Files  7 passed (7)
+      Tests  96 passed (96)
+   Start at  03:32:52
+   Duration  2.75s (transform 972ms, setup 1.71s, import 1.80s, tests 1.22s, environment 2ms)
+
+
+--- stderr ---
+(empty)

@@ -1,0 +1,9 @@
+# worker healthcheck: a job is enqueued and a real worker drains it
+# exitCode: 0
+
+--- stdout ---
+[bullmq] Redis connected
+job cmtbzf4co0001vwi0u7n58xei completed
+
+--- stderr ---
+(empty)

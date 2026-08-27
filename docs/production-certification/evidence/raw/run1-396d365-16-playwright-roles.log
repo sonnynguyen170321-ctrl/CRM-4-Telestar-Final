@@ -1,0 +1,27 @@
+# six-role real browser acceptance
+# exitCode: 0
+
+--- stdout ---
+
+Running 15 tests using 1 worker
+
+  ok  1 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate director (1.1s)
+  ok  2 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate floorManager (533ms)
+  ok  3 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate teamLead (533ms)
+  ok  4 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate sdrA (523ms)
+  ok  5 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate sdrB (597ms)
+  ok  6 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate leadgenManager (562ms)
+  ok  7 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate leadgen (693ms)
+  ok  8 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate directorB (503ms)
+  ok  9 [setup] › e2e\support\auth.setup.ts:45:8 › authenticate sdrTenantB (520ms)
+  ok 10 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › director › director can operate the product and is stopped where it must be (4.0s)
+  ok 11 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › floor_manager › floor_manager can operate the product and is stopped where it must be (3.8s)
+  ok 12 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › team_lead › team_lead can operate the product and is stopped where it must be (2.8s)
+  ok 13 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › sdr › sdr can operate the product and is stopped where it must be (2.1s)
+  ok 14 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › leadgen_manager › leadgen_manager can operate the product and is stopped where it must be (2.8s)
+  ok 15 [certification-roles] › e2e\certification\six-role-acceptance.spec.ts:128:11 › six-role browser acceptance › leadgen › leadgen can operate the product and is stopped where it must be (2.3s)
+
+  15 passed (26.6s)
+
+--- stderr ---
+(empty)

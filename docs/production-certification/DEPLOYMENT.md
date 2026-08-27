@@ -9,7 +9,7 @@
 **Requirement**: `REL-001`
 **Defect**: `TEL-P1-018`
 **Chain status**: **COMPLETE**
-**Candidate SHA**: `9b2b44c9f0987139e2f48ee21b14ec36e10690a8`
+**Candidate SHA**: `396d3652c619c25f8f26005127e9b7291cdaeedf`
 **Release tag**: `telestar-internal-rc-2026-08-22`
 
 ---
@@ -29,13 +29,13 @@ running.
 
 | Link | Value | How to establish it |
 |---|---|---|
-| APPLICATION_SOURCE_SHA | `9b2b44c9f0987139e2f48ee21b14ec36e10690a8` | — |
-| CI_RUN_ID | `32891125645` | — |
-| IMAGE_DIGEST | `sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b` | — |
-| WEB_DIGEST | `sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b` | — |
-| WORKER_DIGEST | `sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b` | — |
-| HEALTH_SHA | `9b2b44c9f0987139e2f48ee21b14ec36e10690a8` | — |
-| Deployment timestamp | `2026-08-25T21:39:18.398Z` | — |
+| APPLICATION_SOURCE_SHA | `396d3652c619c25f8f26005127e9b7291cdaeedf` | — |
+| CI_RUN_ID | `33108408475` | — |
+| IMAGE_DIGEST | `sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb` | — |
+| WEB_DIGEST | `sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb` | — |
+| WORKER_DIGEST | `sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb` | — |
+| HEALTH_SHA | `396d3652c619c25f8f26005127e9b7291cdaeedf` | — |
+| Deployment timestamp | **not established** | recorded by the deploy step |
 | Migration set | **not established** | `prisma migrate status` against the deployed database |
 
 ## 3. Identity assertions
@@ -46,7 +46,7 @@ running.
 
 ## 4. Rollback
 
-Executed. Rolled from `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:99fbfe8229e6f298e3c80c8ba280e235ac9b9e528741fc547f3e73fd7364ff2b` to `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:791210e226a60b0c8220768cef60f6a32abe32aa6a1125e9b89edf05838e9523` in 1.5s.
+Executed. Rolled from `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb` to `ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:6cd77511e157b14528ddd05dd4aea2b5464d9243b64709a94e80ddea2d039136` in 18.76s.
 
 ## 5. Post-deployment gate
 

@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-AI-CAPABILITY-ROUTING",
   "kind": "ai-capability-routing",
-  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+  "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
   "command": "derived from C:\\Program Files\\nodejs\\node.exe node_modules/vitest/vitest.mjs run --maxWorkers=4 --reporter=json --outputFile=.certification/vitest.json",
-  "startedAt": "2026-08-25T21:22:49.549Z",
-  "finishedAt": "2026-08-25T21:27:33.861Z",
+  "startedAt": "2026-08-27T20:27:52.662Z",
+  "finishedAt": "2026-08-27T20:31:35.993Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -20,9 +20,9 @@
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/run3-9b2b44c-08-vitest.log",
+      "path": "docs/production-certification/evidence/raw/run3-396d365-08-vitest.log",
       "sizeBytes": 458,
-      "sha256": "f69cb90edcbb08bfbc2036062426da992b97bdadb13bff65069a64e976084d88"
+      "sha256": "8cd9fa18d98f45180d8e861060c9c843ab1baa8ea0faa8e72ff32c9a991bc019"
     }
   ]
 }

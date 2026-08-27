@@ -1,53 +1,53 @@
 {
   "evidenceId": "EV-DR-RESTORE",
   "kind": "dr-restore",
-  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+  "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
   "environment": "win32 / node 24.16.0 / postgres 16 / source telestar_crm",
-  "command": "C:\\Program Files\\PostgreSQL\\16\\bin\\pg_restore.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_dr_drill_20260825t195341 --no-owner --no-acl --exit-on-error C:\\Users\\admin\\Desktop\\Sonny & AI\\CRM-4-Telestar-Final\\.dr-artifacts\\telestar_2026-08-25T19-53-41-153Z.dump",
-  "startedAt": "2026-08-25T19:53:45.615Z",
-  "finishedAt": "2026-08-25T19:53:52.038Z",
+  "command": "C:\\Program Files\\PostgreSQL\\16\\bin\\pg_restore.exe -h 127.0.0.1 -p 5432 -U postgres -d telestar_dr_drill_20260827t204355 --no-owner --no-acl --exit-on-error C:\\Users\\admin\\Desktop\\Sonny & AI\\CRM-4-Telestar-Final\\.dr-artifacts\\telestar_2026-08-27T20-43-55-936Z.dump",
+  "startedAt": "2026-08-27T20:44:02.693Z",
+  "finishedAt": "2026-08-27T20:44:17.648Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
-    "targetDatabase": "telestar_dr_drill_20260825t195341",
-    "backupArtifact": ".dr-artifacts/telestar_2026-08-25T19-53-41-153Z.dump",
-    "backupSha256": "ef8a24ca0dfc40282c516616adf39b82ab09d15ffc2d1bc981a85ef2967a5bc5",
-    "rtoSeconds": 6.42,
+    "targetDatabase": "telestar_dr_drill_20260827t204355",
+    "backupArtifact": ".dr-artifacts/telestar_2026-08-27T20-43-55-936Z.dump",
+    "backupSha256": "3a3f0c7457a60626cf36450fb72ec99ffd444ba4110f9fe6a260d0c753c980d0",
+    "rtoSeconds": 14.96,
     "rtoMeasuredFrom": "pg_restore invocation to pg_restore exit",
     "integrityCheckPassed": true,
-    "integrityCommand": "C:\\Program Files\\nodejs\\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json --expect-counts C:\\Users\\admin\\Desktop\\Sonny & AI\\CRM-4-Telestar-Final\\.dr-artifacts\\counts-2026-08-25T19-53-41-153Z.json",
+    "integrityCommand": "C:\\Program Files\\nodejs\\node.exe node_modules/tsx/dist/cli.mjs scripts/verify-db-integrity.ts --json --expect-counts C:\\Users\\admin\\Desktop\\Sonny & AI\\CRM-4-Telestar-Final\\.dr-artifacts\\counts-2026-08-27T20-43-55-936Z.json",
     "countsReconciled": true,
     "restoredCounts": {
-      "Tenant": 40,
-      "User": 51,
-      "Client": 42,
-      "Campaign": 43,
-      "Account": 25,
-      "Contact": 1005,
-      "Lead": 1042,
+      "Tenant": 45,
+      "User": 62,
+      "Client": 46,
+      "Campaign": 47,
+      "Account": 88,
+      "Contact": 2128,
+      "Lead": 2169,
       "Task": 3,
-      "Activity": 1007,
+      "Activity": 2130,
       "Sequence": 10,
       "SequenceEnrollment": 9,
       "OutboundMessage": 1,
-      "ImportBatch": 6
+      "ImportBatch": 7
     }
   },
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/dr-createdb.log",
       "sizeBytes": 275,
-      "sha256": "c8537eabc1791936f40f47c7f007a0cc1aacbf6a99b34ffbeb0ec8e125d9bc90"
+      "sha256": "4bc80a2832cc406ed4f14af7c4af4904407c7a2a2c182028d2ddfb61e0dcf75b"
     },
     {
       "path": "docs/production-certification/evidence/raw/dr-restore-command.log",
       "sizeBytes": 426,
-      "sha256": "3ab4ca3d7aadf095d0bbce0169413aca6b40ff30b5d7551fa1b57480852bde47"
+      "sha256": "a02c4c39decd844653c806e0d82b8f650984fbb65c15df7906cdf18f915d6def"
     },
     {
       "path": "docs/production-certification/evidence/raw/dr-restore-integrity.log",
-      "sizeBytes": 2133,
-      "sha256": "3953e03b08682acb242813ec4022901e2de35c78d578de91358508ab1f94facf"
+      "sizeBytes": 2132,
+      "sha256": "c91473c7781a806dab56c9b4431bd87277539dd563ea2764314c39dd9583bc5c"
     }
   ]
 }

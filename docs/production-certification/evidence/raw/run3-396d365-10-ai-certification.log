@@ -1,0 +1,19 @@
+# gate: 10-ai-certification — AI durable budget, stream governance, shared circuit, capability routing
+# command: C:\Program Files\nodejs\node.exe node_modules/vitest/vitest.mjs run tests/ai-durable-budget.test.ts tests/ai-stream-governance.test.ts tests/ai-shared-circuit.test.ts tests/ai-capability-routing.test.ts tests/ai-structured-budget.test.ts tests/ai-down-resilience.test.ts
+# startedAt: 2026-08-27T20:31:39.273Z
+# finishedAt: 2026-08-27T20:31:47.020Z
+# exitCode: 0
+
+--- stdout ---
+
+ RUN  v4.1.10 C:/Users/admin/Desktop/Sonny & AI/CRM-4-Telestar-Final
+
+
+ Test Files  6 passed (6)
+      Tests  75 passed (75)
+   Start at  03:31:40
+   Duration  6.90s (transform 895ms, setup 1.89s, import 4.42s, tests 10.33s, environment 2ms)
+
+
+--- stderr ---
+(empty)

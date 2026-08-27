@@ -1,17 +1,17 @@
 {
   "evidenceId": "EV-RUN-2",
   "kind": "certification-run",
-  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+  "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
   "environment": "win32 / node 24.16.0 / postgres 16 / redis real",
-  "command": "node scripts/certification/run-full-certification.mjs --candidate 9b2b44c9f0987139e2f48ee21b14ec36e10690a8 --run 2",
-  "startedAt": "2026-08-25T21:00:36.254Z",
-  "finishedAt": "2026-08-25T21:20:37.987Z",
+  "command": "node scripts/certification/run-full-certification.mjs --candidate 396d3652c619c25f8f26005127e9b7291cdaeedf --run 2",
+  "startedAt": "2026-08-27T20:09:35.551Z",
+  "finishedAt": "2026-08-27T20:25:44.102Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
     "runNumber": 2,
-    "executionId": "e2126ee1-cff2-4e17-814c-9fd33149efbf",
-    "actualHeadSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+    "executionId": "ffc78a12-bde2-4ed5-ab5a-3d36f3574055",
+    "actualHeadSha": "4ad9b9825ff782e593f8f1aa69d0dfb03bd79eb6",
     "gates": {
       "01-source-identity": {
         "status": "PASS",
@@ -19,9 +19,9 @@
         "durationMs": 0,
         "description": "the application source is exactly the frozen candidate",
         "metrics": {
-          "head": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
-          "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
-          "commitsSinceFreeze": 0,
+          "head": "4ad9b9825ff782e593f8f1aa69d0dfb03bd79eb6",
+          "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
+          "commitsSinceFreeze": 3,
           "uncommittedNonMetadataPaths": 0,
           "problems": []
         }
@@ -29,15 +29,15 @@
       "02-environment": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 2336,
+        "durationMs": 408,
         "description": "Postgres and Redis reachable; required configuration present",
         "metrics": {
           "postgres": {
-            "host": "localhost",
+            "host": "127.0.0.1",
             "port": "5432",
             "database": "telestar_crm",
             "reachable": true,
-            "appliedMigrations": 52
+            "appliedMigrations": 54
           },
           "redis": {
             "host": "127.0.0.1",
@@ -56,37 +56,37 @@
       "03-typecheck": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 45313,
+        "durationMs": 98508,
         "description": "tsc --noEmit"
       },
       "04-lint": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 56496,
+        "durationMs": 54208,
         "description": "eslint across the whole tree"
       },
       "05-test-discipline": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 533,
+        "durationMs": 367,
         "description": "scripts/check-test-discipline.mjs"
       },
       "06-migration-validation": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 259,
+        "durationMs": 178,
         "description": "scripts/check-migration-order.mjs"
       },
       "07-database-integrity": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 5541,
+        "durationMs": 3169,
         "description": "scripts/verify-db-integrity.ts against the certification database"
       },
       "08-vitest": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 351576,
+        "durationMs": 165911,
         "description": "full Vitest suite against real Postgres and Redis",
         "metrics": {
           "files": {
@@ -270,6 +270,12 @@
               "failed": 0,
               "skipped": 0
             },
+            "tests/ai-route-cross-tenant-red-team.test.ts": {
+              "status": "passed",
+              "tests": 5,
+              "failed": 0,
+              "skipped": 0
+            },
             "tests/ai-shared-circuit.test.ts": {
               "status": "passed",
               "tests": 14,
@@ -349,6 +355,18 @@
               "skipped": 0
             },
             "tests/bounceDetection.test.ts": {
+              "status": "passed",
+              "tests": 8,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/branch-protection-recorder.test.ts": {
+              "status": "passed",
+              "tests": 10,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/build-overlay-identity.test.ts": {
               "status": "passed",
               "tests": 8,
               "failed": 0,
@@ -440,7 +458,7 @@
             },
             "tests/certification-validator.test.ts": {
               "status": "passed",
-              "tests": 44,
+              "tests": 92,
               "failed": 0,
               "skipped": 0
             },
@@ -534,6 +552,18 @@
               "failed": 0,
               "skipped": 0
             },
+            "tests/db-connection-defaults.test.ts": {
+              "status": "passed",
+              "tests": 7,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/db-role-least-privilege.test.ts": {
+              "status": "passed",
+              "tests": 5,
+              "failed": 0,
+              "skipped": 0
+            },
             "tests/defect-ledger-consistency.test.ts": {
               "status": "passed",
               "tests": 30,
@@ -566,7 +596,7 @@
             },
             "tests/deploy-script.test.ts": {
               "status": "passed",
-              "tests": 33,
+              "tests": 37,
               "failed": 0,
               "skipped": 0
             },
@@ -666,6 +696,12 @@
               "failed": 0,
               "skipped": 0
             },
+            "tests/host-script-executable-bit.test.ts": {
+              "status": "passed",
+              "tests": 10,
+              "failed": 0,
+              "skipped": 0
+            },
             "tests/icp-adherence.test.ts": {
               "status": "passed",
               "tests": 15,
@@ -723,6 +759,36 @@
             "tests/lead-reference-integrity.test.ts": {
               "status": "passed",
               "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/leadgen-pool-action-result.test.ts": {
+              "status": "passed",
+              "tests": 9,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/leadgen-pool-convert-duplicates.test.ts": {
+              "status": "passed",
+              "tests": 3,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/leadgen-pool-item-state.test.ts": {
+              "status": "passed",
+              "tests": 7,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/leadgen-pool-modes.test.ts": {
+              "status": "passed",
+              "tests": 4,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/leadgen-pool-qualify-duplicate.test.ts": {
+              "status": "passed",
+              "tests": 2,
               "failed": 0,
               "skipped": 0
             },
@@ -978,6 +1044,12 @@
               "failed": 0,
               "skipped": 0
             },
+            "tests/release-identity-digest-parsing.test.ts": {
+              "status": "passed",
+              "tests": 7,
+              "failed": 0,
+              "skipped": 0
+            },
             "tests/release.test.ts": {
               "status": "passed",
               "tests": 15,
@@ -1011,6 +1083,12 @@
             "tests/revenue-os-master-eval.test.ts": {
               "status": "passed",
               "tests": 9,
+              "failed": 0,
+              "skipped": 0
+            },
+            "tests/rls-bypass-inventory.test.ts": {
+              "status": "passed",
+              "tests": 2,
               "failed": 0,
               "skipped": 0
             },
@@ -1064,7 +1142,7 @@
             },
             "tests/search-terms.test.ts": {
               "status": "passed",
-              "tests": 9,
+              "tests": 12,
               "failed": 0,
               "skipped": 0
             },
@@ -1309,9 +1387,9 @@
               "skipped": 0
             }
           },
-          "testFiles": 203,
-          "testFilesPassed": 203,
-          "testsPassed": 2965,
+          "testFiles": 216,
+          "testFilesPassed": 216,
+          "testsPassed": 3099,
           "testsFailed": 0,
           "testsSkipped": 0
         }
@@ -1319,7 +1397,7 @@
       "09-redis-integration": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 5441,
+        "durationMs": 3407,
         "description": "Redis integration suite - must execute, never skip",
         "metrics": {
           "files": {
@@ -1354,43 +1432,43 @@
       "10-ai-certification": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 15618,
+        "durationMs": 7562,
         "description": "AI durable budget, stream governance, shared circuit, capability routing"
       },
       "11-email-safety": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 4267,
+        "durationMs": 2170,
         "description": "demo barrier, idempotency, safe-mode posture"
       },
       "12-import-fault-matrix": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 21336,
+        "durationMs": 6630,
         "description": "import durable-write failpoint matrix"
       },
       "13-queue-load": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 130557,
+        "durationMs": 43842,
         "description": "IMPORT_SYSTEM_QUEUE_BENCHMARK over real Redis and BullMQ"
       },
       "14-security-suite": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 9755,
+        "durationMs": 3750,
         "description": "tenant isolation, object auth, mass assignment, XSS, formula injection, secrets"
       },
       "15-production-build": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 73396,
+        "durationMs": 70348,
         "description": "next build"
       },
       "16-playwright-roles": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 30844,
+        "durationMs": 26384,
         "description": "six-role real browser acceptance",
         "metrics": {
           "playwright": {
@@ -1410,13 +1488,13 @@
       "16-playwright-roles-evidence": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 146,
+        "durationMs": 172,
         "description": "aggregate six-role observations into EV-ROLE-BROWSER"
       },
       "17-golden-browser-journey": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 16068,
+        "durationMs": 15458,
         "description": "cross-role golden journey in a real browser",
         "metrics": {
           "playwright": {
@@ -1436,19 +1514,19 @@
       "18-worker-readiness": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 7401,
+        "durationMs": 3393,
         "description": "worker healthcheck: a job is enqueued and a real worker drains it"
       },
       "22-health-smoke": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 20,
+        "durationMs": 24,
         "description": "web health endpoints answer 200 with ok=true and report the candidate SHA",
         "metrics": {
           "endpoints": {
             "/api/health": {
               "status": 200,
-              "commit": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+              "commit": "396d3652c619c25f8f26005127e9b7291cdaeedf",
               "findings": []
             }
           },
@@ -1458,19 +1536,19 @@
       "19-docker-build": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 404646,
+        "durationMs": 440493,
         "description": "Docker image build from candidate SHA"
       },
       "20-image-inspection": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 328,
+        "durationMs": 308,
         "description": "Image digest captured by digest, never by floating tag",
         "metrics": {
-          "imageId": "sha256:592bacc2ee119b2d661707cecee78d4de65bbe26984b48143450782ff993d316",
-          "revision": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+          "imageId": "sha256:17d93e75dd77b1930b49a3a18a7f355404421e52007ed7747a22fcdb0593ada9",
+          "revision": "396d3652c619c25f8f26005127e9b7291cdaeedf",
           "repoTags": [
-            "telestar-crm-candidate:9b2b44c9f0987139e2f48ee21b14ec36e10690a8"
+            "telestar-crm-candidate:396d3652c619c25f8f26005127e9b7291cdaeedf"
           ],
           "findings": []
         }
@@ -1478,13 +1556,13 @@
       "21-compose-validation": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 2398,
+        "durationMs": 2317,
         "description": "scripts/check-production-compose.mjs"
       },
       "23-validator-selftest": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 5585,
+        "durationMs": 6796,
         "description": "the validator rejects every injected false-green state"
       }
     },
@@ -1495,119 +1573,119 @@
   },
   "artifacts": [
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-02-environment.log",
+      "path": "docs/production-certification/evidence/raw/run2-396d365-02-environment.log",
       "sizeBytes": 469,
-      "sha256": "241d5ed30c07734c022d39e5602a081ef313530b2df47bc710acfbba281610eb"
+      "sha256": "59e33ed1a2956743811b6542e4ffd4ed75721b7d8fe5213655d822af1dbbb98f"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-03-typecheck.log",
+      "path": "docs/production-certification/evidence/raw/run2-396d365-03-typecheck.log",
       "sizeBytes": 261,
-      "sha256": "b89c624f6060036c188ce284408456f84496a1692fd67150bf148d37e172cf9c"
+      "sha256": "d7c2d2fa49c6105622b92e96c41030c150d683fb55388e4a5d9a0188d402a9ad"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-04-lint.log",
+      "path": "docs/production-certification/evidence/raw/run2-396d365-04-lint.log",
       "sizeBytes": 318,
-      "sha256": "a8941b9d4fb5aff2a690075208905be920aa7f420430ede679873a34bd8b79d5"
+      "sha256": "38dbeabe257ed4d4773f4c0bed279d1ae3338a3a50485524804b8e7df2d253c9"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-05-test-discipline.log",
+      "path": "docs/production-certification/evidence/raw/run2-396d365-05-test-discipline.log",
       "sizeBytes": 324,
-      "sha256": "c498fcf0a5259c756c54edb1f6422f0f3fdab46666c77b232e04d2a6a7778b70"
+      "sha256": "61635be5bb4484fe57d5272a453bbaccab7cfdf8944eba3d8244f723f12d961b"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-06-migration-validation.log",
+      "path": "docs/production-certification/evidence/raw/run2-396d365-06-migration-validation.log",
       "sizeBytes": 337,
-      "sha256": "a3ca5476ed7c59619cc36e2df3532027ac228c8b22c9564ebc3c65905fca90c0"
+      "sha256": "20e761fd2fea7a2e7fd38e9c8beb0e066ffe4da8716a1eaba691b97bdc7c606e"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-07-database-integrity.log",
-      "sizeBytes": 1670,
-      "sha256": "b4d227a6b72ea4344e524d7566a051f57bb54c18992fe2aeb3a77d9efe49e4a1"
+      "path": "docs/production-certification/evidence/raw/run2-396d365-07-database-integrity.log",
+      "sizeBytes": 1669,
+      "sha256": "bd6aecfbf0af805a46bcaa9b3b1b6e302602ad8ec25dc0b4c485edd6a3bea470"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-08-vitest.log",
+      "path": "docs/production-certification/evidence/raw/run2-396d365-08-vitest.log",
       "sizeBytes": 458,
-      "sha256": "f4c43d347d4c6296ae122785e495b78af9646b0d53af4a004e71cc9041ca5645"
+      "sha256": "569d113fd255e135c7e28d5ea6a64176c31ec64f1bcdc2282af4e8cc28ef00af"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-09-redis-integration.log",
+      "path": "docs/production-certification/evidence/raw/run2-396d365-09-redis-integration.log",
       "sizeBytes": 547,
-      "sha256": "88a6a96d5f4a6e316dd7e3f18dba03efdb754d173a236835347176b6ef116216"
+      "sha256": "cbb428376e147a49e0be5ddb9f167d4806191e53d79e07fcf8b3bed42ca67561"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-10-ai-certification.log",
-      "sizeBytes": 8775,
-      "sha256": "42321d5144894d805f91f688f775598449de86f3037f699aa1d8e3dfc7e6575b"
+      "path": "docs/production-certification/evidence/raw/run2-396d365-10-ai-certification.log",
+      "sizeBytes": 761,
+      "sha256": "fdc1cba8cc66da0d6c14306edc9c32dbb04d7456076218a046c5393615a338df"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-11-email-safety.log",
-      "sizeBytes": 1091,
-      "sha256": "3a381a9e20ad2aa409d123054cef5b7d311402e888583672c96d820ff4428ca4"
+      "path": "docs/production-certification/evidence/raw/run2-396d365-11-email-safety.log",
+      "sizeBytes": 617,
+      "sha256": "502877ea5f1c5e8e2c5e58392296799e30cee4cc278c38cd085c4076393e4a81"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-12-import-fault-matrix.log",
-      "sizeBytes": 8160,
-      "sha256": "61aaee604f5e7473ed6cf2e87e72727b7810f58ff17c10ad679fafdbebf9c4ce"
+      "path": "docs/production-certification/evidence/raw/run2-396d365-12-import-fault-matrix.log",
+      "sizeBytes": 596,
+      "sha256": "30a831994a3ebe20b0cdff2cb9d5a300a2fcc0498660d8f7412bebaef0258aa8"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-13-queue-load.log",
-      "sizeBytes": 4899,
-      "sha256": "25082f9cbe691e6460d86bbeeea165335d9a508e349f47b7ae9ca4ce8a2730ce"
+      "path": "docs/production-certification/evidence/raw/run2-396d365-13-queue-load.log",
+      "sizeBytes": 523,
+      "sha256": "0ed9e5fb1172a764bd1c7305740487a8c9377f47d0339f7403c338ab514b9214"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-14-security-suite.log",
-      "sizeBytes": 2411,
-      "sha256": "7e90795734c934b1b9c802f44f4f260efe5e295fe3ac5f46cbac48a91113bfe9"
+      "path": "docs/production-certification/evidence/raw/run2-396d365-14-security-suite.log",
+      "sizeBytes": 769,
+      "sha256": "688ab988214139db0ac9b34f588872b41cd957ccad6f35c0966c1e1db6203417"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-15-production-build.log",
+      "path": "docs/production-certification/evidence/raw/run2-396d365-15-production-build.log",
       "sizeBytes": 7393,
-      "sha256": "aeb7a561a03c592d5635f47069166a47ad858b60456c4d78ef04424a6ddb9bd4"
+      "sha256": "bf8c55b612482176eda9e41f0ec56d09b2c1cf3e5e1fdc3d09c111ad028fd565"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-16-playwright-roles.log",
+      "path": "docs/production-certification/evidence/raw/run2-396d365-16-playwright-roles.log",
       "sizeBytes": 2174,
-      "sha256": "17089c3028ab58541211554bd397db6a5b779cf15403b361c0b3710aedbbed3c"
+      "sha256": "568249daeccd55be10b543698836a555e9e5f5c44c35ed893283ec1fe2f2e6b3"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-16-playwright-roles-evidence.log",
+      "path": "docs/production-certification/evidence/raw/run2-396d365-16-playwright-roles-evidence.log",
       "sizeBytes": 156,
       "sha256": "576a1d9f71438d9faa59093b3970cf411475968d66679fbac5a619519d3850ee"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-17-golden-browser-journey.log",
-      "sizeBytes": 2218,
-      "sha256": "988e8f90df6331abb73aa0eba5d7281383b1f36bfebc2cd7a893721e4d3fa5eb"
+      "path": "docs/production-certification/evidence/raw/run2-396d365-17-golden-browser-journey.log",
+      "sizeBytes": 2217,
+      "sha256": "730c287ae1dd3b8d90f3cfae9a6a0537312d49d120646a6cc787c9b508154daf"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-18-worker-readiness.log",
+      "path": "docs/production-certification/evidence/raw/run2-396d365-18-worker-readiness.log",
       "sizeBytes": 187,
-      "sha256": "3638f287075980ce2deab116bbbf2458e645a32347d181632e77297f0127c91d"
+      "sha256": "790fdeecc94dc7f737b6d0541da2627da61e48e8b4bc975dc68ca0875ec89142"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-22-health-smoke.log",
+      "path": "docs/production-certification/evidence/raw/run2-396d365-22-health-smoke.log",
       "sizeBytes": 210,
-      "sha256": "4ebf23d8d1d3ece30d4bf6b9d82afeb09aefdbf5df7c4683f5f3a7a7e9e3d065"
+      "sha256": "c292af6b893e0d2f2621fb3e0aca4c2de2f3abfa95a9c214858f0fa8660f3a5d"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-19-docker-build.log",
-      "sizeBytes": 20233,
-      "sha256": "4946c595d2d8d23829ce8cdb9a6906fed127bebe3d8762e3d8d340d9285fca85"
+      "path": "docs/production-certification/evidence/raw/run2-396d365-19-docker-build.log",
+      "sizeBytes": 20868,
+      "sha256": "45e72d1a22e020f52e715701c38597ee91d3668590db1fff323af8e33d1e046f"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-20-image-inspection.log",
+      "path": "docs/production-certification/evidence/raw/run2-396d365-20-image-inspection.log",
       "sizeBytes": 275,
-      "sha256": "2e26d19a8de40e5aa2e5958a2d27a147005b15527e3d1c7036119e3b85186984"
+      "sha256": "15de4bf4ea62e849f7a3a9e5ab7f511fbf22cf8c0c1fd7cf895c10bef08a5ad7"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-21-compose-validation.log",
+      "path": "docs/production-certification/evidence/raw/run2-396d365-21-compose-validation.log",
       "sizeBytes": 1413,
-      "sha256": "5ef9c7225593cf245b24220b5666df47b00ad3e7d79477d103fb93072fffa99e"
+      "sha256": "ea77cc0ef36c695f56ee940a06c638eec3cedf621f4b773dfe4402bf9a62ac94"
     },
     {
-      "path": "docs/production-certification/evidence/raw/run2-9b2b44c-23-validator-selftest.log",
-      "sizeBytes": 3175,
-      "sha256": "158e709c0dec9a91bf548d83b3b7b4ddf2af683adb2b25910580f0f55b91aa2b"
+      "path": "docs/production-certification/evidence/raw/run2-396d365-23-validator-selftest.log",
+      "sizeBytes": 4258,
+      "sha256": "47939774a64e8674ee5bb232769883431d357e785e5468341f83a91d22d918c9"
     }
   ]
 }

@@ -1,6 +1,6 @@
 # verify-db-integrity.ts negative control
-# startedAt: 2026-08-25T19:53:57.981Z
-# finishedAt: 2026-08-25T19:54:09.990Z
+# startedAt: 2026-08-27T20:44:36.989Z
+# finishedAt: 2026-08-27T20:45:00.613Z
 # cases: [
   {
     "name": "empty-database",
@@ -78,14 +78,14 @@ database integrity verification — telestar_dr_negative_fixture
 [PASS   ] Every datamodel model has a table
           68/68 declared tables present
 [PASS   ] Migration ledger is complete and fully applied
-          52/52 migrations applied successfully
+          54/54 migrations applied successfully
 [FAIL   ] No foreign key points at a missing row
-          213 single-column foreign keys checked
+          66 single-column foreign keys checked
           - Client.tenantId has 1 row(s) with no matching Tenant.id (Client_tenantId_fkey)
 [PASS   ] No tenant-owned row has a null tenantId
-          66 tenant-owned tables checked
+          67 tenant-owned tables checked
 [SKIPPED] Row-level security configuration
-          0/66 tenant-owned tables have RLS enabled - pass --require-rls to fail on this (RLS is applied from supabase/rls.sql, not by migrations)
+          0/67 tenant-owned tables have RLS enabled - pass --require-rls to fail on this (RLS is applied from supabase/rls.sql, not by migrations)
 [SKIPPED] Representative record counts
           no --expect-counts snapshot supplied; counts recorded but not reconciled
 ------------------------------------------------------------------------
@@ -136,13 +136,13 @@ database integrity verification — telestar_dr_negative_fixture
           67/68 declared tables present
           - missing table "Activity"
 [PASS   ] Migration ledger is complete and fully applied
-          52/52 migrations applied successfully
+          54/54 migrations applied successfully
 [PASS   ] No foreign key points at a missing row
-          208 single-column foreign keys checked
+          65 single-column foreign keys checked
 [PASS   ] No tenant-owned row has a null tenantId
-          65 tenant-owned tables checked
+          66 tenant-owned tables checked
 [SKIPPED] Row-level security configuration
-          0/65 tenant-owned tables have RLS enabled - pass --require-rls to fail on this (RLS is applied from supabase/rls.sql, not by migrations)
+          0/66 tenant-owned tables have RLS enabled - pass --require-rls to fail on this (RLS is applied from supabase/rls.sql, not by migrations)
 [SKIPPED] Representative record counts
           no --expect-counts snapshot supplied; counts recorded but not reconciled
 ------------------------------------------------------------------------
