@@ -294,9 +294,40 @@ export async function enrichPoolItem(params: {
 
 // ─── Qualify / duplicate ─────────────────────────────────────────────────────
 
+/**
+ * Qualification verdicts a reviewer can record, matching `LeadQualificationStatus` minus
+ * `unreviewed` — which is the starting state, not a verdict anyone applies.
+ *
+ * `duplicate` was missing from this union and from the route's schema, while the console has
+ * always offered it and the database has always accepted it: pressing Duplicate answered
+ * 400 "Invalid qualify request".
+ */
+export type PoolQualification =
+  | 'qualified'
+  | 'disqualified'
+  | 'needs_research'
+  | 'duplicate'
+  | 'invalid_contact'
+  | 'invalid_company'
+  | 'out_of_icp';
+
+/**
+ * Where each verdict leaves the record in the working queue.
+ *
+ * A duplicate did not fail review — it is already represented elsewhere — so calling it
+ * `disqualified` would put a judgement on the prospect that nobody made. It leaves the queue
+ * as `archived` instead, which is also what keeps it out of the routing views.
+ */
+function statusForQualification(qualification: PoolQualification) {
+  if (qualification === 'qualified') return 'qualified' as const;
+  if (qualification === 'needs_research') return 'qa_pending' as const;
+  if (qualification === 'duplicate') return 'archived' as const;
+  return 'disqualified' as const;
+}
+
 export async function qualifyPoolItems(params: {
   itemIds: string[];
-  qualification: 'qualified' | 'disqualified' | 'needs_research' | 'invalid_contact' | 'invalid_company' | 'out_of_icp';
+  qualification: PoolQualification;
   reason?: string;
   qaNotes?: string;
   actor: SessionUser;
@@ -315,7 +346,7 @@ export async function qualifyPoolItems(params: {
     where: { id: { in: foundIds } },
     data: {
       qualification,
-      status: isQualified ? 'qualified' : qualification === 'needs_research' ? 'qa_pending' : 'disqualified',
+      status: statusForQualification(qualification),
       ...(isQualified
         ? { qualifiedById: actor.id, qualifiedAt: new Date(), disqualifiedReason: null }
         : {}),

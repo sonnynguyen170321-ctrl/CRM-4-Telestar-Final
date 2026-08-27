@@ -6,7 +6,17 @@ import { requireTenantId } from '@/lib/api/tenant';
 
 const qualifySchema = z.object({
   ids: z.array(z.string().min(1)).min(1).max(500),
-  qualification: z.enum(['qualified', 'disqualified', 'needs_research', 'invalid_contact', 'invalid_company', 'out_of_icp']),
+  // Mirrors `PoolQualification` in lib/leadgen/pool.ts, which mirrors the database enum.
+  // `duplicate` was absent here while the console offered it, so that button always 400'd.
+  qualification: z.enum([
+    'qualified',
+    'disqualified',
+    'needs_research',
+    'duplicate',
+    'invalid_contact',
+    'invalid_company',
+    'out_of_icp',
+  ]),
   reason: z.string().optional(),
   qaNotes: z.string().optional(),
 });
