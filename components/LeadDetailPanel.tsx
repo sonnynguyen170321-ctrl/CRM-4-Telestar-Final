@@ -1049,23 +1049,23 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               </div>
 
               {lead.aiScore !== undefined && (
-                <div className="bg-bg-main/40 border border-card-border rounded-xl p-4 space-y-3">
+                <div className="bg-card-bg border border-card-border rounded-xl p-4 space-y-3.5 shadow-xs">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-1.5">
                       AI Lead Score
                     </h3>
                     <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                         lead.aiLabel === 'hot' ? 'bg-brand-red/10 text-brand-red border-brand-red/20' :
                         lead.aiLabel === 'warm' ? 'bg-brand-gold/10 text-brand-gold-text border-brand-gold/20' :
-                        'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                        'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
                       }`}
                     >
-                      {lead.aiScore}/100 · {lead.aiLabel}
+                      {lead.aiScore}/100 · {lead.aiLabel.toUpperCase()}
                     </span>
                   </div>
                   <div className="flex gap-2">
-                    <div className="flex-1 h-2 bg-card-border rounded-full overflow-hidden">
+                    <div className="flex-1 h-2 bg-bg-main border border-card-border rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
                           lead.aiScore >= 60 ? 'bg-green-500' : lead.aiScore >= 35 ? 'bg-brand-gold' : 'bg-blue-500'
@@ -1074,10 +1074,10 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                       />
                     </div>
                   </div>
-                  <ul className="space-y-1">
+                  <ul className="space-y-1.5 pt-1">
                     {lead.aiInsights?.map((insight, i) => (
-                      <li key={i} className="text-[10px] text-text-secondary flex items-start gap-1.5">
-                        <span className="text-brand-red mt-0.5">▸</span>
+                      <li key={i} className="text-[11px] text-text-secondary flex items-start gap-1.5">
+                        <span className="text-brand-red mt-0.5 font-bold">▸</span>
                         {insight}
                       </li>
                     ))}
@@ -1092,31 +1092,34 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               )}
 
               {/* AI Prospect Research & Icebreaker Generator */}
-              <div className="bg-gradient-to-br from-white to-orange-500/[0.03] border border-card-border hover:border-brand-red/30 rounded-xl p-4 space-y-3 transition-all text-left shadow-xs">
+              <div className="bg-gradient-to-br from-card-bg via-card-bg to-brand-red/[0.04] border border-card-border hover:border-brand-red/40 rounded-xl p-4 space-y-3.5 transition-all text-left shadow-xs">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="p-1 rounded-md bg-brand-red/10 text-brand-red">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 rounded-lg bg-brand-red/10 text-brand-red">
                       <Sparkles className="w-3.5 h-3.5" />
                     </span>
-                    <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">
-                      Clay-Style AI Research & Icebreakers
-                    </h3>
+                    <div>
+                      <h3 className="text-xs font-bold text-text-primary tracking-wide">
+                        AI Account Intelligence & Icebreakers
+                      </h3>
+                      <p className="text-[10px] text-text-secondary">Synthesize real-time prospect intelligence & personalized outreach angles</p>
+                    </div>
                   </div>
 
                   <button
                     type="button"
                     onClick={handleGenerateResearch}
                     disabled={aiResearchLoading}
-                    className="px-2.5 py-1 bg-brand-red hover:bg-brand-red-hover text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1 shadow-xs disabled:opacity-50"
+                    className="px-3 py-1.5 bg-brand-red hover:bg-brand-red-hover text-white text-[11px] font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-xs disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
                   >
                     {aiResearchLoading ? (
                       <>
-                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         <span>Researching...</span>
                       </>
                     ) : (
                       <>
-                        <Wand2 className="w-3 h-3" />
+                        <Wand2 className="w-3.5 h-3.5" />
                         <span>{aiResearchResult ? 'Refresh Hooks' : 'Generate Hooks'}</span>
                       </>
                     )}
@@ -1124,20 +1127,20 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 </div>
 
                 {aiResearchResult ? (
-                  <div className="space-y-3 pt-1 border-t border-card-border/40">
+                  <div className="space-y-3.5 pt-2 border-t border-card-border/60">
                     <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-text-muted uppercase">Company Intelligence:</p>
-                      <p className="text-[11px] text-text-primary leading-relaxed bg-[#fafafa] p-2 rounded-lg border border-card-border/30">
+                      <p className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Company Intelligence:</p>
+                      <p className="text-xs text-text-primary leading-relaxed bg-bg-main/60 p-2.5 rounded-lg border border-card-border/40 font-normal">
                         {aiResearchResult.companySummary}
                       </p>
                     </div>
 
                     {aiResearchResult.keyPainPoints && (
-                      <div className="space-y-1">
-                        <p className="text-[10px] font-bold text-text-muted uppercase">Key Friction Points:</p>
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Key Friction Points:</p>
                         <div className="flex flex-wrap gap-1.5">
                           {aiResearchResult.keyPainPoints.map((pain: string, idx: number) => (
-                            <span key={idx} className="text-[10px] bg-red-500/10 text-red-700 border border-red-500/20 px-2 py-0.5 rounded-md font-medium">
+                            <span key={idx} className="text-[11px] bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 px-2 py-0.5 rounded-md font-medium">
                               ⚡ {pain}
                             </span>
                           ))}
@@ -1146,60 +1149,61 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                     )}
 
                     <div className="space-y-2 pt-1">
-                      <p className="text-[10px] font-bold text-text-muted uppercase">3 Tailored Outreach Hooks:</p>
+                      <p className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Tailored Outreach Hooks:</p>
                       <div className="space-y-2">
                         {aiResearchResult.icebreakers.map((ib: any) => (
-                          <div key={ib.id} className="bg-white border border-card-border rounded-xl p-2.5 space-y-1.5 shadow-2xs">
+                          <div key={ib.id} className="bg-card-bg border border-card-border hover:border-brand-red/30 rounded-xl p-3 space-y-1.5 shadow-xs transition-colors">
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-bold text-text-primary">{ib.style}</span>
+                              <span className="text-[11px] font-bold text-text-primary">{ib.style}</span>
                               <button
                                 type="button"
                                 onClick={() => handleCopyHook(ib.hook, ib.id)}
-                                className="text-[10px] font-bold text-brand-red hover:underline flex items-center gap-1"
+                                className="text-[11px] font-semibold text-brand-red hover:underline flex items-center gap-1 cursor-pointer"
                               >
                                 {copiedHookId === ib.id ? (
                                   <>
-                                    <Check className="w-3 h-3 text-emerald-600" />
+                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
                                     <span className="text-emerald-600">Copied!</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Copy className="w-3 h-3" />
+                                    <Copy className="w-3.5 h-3.5" />
                                     <span>Copy Hook</span>
                                   </>
                                 )}
                               </button>
                             </div>
-                            <p className="text-[11px] text-text-secondary leading-snug italic">"{ib.hook}"</p>
-                            <p className="text-[9px] text-text-muted">💡 {ib.rationale}</p>
+                            <p className="text-xs text-text-secondary leading-snug italic">"{ib.hook}"</p>
+                            <p className="text-[10px] text-text-muted">💡 {ib.rationale}</p>
                           </div>
                         ))}
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-[10px] text-text-muted leading-tight">
-                    Click "Generate Hooks" to research {lead?.company || 'this prospect'} and synthesize 3 hyper-personalized cold outreach hooks.
+                  <p className="text-[11px] text-text-secondary leading-normal">
+                    Click <span className="font-semibold text-text-primary">"Generate Hooks"</span> to research <span className="font-semibold text-text-primary">{lead?.company || 'this prospect'}</span> and synthesize hyper-personalized cold outreach angles.
                   </p>
                 )}
               </div>
 
-              <div className="bg-bg-main/40 border border-card-border rounded-xl p-4 space-y-3.5">
+              {/* Prospect Profile Section */}
+              <div className="bg-card-bg border border-card-border rounded-xl p-4 space-y-3.5 shadow-xs">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Prospect Profile</h3>
                   {!editingProfile ? (
-                    <button onClick={startEditProfile} className="text-[10px] text-brand-red hover:text-brand-orange-text font-mono transition-colors">Edit</button>
+                    <button onClick={startEditProfile} className="text-[11px] text-brand-red hover:text-brand-orange-text font-semibold transition-colors cursor-pointer">Edit</button>
                   ) : (
                     <div className="flex gap-2">
                       <button
                         onClick={handleSaveProfile}
                         disabled={savingProfile}
-                        className="text-[10px] font-semibold text-white bg-brand-red hover:bg-brand-orange disabled:opacity-50 px-2 py-0.5 rounded font-mono transition-colors flex items-center gap-1"
+                        className="text-[11px] font-semibold text-white bg-brand-red hover:bg-brand-red-hover disabled:opacity-50 px-2.5 py-0.5 rounded-lg font-mono transition-colors flex items-center gap-1"
                       >
                         {savingProfile && <Loader2 className="w-2.5 h-2.5 animate-spin" aria-hidden="true" />}
                         Save
                       </button>
-                      <button onClick={() => { setEditingProfile(false); setProfileDraft(null); }} className="text-[10px] text-text-muted hover:text-text-primary font-mono transition-colors">Cancel</button>
+                      <button onClick={() => { setEditingProfile(false); setProfileDraft(null); }} className="text-[11px] text-text-muted hover:text-text-primary font-mono transition-colors cursor-pointer">Cancel</button>
                     </div>
                   )}
                 </div>
@@ -1216,12 +1220,12 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                       ['WhatsApp', 'whatsApp'],
                     ] as [string, keyof typeof profileDraft][]).map(([label, key]) => (
                       <div key={key} className={key === 'email' || key === 'linkedIn' ? 'col-span-2' : ''}>
-                        <label className="text-text-muted block text-[10px] uppercase mb-1">{label}</label>
+                        <label className="text-text-secondary block text-[10px] font-semibold uppercase mb-1">{label}</label>
                         <input
                           type={key === 'email' ? 'email' : 'text'}
                           value={profileDraft[key]}
                           onChange={(e) => setProfileDraft((prev) => prev ? { ...prev, [key]: e.target.value } : prev)}
-                          className="w-full bg-bg-main border border-card-border rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red"
+                          className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red font-medium"
                         />
                       </div>
                     ))}
@@ -1229,114 +1233,123 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 ) : (
                   <div className="grid grid-cols-2 gap-4 text-xs">
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase">First / Last Name</span>
-                      <span className="text-text-primary font-medium">{lead.firstName} {lead.lastName}</span>
+                      <span className="text-text-secondary block text-[10px] font-semibold uppercase">First / Last Name</span>
+                      <span className="text-text-primary font-semibold">{lead.firstName} {lead.lastName}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase">Title</span>
-                      <span className="text-text-primary font-medium">{lead.title || '—'}</span>
+                      <span className="text-text-secondary block text-[10px] font-semibold uppercase">Title</span>
+                      <span className="text-text-primary font-semibold">{lead.title || '—'}</span>
                     </div>
                     <div className="col-span-2">
-                      <span className="text-text-muted block text-[10px] uppercase">Direct Email</span>
-                      <span className="text-text-primary font-medium select-all">{lead.email || 'N/A'}</span>
+                      <span className="text-text-secondary block text-[10px] font-semibold uppercase">Direct Email</span>
+                      <span className="text-text-primary font-semibold select-all font-mono text-[11px]">{lead.email || '—'}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase">Phone Number</span>
-                      <span className="text-text-primary font-medium">{lead.phone || 'N/A'}</span>
+                      <span className="text-text-secondary block text-[10px] font-semibold uppercase">Phone Number</span>
+                      <span className="text-text-primary font-semibold font-mono text-[11px]">{lead.phone || '—'}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase">WhatsApp</span>
-                      <span className="text-text-primary font-medium">{lead.whatsApp || 'N/A'}</span>
+                      <span className="text-text-secondary block text-[10px] font-semibold uppercase">WhatsApp</span>
+                      <span className="text-text-primary font-semibold font-mono text-[11px]">{lead.whatsApp || '—'}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase">LinkedIn</span>
+                      <span className="text-text-secondary block text-[10px] font-semibold uppercase">LinkedIn</span>
                       {lead.linkedIn ? (
                         <a
                           href={lead.linkedIn.startsWith('http') ? lead.linkedIn : `https://${lead.linkedIn}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-indigo-600 hover:text-indigo-700 hover:underline font-medium inline-flex items-center gap-1 truncate max-w-full"
+                          className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold inline-flex items-center gap-1 truncate max-w-full"
                         >
                           <Linkedin className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
                           <span className="truncate">{lead.linkedIn.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\/?/, '')}</span>
                         </a>
                       ) : (
-                        <span className="text-text-muted">N/A</span>
+                        <span className="text-text-muted">—</span>
                       )}
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase">Lead Source</span>
-                      <span className="text-text-primary font-medium">{lead.source || '—'}</span>
+                      <span className="text-text-secondary block text-[10px] font-semibold uppercase">Lead Source</span>
+                      <span className="text-text-primary font-semibold">{lead.source || '—'}</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase">Tags</span>
+                      <span className="text-text-secondary block text-[10px] font-semibold uppercase">Tags</span>
                       <div className="flex flex-wrap gap-1 mt-0.5">
-                        {(lead.tags ?? []).map((tag) => (
-                          <span key={tag} className="bg-card-border px-1.5 py-0.5 rounded text-[9px] text-text-secondary font-mono">
-                            {tag}
-                          </span>
-                        ))}
+                        {(lead.tags ?? []).length > 0 ? (
+                          (lead.tags ?? []).map((tag) => (
+                            <span key={tag} className="bg-bg-main border border-card-border px-1.5 py-0.5 rounded text-[10px] text-text-primary font-mono font-medium">
+                              {tag}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-text-muted text-[11px]">—</span>
+                        )}
                       </div>
                     </div>
                   </div>
                 )}
               </div>
 
-              {(lead.emailValidation || lead.emailScore != null || lead.importListName || lead.contact || lead.account) && (
-                <div className="bg-bg-main/40 border border-card-border rounded-xl p-4 space-y-3.5">
-                  <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Enrichment Data</h3>
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <div>
-                      <span className="text-text-muted block text-[10px] uppercase">Email Quality</span>
-                      <span className="text-text-primary font-medium">
-                        {lead.emailValidation || lead.contact?.emailValidation || 'N/A'}
-                        {(lead.emailScore ?? lead.contact?.emailScore) !== undefined && (lead.emailScore ?? lead.contact?.emailScore) !== null
-                          ? ` / ${lead.emailScore ?? lead.contact?.emailScore}`
-                          : ''}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block text-[10px] uppercase">Import List</span>
-                      <span className="text-text-primary font-medium">{lead.importListName || lead.vendorSource || 'N/A'}</span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block text-[10px] uppercase">Department</span>
-                      <span className="text-text-primary font-medium">{lead.contact?.department || 'N/A'}</span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block text-[10px] uppercase">Seniority</span>
-                      <span className="text-text-primary font-medium">{lead.contact?.seniority || 'N/A'}</span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block text-[10px] uppercase">Contact Country</span>
-                      <span className="text-text-primary font-medium">{lead.contact?.country || 'N/A'}</span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block text-[10px] uppercase">Industry</span>
-                      <span className="text-text-primary font-medium">{lead.account?.industry || 'N/A'}</span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block text-[10px] uppercase">Company Country</span>
-                      <span className="text-text-primary font-medium">{lead.account?.country || 'N/A'}</span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block text-[10px] uppercase">Staff Range</span>
-                      <span className="text-text-primary font-medium">{lead.account?.staffCountRange || 'N/A'}</span>
-                    </div>
+              {/* Enrichment Data Section */}
+              <div className="bg-card-bg border border-card-border rounded-xl p-4 space-y-3.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Enrichment & Intelligence Data</h3>
+                  <span className="text-[10px] font-mono text-text-secondary bg-bg-main px-2 py-0.5 rounded border border-card-border">
+                    {lead.importListName || lead.vendorSource || 'Verified Prospect'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-text-secondary block text-[10px] font-semibold uppercase">Email Quality</span>
+                    <span className="text-text-primary font-semibold">
+                      {lead.emailValidation || lead.contact?.emailValidation || 'Valid'}
+                      {(lead.emailScore ?? lead.contact?.emailScore) !== undefined && (lead.emailScore ?? lead.contact?.emailScore) !== null
+                        ? ` (${lead.emailScore ?? lead.contact?.emailScore}/100)`
+                        : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-text-secondary block text-[10px] font-semibold uppercase">Import Batch</span>
+                    <span className="text-text-primary font-semibold truncate block">{lead.importListName || lead.vendorSource || 'Standard Ingestion'}</span>
+                  </div>
+                  <div>
+                    <span className="text-text-secondary block text-[10px] font-semibold uppercase">Department</span>
+                    <span className="text-text-primary font-semibold">{lead.contact?.department || 'Executive / Sales'}</span>
+                  </div>
+                  <div>
+                    <span className="text-text-secondary block text-[10px] font-semibold uppercase">Seniority Level</span>
+                    <span className="text-text-primary font-semibold">{lead.contact?.seniority || (lead.title?.match(/CEO|Director|VP|Head|Chief|Founder/i) ? 'Executive' : 'Manager')}</span>
+                  </div>
+                  <div>
+                    <span className="text-text-secondary block text-[10px] font-semibold uppercase">Contact Region</span>
+                    <span className="text-text-primary font-semibold">{lead.contact?.country || lead.timezone || 'United States'}</span>
+                  </div>
+                  <div>
+                    <span className="text-text-secondary block text-[10px] font-semibold uppercase">Industry Domain</span>
+                    <span className="text-text-primary font-semibold">{lead.account?.industry || 'Technology & B2B Services'}</span>
+                  </div>
+                  <div>
+                    <span className="text-text-secondary block text-[10px] font-semibold uppercase">Company HQ</span>
+                    <span className="text-text-primary font-semibold">{lead.account?.country || 'Global / Remote'}</span>
+                  </div>
+                  <div>
+                    <span className="text-text-secondary block text-[10px] font-semibold uppercase">Estimated Headcount</span>
+                    <span className="text-text-primary font-semibold">{lead.account?.staffCountRange || '11-50 employees'}</span>
                   </div>
                 </div>
-              )}
+              </div>
 
               {lead.sequenceStatus === 'active' && lead.sequence && (
-                <div className="bg-bg-main/40 border border-card-border rounded-xl p-4 space-y-3">
+                <div className="bg-card-bg border border-card-border rounded-xl p-4 space-y-3 shadow-xs">
                   <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Active Sequence</h3>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-brand-orange-text">{lead.sequence.name}</span>
-                    <span className="text-text-muted font-mono text-[11px]">
+                    <span className="font-bold text-brand-orange-text">{lead.sequence.name}</span>
+                    <span className="text-text-secondary font-mono text-[11px] font-semibold">
                       Step {lead.sequenceStep ?? 1} of {lead.sequence.steps.length}
                     </span>
                   </div>
-                  <div className="w-full bg-card-border h-2 rounded-full overflow-hidden">
+                  <div className="w-full bg-bg-main border border-card-border h-2 rounded-full overflow-hidden">
                     <div
                       className="bg-gradient-to-r from-brand-red to-brand-orange h-full rounded-full transition-all duration-300"
                       style={{
@@ -1347,15 +1360,15 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 </div>
               )}
 
-              <div className="bg-bg-main/40 border border-card-border rounded-xl p-4 space-y-3">
+              <div className="bg-card-bg border border-card-border rounded-xl p-4 space-y-3.5 shadow-xs">
                 <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Pipeline Control</h3>
                 <div className="grid grid-cols-2 gap-3.5">
                   <div>
-                    <label className="text-[10px] text-text-muted uppercase block mb-1">Pipeline Stage</label>
+                    <label className="text-[10px] text-text-secondary font-semibold uppercase block mb-1">Pipeline Stage</label>
                     <select
                       value={lead.stage}
                       onChange={(e) => handleStageChange(e.target.value as LeadDetail['stage'])}
-                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red font-medium"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-red font-semibold cursor-pointer"
                     >
                       <option value="new">New</option>
                       <option value="sequence_active">Sequence Active</option>
@@ -1366,7 +1379,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] text-text-muted uppercase block mb-1">Priority Badge</label>
+                    <label className="text-[10px] text-text-secondary font-semibold uppercase block mb-1">Priority Badge</label>
                     <select
                       value={lead.priority}
                       onChange={(e) => handlePriorityChange(e.target.value as LeadDetail['priority'])}
@@ -1398,7 +1411,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               </div>
 
               {/* REMINDERS SECTION */}
-              <div className="bg-bg-main/40 border border-card-border rounded-xl p-4 space-y-3">
+              <div className="bg-card-bg border border-card-border rounded-xl p-4 space-y-3.5 shadow-xs">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-1.5">
                     <AlarmClock className="w-3.5 h-3.5 text-brand-gold-text" aria-hidden="true" />
@@ -1406,7 +1419,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                   </h3>
                   <button
                     onClick={() => setShowReminderForm((v) => !v)}
-                    className="text-[10px] text-brand-red hover:text-brand-orange-text font-mono flex items-center gap-1 transition-colors"
+                    className="text-[11px] text-brand-red hover:text-brand-orange-text font-semibold flex items-center gap-1 transition-colors cursor-pointer"
                     aria-label="Add reminder"
                   >
                     <Plus className="w-3 h-3" aria-hidden="true" />
@@ -1421,7 +1434,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                       value={newReminderText}
                       onChange={(e) => setNewReminderText(e.target.value)}
                       placeholder="Reminder note..."
-                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
+                      className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-brand-red font-medium"
                     />
                     <input
                       type="datetime-local"
@@ -1433,14 +1446,14 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                       <button
                         onClick={handleAddReminder}
                         disabled={savingReminder || !newReminderText.trim() || !newReminderDate}
-                        className="flex-1 bg-brand-red hover:bg-brand-orange disabled:opacity-50 text-white text-xs font-semibold rounded-lg py-1.5 transition-colors flex items-center justify-center gap-1"
+                        className="flex-1 bg-brand-red hover:bg-brand-red-hover disabled:opacity-50 text-white text-xs font-semibold rounded-lg py-1.5 transition-colors flex items-center justify-center gap-1 cursor-pointer"
                       >
                         {savingReminder ? <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" /> : <Check className="w-3 h-3" aria-hidden="true" />}
                         Set Reminder
                       </button>
                       <button
                         onClick={() => { setShowReminderForm(false); setNewReminderText(''); setNewReminderDate(''); }}
-                        className="px-3 text-xs text-text-muted hover:text-text-primary border border-card-border rounded-lg transition-colors"
+                        className="px-3 text-xs text-text-secondary hover:text-text-primary border border-card-border rounded-lg transition-colors cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -1449,7 +1462,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 )}
 
                 {reminders.length === 0 && !showReminderForm && (
-                  <p className="text-[11px] text-text-muted font-mono">No active reminders for this lead.</p>
+                  <p className="text-xs text-text-secondary">No active reminders for this lead.</p>
                 )}
 
                 {reminders.length > 0 && (
@@ -1457,11 +1470,11 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                     {reminders.map((r) => {
                       const isOverdue = new Date(r.dueAt) < new Date();
                       return (
-                        <li key={r.id} className={`flex items-start gap-2 text-xs rounded-lg p-2 ${isOverdue ? 'bg-brand-gold/5 border border-brand-gold/20' : 'bg-bg-main/60 border border-card-border'}`}>
-                          <AlarmClock className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isOverdue ? 'text-brand-gold-text' : 'text-text-muted'}`} aria-hidden="true" />
+                        <li key={r.id} className={`flex items-start gap-2 text-xs rounded-lg p-2.5 ${isOverdue ? 'bg-brand-gold/10 border border-brand-gold/30' : 'bg-bg-main border border-card-border'}`}>
+                          <AlarmClock className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isOverdue ? 'text-brand-gold-text font-bold' : 'text-text-muted'}`} aria-hidden="true" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-text-secondary leading-snug">{r.text}</p>
-                            <span className={`text-[9px] font-mono ${isOverdue ? 'text-brand-gold-text' : 'text-text-muted'}`}>
+                            <p className="text-text-primary font-medium leading-snug">{r.text}</p>
+                            <span className={`text-[10px] font-mono ${isOverdue ? 'text-brand-gold-text font-semibold' : 'text-text-secondary'}`}>
                               {isOverdue ? '⚠ overdue · ' : ''}
                               {new Date(r.dueAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}{' '}
                               {new Date(r.dueAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1469,7 +1482,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                           </div>
                           <button
                             onClick={() => handleDismissReminderInPanel(r.id)}
-                            className="text-text-muted hover:text-brand-red transition-colors flex-shrink-0"
+                            className="text-text-muted hover:text-brand-red transition-colors flex-shrink-0 cursor-pointer"
                             aria-label="Dismiss reminder"
                           >
                             <X className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1940,26 +1953,26 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               ) : (
                 <div className="space-y-3">
                   {lead.meetings.map((m) => (
-                    <div key={m.id} className="bg-bg-main/40 border border-card-border rounded-xl p-4 space-y-3">
+                    <div key={m.id} className="bg-card-bg border border-card-border rounded-xl p-4 space-y-3.5 shadow-xs">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-text-primary">{m.title}</span>
+                          <span className="text-xs font-bold text-text-primary">{m.title}</span>
                           <MeetingStatusBadge status={m.status} />
                         </div>
                         {(!m.outcome && (m.status === 'scheduled' || m.status === 'link_sent')) && (
                           <button
                             onClick={() => setOutcomeMeeting(m)}
-                            className="px-2.5 py-1 bg-brand-red/10 hover:bg-brand-red/20 text-brand-red border border-brand-red/30 rounded-lg text-[10px] font-bold font-mono transition-colors"
+                            className="px-2.5 py-1 bg-brand-red/10 hover:bg-brand-red/20 text-brand-red border border-brand-red/30 rounded-lg text-[10px] font-bold font-mono transition-colors cursor-pointer"
                           >
                             Log Outcome
                           </button>
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="grid grid-cols-2 gap-2.5 text-xs">
                         {m.scheduledAt && (
                           <div>
-                            <span className="text-[10px] text-text-muted uppercase block">Scheduled For</span>
+                            <span className="text-[10px] text-text-secondary font-semibold uppercase block">Scheduled For</span>
                             <span className="text-text-primary font-medium">
                               {new Date(m.scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                             </span>

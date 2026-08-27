@@ -99,12 +99,12 @@ const LeadCard = memo(function LeadCard({ lead, onOpen, onDragStart, onDragEnd }
     >
       {/* Row 1: name + at-risk badge */}
       <div className="flex items-start justify-between gap-1">
-        <p className="font-display font-bold text-[13px] text-text-primary leading-snug">
+        <p className="font-display font-bold text-xs text-text-primary leading-snug">
           {lead.firstName} {lead.lastName}
         </p>
         {atRisk && (
           <span
-            className="flex-shrink-0 text-[10px] font-bold font-mono bg-amber-500/10 border border-amber-500/30 text-amber-500 px-1 py-0.5 rounded"
+            className="flex-shrink-0 text-[10px] font-bold font-mono bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 px-1 py-0.5 rounded"
             title={`Sequence task overdue ${Math.max(daysOverdue, 3)} days`}
           >
             ⚠ {Math.max(daysOverdue, 3)}d
@@ -113,9 +113,9 @@ const LeadCard = memo(function LeadCard({ lead, onOpen, onDragStart, onDragEnd }
       </div>
 
       {/* Row 2: company · title */}
-      <p className="text-[11px] text-text-muted truncate leading-tight">
+      <p className="text-xs text-text-secondary truncate leading-tight font-medium">
         {lead.company}
-        {lead.title ? <span className="text-text-muted/60"> · {lead.title}</span> : null}
+        {lead.title ? <span className="text-text-muted"> · {lead.title}</span> : null}
       </p>
 
       {/* Row 3: next task channel + last contacted */}
@@ -125,7 +125,7 @@ const LeadCard = memo(function LeadCard({ lead, onOpen, onDragStart, onDragEnd }
             <span className={`text-[11px] font-semibold font-mono ${channelColor}`}>{channelIcon}</span>
           )}
           {lead.lastContactedAt && (
-            <span className="text-[10px] text-text-muted font-mono">
+            <span className="text-[10px] text-text-secondary font-mono">
               {formatRelativeTime(lead.lastContactedAt)}
             </span>
           )}
@@ -133,10 +133,10 @@ const LeadCard = memo(function LeadCard({ lead, onOpen, onDragStart, onDragEnd }
       )}
 
       {/* Row 4: priority dot + quick-action links + SDR avatar */}
-      <div className="flex items-center justify-between pt-1.5 border-t border-card-border/30 mt-0.5">
+      <div className="flex items-center justify-between pt-1.5 border-t border-card-border/40 mt-0.5">
         <div className="flex items-center gap-1.5">
           <span className={`stage-dot ${priorityDotColor}`} title={lead.priority} aria-label={`Priority: ${lead.priority}`} />
-          <span className="text-[10px] text-text-muted font-medium capitalize">{lead.priority}</span>
+          <span className="text-[10px] text-text-secondary font-semibold capitalize">{lead.priority}</span>
         </div>
         <div className="flex items-center gap-1.5">
           {/* Quick actions — visible on hover */}
@@ -420,7 +420,7 @@ export default function LeadsPage() {
 
   const handleBatchAiEnrich = useCallback(() => {
     if (selectedLeads.size === 0) return;
-    showToast(`🤖 Initiated Clay-style AI intelligence dossier for ${selectedLeads.size} prospects`, 'success');
+    showToast(`🤖 Initiated AI intelligence dossier for ${selectedLeads.size} prospects`, 'success');
   }, [selectedLeads, showToast]);
 
   // Render helper, not a component — defining components during render trips
@@ -569,7 +569,7 @@ export default function LeadsPage() {
         <div className="flex flex-row flex-wrap items-center gap-3">
           {/* Search */}
           <div className="relative max-w-xs flex-shrink-0">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-text-muted">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-text-muted dark:text-zinc-400">
               <Search className="w-3.5 h-3.5" />
             </span>
             <input
@@ -577,7 +577,7 @@ export default function LeadsPage() {
               placeholder="Search full name, email, company, phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-1.5 text-xs bg-bg-main border border-card-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red"
+              className="w-full pl-9 pr-4 py-1.5 text-xs bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-text-primary placeholder:text-text-muted dark:placeholder:text-zinc-500 shadow-2xs focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red font-medium transition-all"
             />
           </div>
 
@@ -585,7 +585,7 @@ export default function LeadsPage() {
           <select
             value={stageFilter}
             onChange={(e) => setStageFilter(e.target.value)}
-            className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+            className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2.5 py-1.5 text-text-primary shadow-2xs focus:outline-none focus:border-brand-red cursor-pointer font-medium"
           >
             <option value="all">All Stages</option>
             <option value="new">New</option>
@@ -599,13 +599,42 @@ export default function LeadsPage() {
           <select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
-            className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+            className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2.5 py-1.5 text-text-primary shadow-2xs focus:outline-none focus:border-brand-red cursor-pointer font-medium"
           >
-            <option value="all">All Priorities</option>
+            <option value="all">All Priority</option>
             <option value="hot">🔥 Hot</option>
             <option value="warm">⚡ Warm</option>
             <option value="cold">❄️ Cold</option>
           </select>
+
+          {/* Campaign & SDR filters */}
+          <select
+            value={campaignFilter}
+            onChange={(e) => setCampaignFilter(e.target.value)}
+            className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2.5 py-1.5 text-text-primary shadow-2xs focus:outline-none focus:border-brand-red cursor-pointer font-medium"
+          >
+            <option value="all">All Campaigns</option>
+            {campaigns.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+
+          {users.length > 0 && (
+            <select
+              value={sdrFilter}
+              onChange={(e) => setSdrFilter(e.target.value)}
+              className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2.5 py-1.5 text-text-primary shadow-2xs focus:outline-none focus:border-brand-red cursor-pointer font-medium"
+            >
+              <option value="all">All SDRs</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.firstName} {u.lastName}
+                </option>
+              ))}
+            </select>
+          )}
 
           {/* + Filters toggle */}
           <button
@@ -657,12 +686,12 @@ export default function LeadsPage() {
 
         {/* Extra filters row */}
         {showExtraFilters && (
-          <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-card-border">
+          <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-card-border/80">
             {currentRole !== 'sdr' && sdrUsers.length > 0 && (
               <select
                 value={sdrFilter}
                 onChange={(e) => setSdrFilter(e.target.value)}
-                className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+                className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2.5 py-1.5 text-text-primary shadow-2xs focus:outline-none focus:border-brand-red cursor-pointer font-medium"
               >
                 <option value="all">All Reps</option>
                 {sdrUsers.map((u) => (
@@ -675,19 +704,19 @@ export default function LeadsPage() {
               placeholder="Source…"
               value={sourceFilter}
               onChange={(e) => setSourceFilter(e.target.value)}
-              className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-28"
+              className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder:text-text-muted dark:placeholder:text-zinc-500 shadow-2xs focus:outline-none focus:border-brand-red font-medium w-28"
             />
             <input
               type="text"
               placeholder="Import list..."
               value={importListFilter}
               onChange={(e) => setImportListFilter(e.target.value)}
-              className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-32"
+              className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder:text-text-muted dark:placeholder:text-zinc-500 shadow-2xs focus:outline-none focus:border-brand-red font-medium w-32"
             />
             <select
               value={emailValidationFilter}
               onChange={(e) => setEmailValidationFilter(e.target.value)}
-              className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red cursor-pointer"
+              className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2.5 py-1.5 text-text-primary shadow-2xs focus:outline-none focus:border-brand-red cursor-pointer font-medium"
             >
               <option value="all">All Email Quality</option>
               <option value="deliverable">Deliverable</option>
@@ -700,35 +729,35 @@ export default function LeadsPage() {
               placeholder="Country..."
               value={countryFilter}
               onChange={(e) => setCountryFilter(e.target.value)}
-              className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-28"
+              className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder:text-text-muted dark:placeholder:text-zinc-500 shadow-2xs focus:outline-none focus:border-brand-red font-medium w-28"
             />
             <input
               type="text"
               placeholder="Industry..."
               value={industryFilter}
               onChange={(e) => setIndustryFilter(e.target.value)}
-              className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-28"
+              className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder:text-text-muted dark:placeholder:text-zinc-500 shadow-2xs focus:outline-none focus:border-brand-red font-medium w-28"
             />
             <input
               type="text"
               placeholder="Tag…"
               value={tagFilter}
               onChange={(e) => setTagFilter(e.target.value)}
-              className="bg-bg-main border border-card-border rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-red w-28"
+              className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2.5 py-1.5 text-text-primary placeholder:text-text-muted dark:placeholder:text-zinc-500 shadow-2xs focus:outline-none focus:border-brand-red font-medium w-28"
             />
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
               title="Created from"
-              className="bg-bg-main border border-card-border rounded-lg text-xs px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono w-32"
+              className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2 py-1.5 text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-mono w-32"
             />
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
               title="Created to"
-              className="bg-bg-main border border-card-border rounded-lg text-xs px-2 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-mono w-32"
+              className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2 py-1.5 text-text-primary shadow-2xs focus:outline-none focus:border-brand-red font-mono w-32"
             />
           </div>
         )}
