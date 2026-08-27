@@ -20,21 +20,35 @@
  *
  *   node scripts/certification/verify-release-identity.mjs \
  *     --image sha256:… [--ci-run <id>] [--url <health url>] \
- *     [--web sha256:…] [--worker sha256:…]
+ *     [--via "<command that runs a shell on the deployment host>"]
  *
- * WHAT IT CANNOT SEE. Whether the running web and worker containers were started from
- * that digest is a question only the deployment host can answer, and this workstation has
- * no access to it. Those two fields are recorded as observed only when the caller supplies
- * them AND says where they came from; otherwise they are left null and the chain is
- * incomplete, which is the truth. A chain that reports itself complete on four links out
- * of six is the failure this replaces.
+ * THE FIFTH AND SIXTH LINKS. Whether the running web and worker containers were started
+ * from that digest is a question only the deployment host can answer. It used to be
+ * unanswerable here, so those fields were null and the chain was honestly incomplete.
+ *
+ * `--via` closes that by *observing* rather than accepting. It takes a command prefix that
+ * opens a shell on the host — on this project, ssh through an IAP tunnel, because port 22
+ * is reachable only from 35.235.240.0/20:
+ *
+ *   --via "ssh -i ~/.ssh/google_compute_engine -p 2223 -o BatchMode=yes user@localhost"
+ *
+ * The tool appends its own `docker inspect` to that prefix, writes the raw answer to an
+ * artifact before judging it, and records the transport it used. What it will not do is
+ * take a digest typed on the command line: `record-release-identity.mjs` already did that,
+ * and shape-checking what an operator typed is how EV-RELEASE-IDENTITY came to claim a
+ * digest that appeared nowhere else in the evidence tree. Without `--via`, or when the
+ * probe fails, the two fields stay null and the chain stays incomplete — which is the
+ * truth. A chain that reports itself complete on four links out of six is what this
+ * replaces.
  */
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { CONFIG_PATH, EVIDENCE_DIR, RAW_DIR, repoRelative } from './lib/paths.mjs';
+import { parseHostProbe } from './lib/repoDigest.mjs';
 import { mayWriteEvidence } from './lib/evidenceGuard.mjs';
 
 const SHA_RE = /^[0-9a-f]{40}$/;
@@ -67,6 +81,52 @@ function run(command, args) {
   }
 }
 
+/**
+ * The command sent to the deployment host.
+ *
+ * It resolves each container's image id, then asks the image store for that image's
+ * RepoDigests and its `org.opencontainers.image.revision` label. RepoDigests is the
+ * registry digest — the thing that ties a running container back to a published artifact.
+ * The container's own `.Image` field is a local image id and is printed too, because when
+ * the two differ that difference is itself worth seeing rather than silently normalising.
+ */
+function hostProbeScript(webContainer, workerContainer) {
+  // One line, joined with spaces: the whole script travels as a single argument to a remote
+  // shell, so every statement carries its own terminator rather than relying on newlines.
+  return [
+    'set -e;',
+    `for pair in "web ${webContainer}" "worker ${workerContainer}"; do`,
+    '  role=${pair%% *}; name=${pair#* };',
+    '  img=$(docker inspect "$name" --format "{{.Image}}");',
+    '  digests=$(docker image inspect "$img" --format "{{json .RepoDigests}}");',
+    '  rev=$(docker image inspect "$img" --format "{{index .Config.Labels \\"org.opencontainers.image.revision\\"}}");',
+    '  echo "$role imageId=$img repoDigests=$digests revision=$rev";',
+    'done',
+  ].join(' ');
+}
+
+
+/**
+ * Observes the two container digests on the deployment host.
+ *
+ * Returns the raw transcript whatever happens, so a failed probe is as inspectable as a
+ * successful one. A probe that cannot run yields nulls; it never guesses.
+ */
+function probeDeploymentHost(via, webContainer, workerContainer) {
+  const remote = hostProbeScript(webContainer, workerContainer);
+  const composed = `${via} ${JSON.stringify(remote)}`;
+  let out;
+  let ok = true;
+  try {
+    out = execSync(composed, { encoding: 'utf8', timeout: 180_000, stdio: ['pipe', 'pipe', 'pipe'] });
+  } catch (error) {
+    ok = false;
+    out = String(error.stdout || '') + String(error.stderr || error.message || '');
+  }
+
+  return { ok, transcript: out, ...parseHostProbe(out, IMAGE_REPO) };
+}
+
 async function main() {
   const config = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
   const candidateSha = config.candidateSha;
@@ -89,8 +149,22 @@ async function main() {
   }
   const ciRunId = arg('ci-run');
   const url = arg('url', DEFAULT_URL);
-  const webDigest = arg('web');
-  const workerDigest = arg('worker');
+  const via = arg('via');
+  const resources = config.productionResources ?? {};
+  const webContainer = arg('web-container', resources.webContainer ?? 'crm-4-u-web-1');
+  const workerContainer = arg('worker-container', resources.workerContainer ?? 'crm-4-u-worker-1');
+
+  // A digest typed on the command line is not an observation, and accepting one is the
+  // defect this tool exists to remove. Refuse loudly rather than quietly ignoring it.
+  for (const rejected of ['web', 'worker']) {
+    if (arg(rejected) !== null) {
+      console.error(
+        `--${rejected} no longer accepts a digest. A digest supplied by the caller is not an ` +
+          'observation of the deployment. Use --via to let this tool read the host itself.',
+      );
+      process.exit(2);
+    }
+  }
 
   const startedAt = new Date().toISOString();
   const artifacts = [];
@@ -165,17 +239,53 @@ async function main() {
     problems.push(`deployment unreachable at ${url}: ${error instanceof Error ? error.message : error}`);
   }
 
-  // ── 4. the two links this machine cannot see ─────────────────────────────
-  const containerDigestsObserved = Boolean(webDigest && workerDigest);
-  if (!containerDigestsObserved) {
+  // ── 4. the two links only the deployment host can answer ─────────────────
+  let webDigest = null;
+  let workerDigest = null;
+  let hostRevisions = {};
+
+  if (!via) {
     problems.push(
-      'web and worker container digests were not observed: only the deployment host can report ' +
-        'which digest each running container was started from, and this workstation has no access to it',
+      'web and worker container digests were not observed: no --via was given, so nothing asked ' +
+        'the deployment host which digest each running container was started from',
     );
   } else {
-    for (const [label, digest] of [['web', webDigest], ['worker', workerDigest]]) {
-      if (!DIGEST_RE.test(digest)) problems.push(`--${label} is not a sha256: digest`);
-      else if (digest !== imageDigest) problems.push(`${label} digest differs from the image digest`);
+    const probe = probeDeploymentHost(via, webContainer, workerContainer);
+    artifacts.push(
+      writeArtifact(
+        `deployment-host-probe-${candidateSha.slice(0, 7)}.log`,
+        [
+          `# transport: ${via}`,
+          `# containers: ${webContainer}, ${workerContainer}`,
+          `# exit: ${probe.ok ? 'ok' : 'failed'}`,
+          '',
+          probe.transcript,
+        ].join('\n'),
+      ),
+    );
+    webDigest = probe.web;
+    workerDigest = probe.worker;
+    hostRevisions = probe.revisions;
+    if (!probe.ok) {
+      problems.push(`deployment host probe failed over ${via.split(' ')[0]}; digests not observed`);
+    }
+  }
+
+  const containerDigestsObserved = Boolean(webDigest && workerDigest);
+  if (via && !containerDigestsObserved) {
+    problems.push(
+      `the host probe returned no registry digest for ${!webDigest ? webContainer : workerContainer}: ` +
+        'a container running an image with no RepoDigests was not started from a published artifact',
+    );
+  }
+  for (const [label, digest] of [['web', webDigest], ['worker', workerDigest]]) {
+    if (!digest) continue;
+    if (digest !== imageDigest) {
+      problems.push(`${label} container runs ${digest.slice(0, 14)}…, not the candidate image digest`);
+    }
+    const revision = hostRevisions[label];
+    if (revision && revision !== candidateSha) {
+      problems.push(`${label} container's image carries revision ${revision.slice(0, 7)}, not the candidate`);
     }
   }
 
@@ -187,7 +297,9 @@ async function main() {
     kind: 'release-identity',
     candidateSha,
     environment: 'read-only observation from the certification workstation: container registry, GitHub API, live health endpoint',
-    command: `node scripts/certification/verify-release-identity.mjs --image ${imageDigest}${ciRunId ? ` --ci-run ${ciRunId}` : ''} --url ${url}`,
+    command:
+      `node scripts/certification/verify-release-identity.mjs --image ${imageDigest}` +
+      `${ciRunId ? ` --ci-run ${ciRunId}` : ''} --url ${url}${via ? ` --via ${JSON.stringify(via)}` : ''}`,
     startedAt,
     finishedAt,
     exitCode: status === 'PASS' ? 0 : 1,
@@ -200,9 +312,11 @@ async function main() {
       imageRevisionLabel: imageRevision,
       imageCreated,
       imageRevisionMatchesCandidate: imageRevision === candidateSha,
-      webDigest: containerDigestsObserved ? webDigest : null,
-      workerDigest: containerDigestsObserved ? workerDigest : null,
+      webDigest,
+      workerDigest,
       containerDigestsObserved,
+      containerDigestSource: via ? 'observed on the deployment host' : null,
+      containerImageRevisions: hostRevisions,
       healthSha,
       healthMatchesCandidate: healthSha === candidateSha,
       separateImagesIntentional: false,
@@ -230,7 +344,14 @@ async function main() {
   process.exitCode = status === 'PASS' ? 0 : 1;
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 5;
-});
+// Importing this module must not verify anything: the parser below is unit-tested, and a
+// test run that silently probed production would be a surprising thing for `vitest` to do.
+const invokedDirectly =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (invokedDirectly) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 5;
+  });
+}

@@ -1,0 +1,95 @@
+# TEL-P2-030 — the pre-deploy backup check, made to pass from the production VM
+# Instance: telestar-crm-vm (telestar-crm-final, asia-southeast1-a)
+# Service account: 589324791591-compute@developer.gserviceaccount.com
+# Reached over an IAP tunnel; port 22 is open only to 35.235.240.0/20.
+# Date: 2026-08-27. Operator authorized both the VM restart and the IAM grant.
+
+--- 0. the failure, reproduced before any change ---
+$ gcloud sql backups list --instance=telestar-db          # run ON the VM
+ERROR: (gcloud.sql.backups.list) PERMISSION_DENIED: Request had insufficient
+authentication scopes. This command is authenticated as
+589324791591-compute@developer.gserviceaccount.com
+
+--- 1. scopes before ---
+devstorage.read_only, logging.write, monitoring.write, pubsub,
+service.management.readonly, servicecontrol, trace.append
+# No sqlservice and no cloud-platform. This is the legacy default scope set.
+
+--- 2. the scope change, and why it is not cloud-platform ---
+#
+# The defect text suggests cloud-platform. It was deliberately not used. The account is
+# the DEFAULT COMPUTE service account, and cloud-platform would hand every permission it
+# holds to any process on the VM. sqlservice.admin is what the failing call needs, and
+# nothing wider was granted.
+#
+$ gcloud compute instances stop telestar-crm-vm            # 2026-08-27T16:52:28Z
+  ...done.  status: TERMINATED                             # 16:53:31Z
+$ gcloud compute instances set-service-account telestar-crm-vm \
+    --service-account=589324791591-compute@developer.gserviceaccount.com \
+    --scopes=<the seven existing scopes>,https://www.googleapis.com/auth/sqlservice.admin
+  Updated.
+$ gcloud compute instances start telestar-crm-vm           # 16:54:21Z
+
+--- 3. recovery, measured rather than assumed ---
+$ curl -s https://crm.telestar.cloud/api/health             # first HTTP 200 at 16:55:34Z
+{"ok":true,"commit":"c63673d1fb33b7fa8ed9e21b66711d28998fd53a","schema":"ready"}
+# Total interruption: 3m06s (16:52:28Z -> 16:55:34Z).
+$ docker ps
+crm-4-u-web-1     Up 4 minutes
+crm-4-u-worker-1  Up 4 minutes
+crm-4-u-caddy-1   Up 4 minutes
+crm-4-u-redis-1   Up 4 minutes (healthy)
+# All four returned on their own unless-stopped policy. Nothing was started by hand.
+
+--- 4. the scope is present on the TOKEN, not merely in the instance config ---
+# Reading the instance configuration back would only prove the request was accepted.
+# This reads the token the VM actually receives, through the OAuth tokeninfo endpoint.
+$ TOK=$(curl -s -H "Metadata-Flavor: Google" \
+    http://metadata.google.internal/.../service-accounts/default/token | jq -r .access_token)
+$ curl -s "https://oauth2.googleapis.com/tokeninfo?access_token=$TOK" | jq -r .scope
+  ... https://www.googleapis.com/auth/sqlservice.admin ...
+
+--- 5. the error CHANGED, which is what proved the scope half had landed ---
+$ gcloud sql backups list --instance=telestar-db
+ERROR: HTTPError 403: The client is not authorized to make this request.
+# No longer ACCESS_TOKEN_SCOPE_INSUFFICIENT. The scope was now present and project IAM
+# was refusing instead. Two causes, and only the first had been addressed.
+
+--- 6. the IAM grant ---
+$ gcloud projects add-iam-policy-binding telestar-crm-final \
+    --member="serviceAccount:589324791591-compute@developer.gserviceaccount.com" \
+    --role="roles/cloudsql.viewer" --condition=None
+  exit 0
+# cloudsql.viewer is read-only: it cannot create, patch, restore or delete an instance
+# or a backup. It is the narrowest role covering cloudsql.backupRuns.list/get.
+
+--- 7. the originally failing call, from the VM ---
+$ gcloud sql backups list --instance=telestar-db --limit=3
+ID             WINDOW_START_TIME              STATUS      TYPE
+1787829211329  2026-08-27T11:13:31.329+00:00  SUCCESSFUL  ON_DEMAND
+1787829099820  2026-08-27T11:11:39.820+00:00  SUCCESSFUL  ON_DEMAND
+1787828682681  2026-08-27T11:04:42.681+00:00  SUCCESSFUL  ON_DEMAND
+EXIT=0
+
+--- 8. and the function deploy.sh ACTUALLY calls, not an equivalent command ---
+#
+# This is the distinction the defect turns on. Section 7 shows a command that resembles
+# what the deploy does. Section 8 sources the real library on the real host and calls the
+# real function, because that is the thing that returned 2 on every deploy.
+#
+$ cd /opt/crm-4-u
+$ BID=$(gcloud sql backups list --instance=telestar-db --limit=1 --format="value(id)")
+$ . ./scripts/deploy-lib.sh && verify_backup_exists "$BID" telestar-db telestar-crm-final
+Backup 1787829211329 verified on telestar-db.
+VERIFY_RC=0
+
+--- 9. deployed source on the host, for the identity chain ---
+$ git -C /opt/crm-4-u rev-parse HEAD
+c63673d1fb33b7fa8ed9e21b66711d28998fd53a
+
+--- reversal path ---
+# Scope:  gcloud compute instances set-service-account --scopes=<the original seven>
+#         (requires the instance to be TERMINATED, so it costs another restart)
+# IAM:    gcloud projects remove-iam-policy-binding telestar-crm-final \
+#           --member="serviceAccount:589324791591-compute@developer.gserviceaccount.com" \
+#           --role="roles/cloudsql.viewer"

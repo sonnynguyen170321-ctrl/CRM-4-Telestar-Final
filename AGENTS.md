@@ -64,6 +64,7 @@ Short, because a long list is not memorable. Full set with sources and protectin
 - **AI never bypasses application authorization.** Suggestions are requests; domain services decide. Capability authorization is not object authorization.
 - **Releases use immutable identity** — digest or exact SHA, never `latest`.
 - **Certification verdicts are generated from evidence**, never asserted.
+- **Always verify against live and remote truth.** When switching machines or checking files, cross-check local working copy with GitHub origin and live production state to prevent drift.
 
 ## Risk policy
 
