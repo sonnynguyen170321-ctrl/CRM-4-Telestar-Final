@@ -101,6 +101,7 @@ domains:
       - scripts/preserve-referential-actions.mjs
       - scripts/verify-db-integrity.ts
       - scripts/check-relational-integrity.ts
+      - scripts/harden-db-roles.sql
       - scripts/apply-p8-migration.mjs
       - scripts/demo-seed.ts
       - prisma/seed-demo.ts
@@ -112,6 +113,7 @@ domains:
       - tests/migration-*.test.ts
       - tests/rls-policy-coverage.test.ts
       - tests/seed-guard.test.ts
+      - tests/db-role-least-privilege.test.ts
       - tests/*reference-integrity.test.ts
     gates:
       - npm run check:migration-order
