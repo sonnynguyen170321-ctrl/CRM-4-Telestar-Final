@@ -1,11 +1,11 @@
 $ node scripts/verify-rls-enablement.mjs
-Rehearsing the RLS enablement sequence in throwaway database crm_rls_enable_6c2255c3
-Admin host: localhost:5432
+Rehearsing the RLS enablement sequence in throwaway database crm_rls_enable_2e25a197
+Admin host: 127.0.0.1:5432
 
   [32mPASS[0m  the datamodel applies as crm_migrator
         DDL only, no superuser
   [32mPASS[0m  supabase/roles.sql applies cleanly
-        crm_migrator_e33a55, crm_app_e33a55, crm_maintenance_e33a55 created and granted
+        crm_migrator_a06af2, crm_app_a06af2, crm_maintenance_a06af2 created and granted
   [32mPASS[0m  all three roles exist and none is privileged
         RLS can actually apply to them
   [32mPASS[0m  supabase/rls.sql applies cleanly
@@ -23,7 +23,7 @@ Admin host: localhost:5432
   [32mPASS[0m  a table a later migration creates is readable by crm_app
         ALTER DEFAULT PRIVILEGES carries the grant forward
 
-Cleaned up crm_rls_enable_6c2255c3 and crm_migrator_e33a55, crm_app_e33a55, crm_maintenance_e33a55.
+Cleaned up crm_rls_enable_2e25a197 and crm_migrator_a06af2, crm_app_a06af2, crm_maintenance_a06af2.
 
 The documented enablement sequence produces a working, isolated system.
 

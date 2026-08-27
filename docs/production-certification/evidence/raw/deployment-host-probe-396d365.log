@@ -1,0 +1,6 @@
+# transport: ssh -i /c/Users/admin/.ssh/google_compute_engine -o BatchMode=yes -o ConnectTimeout=25 -p 2223 sonnynguyen170321@localhost
+# containers: crm-4-u-web-1, crm-4-u-worker-1
+# exit: ok
+
+web imageId=sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb repoDigests=["ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb"] revision=396d3652c619c25f8f26005127e9b7291cdaeedf
+worker imageId=sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb repoDigests=["ghcr.io/sonnynguyen170321-ctrl/crm-4-telestar-final@sha256:0b0f49774e3b64d2d77c0a682a3b2fb52ed51762596669ef4e2f21a1ffa2a9eb"] revision=396d3652c619c25f8f26005127e9b7291cdaeedf

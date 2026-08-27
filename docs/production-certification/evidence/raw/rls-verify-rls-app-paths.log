@@ -1,6 +1,6 @@
 $ node scripts/verify-rls-app-paths.mjs
-Verifying application paths under RLS in throwaway database crm_rls_apppaths_432efa07
-Admin host: localhost:5432
+Verifying application paths under RLS in throwaway database crm_rls_apppaths_7704de1b
+Admin host: 127.0.0.1:5432
 
 Application paths, as a NOSUPERUSER role with DB_RLS_ENFORCED=true:
 
@@ -31,7 +31,7 @@ Application paths, as a NOSUPERUSER role with DB_RLS_ENFORCED=true:
   [32mPASS[0m  a bypassRls model read is inert for the application role, even for its own tenant
         null — bypassRls sets app.bypass_rls, the crm_app policy reads app.current_tenant_id, and nothing sets it on that path; application routes must scope, not bypass
 
-Cleaned up crm_rls_apppaths_432efa07 and crm_rls_appuser_cf7597.
+Cleaned up crm_rls_apppaths_7704de1b and crm_rls_appuser_c4cc6d.
 
 All application paths survive DB-level RLS.
 

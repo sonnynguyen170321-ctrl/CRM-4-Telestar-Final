@@ -1,2 +1,2 @@
 $ curl -s https://crm.telestar.cloud/api/health
-{"ok":true,"ts":1787851628511,"commit":"c63673d1fb33b7fa8ed9e21b66711d28998fd53a","version":"c63673d1fb33b7fa8ed9e21b66711d28998fd53a","builtAt":"2026-08-27T11:13:40Z","schema":"ready"}
+{"ok":true,"ts":1787860223917,"commit":"396d3652c619c25f8f26005127e9b7291cdaeedf","version":"396d3652c619c25f8f26005127e9b7291cdaeedf","builtAt":"2026-08-27T19:32:32Z","schema":"ready"}

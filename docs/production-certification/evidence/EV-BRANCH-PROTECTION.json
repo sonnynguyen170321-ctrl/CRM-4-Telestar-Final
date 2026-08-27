@@ -1,11 +1,11 @@
 {
   "evidenceId": "EV-BRANCH-PROTECTION",
   "kind": "branch-governance",
-  "candidateSha": "3cd16c8eb773b627ee7f51b59c371ca67ad71075",
+  "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
   "environment": "GitHub REST API against sonnynguyen170321-ctrl/CRM-4-Telestar-Final from the certification workstation",
   "command": "node scripts/certification/record-branch-protection.mjs",
-  "startedAt": "2026-08-27T16:44:07.196Z",
-  "finishedAt": "2026-08-27T16:44:08.025Z",
+  "startedAt": "2026-08-27T19:46:36.838Z",
+  "finishedAt": "2026-08-27T19:46:37.736Z",
   "exitCode": 0,
   "status": "PASS",
   "metrics": {
@@ -30,7 +30,7 @@
     {
       "path": "docs/production-certification/evidence/raw/branch-protection-api-readout.log",
       "sizeBytes": 915,
-      "sha256": "a36dbc3ad3d60419e9a3f3327e438b836a22d822236b244530405c08f92c4a89"
+      "sha256": "d9be7eb977c545873f2cdd5e83965ae71be9ddfa3b31c215843f19d8ca6c2ed7"
     },
     {
       "path": "docs/production-certification/evidence/raw/branch-protection-behavioral-proof.log",

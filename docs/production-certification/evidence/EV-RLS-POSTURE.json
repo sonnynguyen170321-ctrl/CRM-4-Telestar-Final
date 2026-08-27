@@ -1,13 +1,13 @@
 {
   "evidenceId": "EV-RLS-POSTURE",
   "kind": "rls-posture",
-  "candidateSha": "9b2b44c9f0987139e2f48ee21b14ec36e10690a8",
+  "candidateSha": "396d3652c619c25f8f26005127e9b7291cdaeedf",
   "environment": "certification workstation, local PostgreSQL 16; each script builds and drops its own throwaway database and roles",
   "command": "node scripts/verify-rls.mjs; node scripts/verify-rls-app-paths.mjs; node scripts/verify-rls-enablement.mjs; node scripts/verify-rls-live.mjs",
-  "startedAt": "2026-08-26T05:47:40.636Z",
-  "finishedAt": "2026-08-26T05:48:07.234Z",
+  "startedAt": "2026-08-27T19:49:01.986Z",
+  "finishedAt": "2026-08-27T19:49:32.398Z",
   "exitCode": 1,
-  "status": "BLOCKED_EXTERNAL",
+  "status": "FAIL",
   "metrics": {
     "productionPosture": "APPLICATION_ONLY",
     "dbRlsEnforcedInProduction": false,
@@ -16,53 +16,51 @@
       "verify-rls": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 8170,
+        "durationMs": 9338,
         "description": "policies keep tenant A out of tenant B, and fail closed with no tenant context"
       },
       "verify-rls-app-paths": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 8934,
+        "durationMs": 10715,
         "description": "every application path survives enforcement"
       },
       "verify-rls-enablement": {
         "status": "PASS",
         "exitCode": 0,
-        "durationMs": 9308,
+        "durationMs": 9214,
         "description": "the documented roles.sql sequence produces a working isolated system"
       },
       "verify-rls-live": {
-        "status": "NOT_RUN",
-        "exitCode": 2,
-        "durationMs": 177,
+        "status": "FAIL",
+        "exitCode": 1,
+        "durationMs": 1137,
         "description": "an unprivileged role against a populated database"
       }
     },
     "scriptsRun": 4,
-    "scriptsNotRun": [
-      "verify-rls-live"
-    ]
+    "scriptsNotRun": []
   },
   "artifacts": [
     {
       "path": "docs/production-certification/evidence/raw/rls-verify-rls.log",
-      "sizeBytes": 1299,
-      "sha256": "2f12d2b1be20057d7cd519e5bf80e8700705acf8bbfab3ae00a19a7952baf2a7"
+      "sizeBytes": 1671,
+      "sha256": "14ce77edc1986a4ceb8d6967ea4922d58e50512d965f57ccdb3449f8dc06c533"
     },
     {
       "path": "docs/production-certification/evidence/raw/rls-verify-rls-app-paths.log",
       "sizeBytes": 2212,
-      "sha256": "0032c2a287167f348babe1d14b288c37b1a4be326f4ded3eddac2fcf1f0d8f8a"
+      "sha256": "5cbd378e7cd92bd8b68c82bec2413b8193f4688b577aa0ec1797c17109ea68fd"
     },
     {
       "path": "docs/production-certification/evidence/raw/rls-verify-rls-enablement.log",
       "sizeBytes": 1349,
-      "sha256": "ac10222aefcff5cf370e0d8bfa837f5cdbb8bd3c4c40226d073926ab51f9ee07"
+      "sha256": "c4d1b5fefd4564e3d148b553dd091a76d23c90175070fe36fb021fba339f8463"
     },
     {
       "path": "docs/production-certification/evidence/raw/rls-verify-rls-live.log",
-      "sizeBytes": 211,
-      "sha256": "cf251f2c383dc22442e46967e361866de0f0bb8ef5e0210cec1f80f91998c9fa"
+      "sizeBytes": 832,
+      "sha256": "9ff2b3c32eaecb652170b732d653ee30ef88053b2e648b19c156a89503f74844"
     }
   ]
 }

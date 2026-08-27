@@ -1,5 +1,23 @@
 $ node scripts/verify-rls-live.mjs
-verify-rls-live: needs DATABASE_URL (privileged) and CRM_APP_URL (the application role).
-CRM_APP_URL is written to .env.rls.local when supabase/roles.sql is applied.
+Verifying RLS on a populated database as crm_app
 
-[exit 2]
+  [32mPASS[0m  the role under test is not a superuser
+        crm_app, rolsuper=false
+  busiest tenant load-tenant: 1000 of 1163 leads
+
+  [31mFAIL[0m  no tenant context sees nothing
+        saw 1163 rows — RLS is not being enforced here
+  [31mFAIL[0m  a scoped read returns exactly its tenant
+        expected 1000, saw 1163
+  [31mFAIL[0m  another tenant is unreachable by direct id
+        saw 1 row(s)
+  [32mPASS[0m  DDL is refused
+        CREATE TABLE rejected
+  [32mPASS[0m  writes reach every row the tenant owns
+        1000 rows, rolled back
+  [32mPASS[0m  enforcement overhead is measured, not assumed
+        1000 rows — 11ms under policy, 9ms as the control
+
+3 check(s) FAILED against the populated database.
+
+[exit 1]

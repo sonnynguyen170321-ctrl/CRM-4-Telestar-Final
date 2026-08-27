@@ -1,6 +1,6 @@
 $ node scripts/verify-rls.mjs
-Verifying RLS enforcement in throwaway database crm_rls_verify_b5f59f06
-Admin host: localhost:5432
+Verifying RLS enforcement in throwaway database crm_rls_verify_84b9711b
+Admin host: 127.0.0.1:5432
 
 Connected as an unprivileged role holding tenant A context:
 
@@ -17,12 +17,14 @@ Connected as an unprivileged role holding tenant A context:
   [32mPASS[0m  cannot update another tenant's row
   [32mPASS[0m  cannot delete another tenant's row
   [32mPASS[0m  cannot insert a row attributed to another tenant
+  [32mPASS[0m  cannot upsert over another tenant's row (Raw query failed. Code: `42501`. Message: `ERROR: new row violates row-level security policy (USING expression) for table "Lead"`)
+  [32mPASS[0m  cannot attach a child row to another tenant's parent (Raw query failed. Code: `23503`. Message: `insert or update on table "Activity" violates foreign key constrain)
   [32mPASS[0m  fails closed with no tenant context
 
 Control — the same read as a superuser:
   [32mPASS[0m  superuser sees both tenants (2 rows) — RLS does not apply to superusers
 
-Cleaned up crm_rls_verify_b5f59f06 and crm_rls_app_75006d.
+Cleaned up crm_rls_verify_84b9711b and crm_rls_app_c12888.
 
 All checks passed — PostgreSQL enforces tenant isolation.
 
