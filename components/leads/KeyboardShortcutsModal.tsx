@@ -32,9 +32,9 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }: Props) {
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-card-border dark:border-zinc-800">
           <div className="flex items-center gap-2">
             <Keyboard className="w-4 h-4 text-brand-red" />
-            <h3 className="font-display font-bold text-sm text-text-primary">
+            <h2 className="font-display font-bold text-sm text-text-primary">
               SDR Speedrun Keyboard Shortcuts
-            </h3>
+            </h2>
           </div>
           <button
             type="button"
