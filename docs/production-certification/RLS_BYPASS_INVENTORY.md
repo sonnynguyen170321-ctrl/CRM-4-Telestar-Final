@@ -89,7 +89,7 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 | `lib/leadgen/qualification.ts` | 384, 390, 397, 406 | Window-function aggregations for pool qualification, all routed through `withTenantRaw` and additionally naming `tenantId` in the WHERE clause. |
 | `lib/prisma.ts` | 138, 171, 172, 254, 255, 279, 313, 320, 321 | The extension itself — this is the file that implements tenant scoping, so it necessarily names the flag it honours and runs the `set_config` statements that carry tenant context into the database. Its own `$queryRaw`/`$executeRaw` calls are the GUC statements and the maintenance sweep, not data access. |
 | `lib/research/cache.ts` | 175, 410 | Cache updates through `withTenantRaw`, so the statement carries tenant context on its own connection. |
-| `lib/search/accentSearch.ts` | 63, 64 | Accent-insensitive search through `withTenantRaw`, with `tenantId` also named explicitly in the WHERE clause. |
+| `lib/search/accentSearch.ts` | 83, 84 | Accent-insensitive search through `withTenantRaw`, with `tenantId` also named explicitly in the WHERE clause. |
 | `workers/email.ts` | 82 | An atomic compare-and-set on `EmailAccount.sentTodayCount`, routed through `withTenantRaw` and addressing a single row by id. Raw SQL rather than a read-modify-write so two workers cannot both spend the last send of a quota. |
 | `workers/healthcheck.ts` | 17 | `SELECT 1` liveness probe. Touches no tenant-owned table. |
 
