@@ -475,6 +475,22 @@ export function checkArtifactCorroboratesRecord(records, scope = defaultScope())
     const claimedSha = record.candidateSha;
     if (!claimedSha) continue;
 
+    // Judged over the record's artifacts together, not one at a time.
+    //
+    // Per-artifact was wrong for the one record this check exists to police. A rollback
+    // drill has three phases and writes a transcript for each, and the middle phase runs
+    // the PREVIOUS release on purpose — that is what a rollback is. Its transcript
+    // therefore names the previous commit and not the candidate, and a per-artifact rule
+    // reported a correct drill as evidence belonging to another release.
+    //
+    // The fault this was built for still fires. TEL-P0-012 was a record whose ONLY
+    // artifact came from an older drill on a different release: no artifact named the
+    // candidate, so the union does not contain it either. What changed is that one
+    // legitimately-foreign artifact no longer condemns a record that other artifacts tie
+    // to the candidate.
+    const named = new Map();
+    let sawAnyCommit = false;
+
     for (const artifact of record.artifacts || []) {
       const artifactPath = typeof artifact === 'string' ? artifact : artifact.path;
       if (!artifactPath) continue;
@@ -490,12 +506,22 @@ export function checkArtifactCorroboratesRecord(records, scope = defaultScope())
 
       const shas = new Set(content.match(COMMIT_SHA_PATTERN) || []);
       if (shas.size === 0) continue;
-      if (shas.has(claimedSha)) continue;
+      sawAnyCommit = true;
+      named.set(artifactPath, shas);
+    }
+
+    // No artifact identifies a release: not evidence of provenance either way, as before.
+    if (!sawAnyCommit) continue;
+
+    const corroborated = [...named.values()].some((shas) => shas.has(claimedSha));
+    if (!corroborated) {
+      const foreign = new Set();
+      for (const shas of named.values()) for (const sha of shas) foreign.add(sha);
 
       findings.push(
         finding(
           'U',
-          `${record.evidenceId}: artifact ${artifactPath} names ${shas.size} commit(s) and none of them is the record's candidate ${claimedSha.slice(0, 7)} - the artifact belongs to ${[...shas].slice(0, 3).map((sha) => sha.slice(0, 7)).join(', ')}`,
+          `${record.evidenceId}: ${named.size} artifact(s) name ${foreign.size} commit(s) and none of them is the record's candidate ${claimedSha.slice(0, 7)} - the evidence belongs to ${[...foreign].slice(0, 3).map((sha) => sha.slice(0, 7)).join(', ')}`,
         ),
       );
     }
@@ -622,6 +648,22 @@ export function checkCertificateOrdering(records, certificateText) {
 }
 
 /** Section 7: time impossibility check — evidence may not predate the candidate freeze. */
+/**
+ * Evidence kinds whose execution legitimately precedes the freeze.
+ *
+ * Exactly one, and the reason is causal rather than convenient: a commit is frozen as the
+ * candidate *because* CI validated it, so the CI run has always already happened. Requiring
+ * `ci-run` evidence to postdate the freeze demands a build that started after the decision
+ * its own result was the input to — no honest release can satisfy it, and this program's
+ * previous candidates all carried the finding without it ever being the thing that was wrong.
+ *
+ * Nothing else belongs here. The check exists because evidence dated before the freeze is
+ * usually evidence about a different release, and that remains true of every other kind. The
+ * CI run stays bound to the candidate by check CI_SHA_MISMATCH, which compares the run's head
+ * SHA to the candidate — so exempting it from the clock does not exempt it from provenance.
+ */
+const PRE_FREEZE_BY_CONSTRUCTION = new Set(['ci-run']);
+
 export function checkTimingImpossibility(config, records) {
   const findings = [];
   if (!config.candidateFrozenAt) return findings;
@@ -630,6 +672,7 @@ export function checkTimingImpossibility(config, records) {
 
   for (const record of records) {
     if (!record.startedAt) continue;
+    if (PRE_FREEZE_BY_CONSTRUCTION.has(record.kind)) continue;
     const startedAtMs = new Date(record.startedAt).getTime();
     if (Number.isFinite(startedAtMs) && startedAtMs < frozenAtMs - SKEW_TOLERANCE_MS) {
       findings.push(
