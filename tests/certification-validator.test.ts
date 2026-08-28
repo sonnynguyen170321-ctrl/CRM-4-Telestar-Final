@@ -788,6 +788,43 @@ describe('an evidence record must be corroborated by the artifacts it cites', ()
     expect(checkArtifactCorroboratesRecord([record], scope())).toEqual([]);
   });
 
+  it('accepts a three-phase drill whose middle transcript names only the previous release', () => {
+    // What a rollback drill is: the middle phase deliberately runs the PREVIOUS release, so
+    // its transcript names the previous commit and not the candidate. Judged per-artifact,
+    // a correct drill was reported as evidence belonging to another release. The record is
+    // corroborated when its artifacts TOGETHER tie it to the candidate.
+    const deploy = withArtifact('deploy-candidate.log', `target ${CANDIDATE}`);
+    const rollback = withArtifact('rollback-to-previous.log', `target ${OTHER_SHA}`);
+    const restore = withArtifact('restore-candidate.log', `target ${CANDIDATE}`);
+    const record = {
+      evidenceId: 'EV-DR-ROLLBACK',
+      kind: 'dr-rollback',
+      candidateSha: CANDIDATE,
+      artifacts: [{ path: deploy }, { path: rollback }, { path: restore }],
+    };
+
+    expect(checkArtifactCorroboratesRecord([record], scope())).toEqual([]);
+  });
+
+  it('still condemns a drill where no artifact names the candidate', () => {
+    // TEL-P0-012 itself: every transcript belongs to an older drill on a different release.
+    // Relaxing to a collective judgement must not rescue that.
+    const a = withArtifact('phase-a.log', `target ${OTHER_SHA}`);
+    const b = withArtifact('phase-b.log', `target ${'d'.repeat(40)}`);
+    const record = {
+      evidenceId: 'EV-DR-ROLLBACK',
+      kind: 'dr-rollback',
+      candidateSha: CANDIDATE,
+      artifacts: [{ path: a }, { path: b }],
+    };
+
+    const findings = checkArtifactCorroboratesRecord([record], scope());
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].check).toBe('U');
+    expect(findings[0].message).toContain('none of them is the record');
+  });
+
   it('leaves alone an artifact that identifies no release at all', () => {
     const artifact = withArtifact('vitest.log', 'Test Files 12 passed\nTests 340 passed\n');
     const record = {

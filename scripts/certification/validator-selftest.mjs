@@ -639,6 +639,29 @@ function main() {
       findings.length > 0,
       'execution predating candidate freeze was not detected',
     );
+
+    // The ci-run exemption, and the proof that it is narrow.
+    //
+    // A commit is frozen as the candidate BECAUSE CI validated it, so the CI run has always
+    // already happened. Demanding that it postdate the freeze demands a build that started
+    // after the decision its own result was the input to. Exactly one kind is exempt, and
+    // the pair below is what keeps it exactly one: identical timestamps, different kinds,
+    // opposite verdicts.
+    const beforeFreeze = '2026-08-23T05:00:00.000Z';
+    expectGreen(
+      'TIME — a ci-run predating the freeze is not impossible, it is the normal order',
+      checkTimingImpossibility(config, [
+        { evidenceId: 'EV-CI-RUN', kind: 'ci-run', startedAt: beforeFreeze, status: 'PASS' },
+      ]),
+      'the ci-run exemption did not apply',
+    );
+    expectRed(
+      'TIME — the exemption covers ci-run alone, not every kind sharing its timestamp',
+      checkTimingImpossibility(config, [
+        { evidenceId: 'EV-MUTANT-SAME-CLOCK', kind: 'dr-restore', startedAt: beforeFreeze, status: 'PASS' },
+      ]).length > 0,
+      'a non-ci-run record predating the freeze was let through',
+    );
   }
 
   // ── Section 8: executedHeadSha mismatch mutant ────────────────────────────
