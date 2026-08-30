@@ -90,7 +90,7 @@
     "mailparser": "^3.9.15",
     "next": "^16.3.0",
     "next-auth": "^5.0.0-beta.32",
-    "nodemailer": "^9.0.5",
+    "nodemailer": "^9.0.6",
     "openai": "^7.5.0",
     "prisma": "^6.2.1",
     "react": "19.2.8",
