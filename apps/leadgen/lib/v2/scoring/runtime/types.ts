@@ -5,9 +5,9 @@ import type {
   IcpAssessment,
   PersonaEvidence,
   Qualification as IcpQualification,
-} from "../icpRulesSchema";
-import type { IcpRulesV2Assessment } from "../rules/deriveQualification";
-import type { IcpVersionRulesV2 } from "../rules/schema-v2";
+} from "@telestar/core-scoring/icpRulesSchema";
+import type { IcpRulesV2Assessment } from "@telestar/core-scoring/rules/deriveQualification";
+import type { IcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
 import type { V2JobDatabase } from "../../jobs/types";
 
 export const SCORE_HV0_JOB_SCHEMA_VERSION = "v2.score-hv0.icp-score-job.v1";

@@ -4,7 +4,7 @@ import {
   CATEGORY_PREFERRED_SECTORS,
   classifyServedVerticals,
   formatIndustryDetail,
-} from "@/lib/v2/scoring/rules/dictionaries/servedVertical";
+} from "@telestar/core-scoring/rules/dictionaries/servedVertical";
 
 // CINT5: the SINGLE shared presenter. Maps a persisted intelligence profile (JSON
 // columns) into one identity-first view consumed by every surface (Company drawer,

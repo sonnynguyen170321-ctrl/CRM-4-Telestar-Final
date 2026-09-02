@@ -1,4 +1,4 @@
-import type { CompanyEvidence } from "../scoring/icpRulesSchema";
+import type { CompanyEvidence } from "@telestar/core-scoring/icpRulesSchema";
 import { COMPANY_INTEL_PIPELINE_VERSION } from "./pipelineVersion";
 import { mapNeutralFactsToCompanyEvidence } from "./mapIntelligenceToCompanyEvidence";
 

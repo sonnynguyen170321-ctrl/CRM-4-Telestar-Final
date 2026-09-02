@@ -25,7 +25,7 @@ import { IcpRulesSummary } from "./IcpRulesSummary";
 import { IcpRulesEditor } from "./IcpRulesEditor";
 import { deleteIcpDraftAction, archiveIcpProfileAction } from "@/app/v2/icp-library/actions";
 import { EditIcon, TrashIcon } from "lucide-react";
-import type { IcpVersionRulesV2 } from "@/lib/v2/scoring/rules/schema-v2";
+import type { IcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
 
 export function IcpVersionDetail({ 
   version, 

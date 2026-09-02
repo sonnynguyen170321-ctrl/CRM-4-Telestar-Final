@@ -1,4 +1,4 @@
-import { isGenericEmailDomain } from "../scoring/rules/dictionaries/genericEmail";
+import { isGenericEmailDomain } from "@telestar/core-scoring/rules/dictionaries/genericEmail";
 
 // Deterministic contact-quality + LinkedIn-access assessment. No network, no scraping — a
 // controlled reachability probe is an optional env-gated adapter (V2_LINKEDIN_PROBE_PROVIDER,

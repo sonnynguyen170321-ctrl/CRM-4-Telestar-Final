@@ -1,4 +1,4 @@
-import { lookupSeniority } from "../scoring/rules/dictionaries/seniority";
+import { lookupSeniority } from "@telestar/core-scoring/rules/dictionaries/seniority";
 
 export type ContactEnrichmentSource = {
   fullName: string;

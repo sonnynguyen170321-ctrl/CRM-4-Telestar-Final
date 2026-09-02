@@ -1,4 +1,4 @@
-import type { IcpVersionRulesV2 } from "@/lib/v2/scoring/rules/schema-v2";
+import type { IcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
 import type { ParsedCandidate } from "./parseDiscoveryResults";
 
 // Discovery-time ICP exclusion. Discovery is intentionally permissive (cast wide, let scoring decide),

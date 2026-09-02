@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { isCandidateExcludedByIcp } from "../icpDiscoveryFilter";
-import { emptyIcpRulesV2 } from "@/lib/v2/scoring/rules/emptyIcpRulesV2";
+import { emptyIcpRulesV2 } from "@telestar/core-scoring/rules/emptyIcpRulesV2";
 import type { ParsedCandidate } from "../parseDiscoveryResults";
 
 function company(over: Partial<ParsedCandidate> = {}): ParsedCandidate {

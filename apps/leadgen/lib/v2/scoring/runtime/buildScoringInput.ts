@@ -3,9 +3,9 @@ import {
   mapIntelligenceProfileToScoring,
   type CompanyIntelligenceScoringTrace,
 } from "../../company-intelligence/mapIntelligenceProfileToScoring";
-import { validateIcpVersionRules, type PersonaEvidence } from "../icpRulesSchema";
-import { validateIcpVersionRulesV2 } from "../rules/schema-v2";
-import { upgradeV1toV2 } from "../rules/upgradeV1toV2";
+import { validateIcpVersionRules, type PersonaEvidence } from "@telestar/core-scoring/icpRulesSchema";
+import { validateIcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
+import { upgradeV1toV2 } from "@telestar/core-scoring/rules/upgradeV1toV2";
 import type {
   BuildScoringInputResult,
   ContactIdentifierSnapshot,

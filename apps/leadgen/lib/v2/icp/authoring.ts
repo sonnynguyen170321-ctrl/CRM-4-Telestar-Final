@@ -1,11 +1,11 @@
 import "server-only";
 
-import { validateIcpVersionRules } from "@/lib/v2/scoring/icpRulesSchema";
+import { validateIcpVersionRules } from "@telestar/core-scoring/icpRulesSchema";
 import {
   validateIcpVersionRulesV2,
   type IcpVersionRulesV2,
-} from "@/lib/v2/scoring/rules/schema-v2";
-import { upgradeV1toV2 } from "@/lib/v2/scoring/rules/upgradeV1toV2";
+} from "@telestar/core-scoring/rules/schema-v2";
+import { upgradeV1toV2 } from "@telestar/core-scoring/rules/upgradeV1toV2";
 
 export type V2IcpAuthoringTx = {
   $queryRawUnsafe<T = unknown>(query: string, ...values: unknown[]): Promise<T>;

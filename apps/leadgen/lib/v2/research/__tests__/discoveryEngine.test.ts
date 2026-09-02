@@ -7,7 +7,7 @@ import {
   normalizeResearchBuilderParams,
 } from "../buildDiscoveryQueries";
 import { parseCompanyHits, parseContactHits } from "../parseDiscoveryResults";
-import { emptyIcpRulesV2 } from "@/lib/v2/scoring/rules/emptyIcpRulesV2";
+import { emptyIcpRulesV2 } from "@telestar/core-scoring/rules/emptyIcpRulesV2";
 
 function rules() {
   const r = emptyIcpRulesV2("icp-test", "Test ICP");

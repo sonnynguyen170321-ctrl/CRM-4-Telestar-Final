@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Globe, Users, Briefcase, Building2, MapPin, Search, LineChart, Target, AlertTriangle, ShieldX } from "lucide-react";
 import { saveIcpDraftRulesAction } from "@/app/v2/icp-library/actions";
-import type { IcpVersionRulesV2 } from "@/lib/v2/scoring/rules/schema-v2";
+import type { IcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { REGION_TO_COUNTRIES } from "@/lib/v2/scoring/rules/dictionaries/regions";
-import { INDUSTRY_KEYS } from "@/lib/v2/scoring/rules/dictionaries/industry";
+import { REGION_TO_COUNTRIES } from "@telestar/core-scoring/rules/dictionaries/regions";
+import { INDUSTRY_KEYS } from "@telestar/core-scoring/rules/dictionaries/industry";
 
 const allCountries = Array.from(new Set(Object.values(REGION_TO_COUNTRIES).flat())).sort();
 

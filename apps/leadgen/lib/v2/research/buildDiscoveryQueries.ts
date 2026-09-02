@@ -1,4 +1,4 @@
-import type { IcpVersionRulesV2 } from "@/lib/v2/scoring/rules/schema-v2";
+import type { IcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
 
 // The native research engine's query planner: the ICP rules ARE the default search spec.
 // Manual builder params only narrow or seed the same deterministic query plan. SERP snippets

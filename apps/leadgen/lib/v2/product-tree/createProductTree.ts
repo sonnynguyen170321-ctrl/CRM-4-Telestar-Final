@@ -7,8 +7,8 @@ import {
   V2ICPProfile,
   V2ICPVersion,
 } from "@/app/generated/prisma/client";
-import { emptyIcpRulesV2 } from "../scoring/rules/emptyIcpRulesV2";
-import { getIcpTemplateV2 } from "../scoring/rules/icpTemplatesV2";
+import { emptyIcpRulesV2 } from "@telestar/core-scoring/rules/emptyIcpRulesV2";
+import { getIcpTemplateV2 } from "@telestar/core-scoring/rules/icpTemplatesV2";
 
 export async function createClientAccount({
   organizationId,

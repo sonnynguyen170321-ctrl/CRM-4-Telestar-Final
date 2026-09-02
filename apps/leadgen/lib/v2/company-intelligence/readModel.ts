@@ -4,7 +4,7 @@ import type {
 } from "@/lib/v2/crm/types";
 import { traceQuery, withSpan } from "@/lib/v2/observability/trace";
 import { withFacetCache } from "@/lib/v2/bullmq/facetCache";
-import { verticalMatchAliases } from "@/lib/v2/scoring/rules/dictionaries/servedVertical";
+import { verticalMatchAliases } from "@telestar/core-scoring/rules/dictionaries/servedVertical";
 
 const COMPANY_LIST_PAGE_SIZE = 50;
 const CROSS_ICP_PAGE_SIZE = 50;

@@ -26,7 +26,7 @@ import {
 import { rerankResults } from "@/lib/v2/company-intelligence/search/rerankResults";
 import { parseCompanyHits, parseContactHits, type ParsedCandidate, type RawSearchHit } from "./parseDiscoveryResults";
 import { isCandidateExcludedByIcp } from "./icpDiscoveryFilter";
-import type { IcpVersionRulesV2 } from "@/lib/v2/scoring/rules/schema-v2";
+import type { IcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
 import { lookupProspects, upsertProspects, wasSeenInPriorRun } from "./prospectLedger";
 import { scoreCandidateHeuristic } from "./scoreCandidates";
 

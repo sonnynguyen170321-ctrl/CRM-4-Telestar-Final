@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 import { normalizePhoneIdentifier } from "@/lib/v2/identity";
-import { isGenericEmailDomain } from "@/lib/v2/scoring/rules/dictionaries/genericEmail";
+import { isGenericEmailDomain } from "@telestar/core-scoring/rules/dictionaries/genericEmail";
 
 // The single writer for V2ContactIdentifier rows. Ingestion, research promotion, and manual enrich
 // previously each had their own path: ingestion INSERTed raw (no normalization, isGeneric/isValid

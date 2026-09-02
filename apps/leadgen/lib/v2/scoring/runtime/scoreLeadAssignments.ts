@@ -4,9 +4,9 @@ import { buildScoringInput } from "./buildScoringInput";
 import { mapRulesV2AssessmentToPersistence } from "./mapIcpAssessmentToPersistence";
 import { persistHardRuleAssessment } from "./persistHardRuleAssessment";
 import { refreshRunFromChunks, setChunkStatusByIndex } from "../../runtime/runtimeStore";
-import { assessIcpRulesV2 } from "../rules/deriveQualification";
-import type { RawScoringEvidence } from "../rules/evidence";
-import type { CompanyTypeV2 } from "../rules/schema-v2";
+import { assessIcpRulesV2 } from "@telestar/core-scoring/rules/deriveQualification";
+import type { RawScoringEvidence } from "@telestar/core-scoring/rules/evidence";
+import type { CompanyTypeV2 } from "@telestar/core-scoring/rules/schema-v2";
 import {
   DEFAULT_SCORE_HV0_BATCH_SIZE,
   SCORE_HV0_JOB_SCHEMA_VERSION,

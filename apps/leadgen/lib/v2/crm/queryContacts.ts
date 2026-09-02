@@ -8,7 +8,7 @@ import {
   type ShapedContact,
 } from "./shapeContacts";
 import { contactIdentifierColumns, contactSourceColumn } from "./contactEnrichment";
-import { SENIORITY_TAXONOMY } from "../scoring/rules/dictionaries/seniority";
+import { SENIORITY_TAXONOMY } from "@telestar/core-scoring/rules/dictionaries/seniority";
 import type {
   LeadWorkspaceAccountPreRank,
   LeadWorkspaceQualification,

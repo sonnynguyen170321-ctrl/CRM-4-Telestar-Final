@@ -8,7 +8,7 @@ import {
   shapeContactEnrichment,
 } from "./contactEnrichment";
 import { PRIORITY_ORDER_BY_SQL } from "./leadPriority";
-import { verticalMatchAliases } from "@/lib/v2/scoring/rules/dictionaries/servedVertical";
+import { verticalMatchAliases } from "@telestar/core-scoring/rules/dictionaries/servedVertical";
 import { resolveContactDisplayName } from "./resolveContactDisplayName";
 import { assessLinkedInAccess, deriveContactability, type ContactabilityStatus, type ContactQualityReason, type LinkedInAccess } from "./contactQuality";
 import type {

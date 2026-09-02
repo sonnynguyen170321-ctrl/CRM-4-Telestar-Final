@@ -1,4 +1,4 @@
-import type { CompanyEvidence } from "../scoring/icpRulesSchema";
+import type { CompanyEvidence } from "@telestar/core-scoring/icpRulesSchema";
 
 /**
  * Maps neutral fact tokens (V2CompanyIntelligenceProfile.factsJson) onto the

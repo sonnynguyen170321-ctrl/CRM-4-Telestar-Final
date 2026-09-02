@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Check, ChevronRight } from "lucide-react";
 
-import { buildServedVerticalTree, type ServedVerticalTreeNode } from "@/lib/v2/scoring/rules/dictionaries/servedVertical";
+import { buildServedVerticalTree, type ServedVerticalTreeNode } from "@telestar/core-scoring/rules/dictionaries/servedVertical";
 
 // W5: the shared hierarchical industry-&-vertical filter tree. One implementation used by BOTH the
 // companies and leads FILTERS panels so the affordance is identical across surfaces. Native <details>

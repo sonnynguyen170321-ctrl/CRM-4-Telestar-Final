@@ -1,9 +1,81 @@
-// Deterministic ICP scoring: hard gates, fit and confidence, data quality, qualification.
-//
-// This package holds DB-agnostic logic shared by the CRM (repository root) and apps/leadgen. The two
-// apps have different schemas — Tenant/Account/Contact here, V2Organization/V2Company/V2Contact there
-// — so anything that reaches for a database belongs in an app adapter, never here. A single
-// `@prisma/client` import would tie this code to one schema and defeat the reason it was extracted.
-//
-// Enforced by the `no-restricted-imports` rule for packages/** in eslint.config.mjs.
-export {};
+export type {
+  CollectedEvidenceItem,
+  CompanyTypeClassificationResult,
+  CompanySizeRules,
+  CompanyTypeRule,
+  ConfidenceBreakdownComponent,
+  ConfidencePolicy,
+  ConfidenceResult,
+  DataQualityAssessment,
+  DataQualityIssue,
+  DataQualityIssueSeverity,
+  EvidenceCollectionResult,
+  EvaluateLeadAssignmentInput,
+  EvidenceDirection,
+  EvidenceItem,
+  EvidenceSourceType,
+  ExplanationResult,
+  FeedbackSignalSnapshot,
+  FitScoreComponent,
+  FitScoreComponentKind,
+  FitScoreResult,
+  GeographyRules,
+  HardGateEvaluation,
+  HardGateEvaluationResult,
+  HardGateEvaluationSummary,
+  HardGateOutcome,
+  HardGatePolicyAction,
+  HardGatePolicyResult,
+  HardGateResult,
+  HardGateRule,
+  HardRuleAssessmentOutput,
+  IcpVersionRules,
+  MissingWebsitePolicy,
+  NormalizedCompanyScoringInput,
+  NormalizedContactScoringInput,
+  NormalizedScoringContext,
+  NormalizedStaffRange,
+  NormalizedWebsiteEvidence,
+  Qualification,
+  QualificationReasonCode,
+  QualificationResult,
+  RuleOperator,
+  RuleSeverity,
+  ScorePolicy,
+  ScoringSignalRule,
+  UnknownDataPolicy,
+  WebsiteEvidenceSnapshot,
+} from "./types";
+
+export { assessDataQuality } from "./dataQuality";
+export { classifyCompanyType } from "./classifyCompanyType";
+export { collectEvidence } from "./collectEvidence";
+export { computeConfidence } from "./computeConfidence";
+export { computeFitScore } from "./computeFitScore";
+export { deriveQualification } from "./deriveQualification";
+export { evaluateHardGates } from "./evaluateHardGates";
+export { explainAssessment } from "./explainAssessment";
+export { normalizeDomain, normalizeScoringInput } from "./normalizeInput";
+
+// The coarse v1 assessor (assessCompanyAgainstIcp) was retired — production scores through the
+// single graduated v2 engine (assessIcpRulesV2). The v1 schema below is kept only so legacy
+// rulesJson can be lifted to v2 (upgradeV1toV2).
+export {
+  IcpVersionRulesSchema,
+  validateIcpVersionRules,
+} from "./icpRulesSchema";
+
+export type {
+  AccountPreRank as IcpAccountPreRank,
+  AssessmentMode as IcpAssessmentMode,
+  CompanyEvidence as IcpCompanyEvidence,
+  CompanyType as IcpCompanyType,
+  ConfidenceBand as IcpConfidenceBand,
+  HardDisqualifierHit as IcpHardDisqualifierHit,
+  IcpAssessment,
+  IcpVersionRules as IcpRulesVersion,
+  PersonaEvidence as IcpPersonaEvidence,
+  Qualification as IcpQualification,
+  RequiredEvidenceForFinalQualification as IcpRequiredEvidenceForFinalQualification,
+  SignalHit as IcpSignalHit,
+} from "./icpRulesSchema";

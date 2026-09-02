@@ -25,8 +25,8 @@ import { CopyJobIdButton } from "@/components/v2/ingestion/CopyJobIdButton";
 import { humanizeTaskToken, TaskStatusPill } from "@/components/v2/shared/taskTransition";
 import { createIngestionJob, type V2IngestionDatabase } from "@/lib/v2/ingestion";
 import { processNextV2Job, type V2JobDatabase } from "@/lib/v2/jobs";
-import { TELESTAR_SDR_OUTSOURCING_ICP_RULES } from "@/lib/v2/scoring/__fixtures__/sampleIcpRules";
-import { upgradeV1toV2 } from "@/lib/v2/scoring/rules/upgradeV1toV2";
+import { TELESTAR_SDR_OUTSOURCING_ICP_RULES } from "@telestar/core-scoring/__fixtures__/sampleIcpRules";
+import { upgradeV1toV2 } from "@telestar/core-scoring/rules/upgradeV1toV2";
 import {
   getTenantErrorMessage,
   requirePermission,

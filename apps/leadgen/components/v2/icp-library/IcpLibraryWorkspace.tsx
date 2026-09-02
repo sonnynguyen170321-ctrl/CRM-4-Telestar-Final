@@ -23,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { V2IcpLibraryResult, V2IcpLibraryVersion } from "@/lib/v2/icp";
 import { OfferListRow } from "@/lib/v2/product-tree/types";
 import { createEmptyIcpAction } from "@/app/v2/icp-library/actions";
-import { ICP_TEMPLATES_V2 } from "@/lib/v2/scoring/rules/icpTemplatesV2";
+import { ICP_TEMPLATES_V2 } from "@telestar/core-scoring/rules/icpTemplatesV2";
 
 import { IcpVersionDetail } from "./IcpVersionDetail";
 
