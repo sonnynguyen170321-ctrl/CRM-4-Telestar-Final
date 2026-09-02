@@ -46,6 +46,36 @@ const eslintConfig = defineConfig([
     rules: {
       "@typescript-eslint/no-require-imports": "off"
     }
+  },
+  {
+    // `packages/*` is shared by two apps with two different database schemas (Tenant/Account/Contact
+    // in this app, V2Organization/V2Company/V2Contact in apps/leadgen). The moment a package imports
+    // a Prisma client or reaches into an app via `@/`, it is bound to one of those schemas and stops
+    // being shareable — which is the entire reason the code was extracted.
+    //
+    // This is a rule rather than a convention because the failure is silent: the import compiles, the
+    // tests pass in whichever app ran them, and the coupling is only discovered when the other app
+    // breaks.
+    files: ["packages/**/*.{ts,tsx,mts}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@prisma/client", "@prisma/client/*", "**/generated/prisma", "**/generated/prisma/*"],
+              message:
+                "packages/* must stay database-agnostic. Take the data as an argument and let the app's adapter do the query."
+            },
+            {
+              group: ["@/*"],
+              message:
+                "packages/* must not import application code. Move the shared logic into a package, or pass it in."
+            }
+          ]
+        }
+      ]
+    }
   }
 ]);
 

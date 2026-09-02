@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "npm@11.16.0",
+  "//workspaces": "The CRM app stays at the repository root — it is not moved into apps/. Moving it would rewrite every path in Dockerfile and ci.yml and conflict with every open branch, for no benefit that workspaces do not already give. `packages/*` holds DB-agnostic logic shared with apps/leadgen; `apps/*` holds any additional app.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "engines": {
     "node": "24.18.0",
     "npm": "11.16.0"
@@ -11,8 +16,9 @@
     "dev": "next dev",
     "build": "node scripts/build.cjs",
     "start": "next start",
-    "lint": "eslint app components lib context tests workers scripts e2e",
+    "lint": "eslint app components lib context tests workers scripts e2e packages",
     "test": "vitest run",
+    "test:packages": "vitest run --config vitest.packages.config.ts",
     "setup:dev": "node scripts/setup-dev.mjs",
     "doctor": "node scripts/doctor.mjs",
     "db:generate": "prisma generate",

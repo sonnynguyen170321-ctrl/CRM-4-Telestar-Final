@@ -9,6 +9,9 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
+# npm resolves the workspace tree from the members' own manifests, so `packages/` has to exist before
+# `npm ci` — without it the install fails on the workspaces declared in the root package.json.
+COPY packages ./packages
 RUN npm ci
 
 FROM node:24.18.0-bookworm-slim AS builder
@@ -73,6 +76,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --chown=node:node package.json package-lock.json ./
+COPY --chown=node:node packages ./packages
 COPY --chown=node:node prisma ./prisma
 RUN npm ci --omit=dev \
   && npx prisma generate \

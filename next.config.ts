@@ -17,9 +17,23 @@ const SECURITY_HEADERS = [
   { key: CSP_HEADER_NAME, value: buildCsp() },
 ];
 
+// Workspace packages ship TypeScript source rather than a build step, so Next has to compile them
+// like first-party code. Listing them explicitly (not a glob) keeps the failure loud: a package added
+// to packages/ but not here fails at build with a parse error instead of silently resolving to
+// nothing.
+const WORKSPACE_PACKAGES = [
+  '@telestar/core-identity',
+  '@telestar/core-icp',
+  '@telestar/core-scoring',
+  '@telestar/core-ingest',
+  '@telestar/core-research',
+  '@telestar/core-search',
+];
+
 const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
+  transpilePackages: WORKSPACE_PACKAGES,
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts'],
   },

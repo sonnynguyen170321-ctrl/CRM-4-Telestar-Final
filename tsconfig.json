@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@telestar/*": ["./packages/*/src"]
     },
     "types": ["node", "react", "react-dom"]
   },
