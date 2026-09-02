@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { buildFetchUrl } from "./canonicalDomain";
-import { assertSafePublicUrl } from "./urlSafety";
+import { assertSafePublicUrl } from "@telestar/core-search/urlSafety";
 import type { FetchedPage } from "./extractFacts";
 
 export const DEFAULT_FETCH_TIMEOUT_MS = 10_000;

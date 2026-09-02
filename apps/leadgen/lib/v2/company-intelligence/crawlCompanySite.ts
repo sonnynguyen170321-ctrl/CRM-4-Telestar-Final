@@ -11,7 +11,7 @@ import {
   type PageFetchRecord,
 } from "./fetchWebsite";
 import { extractPageModel, type PageModel, type PageType } from "./reasoning/pageModel";
-import { safeFetch, type DnsLookup } from "./safeFetch";
+import { safeFetch, type DnsLookup } from "@telestar/core-search/safeFetch";
 
 const DEFAULT_MAX_PAGES = 12;
 const DEFAULT_MAX_ATTEMPTS = 20;

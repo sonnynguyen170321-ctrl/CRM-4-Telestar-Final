@@ -1,4 +1,4 @@
-import { safeFetch } from "@/lib/v2/company-intelligence/safeFetch";
+import { safeFetch } from "@telestar/core-search/safeFetch";
 
 export type HoleheResult = {
   platform: string;

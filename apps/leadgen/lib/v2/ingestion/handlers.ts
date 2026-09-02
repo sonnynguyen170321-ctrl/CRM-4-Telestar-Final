@@ -6,10 +6,10 @@ import {
   enqueueIngestionNormalizeJob,
   enqueueLeadAssignmentUpsertJob,
 } from "./enqueueIngestionJobs";
-import { parseCsvRows } from "./parseCsvRows";
-import { normalizeHeaderName } from "./hash";
+import { parseCsvRows } from "@telestar/core-ingest/parseCsvRows";
+import { normalizeHeaderName } from "@telestar/core-ingest/hash";
 import { persistIngestionRows } from "./persistIngestionRows";
-import { validateIngestionRow } from "./validateIngestionRow";
+import { validateIngestionRow } from "@telestar/core-ingest/validateIngestionRow";
 import {
   DEFAULT_DB_BATCH_SIZE,
   DEFAULT_MAX_CSV_ROWS,
@@ -19,7 +19,7 @@ import {
   type V2ImportProfile,
   type V2RowCountSummary,
 } from "./types";
-import { classifyImportProfile } from "./classifyImportProfile";
+import { classifyImportProfile } from "@telestar/core-ingest/classifyImportProfile";
 
 type IngestionJobRecord = {
   id: string;

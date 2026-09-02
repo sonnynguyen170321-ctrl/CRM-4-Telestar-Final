@@ -1,7 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/server/prisma";
-import { resolveUsableProviderChain } from "@/lib/v2/company-intelligence/search/env";
+import { resolveUsableProviderChain } from "@telestar/core-search/search/env";
 import type { V2JobDatabase } from "@/lib/v2/jobs/types";
 import { enqueueResearchBatchJob } from "./runResearchDiscovery";
 import { queryResearchRuntimeBridge } from "./researchRuntimeBridge";

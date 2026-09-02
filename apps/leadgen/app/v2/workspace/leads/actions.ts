@@ -116,7 +116,7 @@ export async function overrideLeadQualificationAction(formData: FormData) {
   });
 }
 
-import { safeFetch } from "@/lib/v2/company-intelligence/safeFetch";
+import { safeFetch } from "@telestar/core-search/safeFetch";
 import { checkEmailRegistration, type HoleheResult } from "@/lib/v2/enrich/holehe";
 import { analyzePhoneNumber } from "@/lib/v2/enrich/phoneinfoga";
 import { detectTechnologies } from "@/lib/v2/enrich/spiderfoot";

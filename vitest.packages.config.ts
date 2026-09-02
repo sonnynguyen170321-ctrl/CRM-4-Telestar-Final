@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig } from 'vitest/config';
 
 // Separate runner for `packages/*`.
@@ -9,6 +11,11 @@ import { defineConfig } from 'vitest/config';
 //
 // No setupFiles, no env, no DB: if a test here needs one, the code under test is in the wrong place.
 export default defineConfig({
+  resolve: {
+    alias: {
+      'server-only': fileURLToPath(new URL('./vitest.server-only-stub.ts', import.meta.url)),
+    },
+  },
   test: {
     include: ['packages/**/*.test.ts'],
     environment: 'node',

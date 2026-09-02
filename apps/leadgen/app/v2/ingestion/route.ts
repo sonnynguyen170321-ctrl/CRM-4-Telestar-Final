@@ -10,8 +10,8 @@ import {
   isSpreadsheetFileName,
   isSpreadsheetMimeType,
   SpreadsheetError,
-} from "@/lib/v2/ingestion/parseSpreadsheet";
-import { sanitizeDisplayHeaders } from "@/lib/v2/ingestion/headers";
+} from "@telestar/core-ingest/parseSpreadsheet";
+import { sanitizeDisplayHeaders } from "@telestar/core-ingest/headers";
 import { requirePermission, V2TenantError } from "@/lib/v2/tenant";
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;

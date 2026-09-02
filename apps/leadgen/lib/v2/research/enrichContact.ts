@@ -3,7 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { resolveMx, resolveTxt } from "node:dns/promises";
 
-import { safeFetch } from "@/lib/v2/company-intelligence/safeFetch";
+import { safeFetch } from "@telestar/core-search/safeFetch";
 import { bestEmailGuess, guessEmailPatterns } from "./findContactEmail";
 import { extractEmails, extractPhones, pickBestEmail } from "./contactExtract";
 

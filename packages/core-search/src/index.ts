@@ -1,9 +1,13 @@
-// Multi-provider web search: query fan-out, provider chain, result reranking.
+// Multi-provider web search: query fan-out, provider chain, result reranking, and a fetch guarded
+// against SSRF.
 //
-// This package holds DB-agnostic logic shared by the CRM (repository root) and apps/leadgen. The two
-// apps have different schemas — Tenant/Account/Contact here, V2Organization/V2Company/V2Contact there
-// — so anything that reaches for a database belongs in an app adapter, never here. A single
-// `@prisma/client` import would tie this code to one schema and defeat the reason it was extracted.
-//
-// Enforced by the `no-restricted-imports` rule for packages/** in eslint.config.mjs.
-export {};
+// The provider chain (exa, brave, serper, searxng, ddg) is what makes company discovery work on the
+// ~40% of real sites that block a crawler outright. Callers supply the credentials through the
+// environment contract in `search/env`; nothing here knows about a database.
+export * from "./search/companyIntelSearch";
+export * from "./search/buildCompanySearchQueries";
+export * from "./search/rerankResults";
+export * from "./search/scoreSearchResult";
+export * from "./search/env";
+export * from "./search/types";
+export * from "./safeFetch";

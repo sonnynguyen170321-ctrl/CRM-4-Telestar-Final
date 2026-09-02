@@ -12,10 +12,10 @@ import { deriveIntelConfidenceSignal } from "./reasoning/confidenceLink";
 import type { CompanyIntelligenceReasoning, EvidenceRef, ReasoningEngine } from "./reasoning/contract";
 import { extractPageModel, type PageModel } from "./reasoning/pageModel";
 import { isLowQualityPage } from "./reasoning/pageQuality";
-import type { DnsLookup } from "./safeFetch";
-import { searchCompanyIntel, searchDepsFromEnv } from "./search/companyIntelSearch";
-import { readCompanyIntelSearchConfig } from "./search/env";
-import type { CompanyIntelSearchResponse, NormalizedSearchResult } from "./search/types";
+import type { DnsLookup } from "@telestar/core-search/safeFetch";
+import { searchCompanyIntel, searchDepsFromEnv } from "@telestar/core-search/search/companyIntelSearch";
+import { readCompanyIntelSearchConfig } from "@telestar/core-search/search/env";
+import type { CompanyIntelSearchResponse, NormalizedSearchResult } from "@telestar/core-search/search/types";
 import { buildEnrichmentSearchQueries, type SearchProvider, type SearchResult } from "./searchProvider";
 
 export const COMPANY_INTELLIGENCE_PROFILE_STALE_AFTER_MS = 30 * 24 * 60 * 60 * 1000;

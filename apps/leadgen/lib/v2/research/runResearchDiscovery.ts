@@ -9,7 +9,7 @@ import { upgradeSourceRulesToV2 } from "@/lib/v2/icp/authoring";
 import {
   runQueryAcrossProviders,
   searchDepsFromEnv,
-} from "@/lib/v2/company-intelligence/search/companyIntelSearch";
+} from "@telestar/core-search/search/companyIntelSearch";
 import type { V2JobDatabase } from "@/lib/v2/jobs/types";
 import {
   buildCompanyDiscoveryQueries,
@@ -23,7 +23,7 @@ import {
   type DiscoveryQuery,
   type ResearchBuilderParams,
 } from "./buildDiscoveryQueries";
-import { rerankResults } from "@/lib/v2/company-intelligence/search/rerankResults";
+import { rerankResults } from "@telestar/core-search/search/rerankResults";
 import { parseCompanyHits, parseContactHits, type ParsedCandidate, type RawSearchHit } from "./parseDiscoveryResults";
 import { isCandidateExcludedByIcp } from "./icpDiscoveryFilter";
 import type { IcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";

@@ -1,9 +1,12 @@
 // Spreadsheet and CSV ingestion: parsing, header classification, row validation, content hashing.
 //
-// This package holds DB-agnostic logic shared by the CRM (repository root) and apps/leadgen. The two
-// apps have different schemas — Tenant/Account/Contact here, V2Organization/V2Company/V2Contact there
-// — so anything that reaches for a database belongs in an app adapter, never here. A single
-// `@prisma/client` import would tie this code to one schema and defeat the reason it was extracted.
-//
-// Enforced by the `no-restricted-imports` rule for packages/** in eslint.config.mjs.
-export {};
+// Everything here is a pure transformation from bytes to validated rows. The writers that turn those
+// rows into companies, contacts and assignments stay in each app, because that is where the schemas
+// differ.
+export * from "./parseCsvRows";
+export * from "./parseSpreadsheet";
+export * from "./headers";
+export * from "./classifyImportProfile";
+export * from "./validateIngestionRow";
+export * from "./hash";
+export * from "./types";

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { safeFetch } from "@/lib/v2/company-intelligence/safeFetch";
+import { safeFetch } from "@telestar/core-search/safeFetch";
 import type { ParsedCandidate } from "./parseDiscoveryResults";
 
 // Liveness gate. The SERP harvester happily returns dead/404/parked domains; before we persist a

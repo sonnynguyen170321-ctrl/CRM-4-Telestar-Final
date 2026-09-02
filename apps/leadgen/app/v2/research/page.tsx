@@ -12,7 +12,7 @@ import { RunProgressPanel } from "@/components/v2/research/RunProgressPanel";
 import { runStatusMeta } from "@/components/v2/research/researchLabels";
 import { StatusBadge } from "@/components/shared/statusBadges";
 import { prisma } from "@/lib/server/prisma";
-import { resolveUsableProviderChain } from "@/lib/v2/company-intelligence/search/env";
+import { resolveUsableProviderChain } from "@telestar/core-search/search/env";
 import { getResearchRunProgress, type ResearchProgressPayload } from "@/lib/v2/research/progress";
 import { buildQueriesForIcp } from "@/lib/v2/research/runResearchDiscovery";
 import { queryResearchCandidates, queryResearchRun, queryResearchRuns, type ResearchCandidateRow, type ResearchRunRow } from "@/lib/v2/research/queryResearch";

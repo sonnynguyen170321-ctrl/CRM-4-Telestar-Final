@@ -1,7 +1,7 @@
 import "server-only";
 
-import { summarizeIcpRules } from "./summarizeIcpRules";
-import type { V2IcpLibraryResult, V2IcpLibraryVersion } from "./types";
+import { summarizeIcpRules } from "@telestar/core-icp/summarizeIcpRules";
+import type { V2IcpLibraryResult, V2IcpLibraryVersion } from "@telestar/core-icp/types";
 
 export type V2IcpLibraryDb = {
   $queryRawUnsafe<T = unknown>(query: string, ...values: unknown[]): Promise<T>;
