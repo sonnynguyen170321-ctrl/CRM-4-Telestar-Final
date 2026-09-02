@@ -24,6 +24,10 @@
     },
     "types": ["node", "react", "react-dom"]
   },
+  // `apps/*` is excluded on purpose: each app owns its own tsconfig and its own `@/*` root. Type
+  // checking apps/leadgen from here would resolve its `@/lib/...` imports against the CRM root and
+  // report hundreds of phantom errors. Apps are checked by their own `tsc`, packages are not — they
+  // are first-party source to whichever app compiles them.
   "include": [
     "next-env.d.ts",
     "**/*.ts",
@@ -32,5 +36,13 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", ".next", "Claude-Everything-setup", ".claude", "_proper_repo", "scratch"]
+  "exclude": [
+    "node_modules",
+    ".next",
+    "Claude-Everything-setup",
+    ".claude",
+    "_proper_repo",
+    "scratch",
+    "apps"
+  ]
 }
