@@ -537,11 +537,25 @@ model Account {
   staffCountMin   Int?
   staffCountMax   Int?
   domain          String?
+
+  // Company identity, phase 1: written alongside `name`, not yet unique.
+  //
+  // `@@unique([tenantId, name])` keys a company on its raw name, so "Công ty TNHH ABC",
+  // "CTY TNHH ABC" and "ABC Co.,Ltd" are three Accounts holding three separate sets of leads.
+  // `nameNormalized` folds Unicode, strips diacritics and removes Vietnamese legal forms;
+  // `canonicalDomain` is the stronger key wherever a website is known. Both are nullable and
+  // unconstrained here on purpose — the backfill measures how many Accounts collapse before any
+  // uniqueness is enforced, and phase 2 is what tightens it.
+  nameNormalized  String?
+  canonicalDomain String?
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   tenantId        String
   tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  contacts              Contact[]
+  contactEmployments    ContactEmployment[]
   leads                 Lead[]
   opportunities         Opportunity[]
   poolItems             LeadPoolItem[]
@@ -554,6 +568,8 @@ model Account {
   @@index([tenantId])
   @@index([tenantId, industry])
   @@index([tenantId, country])
+  @@index([tenantId, canonicalDomain])
+  @@index([tenantId, nameNormalized])
 }
 
 // ─── Contact (person-level) — Premium Data Model (P8) ───────────────────────
@@ -581,11 +597,23 @@ model Contact {
   normalizedEmail          String?
   normalizedPhone          String?
   normalizedLinkedIn       String?
+
+  // A contact belongs to a company. Until now the only link was the free-text `company` column, so
+  // "who works at this account" could not be answered without matching strings — and the same person
+  // at a renamed company looked like two people. `company` stays as a denormalised label; `accountId`
+  // is the fact. `normalizedCompany` is what the pool dedupe key is keyed on, so two spellings of one
+  // employer stop producing two pool records.
+  accountId                String?
+  account                  Account? @relation(fields: [accountId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  fullNameNormalized       String?
+  normalizedCompany        String?
+
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
   tenantId                 String
   tenant                   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  employments          ContactEmployment[]
   leadAssignments      Lead[]
   opportunities        Opportunity[]
   poolItems            LeadPoolItem[]
@@ -598,6 +626,40 @@ model Contact {
   @@index([tenantId])
   @@index([tenantId, country])
   @@index([tenantId, emailValidation])
+  @@index([tenantId, accountId])
+  @@index([tenantId, normalizedCompany])
+}
+
+// ─── ContactEmployment — who worked where, and when ─────────────────────────
+//
+// `Contact.accountId` answers "where does this person work now". This answers "where have they
+// worked", which is what makes a prospect still reachable after they move: the history survives the
+// job change instead of being overwritten by it, and a lead sourced two years ago can be recognised
+// as the same person at a new employer.
+//
+// Kept separate from Contact rather than folded into it because one contact legitimately has several
+// employments over time, and exactly one of them is current.
+model ContactEmployment {
+  @@unique([id, tenantId], map: "ContactEmployment_id_tenantId_key")
+  id        String    @id @default(cuid())
+  contactId String
+  contact   Contact   @relation(fields: [contactId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  accountId String
+  account   Account   @relation(fields: [accountId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  title     String?
+  isCurrent Boolean   @default(true)
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // One row per person per employer: re-importing the same roster must not stack duplicates.
+  @@unique([tenantId, contactId, accountId])
+  @@index([tenantId])
+  @@index([tenantId, accountId])
+  @@index([contactId, isCurrent])
 }
 
 // ─── Contact Intelligence (Permanent Derived Asset) ─────────────────────────
@@ -1888,6 +1950,10 @@ model LeadPoolItem {
   lastName  String?
   fullName  String?
   company   String
+  // Normalised employer name. `buildPoolDuplicateKey` falls back to
+  // `name:first|last|company.trim().toLowerCase()` when there is no email, phone or LinkedIn, so two
+  // spellings of one company currently produce two "distinct" pool records for the same person.
+  normalizedCompany String?
   title     String?
   email     String?
   phone     String?
@@ -2074,6 +2140,7 @@ model Tenant {
   aiBudgetPeriods          TenantAiBudgetPeriod[]
   aiBudgetReservations     TenantAiBudgetReservation[]
   webhooks                 Webhook[]
+  contactEmployments       ContactEmployment[]
 }
 
 // ─── Durable Webhook Configuration (TEL-P1-032) ──────────────────────────────
