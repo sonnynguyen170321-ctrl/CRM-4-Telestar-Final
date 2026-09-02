@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Building2, Loader2, Search, Sparkles, Users, X } from "lucide-react";
 
 import { launchResearchRunAction } from "@/app/v2/research/actions";
-import { buildQueriesFromBuilderParams, normalizeResearchBuilderParams } from "@/lib/v2/research/buildDiscoveryQueries";
+import { buildQueriesFromBuilderParams, normalizeResearchBuilderParams } from "@telestar/core-research/buildDiscoveryQueries";
 
 export type ResearchIcpOption = {
   id: string;

@@ -4,8 +4,8 @@ import { prisma } from "@/lib/server/prisma";
 import { runCompanyResearch } from "@telestar/core-intel/runCompanyResearch";
 import { createNonRetryableJobError } from "../jobs/errors";
 import type { V2JobHandler } from "../jobs/types";
-import { mapProfileToInsight, type CandidateInsight } from "./insightMapper";
-import { discoverPeopleAtCompany, personDedupeFingerprint } from "./peopleDiscovery";
+import { mapProfileToInsight, type CandidateInsight } from "@telestar/core-research/insightMapper";
+import { discoverPeopleAtCompany, personDedupeFingerprint } from "@telestar/core-research/peopleDiscovery";
 import { upsertProspects } from "./prospectLedger";
 import {
   buildResearchEvidenceKey,

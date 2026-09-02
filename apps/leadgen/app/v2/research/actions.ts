@@ -12,7 +12,7 @@ import { dismissCandidates, promoteCandidates } from "@/lib/v2/research/promoteC
 import { translateText } from "@/lib/v2/research/translate";
 import { findContactDetails } from "@/lib/v2/research/enrichContact";
 import { normalizeCompanyName } from "@/lib/v2/identity";
-import { normalizeCompanyDomain } from "@/lib/v2/research/candidateIdentity";
+import { normalizeCompanyDomain } from "@telestar/core-research/candidateIdentity";
 import { requirePermission } from "@/lib/v2/tenant";
 
 // /v2/research actions. Gated ingestion.apply (discovery creates pipeline records, same

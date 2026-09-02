@@ -3,7 +3,7 @@
 // contact-data adapter) is a separate seam — until then guesses are marked GUESSED, never
 // VERIFIED, so the UI is honest about confidence. Handles diacritics (Vietnamese names).
 
-import { foldAscii as asciiFold, VN_SURNAMES } from "@/lib/v2/identity";
+import { foldAscii as asciiFold, VN_SURNAMES } from "@telestar/core-identity";
 
 export type EmailGuess = { email: string; status: "GUESSED" | "VERIFIED" | "UNKNOWN" };
 

@@ -4,8 +4,8 @@ import { createHash } from "node:crypto";
 import { resolveMx, resolveTxt } from "node:dns/promises";
 
 import { safeFetch } from "@telestar/core-search/safeFetch";
-import { bestEmailGuess, guessEmailPatterns } from "./findContactEmail";
-import { extractEmails, extractPhones, pickBestEmail } from "./contactExtract";
+import { bestEmailGuess, guessEmailPatterns } from "@telestar/core-research/findContactEmail";
+import { extractEmails, extractPhones, pickBestEmail } from "@telestar/core-research/contactExtract";
 
 // Contact email waterfall (clean-room OpenLeads-style): public exact email -> learned pattern
 // -> common pattern -> DNS/MX/SPF/DMARC -> optional Reacher -> optional Gravatar -> optional

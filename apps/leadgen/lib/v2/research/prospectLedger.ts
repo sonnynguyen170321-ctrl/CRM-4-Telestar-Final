@@ -1,15 +1,15 @@
 import "server-only";
 
 import { prisma } from "@/lib/server/prisma";
-import type { ProspectLedgerEntry } from "./prospectDedupe";
+import type { ProspectLedgerEntry } from "@telestar/core-research/prospectDedupe";
 
 // Durable per-org prospect ledger. Every discovered candidate upserts its prospect row here,
 // so re-running any ICP or search surfaces first/last-seen dates and cross-run recency dedupe
 // (Inv 6). The ledger is NOT a CRM row (Inv 7): promotion still creates V2Company/V2Contact.
 // The pure dedupe decision + entry type live in ./prospectDedupe (offline-testable).
 
-export type { ProspectLedgerEntry } from "./prospectDedupe";
-export { wasSeenInPriorRun } from "./prospectDedupe";
+export type { ProspectLedgerEntry } from "@telestar/core-research/prospectDedupe";
+export { wasSeenInPriorRun } from "@telestar/core-research/prospectDedupe";
 
 export type ProspectUpsertInput = {
   kind: "COMPANY" | "CONTACT";

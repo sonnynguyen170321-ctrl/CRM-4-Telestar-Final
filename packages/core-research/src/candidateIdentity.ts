@@ -1,4 +1,4 @@
-import { normalizeCompanyName, normalizeIdentityDomain } from "@/lib/v2/identity";
+import { normalizeCompanyName, normalizeIdentityDomain } from "@telestar/core-identity";
 import { EXCLUDED_HOSTS as EXCLUDED_PROSPECT_DOMAINS } from "./parseDiscoveryResults";
 
 export type ResearchIdentitySource =

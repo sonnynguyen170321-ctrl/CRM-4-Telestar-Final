@@ -22,13 +22,13 @@ import {
   normalizeResearchQueryLimit,
   type DiscoveryQuery,
   type ResearchBuilderParams,
-} from "./buildDiscoveryQueries";
+} from "@telestar/core-research/buildDiscoveryQueries";
 import { rerankResults } from "@telestar/core-search/search/rerankResults";
-import { parseCompanyHits, parseContactHits, type ParsedCandidate, type RawSearchHit } from "./parseDiscoveryResults";
-import { isCandidateExcludedByIcp } from "./icpDiscoveryFilter";
+import { parseCompanyHits, parseContactHits, type ParsedCandidate, type RawSearchHit } from "@telestar/core-research/parseDiscoveryResults";
+import { isCandidateExcludedByIcp } from "@telestar/core-research/icpDiscoveryFilter";
 import type { IcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
 import { lookupProspects, upsertProspects, wasSeenInPriorRun } from "./prospectLedger";
-import { scoreCandidateHeuristic } from "./scoreCandidates";
+import { scoreCandidateHeuristic } from "@telestar/core-research/scoreCandidates";
 
 // How far the opt-in AI re-rank may move a candidate away from the deterministic heuristic.
 const AI_FIT_MAX_DEVIATION = 25;
@@ -40,7 +40,7 @@ export function boundAiFit(heuristicScore: number, aiScore: number): number {
   return Math.round(Math.min(high, Math.max(low, aiScore)));
 }
 import { scoreCandidatesWithAi, type AiFit } from "./scoreCandidatesWithAi";
-import { filterLiveCandidates } from "./verifyCandidates";
+import { filterLiveCandidates } from "@telestar/core-research/verifyCandidates";
 import {
   buildResearchEvidenceKey,
   recordResearchEvidence,
@@ -107,7 +107,7 @@ export async function createResearchRun(input: {
   // Lookalike: crawl + comprehend the seed FIRST so peer queries search the seed's real
   // industry/offering, not its brand name (which just returns the seed itself).
   if (normalizedParams?.seed && normalizedParams.mode === "LOOKALIKE") {
-    const { comprehendSeed } = await import("./comprehendSeed");
+    const { comprehendSeed } = await import("@telestar/core-research/comprehendSeed");
     const comp = await comprehendSeed({ name: normalizedParams.seed.name, domain: normalizedParams.seed.domain ?? null });
     normalizedParams = {
       ...normalizedParams,

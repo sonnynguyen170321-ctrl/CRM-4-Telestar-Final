@@ -3,7 +3,7 @@ import "server-only";
 import { getAiSettings, getProviderKey } from "@/lib/v2/ai/settings";
 import { getProvider } from "@/lib/v2/ai/providers";
 import { DEFAULT_AI_MODELS } from "@/lib/v2/ai/types";
-import { buildFitPrompt, parseFitResponse, MAX_CANDIDATES_PER_CALL, type AiFit, type AiFitInput } from "./fitPrompt";
+import { buildFitPrompt, parseFitResponse, MAX_CANDIDATES_PER_CALL, type AiFit, type AiFitInput } from "@telestar/core-research/fitPrompt";
 
 // Opt-in AI re-rank layer over the deterministic heuristic. Gated by the org's AI settings +
 // provider key + the run's aiFit flag. One batched call scores the batch's candidates for ICP
@@ -11,8 +11,8 @@ import { buildFitPrompt, parseFitResponse, MAX_CANDIDATES_PER_CALL, type AiFit, 
 // the caller silently keeps the heuristic score — nothing depends on AI being on. Keys/prompts
 // are never logged (Inv 9). Pure prompt/parse live in ./fitPrompt (offline-testable).
 
-export type { AiFit, AiFitInput } from "./fitPrompt";
-export { buildFitPrompt, parseFitResponse } from "./fitPrompt";
+export type { AiFit, AiFitInput } from "@telestar/core-research/fitPrompt";
+export { buildFitPrompt, parseFitResponse } from "@telestar/core-research/fitPrompt";
 
 /** Live: resolve org AI settings, call the provider, parse. null on any gate/failure. */
 export async function scoreCandidatesWithAi(

@@ -3,8 +3,8 @@ import "server-only";
 import { prisma } from "@/lib/server/prisma";
 import { normalizeCompanyName } from "@/lib/v2/identity";
 import { lookupProspects } from "./prospectLedger";
-import type { CandidateInsight } from "./insightMapper";
-import { companyDomainFromUrl, readCompanyScope, resolveCandidateCompanyName, resolveResearchCompanyIdentity, type ResearchCompanyIdentity, type ResearchIdentitySource } from "./candidateIdentity";
+import type { CandidateInsight } from "@telestar/core-research/insightMapper";
+import { companyDomainFromUrl, readCompanyScope, resolveCandidateCompanyName, resolveResearchCompanyIdentity, type ResearchCompanyIdentity, type ResearchIdentitySource } from "@telestar/core-research/candidateIdentity";
 
 // Read-models for /v2/research. Tenant-scoped; soft-delete respected (Inv 5/8).
 // The UI derives review guidance from real CRM/research/scoring state only.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { toGoogleSearchHref } from "@/lib/v2/format/url";
-import { buildQueriesFromBuilderParams, normalizeResearchBuilderParams } from "../buildDiscoveryQueries";
+import { buildQueriesFromBuilderParams, normalizeResearchBuilderParams } from "@telestar/core-research/buildDiscoveryQueries";
 
 describe("toGoogleSearchHref", () => {
   it("joins non-empty parts into a google search url", () => {

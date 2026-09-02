@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { extractEmails, extractPhones, pickBestEmail } from "../contactExtract";
+import { extractEmails, extractPhones, pickBestEmail } from "@telestar/core-research/contactExtract";
 import { canPersistContactDecision, classifyVerify, decideEmailChannel, decidePhoneChannel, isRoleEmail } from "../enrichContact";
 
 describe("contact extractor", () => {

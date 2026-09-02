@@ -5,10 +5,10 @@ import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/server/prisma";
 import { recordAuditEvent } from "@/lib/v2/audit";
 import { normalizeCompanyName } from "@/lib/v2/identity";
-import { resolveResearchCompanyIdentity } from "./candidateIdentity";
+import { resolveResearchCompanyIdentity } from "@telestar/core-research/candidateIdentity";
 import { enqueueCompanyEnrichmentJob } from "@/lib/v2/company-intelligence";
 import type { V2CompanyIntelligenceDatabase } from "@/lib/v2/company-intelligence/types";
-import { canPersistContactDecision, contactIdentifierValidity, findContactDetails } from "./enrichContact";
+import { canPersistContactDecision, contactIdentifierValidity, findContactDetails } from "@/lib/v2/research/enrichContact";
 import { upsertContactIdentifier, type IdentifierDb } from "@/lib/v2/crm/upsertContactIdentifier";
 import { markProspectPromoted } from "./prospectLedger";
 
