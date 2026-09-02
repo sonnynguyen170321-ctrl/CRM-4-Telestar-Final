@@ -85,6 +85,16 @@ export async function logLeadgenActivity(params: {
 export type PoolListQuery = {
   status?: string;
   qualification?: string;
+  /**
+   * The ENGINE's verdict, which is not the same field as `qualification`.
+   *
+   * `qualification` is what a reviewer decided; `icpQualification` is what the rules computed. A
+   * floor manager needs both: "what did the ICP reject" is a different question from "what did we
+   * reject", and the gap between them is where a wrong rule set shows up.
+   */
+  icpQualification?: string;
+  /** Records with no assessment at all — NOT SCORED, usually a batch that predates the ICP. */
+  unscoredOnly?: boolean;
   qualityClass?: string;
   reuseStatus?: string;
   dataStatus?: string;
@@ -107,10 +117,13 @@ const POOL_SEARCH_FIELDS = [
   'sourceName',
 ] as const;
 
-export function buildPoolWhere(query: Pick<PoolListQuery, 'status' | 'qualification' | 'qualityClass' | 'reuseStatus' | 'dataStatus' | 'search' | 'sourceType' | 'assignedCampaignId' | 'assignedSdrId'>, tenantId: string) {
+export function buildPoolWhere(query: Pick<PoolListQuery, 'status' | 'qualification' | 'icpQualification' | 'unscoredOnly' | 'qualityClass' | 'reuseStatus' | 'dataStatus' | 'search' | 'sourceType' | 'assignedCampaignId' | 'assignedSdrId'>, tenantId: string) {
   const where: Record<string, unknown> = { tenantId };
   if (query.status) where.status = query.status;
   if (query.qualification) where.qualification = query.qualification;
+  if (query.icpQualification) where.icpQualification = query.icpQualification;
+  // NOT SCORED is derived from the absence of an assessment, never from a placeholder row.
+  if (query.unscoredOnly) where.latestAssessmentId = null;
   if (query.sourceType) where.sourceType = query.sourceType;
   if (query.assignedCampaignId) where.assignedCampaignId = query.assignedCampaignId;
   if (query.assignedSdrId) where.assignedSdrId = query.assignedSdrId;
