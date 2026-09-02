@@ -1,4 +1,4 @@
-import type { CompanyIntelligenceProfileSummary } from "./readModel";
+import type { CompanyIntelligenceProfileSummary } from "./profileSummary";
 import type { CompanyIntelligenceReasoning } from "./reasoning/contract";
 import {
   CATEGORY_PREFERRED_SECTORS,

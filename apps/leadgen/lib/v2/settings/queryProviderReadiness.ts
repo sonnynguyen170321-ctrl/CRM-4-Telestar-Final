@@ -1,6 +1,6 @@
 import "server-only";
 
-import { readSearchProviderConfigFromEnv } from "@/lib/v2/company-intelligence/searchProvider";
+import { readSearchProviderConfigFromEnv } from "@telestar/core-intel/searchProvider";
 import { isKillSwitchEngaged } from "@/lib/v2/outreach/limits/liveSendGuards";
 import { buildProviderReadiness, type ProviderReadiness } from "./buildProviderReadiness";
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { deriveOutreachAngles } from "../outreachAngles";
-import type { IntelligenceView } from "@/lib/v2/company-intelligence/presentIntelligence";
+import type { IntelligenceView } from "@telestar/core-intel/presentIntelligence";
 
 function view(overrides: Partial<IntelligenceView>): IntelligenceView {
   return {

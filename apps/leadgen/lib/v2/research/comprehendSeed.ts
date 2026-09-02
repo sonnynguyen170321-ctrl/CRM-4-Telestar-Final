@@ -1,6 +1,6 @@
 import "server-only";
 
-import { runCompanyResearch } from "@/lib/v2/company-intelligence/runCompanyResearch";
+import { runCompanyResearch } from "@telestar/core-intel/runCompanyResearch";
 
 // Lookalike seed comprehension. Before searching for peers we must know what the seed actually
 // sells — otherwise brand-string queries just return the seed itself. This crawls the seed site

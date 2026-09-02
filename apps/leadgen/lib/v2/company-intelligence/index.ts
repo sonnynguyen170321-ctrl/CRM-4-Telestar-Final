@@ -1,5 +1,5 @@
 import { enqueueV2Job } from "../jobs/enqueueJob";
-import { currentResearchVersion } from "./pipelineVersion";
+import { currentResearchVersion } from "@telestar/core-intel/pipelineVersion";
 import type { EnqueueV2JobResult, V2JobSourceType } from "../jobs/types";
 import {
   COMPANY_ENRICHMENT_JOB_SCHEMA_VERSION,

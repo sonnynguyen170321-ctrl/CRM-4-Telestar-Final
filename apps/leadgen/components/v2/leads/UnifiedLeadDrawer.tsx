@@ -20,7 +20,7 @@ import { WorkflowBadge, QualificationBadge } from "@/components/v2/leads/Assessm
 import { LeadDrawerActions } from "@/components/v2/leads/LeadDrawerActions";
 import { useLeadDrawer } from "@/components/v2/leads/LeadDrawerProvider";
 import { CompanyIntelligencePanel } from "@/components/v2/company-intelligence/CompanyIntelligencePanel";
-import { presentCompanyIntelligence } from "@/lib/v2/company-intelligence/presentIntelligence";
+import { presentCompanyIntelligence } from "@telestar/core-intel/presentIntelligence";
 import { deriveOutreachAngles } from "@/lib/v2/crm/outreachAngles";
 import { formatDate, formatRelative } from "@/lib/v2/format/datetime";
 import { toExternalHref, toGoogleSearchHref } from "@/lib/v2/format/url";

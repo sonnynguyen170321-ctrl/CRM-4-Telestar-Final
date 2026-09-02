@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { presentCompanyIntelligence } from "../presentIntelligence";
-import type { CompanyIntelligenceProfileSummary } from "../readModel";
+import type { CompanyIntelligenceProfileSummary } from "../profileSummary";
 
 // Locks the depth unlock: per-claim citations + confidence, footprint facts, risks, and
 // evidence quality now surface from the persisted JSON instead of being dropped.

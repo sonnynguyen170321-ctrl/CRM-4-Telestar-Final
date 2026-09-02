@@ -21,8 +21,8 @@ import {
   WorkflowBadge,
 } from "@/components/v2/leads/AssessmentSummaryCard";
 import type { CompanyDetailResult } from "@/lib/v2/company-intelligence/readModel";
-import { presentCompanyIntelligence, type IntelligenceView } from "@/lib/v2/company-intelligence/presentIntelligence";
-import { deriveCompanySignals, type CompanySignals, type CompanyStatusTone } from "@/lib/v2/company-intelligence/companySignals";
+import { presentCompanyIntelligence, type IntelligenceView } from "@telestar/core-intel/presentIntelligence";
+import { deriveCompanySignals, type CompanySignals, type CompanyStatusTone } from "@telestar/core-intel/companySignals";
 import { CompanyIntelligencePanel, EXTRACT_TRIGGER_CLASS, ExtractIcon } from "@/components/v2/company-intelligence/CompanyIntelligencePanel";
 import type { IcpBestMatchResult } from "@/lib/v2/crm";
 import { companyLeadsHref, composeHref, leadDrawerHref } from "@/lib/v2/crm/leadRoutes";

@@ -16,13 +16,13 @@ import {
   selectIntelligenceProfile,
 } from "../companyEnrichmentHandler";
 import { isSearchOverBudget, recordProviderUsage, SEARCH_PROVIDER_KEY } from "../providerBudget";
-import { selectReasoningEngine } from "../reasoning/llmEngine";
+import { selectReasoningEngine } from "@/lib/v2/company-intelligence/reasoning-llmEngine";
 import {
   compileCompanyResearchResult,
   fetchCompanyMaterial,
   type CompanyResearchMaterial,
   type CompanyResearchResult,
-} from "../runCompanyResearch";
+} from "@telestar/core-intel/runCompanyResearch";
 
 // P4 split: the BullMQ enrichment pipeline â€” research.discover -> research.fetch ->
 // research.extract. Each stage is a small, separately-retryable job with pointer-only

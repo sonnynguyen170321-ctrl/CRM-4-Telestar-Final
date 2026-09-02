@@ -1,4 +1,4 @@
-import type { CompanyIntelligenceScoringTrace } from "../../company-intelligence/mapIntelligenceProfileToScoring";
+import type { CompanyIntelligenceScoringTrace } from "@telestar/core-intel/mapIntelligenceProfileToScoring";
 import type {
   AccountPreRank,
   CompanyEvidence,

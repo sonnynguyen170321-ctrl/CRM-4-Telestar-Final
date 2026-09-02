@@ -9,6 +9,20 @@ import { verticalMatchAliases } from "@telestar/core-scoring/rules/dictionaries/
 const COMPANY_LIST_PAGE_SIZE = 50;
 const CROSS_ICP_PAGE_SIZE = 50;
 
+// These shapes are produced by the crawl-and-reason pipeline, so they are defined in the package and
+// re-exported here for the call sites that already import them from this module.
+import type {
+  CompanyProfileStatus,
+  CompanyIntelligenceEvidenceItem,
+  CompanyIntelligenceProfileSummary,
+} from "@telestar/core-intel/profileSummary";
+
+export type {
+  CompanyProfileStatus,
+  CompanyIntelligenceEvidenceItem,
+  CompanyIntelligenceProfileSummary,
+} from "@telestar/core-intel/profileSummary";
+
 export type CompanyResearchStatus =
   | "SUCCESS"
   | "NO_WEBSITE"
@@ -21,43 +35,6 @@ export type CompanyResearchStatus =
   | "PARKED"
   | "NOT_RUN";
 
-export type CompanyProfileStatus =
-  | "PLACEHOLDER"
-  | "EXTRACTED"
-  | "PARTIAL"
-  | "FAILED";
-
-export type CompanyIntelligenceEvidenceItem = {
-  token: string;
-  family: string;
-  evidenceText: string;
-  sourceUrl: string;
-  // Persisted alongside every item since CINT5 but previously dropped at parse time â€”
-  // the drawer's evidence view uses them for source badges.
-  pageType: string | null;
-  provider: string | null;
-  confidence: string | null;
-};
-
-export type CompanyIntelligenceProfileSummary = {
-  id: string;
-  companySummary: string | null;
-  facts: string[];
-  factsByFamily: Array<{ family: string; tokens: string[] }>;
-  evidenceItems: CompanyIntelligenceEvidenceItem[];
-  evidenceByFamily: Array<{
-    family: string;
-    items: CompanyIntelligenceEvidenceItem[];
-  }>;
-  classification: unknown;
-  sourceCoverage: unknown;
-  riskSignals: unknown;
-  confidence: unknown;
-  profileStatus: CompanyProfileStatus;
-  staleAt: string | null;
-  researchVersion: number;
-  createdAt: string;
-};
 
 export type CompanyResearchSnapshotSummary = {
   id: string;

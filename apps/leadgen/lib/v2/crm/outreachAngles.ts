@@ -1,4 +1,4 @@
-import type { IntelligenceView } from "@/lib/v2/company-intelligence/presentIntelligence";
+import type { IntelligenceView } from "@telestar/core-intel/presentIntelligence";
 
 // Deterministic outreach-angle generator. Derives 2-4 concrete "here's how to open this" hooks
 // from the company-intelligence signals the drawer already has, so a fresh SDR can pitch without

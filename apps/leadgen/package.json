@@ -30,6 +30,7 @@
     "@telestar/core-icp": "*",
     "@telestar/core-identity": "*",
     "@telestar/core-ingest": "*",
+    "@telestar/core-intel": "*",
     "@telestar/core-scoring": "*",
     "@telestar/core-search": "*",
     "@tiptap/pm": "^3.27.1",

@@ -19,7 +19,7 @@ import {
   type ReasonedField,
   type ReasoningInput,
   type SalesChannel,
-} from "./contract";
+} from "@telestar/core-intel/reasoning/contract";
 
 const OFFERING_TYPES: OfferingType[] = ["saas", "vertical_saas", "product", "service", "marketplace", "ecommerce_platform", "agency", "unknown"];
 const MODEL_KINDS: BusinessModelKind[] = ["B2B", "B2C", "B2B2C", "hybrid", "unknown"];

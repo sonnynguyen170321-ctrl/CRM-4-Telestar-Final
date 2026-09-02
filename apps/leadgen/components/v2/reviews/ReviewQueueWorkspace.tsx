@@ -10,7 +10,7 @@ import type { LeadWorkspaceDetail } from "@/lib/v2/crm";
 import { ReviewResolutionPanel } from "./ReviewResolutionPanel";
 import { ReviewLeadContext } from "./ReviewLeadContext";
 import { CompanyIntelligencePanel } from "@/components/v2/company-intelligence/CompanyIntelligencePanel";
-import { presentCompanyIntelligence } from "@/lib/v2/company-intelligence/presentIntelligence";
+import { presentCompanyIntelligence } from "@telestar/core-intel/presentIntelligence";
 
 const ACTIVE_REVIEW_STATUSES = new Set(["OPEN", "IN_PROGRESS", "SNOOZED"]);
 

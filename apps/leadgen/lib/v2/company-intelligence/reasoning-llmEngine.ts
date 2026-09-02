@@ -2,19 +2,19 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { runAiCompletion } from "../../ai/runAiCompletion";
-import { getAiSettings, getProviderKey } from "../../ai/settings";
-import type { AiProviderKind } from "../../ai/types";
-import { COMPANY_INTEL_PIPELINE_VERSION } from "../pipelineVersion";
+import { runAiCompletion } from "../ai/runAiCompletion";
+import { getAiSettings, getProviderKey } from "../ai/settings";
+import type { AiProviderKind } from "../ai/types";
+import { COMPANY_INTEL_PIPELINE_VERSION } from "@telestar/core-intel/pipelineVersion";
 import {
   emptyReasoning,
   type CompanyIntelligenceReasoning,
   type ReasoningEngine,
   type ReasoningInput,
-} from "./contract";
-import { HybridReasoningEngine } from "./hybridEngine";
-import { buildEvidenceIndex, buildLlmPrompt, LLM_SYSTEM_PROMPT, parseLlmReasoning } from "./llmPrompt";
-import { RuleReasoningEngine } from "./ruleEngine";
+} from "@telestar/core-intel/reasoning/contract";
+import { HybridReasoningEngine } from "@telestar/core-intel/reasoning/hybridEngine";
+import { buildEvidenceIndex, buildLlmPrompt, LLM_SYSTEM_PROMPT, parseLlmReasoning } from "./reasoning-llmPrompt";
+import { RuleReasoningEngine } from "@telestar/core-intel/reasoning/ruleEngine";
 
 // AI3: the LLM reasoning engine. Implements the SAME contract as the rule engine, so
 // HybridReasoningEngine merges it field-by-field and scoring/UI stay untouched. The

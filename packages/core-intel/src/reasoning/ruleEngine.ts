@@ -36,10 +36,6 @@ const B2C_HINT = /\b(consumers?|shoppers?|individuals?|personal use|for you\b|fa
 const B2B_HINT = /\b(businesses?|enterprises?|teams?|companies|organizations?|b2b|saas)\b/i;
 const MARKETPLACE_HINT = /\b(marketplace|app store|listed on)\b/i;
 
-function lc(s: string | null | undefined): string {
-  return (s ?? "").toLowerCase();
-}
-
 /** Result of assembling the text the category taxonomy is allowed to read. */
 type ClassificationCorpus = {
   text: string;

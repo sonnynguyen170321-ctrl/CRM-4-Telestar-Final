@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Sparkles, Trophy, AlertTriangle, ExternalLink, Check, Loader2 } from "lucide-react";
 
-import type { IntelligenceView } from "@/lib/v2/company-intelligence/presentIntelligence";
+import type { IntelligenceView } from "@telestar/core-intel/presentIntelligence";
 import { toExternalHref } from "@/lib/v2/format/url";
 
 // CINT5: the ONE shared intelligence presenter component. Business identity first;

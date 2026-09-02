@@ -6,7 +6,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requirePermission } from "@/lib/v2/tenant";
 import { enqueueEnrichmentExecution } from "@/lib/v2/company-intelligence/runtime/enqueueEnrichment";
 import { enqueueCompanyEnrichmentJob } from "@/lib/v2/company-intelligence";
-import { nextForcedResearchVersion } from "@/lib/v2/company-intelligence/pipelineVersion";
+import { nextForcedResearchVersion } from "@telestar/core-intel/pipelineVersion";
 import { createRuntimeRun } from "@/lib/v2/runtime/runtimeStore";
 import { drainIfNoWorker } from "@/lib/v2/jobs/drainIfNoWorker";
 import { invalidateOrgFacets } from "@/lib/v2/bullmq/facetCache";

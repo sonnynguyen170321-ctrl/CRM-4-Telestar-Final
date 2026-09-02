@@ -1,7 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/server/prisma";
-import { runCompanyResearch } from "@/lib/v2/company-intelligence/runCompanyResearch";
+import { runCompanyResearch } from "@telestar/core-intel/runCompanyResearch";
 import { createNonRetryableJobError } from "../jobs/errors";
 import type { V2JobHandler } from "../jobs/types";
 import { mapProfileToInsight, type CandidateInsight } from "./insightMapper";

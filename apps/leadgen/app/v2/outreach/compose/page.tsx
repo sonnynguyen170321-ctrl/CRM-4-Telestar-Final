@@ -23,7 +23,7 @@ import { ActionQueue, DataState, InsightStrip, OutreachPanel, OutreachPill, Read
 import { CompanyIntelligencePanel } from "@/components/v2/company-intelligence/CompanyIntelligencePanel";
 import { prisma } from "@/lib/server/prisma";
 import { getLatestCompanyIntelligenceProfile } from "@/lib/v2/company-intelligence/readModel";
-import { presentCompanyIntelligence } from "@/lib/v2/company-intelligence/presentIntelligence";
+import { presentCompanyIntelligence } from "@telestar/core-intel/presentIntelligence";
 import { leadDrawerHref } from "@/lib/v2/crm/leadRoutes";
 import { resolveContactDisplayName } from "@/lib/v2/crm/resolveContactDisplayName";
 import { drainIfNoWorker } from "@/lib/v2/jobs/drainIfNoWorker";

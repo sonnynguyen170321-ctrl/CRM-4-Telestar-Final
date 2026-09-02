@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   mapIntelligenceProfileToScoring,
   type CompanyIntelligenceScoringTrace,
-} from "../../company-intelligence/mapIntelligenceProfileToScoring";
+} from "@telestar/core-intel/mapIntelligenceProfileToScoring";
 import { validateIcpVersionRules, type PersonaEvidence } from "@telestar/core-scoring/icpRulesSchema";
 import { validateIcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
 import { upgradeV1toV2 } from "@telestar/core-scoring/rules/upgradeV1toV2";

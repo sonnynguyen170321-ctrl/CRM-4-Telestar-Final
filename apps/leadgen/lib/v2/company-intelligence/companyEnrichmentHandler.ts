@@ -3,8 +3,8 @@ import type { V2JobHandler } from "../jobs/types";
 import { toJsonbParam, sanitizeNullableText } from "../persistence/jsonbSanitizer";
 import { enqueueIcpScoreJob } from "../scoring/runtime/enqueueScoringJobs";
 import { isSearchOverBudget, recordProviderUsage, SEARCH_PROVIDER_KEY } from "./providerBudget";
-import { selectReasoningEngine } from "./reasoning/llmEngine";
-import { runCompanyResearch } from "./runCompanyResearch";
+import { selectReasoningEngine } from "./reasoning-llmEngine";
+import { runCompanyResearch } from "@telestar/core-intel/runCompanyResearch";
 import { parseCompanyEnrichmentJobPayload } from "./types";
 
 type CompanyRow = {
