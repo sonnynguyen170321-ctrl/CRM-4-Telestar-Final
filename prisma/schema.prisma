@@ -445,6 +445,7 @@ model User {
   apiKeys                  ApiKey[]                  @relation("UserApiKeys")
   ownedContactRelationships ContactIntelligence[]   @relation("ContactRelationshipOwner")
   capturedEvidence          ContactEvidence[]       @relation("EvidenceCapturedBy")
+  researchRunsCreated       ResearchRun[]           @relation("ResearchRunCreatedBy")
 
   @@index([tenantId])
   @@index([tenantId, managerId])
@@ -509,6 +510,7 @@ model Campaign {
   emailHealthAlerts  EmailHealthAlert[]
   workOrders         WorkOrder[]
   contactEvidence    ContactEvidence[]
+  researchRuns       ResearchRun[]
 
   @@index([tenantId])
 }
@@ -560,6 +562,9 @@ model Account {
 
   contacts              Contact[]
   contactEmployments    ContactEmployment[]
+  researchCandidates    ResearchCandidate[]
+  researchSnapshots     CompanyResearchSnapshot[]
+  intelligenceProfiles  CompanyIntelligenceProfile[]
   leads                 Lead[]
   opportunities         Opportunity[]
   poolItems             LeadPoolItem[]
@@ -618,6 +623,7 @@ model Contact {
   tenant                   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   employments          ContactEmployment[]
+  researchCandidates   ResearchCandidate[]
   leadAssignments      Lead[]
   opportunities        Opportunity[]
   poolItems            LeadPoolItem[]
@@ -1790,6 +1796,7 @@ model IcpVersion {
   tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   assessments LeadPoolAssessment[]
+  researchRuns ResearchRun[]
   campaigns   Campaign[]
 
   @@unique([tenantId, icpProfileId, versionNumber])
@@ -2259,6 +2266,14 @@ model Tenant {
   icpProfiles              IcpProfile[]
   icpVersions              IcpVersion[]
   leadPoolAssessments      LeadPoolAssessment[]
+  researchRuns             ResearchRun[]
+  researchCandidates       ResearchCandidate[]
+  researchProspects        ResearchProspect[]
+  researchEvidence         ResearchEvidence[]
+  researchFieldObservations ResearchFieldObservation[]
+  researchProviderAttempts ResearchProviderAttempt[]
+  companyResearchSnapshots CompanyResearchSnapshot[]
+  companyIntelligenceProfiles CompanyIntelligenceProfile[]
 }
 
 // ─── Durable Webhook Configuration (TEL-P1-032) ──────────────────────────────
@@ -3519,4 +3534,328 @@ model PlaybookProposalEvidence {
   @@unique([proposalId, signalId])
   @@index([signalId])
   @@index([tenantId])
+}
+
+// ─── Research discovery + company intelligence ───────────────────────────────
+//
+// The CRM already has `AccountResearchCache` and `ContactResearchCache`. Those ENRICH a record that
+// already exists: given an Account, go and learn more about it. Nothing in the CRM finds companies or
+// people it does not already know about, which is the gap these tables close.
+//
+// The two layers stay side by side on purpose. The caches answer "tell me more about this account";
+// these answer "find me accounts worth having".
+
+enum ResearchRunKind {
+  company
+  contact
+}
+
+enum ResearchRunStatus {
+  queued
+  running
+  succeeded
+  failed
+}
+
+enum ResearchCandidateStatus {
+  discovered
+  duplicate
+  promoted
+  dismissed
+}
+
+/// Outcome of trying to read a company website. Not a workflow state: it records what the crawler
+/// met, which is why `offline` and `blocked` are worth keeping apart from `failed`. Roughly 40% of
+/// real company sites refuse a crawler outright, and for those the search chain is the only evidence
+/// there is.
+enum CompanyCrawlStatus {
+  success
+  no_website
+  offline
+  blocked
+  timeout
+  js_render_required
+  partial
+  invalid_url
+  parked
+  not_run
+}
+
+enum CompanyIntelligenceProfileStatus {
+  placeholder
+  extracted
+  partial
+  failed
+}
+
+model ResearchRun {
+  @@unique([id, tenantId], map: "ResearchRun_id_tenantId_key")
+  id           String            @id @default(cuid())
+  kind         ResearchRunKind
+  status       ResearchRunStatus @default(queued)
+  icpVersionId String?
+  icpVersion   IcpVersion?       @relation(fields: [icpVersionId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  campaignId   String?
+  campaign     Campaign?         @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: SetNull)
+
+  queriesJson Json
+  paramsJson  Json?
+  /// How far through `queriesJson` the run has got. Persisted so a worker restart resumes instead of
+  /// re-running every query and paying for those searches twice.
+  queryCursor Int  @default(0)
+
+  discoveredCount Int       @default(0)
+  duplicateCount  Int       @default(0)
+  errorMessage    String?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdById     String?
+  createdBy       User?     @relation("ResearchRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  candidates       ResearchCandidate[]
+  evidence         ResearchEvidence[]
+  providerAttempts ResearchProviderAttempt[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+}
+
+model ResearchCandidate {
+  @@unique([id, tenantId], map: "ResearchCandidate_id_tenantId_key")
+  id     String                  @id @default(cuid())
+  runId  String
+  run    ResearchRun             @relation(fields: [runId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  kind   ResearchRunKind
+  status ResearchCandidateStatus @default(discovered)
+
+  name        String
+  domain      String?
+  linkedinUrl String?
+  title       String?
+  companyName String?
+  location    String?
+
+  /// Where this came from: query, url, snippet, provider. Kept so a reviewer sees the evidence rather
+  /// than a bare score.
+  sourceJson     Json
+  /// Which ICP tokens the result matched.
+  matchHintsJson Json
+  /// Identity hash. Unique per run so one run cannot list the same company twice, and indexed
+  /// tenant-wide so later runs can recognise it.
+  dedupeFingerprint String
+
+  fitScore    Int?
+  fitReason   String?
+  /// "heuristic" or "ai". The deterministic score is the baseline; AI may only refine it within a
+  /// bounded window, never replace it.
+  fitSource   String?
+  emailGuess  String?
+  /// GUESSED / VERIFIED / UNKNOWN. A guess must never be treated as deliverable.
+  emailStatus String?
+  phone       String?
+  insightJson Json?
+  enrichedAt  DateTime?
+
+  promotedAccountId String?
+  promotedAccount   Account? @relation(fields: [promotedAccountId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  promotedContactId String?
+  promotedContact   Contact? @relation(fields: [promotedContactId, tenantId], references: [id, tenantId], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  evidence         ResearchEvidence[]
+  observations     ResearchFieldObservation[]
+  providerAttempts ResearchProviderAttempt[]
+
+  @@unique([tenantId, runId, dedupeFingerprint])
+  @@index([tenantId])
+  @@index([tenantId, dedupeFingerprint])
+  @@index([tenantId, runId, status])
+  @@index([tenantId, runId, fitScore])
+}
+
+/// Everything ever discovered, across runs. Without it the same company is rediscovered and
+/// re-enriched every time a similar ICP is searched, and the reviewer is asked about it again.
+model ResearchProspect {
+  @@unique([id, tenantId], map: "ResearchProspect_id_tenantId_key")
+  id                String          @id @default(cuid())
+  kind              ResearchRunKind
+  dedupeFingerprint String
+  domain            String?
+  linkedinUrl       String?
+  displayName       String
+  firstSeenAt       DateTime        @default(now())
+  lastSeenAt        DateTime        @default(now())
+  timesSeen         Int             @default(1)
+  lastRunId         String?
+
+  promotedAccountId String?
+  promotedContactId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, dedupeFingerprint])
+  @@index([tenantId, domain])
+  @@index([tenantId, lastSeenAt])
+}
+
+/// A single cited observation. `idempotencyKey` is unique so a retried enrichment records the same
+/// finding once instead of stacking duplicates behind the same claim.
+model ResearchEvidence {
+  @@unique([id, tenantId], map: "ResearchEvidence_id_tenantId_key")
+  id             String             @id @default(cuid())
+  runId          String?
+  run            ResearchRun?       @relation(fields: [runId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  candidateId    String?
+  candidate      ResearchCandidate? @relation(fields: [candidateId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  idempotencyKey String
+  sourceKind     String
+  provider       String?
+  sourceUrl      String?
+  sourceTitle    String?
+  sourceSnippet  String?
+  query          String?
+  confidence     Int?
+  evidenceJson   Json?
+  observedAt     DateTime           @default(now())
+  createdAt      DateTime           @default(now())
+  tenantId       String
+  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  observations ResearchFieldObservation[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, runId, createdAt])
+  @@index([tenantId, candidateId, createdAt])
+}
+
+/// One field value with the evidence behind it, so a drawer can show "size: 200-500, because this
+/// page said so" rather than an unattributed number.
+model ResearchFieldObservation {
+  @@unique([id, tenantId], map: "ResearchFieldObservation_id_tenantId_key")
+  id          String            @id @default(cuid())
+  candidateId String
+  candidate   ResearchCandidate @relation(fields: [candidateId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  evidenceId  String?
+  evidence    ResearchEvidence? @relation(fields: [evidenceId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  fieldName   String
+  valueText   String?
+  valueJson   Json?
+  confidence  Int?
+  sourceKind  String
+  createdAt   DateTime          @default(now())
+  tenantId    String
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, candidateId, fieldName])
+  @@index([tenantId, evidenceId])
+}
+
+/// Per-provider call log. Search costs money, so which provider was asked, whether it answered, and
+/// how long it took has to be inspectable rather than inferred from a bill.
+model ResearchProviderAttempt {
+  @@unique([id, tenantId], map: "ResearchProviderAttempt_id_tenantId_key")
+  id           String             @id @default(cuid())
+  runId        String?
+  run          ResearchRun?       @relation(fields: [runId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  candidateId  String?
+  candidate    ResearchCandidate? @relation(fields: [candidateId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  stage        String
+  provider     String
+  status       String
+  requestJson  Json?
+  responseJson Json?
+  errorMessage String?
+  startedAt    DateTime           @default(now())
+  finishedAt   DateTime?
+  createdAt    DateTime           @default(now())
+  tenantId     String
+  tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, runId, stage, createdAt])
+  @@index([tenantId, provider, status, createdAt])
+}
+
+/// Raw result of one crawl of a company site, kept separately from the interpretation of it so a
+/// classification change can be re-derived without paying to fetch the pages again.
+model CompanyResearchSnapshot {
+  @@unique([id, tenantId], map: "CompanyResearchSnapshot_id_tenantId_key")
+  id                String             @id @default(cuid())
+  accountId         String
+  account           Account            @relation(fields: [accountId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  canonicalDomain   String?
+  websiteUrl        String?
+  status            CompanyCrawlStatus
+  httpStatus        Int?
+  finalUrl          String?
+  redirectChainJson Json?
+  pagesFetchedJson  Json?
+  searchResultsJson Json?
+  rawTextHash       String?
+  contentHash       String?
+  errorCode         String?
+  errorMessage      String?
+
+  /// Bump this when the crawl-or-classify logic changes. It is part of the idempotency key, so
+  /// forgetting to bump it means re-running enrichment reuses the old result and the change never
+  /// reaches the data. That mistake once hid a classification fix for six weeks.
+  researchVersion Int    @default(1)
+  idempotencyKey  String
+
+  createdAt DateTime @default(now())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  intelligenceProfiles CompanyIntelligenceProfile[] @relation("ProfileSourceSnapshot")
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, accountId, createdAt])
+  @@index([tenantId, canonicalDomain])
+  @@index([status])
+}
+
+/// What the company actually does, derived from a snapshot: summary, controlled fact tokens, cited
+/// evidence, classification and confidence. `industryCategory` is the Axis-1 verdict the ICP scorer
+/// reads.
+model CompanyIntelligenceProfile {
+  @@unique([id, tenantId], map: "CompanyIntelligenceProfile_id_tenantId_key")
+  id                       String                           @id @default(cuid())
+  accountId                String
+  account                  Account                          @relation(fields: [accountId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  canonicalDomain          String?
+  sourceResearchSnapshotId String?
+  sourceResearchSnapshot   CompanyResearchSnapshot?         @relation("ProfileSourceSnapshot", fields: [sourceResearchSnapshotId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  companySummary           String?
+  factsJson                Json?
+  evidenceItemsJson        Json?
+  classificationJson       Json?
+  sourceCoverageJson       Json?
+  riskSignalsJson          Json?
+  confidenceJson           Json?
+  industryCategory         String?
+  profileStatus            CompanyIntelligenceProfileStatus
+  staleAt                  DateTime?
+  researchVersion          Int                              @default(1)
+  idempotencyKey           String
+
+  createdAt DateTime @default(now())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([tenantId, accountId, researchVersion])
+  @@index([tenantId, accountId, createdAt])
+  @@index([tenantId, industryCategory])
+  @@index([profileStatus])
 }
