@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(node scripts/check-v2-ui-visibility-demo.mjs)",
+      "Bash(echo \"---EXIT:$?---\")",
+      "Bash(echo \"---UI-EXIT:$?---\")",
+      "Bash(git --no-pager diff --stat scripts/)",
+      "Bash(git --no-pager diff --name-only HEAD)",
+      "Bash(node scripts/check-v2-demo-data-smoke.mjs)",
+      "Bash(node scripts/check-v2-identity-resolver.mjs)",
+      "Bash(node scripts/check-v2-manager-review-runtime.mjs)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(V2_DEMO_SMOKE_ALLOW=local_dev_smoke node scripts/seed-v2-demo-data-smoke.mjs)",
+      "Bash(npm run *)",
+      "Bash(git --no-pager log --oneline -10)",
+      "Bash(node -e \"console.log\\(require\\('zod/package.json'\\).version\\)\")",
+      "Bash(node scripts/check-v2-icp-schema-v2.mjs)",
+      "Bash(node -e \"const {z}=require\\('zod'\\); console.log\\('partialRecord:', typeof z.partialRecord\\); const s=z.partialRecord\\(z.enum\\(['HR','SALES']\\), z.enum\\(['IC','MANAGER']\\)\\); console.log\\('empty ok:', s.safeParse\\({}\\).success\\); console.log\\('partial ok:', s.safeParse\\({HR:'IC'}\\).success\\); console.log\\('bad key:', s.safeParse\\({NOPE:'IC'}\\).success\\); console.log\\('bad val:', s.safeParse\\({HR:'NOPE'}\\).success\\);\")",
+      "Bash(node scripts/check-v2-icp-scoring.mjs)",
+      "Bash(git push *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/skills/impeccable/scripts/hook.mjs\"",
+            "timeout": 5,
+            "statusMessage": "Checking UI changes"
+          }
+        ]
+      }
+    ]
+  },
+  "description": "Impeccable design detector: runs after Edit/Write/MultiEdit on UI files and surfaces findings as system reminders."
+}

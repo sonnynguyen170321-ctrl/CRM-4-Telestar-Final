@@ -1,0 +1,23 @@
+# Caddy reverse proxy with automatic HTTPS.
+#
+# APP_DOMAIN is injected from the environment (see docker-compose.yml). On EC2 without a
+# custom domain we use a sslip.io hostname derived from the Elastic IP, e.g.
+#   13-250-1-2.sslip.io  ->  resolves to 13.250.1.2
+# Caddy then obtains a real Let's Encrypt certificate for it automatically (ports 80+443
+# must be open to the internet for the ACME HTTP-01 challenge).
+#
+# To move to a real domain later: point the domain's A record at the Elastic IP and set
+# APP_DOMAIN to that domain — no other change needed.
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	# Forward everything to the internal Next.js server. Caddy sets X-Forwarded-* so the
+	# app sees the correct https origin (secure session cookies depend on this).
+	reverse_proxy web:3000
+
+	# 10 MB matches the app's MAX_UPLOAD_BYTES for CSV/XLSX ingestion uploads.
+	request_body {
+		max_size 10MB
+	}
+}

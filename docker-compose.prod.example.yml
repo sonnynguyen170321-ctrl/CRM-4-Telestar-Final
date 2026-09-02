@@ -1,0 +1,35 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env.production
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  # Optional local Postgres for VPS or production-style testing.
+  # For AWS RDS or another managed database, do not start this profile and set
+  # DATABASE_URL in .env.production to the external Postgres endpoint instead.
+  postgres:
+    image: postgres:16-bookworm
+    profiles:
+      - local-postgres
+    environment:
+      POSTGRES_DB: telestar
+      POSTGRES_USER: telestar
+      POSTGRES_PASSWORD: change-me
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telestar -d telestar"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

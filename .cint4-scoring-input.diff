@@ -1,0 +1,57 @@
+diff --git a/lib/v2/scoring/runtime/buildScoringInput.ts b/lib/v2/scoring/runtime/buildScoringInput.ts
+--- a/lib/v2/scoring/runtime/buildScoringInput.ts
++++ b/lib/v2/scoring/runtime/buildScoringInput.ts
+@@ -2,1 +2,4 @@
+-import { mapNeutralFactsToCompanyEvidence } from "../../company-intelligence/mapIntelligenceToCompanyEvidence";
++import {
++  mapIntelligenceProfileToScoring,
++  type CompanyIntelligenceScoringTrace,
++} from "../../company-intelligence/mapIntelligenceProfileToScoring";
+@@ -156,1 +159,1 @@
+-  const intelligenceEvidence = await loadIntelligenceEvidence(db, {
++  const intelligence = await loadIntelligenceEvidence(db, {
+@@ -204,1 +207,2 @@
+-      ...intelligenceEvidence,
++      ...intelligence.companyEvidence,
++    intelligenceTrace: intelligence.trace,
+@@ -241,0 +246,2 @@
++  id: string;
++  researchVersion: number;
+@@ -243,0 +251,1 @@
++  confidenceJson: unknown;
+@@ -250,1 +259,4 @@
+-): Promise<ReturnType<typeof mapNeutralFactsToCompanyEvidence> | Record<string, never>> {
++): Promise<{
++  companyEvidence: Record<string, unknown>;
++  trace: CompanyIntelligenceScoringTrace | null;
++}> {
+@@ -252,0 +265,2 @@
++      "id",
++      "researchVersion",
+@@ -254,0 +270,1 @@
++      "confidenceJson",
+@@ -268,1 +285,1 @@
+-    return {};
++    return { companyEvidence: {}, trace: null };
+@@ -271,9 +288,8 @@
+-  const facts = Array.isArray(row.factsJson)
+-    ? row.factsJson.filter((fact): fact is string => typeof fact === "string")
+-    : [];
+-
+-  return mapNeutralFactsToCompanyEvidence(facts, {
++  return mapIntelligenceProfileToScoring({
++    profileId: row.id,
++    researchVersion: row.researchVersion,
++    factsJson: row.factsJson,
+     sourceCoverageJson: row.sourceCoverageJson,
+     profileStatus: row.profileStatus,
++    confidenceJson: row.confidenceJson,
+   });
+ }
+diff --git a/lib/v2/scoring/runtime/types.ts b/lib/v2/scoring/runtime/types.ts
+--- a/lib/v2/scoring/runtime/types.ts
++++ b/lib/v2/scoring/runtime/types.ts
+@@ -1,0 +1,1 @@
++import type { CompanyIntelligenceScoringTrace } from "../../company-intelligence/mapIntelligenceProfileToScoring";
+@@ -129,0 +131,1 @@
++  intelligenceTrace: CompanyIntelligenceScoringTrace | null;

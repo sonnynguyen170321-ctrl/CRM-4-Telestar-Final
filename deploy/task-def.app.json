@@ -1,0 +1,38 @@
+{
+  "family": "telestar-app",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT>:role/telestar-ecs-execution",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT>:role/telestar-ecs-task",
+  "containerDefinitions": [
+    {
+      "name": "app",
+      "image": "<ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/telestar-v2:latest",
+      "essential": true,
+      "portMappings": [{ "containerPort": 3000, "protocol": "tcp" }],
+      "environment": [
+        { "name": "NODE_ENV", "value": "production" },
+        { "name": "V2_BULL_ENABLED", "value": "true" },
+        { "name": "V2_BULL_PREFIX", "value": "telestar" }
+      ],
+      "secrets": [
+        { "name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT>:secret:telestar/DATABASE_URL" },
+        { "name": "REDIS_URL", "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT>:secret:telestar/REDIS_URL" },
+        { "name": "V2_AUTH_SECRET", "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT>:secret:telestar/V2_AUTH_SECRET" },
+        { "name": "V2_OUTREACH_CREDENTIAL_KEY", "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT>:secret:telestar/V2_OUTREACH_CREDENTIAL_KEY" },
+        { "name": "V2_WORKER_SECRET", "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT>:secret:telestar/V2_WORKER_SECRET" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/telestar-app",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "app",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

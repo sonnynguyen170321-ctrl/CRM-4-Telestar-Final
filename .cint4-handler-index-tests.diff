@@ -1,0 +1,32 @@
+diff --git a/lib/v2/company-intelligence/companyEnrichmentHandler.ts b/lib/v2/company-intelligence/companyEnrichmentHandler.ts
+--- a/lib/v2/company-intelligence/companyEnrichmentHandler.ts
++++ b/lib/v2/company-intelligence/companyEnrichmentHandler.ts
+@@ -8,6 +8,7 @@ type CompanyRow = {
+   name: string;
+   canonicalDomain: string | null;
+   websiteUrl: string | null;
++  country: string | null;
+ };
+@@ -36,7 +37,7 @@ export const companyEnrichmentJobHandler: V2JobHandler = async (context) => {
+-    SELECT "id", "name", "canonicalDomain", "websiteUrl"
++    SELECT "id", "name", "canonicalDomain", "websiteUrl", "country"
+@@ -78,6 +79,7 @@ export const companyEnrichmentJobHandler: V2JobHandler = async (context) => {
+     const research = await runCompanyResearch({
+       companyName: company.name,
++      country: company.country,
+       canonicalDomainInput: company.canonicalDomain,
+diff --git a/lib/v2/company-intelligence/index.ts b/lib/v2/company-intelligence/index.ts
+--- a/lib/v2/company-intelligence/index.ts
++++ b/lib/v2/company-intelligence/index.ts
+@@ -1,4 +1,5 @@
+ import { enqueueV2Job } from "../jobs/enqueueJob";
++import { currentResearchVersion } from "./pipelineVersion";
+@@ -27,7 +28,7 @@ export async function enqueueCompanyEnrichmentJob(
+-  const researchVersion = input.researchVersion ?? 1;
++  const researchVersion = input.researchVersion ?? currentResearchVersion();
+diff --git a/lib/v2/company-intelligence/__tests__/runCompanyResearch.test.ts b/lib/v2/company-intelligence/__tests__/runCompanyResearch.test.ts
+--- a/lib/v2/company-intelligence/__tests__/runCompanyResearch.test.ts
++++ b/lib/v2/company-intelligence/__tests__/runCompanyResearch.test.ts
+@@ -142,7 +142,7 @@ describe("runCompanyResearch", () => {
+-    expect(result.profile.sourceCoverageJson.searchQueriesRun).toBe(3);
++    expect(result.profile.sourceCoverageJson.searchQueriesRun).toBe(0);

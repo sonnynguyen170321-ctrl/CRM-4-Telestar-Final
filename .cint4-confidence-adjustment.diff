@@ -1,0 +1,51 @@
+diff --git a/lib/v2/scoring/assessCompanyAgainstIcp.ts b/lib/v2/scoring/assessCompanyAgainstIcp.ts
+--- a/lib/v2/scoring/assessCompanyAgainstIcp.ts
++++ b/lib/v2/scoring/assessCompanyAgainstIcp.ts
+@@ -47,1 +47,2 @@
+-  personaEvidence?: PersonaEvidence
++  personaEvidence?: PersonaEvidence,
++  confidenceAdjustment = 0
+@@ -71,6 +72,9 @@
+-  const confidenceScore = computeIcpConfidenceScore({
+-    input: normalizedInput,
+-    industryTags,
+-    positiveSignalsHit,
+-    negativeSignalsHit,
+-  });
++  const confidenceScore = clampInteger(
++    computeIcpConfidenceScore({
++      input: normalizedInput,
++      industryTags,
++      positiveSignalsHit,
++      negativeSignalsHit,
++    }) + confidenceAdjustment,
++    0,
++    100
++  );
+diff --git a/lib/v2/scoring/rules/deriveQualification.ts b/lib/v2/scoring/rules/deriveQualification.ts
+--- a/lib/v2/scoring/rules/deriveQualification.ts
++++ b/lib/v2/scoring/rules/deriveQualification.ts
+@@ -58,1 +58,2 @@
+-  rules: IcpVersionRulesV2
++  rules: IcpVersionRulesV2,
++  confidenceAdjustment = 0
+@@ -60,1 +61,1 @@
+-  return assessNormalizedIcpRulesV2(normalizeEvidence(rawEvidence), rules);
++  return assessNormalizedIcpRulesV2(normalizeEvidence(rawEvidence), rules, confidenceAdjustment);
+@@ -65,1 +66,2 @@
+-  rules: IcpVersionRulesV2
++  rules: IcpVersionRulesV2,
++  confidenceAdjustment = 0
+@@ -84,5 +86,7 @@
+-  const confidenceScore = deriveConfidenceScore({
+-    gatesHit: gates.hits.length,
+-    missingEvidenceCount: missingEvidence.length,
+-    requiredEvidenceMissingCount: requiredEvidenceMissing.length,
+-  });
++  const confidenceScore = clampScore(
++    deriveConfidenceScore({
++      gatesHit: gates.hits.length,
++      missingEvidenceCount: missingEvidence.length,
++      requiredEvidenceMissingCount: requiredEvidenceMissing.length,
++    }) + confidenceAdjustment
++  );

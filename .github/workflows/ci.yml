@@ -1,0 +1,28 @@
+name: CI
+
+# Safety net: lint + typecheck + build on every push/PR so broken code or stray
+# scratch files can never silently reach the branch (the gap that let
+# debug-*.ts + 3 typecheck errors land undetected).
+
+on:
+  push:
+    branches: [feature/shared-types, main]
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    env:
+      # Prisma client init only needs the var present; build never connects.
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci?schema=public"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build

@@ -1,0 +1,2782 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UploadJobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum Qualification {
+  QUALIFIED
+  UNQUALIFIED
+  UNCERTAIN
+}
+
+enum ReviewState {
+  UNREVIEWED
+  NEEDS_REVIEW
+  REVIEWED
+}
+
+enum CompanyType {
+  NOT_RELEVANT        @map("Not Relevant")
+  PAAS
+  SAAS
+  CLOUD
+  ITO
+  DATA_SOLUTION       @map("Data Solution")
+  AI_SOLUTION         @map("AI Solution")
+  AI_SERVICE          @map("AI Service")
+  CYBER_SECURITY      @map("Cyber Security")
+  BLOCKCHAIN_SOLUTION @map("Blockchain Solution")
+}
+
+enum FeedbackSource {
+  LOCAL_UI
+  IMPORTED_CSV
+  API
+}
+
+enum DatasetSplit {
+  UNSPECIFIED
+  TRAIN
+  EVAL
+  HOLDOUT
+}
+
+enum V2RecordStatus {
+  ACTIVE
+  DISABLED
+  ARCHIVED
+}
+
+enum V2ProjectStage {
+  PLANNING
+  IN_PROGRESS
+  PAUSED
+  COMPLETED
+}
+
+enum V2MembershipRole {
+  OWNER
+  ADMIN
+  MANAGER
+  TEAM_LEAD
+  SDR
+  VIEWER
+}
+
+enum V2MembershipStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum V2ICPVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum V2ContactIdentifierType {
+  EMAIL
+  PHONE
+  LINKEDIN
+  OTHER
+}
+
+enum V2ContactIdentifierValidityStatus {
+  VALID
+  INVALID
+  BOUNCED
+  SUPPRESSED
+  UNKNOWN
+  NOT_FOUND
+  PRIVATE
+}
+
+enum V2Qualification {
+  QUALIFIED
+  NEEDS_REVIEW
+  UNQUALIFIED
+  COMPANY_QUALIFIED_NEEDS_CONTACT
+  UNCERTAIN
+}
+
+enum V2AccountPreRank {
+  STRONG_ACCOUNT_FIT
+  POSSIBLE_ACCOUNT_FIT
+  WEAK_FIT
+  CLEAR_MISMATCH
+}
+
+enum V2ResearchStatus {
+  SUCCESS
+  NO_WEBSITE
+  OFFLINE
+  BLOCKED
+  TIMEOUT
+  JS_RENDER_REQUIRED
+  PARTIAL
+  INVALID_URL
+  PARKED
+  NOT_RUN
+}
+
+enum V2CompanyIntelligenceProfileStatus {
+  PLACEHOLDER
+  EXTRACTED
+  PARTIAL
+  FAILED
+}
+
+enum V2DatasetSplit {
+  UNSPECIFIED
+  TRAIN
+  EVAL
+  HOLDOUT
+}
+
+enum V2IngestionJobType {
+  COMPANY_UPLOAD
+  CONTACT_UPLOAD
+  ACTIVITY_RECAP
+}
+
+enum V2IngestionJobStatus {
+  PENDING
+  VALIDATING
+  VALIDATED_WITH_ERRORS
+  PROCESSING
+  COMPLETED
+  PARTIAL
+  FAILED
+  ABANDONED
+}
+
+enum V2IngestionRowStatus {
+  RAW
+  NORMALIZED
+  MATCHED
+  APPLIED
+  ERROR
+}
+
+enum V2LeadAssignmentLevel {
+  COMPANY
+  CONTACT
+}
+
+enum V2LeadWorkflowStatus {
+  NEW
+  ASSIGNED
+  WORKING
+  CONTACTED
+  RESPONDED
+  MEETING_BOOKED
+  MEETING_DONE
+  NURTURE
+  PAUSED
+  NOT_INTERESTED
+  BOUNCED
+  SUPPRESSED
+  DISQUALIFIED
+  ARCHIVED
+}
+
+enum V2TaskStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+enum V2ManagerReviewStatus {
+  OPEN
+  IN_PROGRESS
+  SNOOZED
+  RESOLVED
+  DISMISSED
+  ARCHIVED
+}
+
+enum V2ManagerReviewPriority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum V2ManagerReviewConfidence {
+  HIGH
+  MEDIUM
+  LOW
+  UNKNOWN
+}
+
+enum V2ManagerReviewSourceType {
+  HARD_RULE_ASSESSMENT
+  MANUAL_SDR_REQUEST
+  WORKFLOW_CONFLICT
+  INGESTION_ROW
+  IDENTITY_MATCH
+  ACTIVITY_RECAP_ROW
+  AI_SUGGESTION
+  FEEDBACK_EXAMPLE
+}
+
+enum V2ManagerReviewReasonCode {
+  SCORING_NEEDS_REVIEW
+  MISSING_REQUIRED_EVIDENCE
+  LOW_CONFIDENCE_HARD_DISQUALIFIER
+  WEAK_COMPANY_ONLY_EVIDENCE
+  SDR_REQUESTED_REVIEW
+  WORKFLOW_STATUS_CONFLICT
+  NO_MATCH_FROM_RECAP
+  MULTIPLE_COMPANY_CANDIDATES
+  MULTIPLE_CONTACT_CANDIDATES
+  GENERIC_EMAIL_ONLY
+  FUZZY_NAME_ONLY
+  NO_PROJECT_CONTEXT
+  POSSIBLE_DUPLICATE_ACTIVITY
+  STATUS_CHANGE_SUGGESTED
+  STALE_ACTIVITY_DATE
+  COMPANY_DOMAIN_CONFLICT
+  AI_DISAGREEMENT
+}
+
+enum V2ManagerReviewResolutionType {
+  APPROVE_CONFIRM
+  REJECT_DISMISS
+  REQUEST_CHANGES
+  LINK_EXISTING
+  CREATE_MISSING_ENTITY_LATER
+  NO_ACTION_NON_ACTIONABLE
+  CONVERT_TO_FEEDBACK_LATER
+  UPDATE_WORKFLOW_STATUS_LATER
+}
+
+enum V2JobType {
+  INGESTION_PARSE
+  INGESTION_NORMALIZE
+  IDENTITY_MATCH
+  LEAD_ASSIGNMENT_UPSERT
+  COMPANY_ENRICHMENT
+  ICP_SCORE
+  ACTIVITY_APPLY
+  EXPORT_GENERATE
+  AI_INSIGHT_GENERATE
+  RESEARCH_DISCOVERY
+  RESEARCH_ENRICH
+  EMAIL_SEND
+  SEQUENCE_STEP_EXECUTE
+}
+
+enum V2JobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  RETRY_SCHEDULED
+}
+
+enum V2JobSourceType {
+  INGESTION_JOB
+  INGESTION_ROW
+  LEAD_ASSIGNMENT
+  HARD_RULE_ASSESSMENT
+  AI_INSIGHT
+  EXPORT_JOB
+  EMAIL_SEND
+  SEQUENCE_ENROLLMENT
+  MANUAL
+}
+
+enum V2SuppressionScopeType {
+  ORGANIZATION
+  PROJECT
+  COMPANY
+  CONTACT
+  LEAD_ASSIGNMENT
+  GLOBAL
+}
+
+enum V2SuppressionIdentifierType {
+  EMAIL
+  DOMAIN
+  PHONE
+  LINKEDIN
+  CONTACT_ID
+  COMPANY_ID
+}
+
+enum V2SuppressionType {
+  UNSUBSCRIBE
+  BOUNCE
+  BLACKLIST
+  MANUAL
+  TENANT_LEVEL
+  GLOBAL
+}
+
+model V2Organization {
+  id        String         @id @default(cuid())
+  name      String
+  slug      String         @unique
+  status    V2RecordStatus @default(ACTIVE)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  teams                       V2Team[]
+  memberships                 V2OrganizationMembership[]
+  auditEvents                 V2AuditEvent[]
+  clientAccounts              V2ClientAccount[]
+  projects                    V2Project[]
+  projectMemberships          V2ProjectTeamMember[]
+  offers                      V2Offer[]
+  icpProfiles                 V2ICPProfile[]
+  icpVersions                 V2ICPVersion[]
+  companies                   V2Company[]
+  contacts                    V2Contact[]
+  contactIdentifiers          V2ContactIdentifier[]
+  leadAssignments             V2LeadAssignment[]
+  hardRuleAssessments         V2HardRuleAssessment[]
+  managerReviewItems          V2ManagerReviewItem[]          @relation("V2ManagerReviewItemOrganization")
+  aiInsights                  V2AiInsight[]
+  feedbackExamples            V2FeedbackExample[]
+  ingestionJobs               V2IngestionJob[]
+  ingestionRows               V2IngestionRow[]
+  jobs                        V2Job[]
+  suppressionEntries          V2SuppressionEntry[]
+  companyResearchSnapshots    V2CompanyResearchSnapshot[]
+  companyIntelligenceProfiles V2CompanyIntelligenceProfile[]
+  v2ResearchRuns              V2ResearchRun[]
+  v2ResearchCandidates        V2ResearchCandidate[]
+  v2ResearchProspects         V2ResearchProspect[]
+  v2ResearchEvidence          V2ResearchEvidence[]
+  v2ResearchFieldObservations V2ResearchFieldObservation[]
+  v2ResearchProviderAttempts  V2ResearchProviderAttempt[]
+  v2ResearchEmailPatterns     V2ResearchEmailPattern[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model V2User {
+  id              String         @id @default(cuid())
+  email           String
+  emailNormalized String         @unique
+  name            String?
+  status          V2RecordStatus @default(ACTIVE)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  memberships                V2OrganizationMembership[]
+  credential                 V2UserCredential?
+  authSessions               V2AuthSession[]
+  auditEvents                V2AuditEvent[]
+  publishedICPVersions       V2ICPVersion[]             @relation("V2ICPVersionPublishedBy")
+  generatedAiInsights        V2AiInsight[]              @relation("V2AiInsightGeneratedBy")
+  reviewedFeedbackExamples   V2FeedbackExample[]        @relation("V2FeedbackExampleReviewedBy")
+  uploadedIngestionJobs      V2IngestionJob[]           @relation("V2IngestionJobUploadedBy")
+  createdJobs                V2Job[]                    @relation("V2JobCreatedBy")
+  createdSuppressionEntries  V2SuppressionEntry[]       @relation("V2SuppressionEntryCreatedBy")
+  deletedCompanies           V2Company[]                @relation("V2CompanyDeletedBy")
+  deletedContacts            V2Contact[]                @relation("V2ContactDeletedBy")
+  deletedLeadAssignments     V2LeadAssignment[]         @relation("V2LeadAssignmentDeletedBy")
+  deletedICPVersions         V2ICPVersion[]             @relation("V2ICPVersionDeletedBy")
+  ownedClientAccounts        V2ClientAccount[]
+  ownedProjects              V2Project[]                @relation("V2ProjectOwner")
+  projectMemberships         V2ProjectTeamMember[]
+  deletedSuppressionEntries  V2SuppressionEntry[]       @relation("V2SuppressionEntryDeletedBy")
+  assignedManagerReviewItems V2ManagerReviewItem[]      @relation("V2ManagerReviewItemAssignedToUser")
+  createdManagerReviewItems  V2ManagerReviewItem[]      @relation("V2ManagerReviewItemCreatedByUser")
+  resolvedManagerReviewItems V2ManagerReviewItem[]      @relation("V2ManagerReviewItemResolvedByUser")
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model V2Team {
+  id             String         @id @default(cuid())
+  organizationId String
+  name           String
+  status         V2RecordStatus @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization V2Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  memberships  V2OrganizationMembership[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@index([status])
+}
+
+model V2OrganizationMembership {
+  id             String             @id @default(cuid())
+  organizationId String
+  userId         String
+  teamId         String?
+  role           V2MembershipRole
+  status         V2MembershipStatus @default(ACTIVE)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization V2Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user         V2User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  team         V2Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@index([teamId])
+  @@index([role])
+  @@index([status])
+}
+
+model V2UserCredential {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  passwordHash      String
+  passwordUpdatedAt DateTime  @default(now())
+  failedLoginCount  Int       @default(0)
+  lockedUntil       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user V2User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([lockedUntil])
+  @@index([updatedAt])
+}
+
+model V2AuthSession {
+  id            String    @id @default(cuid())
+  userId        String
+  tokenHash     String    @unique
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  lastSeenAt    DateTime?
+  userAgentHash String?
+  ipHash        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user V2User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@index([lastSeenAt])
+}
+
+model V2AuditEvent {
+  id             String   @id @default(cuid())
+  organizationId String?
+  actorUserId    String?
+  eventType      String
+  entityType     String?
+  entityId       String?
+  metadataJson   Json?
+  createdAt      DateTime @default(now())
+
+  organization V2Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  actorUser    V2User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([entityType, entityId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model V2ClientAccount {
+  id             String         @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  ownerUserId    String?
+  region         String?
+  industry       String?
+  status         V2RecordStatus @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization V2Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  ownerUser    V2User?        @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  projects     V2Project[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@index([ownerUserId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model V2Project {
+  id              String         @id @default(cuid())
+  organizationId  String
+  clientAccountId String
+  name            String
+  description     String?
+  status          V2RecordStatus @default(ACTIVE)
+  ownerUserId     String?
+  stage           V2ProjectStage @default(PLANNING)
+  startDate       DateTime?
+  endDate         DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  organization       V2Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  clientAccount      V2ClientAccount       @relation(fields: [clientAccountId], references: [id], onDelete: Restrict)
+  ownerUser          V2User?               @relation("V2ProjectOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  teamMembers        V2ProjectTeamMember[]
+  offers             V2Offer[]
+  leadAssignments    V2LeadAssignment[]
+  ingestionJobs      V2IngestionJob[]
+  managerReviewItems V2ManagerReviewItem[] @relation("V2ManagerReviewItemProject")
+
+  @@unique([organizationId, clientAccountId, name])
+  @@index([organizationId])
+  @@index([clientAccountId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model V2ProjectTeamMember {
+  projectId      String
+  userId         String
+  organizationId String
+  createdAt      DateTime @default(now())
+
+  project      V2Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user         V2User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization V2Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@id([projectId, userId])
+  @@index([organizationId])
+  @@index([createdAt])
+}
+
+model V2Offer {
+  id             String         @id @default(cuid())
+  organizationId String
+  projectId      String
+  name           String
+  description    String?
+  status         V2RecordStatus @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization V2Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  project      V2Project      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  icpProfiles  V2ICPProfile[]
+
+  @@unique([organizationId, projectId, name])
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model V2ICPProfile {
+  id             String         @id @default(cuid())
+  organizationId String
+  offerId        String
+  name           String
+  description    String?
+  status         V2RecordStatus @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization V2Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  offer        V2Offer        @relation(fields: [offerId], references: [id], onDelete: Restrict)
+  versions     V2ICPVersion[]
+
+  @@unique([organizationId, offerId, name])
+  @@index([organizationId])
+  @@index([offerId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model V2ICPVersion {
+  id                String             @id @default(cuid())
+  organizationId    String
+  icpProfileId      String
+  versionNumber     Int
+  status            V2ICPVersionStatus @default(DRAFT)
+  rulesJson         Json?
+  publishedAt       DateTime?
+  publishedByUserId String?
+  version           Int                @default(1)
+  deletedAt         DateTime?
+  deletedByUserId   String?
+  deletionReason    String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  organization        V2Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  icpProfile          V2ICPProfile           @relation(fields: [icpProfileId], references: [id], onDelete: Restrict)
+  publishedByUser     V2User?                @relation("V2ICPVersionPublishedBy", fields: [publishedByUserId], references: [id], onDelete: SetNull)
+  deletedByUser       V2User?                @relation("V2ICPVersionDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  leadAssignments     V2LeadAssignment[]
+  hardRuleAssessments V2HardRuleAssessment[]
+  managerReviewItems  V2ManagerReviewItem[]  @relation("V2ManagerReviewItemIcpVersion")
+  aiInsights          V2AiInsight[]
+  feedbackExamples    V2FeedbackExample[]
+
+  @@unique([organizationId, icpProfileId, versionNumber])
+  @@index([organizationId])
+  @@index([icpProfileId])
+  @@index([status])
+  @@index([organizationId, status, version])
+  @@index([publishedAt])
+  @@index([publishedByUserId])
+  @@index([deletedAt])
+  @@index([deletedByUserId])
+  @@index([createdAt])
+}
+
+model V2Company {
+  id               String         @id @default(cuid())
+  organizationId   String
+  name             String
+  nameNormalized   String
+  canonicalDomain  String?
+  websiteUrl       String?
+  linkedinUrl      String?
+  country          String?
+  // Raw industry as supplied by the upload/LinkedIn (e.g. "Food & Beverages"). Feeds the scoring
+  // industry dimension + the classification weak-prior. Distinct from the derived industryCategory.
+  industry         String?
+  employeeCountRange String? // e.g. "5,001 - 10,000 employees" — parsed to a size band at scoring.
+  revenue          String?
+  // Denormalized industry category id (e.g. "logistics", "b2b_saas") derived from the
+  // latest company-intelligence reasoning taxonomy. Lets the directory aggregate
+  // "top industries" + filter by industry without scanning factsJson. Descriptive
+  // only â€” NOT an ICP qualification (Invariant 2). Written by the enrichment handler.
+  industryCategory String?
+  status           V2RecordStatus @default(ACTIVE)
+  deletedAt        DateTime?
+  deletedByUserId  String?
+  deletionReason   String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  organization         V2Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deletedByUser        V2User?                        @relation("V2CompanyDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  leadAssignments      V2LeadAssignment[]
+  managerReviewItems   V2ManagerReviewItem[]          @relation("V2ManagerReviewItemCompany")
+  matchedIngestionRows V2IngestionRow[]               @relation("V2IngestionRowMatchedCompany")
+  researchSnapshots    V2CompanyResearchSnapshot[]
+  intelligenceProfiles V2CompanyIntelligenceProfile[]
+
+  @@unique([organizationId, canonicalDomain])
+  @@index([organizationId])
+  @@index([nameNormalized])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([organizationId, industryCategory])
+  @@index([deletedByUserId])
+  @@index([createdAt])
+}
+
+model V2CompanyResearchSnapshot {
+  id                String           @id @default(cuid())
+  organizationId    String
+  companyId         String
+  canonicalDomain   String?
+  websiteUrl        String?
+  status            V2ResearchStatus
+  httpStatus        Int?
+  finalUrl          String?
+  redirectChainJson Json?
+  pagesFetchedJson  Json?
+  searchResultsJson Json?
+  rawTextHash       String?
+  contentHash       String?
+  errorCode         String?
+  errorMessage      String?
+  researchVersion   Int              @default(1)
+  idempotencyKey    String           @unique
+  createdAt         DateTime         @default(now())
+
+  organization         V2Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  company              V2Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  intelligenceProfiles V2CompanyIntelligenceProfile[] @relation("V2CompanyIntelligenceProfileSourceSnapshot")
+
+  @@index([organizationId, companyId, createdAt])
+  @@index([canonicalDomain])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model V2CompanyIntelligenceProfile {
+  id                       String                             @id @default(cuid())
+  organizationId           String
+  companyId                String
+  canonicalDomain          String?
+  sourceResearchSnapshotId String?
+  companySummary           String?
+  factsJson                Json?
+  evidenceItemsJson        Json?
+  classificationJson       Json?
+  sourceCoverageJson       Json?
+  riskSignalsJson          Json?
+  confidenceJson           Json?
+  profileStatus            V2CompanyIntelligenceProfileStatus
+  staleAt                  DateTime?
+  researchVersion          Int                                @default(1)
+  idempotencyKey           String                             @unique
+  createdAt                DateTime                           @default(now())
+
+  organization           V2Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  company                V2Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sourceResearchSnapshot V2CompanyResearchSnapshot? @relation("V2CompanyIntelligenceProfileSourceSnapshot", fields: [sourceResearchSnapshotId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, companyId, researchVersion])
+  @@index([organizationId, companyId, createdAt])
+  @@index([canonicalDomain])
+  @@index([profileStatus])
+  @@index([staleAt])
+  @@index([createdAt])
+}
+
+model V2Contact {
+  id                 String         @id @default(cuid())
+  organizationId     String
+  fullName           String
+  fullNameNormalized String?
+  firstName          String?
+  lastName           String?
+  title              String?
+  city               String? // Contacts & Leads people layer: contact location (drawer header)
+  country            String?
+  department         String? // Uploaded descriptive fields (filter facets). Not scoring inputs —
+  seniority          String? // personaScore still derives seniority from the title string.
+  status             V2RecordStatus @default(ACTIVE)
+  deletedAt          DateTime?
+  deletedByUserId    String?
+  deletionReason     String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  organization         V2Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deletedByUser        V2User?               @relation("V2ContactDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  identifiers          V2ContactIdentifier[]
+  leadAssignments      V2LeadAssignment[]
+  managerReviewItems   V2ManagerReviewItem[] @relation("V2ManagerReviewItemContact")
+  matchedIngestionRows V2IngestionRow[]      @relation("V2IngestionRowMatchedContact")
+
+  @@index([organizationId])
+  @@index([fullNameNormalized])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([deletedByUserId])
+  @@index([createdAt])
+}
+
+model V2ContactIdentifier {
+  id              String                            @id @default(cuid())
+  organizationId  String
+  contactId       String
+  type            V2ContactIdentifierType
+  normalizedValue String
+  rawValue        String?
+  isGeneric       Boolean                           @default(false)
+  isValid         Boolean                           @default(true)
+  validityStatus  V2ContactIdentifierValidityStatus @default(UNKNOWN)
+  source          String?
+  lastValidatedAt DateTime?
+  createdAt       DateTime                          @default(now())
+  updatedAt       DateTime                          @updatedAt
+
+  organization V2Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  contact      V2Contact      @relation(fields: [contactId], references: [id], onDelete: Restrict)
+
+  // One identifier value per (contact, type) per org — makes the ingestion/research upsert idempotent
+  // at the DB level (Inv 6), replacing the app-level SELECT-then-insert that could race into dupes.
+  @@unique([organizationId, type, normalizedValue, contactId])
+  @@index([organizationId])
+  @@index([contactId])
+  @@index([type, normalizedValue])
+  @@index([validityStatus])
+  @@index([isGeneric])
+  @@index([createdAt])
+}
+
+// Employment history for a contact (person-centric). A contact can have many
+// employments; isCurrent marks the present employer. This models a job change
+// (same V2Contact, new company employment) instead of duplicating the person.
+// Soft FKs (app-enforced integrity), matching the V2 child-table convention.
+model V2ContactEmployment {
+  id             String    @id @default(cuid())
+  organizationId String
+  contactId      String
+  companyId      String
+  title          String?
+  isCurrent      Boolean   @default(true)
+  startDate      DateTime?
+  endDate        DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId, contactId])
+  @@index([organizationId, companyId])
+  @@index([contactId, isCurrent])
+}
+
+model V2LeadAssignment {
+  id                         String                @id @default(cuid())
+  organizationId             String
+  companyId                  String
+  contactId                  String?
+  projectId                  String
+  icpVersionId               String
+  assignmentLevel            V2LeadAssignmentLevel @default(COMPANY)
+  workflowStatus             V2LeadWorkflowStatus  @default(NEW)
+  latestHardRuleAssessmentId String?
+  // M1 lead ownership: the SDR who owns/works this lead. Soft FK to V2User
+  // (app-validated as an active org member), distinct from workflowStatus and
+  // qualification (Invariant 3 â€” ownership is not workflow, not qualification).
+  ownerUserId                String?
+  assignedAt                 DateTime?
+  assignedByUserId           String?
+  status                     V2RecordStatus        @default(ACTIVE)
+  deletedAt                  DateTime?
+  deletedByUserId            String?
+  deletionReason             String?
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+
+  organization             V2Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  company                  V2Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contact                  V2Contact?             @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  project                  V2Project              @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  icpVersion               V2ICPVersion           @relation(fields: [icpVersionId], references: [id], onDelete: Restrict)
+  latestHardRuleAssessment V2HardRuleAssessment?  @relation("V2LeadAssignmentLatestHardRuleAssessment", fields: [latestHardRuleAssessmentId], references: [id], onDelete: SetNull)
+  deletedByUser            V2User?                @relation("V2LeadAssignmentDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  hardRuleAssessments      V2HardRuleAssessment[]
+  managerReviewItems       V2ManagerReviewItem[]  @relation("V2ManagerReviewItemLeadAssignment")
+  aiInsights               V2AiInsight[]
+  feedbackExamples         V2FeedbackExample[]
+
+  @@index([organizationId])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([projectId])
+  @@index([icpVersionId])
+  @@index([organizationId, workflowStatus])
+  @@index([organizationId, assignmentLevel, status])
+  @@index([organizationId, ownerUserId, workflowStatus], map: "V2LeadAssignment_org_owner_workflow_idx")
+  @@index([latestHardRuleAssessmentId])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([deletedByUserId])
+  @@index([createdAt])
+  @@index([contactId, updatedAt], map: "V2LeadAssignment_contact_updatedAt_idx")
+}
+
+model V2HardRuleAssessment {
+  id                        String            @id @default(cuid())
+  organizationId            String
+  leadAssignmentId          String
+  icpVersionId              String
+  fitScore                  Int
+  confidence                Decimal           @db.Decimal(3, 2)
+  qualification             V2Qualification
+  accountPreRank            V2AccountPreRank?
+  companyType               String?
+  reason                    String
+  oneSentenceCompanySummary String?
+  evidenceSnapshotJson      Json?
+  hardGateResultsJson       Json?
+  confidenceBreakdownJson   Json?
+  dataQualityJson           Json?
+  inputFingerprint          String
+  icpRulesHash              String?
+  scoringSource             String            @default("local_hard_rules")
+  scoringVersion            String
+  previousAssessmentId      String?
+  createdAt                 DateTime          @default(now())
+
+  organization             V2Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  leadAssignment           V2LeadAssignment       @relation(fields: [leadAssignmentId], references: [id], onDelete: Restrict)
+  icpVersion               V2ICPVersion           @relation(fields: [icpVersionId], references: [id], onDelete: Restrict)
+  previousAssessment       V2HardRuleAssessment?  @relation("V2HardRuleAssessmentPrevious", fields: [previousAssessmentId], references: [id], onDelete: SetNull)
+  supersedingAssessments   V2HardRuleAssessment[] @relation("V2HardRuleAssessmentPrevious")
+  latestForLeadAssignments V2LeadAssignment[]     @relation("V2LeadAssignmentLatestHardRuleAssessment")
+  managerReviewItems       V2ManagerReviewItem[]  @relation("V2ManagerReviewItemHardRuleAssessment")
+  aiInsights               V2AiInsight[]
+  feedbackExamples         V2FeedbackExample[]
+
+  @@unique([organizationId, leadAssignmentId, icpVersionId, inputFingerprint, scoringVersion], map: "V2HRA_org_lead_icp_fingerprint_version_unique")
+  @@index([organizationId])
+  @@index([leadAssignmentId, createdAt])
+  @@index([icpVersionId])
+  @@index([qualification])
+  @@index([accountPreRank])
+  @@index([inputFingerprint])
+  @@index([previousAssessmentId])
+  @@index([createdAt])
+}
+
+model V2AiInsight {
+  id                    String           @id @default(cuid())
+  organizationId        String
+  leadAssignmentId      String
+  icpVersionId          String
+  hardRuleAssessmentId  String?
+  generatedByUserId     String?
+  provider              String
+  modelName             String
+  promptVersion         String
+  mode                  String           @default("manual")
+  summary               String?
+  qualification         V2Qualification?
+  companyType           String?
+  fitScore              Int?
+  confidence            Decimal?         @db.Decimal(3, 2)
+  reason                String?
+  recommendedNextAction String?
+  inputSnapshotJson     Json?
+  evidenceSnapshotJson  Json?
+  rawResponseJson       Json?
+  finishReason          String?
+  inputTokens           Int?
+  outputTokens          Int?
+  latencyMs             Int?
+  errorMessage          String?
+  inputFingerprint      String?
+  createdAt             DateTime         @default(now())
+
+  organization       V2Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  leadAssignment     V2LeadAssignment      @relation(fields: [leadAssignmentId], references: [id], onDelete: Restrict)
+  icpVersion         V2ICPVersion          @relation(fields: [icpVersionId], references: [id], onDelete: Restrict)
+  hardRuleAssessment V2HardRuleAssessment? @relation(fields: [hardRuleAssessmentId], references: [id], onDelete: Restrict)
+  generatedByUser    V2User?               @relation("V2AiInsightGeneratedBy", fields: [generatedByUserId], references: [id], onDelete: SetNull)
+  feedbackExamples   V2FeedbackExample[]
+
+  @@index([organizationId])
+  @@index([leadAssignmentId, createdAt])
+  @@index([icpVersionId])
+  @@index([hardRuleAssessmentId])
+  @@index([generatedByUserId])
+  @@index([provider, modelName, promptVersion])
+  @@index([inputFingerprint])
+  @@index([createdAt])
+}
+
+// â”€â”€ V2 AI governance (settings / providers / models / rate limits / usage / logs) â”€â”€
+// AI is ADVISORY + OPTIONAL: it never overwrites the deterministic qualification and
+// is never forced per company/scoring. These models govern when/how the LLM engine
+// may fire. Soft FKs (organizationId String) per the V2 child-table convention.
+
+enum V2AiMode {
+  OFF
+  UNCERTAIN_ONLY
+  ALL
+}
+
+enum V2AiProviderKind {
+  GEMINI
+  OPENAI
+  ANTHROPIC
+}
+
+enum V2AiRunStatus {
+  OK
+  TIMEOUT
+  ERROR
+  RATE_LIMITED
+  SKIPPED
+}
+
+// One row per org. Master switch + mode + default model + daily request budget.
+model V2AiSettings {
+  id                String           @id @default(cuid())
+  organizationId    String           @unique
+  enabled           Boolean          @default(false)
+  mode              V2AiMode         @default(UNCERTAIN_ONLY)
+  provider          V2AiProviderKind @default(GEMINI)
+  defaultModelId    String?
+  maxRowsPerUpload  Int              @default(100)
+  dailyCreditBudget Int              @default(2000) // credit = 1 AI request
+  resultHandling    String           @default("APPEND_ONLY")
+  environment       String           @default("production")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model V2AiProviderConfig {
+  id                  String           @id @default(cuid())
+  organizationId      String
+  provider            V2AiProviderKind
+  enabled             Boolean          @default(false)
+  lastHealthAt        DateTime?
+  lastHealthOk        Boolean?
+  lastHealthLatencyMs Int?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@unique([organizationId, provider])
+}
+
+model V2AiModel {
+  id                 String           @id @default(cuid())
+  organizationId     String
+  provider           V2AiProviderKind
+  modelId            String // e.g. "gemini-flash-latest", "gpt-4o-mini"
+  label              String
+  maxOutputTokens    Int              @default(1024)
+  defaultTemperature Decimal          @default(0.20) @db.Decimal(3, 2)
+  active             Boolean          @default(true)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@unique([organizationId, provider, modelId])
+  @@index([organizationId, active])
+}
+
+model V2AiRateLimit {
+  id                 String           @id @default(cuid())
+  organizationId     String
+  provider           V2AiProviderKind
+  rpmSoftLimit       Int              @default(6)
+  tpmSoftLimit       Int              @default(50000)
+  requestDelayMs     Int              @default(0)
+  maxRetries         Int              @default(3)
+  backoffBaseSeconds Int              @default(30)
+  backoffMaxSeconds  Int              @default(600)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@unique([organizationId, provider])
+}
+
+// Idempotent per (org, date, provider, model). Drives the usage chart + budget gate.
+model V2AiUsageDaily {
+  id             String           @id @default(cuid())
+  organizationId String
+  usageDate      DateTime         @db.Date
+  provider       V2AiProviderKind
+  modelId        String
+  requests       Int              @default(0)
+  creditsUsed    Int              @default(0)
+  inputTokens    Int              @default(0)
+  outputTokens   Int              @default(0)
+  errors         Int              @default(0)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([organizationId, usageDate, provider, modelId])
+  @@index([organizationId, usageDate])
+}
+
+// Append-only run log. History/Logs tabs + 24h health (latency/success/timeout/error).
+model V2AiRunLog {
+  id              String           @id @default(cuid())
+  organizationId  String
+  provider        V2AiProviderKind
+  modelId         String
+  purpose         String // COMPANY_REASONING | TEST_CONNECTION | ...
+  status          V2AiRunStatus
+  latencyMs       Int?
+  inputTokens     Int?
+  outputTokens    Int?
+  creditsUsed     Int              @default(1)
+  errorCode       String?
+  errorMessage    String?
+  companyId       String?
+  createdByUserId String?
+  createdAt       DateTime         @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, provider, createdAt])
+}
+
+model V2FeedbackExample {
+  id                     String           @id @default(cuid())
+  organizationId         String
+  leadAssignmentId       String
+  icpVersionId           String
+  hardRuleAssessmentId   String?
+  aiInsightId            String?
+  reviewedByUserId       String?
+  source                 String           @default("manual_review")
+  predictedFitScore      Int?
+  predictedQualification V2Qualification?
+  predictedCompanyType   String?
+  predictedReason        String?
+  finalFitScore          Int?
+  finalQualification     V2Qualification
+  finalCompanyType       String?
+  finalReason            String?
+  correctionJson         Json?
+  evidenceJson           Json?
+  rawExampleJson         Json?
+  approvedForLearning    Boolean          @default(false)
+  datasetSplit           V2DatasetSplit   @default(UNSPECIFIED)
+  createdAt              DateTime         @default(now())
+
+  organization       V2Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  leadAssignment     V2LeadAssignment      @relation(fields: [leadAssignmentId], references: [id], onDelete: Restrict)
+  icpVersion         V2ICPVersion          @relation(fields: [icpVersionId], references: [id], onDelete: Restrict)
+  hardRuleAssessment V2HardRuleAssessment? @relation(fields: [hardRuleAssessmentId], references: [id], onDelete: Restrict)
+  aiInsight          V2AiInsight?          @relation(fields: [aiInsightId], references: [id], onDelete: Restrict)
+  reviewedByUser     V2User?               @relation("V2FeedbackExampleReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([leadAssignmentId, createdAt])
+  @@index([icpVersionId])
+  @@index([hardRuleAssessmentId])
+  @@index([aiInsightId])
+  @@index([reviewedByUserId])
+  @@index([finalQualification])
+  @@index([approvedForLearning])
+  @@index([datasetSplit])
+  @@index([source])
+  @@index([createdAt])
+}
+
+model V2ManagerReviewItem {
+  id             String @id @default(cuid())
+  organizationId String
+
+  leadAssignmentId     String?
+  hardRuleAssessmentId String?
+  projectId            String?
+  companyId            String?
+  contactId            String?
+  icpVersionId         String?
+
+  sourceType        V2ManagerReviewSourceType
+  sourceId          String?
+  sourceRefJson     Json?
+  sourceFingerprint String
+
+  reasonCode             V2ManagerReviewReasonCode
+  reasonDetail           String?
+  suggestedAction        String?
+  priority               V2ManagerReviewPriority   @default(NORMAL)
+  confidence             V2ManagerReviewConfidence @default(UNKNOWN)
+  candidateSummariesJson Json?
+  metadataJson           Json?
+
+  status           V2ManagerReviewStatus @default(OPEN)
+  assignedToUserId String?
+  createdByUserId  String?
+  resolvedByUserId String?
+
+  resolutionType         V2ManagerReviewResolutionType?
+  resolutionNote         String?
+  resolutionMetadataJson Json?
+  dueAt                  DateTime?
+  snoozedUntil           DateTime?
+  resolvedAt             DateTime?
+  archivedAt             DateTime?
+  deletedAt              DateTime?
+  createdAt              DateTime                       @default(now())
+  updatedAt              DateTime                       @updatedAt
+
+  organization       V2Organization        @relation("V2ManagerReviewItemOrganization", fields: [organizationId], references: [id], onDelete: Restrict)
+  leadAssignment     V2LeadAssignment?     @relation("V2ManagerReviewItemLeadAssignment", fields: [leadAssignmentId], references: [id], onDelete: SetNull)
+  hardRuleAssessment V2HardRuleAssessment? @relation("V2ManagerReviewItemHardRuleAssessment", fields: [hardRuleAssessmentId], references: [id], onDelete: SetNull)
+  project            V2Project?            @relation("V2ManagerReviewItemProject", fields: [projectId], references: [id], onDelete: SetNull)
+  company            V2Company?            @relation("V2ManagerReviewItemCompany", fields: [companyId], references: [id], onDelete: SetNull)
+  contact            V2Contact?            @relation("V2ManagerReviewItemContact", fields: [contactId], references: [id], onDelete: SetNull)
+  icpVersion         V2ICPVersion?         @relation("V2ManagerReviewItemIcpVersion", fields: [icpVersionId], references: [id], onDelete: SetNull)
+  assignedToUser     V2User?               @relation("V2ManagerReviewItemAssignedToUser", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  createdByUser      V2User?               @relation("V2ManagerReviewItemCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  resolvedByUser     V2User?               @relation("V2ManagerReviewItemResolvedByUser", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, priority])
+  @@index([organizationId, leadAssignmentId, status])
+  @@index([organizationId, sourceType, createdAt])
+  @@index([organizationId, assignedToUserId, status])
+  @@index([organizationId, hardRuleAssessmentId])
+  @@index([organizationId, createdAt])
+  @@index([deletedAt])
+  @@index([organizationId, contactId], map: "V2ManagerReviewItem_org_contact_idx")
+}
+
+// T2 (contract: docs/v2/plan/V2_ACTIVITY_AND_TIMELINE_CONTRACT.md Â§2).
+// Durable home for a single SDR/human activity event attached to a LeadAssignment.
+// Uses soft references by plain String columns + indexes (no Prisma @relation /
+// FK constraint; referential integrity is app-enforced). Classification fields are
+// String, validated at the app boundary against lib/v2/activity-recaps/types.ts
+// (single source of truth â€” no duplicated Prisma enums to drift). Insert-only;
+// idempotent by sourceActivityHash; soft-deleted; tenant-scoped.
+model V2ActivityRecord {
+  id             String @id @default(cuid())
+  organizationId String
+
+  leadAssignmentId String
+  companyId        String
+  contactId        String?
+  actorUserId      String?
+
+  channel      String // ActivityChannel
+  activityType String // ActivityType
+  outcome      String // ActivityOutcome
+  eventKind    String // timeline discriminator, e.g. "activity.call_connected"
+
+  occurredAt       DateTime
+  timestampQuality String // TimestampQuality (provenance of occurredAt)
+
+  sourceActivityHash String // idempotency key (unique per org)
+  sourceUploadId     String?
+  sourceRowNumber    Int?
+
+  note         String?
+  metadataJson Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([organizationId, sourceActivityHash])
+  @@index([organizationId, leadAssignmentId, occurredAt])
+  @@index([organizationId, companyId, occurredAt])
+  @@index([organizationId, occurredAt])
+  @@index([deletedAt])
+  @@index([organizationId, contactId, occurredAt], map: "V2ActivityRecord_org_contact_occurredAt_idx")
+}
+
+// Contacts & Leads people layer: free-text notes on a LeadAssignment (drawer Notes +
+// Add Note). Append-only with soft-delete; never mutates the assessment (Inv 4).
+// Soft FKs (app-enforced), matching the V2 child-table convention.
+model V2LeadNote {
+  id               String    @id @default(cuid())
+  organizationId   String
+  leadAssignmentId String
+  authorUserId     String?
+  body             String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  @@index([organizationId, leadAssignmentId, createdAt])
+  @@index([deletedAt])
+}
+
+// Contacts & Leads people layer: a follow-up task / next action on a LeadAssignment
+// (drawer Next Action + Create Task). ownerUserId is assignable to any active org
+// member (app-validated). Soft FKs + soft-delete.
+model V2Task {
+  id               String       @id @default(cuid())
+  organizationId   String
+  leadAssignmentId String
+  contactId        String?
+  title            String
+  detail           String?
+  dueAt            DateTime?
+  status           V2TaskStatus @default(OPEN)
+  ownerUserId      String?
+  createdByUserId  String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  completedAt      DateTime?
+  deletedAt        DateTime?
+
+  @@index([organizationId, ownerUserId, status, dueAt])
+  @@index([organizationId, leadAssignmentId, status])
+  @@index([deletedAt])
+}
+
+model V2IngestionJob {
+  id                   String               @id @default(cuid())
+  organizationId       String
+  projectId            String?
+  uploadedByUserId     String?
+  jobType              V2IngestionJobType
+  status               V2IngestionJobStatus @default(PENDING)
+  originalFileName     String
+  sourceFileStorageKey String?
+  mappingJson          Json?
+  rowCountsJson        Json?
+  errorSummaryJson     Json?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  organization   V2Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  project        V2Project?       @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  uploadedByUser V2User?          @relation("V2IngestionJobUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  rows           V2IngestionRow[]
+
+  @@index([organizationId])
+  @@index([organizationId, jobType, status])
+  @@index([organizationId, createdAt])
+  @@index([projectId])
+  @@index([createdAt])
+}
+
+model V2IngestionRow {
+  id                   String               @id @default(cuid())
+  jobId                String
+  organizationId       String
+  sourceRowNumber      Int
+  sourceRowHash        String
+  rawRowJson           Json
+  normalizedRowJson    Json?
+  rowStatus            V2IngestionRowStatus @default(RAW)
+  validationErrorsJson Json?
+  matchedCompanyId     String?
+  matchedContactId     String?
+  errorMessage         String?
+  createdAt            DateTime             @default(now())
+
+  job            V2IngestionJob @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  organization   V2Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  matchedCompany V2Company?     @relation("V2IngestionRowMatchedCompany", fields: [matchedCompanyId], references: [id], onDelete: SetNull)
+  matchedContact V2Contact?     @relation("V2IngestionRowMatchedContact", fields: [matchedContactId], references: [id], onDelete: SetNull)
+
+  @@unique([jobId, sourceRowHash])
+  @@index([jobId, sourceRowNumber])
+  @@index([jobId, rowStatus])
+  @@index([organizationId])
+  @@index([organizationId, rowStatus])
+  @@index([matchedCompanyId])
+  @@index([matchedContactId])
+}
+
+model V2Job {
+  id                  String          @id @default(cuid())
+  organizationId      String
+  jobType             V2JobType
+  sourceType          V2JobSourceType
+  sourceId            String?
+  status              V2JobStatus     @default(QUEUED)
+  progressCurrent     Int             @default(0)
+  progressTotal       Int?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  failedAt            DateTime?
+  errorCode           String?
+  errorMessage        String?
+  retryCount          Int             @default(0)
+  nextAttemptAt       DateTime?
+  idempotencyKey      String
+  payloadSnapshotJson Json?
+  resultSnapshotJson  Json?
+  errorSnapshotJson   Json?
+  createdByUserId     String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  organization  V2Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser V2User?        @relation("V2JobCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, status, nextAttemptAt])
+  @@index([organizationId, jobType, status])
+  @@index([sourceType, sourceId])
+  @@index([createdByUserId])
+  @@index([createdAt])
+}
+
+model V2SuppressionEntry {
+  id                        String                      @id @default(cuid())
+  organizationId            String
+  scopeType                 V2SuppressionScopeType
+  scopeId                   String?
+  identifierType            V2SuppressionIdentifierType
+  identifierValueNormalized String
+  suppressionType           V2SuppressionType
+  reason                    String?
+  source                    String?
+  createdByUserId           String?
+  createdAt                 DateTime                    @default(now())
+  expiresAt                 DateTime?
+  deletedAt                 DateTime?
+  deletedByUserId           String?
+  deletionReason            String?
+
+  organization  V2Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser V2User?        @relation("V2SuppressionEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  deletedByUser V2User?        @relation("V2SuppressionEntryDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, identifierType, identifierValueNormalized, deletedAt, expiresAt])
+  @@index([organizationId, scopeType, scopeId])
+  @@index([organizationId, suppressionType])
+  @@index([createdByUserId])
+  @@index([createdAt])
+}
+
+// =====================================================================
+// O1 â€” Outreach pillar schema (design: docs/v2/plan/V2_OUTREACH_PILLAR_DESIGN.md)
+// Schema only: NO send behavior, NO provider call, NO handler. Tenant-scoped;
+// repo child-table pattern (plain String FK columns + indexes). Credentials are
+// encrypted envelopes (B1), never plaintext. Link A timeline fields on
+// V2OutreachActivity (B7). Send state machine on V2OutreachMessage (B2).
+// High-entropy providerMessageId for inbound correlation trust (B3/B14).
+// =====================================================================
+
+enum V2SenderKind {
+  RELAY
+  MAILBOX
+}
+
+enum V2SenderStatus {
+  ACTIVE
+  PAUSED
+  DEGRADED
+  DISABLED
+}
+
+enum V2OutreachMessageStatus {
+  QUEUED
+  SENDING
+  SENT
+  FAILED
+  BOUNCED
+  REPLIED
+}
+
+enum V2SequenceStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum V2SequenceStepKind {
+  EMAIL
+  WAIT
+  BRANCH
+  CALL_TASK
+  LINKEDIN
+  GOAL
+}
+
+enum V2MessageTemplateStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum V2EnrollmentStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  HALTED
+}
+
+enum V2InboundEventKind {
+  REPLY
+  BOUNCE_DSN
+  COMPLAINT
+  UNSUBSCRIBE
+  UNCORRELATED
+}
+
+enum V2CampaignTimezoneMode {
+  LEAD
+  CAMPAIGN
+  ORGANIZATION
+}
+
+enum V2TrackingDomainStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  DISABLED
+}
+
+enum V2TrackingEventKind {
+  OPEN
+  CLICK
+}
+
+enum V2TrackingBotClassification {
+  HUMAN
+  BOT
+  SUSPECTED
+  UNKNOWN
+}
+
+// Sender pool. RELAY = high-volume SMTP relay on your domain; MAILBOX = a Gmail /
+// Workspace account (warmup). Credentials stored as AES-256-GCM envelopes (B1).
+model V2SenderAccount {
+  id             String @id @default(cuid())
+  organizationId String
+
+  kind        V2SenderKind
+  displayName String
+  fromAddress String
+  fromName    String?
+  domain      String
+
+  // Optional HTML signature inserted/appended into outbound bodies (managed in sender settings).
+  signatureHtml String?
+
+  smtpHost    String
+  smtpPort    Int
+  smtpSecure  Boolean @default(true)
+  smtpAuthEnc Json // { ciphertext, iv, authTag, keyVersion } â€” never plaintext (B1)
+
+  imapHost          String?
+  imapPort          Int?
+  imapSecure        Boolean?
+  imapAuthEnc       Json? // encrypted envelope (B1)
+  returnPathAddress String?
+
+  // S6c: OAuth (XOAUTH2) auth. authMode = PASSWORD (smtp/imapAuthEnc) or OAUTH.
+  // oauthRefreshEnc is the encrypted refresh token (B1); never plaintext/logged.
+  authMode        String  @default("PASSWORD")
+  oauthProvider   String?
+  oauthRefreshEnc Json?
+
+  rateLimitPerMinute Int?
+  rateLimitPerHour   Int?
+  dailyCapTarget     Int  @default(0)
+  dailyCapCurrent    Int  @default(0)
+
+  warmupStage     Int       @default(0)
+  warmupStartedAt DateTime?
+
+  bounceRate            Float     @default(0)
+  complaintRate         Float     @default(0)
+  sentCountWindow       Int       @default(0)
+  bounceCountWindow     Int       @default(0)
+  healthWindowStartedAt DateTime?
+
+  status           V2SenderStatus @default(ACTIVE)
+  liveSendEnabled  Boolean        @default(false) // O9 cutover gate
+  trackingDomainId String?
+  lastSendAt       DateTime?
+
+  // S6b: connection-verification state (SMTP/IMAP). verifiedAt set on a full
+  // pass; lastVerifyError holds the fixed failure category on a failed check.
+  verifiedAt          DateTime?
+  lastVerifyError     String?
+  lastVerifyCheckedAt DateTime?
+
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  @@index([organizationId, status])
+  @@index([organizationId, kind, status])
+  @@index([organizationId, domain])
+  @@index([organizationId, trackingDomainId])
+  @@index([deletedAt])
+}
+
+// S6c: one-time, tenant-bound OAuth state for the Authorization Code + PKCE flow.
+// codeVerifierEnc is the encrypted PKCE verifier (B1). Single-use via consumedAt
+// (atomic UPDATE ... WHERE consumedAt IS NULL). Expires fast (~10 min).
+model V2OutreachOAuthState {
+  id              String    @id @default(cuid())
+  organizationId  String
+  state           String
+  provider        String
+  codeVerifierEnc Json
+  redirectUri     String
+  createdByUserId String?
+  expiresAt       DateTime
+  consumedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@unique([organizationId, state])
+  @@index([expiresAt])
+}
+
+// Liveness heartbeat for the dedicated worker + IMAP poller daemons. A stale
+// (or missing-in-prod) heartbeat blocks live campaign launch â€” the UI is not the
+// scheduler, so a dead daemon must not silently swallow sends.
+model V2WorkerHeartbeat {
+  id         String   @id @default(cuid())
+  workerKind String   @unique
+  lastBeatAt DateTime
+  updatedAt  DateTime @updatedAt
+}
+
+// Atomic per-sender-per-day counter for warmup-adjusted cap enforcement (B6).
+model V2SenderDailySend {
+  id              String   @id @default(cuid())
+  organizationId  String
+  senderAccountId String
+  sendDate        DateTime @db.Date
+  count           Int      @default(0)
+  updatedAt       DateTime @updatedAt
+
+  @@unique([senderAccountId, sendDate])
+  @@index([organizationId, sendDate])
+}
+
+model V2Sequence {
+  id               String                 @id @default(cuid())
+  organizationId   String
+  name             String
+  description      String?
+  status           V2SequenceStatus       @default(DRAFT)
+  stopOnReply      Boolean                @default(true)
+  stopOnBounce     Boolean                @default(true)
+  stopOnMeeting    Boolean                @default(true)
+  maxTouches       Int?
+  scheduleJson     Json?
+  timezoneMode     V2CampaignTimezoneMode @default(LEAD)
+  fallbackTimezone String                 @default("UTC")
+  trackingEnabled  Boolean                @default(false)
+  launchedAt       DateTime?
+  pausedAt         DateTime?
+  createdByUserId  String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  deletedAt        DateTime?
+
+  @@index([organizationId, status])
+  @@index([deletedAt])
+}
+
+model V2SequenceStep {
+  id               String             @id @default(cuid())
+  organizationId   String
+  sequenceId       String
+  ordinal          Int
+  kind             V2SequenceStepKind
+  delayMinutes     Int                @default(0)
+  sendWindowJson   Json? // business-hours window in tenant tz (B8)
+  subjectTemplate  String?
+  bodyTemplate     String?
+  branchConfigJson Json?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@unique([sequenceId, ordinal])
+  @@index([organizationId, sequenceId])
+}
+
+// Campaign sender pool. Selection happens once at enrollment and remains sticky.
+model V2SequenceSenderAccount {
+  id              String   @id @default(cuid())
+  organizationId  String
+  sequenceId      String
+  senderAccountId String
+  enabled         Boolean  @default(true)
+  weight          Int      @default(100)
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([organizationId, sequenceId, senderAccountId], map: "V2SequenceSenderAccount_org_sequence_sender_key")
+  @@index([organizationId, sequenceId, enabled], map: "V2SequenceSenderAccount_org_sequence_enabled_idx")
+  @@index([organizationId, senderAccountId, enabled], map: "V2SequenceSenderAccount_org_sender_enabled_idx")
+}
+
+// Stable weighted variants. Existing step templates are backfilled as variant A.
+model V2SequenceStepVariant {
+  id                    String   @id @default(cuid())
+  organizationId        String
+  sequenceStepId        String
+  variantKey            String
+  name                  String?
+  weight                Int      @default(100)
+  enabled               Boolean  @default(true)
+  subjectTemplate       String?
+  bodyTemplate          String?
+  requiredVariablesJson Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([organizationId, sequenceStepId, variantKey], map: "V2SequenceStepVariant_org_step_key_key")
+  @@index([organizationId, sequenceStepId, enabled], map: "V2SequenceStepVariant_org_step_enabled_idx")
+}
+
+model V2MessageTemplate {
+  id                    String                  @id @default(cuid())
+  organizationId        String
+  name                  String
+  description           String?
+  subjectTemplate       String?
+  bodyTemplate          String?
+  requiredVariablesJson Json?
+  category              String?
+  status                V2MessageTemplateStatus @default(DRAFT)
+  usageCount            Int                     @default(0)
+  lastUsedAt            DateTime?
+  version               Int                     @default(1)
+  createdByUserId       String?
+  updatedByUserId       String?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  deletedAt             DateTime?
+
+  @@index([organizationId, status, deletedAt], map: "V2MessageTemplate_org_status_deleted_idx")
+  @@index([organizationId, category], map: "V2MessageTemplate_org_category_idx")
+  @@index([organizationId, updatedAt], map: "V2MessageTemplate_org_updated_idx")
+}
+
+// LeadAssignment-scoped recipient and merge profile. Never a Company-global score.
+model V2LeadOutreachProfile {
+  id                       String    @id @default(cuid())
+  organizationId           String
+  leadAssignmentId         String
+  primaryEmailIdentifierId String?
+  primaryEmailNormalized   String?
+  timezone                 String?
+  mergeDataJson            Json?
+  sourceFingerprint        String
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  deletedAt                DateTime?
+
+  @@unique([organizationId, leadAssignmentId], map: "V2LeadOutreachProfile_org_lead_key")
+  @@index([organizationId, primaryEmailNormalized], map: "V2LeadOutreachProfile_org_email_idx")
+  @@index([organizationId, timezone], map: "V2LeadOutreachProfile_org_timezone_idx")
+  @@index([deletedAt])
+}
+
+// One enrollment binds to ONE sender (sticky, B12) so the reply thread stays in
+// that mailbox's IMAP for O7 correlation. Idempotent per (org, sequence, lead).
+model V2SequenceEnrollment {
+  id                            String             @id @default(cuid())
+  organizationId                String
+  sequenceId                    String
+  leadAssignmentId              String
+  contactId                     String?
+  senderAccountId               String
+  status                        V2EnrollmentStatus @default(ACTIVE)
+  currentStepOrdinal            Int                @default(0)
+  haltReason                    String?
+  nextStepAt                    DateTime?
+  outreachProfileId             String?
+  recipientEmailSnapshot        String?
+  timezoneSnapshot              String?
+  renderContextSnapshotJson     Json?
+  outreachProfileFingerprint    String?
+  qualificationOverrideReason   String?
+  qualificationOverrideByUserId String?
+  qualificationOverrideAt       DateTime?
+  enrolledByUserId              String?
+  createdAt                     DateTime           @default(now())
+  updatedAt                     DateTime           @updatedAt
+  deletedAt                     DateTime?
+
+  @@unique([organizationId, sequenceId, leadAssignmentId])
+  @@index([organizationId, status, nextStepAt])
+  @@index([organizationId, senderAccountId])
+  @@index([organizationId, leadAssignmentId])
+  @@index([organizationId, outreachProfileId], map: "V2SequenceEnrollment_org_outreachProfile_idx")
+  @@index([deletedAt])
+  @@index([organizationId, contactId, status], map: "V2SequenceEnrollment_org_contact_status_idx")
+}
+
+// An email attachment. Storage is pluggable via a backend seam so the DB-blob default can migrate
+// to local disk or S3 later with a data move only (no schema/send-path change): `storageBackend`
+// selects the backend, `storageRef` is that backend's key (for DB it is this row's own id), and
+// `contentBytes` holds the bytes for the DB backend (null for external backends). Rows are staged on
+// upload (messageId null) and linked when the outbound message is created.
+model V2EmailAttachment {
+  id             String @id @default(cuid())
+  organizationId String
+
+  messageId String? // linked to the V2OutreachMessage at send-create; null while staged
+
+  filename  String
+  mimeType  String
+  sizeBytes Int
+
+  storageBackend String @default("DB") // DB | LOCAL | S3 (migration seam)
+  storageRef     String // backend key; for DB backend equals this row id
+  contentBytes   Bytes? // DB backend only; null once moved to an external backend
+
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+  deletedAt       DateTime?
+
+  @@index([organizationId, messageId])
+  @@index([organizationId, createdAt])
+  @@index([deletedAt])
+}
+
+// One outbound message. Send state machine (B2): QUEUED -> SENDING -> SENT/FAILED/
+// BOUNCED. providerMessageId is the high-entropy Message-ID minted at SENDING (B3).
+model V2OutreachMessage {
+  id             String @id @default(cuid())
+  organizationId String
+
+  leadAssignmentId      String
+  contactId             String?
+  senderAccountId       String
+  enrollmentId          String?
+  sequenceStepId        String?
+  sequenceStepVariantId String?
+
+  idempotencyKey    String // computed before enqueue (B13)
+  providerMessageId String? // Message-ID, minted at SENDING (B2/B3)
+  inReplyToId       String?
+
+  status           V2OutreachMessageStatus @default(QUEUED)
+  sendAttemptToken String?
+  sendingAt        DateTime?
+  sentAt           DateTime?
+  failedAt         DateTime?
+
+  toAddress            String
+  subject              String?
+  bodyRef              String? // body storage ref (B10); not in list read models
+  listUnsubscribeToken String? // RFC 8058 unsubscribe (B4)
+
+  errorCode    String?
+  errorMessage String?
+
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([organizationId, idempotencyKey])
+  @@unique([providerMessageId])
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, leadAssignmentId, createdAt])
+  @@index([organizationId, sequenceStepVariantId, createdAt], map: "V2OutreachMessage_org_variant_createdAt_idx")
+  @@index([senderAccountId, sentAt])
+  @@index([deletedAt])
+}
+
+// Tenant-owned custom tracking domain. Mutable config uses soft delete.
+model V2TrackingDomain {
+  id              String                 @id @default(cuid())
+  organizationId  String
+  hostname        String
+  cnameTarget     String
+  status          V2TrackingDomainStatus @default(PENDING)
+  failureReason   String?
+  lastCheckedAt   DateTime?
+  verifiedAt      DateTime?
+  createdByUserId String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([organizationId, hostname], map: "V2TrackingDomain_org_hostname_key")
+  @@index([organizationId, status], map: "V2TrackingDomain_org_status_idx")
+  @@index([deletedAt])
+}
+
+// Opaque token -> stored HTTP(S) target. Runtime never trusts a target from a request.
+model V2OutreachTrackingLink {
+  id             String    @id @default(cuid())
+  organizationId String
+  messageId      String
+  token          String    @unique(map: "V2OutreachTrackingLink_token_key")
+  targetUrl      String
+  disabledAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([organizationId, messageId], map: "V2OutreachTrackingLink_org_message_idx")
+}
+
+// Append-only raw observations; reporting separately counts unique messages.
+model V2OutreachTrackingEvent {
+  id                 String                      @id @default(cuid())
+  organizationId     String
+  messageId          String
+  trackingLinkId     String?
+  eventKind          V2TrackingEventKind
+  botClassification  V2TrackingBotClassification @default(UNKNOWN)
+  requestFingerprint String?
+  userAgentHash      String?
+  ipHash             String?
+  metadataJson       Json?
+  occurredAt         DateTime                    @default(now())
+  createdAt          DateTime                    @default(now())
+
+  @@index([organizationId, messageId, eventKind, occurredAt], map: "V2OutreachTrackingEvent_org_message_kind_time_idx")
+  @@index([organizationId, eventKind, occurredAt], map: "V2OutreachTrackingEvent_org_kind_time_idx")
+  @@index([organizationId, requestFingerprint], map: "V2OutreachTrackingEvent_org_fingerprint_idx")
+}
+
+// Append-only privileged Outreach audit trail. Idempotency prevents retry duplicates.
+model V2OutreachAuditEvent {
+  id               String   @id @default(cuid())
+  organizationId   String
+  sequenceId       String?
+  senderAccountId  String?
+  leadAssignmentId String?
+  actorUserId      String?
+  eventKind        String
+  reason           String?
+  payloadJson      Json?
+  idempotencyKey   String
+  occurredAt       DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  @@unique([organizationId, idempotencyKey], map: "V2OutreachAuditEvent_org_idempotency_key")
+  @@index([organizationId, sequenceId, occurredAt], map: "V2OutreachAuditEvent_org_sequence_time_idx")
+  @@index([organizationId, senderAccountId, occurredAt], map: "V2OutreachAuditEvent_org_sender_time_idx")
+  @@index([organizationId, leadAssignmentId, occurredAt], map: "V2OutreachAuditEvent_org_lead_time_idx")
+  @@index([organizationId, eventKind, occurredAt], map: "V2OutreachAuditEvent_org_kind_time_idx")
+}
+
+// Link A timeline projection (B7): exposes leadAssignmentId/occurredAt/eventKind/
+// channel so queryLeadTimeline unions it (T1 contract Â§3). eventKind = outreach.*
+model V2OutreachActivity {
+  id               String   @id @default(cuid())
+  organizationId   String
+  leadAssignmentId String
+  companyId        String?
+  contactId        String?
+  actorUserId      String?
+  channel          String // ActivityChannel (email/linkedin/call/...)
+  eventKind        String // "outreach.sent" | "outreach.replied" | "outreach.bounced" | ...
+  occurredAt       DateTime
+  messageId        String?
+  metadataJson     Json?
+  createdAt        DateTime @default(now())
+
+  @@index([organizationId, leadAssignmentId, occurredAt])
+  @@index([organizationId, occurredAt])
+  @@index([organizationId, eventKind])
+  @@index([organizationId, contactId, occurredAt], map: "V2OutreachActivity_org_contact_occurredAt_idx")
+}
+
+// Inbound mail (IMAP) â€” replaces signed webhooks. Idempotent by (sender, UID);
+// acted on only when correlated to a real outbound Message-ID we sent (B3/B14).
+model V2InboundMailEvent {
+  id                         String             @id @default(cuid())
+  organizationId             String
+  senderAccountId            String
+  mailboxUid                 String
+  messageId                  String? // inbound message's own Message-ID
+  eventKind                  V2InboundEventKind
+  correlatedMessageId        String? // matched outbound providerMessageId
+  correlatedLeadAssignmentId String?
+  dsnStatus                  String? // e.g. 5.1.1 for hard bounce
+  fromAddress                String?
+  subject                    String?
+  rawHeadersRef              String?
+  bodyText                   String? // Unibox: inbound reply body (plain text), for the in-app inbox/thread view
+  snippet                    String? // Unibox: short preview (quoted history stripped) for the thread list
+  readAt                     DateTime? // Unibox: when an SDR marked this inbound reply read (null = unread)
+  processedAt                DateTime?
+  createdAt                  DateTime           @default(now())
+
+  @@unique([senderAccountId, mailboxUid])
+  @@index([organizationId, eventKind, createdAt])
+  @@index([organizationId, correlatedMessageId])
+  @@index([organizationId, correlatedLeadAssignmentId, eventKind, createdAt], map: "V2InboundMailEvent_org_lead_kind_time_idx")
+  @@index([senderAccountId, createdAt])
+}
+
+model UploadJob {
+  id            String          @id @default(cuid())
+  fileName      String
+  status        UploadJobStatus @default(QUEUED)
+  totalRows     Int             @default(0)
+  processedRows Int             @default(0)
+  errorMessage  String?
+  archivedAt    DateTime?
+  deletedAt     DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  companyRecords         CompanyRecord[]
+  exportJobs             ExportJob[]
+  websiteResearchResults WebsiteResearchResult[]
+  aiJobs                 CompanyAiJob[]
+
+  @@index([createdAt])
+  @@index([archivedAt])
+  @@index([deletedAt])
+}
+
+model CompanyRecord {
+  id                     String       @id @default(cuid())
+  uploadJobId            String?
+  sourceRowIndex         Int?
+  companyName            String
+  website                String?
+  companyCountry         String?
+  companyLinkedInUrl     String?
+  companyIndustry        String?
+  companyPhone1          String?
+  companyStaffCountRange String?
+  type                   CompanyType?
+  note                   String?
+  rawRowJson             Json?
+  archivedAt             DateTime?
+  deletedAt              DateTime?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  uploadJob              UploadJob?              @relation(fields: [uploadJobId], references: [id])
+  scoreResults           CompanyScoreResult[]
+  feedbackExamples       FeedbackExample[]
+  websiteResearchResults WebsiteResearchResult[]
+  aiAssessments          CompanyAiAssessment[]
+  aiJobs                 CompanyAiJob[]
+  icpInsights            CompanyIcpInsight[]
+  sdrActivityRows        SdrActivityRow[]
+  contactRecords         ContactRecord[]
+  managerReviewItems     ManagerReviewItem[]
+
+  @@index([website])
+  @@index([companyName])
+  @@index([uploadJobId])
+  @@index([archivedAt])
+  @@index([deletedAt])
+}
+
+model WebsiteResearchResult {
+  id                      String   @id @default(cuid())
+  companyRecordId         String?
+  uploadJobId             String?
+  inputUrl                String
+  normalizedUrl           String?
+  normalizedDomain        String?
+  finalUrl                String?
+  reachable               Boolean
+  status                  String
+  httpStatus              Int?
+  quality                 String
+  summary                 String
+  signalsJson             Json
+  classificationHintsJson Json
+  pagesCheckedJson        Json
+  errorsJson              Json
+  redirectChainJson       Json
+  researchedAt            DateTime
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  companyRecord CompanyRecord? @relation(fields: [companyRecordId], references: [id])
+  uploadJob     UploadJob?     @relation(fields: [uploadJobId], references: [id])
+
+  @@index([companyRecordId])
+  @@index([uploadJobId])
+  @@index([normalizedDomain])
+  @@index([status])
+  @@index([quality])
+  @@index([researchedAt])
+}
+
+model CompanyScoreResult {
+  id                        String        @id @default(cuid())
+  companyRecordId           String
+  companyType               CompanyType   @default(NOT_RELEVANT)
+  companyScore              Int
+  qualification             Qualification
+  confidence                Decimal       @db.Decimal(3, 2)
+  reason                    String
+  oneSentenceCompanySummary String?
+  hardRuleFlags             Json
+  reviewState               ReviewState   @default(UNREVIEWED)
+  scoringSource             String        @default("local_hard_rules")
+  scoringVersion            String        @default("v0")
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+
+  companyRecord    CompanyRecord     @relation(fields: [companyRecordId], references: [id])
+  feedbackExamples FeedbackExample[]
+
+  @@index([companyRecordId])
+  @@index([companyType])
+  @@index([qualification])
+  @@index([reviewState])
+}
+
+model CompanyAiAssessment {
+  id                         String   @id @default(cuid())
+  companyRecordId            String
+  localScoreResultId         String?
+  provider                   String
+  modelName                  String
+  promptVersion              String
+  mode                       String   @default("uncertain_rows_only")
+  qualification              String
+  companyType                String
+  companyScore               Int
+  confidence                 Float
+  reason                     String
+  oneSentenceCompanySummary  String?
+  inputSnapshotJson          Json
+  websiteSignalsSnapshotJson Json?
+  rawResponseJson            Json?
+  finishReason               String?
+  inputTokens                Int?
+  outputTokens               Int?
+  latencyMs                  Int?
+  errorMessage               String?
+  inputFingerprint           String?
+  cacheKey                   String?
+  cacheHit                   Boolean  @default(false)
+  createdAt                  DateTime @default(now())
+
+  companyRecord CompanyRecord @relation(fields: [companyRecordId], references: [id])
+
+  @@index([companyRecordId, createdAt])
+  @@index([provider, modelName, promptVersion])
+  @@index([localScoreResultId])
+  @@index([cacheKey])
+  @@index([inputFingerprint])
+}
+
+model CompanyAiJob {
+  id                  String    @id @default(cuid())
+  uploadJobId         String?
+  companyRecordId     String
+  status              String
+  scope               String
+  provider            String
+  model               String
+  promptVersion       String
+  inputFingerprint    String?
+  cacheKey            String?
+  cacheHit            Boolean   @default(false)
+  attemptCount        Int       @default(0)
+  maxAttempts         Int       @default(5)
+  nextAttemptAt       DateTime?
+  lockedAt            DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  lastErrorCode       String?
+  lastErrorMessage    String?
+  inputTokenEstimate  Int?
+  outputTokenEstimate Int?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  uploadJob     UploadJob?    @relation(fields: [uploadJobId], references: [id])
+  companyRecord CompanyRecord @relation(fields: [companyRecordId], references: [id])
+
+  @@index([uploadJobId])
+  @@index([companyRecordId])
+  @@index([status, nextAttemptAt])
+  @@index([provider, model, promptVersion])
+  @@index([cacheKey])
+}
+
+model CompanyIcpInsight {
+  id                     String   @id @default(cuid())
+  companyRecordId        String
+  targetCustomerSegment  String?
+  targetVerticalsJson    Json?
+  buyerPersonasJson      Json?
+  useCasesPainPointsJson Json?
+  sdrMessagingAngle      String?
+  confidence             Float?
+  evidenceNote           String?
+  source                 String
+  provider               String?
+  modelName              String?
+  promptVersion          String?
+  rawAiResponseJson      Json?
+  errorMessage           String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  companyRecord CompanyRecord @relation(fields: [companyRecordId], references: [id])
+
+  @@index([companyRecordId, createdAt])
+  @@index([source])
+  @@index([provider, modelName, promptVersion])
+}
+
+model FeedbackImportJob {
+  id            String          @id @default(cuid())
+  fileName      String
+  status        UploadJobStatus @default(QUEUED)
+  totalRows     Int             @default(0)
+  processedRows Int             @default(0)
+  errorMessage  String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  feedbackExamples FeedbackExample[]
+}
+
+model SdrActivityUpload {
+  id                  String   @id @default(cuid())
+  fileName            String
+  fileType            String?
+  fileSize            Int?
+  sheetName           String?
+  totalRows           Int      @default(0)
+  status              String   @default("completed")
+  uploadedBy          String?
+  mappingProfileJson  Json?
+  detectedHeadersJson Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  rows SdrActivityRow[]
+}
+
+model SdrActivityRow {
+  id                       String             @id @default(cuid())
+  activityUploadId         String
+  activityUpload           SdrActivityUpload  @relation(fields: [activityUploadId], references: [id], onDelete: Cascade)
+  rowIndex                 Int
+  sdrName                  String
+  leadName                 String?
+  companyName              String?
+  website                  String?
+  title                    String?
+  contactLinkedInUrl       String?
+  email                    String?
+  phone                    String?
+  companyCountry           String?
+  contactCountry           String?
+  companyLinkedInUrl       String?
+  companyIndustry          String?
+  companyStaffCountRange   String?
+  activityDate             String?
+  weekLabel                String?
+  linkedinStageRaw         String?
+  linkedinStageNormalized  String
+  emailStageRaw            String?
+  emailStageNormalized     String
+  callStageRaw             String?
+  callStageNormalized      String
+  otherChannelRaw          String?
+  otherChannelNormalized   String
+  noteCombined             String?
+  meetingDate              String?
+  meetingStatus            String?
+  channelResponded         String?
+  linkedinCount            Int                @default(0)
+  emailCount               Int                @default(0)
+  callCount                Int                @default(0)
+  noPickupCount            Int                @default(0)
+  notInterestedCount       Int                @default(0)
+  otherChannelCount        Int                @default(0)
+  totalActivityCount       Int                @default(0)
+  managerReviewFlag        Boolean            @default(false)
+  managerReviewPriority    String             @default("none")
+  managerReviewReasonsJson Json?
+  matchedCompanyRecordId   String?
+  matchedCompanyRecord     CompanyRecord?     @relation(fields: [matchedCompanyRecordId], references: [id], onDelete: SetNull)
+  companyMatchStatus       String?
+  companyMatchConfidence   Int?
+  companyMatchReason       String?
+  companyMatchKey          String?
+  contactRecordId          String?
+  contactRecord            ContactRecord?     @relation(fields: [contactRecordId], references: [id], onDelete: SetNull)
+  managerReviewItem        ManagerReviewItem?
+  rawRowJson               Json
+  normalizedRowJson        Json
+  createdAt                DateTime           @default(now())
+
+  @@index([activityUploadId])
+  @@index([sdrName])
+  @@index([managerReviewFlag])
+  @@index([companyName])
+  @@index([matchedCompanyRecordId])
+  @@index([companyMatchStatus])
+  @@index([companyMatchConfidence])
+  @@index([contactRecordId])
+}
+
+model ContactRecord {
+  id                    String         @id @default(cuid())
+  fullName              String
+  firstName             String?
+  lastName              String?
+  title                 String?
+  email                 String?
+  normalizedEmail       String?
+  phone                 String?
+  normalizedPhone       String?
+  contactLinkedInUrl    String?
+  normalizedLinkedInUrl String?
+  companyNameRaw        String?
+  normalizedCompanyName String?
+  companyRecordId       String?
+  companyRecord         CompanyRecord? @relation(fields: [companyRecordId], references: [id], onDelete: SetNull)
+  ownerSdrName          String?
+  latestSdrName         String?
+  source                String         @default("activity_recap")
+  sourceUploadId        String?
+  firstActivityDate     String?
+  latestActivityDate    String?
+  latestActivitySummary String?
+  activityCount         Int            @default(0)
+  linkedinCount         Int            @default(0)
+  emailCount            Int            @default(0)
+  callCount             Int            @default(0)
+  noPickupCount         Int            @default(0)
+  notInterestedCount    Int            @default(0)
+  managerReviewCount    Int            @default(0)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  activityRows       SdrActivityRow[]
+  managerReviewItems ManagerReviewItem[]
+
+  @@index([companyRecordId])
+  @@index([normalizedEmail])
+  @@index([normalizedLinkedInUrl])
+  @@index([normalizedCompanyName])
+  @@index([ownerSdrName])
+  @@index([latestSdrName])
+  @@index([sourceUploadId])
+}
+
+model ManagerReviewItem {
+  id                  String          @id @default(cuid())
+  source              String          @default("activity_recap")
+  sourceActivityRowId String?         @unique
+  sourceActivityRow   SdrActivityRow? @relation(fields: [sourceActivityRowId], references: [id], onDelete: Cascade)
+  activityUploadId    String?
+  contactRecordId     String?
+  contactRecord       ContactRecord?  @relation(fields: [contactRecordId], references: [id], onDelete: SetNull)
+  companyRecordId     String?
+  companyRecord       CompanyRecord?  @relation(fields: [companyRecordId], references: [id], onDelete: SetNull)
+  sdrName             String?
+  leadName            String?
+  companyName         String?
+  priority            String          @default("medium")
+  status              String          @default("open")
+  reasonsJson         Json?
+  sourceNote          String?
+  managerNote         String?
+  nextAction          String?
+  reviewedBy          String?
+  reviewedAt          DateTime?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([status])
+  @@index([priority])
+  @@index([sdrName])
+  @@index([activityUploadId])
+  @@index([contactRecordId])
+  @@index([companyRecordId])
+}
+
+model FeedbackExample {
+  id                   String  @id @default(cuid())
+  companyRecordId      String?
+  companyScoreResultId String?
+  feedbackImportJobId  String?
+
+  companyName String
+  website     String?
+
+  predictedCompanyScore  Int?
+  predictedCompanyType   CompanyType?
+  predictedQualification Qualification?
+  predictedReason        String?
+
+  finalCompanyScore  Int
+  finalCompanyType   CompanyType
+  finalQualification Qualification
+  finalNote          String?
+
+  approvedForLearning       Boolean      @default(false)
+  useForPromptRefinement    Boolean      @default(false)
+  useForRuleTuning          Boolean      @default(false)
+  useForModelTraining       Boolean      @default(false)
+  useForEvaluationBenchmark Boolean      @default(false)
+  datasetSplit              DatasetSplit @default(UNSPECIFIED)
+
+  promptVersion String?
+  ruleVersion   String?
+  modelVersion  String?
+
+  source         FeedbackSource @default(LOCAL_UI)
+  rawExampleJson Json?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  companyRecord      CompanyRecord?      @relation(fields: [companyRecordId], references: [id])
+  companyScoreResult CompanyScoreResult? @relation(fields: [companyScoreResultId], references: [id])
+  feedbackImportJob  FeedbackImportJob?  @relation(fields: [feedbackImportJobId], references: [id])
+
+  @@index([companyName])
+  @@index([website])
+  @@index([finalQualification])
+  @@index([datasetSplit])
+  @@index([approvedForLearning])
+}
+
+model ExportJob {
+  id          String   @id @default(cuid())
+  uploadJobId String?
+  fileName    String
+  exportType  String
+  rowCount    Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  uploadJob UploadJob? @relation(fields: [uploadJobId], references: [id])
+
+  @@index([uploadJobId])
+}
+
+model AiRuntimeSetting {
+  id               String   @id
+  enabled          Boolean?
+  scoringMode      String?
+  maxRowsPerUpload Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+// Phase R (R1) â€” BullMQ runtime mirror. BullMQ executes work; these Postgres tables are
+// the truth/audit/status surface the UI reads (BullMQ payloads stay pointer-only). Soft
+// FKs (String ids, no @relation) per V2 convention. status is text:
+// QUEUED|RUNNING|SUCCEEDED|FAILED|PARTIAL|CANCELLED. Tenant-scoped (Invariant 5).
+model V2RuntimeRun {
+  id             String  @id @default(cuid())
+  organizationId String
+  projectId      String?
+  icpVersionId   String?
+  runType        String // SCORING | ENRICHMENT | READMODEL | EXPORT | ...
+  status         String  @default("QUEUED")
+  priority       Int     @default(0)
+
+  totalUnits     Int @default(0)
+  processedUnits Int @default(0)
+  succeededUnits Int @default(0)
+  failedUnits    Int @default(0)
+  skippedUnits   Int @default(0)
+
+  configJson       Json?
+  errorSummaryJson Json?
+  createdByUserId  String?
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([organizationId, runType, status])
+  @@index([organizationId, projectId, status])
+  @@index([organizationId, createdAt])
+}
+
+model V2RuntimeStage {
+  id             String @id @default(cuid())
+  organizationId String
+  runId          String
+  stageType      String // e.g. scoring.plan | scoring.chunk | scoring.reduce
+  status         String @default("QUEUED")
+
+  totalUnits     Int @default(0)
+  processedUnits Int @default(0)
+  failedUnits    Int @default(0)
+
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([organizationId, runId, stageType])
+  @@index([organizationId, status])
+}
+
+model V2RuntimeChunk {
+  id             String  @id @default(cuid())
+  organizationId String
+  runId          String
+  stageId        String
+  chunkIndex     Int
+  chunkType      String
+  status         String  @default("QUEUED")
+  bullJobId      String?
+  dedupeKey      String
+
+  cursorStart    String?
+  cursorEnd      String?
+  unitCount      Int     @default(0)
+  processedUnits Int     @default(0)
+
+  attemptCount Int     @default(0)
+  maxAttempts  Int     @default(3)
+  workerId     String?
+  errorCode    String?
+  errorJson    Json?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  startedAt  DateTime?
+  finishedAt DateTime?
+
+  @@unique([organizationId, dedupeKey])
+  @@unique([runId, chunkIndex])
+  @@index([organizationId, runId, status])
+  @@index([organizationId, stageId, status])
+}
+
+// Separate from the outreach V2WorkerHeartbeat (which W9 sender-readiness reads) â€” this
+// one tracks BullMQ runtime workers without touching that surface.
+model V2RuntimeWorkerHeartbeat {
+  id             String   @id @default(cuid())
+  workerId       String   @unique
+  organizationId String?
+  queueName      String
+  status         String   @default("ONLINE")
+  host           String?
+  pid            Int?
+  currentJobId   String?
+  lastBeatAt     DateTime
+  metadataJson   Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([queueName, status])
+  @@index([lastBeatAt])
+}
+
+// P4 (budget rail): per-org per-provider daily call counters. The enrichment path
+// records search usage here and skips provider calls once the daily cap is reached,
+// degrading to website-only evidence (never a hard failure). Tenant-scoped (Inv 5).
+model V2ProviderUsageDaily {
+  id             String   @id @default(cuid())
+  organizationId String
+  provider       String
+  usageDate      DateTime @db.Date
+  requests       Int      @default(0)
+  errors         Int      @default(0)
+  rateLimited    Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, provider, usageDate])
+  @@index([organizationId, usageDate])
+}
+
+// P4 split: checkpoint between the research.fetch and research.extract BullMQ stages.
+// fetch writes the raw crawled+searched material here (pointer-only payloads in Redis);
+// extract reads it, compiles+persists the profile, then deletes the row. Tenant-scoped.
+model V2CompanyResearchStaging {
+  id              String   @id @default(cuid())
+  organizationId  String
+  companyId       String
+  researchVersion Int
+  materialJson    Json
+  createdAt       DateTime @default(now())
+
+  @@unique([organizationId, companyId, researchVersion])
+  @@index([organizationId, createdAt])
+}
+
+enum V2ResearchRunKind {
+  COMPANY
+  CONTACT
+}
+
+enum V2ResearchRunStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum V2ResearchCandidateStatus {
+  DISCOVERED
+  DUPLICATE
+  PROMOTED
+  DISMISSED
+}
+
+// ICP-driven prospect discovery: a run derives search queries from a published ICP's
+// rules, executes them through the env-gated search providers, and harvests candidates
+// with cited sources. Candidates are NOT companies/contacts until promoted (Inv 7).
+model V2ResearchRun {
+  id              String              @id @default(cuid())
+  organizationId  String
+  icpVersionId    String
+  projectId       String
+  kind            V2ResearchRunKind
+  status          V2ResearchRunStatus @default(QUEUED)
+  queriesJson     Json
+  paramsJson      Json?
+  queryCursor     Int                 @default(0)
+  discoveredCount Int                 @default(0)
+  duplicateCount  Int                 @default(0)
+  errorMessage    String?
+  createdByUserId String?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  deletedAt       DateTime?
+
+  organization         V2Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  v2ResearchCandidates V2ResearchCandidate[]
+  evidence             V2ResearchEvidence[]
+  providerAttempts     V2ResearchProviderAttempt[]
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+  @@index([deletedAt])
+}
+
+model V2ResearchCandidate {
+  id                String                    @id @default(cuid())
+  organizationId    String
+  runId             String
+  kind              V2ResearchRunKind
+  name              String
+  domain            String?
+  linkedinUrl       String?
+  title             String?
+  companyName       String?
+  sourceJson        Json // { query, url, snippet, provider } â€” the evidence
+  matchHintsJson    Json // which ICP tokens/terms the result matched
+  dedupeFingerprint String
+  status            V2ResearchCandidateStatus @default(DISCOVERED)
+  fitScore          Int? // 0-100 ICP fit; heuristic always, AI when opted in
+  fitReason         String?
+  fitSource         String? // "ai" | "heuristic"
+  location          String?
+  translatedName    String?
+  translatedSnippet String?
+  emailGuess        String?
+  emailStatus       String? // "GUESSED" | "VERIFIED" | "UNKNOWN"
+  phone             String?
+  insightJson       Json? // business insight (summary/whatTheySell/industry/size/hq/signals/citations)
+  enrichedAt        DateTime?
+  promotedCompanyId String?
+  promotedContactId String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  deletedAt         DateTime?
+
+  organization V2Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  run          V2ResearchRun  @relation(fields: [runId], references: [id], onDelete: Restrict)
+  evidence     V2ResearchEvidence[]
+  observations V2ResearchFieldObservation[]
+  attempts     V2ResearchProviderAttempt[]
+
+  @@unique([organizationId, runId, dedupeFingerprint])
+  @@index([organizationId, dedupeFingerprint])
+  @@index([organizationId, runId, status])
+  @@index([organizationId, runId, fitScore])
+  @@index([deletedAt])
+}
+
+// Candidate/run-level provenance captured before promotion. This is research evidence only;
+// CRM intelligence remains in V2CompanyResearchSnapshot/V2CompanyIntelligenceProfile.
+model V2ResearchEvidence {
+  id             String   @id @default(cuid())
+  organizationId String
+  runId          String?
+  candidateId    String?
+  idempotencyKey String
+  sourceKind     String
+  provider       String?
+  sourceUrl      String?
+  sourceTitle    String?
+  sourceSnippet  String?
+  query          String?
+  confidence     Int?
+  evidenceJson   Json?
+  observedAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  organization V2Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  run          V2ResearchRun?       @relation(fields: [runId], references: [id], onDelete: SetNull)
+  candidate    V2ResearchCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  observations V2ResearchFieldObservation[]
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, runId, createdAt])
+  @@index([organizationId, candidateId, createdAt])
+  @@index([organizationId, sourceKind])
+}
+
+model V2ResearchFieldObservation {
+  id             String   @id @default(cuid())
+  organizationId String
+  candidateId    String
+  evidenceId     String?
+  fieldName      String
+  valueText      String?
+  valueJson      Json?
+  confidence     Int?
+  sourceKind     String
+  createdAt      DateTime @default(now())
+
+  organization V2Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  candidate    V2ResearchCandidate  @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  evidence     V2ResearchEvidence?  @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, candidateId, fieldName])
+  @@index([organizationId, evidenceId])
+}
+
+model V2ResearchProviderAttempt {
+  id             String   @id @default(cuid())
+  organizationId String
+  runId          String?
+  candidateId    String?
+  stage          String
+  provider       String
+  status         String
+  requestJson    Json?
+  responseJson   Json?
+  errorMessage   String?
+  startedAt      DateTime @default(now())
+  finishedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  organization V2Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  run          V2ResearchRun?       @relation(fields: [runId], references: [id], onDelete: SetNull)
+  candidate    V2ResearchCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, runId, stage, createdAt])
+  @@index([organizationId, candidateId, stage, createdAt])
+  @@index([organizationId, provider, status, createdAt])
+}
+
+model V2ResearchEmailPattern {
+  id             String   @id @default(cuid())
+  organizationId String
+  domain         String
+  pattern        String
+  confidence     Int      @default(0)
+  sampleCount    Int      @default(0)
+  sourceJson     Json?
+  lastSeenAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization V2Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, domain, pattern])
+  @@index([organizationId, domain, confidence])
+}
+// Durable per-org prospect ledger. Every discovered candidate upserts its prospect here so
+// re-running any ICP/search shows first/last-seen dates and cross-run recency dedupe (Inv 6).
+// This is NOT a CRM row (Inv 7) â€” promotion still creates V2Company/V2Contact separately.
+model V2ResearchProspect {
+  id                String            @id @default(cuid())
+  organizationId    String
+  kind              V2ResearchRunKind
+  dedupeFingerprint String
+  domain            String?
+  linkedinUrl       String?
+  displayName       String
+  firstSeenAt       DateTime          @default(now())
+  lastSeenAt        DateTime          @default(now())
+  timesSeen         Int               @default(1)
+  lastRunId         String?
+  promotedCompanyId String?
+  promotedContactId String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+
+  organization V2Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, dedupeFingerprint])
+  @@index([organizationId, domain])
+  @@index([organizationId, linkedinUrl])
+  @@index([organizationId, lastSeenAt])
+  @@index([deletedAt])
+}

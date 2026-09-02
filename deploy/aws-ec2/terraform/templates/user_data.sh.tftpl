@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# EC2 bootstrap (Amazon Linux 2023). Installs Docker + compose + jq + AWS CLI, then writes
+# the deploy config + a thin run-deploy.sh that CI invokes via SSM Run Command.
+set -euxo pipefail
+
+dnf update -y
+dnf install -y docker jq unzip
+systemctl enable --now docker
+usermod -aG docker ec2-user || true
+
+# docker compose v2 plugin
+mkdir -p /usr/libexec/docker/cli-plugins
+curl -fsSL https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64 \
+  -o /usr/libexec/docker/cli-plugins/docker-compose
+chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+
+# AWS CLI v2 (only if not already present)
+if ! command -v aws >/dev/null 2>&1; then
+  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+  unzip -q /tmp/awscliv2.zip -d /tmp
+  /tmp/aws/install
+fi
+
+mkdir -p /opt/telestar/app
+
+# Static deploy config consumed by run-deploy.sh + deploy.sh.
+cat > /opt/telestar/deploy.env <<EOF
+AWS_REGION=${region}
+SECRET_ID=${secret_id}
+ECR_REPO_URL=${ecr_repo_url}
+APP_DOMAIN=${app_domain}
+DEPLOY_BUCKET=${deploy_bucket}
+EOF
+
+# Thin wrapper: sync the deploy bundle from S3, then run the real deploy with the image tag
+# passed by CI ($1). Kept tiny so the compose/Caddyfile/deploy.sh can change without
+# re-provisioning the box.
+cat > /opt/telestar/run-deploy.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+source /opt/telestar/deploy.env
+TAG="$1"
+aws s3 sync "s3://$DEPLOY_BUCKET/aws-ec2/" /opt/telestar/app/ --region "$AWS_REGION" --delete
+cd /opt/telestar/app
+chmod +x deploy.sh
+export AWS_REGION SECRET_ID APP_DOMAIN
+export APP_IMAGE="$ECR_REPO_URL:$TAG"
+bash deploy.sh
+EOF
+chmod +x /opt/telestar/run-deploy.sh
+
+echo "bootstrap complete"

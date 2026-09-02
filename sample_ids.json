@@ -1,0 +1,38 @@
+{
+  "leadAssignmentIds": [
+    "lead_mr822p9o_6mm19adx",
+    "v2_demo_smoke_lead_company_70ec10c7fd4a",
+    "lead_mqtpxmut_buamdyb2",
+    "lead_mqm6dr29_eljatdqq",
+    "lead_mqdrk6f6_o9xjjbaf",
+    "lead_mqdrk6fa_84yjx3c1",
+    "v2_demo_smoke_lead_contact_0c636e039f2f",
+    "v2_demo_smoke_lead_contact_734c97571b5a",
+    "v2_demo_smoke_lead_company_3ec96a37e28e",
+    "v2_demo_smoke_lead_contact_983d472777ad"
+  ],
+  "contactIds": [
+    "v2_demo_smoke_contact_qualified",
+    "v2_demo_smoke_contact_unqualified",
+    "v2_demo_smoke_a10269d750fb_contact_qualified",
+    "v2_demo_smoke_a10269d750fb_contact_unqualified",
+    "cnt_mqm2crtt_1l0cah3q",
+    "cnt_mqm2crua_6mpq5hrg",
+    "cnt_mqm2crum_xwogiztj",
+    "cnt_mqm2crv3_zngi36le",
+    "cnt_mqm2crvf_kzmd4921",
+    "cnt_mqm2crvr_hmysah3w"
+  ],
+  "companyIds": [
+    "comp_mqe0sdgw_1pb93gd5",
+    "comp_mqe0sdh1_dibef033",
+    "comp_mqxhlbda_gu3usxcv",
+    "comp_mqdrk6et_crsfquyi",
+    "comp_mqdrk6f0_iqztp37w",
+    "comp_mqdrk6f5_faznngqg",
+    "comp_mqdrk6f9_vjiq8wlg",
+    "comp_mqdrk6fd_m89cm98t",
+    "comp_mqdrk6fh_0ryfin2v",
+    "comp_mqdrk6fl_jmbdzlbo"
+  ]
+}

@@ -1,0 +1,133 @@
+# TeleStar SDR OS V2 — single-host GCP deployment (Compute Engine VM + docker-compose).
+#
+# Topology (all app containers share ONE locally-built image, only the command differs):
+#   caddy    -> public :80/:443, auto-HTTPS via Let's Encrypt, reverse_proxy -> web:3000
+#   web      -> next start (Next.js SSR + API)                      [internal only]
+#   worker   -> BullMQ runtime worker (scoring/ingest/enrich/outreach/readmodel)
+#   imap     -> inbound reply/bounce poller
+#   migrate  -> one-shot `prisma migrate deploy` (runs before web/worker; exits)
+#
+# UNLIKE the AWS variant, Postgres + Redis run as CONTAINERS on this box (no RDS/ElastiCache) to
+# fit the GCP trial budget. Their data lives on named volumes on the VM's persistent disk. They
+# are reachable ONLY on the internal compose network — their ports are deliberately NOT published
+# to the host, so the database is never exposed to the internet.
+#
+# The image is BUILT IN CI (.github/workflows/docker-image.yml) and pushed to GHCR; the VM only
+# PULLS it — no build on the box. NEXT_PUBLIC_APP_URL is inlined at CI BUILD time from the repo
+# Actions variable, so it is already baked into the image (nothing to pass here).
+# GHCR package is private → `docker login ghcr.io` with a read:packages PAT before pulling.
+# Usage on the box:
+#   docker login ghcr.io -u <github-user>            # once, read:packages PAT
+#   APP_IMAGE_TAG=<sha> docker compose -f deploy/gcp-vm/docker-compose.yml pull
+#   APP_IMAGE_TAG=<sha> docker compose -f deploy/gcp-vm/docker-compose.yml up -d
+# See deploy/gcp-vm/README.md for the full runbook (data migration, TLS, backups).
+
+name: telestar-v2-gcp
+
+x-app: &app
+  # Prebuilt image pulled from GHCR and reused by web/worker/imap/migrate. Pin the exact commit
+  # with APP_IMAGE_TAG=<long-sha>; defaults to :latest (the default-branch build).
+  image: ghcr.io/brandng/telestar-company-filter:${APP_IMAGE_TAG:-latest}
+  pull_policy: always
+  env_file: [.env.production]
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16-bookworm
+    # Credentials must match DATABASE_URL in .env.production. No host port mapping: the DB is
+    # reachable only as `postgres:5432` on the internal network.
+    environment:
+      POSTGRES_USER: telestar
+      POSTGRES_PASSWORD: telestar
+      POSTGRES_DB: telestar
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telestar -d telestar"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  # One-shot: apply migrations, then exit. Run this via `compose run --rm migrate` BEFORE web/worker.
+  # With migrated RDS data already restored, this is a no-op that just confirms schema is current.
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["npx", "prisma", "migrate", "deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    <<: *app
+    expose:
+      - "3000"                # internal only — Caddy is the sole public ingress
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # /api/health does SELECT 1 against the DB; 200 => process up + DB reachable.
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  worker:
+    <<: *app
+    command: ["npm", "run", "v2:worker", "--", "--backend=bull"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  imap:
+    <<: *app
+    command: ["npm", "run", "v2:imap"]
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Public hostname Caddy obtains a cert for: <ip-with-dashes>.sslip.io
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN to the public hostname (e.g. 34-124-1-2.sslip.io)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # cert + ACME account state (must persist across restarts)
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:

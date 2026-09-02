@@ -1,0 +1,6 @@
+diff --git a/lib/v2/company-intelligence/safeFetch.ts b/lib/v2/company-intelligence/safeFetch.ts
+--- a/lib/v2/company-intelligence/safeFetch.ts
++++ b/lib/v2/company-intelligence/safeFetch.ts
+@@ -1,2 +1,0 @@
+-import "server-only";
+-
