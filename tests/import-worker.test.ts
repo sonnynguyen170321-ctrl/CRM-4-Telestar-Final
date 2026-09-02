@@ -24,6 +24,9 @@ const mockAccountUpdate = vi.fn();
 // does not take Postgres's native `INSERT ... ON CONFLICT DO UPDATE` path through an
 // interactive transaction's `tx`. These belong on `prisma`, not inside `$transaction`.
 const mockAccountUpsert = vi.fn();
+const mockAccountFindFirst = vi.fn();
+const mockContactFindFirst = vi.fn();
+const mockContactEmploymentUpsert = vi.fn();
 const mockContactUpsert = vi.fn();
 const mockRowCreate = vi.fn();
 const mockRowCreateMany = vi.fn();
@@ -75,12 +78,17 @@ vi.mock('@/lib/prisma', () => ({
     },
     contact: {
       findUnique: (...args: unknown[]) => mockContactFindUnique(...args),
+      findFirst: (...args: unknown[]) => mockContactFindFirst(...args),
       create: (...args: unknown[]) => mockContactCreate(...args),
       update: (...args: unknown[]) => mockContactUpdate(...args),
       upsert: (...args: unknown[]) => mockContactUpsert(...args),
     },
+    contactEmployment: {
+      upsert: (...args: unknown[]) => mockContactEmploymentUpsert(...args),
+    },
     account: {
       findUnique: (...args: unknown[]) => mockAccountFindUnique(...args),
+      findFirst: (...args: unknown[]) => mockAccountFindFirst(...args),
       create: (...args: unknown[]) => mockAccountCreate(...args),
       update: (...args: unknown[]) => mockAccountUpdate(...args),
       upsert: (...args: unknown[]) => mockAccountUpsert(...args),
@@ -309,6 +317,9 @@ describe('handleImportParse', () => {
 describe('handleImportChunk', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAccountFindFirst.mockResolvedValue(null);
+    mockContactFindFirst.mockResolvedValue(null);
+    mockContactEmploymentUpsert.mockResolvedValue({ id: 'emp-1' });
     mockAccountFindUnique.mockResolvedValue({ id: 'account-1', name: 'Acme', tenantId: 't1' });
     mockAccountCreate.mockResolvedValue({ id: 'account-1', name: 'Acme', tenantId: 't1' });
     mockAccountUpdate.mockResolvedValue({ id: 'account-1', name: 'Acme', tenantId: 't1' });
@@ -339,47 +350,65 @@ describe('handleImportChunk', () => {
     mockLeadCreate.mockResolvedValue({ id: 'lead-1' });
   };
 
-  it('resolves the account and contact through upsert, not find-then-create', async () => {
-    // The distinction this pins is not stylistic. Find-then-create loses a lead whenever two
-    // chunks race the same company, and `934bf05` reverted the upsert without anything failing.
+  it('converges on the winning account when two chunks race the same company', async () => {
+    // What matters is the OUTCOME, not the statement used to reach it. Identity resolution now looks
+    // a company up by its normalised name and domain, which `upsert` on `tenantId_name` cannot
+    // express, so convergence is achieved by letting the unique index decide: create, and on a
+    // conflict adopt the row the other chunk just wrote.
+    //
+    // This is the assertion that `934bf05` needed and did not have — it reverted the convergence
+    // guarantee with nothing failing. Asserting the result rather than the call survives the next
+    // refactor too.
     seedOneRow();
-    await handleImportChunk(CHUNK_PAYLOAD);
-
-    expect(mockAccountUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { tenantId_name: { tenantId: 'tenant-1', name: 'Acme' } } })
+    // Every lookup misses — that is what makes this chunk decide to create — and the create then
+    // loses to the other chunk. Only after that does a lookup find the winner. Driving it by a flag
+    // rather than queued `*Once` values keeps the ordering explicit and leaves nothing queued for
+    // the next test, which `vi.clearAllMocks()` would not clear.
+    let accountExists = false;
+    mockAccountFindFirst.mockImplementation(async () =>
+      accountExists ? { id: 'account-winner', nameNormalized: 'acme', canonicalDomain: null } : null
     );
-    expect(mockAccountCreate).not.toHaveBeenCalled();
-    expect(mockContactUpsert).toHaveBeenCalled();
-    expect(mockContactCreate).not.toHaveBeenCalled();
+    mockAccountCreate.mockImplementation(async () => {
+      accountExists = true;
+      throw Object.assign(new Error('duplicate key'), { code: 'P2002' });
+    });
+
+    const result = await handleImportChunk(CHUNK_PAYLOAD);
+
+    expect(result.errors).toBe(0);
+    expect(result.created).toBe(1);
+    expect(mockLeadCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ accountId: 'account-winner' }) })
+    );
   });
 
   it('never lets a blank incoming field null out a value another row already set', async () => {
+    // Enrichment of an EXISTING row is where this can go wrong: a create may carry explicit nulls
+    // because it is establishing the row, but an update must not — every key it contains overwrites
+    // whatever an earlier import already established.
     seedOneRow();
+    mockAccountFindFirst.mockResolvedValue({ id: 'account-1', nameNormalized: 'acme', canonicalDomain: null });
+    mockContactFindFirst.mockResolvedValue({ id: 'contact-1', accountId: 'account-1' });
+
     await handleImportChunk(CHUNK_PAYLOAD);
 
-    // `create` may carry explicit nulls — it is establishing the row. `update` must not: every
-    // key it contains would overwrite whatever an earlier import already established.
-    const accountArgs = mockAccountUpsert.mock.calls[0][0] as {
-      update: Record<string, unknown>;
-    };
-    for (const [key, value] of Object.entries(accountArgs.update)) {
-      expect(value, `account update carried a blank '${key}'`).not.toBe(null);
-      expect(value, `account update carried an empty '${key}'`).not.toBe('');
-    }
+    const enrichmentPayloads = [...mockAccountUpdate.mock.calls, ...mockContactUpdate.mock.calls]
+      .map(([args]) => (args as { data: Record<string, unknown> }).data)
+      .filter(Boolean);
 
-    const contactArgs = mockContactUpsert.mock.calls[0][0] as {
-      update: Record<string, unknown>;
-    };
-    for (const [key, value] of Object.entries(contactArgs.update)) {
-      expect(value, `contact update carried a blank '${key}'`).not.toBe(null);
-      expect(value, `contact update carried an empty '${key}'`).not.toBe('');
+    expect(enrichmentPayloads.length).toBeGreaterThan(0);
+    for (const data of enrichmentPayloads) {
+      for (const [key, value] of Object.entries(data)) {
+        expect(value, `enrichment carried a blank '${key}'`).not.toBe(null);
+        expect(value, `enrichment carried an empty '${key}'`).not.toBe('');
+      }
     }
   });
 
-  it('still fails the row when the upsert throws for a reason other than the conflict it targets', async () => {
+  it('still fails the row when the write throws for a reason other than the conflict it targets', async () => {
     // Convergence must not become "swallow every database error on this row".
     seedOneRow();
-    mockAccountUpsert.mockRejectedValueOnce(new Error('connection terminated'));
+    mockAccountCreate.mockRejectedValueOnce(new Error('connection terminated'));
 
     const result = await handleImportChunk(CHUNK_PAYLOAD);
 
@@ -408,7 +437,11 @@ describe('handleImportChunk', () => {
         company: 'Acme',
         normalizedEmail: 'john@test.com',
         normalizedPhone: '5550100',
-        normalizedLinkedIn: 'https://linkedin.com/in/john',
+        // Canonical profile path: scheme and www are dropped, so `linkedin.com/in/jane` and
+        // `https://www.linkedin.com/in/jane/` stop deduping as two different people. Rows written
+        // before this change hold the old scheme-carrying form and are re-normalised by the identity
+        // backfill; until that runs, an old row and a new one will not match on LinkedIn.
+        normalizedLinkedIn: 'linkedin.com/in/john',
         source: 'csv-import',
       }),
     });

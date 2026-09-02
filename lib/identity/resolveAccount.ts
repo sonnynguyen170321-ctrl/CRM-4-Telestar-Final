@@ -23,13 +23,21 @@ import {
 // Merging belongs to the backfill, which runs dry first and prints what it would join. This writer
 // only stops NEW duplicates being created.
 
-export type AccountIdentityDb = {
-  account: {
-    findFirst: (args: unknown) => Promise<{ id: string; nameNormalized: string | null; canonicalDomain: string | null } | null>;
-    create: (args: unknown) => Promise<{ id: string }>;
-    update: (args: unknown) => Promise<unknown>;
-  };
+/**
+ * The slice of a Prisma client this needs.
+ *
+ * Loose on purpose: the real Prisma delegate's generated signatures are far more specific than any
+ * hand-written interface, so a stricter shape here would reject the actual client and force a cast
+ * at every call site. Loose here, exact where it matters — the tests pass a fake with the same three
+ * methods, which is what makes the resolution order testable without a database.
+ */
+type AccountDelegate = {
+  findFirst: (args: any) => Promise<any>;
+  create: (args: any) => Promise<any>;
+  update: (args: any) => Promise<any>;
 };
+
+export type AccountIdentityDb = { account: AccountDelegate };
 
 export type ResolveAccountInput = {
   tenantId: string;
@@ -109,25 +117,52 @@ export async function resolveAccount(
     };
   }
 
-  const created = await db.account.create({
-    data: {
-      name: input.name,
-      nameNormalized,
-      canonicalDomain,
-      domain: input.domain ?? null,
-      website: input.website ?? null,
-      industry: input.industry ?? null,
-      linkedIn: input.linkedIn ?? null,
-      country: input.country ?? null,
-      companyPhone: input.companyPhone ?? null,
-      staffCountRange: input.staffCountRange ?? null,
-      staffCountMin: input.staffCountMin ?? null,
-      staffCountMax: input.staffCountMax ?? null,
-      size: input.size ?? null,
-      tenantId,
-    },
-    select: { id: true },
-  });
+  // Nothing matched, so create — but two import chunks processing rows for the same company will
+  // BOTH reach this line, and the lookups above cannot prevent that. The unique index on
+  // (tenantId, name) is what actually decides; whoever loses the race re-reads the winner's row.
+  // Losing this convergence would lose leads under contention, which is what the import race tests
+  // exist to catch.
+  try {
+    const created = await db.account.create({
+      data: {
+        name: input.name,
+        nameNormalized,
+        canonicalDomain,
+        domain: input.domain ?? null,
+        website: input.website ?? null,
+        industry: input.industry ?? null,
+        linkedIn: input.linkedIn ?? null,
+        country: input.country ?? null,
+        companyPhone: input.companyPhone ?? null,
+        staffCountRange: input.staffCountRange ?? null,
+        staffCountMin: input.staffCountMin ?? null,
+        staffCountMax: input.staffCountMax ?? null,
+        size: input.size ?? null,
+        tenantId,
+      },
+      select: { id: true },
+    });
+    return { accountId: created.id, created: true, matchedBy: null, canonicalDomain, nameNormalized };
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
 
-  return { accountId: created.id, created: true, matchedBy: null, canonicalDomain, nameNormalized };
+    const winner = await db.account.findFirst({
+      where: { tenantId, name: input.name },
+      select: { id: true, nameNormalized: true, canonicalDomain: true },
+    });
+    if (!winner) throw error;
+
+    return {
+      accountId: winner.id,
+      created: false,
+      matchedBy: 'name',
+      canonicalDomain: winner.canonicalDomain ?? canonicalDomain,
+      nameNormalized: winner.nameNormalized ?? nameNormalized,
+    };
+  }
+}
+
+/** Postgres unique violation, as Prisma surfaces it. */
+function isUniqueViolation(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === 'P2002';
 }

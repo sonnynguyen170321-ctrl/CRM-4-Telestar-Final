@@ -15,14 +15,15 @@ import { normalizeEmail, normalizeLinkedIn, normalizePhone } from '@/lib/leads/n
 // "Nguyen Van A" is not a unique human, and matching on name alone across a tenant would merge
 // different people.
 
+/** Loose for the same reason as `AccountIdentityDb`: it has to accept the real Prisma client. */
 export type ContactIdentityDb = {
   contact: {
-    findFirst: (args: unknown) => Promise<{ id: string; accountId: string | null } | null>;
-    create: (args: unknown) => Promise<{ id: string }>;
-    update: (args: unknown) => Promise<unknown>;
+    findFirst: (args: any) => Promise<any>;
+    create: (args: any) => Promise<any>;
+    update: (args: any) => Promise<any>;
   };
   contactEmployment: {
-    upsert: (args: unknown) => Promise<unknown>;
+    upsert: (args: any) => Promise<any>;
   };
 };
 
@@ -102,6 +103,24 @@ export async function resolveContact(
     return { contactId: existing.id, created: false, matchedBy: attempt.by };
   }
 
+  // Same race as accounts: two chunks carrying the same person both miss the lookups above. The
+  // unique index on (tenantId, normalizedEmail) decides, and the loser adopts the winner's row.
+  try {
+    return await createContact();
+  } catch (error) {
+    if (!isUniqueViolation(error) || !normalizedEmail) throw error;
+
+    const winner = await db.contact.findFirst({
+      where: { tenantId, normalizedEmail },
+      select: { id: true },
+    });
+    if (!winner) throw error;
+
+    await recordEmployment(db, { tenantId, contactId: winner.id, accountId, title: input.title ?? null });
+    return { contactId: winner.id, created: false, matchedBy: 'email' };
+  }
+
+  async function createContact(): Promise<ResolveContactResult> {
   const created = await db.contact.create({
     data: {
       fullName,
@@ -135,6 +154,12 @@ export async function resolveContact(
   await recordEmployment(db, { tenantId, contactId: created.id, accountId, title: input.title ?? null });
 
   return { contactId: created.id, created: true, matchedBy: null };
+  }
+}
+
+/** Postgres unique violation, as Prisma surfaces it. */
+function isUniqueViolation(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === 'P2002';
 }
 
 /**

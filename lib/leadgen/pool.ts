@@ -1,5 +1,12 @@
 import { prisma } from '@/lib/prisma';
-import { normalizeEmail, normalizePhone, normalizeLinkedIn } from '@/lib/leads/normalize';
+import {
+  normalizeCompanyName,
+  normalizeEmail,
+  normalizePhone,
+  normalizeLinkedIn,
+} from '@/lib/leads/normalize';
+import { resolveAccount } from '@/lib/identity/resolveAccount';
+import { resolveContact } from '@/lib/identity/resolveContact';
 import type { SessionUser } from '@/lib/auth';
 import type { LeadgenActivityType, LeadPoolItem, LeadSourceType } from '@prisma/client';
 import { buildTermClauses } from '@/lib/search/terms';
@@ -24,7 +31,12 @@ export function buildPoolDuplicateKey(row: {
   const linkedIn = normalizeLinkedIn(row.linkedIn);
   if (linkedIn) return `linkedin:${linkedIn}`;
   if (row.firstName && row.lastName && row.company) {
-    return `name:${row.firstName.trim().toLowerCase()}|${row.lastName.trim().toLowerCase()}|${row.company.trim().toLowerCase()}`;
+    // The company part is normalised, not lower-cased. `company.trim().toLowerCase()` made
+    // "Công ty TNHH ABC" and "CTY TNHH ABC" different keys, so the same person at the same employer
+    // entered the pool twice whenever the row carried no email, phone or LinkedIn — precisely the
+    // case this fallback exists to cover.
+    const company = normalizeCompanyName(row.company) ?? row.company.trim().toLowerCase();
+    return `name:${row.firstName.trim().toLowerCase()}|${row.lastName.trim().toLowerCase()}|${company}`;
   }
   return null;
 }
@@ -195,6 +207,7 @@ export async function createPoolItem(params: {
       lastName: input.lastName ?? null,
       fullName: input.fullName ?? null,
       company: input.company,
+      normalizedCompany: normalizeCompanyName(input.company),
       title: input.title ?? null,
       email: input.email ?? null,
       phone: input.phone ?? null,
@@ -481,6 +494,15 @@ export interface ConvertFailure {
 /** Stable reason code — the UI and any caller match on this, never on driver text. */
 export const DUPLICATE_LEAD_REASON = 'already_a_lead_in_this_campaign';
 
+/**
+ * The record has no email, so it cannot become a lead.
+ *
+ * Previously such records were converted with `noemail@telestar.vn`, which produced rows that look
+ * like people and bounce when a sequence reaches them. Refusing is the cheaper failure, and it is
+ * actionable: the record stays in the pool, waiting for enrichment.
+ */
+export const MISSING_EMAIL_REASON = 'missing_email';
+
 /** Postgres unique-violation code, as surfaced by Prisma. */
 const PRISMA_UNIQUE_VIOLATION = 'P2002';
 
@@ -546,6 +568,16 @@ export async function convertPoolToLeads(params: {
       const normalizedPhone = normalizePhone(item.phone);
       const normalizedLinkedIn = normalizeLinkedIn(item.linkedIn);
 
+      // A pool record with no email cannot become a lead. It used to become one anyway, carrying
+      // `noemail@telestar.vn` with `firstName` set to the company and `lastName` to an em dash — a
+      // row that looks like a person, enters sequences, and bounces. A bounce against a fabricated
+      // address costs sending reputation, so refusing the conversion is the cheaper failure, and the
+      // reason code tells the leadgen manager exactly what to fix.
+      if (!item.email || !normalizedEmail) {
+        errors.push({ poolItemId: item.id, reason: MISSING_EMAIL_REASON });
+        continue;
+      }
+
       // `Lead_tenant_campaign_email_uniq` allows one lead per tenant + campaign + email.
       // Checked here rather than left to the insert so the caller learns *which* lead already
       // holds the slot. Letting it throw produced `Invalid prisma.lead.create() invocation`
@@ -566,58 +598,49 @@ export async function convertPoolToLeads(params: {
         }
       }
 
-      let account = await prisma.account.findUnique({
-        where: { tenantId_name: { tenantId, name: item.company } },
-        select: { id: true },
+      // Identity goes through the shared writer, so a pool record and an imported row resolve to the
+      // same Account instead of each creating their own by raw name.
+      const resolvedAccount = await resolveAccount(prisma, {
+        tenantId,
+        name: item.company,
+        website: item.website,
+        industry: item.industry,
+        country: item.country,
       });
-      if (!account) {
-        account = await prisma.account.create({
-          data: { name: item.company, website: item.website, industry: item.industry, country: item.country, tenantId },
-          select: { id: true },
-        });
-      }
+      const account = { id: resolvedAccount.accountId };
 
+      // A contact still requires an email, because `Contact.email` is NOT NULL. What changed is that
+      // a record without one no longer invents `firstName = company` and `lastName = "—"` to get
+      // past the column: it simply has no contact, and the lead below is rejected rather than
+      // written with a fabricated address.
       let contactId: string | null = null;
-      if (normalizedEmail) {
-        let contact = await prisma.contact.findUnique({
-          where: { tenantId_normalizedEmail: { tenantId, normalizedEmail } },
-          select: { id: true },
+      if (normalizedEmail && item.email) {
+        const resolvedContact = await resolveContact(prisma, {
+          tenantId,
+          accountId: resolvedAccount.accountId,
+          company: item.company,
+          firstName: item.firstName || '',
+          lastName: item.lastName || '',
+          email: item.email,
+          title: item.title,
+          country: item.country,
+          phone: item.phone,
+          linkedIn: item.linkedIn,
+          emailValidation: item.emailValidation,
+          emailScore: item.emailScore,
         });
-        if (!contact) {
-          const createdContact = await prisma.contact.create({
-            data: {
-              fullName: [item.firstName, item.lastName].filter(Boolean).join(' ') || item.company,
-              firstName: item.firstName || item.company,
-              lastName: item.lastName || '—',
-              company: item.company,
-              title: item.title,
-              country: item.country,
-              email: item.email || normalizedEmail,
-              phone: item.phone,
-              linkedIn: item.linkedIn,
-              emailValidation: item.emailValidation,
-              emailScore: item.emailScore,
-              normalizedEmail,
-              normalizedPhone,
-              normalizedLinkedIn,
-              tenantId,
-            },
-            select: { id: true },
-          });
-          contact = createdContact;
-        }
-        contactId = contact.id;
+        contactId = resolvedContact.contactId;
       }
 
       const lead = await prisma.lead.create({
         data: {
           contactId,
           accountId: account.id,
-          firstName: item.firstName || item.company,
-          lastName: item.lastName || '—',
+          firstName: item.firstName ?? '',
+          lastName: item.lastName ?? '',
           company: item.company,
           title: item.title || null,
-          email: item.email || `${normalizedEmail ?? 'noemail'}@telestar.vn`,
+          email: item.email,
           phone: item.phone || null,
           linkedIn: item.linkedIn || null,
           stage: 'new',

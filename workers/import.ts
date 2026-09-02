@@ -4,7 +4,14 @@ import { createAppWorker } from '@/lib/bullmq';
 import { JobType } from '@/lib/bullmq/types';
 import type { ImportParsePayload, ImportChunkPayload, ImportCommitPayload } from '@/lib/bullmq/types';
 import { enqueue } from '@/lib/bullmq/enqueue';
-import { normalizeEmail, normalizePhone, normalizeLinkedIn } from '@/lib/leads/normalize';
+import {
+  normalizeCompanyName,
+  normalizeEmail,
+  normalizePhone,
+  normalizeLinkedIn,
+} from '@/lib/leads/normalize';
+import { resolveAccount } from '@/lib/identity/resolveAccount';
+import { resolveContact } from '@/lib/identity/resolveContact';
 import { createTaskForStep } from '@/lib/sequences/engine';
 import {
   normalizeImportRow,
@@ -628,6 +635,7 @@ async function handlePoolChunk(payload: ImportChunkPayload) {
               lastName: data.lastName,
               fullName: data.fullName || `${data.firstName} ${data.lastName}`.trim(),
               company: data.company,
+              normalizedCompany: normalizeCompanyName(data.company),
               title: data.title || null,
               email: data.email,
               phone: data.phone || null,
@@ -790,49 +798,65 @@ async function handleImportChunk(payload: ImportChunkPayload) {
     const normalizedLinkedIn = normalizeLinkedIn(data.linkedIn);
 
     try {
-      let account;
-      try {
-        account = await prisma.account.upsert({
-          where: { tenantId_name: { tenantId, name: data.company } },
-          create: accountData(data, tenantId),
-          update: nonBlank(accountData(data, tenantId)),
-        });
-      } catch (err: unknown) {
-        if ((err as { code?: string })?.code === 'P2002') {
-          account = await prisma.account.findUnique({
-            where: { tenantId_name: { tenantId, name: data.company } },
-          });
-          if (!account) throw err;
-        } else {
-          throw err;
+      // Identity resolution goes through the shared writer: the raw company name is no longer the
+      // key, so "Công ty TNHH ABC" and "CTY TNHH ABC" land on one Account instead of two. Enriching
+      // an existing row with newly-supplied fields is kept — that behaviour was the point of the
+      // `nonBlank` upsert this replaces.
+      const resolvedAccount = await resolveAccount(prisma, {
+        tenantId,
+        name: data.company,
+        website: data.website,
+        domain: data.domain,
+        industry: data.industry,
+        linkedIn: data.companyLinkedIn,
+        country: data.companyCountry,
+        companyPhone: data.companyPhone,
+        staffCountRange: data.staffCountRange,
+        staffCountMin: data.staffCountMin,
+        staffCountMax: data.staffCountMax,
+        size: data.staffSize,
+      });
+      if (!resolvedAccount.created) {
+        const patch = nonBlank(accountData(data, tenantId));
+        if (Object.keys(patch).length > 0) {
+          await prisma.account.update({ where: { id: resolvedAccount.accountId }, data: patch });
         }
       }
+      // Only the id is used downstream, so there is no second read to go stale or to mock.
+      const account = { id: resolvedAccount.accountId };
 
       if (data.__failpoint === 'after_account') {
         throw new Error('FAILPOINT_AFTER_ACCOUNT');
       }
 
-      let contact;
-      if (normalizedEmail) {
-        try {
-          contact = await prisma.contact.upsert({
-            where: { tenantId_normalizedEmail: { tenantId, normalizedEmail } },
-            create: contactData(data, tenantId),
-            update: nonBlank(contactData(data, tenantId)),
-          });
-        } catch (err: unknown) {
-          if ((err as { code?: string })?.code === 'P2002') {
-            contact = await prisma.contact.findUnique({
-              where: { tenantId_normalizedEmail: { tenantId, normalizedEmail } },
-            });
-            if (!contact) throw err;
-          } else {
-            throw err;
-          }
+      const resolvedContact = await resolveContact(prisma, {
+        tenantId,
+        accountId: resolvedAccount.accountId,
+        company: data.company,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        fullName: data.fullName,
+        email: data.email,
+        title: data.title,
+        department: data.department,
+        seniority: data.seniority,
+        country: data.contactCountry,
+        phone: data.phone,
+        secondaryPhone: data.secondaryPhone,
+        linkedIn: data.linkedIn,
+        whatsApp: data.whatsApp,
+        emailValidation: data.emailValidation,
+        emailScore: data.emailScore,
+        alternateEmail: data.alternateEmail,
+        alternateEmailValidation: data.alternateEmailValidation,
+      });
+      if (!resolvedContact.created) {
+        const patch = nonBlank(contactData(data, tenantId));
+        if (Object.keys(patch).length > 0) {
+          await prisma.contact.update({ where: { id: resolvedContact.contactId }, data: patch });
         }
-      } else {
-        contact = await prisma.contact.create({ data: contactData(data, tenantId) });
       }
+      const contact = { id: resolvedContact.contactId };
 
       if (data.__failpoint === 'after_contact') {
         throw new Error('FAILPOINT_AFTER_CONTACT');

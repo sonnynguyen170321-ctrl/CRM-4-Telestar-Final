@@ -91,6 +91,7 @@
     "start",
     "sync-enrollments",
     "test",
+    "test:packages",
     "users:restore",
     "verify:rls",
     "verify:rls-app-paths",
@@ -99,5 +100,5 @@
     "worker:healthcheck",
     "worker:start"
   ],
-  "scriptCount": 56
+  "scriptCount": 57
 }

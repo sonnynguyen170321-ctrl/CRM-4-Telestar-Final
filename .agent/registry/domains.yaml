@@ -362,6 +362,10 @@ domains:
       # Its tests were already classified here; the scripts themselves were not.
       - scripts/doctor*
       - next.config.ts
+
+      - tsconfig.json
+
+      - eslint.config.mjs
       - lib/env.ts
       - lib/env-contract.ts
       - .env.production.example
@@ -450,3 +454,38 @@ domains:
       R0 only because prose cannot break a running system. It can still be wrong, and a
       confidently wrong document outlives the person who wrote it — which is why facts are
       generated rather than written here.
+
+  - id: shared-packages
+    description: >-
+      Database-agnostic logic shared by this app and apps/leadgen: identity resolution, ICP
+      scoring, ICP rule vocabulary, ingestion parsing, web search, company intelligence,
+      research discovery.
+    risk: R3
+    paths:
+      - packages/**
+      - lib/identity/**
+      - vitest.packages.config.ts
+      - vitest.server-only-stub.ts
+    tests:
+      - tests/identity-writer.test.ts
+    gates:
+      - npm run test:packages
+    notes: >-
+      R3 because two applications depend on it and neither owns it. The lint rule for
+      `packages/**` forbids importing `@prisma/client` or `@/*`: the two apps have different
+      schemas (Tenant/Account/Contact here, V2Organization/V2Company/V2Contact there), so one
+      Prisma import binds shared code to one of them and silently un-shares it. That failure is
+      invisible — it compiles, and it passes tests in whichever app happened to run them.
+
+  - id: leadgen-app
+    description: >-
+      The lead-generation application, vendored as a subtree. Its own product, on its own Prisma
+      version, not part of this app's build.
+    risk: R1
+    paths:
+      - apps/**
+    notes: >-
+      R1 rather than R2 because nothing in this app imports it: the CRM builds from the repository
+      root and never compiles `apps/`, which is why `apps` is excluded from the root tsconfig. It
+      pins Prisma 7 while the CRM is on 6, and npm keeps those isolated — verified, not assumed.
+      Changes here are reviewed by that app's own gates.
