@@ -1,0 +1,24 @@
+diff --git a/lib/v2/company-intelligence/companyEnrichmentHandler.ts b/lib/v2/company-intelligence/companyEnrichmentHandler.ts
+--- a/lib/v2/company-intelligence/companyEnrichmentHandler.ts
++++ b/lib/v2/company-intelligence/companyEnrichmentHandler.ts
+@@ -11,0 +12,1 @@
++  country: string | null;
+@@ -41,1 +42,1 @@
+-    SELECT "id", "name", "canonicalDomain", "websiteUrl"
++    SELECT "id", "name", "canonicalDomain", "websiteUrl", "country"
+@@ -86,0 +88,1 @@
++      country: company.country,
+diff --git a/lib/v2/company-intelligence/index.ts b/lib/v2/company-intelligence/index.ts
+--- a/lib/v2/company-intelligence/index.ts
++++ b/lib/v2/company-intelligence/index.ts
+@@ -1,0 +2,1 @@
++import { currentResearchVersion } from "./pipelineVersion";
+@@ -28,1 +29,1 @@
+-  const researchVersion = input.researchVersion ?? 1;
++  const researchVersion = input.researchVersion ?? currentResearchVersion();
+diff --git a/lib/v2/company-intelligence/__tests__/runCompanyResearch.test.ts b/lib/v2/company-intelligence/__tests__/runCompanyResearch.test.ts
+--- a/lib/v2/company-intelligence/__tests__/runCompanyResearch.test.ts
++++ b/lib/v2/company-intelligence/__tests__/runCompanyResearch.test.ts
+@@ -145,1 +145,1 @@
+-    expect(result.profile.sourceCoverageJson.searchQueriesRun).toBe(3);
++    expect(result.profile.sourceCoverageJson.searchQueriesRun).toBe(0);

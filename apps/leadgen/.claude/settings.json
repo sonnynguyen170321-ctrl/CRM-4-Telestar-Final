@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "When I say I need to sleep -> do not ask me to give you permission or allow anything -> you can run more  freely",
+      "Bash(npm run lint)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run test)",
+      "Bash(npm run test *)",
+      "Bash(npm run build)",
+      "Bash(node scripts/check-v2-*)",
+      "Bash(node scripts/process-v2-jobs.mjs *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git pull *)",
+      "Bash(git push origin feature/shared-types*)",
+      "PowerShell(npm run typecheck)",
+      "PowerShell(npm run lint)",
+      "PowerShell(node scripts/check-v2-*)",
+      "mcp__Claude_Preview__preview_screenshot",
+      "mcp__Claude_Preview__preview_console_logs"
+    ],
+    "ask": []
+  },
+  "enabledPlugins": {
+    "claude-session-driver@superpowers-marketplace": true,
+    "frontend-design@claude-plugins-official": true
+  }
+}

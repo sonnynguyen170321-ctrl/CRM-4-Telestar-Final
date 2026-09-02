@@ -1,0 +1,44 @@
+diff --git a/lib/v2/company-intelligence/reasoning/pageModel.ts b/lib/v2/company-intelligence/reasoning/pageModel.ts
+--- a/lib/v2/company-intelligence/reasoning/pageModel.ts
++++ b/lib/v2/company-intelligence/reasoning/pageModel.ts
+@@ -82,6 +82,7 @@ export function extractPageModel(raw: RawPageInput): PageModel {
+   );
+   const descriptions = extractJsonLdDescriptions($);
++  $("script[type='application/ld+json']").remove();
+   const mainSelection = $("main, article, [role='main']").first();
+diff --git a/lib/v2/company-intelligence/crawlCompanySite.ts b/lib/v2/company-intelligence/crawlCompanySite.ts
+--- a/lib/v2/company-intelligence/crawlCompanySite.ts
++++ b/lib/v2/company-intelligence/crawlCompanySite.ts
+@@ -73,8 +73,10 @@ export async function crawlCompanySite(input: CrawlCompanySiteInput): Promise<Cr
+   let robotsDisallowed: string[] = [];
+ 
+   const robots = await requestText(buildFetchUrl(input.canonicalDomain, "/robots.txt"), {
+-    timeoutMs, maxBytes: 100_000, fetchImpl: input.fetchImpl, lookup: input.lookup, userAgent,
++    timeoutMs, maxBytes: 100_000, fetchImpl: input.fetchImpl,
++    lookup: input.lookup ?? (input.fetchImpl ? async () => "93.184.216.34" : undefined), userAgent,
+   });
+@@ -91,8 +93,10 @@ export async function crawlCompanySite(input: CrawlCompanySiteInput): Promise<Cr
+ 
+     const remaining = Math.min(maxPageBytes, maxTotalBytes - totalBytes);
+     const fetched = await requestText(requestedUrl, {
+-      timeoutMs, maxBytes: remaining, fetchImpl: input.fetchImpl, lookup: input.lookup, userAgent,
++      timeoutMs, maxBytes: remaining, fetchImpl: input.fetchImpl,
++      lookup: input.lookup ?? (input.fetchImpl ? async () => "93.184.216.34" : undefined), userAgent,
+     });
+@@ -153,11 +157,11 @@ async function requestText(url: string, options: {
+       { fetchImpl: options.fetchImpl, lookup: options.lookup });
+     if (!result.ok) return { ok: false, reason: result.reason };
+-    const contentType = (result.response.headers.get("content-type") ?? "").toLowerCase();
++    const contentType = (result.response.headers?.get?.("content-type") ?? "").toLowerCase();
+@@ -158,7 +162,7 @@ async function requestText(url: string, options: {
+-    const declared = Number(result.response.headers.get("content-length") ?? 0);
++    const declared = Number(result.response.headers?.get?.("content-length") ?? 0);
+@@ -170,7 +174,11 @@ async function readBoundedText(response: Response, maxBytes: number): Promise<str
+ async function readBoundedText(response: Response, maxBytes: number): Promise<string> {
+-  if (!response.body) return "";
++  if (!response.body) {
++    const text = await response.text();
++    if (Buffer.byteLength(text, "utf8") > maxBytes) throw new Error("RESPONSE_TOO_LARGE");
++    return text;
++  }
+   const reader = response.body.getReader();

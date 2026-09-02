@@ -1,0 +1,22 @@
+diff --git a/lib/v2/company-intelligence/crawlCompanySite.ts b/lib/v2/company-intelligence/crawlCompanySite.ts
+--- a/lib/v2/company-intelligence/crawlCompanySite.ts
++++ b/lib/v2/company-intelligence/crawlCompanySite.ts
+@@ -155,9 +155,9 @@ async function requestText(url: string, options: {
+       { fetchImpl: options.fetchImpl, lookup: options.lookup });
+     if (!result.ok) return { ok: false, reason: result.reason };
+-    const contentType = (result.response.headers.get("content-type") ?? "").toLowerCase();
++    const contentType = (result.response.headers?.get?.("content-type") ?? "").toLowerCase();
+     if (contentType && !ALLOWED_CONTENT_TYPES.some((allowed) => contentType.includes(allowed)) && !contentType.includes("text/plain")) {
+       return { ok: false, reason: "UNSUPPORTED_CONTENT_TYPE" };
+     }
+-    const declared = Number(result.response.headers.get("content-length") ?? 0);
++    const declared = Number(result.response.headers?.get?.("content-length") ?? 0);
+@@ -171,7 +171,11 @@ async function readBoundedText(response: Response, maxBytes: number): Promise<str
+ async function readBoundedText(response: Response, maxBytes: number): Promise<string> {
+-  if (!response.body) return "";
++  if (!response.body) {
++    const text = await response.text();
++    if (Buffer.byteLength(text, "utf8") > maxBytes) throw new Error("RESPONSE_TOO_LARGE");
++    return text;
++  }
+   const reader = response.body.getReader();

@@ -1,0 +1,11 @@
+diff --git a/lib/v2/scoring/runtime/buildScoringInput.ts b/lib/v2/scoring/runtime/buildScoringInput.ts
+--- a/lib/v2/scoring/runtime/buildScoringInput.ts
++++ b/lib/v2/scoring/runtime/buildScoringInput.ts
+@@ -208,1 +208,0 @@
+-    intelligenceTrace: intelligence.trace,
+@@ -209,0 +209,1 @@
++    intelligenceTrace: intelligence.trace,
+@@ -267,0 +268,1 @@
++      "confidenceJson",
+@@ -270,1 +270,0 @@
+-      "confidenceJson",

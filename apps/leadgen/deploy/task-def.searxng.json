@@ -1,0 +1,32 @@
+{
+  "family": "telestar-searxng",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT>:role/telestar-ecs-execution",
+  "containerDefinitions": [
+    {
+      "name": "searxng",
+      "image": "<ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/telestar-searxng:latest",
+      "essential": true,
+      "portMappings": [{ "containerPort": 8080, "protocol": "tcp" }],
+      "environment": [
+        { "name": "SEARXNG_BASE_URL", "value": "http://localhost:8080/" },
+        { "name": "INSTANCE_NAME", "value": "telestar-searxng" }
+      ],
+      "secrets": [
+        { "name": "SEARXNG_SECRET", "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT>:secret:telestar/SEARXNG_SECRET" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/telestar-searxng",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "searxng",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

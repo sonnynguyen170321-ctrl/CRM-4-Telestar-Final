@@ -1,0 +1,16 @@
+diff --git a/lib/v2/company-intelligence/crawlCompanySite.ts b/lib/v2/company-intelligence/crawlCompanySite.ts
+--- a/lib/v2/company-intelligence/crawlCompanySite.ts
++++ b/lib/v2/company-intelligence/crawlCompanySite.ts
+@@ -158 +158 @@
+-    const contentType = (result.response.headers.get("content-type") ?? "").toLowerCase();
++    const contentType = (result.response.headers?.get?.("content-type") ?? "").toLowerCase();
+@@ -162 +162 @@
+-    const declared = Number(result.response.headers.get("content-length") ?? 0);
++    const declared = Number(result.response.headers?.get?.("content-length") ?? 0);
+@@ -174 +174,5 @@
+-  if (!response.body) return "";
++  if (!response.body) {
++    const text = await response.text();
++    if (Buffer.byteLength(text, "utf8") > maxBytes) throw new Error("RESPONSE_TOO_LARGE");
++    return text;
++  }

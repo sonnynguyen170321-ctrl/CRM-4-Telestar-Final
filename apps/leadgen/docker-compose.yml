@@ -1,0 +1,141 @@
+# Full local/staging stack that mirrors the AWS service topology so what you run here maps 1:1 to
+# what you deploy. Service -> AWS target:
+#   app / worker / imap / ai-worker  ->  ECS/Fargate tasks from the SAME image, different `command`
+#   postgres                         ->  RDS for PostgreSQL
+#   redis                            ->  ElastiCache for Redis
+#   migrate (one-shot)               ->  a pre-deploy ECS run-task
+# Secrets live in .env locally; on AWS pull them from SSM Parameter Store / Secrets Manager.
+#
+# Quick start:
+#   cp .env.production.example .env          # fill V2_AUTH_SECRET, V2_OUTREACH_CREDENTIAL_KEY, AI keys...
+#   docker compose up --build                # app on http://localhost:3000 (migrations run first)
+#   docker compose --profile workers up --build   # also start the imap + ai-worker
+#
+# DATABASE_URL and REDIS_URL are set here to the internal service DNS and intentionally OVERRIDE
+# anything in .env, so the stack is self-contained. Everything else comes from .env.
+
+name: telestar-v2
+
+x-app-env: &app-env
+  NODE_ENV: production
+  DATABASE_URL: postgresql://telestar:telestar@postgres:5432/telestar?schema=public
+  REDIS_URL: redis://redis:6379
+  V2_BULL_ENABLED: "true"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: telestar
+      POSTGRES_PASSWORD: telestar
+      POSTGRES_DB: telestar
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telestar -d telestar"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # One-shot: apply Prisma migrations before app/workers boot. Runs to completion, then exits.
+  # On AWS, run this same image + command as a pre-deploy `aws ecs run-task` against RDS.
+  migrate:
+    image: telestar-v2:local
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    env_file: [.env]
+    environment: *app-env
+    command: ["npx", "prisma", "migrate", "deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    image: telestar-v2:local
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    env_file: [.env]
+    environment: *app-env
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # /v2/runtime/health is secret-gated, so probe a public route instead: the server answering
+      # (any non-5xx) means the process is up. Uses node (always in the image) — no curl/wget needed.
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('http').get('http://127.0.0.1:3000/v2/login',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  # BullMQ runtime worker: scoring / ingestion / enrichment / sequence-step jobs. Same image, worker
+  # command. Scale horizontally on AWS by raising the ECS service desired count.
+  worker:
+    image: telestar-v2:local
+    env_file: [.env]
+    environment: *app-env
+    command: ["npm", "run", "v2:worker"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Optional inbound-email (IMAP) poller — enable with `--profile workers`.
+  imap:
+    image: telestar-v2:local
+    profiles: ["workers"]
+    env_file: [.env]
+    environment: *app-env
+    command: ["npm", "run", "v2:imap"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Optional AI job worker — enable with `--profile workers`.
+  ai-worker:
+    image: telestar-v2:local
+    profiles: ["workers"]
+    env_file: [.env]
+    environment: *app-env
+    command: ["npm", "run", "ai:worker"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

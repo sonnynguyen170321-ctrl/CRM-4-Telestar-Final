@@ -1,0 +1,76 @@
+# TeleStar SDR OS V2 — single-host AWS deployment (EC2 + docker-compose).
+#
+# Topology (all app containers share ONE prebuilt image, only the command differs):
+#   caddy    -> public :80/:443, auto-HTTPS via Let's Encrypt, reverse_proxy -> web:3000
+#   web      -> next start (Next.js SSR + API)                      [internal only]
+#   worker   -> BullMQ runtime worker (scoring/ingest/enrich/outreach/readmodel)
+#   imap     -> inbound reply/bounce poller
+#   migrate  -> one-shot `prisma migrate deploy` (run before web/worker; exits)
+#
+# Managed backing services are EXTERNAL (not containers here):
+#   DATABASE_URL -> RDS PostgreSQL      REDIS_URL -> ElastiCache Redis
+# Both come from .env.production (rendered on the box from Secrets Manager by deploy.sh).
+#
+# The image is built + pushed to ECR by CI; APP_IMAGE pins the exact tag to run.
+# Usage on the box:  APP_IMAGE=<ecr>/telestar-v2:<sha> docker compose ... up -d
+# See deploy/aws-ec2/README.md for the full runbook.
+
+name: telestar-v2-aws
+
+x-app: &app
+  image: ${APP_IMAGE:?set APP_IMAGE to the ECR image ref (repo:tag)}
+  env_file: [.env.production]
+  restart: unless-stopped
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Public hostname Caddy obtains a cert for. On EC2: <eip-with-dashes>.sslip.io
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN to the public hostname (e.g. 13-250-1-2.sslip.io)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # cert + ACME account state (must persist across restarts)
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
+  # One-shot: apply migrations, then exit. deploy.sh runs this via `compose run --rm migrate`
+  # BEFORE rolling web/worker, so the schema is current before any task serves traffic.
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["npx", "prisma", "migrate", "deploy"]
+
+  web:
+    <<: *app
+    expose:
+      - "3000"                # internal only — Caddy is the sole public ingress
+    healthcheck:
+      # /api/health does SELECT 1 against RDS; 200 => process up + DB reachable.
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  worker:
+    <<: *app
+    command: ["npm", "run", "v2:worker", "--", "--backend=bull"]
+
+  imap:
+    <<: *app
+    command: ["npm", "run", "v2:imap"]
+
+volumes:
+  caddy_data:
+  caddy_config:

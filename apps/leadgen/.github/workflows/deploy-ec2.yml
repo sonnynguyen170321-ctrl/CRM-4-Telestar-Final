@@ -1,0 +1,104 @@
+name: Deploy to AWS (EC2 + docker-compose)
+
+# DORMANT by design: workflow_dispatch only, so it never runs automatically and can't turn
+# CI red before AWS is provisioned. Provision with deploy/aws-ec2/terraform first, wire the
+# vars/secret below (from `terraform output`), then run this from the Actions tab.
+#
+# Repository VARIABLES (Settings > Secrets and variables > Actions > Variables):
+#   AWS_REGION           e.g. ap-southeast-1
+#   ECR_REPOSITORY       e.g. telestar-v2                 (repo name; must match TF output)
+#   DEPLOY_BUCKET        the S3 deploy bucket (TF output `deploy_bucket`)
+#   INSTANCE_ID          the EC2 instance id  (TF output `instance_id`)
+#   NEXT_PUBLIC_APP_URL  https://<app_domain>             (TF output `app_url`; baked into image)
+# Repository SECRET:
+#   AWS_ROLE_ARN         TF output `github_deploy_role_arn`
+#
+# The image is pushed to ECR as :<sha> and :latest; the box pulls :<sha> and runs
+# migrate -> up -> health check (deploy/aws-ec2/deploy.sh).
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag to build/deploy (defaults to the commit SHA)"
+        required: false
+
+permissions:
+  id-token: write # AWS OIDC
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      TAG: ${{ inputs.image_tag || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image to ECR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: |
+            NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ env.TAG }}
+            ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Upload deploy bundle to S3 (compose + Caddyfile + deploy.sh)
+        run: |
+          aws s3 sync deploy/aws-ec2/ "s3://${{ vars.DEPLOY_BUCKET }}/aws-ec2/" \
+            --delete --exclude "terraform/*" --exclude "README.md"
+
+      - name: Trigger on-box deploy via SSM
+        id: ssm
+        run: |
+          set -euo pipefail
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "${{ vars.INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "deploy ${TAG}" \
+            --parameters "commands=[\"bash /opt/telestar/run-deploy.sh ${TAG}\"]" \
+            --query "Command.CommandId" --output text)
+          echo "command_id=$CMD_ID" >> "$GITHUB_OUTPUT"
+          echo "Sent SSM command $CMD_ID; waiting for completion..."
+          # `wait command-executed` polls until terminal (or times out).
+          if ! aws ssm wait command-executed --command-id "$CMD_ID" --instance-id "${{ vars.INSTANCE_ID }}"; then
+            echo "::warning::wait returned non-zero (may be a non-Success terminal state); checking status below."
+          fi
+
+      - name: Report deploy result
+        run: |
+          set -euo pipefail
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "${{ steps.ssm.outputs.command_id }}" \
+            --instance-id "${{ vars.INSTANCE_ID }}" \
+            --query "Status" --output text)
+          echo "SSM command status: $STATUS"
+          echo "----- stdout -----"
+          aws ssm get-command-invocation \
+            --command-id "${{ steps.ssm.outputs.command_id }}" \
+            --instance-id "${{ vars.INSTANCE_ID }}" \
+            --query "StandardOutputContent" --output text || true
+          echo "----- stderr -----"
+          aws ssm get-command-invocation \
+            --command-id "${{ steps.ssm.outputs.command_id }}" \
+            --instance-id "${{ vars.INSTANCE_ID }}" \
+            --query "StandardErrorContent" --output text || true
+          [ "$STATUS" = "Success" ] || { echo "::error::deploy failed ($STATUS)"; exit 1; }

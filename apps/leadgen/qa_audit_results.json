@@ -1,0 +1,50 @@
+[
+  {
+    "path": "/v2/research",
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "errorCount": 1
+  },
+  {
+    "path": "/v2/leads",
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "errorCount": 1
+  },
+  {
+    "path": "/v2/uploads",
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "errorCount": 1
+  },
+  {
+    "path": "/v2/outreach/campaigns",
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "errorCount": 1
+  },
+  {
+    "path": "/v2/outreach/senders",
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "errorCount": 1
+  },
+  {
+    "path": "/v2/jobs",
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "errorCount": 1
+  },
+  {
+    "path": "/v2/companies",
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "errorCount": 1
+  },
+  {
+    "path": "/v2/contacts",
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "errorCount": 1
+  }
+]

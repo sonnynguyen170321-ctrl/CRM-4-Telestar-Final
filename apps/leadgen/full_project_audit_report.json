@@ -1,0 +1,510 @@
+[
+  {
+    "name": "Home Dashboard",
+    "requestedPath": "/v2/home",
+    "actualUrl": "http://localhost:3000/v2/home",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [
+      "POST http://localhost:3000/v2/login - net::ERR_ABORTED"
+    ],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/home_dashboard.png"
+  },
+  {
+    "name": "Leads Command Center",
+    "requestedPath": "/v2/workspace/leads",
+    "actualUrl": "http://localhost:3000/v2/workspace/leads",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/leads_command_center.png"
+  },
+  {
+    "name": "Leads Command Center - Lead Drawer Open",
+    "requestedPath": "/v2/workspace/leads?selectedLeadId=lead_mr822p9o_6mm19adx",
+    "actualUrl": "http://localhost:3000/v2/workspace/leads?selectedLeadId=lead_mr822p9o_6mm19adx",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/leads_command_center___lead_drawer_open.png"
+  },
+  {
+    "name": "Leads Queue",
+    "requestedPath": "/v2/workspace/leads/queue",
+    "actualUrl": "http://localhost:3000/v2/workspace/leads/queue",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [
+      "[ERROR]: Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "failedNetworkRequests": [
+      "GET http://localhost:3000/v2/api/runtime/sync - HTTP 500"
+    ],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/leads_queue.png"
+  },
+  {
+    "name": "Leads Rescore View",
+    "requestedPath": "/v2/workspace/leads/rescore-view",
+    "actualUrl": "http://localhost:3000/v2/workspace/leads/rescore-view",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [
+      "[ERROR]: Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "failedNetworkRequests": [
+      "GET http://localhost:3000/v2/api/runtime/sync - HTTP 500"
+    ],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/leads_rescore_view.png"
+  },
+  {
+    "name": "Leads Score Run",
+    "requestedPath": "/v2/workspace/leads/score-run",
+    "actualUrl": "http://localhost:3000/v2/workspace/leads/score-run",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/leads_score_run.png"
+  },
+  {
+    "name": "Accounts Workspace",
+    "requestedPath": "/v2/workspace/accounts",
+    "actualUrl": "http://localhost:3000/v2/workspace/accounts",
+    "isRedirect": false,
+    "status": 200,
+    "title": "Accounts - Leadger",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/accounts_workspace.png"
+  },
+  {
+    "name": "Projects Workspace",
+    "requestedPath": "/v2/workspace/projects",
+    "actualUrl": "http://localhost:3000/v2/workspace/accounts?view=projects",
+    "isRedirect": true,
+    "status": 200,
+    "title": "Accounts - Leadger",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/projects_workspace.png"
+  },
+  {
+    "name": "ICP Library",
+    "requestedPath": "/v2/icp-library",
+    "actualUrl": "http://localhost:3000/v2/icp-library",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/icp_library.png"
+  },
+  {
+    "name": "Companies Directory",
+    "requestedPath": "/v2/crm/companies",
+    "actualUrl": "http://localhost:3000/v2/crm/companies",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/companies_directory.png"
+  },
+  {
+    "name": "Companies Directory - Company Drawer Open",
+    "requestedPath": "/v2/crm/companies?companyId=comp_mqe0sdgw_1pb93gd5",
+    "actualUrl": "http://localhost:3000/v2/crm/companies?companyId=comp_mqe0sdgw_1pb93gd5",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/companies_directory___company_drawer_open.png"
+  },
+  {
+    "name": "Contacts Directory",
+    "requestedPath": "/v2/crm/contacts",
+    "actualUrl": "http://localhost:3000/v2/crm/contacts",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/contacts_directory.png"
+  },
+  {
+    "name": "Contacts Directory - Contact Drawer Open",
+    "requestedPath": "/v2/crm/contacts?contactId=v2_demo_smoke_contact_qualified",
+    "actualUrl": "http://localhost:3000/v2/crm/contacts?contactId=v2_demo_smoke_contact_qualified",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/contacts_directory___contact_drawer_open.png"
+  },
+  {
+    "name": "New Contact Form",
+    "requestedPath": "/v2/crm/contacts/new?companyId=comp_mqe0sdgw_1pb93gd5",
+    "actualUrl": "http://localhost:3000/v2/crm/contacts/new?companyId=comp_mqe0sdgw_1pb93gd5",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/new_contact_form.png"
+  },
+  {
+    "name": "Intelligence Research",
+    "requestedPath": "/v2/research",
+    "actualUrl": "http://localhost:3000/v2/research",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/intelligence_research.png"
+  },
+  {
+    "name": "Ingestion Uploads",
+    "requestedPath": "/v2/ingestion/uploads",
+    "actualUrl": "http://localhost:3000/v2/ingestion/uploads",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/ingestion_uploads.png"
+  },
+  {
+    "name": "Ingestion Jobs",
+    "requestedPath": "/v2/ingestion/jobs",
+    "actualUrl": "http://localhost:3000/v2/ingestion/jobs",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/ingestion_jobs.png"
+  },
+  {
+    "name": "Activity Recaps",
+    "requestedPath": "/v2/activity-recaps",
+    "actualUrl": "http://localhost:3000/v2/activity-recaps",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/activity_recaps.png"
+  },
+  {
+    "name": "Review Queue",
+    "requestedPath": "/v2/reviews",
+    "actualUrl": "http://localhost:3000/v2/reviews",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/review_queue.png"
+  },
+  {
+    "name": "Outreach Campaigns",
+    "requestedPath": "/v2/outreach/campaigns",
+    "actualUrl": "http://localhost:3000/v2/outreach/campaigns",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/outreach_campaigns.png"
+  },
+  {
+    "name": "Outreach New Campaign",
+    "requestedPath": "/v2/outreach/campaigns/new",
+    "actualUrl": "http://localhost:3000/v2/outreach/campaigns/new",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/outreach_new_campaign.png"
+  },
+  {
+    "name": "Outreach Compose",
+    "requestedPath": "/v2/outreach/compose?leadAssignmentId=lead_mr822p9o_6mm19adx",
+    "actualUrl": "http://localhost:3000/v2/outreach/compose?leadAssignmentId=lead_mr822p9o_6mm19adx",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [
+      "[ERROR]: Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "failedNetworkRequests": [
+      "GET http://localhost:3000/v2/api/runtime/sync - HTTP 500"
+    ],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/outreach_compose.png"
+  },
+  {
+    "name": "Outreach Inbox",
+    "requestedPath": "/v2/outreach/inbox",
+    "actualUrl": "http://localhost:3000/v2/outreach/inbox",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/outreach_inbox.png"
+  },
+  {
+    "name": "Outreach Performance",
+    "requestedPath": "/v2/outreach/performance",
+    "actualUrl": "http://localhost:3000/v2/outreach/performance",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [
+      "[ERROR]: Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "failedNetworkRequests": [
+      "GET http://localhost:3000/v2/api/runtime/sync - HTTP 500"
+    ],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/outreach_performance.png"
+  },
+  {
+    "name": "Outreach Senders",
+    "requestedPath": "/v2/outreach/senders",
+    "actualUrl": "http://localhost:3000/v2/outreach/senders",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/outreach_senders.png"
+  },
+  {
+    "name": "Outreach Suppression",
+    "requestedPath": "/v2/outreach/suppression",
+    "actualUrl": "http://localhost:3000/v2/outreach/suppression",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [
+      "[ERROR]: Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "failedNetworkRequests": [
+      "GET http://localhost:3000/v2/api/runtime/sync - HTTP 500"
+    ],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/outreach_suppression.png"
+  },
+  {
+    "name": "Outreach Templates",
+    "requestedPath": "/v2/outreach/templates",
+    "actualUrl": "http://localhost:3000/v2/outreach/templates",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/outreach_templates.png"
+  },
+  {
+    "name": "AI Engine Configuration",
+    "requestedPath": "/v2/ai",
+    "actualUrl": "http://localhost:3000/v2/ai",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/ai_engine_configuration.png"
+  },
+  {
+    "name": "Settings Panel",
+    "requestedPath": "/v2/settings",
+    "actualUrl": "http://localhost:3000/v2/settings",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/settings_panel.png"
+  },
+  {
+    "name": "Admin Control Panel",
+    "requestedPath": "/v2/admin",
+    "actualUrl": "http://localhost:3000/v2/admin",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [
+      "GET http://localhost:3000/v2/api/runtime/sync - net::ERR_ABORTED"
+    ],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/admin_control_panel.png"
+  },
+  {
+    "name": "Offers Directory",
+    "requestedPath": "/v2/offers",
+    "actualUrl": "http://localhost:3000/v2/offers",
+    "isRedirect": false,
+    "status": 200,
+    "title": "Offers - Leadger",
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failedNetworkRequests": [],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/offers_directory.png"
+  },
+  {
+    "name": "Feedback Center",
+    "requestedPath": "/v2/feedback",
+    "actualUrl": "http://localhost:3000/v2/feedback",
+    "isRedirect": false,
+    "status": 200,
+    "title": "TeleStar Company Filter",
+    "pageErrors": [],
+    "consoleErrors": [
+      "[ERROR]: Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "failedNetworkRequests": [
+      "GET http://localhost:3000/v2/api/runtime/sync - HTTP 500"
+    ],
+    "detectedStubs": [
+      "Placeholder"
+    ],
+    "screenshot": "/audit_screenshots/feedback_center.png"
+  }
+]

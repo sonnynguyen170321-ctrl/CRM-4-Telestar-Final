@@ -1,0 +1,105 @@
+name: Deploy to AWS (ECR + ECS)
+
+# DORMANT by design: `workflow_dispatch` only, so it never runs automatically and can't turn CI red
+# before AWS is wired. When you migrate at the company, set the variables/secrets below, then run it
+# from the Actions tab (or add a `push`/`tags` trigger).
+#
+# Repository VARIABLES  (Settings > Secrets and variables > Actions > Variables):
+#   AWS_REGION          e.g. ap-southeast-1
+#   ECR_REPOSITORY      e.g. telestar-v2                (create the ECR repo first)
+#   ECS_CLUSTER         e.g. telestar-prod
+#   ECS_SERVICE_APP     e.g. telestar-app
+#   ECS_SERVICE_WORKER  e.g. telestar-worker            (optional; skipped if empty)
+#   NEXT_PUBLIC_APP_URL e.g. http://<alb-dns-name>      (baked into the image at build)
+#   AWS_SUBNETS         e.g. subnet-aaa,subnet-bbb      (only if run_migrations from the workflow)
+#   AWS_SECURITY_GROUP  e.g. sg-0123                    (the SG-task security group; same case)
+# Repository SECRET:
+#   AWS_ROLE_ARN        arn:aws:iam::<account-id>:role/<gh-oidc-role>
+#
+# FIRST-TIME: run once with build_push_only=true so the image lands in ECR, then create the
+# ECS task defs + services in the console (see docs/v2/AWS_MIGRATION_RUNBOOK.md), then run again
+# normally to roll out. Migrations are simplest as a console one-off task the first time.
+#
+# The IAM role must trust GitHub OIDC (token.actions.githubusercontent.com) and allow
+# ecr:GetAuthorizationToken + ecr:*Layer*/PutImage and ecs:UpdateService / ecs:RunTask.
+# See DEPLOY.md for the full AWS migration checklist (RDS, ElastiCache, secrets, migrate task).
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag to publish/deploy (defaults to the commit SHA)"
+        required: false
+      build_push_only:
+        description: "FIRST-TIME setup: build + push to ECR only, skip migrate + ECS rollout (before the services/task-defs exist)"
+        type: boolean
+        default: false
+      run_migrations:
+        description: "Run `prisma migrate deploy` as an ECS task before rollout (needs AWS_SUBNETS + AWS_SECURITY_GROUP vars + a telestar-migrate task def)"
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write # required for AWS OIDC
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC, no long-lived keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push to ECR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: |
+            NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ inputs.image_tag || github.sha }}
+            ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Run migrations as a one-off task on the SAME image (override the container command). Needs a
+      # "telestar-migrate" task def wired to RDS, plus AWS_SUBNETS + AWS_SECURITY_GROUP vars so the
+      # Fargate task can be placed + reach RDS. Skips (with a warning) if those vars are unset — run
+      # the migrate task from the console instead (see the runbook).
+      - name: Run DB migrations (ECS one-off task)
+        if: ${{ inputs.run_migrations && !inputs.build_push_only }}
+        run: |
+          set -euo pipefail
+          if [ -z "${{ vars.AWS_SUBNETS }}" ] || [ -z "${{ vars.AWS_SECURITY_GROUP }}" ]; then
+            echo "::warning::AWS_SUBNETS/AWS_SECURITY_GROUP not set — skipping in-workflow migrate. Run the telestar-migrate task from the console.";
+            exit 0
+          fi
+          SUBNETS="[$(echo '${{ vars.AWS_SUBNETS }}' | sed 's/,/","/g;s/^/"/;s/$/"/')]"
+          echo "Launching prisma migrate deploy as an ECS task..."
+          aws ecs run-task \
+            --cluster "${{ vars.ECS_CLUSTER }}" \
+            --launch-type FARGATE \
+            --task-definition telestar-migrate \
+            --overrides '{"containerOverrides":[{"name":"app","command":["npx","prisma","migrate","deploy"]}]}' \
+            --network-configuration "awsvpcConfiguration={subnets=${SUBNETS},securityGroups=[\"${{ vars.AWS_SECURITY_GROUP }}\"],assignPublicIp=ENABLED}"
+
+      - name: Roll out app service
+        if: ${{ !inputs.build_push_only }}
+        run: aws ecs update-service --cluster "${{ vars.ECS_CLUSTER }}" --service "${{ vars.ECS_SERVICE_APP }}" --force-new-deployment
+
+      - name: Roll out worker service
+        if: ${{ !inputs.build_push_only && vars.ECS_SERVICE_WORKER != '' }}
+        run: aws ecs update-service --cluster "${{ vars.ECS_CLUSTER }}" --service "${{ vars.ECS_SERVICE_WORKER }}" --force-new-deployment

@@ -1,0 +1,20 @@
+// V2 Outreach pillar public surface. Grows phase by phase (O2..O9).
+export * from "./suppression/index";
+export * from "./credentials/encryption";
+export * from "./senderPool/policy";
+export * from "./providers/index";
+export * from "./send/messageId";
+export * from "./send/sendStateMachine";
+export * from "./send/buildOutreachMessage";
+export { emailSendJobHandler, setOutreachProvider } from "./send/emailSendHandler";
+export * from "./sequences/sequencePolicy";
+export { sequenceStepExecuteJobHandler } from "./sequences/sequenceStepHandler";
+export * from "./worker/warmupTick";
+export * from "./inbound/imapWatermark";
+export * from "./activities/logOutreachActivity";
+export * from "./inbound/parseDsn";
+export * from "./inbound/correlateInbound";
+export * from "./reporting/buildOutreachReport";
+export * from "./limits/liveSendGuards";
+export * from "./credentials/credentialLoader";
+export * from "./sequences/resolveTimezone";

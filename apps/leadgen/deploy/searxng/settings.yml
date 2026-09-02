@@ -1,0 +1,20 @@
+# Minimal SearXNG config for internal API use by TeleStar research.
+# Key points: enable the JSON output format (the app calls ?format=json) and relax the
+# bot limiter (internal-only, behind the VPC SG — not publicly exposed).
+use_default_settings: true
+
+server:
+  # Overridden at runtime by the SEARXNG_SECRET env/secret; keep a placeholder here.
+  secret_key: "change-me-via-SEARXNG_SECRET"
+  limiter: false
+  image_proxy: false
+
+search:
+  # `json` is what lets the app read results programmatically. `html` stays for humans.
+  formats:
+    - html
+    - json
+
+engines:
+  # Google/Bing/DuckDuckGo/Brave are on by default in use_default_settings; nothing to add
+  # unless you want to disable noisy engines. site: dorks pass through to these upstreams.

@@ -1,0 +1,8 @@
+diff --git a/lib/v2/scoring/runtime/buildScoringInput.ts b/lib/v2/scoring/runtime/buildScoringInput.ts
+--- a/lib/v2/scoring/runtime/buildScoringInput.ts
++++ b/lib/v2/scoring/runtime/buildScoringInput.ts
+@@ -267,2 +267,2 @@
+-      "profileStatus"::text AS "profileStatus"
+-      "confidenceJson",
++      "confidenceJson",
++      "profileStatus"::text AS "profileStatus"

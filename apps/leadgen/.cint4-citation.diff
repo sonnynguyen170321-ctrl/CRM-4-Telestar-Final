@@ -1,0 +1,92 @@
+diff --git a/lib/v2/company-intelligence/reasoning/contract.ts b/lib/v2/company-intelligence/reasoning/contract.ts
+--- a/lib/v2/company-intelligence/reasoning/contract.ts
++++ b/lib/v2/company-intelligence/reasoning/contract.ts
+@@ -118,16 +118,37 @@ export function emptyReasoning(
+ 
+ /** Drops any field/claim whose evidence array is empty (no uncited claims). */
+ export function dropUncitedClaims(r: CompanyIntelligenceReasoning): CompanyIntelligenceReasoning {
+-  const demote = <T>(f: ReasonedField<T>): ReasonedField<T> =>
+-    f.evidence.length === 0 ? { ...f, confidence: "LOW" } : f;
++  const offering = r.offering.evidence.length > 0
++    ? r.offering
++    : {
++        value: { type: "unknown" as const, vertical: null, primaryOffering: "" },
++        confidence: "LOW" as const,
++        evidence: [],
++      };
++  const businessModel = r.businessModel.evidence.length > 0
++    ? r.businessModel
++    : {
++        value: { model: "unknown" as const, pricingModel: null },
++        confidence: "LOW" as const,
++        evidence: [],
++      };
++  const channels = r.channels.evidence.length > 0
++    ? r.channels
++    : { value: [], confidence: "LOW" as const, evidence: [] };
++  const hiring = r.growth.hiring.evidence.length > 0
++    ? r.growth.hiring
++    : { value: { real: false }, confidence: "LOW" as const, evidence: [] };
++
+   return {
+     ...r,
+-    offering: demote(r.offering),
+-    businessModel: demote(r.businessModel),
+-    channels: demote(r.channels),
++    offering,
++    businessModel,
++    channels,
+     growth: {
+-      hiring: demote(r.growth.hiring),
++      hiring,
+       signals: r.growth.signals.filter((s) => s.evidence.length > 0),
+     },
+     partnerships: r.partnerships.filter((p) => p.evidence.length > 0),
+diff --git a/lib/v2/company-intelligence/reasoning/ruleEngine.ts b/lib/v2/company-intelligence/reasoning/ruleEngine.ts
+--- a/lib/v2/company-intelligence/reasoning/ruleEngine.ts
++++ b/lib/v2/company-intelligence/reasoning/ruleEngine.ts
+@@ -124,8 +124,14 @@ export class RuleReasoningEngine implements ReasoningEngine {
+       engineTrace: { engine: "rules", llmUsed: false, pipelineVersion: COMPANY_INTEL_PIPELINE_VERSION, notes: tax ? [`taxonomy:${tax.category.id}`] : ["no_taxonomy_match"] },
+     };
+-    reasoning.controlledTokens = deriveControlledTokens(reasoning, tax?.category.id ?? null, company);
+-    return dropUncitedClaims(reasoning);
++    const citedReasoning = dropUncitedClaims(reasoning);
++    citedReasoning.controlledTokens = deriveControlledTokens(
++      citedReasoning,
++      citedReasoning.offering.evidence.length > 0 ? tax?.category.id ?? null : null,
++      company
++    );
++    return citedReasoning;
+   }
+ }
+@@ -180,13 +186,29 @@ export function deriveControlledTokens(
+   _company: string
+ ): string[] {
+   const tokens = new Set<string>();
+-  if (r.offering.value.type !== "unknown") tokens.add(`offering.${r.offering.value.type}`);
+-  if (r.offering.value.vertical) tokens.add(`vertical.${r.offering.value.vertical}`);
++  if (r.offering.evidence.length > 0 && r.offering.value.type !== "unknown") {
++    tokens.add(`offering.${r.offering.value.type}`);
++  }
++  if (r.offering.evidence.length > 0 && r.offering.value.vertical) {
++    tokens.add(`vertical.${r.offering.value.vertical}`);
++  }
+   if (taxonomyId) tokens.add(`category.${taxonomyId}`);
+-  if (r.businessModel.value.model !== "unknown") tokens.add(`model.${r.businessModel.value.model.toLowerCase()}`);
+-  if (r.businessModel.value.pricingModel) tokens.add(`pricing.${r.businessModel.value.pricingModel}`);
+-  for (const c of r.channels.value) tokens.add(`channel.${c}`);
+-  if (r.growth.hiring.value.real) tokens.add("growth.hiring_real");
++  if (r.businessModel.evidence.length > 0 && r.businessModel.value.model !== "unknown") {
++    tokens.add(`model.${r.businessModel.value.model.toLowerCase()}`);
++  }
++  if (r.businessModel.evidence.length > 0 && r.businessModel.value.pricingModel) {
++    tokens.add(`pricing.${r.businessModel.value.pricingModel}`);
++  }
++  if (r.channels.evidence.length > 0) {
++    for (const c of r.channels.value) tokens.add(`channel.${c}`);
++  }
++  if (r.growth.hiring.evidence.length > 0 && r.growth.hiring.value.real) {
++    tokens.add("growth.hiring_real");
++  }
+   for (const s of r.growth.signals) tokens.add(`growth.${s.kind}`);
+   if (r.partnerships.length > 0) tokens.add("proof.has_partnerships");
