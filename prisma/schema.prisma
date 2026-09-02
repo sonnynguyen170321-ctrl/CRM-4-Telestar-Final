@@ -483,6 +483,10 @@ model Campaign {
   name           String
   targetVertical String?
   targetGeo      String?
+  /// Which rule set scores leads imported for this campaign. Separate from
+  /// `CampaignLeadRequirement`, which stays the delivery contract with the client.
+  icpVersionId   String?
+  icpVersion     IcpVersion?    @relation(fields: [icpVersionId, tenantId], references: [id, tenantId], onDelete: SetNull)
   status         CampaignStatus @default(active)
   startDate      DateTime
   endDate        DateTime?
@@ -1728,6 +1732,109 @@ model OpportunityActivity {
   @@index([createdAt])
 }
 
+// ─── ICP scoring — rules, versions, and immutable assessments ────────────────
+//
+// `CampaignLeadRequirement` already exists and is NOT replaced. It is the delivery contract with a
+// client — how many leads, matching which criteria — and `icpAdherence` reports against it AFTER
+// leads are converted. That is a report, not a gate.
+//
+// What is missing is a gate: a rule set that scores a pool record the moment it is imported, so
+// `LeadPoolItem.icpFitScore` and `dataQualityScore` stop being columns nothing ever writes. The two
+// coexist deliberately — the requirement says what was promised, the ICP version says how a record is
+// judged.
+
+enum IcpVersionStatus {
+  draft
+  published
+  archived
+}
+
+/// A qualification verdict is a fact about a scoring run, not a workflow state. It never becomes
+/// `LeadPoolItem.qualification`, which a reviewer owns and can change.
+enum IcpQualification {
+  qualified
+  needs_review
+  unqualified
+}
+
+model IcpProfile {
+  @@unique([id, tenantId], map: "IcpProfile_id_tenantId_key")
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  versions IcpVersion[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model IcpVersion {
+  @@unique([id, tenantId], map: "IcpVersion_id_tenantId_key")
+  id            String           @id @default(cuid())
+  icpProfileId  String
+  icpProfile    IcpProfile       @relation(fields: [icpProfileId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  versionNumber Int
+  status        IcpVersionStatus @default(draft)
+  /// The whole rule set, validated by @telestar/core-icp before it is stored.
+  rulesJson     Json?
+  publishedAt   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  tenantId      String
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  assessments LeadPoolAssessment[]
+  campaigns   Campaign[]
+
+  @@unique([tenantId, icpProfileId, versionNumber])
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+/// One scoring run against one pool record. Insert-only: a re-score never updates a row, it adds one
+/// and moves `LeadPoolItem.latestAssessmentId`. That is what makes "why was this lead rejected in
+/// March" answerable after the rules have changed twice since.
+///
+/// `inputSnapshot` and `rulesSnapshot` are stored because a score is meaningless without both: the
+/// same record scores differently under different rules, and the rules are edited over time.
+model LeadPoolAssessment {
+  @@unique([id, tenantId], map: "LeadPoolAssessment_id_tenantId_key")
+  id           String       @id @default(cuid())
+  poolItemId   String
+  poolItem     LeadPoolItem @relation("PoolItemAssessments", fields: [poolItemId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  icpVersionId String
+  icpVersion   IcpVersion   @relation(fields: [icpVersionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  fitScore         Int
+  confidenceScore  Int
+  dataQualityScore Int
+  qualification    IcpQualification
+  /// Which rules fired and why, for the explanation drawer.
+  evidenceJson     Json?
+  inputSnapshot    Json
+  rulesSnapshot    Json
+
+  /// Hash of (inputSnapshot + rulesSnapshot). Re-importing the same file against the same rules
+  /// reuses the existing assessment instead of appending an identical one, so an idempotent
+  /// re-import stays idempotent all the way down.
+  fingerprint String
+
+  createdAt DateTime @default(now())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, poolItemId, fingerprint])
+  @@index([tenantId])
+  @@index([tenantId, icpVersionId])
+  @@index([poolItemId, createdAt])
+}
+
 // ─── Leadgen Ecosystem — Internal Lead Pool ──────────────────────────────────
 
 enum LeadPoolStatus {
@@ -1970,8 +2077,16 @@ model LeadPoolItem {
   importBatchId String?
   importBatch   ImportBatch?            @relation(fields: [importBatchId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
+  // Mirrors of the latest assessment. The assessment table is the source of truth; these exist so
+  // the leadgen console, its filters and the CSV export read one row instead of joining, and because
+  // both columns were already declared here and never written by anything.
   icpFitScore      Int?
   dataQualityScore Int?
+  icpQualification IcpQualification?
+  /// Null means NOT SCORED. No placeholder assessment row is ever created to represent that.
+  latestAssessmentId String?
+
+  assessments LeadPoolAssessment[] @relation("PoolItemAssessments")
   emailValidation  String?
   emailScore       Int?
   duplicateKey     String?
@@ -2141,6 +2256,9 @@ model Tenant {
   aiBudgetReservations     TenantAiBudgetReservation[]
   webhooks                 Webhook[]
   contactEmployments       ContactEmployment[]
+  icpProfiles              IcpProfile[]
+  icpVersions              IcpVersion[]
+  leadPoolAssessments      LeadPoolAssessment[]
 }
 
 // ─── Durable Webhook Configuration (TEL-P1-032) ──────────────────────────────
