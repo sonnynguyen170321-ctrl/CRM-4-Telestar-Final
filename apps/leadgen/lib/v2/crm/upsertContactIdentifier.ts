@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import { normalizePhoneIdentifier } from "@/lib/v2/identity/phone";
+import { normalizePhoneIdentifier } from "@/lib/v2/identity";
 import { isGenericEmailDomain } from "@/lib/v2/scoring/rules/dictionaries/genericEmail";
 
 // The single writer for V2ContactIdentifier rows. Ingestion, research promotion, and manual enrich

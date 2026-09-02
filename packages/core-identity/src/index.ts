@@ -1,9 +1,30 @@
 // Company and contact identity: normalisation, canonical domains, Vietnamese legal forms, dedupe keys.
 //
-// This package holds DB-agnostic logic shared by the CRM (repository root) and apps/leadgen. The two
-// apps have different schemas — Tenant/Account/Contact here, V2Organization/V2Company/V2Contact there
-// — so anything that reaches for a database belongs in an app adapter, never here. A single
-// `@prisma/client` import would tie this code to one schema and defeat the reason it was extracted.
-//
-// Enforced by the `no-restricted-imports` rule for packages/** in eslint.config.mjs.
-export {};
+// Shared by the CRM (repository root) and apps/leadgen. It is pure — the only runtime dependency is
+// `libphonenumber-js` — so it can resolve identity for two applications whose schemas disagree
+// (Tenant/Account/Contact here, V2Organization/V2Company/V2Contact there). Anything that reads or
+// writes a database belongs in an app adapter, never here; the lint rule for `packages/**` enforces it.
+
+export type {
+  IdentityCompanyCandidate,
+  IdentityContactCandidate,
+  IdentityResolutionCandidates,
+  IdentityResolutionContext,
+  IdentityResolutionInput,
+  IdentityResolutionKind,
+  IdentityResolutionReason,
+  IdentityResolutionResult,
+  NormalizedIdentityRow,
+} from "./types";
+
+export {
+  isGenericEmail,
+  isPublicEmailDomain,
+  normalizeCompanyName,
+  normalizeIdentityDomain,
+  normalizeIdentityText,
+  resolveIdentity,
+} from "./resolveIdentity";
+
+export { normalizePhoneIdentifier, countryNameToIso, type NormalizedPhone } from "./phone";
+export { foldAscii, isVietnameseSurnameFirst, splitPersonName, VN_SURNAMES } from "./personName";
