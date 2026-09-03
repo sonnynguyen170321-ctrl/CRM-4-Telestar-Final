@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { backfillAccountIdentity } from '@/lib/identity/backfill';
+import { backfillAccountIdentity, verifyAccountIdentity } from '@/lib/identity/backfill';
 import { prisma, tenantStorage } from '@/lib/prisma';
 
 // Phase 1 taught the writers to key an Account on a normalised name and a canonical domain. Every row
@@ -217,5 +217,26 @@ describe('identity backfill', () => {
       select: { id: true },
     });
     expect(survivors).toHaveLength(2);
+  });
+
+  it('reports the domain conflicts that would break the unique constraint', async () => {
+    const marker = `vfy${randomUUID().slice(0, 6)}`;
+    // Two accounts on one domain, already stamped — the state the constraint cannot be added over.
+    await prisma.account.create({
+      data: { tenantId: TENANT, name: `Verify A ${marker}`, website: `https://${marker}.com`, canonicalDomain: `${marker}.com` },
+    });
+    await prisma.account.create({
+      data: { tenantId: TENANT, name: `Verify B ${marker}`, website: `https://${marker}.com`, canonicalDomain: `${marker}.com` },
+    });
+
+    const before = await asTenant(() => verifyAccountIdentity({ db: prisma as never, tenantId: TENANT }));
+    expect(before.conflicts.some((c) => c.canonicalDomain === `${marker}.com`)).toBe(true);
+
+    // The backfill is what clears it. Verifying after an apply is the gate on the phase 3 migration,
+    // and it has to come back empty or the unique index aborts the deploy.
+    await asTenant(() => backfillAccountIdentity({ db: prisma as never, tenantId: TENANT, dryRun: false }));
+
+    const after = await asTenant(() => verifyAccountIdentity({ db: prisma as never, tenantId: TENANT }));
+    expect(after.conflicts).toEqual([]);
   });
 });

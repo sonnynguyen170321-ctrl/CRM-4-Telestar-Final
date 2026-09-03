@@ -9,11 +9,16 @@
  *   npx tsx scripts/backfill-account-identity.ts --dry-run
  *   npx tsx scripts/backfill-account-identity.ts --dry-run --tenant <tenantId> --csv plan.csv
  *   npx tsx scripts/backfill-account-identity.ts --apply --tenant <tenantId>
+ *   npx tsx scripts/backfill-account-identity.ts --verify
+ *
+ * `--verify` reports what still blocks the unique constraint and exits non-zero if anything does. It
+ * is the gate before the phase-3 migration, because `prisma migrate deploy` runs on boot: a unique
+ * index added while duplicates remain fails the production deploy, not a code review.
  */
 
 import { writeFileSync } from 'node:fs';
 
-import { backfillAccountIdentity, mergePlansToCsv } from '../lib/identity/backfill';
+import { backfillAccountIdentity, mergePlansToCsv, verifyAccountIdentity } from '../lib/identity/backfill';
 import { prisma, tenantStorage } from '../lib/prisma';
 
 async function main() {
@@ -24,8 +29,39 @@ async function main() {
   const tenantIdx = args.indexOf('--tenant');
   const tenantId = tenantIdx !== -1 && args[tenantIdx + 1] ? args[tenantIdx + 1] : null;
 
+  const isVerify = args.includes('--verify');
+
   const csvIdx = args.indexOf('--csv');
   const csvPath = csvIdx !== -1 && args[csvIdx + 1] ? args[csvIdx + 1] : null;
+
+  if (isVerify) {
+    const { conflicts, accountsWithoutIdentity } = await tenantStorage.run(
+      { tenantId: tenantId ?? 'system', bypassRls: true },
+      () => verifyAccountIdentity({ db: prisma as never, tenantId })
+    );
+
+    console.log('────────────────────────────────────────────────────────');
+    console.log('Identity verification — can the unique constraint be added?');
+    console.log('────────────────────────────────────────────────────────');
+    console.log(`Tenant:                    ${tenantId ?? 'ALL TENANTS'}`);
+    console.log(`Accounts with no identity: ${accountsWithoutIdentity}`);
+    console.log(`Domain conflicts:          ${conflicts.length}`);
+    console.log('');
+
+    for (const conflict of conflicts.slice(0, 50)) {
+      console.log(`  ${conflict.canonicalDomain}  →  ${conflict.names.join(' | ')}`);
+    }
+    if (conflicts.length > 50) console.log(`  … and ${conflicts.length - 50} more`);
+
+    if (conflicts.length > 0) {
+      console.log('');
+      console.log('NOT READY. Run the backfill with --apply first; the unique index would fail the deploy.');
+      process.exitCode = 1;
+      return;
+    }
+    console.log('Ready: no two accounts in a tenant share a canonical domain.');
+    return;
+  }
 
   console.log('────────────────────────────────────────────────────────');
   console.log('Account identity backfill — phase 2');

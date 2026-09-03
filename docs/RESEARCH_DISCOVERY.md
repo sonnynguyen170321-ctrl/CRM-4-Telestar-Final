@@ -90,3 +90,24 @@ empty result, so a cross-tenant attempt is loud. `tests/research-discovery.test.
 Promotion writes a `LeadgenActivity`, which lets the client extension in `lib/prisma.ts` stamp the
 tenant from ambient context, so it must run inside a tenant context — routes get that from the session,
 and tests establish it with `tenantStorage.run`.
+
+## What is deliberately not wired yet
+
+The packages are vendored and the CRM does not call them. Naming them here so the gap is a decision
+rather than a surprise:
+
+- **`core-intel` — the site crawler and two-tier taxonomy.** A discovered company is identified and
+  scored, but never crawled and classified. This is the classifier that was brought from 20% to 64%
+  category / 95% sector accuracy; wiring it means an enrichment worker and, critically, remembering
+  that its idempotency key contains `researchVersion`.
+- **Email finding and people discovery** (`findContactEmail`, `peopleDiscovery`, `contactExtract`).
+  A `contact` run finds people but not their addresses, so promotion leaves them as pool records —
+  correct behaviour, but it means contact runs are half a feature until this lands.
+- **The AI fit re-rank** (`scoreCandidatesWithAi`). Left out on purpose: discovery is deterministic,
+  and `fitSource` exists so a re-rank can be added later without the two being confused.
+- **A queue.** `execute` is request-driven and returns after ten queries; the `/research` page loops
+  until `finished`. A 1000-query run needs that tab to stay open. The bounded pass is the shape a
+  worker would consume, so adding one is a wrapper, not a rewrite.
+- **The evidence drawer.** `GET /api/research/candidates/{id}` returns the evidence, provider attempts
+  and cross-run history. The page does not open it yet.
+

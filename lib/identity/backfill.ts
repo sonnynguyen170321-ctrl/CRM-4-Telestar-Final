@@ -379,3 +379,54 @@ export function mergePlansToCsv(plans: MergePlan[]): string {
   }
   return rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
 }
+
+export type IdentityConflict = {
+  tenantId: string;
+  canonicalDomain: string;
+  accountIds: string[];
+  names: string[];
+};
+
+/**
+ * What still stands between the data and `@@unique([tenantId, canonicalDomain])`.
+ *
+ * The constraint cannot be added blind. `prisma migrate deploy` runs on boot, so a unique index added
+ * while duplicates remain does not fail politely in a review — it fails the production deploy. This is
+ * the check that has to come back empty first, and it is the same query the constraint itself would
+ * run.
+ */
+export async function verifyAccountIdentity(params: {
+  db: Pick<Db, 'account'>;
+  tenantId?: string | null;
+}): Promise<{ conflicts: IdentityConflict[]; accountsWithoutIdentity: number }> {
+  const where = params.tenantId ? { tenantId: params.tenantId } : {};
+
+  const accounts = await params.db.account.findMany({
+    where,
+    select: { id: true, tenantId: true, name: true, nameNormalized: true, canonicalDomain: true },
+  });
+
+  const byDomain = new Map<string, Array<{ id: string; name: string; tenantId: string }>>();
+  let accountsWithoutIdentity = 0;
+
+  for (const account of accounts) {
+    if (!account.nameNormalized && !account.canonicalDomain) accountsWithoutIdentity += 1;
+    if (!account.canonicalDomain) continue;
+    const key = `${account.tenantId}|${account.canonicalDomain}`;
+    byDomain.set(key, [...(byDomain.get(key) ?? []), account]);
+  }
+
+  const conflicts: IdentityConflict[] = [];
+  for (const [key, members] of byDomain) {
+    if (members.length < 2) continue;
+    const [tenantId, canonicalDomain] = key.split('|');
+    conflicts.push({
+      tenantId,
+      canonicalDomain,
+      accountIds: members.map((m) => m.id),
+      names: members.map((m) => m.name),
+    });
+  }
+
+  return { conflicts, accountsWithoutIdentity };
+}

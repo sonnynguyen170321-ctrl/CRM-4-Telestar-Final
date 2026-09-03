@@ -105,7 +105,16 @@ export type DiscoveryPassResult = {
   rejected: number;
   /** False while queries remain — the caller re-enqueues rather than looping unbounded. */
   finished: boolean;
+  /** Set only when the run finished broken: every provider failed and nothing was found. */
+  errorMessage?: string | null;
 };
+
+function describeProviderFailures(failures: Map<string, number | null>): string {
+  const detail = [...failures.entries()]
+    .map(([provider, status]) => (status ? `${provider} ${status}` : provider))
+    .join(', ');
+  return `Search providers rejected the queries (${detail}). Check the provider API keys and credit.`;
+}
 
 /**
  * Runs one bounded pass over a run's queries, resuming from `queryCursor`.
@@ -153,11 +162,17 @@ export async function runDiscoveryPass(params: {
   };
 
   let cursor = run.queryCursor;
+  const providerFailures = new Map<string, number | null>();
   const deps = params.deps ?? searchDepsFor({ tenantId, runId, stage: 'discovery' });
 
   while (cursor < queries.length && result.queriesRun < budget) {
     const query = queries[cursor];
-    let harvested = { discovered: 0, duplicates: 0, rejected: 0 };
+    let harvested: Awaited<ReturnType<typeof harvestQuery>> = {
+      discovered: 0,
+      duplicates: 0,
+      rejected: 0,
+      providerFailures: new Map(),
+    };
     try {
       harvested = await harvestQuery({
         tenantId,
@@ -171,6 +186,13 @@ export async function runDiscoveryPass(params: {
       // A dead provider or a malformed SERP page kills one query, not the run. The attempt is already
       // recorded by the gateway, so the failure is visible without stopping the other 49 queries.
       console.error('[research] query failed', { runId, query: query.query, error });
+      // A throw is not a provider answering badly — it is the query never completing. It counts as a
+      // hard failure so a run that threw on every query cannot report itself successful.
+      harvested.providerFailures.set('pipeline', null);
+    }
+
+    for (const [provider, status] of harvested.providerFailures) {
+      if (!providerFailures.has(provider)) providerFailures.set(provider, status);
     }
 
     result.discovered += harvested.discovered;
@@ -193,9 +215,25 @@ export async function runDiscoveryPass(params: {
 
   result.finished = cursor >= queries.length;
   if (result.finished) {
+    // The counter on the row, not this pass's tally: a run finished across several passes may have
+    // found everything it found in an earlier one.
+    const totals = await prisma.researchRun.findFirst({
+      where: { id: runId, tenantId },
+      select: { discoveredCount: true },
+    });
+
+    // Zero candidates plus at least one provider that hard-failed is a broken run, not an empty one.
+    // Reporting it as `succeeded` is how a dead API key spends a week looking like a narrow ICP.
+    const brokenRun = (totals?.discoveredCount ?? 0) === 0 && providerFailures.size > 0;
+    result.errorMessage = brokenRun ? describeProviderFailures(providerFailures) : null;
+
     await prisma.researchRun.updateMany({
       where: { id: runId, tenantId },
-      data: { status: 'succeeded', finishedAt: new Date() },
+      data: {
+        status: brokenRun ? 'failed' : 'succeeded',
+        errorMessage: result.errorMessage,
+        finishedAt: new Date(),
+      },
     });
   }
 
@@ -209,7 +247,7 @@ async function harvestQuery(input: {
   query: DiscoveryQuery;
   rules: unknown | null;
   deps: SearchDeps;
-}): Promise<{ discovered: number; duplicates: number; rejected: number }> {
+}): Promise<{ discovered: number; duplicates: number; rejected: number; providerFailures: Map<string, number | null> }> {
   const { tenantId, runId, kind, query, rules, deps } = input;
 
   // `company_profile` is the widest of the chain's purposes — discovery is looking for who exists at
@@ -228,6 +266,16 @@ async function harvestQuery(input: {
     snippet: r.snippet ?? r.highlight ?? null,
     provider: r.provider,
   }));
+
+  // A provider that answered with nothing is a real, empty result. A provider that returned 401, timed
+  // out, or could not be reached answered nothing at all, and the difference decides whether a run of
+  // zero candidates means "the ICP matched nothing" or "the API key is dead".
+  const providerFailures = new Map<string, number | null>();
+  for (const attempt of response.attempts) {
+    if (attempt.status !== 'ok' && !providerFailures.has(attempt.provider)) {
+      providerFailures.set(attempt.provider, attempt.httpStatus ?? null);
+    }
+  }
 
   const parsed = kind === 'company' ? parseCompanyHits(query.query, hits) : parseContactHits(query.query, hits);
 
@@ -249,7 +297,7 @@ async function harvestQuery(input: {
     else duplicates += 1;
   }
 
-  return { discovered, duplicates, rejected };
+  return { discovered, duplicates, rejected, providerFailures };
 }
 
 async function persistCandidate(input: {

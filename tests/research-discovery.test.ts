@@ -93,6 +93,25 @@ async function seedActor() {
   });
 }
 
+/** A provider chain where every call hard-fails — a dead API key, or credit exhausted. */
+function deadProviderDeps(): SearchDeps {
+  return {
+    providers: [
+      {
+        provider: 'exa',
+        search: async () => ({
+          attempt: { provider: 'exa', status: 'http_error', httpStatus: 401, resultCount: 0, latencyMs: 1 },
+          results: [],
+        }),
+      },
+    ],
+    timeoutMs: 1000,
+    resultsPerQuery: 10,
+    minUsableResults: 1,
+    maxProviderAttemptsPerQuery: 1,
+  } as unknown as SearchDeps;
+}
+
 async function seedRun(kind: 'company' | 'contact', queries: string[]) {
   const run = await prisma.researchRun.create({
     data: {
@@ -203,6 +222,41 @@ describe('research discovery', () => {
     expect(done.discoveredCount).toBe(1);
   });
 
+  it('fails the run when every provider rejected every query', async () => {
+    const marker = randomUUID().slice(0, 8);
+    const runId = await seedRun('company', [`dead key ${marker}`, `dead key two ${marker}`]);
+
+    const result = await runDiscoveryPass({ tenantId: TENANT, runId, deps: deadProviderDeps() });
+
+    expect(result.finished).toBe(true);
+    expect(result.discovered).toBe(0);
+
+    // "Succeeded, 0 candidates" and "every provider returned 401" look identical from the outside, and
+    // the second is a dead API key nobody would think to check. The run has to say which it was.
+    const run = await prisma.researchRun.findFirstOrThrow({
+      where: { id: runId },
+      select: { status: true, errorMessage: true },
+    });
+    expect(run.status).toBe('failed');
+    expect(run.errorMessage).toMatch(/exa/);
+  });
+
+  it('still succeeds when providers answered and the ICP simply matched nothing', async () => {
+    const marker = randomUUID().slice(0, 8);
+    const runId = await seedRun('company', [`empty serp ${marker}`]);
+
+    // Providers answered fine; the web just had nothing. That is a real, successful, empty run.
+    const result = await runDiscoveryPass({ tenantId: TENANT, runId, deps: fixtureDeps([]) });
+
+    expect(result.discovered).toBe(0);
+    const run = await prisma.researchRun.findFirstOrThrow({
+      where: { id: runId },
+      select: { status: true, errorMessage: true },
+    });
+    expect(run.status).toBe('succeeded');
+    expect(run.errorMessage).toBeNull();
+  });
+
   it('refuses to create a run with no queries', async () => {
     await expect(createResearchRun({ tenantId: TENANT, kind: 'company' })).rejects.toThrow(
       /No discovery queries/
@@ -292,6 +346,44 @@ describe('research promotion', () => {
 
     const poolRows = await prisma.leadPoolItem.count({
       where: { tenantId: TENANT, sourceName: `research:${runId}` },
+    });
+    expect(poolRows).toBe(1);
+  });
+
+  it('does not create a second pool record for a company promoted in an earlier run', async () => {
+    const marker = randomUUID().slice(0, 8);
+    const deps = fixtureDeps([
+      { title: `Twice Corp ${marker}`, url: `https://twice-${marker}.com`, snippet: 'Twice Corp builds software for logistics operators and freight brokers.' },
+    ]);
+
+    const firstRun = await seedRun('company', [`first pass ${marker}`]);
+    await runDiscoveryPass({ tenantId: TENANT, runId: firstRun, deps });
+    const firstCandidate = await prisma.researchCandidate.findFirstOrThrow({
+      where: { tenantId: TENANT, runId: firstRun },
+      select: { id: true },
+    });
+    const [first] = await asTenant(() =>
+      promoteCandidates({ tenantId: TENANT, actor: ACTOR, candidateIds: [firstCandidate.id] })
+    );
+
+    // A later run surfaces the same company as a brand-new candidate row. Candidate-scoped idempotency
+    // does not see it — only the fingerprint ledger does.
+    const secondRun = await seedRun('company', [`second pass ${marker}`]);
+    await runDiscoveryPass({ tenantId: TENANT, runId: secondRun, deps });
+    const secondCandidate = await prisma.researchCandidate.findFirstOrThrow({
+      where: { tenantId: TENANT, runId: secondRun },
+      select: { id: true },
+    });
+    const [second] = await asTenant(() =>
+      promoteCandidates({ tenantId: TENANT, actor: ACTOR, candidateIds: [secondCandidate.id] })
+    );
+
+    expect(first.status).toBe('promoted');
+    expect(second.status).toBe('already_promoted');
+    expect(second.accountId).toBe(first.accountId);
+
+    const poolRows = await prisma.leadPoolItem.count({
+      where: { tenantId: TENANT, sourceName: { in: [`research:${firstRun}`, `research:${secondRun}`] } },
     });
     expect(poolRows).toBe(1);
   });

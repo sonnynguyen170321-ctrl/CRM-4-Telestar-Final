@@ -54,6 +54,34 @@ export async function promoteCandidates(params: {
       continue;
     }
 
+    // Candidate-scoped idempotency only sees this run. The same company surfacing in next week's run
+    // is a brand-new candidate row with the same fingerprint, and promoting it would resolve to the
+    // same Account — `resolveAccount` sees to that — but create a second pool record for it. Only the
+    // cross-run ledger knows the company was already taken.
+    const ledger = await prisma.researchProspect.findFirst({
+      where: { tenantId, dedupeFingerprint: candidate.dedupeFingerprint, promotedAccountId: { not: null } },
+      select: { promotedAccountId: true, promotedContactId: true },
+    });
+    if (ledger?.promotedAccountId) {
+      // Point this row at what was already created, so the surface shows it as taken rather than
+      // offering it again.
+      await prisma.researchCandidate.updateMany({
+        where: { id: candidate.id, tenantId },
+        data: {
+          status: 'promoted',
+          promotedAccountId: ledger.promotedAccountId,
+          promotedContactId: ledger.promotedContactId ?? null,
+        },
+      });
+      results.push({
+        candidateId: candidate.id,
+        status: 'already_promoted',
+        accountId: ledger.promotedAccountId,
+        contactId: ledger.promotedContactId ?? undefined,
+      });
+      continue;
+    }
+
     const companyName = candidate.kind === 'company' ? candidate.name : candidate.companyName;
     if (!companyName) {
       // A contact candidate with no employer has nothing to attach to. Every downstream model is keyed
