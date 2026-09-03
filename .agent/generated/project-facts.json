@@ -46,6 +46,7 @@
     "ai:smoke-gateway",
     "ai:smoke-providers",
     "analyze",
+    "backfill:account-identity",
     "backfill:next-action",
     "build",
     "certify:collect",
@@ -100,5 +101,5 @@
     "worker:healthcheck",
     "worker:start"
   ],
-  "scriptCount": 57
+  "scriptCount": 58
 }

@@ -464,10 +464,12 @@ domains:
     paths:
       - packages/**
       - lib/identity/**
+      - scripts/backfill-account-identity.ts
       - vitest.packages.config.ts
       - vitest.server-only-stub.ts
     tests:
       - tests/identity-writer.test.ts
+      - tests/identity-backfill.test.ts
     gates:
       - npm run test:packages
     notes: >-
