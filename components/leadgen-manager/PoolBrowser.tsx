@@ -42,6 +42,8 @@ type PoolItem = {
   sourceName: string | null;
   icpFitScore: number | null;
   dataQualityScore: number | null;
+  icpQualification: string | null;
+  latestAssessmentId: string | null;
   emailValidation: string | null;
   emailScore: number | null;
   tags: string[];
@@ -96,6 +98,30 @@ function nameOf(item: { firstName?: string | null; lastName?: string | null; ful
   return [item.firstName, item.lastName].filter(Boolean).join(' ') || item.fullName || '—';
 }
 
+// The engine's verdict, kept visually distinct from the reviewer's. A record with no assessment reads
+// NOT SCORED — that state is derived from a missing pointer, never a placeholder row, and showing it
+// blank would make "no ICP configured yet" look identical to "scored and unremarkable".
+const ICP_VERDICTS: Record<string, { label: string; color: string }> = {
+  qualified: { label: 'Qualified', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+  needs_review: { label: 'Needs review', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+  unqualified: { label: 'Unqualified', color: 'text-brand-red bg-brand-red/10 border-brand-red/20' },
+};
+
+function icpCell(item: { icpQualification: string | null; latestAssessmentId: string | null; icpFitScore: number | null }) {
+  if (!item.latestAssessmentId) {
+    return <span className="text-[10px] uppercase font-mono text-text-muted">Not scored</span>;
+  }
+  const verdict = item.icpQualification ? ICP_VERDICTS[item.icpQualification] : null;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {verdict && (
+        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${verdict.color}`}>{verdict.label}</span>
+      )}
+      {scoreBadge(item.icpFitScore)}
+    </span>
+  );
+}
+
 function scoreBadge(value: number | null) {
   if (value == null) return null;
   const color = value >= 70 ? 'text-emerald-400' : value >= 40 ? 'text-amber-400' : 'text-brand-red';
@@ -138,6 +164,10 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
     setStatusFilter(defaultStatus);
   }, [mode, defaultQual, defaultStatus]);
 
+  const [icpFilter, setIcpFilter] = useState('');
+  const [unscoredOnly, setUnscoredOnly] = useState(false);
+  const [rescoring, setRescoring] = useState(false);
+
   const loadRef = useCallback(async () => {
     setLoading(true);
     try {
@@ -146,6 +176,8 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
       if (statusFilter) params.set('status', statusFilter);
       if (qualFilter) params.set('qualification', qualFilter);
       if (sourceType) params.set('sourceType', sourceType);
+      if (icpFilter) params.set('icpQualification', icpFilter);
+      if (unscoredOnly) params.set('unscoredOnly', 'true');
       const res = await fetch(`/api/leadgen-pool?${params.toString()}`);
       if (!res.ok) throw new Error(await readApiError(res, 'Failed to load pool'));
       const data: ListResponse = await res.json();
@@ -158,7 +190,38 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter, qualFilter, sourceType, showToast]);
+  }, [page, search, statusFilter, qualFilter, sourceType, icpFilter, unscoredOnly, showToast]);
+
+  /**
+   * Scores everything sitting NOT SCORED against the current ICP.
+   *
+   * The common case after an ICP is configured for the first time: every record that landed before it
+   * existed has no assessment. Bounded server-side, and idempotent — a record whose inputs and rules
+   * have not changed keeps the assessment it already has.
+   */
+  const rescoreUnscored = useCallback(async () => {
+    setRescoring(true);
+    try {
+      const res = await fetch('/api/leadgen-pool/rescore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'unscored' }),
+      });
+      if (!res.ok) throw new Error(await readApiError(res, 'Rescore failed'));
+      const result = await res.json();
+      showToast(
+        result.skippedNoIcp > 0 && result.scored === 0
+          ? 'No ICP is configured, so nothing could be scored'
+          : `Scored ${result.scored}, unchanged ${result.unchanged}, skipped ${result.skippedNoIcp}`,
+        result.scored > 0 ? 'success' : 'error'
+      );
+      await loadRef();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Rescore failed', 'error');
+    } finally {
+      setRescoring(false);
+    }
+  }, [showToast, loadRef]);
 
   useEffect(() => {
     const t = setTimeout(() => loadRef(), 250);
@@ -330,6 +393,16 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
             <option key={q.value} value={q.value}>{q.label}</option>
           ))}
         </select>
+        <select value={icpFilter} onChange={(e) => { setIcpFilter(e.target.value); setPage(1); }} className="bg-bg-main border border-card-border rounded-lg px-2 py-2 text-xs text-text-secondary focus:outline-none" aria-label="Filter by ICP verdict">
+          <option value="">All ICP verdicts</option>
+          <option value="qualified">ICP: Qualified</option>
+          <option value="needs_review">ICP: Needs review</option>
+          <option value="unqualified">ICP: Unqualified</option>
+        </select>
+        <label className="inline-flex items-center gap-1.5 text-xs text-text-secondary">
+          <input type="checkbox" checked={unscoredOnly} onChange={(e) => { setUnscoredOnly(e.target.checked); setPage(1); }} />
+          Not scored only
+        </label>
         <select value={sourceType} onChange={(e) => { setSourceType(e.target.value); setPage(1); }} className="bg-bg-main border border-card-border rounded-lg px-2 py-2 text-xs text-text-secondary focus:outline-none">
           <option value="">All sources</option>
           <option value="manual">Manual</option>
@@ -341,6 +414,16 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
           <option value="outbound">Outbound</option>
           <option value="other">Other</option>
         </select>
+        {mode === 'pool' && (
+          <button
+            onClick={rescoreUnscored}
+            disabled={rescoring}
+            title="Score every record that has no assessment against the current ICP"
+            className="flex items-center gap-1.5 px-3 py-2 bg-bg-main border border-card-border text-text-secondary hover:text-text-primary text-xs font-bold rounded-lg transition-all disabled:opacity-50"
+          >
+            {rescoring ? 'Scoring…' : 'Score not-scored'}
+          </button>
+        )}
         {mode === 'pool' && (
           <button
             onClick={() => setShowCreate(true)}
@@ -438,6 +521,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
                 <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">Title</th>
                 <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">Email</th>
                 <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">Qualification</th>
+                <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">ICP</th>
                 <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">Status</th>
                 <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">Source</th>
                 <th className="px-3 py-2.5 text-[10px] uppercase text-text-muted">Scores</th>
@@ -503,6 +587,7 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
                       <td className="px-3 py-2.5">
                         <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded border ${q.color}`}>{q.label}</span>
                       </td>
+                      <td className="px-3 py-2.5">{icpCell(item)}</td>
                       <td className="px-3 py-2.5">
                         <span className="text-[10px] text-text-muted uppercase">{item.status.replaceAll('_', ' ')}</span>
                       </td>
