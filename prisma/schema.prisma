@@ -1884,6 +1884,7 @@ enum LeadSourceType {
   zoominfo
   client_provided
   vendor
+  research
   other
 }
 

@@ -477,6 +477,28 @@ domains:
       Prisma import binds shared code to one of them and silently un-shares it. That failure is
       invisible — it compiles, and it passes tests in whichever app happened to run them.
 
+  - id: research-discovery
+    description: >-
+      Open-web discovery: plan queries from an ICP, harvest SERP results, reject junk, dedupe
+      against the cross-run ledger, score, and promote a candidate into an Account, a Contact and
+      a lead-pool record.
+    risk: R3
+    paths:
+      - lib/research/discovery.ts
+      - lib/research/promote.ts
+      - lib/research/readModel.ts
+      - lib/research/searchGateway.ts
+      - app/api/research/**
+      - app/research/**
+    tests:
+      - tests/research-discovery.test.ts
+    notes: >-
+      R3 because it spends money and creates records. Every provider call is written to
+      `ResearchProviderAttempt` so the spend is inspectable rather than inferred from a bill, and
+      promotion goes through the shared identity writers so a researched lead and an uploaded lead
+      resolve to the same Account. Distinct from `lib/research/engine.ts` and the two research
+      caches, which enrich a record that already exists and stay with `telestar-ai`.
+
   - id: leadgen-app
     description: >-
       The lead-generation application, vendored as a subtree. Its own product, on its own Prisma

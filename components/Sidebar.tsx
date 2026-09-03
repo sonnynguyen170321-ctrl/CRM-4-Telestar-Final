@@ -25,6 +25,7 @@ import {
   Route,
   FileBarChart,
   ShieldCheck,
+  Radar,
 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 
@@ -114,6 +115,7 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
           label: 'Leadgen',
           items: [
             { name: 'Leadgen Workspace', href: '/leadgen', icon: Target },
+            { name: 'Research', href: '/research', icon: Radar },
             ...(isLeadgenManager
               ? [
                   { name: 'Internal Database', href: '/leadgen-manager?tab=pool', icon: Database },

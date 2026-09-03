@@ -36,6 +36,7 @@
     "/login",
     "/meetings",
     "/opportunities",
+    "/research",
     "/sequences",
     "/sequences/performance",
     "/settings",
@@ -128,6 +129,7 @@
     "/api/email/providers",
     "/api/email/send",
     "/api/health",
+    "/api/icp/versions",
     "/api/inbox",
     "/api/inbox/threads/[id]/reply",
     "/api/leadgen-pool",
@@ -140,6 +142,7 @@
     "/api/leadgen-pool/qualify",
     "/api/leadgen-pool/requirements",
     "/api/leadgen-pool/requirements/[id]",
+    "/api/leadgen-pool/rescore",
     "/api/leadgen/assign",
     "/api/leadgen/health",
     "/api/leadgen/scope",
@@ -169,6 +172,11 @@
     "/api/prospects/[id]/handoff",
     "/api/reminders",
     "/api/reminders/[id]",
+    "/api/research/candidates",
+    "/api/research/candidates/[id]",
+    "/api/research/candidates/promote",
+    "/api/research/runs",
+    "/api/research/runs/[id]/execute",
     "/api/seed",
     "/api/sequences",
     "/api/sequences/[id]",
@@ -213,6 +221,6 @@
     "/api/work-orders",
     "/api/work-orders/[id]/dispatch"
   ],
-  "pageCount": 34,
-  "apiRouteCount": 169
+  "pageCount": 35,
+  "apiRouteCount": 176
 }

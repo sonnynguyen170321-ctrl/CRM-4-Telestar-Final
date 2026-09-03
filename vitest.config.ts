@@ -3,7 +3,14 @@ import path from 'path';
 
 export default defineConfig({
   resolve: {
-    alias: { '@': path.resolve(__dirname) },
+    alias: {
+      '@': path.resolve(__dirname),
+      // `server-only` throws on import outside a React Server Component, and the shared packages
+      // import it on purpose — search keys and crawler internals must never reach the browser. Vitest
+      // is neither client nor server, so the guard fires here and would block any test that touches
+      // those modules. Stubbing it keeps the production guard intact while letting the tests run.
+      'server-only': path.resolve(__dirname, 'vitest.server-only-stub.ts'),
+    },
   },
   test: {
     include: ['tests/**/*.test.ts'],

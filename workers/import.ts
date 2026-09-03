@@ -20,7 +20,7 @@ import {
   type NormalizedImportLeadRow,
 } from '@/lib/leads/importRows';
 import { buildPoolDuplicateKey } from '@/lib/leadgen/pool';
-import { resolveIcpVersionId, scorePoolItem } from '@/lib/leadgen/scorePoolItem';
+import { scoreImportedPoolItem } from '@/lib/leadgen/scoreImportedPoolItem';
 
 const CHUNK_SIZE = 500;
 
@@ -595,45 +595,6 @@ async function handlePoolParse(payload: ImportParsePayload, dispatch: ImportDisp
     cleanRows: cleanRowIds.length,
     chunks: chunks.length,
   };
-}
-
-/**
- * Score one freshly-imported pool record.
- *
- * Deliberately swallows its own failures. The record is already in the pool and the import is
- * already a success by the time this runs; letting a missing ICP or a malformed rule set turn that
- * into a failed row would lose the import to protect a number. A record with no assessment reads as
- * NOT SCORED, which is true, and a later rescore can fill it in once the ICP exists.
- */
-async function scoreImportedPoolItem(poolItemId: string, tenantId: string): Promise<void> {
-  try {
-    const item = await prisma.leadPoolItem.findFirst({
-      where: { id: poolItemId, tenantId },
-      select: {
-        id: true, company: true, title: true, email: true, country: true,
-        industry: true, website: true, accountId: true, assignedCampaignId: true,
-      },
-    });
-    if (!item) return;
-
-    const icpVersionId = await resolveIcpVersionId(tenantId, item.assignedCampaignId ?? null);
-    if (!icpVersionId) return; // no ICP configured — NOT SCORED is the honest state
-
-    const version = await prisma.icpVersion.findFirst({
-      where: { id: icpVersionId, tenantId },
-      select: { rulesJson: true },
-    });
-    if (!version?.rulesJson) return;
-
-    await scorePoolItem({
-      tenantId,
-      item,
-      icpVersionId,
-      rules: version.rulesJson as never,
-    });
-  } catch (error) {
-    console.error('[import.chunk] scoring failed for pool item', poolItemId, error);
-  }
 }
 
 async function handlePoolChunk(payload: ImportChunkPayload) {
