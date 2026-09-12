@@ -48,14 +48,13 @@ const eslintConfig = defineConfig([
     }
   },
   {
-    // `packages/*` is shared by two apps with two different database schemas (Tenant/Account/Contact
-    // in this app, V2Organization/V2Company/V2Contact in apps/leadgen). The moment a package imports
-    // a Prisma client or reaches into an app via `@/`, it is bound to one of those schemas and stops
-    // being shareable — which is the entire reason the code was extracted.
+    // `packages/*` is database-agnostic by contract. It was extracted from the former leadgen app so
+    // the scoring, identity, search and research logic has no schema binding; the moment a package
+    // imports a Prisma client or reaches into the app via `@/`, it is bound to this schema and the
+    // extraction is undone.
     //
-    // This is a rule rather than a convention because the failure is silent: the import compiles, the
-    // tests pass in whichever app ran them, and the coupling is only discovered when the other app
-    // breaks.
+    // This is a rule rather than a convention because the failure is silent: the import compiles and
+    // the tests pass, and the coupling is only discovered when the package is next reused.
     files: ["packages/**/*.{ts,tsx,mts}"],
     rules: {
       "no-restricted-imports": [

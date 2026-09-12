@@ -373,6 +373,9 @@ domains:
       - .env.production.example
       - package.json
       - package-lock.json
+      # Vendored dependency tarballs referenced from package.json via file: (e.g. SheetJS, which
+      # left npm at 0.18.5). They change only when the manifest does.
+      - vendor/**
       - .gitignore
       - .gitattributes
     tests:
@@ -459,9 +462,8 @@ domains:
 
   - id: shared-packages
     description: >-
-      Database-agnostic logic shared by this app and apps/leadgen: identity resolution, ICP
-      scoring, ICP rule vocabulary, ingestion parsing, web search, company intelligence,
-      research discovery.
+      Database-agnostic logic kept out of the app layer: identity resolution, ICP scoring, ICP
+      rule vocabulary, ingestion parsing, web search, company intelligence, research discovery.
     risk: R3
     paths:
       - packages/**
@@ -475,11 +477,11 @@ domains:
     gates:
       - npm run test:packages
     notes: >-
-      R3 because two applications depend on it and neither owns it. The lint rule for
-      `packages/**` forbids importing `@prisma/client` or `@/*`: the two apps have different
-      schemas (Tenant/Account/Contact here, V2Organization/V2Company/V2Contact there), so one
-      Prisma import binds shared code to one of them and silently un-shares it. That failure is
-      invisible — it compiles, and it passes tests in whichever app happened to run them.
+      R3 because every scoring, identity and research path depends on it. The lint rule for
+      `packages/**` forbids importing `@prisma/client` or `@/*`: these packages were extracted
+      from the former leadgen app precisely so the logic has no schema binding, and a Prisma
+      import would silently re-bind it. That failure is invisible — it compiles, and it passes
+      tests in whichever caller happened to run them.
 
   - id: research-discovery
     description: >-
@@ -502,16 +504,3 @@ domains:
       promotion goes through the shared identity writers so a researched lead and an uploaded lead
       resolve to the same Account. Distinct from `lib/research/engine.ts` and the two research
       caches, which enrich a record that already exists and stay with `telestar-ai`.
-
-  - id: leadgen-app
-    description: >-
-      The lead-generation application, vendored as a subtree. Its own product, on its own Prisma
-      version, not part of this app's build.
-    risk: R1
-    paths:
-      - apps/**
-    notes: >-
-      R1 rather than R2 because nothing in this app imports it: the CRM builds from the repository
-      root and never compiles `apps/`, which is why `apps` is excluded from the root tsconfig. It
-      pins Prisma 7 while the CRM is on 6, and npm keeps those isolated — verified, not assumed.
-      Changes here are reviewed by that app's own gates.

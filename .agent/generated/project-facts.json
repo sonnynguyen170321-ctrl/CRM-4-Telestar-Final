@@ -10,7 +10,7 @@
   "stack": [
     {
       "package": "next",
-      "version": "^16.3.0"
+      "version": "^16.3.5"
     },
     {
       "package": "react",
