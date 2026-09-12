@@ -121,6 +121,27 @@ describe('pool filters', () => {
     expect(where.icpQualification).toBe('unqualified');
   });
 
+  it('dual-reads campaign and SDR routing during CampaignProspect rollout', () => {
+    const where = buildPoolWhere(
+      { assignedCampaignId: 'campaign-a', assignedSdrId: 'sdr-a' },
+      TENANT
+    ) as Record<string, unknown>;
+
+    expect(where.OR).toEqual([
+      { assignedCampaignId: 'campaign-a', assignedSdrId: 'sdr-a' },
+      {
+        campaignProspects: {
+          some: {
+            tenantId: TENANT,
+            campaignId: 'campaign-a',
+            assignedSdrId: 'sdr-a',
+            status: { not: 'removed' },
+          },
+        },
+      },
+    ]);
+  });
+
   it('derives NOT SCORED from the missing assessment, not a placeholder row', () => {
     const where = buildPoolWhere({ unscoredOnly: true }, TENANT) as Record<string, unknown>;
     expect(where.latestAssessmentId).toBeNull();

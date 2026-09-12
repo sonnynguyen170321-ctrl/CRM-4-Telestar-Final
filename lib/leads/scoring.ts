@@ -1,4 +1,12 @@
-export type LeadPriority = 'hot' | 'warm' | 'cold';
+export type LeadPriority = "hot" | "warm" | "cold";
+export type EngagementReason =
+  "meeting_booked" | "reply_received" | "email_opened" | "no_engagement";
+export const ENGAGEMENT_SIGNAL_VALUES = Object.freeze({
+  meeting: 100,
+  reply: 80,
+  open: 10,
+  maxOpens: 4,
+});
 
 export interface ScoreLeadResult {
   score: number;
@@ -37,111 +45,101 @@ export interface ScoreLeadInput {
     id?: string;
     status?: string;
   }>;
+  meetingCount?: number;
   [key: string]: any;
 }
 
 /**
- * Canonical deterministic lead scorer (Phase 8a)
+ * Fixed, explainable engagement ladder.
+ *
+ * ICP fit, title, contactability and task state deliberately do not participate. They answer
+ * different questions and belong in their own views. Precedence makes the score stable:
+ * meeting > reply > opens > no engagement.
+ */
+export function calculateEngagement(lead: ScoreLeadInput): CalculatedLeadScore {
+  const meetingCount = lead.meetingCount ?? lead.meetings?.length ?? 0;
+  if (meetingCount > 0) {
+    return {
+      score: ENGAGEMENT_SIGNAL_VALUES.meeting,
+      priority: "hot",
+      reason: "meeting_booked",
+      breakdown: [
+        { factor: "Meeting booked", points: ENGAGEMENT_SIGNAL_VALUES.meeting },
+      ],
+    };
+  }
+
+  if ((lead.emailReplyCount ?? 0) > 0) {
+    return {
+      score: ENGAGEMENT_SIGNAL_VALUES.reply,
+      priority: "hot",
+      reason: "reply_received",
+      breakdown: [
+        { factor: "Reply received", points: ENGAGEMENT_SIGNAL_VALUES.reply },
+      ],
+    };
+  }
+
+  const opens = Math.min(
+    Math.max(lead.emailOpenCount ?? 0, 0),
+    ENGAGEMENT_SIGNAL_VALUES.maxOpens,
+  );
+  if (opens > 0) {
+    const score = opens * ENGAGEMENT_SIGNAL_VALUES.open;
+    return {
+      score,
+      priority: "warm",
+      reason: "email_opened",
+      breakdown: [{ factor: `${opens} email open(s)`, points: score }],
+    };
+  }
+
+  return { score: 0, priority: "cold", reason: "no_engagement", breakdown: [] };
+}
+
+/**
+ * Compatibility adapter for consumers that still ask for a recommendation.
+ * The numeric value is engagement only; this function no longer produces a blended lead score.
  */
 export function scoreLead(lead: ScoreLeadInput): ScoreLeadResult {
-  let score = 20; // baseline
-  const insights: string[] = [];
-
-  // Stage evaluation
-  if (lead.stage === 'meeting_booked' || lead.stage === 'won') {
-    score += 40;
-    insights.push('High value conversion stage');
-  } else if (lead.stage === 'replied') {
-    score += 30;
-    insights.push('Prospect engaged / replied');
-  } else if (lead.stage === 'sequence_active') {
-    score += 15;
-    insights.push('Active in outreach sequence');
-  } else if (lead.stage === 'lost') {
-    score = Math.min(score, 10);
-    insights.push('Lead marked lost');
-  }
-
-  // Priority metadata bonus
-  if (lead.crmPriorityScore === 'hot') {
-    score += 20;
-    insights.push('SDR tagged as Hot priority');
-  } else if (lead.crmPriorityScore === 'warm') {
-    score += 10;
-  }
-
-  // Seniority & Title
-  const title = (lead.title || '').toLowerCase();
-  if (/chief|ceo|cfo|cto|cro|cmo|coo|founder|president|owner/i.test(title)) {
-    score += 20;
-    insights.push('C-Level / Executive Decision Maker');
-  } else if (/vp|vice president|director|head of/i.test(title)) {
-    score += 12;
-    insights.push('Director / VP Management Seniority');
-  }
-
-  // Contact completeness
-  let channels = 0;
-  if (lead.email && lead.email.includes('@') && !lead.emailInvalid) channels++;
-  if (lead.phone && lead.phone.trim().length > 3) channels++;
-  if (lead.linkedIn) channels++;
-  if (lead.whatsApp) channels++;
-
-  if (channels >= 3) {
-    score += 15;
-    insights.push('Multi-channel contact data verified');
-  } else if (channels >= 2) {
-    score += 8;
-  }
-
-  // Activity recency
-  if (lead.lastContactedAt) {
-    const hours = (Date.now() - new Date(lead.lastContactedAt).getTime()) / (1000 * 3600);
-    if (hours < 72) {
-      score += 10;
-      insights.push('Recently contacted (< 72h)');
-    }
-  }
-
-  // Deduct for overdue pending tasks (-4 each)
-  if (Array.isArray(lead.tasks)) {
-    const now = Date.now();
-    const overdueCount = lead.tasks.filter(
-      (t) => t.status === 'pending' && t.dueDate && new Date(t.dueDate).getTime() < now
-    ).length;
-    if (overdueCount > 0) {
-      const penalty = overdueCount * 4;
-      score -= penalty;
-      insights.push(`${overdueCount} overdue task(s) pending (-${penalty} pts)`);
-    }
-  }
-
-  // Clamping
-  score = Math.max(0, Math.min(100, Math.round(score)));
-
-  // Label calculation
-  let label: LeadPriority = 'cold';
-  if (score >= 60) label = 'hot';
-  else if (score >= 35) label = 'warm';
-
-  // Recommendation text
-  let recommendation = 'Monitor for next sequence step or touchpoint.';
-  if (label === 'hot') {
-    recommendation = 'High priority: Execute direct phone follow-up or book demo.';
-  } else if (label === 'warm') {
-    recommendation = 'Warm engagement: Send targeted value-add email or case study.';
-  }
-
+  const engagement = calculateEngagement(lead);
+  const copy: Record<
+    EngagementReason,
+    { insight: string | null; recommendation: string }
+  > = {
+    meeting_booked: {
+      insight: "Meeting booked",
+      recommendation: "Prepare for the meeting and confirm the next step.",
+    },
+    reply_received: {
+      insight: "Prospect replied",
+      recommendation: "Review the reply and follow up personally.",
+    },
+    email_opened: {
+      insight: "Prospect opened outreach",
+      recommendation:
+        "Continue the planned cadence; interest is not confirmed yet.",
+    },
+    no_engagement: {
+      insight: null,
+      recommendation:
+        "Continue the planned cadence and monitor for engagement.",
+    },
+  };
   return {
-    score,
-    label,
-    insights,
-    recommendation,
+    score: engagement.score,
+    label: engagement.priority,
+    insights: copy[engagement.reason].insight
+      ? [copy[engagement.reason].insight as string]
+      : [],
+    recommendation: copy[engagement.reason].recommendation,
   };
 }
 
-// ─── Custom Configurable Scoring Engine ──────────────────────────────────────
-
+/**
+ * Legacy transport shape retained until the Automation UI is migrated. Values are fixed and PUT
+ * cannot change them. Zeroed fields make it explicit that fit/contact data is not engagement.
+ */
 export interface LeadScoringRules {
   titleCLevelWeight: number;
   titleDirectorWeight: number;
@@ -155,96 +153,32 @@ export interface LeadScoringRules {
   warmThreshold: number;
 }
 
-export const DEFAULT_SCORING_RULES: LeadScoringRules = {
-  titleCLevelWeight: 25,
-  titleDirectorWeight: 15,
-  emailOpenWeight: 5,
-  emailReplyWeight: 30,
-  meetingBookedWeight: 40,
-  verifiedEmailWeight: 10,
-  phonePresentWeight: 10,
-  bouncedPenalty: -50,
-  hotThreshold: 65,
-  warmThreshold: 35,
-};
+export const DEFAULT_SCORING_RULES: Readonly<LeadScoringRules> = Object.freeze({
+  titleCLevelWeight: 0,
+  titleDirectorWeight: 0,
+  emailOpenWeight: ENGAGEMENT_SIGNAL_VALUES.open,
+  emailReplyWeight: ENGAGEMENT_SIGNAL_VALUES.reply,
+  meetingBookedWeight: ENGAGEMENT_SIGNAL_VALUES.meeting,
+  verifiedEmailWeight: 0,
+  phonePresentWeight: 0,
+  bouncedPenalty: 0,
+  hotThreshold: ENGAGEMENT_SIGNAL_VALUES.reply,
+  warmThreshold: ENGAGEMENT_SIGNAL_VALUES.open,
+});
 
-export interface LeadScoreInput {
-  title?: string | null;
-  emailSentCount?: number;
-  emailOpenCount?: number;
-  emailReplyCount?: number;
-  emailInvalid?: boolean;
-  emailValidation?: string | null;
-  phone?: string | null;
-  meetingCount?: number;
-}
+export type LeadScoreInput = ScoreLeadInput;
 
 export interface CalculatedLeadScore {
   score: number;
   priority: LeadPriority;
+  reason: EngagementReason;
   breakdown: Array<{ factor: string; points: number }>;
 }
 
+/** @deprecated Use calculateEngagement. The second argument is ignored because rules are fixed. */
 export function calculateLeadScore(
   lead: LeadScoreInput,
-  rules: LeadScoringRules = DEFAULT_SCORING_RULES
+  _rules: LeadScoringRules = DEFAULT_SCORING_RULES,
 ): CalculatedLeadScore {
-  let score = 0;
-  const breakdown: Array<{ factor: string; points: number }> = [];
-
-  const title = (lead.title || '').toLowerCase();
-  if (/chief|ceo|cfo|cto|cro|cmo|coo|founder|co-founder|president|owner|partner/i.test(title)) {
-    score += rules.titleCLevelWeight;
-    breakdown.push({ factor: 'C-Level / Executive Title', points: rules.titleCLevelWeight });
-  } else if (/vp|vice president|director|head of|lead/i.test(title)) {
-    score += rules.titleDirectorWeight;
-    breakdown.push({ factor: 'Director / Management Title', points: rules.titleDirectorWeight });
-  }
-
-  const opens = Math.min(lead.emailOpenCount || 0, 4);
-  if (opens > 0) {
-    const openPoints = opens * rules.emailOpenWeight;
-    score += openPoints;
-    breakdown.push({ factor: `${opens} Email Open(s)`, points: openPoints });
-  }
-
-  if ((lead.emailReplyCount || 0) > 0) {
-    score += rules.emailReplyWeight;
-    breakdown.push({ factor: 'Inbound Email Reply Received', points: rules.emailReplyWeight });
-  }
-
-  if ((lead.meetingCount || 0) > 0) {
-    score += rules.meetingBookedWeight;
-    breakdown.push({ factor: 'Meeting Scheduled / Completed', points: rules.meetingBookedWeight });
-  }
-
-  if (lead.emailValidation === 'valid' || (!lead.emailInvalid && lead.emailValidation !== 'invalid')) {
-    score += rules.verifiedEmailWeight;
-    breakdown.push({ factor: 'Deliverable Email Verified', points: rules.verifiedEmailWeight });
-  }
-
-  if (lead.phone && lead.phone.trim().length > 5) {
-    score += rules.phonePresentWeight;
-    breakdown.push({ factor: 'Direct Phone Available', points: rules.phonePresentWeight });
-  }
-
-  if (lead.emailInvalid || lead.emailValidation === 'invalid' || lead.emailValidation === 'bounced') {
-    score += rules.bouncedPenalty;
-    breakdown.push({ factor: 'Email Bounced / Invalid', points: rules.bouncedPenalty });
-  }
-
-  const normalizedScore = Math.max(0, Math.min(100, score));
-
-  let priority: LeadPriority = 'cold';
-  if (normalizedScore >= rules.hotThreshold) {
-    priority = 'hot';
-  } else if (normalizedScore >= rules.warmThreshold) {
-    priority = 'warm';
-  }
-
-  return {
-    score: normalizedScore,
-    priority,
-    breakdown,
-  };
+  return calculateEngagement(lead);
 }

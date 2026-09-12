@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { requireResearchManager } from '@/app/api/research/guard';
+import { requireResearchRunner } from '@/app/api/research/guard';
 import { requireTenantId } from '@/lib/api/tenant';
 import { DISCOVERY_QUERY_BATCH, runDiscoveryPass } from '@/lib/research/discovery';
 
@@ -12,7 +12,7 @@ import { DISCOVERY_QUERY_BATCH, runDiscoveryPass } from '@/lib/research/discover
 // enqueues yet.
 
 export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
-  const user = await requireResearchManager();
+  const user = await requireResearchRunner();
   if (user instanceof NextResponse) return user;
 
   const tenantId = requireTenantId(user);

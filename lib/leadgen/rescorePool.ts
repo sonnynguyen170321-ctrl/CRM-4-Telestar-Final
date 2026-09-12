@@ -1,46 +1,130 @@
-import { prisma } from '@/lib/prisma';
+import { prisma } from "@/lib/prisma";
 
-import { resolveIcpVersionId, scorePoolItem } from './scorePoolItem';
+import { resolveIcpVersionId, scorePoolItem } from "./scorePoolItem";
 
-// Re-score pool records that already exist.
-//
-// Scoring happens at import, but records outlive the rules that judged them: an ICP is edited, a
-// campaign is pointed at a different version, or a batch landed before any ICP was configured at all
-// and sits NOT SCORED. This is how those catch up.
-//
-// It is a service and a route rather than a queue. A rescore is an operator action over a bounded
-// selection, not a per-record event, and adding a job type would mean touching the queue registry,
-// job options, the worker list and the generated queue map for something nothing enqueues
-// automatically. If volume ever makes an inline pass too slow, the batching below is the seam a
-// queue would plug into.
-
-/** Bounded so one call cannot walk an entire tenant and hold a connection for minutes. */
+/**
+ * Re-score immutable ICP assessments through campaign memberships.
+ *
+ * CampaignProspect is the unit of campaign scoring. An unassigned pool item may still use the
+ * tenant default ICP, but one campaign's result is never written as another campaign's truth.
+ */
 export const RESCORE_BATCH_LIMIT = 500;
 
 export type RescoreSelection =
-  | { kind: 'ids'; ids: string[] }
-  | { kind: 'campaign'; campaignId: string }
-  | { kind: 'unscored' };
+  | { kind: "ids"; ids: string[] }
+  | { kind: "campaign"; campaignId: string }
+  | { kind: "unscored" };
 
 export type RescoreResult = {
+  /** Campaign memberships (or unassigned pool records), not globally unique people. */
   considered: number;
   scored: number;
-  /** Assessments that already existed with the same fingerprint — the rules did not move them. */
   unchanged: number;
-  /** Records with no ICP configured. Reported, never guessed at. */
   skippedNoIcp: number;
-  failed: Array<{ poolItemId: string; reason: string }>;
+  failed: Array<{ poolItemId: string; campaignId?: string; reason: string }>;
 };
 
-function whereFor(selection: RescoreSelection, tenantId: string): Record<string, unknown> {
-  switch (selection.kind) {
-    case 'ids':
-      return { tenantId, id: { in: selection.ids } };
-    case 'campaign':
-      return { tenantId, assignedCampaignId: selection.campaignId };
-    case 'unscored':
-      return { tenantId, latestAssessmentId: null };
+type Target = {
+  campaignId: string | null;
+  currentIcpVersionId: string | null;
+  item: {
+    id: string;
+    company: string;
+    title: string | null;
+    email: string | null;
+    country: string | null;
+    industry: string | null;
+    website: string | null;
+    accountId: string | null;
+  };
+};
+
+const itemSelect = {
+  id: true,
+  company: true,
+  title: true,
+  email: true,
+  country: true,
+  industry: true,
+  website: true,
+  accountId: true,
+} as const;
+
+async function targetsFor(
+  selection: RescoreSelection,
+  tenantId: string,
+  take: number,
+): Promise<Target[]> {
+  if (selection.kind === "campaign") {
+    const memberships = await prisma.campaignProspect.findMany({
+      where: {
+        tenantId,
+        campaignId: selection.campaignId,
+        status: { not: "removed" },
+      },
+      orderBy: { addedAt: "asc" },
+      take,
+      select: {
+        campaignId: true,
+        campaign: { select: { icpVersionId: true } },
+        poolItem: { select: itemSelect },
+      },
+    });
+    return memberships.map((membership) => ({
+      campaignId: membership.campaignId,
+      currentIcpVersionId: membership.campaign.icpVersionId,
+      item: membership.poolItem,
+    }));
   }
+
+  const items = await prisma.leadPoolItem.findMany({
+    where:
+      selection.kind === "ids"
+        ? { tenantId, id: { in: selection.ids } }
+        : {
+            tenantId,
+            latestAssessmentId: null,
+            campaignProspects: {
+              none: { tenantId, status: { not: "removed" } },
+            },
+          },
+    orderBy: { createdAt: "asc" },
+    take,
+    select: {
+      ...itemSelect,
+      campaignProspects: {
+        where: { tenantId, status: { not: "removed" } },
+        select: {
+          campaignId: true,
+          campaign: { select: { icpVersionId: true } },
+        },
+        orderBy: { addedAt: "asc" },
+      },
+    },
+  });
+
+  const targets: Target[] = [];
+  for (const item of items) {
+    const { campaignProspects, ...scorable } = item;
+    if (campaignProspects.length === 0) {
+      targets.push({
+        campaignId: null,
+        currentIcpVersionId: null,
+        item: scorable,
+      });
+    } else {
+      for (const membership of campaignProspects) {
+        if (targets.length >= take) break;
+        targets.push({
+          campaignId: membership.campaignId,
+          currentIcpVersionId: membership.campaign.icpVersionId,
+          item: scorable,
+        });
+      }
+    }
+    if (targets.length >= take) break;
+  }
+  return targets;
 }
 
 export async function rescorePool(params: {
@@ -49,33 +133,26 @@ export async function rescorePool(params: {
   limit?: number;
 }): Promise<RescoreResult> {
   const { tenantId, selection } = params;
-  const take = Math.min(params.limit ?? RESCORE_BATCH_LIMIT, RESCORE_BATCH_LIMIT);
-
-  const items = await prisma.leadPoolItem.findMany({
-    where: whereFor(selection, tenantId) as never,
-    orderBy: { createdAt: 'asc' },
-    take,
-    select: {
-      id: true, company: true, title: true, email: true, country: true,
-      industry: true, website: true, accountId: true, assignedCampaignId: true,
-    },
-  });
+  const take = Math.min(
+    params.limit ?? RESCORE_BATCH_LIMIT,
+    RESCORE_BATCH_LIMIT,
+  );
+  const targets = await targetsFor(selection, tenantId, take);
 
   const result: RescoreResult = {
-    considered: items.length,
+    considered: targets.length,
     scored: 0,
     unchanged: 0,
     skippedNoIcp: 0,
     failed: [],
   };
-
-  // Rule sets are read once per version, not once per record: a batch of 500 records for one
-  // campaign would otherwise re-read the same rules 500 times.
   const rulesCache = new Map<string, unknown | null>();
 
-  for (const item of items) {
+  for (const target of targets) {
     try {
-      const icpVersionId = await resolveIcpVersionId(tenantId, item.assignedCampaignId ?? null);
+      const icpVersionId =
+        target.currentIcpVersionId ??
+        (target.campaignId ? null : await resolveIcpVersionId(tenantId, null));
       if (!icpVersionId) {
         result.skippedNoIcp += 1;
         continue;
@@ -94,14 +171,19 @@ export async function rescorePool(params: {
         continue;
       }
 
-      const scored = await scorePoolItem({ tenantId, item, icpVersionId, rules: rules as never });
+      const scored = await scorePoolItem({
+        tenantId,
+        item: target.item,
+        campaignId: target.campaignId,
+        icpVersionId,
+        rules: rules as never,
+      });
       if (scored.inserted) result.scored += 1;
       else result.unchanged += 1;
     } catch (error) {
-      // One bad record must not abandon the rest of the batch, and the reason is reported rather
-      // than logged and lost.
       result.failed.push({
-        poolItemId: item.id,
+        poolItemId: target.item.id,
+        ...(target.campaignId ? { campaignId: target.campaignId } : {}),
         reason: error instanceof Error ? error.message : String(error),
       });
     }

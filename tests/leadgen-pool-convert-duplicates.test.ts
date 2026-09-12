@@ -31,6 +31,7 @@ describe.skipIf(!process.env.DATABASE_URL)('convertPoolToLeads — existing lead
   const tenantId = 'pool-convert-dupe-tenant';
   let sdrId = '';
   let campaignId = '';
+  let secondCampaignId = '';
   let actor: SessionUser;
 
   beforeAll(async () => {
@@ -88,6 +89,16 @@ describe.skipIf(!process.env.DATABASE_URL)('convertPoolToLeads — existing lead
         },
       });
       campaignId = campaign.id;
+
+      const secondCampaign = await prisma.campaign.create({
+        data: {
+          name: 'Second Campaign',
+          clientId: client.id,
+          startDate: new Date(),
+          tenantId,
+        },
+      });
+      secondCampaignId = secondCampaign.id;
 
       actor = {
         id: manager.id,
@@ -157,6 +168,16 @@ describe.skipIf(!process.env.DATABASE_URL)('convertPoolToLeads — existing lead
       // The reason a human can act on — not "Invalid `prisma.lead.create()` invocation".
       expect(failure.reason).toBe('already_a_lead_in_this_campaign');
       expect(failure.existingLeadId).toBe(existing.id);
+
+      const membership = await prisma.campaignProspect.findUniqueOrThrow({
+        where: {
+          tenantId_campaignId_poolItemId: { tenantId, campaignId, poolItemId: item.id },
+        },
+      });
+      expect(membership.leadId).toBe(existing.id);
+      expect(membership.status).toBe('active');
+      const legacy = await prisma.leadPoolItem.findUniqueOrThrow({ where: { id: item.id } });
+      expect(legacy.convertedLeadId).toBe(existing.id);
     });
   });
 
@@ -203,6 +224,58 @@ describe.skipIf(!process.env.DATABASE_URL)('convertPoolToLeads — existing lead
         select: { assignedToId: true },
       });
       expect(lead?.assignedToId).toBe(sdrId);
+    });
+  });
+  it('converts one reusable prospect independently into two campaigns', async () => {
+    await tenantStorage.run({ tenantId, bypassRls: false }, async () => {
+      const item = await prisma.leadPoolItem.create({
+        data: {
+          firstName: 'Robin',
+          lastName: 'Reuse',
+          company: 'Reusable Account',
+          email: 'robin@reusable.test',
+          sourceType: 'csv_import',
+          tenantId,
+        },
+      });
+
+      const first = await convertPoolToLeads({
+        itemIds: [item.id],
+        campaignId,
+        sdrIds: [sdrId],
+        method: 'single',
+        actor,
+        tenantId,
+      });
+      const second = await convertPoolToLeads({
+        itemIds: [item.id],
+        campaignId: secondCampaignId,
+        sdrIds: [sdrId],
+        method: 'single',
+        actor,
+        tenantId,
+      });
+
+      expect(first.count).toBe(1);
+      expect(second.count).toBe(1);
+      const memberships = await prisma.campaignProspect.findMany({
+        where: { tenantId, poolItemId: item.id },
+        orderBy: { campaignId: 'asc' },
+      });
+      expect(memberships).toHaveLength(2);
+      expect(memberships.every((row) => row.status === 'active' && Boolean(row.leadId))).toBe(true);
+
+      const leads = await prisma.lead.findMany({
+        where: { tenantId, normalizedEmail: 'robin@reusable.test' },
+        select: { campaignId: true },
+      });
+      expect(new Set(leads.map((lead) => lead.campaignId))).toEqual(
+        new Set([campaignId, secondCampaignId])
+      );
+
+      const legacy = await prisma.leadPoolItem.findUniqueOrThrow({ where: { id: item.id } });
+      expect(legacy.assignedCampaignId).toBe(campaignId);
+      expect(legacy.convertedLeadId).toBe(first.created[0].leadId);
     });
   });
 });

@@ -446,6 +446,8 @@ model User {
   ownedContactRelationships ContactIntelligence[]   @relation("ContactRelationshipOwner")
   capturedEvidence          ContactEvidence[]       @relation("EvidenceCapturedBy")
   researchRunsCreated       ResearchRun[]           @relation("ResearchRunCreatedBy")
+  assignedCampaignProspects CampaignProspect[]      @relation("CampaignProspectAssignedSdr")
+  createdCampaignProspects  CampaignProspect[]      @relation("CampaignProspectCreatedBy")
 
   @@index([tenantId])
   @@index([tenantId, managerId])
@@ -511,6 +513,7 @@ model Campaign {
   workOrders         WorkOrder[]
   contactEvidence    ContactEvidence[]
   researchRuns       ResearchRun[]
+  prospects          CampaignProspect[]
 
   @@index([tenantId])
 }
@@ -813,6 +816,7 @@ model ContactEvidence {
 
 model Lead {
   @@unique([id, tenantId], map: "Lead_id_tenantId_key")
+  @@unique([id, tenantId, campaignId], map: "Lead_id_tenantId_campaignId_key")
   id                 String                    @id @default(cuid())
   contactId          String?
   contact            Contact?                  @relation(fields: [contactId, tenantId], references: [id, tenantId], onDelete: SetNull)
@@ -905,6 +909,7 @@ model Lead {
   @@index([tenantId, campaignId, normalizedEmail])
   @@index([tenantId, importListName])
   sequenceLaunches   SequenceLaunch[]
+  campaignProspect   CampaignProspect? @relation("CampaignProspectLead")
 }
 
 // ─── Sequences ───────────────────────────────────────────────────────────────
@@ -1796,6 +1801,7 @@ model IcpVersion {
   tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   assessments LeadPoolAssessment[]
+  campaignProspects CampaignProspect[]
   researchRuns ResearchRun[]
   campaigns   Campaign[]
 
@@ -1812,6 +1818,7 @@ model IcpVersion {
 /// same record scores differently under different rules, and the rules are edited over time.
 model LeadPoolAssessment {
   @@unique([id, tenantId], map: "LeadPoolAssessment_id_tenantId_key")
+  @@unique([id, tenantId, poolItemId, icpVersionId], map: "LeadPoolAssessment_campaign_pointer_key")
   id           String       @id @default(cuid())
   poolItemId   String
   poolItem     LeadPoolItem @relation("PoolItemAssessments", fields: [poolItemId, tenantId], references: [id, tenantId], onDelete: Cascade)
@@ -1835,6 +1842,8 @@ model LeadPoolAssessment {
   createdAt DateTime @default(now())
   tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  campaignProspects CampaignProspect[]
 
   @@unique([tenantId, poolItemId, fingerprint])
   @@index([tenantId])
@@ -1886,6 +1895,17 @@ enum LeadSourceType {
   vendor
   research
   other
+}
+
+/// Lifecycle of one reusable prospect inside one campaign. Prospect identity and ICP
+/// assessments live on LeadPoolItem; this enum describes only campaign participation.
+enum CampaignProspectStatus {
+  candidate
+  needs_contact
+  ready
+  active
+  completed
+  removed
 }
 
 enum CampaignLeadRequirementStatus {
@@ -2127,6 +2147,7 @@ model LeadPoolItem {
 
   activities LeadgenActivity[]
   importRows ImportRow[]
+  campaignProspects CampaignProspect[]
 
   @@index([tenantId])
   @@index([status])
@@ -2136,6 +2157,55 @@ model LeadPoolItem {
   @@index([assignedSdrId])
   @@index([tenantId, email])
   @@index([tenantId, duplicateKey])
+}
+
+/// Many-to-many bridge between the tenant-wide prospect library and campaigns. A company/contact
+/// is represented once by LeadPoolItem and can participate in multiple campaigns without copying
+/// its identity or ICP assessment history. Lead remains the campaign-specific outreach execution
+/// record while legacy callers are migrated.
+model CampaignProspect {
+  @@unique([id, tenantId], map: "CampaignProspect_id_tenantId_key")
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  poolItemId String
+  poolItem   LeadPoolItem @relation(fields: [poolItemId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  assignedSdrId String?
+  assignedSdr   User? @relation("CampaignProspectAssignedSdr", fields: [assignedSdrId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  leadId        String?
+  lead          Lead? @relation("CampaignProspectLead", fields: [leadId, tenantId, campaignId], references: [id, tenantId, campaignId], onDelete: SetNull)
+  createdById   String?
+  createdBy     User? @relation("CampaignProspectCreatedBy", fields: [createdById, tenantId], references: [id, tenantId], onDelete: SetNull)
+
+  /// Campaign-scoped ICP truth. Never read LeadPoolItem's global score mirrors on a campaign
+  /// surface: one reusable prospect can have opposite outcomes under two ICP versions.
+  /// This is the version used by latestAssessment, not necessarily Campaign.icpVersionId. If a
+  /// manager changes the campaign ICP, a mismatch means stale/Review until rescore updates both.
+  assessedIcpVersionId String?
+  assessedIcpVersion   IcpVersion?         @relation(fields: [assessedIcpVersionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  latestAssessmentId   String?
+  latestAssessment     LeadPoolAssessment? @relation(fields: [latestAssessmentId, tenantId, poolItemId, assessedIcpVersionId], references: [id, tenantId, poolItemId, icpVersionId], onDelete: SetNull)
+
+  status        CampaignProspectStatus @default(candidate)
+  addedAt       DateTime @default(now())
+  activatedAt   DateTime?
+  completedAt   DateTime?
+  removedAt     DateTime?
+  removalReason String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([tenantId, campaignId, poolItemId])
+  @@unique([leadId, tenantId, campaignId])
+  @@index([tenantId, campaignId, status])
+  @@index([tenantId, assignedSdrId, status])
+  @@index([tenantId, poolItemId])
+  @@index([tenantId, assessedIcpVersionId, status])
+  @@index([latestAssessmentId, tenantId])
+  @@index([createdById, tenantId])
 }
 
 model CampaignLeadRequirement {
@@ -2230,6 +2300,7 @@ model Tenant {
   opportunities            Opportunity[]
   opportunityActivities    OpportunityActivity[]
   leadPoolItems            LeadPoolItem[]
+  campaignProspects        CampaignProspect[]
   campaignLeadRequirements CampaignLeadRequirement[]
   leadgenActivities        LeadgenActivity[]
   clientReports            ClientReport[]

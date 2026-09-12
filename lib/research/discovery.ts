@@ -55,7 +55,9 @@ export type CreateRunInput = {
   queryLimit?: number;
 };
 
-export async function createResearchRun(input: CreateRunInput): Promise<{ id: string; queries: number }> {
+export async function planResearchRunQueries(
+  input: Omit<CreateRunInput, 'createdById'>,
+): Promise<DiscoveryQuery[]> {
   const { tenantId, kind } = input;
   const limit = normalizeResearchQueryLimit(input.queryLimit);
 
@@ -74,11 +76,22 @@ export async function createResearchRun(input: CreateRunInput): Promise<{ id: st
         : buildContactDiscoveryQueries(version.rulesJson as never, limit);
   }
 
+  // Builder mode can emit more queries than the requested budget. Apply the
+  // same hard cap after either construction path so payload shape cannot bypass it.
+  queries = queries.slice(0, limit);
+
   // A run with no queries would sit "queued" forever looking like a stuck worker. It is a bad
   // request, and saying so at creation is the only place a human is still watching.
   if (queries.length === 0) {
     throw new Error('No discovery queries could be built — the ICP or builder params are empty');
   }
+
+  return queries;
+}
+
+export async function createResearchRun(input: CreateRunInput): Promise<{ id: string; queries: number }> {
+  const queries = await planResearchRunQueries(input);
+  const { tenantId, kind } = input;
 
   const run = await prisma.researchRun.create({
     data: {

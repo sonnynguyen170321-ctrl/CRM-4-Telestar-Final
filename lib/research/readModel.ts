@@ -77,7 +77,7 @@ export async function listResearchCandidates(query: CandidateListQuery, tenantId
   if (query.status) where.status = query.status;
   if (typeof query.minFitScore === 'number') where.fitScore = { gte: query.minFitScore };
 
-  const [rows, total] = await Promise.all([
+  const [rows, total, grouped] = await Promise.all([
     prisma.researchCandidate.findMany({
       where: where as never,
       // Fit descending, then newest: the whole point of the heuristic score is that the operator reads
@@ -94,11 +94,17 @@ export async function listResearchCandidates(query: CandidateListQuery, tenantId
       },
     }),
     prisma.researchCandidate.count({ where: where as never }),
+    prisma.researchCandidate.groupBy({
+      by: ['status'],
+      where: { tenantId, ...(query.runId ? { runId: query.runId } : {}) },
+      _count: { _all: true },
+    }),
   ]);
 
-  if (!query.hidePreviouslyPromoted || rows.length === 0) {
-    return { items: rows.map((row) => ({ ...row, previouslyPromoted: false })), total, page, pageSize };
-  }
+  const counts = Object.fromEntries(
+    grouped.map((entry) => [entry.status, entry._count._all]),
+  ) as Record<string, number>;
+  if (rows.length === 0) return { items: [], total, page, pageSize, counts };
 
   // "Already taken in an earlier run" is a property of the fingerprint, not of this run's row, so it
   // needs the ledger. Without it a weekly run re-offers everything the team already imported.
@@ -112,11 +118,15 @@ export async function listResearchCandidates(query: CandidateListQuery, tenantId
   });
   const taken = new Set(ledger.map((entry) => entry.dedupeFingerprint));
 
-  const items = rows
-    .map((row) => ({ ...row, previouslyPromoted: taken.has(row.dedupeFingerprint) }))
-    .filter((row) => !row.previouslyPromoted);
+  const annotated = rows.map((row) => ({
+    ...row,
+    previouslyPromoted: taken.has(row.dedupeFingerprint),
+  }));
+  const items = query.hidePreviouslyPromoted
+    ? annotated.filter((row) => !row.previouslyPromoted)
+    : annotated;
 
-  return { items, total, page, pageSize };
+  return { items, total, page, pageSize, counts };
 }
 
 /** Everything the evidence drawer shows for one candidate. */

@@ -1,6 +1,6 @@
-import { prisma } from '@/lib/prisma';
-import { getLeadWhereScope, type SessionUser } from '@/lib/auth';
-import { scoreLead } from './scoring';
+import { prisma } from "@/lib/prisma";
+import { getLeadWhereScope, type SessionUser } from "@/lib/auth";
+import { scoreLead } from "./scoring";
 
 /**
  * Deterministic lead prioritization (Phase 8a).
@@ -26,7 +26,7 @@ export interface RankedLead {
   title: string | null;
   /** Deterministic, from `scoreLead`. */
   score: number;
-  label: 'hot' | 'warm' | 'cold';
+  label: "hot" | "warm" | "cold";
   rank: number;
   /** `scoreLead`'s own recommendation — always present, with or without AI. */
   deterministicRecommendation: string;
@@ -46,8 +46,14 @@ export interface RankLeadsInput {
  * authorization is not reproduced here. Ties break on lead id so the order is stable across
  * runs rather than following database order.
  */
-export async function rankLeads(user: SessionUser, input: RankLeadsInput): Promise<RankedLead[]> {
-  const limit = Math.max(1, Math.min(input.limit ?? DEFAULT_PRIORITIZATION_LIMIT, 200));
+export async function rankLeads(
+  user: SessionUser,
+  input: RankLeadsInput,
+): Promise<RankedLead[]> {
+  const limit = Math.max(
+    1,
+    Math.min(input.limit ?? DEFAULT_PRIORITIZATION_LIMIT, 200),
+  );
 
   const scope = await getLeadWhereScope(user);
   const leads = await prisma.lead.findMany({
@@ -55,14 +61,19 @@ export async function rankLeads(user: SessionUser, input: RankLeadsInput): Promi
       ...scope,
       tenantId: input.tenantId,
       ...(input.campaignId ? { campaignId: input.campaignId } : {}),
-      stage: { notIn: ['won', 'lost'] },
+      stage: { notIn: ["won", "lost"] },
     },
     include: {
-      activities: { select: { type: true, createdAt: true }, take: 20, orderBy: { createdAt: 'desc' } },
+      activities: {
+        select: { type: true, createdAt: true },
+        take: 20,
+        orderBy: { createdAt: "desc" },
+      },
       tasks: { select: { status: true, dueDate: true }, take: 20 },
+      meetings: { select: { id: true } },
     },
     take: 500,
-    orderBy: { createdAt: 'desc' },
+    orderBy: { createdAt: "desc" },
   });
 
   return leads
@@ -84,8 +95,17 @@ export async function rankLeads(user: SessionUser, input: RankLeadsInput): Promi
         lastContactedAt: lead.lastContactedAt?.toISOString() ?? null,
         createdAt: lead.createdAt.toISOString(),
         sequenceId: lead.sequenceId,
-        activities: lead.activities.map((a) => ({ type: a.type, createdAt: a.createdAt.toISOString() })),
-        tasks: lead.tasks.map((t) => ({ status: t.status, dueDate: t.dueDate.toISOString() })),
+        emailOpenCount: lead.emailOpenCount,
+        emailReplyCount: lead.emailReplyCount,
+        meetingCount: lead.meetings.length,
+        activities: lead.activities.map((a) => ({
+          type: a.type,
+          createdAt: a.createdAt.toISOString(),
+        })),
+        tasks: lead.tasks.map((t) => ({
+          status: t.status,
+          dueDate: t.dueDate.toISOString(),
+        })),
       });
 
       return {
