@@ -28,6 +28,7 @@ import {
   Radar,
 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
+import { canUseResearchRole } from '@/lib/research/access';
 
 interface SidebarProps {
   userRole?: 'director' | 'floor_manager' | 'team_lead' | 'sdr' | 'leadgen_manager' | 'leadgen';
@@ -39,6 +40,10 @@ const W_EXPANDED = '216px';
 const W_COLLAPSED = '56px';
 
 const isLeadgenUser = (role: string) => role === 'leadgen' || role === 'leadgen_manager';
+const canManageLeadFilter = (role: string) =>
+  role === 'director' ||
+  role === 'floor_manager' ||
+  role === 'leadgen_manager';
 
 interface NavItem {
   name: string;
@@ -117,9 +122,15 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
             { name: 'Leadgen Workspace', href: '/leadgen', icon: Target },
             { name: 'Research', href: '/research', icon: Radar },
             ...(isLeadgenManager
+              ? [{ name: 'Lead Filter', href: '/lead-filter', icon: Funnel }]
+              : []),
+            ...(isLeadgenManager
+              ? [{ name: 'ICP & Scoring', href: '/automation?tab=scoring', icon: Target }]
+              : []),
+            ...(isLeadgenManager
               ? [
                   { name: 'Internal Database', href: '/leadgen-manager?tab=pool', icon: Database },
-                  { name: 'Import Center', href: '/leadgen-manager?tab=import', icon: Upload },
+                  { name: 'Import Center', href: '/leadgen-manager?tab=pool&import=1', icon: Upload },
                   { name: 'Qualification Queue', href: '/leadgen-manager?tab=qualify', icon: Target },
                   { name: 'Campaign Routing', href: '/leadgen-manager?tab=routing', icon: Route },
                   { name: 'Export Center', href: '/leadgen-manager?tab=export', icon: FileText },
@@ -157,6 +168,20 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
             { name: 'Opportunities', href: '/opportunities', icon: Funnel },
             { name: 'Meetings', href: '/meetings', icon: CalendarDays },
             { name: 'Sequences', href: '/sequences', icon: Repeat },
+          ],
+        },
+        {
+          label: 'Prospecting',
+          items: [
+            ...(canUseResearchRole(userRole, 'read')
+              ? [{ name: 'Research', href: '/research', icon: Radar }]
+              : []),
+            ...(canManageLeadFilter(userRole)
+              ? [{ name: 'Lead Filter', href: '/lead-filter', icon: Funnel }]
+              : []),
+            ...(isManager
+              ? [{ name: 'ICP & Scoring', href: '/automation?tab=scoring', icon: Target }]
+              : []),
           ],
         },
         {

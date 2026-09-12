@@ -1,13 +1,17 @@
 import { randomUUID } from 'node:crypto';
 
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { SearchDeps } from '@telestar/core-search/search/companyIntelSearch';
+vi.mock('@/lib/auth', () => ({
+  getVisibleCampaignIds: vi.fn(async () => null),
+}));
+
 
 import type { SessionUser } from '@/lib/auth';
 import { prisma, tenantStorage } from '@/lib/prisma';
 import { createResearchRun, runDiscoveryPass } from '@/lib/research/discovery';
-import { promoteCandidates } from '@/lib/research/promote';
+import { promoteCandidates as promoteCandidatesService } from '@/lib/research/promote';
 import { listResearchCandidates } from '@/lib/research/readModel';
 
 // Discovery is the half the CRM never had: it creates records that did not exist before. The
@@ -16,6 +20,8 @@ import { listResearchCandidates } from '@/lib/research/readModel';
 // and a promoted candidate must land through the same identity writers an uploaded lead uses.
 
 const TENANT = 'default-tenant';
+const PROMOTION_CLIENT = 'research-promotion-client';
+const PROMOTION_CAMPAIGN = 'research-promotion-campaign';
 
 const ACTOR: SessionUser = {
   id: 'research-test-actor',
@@ -72,6 +78,12 @@ function asTenant<T>(fn: () => Promise<T>): Promise<T> {
   return tenantStorage.run({ tenantId: TENANT, bypassRls: true }, fn);
 }
 
+function promoteCandidates(
+  input: Omit<Parameters<typeof promoteCandidatesService>[0], 'campaignId'>,
+) {
+  return promoteCandidatesService({ ...input, campaignId: PROMOTION_CAMPAIGN });
+}
+
 /**
  * The actor has to exist as a row, not just as a session shape: promotion writes a `LeadgenActivity`
  * that carries a real FK to the user who took the candidate. That audit trail is the reason a
@@ -90,6 +102,30 @@ async function seedActor() {
       tenantId: TENANT,
     },
     update: {},
+  });
+
+  await prisma.client.upsert({
+    where: { id: PROMOTION_CLIENT },
+    create: {
+      id: PROMOTION_CLIENT,
+      name: 'Research Promotion Test',
+      industry: 'Software',
+      contactName: 'Test Manager',
+      contactEmail: 'research-promotion@example.test',
+      tenantId: TENANT,
+    },
+    update: {},
+  });
+  await prisma.campaign.upsert({
+    where: { id: PROMOTION_CAMPAIGN },
+    create: {
+      id: PROMOTION_CAMPAIGN,
+      clientId: PROMOTION_CLIENT,
+      name: 'Research Promotion Campaign',
+      startDate: new Date('2026-01-01T00:00:00.000Z'),
+      tenantId: TENANT,
+    },
+    update: { status: 'active' },
   });
 }
 
@@ -341,7 +377,7 @@ describe('research promotion', () => {
     const [second] = await asTenant(() => promoteCandidates({ tenantId: TENANT, actor: ACTOR, candidateIds: [candidate.id] }));
 
     expect(first.status).toBe('promoted');
-    expect(second.status).toBe('already_promoted');
+    expect(second.status).toBe('already_in_campaign');
     expect(second.accountId).toBe(first.accountId);
 
     const poolRows = await prisma.leadPoolItem.count({
@@ -379,7 +415,7 @@ describe('research promotion', () => {
     );
 
     expect(first.status).toBe('promoted');
-    expect(second.status).toBe('already_promoted');
+    expect(second.status).toBe('already_in_campaign');
     expect(second.accountId).toBe(first.accountId);
 
     const poolRows = await prisma.leadPoolItem.count({
