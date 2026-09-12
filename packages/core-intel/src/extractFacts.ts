@@ -183,10 +183,14 @@ const PRICING_PATH_PATTERN = /^\/(pricing|plans)(\/|$)/i;
 const CAREERS_PATH_PATTERN = /^\/(careers|jobs)(\/|$)/i;
 const NEWS_PATH_PATTERN = /^\/(news|press)(\/|$)/i;
 
+// Regex hygiene for every pattern in this file: page text is attacker-controlled, so no two
+// whitespace quantifiers may sit next to each other (`\s*(?:\+?\s*)?`, `\s+\$?\s*`) — each such
+// pair lets the engine split a long run of spaces in O(n) ways and backtrack quadratically
+// (CodeQL js/polynomial-redos). Optional whitespace is always anchored to a literal.
 const EMPLOYEE_COUNT_PATTERNS = [
   /\b(?:team of|staff of|workforce of|employee base of)\s+([1-9][\d,]{0,8})\b/i,
-  /\b([1-9][\d,]{0,8})\s*(?:\+?\s*)?(?:employees|staff|team members|people worldwide|full-time employees|ftes)\b/i,
-  /\b(?:employs|employing)\s+([1-9][\d,]{0,8})\s*(?:\+?\s*)?(?:people|employees|staff)?\b/i,
+  /\b([1-9][\d,]{0,8})(?:\s*\+)?\s*(?:employees|staff|team members|people worldwide|full-time employees|ftes)\b/i,
+  /\b(?:employs|employing)\s+([1-9][\d,]{0,8})(?:\s*\+)?\s*(?:people|employees|staff)?\b/i,
 ];
 
 // Company size BAND is derived from a real headcount, never from a keyword. A phrase
@@ -209,8 +213,8 @@ const TARGET_MARKET_PATTERNS: Array<{ token: string; pattern: RegExp }> = [
 ];
 
 const REVENUE_PATTERNS = [
-  /\b(?:annual\s+)?revenue(?:\s+(?:of|over|above|exceeding|around|approximately))?\s+(?:US\$|USD\s*)?(\$?\s*[1-9][\d,.]*)\s*(billion|million|bn|m|k)?\b/i,
-  /\b(?:US\$|USD\s*)?(\$?\s*[1-9][\d,.]*)\s*(billion|million|bn|m|k)?\s+(?:in\s+)?(?:annual\s+)?revenue\b/i,
+  /\b(?:annual\s+)?revenue(?:\s+(?:of|over|above|exceeding|around|approximately))?\s+(?:(?:US\$|USD)\s*)?((?:\$\s*)?[1-9][\d,.]*)(?:\s*(billion|million|bn|m|k))?\b/i,
+  /\b(?:(?:US\$|USD)\s*)?((?:\$\s*)?[1-9][\d,.]*)(?:\s*(billion|million|bn|m|k))?\s+(?:in\s+)?(?:annual\s+)?revenue\b/i,
 ];
 
 const LOCATION_COUNT_PATTERNS = [

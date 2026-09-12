@@ -111,7 +111,12 @@ export function scoreSearchResults(
   const seenUrls = new Set<string>();
   const out: ScoredSearchResult[] = [];
   for (const result of results) {
-    const key = result.url.trim().toLowerCase().replace(/\/+$/, "");
+    // Index scan rather than `/\/+$/` (quadratic on a long run of slashes mid-string;
+    // the URL comes from a search provider, so it is uncontrolled).
+    let key = result.url.trim().toLowerCase();
+    let end = key.length;
+    while (end > 0 && key.charCodeAt(end - 1) === 47 /* / */) end--;
+    key = key.slice(0, end);
     if (seenUrls.has(key)) continue; // dedupe identical URLs
     seenUrls.add(key);
     out.push(scoreSearchResult(result, ctx));

@@ -490,7 +490,12 @@ async function fetchRobotsRules(
  * (exact match, else "*"), returning its Disallow path prefixes.
  */
 export function parseRobotsDisallowRules(robotsText: string, userAgent: string): string[] {
-  const lines = robotsText.split(/\r?\n/).map((line) => line.replace(/#.*$/, "").trim());
+  // Comment stripping by index rather than `/#.*$/`: robots.txt is served by the crawled
+  // site, and a line stuffed with `#` makes the regex rescan to end-of-line from each one.
+  const lines = robotsText.split(/\r?\n/).map((line) => {
+    const hash = line.indexOf("#");
+    return (hash === -1 ? line : line.slice(0, hash)).trim();
+  });
   const groups: Array<{ agents: string[]; disallow: string[] }> = [];
   let currentGroup: { agents: string[]; disallow: string[] } | null = null;
 
@@ -539,24 +544,103 @@ function isPathDisallowed(path: string, robots: RobotsRules): boolean {
  * collapses whitespace to produce visible-text-only content.
  */
 export function extractVisibleText(html: string): string {
-  const withoutScripts = html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<!--[\s\S]*?-->/g, " ");
-  const withoutTags = withoutScripts.replace(/<[^>]+>/g, " ");
+  // The HTML is the crawled site's own bytes, so every step here has to be linear and has
+  // to survive malformed markup (CodeQL js/polynomial-redos, js/bad-tag-filter,
+  // js/double-escaping). Element bodies are removed with index scans — an unclosed
+  // `<script` no longer makes a lazy `[\s\S]*?` rescan to end-of-document for every
+  // occurrence — and the close tag accepts `</script >` and `</SCRIPT>`.
+  let withoutScripts = stripElementBodies(html, "script");
+  withoutScripts = stripElementBodies(withoutScripts, "style");
+  withoutScripts = stripDelimited(withoutScripts, "<!--", "-->");
+  const withoutTags = stripTags(withoutScripts);
 
   return decodeHtmlEntities(withoutTags).replace(/\s+/g, " ").trim();
 }
 
+/** Remove `<name …>…</name …>` including the body; case-insensitive; linear in the input. */
+function stripElementBodies(html: string, name: string): string {
+  const lower = html.toLowerCase();
+  const open = `<${name}`;
+  const close = `</${name}`;
+  let out = "";
+  let cursor = 0;
+  for (;;) {
+    const start = lower.indexOf(open, cursor);
+    if (start === -1) break;
+    // `<scripts>` or `<scriptx` is not this element.
+    const after = lower.charCodeAt(start + open.length);
+    const isTag = Number.isNaN(after) || after === 62 /* > */ || after === 47 /* / */ || after <= 32;
+    if (!isTag) {
+      out += html.slice(cursor, start + open.length);
+      cursor = start + open.length;
+      continue;
+    }
+    let end = lower.indexOf(close, start + open.length);
+    if (end === -1) {
+      // Unclosed element: everything to the end of the document is its body.
+      out += html.slice(cursor, start) + " ";
+      return out;
+    }
+    const gt = lower.indexOf(">", end + close.length);
+    end = gt === -1 ? lower.length : gt + 1;
+    out += html.slice(cursor, start) + " ";
+    cursor = end;
+  }
+  return out + html.slice(cursor);
+}
+
+/** Remove `open…close` spans (comments); linear; an unclosed span runs to the end. */
+function stripDelimited(text: string, open: string, close: string): string {
+  let out = "";
+  let cursor = 0;
+  for (;;) {
+    const start = text.indexOf(open, cursor);
+    if (start === -1) break;
+    const end = text.indexOf(close, start + open.length);
+    out += text.slice(cursor, start) + " ";
+    if (end === -1) return out;
+    cursor = end + close.length;
+  }
+  return out + text.slice(cursor);
+}
+
+/**
+ * Remove `<…>` tags with an index scan. `/<[^>]*>/g` is quadratic on a document that has
+ * many `<` and no `>` (each `<` scans to the end and backtracks); here each `<` costs one
+ * `indexOf`. Semantics match the regex: a `<` with no closing `>` is kept as text.
+ */
+function stripTags(text: string): string {
+  let out = "";
+  let cursor = 0;
+  for (;;) {
+    const lt = text.indexOf("<", cursor);
+    if (lt === -1) break;
+    const gt = text.indexOf(">", lt + 1);
+    if (gt === -1) break;
+    out += text.slice(cursor, lt) + " ";
+    cursor = gt + 1;
+  }
+  return out + text.slice(cursor);
+}
+
+const HTML_ENTITIES: Record<string, string> = {
+  nbsp: " ",
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  "#39": "'",
+};
+
+/**
+ * Single-pass entity decode. Sequential `.replace()` calls decoded `&amp;lt;` to `<`
+ * because the `&amp;` step produced a fresh `&lt;` for the next step to consume.
+ */
 function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&apos;/gi, "'");
+  return text.replace(/&(nbsp|amp|lt|gt|quot|apos|#39);/gi, (whole, name: string) => {
+    return HTML_ENTITIES[name.toLowerCase()] ?? whole;
+  });
 }
 
 function byteLength(text: string): number {

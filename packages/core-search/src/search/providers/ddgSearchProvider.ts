@@ -85,15 +85,37 @@ function resolveDdgHref(href: string): string | null {
   }
 }
 
+const HTML_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  "#x27": "'",
+  "#39": "'",
+  nbsp: " ",
+};
+
+/**
+ * SERP markup → plain text. The markup is the provider's, so it is treated as hostile:
+ * tags are removed with an index scan (`/<[^>]+>/g` is quadratic on markup full of `<` with
+ * no `>`), and entities are decoded in a single pass so `&amp;lt;` yields the literal `&lt;`
+ * instead of being unescaped twice (CodeQL js/polynomial-redos, js/double-escaping,
+ * js/incomplete-multi-character-sanitization).
+ */
 function cleanText(raw: string): string {
-  return raw
-    .replace(/<[^>]+>/g, "")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#x27;|&#39;/g, "'")
-    .replace(/&nbsp;/g, " ")
+  let text = "";
+  let cursor = 0;
+  for (;;) {
+    const lt = raw.indexOf("<", cursor);
+    if (lt === -1) break;
+    const gt = raw.indexOf(">", lt + 1);
+    if (gt === -1) break;
+    text += raw.slice(cursor, lt);
+    cursor = gt + 1;
+  }
+  text += raw.slice(cursor);
+  return text
+    .replace(/&(amp|lt|gt|quot|#x27|#39|nbsp);/g, (whole, name: string) => HTML_ENTITIES[name] ?? whole)
     .replace(/\s+/g, " ")
     .trim();
 }
