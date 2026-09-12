@@ -94,6 +94,11 @@ regexes = [
   # never appears next to a comma-separated identifier list or a function-call paren, so
   # this only exempts source-code shapes, not a bare credential.
   '''(?:normalize|parse|extract|score|is|has|get|build)LinkedIn[A-Za-z0-9_]*(?:,|\()''',
+  # The same rule also fires on TypeScript property and type annotations such as
+  # `linkedInAccess: LinkedInAccess;`, `LinkedInUrl: companyRecord.…`, where the "id" is the
+  # identifier after the colon. Those values start with a letter and carry no quotes; a
+  # LinkedIn client id is a quoted or bare value that starts with digits (86…), so it still fails.
+  '''[Ll]inked[Ii]n[A-Za-z0-9_]*\??:\s*[A-Za-z_][A-Za-z0-9_.]*''',
 ]
 
 paths = [
