@@ -86,6 +86,20 @@ function LeadgenManagerPageInner({ onRequestImport }: { onRequestImport: () => v
     currentRole === 'director' ||
     currentRole === 'floor_manager';
 
+  useEffect(() => {
+    if (
+      isSessionLoading ||
+      !canAccessLeadgenManager ||
+      searchParams.get('import') !== '1'
+    )
+      return;
+    onRequestImport();
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete('import');
+    const query = next.toString();
+    router.replace(query ? `/leadgen-manager?${query}` : '/leadgen-manager');
+  }, [canAccessLeadgenManager, isSessionLoading, onRequestImport, router, searchParams]);
+
   // Once the session has resolved and granted access, stay rendered. NextAuth
   // revalidates on window focus, which briefly flips isSessionLoading back to
   // true; gating the whole subtree on it meant every revalidation unmounted the
