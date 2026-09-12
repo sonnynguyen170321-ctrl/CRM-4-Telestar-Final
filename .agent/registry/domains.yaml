@@ -317,6 +317,8 @@ domains:
       - docker-compose*.yml
       - Dockerfile*
       - .github/workflows/**
+      # Per-host deployment runbooks, inventories and helper scripts (Hostinger VPS).
+      - deploy/**
       # Which dependency versions this repository will accept. It belongs with CI rather
       # than with security-observability because what it actually governs is whether a
       # bump can pass the gates in `.github/workflows/` at all — the Prisma group exists
