@@ -5,7 +5,12 @@ import { parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js"
 // domain and drop obvious junk (asset filenames, placeholders, noreply). Phones are validated +
 // E.164-normalized via libphonenumber-js.
 
-const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+// Two changes for hostile page text (CodeQL js/polynomial-redos):
+// - the local part only starts where a run of address characters begins (lookbehind), so a
+//   long run with no `@` is scanned once, not once per character;
+// - the domain is explicit labels `(label\.)+tld`, so a run of dots cannot be split between
+//   `[A-Za-z0-9.-]+` and `\.` in more than one way.
+const EMAIL_RE = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}/g;
 const MAILTO_RE = /mailto:([^"'?>\s]+)/gi;
 const TEL_RE = /tel:([+0-9().\s-]{6,})/gi;
 const PHONE_RE = /\+?\d[\d().\s-]{6,}\d/g;
@@ -19,9 +24,15 @@ function rootDomain(host: string): string {
   return parts.length <= 2 ? parts.join(".") : parts.slice(-2).join(".");
 }
 
+const TRAILING_PUNCT = new Set([".", ",", ";", ":", ")"]);
+
 function cleanEmail(raw: string): string | null {
-  const email = raw.trim().toLowerCase().replace(/[.,;:)]+$/, "");
-  if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(email)) return null;
+  // Trailing punctuation stripped with an index scan rather than `/[.,;:)]+$/`.
+  let email = raw.trim().toLowerCase();
+  let end = email.length;
+  while (end > 0 && TRAILING_PUNCT.has(email[end - 1]!)) end--;
+  email = email.slice(0, end);
+  if (!/^[a-z0-9._%+-]+@(?:[a-z0-9-]+\.)+[a-z]{2,}$/.test(email)) return null;
   if (ASSET_EXT.test(email)) return null;
   const [local, domain] = email.split("@");
   if (!local || !domain) return null;

@@ -1,3 +1,4 @@
+import { trimUnderscores } from "./hash";
 import type { V2ImportProfile } from "./types";
 
 const COMPANY_HEADERS = ["company", "company_name", "website", "domain", "industry"];
@@ -54,7 +55,7 @@ export function classifyImportProfile(input: {
 }
 
 function normalizeKey(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return trimUnderscores(value.toLowerCase().replace(/[^a-z0-9]+/g, "_"));
 }
 
 function countMatches(keys: Set<string>, candidates: string[]) {

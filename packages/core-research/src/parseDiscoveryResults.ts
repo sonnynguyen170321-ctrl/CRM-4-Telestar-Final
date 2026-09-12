@@ -69,7 +69,9 @@ function cleanCompanyName(title: string, domain: string): string {
   // "Payments infrastructure for platforms | Acme Corp". Picking the first non-generic segment gave
   // the marketing tagline as the "company name". Prefer the segment matching the domain stem (that is
   // the real name), else the shortest plausible segment (a name is shorter than a tagline).
-  const segments = title.split(/\s*[|\-–—:·]\s+/).map((s) => s.trim()).filter(Boolean);
+  // Split on "separator followed by whitespace"; the leading `\s*` the pattern used to carry is
+  // redundant with the trim below and made the split quadratic on long runs of spaces.
+  const segments = title.split(/[|\-–—:·]\s+/).map((s) => s.trim()).filter(Boolean);
   const generic = /^(home|homepage|welcome|about( us)?|official (site|website)|contact|pricing|products?|solutions?|blog|login|sign ?in)$/i;
   const fold = (s: string) => s.replace(/[^a-z0-9]/gi, "").toLowerCase();
   const stem = fold(domain.split(".")[0]);
@@ -122,7 +124,44 @@ export function parseCompanyHits(query: string, hits: RawSearchHit[], excludeRoo
 // Public LinkedIn SERP title patterns:
 //   "Anna Tran - VP Sales - Acme Corp | LinkedIn"
 //   "Anna Tran – VP Sales at Acme | LinkedIn"
-const LI_TITLE_RE = /^(.{2,60}?)\s*[-–—|]\s*(.{2,80}?)(?:\s*[-–—|]\s*(.{2,80}?))?\s*(?:\|\s*LinkedIn.*)?$/i;
+//
+// Parsed by splitting on the separator characters rather than with one anchored regex of lazy
+// `.{2,60}?` groups and `\s*` on both sides of each separator — that shape backtracks
+// polynomially on SERP titles, which the search provider controls (CodeQL js/polynomial-redos).
+// Semantics are unchanged: first segment is the name, second the role, everything after the
+// second separator is the company.
+const LI_TITLE_SEPARATOR = /[-–—|]/;
+
+function splitLinkedInTitle(title: string): { name: string; role: string; company: string | null } | null {
+  const first = title.search(LI_TITLE_SEPARATOR);
+  if (first === -1) return null;
+  const name = title.slice(0, first).trim();
+  const afterName = title.slice(first + 1);
+  const second = afterName.search(LI_TITLE_SEPARATOR);
+  const role = (second === -1 ? afterName : afterName.slice(0, second)).trim();
+  const company = second === -1 ? null : afterName.slice(second + 1).trim();
+  if (name.length < 2 || name.length > 60) return null;
+  if (role.length < 2 || role.length > 80) return null;
+  if (company !== null && (company.length < 2 || company.length > 80)) return null;
+  return { name, role, company };
+}
+
+/** Cut a trailing "| LinkedIn …" suffix by index; `/\|\s*LinkedIn.*$/` rescans from every `|`. */
+function stripLinkedInSuffix(value: string): string {
+  const m = /\|\s*LinkedIn/i.exec(value);
+  return m ? value.slice(0, m.index) : value;
+}
+
+const FRAGMENT_EDGE_CHARS = new Set(["|", "·", "•", ",", "-", "–", "—", " ", "\t", "\n", "\r", " "]);
+
+/** Trim separator/space characters from both ends by index scan (no `[…]+$`). */
+function trimFragmentEdges(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && FRAGMENT_EDGE_CHARS.has(value[start]!)) start++;
+  while (end > start && FRAGMENT_EDGE_CHARS.has(value[end - 1]!)) end--;
+  return value.slice(start, end);
+}
 
 // linkedin.com/in/<slug> paths that are not a person. SERPs return these constantly and they used to
 // be harvested as "people" (a hashtag page became a contact named "#salesjobs").
@@ -149,14 +188,17 @@ const NON_PERSON_PHRASE_RE =
  */
 export function cleanSerpFragment(value: string | null | undefined): string | null {
   if (!value) return null;
-  const out = value
-    .replace(/\|\s*LinkedIn.*$/i, "")
-    .replace(/\b\d[\d,.]*\+?\s*(?:mutual\s+)?(?:connections?|followers?)\b/gi, "")
-    .replace(/(?:^|[\s|·•,-])\s*(?:1st|2nd|3rd)\+?(?:\s+degree)?(?![\p{L}])/giu, " ")
-    .replace(/[\p{Extended_Pictographic}\u{FE0F}]/gu, "")
-    .replace(/\s+/g, " ")
-    .replace(/^[|·•,\-–—\s]+|[|·•,\-–—\s]+$/g, "")
-    .trim();
+  // Degree-marker prefix: `^\s*` and `sep\s*` each run once per anchor; the whitespace
+  // alternative is a single `\s`, not `\s+` — under /g a `\s+` is retried from every index of
+  // a long run of spaces, which is quadratic. The later `\s+ → " "` collapse makes the
+  // single-character form equivalent.
+  const out = trimFragmentEdges(
+    stripLinkedInSuffix(value)
+      .replace(/\b\d[\d,.]*\+?\s*(?:mutual\s+)?(?:connections?|followers?)\b/gi, "")
+      .replace(/(?:^\s*|[|·•,-]\s*|\s)(?:1st|2nd|3rd)\+?(?:\s+degree)?(?![\p{L}])/giu, " ")
+      .replace(/[\p{Extended_Pictographic}\u{FE0F}]/gu, "")
+      .replace(/\s+/g, " ")
+  ).trim();
   return out.length >= 2 ? out : null;
 }
 
@@ -179,7 +221,9 @@ export function parseContactHits(query: string, hits: RawSearchHit[]): ParsedCan
     let slug: string | null = null;
     try {
       const u = new URL(hit.url);
-      if (!u.hostname.toLowerCase().endsWith("linkedin.com")) continue;
+      // Exact host or a subdomain — `endsWith("linkedin.com")` also accepted `evillinkedin.com`.
+      const host = u.hostname.toLowerCase();
+      if (host !== "linkedin.com" && !host.endsWith(".linkedin.com")) continue;
       const m = u.pathname.match(/^\/in\/([^/]+)/i);
       slug = m ? m[1].toLowerCase() : null;
     } catch {
@@ -189,21 +233,23 @@ export function parseContactHits(query: string, hits: RawSearchHit[]): ParsedCan
     // Not a person page (signup / jobs / hashtag / company / …), or a bare numeric slug.
     if (NON_PROFILE_SLUGS.has(slug) || /^\d+$/.test(slug)) continue;
 
-    const cleanTitle = hit.title.replace(/\s*\|\s*LinkedIn.*$/i, "").trim();
-    const m = cleanTitle.match(LI_TITLE_RE);
+    const cleanTitle = stripLinkedInSuffix(hit.title).trim();
+    const parsed = splitLinkedInTitle(cleanTitle);
     // No fallback to the raw page title: if the "Name - Role - Company" shape isn't there, this is an
     // index/listicle/utility page, not a profile. Harvesting it produced the junk contacts.
-    if (!m) continue;
-    const name = (m[1] ?? "").trim();
+    if (!parsed) continue;
+    const name = parsed.name;
     if (!looksLikePersonName(name)) continue;
-    // Middle segment = role; trailing "at Company" inside role also handled.
-    let role: string | null = m[2]?.trim() ?? null;
-    let company: string | null = m[3]?.trim() ?? null;
+    // Middle segment = role; trailing "at Company" inside role also handled. Located with
+    // `\s+(?:at|@)\s+` — a literal between two single quantifiers — instead of `(.+?)\s+…\s+(.+)`,
+    // whose `.` also matches whitespace and backtracks polynomially.
+    let role: string | null = parsed.role;
+    let company: string | null = parsed.company;
     if (role && !company) {
-      const at = role.match(/^(.+?)\s+(?:at|@)\s+(.+)$/i);
-      if (at) {
-        role = at[1].trim();
-        company = at[2].trim();
+      const at = /\s+(?:at|@)\s+/i.exec(role);
+      if (at && at.index > 0 && at.index + at[0].length < role.length) {
+        company = role.slice(at.index + at[0].length).trim();
+        role = role.slice(0, at.index).trim();
       }
     }
     role = cleanSerpFragment(role);

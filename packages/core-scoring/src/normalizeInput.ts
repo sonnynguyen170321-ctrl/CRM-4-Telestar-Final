@@ -72,7 +72,11 @@ export function normalizeDomain(value?: string | null): string | null {
   const host = withoutAuth.split(/[/?#]/, 1)[0] || "";
   const withoutPort = host.replace(/:\d+$/, "");
   const withoutWww = withoutPort.replace(/^www\./, "");
-  const normalized = withoutWww.replace(/\.+$/, "");
+  // Index scan rather than `/\.+$/`: the anchored form backtracks quadratically on a long
+  // run of dots that is not at the very end, and the value is user-supplied.
+  let end = withoutWww.length;
+  while (end > 0 && withoutWww.charCodeAt(end - 1) === 46 /* . */) end--;
+  const normalized = withoutWww.slice(0, end);
 
   return normalized || null;
 }
