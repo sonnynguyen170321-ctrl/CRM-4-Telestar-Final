@@ -1,60 +1,40 @@
-import { describe, it, expect } from 'vitest';
-import { scoreLead } from '@/lib/leads/scoring';
+import { describe, expect, it } from "vitest";
 
-const base = {
-  id: 'l1',
-  firstName: 'Anh',
-  lastName: 'Tran',
-  company: 'VinaTech',
-  email: 'anh@vinatech.vn',
-  stage: 'new',
-  crmPriorityScore: 'warm',
-  createdAt: new Date().toISOString(),
-};
+import { scoreLead } from "@/lib/leads/scoring";
 
-describe('scoreLead', () => {
-  it('labels by score boundaries: >=60 hot, >=35 warm, else cold', () => {
-    // Rich lead recently contacted in a strong stage → hot
-    const hot = scoreLead({
-      ...base,
-      stage: 'replied',
-      crmPriorityScore: 'hot',
-      phone: '123',
-      linkedIn: 'x',
-      whatsApp: 'y',
-      title: 'CTO',
-      source: 'inbound form',
-      lastContactedAt: new Date().toISOString(),
+describe("scoreLead engagement compatibility adapter", () => {
+  it("uses only observed activity for the visible priority", () => {
+    expect(
+      scoreLead({
+        title: "CEO",
+        phone: "+84 900 000 000",
+        emailValidation: "valid",
+      }),
+    ).toMatchObject({
+      score: 0,
+      label: "cold",
     });
-    expect(hot.score).toBeGreaterThanOrEqual(60);
-    expect(hot.label).toBe('hot');
-
-    // Bare minimum lead → cold
-    const cold = scoreLead({
-      ...base,
-      email: '',
-      stage: 'lost',
-      crmPriorityScore: 'cold',
+    expect(scoreLead({ emailOpenCount: 1 })).toMatchObject({
+      score: 10,
+      label: "warm",
     });
-    expect(cold.score).toBeLessThan(35);
-    expect(cold.label).toBe('cold');
+    expect(scoreLead({ emailReplyCount: 1 })).toMatchObject({
+      score: 80,
+      label: "hot",
+    });
+    expect(scoreLead({ meetings: [{ id: "meeting-1" }] })).toMatchObject({
+      score: 100,
+      label: "hot",
+    });
   });
 
-  it('penalizes overdue pending tasks', () => {
-    const without = scoreLead({ ...base, title: 'CTO' });
-    const withOverdue = scoreLead({
-      ...base,
-      title: 'CTO',
-      tasks: [
-        { status: 'pending', dueDate: new Date(Date.now() - 5 * 86400000).toISOString() },
-        { status: 'pending', dueDate: new Date(Date.now() - 2 * 86400000).toISOString() },
-      ],
+  it("does not mix workflow stage, manual priority or overdue tasks into engagement", () => {
+    const result = scoreLead({
+      stage: "won",
+      crmPriorityScore: "hot",
+      title: "Founder",
+      tasks: [{ status: "pending", dueDate: new Date(0) }],
     });
-    expect(withOverdue.score).toBe(Math.max(0, without.score - 8));
-  });
-
-  it('always returns a label matching the Priority enum', () => {
-    const result = scoreLead(base);
-    expect(['hot', 'warm', 'cold']).toContain(result.label);
+    expect(result).toMatchObject({ score: 0, label: "cold", insights: [] });
   });
 });
