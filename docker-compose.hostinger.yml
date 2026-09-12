@@ -1,0 +1,106 @@
+# Hostinger VPS overlay — colocated with Nextcloud behind the host's Traefik.
+#
+#   DEPLOY_TARGET=hostinger  ->  -f docker-compose.yml -f docker-compose.hostinger.yml
+#
+# What this changes versus the base file (see deploy/hostinger/INVENTORY.md for the why):
+#   - No Caddy. Traefik (network_mode: host, Docker provider, exposedbydefault=false) already owns
+#     80/443 on this box and routes by labels, so `web` carries the five Traefik labels and publishes
+#     no port. Traefik reaches the container over the compose bridge by IP — no shared network.
+#   - No published ports anywhere. 3000/5432/6379 stay inside `crm_internal`.
+#   - The base `postgres` service is disabled; the CRM's database is either Cloud SQL through the
+#     `cloudsql-proxy` sidecar (profile `cloudsql`, Phase 6a) or the local `crm-db` service
+#     (profile `localdb`, Phase 6b). `scripts/prod-check-env.ts` rejects a DB host named
+#     `postgres`/`localhost`, which is why the local service is called `crm-db`.
+#   - Redis is BullMQ's, not a cache: `noeviction` (a full cache would silently drop jobs under
+#     `allkeys-lru`, which is what Nextcloud's own Redis wants) and AOF on.
+#   - Every service has a memory ceiling so a runaway process is OOM-killed inside its own cgroup
+#     instead of taking Nextcloud's Postgres down with it.
+#
+# Required in the env file (see deploy/hostinger/crm.env.example): DATABASE_URL, DIRECT_URL,
+# BACKUP_DATABASE_URL, CRM_DOMAIN, NEXTAUTH_URL (https://$CRM_DOMAIN), COMPOSE_PROFILES.
+
+services:
+  postgres:
+    profiles:
+      - disabled
+
+  caddy:
+    profiles:
+      - disabled
+
+  cloudsql-proxy:
+    # Phase 6a: compute on the VPS, database still on Cloud SQL (asia-southeast1). Retired after 6b.
+    image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.0
+    profiles:
+      - cloudsql
+    restart: unless-stopped
+    command:
+      - --address=0.0.0.0
+      - --port=5432
+      - --credentials-file=/secrets/cloudsql-sa.json
+      - ${CLOUDSQL_INSTANCE:-telestar-crm-final:asia-southeast1:telestar-db}
+    volumes:
+      - ${CLOUDSQL_SA_FILE:-./secrets/cloudsql-sa.json}:/secrets/cloudsql-sa.json:ro
+    mem_limit: 256m
+    networks:
+      - crm_internal
+
+  crm-db:
+    # Phase 6b onward: the CRM's own Postgres. Never Nextcloud's.
+    image: postgres:16-bookworm
+    profiles:
+      - localdb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-crm}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required for the localdb profile}"
+      POSTGRES_DB: "${POSTGRES_DB:-telestar_crm}"
+    command:
+      - postgres
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - max_connections=120
+    volumes:
+      - crm_pg:/var/lib/postgresql/data
+      - ${CRM_BACKUP_DIR:-/opt/crm/backups}:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 4g
+    networks:
+      - crm_internal
+
+  redis:
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 768mb
+      - --maxmemory-policy
+      - noeviction
+    mem_limit: 1g
+
+  web:
+    environment:
+      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL is required (cloudsql-proxy or crm-db host)}"
+      DIRECT_URL: "${DIRECT_URL:-${DATABASE_URL}}"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-crm}.rule=Host(`${CRM_DOMAIN:?CRM_DOMAIN is required for the Traefik router}`)
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-crm}.entrypoints=websecure
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-crm}.tls.certresolver=letsencrypt
+      - traefik.http.services.${COMPOSE_PROJECT_NAME:-crm}.loadbalancer.server.port=3000
+    mem_limit: 3g
+
+  worker:
+    environment:
+      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL is required (cloudsql-proxy or crm-db host)}"
+      DIRECT_URL: "${DIRECT_URL:-${DATABASE_URL}}"
+    mem_limit: 3g
+
+volumes:
+  crm_pg:

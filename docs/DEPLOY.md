@@ -24,6 +24,10 @@ Canonical production deployment to **Google Cloud Platform (GCP)**:
 
 ---
 
+> **Hostinger VPS (colocated with Nextcloud, behind the host's Traefik):** `deploy/hostinger/RUNBOOK.md`.
+> `DEPLOY_TARGET=hostinger` selects `docker-compose.hostinger.yml`; the pre-deploy backup is a local
+> `pg_dump` (`deploy/hostinger/backup.sh`) instead of a Cloud SQL backup id.
+
 ## 1. Architecture at a glance
 
 | Process | Command | Needs |

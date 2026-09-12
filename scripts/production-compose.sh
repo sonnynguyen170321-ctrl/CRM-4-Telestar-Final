@@ -10,6 +10,7 @@
 #
 # Contract:
 #   DEPLOY_TARGET=gcp         -> -f docker-compose.yml -f docker-compose.gcp.yml
+#   DEPLOY_TARGET=hostinger   -> -f docker-compose.yml -f docker-compose.hostinger.yml
 #   DEPLOY_TARGET=self-hosted -> -f docker-compose.yml
 #   anything else / missing   -> FAIL with actionable error
 
@@ -27,6 +28,9 @@ DEPLOY_TARGET="${DEPLOY_TARGET:-}"
 case "$DEPLOY_TARGET" in
   gcp)
     printf '%s' "-f docker-compose.yml -f docker-compose.gcp.yml"
+    ;;
+  hostinger)
+    printf '%s' "-f docker-compose.yml -f docker-compose.hostinger.yml"
     ;;
   self-hosted)
     printf '%s' "-f docker-compose.yml"
