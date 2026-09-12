@@ -40,6 +40,10 @@ const validate = (): Check[] => {
   }
 
   for (const key of requiredKeys) {
+    // The Hostinger target has no Caddy: Traefik on the host terminates TLS and routes by the
+    // CRM_DOMAIN label, so CADDY_SITE_ADDRESS is not just optional there — it must be unset
+    // (checked below). The contract list stays whole for the other targets.
+    if (key === 'CADDY_SITE_ADDRESS' && env.DEPLOY_TARGET === 'hostinger') continue;
     if (!env[key]) add(checks, 'FAIL', `${key} is required`);
   }
 
@@ -55,8 +59,25 @@ const validate = (): Check[] => {
     }
   }
 
-  if (env.DEPLOY_TARGET && !['gcp', 'self-hosted'].includes(env.DEPLOY_TARGET)) {
-    add(checks, 'FAIL', 'DEPLOY_TARGET must be "gcp" or "self-hosted"');
+  if (env.DEPLOY_TARGET && !['gcp', 'hostinger', 'self-hosted'].includes(env.DEPLOY_TARGET)) {
+    add(checks, 'FAIL', 'DEPLOY_TARGET must be "gcp", "hostinger" or "self-hosted"');
+  }
+
+  if (env.DEPLOY_TARGET === 'hostinger') {
+    // Traefik on the host routes by the CRM_DOMAIN label; without it the service is unreachable.
+    if (!env.CRM_DOMAIN) add(checks, 'FAIL', 'CRM_DOMAIN is required for DEPLOY_TARGET=hostinger (Traefik Host rule)');
+    if (env.CADDY_SITE_ADDRESS) add(checks, 'FAIL', 'CADDY_SITE_ADDRESS must be unset for DEPLOY_TARGET=hostinger — Traefik owns 80/443, the caddy service is disabled');
+    const profiles = (env.COMPOSE_PROFILES ?? '').split(',').map((p) => p.trim()).filter(Boolean);
+    const dbProfile = profiles.filter((p) => p === 'cloudsql' || p === 'localdb');
+    if (dbProfile.length !== 1) {
+      add(checks, 'FAIL', 'COMPOSE_PROFILES must include exactly one of "cloudsql" (Phase 6a) or "localdb" (Phase 6b)');
+    } else {
+      const expectedHost = dbProfile[0] === 'cloudsql' ? 'cloudsql-proxy' : 'crm-db';
+      const dbHost = parseUrl(env.DATABASE_URL)?.hostname;
+      if (dbHost && dbHost !== expectedHost) {
+        add(checks, 'FAIL', `DATABASE_URL host must be "${expectedHost}" for COMPOSE_PROFILES=${dbProfile[0]}, not "${dbHost}"`);
+      }
+    }
   }
 
   if (env.CRM_IMAGE) {

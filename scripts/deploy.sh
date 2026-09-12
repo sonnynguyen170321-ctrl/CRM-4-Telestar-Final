@@ -85,7 +85,17 @@ BACKUP_AT="${DEPLOY_BACKUP_AT:-$(grep -E '^DEPLOY_BACKUP_AT=' "$ENV_FILE" | head
 SQL_INSTANCE="${DEPLOY_SQL_INSTANCE:-telestar-db}"
 SQL_PROJECT="${DEPLOY_SQL_PROJECT:-telestar-crm-final}"
 
-if [ -z "$BACKUP_ID" ]; then
+if [ "$DEPLOY_TARGET" = "hostinger" ]; then
+  # On the VPS there is no Cloud SQL backup API to ask. The pre-deploy backup is a local
+  # pg_dump taken by deploy/hostinger/backup.sh against whatever DATABASE_URL points at
+  # (cloudsql-proxy in Phase 6a, crm-db from 6b). The dump path is recorded in
+  # deployments.ndjson in the backupId field so rollback.sh / restore.sh can find it.
+  log "Pre-deploy pg_dump (hostinger)"
+  BACKUP_ID=$(ENV_FILE="$ENV_FILE" COMPOSE_FILES="$COMPOSE_FILES" DOCKER="$DOCKER"     "${SCRIPT_DIR}/../deploy/hostinger/backup.sh" --tag "predeploy-${COMMIT:0:12}")     || fail "Pre-deploy backup failed. Nothing was deployed."
+  BACKUP_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  BACKUP_VERIFIED=true
+  echo "  backup   : ${BACKUP_ID} (pg_dump, verified by pg_restore --list)"
+elif [ -z "$BACKUP_ID" ]; then
   cat <<'REMINDER'
 
   Operating restrictions require a pre-deploy backup.
@@ -100,6 +110,7 @@ REMINDER
   BACKUP_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 fi
 
+if [ "$DEPLOY_TARGET" != "hostinger" ]; then
 # DEPLOY-002: this prompt used to accept any non-empty string. `Telestar2026` — the published
 # demo password — was accepted on three separate deploys, and nothing ever checked that a
 # backup existed. Validate the shape, then ask the infrastructure.
@@ -130,6 +141,7 @@ case "$BACKUP_CHECK_STATUS" in
     [ "$BACKUP_ACK" = "UNVERIFIED" ] || fail "Aborted. No verified pre-deploy backup."
     ;;
 esac
+fi
 
 DC="$DOCKER compose --env-file $ENV_FILE $COMPOSE_FILES"
 
