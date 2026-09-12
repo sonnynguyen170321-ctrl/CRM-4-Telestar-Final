@@ -1,11 +1,10 @@
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { emptyIcpRulesV2 } from "@telestar/core-scoring/rules/emptyIcpRulesV2";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { rescorePool } from "@/lib/leadgen/rescorePool";
 
 const hasDb = Boolean(process.env.DATABASE_URL);
-const prisma = new PrismaClient();
 
 const tenantId = "campaign-scoring-tenant";
 const clientId = "campaign-scoring-client";
@@ -117,7 +116,6 @@ describe.skipIf(!hasDb)("campaign-scoped ICP scoring", () => {
 
   afterAll(async () => {
     if (hasDb) await cleanup();
-    await prisma.$disconnect();
   });
 
   it("stores independent assessment pointers for identical rules in two campaigns", async () => {

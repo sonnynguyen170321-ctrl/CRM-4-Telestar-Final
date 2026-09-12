@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 import { ENGAGEMENT_SIGNAL_VALUES } from "@/lib/leads/scoring";
-import { prisma } from "@/lib/prisma";
+import { withTenantRaw } from "@/lib/prisma";
 
 export type EngagementRecalculationSummary = {
   updatedCount: number;
@@ -15,13 +15,15 @@ export type EngagementRecalculationSummary = {
  *
  * This remains a synchronous operator action because PostgreSQL can derive every row in one
  * statement. If the statement fails, it rolls back; no queue/checkpoint state is needed.
+ *
+ * Raw SQL bypasses the model-level tenant extension, so the statement runs through
+ * `withTenantRaw` to set `app.current_tenant_id` for RLS as well as filtering in the WHERE.
  */
 export async function recalculateTenantEngagement(
   tenantId: string,
 ): Promise<EngagementRecalculationSummary> {
-  const [summary] = await prisma.$queryRaw<
-    EngagementRecalculationSummary[]
-  >(Prisma.sql`
+  const [summary] = await withTenantRaw(tenantId, (db) =>
+    db.$queryRaw<EngagementRecalculationSummary[]>(Prisma.sql`
     WITH updated AS (
       UPDATE "Lead" AS lead
       SET
@@ -59,7 +61,8 @@ export async function recalculateTenantEngagement(
       COUNT(*) FILTER (WHERE "crmPriorityScore" = 'warm')::int AS "warmCount",
       COUNT(*) FILTER (WHERE "crmPriorityScore" = 'cold')::int AS "coldCount"
     FROM updated
-  `);
+  `),
+  );
 
   return (
     summary ?? { updatedCount: 0, hotCount: 0, warmCount: 0, coldCount: 0 }

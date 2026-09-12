@@ -1,10 +1,9 @@
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { recalculateTenantEngagement } from "@/lib/leads/recalculateEngagement";
 
 const hasDb = Boolean(process.env.DATABASE_URL);
-const prisma = new PrismaClient();
 const tenantId = "engagement-recalc-tenant";
 const otherTenantId = "engagement-recalc-other";
 
@@ -124,7 +123,6 @@ describe.skipIf(!hasDb)("atomic engagement recalculation", () => {
       await deleteTenant(tenantId);
       await deleteTenant(otherTenantId);
     }
-    await prisma.$disconnect();
   });
 
   it("updates the full active tenant in one statement and leaves other/archived rows alone", async () => {

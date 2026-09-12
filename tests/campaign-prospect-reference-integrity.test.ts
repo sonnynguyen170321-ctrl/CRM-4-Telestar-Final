@@ -1,8 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const hasDb = Boolean(process.env.DATABASE_URL);
-const prisma = new PrismaClient();
 
 const tenantId = 'campaign-prospect-ref-tenant';
 const userId = 'campaign-prospect-ref-user';
@@ -173,7 +172,6 @@ describe.skipIf(!hasDb)('CampaignProspect reference integrity', () => {
 
   afterAll(async () => {
     if (hasDb) await cleanup();
-    await prisma.$disconnect();
   });
 
   it('keeps opposite ICP outcomes for the same reusable prospect', async () => {
