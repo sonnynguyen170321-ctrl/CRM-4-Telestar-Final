@@ -20,8 +20,9 @@ Phases, gates and rollbacks follow the migration plan; this file is the command 
 ## One-time host preparation (survives relocation)
 
 ```bash
-# swap — the box has none; a burst must evict cache, not OOM-kill Postgres
-fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+# swap — a fresh Hostinger install has none. 4 GB because the box is CRM-dedicated and crm-db
+# takes a 4 GB ceiling; a burst must evict cache rather than OOM-kill Postgres.
+fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
 sysctl -w vm.swappiness=10 && echo 'vm.swappiness=10' > /etc/sysctl.d/90-crm.conf
 # docker log rotation
@@ -29,8 +30,9 @@ cat > /etc/docker/daemon.json <<'JSON'
 { "log-driver": "json-file", "log-opts": { "max-size": "50m", "max-file": "5" } }
 JSON
 systemctl restart docker            # Nextcloud/Traefik restart in ~10 s
-# tools
-apt-get install -y rclone jq
+# tools — postgresql-client is for operator psql on the host; backup.sh/restore.sh run the client
+# from the postgres:16 image inside the compose network, because the app image ships none.
+apt-get install -y rclone jq postgresql-client-16 nmap
 # directories
 mkdir -p /opt/crm/backups /opt/crm/secrets /opt/crm-staging && chmod 700 /opt/crm/secrets
 # firewall — FIREWALL.md, SSH rule first
@@ -83,7 +85,8 @@ HTTP-01. Gate: `/api/health` 200 through Traefik, `worker-healthcheck` green, ze
 
 ## Cutover 6a — compute to the VPS, DB stays on Cloud SQL
 
-Prerequisites: VPS relocated to Singapore; staging gates passed; `crm.telestar.cloud` TTL at 60 s
+Prerequisites: staging gates passed; an off-host backup target configured and a restore rehearsed
+(this host has no platform snapshot, so that is the only safety net); `crm.telestar.cloud` TTL at 60 s
 for ≥ 24 h; `/opt/crm/.env.production` holds the **current production secrets** (scp'd from the
 GCP VM) with `COMPOSE_PROFILES=cloudsql`, `DATABASE_URL` host `cloudsql-proxy`; `cloudsql-sa.json` in
 place; `docker compose … up -d cloudsql-proxy` and `psql` through it succeeds.

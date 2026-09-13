@@ -1,8 +1,8 @@
 # Firewall for `srv1908578` — two layers, same rules
 
-Inventory (2026-09-12): `ufw` inactive, `iptables INPUT` policy ACCEPT, Nextcloud's `41115/tcp`
-published on `0.0.0.0` by Hostinger's template. The only protection today is whatever Hostinger's
-managed firewall applies. Both layers below must be in place **before Phase 6a**.
+After the Kuala Lumpur reinstall the box is bare: `ufw` inactive, `iptables INPUT` policy ACCEPT,
+nothing listening but sshd and Traefik. It is now CRM-dedicated and has **no platform backup**, so
+both layers below are in place before any production data lands — not before Phase 6a.
 
 ## Layer 1 — Hostinger managed firewall (hPanel → VPS → Firewall)
 
@@ -33,21 +33,15 @@ ufw status numbered
 
 Traefik runs with `network_mode: host`, so 80/443 are host ports and `ufw` governs them directly.
 
-**Docker bypasses `ufw` for published ports** (it inserts its own `DOCKER` iptables chain). That is
-why the CRM overlay publishes **no** ports at all — nothing to bypass. Nextcloud's `41115` is a
-published port and therefore stays reachable regardless of `ufw`; to close it, either remove
-`ports:` from `/docker/nextcloud-o38n/docker-compose.yml` (Traefik routes by container IP, the
-port is unused) or add to `/etc/ufw/after.rules` in the `DOCKER-USER` chain:
-
-```
--A DOCKER-USER -p tcp --dport 41115 ! -s 127.0.0.1 -j DROP
-```
-
-That change is Nextcloud's, not the CRM's — make it with the owner watching.
+**Docker bypasses `ufw` for published ports** — it inserts its own `DOCKER` iptables chain ahead of
+`ufw`'s rules. That is why the CRM overlay publishes **no** ports at all: there is nothing to bypass.
+If an application is ever added that does publish a port, either remove its `ports:` (Traefik routes
+by container IP and does not need one) or drop it in the `DOCKER-USER` chain via
+`/etc/ufw/after.rules`.
 
 ## Verify (run after each change)
 
 ```bash
-ss -tlnp | awk 'NR>1{print $4}' | sort -u      # expect only :22, :80, :443 (+ 41115 until closed)
-nmap -Pn -p 22,80,443,3000,5432,6379,41115 <vps-ip>   # from outside: 3000/5432/6379 must be filtered
+ss -tlnp | awk 'NR>1{print $4}' | sort -u        # expect only :22, :80, :443
+nmap -Pn -p 22,80,443,3000,5432,6379 187.127.110.204   # 3000/5432/6379 must be filtered
 ```

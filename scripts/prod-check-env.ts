@@ -67,6 +67,9 @@ const validate = (): Check[] => {
     // Traefik on the host routes by the CRM_DOMAIN label; without it the service is unreachable.
     if (!env.CRM_DOMAIN) add(checks, 'FAIL', 'CRM_DOMAIN is required for DEPLOY_TARGET=hostinger (Traefik Host rule)');
     if (env.CADDY_SITE_ADDRESS) add(checks, 'FAIL', 'CADDY_SITE_ADDRESS must be unset for DEPLOY_TARGET=hostinger — Traefik owns 80/443, the caddy service is disabled');
+    // This host has no platform backup: Hostinger's location change deletes snapshots and none
+    // are purchased, so deploy/hostinger/backup.sh --offsite is the only copy that will exist.
+    if (!env.BACKUP_REMOTE) add(checks, 'FAIL', 'BACKUP_REMOTE is required for DEPLOY_TARGET=hostinger — there is no platform backup, so an off-host dump target is the only one');
     const profiles = (env.COMPOSE_PROFILES ?? '').split(',').map((p) => p.trim()).filter(Boolean);
     const dbProfile = profiles.filter((p) => p === 'cloudsql' || p === 'localdb');
     if (dbProfile.length !== 1) {
