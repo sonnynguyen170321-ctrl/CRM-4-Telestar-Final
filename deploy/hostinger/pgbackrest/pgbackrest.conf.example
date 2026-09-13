@@ -1,0 +1,49 @@
+# /opt/crm/pgbackrest/pgbackrest.conf — mounted read-only into crm-db.
+# Copy, fill the repo2 credentials from /opt/crm/secrets/r2.env, chmod 600.
+#
+# Two repositories on purpose. repo1 is on this host: instant, no network, and it is what a
+# routine "undo the last hour" restore reads. repo2 is off-host, and it is the only one that
+# survives losing the box — which is not hypothetical here: changing this VPS's region on
+# 2026-09-13 deleted the whole disk, including anything that had been sitting in /opt/crm/backups.
+# pgBackRest writes to both on every backup and every WAL push; if repo2 is not configured yet,
+# delete the repo2-* lines and it runs on repo1 alone until the credentials exist.
+
+[global]
+# ── repo1: local ────────────────────────────────────────────────────────────────────────────
+repo1-path=/backups/pgbackrest
+repo1-retention-full=2
+repo1-retention-full-type=count
+
+# ── repo2: Cloudflare R2 (S3-compatible) ────────────────────────────────────────────────────
+# R2 does not serve virtual-host-style buckets, so uri-style MUST be path — the default fails
+# with a DNS error that looks like a credential problem.
+repo2-type=s3
+repo2-s3-uri-style=path
+repo2-s3-endpoint=<ACCOUNT_ID>.r2.cloudflarestorage.com
+repo2-s3-bucket=telestar-crm-backups
+repo2-s3-region=auto
+repo2-s3-key=<R2_ACCESS_KEY_ID>
+repo2-s3-key-secret=<R2_SECRET_ACCESS_KEY>
+repo2-path=/pgbackrest
+repo2-retention-full=4
+repo2-retention-full-type=count
+# Encrypted in the repository. The passphrase is not recoverable — store it with the age key.
+repo2-cipher-type=aes-256-cbc
+repo2-cipher-pass=<LONG_RANDOM_PASSPHRASE>
+
+start-fast=y
+compress-type=zst
+compress-level=6
+log-level-console=info
+log-level-file=detail
+process-max=2
+
+[crm]
+pg1-path=/var/lib/postgresql/data
+# The postgres image creates only the role named by POSTGRES_USER. pgBackRest defaults to a
+# `postgres` superuser that does not exist here and fails with "unable to find primary cluster" —
+# found by rehearsal on 2026-09-13, not by reading the manual.
+pg1-user=crm
+pg1-database=telestar_crm
+pg1-socket-path=/var/run/postgresql
+pg1-port=5432

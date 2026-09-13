@@ -46,8 +46,12 @@ services:
       - crm_internal
 
   crm-db:
-    # Phase 6b onward: the CRM's own Postgres. Never Nextcloud's.
-    image: postgres:16-bookworm
+    # The CRM's own Postgres, built with pgBackRest so recovery lands on a point in time rather
+    # than on last night's dump. Verified on this host 2026-09-13: 716 MB / 1.5 M rows backed up
+    # in 7 s to a 252 MB repository, restored to a chosen second in 6 s, with the row written
+    # before the target present and the row written after it absent.
+    build:
+      context: ./deploy/hostinger/pgbackrest
     profiles:
       - localdb
     restart: unless-stopped
@@ -61,9 +65,22 @@ services:
       - shared_buffers=1GB
       - -c
       - max_connections=120
+      # Continuous archiving. archive_timeout closes a segment every minute even on a quiet
+      # database, which is what bounds the RPO when write volume is low.
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=pgbackrest --stanza=crm archive-push %p
+      - -c
+      - archive_timeout=60
+      - -c
+      - wal_level=replica
+      - -c
+      - max_wal_senders=3
     volumes:
       - crm_pg:/var/lib/postgresql/data
       - ${CRM_BACKUP_DIR:-/opt/crm/backups}:/backups
+      - ${CRM_PGBACKREST_CONF:-/opt/crm/pgbackrest/pgbackrest.conf}:/etc/pgbackrest/pgbackrest.conf:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
