@@ -45,7 +45,7 @@ The Prisma extension in `lib/prisma.ts` injects `where: { tenantId }` into every
 | `app/api/cron/inbox-sync/route.ts` | 21 | System context, deliberately cross-tenant: it sweeps active mailboxes across tenants to enqueue per-account sync jobs. `CRON_SECRET` bearer token only. |
 | `app/api/cron/maintenance/route.ts` | 66 | System context, deliberately cross-tenant: it iterates tenants to schedule per-tenant maintenance. `CRON_SECRET` bearer token only. |
 | `app/api/cron/sequence-engine/route.ts` | 112, 213 | System context, deliberately cross-tenant: it scans due sequence steps for every tenant and processes each within its own tenant boundary. Task claims use a conditional `updateMany` on `id + status + lockedAt`, so two runners cannot both take a task. `CRON_SECRET` bearer token only. |
-| `app/api/leads/recalculate-scores/route.ts` | 22 | Session tenant from the verified `SessionUser`. The `lead.update` calls inside the scope address ids drawn from a preceding tenant-scoped read, so no caller-supplied id reaches the database. |
+| `app/api/leads/recalculate-scores/route.ts` | 27 | Session tenant from the verified `SessionUser`. The `lead.update` calls inside the scope address ids drawn from a preceding tenant-scoped read, so no caller-supplied id reaches the database. |
 | `app/api/unsubscribe/route.ts` | 20 | Public by necessity — an unsubscribe link is followed without a session. The tenant is not taken from the request but recovered from an HMAC-verified token that binds `tenantId`, `email` and `leadId`; a forged or edited token fails verification before any query runs. |
 | `lib/auth.ts` | 51, 75, 112 | Runs before a tenant is known, which is the reason the bypass exists. API keys are resolved by unique `keyHash` and users by the id inside an already-verified token; both are identity lookups whose whole purpose is to establish the tenant that later queries are scoped by. |
 | `lib/bullmq/enqueue.ts` | 46 | Scoped to the payload's own `tenantId`, not to 'system'. The bypass exists so the `JobRun` mirror row can be written with the tenant stamped on it. |
@@ -75,7 +75,7 @@ A `PrismaClient` constructed directly carries no tenant extension at all. Everyt
 
 Raw SQL is a ROOT client operation. The extension is registered as `query.$allModels` and cannot observe it, so no tenant filter is applied and no GUC is set unless the call goes through `withTenantRaw` or `withBypassRaw`.
 
-**13 file(s), 41 site(s).**
+**14 file(s), 42 site(s).**
 
 | File | Line(s) | Why this is safe |
 |---|---|---|
@@ -87,6 +87,7 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 | `lib/client-reports/shareLinks.ts` | 82 | A public share link is followed without a session, so the tenant cannot come from one. It is recovered by looking up an unguessable 32-byte token by hash, reading only `tenantId` off the row, and scoping every subsequent read to it. `createShareLink` derives a tenant from the report only when its caller omits one; the sole caller passes `user.tenantId` from a verified session, and that route has no bypass scope of its own. |
 | `lib/db/migrationStatus.ts` | 67 | Reads `_prisma_migrations`, a schema table with no tenant column and no tenant data. |
 | `lib/leadgen/qualification.ts` | 384, 390, 397, 406 | Window-function aggregations for pool qualification, all routed through `withTenantRaw` and additionally naming `tenantId` in the WHERE clause. |
+| `lib/leads/recalculateEngagement.ts` | 26 | Single-statement UPDATE … RETURNING that recomputes engagementScore and crmPriorityScore for one tenant. Routed through `withTenantRaw(tenantId, …)` so RLS sees app.current_tenant_id, and the WHERE additionally names lead."tenantId"; the Meeting EXISTS subqueries join on meeting."tenantId" = lead."tenantId". Operator action, not a request-path bypass. |
 | `lib/prisma.ts` | 138, 171, 172, 254, 255, 279, 313, 320, 321 | The extension itself — this is the file that implements tenant scoping, so it necessarily names the flag it honours and runs the `set_config` statements that carry tenant context into the database. Its own `$queryRaw`/`$executeRaw` calls are the GUC statements and the maintenance sweep, not data access. |
 | `lib/research/cache.ts` | 175, 410 | Cache updates through `withTenantRaw`, so the statement carries tenant context on its own connection. |
 | `lib/search/accentSearch.ts` | 83, 84 | Accent-insensitive search through `withTenantRaw`, with `tenantId` also named explicitly in the WHERE clause. |
@@ -101,7 +102,7 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 |---|---|
 | Category A sites | 20 |
 | Category B sites | 8 |
-| Category C sites | 41 |
-| All sites | 69 |
+| Category C sites | 42 |
+| All sites | 70 |
 | Unreviewed | 0 |
 

@@ -37,6 +37,8 @@ export async function GET(req: NextRequest) {
     {
       status: sp.get('status') ?? undefined,
       qualification: sp.get('qualification') ?? undefined,
+      icpQualification: sp.get('icpQualification') ?? undefined,
+      unscoredOnly: sp.get('unscored') === 'true',
       qualityClass: sp.get('qualityClass') ?? undefined,
       reuseStatus: sp.get('reuseStatus') ?? undefined,
       dataStatus: sp.get('dataStatus') ?? undefined,

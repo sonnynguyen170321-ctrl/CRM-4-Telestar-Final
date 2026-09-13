@@ -19,10 +19,12 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@telestar/*": ["./packages/*/src"]
     },
     "types": ["node", "react", "react-dom"]
   },
+  // `packages/*` is not excluded: it is first-party source compiled by this app.
   "include": [
     "next-env.d.ts",
     "**/*.ts",
@@ -31,5 +33,12 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", ".next", "Claude-Everything-setup", ".claude", "_proper_repo", "scratch"]
+  "exclude": [
+    "node_modules",
+    ".next",
+    "Claude-Everything-setup",
+    ".claude",
+    "_proper_repo",
+    "scratch"
+  ]
 }

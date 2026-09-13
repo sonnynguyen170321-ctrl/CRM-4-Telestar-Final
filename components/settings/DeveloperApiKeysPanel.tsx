@@ -34,6 +34,9 @@ interface ApiKeyItem {
 const AVAILABLE_SCOPES = [
   { id: 'leads:read', label: 'Read Leads', desc: 'Query and search lead details' },
   { id: 'leads:write', label: 'Write Leads', desc: 'Ingest and update leads from Apollo/Clay' },
+  { id: 'scoring:write', label: 'Manage ICP & Scoring', desc: 'Edit, publish, and assign campaign ICP versions' },
+  { id: 'research:read', label: 'Read Research', desc: 'Read research runs, candidates, and evidence' },
+  { id: 'research:write', label: 'Run Research', desc: 'Create, execute, and promote research candidates' },
   { id: 'calls:write', label: 'Log VOIP Calls', desc: 'Push call recordings, duration, and outcomes' },
   { id: 'enrich:write', label: 'Enrich Intelligence', desc: 'Push tech stacks and research summaries' },
   { id: 'activities:write', label: 'Write Activities', desc: 'Log notes and timeline events' },

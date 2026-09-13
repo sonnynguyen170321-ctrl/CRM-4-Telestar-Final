@@ -16,13 +16,12 @@ import {
   Trash2, 
   Send, 
   Check, 
-  Flame, 
   Zap, 
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
-import { DEFAULT_SCORING_RULES, type LeadScoringRules } from '@/lib/leads/scoring';
+import { IcpScoringPanel } from '@/components/automation/IcpScoringPanel';
 import type { WebhookConfigPublic, WebhookEvent } from '@/lib/webhooks/dispatcher';
 
 interface EmailAccount {
@@ -98,11 +97,6 @@ export default function AutomationDashboard() {
   const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<any | null>(null);
 
-  // Lead Scoring Rules State
-  const [scoringRules, setScoringRules] = useState<LeadScoringRules>(DEFAULT_SCORING_RULES);
-  const [savingScoring, setSavingScoring] = useState(false);
-  const [recalculatingScores, setRecalculatingScores] = useState(false);
-  const [recalcSummary, setRecalcSummary] = useState<any | null>(null);
 
   const fetchStats = async () => {
     try {
@@ -131,23 +125,19 @@ export default function AutomationDashboard() {
     }
   };
 
-  const fetchScoringRules = async () => {
-    try {
-      const res = await fetch('/api/leads/scoring-rules');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.rules) setScoringRules(data.rules);
-      }
-    } catch {
-      showToast('Failed to load lead scoring rules', 'error');
-    }
-  };
 
   useEffect(() => {
     fetchStats();
     fetchWebhooks();
-    fetchScoringRules();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
+  useEffect(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get('tab');
+    if (requestedTab === 'cadence' || requestedTab === 'webhooks' || requestedTab === 'scoring') {
+      setActiveTab(requestedTab);
+    }
   }, []);
 
   const handleTriggerSequence = async () => {
@@ -271,44 +261,6 @@ export default function AutomationDashboard() {
     }
   };
 
-  const handleSaveScoringRules = async () => {
-    setSavingScoring(true);
-    try {
-      const res = await fetch('/api/leads/scoring-rules', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(scoringRules),
-      });
-      if (res.ok) {
-        showToast('Lead scoring rules updated!', 'success');
-      } else {
-        showToast('Failed to save scoring rules', 'error');
-      }
-    } catch {
-      showToast('Network error saving scoring rules', 'error');
-    } finally {
-      setSavingScoring(false);
-    }
-  };
-
-  const handleRecalculateScores = async () => {
-    setRecalculatingScores(true);
-    setRecalcSummary(null);
-    try {
-      const res = await fetch('/api/leads/recalculate-scores', { method: 'POST' });
-      const data = await res.json();
-      if (res.ok) {
-        setRecalcSummary(data);
-        showToast(`Recalculated scores for ${data.updatedCount} leads!`, 'success');
-      } else {
-        showToast(data.error || 'Recalculation failed', 'error');
-      }
-    } catch {
-      showToast('Network error recalculating scores', 'error');
-    } finally {
-      setRecalculatingScores(false);
-    }
-  };
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
@@ -321,7 +273,7 @@ export default function AutomationDashboard() {
             Automation & Integrations Hub
           </h1>
           <p className="text-xs text-text-secondary mt-1 font-medium">
-            Manage BullMQ background cadences, outbound webhooks, and custom lead scoring algorithms.
+            Manage background cadences, outbound webhooks, campaign ICPs, and engagement priorities.
           </p>
         </div>
 
@@ -363,7 +315,7 @@ export default function AutomationDashboard() {
             }`}
           >
             <Sliders className="w-3.5 h-3.5" />
-            <span>Lead Scoring Rules</span>
+            <span>ICP &amp; Scoring</span>
           </button>
         </div>
       </div>
@@ -759,196 +711,10 @@ export default function AutomationDashboard() {
         </div>
       )}
 
-      {/* TAB 3: CUSTOM LEAD SCORING RULES */}
-      {activeTab === 'scoring' && (
-        <div className="space-y-6">
-          <div className="glass-card rounded-2xl p-6 space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="font-display font-extrabold text-base text-text-primary flex items-center gap-2">
-                  <Sliders className="w-5 h-5 text-brand-red" />
-                  Custom Lead Scoring Algorithm & Weights
-                </h2>
-                <p className="text-xs text-text-secondary mt-1">
-                  Configure real-time point distribution for seniority, intent signals, and cadence engagement.
-                </p>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleRecalculateScores}
-                  disabled={recalculatingScores}
-                  className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-xs"
-                >
-                  {recalculatingScores ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Flame className="w-4 h-4" />}
-                  <span>Recalculate All Leads</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSaveScoringRules}
-                  disabled={savingScoring}
-                  className="px-3.5 py-2 bg-brand-red hover:bg-brand-red-hover text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 shadow-xs"
-                >
-                  {savingScoring ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  <span>Save Scoring Weights</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Recalculation Summary Banner */}
-            {recalcSummary && (
-              <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-900 rounded-xl p-4 flex items-center justify-between animate-fade-in">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                  <div>
-                    <p className="text-xs font-bold">Successfully Recalculated {recalcSummary.updatedCount} Leads</p>
-                    <p className="text-[10px] opacity-80">Scores & priorities synchronized with multi-tenant database.</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 text-xs font-mono font-bold">
-                  <span className="px-2 py-0.5 bg-red-500/20 text-red-700 rounded-md">🔥 {recalcSummary.distribution.hot} Hot</span>
-                  <span className="px-2 py-0.5 bg-amber-500/20 text-amber-700 rounded-md">⚡ {recalcSummary.distribution.warm} Warm</span>
-                  <span className="px-2 py-0.5 bg-blue-500/20 text-blue-700 rounded-md">❄️ {recalcSummary.distribution.cold} Cold</span>
-                </div>
-              </div>
-            )}
-
-            {/* Scoring Weight Sliders / Inputs */}
-            <div className="grid grid-cols-2 gap-6">
-              {/* Factor 1: C-Level */}
-              <div className="bg-[#fafafa] border border-card-border rounded-xl p-4 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-text-primary">👑 C-Level / Founder Title Match</span>
-                  <span className="text-xs font-mono font-bold text-brand-red">+{scoringRules.titleCLevelWeight} pts</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="50"
-                  value={scoringRules.titleCLevelWeight}
-                  onChange={(e) => setScoringRules({ ...scoringRules, titleCLevelWeight: Number(e.target.value) })}
-                  className="w-full accent-brand-red cursor-pointer"
-                />
-              </div>
-
-              {/* Factor 2: Director */}
-              <div className="bg-[#fafafa] border border-card-border rounded-xl p-4 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-text-primary">💼 Director / VP Title Match</span>
-                  <span className="text-xs font-mono font-bold text-brand-red">+{scoringRules.titleDirectorWeight} pts</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="30"
-                  value={scoringRules.titleDirectorWeight}
-                  onChange={(e) => setScoringRules({ ...scoringRules, titleDirectorWeight: Number(e.target.value) })}
-                  className="w-full accent-brand-red cursor-pointer"
-                />
-              </div>
-
-              {/* Factor 3: Email Open */}
-              <div className="bg-[#fafafa] border border-card-border rounded-xl p-4 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-text-primary">📩 Email Open (per touch, max 4)</span>
-                  <span className="text-xs font-mono font-bold text-brand-red">+{scoringRules.emailOpenWeight} pts</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="15"
-                  value={scoringRules.emailOpenWeight}
-                  onChange={(e) => setScoringRules({ ...scoringRules, emailOpenWeight: Number(e.target.value) })}
-                  className="w-full accent-brand-red cursor-pointer"
-                />
-              </div>
-
-              {/* Factor 4: Email Reply */}
-              <div className="bg-[#fafafa] border border-card-border rounded-xl p-4 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-text-primary">💬 Inbound Email Reply Received</span>
-                  <span className="text-xs font-mono font-bold text-brand-red">+{scoringRules.emailReplyWeight} pts</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="50"
-                  value={scoringRules.emailReplyWeight}
-                  onChange={(e) => setScoringRules({ ...scoringRules, emailReplyWeight: Number(e.target.value) })}
-                  className="w-full accent-brand-red cursor-pointer"
-                />
-              </div>
-
-              {/* Factor 5: Meeting Booked */}
-              <div className="bg-[#fafafa] border border-card-border rounded-xl p-4 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-text-primary">📅 Meeting Booked / Demo Scheduled</span>
-                  <span className="text-xs font-mono font-bold text-brand-red">+{scoringRules.meetingBookedWeight} pts</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="60"
-                  value={scoringRules.meetingBookedWeight}
-                  onChange={(e) => setScoringRules({ ...scoringRules, meetingBookedWeight: Number(e.target.value) })}
-                  className="w-full accent-brand-red cursor-pointer"
-                />
-              </div>
-
-              {/* Factor 6: Direct Phone */}
-              <div className="bg-[#fafafa] border border-card-border rounded-xl p-4 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-text-primary">📞 Direct Phone Number Verified</span>
-                  <span className="text-xs font-mono font-bold text-brand-red">+{scoringRules.phonePresentWeight} pts</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="20"
-                  value={scoringRules.phonePresentWeight}
-                  onChange={(e) => setScoringRules({ ...scoringRules, phonePresentWeight: Number(e.target.value) })}
-                  className="w-full accent-brand-red cursor-pointer"
-                />
-              </div>
-
-              {/* Factor 7: Hot Threshold */}
-              <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-red-700">🔥 "HOT" Priority Threshold</span>
-                  <span className="text-xs font-mono font-bold text-red-700">&gt;= {scoringRules.hotThreshold} pts</span>
-                </div>
-                <input
-                  type="range"
-                  min="50"
-                  max="90"
-                  value={scoringRules.hotThreshold}
-                  onChange={(e) => setScoringRules({ ...scoringRules, hotThreshold: Number(e.target.value) })}
-                  className="w-full accent-red-600 cursor-pointer"
-                />
-              </div>
-
-              {/* Factor 8: Warm Threshold */}
-              <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-amber-700">⚡ "WARM" Priority Threshold</span>
-                  <span className="text-xs font-mono font-bold text-amber-700">&gt;= {scoringRules.warmThreshold} pts</span>
-                </div>
-                <input
-                  type="range"
-                  min="20"
-                  max="50"
-                  value={scoringRules.warmThreshold}
-                  onChange={(e) => setScoringRules({ ...scoringRules, warmThreshold: Number(e.target.value) })}
-                  className="w-full accent-amber-600 cursor-pointer"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* TAB 3: ICP & SCORING */}
+      <div hidden={activeTab !== 'scoring'}>
+        <IcpScoringPanel />
+      </div>
 
     </div>
   );

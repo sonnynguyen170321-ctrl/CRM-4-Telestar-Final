@@ -196,6 +196,7 @@ domains:
     risk: R2
     paths:
       - lib/leadgen/**
+      - lib/leadFilter/**
       - lib/contact-intelligence/**
       - lib/search/**
       - app/api/leadgen/**
@@ -203,6 +204,7 @@ domains:
       - app/leadgen-manager/**
     tests:
       - tests/leadgen*.test.ts
+      - tests/lead-filter*.test.ts
       - tests/icp-adherence.test.ts
       - tests/opportunity-handoff.test.ts
       - tests/contact-intelligence.test.ts
@@ -362,11 +364,18 @@ domains:
       # Its tests were already classified here; the scripts themselves were not.
       - scripts/doctor*
       - next.config.ts
+
+      - tsconfig.json
+
+      - eslint.config.mjs
       - lib/env.ts
       - lib/env-contract.ts
       - .env.production.example
       - package.json
       - package-lock.json
+      # Vendored dependency tarballs referenced from package.json via file: (e.g. SheetJS, which
+      # left npm at 0.18.5). They change only when the manifest does.
+      - vendor/**
       - .gitignore
       - .gitattributes
     tests:
@@ -450,3 +459,48 @@ domains:
       R0 only because prose cannot break a running system. It can still be wrong, and a
       confidently wrong document outlives the person who wrote it — which is why facts are
       generated rather than written here.
+
+  - id: shared-packages
+    description: >-
+      Database-agnostic logic kept out of the app layer: identity resolution, ICP scoring, ICP
+      rule vocabulary, ingestion parsing, web search, company intelligence, research discovery.
+    risk: R3
+    paths:
+      - packages/**
+      - lib/identity/**
+      - scripts/backfill-account-identity.ts
+      - vitest.packages.config.ts
+      - vitest.server-only-stub.ts
+    tests:
+      - tests/identity-writer.test.ts
+      - tests/identity-backfill.test.ts
+    gates:
+      - npm run test:packages
+    notes: >-
+      R3 because every scoring, identity and research path depends on it. The lint rule for
+      `packages/**` forbids importing `@prisma/client` or `@/*`: these packages were extracted
+      from the former leadgen app precisely so the logic has no schema binding, and a Prisma
+      import would silently re-bind it. That failure is invisible — it compiles, and it passes
+      tests in whichever caller happened to run them.
+
+  - id: research-discovery
+    description: >-
+      Open-web discovery: plan queries from an ICP, harvest SERP results, reject junk, dedupe
+      against the cross-run ledger, score, and promote a candidate into an Account, a Contact and
+      a lead-pool record.
+    risk: R3
+    paths:
+      - lib/research/discovery.ts
+      - lib/research/promote.ts
+      - lib/research/readModel.ts
+      - lib/research/searchGateway.ts
+      - app/api/research/**
+      - app/research/**
+    tests:
+      - tests/research-discovery.test.ts
+    notes: >-
+      R3 because it spends money and creates records. Every provider call is written to
+      `ResearchProviderAttempt` so the spend is inspectable rather than inferred from a bill, and
+      promotion goes through the shared identity writers so a researched lead and an uploaded lead
+      resolve to the same Account. Distinct from `lib/research/engine.ts` and the two research
+      caches, which enrich a record that already exists and stay with `telestar-ai`.

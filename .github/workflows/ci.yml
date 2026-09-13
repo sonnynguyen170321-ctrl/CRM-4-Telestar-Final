@@ -118,6 +118,12 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
+      # `packages/*` runs on its own config: no database, no setup file. Folding it into the main
+      # suite would give shared, database-agnostic code a database dependency it must not have.
+      - name: Package tests
+        run: set -o pipefail; npm run test:packages 2>&1 | tee vitest-packages.log
+        shell: bash
+
       # The GCP production topology override and deployment resolver must satisfy all
       # architectural invariants (Cloud SQL wiring, disabled local postgres, no port exposure).
       - name: Production topology validation

@@ -1,11 +1,20 @@
 import { prisma } from '@/lib/prisma';
-import { normalizeEmail, normalizePhone, normalizeLinkedIn } from '@/lib/leads/normalize';
+import {
+  normalizeCompanyName,
+  normalizeEmail,
+  normalizePhone,
+  normalizeLinkedIn,
+} from '@/lib/leads/normalize';
+import { resolveAccount } from '@/lib/identity/resolveAccount';
+import { resolveContact } from '@/lib/identity/resolveContact';
 import type { SessionUser } from '@/lib/auth';
 import type { LeadgenActivityType, LeadPoolItem, LeadSourceType } from '@prisma/client';
 import { buildTermClauses } from '@/lib/search/terms';
 import { findAccentInsensitiveIds, POOL_SEARCH_COLUMNS } from '@/lib/search/accentSearch';
 import { tenantIdOrThrow } from '@/lib/api/tenant';
 import { onLeadgenItemQualified } from '@/lib/contact-intelligence/events';
+import { ensureCampaignProspect } from '@/lib/leadgen/campaignProspects';
+import { deriveIcpMatch } from '@/lib/leadgen/icpMatch';
 
 // ─── Duplicate detection ─────────────────────────────────────────────────────
 
@@ -24,7 +33,12 @@ export function buildPoolDuplicateKey(row: {
   const linkedIn = normalizeLinkedIn(row.linkedIn);
   if (linkedIn) return `linkedin:${linkedIn}`;
   if (row.firstName && row.lastName && row.company) {
-    return `name:${row.firstName.trim().toLowerCase()}|${row.lastName.trim().toLowerCase()}|${row.company.trim().toLowerCase()}`;
+    // The company part is normalised, not lower-cased. `company.trim().toLowerCase()` made
+    // "Công ty TNHH ABC" and "CTY TNHH ABC" different keys, so the same person at the same employer
+    // entered the pool twice whenever the row carried no email, phone or LinkedIn — precisely the
+    // case this fallback exists to cover.
+    const company = normalizeCompanyName(row.company) ?? row.company.trim().toLowerCase();
+    return `name:${row.firstName.trim().toLowerCase()}|${row.lastName.trim().toLowerCase()}|${company}`;
   }
   return null;
 }
@@ -73,6 +87,16 @@ export async function logLeadgenActivity(params: {
 export type PoolListQuery = {
   status?: string;
   qualification?: string;
+  /**
+   * The ENGINE's verdict, which is not the same field as `qualification`.
+   *
+   * `qualification` is what a reviewer decided; `icpQualification` is what the rules computed. A
+   * floor manager needs both: "what did the ICP reject" is a different question from "what did we
+   * reject", and the gap between them is where a wrong rule set shows up.
+   */
+  icpQualification?: string;
+  /** Records with no assessment at all — NOT SCORED, usually a batch that predates the ICP. */
+  unscoredOnly?: boolean;
   qualityClass?: string;
   reuseStatus?: string;
   dataStatus?: string;
@@ -95,13 +119,28 @@ const POOL_SEARCH_FIELDS = [
   'sourceName',
 ] as const;
 
-export function buildPoolWhere(query: Pick<PoolListQuery, 'status' | 'qualification' | 'qualityClass' | 'reuseStatus' | 'dataStatus' | 'search' | 'sourceType' | 'assignedCampaignId' | 'assignedSdrId'>, tenantId: string) {
+export function buildPoolWhere(query: Pick<PoolListQuery, 'status' | 'qualification' | 'icpQualification' | 'unscoredOnly' | 'qualityClass' | 'reuseStatus' | 'dataStatus' | 'search' | 'sourceType' | 'assignedCampaignId' | 'assignedSdrId'>, tenantId: string) {
   const where: Record<string, unknown> = { tenantId };
   if (query.status) where.status = query.status;
   if (query.qualification) where.qualification = query.qualification;
+  if (query.icpQualification) where.icpQualification = query.icpQualification;
+  // NOT SCORED is derived from the absence of an assessment, never from a placeholder row.
+  if (query.unscoredOnly) where.latestAssessmentId = null;
   if (query.sourceType) where.sourceType = query.sourceType;
-  if (query.assignedCampaignId) where.assignedCampaignId = query.assignedCampaignId;
-  if (query.assignedSdrId) where.assignedSdrId = query.assignedSdrId;
+  if (query.assignedCampaignId || query.assignedSdrId) {
+    const legacy = {
+      ...(query.assignedCampaignId ? { assignedCampaignId: query.assignedCampaignId } : {}),
+      ...(query.assignedSdrId ? { assignedSdrId: query.assignedSdrId } : {}),
+    };
+    const membership = {
+      tenantId,
+      ...(query.assignedCampaignId ? { campaignId: query.assignedCampaignId } : {}),
+      ...(query.assignedSdrId ? { assignedSdrId: query.assignedSdrId } : {}),
+      status: { not: 'removed' },
+    };
+    // Read both sources during rollout; after backfill CampaignProspect is authoritative.
+    where.OR = [legacy, { campaignProspects: { some: membership } }];
+  }
 
   // Commercial Intelligence Asset Filters
   const contactWhere: Record<string, unknown> = {};
@@ -162,6 +201,15 @@ export async function listPoolItems(query: PoolListQuery, tenantId: string) {
         assignedCampaign: { select: { id: true, name: true } },
         assignedSdr: { select: { id: true, firstName: true, lastName: true } },
         convertedLead: { select: { id: true, firstName: true, lastName: true, stage: true } },
+        campaignProspects: {
+          where: { status: { not: 'removed' } },
+          include: {
+            campaign: { select: { id: true, name: true, icpVersionId: true } },
+            assignedSdr: { select: { id: true, firstName: true, lastName: true } },
+            latestAssessment: { select: { id: true, qualification: true } },
+          },
+          orderBy: { addedAt: 'desc' },
+        },
         contact: {
           include: {
             intelligence: true,
@@ -172,7 +220,19 @@ export async function listPoolItems(query: PoolListQuery, tenantId: string) {
     prisma.leadPoolItem.count({ where: where as never }),
   ]);
 
-  return { items, total, page, pageSize, pages: Math.ceil(total / pageSize) };
+  const itemsWithCampaignTruth = items.map((item) => ({
+    ...item,
+    campaignProspects: item.campaignProspects.map((membership) => ({
+      ...membership,
+      icpMatch: deriveIcpMatch({
+        qualification: membership.latestAssessment?.qualification ?? null,
+        assessedIcpVersionId: membership.assessedIcpVersionId,
+        currentIcpVersionId: membership.campaign.icpVersionId,
+      }),
+    })),
+  }));
+
+  return { items: itemsWithCampaignTruth, total, page, pageSize, pages: Math.ceil(total / pageSize) };
 }
 
 // ─── Create / enrich ─────────────────────────────────────────────────────────
@@ -195,6 +255,7 @@ export async function createPoolItem(params: {
       lastName: input.lastName ?? null,
       fullName: input.fullName ?? null,
       company: input.company,
+      normalizedCompany: normalizeCompanyName(input.company),
       title: input.title ?? null,
       email: input.email ?? null,
       phone: input.phone ?? null,
@@ -437,18 +498,36 @@ export async function assignPoolItems(params: {
 
   const items = await prisma.leadPoolItem.findMany({
     where: { id: { in: itemIds }, tenantId },
-    select: { id: true, firstName: true, lastName: true, company: true },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      company: true,
+      assignedCampaignId: true,
+      assignedSdrId: true,
+    },
   });
   const now = new Date();
 
   let index = 0;
   for (const item of items) {
     const sdrId = assignSdrId(sdrIds, method, index++);
+    if (campaignId) {
+      await ensureCampaignProspect({
+        tenantId,
+        campaignId,
+        poolItemId: item.id,
+        assignedSdrId: sdrId,
+        actor,
+      });
+    }
     await prisma.leadPoolItem.update({
       where: { id: item.id },
       data: {
-        ...(campaignId ? { assignedCampaignId: campaignId } : {}),
-        ...(sdrId ? { assignedSdrId: sdrId } : {}),
+        // Compatibility mirrors only. They cannot represent many campaigns, so preserve the
+        // first legacy assignment while CampaignProspect becomes the source of truth.
+        ...(campaignId && !item.assignedCampaignId ? { assignedCampaignId: campaignId } : {}),
+        ...(sdrId && !item.assignedSdrId ? { assignedSdrId: sdrId } : {}),
         assignedAt: now,
         assignedById: actor.id,
         status: 'assigned_to_campaign',
@@ -481,6 +560,15 @@ export interface ConvertFailure {
 /** Stable reason code — the UI and any caller match on this, never on driver text. */
 export const DUPLICATE_LEAD_REASON = 'already_a_lead_in_this_campaign';
 
+/**
+ * The record has no email, so it cannot become a lead.
+ *
+ * Previously such records were converted with `noemail@telestar.vn`, which produced rows that look
+ * like people and bounce when a sequence reaches them. Refusing is the cheaper failure, and it is
+ * actionable: the record stays in the pool, waiting for enrichment.
+ */
+export const MISSING_EMAIL_REASON = 'missing_email';
+
 /** Postgres unique-violation code, as surfaced by Prisma. */
 const PRISMA_UNIQUE_VIOLATION = 'P2002';
 
@@ -508,7 +596,7 @@ export async function convertPoolToLeads(params: {
   const { itemIds, campaignId, sdrIds, method, actor, tenantId } = params;
 
   const items = await prisma.leadPoolItem.findMany({
-    where: { id: { in: itemIds }, tenantId, convertedLeadId: null },
+    where: { id: { in: itemIds }, tenantId },
     select: {
       id: true,
       firstName: true,
@@ -526,6 +614,9 @@ export async function convertPoolToLeads(params: {
       sourceType: true,
       sourceName: true,
       tags: true,
+      assignedCampaignId: true,
+      assignedSdrId: true,
+      convertedLeadId: true,
     },
   });
 
@@ -542,123 +633,207 @@ export async function convertPoolToLeads(params: {
     }
 
     try {
+      const membership = await ensureCampaignProspect({
+        tenantId,
+        campaignId,
+        poolItemId: item.id,
+        assignedSdrId: sdrId,
+        actor,
+      });
+      if (membership.leadId) {
+        errors.push({
+          poolItemId: item.id,
+          reason: DUPLICATE_LEAD_REASON,
+          existingLeadId: membership.leadId,
+        });
+        continue;
+      }
+
       const normalizedEmail = normalizeEmail(item.email);
       const normalizedPhone = normalizePhone(item.phone);
       const normalizedLinkedIn = normalizeLinkedIn(item.linkedIn);
 
-      // `Lead_tenant_campaign_email_uniq` allows one lead per tenant + campaign + email.
-      // Checked here rather than left to the insert so the caller learns *which* lead already
-      // holds the slot. Letting it throw produced `Invalid prisma.lead.create() invocation`
-      // in the errors array — text that tells a leadgen manager nothing about the fact that
-      // the prospect is already someone's pipeline, possibly a closed win.
-      if (normalizedEmail) {
-        const existing = await prisma.lead.findFirst({
-          where: { tenantId, campaignId, normalizedEmail },
-          select: { id: true },
-        });
-        if (existing) {
-          errors.push({
-            poolItemId: item.id,
-            reason: DUPLICATE_LEAD_REASON,
-            existingLeadId: existing.id,
-          });
-          continue;
-        }
+      // Membership readiness and conversion use the same contact gate. An explicitly bad or
+      // malformed address stays in needs_contact and never becomes outreach inventory.
+      if (membership.status === 'needs_contact' || !item.email || !normalizedEmail) {
+        errors.push({ poolItemId: item.id, reason: MISSING_EMAIL_REASON });
+        continue;
       }
 
-      let account = await prisma.account.findUnique({
-        where: { tenantId_name: { tenantId, name: item.company } },
+      const email = item.email;
+
+      // A pre-existing campaign Lead is linked to this membership rather than copied. The caller
+      // still receives the stable duplicate reason and the useful existing lead id.
+      const existingLead = await prisma.lead.findFirst({
+        where: { tenantId, campaignId, normalizedEmail },
         select: { id: true },
       });
-      if (!account) {
-        account = await prisma.account.create({
-          data: { name: item.company, website: item.website, industry: item.industry, country: item.country, tenantId },
-          select: { id: true },
-        });
-      }
-
-      let contactId: string | null = null;
-      if (normalizedEmail) {
-        let contact = await prisma.contact.findUnique({
-          where: { tenantId_normalizedEmail: { tenantId, normalizedEmail } },
-          select: { id: true },
-        });
-        if (!contact) {
-          const createdContact = await prisma.contact.create({
+      if (existingLead) {
+        await prisma.$transaction(async (tx) => {
+          await tx.campaignProspect.update({
+            where: { tenantId_campaignId_poolItemId: { tenantId, campaignId, poolItemId: item.id } },
             data: {
-              fullName: [item.firstName, item.lastName].filter(Boolean).join(' ') || item.company,
-              firstName: item.firstName || item.company,
-              lastName: item.lastName || '—',
-              company: item.company,
-              title: item.title,
-              country: item.country,
-              email: item.email || normalizedEmail,
-              phone: item.phone,
-              linkedIn: item.linkedIn,
-              emailValidation: item.emailValidation,
-              emailScore: item.emailScore,
-              normalizedEmail,
-              normalizedPhone,
-              normalizedLinkedIn,
-              tenantId,
+              leadId: existingLead.id,
+              assignedSdrId: sdrId,
+              status: 'active',
+              activatedAt: membership.activatedAt ?? now,
             },
-            select: { id: true },
           });
-          contact = createdContact;
-        }
-        contactId = contact.id;
+          await tx.leadPoolItem.update({
+            where: { id: item.id },
+            data: {
+              ...(!item.convertedLeadId ? { convertedLeadId: existingLead.id } : {}),
+              ...(!item.assignedCampaignId ? { assignedCampaignId: campaignId } : {}),
+              ...(!item.assignedSdrId ? { assignedSdrId: sdrId } : {}),
+              assignedAt: now,
+              assignedById: actor.id,
+              status: 'assigned_to_campaign',
+            },
+          });
+        });
+        errors.push({
+          poolItemId: item.id,
+          reason: DUPLICATE_LEAD_REASON,
+          existingLeadId: existingLead.id,
+        });
+        continue;
       }
 
-      const lead = await prisma.lead.create({
-        data: {
-          contactId,
-          accountId: account.id,
-          firstName: item.firstName || item.company,
-          lastName: item.lastName || '—',
-          company: item.company,
-          title: item.title || null,
-          email: item.email || `${normalizedEmail ?? 'noemail'}@telestar.vn`,
-          phone: item.phone || null,
-          linkedIn: item.linkedIn || null,
-          stage: 'new',
-          assignedToId: sdrId,
-          campaignId,
-          source: item.sourceType === 'csv_import' ? 'csv_import' : item.sourceType,
-          importListName: item.sourceName,
-          emailValidation: item.emailValidation || null,
-          emailScore: item.emailScore,
-          vendorSource: item.sourceName,
-          tags: item.tags,
-          normalizedEmail: normalizedEmail,
-          normalizedPhone,
-          normalizedLinkedIn,
-          tenantId,
-        },
-        select: { id: true },
+      const resolvedAccount = await resolveAccount(prisma, {
+        tenantId,
+        name: item.company,
+        website: item.website,
+        industry: item.industry,
+        country: item.country,
+      });
+      const resolvedContact = await resolveContact(prisma, {
+        tenantId,
+        accountId: resolvedAccount.accountId,
+        company: item.company,
+        firstName: item.firstName || '',
+        lastName: item.lastName || '',
+        email,
+        title: item.title,
+        country: item.country,
+        phone: item.phone,
+        linkedIn: item.linkedIn,
+        emailValidation: item.emailValidation,
+        emailScore: item.emailScore,
       });
 
-      await prisma.leadPoolItem.update({
-        where: { id: item.id },
-        data: {
-          convertedLeadId: lead.id,
-          assignedCampaignId: campaignId,
-          assignedSdrId: sdrId,
-          assignedAt: now,
-          assignedById: actor.id,
-          status: 'assigned_to_campaign',
-        },
+      // Lead creation, membership activation and legacy mirrors are one durable transition.
+      const lead = await prisma.$transaction(async (tx) => {
+        const createdLead = await tx.lead.create({
+          data: {
+            contactId: resolvedContact.contactId,
+            accountId: resolvedAccount.accountId,
+            firstName: item.firstName ?? '',
+            lastName: item.lastName ?? '',
+            company: item.company,
+            title: item.title || null,
+            email,
+            phone: item.phone || null,
+            linkedIn: item.linkedIn || null,
+            stage: 'new',
+            assignedToId: sdrId,
+            campaignId,
+            source: item.sourceType === 'csv_import' ? 'csv_import' : item.sourceType,
+            importListName: item.sourceName,
+            emailValidation: item.emailValidation || null,
+            emailScore: item.emailScore,
+            vendorSource: item.sourceName,
+            tags: item.tags,
+            normalizedEmail,
+            normalizedPhone,
+            normalizedLinkedIn,
+            tenantId,
+          },
+          select: { id: true },
+        });
+
+        const activated = await tx.campaignProspect.updateMany({
+          where: {
+            id: membership.id,
+            tenantId,
+            campaignId,
+            poolItemId: item.id,
+            leadId: null,
+            status: { not: 'removed' },
+          },
+          data: {
+            leadId: createdLead.id,
+            assignedSdrId: sdrId,
+            status: 'active',
+            activatedAt: membership.activatedAt ?? now,
+          },
+        });
+        if (activated.count !== 1) throw new Error('campaign_prospect_activation_conflict');
+
+        await tx.leadPoolItem.update({
+          where: { id: item.id },
+          data: {
+            // First-value compatibility mirrors only; CampaignProspect is the multi-campaign truth.
+            ...(!item.convertedLeadId ? { convertedLeadId: createdLead.id } : {}),
+            ...(!item.assignedCampaignId ? { assignedCampaignId: campaignId } : {}),
+            ...(!item.assignedSdrId ? { assignedSdrId: sdrId } : {}),
+            assignedAt: now,
+            assignedById: actor.id,
+            status: 'assigned_to_campaign',
+          },
+        });
+
+        return createdLead;
       });
 
       await logLeadgenActivity({
         actor,
         type: 'assigned_to_sdr',
         poolItemId: item.id,
-        description: `Converted to Lead for campaign, assigned to SDR`,
-        metadata: { campaignId, sdrId, leadId: lead.id },
+        description: 'Converted to Lead for campaign, assigned to SDR',
+        metadata: { campaignId, sdrId, leadId: lead.id, campaignProspectId: membership.id },
       });
 
       created.push({ poolItemId: item.id, leadId: lead.id });
     } catch (err) {
+      if ((err as { code?: string } | null)?.code === PRISMA_UNIQUE_VIOLATION) {
+        const normalizedEmail = normalizeEmail(item.email);
+        const existingLead = normalizedEmail
+          ? await prisma.lead.findFirst({
+              where: { tenantId, campaignId, normalizedEmail },
+              select: { id: true },
+            })
+          : null;
+        if (existingLead) {
+          await prisma.$transaction(async (tx) => {
+            await tx.campaignProspect.updateMany({
+              where: { tenantId, campaignId, poolItemId: item.id, leadId: null },
+              data: {
+                leadId: existingLead.id,
+                assignedSdrId: sdrId,
+                status: 'active',
+                activatedAt: now,
+              },
+            });
+            await tx.leadPoolItem.update({
+              where: { id: item.id },
+              data: {
+                ...(!item.convertedLeadId ? { convertedLeadId: existingLead.id } : {}),
+                ...(!item.assignedCampaignId ? { assignedCampaignId: campaignId } : {}),
+                ...(!item.assignedSdrId ? { assignedSdrId: sdrId } : {}),
+                assignedAt: now,
+                assignedById: actor.id,
+                status: 'assigned_to_campaign',
+              },
+            });
+          });
+          errors.push({
+            poolItemId: item.id,
+            reason: DUPLICATE_LEAD_REASON,
+            existingLeadId: existingLead.id,
+          });
+          continue;
+        }
+      }
       errors.push({ poolItemId: item.id, reason: describeConvertFailure(err) });
     }
   }

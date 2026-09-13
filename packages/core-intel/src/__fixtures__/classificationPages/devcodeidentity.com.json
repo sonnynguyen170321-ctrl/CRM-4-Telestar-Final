@@ -1,0 +1,46 @@
+{
+  "domain": "devcodeidentity.com",
+  "name": "Devcode Identity",
+  "status": "OFFLINE",
+  "capturedPages": 0,
+  "pagesWithText": 0,
+  "searchResultCount": 5,
+  "pages": [],
+  "searchResults": [
+    {
+      "url": "https://linkedin.com/company/devcode-identity",
+      "title": "devcode identity",
+      "snippet": null,
+      "highlight": "DevCode Identity is a Software Development company. Devcode Identity is a company that revolutionizes sign up, sign in, and identity verification solutions, replacing them with highly converting and fully compliant workflows. They offer a platform for businesses to grow with optimized onboarding workflows and the preferred sign in method for each market. The company focuses on automation and has a lack of reporting. DevCode Identity employs 9 people (-7.7% YoY, -1 person), founded in 2017. Headquartered in Stockholm, Sweden.\n...\nDevCode Identity, part of DevCode Group. \nDiD delivers a multi-channel platform for identification methods, regardless of country or technology. With a single integration the customers get access to a global set of best-in-class Digital ID/eIDV/KYC/AML and Fraud solutions.\n...\nDevCode Identity’s mission is to become the world’s most trusted identity platform, by delivering a solution that makes it faster, simpler and safer to onboard- and prove the identity of any online customer.\n...\n- Industry: Software Development\n- Type: Privately Held\n- Headquarters: Stockholm, Sweden\n- Founded Year: 2017\n- Homepage: devcodeidentity.com\n- Status: active\n- Aliases: devcode identity, devcode identity ab\n- LinkedIn: linkedin.com/company/devcode-identity\n- Emails: sales@devcode.se\n- Phone: +46 8 23 10 80\n...\nidentity management, onboarding, digital id, authentication, eid, kyc, aml5, digital identity, identity verification, fraud, pep sanction, eidv, sign up, sign in, identity orchestration, automation, human resources, software, staffing agency",
+      "provider": "exa"
+    },
+    {
+      "url": "https://www.kuppingercole.com/vendors/devcodeidentity",
+      "title": "DevCode Identity",
+      "snippet": null,
+      "highlight": "Devcode Identity, based in Stockholm, Sweden, provides an identity platform for verifying customers using eIDs and API-driven video/document verification services. Its suite offers address verification, registry checks, PEP/sanction checks, digital signatures, and supports open banking ecosystems.\n\n## Coverage by KuppingerCole Analysts\n...\n```json\n{\n    \"@context\": \"https://schema.org/\",\n    \"@type\": \"Organization\",\n    \"name\": \"DevCode Identity\",\n    \"description\": \"Devcode Identity, based in Stockholm, Sweden, provides an identity platform for verifying customers using eIDs and API-driven video/document verification services. Its suite offers address verification, registry checks, PEP/sanction checks, digital signatures, and supports open banking ecosystems.\",\n    \"url\": \"https://www.kuppingercole.com/vendors/devcodeidentity\",\n    \"logo\": \"https://cdn.brandfetch.io/devcodeidentity.com/w/200/h/200?c=1idiikFCHC3LCY4GfyP\",\n    \"sameAs\": [\n        \"https://www.devcodeidentity.com\"\n    ]\n}\n\n```",
+      "provider": "exa"
+    },
+    {
+      "url": "https://www.thecompanycheck.com/company/b/devcode-identity/fb15152d2f5347849",
+      "title": "DevCode Identity — Company Profile | The Company Check",
+      "snippet": null,
+      "highlight": "# DevCode Identity \n\n Stockholm, Sweden Founded: 2019 • Age: 7 yrs \n\nOffers identity verification platform for secure onboarding and KYC processes.\n\n Annual revenue - Latest available \n\n Total funding - Funding intelligence \n\n Employees - Tracked headcount \n\n Investors - Known backers \n\n Products 2 Services tracked \n\n Competitors 11 Brand Intelligence \n\n## About DevCode Identity\n...\nDevCode Identity is a company based in Stockholm (Sweden) founded in 2019. It operates as a SaaS and B2B. DevCode Identity offers products and services including Identity Orchestration Platform and SigninIQ. DevCode Identity operates in a competitive market with competitors including IDnow, Onfido, Alloy, IDfy and Digio, among others.\n...\nDevCode Identity offers a comprehensive portfolio of products and services, including Identity Orchestration Platform and SigninIQ.\n...\nPlatform for managing onboarding and KYC processes securely\n...\nTool for optimized sign-in methods across markets\n...\n...\n...\n## Frequently Asked Questions about DevCode Identity\n\n When was DevCode Identity founded? \n\nDevCode Identity was founded in 2019.\n\n Where is DevCode Identity located? \n\nDevCode Identity is headquartered in Stockholm, Sweden.\n\n What does DevCode Identity do? \n\nDevCode Identity is a platform that integrates over 300 identity providers to enable fast onboarding, login, and KYC verification for businesses. Based in Stockholm, Sweden, it automates user journeys, reduces fraud, and ensures regulatory compliance through optimized workflows and real-time reporting. The service helps companies address market challenges like multiple integrations and high costs.\n\n Who are the top competitors of DevCode Identity? \n\nDevCode Identity's top competitors include IDnow, IDfy and Onfido.\n\n What products or services does DevCode Identity offer? \n\nDevCode Identity offers Identity Orchestration Platform and SigninIQ.\n\n Explore millions of companies — effortlessly",
+      "provider": "exa"
+    },
+    {
+      "url": "https://pragmatic.solutions/integration-hub/devcode-identity",
+      "title": "DevCode Identity",
+      "snippet": null,
+      "highlight": "Secure player verification, comprehensive KYC processes, and identity management services.\n...\nDevCode Indentity delivers a multi-channel platform for identification methods, regardless of country or technology. With a single integration, operators get access to a global set of best-in-class Digital ID/eIDV/KYC/AML and Fraud solutions.\n...\nThe company provides the integration of hundreds of ID-providers and data sources, such as SumSub and Integrity (a division of Aristotle), orchestrated for fast onboarding, login, and KYC.",
+      "provider": "exa"
+    },
+    {
+      "url": "https://theorg.com/org/devcode-identity",
+      "title": "DevCode Identity | The Org",
+      "snippet": null,
+      "highlight": "DevCode Identity, part of DevCode Group, is the fastest growing KYC-supplier to the iGaming industry. The Company delivers a multi-channel platform for identification methods, regardless of country or technology. With a single integration the customers get access to a global set of best-in-class Dig... Read more\n...\nBusiness Tools, Cyber Security+3",
+      "provider": "exa"
+    }
+  ]
+}

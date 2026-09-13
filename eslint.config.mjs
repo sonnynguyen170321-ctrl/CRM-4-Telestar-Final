@@ -46,6 +46,35 @@ const eslintConfig = defineConfig([
     rules: {
       "@typescript-eslint/no-require-imports": "off"
     }
+  },
+  {
+    // `packages/*` is database-agnostic by contract. It was extracted from the former leadgen app so
+    // the scoring, identity, search and research logic has no schema binding; the moment a package
+    // imports a Prisma client or reaches into the app via `@/`, it is bound to this schema and the
+    // extraction is undone.
+    //
+    // This is a rule rather than a convention because the failure is silent: the import compiles and
+    // the tests pass, and the coupling is only discovered when the package is next reused.
+    files: ["packages/**/*.{ts,tsx,mts}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@prisma/client", "@prisma/client/*", "**/generated/prisma", "**/generated/prisma/*"],
+              message:
+                "packages/* must stay database-agnostic. Take the data as an argument and let the app's adapter do the query."
+            },
+            {
+              group: ["@/*"],
+              message:
+                "packages/* must not import application code. Move the shared logic into a package, or pass it in."
+            }
+          ]
+        }
+      ]
+    }
   }
 ]);
 
