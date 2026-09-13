@@ -88,22 +88,27 @@ That is a working PITR setup with one failure mode: it does not survive the host
 
 ```cron
 # full backup, Sunday 02:00 UTC
-0 2 * * 0  docker compose -p crm exec -T crm-db pgbackrest --stanza=crm --type=full backup
-# incremental, every other day 02:00 UTC
-0 2 * * 1-6 docker compose -p crm exec -T crm-db pgbackrest --stanza=crm --type=incr backup
-# the logical dump — portable, encrypted, off-host
-30 2 * * * cd /opt/crm && deploy/hostinger/backup.sh --tag nightly --offsite
+0  2 * * 0   docker compose -p crm exec -T -u postgres crm-db pgbackrest --stanza=crm --type=full backup
+# incremental the other six days
+0  2 * * 1-6 docker compose -p crm exec -T -u postgres crm-db pgbackrest --stanza=crm --type=incr backup
+# the portable logical dump, encrypted, off-host
+30 2 * * *   cd /opt/crm && deploy/hostinger/backup.sh --tag nightly --offsite
+# the backup nobody checks is the one that was broken for a month
+0  8 * * *   cd /opt/crm && deploy/hostinger/backup-freshness-check.sh
 ```
 
 WAL segments ship continuously between those runs; the schedule only governs the base backups.
 
 ## Bring-up
 
+Every invocation runs as `postgres`; pgBackRest refuses to run as root.
+
 ```bash
-docker compose -p crm exec -T crm-db pgbackrest --stanza=crm stanza-create
-docker compose -p crm exec -T crm-db pgbackrest --stanza=crm check      # must pass before P6b
-docker compose -p crm exec -T crm-db pgbackrest --stanza=crm --type=full backup
-docker compose -p crm exec -T crm-db pgbackrest --stanza=crm info       # confirms WAL is arriving
+PB() { docker compose -p crm exec -T -u postgres crm-db pgbackrest --stanza=crm "$@"; }
+PB stanza-create
+PB check                 # proves archive_command actually reaches the repository
+PB --type=full backup
+PB info                  # WAL min/max confirms segments are arriving
 ```
 
 ## Restoring to a point in time
