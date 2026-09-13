@@ -75,64 +75,143 @@ deploy/hostinger/restore.sh /opt/crm/backups/<ts>-predeploy-<sha>.dump
 ./scripts/rollback.sh <digest>
 ```
 
-## Dark staging (Phase 3)
+## Dark staging
 
-Same as production with: `COMPOSE_PROJECT_NAME=crm-staging`, `CRM_DOMAIN=crm-staging.telestar.cloud`,
-`NEXTAUTH_URL=https://crm-staging.telestar.cloud`, `COMPOSE_PROFILES=localdb`, fresh
-`AUTH_SECRET/ENCRYPTION_KEY/CRON_SECRET`, `EMAIL_SEND_DRY_RUN=true`, `SEQUENCE_AUTOSEND_ENABLED=false`,
-**no cron entries**. Point a DNS A record for the staging host at the VPS so Traefik can complete
-HTTP-01. Gate: `/api/health` 200 through Traefik, `worker-healthcheck` green, zero sends after 24 h.
+Same as production with: `COMPOSE_PROJECT_NAME=crm-staging`,
+`CRM_DOMAIN=staging.srv1908578.hstgr.cloud`, `NEXTAUTH_URL=https://staging.srv1908578.hstgr.cloud`,
+`COMPOSE_PROFILES=localdb`, **fresh** `AUTH_SECRET` / `ENCRYPTION_KEY` / `CRON_SECRET`,
+`EMAIL_SEND_DRY_RUN=true`, `SEQUENCE_AUTOSEND_ENABLED=false`, a fresh `POSTGRES_PASSWORD`, and
+**no cron entries installed**.
 
-## Cutover 6a — compute to the VPS, DB stays on Cloud SQL
+The Hostinger subdomain is deliberate: it already resolves to this host, so Traefik can complete
+HTTP-01 without touching `crm.telestar.cloud`, and the production name's certificate budget is left
+untouched for the cutover.
 
-Prerequisites: staging gates passed; an off-host backup target configured and a restore rehearsed
-(this host has no platform snapshot, so that is the only safety net); `crm.telestar.cloud` TTL at 60 s
-for ≥ 24 h; `/opt/crm/.env.production` holds the **current production secrets** (scp'd from the
-GCP VM) with `COMPOSE_PROFILES=cloudsql`, `DATABASE_URL` host `cloudsql-proxy`; `cloudsql-sa.json` in
-place; `docker compose … up -d cloudsql-proxy` and `psql` through it succeeds.
+Gate, all four: `/api/health` 200 through Traefik with a valid certificate; `worker-healthcheck`
+green; `npm run verify:rls` green; and after a 24-hour soak, zero rows added to the outbound
+message table and zero provider calls in the worker log. Staging is disposable —
+`docker compose -p crm-staging down -v`, fix, repeat.
+
+## The cutover — one window, database on the VPS from the first byte
+
+GCP is being retired by this move. It is not a staging ground and not a fallback to keep running:
+its only role here is that the production database currently lives there, so it is the source of
+the dump, and it stays powered on only as long as an abort during the window would need it.
+`COMPOSE_PROFILES=localdb` from the start — the `cloudsql` profile and the Auth Proxy sidecar stay
+in the compose file but are never used in production, and no Cloud SQL service-account key is
+placed on this host.
+
+### Before the window
+
+**Rehearse on real data.** The PITR numbers in `pgbackrest/README.md` were measured with synthetic
+rows: they prove pgBackRest works, not how long *this* database takes. Take a production dump,
+restore it into `/opt/crm-staging` with `--fresh`, run `prisma migrate deploy` and
+`backfill:campaign-prospects --dry-run` then for real, and **time every step**. The sum is
+`T_measured`; the announced window is `2 × T_measured`. A backfill whose duration nobody measured
+is the classic overrun.
+
+Check whether production already has the pending migration rather than assuming:
 
 ```bash
-# GCP VM — stop producers first (double-send guard; suppression does not dedupe)
-sudo docker compose -f docker-compose.yml -f docker-compose.gcp.yml --env-file .env.production stop worker
-crontab -l | grep -v '/api/cron/' | crontab -        # remove cron entries
-# wait for idle: every queue 0 active
-sudo docker compose … exec redis redis-cli --scan --pattern 'bull:*:active' | xargs -I{} sh -c 'echo {} $(redis-cli LLEN {})'
-
-# VPS
-cd /opt/crm && ./scripts/deploy.sh <sha>            # web + worker up on the digest
-# crons — same lines as docs/DEPLOY.md §7, secret from .env.production
-crontab -e
-# DNS: crm.telestar.cloud A → VPS IP
-npm run prod:cutover:verify && npm run prod:cutover:postcheck
+psql "$CLOUD_SQL_DSN" -tAc   "select migration_name, finished_at from _prisma_migrations where migration_name like '%campaign_prospect_memberships%'"
 ```
 
-Flip `EMAIL_SEND_DRY_RUN=false` / `SEQUENCE_AUTOSEND_ENABLED` to the old production values **only
-after** verify passes, then `docker compose … up -d --no-deps web worker`. Watch for 1 h: error rate,
-queue depth, worker heartbeat, DB connections, `free -m`. GCP VM stays warm 72 h.
+**T-24 h:** drop the `crm.telestar.cloud` TTL to 60 s and confirm it took
+(`dig +noall +answer crm.telestar.cloud` shows 60). A 3600 s TTL turns a five-minute rollback into
+an hour. Load the R2 credentials and prove `rclone lsf r2:<bucket>` works — an off-host backup
+target that is still unconfigured is not a backup.
 
-Rollback: DNS back to GCP; `docker compose … stop worker` on the VPS; restart the GCP worker and
-crons. The database was shared throughout, so there is nothing to reconcile.
+**Verify `/opt/crm/pgbackrest/pgbackrest.conf` is a file**, not a directory. Docker creates a
+missing bind-mount path as a directory, and `crm-db` then starts with a broken `archive_command`
+and archives nothing, silently.
 
-## Cutover 6b — Postgres to the VPS (≥ 7 days after 6a)
+### T-0 — stop the producers on GCP, in this order
 
-Window = 2 × the dump+restore time measured in Phase 4.
+The order is the double-send guard. The suppression check deduplicates *recipients*, not *jobs*.
+
+```bash
+# on the GCE VM
+crontab -l | grep -v '/api/cron/' | crontab -                  # 1. crons off
+sudo docker compose … stop worker                              # 2. worker off
+sudo docker compose … exec redis redis-cli --scan --pattern 'bull:*:active'   # 3. every queue drained
+sudo docker compose … stop web                                 # 4. web off — writes end here
+```
+
+Killing the **worker**, not just web, is also what stops OAuth refresh-token rotation. Microsoft
+and several IMAP providers issue a new refresh token on every use: if a worker refreshes a mailbox
+after the final dump is taken, the token restored onto the VPS is already dead and that customer's
+mailbox silently stops sending.
+
+**Gate:** every queue reports 0 active, and `curl` to the old host is refused.
+**Abort:** restart web, worker and crons. Nothing has moved.
+
+### T+2 — final dump, taken on the GCE VM
+
+Run it there rather than pulling from the VPS, so the Cloud SQL credentials never reach Hostinger.
+Transfer over a temporary SSH key that is revoked afterwards. Compare `sha256sum` on both sides and
+confirm `pg_restore --list` shows `TABLE DATA`.
+**Abort:** restart the GCP stack.
+
+### T+N — restore, migrate, verify
 
 ```bash
 cd /opt/crm
-docker compose … stop web worker && crontab -l | grep -v '/api/cron/' | crontab -
-deploy/hostinger/backup.sh --tag final-cloudsql            # through cloudsql-proxy
-# switch env: COMPOSE_PROFILES=localdb, DATABASE_URL/DIRECT_URL/BACKUP_DATABASE_URL host crm-db, POSTGRES_PASSWORD
-docker compose … up -d crm-db && sleep 15
-deploy/hostinger/restore.sh /opt/crm/backups/<ts>-final-cloudsql.dump --yes
-docker compose … run --rm --no-deps web node node_modules/prisma/build/index.js migrate status   # must be clean
-docker compose … run --rm --no-deps -v $PWD/supabase:/rls:ro --entrypoint sh web -c 'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /rls/rls.sql'
+DC="docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.hostinger.yml"
+$DC up -d crm-db redis && sleep 20
+deploy/hostinger/restore.sh /opt/crm/backups/<ts>-final-cloudsql.dump --yes --fresh
+./scripts/deploy.sh <sha>
+$DC run --rm --no-deps -v "$PWD/supabase:/rls:ro" --entrypoint sh web -c   'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /rls/rls.sql'
 npm run verify:rls
-docker compose … up -d web worker && crontab -e && npm run prod:cutover:postcheck
-docker compose … stop cloudsql-proxy
+npm run backfill:campaign-prospects -- --dry-run && npm run backfill:campaign-prospects
+npm run prod:check-migrations && npm run prod:cutover:verify
 ```
 
-Rollback inside the window: revert the env to `cloudsql`/`cloudsql-proxy`, `up -d web worker` —
-Cloud SQL was untouched since the worker stopped.
+`restore.sh --fresh` drops and recreates the database and applies `supabase/roles.sql` first —
+roles are cluster-global and are not in a dump, and the dump's own `CREATE POLICY … TO crm_app`
+statements abort `pg_restore` without them.
+
+**Gate:** `migrate status` clean, `verify:rls` green, per-tenant row counts match the Cloud SQL
+inventory from `prod:cutover:plan`.
+**Abort:** restart the GCP stack and its crons; discard the VPS database. Cloud SQL has taken no
+writes since T-0, so nothing is lost.
+
+### T+N — DNS, then the certificate
+
+Point `crm.telestar.cloud` at `187.127.110.204`. **Traefik cannot obtain a certificate for that
+name until the record already points here** — Let's Encrypt validates over HTTP-01 against the
+live A record. The first production certificate is therefore issued *inside* the window, and
+failed validations count against a rate limit. Watch it rather than assume it:
+
+```bash
+docker logs -f traefik-traefik-1 2>&1 | grep -i acme
+curl -sfI https://crm.telestar.cloud/api/health
+curl -s https://crm.telestar.cloud/api/health   # the reported commit must be the deployed sha
+```
+
+### T+N — start the producers, inverse order
+
+Flip `EMAIL_SEND_DRY_RUN=false` and `SEQUENCE_AUTOSEND_ENABLED` back to their production values,
+`$DC up -d --no-deps web worker`, and **only then** install the cron entries.
+
+Before the crons go in, reconcile the last-processed timestamps. The first scheduled run otherwise
+fires against job state that is hours stale and can re-send a window of outreach already sent from
+GCP — again, suppression deduplicates recipients, not sends.
+
+Send one canary through a Gmail mailbox and one through an Outlook mailbox and confirm both
+arrive. This is the check that catches a wrong `ENCRYPTION_KEY`: the stored OAuth tokens are
+encrypted with it, so a mismatch produces a healthy-looking application in which every mailbox
+quietly fails.
+
+**The last moment an abort is free** is the cron install. After that, rolling back means dumping
+the VPS database and restoring it into Cloud SQL to recover the writes that landed here.
+
+### Turning GCP off
+
+- **+1 h** — GCE web and worker stay stopped; the VM and Cloud SQL stay running.
+- **+72 h**, no incidents and backups verified — stop the VM, take a final `gcloud sql export sql`
+  into R2, revoke the temporary cutover SSH key from this host's `authorized_keys`.
+- **+14 days** — delete the Cloud SQL instance only after restoring that R2 archive into staging
+  succeeds. Then the VM, then the service-account keys.
 
 ## Daily operations
 
