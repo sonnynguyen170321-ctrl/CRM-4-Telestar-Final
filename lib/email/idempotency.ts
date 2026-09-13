@@ -146,6 +146,18 @@ export function isClaimLive(claimedAt: Date | null | undefined, now: Date = new 
 export function classifySendFailure(error: unknown): 'not_sent' | 'ambiguous' {
   const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
 
+  // The mailbox credential could not be decrypted, so no provider object was ever built and no
+  // connection was ever opened. Checked by name rather than by `instanceof` so it survives the
+  // error crossing a module or serialization boundary, and first because it is the one failure
+  // here that is not about the provider at all.
+  //
+  // This case is why the check exists: a wrong ENCRYPTION_KEY after a host migration fails
+  // *every* send in the tenant identically and permanently. Classified as `ambiguous` it
+  // produced a 24-hour reconciliation backlog that read as "these might have been delivered",
+  // burying the one fact an operator needed. See `CredentialDecryptionError` in lib/crypto.ts.
+  if (error instanceof Error && error.name === 'CredentialDecryptionError') return 'not_sent';
+  if (/could not be decrypted/.test(message)) return 'not_sent';
+
   // SMTP 5xx permanent rejections and auth/config failures: the provider refused the
   // message outright, so nothing was queued for delivery.
   const definitelyNotSent = [

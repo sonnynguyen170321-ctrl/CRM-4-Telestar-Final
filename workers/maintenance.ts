@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { createAppWorker } from '@/lib/bullmq';
 import { JobType } from '@/lib/bullmq/types';
+import { runHealthcheck } from './healthcheck';
 import { enrollmentIdFromStepTaskId, enrollmentStepTaskId } from '@/lib/sequences/identity';
 import type { MaintenanceRepairPayload } from '@/lib/bullmq/types';
 import { OUTBOUND_STATUS, SENDING_CLAIM_LEASE_MS } from '@/lib/email/idempotency';
@@ -512,13 +513,34 @@ async function handleRepair(payload: MaintenanceRepairPayload) {
   return results;
 }
 
+/**
+ * The single consumer of the `maintenance` queue.
+ *
+ * It must stay the only one. A second Worker on this queue competes for jobs, and because each
+ * such worker `return`ed on the job names it did not recognise — and an early return is a
+ * *successful* completion — jobs meant for one consumer were silently marked done by the other.
+ * `maintenance.repair` was the expensive casualty: it carries the sweeper that moves stuck
+ * outbound rows along and raises the only notification a human ever sees for a stalled send, and
+ * it was being discarded roughly half the time. See workers/healthcheck.ts.
+ *
+ * Concurrency stays 1, so a long repair sweep delays the next healthcheck rather than overlapping
+ * another repair. That ordering is deliberate: the repair functions sweep shared rows and were
+ * never written to run beside themselves, whereas a healthcheck is a ping and a `SELECT 1` whose
+ * only cost of being late is a late log line.
+ */
 export function createMaintenanceWorker() {
   return createAppWorker(
     'maintenance',
     async (job) => {
-      if (job.name === JobType.MAINTENANCE_HEALTHCHECK) return;
-      if (job.name !== JobType.MAINTENANCE_REPAIR) return;
-      return handleRepair(job.data as MaintenanceRepairPayload);
+      if (job.name === JobType.MAINTENANCE_HEALTHCHECK) return runHealthcheck(job);
+      if (job.name === JobType.MAINTENANCE_REPAIR) {
+        return handleRepair(job.data as MaintenanceRepairPayload);
+      }
+      // Not silence: an unrecognised name means something enqueues work nothing performs, and
+      // that is exactly the class of bug this worker was just repaired for. Returning (rather
+      // than throwing) avoids an unbounded retry loop for a job type no deploy will ever handle.
+      console.warn(`[worker:maintenance] no handler for job name '${job.name}' — nothing was done`);
+      return;
     },
     { concurrency: 1 }
   );
