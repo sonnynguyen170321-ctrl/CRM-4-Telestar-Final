@@ -54,7 +54,13 @@ TARGET_DSN="${DATABASE_URL:-$(read_env DATABASE_URL)}"
 
 PROJECT="${COMPOSE_PROJECT_NAME:-$(read_env COMPOSE_PROJECT_NAME)}"; PROJECT="${PROJECT:-crm}"
 NETWORK="${CRM_NETWORK:-${PROJECT}_crm_internal}"
-$DOCKER network inspect "$NETWORK" >/dev/null 2>&1 \
+# `$DOCKER` may legitimately be two words ("sudo docker"). Split it once into an array so every
+# invocation below can quote its elements. Writing `"$DOCKER" run ...` collapsed "sudo docker" into a single
+# argv entry and failed with "sudo docker: command not found" even where sudo existed, while leaving
+# it unquoted would break on a path containing a space.
+# shellcheck disable=SC2206
+DOCKER_ARGV=($DOCKER)
+"${DOCKER_ARGV[@]}" network inspect "$NETWORK" >/dev/null 2>&1 \
   || { echo "compose network ${NETWORK} not found — bring the stack up first" >&2; exit 1; }
 
 mkdir -p "$WORK_DIR"
@@ -67,7 +73,7 @@ DUMP_DIR="$(cd "$(dirname "$DUMP_FILE")" && pwd)"
 # through the environment, never on a command line where `ps` and `docker inspect` can read them.
 pg() {
   local dsn="$1"; shift
-  "$DOCKER" run --rm --network "$NETWORK" -e "PGURL=${dsn}" \
+  "${DOCKER_ARGV[@]}" run --rm --network "$NETWORK" -e "PGURL=${dsn}" \
     -v "${DUMP_DIR}:/work" "$PG_IMAGE" "$@"
 }
 

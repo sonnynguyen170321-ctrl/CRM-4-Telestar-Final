@@ -102,11 +102,17 @@ fi
 PROJECT="${COMPOSE_PROJECT_NAME:-$(read_env COMPOSE_PROJECT_NAME)}"
 PROJECT="${PROJECT:-crm}"
 NETWORK="${CRM_NETWORK:-${PROJECT}_crm_internal}"
-$DOCKER network inspect "$NETWORK" >/dev/null 2>&1 \
+# `$DOCKER` may legitimately be two words ("sudo docker"). Split it once into an array so every
+# invocation below can quote its elements. Writing `"$DOCKER" run ...` collapsed "sudo docker" into a single
+# argv entry and failed with "sudo docker: command not found" even where sudo existed, while leaving
+# it unquoted would break on a path containing a space.
+# shellcheck disable=SC2206
+DOCKER_ARGV=($DOCKER)
+"${DOCKER_ARGV[@]}" network inspect "$NETWORK" >/dev/null 2>&1 \
   || { echo "compose network ${NETWORK} not found — bring the stack up first" >&2; exit 1; }
 
 DUMP_DIR="$(cd "$(dirname "$DUMP")" && pwd)"
-PG=("$DOCKER" run --rm --network "$NETWORK"
+PG=("${DOCKER_ARGV[@]}" run --rm --network "$NETWORK"
     -e "PGURL=${DATABASE_URL}" -e "ADMIN_URL=${ADMIN_URL}" -e "DB_NAME=${DB_NAME}"
     -e "DUMPFILE=$(basename "$DUMP")"
     -v "${DUMP_DIR}:/restore:ro" "$PG_IMAGE")
@@ -136,7 +142,7 @@ fi
 MISSING=$("${PG[@]}" sh -euc 'psql "$PGURL" -tAc "select string_agg(r, '"'"', '"'"') from unnest(array['"'"'crm_app'"'"','"'"'crm_migrator'"'"','"'"'crm_maintenance'"'"']) r where not exists (select 1 from pg_roles where rolname = r)"' 2>/dev/null | tr -d '[:space:]')
 if [ -n "$MISSING" ]; then
   echo "roles missing: ${MISSING} — applying supabase/roles.sql first" >&2
-  "$DOCKER" run --rm --network "$NETWORK" -e "PGURL=${DATABASE_URL}" \
+  "${DOCKER_ARGV[@]}" run --rm --network "$NETWORK" -e "PGURL=${DATABASE_URL}" \
     -v "${REPO_DIR}/supabase:/sql:ro" "$PG_IMAGE" \
     sh -euc 'psql "$PGURL" -v ON_ERROR_STOP=1 -f /sql/roles.sql' >&2
 fi
