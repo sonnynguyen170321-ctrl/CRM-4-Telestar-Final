@@ -20,6 +20,27 @@ records off-host as they are produced and recovery lands on a chosen second, not
 database on a different host or a laptop. The two answer different questions — "restore to 14:32"
 and "recreate this database elsewhere".
 
+## Measured on this host, 2026-09-13
+
+Not a projection — a rehearsal against a throwaway Postgres on the Kuala Lumpur VPS itself, with
+synthetic data rather than customer data (`sanitize.sql` was not on the box yet, and pulling real
+PII onto a host with no backup to test a backup is the wrong order).
+
+| | |
+|---|---|
+| Dataset | 1,500,000 rows, 716 MB |
+| Full backup | **7 s** → 252 MB repository (zstd, −65 %) |
+| Restore + recover to a chosen second | **6 s** |
+| Correctness | the row written before the target is present, the row written after it is absent, `pg_is_in_recovery() = false` |
+
+Two configuration errors that would have surfaced at 2 a.m. on cutover night surfaced here instead,
+and both are fixed in `pgbackrest.conf.example`:
+
+1. `pgbackrest` refuses to run as root — every invocation needs `-u postgres`.
+2. `pg1-user` defaults to a `postgres` superuser that the image never creates: `postgres:16` only
+   creates the role named by `POSTGRES_USER`. Without `pg1-user=crm`, `stanza-create` fails with
+   "unable to find primary cluster", which reads like a broken cluster rather than a wrong user.
+
 ## Shape
 
 pgBackRest runs inside the `crm-db` container, because it needs the data directory and must be
@@ -46,26 +67,22 @@ and in `docker-compose.hostinger.yml`, `crm-db` builds from it and runs with:
 
 `/etc/pgbackrest/pgbackrest.conf`, mounted read-only:
 
-```ini
-[global]
-repo1-type=s3                  ; any S3-compatible object store: Backblaze B2, Cloudflare R2, Wasabi
-repo1-s3-endpoint=<endpoint>
-repo1-s3-bucket=telestar-crm-wal
-repo1-s3-region=<region>
-repo1-s3-key=<access key>      ; from an env file, not this file in git
-repo1-s3-key-secret=<secret>
-repo1-cipher-type=aes-256-cbc  ; encrypted in the repository, same reasoning as age on the dumps
-repo1-cipher-pass=<passphrase>
-repo1-retention-full=4         ; four weekly fulls ≈ one month of PITR
-start-fast=y
-compress-type=zst
+The full configuration is `pgbackrest.conf.example`; copy it to `/opt/crm/pgbackrest/pgbackrest.conf`
+and fill in the repo2 credentials. Two repositories, and they are not alternatives:
 
-[crm]
-pg1-path=/var/lib/postgresql/data
-```
+* **repo1, on this host** (`/backups/pgbackrest`) — instant, no network, and what a routine "undo
+  the last hour" reads. Retention: 2 fulls.
+* **repo2, Cloudflare R2** — the only copy that survives losing the box. That is not hypothetical:
+  changing this VPS's region on 2026-09-13 deleted the entire disk, which would have taken repo1
+  with it. Retention: 4 weekly fulls ≈ a month of recoverable history, encrypted in the repository.
 
-Retention of four weekly fulls plus their WAL is roughly a month of recoverable history. For a
-database of this size that is single-digit dollars a month.
+R2's free tier is 10 GB with no egress charge, and the measured repository above is 252 MB, so
+repo2 costs nothing at this size. **`repo2-s3-uri-style=path` is required** — R2 does not serve
+virtual-host-style buckets, and leaving the default produces a DNS error that reads like a bad
+credential.
+
+Until the R2 credentials exist, delete the `repo2-*` lines and pgBackRest runs on repo1 alone.
+That is a working PITR setup with one failure mode: it does not survive the host.
 
 ## Schedule
 
