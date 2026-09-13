@@ -123,6 +123,70 @@ async function markReconciliationRequired(outboundMessageId: string, reason: str
   });
 }
 
+/**
+ * How long one "your sends are failing" notification speaks for.
+ *
+ * The failures worth notifying about are rarely solitary — a revoked grant, a wrong
+ * `ENCRYPTION_KEY`, a paused mailbox or an exhausted quota fails every send behind it the same
+ * way. One notification per message would bury the mailbox it is warning about, so the first
+ * failure in a window is loud and the rest are recorded on their rows and in the Sent folder.
+ */
+const SEND_FAILURE_NOTIFY_WINDOW_MS = 60 * 60 * 1000;
+
+/**
+ * Tell the owning rep that a send did not go out.
+ *
+ * Before this, `status: 'failed'` was written to the row and nothing else happened anywhere: no
+ * activity on the lead, no notification, and the Sent folder queried `status: 'sent'` alone. The
+ * rep saw "Email queued to …" and then silence indistinguishable from a prospect who had not yet
+ * replied. The provider's reason was sitting in `errorMessage`, readable only by a director on
+ * /admin/outbound.
+ *
+ * Raised only for *faults* — a provider rejection, an unusable mailbox, an exhausted quota. The
+ * deliberate refusals (global pause, canary allowlist, suppression) are policy working as
+ * configured; those now show in the Sent folder with their status and reason, which is the right
+ * volume for an expected outcome.
+ *
+ * Never throws: a failed send must not be made worse by a failed notification about it.
+ */
+async function notifySendFailure(args: {
+  tenantId: string;
+  leadId: string;
+  assignedToId: string | null | undefined;
+  to: string;
+  reason: string;
+}): Promise<void> {
+  const { tenantId, leadId, assignedToId, to, reason } = args;
+  // No assignee means no one to tell. The row and the Sent folder still carry it.
+  if (!assignedToId) return;
+
+  try {
+    const recent = await prisma.notification.findFirst({
+      where: {
+        tenantId,
+        userId: assignedToId,
+        type: 'email_send_failed',
+        createdAt: { gte: new Date(Date.now() - SEND_FAILURE_NOTIFY_WINDOW_MS) },
+      },
+      select: { id: true },
+    });
+    if (recent) return;
+
+    await prisma.notification.create({
+      data: {
+        tenantId,
+        userId: assignedToId,
+        type: 'email_send_failed',
+        title: 'Email did not send',
+        text: `Your message to ${to} was not delivered: ${reason}. Check the Sent folder — other messages may have failed the same way.`,
+        linkTo: `/leads/${leadId}`,
+      },
+    });
+  } catch (err) {
+    console.error('[worker:email] could not record a send-failure notification:', err);
+  }
+}
+
 async function handleEmailSend(payload: EmailSendPayload) {
   const { outboundMessageId, accountId, to, subject, body, leadId } = payload;
 
@@ -264,6 +328,13 @@ async function handleEmailSend(payload: EmailSendPayload) {
       where: { id: outboundMessageId },
       data: { status: OUTBOUND_STATUS.FAILED, errorMessage: `Email account not found: ${accountId}` },
     });
+    await notifySendFailure({
+      tenantId: existing.tenantId,
+      leadId: existing.leadId,
+      assignedToId: existing.lead?.assignedToId,
+      to,
+      reason: 'the sending mailbox no longer exists',
+    });
     throw new Error(`Email account not found: ${accountId}`);
   }
 
@@ -272,6 +343,13 @@ async function handleEmailSend(payload: EmailSendPayload) {
     await prisma.outboundMessage.update({
       where: { id: outboundMessageId },
       data: { status: OUTBOUND_STATUS.FAILED, errorMessage: blocked.errorMessage },
+    });
+    await notifySendFailure({
+      tenantId: existing.tenantId,
+      leadId: existing.leadId,
+      assignedToId: existing.lead?.assignedToId,
+      to,
+      reason: blocked.errorMessage,
     });
     return { skipped: true, reason: blocked.reason };
   }
@@ -291,6 +369,13 @@ async function handleEmailSend(payload: EmailSendPayload) {
           status: OUTBOUND_STATUS.FAILED,
           errorMessage: `Daily send limit reached on ${attemptsSoFar} consecutive attempts`,
         },
+      });
+      await notifySendFailure({
+        tenantId: existing.tenantId,
+        leadId: existing.leadId,
+        assignedToId: existing.lead?.assignedToId,
+        to,
+        reason: `the mailbox hit its daily send limit on ${attemptsSoFar} consecutive attempts`,
       });
       return { skipped: true, reason: 'quota_exhausted_max_deferrals' };
     }
@@ -444,6 +529,16 @@ async function handleEmailSend(payload: EmailSendPayload) {
     } else {
       await markReconciliationRequired(outboundMessageId, errorMessage);
     }
+    // Both branches, because both mean the rep is waiting on a reply to a message that is not
+    // with the prospect. `reconciliation_required` is the more dangerous of the two to leave
+    // silent: it resolves no sooner than the 24-hour sweep.
+    await notifySendFailure({
+      tenantId: existing.tenantId,
+      leadId: existing.leadId,
+      assignedToId: existing.lead?.assignedToId,
+      to,
+      reason: errorMessage,
+    });
     throw sendErr;
   }
 

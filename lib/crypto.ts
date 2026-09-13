@@ -23,6 +23,33 @@ function getKey(): Buffer {
   return Buffer.from(hex, 'hex');
 }
 
+/**
+ * A stored credential could not be decrypted.
+ *
+ * This type exists because the underlying failure is anonymous. When `ENCRYPTION_KEY` is
+ * present and the right length but is simply the *wrong key* — precisely the state a host
+ * migration produces — AES-GCM's authentication check fails and Node throws
+ * `Error: Unsupported state or unable to authenticate data`. That message matches nothing in
+ * `classifySendFailure`, so it fell through to `ambiguous` and every affected message was
+ * parked for a 24-hour reconciliation window. A condition that fails *every send in the
+ * tenant, identically, forever* was being recorded as "this one might have gone out".
+ *
+ * Naming it makes it classifiable as a definite non-delivery, and puts the actual cause in the
+ * `errorMessage` an operator reads instead of leaving them to infer it from the wording of a
+ * crypto primitive.
+ */
+export class CredentialDecryptionError extends Error {
+  override readonly name = 'CredentialDecryptionError';
+
+  constructor(cause?: unknown) {
+    super(
+      'stored credential could not be decrypted — ENCRYPTION_KEY does not match the key this ' +
+        'value was encrypted with, or the stored value is corrupt'
+    );
+    if (cause !== undefined) this.cause = cause;
+  }
+}
+
 /** Encrypt a plaintext string. Returns a base64 string: iv + authTag + ciphertext (local) or kms:payload. */
 export async function encrypt(plaintext: string): Promise<string> {
   const kmsKeyArn = process.env.KMS_KEY_ARN;
@@ -98,13 +125,22 @@ export async function decrypt(encoded: string): Promise<string> {
   }
 
   // Local / Fallback decryption
+  //
+  // getKey() stays outside the try: a missing or wrong-length ENCRYPTION_KEY already throws a
+  // message that names the variable and the required format, and rewriting it as "could not be
+  // decrypted" would lose that. Only the cryptographic step below is re-labelled, because that
+  // is the step whose native error says nothing about what went wrong.
   const key = getKey();
-  const buf = Buffer.from(encoded, 'base64');
-  const iv = buf.subarray(0, IV_LENGTH);
-  const tag = buf.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH);
-  const ciphertext = buf.subarray(IV_LENGTH + TAG_LENGTH);
-  const decipher = createDecipheriv(ALGORITHM, key, iv);
-  decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+  try {
+    const buf = Buffer.from(encoded, 'base64');
+    const iv = buf.subarray(0, IV_LENGTH);
+    const tag = buf.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH);
+    const ciphertext = buf.subarray(IV_LENGTH + TAG_LENGTH);
+    const decipher = createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+  } catch (err) {
+    throw new CredentialDecryptionError(err);
+  }
 }
 

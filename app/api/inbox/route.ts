@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
 
 function getThreadKey(subject: string | null): string {
   if (!subject) return 'no-subject';
@@ -41,10 +42,28 @@ export async function GET(req: NextRequest) {
       orderBy: { date: 'desc' },
     });
 
+    // Sent must include the sends that did *not* work.
+    //
+    // This filtered on `status: 'sent'` alone, which made every delivery failure invisible to the
+    // person who wrote the mail: the composer says "queued", the message never appears here, no
+    // activity is written against the lead, and the row recording the provider's rejection is
+    // readable only by a director on /admin/outbound. A rep had no way to learn that a send
+    // failed, and so kept waiting for a reply to a mail that never left.
+    //
+    // `pending` and `sending` stay out on purpose — those are in flight, and a message enqueued
+    // two seconds ago is not yet news. Anything genuinely stuck in `sending` is swept to
+    // `reconciliation_required` by the maintenance worker and appears then.
     const outbound = await prisma.outboundMessage.findMany({
       where: {
         tenantId: user.tenantId,
-        status: 'sent',
+        status: {
+          in: [
+            OUTBOUND_STATUS.SENT,
+            OUTBOUND_STATUS.FAILED,
+            OUTBOUND_STATUS.RECONCILIATION_REQUIRED,
+            OUTBOUND_STATUS.PERMANENTLY_FAILED,
+          ],
+        },
       },
       include: {
         lead: {
@@ -54,7 +73,9 @@ export async function GET(req: NextRequest) {
           select: { email: true },
         },
       },
-      orderBy: { sentAt: 'desc' },
+      // createdAt, not sentAt: a message that never sent has no sentAt, and ordering by a null
+      // column would group every failure at one end instead of in the timeline where it belongs.
+      orderBy: { createdAt: 'desc' },
     });
 
     // 2. Map messages into a unified format
@@ -94,6 +115,11 @@ export async function GET(req: NextRequest) {
         isSpam: false,
         isTrash: false,
         lead: msg.lead,
+        // Added fields, not changed ones: a client that does not read them renders exactly what
+        // it rendered before. `deliveryStatus` is what lets the thread mark a message as failed
+        // rather than showing it indistinguishably from one that arrived.
+        deliveryStatus: msg.status,
+        deliveryError: msg.status === OUTBOUND_STATUS.SENT ? null : msg.errorMessage,
       })),
     ];
 

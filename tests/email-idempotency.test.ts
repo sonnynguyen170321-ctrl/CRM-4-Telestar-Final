@@ -159,3 +159,39 @@ describe('isClaimLive', () => {
     expect(SENDING_CLAIM_LEASE_MS).toBe(30 * 60 * 1000);
   });
 });
+
+/**
+ * A wrong ENCRYPTION_KEY must read as a definite non-delivery, not as a maybe.
+ *
+ * AES-GCM authentication failure throws `Unsupported state or unable to authenticate data`,
+ * which matched no pattern here and fell through to `ambiguous`. That routed a condition which
+ * fails *every send in the tenant, identically and permanently* into the reconciliation pipeline
+ * built for genuinely uncertain provider timeouts: each message parked for 24 hours, described
+ * as one that might have been delivered. It is precisely the state a host migration produces, so
+ * it is also the one the operator most needs named.
+ */
+describe('classifySendFailure — undecryptable mailbox credentials', () => {
+  it('classifies a CredentialDecryptionError as definitely not sent', async () => {
+    const { CredentialDecryptionError } = await import('@/lib/crypto');
+    expect(classifySendFailure(new CredentialDecryptionError())).toBe('not_sent');
+  });
+
+  it('recognises it by name even when the class identity is lost', () => {
+    // Crossing a module or serialization boundary can defeat `instanceof`; the name survives.
+    const err = new Error('some other wording entirely');
+    err.name = 'CredentialDecryptionError';
+    expect(classifySendFailure(err)).toBe('not_sent');
+  });
+
+  it('still recognises it by message when even the name is gone', () => {
+    expect(
+      classifySendFailure(new Error('stored credential could not be decrypted — ENCRYPTION_KEY does not match'))
+    ).toBe('not_sent');
+  });
+
+  it('does not sweep up an unrelated crypto-shaped error', () => {
+    // The guard must be narrow: mislabelling a real ambiguous failure as not_sent returns it to
+    // the claimable pool and risks a second delivery, which is the worse mistake of the two.
+    expect(classifySendFailure(new Error('TLS handshake failed'))).toBe('ambiguous');
+  });
+});

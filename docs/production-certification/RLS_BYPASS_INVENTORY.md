@@ -92,7 +92,7 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 | `lib/research/cache.ts` | 175, 410 | Cache updates through `withTenantRaw`, so the statement carries tenant context on its own connection. |
 | `lib/search/accentSearch.ts` | 83, 84 | Accent-insensitive search through `withTenantRaw`, with `tenantId` also named explicitly in the WHERE clause. |
 | `workers/email.ts` | 82 | An atomic compare-and-set on `EmailAccount.sentTodayCount`, routed through `withTenantRaw` and addressing a single row by id. Raw SQL rather than a read-modify-write so two workers cannot both spend the last send of a quota. |
-| `workers/healthcheck.ts` | 17 | `SELECT 1` liveness probe. Touches no tenant-owned table. |
+| `workers/healthcheck.ts` | 28 | `SELECT 1` liveness probe. Touches no tenant-owned table. |
 
 ---
 

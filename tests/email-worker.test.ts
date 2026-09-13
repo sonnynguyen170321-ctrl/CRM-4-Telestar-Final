@@ -9,6 +9,8 @@ const mockAccountFindUnique = vi.fn();
 const mockLeadFindUnique = vi.fn();
 const mockLeadUpdate = vi.fn();
 const mockActivityCreate = vi.fn();
+const mockNotificationFindFirst = vi.fn();
+const mockNotificationCreate = vi.fn();
 const mockExecuteRaw = vi.fn();
 const mockServiceSend = vi.fn();
 const mockEnqueueReschedule = vi.fn();
@@ -32,6 +34,10 @@ vi.mock('@/lib/prisma', () => ({
     },
     activity: {
       create: (...args: unknown[]) => mockActivityCreate(...args),
+    },
+    notification: {
+      findFirst: (...args: unknown[]) => mockNotificationFindFirst(...args),
+      create: (...args: unknown[]) => mockNotificationCreate(...args),
     },
     $executeRaw: (...args: unknown[]) => mockExecuteRaw(...args),
   },
@@ -134,6 +140,8 @@ describe('handleEmailSend', () => {
     mockAccountFindUnique.mockResolvedValue(mockEmailAccount());
     // Winning the claim is the default; races override this with count 0.
     mockOutboundUpdateMany.mockResolvedValue({ count: 1 });
+    // No recent send-failure notification, so the dedupe window never suppresses one.
+    mockNotificationFindFirst.mockResolvedValue(null);
   });
 
   it('sends email and updates outbound message to sent', async () => {
@@ -708,5 +716,117 @@ describe('evaluateSendBlock', () => {
   it('treats any value other than the literal "true" as auto-pause off', () => {
     process.env.EMAIL_HEALTH_AUTOPAUSE = '1';
     expect(evaluateSendBlock({ ...base, healthLevel: 'critical' })).toBeNull();
+  });
+});
+
+/**
+ * A send that fails has to reach the person who wrote it.
+ *
+ * Previously `status: 'failed'` was written to the row and nothing else happened: no activity,
+ * no notification, and the Sent folder queried `status: 'sent'` alone. The rep saw "Email queued
+ * to …" and then silence indistinguishable from a prospect who simply had not replied yet. The
+ * provider's own reason sat in `errorMessage`, visible only to a director on /admin/outbound.
+ *
+ * These tests pin the two halves of that repair: a fault notifies, and a deliberate policy
+ * refusal does not (it shows in the Sent folder instead, which is the right volume for an
+ * expected outcome — one notification per suppressed recipient would bury the mailbox).
+ */
+describe('handleEmailSend — a failed send reaches the rep', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.EMAIL_SEND_DRY_RUN = 'false';
+    delete process.env.EMAIL_GLOBAL_PAUSE;
+    delete process.env.LIVE_EMAIL_CANARY_MODE;
+    mockAccountFindUnique.mockResolvedValue(mockEmailAccount());
+    mockOutboundUpdateMany.mockResolvedValue({ count: 1 });
+    mockNotificationFindFirst.mockResolvedValue(null);
+    mockSuppressionFindFirst.mockResolvedValue(null);
+    mockExecuteRaw.mockResolvedValue(1);
+  });
+
+  it('notifies the assigned rep when the provider rejects the message', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockServiceSend.mockRejectedValueOnce(new Error('535 5.7.8 Authentication failed'));
+
+    await expect(handleEmailSend(buildPayload())).rejects.toThrow(/authentication failed/i);
+
+    expect(mockNotificationCreate).toHaveBeenCalledTimes(1);
+    const created = mockNotificationCreate.mock.calls[0][0].data;
+    expect(created.userId).toBe('user-1');
+    expect(created.tenantId).toBe(TENANT_ID);
+    expect(created.type).toBe('email_send_failed');
+    expect(created.text).toContain('test@example.com');
+    expect(created.linkTo).toBe('/leads/lead-1');
+  });
+
+  it('notifies when the outcome is ambiguous, not only when it definitely failed', async () => {
+    // `reconciliation_required` is the more dangerous state to leave silent: it resolves no
+    // sooner than the 24-hour sweep, so the rep waits a day on a message nobody is chasing.
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockServiceSend.mockRejectedValueOnce(new Error('socket hang up'));
+
+    await expect(handleEmailSend(buildPayload())).rejects.toThrow(/socket hang up/);
+
+    expect(mockNotificationCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('notifies when the mailbox itself is unusable', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockAccountFindUnique.mockResolvedValue(mockEmailAccount({ isActive: false }));
+
+    await handleEmailSend(buildPayload());
+
+    expect(mockNotificationCreate).toHaveBeenCalledTimes(1);
+    expect(mockNotificationCreate.mock.calls[0][0].data.text).toMatch(/inbox is disconnected|inactive|paused/i);
+  });
+
+  it('stays silent for a suppressed recipient — policy working, not a fault', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockSuppressionFindFirst.mockResolvedValueOnce({ id: 'sup-1', reason: 'unsubscribed' });
+
+    await handleEmailSend(buildPayload());
+
+    expect(mockNotificationCreate).not.toHaveBeenCalled();
+  });
+
+  it('stays silent while the global pause is on — an operator did that on purpose', async () => {
+    process.env.EMAIL_GLOBAL_PAUSE = 'true';
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+
+    await handleEmailSend(buildPayload());
+
+    expect(mockNotificationCreate).not.toHaveBeenCalled();
+  });
+
+  it('raises one notification per hour, not one per failed message', async () => {
+    // A revoked grant or a wrong ENCRYPTION_KEY fails every queued message identically. One
+    // notification each would bury the mailbox the warning is about.
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockNotificationFindFirst.mockResolvedValueOnce({ id: 'already-told-them' });
+    mockServiceSend.mockRejectedValueOnce(new Error('535 5.7.8 Authentication failed'));
+
+    await expect(handleEmailSend(buildPayload())).rejects.toThrow();
+
+    expect(mockNotificationCreate).not.toHaveBeenCalled();
+  });
+
+  it('does not turn a failed send into a failed job when the notification write fails', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockNotificationCreate.mockRejectedValueOnce(new Error('notification table is on fire'));
+    mockServiceSend.mockRejectedValueOnce(new Error('535 5.7.8 Authentication failed'));
+
+    // The original send error must still be what surfaces — not the notification's.
+    await expect(handleEmailSend(buildPayload())).rejects.toThrow(/authentication failed/i);
+  });
+
+  it('skips the notification when the lead has no assignee, rather than throwing', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(
+      mockOutboundMessage({ lead: { campaignId: 'camp-1', assignedToId: null } })
+    );
+    mockServiceSend.mockRejectedValueOnce(new Error('535 5.7.8 Authentication failed'));
+
+    await expect(handleEmailSend(buildPayload())).rejects.toThrow(/authentication failed/i);
+
+    expect(mockNotificationCreate).not.toHaveBeenCalled();
   });
 });

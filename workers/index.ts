@@ -2,7 +2,7 @@ import { Worker } from 'bullmq';
 import { getConnection, closeConnection } from '@/lib/bullmq/connection';
 import { readReleaseInfo, describeRelease } from '@/lib/release';
 import { closeAllQueues } from '@/lib/bullmq/queues';
-import { createHealthcheckWorker, closeHealthcheck } from './healthcheck';
+import { closeHealthcheck } from './healthcheck';
 import { createSequenceWorker } from './sequence';
 import { createEmailWorker } from './email';
 import { createNotificationWorker } from './notification';
@@ -19,8 +19,10 @@ function registerWorkers(): void {
   // operator sees it without shelling into the container.
   console.log(`[worker] ${describeRelease(readReleaseInfo())}`);
 
+  // One worker per queue. `healthcheck` is absent deliberately: it was a second consumer of the
+  // `maintenance` queue, and two workers on one queue meant each silently completed the other's
+  // jobs without performing them. Its handler now lives inside the maintenance worker.
   const list = [
-    { name: 'healthcheck', worker: createHealthcheckWorker() },
     { name: 'sequence', worker: createSequenceWorker() },
     { name: 'email', worker: createEmailWorker() },
     { name: 'notification', worker: createNotificationWorker() },
