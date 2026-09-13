@@ -42,17 +42,22 @@ mkdir -p "$BACKUP_DIR"
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 DUMP="${BACKUP_DIR}/${STAMP}-${TAG}.dump"
 
-# Run the client inside the compose network so `cloudsql-proxy` / `crm-db` resolve. `--no-deps`
-# keeps this from starting anything; the DB service itself must already be up.
-$DOCKER compose --env-file "$ENV_FILE" $COMPOSE_FILES run --rm --no-deps \
-  -v "${BACKUP_DIR}:/backups" --entrypoint sh web -c \
-  "pg_dump --format=custom --no-owner --no-acl --compress=6 --dbname='${DATABASE_URL}' --file='/backups/$(basename "$DUMP")'" \
-  >&2
+# The client runs from the postgres image, attached to the CRM's compose network so
+# `cloudsql-proxy` / `crm-db` resolve by service name. It is NOT run from the application image:
+# the runner stage installs only ca-certificates and openssl, so `web` has no pg_dump at all.
+# Pinned to 16 — pg_dump refuses a server newer than itself and Cloud SQL is PostgreSQL 16.
+PROJECT="${COMPOSE_PROJECT_NAME:-$(grep -E '^COMPOSE_PROJECT_NAME=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' || echo crm)}"
+NETWORK="${CRM_NETWORK:-${PROJECT}_crm_internal}"
+$DOCKER network inspect "$NETWORK" >/dev/null 2>&1 \
+  || { echo "compose network ${NETWORK} not found — bring the stack up first" >&2; exit 1; }
+PG_IMAGE="${PG_CLIENT_IMAGE:-postgres:16-bookworm}"
+PG="$DOCKER run --rm --network ${NETWORK} -v ${BACKUP_DIR}:/backups ${PG_IMAGE}"
+
+$PG pg_dump --format=custom --no-owner --no-acl --compress=6 \
+  --dbname="${DATABASE_URL}" --file="/backups/$(basename "$DUMP")" >&2
 
 # A dump that pg_restore cannot list is not a backup.
-$DOCKER compose --env-file "$ENV_FILE" $COMPOSE_FILES run --rm --no-deps \
-  -v "${BACKUP_DIR}:/backups" --entrypoint sh web -c \
-  "pg_restore --list '/backups/$(basename "$DUMP")' | grep -q 'TABLE DATA' " \
+$PG sh -c "pg_restore --list '/backups/$(basename "$DUMP")' | grep -q 'TABLE DATA'" \
   >&2 || { echo "dump verification failed: $DUMP" >&2; rm -f "$DUMP"; exit 1; }
 
 SIZE=$(stat -c %s "$DUMP" 2>/dev/null || stat -f %z "$DUMP")
@@ -62,8 +67,8 @@ echo "dump: $DUMP (${SIZE} bytes)" >&2
 if $SANITIZE; then
   # Restore into a throwaway database, scrub, dump again. Never touches the live DB.
   SCRATCH="scratch_sanitize_${STAMP}"
-  $DOCKER compose --env-file "$ENV_FILE" $COMPOSE_FILES run --rm --no-deps \
-    -v "${BACKUP_DIR}:/backups" -v "${SCRIPT_DIR}/sanitize.sql:/sanitize.sql:ro" --entrypoint sh web -c "
+  $DOCKER run --rm --network "${NETWORK}" \
+    -v "${BACKUP_DIR}:/backups" -v "${SCRIPT_DIR}/sanitize.sql:/sanitize.sql:ro" "${PG_IMAGE}" sh -c "
       set -e
       ADMIN_URL=\$(echo '${DATABASE_URL}' | sed -E 's#/[^/?]+(\?|\$)#/postgres\1#')
       psql \"\$ADMIN_URL\" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE ${SCRATCH}'
@@ -77,9 +82,15 @@ if $SANITIZE; then
 fi
 
 if $OFFSITE; then
-  : "${BACKUP_REMOTE:?BACKUP_REMOTE is required for --offsite (rclone remote:path)}"
+  BACKUP_REMOTE="${BACKUP_REMOTE:-$(grep -E '^BACKUP_REMOTE=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' || true)}"
+  [ -n "$BACKUP_REMOTE" ] || { echo "BACKUP_REMOTE is required for --offsite (rclone remote:path)" >&2; exit 1; }
   command -v rclone >/dev/null || { echo "rclone not installed" >&2; exit 1; }
-  rclone copy "$DUMP" "$BACKUP_REMOTE/" >&2
+  # This host has no platform snapshot to fall back on, so a dump that exists only here is not a
+  # backup. A failed or unverifiable copy fails the script rather than printing a path nobody reads.
+  rclone copy "$DUMP" "$BACKUP_REMOTE/" >&2 \
+    || { echo "offsite copy to ${BACKUP_REMOTE} FAILED — the dump exists only on this host" >&2; exit 1; }
+  rclone lsf "$BACKUP_REMOTE/$(basename "$DUMP")" >/dev/null 2>&1 \
+    || { echo "offsite copy reported success but the object is not listable" >&2; exit 1; }
   echo "offsite: $BACKUP_REMOTE/$(basename "$DUMP")" >&2
 fi
 

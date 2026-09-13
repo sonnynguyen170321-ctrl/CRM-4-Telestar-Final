@@ -1,41 +1,58 @@
-# Hostinger VPS inventory — `srv1908578` (read-only, 2026-09-12)
+# Hostinger VPS inventory — `srv1908578` (Kuala Lumpur, rebuilt 2026-09-13)
 
-Captured over SSH before any CRM bytes land on the box. Nothing here was changed.
+Captured over SSH. Nothing on the box was changed while capturing it.
+
+> **The box was wiped on 2026-09-13.** Changing a Hostinger VPS's location is a full reinstall that
+> [permanently deletes all data, backups and snapshots](https://support.hostinger.com/en/articles/10289743-how-to-transfer-your-vps-to-a-different-location-in-hostinger).
+> The Nextcloud stack that ran here — app, Postgres 17, Redis, cron, and every file and account in
+> it — is gone and unrecoverable; no backups were purchased. The VPS is now **dedicated to the CRM**
+> unless the owner reinstalls Nextcloud from Hostinger's free template.
 
 ## Host
 
 | | |
 |---|---|
 | Plan | Hostinger KVM 4 — 4 vCPU (AMD EPYC 9354P), **16 GB RAM**, 193 GB NVMe |
-| Location | **Boston 2** (to be relocated to Singapore — Phase 0; Cloud SQL is `asia-southeast1`) |
-| Public IP | `2.24.193.71` (changes on relocation) |
-| OS | Ubuntu 24.04.4 LTS, up 3 weeks |
+| Location | **Kuala Lumpur, MY** (AS47583 Hostinger). ~5–10 ms to Cloud SQL in `asia-southeast1`; 56 ms from Vietnam |
+| Public IP | `187.127.110.204` (was `2.24.193.71` in Boston) |
+| IPv6 | `2a02:4780:5e:e8c9::1` — note `curl ifconfig.me` from the box returns this, not the v4 address |
+| Hostname | `srv1908578.hstgr.cloud` — Hostinger-managed DNS, follows the IP automatically |
+| OS | Ubuntu 24.04.4 LTS, reinstalled 2026-09-13 06:48 UTC |
 | Docker | Engine 29.7.2, Compose 5.4.0 |
-| Memory in use | 858 MB used, **10.8 GB free**, 4.7 GB buff/cache |
-| Swap | **none** (0 MB) |
-| Disk `/` | 4.8 GB of 193 GB (3 %) |
-| SSH | `root`, key auth (`claude-telestar-crm` ed25519 added 2026-09-12) |
-| Hostinger backup | weekly VPS snapshot (not DB-consistent) |
+| Disk | 1.4 GB of 193 GB used |
+| SSH | `root`, key auth (`claude-telestar-crm` ed25519 — **re-added after the wipe**, the reinstall clears `authorized_keys`) |
+| **Platform backup** | **none.** Not purchased, and a location change would delete it anyway. `deploy/hostinger/backup.sh --offsite` is the only backup that will exist. |
 
-## Who owns the ports
+## What is running
 
-| Port | Owner | Note |
+| Container | Image | Note |
 |---|---|---|
-| 80, 443 | **Traefik** (`traefik-traefik-1`, `network_mode: host`) | The only reverse proxy. CRM must route through it. |
-| 22 | sshd | |
-| 41115 | docker-proxy → Nextcloud :80 | Published on `0.0.0.0` by Hostinger's template; not needed with Traefik in front. Out of scope for the CRM; worth closing at the firewall. |
+| `traefik-traefik-1` | `traefik:latest` | The only container. `network_mode: host`, owns 80/443 |
 
-No other listeners. `ufw` is **inactive** and `iptables INPUT` policy is **ACCEPT** — the only firewall is whatever Hostinger's managed firewall applies (check hPanel → Firewall before Phase 3).
+Volumes: `traefik_traefik-letsencrypt` and a stray `traefik-letsencrypt` (empty, from an earlier
+compose project name). No application volumes. Compose project lives in `/docker/traefik`.
 
-## Traefik (`/docker/traefik`)
+## Ports
 
-- `traefik:latest`, `network_mode: host`, Docker provider with `exposedbydefault=false` → a container is routed **only if it carries `traefik.enable=true` labels**.
-- Entrypoints `web` :80 → permanent redirect to `websecure` :443.
-- Let's Encrypt resolver `letsencrypt`, **HTTP-01** challenge on `web`, storage `/letsencrypt/acme.json` (volume `traefik-letsencrypt`), ACME email `admin@srv1908578.hstgr.cloud`.
-- No file provider, no dynamic config directory. Routing is 100 % labels.
-- Because Traefik is on the host network it reaches containers on any bridge network by IP — Nextcloud lives on `nextcloud-o38n_default` and is routed fine. The CRM's own compose network will work the same way; **no shared network is required**.
+| Port | Owner |
+|---|---|
+| 80, 443 | Traefik |
+| 22 | sshd |
 
-This is the integration contract for `docker-compose.hostinger.yml`:
+Nothing else listens. `ufw` is inactive and `iptables INPUT` is ACCEPT after the reinstall — see
+`FIREWALL.md`; both layers go up before any production data lands.
+
+## Traefik — the integration contract
+
+`traefik:latest`, `network_mode: host`, Docker provider with `exposedbydefault=false`, so a container
+is routed **only** if it carries `traefik.enable=true` labels. Entrypoints `web` :80 → permanent
+redirect to `websecure` :443. Let's Encrypt resolver `letsencrypt`, **HTTP-01** on `web`, storage
+`/letsencrypt/acme.json` in volume `traefik_traefik-letsencrypt`. No file provider, no dynamic
+directory — routing is 100 % labels. ACME email is `admin@srv1908578.hstgr.cloud`.
+
+Because Traefik is on the host network it reaches containers on any bridge network by IP, so the CRM
+keeps its own `crm_internal` network and **does not** join a shared one. This is what
+`docker-compose.hostinger.yml` implements:
 
 ```yaml
 web:
@@ -47,30 +64,27 @@ web:
     - traefik.http.services.crm.loadbalancer.server.port=3000
 ```
 
-The CRM must **not** run its own Caddy (`caddy` service → `profiles: [disabled]`) and must not publish any port.
+The CRM runs no Caddy (`caddy` → `profiles: [disabled]`) and publishes no port.
 
-## Nextcloud (`/docker/nextcloud-o38n`, Hostinger app template)
+## Resource budget
 
-| Service | Image | Notes |
-|---|---|---|
-| nextcloud | `nextcloud:30-apache` | 274 MB RSS; host `nextcloud-o38n.srv1908578.hstgr.cloud` (Hostinger subdomain — DNS is managed by Hostinger, so relocation needs **no** manual Nextcloud DNS change) |
-| db | `postgres:17-alpine` | 42 MB; Nextcloud only. The CRM will run its **own** Postgres 16 (`crm-db`); do not share. |
-| redis | `redis:7-alpine` with `--requirepass` | `maxmemory` unset (default) → policy default `noeviction`, but it is Nextcloud's cache and password-protected; the CRM runs its **own** Redis (`noeviction`, AOF on). |
-| cron | `nextcloud:30-apache` | 2 MB |
+The CRM alone: web 3 GB + worker 3 GB + Redis 1 GB + `crm-db` 4 GB = **11 GB of ceilings** against
+16 GB, with nothing else on the box. Comfortable, and the reason host prep sets a **4 GB** swapfile
+rather than 2 GB. If Nextcloud is reinstalled later it adds ≈ 450 MB resident — still fine, but it
+must bring its own Postgres and Redis and publish no host ports.
 
-Total Nextcloud + Traefik footprint today: **≈ 435 MB RAM**, negligible CPU at rest (Nextcloud showed 24 % CPU during the sample — its cron/preview jobs).
+## Preparation required after every reinstall
 
-## Resource gate B1
-
-Required headroom for the CRM: web ≈ 1–1.5 GB, worker ≈ 0.5–1 GB, Redis ≤ 1 GB (limit), Postgres ≤ 4 GB (limit, Phase 6b) → **≤ 7.5 GB** at the limits. Available: 15.1 GB. **Gate passes** with > 50 % headroom even at every limit. Disk: 193 GB free for images, logs, dumps and two backup generations.
-
-Caveats to fix before Phase 6a:
-- **No swap.** Add a 2 GB swapfile with `vm.swappiness=10` so a burst evicts cache instead of OOM-killing Postgres.
-- **No host firewall.** Enable `ufw` (22 from allow-listed IPs, 80, 443) *after* adding the SSH rule; then mirror in Hostinger's managed firewall.
+Everything a previous session installed was erased. `RUNBOOK.md` → *One-time host preparation*:
+4 GB swap + `vm.swappiness=10`, docker log rotation, `/opt/crm/{backups,secrets}` and
+`/opt/crm-staging`, `rclone jq postgresql-client-16 nmap`, `ufw` (SSH rule first), `docker login ghcr.io`.
 
 ## Decisions this inventory settles
 
-1. Reverse proxy = Traefik via labels. No network join, no second proxy.
-2. Nextcloud's DB and Redis stay private; the CRM brings its own of both.
-3. Relocation to Singapore does not require Nextcloud DNS edits (hstgr.cloud subdomain).
-4. The CRM compose project is `crm` at `/opt/crm` (staging: `crm-staging` at `/opt/crm-staging`), separate from `/docker/*` which Hostinger's app manager owns.
+1. Reverse proxy is Traefik, by labels. No shared network, no second proxy, no published ports.
+2. The CRM brings its own Postgres and Redis; nothing is shared with any other app.
+3. Latency no longer forces a combined cutover — KL→Singapore is single-digit milliseconds, so
+   compute can move first and the database later.
+4. With no platform backup, an off-host dump target and a rehearsed restore are a **hard gate**
+   before production data lands. `prod-check-env` now requires `BACKUP_REMOTE` on this target.
+5. The compose project is `crm` at `/opt/crm`; staging is `crm-staging` at `/opt/crm-staging`.

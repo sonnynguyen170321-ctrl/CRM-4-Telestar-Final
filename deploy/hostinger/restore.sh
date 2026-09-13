@@ -25,7 +25,15 @@ DB_NAME=$(printf '%s' "$DATABASE_URL" | sed -E 's#.*/([^/?]+)(\?.*)?$#\1#')
 DB_HOST=$(printf '%s' "$DATABASE_URL" | sed -E 's#.*@([^/:]+).*#\1#')
 
 DC="$DOCKER compose --env-file $ENV_FILE $COMPOSE_FILES"
-PSQL="$DC run --rm --no-deps --entrypoint sh web -c"
+
+# The client runs from the postgres image on the CRM's compose network — the application image
+# ships no database client (its runner stage installs only ca-certificates and openssl).
+PROJECT="${COMPOSE_PROJECT_NAME:-$(grep -E '^COMPOSE_PROJECT_NAME=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' || echo crm)}"
+NETWORK="${CRM_NETWORK:-${PROJECT}_crm_internal}"
+$DOCKER network inspect "$NETWORK" >/dev/null 2>&1 \
+  || { echo "compose network ${NETWORK} not found — bring the stack up first" >&2; exit 1; }
+PG_IMAGE="${PG_CLIENT_IMAGE:-postgres:16-bookworm}"
+PSQL="$DOCKER run --rm --network ${NETWORK} ${PG_IMAGE} sh -c"
 
 ACTIVE=$($PSQL "psql '${DATABASE_URL}' -tAc \"select count(*) from pg_stat_activity where datname='${DB_NAME}' and application_name <> '' and pid <> pg_backend_pid()\"" 2>/dev/null | tr -d '[:space:]')
 if [ "${ACTIVE:-0}" != "0" ]; then
@@ -43,7 +51,7 @@ fi
 # --clean --if-exists: drop objects that exist, so a rehearsal into a non-empty staging DB is
 # repeatable. --no-owner/--no-acl: roles differ between Cloud SQL and the VPS; RLS is re-applied
 # from supabase/rls.sql afterwards, not carried in the dump.
-$DC run --rm --no-deps -v "$(cd "$(dirname "$DUMP")" && pwd):/restore:ro" --entrypoint sh web -c \
+$DOCKER run --rm --network "${NETWORK}" -v "$(cd "$(dirname "$DUMP")" && pwd):/restore:ro" "${PG_IMAGE}" sh -c \
   "pg_restore --clean --if-exists --no-owner --no-acl --exit-on-error --dbname='${DATABASE_URL}' '/restore/$(basename "$DUMP")'" >&2
 
 echo "restored. Next: $DC run --rm --no-deps web node node_modules/prisma/build/index.js migrate status ; then apply supabase/rls.sql and npm run verify:rls" >&2
