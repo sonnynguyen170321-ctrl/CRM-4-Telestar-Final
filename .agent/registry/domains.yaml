@@ -101,6 +101,9 @@ domains:
       - scripts/preserve-referential-actions.mjs
       - scripts/verify-db-integrity.ts
       - scripts/check-relational-integrity.ts
+      # Derives the sensitive-column list from the schema so a new migration cannot quietly add
+      # personal data to a dump labelled "sanitized".
+      - scripts/check-sanitize-coverage.mjs
       - scripts/harden-db-roles.sql
       - scripts/apply-p8-migration.mjs
       - scripts/demo-seed.ts

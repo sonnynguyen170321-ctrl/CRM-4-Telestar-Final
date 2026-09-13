@@ -20,6 +20,9 @@
     },
     "Sequence": {
       "description": "Staff-authored description of a sequence ('Q4 outbound, SaaS founders'), not about any person."
+    },
+    "IcpProfile": {
+      "description": "Staff-authored description of an ideal-customer profile ('Vietnamese manufacturers, 50-500 staff'), which describes a market segment rather than any person. Keeping it is what makes an ICP scoring bug reproducible."
     }
   }
 }
