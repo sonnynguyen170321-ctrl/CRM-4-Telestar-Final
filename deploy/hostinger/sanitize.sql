@@ -103,4 +103,15 @@ UPDATE "BookingLink" SET "ownerName" = NULL;
 UPDATE "Meeting"     SET "prospectName" = 'Prospect ' || left(id, 6), "clientOwnerName" = NULL;
 UPDATE "Opportunity" SET "contactName" = NULL, "clientOwnerName" = NULL;
 
+-- ── Research discovery (added by the crm4 work) ──────────────────────────────────────────────
+-- Candidates and prospects harvested from the open web: a guessed work address, a phone and a
+-- LinkedIn profile are a named individual just as much as Contact.email is. Caught by
+-- scripts/check-sanitize-coverage.mjs when the schema grew from 68 models to 81 — which is the
+-- point of deriving the list rather than maintaining it.
+UPDATE "ResearchCandidate" SET "emailGuess" = NULL, "emailStatus" = NULL, phone = NULL, "linkedinUrl" = NULL;
+UPDATE "ResearchProspect"  SET "displayName" = 'Prospect ' || left(id, 6), "linkedinUrl" = NULL;
+
+-- The normalised form of the name scrubbed above; leaving it re-identifies the row.
+UPDATE "Contact" SET "fullNameNormalized" = NULL;
+
 COMMIT;

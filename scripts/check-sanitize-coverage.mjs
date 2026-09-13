@@ -1,4 +1,7 @@
-#!/usr/bin/env node
+/**
+ * No shebang: the test imports this module through vitest, whose transform rejects one,
+ * and package.json invokes it as `node scripts/check-sanitize-coverage.mjs` anyway.
+ */
 /**
  * Fail-closed coverage check for deploy/hostinger/sanitize.sql.
  *
