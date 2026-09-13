@@ -58,10 +58,36 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          conclusion="$(gh api "repos/${REPO}/actions/runs/${RUN_ID}/jobs" --paginate \
-            --jq '.jobs[] | select(.name == "CI required checks") | .conclusion' | head -n 1)"
 
-          if [ -z "${conclusion}" ]; then
+          # Retried, and the response landed in a file before jq touches it. On 2026-09-13 this
+          # step failed a release with `unexpected end of JSON input` while the job it was looking
+          # for had in fact succeeded: `--paginate` emits one JSON document per page, so a
+          # truncated or empty page from a momentarily unhealthy API makes `--jq` fail in a way
+          # indistinguishable from "the gate did not pass". A transient API error must read as
+          # "ask again", never as a failed gate.
+          #
+          # `--paginate` is dropped with it: this endpoint returns every job of one run in a single
+          # page at any plausible job count, so the concatenation was never needed.
+          for attempt in 1 2 3; do
+            if gh api "repos/${REPO}/actions/runs/${RUN_ID}/jobs?per_page=100" > jobs.json 2> api-error.txt; then
+              break
+            fi
+            echo "::warning::Attempt ${attempt} to read the jobs of run ${RUN_ID} failed: $(tail -n 1 api-error.txt)"
+            if [ "${attempt}" = "3" ]; then
+              echo "::error::Could not read the jobs of run ${RUN_ID} after 3 attempts. Not publishing — this is an API failure, not a gate result."
+              exit 1
+            fi
+            sleep $((attempt * 10))
+          done
+
+          if ! jq -e . jobs.json > /dev/null 2>&1; then
+            echo "::error::The jobs response for run ${RUN_ID} is not valid JSON. Not publishing — this is an API failure, not a gate result."
+            exit 1
+          fi
+
+          conclusion="$(jq -r '.jobs[] | select(.name == "CI required checks") | .conclusion' jobs.json | head -n 1)"
+
+          if [ -z "${conclusion}" ] || [ "${conclusion}" = "null" ]; then
             echo "::error::No 'CI required checks' job in run ${RUN_ID}. Refusing to publish an image for a run whose mandatory gate cannot be found."
             exit 1
           fi
