@@ -1,0 +1,25 @@
+{
+  "$comment": "Columns that scripts/check-sanitize-coverage.mjs flags as sensitive but that deploy/hostinger/sanitize.sql deliberately keeps. Completeness is the checker's job — it derives the candidate list from prisma/schema.prisma on every run. This file is the half a scan cannot produce: the judgement. A column with no entry here and no UPDATE in sanitize.sql fails the check, which is how a new migration is stopped from quietly adding personal data to a dump labelled 'sanitized'.",
+  "exemptions": {
+    "Contact": {
+      "emailValidation": "Deliverability status, not an address — the values are 'valid', 'deliverable', 'catch_all'. Matched only because the name contains 'email'. Keeping it lets contact-quality bugs reproduce locally."
+    },
+    "Lead": {
+      "emailValidation": "Same status vocabulary as Contact.emailValidation."
+    },
+    "LeadPoolItem": {
+      "emailValidation": "Same status vocabulary as Contact.emailValidation."
+    },
+    "Template": {
+      "subject": "Reusable template authored by the tenant's own staff, with merge tokens rather than substituted values. No prospect data, and keeping it is what makes a template-rendering bug reproducible. The per-contact rendering (SequenceStepCopy) IS scrubbed.",
+      "body": "Template body as authored by the tenant's staff: marketing copy with {{merge}} placeholders, not substituted values. Keeping it is what makes a rendering bug reproducible locally; the per-contact rendering in SequenceStepCopy is scrubbed."
+    },
+    "AbTestVariant": {
+      "subject": "A variant of a Template; same reasoning.",
+      "body": "An A/B variant of a Template body, authored by staff and carrying merge placeholders rather than any prospect's data. Scrubbed at the point it is rendered for a contact, not here."
+    },
+    "Sequence": {
+      "description": "Staff-authored description of a sequence ('Q4 outbound, SaaS founders'), not about any person."
+    }
+  }
+}

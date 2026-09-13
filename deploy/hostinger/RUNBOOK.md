@@ -137,8 +137,13 @@ Cloud SQL was untouched since the worker stopped.
 ## Daily operations
 
 ```bash
-# backups: nightly at 02:30 UTC, off-host
+# base backups for point-in-time recovery — WAL ships continuously between these
+0  2 * * 0   docker compose -p crm exec -T crm-db pgbackrest --stanza=crm --type=full backup
+0  2 * * 1-6 docker compose -p crm exec -T crm-db pgbackrest --stanza=crm --type=incr backup
+# the portable logical dump, encrypted, off-host
 30 2 * * * cd /opt/crm && deploy/hostinger/backup.sh --tag nightly --offsite >> /var/log/crm-backup.log 2>&1
+# the backup nobody checks is the one that was broken for a month
+0  8 * * * cd /opt/crm && deploy/hostinger/backup-freshness-check.sh >> /var/log/crm-backup.log 2>&1
 # worker heartbeat every 5 min
 */5 * * * * cd /opt/crm && npx tsx scripts/worker-healthcheck.ts >> /var/log/crm-worker-health.log 2>&1 || echo "worker unhealthy $(date)" | logger -t crm
 # logs
@@ -153,4 +158,12 @@ docker compose -p crm run --rm --no-deps --entrypoint sh web -c 'psql "$DATABASE
 deploy/hostinger/backup.sh --tag repro --sanitize   # then scp the .sanitized.dump, restore into local docker-compose.yml postgres
 ```
 
-Monthly: restore the latest nightly into staging and log the result in `docs/v2/codex/SESSION_LOG.md`.
+Monthly: restore the latest nightly into staging **and** rehearse a pgBackRest restore to a
+timestamp, then log both in `docs/v2/codex/SESSION_LOG.md`. A backup that has never been restored
+is a hypothesis.
+
+## Point-in-time recovery
+
+`pgbackrest/README.md` — why it exists, the `crm-db` image and `archive_command`, the repository
+config, the bring-up commands, and the three-part gate that must pass before the database is
+allowed to leave Cloud SQL.
