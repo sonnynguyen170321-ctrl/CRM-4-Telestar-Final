@@ -46,4 +46,61 @@ UPDATE "ContactResearchCache" SET "claimToken" = NULL WHERE "claimToken" IS NOT 
 UPDATE "OutboundMessage" SET body = '[sanitized]' WHERE body IS NOT NULL;
 UPDATE "InboundMessage"  SET body = '[sanitized]' WHERE body IS NOT NULL;
 
+-- ── Free text a human typed, and JSON that echoes it ────────────────────────────────────────
+-- Everything below was missed by the first version of this file. A note body, an audit-log diff
+-- or a raw import row carries exactly the names, addresses and email addresses the UPDATEs above
+-- remove from their own columns — scrubbing the structured copy and leaving the free-text one is
+-- not a scrub. `scripts/check-sanitize-coverage.mjs` derives the list from prisma/schema.prisma
+-- so a new column cannot be forgotten; anything deliberately kept is recorded with its reason in
+-- sanitize-exemptions.json.
+UPDATE "Note"               SET content = '[sanitized]';
+UPDATE "Reminder"           SET text = '[sanitized]';
+UPDATE "Notification"       SET text = '[sanitized]';
+UPDATE "Task"               SET description = NULL, notes = NULL;
+UPDATE "AiMemory"           SET memory = '[sanitized]';
+UPDATE "EmailHealthAlert"   SET message = '[sanitized]';
+UPDATE "SuppressionEntry"   SET reason = '[sanitized]';
+UPDATE "CampaignLeadRequirement" SET notes = NULL;
+UPDATE "ClientReport"       SET summary = NULL;
+UPDATE "CompanySignal"      SET summary = '[sanitized]';
+UPDATE "ContactEvidence"    SET summary = NULL;
+
+-- Audit trails record the before/after of the very fields scrubbed above, plus the operator's IP.
+UPDATE "AuditLog" SET "changedFields" = NULL, "ipAddress" = NULL, "userAgent" = NULL;
+
+-- Activity feeds quote lead and contact details in their description and metadata.
+UPDATE "Activity"            SET description = NULL, metadata = NULL;
+UPDATE "LeadgenActivity"     SET description = NULL, metadata = NULL;
+UPDATE "OpportunityActivity" SET description = NULL, metadata = NULL;
+UPDATE "OutcomeSignal"       SET metadata = NULL;
+
+-- Uploaded rows staged before promotion: the raw CSV, names and addresses included.
+UPDATE "ImportRow" SET data = '{}', errors = NULL;
+
+-- Correspondence. `body` alone was blanked before, leaving the HTML part with the full quoted
+-- thread, and the subject line with the prospect's name in it.
+UPDATE "InboundMessage"  SET subject = '[sanitized]', "bodyHtml" = NULL;
+UPDATE "OutboundMessage" SET subject = '[sanitized]';
+
+-- Copy rendered for one contact — merge fields already substituted, so this is personal data.
+-- The reusable Template and AbTestVariant it was rendered from are exempt and kept.
+UPDATE "SequenceStepCopy" SET subject = '[sanitized]', body = '[sanitized]';
+
+-- Base64 file blobs hanging off templates: contracts, brochures, anything an operator attached.
+UPDATE "Attachment" SET content = '[sanitized]';
+
+-- Display names the earlier pass missed, and the sender identity block, which carries the user's
+-- real name, title and direct phone number.
+UPDATE "Contact"      SET "fullName" = 'Contact ' || left(id, 6) WHERE "fullName" IS NOT NULL;
+UPDATE "LeadPoolItem" SET "fullName" = 'Pool ' || left(id, 6) WHERE "fullName" IS NOT NULL;
+UPDATE "EmailAccount" SET signature = NULL;
+
+-- Person names carried alongside the email columns already scrubbed above. Missed by the first
+-- pass because it grepped for `email|phone|token`; `contactName` and `prospectName` hold exactly
+-- the same person. Derived from the row id so the value stays unique and renderable.
+UPDATE "Client"      SET "contactName" = 'Contact ' || left(id, 6);
+UPDATE "BookingLink" SET "ownerName" = NULL;
+UPDATE "Meeting"     SET "prospectName" = 'Prospect ' || left(id, 6), "clientOwnerName" = NULL;
+UPDATE "Opportunity" SET "contactName" = NULL, "clientOwnerName" = NULL;
+
 COMMIT;

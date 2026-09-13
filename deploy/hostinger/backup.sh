@@ -1,100 +1,155 @@
 #!/usr/bin/env bash
 #
-# pg_dump of the CRM database from inside the compose network, verified, optionally sanitized,
-# optionally shipped off-host. Prints the dump path on stdout (scripts/deploy.sh records it).
+# Logical backup of the CRM database: pg_dump, verified, encrypted, copied off-host.
+# Prints the resulting path on stdout (scripts/deploy.sh records it in deployments.ndjson).
 #
-#   deploy/hostinger/backup.sh [--tag <label>] [--sanitize] [--offsite]
+#   deploy/hostinger/backup.sh [--tag <label>] [--sanitize] [--offsite] [--no-encrypt]
 #
-# Works for both database profiles: the dump is taken with the postgres client image against
-# DATABASE_URL, so it does not matter whether the host is cloudsql-proxy (Phase 6a) or crm-db (6b).
-# Hostinger's weekly VPS snapshot is not database-consistent; this is the real backup.
+# This is the coarse layer. Point-in-time recovery comes from pgBackRest's continuous WAL
+# archiving (see pgbackrest/README.md): a nightly dump alone means losing up to a day of every
+# tenant's replies and sequence state, which is not an acceptable RPO for a system that sends
+# outreach on clients' behalf. Keep both — WAL for "restore to 14:32", a dump for "rebuild the
+# database somewhere else".
 #
-# --sanitize  also writes <dump>.sanitized.dump for local reproduction: emails, phones, OAuth
-#             tokens and API keys replaced (deploy/hostinger/sanitize.sql). Never ship the
-#             unsanitized dump to a laptop.
-# --offsite   rclone copy to $BACKUP_REMOTE (e.g. gcs:telestar-crm-backups or b2:telestar-crm)
-#             — the VPS is a single point of failure; a backup that lives on it is not one.
+# Credentials never appear on a command line. The connection string reaches the container through
+# the environment and is dereferenced inside it: putting it in argv would expose the password in
+# `ps auxww`, /proc/<pid>/cmdline and `docker inspect` for the life of the container — nightly,
+# under cron.
+#
+# --sanitize    also write <dump>.sanitized.dump with every PII and credential column scrubbed.
+#               That file is the only one that may be copied to a laptop.
+# --offsite     rclone copy to $BACKUP_REMOTE, verified by listing the object afterwards.
+# --no-encrypt  skip age encryption. Local rehearsals only; --offsite refuses it.
 
 set -euo pipefail
 
 ENV_FILE="${ENV_FILE:-.env.production}"
 DOCKER="${DOCKER:-docker}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-COMPOSE_FILES="${COMPOSE_FILES:-$("${REPO_DIR}/scripts/production-compose.sh" "$ENV_FILE")}"
 BACKUP_DIR="${CRM_BACKUP_DIR:-/opt/crm/backups}"
 KEEP="${BACKUP_KEEP:-14}"
+PG_IMAGE="${PG_CLIENT_IMAGE:-postgres:16-bookworm}"
 
-TAG="manual"; SANITIZE=false; OFFSITE=false
+TAG="manual"
+SANITIZE=false
+OFFSITE=false
+ENCRYPT=true
 while [ $# -gt 0 ]; do
   case "$1" in
-    --tag) TAG="$2"; shift 2 ;;
+    --tag) TAG="${2:?--tag needs a value}"; shift 2 ;;
     --sanitize) SANITIZE=true; shift ;;
     --offsite) OFFSITE=true; shift ;;
+    --no-encrypt) ENCRYPT=false; shift ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
 done
+case "$TAG" in
+  *[!A-Za-z0-9._-]*) echo "--tag may only contain A-Za-z0-9._-" >&2; exit 2 ;;
+esac
 
-DATABASE_URL=$(grep -E '^DATABASE_URL=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' | tr -d '\r')
+read_env() {
+  grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d '\r'
+}
+
+DATABASE_URL="${DATABASE_URL:-$(read_env DATABASE_URL)}"
 [ -n "$DATABASE_URL" ] || { echo "DATABASE_URL missing in $ENV_FILE" >&2; exit 1; }
 
-mkdir -p "$BACKUP_DIR"
-STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-DUMP="${BACKUP_DIR}/${STAMP}-${TAG}.dump"
-
-# The client runs from the postgres image, attached to the CRM's compose network so
-# `cloudsql-proxy` / `crm-db` resolve by service name. It is NOT run from the application image:
-# the runner stage installs only ca-certificates and openssl, so `web` has no pg_dump at all.
-# Pinned to 16 — pg_dump refuses a server newer than itself and Cloud SQL is PostgreSQL 16.
-PROJECT="${COMPOSE_PROJECT_NAME:-$(grep -E '^COMPOSE_PROJECT_NAME=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' || echo crm)}"
+PROJECT="${COMPOSE_PROJECT_NAME:-$(read_env COMPOSE_PROJECT_NAME)}"
+PROJECT="${PROJECT:-crm}"
 NETWORK="${CRM_NETWORK:-${PROJECT}_crm_internal}"
 $DOCKER network inspect "$NETWORK" >/dev/null 2>&1 \
   || { echo "compose network ${NETWORK} not found — bring the stack up first" >&2; exit 1; }
-PG_IMAGE="${PG_CLIENT_IMAGE:-postgres:16-bookworm}"
-PG="$DOCKER run --rm --network ${NETWORK} -v ${BACKUP_DIR}:/backups ${PG_IMAGE}"
 
-$PG pg_dump --format=custom --no-owner --no-acl --compress=6 \
-  --dbname="${DATABASE_URL}" --file="/backups/$(basename "$DUMP")" >&2
+mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+BASE="${STAMP}-${TAG}.dump"
+DUMP="${BACKUP_DIR}/${BASE}"
 
-# A dump that pg_restore cannot list is not a backup.
-$PG sh -c "pg_restore --list '/backups/$(basename "$DUMP")' | grep -q 'TABLE DATA'" \
-  >&2 || { echo "dump verification failed: $DUMP" >&2; rm -f "$DUMP"; exit 1; }
+# An array, not a string: a BACKUP_DIR containing a space would otherwise word-split into two
+# arguments and mount the wrong path. The client runs from the postgres image because the
+# application image ships no database client — its runner stage installs only ca-certificates and
+# openssl. Pinned to 16: pg_dump refuses a server newer than itself.
+PG=("$DOCKER" run --rm --network "$NETWORK" -e "PGURL=${DATABASE_URL}" -e "DUMPFILE=${BASE}"
+    -v "${BACKUP_DIR}:/backups" "$PG_IMAGE")
+
+"${PG[@]}" sh -euc 'pg_dump --format=custom --no-owner --no-acl --compress=6 --dbname="$PGURL" --file="/backups/$DUMPFILE"' >&2
+
+# A dump pg_restore cannot list is not a backup.
+"${PG[@]}" sh -euc 'pg_restore --list "/backups/$DUMPFILE" | grep -q "TABLE DATA"' >&2 \
+  || { echo "dump verification failed: $DUMP" >&2; rm -f "$DUMP"; exit 1; }
 
 SIZE=$(stat -c %s "$DUMP" 2>/dev/null || stat -f %z "$DUMP")
 [ "$SIZE" -gt 1024 ] || { echo "dump suspiciously small (${SIZE} bytes): $DUMP" >&2; exit 1; }
 echo "dump: $DUMP (${SIZE} bytes)" >&2
 
 if $SANITIZE; then
-  # Restore into a throwaway database, scrub, dump again. Never touches the live DB.
+  # Restore into a throwaway database, scrub, dump again. The live database is never touched.
+  # The scratch name is generated here rather than derived from the DSN by regex — rewriting a
+  # URL with sed breaks on query strings and on a database name that also occurs in the password.
   SCRATCH="scratch_sanitize_${STAMP}"
-  $DOCKER run --rm --network "${NETWORK}" \
-    -v "${BACKUP_DIR}:/backups" -v "${SCRIPT_DIR}/sanitize.sql:/sanitize.sql:ro" "${PG_IMAGE}" sh -c "
-      set -e
-      ADMIN_URL=\$(echo '${DATABASE_URL}' | sed -E 's#/[^/?]+(\?|\$)#/postgres\1#')
-      psql \"\$ADMIN_URL\" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE ${SCRATCH}'
-      SCRATCH_URL=\$(echo '${DATABASE_URL}' | sed -E 's#/[^/?]+(\?|\$)#/${SCRATCH}\1#')
-      pg_restore --no-owner --no-acl --dbname=\"\$SCRATCH_URL\" '/backups/$(basename "$DUMP")'
-      psql \"\$SCRATCH_URL\" -v ON_ERROR_STOP=1 -f /sanitize.sql
-      pg_dump --format=custom --no-owner --no-acl --compress=6 --dbname=\"\$SCRATCH_URL\" --file='/backups/$(basename "$DUMP" .dump).sanitized.dump'
-      psql \"\$ADMIN_URL\" -c 'DROP DATABASE ${SCRATCH}'
-    " >&2
+  # The two derived DSNs are built with a real URL parser on the host, not with sed inside the
+  # container: a regex over a DSN mis-handles a percent-encoded password, a database name that
+  # also occurs in the password, and `?sslmode=`. Node is already required here (prod-check-env).
+  command -v node >/dev/null || { echo "node is required for --sanitize (it parses the DSN)" >&2; exit 1; }
+  read -r ADMIN_URL SCRATCH_URL <<EOF
+$(node -e '
+  const u = new URL(process.argv[1]);
+  const scratch = process.argv[2];
+  const at = (db) => { const c = new URL(u); c.pathname = "/" + db; return c.toString(); };
+  if (!/^[A-Za-z0-9_]+$/.test(scratch)) { console.error("bad scratch name"); process.exit(1); }
+  process.stdout.write(at("postgres") + " " + at(scratch));
+' "$DATABASE_URL" "$SCRATCH")
+EOF
+  [ -n "$ADMIN_URL" ] && [ -n "$SCRATCH_URL" ] || { echo "could not derive scratch DSNs from DATABASE_URL" >&2; exit 1; }
+  "$DOCKER" run --rm --network "$NETWORK" \
+    -e "ADMIN_URL=${ADMIN_URL}" -e "SCRATCH_URL=${SCRATCH_URL}" \
+    -e "SCRATCH=${SCRATCH}" -e "DUMPFILE=${BASE}" \
+    -v "${BACKUP_DIR}:/backups" -v "${SCRIPT_DIR}/sanitize.sql:/sanitize.sql:ro" \
+    "$PG_IMAGE" sh -euc "$(cat "${SCRIPT_DIR}/sanitize-runner.sh")" >&2
   echo "sanitized: ${DUMP%.dump}.sanitized.dump" >&2
 fi
 
-if $OFFSITE; then
-  BACKUP_REMOTE="${BACKUP_REMOTE:-$(grep -E '^BACKUP_REMOTE=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' || true)}"
-  [ -n "$BACKUP_REMOTE" ] || { echo "BACKUP_REMOTE is required for --offsite (rclone remote:path)" >&2; exit 1; }
-  command -v rclone >/dev/null || { echo "rclone not installed" >&2; exit 1; }
-  # This host has no platform snapshot to fall back on, so a dump that exists only here is not a
-  # backup. A failed or unverifiable copy fails the script rather than printing a path nobody reads.
-  rclone copy "$DUMP" "$BACKUP_REMOTE/" >&2 \
-    || { echo "offsite copy to ${BACKUP_REMOTE} FAILED — the dump exists only on this host" >&2; exit 1; }
-  rclone lsf "$BACKUP_REMOTE/$(basename "$DUMP")" >/dev/null 2>&1 \
-    || { echo "offsite copy reported success but the object is not listable" >&2; exit 1; }
-  echo "offsite: $BACKUP_REMOTE/$(basename "$DUMP")" >&2
+# Checksum the plaintext, before encryption, so the manifest describes what a restore produces.
+SHA=$(sha256sum "$DUMP" | cut -d' ' -f1)
+ENCRYPTED_FLAG=false
+$ENCRYPT && ENCRYPTED_FLAG=true
+printf '{"file":"%s","bytes":%s,"sha256":"%s","takenAt":"%s","tag":"%s","encrypted":%s}\n' \
+  "$BASE" "$SIZE" "$SHA" "$(date -u +%FT%TZ)" "$TAG" "$ENCRYPTED_FLAG" > "${DUMP}.manifest.json"
+
+UPLOAD="$DUMP"
+if $ENCRYPT; then
+  # The dump carries every tenant's prospect data and the ciphertext of customer mailbox tokens.
+  # It must not sit in third-party object storage in the clear. age with a recipient public key:
+  # this host can encrypt but cannot decrypt, so compromising the VPS does not hand over its own
+  # backup history. Keep the private key off this machine.
+  command -v age >/dev/null || { echo "age is not installed (apt-get install -y age)" >&2; exit 1; }
+  RECIPIENT="${BACKUP_AGE_RECIPIENT:-$(read_env BACKUP_AGE_RECIPIENT)}"
+  [ -n "$RECIPIENT" ] \
+    || { echo "BACKUP_AGE_RECIPIENT is required (age public key); --no-encrypt is for local rehearsals only" >&2; exit 1; }
+  age -r "$RECIPIENT" -o "${DUMP}.age" "$DUMP"
+  rm -f "$DUMP"
+  UPLOAD="${DUMP}.age"
+  echo "encrypted: $UPLOAD" >&2
 fi
 
-# Local retention. Off-host retention is rclone's job.
-ls -1t "${BACKUP_DIR}"/*.dump 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm -f
+if $OFFSITE; then
+  $ENCRYPT || { echo "--offsite refuses --no-encrypt: an unencrypted dump must not leave this host" >&2; exit 1; }
+  BACKUP_REMOTE="${BACKUP_REMOTE:-$(read_env BACKUP_REMOTE)}"
+  [ -n "$BACKUP_REMOTE" ] || { echo "BACKUP_REMOTE is required for --offsite (rclone remote:path)" >&2; exit 1; }
+  command -v rclone >/dev/null || { echo "rclone not installed" >&2; exit 1; }
+  # A copy that exists only on the VPS is not a backup — this host has no platform snapshot. A
+  # failed or unverifiable copy fails the script rather than printing a path nobody reads.
+  rclone copy "$UPLOAD" "${BACKUP_REMOTE}/" >&2 || { echo "offsite copy FAILED — the backup exists only on this host" >&2; exit 1; }
+  rclone copy "${DUMP}.manifest.json" "${BACKUP_REMOTE}/" >&2 || { echo "manifest copy FAILED" >&2; exit 1; }
+  rclone lsf "${BACKUP_REMOTE}/$(basename "$UPLOAD")" >/dev/null 2>&1 \
+    || { echo "offsite copy reported success but the object is not listable" >&2; exit 1; }
+  echo "offsite: ${BACKUP_REMOTE}/$(basename "$UPLOAD")" >&2
+fi
 
-printf '%s\n' "$DUMP"
+# Local retention. Off-host retention belongs to the remote's lifecycle policy.
+ls -1t "${BACKUP_DIR}"/*.dump "${BACKUP_DIR}"/*.dump.age 2>/dev/null \
+  | tail -n +$((KEEP + 1)) \
+  | while read -r old; do rm -f "$old" "${old%.age}.manifest.json"; done
+
+printf '%s\n' "$UPLOAD"
