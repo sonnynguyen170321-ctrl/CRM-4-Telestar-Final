@@ -92,126 +92,122 @@ green; `npm run verify:rls` green; and after a 24-hour soak, zero rows added to 
 message table and zero provider calls in the worker log. Staging is disposable —
 `docker compose -p crm-staging down -v`, fix, repeat.
 
-## The cutover — one window, database on the VPS from the first byte
+## The cutover — fresh deployment, then the accounts and email assets
 
-GCP is being retired by this move. It is not a staging ground and not a fallback to keep running:
-its only role here is that the production database currently lives there, so it is the source of
-the dump, and it stays powered on only as long as an abort during the window would need it.
-`COMPOSE_PROFILES=localdb` from the start — the `cloudsql` profile and the Auth Proxy sidecar stay
-in the compose file but are never used in production, and no Cloud SQL service-account key is
-placed on this host.
+The CRM's operational data — leads, contacts, campaigns, activity, message history — is **not**
+migrated. The VPS gets a clean deployment from `main` with an empty database that the migrations
+build, and then only the small set a working deployment needs on day one is copied across:
 
-### Before the window
-
-**Rehearse on real data.** The PITR numbers in `pgbackrest/README.md` were measured with synthetic
-rows: they prove pgBackRest works, not how long *this* database takes. Take a production dump,
-restore it into `/opt/crm-staging` with `--fresh`, run `prisma migrate deploy` and
-`backfill:campaign-prospects --dry-run` then for real, and **time every step**. The sum is
-`T_measured`; the announced window is `2 × T_measured`. A backfill whose duration nobody measured
-is the classic overrun.
-
-Check whether production already has the pending migration rather than assuming:
-
-```bash
-psql "$CLOUD_SQL_DSN" -tAc   "select migration_name, finished_at from _prisma_migrations where migration_name like '%campaign_prospect_memberships%'"
+```
+Tenant → User → EmailAccount
+         └───→ Template → Attachment, AbTestVariant
+         └───→ Sequence → SequenceStep
 ```
 
-**T-24 h:** drop the `crm.telestar.cloud` TTL to 60 s and confirm it took
-(`dig +noall +answer crm.telestar.cloud` shows 60). A 3600 s TTL turns a five-minute rollback into
-an hour. Load the R2 credentials and prove `rclone lsf r2:<bucket>` works — an off-host backup
-target that is still unconfigured is not a backup.
+Eight tables, all small, none of them edited while the move happens. That is why there is no long
+freeze window here and no measured dump-and-restore: the whole copy takes seconds.
 
-**Verify `/opt/crm/pgbackrest/pgbackrest.conf` is a file**, not a directory. Docker creates a
-missing bind-mount path as a directory, and `crm-db` then starts with a broken `archive_command`
-and archives nothing, silently.
+GCP is retired by this move. Its only role is being where those eight tables currently live.
 
-### T-0 — stop the producers on GCP, in this order
-
-The order is the double-send guard. The suppression check deduplicates *recipients*, not *jobs*.
+### 1 — Stand up the stack, empty
 
 ```bash
-# on the GCE VM
-crontab -l | grep -v '/api/cron/' | crontab -                  # 1. crons off
-sudo docker compose … stop worker                              # 2. worker off
-sudo docker compose … exec redis redis-cli --scan --pattern 'bull:*:active'   # 3. every queue drained
-sudo docker compose … stop web                                 # 4. web off — writes end here
-```
+cd /opt/crm && git pull --ff-only origin main
+cp deploy/hostinger/crm.env.example .env.production && chmod 600 .env.production
+# Fill it. ENCRYPTION_KEY, AUTH_SECRET and CRON_SECRET must be copied from the old deployment
+# BYTE FOR BYTE — see step 3 for why ENCRYPTION_KEY in particular is not negotiable.
+mkdir -p /opt/crm/pgbackrest
+cp deploy/hostinger/pgbackrest/pgbackrest.conf.example /opt/crm/pgbackrest/pgbackrest.conf
+npm ci --omit=dev --ignore-scripts && npm run prod:check-env
 
-Killing the **worker**, not just web, is also what stops OAuth refresh-token rotation. Microsoft
-and several IMAP providers issue a new refresh token on every use: if a worker refreshes a mailbox
-after the final dump is taken, the token restored onto the VPS is already dead and that customer's
-mailbox silently stops sending.
-
-**Gate:** every queue reports 0 active, and `curl` to the old host is refused.
-**Abort:** restart web, worker and crons. Nothing has moved.
-
-### T+2 — final dump, taken on the GCE VM
-
-Run it there rather than pulling from the VPS, so the Cloud SQL credentials never reach Hostinger.
-Transfer over a temporary SSH key that is revoked afterwards. Compare `sha256sum` on both sides and
-confirm `pg_restore --list` shows `TABLE DATA`.
-**Abort:** restart the GCP stack.
-
-### T+N — restore, migrate, verify
-
-```bash
-cd /opt/crm
 DC="docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.hostinger.yml"
 $DC up -d crm-db redis && sleep 20
-deploy/hostinger/restore.sh /opt/crm/backups/<ts>-final-cloudsql.dump --yes --fresh
-./scripts/deploy.sh <sha>
-$DC run --rm --no-deps -v "$PWD/supabase:/rls:ro" --entrypoint sh web -c   'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /rls/rls.sql'
-npm run verify:rls
-npm run backfill:campaign-prospects -- --dry-run && npm run backfill:campaign-prospects
-npm run prod:check-migrations && npm run prod:cutover:verify
+$DC run --rm --no-deps web node node_modules/prisma/build/index.js migrate deploy
 ```
 
-`restore.sh --fresh` drops and recreates the database and applies `supabase/roles.sql` first —
-roles are cluster-global and are not in a dump, and the dump's own `CREATE POLICY … TO crm_app`
-statements abort `pg_restore` without them.
+**Gate:** `prod:check-env` exits 0; `/opt/crm/pgbackrest/pgbackrest.conf` is a **file** — Docker
+creates a missing bind-mount path as a directory, and `crm-db` then starts with a broken
+`archive_command` and archives nothing, silently; `migrate status` reports every migration applied.
 
-**Gate:** `migrate status` clean, `verify:rls` green, per-tenant row counts match the Cloud SQL
-inventory from `prod:cutover:plan`.
-**Abort:** restart the GCP stack and its crons; discard the VPS database. Cloud SQL has taken no
-writes since T-0, so nothing is lost.
+### 2 — Copy the accounts and email assets
 
-### T+N — DNS, then the certificate
+Run **before** `rls.sql`. That script applies `FORCE ROW LEVEL SECURITY`, under which even the
+table owner is subject to the tenant policies and a `COPY` inserts nothing.
+
+```bash
+# Either dump on the old host and bring the file over,
+deploy/hostinger/copy-core-data.sh --from "$OLD_DSN" --dump-only   # on a host that can reach it
+scp core-data-*.sql root@187.127.110.204:/opt/crm/backups/
+deploy/hostinger/copy-core-data.sh --file /opt/crm/backups/core-data-*.sql
+
+# or, if this host can reach the old database directly, in one step:
+deploy/hostinger/copy-core-data.sh --from "$OLD_DSN"
+```
+
+The script refuses to load onto a database that already has users, defers foreign-key checks for
+the duration so table order cannot break it, loads in a single transaction, and compares row
+counts against the source when it can reach it.
+
+**Gate:** per-table counts match the source.
+
+### 3 — Roles, RLS, and the thing that fails silently
+
+```bash
+$DC run --rm --no-deps -v "$PWD/supabase:/sql:ro" --entrypoint sh web -c   'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /sql/roles.sql'
+$DC run --rm --no-deps -v "$PWD/supabase:/sql:ro" --entrypoint sh web -c   'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /sql/rls.sql'
+npm run verify:rls
+./scripts/deploy.sh <sha>
+```
+
+`roles.sql` first: roles are cluster-global and are not carried in a dump, and `rls.sql` creates
+policies that name `crm_app`.
+
+**The mailbox tokens in `EmailAccount` are encrypted with `ENCRYPTION_KEY`.** If the value on this
+host differs from the old deployment's by a single character, the application starts, answers 200,
+migrations pass, `verify:rls` passes — and every customer mailbox fails to send, with no error
+anywhere. The suppression gate makes that look like a quiet day rather than an outage. Nothing
+automated catches it.
+
+**Gate:** `verify:rls` green; `post-deploy-smoke.sh` green; log in as a real user; **send one real
+message through a Gmail mailbox and one through an Outlook mailbox, and confirm both arrive.**
+
+### 4 — DNS, then the certificate
+
+```bash
+# 24 h earlier: drop the TTL and confirm it took
+dig +noall +answer crm.telestar.cloud        # TTL must read 60
+```
 
 Point `crm.telestar.cloud` at `187.127.110.204`. **Traefik cannot obtain a certificate for that
-name until the record already points here** — Let's Encrypt validates over HTTP-01 against the
-live A record. The first production certificate is therefore issued *inside* the window, and
-failed validations count against a rate limit. Watch it rather than assume it:
+name until the record already points here** — Let's Encrypt validates over HTTP-01 against the live
+A record, so the first production certificate is issued after the flip, and failed validations
+count against a rate limit. Watch it rather than assume it:
 
 ```bash
 docker logs -f traefik-traefik-1 2>&1 | grep -i acme
 curl -sfI https://crm.telestar.cloud/api/health
-curl -s https://crm.telestar.cloud/api/health   # the reported commit must be the deployed sha
+curl -s  https://crm.telestar.cloud/api/health     # the reported commit must be the deployed sha
 ```
 
-### T+N — start the producers, inverse order
+### 5 — Start the producers, crons last
 
-Flip `EMAIL_SEND_DRY_RUN=false` and `SEQUENCE_AUTOSEND_ENABLED` back to their production values,
-`$DC up -d --no-deps web worker`, and **only then** install the cron entries.
+Flip `EMAIL_SEND_DRY_RUN=false` and `SEQUENCE_AUTOSEND_ENABLED` to their production values,
+`$DC up -d --no-deps web worker`, and only then install the cron entries from `docs/DEPLOY.md` §7.
 
-Before the crons go in, reconcile the last-processed timestamps. The first scheduled run otherwise
-fires against job state that is hours stale and can re-send a window of outreach already sent from
-GCP — again, suppression deduplicates recipients, not sends.
+Stop the old deployment's crons and worker before installing these. The suppression check
+deduplicates *recipients*, not *jobs*: two schedulers against two databases will each send.
 
-Send one canary through a Gmail mailbox and one through an Outlook mailbox and confirm both
-arrive. This is the check that catches a wrong `ENCRYPTION_KEY`: the stored OAuth tokens are
-encrypted with it, so a mismatch produces a healthy-looking application in which every mailbox
-quietly fails.
+**Gate:** `npm run prod:cutover:postcheck`, worker heartbeat, one canary send end to end.
 
-**The last moment an abort is free** is the cron install. After that, rolling back means dumping
-the VPS database and restoring it into Cloud SQL to recover the writes that landed here.
+### 6 — Turning GCP off
 
-### Turning GCP off
+- **+1 h** — old web and worker stopped, the instances still running.
+- **+72 h**, no incidents — stop the VM. Export the old database once into R2 as an archive: the
+  operational data was not migrated, so that export is the only remaining copy of it.
+- **+14 days** — delete the instance, then the VM, then the service-account keys.
 
-- **+1 h** — GCE web and worker stay stopped; the VM and Cloud SQL stay running.
-- **+72 h**, no incidents and backups verified — stop the VM, take a final `gcloud sql export sql`
-  into R2, revoke the temporary cutover SSH key from this host's `authorized_keys`.
-- **+14 days** — delete the Cloud SQL instance only after restoring that R2 archive into staging
-  succeeds. Then the VM, then the service-account keys.
+**Do not skip the archive.** Leads, contacts, campaigns and message history live only in the old
+database, and deleting it without an export destroys them.
 
 ## Daily operations
 
