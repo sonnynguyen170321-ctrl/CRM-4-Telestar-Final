@@ -55,7 +55,10 @@ const playDtmfTone = (digit: string) => {
 };
 
 export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }: CallDialerModalProps) {
-  const [callState, setCallState] = useState<'dialing' | 'connected' | 'completed'>('dialing');
+  const [callState, setCallState] = useState<'dialing' | 'connected' | 'completed' | 'failed'>('dialing');
+  // Why the call could not be placed, shown verbatim. A dialer that cannot reach a PBX has to say
+  // so: the previous version caught the failure and faked a connected call instead.
+  const [failureReason, setFailureReason] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
   const [callOutcome, setCallOutcome] = useState('Connected - Pitching');
   const [callNote, setCallNote] = useState('');
@@ -74,12 +77,20 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
     async function initSIP() {
       try {
         // Fetch PBX connection configuration from backend
-        const configRes = await fetch('/api/dialer/config');
+        const configRes = await fetch('/api/dialer/config?withCredentials=1');
         if (!configRes.ok) {
           throw new Error('Failed to retrieve SIP dialer configuration');
         }
         const config = await configRes.json();
-        
+
+        // The server now reports readiness rather than substituting defaults, so this guard can
+        // actually fire. It never could before: every field had a hardcoded fallback.
+        if (config.configured === false) {
+          throw new Error(
+            `Telephony is not configured on this deployment. Missing: ${(config.missing ?? []).join(', ')}`
+          );
+        }
+
         const { websocketUrl, domain, username, password } = config;
         if (!websocketUrl || !domain || !username || !password) {
           throw new Error('Incomplete SIP configuration returned from server');
@@ -156,12 +167,12 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
         await inviter.invite();
 
       } catch (err) {
-        console.error('SIP.js initialization failed, falling back to simulated session:', err);
-        // BPO Demo Graceful Fallback
-        const timer = setTimeout(() => {
-          setCallState('connected');
-        }, 1500);
-        return () => clearTimeout(timer);
+        // This used to wait 1.5 s and then set `connected`, so a dialer that had reached no PBX
+        // showed a green dot and a running timer, and "Hang Up & Save Outcome" wrote a real
+        // Activity for a call that never happened. A failure is now a failure.
+        console.error('SIP initialisation failed:', err);
+        setFailureReason(err instanceof Error ? err.message : 'Could not reach the phone system.');
+        setCallState('failed');
       }
     }
 
@@ -275,9 +286,11 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
           {/* Avatar / Icon dialing animation */}
           <div className="relative mb-4">
             <div className={`w-16 h-16 rounded-full flex items-center justify-center text-text-primary ${
-              callState === 'dialing' 
+              callState === 'dialing'
                 ? 'bg-brand-orange ring-2 ring-brand-orange/30'
-                : 'bg-green-600 ring-2 ring-green-600/30'
+                : callState === 'failed'
+                  ? 'bg-brand-red ring-2 ring-brand-red/30'
+                  : 'bg-green-600 ring-2 ring-green-600/30'
             }`}>
               <Phone className="w-6 h-6" />
             </div>
@@ -294,6 +307,8 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
           <div className="mt-3 text-xs font-mono font-bold flex items-center gap-1.5">
             {callState === 'dialing' ? (
               <span className="text-text-muted animate-pulse">Dialing PBX Server...</span>
+            ) : callState === 'failed' ? (
+              <span className="w-2 h-2 rounded-full bg-brand-red" />
             ) : (
               <>
                 <span className="w-2 h-2 rounded-full bg-green-500" />
@@ -303,7 +318,9 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
           </div>
         </div>
 
-        {/* Call Controls Pad */}
+        {/* Call Controls Pad — hidden on failure: mute, keypad and speaker act on a session that
+            does not exist, so showing them implies a call is in progress. */}
+        {callState !== 'failed' && (
         <div className="px-6 py-4 flex justify-center gap-6 border-b border-card-border/30 bg-bg-main/20">
           <button 
             type="button"
@@ -344,6 +361,7 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
             <Volume2 className="w-4.5 h-4.5" />
           </button>
         </div>
+        )}
 
         {/* Dynamic DTMF Keypad Grid */}
         {showKeypad && (
@@ -361,7 +379,31 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
           </div>
         )}
 
+        {/* No call was placed, so there is no outcome to log.
+            Offering the outcome form here is what filled the CRM with activity rows for calls that
+            never connected. */}
+        {callState === 'failed' && (
+          <div className="p-5 space-y-4 text-xs">
+            <div className="rounded-xl border border-brand-red/30 bg-brand-red/10 p-3 space-y-1.5">
+              <p className="font-semibold text-brand-red">The call was not placed.</p>
+              <p className="text-text-secondary leading-relaxed">{failureReason}</p>
+            </div>
+            <p className="text-text-muted leading-relaxed">
+              Nothing has been logged against this lead. Log the attempt manually from the activity
+              timeline if you reached them another way.
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full py-2.5 border border-card-border hover:bg-card-border/30 text-text-primary text-xs font-semibold rounded-xl transition-colors duration-150"
+            >
+              Close
+            </button>
+          </div>
+        )}
+
         {/* Outcome Logging Form */}
+        {callState !== 'failed' && (
         <form onSubmit={handleHangUpSubmit} className="p-5 space-y-4 text-xs">
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-text-muted uppercase block">Select Outcome</label>
@@ -397,6 +439,7 @@ export default function CallDialerModal({ task: _task, lead, onClose, onHangUp }
             <span>Hang Up &amp; Save Outcome</span>
           </button>
         </form>
+        )}
 
       </div>
     </div>

@@ -19,7 +19,6 @@ import {
   Zap,
   Target,
   BarChart3,
-  PhoneCall,
   RefreshCw,
   Building,
 } from 'lucide-react';
@@ -109,7 +108,10 @@ export default function CommandPalette() {
     // Quick Actions
     { id: 'act_brief', name: 'Generate Morning Briefing (AI)', category: 'AI Intelligence', shortcut: '⌘ B', icon: <Zap className="w-4 h-4 text-amber-500" />, action: () => { window.dispatchEvent(new CustomEvent('telestar:open-ai-assistant', { detail: { action: 'briefing' } })); setIsOpen(false); } },
     { id: 'act_recalc', name: 'Recalculate All Lead Scores', category: 'Quick Actions', shortcut: '⌘ R', icon: <RefreshCw className="w-4 h-4 text-rose-500" />, action: () => { router.push('/automation'); setIsOpen(false); } },
-    { id: 'act_dialer', name: 'Launch Cloud Dialer', category: 'Quick Actions', shortcut: '⌘ D', icon: <PhoneCall className="w-4 h-4 text-emerald-500" />, action: () => { window.dispatchEvent(new CustomEvent('telestar:open-dialer')); setIsOpen(false); } },
+    // 'Launch Cloud Dialer' lived here and dispatched `telestar:open-dialer`, an event nothing in
+    // the codebase listened for — pressing it did nothing at all. It is removed rather than given a
+    // listener because the dialer needs a lead to call, which a global command has no way to supply.
+    // The Call button on the lead panel is the real entry point.
     { id: 'act_webhook', name: 'Configure Outbound Webhooks', category: 'System', icon: <Layers className="w-4 h-4 text-violet-500" />, action: () => { router.push('/automation'); setIsOpen(false); } },
     { id: 'act_health', name: 'Audit Email Deliverability', category: 'System', icon: <ShieldAlert className="w-4 h-4 text-sky-500" />, action: () => { router.push('/email-health'); setIsOpen(false); } }
   ];

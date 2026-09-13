@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SearchDeps } from '@telestar/core-search/search/companyIntelSearch';
 vi.mock('@/lib/auth', () => ({
@@ -448,5 +448,92 @@ describe('research promotion', () => {
 
     expect(shown.items).toHaveLength(1);
     expect(filtered.items).toHaveLength(0);
+  });
+});
+
+/**
+ * A run with nowhere to search must say so.
+ *
+ * `COMPANY_INTEL_SEARCH_ENABLED` defaults to false, and with it off the usable provider chain is
+ * empty. The harvest loop then queries nothing, so no provider can fail, so the completion check —
+ * which only calls a run broken when a provider *failed* — wrote `succeeded` with zero candidates
+ * and the UI showed a green "Research run finished." over an empty table. A misconfigured
+ * deployment was indistinguishable from an ICP that matched nobody.
+ *
+ * These run without injected `deps`, which is the whole point: the guard reads the environment, and
+ * every other test in this file bypasses it by supplying its own provider chain.
+ */
+describe('research discovery — no usable search provider', () => {
+  const SEARCH_ENV = [
+    'COMPANY_INTEL_SEARCH_ENABLED',
+    'DDG_SEARCH_ENABLED',
+    'SEARXNG_URL',
+    'EXA_API_KEY',
+    'BRAVE_SEARCH_API_KEY',
+    'SERPER_API_KEY',
+  ] as const;
+  let saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    saved = Object.fromEntries(SEARCH_ENV.map((k) => [k, process.env[k]]));
+    for (const k of SEARCH_ENV) delete process.env[k];
+  });
+
+  afterEach(() => {
+    for (const k of SEARCH_ENV) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k]!;
+    }
+  });
+
+  it('records the run failed instead of succeeded, and names what to configure', async () => {
+    const runId = await seedRun('company', ['vietnam logistics software']);
+
+    const result = await runDiscoveryPass({ tenantId: TENANT, runId });
+
+    expect(result.finished).toBe(true);
+    expect(result.discovered).toBe(0);
+    expect(result.errorMessage).toMatch(/COMPANY_INTEL_SEARCH_ENABLED/);
+    expect(result.errorMessage).toMatch(/DDG_SEARCH_ENABLED/);
+
+    const row = await prisma.researchRun.findFirstOrThrow({
+      where: { id: runId, tenantId: TENANT },
+      select: { status: true, errorMessage: true, finishedAt: true },
+    });
+    expect(row.status).toBe('failed');
+    expect(row.errorMessage).toMatch(/No usable search provider/);
+    expect(row.finishedAt).not.toBeNull();
+  });
+
+  it('spends no queries — the guard runs before any provider work', async () => {
+    const runId = await seedRun('company', ['a', 'b', 'c']);
+
+    const result = await runDiscoveryPass({ tenantId: TENANT, runId });
+
+    expect(result.queriesRun).toBe(0);
+    const attempts = await prisma.researchProviderAttempt.count({ where: { runId, tenantId: TENANT } });
+    expect(attempts).toBe(0);
+  });
+
+  it('lets the run proceed once a keyless provider is enabled', async () => {
+    // DDG needs no API key, so a deployment can satisfy the guard with configuration alone. The
+    // fixture chain still answers, so this asserts the guard opens — not that the web was reached.
+    process.env.COMPANY_INTEL_SEARCH_ENABLED = 'true';
+    process.env.DDG_SEARCH_ENABLED = 'true';
+    const runId = await seedRun('company', ['vietnam logistics software']);
+
+    const result = await runDiscoveryPass({
+      tenantId: TENANT,
+      runId,
+      deps: fixtureDeps([
+        {
+          title: 'Some Vietnamese logistics software company',
+          url: 'https://example-logistics.vn',
+          snippet: 'A logistics software company headquartered in Ho Chi Minh City serving freight forwarders.',
+        },
+      ]),
+    });
+
+    expect(result.errorMessage ?? '').not.toContain('No usable search provider');
   });
 });

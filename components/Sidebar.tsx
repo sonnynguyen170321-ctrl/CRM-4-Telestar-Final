@@ -40,10 +40,20 @@ const W_EXPANDED = '216px';
 const W_COLLAPSED = '56px';
 
 const isLeadgenUser = (role: string) => role === 'leadgen' || role === 'leadgen_manager';
-const canManageLeadFilter = (role: string) =>
-  role === 'director' ||
-  role === 'floor_manager' ||
-  role === 'leadgen_manager';
+
+/**
+ * Roles the Lead Filter and Leadgen Manager screens actually admit.
+ *
+ * These mirror `canUseResearchRole(role, 'manage')` in lib/research/access.ts and
+ * `canAccessLeadgenManager` in app/leadgen-manager/page.tsx. Both are role lists that exclude
+ * `leadgen`, which is what made the menu lie: the leadgen branch of this file gated ten links on
+ * `isLeadgenManager`, and that predicate is true for `role === 'leadgen'` with direct reports
+ * (see context/AppContext.tsx). The link rendered, the destination bounced the user home, and the
+ * click looked like nothing happened. Rendering and authorization must read the same list.
+ */
+const LEADGEN_ADMIN_ROLES = ['director', 'floor_manager', 'leadgen_manager'];
+const canManageLeadFilter = (role: string) => LEADGEN_ADMIN_ROLES.includes(role);
+const canAccessLeadgenManager = (role: string) => LEADGEN_ADMIN_ROLES.includes(role);
 
 interface NavItem {
   name: string;
@@ -120,14 +130,19 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
           label: 'Leadgen',
           items: [
             { name: 'Leadgen Workspace', href: '/leadgen', icon: Target },
-            { name: 'Research', href: '/research', icon: Radar },
-            ...(isLeadgenManager
+            // Research had no guard here at all, while the branch below gates it correctly.
+            // `leadgen` is absent from RESEARCH_OPERATOR_ROLES, so the page sent them straight back.
+            ...(canUseResearchRole(userRole, 'read')
+              ? [{ name: 'Research', href: '/research', icon: Radar }]
+              : []),
+            ...(canManageLeadFilter(userRole)
               ? [{ name: 'Lead Filter', href: '/lead-filter', icon: Funnel }]
               : []),
-            ...(isLeadgenManager
+            // app/automation/page.tsx gates on `isManager`, which is false for `leadgen`.
+            ...(isManager
               ? [{ name: 'ICP & Scoring', href: '/automation?tab=scoring', icon: Target }]
               : []),
-            ...(isLeadgenManager
+            ...(canAccessLeadgenManager(userRole)
               ? [
                   { name: 'Internal Database', href: '/leadgen-manager?tab=pool', icon: Database },
                   { name: 'Import Center', href: '/leadgen-manager?tab=pool&import=1', icon: Upload },
@@ -138,13 +153,19 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
               : []),
           ],
         },
+        // Client Reports is open to every leadgen user; the two leadgen-manager tabs beside it are
+        // not, so they are gated individually rather than taking the whole group down with them.
         ...(isLeadgenManager
           ? [
               {
                 label: 'Insights',
                 items: [
-                  { name: 'Team Performance', href: '/leadgen-manager?tab=team', icon: TrendingUp },
-                  { name: 'Source Performance', href: '/leadgen-manager?tab=sources', icon: BarChart3 },
+                  ...(canAccessLeadgenManager(userRole)
+                    ? [
+                        { name: 'Team Performance', href: '/leadgen-manager?tab=team', icon: TrendingUp },
+                        { name: 'Source Performance', href: '/leadgen-manager?tab=sources', icon: BarChart3 },
+                      ]
+                    : []),
                   { name: 'Client Reports', href: '/client-reports', icon: FileBarChart },
                 ],
               },
