@@ -20,16 +20,20 @@ import {
 } from '@/lib/auth';
 
 describe('canImportExport', () => {
-  it('allows director, floor_manager, leadgen_manager, leadgen, and sdr roles', () => {
-    expect(canImportExport('director')).toBe(true);
-    expect(canImportExport('floor_manager')).toBe(true);
-    expect(canImportExport('leadgen_manager')).toBe(true);
-    expect(canImportExport('leadgen')).toBe(true);
-    expect(canImportExport('sdr')).toBe(true);
+  it('allows every role from sdr upward', () => {
+    for (const role of ['director', 'floor_manager', 'team_lead', 'leadgen_manager', 'leadgen', 'sdr'] as const) {
+      expect(canImportExport(role), role).toBe(true);
+    }
   });
 
-  it('rejects team_lead role', () => {
-    expect(canImportExport('team_lead')).toBe(false);
+  it('the client-side mirror agrees with the server', async () => {
+    // lib/permissions.ts exists for UI gating; if the two lists drift, a role sees a button the
+    // API refuses, or the reverse. team_lead was excluded from both for a while with no
+    // recorded reason — a rep could import and the rep's own lead could not.
+    const client = await import('@/lib/permissions');
+    for (const role of ['director', 'floor_manager', 'team_lead', 'leadgen_manager', 'leadgen', 'sdr'] as const) {
+      expect(client.canImportExport(role), role).toBe(canImportExport(role));
+    }
   });
 });
 
