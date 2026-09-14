@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { httpUrl, id, isoDate, longText, nullableShortText, nullableLongText, nullableText } from './core';
+import { httpUrl, ianaTimezone, id, isoDate, longText, nullableShortText, nullableLongText, nullableText } from './core';
 
 // Enums mirrored from prisma/schema.prisma — keep in sync with the DB enums.
 export const leadStage = z.enum(['new', 'sequence_active', 'replied', 'meeting_booked', 'won', 'lost']);
@@ -60,6 +60,8 @@ export const updateLeadSchema = z.object({
   priority: priority.optional(),
   tags: z.array(z.string().max(60)).max(30).optional(),
   lastContactedAt: isoDate.nullish().optional(),
+  // Set from the lead panel's Confirm button; null clears it back to "resolve from assignee".
+  timezone: ianaTimezone.nullable().optional(),
 });
 
 // ─── Tasks ───────────────────────────────────────────────────────────────────

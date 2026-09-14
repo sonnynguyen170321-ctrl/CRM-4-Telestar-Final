@@ -34,6 +34,7 @@ import NextBestActionCard from '@/components/ai/NextBestActionCard';
 import ContactIntelligenceBadge from '@/components/intelligence/ContactIntelligenceBadge';
 import ContactIntelligenceDrawer from '@/components/intelligence/ContactIntelligenceDrawer';
 import { safeHttpUrl } from '@/lib/security/safeHref';
+import ProspectClock from '@/components/time/ProspectClock';
 
 interface MeetingItem {
   id: string;
@@ -535,6 +536,22 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
     }
   };
 
+  const handleTimezoneConfirm = async (timezone: string) => {
+    const res = await fetch(`/api/leads/${lead.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timezone }),
+    });
+    if (res.ok) {
+      setLead((prev) => (prev ? { ...prev, timezone } : prev));
+      if (onLeadUpdate) onLeadUpdate({ ...lead, timezone });
+      showToast(`Timezone set to ${timezone}`, 'success');
+    } else {
+      showToast(await readApiError(res, 'Failed to set timezone'), 'error');
+      throw new Error('timezone not saved');
+    }
+  };
+
   const handleStageChange = async (newStage: LeadDetail['stage']) => {
     const res = await fetch(`/api/leads/${lead.id}`, {
       method: 'PUT',
@@ -905,6 +922,12 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
             <p className="text-xs text-text-secondary mt-0.5">
               {lead.title} at <span className="font-semibold">{lead.company}</span>
             </p>
+            <ProspectClock
+              timezone={lead.timezone}
+              country={lead.contact?.country}
+              phone={lead.phone}
+              onConfirm={handleTimezoneConfirm}
+            />
           </div>
           <div className="flex items-center gap-1">
             {lead.archivedAt ? (
@@ -1355,7 +1378,9 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                   </div>
                   <div>
                     <span className="text-text-secondary block text-[10px] font-semibold uppercase">Contact Region</span>
-                    <span className="text-text-primary font-semibold">{lead.contact?.country || lead.timezone || 'United States'}</span>
+                    {/* The country, or nothing. This used to fall back to the timezone id and then
+                        to a made-up "United States" when neither was known. */}
+                    <span className="text-text-primary font-semibold">{lead.contact?.country || '—'}</span>
                   </div>
                   <div>
                     <span className="text-text-secondary block text-[10px] font-semibold uppercase">Industry Domain</span>
