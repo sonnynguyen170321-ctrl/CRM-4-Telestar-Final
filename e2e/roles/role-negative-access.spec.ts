@@ -86,21 +86,17 @@ test.describe('leadgen pool access', () => {
 });
 
 test.describe('import and export', () => {
-  // canImportExport excludes Team Lead on purpose, even though they outrank an SDR who can.
-  test('a team lead cannot import leads', async ({ baseURL, recorder }) => {
-    recorder.expectFailures(403);
+  // Team Lead was excluded from canImportExport "on purpose" while the SDRs they lead were not,
+  // and no document ever recorded the purpose. The owner reversed it on 2026-09-15: every role
+  // from sdr upward may start an import. What an import can reach is still bounded — assignee
+  // defaults to self, anyone else must pass canAccessUser, a campaign must pass
+  // canReferenceCampaign — so this widens who may begin, not what it touches.
+  test('a team lead can reach the import endpoint', async ({ baseURL, recorder }) => {
+    recorder.expectFailures(400, 403, 422);
     const api = await apiAs('teamLead', baseURL!);
-    const res = await api.post('/api/leads/import', {
-      multipart: {
-        file: {
-          name: 'PW_AUDIT_denied.csv',
-          mimeType: 'text/csv',
-          buffer: Buffer.from('firstName,lastName,email,company\nPW,Denied,denied@audit.test,PW_AUDIT_CO\n'),
-        },
-      },
-    });
+    const res = await api.post('/api/leads/import', { multipart: {} });
     const { status } = await readJson(res);
-    expect(status, 'Team Lead import must be refused').toBe(403);
+    expect(status, 'a Team Lead must not be refused on role grounds').not.toBe(403);
     await api.dispose();
   });
 

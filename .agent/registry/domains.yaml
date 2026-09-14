@@ -53,6 +53,8 @@ domains:
       - auth.config.ts
       - proxy.ts
       - lib/auth.ts
+      # Client-side mirror of the role predicates in lib/auth.ts, for UI gating.
+      - lib/permissions.ts
       - lib/auth/**
       - lib/authRoles.ts
       - lib/podScoping.ts
