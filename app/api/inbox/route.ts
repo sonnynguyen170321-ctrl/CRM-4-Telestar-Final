@@ -4,6 +4,9 @@ import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
 
+/** Most recent messages read per direction. See the comment on the inbound query. */
+const INBOX_MESSAGE_WINDOW = 500;
+
 function getThreadKey(subject: string | null): string {
   if (!subject) return 'no-subject';
   return subject
@@ -27,6 +30,15 @@ export async function GET(req: NextRequest) {
 
   try {
     // 1. Fetch Inbound & Outbound messages
+    // Bounded. This loaded the tenant's entire message history — both directions, with a lead
+    // join — on every folder change, then threaded it in memory. Two weeks of sequences made
+    // OutboundMessage the largest table in the schema, and Postgres now shares a box with the
+    // web and worker containers, so an unbounded read here slows everything else down too.
+    //
+    // The window is the most recent messages per direction. Threads are assembled from
+    // whatever falls inside it; the client is told when the window was full so it can say
+    // "showing recent mail" instead of implying the list is complete. Real thread-level
+    // pagination means threading in SQL, which is a redesign, not a cap.
     const inbound = await prisma.inboundMessage.findMany({
       where: {
         tenantId: user.tenantId,
@@ -40,6 +52,7 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: { date: 'desc' },
+      take: INBOX_MESSAGE_WINDOW,
     });
 
     // Sent must include the sends that did *not* work.
@@ -76,7 +89,9 @@ export async function GET(req: NextRequest) {
       // createdAt, not sentAt: a message that never sent has no sentAt, and ordering by a null
       // column would group every failure at one end instead of in the timeline where it belongs.
       orderBy: { createdAt: 'desc' },
+      take: INBOX_MESSAGE_WINDOW,
     });
+    const truncated = inbound.length === INBOX_MESSAGE_WINDOW || outbound.length === INBOX_MESSAGE_WINDOW;
 
     // 2. Map messages into a unified format
     const unifiedMessages: any[] = [
@@ -188,7 +203,14 @@ export async function GET(req: NextRequest) {
       })
       .sort((a, b) => b.latestMessageAt.getTime() - a.latestMessageAt.getTime());
 
-    return NextResponse.json(threads);
+    // The body stays a bare array — the client indexes it directly — so the window state
+    // travels in headers where an older client simply ignores it.
+    return NextResponse.json(threads, {
+      headers: {
+        'X-Inbox-Window': String(INBOX_MESSAGE_WINDOW),
+        'X-Inbox-Truncated': truncated ? 'true' : 'false',
+      },
+    });
   } catch (error) {
     console.error('[inbox-get] Error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
