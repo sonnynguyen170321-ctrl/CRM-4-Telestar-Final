@@ -123,8 +123,12 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       email: body.email,
       provider: body.provider,
-      accessToken: rawAccessToken,
-      refreshToken: rawRefreshToken,
+      // Plaintext columns stay null. Every other writer — the OAuth upsert and the adapters'
+      // token-refresh hook — already nulls them and stores only the encrypted copy, and
+      // EmailService reads the encrypted column first. This was the one path still writing
+      // the raw token beside its ciphertext, which made the ciphertext decorative.
+      accessToken: null,
+      refreshToken: null,
       encAccessToken,
       encRefreshToken,
       tokenExpiry: body.tokenExpiry ? new Date(body.tokenExpiry) : null,
