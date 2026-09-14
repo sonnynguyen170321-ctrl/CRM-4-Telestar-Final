@@ -1,22 +1,26 @@
 import { describe, it, expect } from 'vitest';
 import { nextBusinessDay, snapToBusinessDay, isWeekend } from '@/lib/dates/businessDays';
 
+// These cases use local-time Date literals and assert weekday arithmetic, so they run in the
+// machine's own zone. Timezone correctness itself is covered by business-days-timezone.test.ts.
+const LOCAL = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 describe('nextBusinessDay', () => {
   it('Friday → Monday 09:00', () => {
     const friday = new Date('2026-06-05T15:00:00'); // Friday
-    const next = nextBusinessDay(friday);
+    const next = nextBusinessDay(friday, LOCAL);
     expect(next.getDay()).toBe(1); // Monday
     expect(next.getDate()).toBe(8);
     expect(next.getHours()).toBe(9);
   });
 
   it('Saturday and Sunday → Monday', () => {
-    expect(nextBusinessDay(new Date('2026-06-06T10:00:00')).getDay()).toBe(1);
-    expect(nextBusinessDay(new Date('2026-06-07T10:00:00')).getDay()).toBe(1);
+    expect(nextBusinessDay(new Date('2026-06-06T10:00:00'), LOCAL).getDay()).toBe(1);
+    expect(nextBusinessDay(new Date('2026-06-07T10:00:00'), LOCAL).getDay()).toBe(1);
   });
 
   it('Tuesday → Wednesday', () => {
-    const next = nextBusinessDay(new Date('2026-06-02T10:00:00')); // Tuesday
+    const next = nextBusinessDay(new Date('2026-06-02T10:00:00'), LOCAL); // Tuesday
     expect(next.getDay()).toBe(3);
   });
 });
@@ -24,11 +28,11 @@ describe('nextBusinessDay', () => {
 describe('snapToBusinessDay', () => {
   it('passes weekdays through unchanged', () => {
     const wednesday = new Date('2026-06-03T14:30:00');
-    expect(snapToBusinessDay(wednesday).getTime()).toBe(wednesday.getTime());
+    expect(snapToBusinessDay(wednesday, LOCAL).getTime()).toBe(wednesday.getTime());
   });
 
   it('moves Saturday to Monday 09:00', () => {
-    const snapped = snapToBusinessDay(new Date('2026-06-06T14:30:00'));
+    const snapped = snapToBusinessDay(new Date('2026-06-06T14:30:00'), LOCAL);
     expect(snapped.getDay()).toBe(1);
     expect(snapped.getHours()).toBe(9);
   });
@@ -36,8 +40,8 @@ describe('snapToBusinessDay', () => {
 
 describe('isWeekend', () => {
   it('flags Saturday/Sunday only', () => {
-    expect(isWeekend(new Date('2026-06-06T00:00:00'))).toBe(true);
-    expect(isWeekend(new Date('2026-06-07T00:00:00'))).toBe(true);
-    expect(isWeekend(new Date('2026-06-08T00:00:00'))).toBe(false);
+    expect(isWeekend(new Date('2026-06-06T00:00:00'), LOCAL)).toBe(true);
+    expect(isWeekend(new Date('2026-06-07T00:00:00'), LOCAL)).toBe(true);
+    expect(isWeekend(new Date('2026-06-08T00:00:00'), LOCAL)).toBe(false);
   });
 });

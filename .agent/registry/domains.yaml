@@ -143,6 +143,8 @@ domains:
       - scripts/worker-*.cjs
       - scripts/diagnose-import.mjs
       - app/api/cron/**
+      # Shared authorization for the cron routes: who is calling and how many tenants they reach.
+      - lib/cron/**
     tests:
       - tests/*-worker.test.ts
       - tests/bullmq.test.ts
