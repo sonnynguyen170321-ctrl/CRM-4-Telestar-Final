@@ -1,4 +1,4 @@
-import type { LeadQualificationStatus, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { presentScoreExplanation } from "@telestar/core-scoring/scoreExplanation";
 
 import type { SessionUser } from "@/lib/auth";
@@ -80,7 +80,7 @@ export async function listLeadFilter(
   // production: six duplicates still shown as workable, one of them a closed win. Same list.
   const livePoolItem: Prisma.LeadPoolItemWhereInput = {
     status: { notIn: ["archived", "disqualified"] },
-    qualification: { notIn: [...RETIRED_QUALIFICATIONS] as LeadQualificationStatus[] },
+    qualification: { notIn: [...RETIRED_QUALIFICATIONS] },
   };
   const baseWhere: Prisma.CampaignProspectWhereInput = {
     tenantId,

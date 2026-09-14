@@ -1,8 +1,4 @@
-// Pinned to the container's clock. On a developer machine in Vietnam these pass against the OLD
-// implementation by coincidence — local time is UTC+7 — which is exactly how the bug shipped.
-process.env.TZ = 'UTC';
-
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { nextBusinessDay, snapToBusinessDay, isWeekend } from '@/lib/dates/businessDays';
 
 /**
@@ -15,6 +11,19 @@ import { nextBusinessDay, snapToBusinessDay, isWeekend } from '@/lib/dates/busin
  * this correctly through Intl (lib/automation/timezone.ts); these two callers did not.
  */
 const HCM = 'Asia/Ho_Chi_Minh'; // UTC+7, no DST
+
+// Pinned to the container's clock for the duration of this file, and restored after. On a
+// developer machine in Vietnam these pass against the OLD implementation by coincidence — local
+// time is UTC+7 — which is exactly how the bug shipped.
+let savedTz: string | undefined;
+beforeAll(() => {
+  savedTz = process.env.TZ;
+  process.env.TZ = 'UTC';
+});
+afterAll(() => {
+  if (savedTz === undefined) delete process.env.TZ;
+  else process.env.TZ = savedTz;
+});
 
 describe('nextBusinessDay in a timezone', () => {
   it('Friday → Monday 09:00 local, expressed in UTC', () => {
