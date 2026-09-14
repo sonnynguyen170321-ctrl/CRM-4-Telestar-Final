@@ -178,6 +178,8 @@ const LeadCard = memo(function LeadCard({ lead, onOpen, onDragStart, onDragEnd }
   );
 });
 
+const NO_LEADS: Lead[] = [];
+
 export default function LeadsPage() {
   const { currentRole } = useAppContext();
   const { showToast } = useToast();
@@ -230,7 +232,12 @@ export default function LeadsPage() {
   };
   // `isLoading` matters for more than polish: without it the table rendered its "no prospects
   // match" empty state during the very first fetch, which reads as "this account has no leads".
-  const { data: leads = [], isLoading: isLoadingLeads } = useLeads(filters);
+  const { data: leadsPage, isLoading: isLoadingLeads } = useLeads(filters);
+  // A stable empty array: `?? []` would mint a new one per render and invalidate every memo
+  // keyed on `leads` while the query is still loading.
+  const leads = leadsPage?.leads ?? NO_LEADS;
+  const leadsTruncated = leadsPage?.truncated ?? false;
+  const leadsLimit = leadsPage?.limit ?? 0;
   const { data: users = [] } = useUsers();
   const { data: sequences = [] } = useSequences();
   const queryClient = useQueryClient();
@@ -744,6 +751,18 @@ export default function LeadsPage() {
           </div>
         )}
       </div>
+
+      {/* The list is capped server-side. Without this line the pipeline simply stopped at the
+          cap and a manager doing a headcount or a bulk action believed they had everyone. */}
+      {leadsTruncated && !isLoadingLeads && (
+        <div
+          role="status"
+          className="mb-3 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-text-secondary"
+        >
+          Showing the first {leadsLimit} leads that match. Narrow the filters to see a specific set — bulk
+          actions apply only to what is listed here.
+        </div>
+      )}
 
       {/* Leads Content */}
       {viewMode === 'kanban' ? (

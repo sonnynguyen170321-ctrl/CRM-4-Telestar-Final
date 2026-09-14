@@ -95,15 +95,26 @@ function buildQueryString(filters: LeadFilters): string {
   return params.toString();
 }
 
+export type LeadsPage = {
+  leads: Lead[];
+  /** True when the server's cap was reached — the list is the first `limit`, not all of them. */
+  truncated: boolean;
+  limit: number;
+};
+
 export function useLeads(filters: LeadFilters) {
-  return useQuery<Lead[]>({
+  return useQuery<LeadsPage>({
     queryKey: ['leads', filters],
     queryFn: async () => {
       const qs = buildQueryString(filters);
       const res = await fetch(`/api/leads?${qs}`);
       if (!res.ok) throw new Error(await readApiError(res, 'Failed to fetch leads'));
       const data = await res.json();
-      return Array.isArray(data) ? data : [];
+      return {
+        leads: Array.isArray(data) ? data : [],
+        truncated: res.headers.get('X-Leads-Truncated') === 'true',
+        limit: Number(res.headers.get('X-Leads-Limit') ?? 0),
+      };
     },
     placeholderData: (previousData) => previousData,
   });
