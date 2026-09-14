@@ -51,6 +51,22 @@ export function capLimit(raw: string | null, fallback = 50, max = 200): number {
 }
 
 // Shared atoms
+/**
+ * A URL that may be rendered into an `href`.
+ *
+ * `z.string().url()` accepts `javascript:alert(1)` — it checks shape, not scheme. Three fields
+ * validated with it (meeting links, booking links) were then rendered raw into `<a href>`, so
+ * any rep who could edit a lead could plant a link that executed in a colleague's session. This
+ * refuses everything but http(s) at the boundary; `lib/security/safeHref.ts` is the matching
+ * guard at render time, for rows that predate this.
+ */
+export const httpUrl = z
+  .string()
+  .trim()
+  .max(2000)
+  .url()
+  .refine((value) => /^https?:\/\//i.test(value), { message: 'Must be an http(s) URL' });
+
 export const id = z.string().min(1).max(64);
 export const isoDate = z.coerce.date();
 const emptyStringToNull = (value: unknown) => {

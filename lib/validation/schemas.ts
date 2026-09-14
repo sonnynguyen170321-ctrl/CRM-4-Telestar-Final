@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { id, isoDate, longText, nullableShortText, nullableLongText, nullableText } from './core';
+import { httpUrl, id, isoDate, longText, nullableShortText, nullableLongText, nullableText } from './core';
 
 // Enums mirrored from prisma/schema.prisma — keep in sync with the DB enums.
 export const leadStage = z.enum(['new', 'sequence_active', 'replied', 'meeting_booked', 'won', 'lost']);
@@ -335,7 +335,7 @@ export const createBookingLinkSchema = z.object({
   clientId: id,
   campaignId: id.nullish().optional(),
   name: z.string().min(1).max(160),
-  url: z.string().url().max(2000),
+  url: httpUrl,
   provider: bookingLinkProvider.optional(),
   ownerName: nullableShortText.optional(),
   ownerEmail: z.string().email().max(320).nullish().optional(),
@@ -358,7 +358,7 @@ export const createMeetingSchema = z.object({
   scheduledAt: isoDate.nullish().optional(),
   durationMins: z.number().int().min(15).max(240).optional(),
   timezone: z.string().max(80).nullish().optional(),
-  meetingUrl: z.string().url().max(2000).nullish().optional(),
+  meetingUrl: httpUrl.nullish().optional(),
   clientOwnerName: nullableShortText.optional(),
   clientOwnerEmail: z.string().email().max(320).nullish().optional(),
 });
@@ -368,7 +368,7 @@ export const updateMeetingSchema = z.object({
   scheduledAt: isoDate.nullish().optional(),
   durationMins: z.number().int().min(15).max(240).optional(),
   timezone: z.string().max(80).nullish().optional(),
-  meetingUrl: z.string().url().max(2000).nullish().optional(),
+  meetingUrl: httpUrl.nullish().optional(),
   clientOwnerName: nullableShortText.optional(),
   clientOwnerEmail: z.string().email().max(320).nullish().optional(),
 });

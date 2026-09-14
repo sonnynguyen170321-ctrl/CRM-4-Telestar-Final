@@ -2025,9 +2025,13 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                         {m.meetingUrl && (
                           <div>
                             <span className="text-[10px] text-text-muted uppercase block">Meeting URL</span>
-                            <a href={m.meetingUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline truncate block">
-                              {m.meetingUrl}
-                            </a>
+                            {safeHttpUrl(m.meetingUrl) ? (
+                              <a href={safeHttpUrl(m.meetingUrl)!} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline truncate block">
+                                {m.meetingUrl}
+                              </a>
+                            ) : (
+                              <span className="text-text-muted truncate block">{m.meetingUrl}</span>
+                            )}
                           </div>
                         )}
                       </div>
