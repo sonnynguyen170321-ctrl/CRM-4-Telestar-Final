@@ -91,3 +91,38 @@ describe('GET /api/cron/inbox-sync', () => {
     expect(mockAccountFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { isActive: true } }));
   });
 });
+
+describe('GET /api/cron/sequence-engine', () => {
+  // The daily-notification sweep and the manual-task scan inside this route had no tenant
+  // filter and ran for every tenant whichever caller triggered them. Found by security review
+  // after the first pass scoped only the account scan.
+  const mockTaskFindMany = vi.fn();
+  const mockNotifFindMany = vi.fn();
+
+  it('scopes the notification sweep and the task scan to the manager\'s tenant', async () => {
+    vi.doMock('@/lib/prisma', () => ({
+      prisma: {
+        emailAccount: { findMany: (...a: unknown[]) => mockAccountFindMany(...a), findFirst: vi.fn() },
+        user: { findMany: vi.fn().mockResolvedValue([]) },
+        task: { findMany: (...a: unknown[]) => mockTaskFindMany(...a), updateMany: vi.fn() },
+        notification: { findMany: (...a: unknown[]) => mockNotifFindMany(...a), create: vi.fn() },
+      },
+      tenantStorage: { run: (_: unknown, fn: () => unknown) => fn() },
+    }));
+    vi.doMock('@/lib/emailSafety', () => ({ isAutosendEnabled: () => true }));
+    vi.resetModules();
+    const { GET } = await import('@/app/api/cron/sequence-engine/route');
+    mockAuth.mockResolvedValue({ user: { id: 'u1', role: 'director', tenantId: 't-acme' } });
+    mockAccountFindMany.mockResolvedValue([]);
+    mockTaskFindMany.mockResolvedValue([]);
+    mockNotifFindMany.mockResolvedValue([]);
+
+    await GET(req());
+
+    // every task scan on this route carries the tenant
+    expect(mockTaskFindMany).toHaveBeenCalled();
+    for (const call of mockTaskFindMany.mock.calls) {
+      expect((call[0] as { where: Record<string, unknown> }).where).toMatchObject({ tenantId: 't-acme' });
+    }
+  });
+});
