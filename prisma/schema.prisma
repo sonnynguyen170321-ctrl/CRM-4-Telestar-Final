@@ -394,7 +394,7 @@ model User {
   manager     User?    @relation("UserReports", fields: [managerId, tenantId], references: [id, tenantId], onDelete: SetNull)
   reports     User[]   @relation("UserReports")
   avatarUrl   String?
-  timezone    String   @default("UTC")
+  timezone    String   @default("Asia/Ho_Chi_Minh")
   isActive    Boolean  @default(true)
   /// Bumped whenever a change must invalidate every existing session — password change,
   /// admin reset, deactivate/reactivate, role change, tenant move, or an explicit
