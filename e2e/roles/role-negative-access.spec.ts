@@ -9,7 +9,7 @@
  * Expectations are derived from source, not from the current behaviour:
  *   - `proxy.ts:8` ADMIN_ROLES = director, floor_manager
  *   - `app/api/leadgen-pool/guard.ts` canAccessPool / requirePoolManager
- *   - `lib/auth.ts:188` canImportExport — Team Lead deliberately excluded
+ *   - `lib/auth.ts` canImportExport — every role from sdr upward (Team Lead admitted 2026-09-15)
  *   - `lib/opportunities/access.ts:32` canApproveClientHandoff
  */
 import { test, expect } from '../support/test';
