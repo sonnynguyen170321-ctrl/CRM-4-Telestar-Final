@@ -30,6 +30,7 @@ import { useLeads, useUsers, useSequences, useUpdateLeadStage } from '@/lib/hook
 import type { Lead } from '@/lib/hooks/useLeads';
 import { useQueryClient } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
+import { safeHttpUrl } from '@/lib/security/safeHref';
 
 const LeadDetailPanel = dynamic(() => import('@/components/LeadDetailPanel'), { ssr: false });
 const NewLeadModal = dynamic(() => import('@/components/NewLeadModal'), { ssr: false });
@@ -967,8 +968,8 @@ export default function LeadsPage() {
                                 <Phone className="w-3.5 h-3.5" />
                               </a>
                             )}
-                            {lead.linkedIn && (
-                              <a href={lead.linkedIn} target="_blank" rel="noreferrer" className="p-1 hover:bg-card-border rounded text-indigo-500" title="LinkedIn">
+                            {safeHttpUrl(lead.linkedIn) && (
+                              <a href={safeHttpUrl(lead.linkedIn)!} target="_blank" rel="noreferrer" className="p-1 hover:bg-card-border rounded text-indigo-500" title="LinkedIn">
                                 <Linkedin className="w-3.5 h-3.5" />
                               </a>
                             )}
