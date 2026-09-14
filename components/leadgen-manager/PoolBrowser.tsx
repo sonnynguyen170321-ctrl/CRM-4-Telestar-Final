@@ -22,6 +22,7 @@ import { readApiError } from '@/lib/api/client';
 import { formatPoolActionResult } from '@/lib/leadgen/actionResult';
 import { isAwaitingConversion } from '@/lib/leadgen/poolItemState';
 import { needsRoutingMetadata } from '@/lib/leadgen/poolModes';
+import { safeHttpUrl } from '@/lib/security/safeHref';
 
 type PoolItem = {
   id: string;
@@ -578,8 +579,8 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
                         ) : (
                           <span className="text-text-muted">—</span>
                         )}
-                        {item.linkedIn && (
-                          <a href={item.linkedIn} target="_blank" rel="noreferrer" className="text-[10px] text-blue-400/70 hover:text-blue-300 font-mono inline-flex items-center gap-1">
+                        {safeHttpUrl(item.linkedIn) && (
+                          <a href={safeHttpUrl(item.linkedIn)!} target="_blank" rel="noreferrer" className="text-[10px] text-blue-400/70 hover:text-blue-300 font-mono inline-flex items-center gap-1">
                             in <ExternalLink className="w-2.5 h-2.5" />
                           </a>
                         )}
