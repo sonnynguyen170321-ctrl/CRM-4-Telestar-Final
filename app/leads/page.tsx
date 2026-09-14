@@ -31,6 +31,7 @@ import type { Lead } from '@/lib/hooks/useLeads';
 import { useQueryClient } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 import { safeHttpUrl } from '@/lib/security/safeHref';
+import { summarizeBulk } from '@/lib/leads/bulkOutcome';
 
 const LeadDetailPanel = dynamic(() => import('@/components/LeadDetailPanel'), { ssr: false });
 const NewLeadModal = dynamic(() => import('@/components/NewLeadModal'), { ssr: false });
@@ -306,25 +307,32 @@ export default function LeadsPage() {
     setBulkApplying(true);
     const ids = Array.from(selectedLeads);
     try {
+      // Every response is read. This used to Promise.all the fan-out and toast
+      // "updated N leads" without looking at a single status — a 403 on half of them, a lead
+      // that no longer existed, all reported as success.
+      const json = { 'Content-Type': 'application/json' };
       if (bulkStage) {
-        await Promise.all(ids.map((id) =>
-          fetch(`/api/leads/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage: bulkStage }) })
+        const results = await Promise.allSettled(ids.map((id) =>
+          fetch(`/api/leads/${id}`, { method: 'PUT', headers: json, body: JSON.stringify({ stage: bulkStage }) })
         ));
         invalidateLeads();
-        showToast(`Stage updated for ${ids.length} leads`, 'success');
+        const outcome = summarizeBulk('Stage updated for', 'lead', results);
+        showToast(outcome.message, outcome.tone);
       }
       if (bulkSdr) {
-        await Promise.all(ids.map((id) =>
-          fetch(`/api/leads/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignedToId: bulkSdr }) })
+        const results = await Promise.allSettled(ids.map((id) =>
+          fetch(`/api/leads/${id}`, { method: 'PUT', headers: json, body: JSON.stringify({ assignedToId: bulkSdr }) })
         ));
         invalidateLeads();
-        showToast(`Reassigned ${ids.length} leads`, 'success');
+        const outcome = summarizeBulk('Reassigned', 'lead', results);
+        showToast(outcome.message, outcome.tone);
       }
       if (bulkSeqId) {
-        await Promise.all(ids.map((id) =>
-          fetch(`/api/sequences/${bulkSeqId}/enroll`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ leadId: id }) })
+        const results = await Promise.allSettled(ids.map((id) =>
+          fetch(`/api/sequences/${bulkSeqId}/enroll`, { method: 'POST', headers: json, body: JSON.stringify({ leadId: id }) })
         ));
-        showToast(`Enrolled ${ids.length} leads in sequence`, 'success');
+        const outcome = summarizeBulk('Enrolled', 'lead', results);
+        showToast(outcome.message, outcome.tone);
       }
       setSelectedLeads(new Set());
       setBulkStage('');
