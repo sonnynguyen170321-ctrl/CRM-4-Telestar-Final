@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma, tenantStorage } from '@/lib/prisma';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 import { isAutosendEnabled } from '@/lib/emailSafety';
-import { auth } from '@/auth';
+import { authorizeCronRequest } from '@/lib/cron/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,15 +93,11 @@ async function createDailyNotifications(now: Date): Promise<number> {
   return created;
 }
 
-const MANAGER_ROLES = ['director', 'floor_manager', 'team_lead'];
-
 export async function GET(req: NextRequest) {
-  const isCronSecret =
-    process.env.CRON_SECRET &&
-    req.headers.get('authorization') === `Bearer ${process.env.CRON_SECRET}`;
-  const session = isCronSecret ? null : await auth();
-  const isManager = session?.user && MANAGER_ROLES.includes((session.user as any)?.role ?? '');
-  if (!isCronSecret && !isManager) {
+  // Constant-time secret check, and a manager session reaches only its own tenant. The
+  // platform-wide sweep is the scheduler's alone — see lib/cron/auth.ts.
+  const authz = await authorizeCronRequest(req);
+  if (!authz) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -110,8 +106,10 @@ export async function GET(req: NextRequest) {
   }
 
   return await tenantStorage.run({ tenantId: 'system', bypassRls: true }, async () => {
+    // A manager's manual run touches their own tenant's mailboxes only.
+    const tenantScope = authz.scope === 'platform' ? {} : { tenantId: authz.tenantId };
     const activeAccounts = await prisma.emailAccount.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...tenantScope },
       select: { id: true, userId: true },
     });
 
