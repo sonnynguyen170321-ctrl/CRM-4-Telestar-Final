@@ -186,13 +186,13 @@ export const createUserSchema = z.object({
   lastName: z.string().min(1).max(120),
   role,
   managerId: id.nullish().optional(),
-  timezone: z.string().max(60).optional(),
+  timezone: ianaTimezone.optional(),
 });
 
 export const updateUserSchema = z.object({
   firstName: z.string().min(1).max(120).optional(),
   lastName: z.string().min(1).max(120).optional(),
-  timezone: z.string().max(60).optional(),
+  timezone: ianaTimezone.optional(),
   avatarUrl: z.preprocess((value) => (typeof value === 'string' && value.trim() === '' ? null : value), z.string().max(1000).nullish()).optional(),
   role: role.optional(),
   managerId: id.nullish().optional(),

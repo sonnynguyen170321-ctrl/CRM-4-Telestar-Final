@@ -33,3 +33,18 @@ describe('User.timezone default', () => {
     expect(sql).toMatch(/send window/i);
   });
 });
+
+describe('no route hardcodes a timezone that bypasses the default', () => {
+  it('POST /api/users leaves timezone to the schema default when not supplied', () => {
+    const src = readFileSync('app/api/users/route.ts', 'utf8');
+    expect(src).not.toMatch(/timezone: body\.timezone \?\? 'UTC'/);
+    expect(src).toMatch(/\.\.\.\(body\.timezone \? \{ timezone: body\.timezone \} : \{\}\)/);
+  });
+
+  it('user and settings writes validate the zone, not only its length', async () => {
+    const { createUserSchema } = await import('@/lib/validation/schemas');
+    expect(createUserSchema.safeParse({ timezone: 'Asia/Saigon-typo' }).success).toBe(false);
+    const src = readFileSync('app/api/settings/route.ts', 'utf8');
+    expect(src).toMatch(/isValidTimezone\(timezone\)/);
+  });
+});

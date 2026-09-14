@@ -137,7 +137,9 @@ export async function POST(req: NextRequest) {
         lastName: body.lastName,
         role: body.role,
         managerId: body.managerId ?? null,
-        timezone: body.timezone ?? 'UTC',
+        // Omitted when not supplied, so the schema default (Asia/Ho_Chi_Minh) applies. This
+        // hardcoded 'UTC' is how every user ended up on UTC regardless of the column default.
+        ...(body.timezone ? { timezone: body.timezone } : {}),
         tenantId: currentUser.tenantId,
       },
       select: {

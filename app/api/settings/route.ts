@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { handleApiError } from '@/lib/api/errors';
+import { isValidTimezone } from '@/lib/automation/timezone';
 
 export async function GET() {
   const userOrRes = await requireAuth();
@@ -50,8 +51,10 @@ export async function PUT(req: NextRequest) {
   if (lastName !== undefined && lastName.length > 120) {
     return NextResponse.json({ error: 'lastName must be 120 characters or fewer' }, { status: 400 });
   }
-  if (timezone !== undefined && timezone.length > 60) {
-    return NextResponse.json({ error: 'timezone too long' }, { status: 400 });
+  if (timezone !== undefined && (timezone.length > 60 || !isValidTimezone(timezone))) {
+    // The value feeds business-day due dates and send windows; a typo would silently fall back
+    // to UTC downstream rather than erroring, so it is refused here where the user can see it.
+    return NextResponse.json({ error: 'timezone must be an IANA zone, e.g. Asia/Singapore' }, { status: 400 });
   }
   if (avatarUrl !== undefined && avatarUrl.length > 1000) {
     return NextResponse.json({ error: 'avatarUrl too long' }, { status: 400 });
