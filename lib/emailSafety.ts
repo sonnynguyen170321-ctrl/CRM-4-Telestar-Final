@@ -79,8 +79,15 @@ export function isGlobalEmailPaused(): boolean {
 /**
  * Canary mode protection.
  *
- * When enabled (default true during live-email onboarding), only explicitly
- * allowlisted recipients can receive live emails.
+ * When on, only explicitly allowlisted recipients can receive live emails.
+ *
+ * Off unless the value is exactly `"true"`. An earlier version of this comment claimed the
+ * default was on "during live-email onboarding"; it was not, and a reader who trusted the
+ * comment over the code would have believed an unset variable was a guardrail. What actually
+ * guards a live deployment is `scripts/prod-check-env.ts`: it refuses `EMAIL_SEND_DRY_RUN=false`
+ * unless canary mode is on with an allowlist, or `ALLOW_UNRESTRICTED_LIVE_EMAIL=true` is set
+ * on purpose. The runtime default stays off so a deployment that never set this variable does
+ * not lose every send the day it upgrades.
  */
 export function isCanaryMode(): boolean {
   return normalize(process.env.LIVE_EMAIL_CANARY_MODE) === 'true';
