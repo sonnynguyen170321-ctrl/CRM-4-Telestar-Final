@@ -35,6 +35,7 @@ import ContactIntelligenceBadge from '@/components/intelligence/ContactIntellige
 import ContactIntelligenceDrawer from '@/components/intelligence/ContactIntelligenceDrawer';
 import { safeHttpUrl } from '@/lib/security/safeHref';
 import ProspectClock from '@/components/time/ProspectClock';
+import { inferTimezone } from '@/lib/time/inferTimezone';
 
 interface MeetingItem {
   id: string;
@@ -2285,6 +2286,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
           leadName={`${lead.firstName} ${lead.lastName}`}
           clientId={lead.campaign?.client?.id || ''}
           campaignId={lead.campaign?.id || ''}
+          leadTimezone={lead.timezone ?? inferTimezone({ country: lead.contact?.country, phone: lead.phone })?.timezone ?? null}
           onClose={() => setShowBookingModal(false)}
           onMeetingCreated={() => {
             reloadLead();

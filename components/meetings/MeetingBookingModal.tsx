@@ -4,6 +4,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { X, Copy, ExternalLink, Calendar, Loader2, Send } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { readApiError } from '@/lib/api/client';
+import TimezoneSelect from '@/components/time/TimezoneSelect';
+import MeetingTimePreview from '@/components/time/MeetingTimePreview';
+import { useUserTimezone } from '@/lib/hooks/useUserTimezone';
+import { localToUtc } from '@/lib/automation/timezone';
 
 interface BookingLink {
   id: string;
@@ -23,11 +27,14 @@ interface MeetingBookingModalProps {
   leadName: string;
   clientId: string;
   campaignId: string;
+  /** The prospect's zone if known (confirmed or inferred). The picker defaults to it. */
+  leadTimezone?: string | null;
   onClose: () => void;
   onMeetingCreated?: () => void;
 }
 
 export default function MeetingBookingModal({
+  leadTimezone,
   leadId,
   leadName,
   clientId,
@@ -44,6 +51,12 @@ export default function MeetingBookingModal({
 
   // Scheduling fields
   const [scheduledAt, setScheduledAt] = useState('');
+  // The zone the typed date/time is *in*. Defaults to the prospect's zone, then the rep's. The
+  // `datetime-local` value used to be read as the browser's zone and sent with no timezone at
+  // all, so a meeting "at 10:00" carried no record of whose 10:00 it was.
+  const { timezone: userTimezone } = useUserTimezone();
+  const [meetingTimezone, setMeetingTimezone] = useState<string>('');
+  const effectiveZone = meetingTimezone || leadTimezone || userTimezone;
   const [meetingUrl, setMeetingUrl] = useState('');
   const [title, setTitle] = useState('');
   const [durationMins, setDurationMins] = useState(30);
@@ -102,7 +115,11 @@ export default function MeetingBookingModal({
           setLoading(false);
           return;
         }
-        payload.scheduledAt = new Date(scheduledAt).toISOString();
+        const [datePart, timePart] = scheduledAt.split('T');
+        const [y, m, d] = datePart.split('-').map(Number);
+        const [hh, mm] = (timePart ?? '00:00').split(':').map(Number);
+        payload.scheduledAt = localToUtc(y, m, d, hh, mm, effectiveZone).toISOString();
+        payload.timezone = effectiveZone;
         payload.durationMins = durationMins;
         if (meetingUrl) payload.meetingUrl = meetingUrl;
       }
@@ -268,6 +285,22 @@ export default function MeetingBookingModal({
                     className="w-full bg-card-bg border border-card-border rounded-lg px-3 py-2 text-sm text-text-primary focus:ring-1 focus:ring-brand-red/50 focus:border-brand-red/50 outline-none [color-scheme:dark]"
                   />
                 </div>
+                <div>
+                  <label htmlFor="meeting-timezone" className="block text-xs font-medium text-text-muted mb-1.5">
+                    Time is in
+                  </label>
+                  <TimezoneSelect
+                    id="meeting-timezone"
+                    value={effectiveZone}
+                    onChange={setMeetingTimezone}
+                    className="w-full py-2 text-sm"
+                  />
+                </div>
+                {scheduledAt && (
+                  <div className="col-span-2">
+                    <MeetingTimePreview scheduledAt={scheduledAt} zone={effectiveZone} userZone={userTimezone} />
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-medium text-text-muted mb-1.5">Duration (min)</label>
                   <select
