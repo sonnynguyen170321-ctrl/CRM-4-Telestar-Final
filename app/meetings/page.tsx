@@ -17,6 +17,7 @@ import {
 import { useToast } from '@/context/ToastContext';
 import MeetingStatusBadge from '@/components/meetings/MeetingStatusBadge';
 import dynamic from 'next/dynamic';
+import { safeHttpUrl } from '@/lib/security/safeHref';
 
 const MeetingOutcomeModal = dynamic(() => import('@/components/meetings/MeetingOutcomeModal'), { ssr: false });
 const LeadDetailPanel = dynamic(() => import('@/components/LeadDetailPanel'), { ssr: false });
@@ -517,9 +518,9 @@ export default function MeetingsPage() {
                             Log Outcome
                           </button>
                         )}
-                        {m.meetingUrl && (
+                        {safeHttpUrl(m.meetingUrl) && (
                           <a
-                            href={m.meetingUrl}
+                            href={safeHttpUrl(m.meetingUrl)!}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-1.5 text-text-muted hover:text-text-primary rounded-lg border border-card-border hover:border-brand-red/30 transition-colors"

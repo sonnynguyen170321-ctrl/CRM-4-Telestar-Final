@@ -45,13 +45,36 @@ describe('every stored-URL href goes through safeHttpUrl', () => {
     'app/leads/page.tsx',
     'components/meetings/BookingLinkSettingsPanel.tsx',
     'components/LeadDetailPanel.tsx',
+    'app/meetings/page.tsx',
   ];
   for (const file of SITES) {
     it(`${file} has no raw linkedIn/url href`, () => {
       const src = readFileSync(path.join(process.cwd(), file), 'utf8');
-      expect(src).not.toMatch(/href=\{(item|lead|link)\.(linkedIn|url)\}/);
+      expect(src).not.toMatch(/href=\{(item|lead|link|m)\.(linkedIn|url|meetingUrl)\}/);
       expect(src).not.toMatch(/startsWith\('http'\)\s*\?\s*\w+\.linkedIn/);
       expect(src).toMatch(/safeHttpUrl\(/);
     });
   }
+});
+
+describe('httpUrl schema refuses non-http schemes at the boundary', () => {
+  // `z.string().url()` accepts `javascript:alert(1)` — it validates shape, not scheme. The
+  // meeting and booking-link URL fields used it and were then rendered into `href`.
+  it('accepts http(s) and refuses javascript:/data:', async () => {
+    const { httpUrl } = await import('@/lib/validation/core');
+    expect(httpUrl.safeParse('https://meet.google.com/abc').success).toBe(true);
+    expect(httpUrl.safeParse('http://zoom.us/j/1').success).toBe(true);
+    expect(httpUrl.safeParse('javascript:alert(document.cookie)').success).toBe(false);
+    expect(httpUrl.safeParse('data:text/html,x').success).toBe(false);
+    expect(httpUrl.safeParse('JAVASCRIPT:alert(1)').success).toBe(false);
+  });
+
+  it('is what meetingUrl and booking-link url are validated with', async () => {
+    const { readFileSync } = await import('node:fs');
+    const path = await import('node:path');
+    const src = readFileSync(path.join(process.cwd(), 'lib/validation/schemas.ts'), 'utf8');
+    expect(src).not.toMatch(/meetingUrl:\s*z\.string\(\)\.url\(\)/);
+    expect(src).not.toMatch(/\burl:\s*z\.string\(\)\.url\(\)/);
+    expect(src).toMatch(/meetingUrl:\s*httpUrl/);
+  });
 });
