@@ -5,6 +5,7 @@ import type { SessionUser } from '@/lib/auth';
 import { parseBody, capLimit } from '@/lib/validation/core';
 import { createActivitySchema } from '@/lib/validation/schemas';
 import { nextBusinessDay } from '@/lib/dates/businessDays';
+import { businessTimezoneFor } from '@/lib/dates/businessTimezone';
 import { handleApiError } from '@/lib/api/errors';
 import { onActivityLogged } from '@/lib/contact-intelligence/events';
 
@@ -65,11 +66,11 @@ export async function POST(req: NextRequest) {
   const body = parsed.data;
 
   try {
-    let lead: { id: string; firstName: string; lastName: string; assignedToId: string | null; campaignId: string | null; tenantId: string } | null = null;
+    let lead: { id: string; firstName: string; lastName: string; assignedToId: string | null; campaignId: string | null; tenantId: string; timezone: string | null } | null = null;
     if (body.leadId) {
       lead = await prisma.lead.findUnique({
         where: { id: body.leadId },
-        select: { id: true, firstName: true, lastName: true, assignedToId: true, campaignId: true, tenantId: true },
+        select: { id: true, firstName: true, lastName: true, assignedToId: true, campaignId: true, tenantId: true, timezone: true },
       });
       if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
       if (!(await canAccessLead(user, lead))) {
@@ -101,7 +102,10 @@ export async function POST(req: NextRequest) {
           type: 'phone',
           title: `Callback: ${lead.firstName} ${lead.lastName}`,
           description: 'Callback requested on previous call',
-          dueDate: nextBusinessDay(new Date()),
+          dueDate: nextBusinessDay(
+            new Date(),
+            await businessTimezoneFor({ leadTimezone: lead.timezone, assigneeId: lead.assignedToId ?? user.id })
+          ),
           priority: 'high',
         },
       });
