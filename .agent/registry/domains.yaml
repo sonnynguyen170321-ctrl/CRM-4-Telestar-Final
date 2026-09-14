@@ -143,6 +143,8 @@ domains:
       - scripts/worker-*.cjs
       - scripts/diagnose-import.mjs
       - app/api/cron/**
+      # Shared authorization for the cron routes: who is calling and how many tenants they reach.
+      - lib/cron/**
     tests:
       - tests/*-worker.test.ts
       - tests/bullmq.test.ts
@@ -265,6 +267,10 @@ domains:
       - lib/leads/**
       - lib/tasks/**
       - lib/briefing/**
+      # Business-day due-date helpers for follow-up tasks (timezone-aware since 2026-09-14).
+      - lib/dates/**
+      # The leads list query hook; its result shape is owned with the leads API it reads.
+      - lib/hooks/useLeads.ts
       - app/api/leads/**
       - app/api/tasks/**
       - app/api/activities/**

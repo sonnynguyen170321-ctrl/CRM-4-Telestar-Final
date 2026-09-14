@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma, tenantStorage } from '@/lib/prisma';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 import { isAutosendEnabled } from '@/lib/emailSafety';
-import { auth } from '@/auth';
+import { authorizeCronRequest } from '@/lib/cron/auth';
 
 export const dynamic = 'force-dynamic';
 
 const LOCK_STALE_MS = 10 * 60 * 1000;
 
-async function createDailyNotifications(now: Date): Promise<number> {
+/**
+ * @param tenantScope `{}` for the scheduler's platform-wide run, `{ tenantId }` for a manager's
+ * manual run. Both task scans below spread it into their WHERE; without it a director in one
+ * tenant triggering this by hand wrote Notification rows for every user on the platform.
+ */
+async function createDailyNotifications(now: Date, tenantScope: { tenantId?: string }): Promise<number> {
   const startOfDay = new Date(now);
   startOfDay.setHours(0, 0, 0, 0);
   const endOfDay = new Date(startOfDay);
@@ -18,7 +23,7 @@ async function createDailyNotifications(now: Date): Promise<number> {
 
   // task_overdue — one notification per SDR per day for all overdue pending tasks
   const overdueTasks = await prisma.task.findMany({
-    where: { status: 'pending', dueDate: { lt: startOfDay } },
+    where: { status: 'pending', dueDate: { lt: startOfDay }, ...tenantScope },
     select: { userId: true, tenantId: true },
   });
 
@@ -57,6 +62,7 @@ async function createDailyNotifications(now: Date): Promise<number> {
       status: 'pending',
       sequenceId: { not: null },
       dueDate: { gte: startOfDay, lte: endOfDay },
+      ...tenantScope,
     },
     select: { userId: true, tenantId: true },
   });
@@ -93,15 +99,11 @@ async function createDailyNotifications(now: Date): Promise<number> {
   return created;
 }
 
-const MANAGER_ROLES = ['director', 'floor_manager', 'team_lead'];
-
 export async function GET(req: NextRequest) {
-  const isCronSecret =
-    process.env.CRON_SECRET &&
-    req.headers.get('authorization') === `Bearer ${process.env.CRON_SECRET}`;
-  const session = isCronSecret ? null : await auth();
-  const isManager = session?.user && MANAGER_ROLES.includes((session.user as any)?.role ?? '');
-  if (!isCronSecret && !isManager) {
+  // Constant-time secret check, and a manager session reaches only its own tenant. The
+  // platform-wide sweep is the scheduler's alone — see lib/cron/auth.ts.
+  const authz = await authorizeCronRequest(req);
+  if (!authz) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -110,8 +112,10 @@ export async function GET(req: NextRequest) {
   }
 
   return await tenantStorage.run({ tenantId: 'system', bypassRls: true }, async () => {
+    // A manager's manual run touches their own tenant's mailboxes only.
+    const tenantScope = authz.scope === 'platform' ? {} : { tenantId: authz.tenantId };
     const activeAccounts = await prisma.emailAccount.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...tenantScope },
       select: { id: true, userId: true },
     });
 
@@ -133,6 +137,10 @@ export async function GET(req: NextRequest) {
         type: 'email',
         sequenceId: null,
         dueDate: { lte: now },
+        // Explicit, not implied: the loop below already drops tasks whose assignee has no active
+        // account in scope, but a filter that exists only as a side effect of a later `continue`
+        // is one refactor away from not existing.
+        ...tenantScope,
         OR: [{ lockedAt: null }, { lockedAt: { lt: lockCutoff } }],
       },
       orderBy: { dueDate: 'asc' },
@@ -211,7 +219,7 @@ export async function GET(req: NextRequest) {
     let notified = 0;
     try {
       notified = await tenantStorage.run({ tenantId: 'system', bypassRls: true }, async () => {
-        return await createDailyNotifications(now);
+        return await createDailyNotifications(now, tenantScope);
       });
     } catch (err) {
       console.error('[sequence-engine] daily notifications failed:', err);

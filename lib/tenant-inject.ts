@@ -40,11 +40,22 @@ export function applyTenant<T>(payload: T, tenantId: string, override: boolean):
  */
 export function stampTenantWrite(operation: string, args: any, tenantId: string, override: boolean): void {
   if (!args) return;
+  // `override` is the scoped/bypass switch: true from the request path, false from the bypass
+  // path. On the bypass path an UPDATE must not have a tenant added to it. The stamp exists so an
+  // INSERT satisfies the NOT NULL column; a row being updated already has its tenant, and adding
+  // one either re-tenants the row to whatever the bypass context holds or — with the `'system'`
+  // sentinel the cron routes and API-key lookup run under — violates the foreign key outright.
+  // This lay dormant while `tenantStorage.run` failed to carry context into the extension; it
+  // surfaced the moment that was fixed. The scoped path keeps stamping updates: the WHERE already
+  // pins the same tenant, so it is a no-op there, and it neutralises a caller-supplied tenantId.
+  const stampUpdates = override;
   switch (operation) {
     case 'create':
+      args.data = applyTenant(args.data, tenantId, override);
+      break;
     case 'update':
     case 'updateMany':
-      args.data = applyTenant(args.data, tenantId, override);
+      if (stampUpdates) args.data = applyTenant(args.data, tenantId, override);
       break;
     case 'createMany':
     case 'createManyAndReturn':
@@ -56,7 +67,7 @@ export function stampTenantWrite(operation: string, args: any, tenantId: string,
       break;
     case 'upsert':
       args.create = applyTenant(args.create, tenantId, override);
-      args.update = applyTenant(args.update, tenantId, override);
+      if (stampUpdates) args.update = applyTenant(args.update, tenantId, override);
       break;
   }
 }

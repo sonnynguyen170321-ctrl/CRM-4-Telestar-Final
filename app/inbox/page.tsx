@@ -68,6 +68,10 @@ export default function InboxPage() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
   const [loading, setLoading] = useState(false);
+  // The server reads a window of the most recent messages per direction and says, in a header,
+  // whether that window was full. When it is, the list is "recent mail", not "all mail", and
+  // the column says so rather than implying an older thread simply does not exist.
+  const [windowInfo, setWindowInfo] = useState<{ truncated: boolean; size: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
   // Reply box states
@@ -89,6 +93,10 @@ export default function InboxPage() {
       if (res.ok) {
         const data = await res.json();
         setThreads(data);
+        setWindowInfo({
+          truncated: res.headers.get('X-Inbox-Truncated') === 'true',
+          size: Number(res.headers.get('X-Inbox-Window') ?? 0),
+        });
 
         // Functional form on purpose: reading `selectedThread` directly would put it in this
         // callback's deps, which would change loadThreads' identity on every selection and —
@@ -481,6 +489,15 @@ export default function InboxPage() {
 
         {/* COLUMN 2: Message Thread List */}
         <div className="w-80 border-r border-card-border bg-card-bg flex flex-col overflow-y-auto">
+          {windowInfo?.truncated && (
+            <div
+              role="status"
+              className="px-3 py-2 text-[10px] leading-relaxed text-text-secondary bg-bg-main/60 border-b border-card-border/40"
+            >
+              Showing threads from the {windowInfo.size} most recent messages in each direction. Older
+              mail is not listed here.
+            </div>
+          )}
           {loading && threads.length === 0 ? (
             <div className="flex-1 flex justify-center items-center">
               <Loader2 className="w-6 h-6 animate-spin text-text-muted" />

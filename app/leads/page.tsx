@@ -30,6 +30,8 @@ import { useLeads, useUsers, useSequences, useUpdateLeadStage } from '@/lib/hook
 import type { Lead } from '@/lib/hooks/useLeads';
 import { useQueryClient } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
+import { safeHttpUrl } from '@/lib/security/safeHref';
+import { summarizeBulk } from '@/lib/leads/bulkOutcome';
 
 const LeadDetailPanel = dynamic(() => import('@/components/LeadDetailPanel'), { ssr: false });
 const NewLeadModal = dynamic(() => import('@/components/NewLeadModal'), { ssr: false });
@@ -176,6 +178,8 @@ const LeadCard = memo(function LeadCard({ lead, onOpen, onDragStart, onDragEnd }
   );
 });
 
+const NO_LEADS: Lead[] = [];
+
 export default function LeadsPage() {
   const { currentRole } = useAppContext();
   const { showToast } = useToast();
@@ -228,7 +232,12 @@ export default function LeadsPage() {
   };
   // `isLoading` matters for more than polish: without it the table rendered its "no prospects
   // match" empty state during the very first fetch, which reads as "this account has no leads".
-  const { data: leads = [], isLoading: isLoadingLeads } = useLeads(filters);
+  const { data: leadsPage, isLoading: isLoadingLeads } = useLeads(filters);
+  // A stable empty array: `?? []` would mint a new one per render and invalidate every memo
+  // keyed on `leads` while the query is still loading.
+  const leads = leadsPage?.leads ?? NO_LEADS;
+  const leadsTruncated = leadsPage?.truncated ?? false;
+  const leadsLimit = leadsPage?.limit ?? 0;
   const { data: users = [] } = useUsers();
   const { data: sequences = [] } = useSequences();
   const queryClient = useQueryClient();
@@ -305,25 +314,32 @@ export default function LeadsPage() {
     setBulkApplying(true);
     const ids = Array.from(selectedLeads);
     try {
+      // Every response is read. This used to Promise.all the fan-out and toast
+      // "updated N leads" without looking at a single status — a 403 on half of them, a lead
+      // that no longer existed, all reported as success.
+      const json = { 'Content-Type': 'application/json' };
       if (bulkStage) {
-        await Promise.all(ids.map((id) =>
-          fetch(`/api/leads/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage: bulkStage }) })
+        const results = await Promise.allSettled(ids.map((id) =>
+          fetch(`/api/leads/${id}`, { method: 'PUT', headers: json, body: JSON.stringify({ stage: bulkStage }) })
         ));
         invalidateLeads();
-        showToast(`Stage updated for ${ids.length} leads`, 'success');
+        const outcome = summarizeBulk('Stage updated for', 'lead', results);
+        showToast(outcome.message, outcome.tone);
       }
       if (bulkSdr) {
-        await Promise.all(ids.map((id) =>
-          fetch(`/api/leads/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignedToId: bulkSdr }) })
+        const results = await Promise.allSettled(ids.map((id) =>
+          fetch(`/api/leads/${id}`, { method: 'PUT', headers: json, body: JSON.stringify({ assignedToId: bulkSdr }) })
         ));
         invalidateLeads();
-        showToast(`Reassigned ${ids.length} leads`, 'success');
+        const outcome = summarizeBulk('Reassigned', 'lead', results);
+        showToast(outcome.message, outcome.tone);
       }
       if (bulkSeqId) {
-        await Promise.all(ids.map((id) =>
-          fetch(`/api/sequences/${bulkSeqId}/enroll`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ leadId: id }) })
+        const results = await Promise.allSettled(ids.map((id) =>
+          fetch(`/api/sequences/${bulkSeqId}/enroll`, { method: 'POST', headers: json, body: JSON.stringify({ leadId: id }) })
         ));
-        showToast(`Enrolled ${ids.length} leads in sequence`, 'success');
+        const outcome = summarizeBulk('Enrolled', 'lead', results);
+        showToast(outcome.message, outcome.tone);
       }
       setSelectedLeads(new Set());
       setBulkStage('');
@@ -736,6 +752,18 @@ export default function LeadsPage() {
         )}
       </div>
 
+      {/* The list is capped server-side. Without this line the pipeline simply stopped at the
+          cap and a manager doing a headcount or a bulk action believed they had everyone. */}
+      {leadsTruncated && !isLoadingLeads && (
+        <div
+          role="status"
+          className="mb-3 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-text-secondary"
+        >
+          Showing the first {leadsLimit} leads that match. Narrow the filters to see a specific set — bulk
+          actions apply only to what is listed here.
+        </div>
+      )}
+
       {/* Leads Content */}
       {viewMode === 'kanban' ? (
         <div className="flex gap-4 flex-1 items-stretch overflow-x-auto pb-2">
@@ -967,8 +995,8 @@ export default function LeadsPage() {
                                 <Phone className="w-3.5 h-3.5" />
                               </a>
                             )}
-                            {lead.linkedIn && (
-                              <a href={lead.linkedIn} target="_blank" rel="noreferrer" className="p-1 hover:bg-card-border rounded text-indigo-500" title="LinkedIn">
+                            {safeHttpUrl(lead.linkedIn) && (
+                              <a href={safeHttpUrl(lead.linkedIn)!} target="_blank" rel="noreferrer" className="p-1 hover:bg-card-border rounded text-indigo-500" title="LinkedIn">
                                 <Linkedin className="w-3.5 h-3.5" />
                               </a>
                             )}

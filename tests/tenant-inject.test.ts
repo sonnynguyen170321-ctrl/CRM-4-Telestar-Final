@@ -105,3 +105,34 @@ describe('applyBypassTenant (worker/seed context — RLS bypassed)', () => {
     expect(args.data.tenantId).toBe('explicit-tenant');
   });
 });
+
+describe('applyBypassTenant never adds a tenant to an update', () => {
+  // A row being updated already has its tenant. Adding one on the bypass path either moves the
+  // row to whatever tenant the bypass context holds, or — under the `'system'` sentinel the cron
+  // routes and the API-key lookup use — violates the foreign key. This lay dormant while
+  // tenantStorage.run failed to carry context into the extension, and surfaced when it was fixed.
+  it('leaves update data untouched', () => {
+    const args: any = { where: { id: '1' }, data: { isActive: false } };
+    applyBypassTenant('update', args, 'system');
+    expect(args.data).toEqual({ isActive: false });
+  });
+
+  it('leaves updateMany data untouched', () => {
+    const args: any = { where: { status: 'pending' }, data: { status: 'skipped' } };
+    applyBypassTenant('updateMany', args, TENANT);
+    expect(args.data).toEqual({ status: 'skipped' });
+  });
+
+  it('stamps only the create half of an upsert', () => {
+    const args: any = { where: { id: '1' }, create: { a: 1 }, update: { b: 2 } };
+    applyBypassTenant('upsert', args, TENANT);
+    expect(args.create.tenantId).toBe(TENANT);
+    expect(args.update).toEqual({ b: 2 });
+  });
+
+  it('still stamps a create, which is the reason the stamp exists', () => {
+    const args: any = { data: { name: 'x' } };
+    applyBypassTenant('create', args, TENANT);
+    expect(args.data.tenantId).toBe(TENANT);
+  });
+});

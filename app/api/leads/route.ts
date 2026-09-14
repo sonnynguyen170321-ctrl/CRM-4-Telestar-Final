@@ -134,7 +134,12 @@ export async function GET(req: NextRequest) {
       tasks: undefined,
     }));
 
-    return NextResponse.json(enriched);
+    // The list is capped (default 200, max 500) and nothing told the client so. A pipeline
+    // view that silently stops at 200 lets a manager bulk-assign "everyone" and miss the rest.
+    // Body stays a bare array; the cap travels in headers.
+    return NextResponse.json(enriched, {
+      headers: { 'X-Leads-Limit': String(limit), 'X-Leads-Truncated': enriched.length >= limit ? 'true' : 'false' },
+    });
   } catch (err) {
     return handleApiError('api/leads GET', err);
   }

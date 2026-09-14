@@ -8,6 +8,7 @@ import {
   classifyCampaignProspect,
   type LeadFilterVerdict,
 } from "@/lib/leadFilter/classification";
+import { RETIRED_QUALIFICATIONS } from "@/lib/leadgen/poolItemState";
 
 export class LeadFilterCampaignUnavailableError extends Error {
   constructor() {
@@ -72,13 +73,23 @@ export async function listLeadFilter(
 
   const currentIcpVersionId = selectedCampaign.icpVersion?.id ?? null;
   const search = query.search?.trim();
+  // A prospect retired at the pool level is not pipeline, whatever its CampaignProspect row says.
+  // `qualifyPoolItems` / `markDuplicate` write only to LeadPoolItem, so the membership row is
+  // left `ready` and this filter — which read CampaignProspect.status alone — kept offering
+  // records a manager had just retired. lib/leadgen/poolItemState.ts measured the same class on
+  // production: six duplicates still shown as workable, one of them a closed win. Same list.
+  const livePoolItem: Prisma.LeadPoolItemWhereInput = {
+    status: { notIn: ["archived", "disqualified"] },
+    qualification: { notIn: [...RETIRED_QUALIFICATIONS] },
+  };
   const baseWhere: Prisma.CampaignProspectWhereInput = {
     tenantId,
     campaignId,
     status: { not: "removed" },
-    ...(search
-      ? {
-          poolItem: {
+    poolItem: {
+      ...livePoolItem,
+      ...(search
+        ? {
             OR: [
               { fullName: { contains: search, mode: "insensitive" } },
               { firstName: { contains: search, mode: "insensitive" } },
@@ -87,9 +98,9 @@ export async function listLeadFilter(
               { title: { contains: search, mode: "insensitive" } },
               { email: { contains: search, mode: "insensitive" } },
             ],
-          },
-        }
-      : {}),
+          }
+        : {}),
+    },
   };
 
   const categoryWhere = categoryFilters(currentIcpVersionId);

@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, tenantStorage } from '@/lib/prisma';
-import { auth } from '@/auth';
+import { authorizeCronRequest, tenantIdsFor } from '@/lib/cron/auth';
 import { runHealthPassForTenant } from '@/lib/email-health/snapshots';
 
 export const dynamic = 'force-dynamic';
-
-const MANAGER_ROLES = ['director', 'floor_manager', 'team_lead'];
 
 /**
  * Hourly deliverability pass.
@@ -15,12 +13,10 @@ const MANAGER_ROLES = ['director', 'floor_manager', 'team_lead'];
  * UI. There is no vercel.json in this repo — see docs/DEPLOY.md for the crontab.
  */
 export async function GET(req: NextRequest) {
-  const isCronSecret =
-    process.env.CRON_SECRET &&
-    req.headers.get('authorization') === `Bearer ${process.env.CRON_SECRET}`;
-  const session = isCronSecret ? null : await auth();
-  const isManager = session?.user && MANAGER_ROLES.includes((session.user as any)?.role ?? '');
-  if (!isCronSecret && !isManager) {
+  // Constant-time secret check, and a manager session reaches only its own tenant. The
+  // platform-wide sweep is the scheduler's alone — see lib/cron/auth.ts.
+  const authz = await authorizeCronRequest(req);
+  if (!authz) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -29,14 +25,16 @@ export async function GET(req: NextRequest) {
   try {
     // Discover tenants under a bypass, then re-enter per tenant so every write is
     // stamped and scoped by the Prisma tenant extension.
-    const tenantIds = await tenantStorage.run({ tenantId: 'system', bypassRls: true }, async () => {
-      const rows = await prisma.emailAccount.findMany({
-        where: { isActive: true },
-        select: { tenantId: true },
-        distinct: ['tenantId'],
-      });
-      return rows.map((r) => r.tenantId);
-    });
+    const tenantIds = await tenantIdsFor(authz, () =>
+      tenantStorage.run({ tenantId: 'system', bypassRls: true }, async () => {
+        const rows = await prisma.emailAccount.findMany({
+          where: { isActive: true },
+          select: { tenantId: true },
+          distinct: ['tenantId'],
+        });
+        return rows.map((r) => r.tenantId);
+      })
+    );
 
     const totals = {
       accountsScored: 0,

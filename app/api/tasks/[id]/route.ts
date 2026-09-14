@@ -4,6 +4,7 @@ import { requireAuth, canAccessUser, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { advanceSequence } from '@/lib/sequences/engine';
 import { nextBusinessDay } from '@/lib/dates/businessDays';
+import { businessTimezoneFor } from '@/lib/dates/businessTimezone';
 import { parseBody } from '@/lib/validation/core';
 import { updateTaskSchema } from '@/lib/validation/schemas';
 
@@ -131,7 +132,10 @@ export async function PUT(
           type: 'phone',
           title: `Callback: ${task.lead.firstName} ${task.lead.lastName}`,
           description: 'Callback requested on previous call',
-          dueDate: nextBusinessDay(new Date()),
+          dueDate: nextBusinessDay(
+            new Date(),
+            await businessTimezoneFor({ leadTimezone: task.lead.timezone, assigneeId: task.userId })
+          ),
           priority: 'high',
         },
       });

@@ -98,6 +98,17 @@ export default function ResearchWorkspace() {
   const [stalledRunId, setStalledRunId] = useState<string | null>(null);
   const [promoting, setPromoting] = useState(false);
   const pauseRequested = useRef(false);
+  // Whether this workspace is still on screen. The execute loop below is a plain async
+  // function started from a click, not an effect, so nothing cancelled it when the user
+  // navigated away: it kept POSTing /execute passes — each one spending search-provider
+  // budget — and calling setState on an unmounted component, with no button left to stop it.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const loadRuns = useCallback(async (): Promise<RunRow[]> => {
     setRunsLoading(true);
@@ -223,13 +234,18 @@ export default function ResearchWorkspace() {
     setStalledRunId(null);
     try {
       for (;;) {
+        // Checked before every pass, so leaving the page ends the run at the next batch boundary
+        // — the same boundary Pause uses — rather than after however many passes remain.
+        if (!mounted.current) return;
         const response = await fetch(`/api/research/runs/${runId}/execute`, { method: 'POST' });
+        if (!mounted.current) return;
         if (!response.ok) {
           showToast(await readApiError(response, 'Discovery pass failed'), 'error');
           return;
         }
         const pass = await response.json();
         await Promise.all([loadRuns(), loadCandidates(runId)]);
+        if (!mounted.current) return;
         if (pass.finished) {
           showToast('Research run finished.', 'success');
           return;
@@ -246,9 +262,9 @@ export default function ResearchWorkspace() {
         }
       }
     } catch {
-      showToast('Network error during discovery', 'error');
+      if (mounted.current) showToast('Network error during discovery', 'error');
     } finally {
-      setBusyRunId(null);
+      if (mounted.current) setBusyRunId(null);
     }
   }
 

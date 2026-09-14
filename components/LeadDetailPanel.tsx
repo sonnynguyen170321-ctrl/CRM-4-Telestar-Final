@@ -33,6 +33,7 @@ const CallDialerModal = dynamic(() => import('@/components/CallDialerModal'), { 
 import NextBestActionCard from '@/components/ai/NextBestActionCard';
 import ContactIntelligenceBadge from '@/components/intelligence/ContactIntelligenceBadge';
 import ContactIntelligenceDrawer from '@/components/intelligence/ContactIntelligenceDrawer';
+import { safeHttpUrl } from '@/lib/security/safeHref';
 
 interface MeetingItem {
   id: string;
@@ -1052,7 +1053,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                   <span className="text-[10px] font-medium font-mono">Meeting</span>
                 </button>
                 <a
-                  href={lead.linkedIn ? (lead.linkedIn.startsWith('http') ? lead.linkedIn : `https://${lead.linkedIn}`) : '#'}
+                  href={safeHttpUrl(lead.linkedIn) ?? '#'}
                   target="_blank"
                   rel="noreferrer"
                   className={`flex flex-col items-center justify-center p-2.5 rounded-xl transition-all text-center gap-1 ${
@@ -1285,15 +1286,15 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                     </div>
                     <div>
                       <span className="text-text-secondary block text-[10px] font-semibold uppercase">LinkedIn</span>
-                      {lead.linkedIn ? (
+                      {safeHttpUrl(lead.linkedIn) ? (
                         <a
-                          href={lead.linkedIn.startsWith('http') ? lead.linkedIn : `https://${lead.linkedIn}`}
+                          href={safeHttpUrl(lead.linkedIn)!}
                           target="_blank"
                           rel="noreferrer"
                           className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold inline-flex items-center gap-1 truncate max-w-full"
                         >
                           <Linkedin className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                          <span className="truncate">{lead.linkedIn.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\/?/, '')}</span>
+                          <span className="truncate">{(lead.linkedIn ?? '').replace(/^https?:\/\/(www\.)?linkedin\.com\/in\/?/, '')}</span>
                         </a>
                       ) : (
                         <span className="text-text-muted">—</span>
@@ -2024,9 +2025,13 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                         {m.meetingUrl && (
                           <div>
                             <span className="text-[10px] text-text-muted uppercase block">Meeting URL</span>
-                            <a href={m.meetingUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline truncate block">
-                              {m.meetingUrl}
-                            </a>
+                            {safeHttpUrl(m.meetingUrl) ? (
+                              <a href={safeHttpUrl(m.meetingUrl)!} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline truncate block">
+                                {m.meetingUrl}
+                              </a>
+                            ) : (
+                              <span className="text-text-muted truncate block">{m.meetingUrl}</span>
+                            )}
                           </div>
                         )}
                       </div>

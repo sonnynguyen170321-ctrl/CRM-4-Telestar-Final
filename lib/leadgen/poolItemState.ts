@@ -1,3 +1,5 @@
+import type { LeadQualificationStatus } from '@prisma/client';
+
 /**
  * Derived states of an internal-database (pool) record.
  *
@@ -15,8 +17,13 @@ export interface PoolRoutingFields {
   status?: string | null;
 }
 
-/** Verdicts that retire a record — it will never be converted, and should stop being flagged. */
-const RETIRED_QUALIFICATIONS = new Set([
+/**
+ * Verdicts that retire a record — it will never be converted, and should stop being flagged.
+ *
+ * Exported so the Lead Filter read model filters on the same list. Two copies is how that read
+ * model kept showing records this file had already learned to hide.
+ */
+export const RETIRED_QUALIFICATIONS = new Set<LeadQualificationStatus>([
   'duplicate',
   'disqualified',
   'invalid_contact',
@@ -36,6 +43,8 @@ const RETIRED_QUALIFICATIONS = new Set([
 export function isAwaitingConversion(item: PoolRoutingFields): boolean {
   if (item.convertedLeadId) return false;
   if (item.status === 'archived') return false;
-  if (item.qualification && RETIRED_QUALIFICATIONS.has(item.qualification)) return false;
+  // The API hands this a plain string; the Set is typed to the enum so the list itself cannot
+  // drift from the schema. A string that is not a member is simply not retired.
+  if (item.qualification && RETIRED_QUALIFICATIONS.has(item.qualification as LeadQualificationStatus)) return false;
   return Boolean(item.assignedSdrId || item.assignedCampaignId);
 }

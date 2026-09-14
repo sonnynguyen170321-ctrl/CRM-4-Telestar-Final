@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, Loader2, ExternalLink, Star, StarOff } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { readApiError } from '@/lib/api/client';
+import { safeHttpUrl } from '@/lib/security/safeHref';
 
 interface BookingLink {
   id: string;
@@ -336,9 +337,11 @@ export default function BookingLinkSettingsPanel() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <span className="text-text-primary font-medium">{link.name}</span>
-                      <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">
-                        <ExternalLink size={12} />
-                      </a>
+                      {safeHttpUrl(link.url) && (
+                        <a href={safeHttpUrl(link.url)!} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">
+                          <ExternalLink size={12} />
+                        </a>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-text-muted">{link.client.name}</td>
