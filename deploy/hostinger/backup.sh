@@ -57,7 +57,13 @@ DATABASE_URL="${DATABASE_URL:-$(read_env DATABASE_URL)}"
 PROJECT="${COMPOSE_PROJECT_NAME:-$(read_env COMPOSE_PROJECT_NAME)}"
 PROJECT="${PROJECT:-crm}"
 NETWORK="${CRM_NETWORK:-${PROJECT}_crm_internal}"
-$DOCKER network inspect "$NETWORK" >/dev/null 2>&1 \
+# `$DOCKER` may legitimately be two words ("sudo docker"). Split it once into an array so every
+# invocation below can quote its elements. Writing `"$DOCKER" run ...` collapsed "sudo docker" into a single
+# argv entry and failed with "sudo docker: command not found" even where sudo existed, while leaving
+# it unquoted would break on a path containing a space.
+# shellcheck disable=SC2206
+DOCKER_ARGV=($DOCKER)
+"${DOCKER_ARGV[@]}" network inspect "$NETWORK" >/dev/null 2>&1 \
   || { echo "compose network ${NETWORK} not found — bring the stack up first" >&2; exit 1; }
 
 mkdir -p "$BACKUP_DIR"
@@ -70,7 +76,7 @@ DUMP="${BACKUP_DIR}/${BASE}"
 # arguments and mount the wrong path. The client runs from the postgres image because the
 # application image ships no database client — its runner stage installs only ca-certificates and
 # openssl. Pinned to 16: pg_dump refuses a server newer than itself.
-PG=("$DOCKER" run --rm --network "$NETWORK" -e "PGURL=${DATABASE_URL}" -e "DUMPFILE=${BASE}"
+PG=("${DOCKER_ARGV[@]}" run --rm --network "$NETWORK" -e "PGURL=${DATABASE_URL}" -e "DUMPFILE=${BASE}"
     -v "${BACKUP_DIR}:/backups" "$PG_IMAGE")
 
 "${PG[@]}" sh -euc 'pg_dump --format=custom --no-owner --no-acl --compress=6 --dbname="$PGURL" --file="/backups/$DUMPFILE"' >&2
@@ -102,7 +108,7 @@ $(node -e '
 ' "$DATABASE_URL" "$SCRATCH")
 EOF
   [ -n "$ADMIN_URL" ] && [ -n "$SCRATCH_URL" ] || { echo "could not derive scratch DSNs from DATABASE_URL" >&2; exit 1; }
-  "$DOCKER" run --rm --network "$NETWORK" \
+  "${DOCKER_ARGV[@]}" run --rm --network "$NETWORK" \
     -e "ADMIN_URL=${ADMIN_URL}" -e "SCRATCH_URL=${SCRATCH_URL}" \
     -e "SCRATCH=${SCRATCH}" -e "DUMPFILE=${BASE}" \
     -v "${BACKUP_DIR}:/backups" -v "${SCRIPT_DIR}/sanitize.sql:/sanitize.sql:ro" \

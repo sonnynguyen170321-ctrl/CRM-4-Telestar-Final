@@ -21,7 +21,17 @@ REGISTRY="ghcr.io"
 IMAGE_NAME="sonnynguyen170321-ctrl/crm-4-telestar-final"
 ENV_FILE="${ENV_FILE:-.env.production}"
 RECORD_FILE="${RECORD_FILE:-deployments.ndjson}"
-DOCKER="${DOCKER:-sudo docker}"
+# Docker invocation. Plain `docker` when we already are root or the box has no sudo — the
+# Hostinger VPS is both, and the previous unconditional `sudo docker` default failed there with
+# "sudo docker: command not found", losing the deploy at the pre-deploy backup. Hosts that do need
+# elevation still get it, and DOCKER can always be set explicitly.
+if [ -z "${DOCKER:-}" ]; then
+  if [ "$(id -u)" -eq 0 ] || ! command -v sudo >/dev/null 2>&1; then
+    DOCKER="docker"
+  else
+    DOCKER="sudo docker"
+  fi
+fi
 
 log()  { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 fail() { printf '\n\033[31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }

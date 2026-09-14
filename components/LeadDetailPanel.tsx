@@ -197,6 +197,30 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
   const [logResponse, setLogResponse] = useState(false);
   const [savingLog, setSavingLog] = useState(false);
   const [showDialer, setShowDialer] = useState(false);
+  /**
+   * Whether this deployment has telephony at all.
+   *
+   * `null` while unknown, so the button is not flashed into a disabled state on first paint. The
+   * readiness call returns no credentials — the dialer asks for those separately, at the moment it
+   * places a call — so opening a lead does not spread the SIP password around.
+   */
+  const [dialerReady, setDialerReady] = useState<{ configured: boolean; missing: string[] } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/dialer/config')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setDialerReady({ configured: Boolean(data.configured), missing: data.missing ?? [] });
+      })
+      .catch(() => {
+        // Readiness is advisory. If it cannot be determined the button stays enabled and the
+        // dialer reports the real reason, which is better than hiding the feature on a blip.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [adHocActivities, setAdHocActivities] = useState<Array<{
     id: string; type: string; channel: string; metadata: Record<string, unknown>; createdAt: string;
     user: { firstName: string; lastName: string };
@@ -998,14 +1022,20 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                 </button>
                 <button
                   type="button"
-                  disabled={!lead.phone}
+                  disabled={!lead.phone || dialerReady?.configured === false}
                   onClick={() => {
-                    if (!lead.phone) return;
+                    if (!lead.phone || dialerReady?.configured === false) return;
                     setShowDialer(true);
                   }}
-                  title={lead.phone ? `Call ${lead.phone}` : 'No phone number'}
+                  title={
+                    !lead.phone
+                      ? 'No phone number'
+                      : dialerReady?.configured === false
+                        ? `Telephony is not configured on this deployment (missing ${dialerReady.missing.join(', ')})`
+                        : `Call ${lead.phone}`
+                  }
                   className={`flex flex-col items-center justify-center p-2.5 rounded-xl transition-all text-center gap-1 ${
-                    lead.phone
+                    lead.phone && dialerReady?.configured !== false
                       ? 'bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 hover:border-emerald-500/30 text-emerald-500'
                       : 'bg-card-border/30 border border-transparent text-text-muted cursor-not-allowed opacity-50'
                   }`}

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import Linkedin from '@/components/icons/Linkedin';
 import { useToast } from '@/context/ToastContext';
+import DOMPurify from 'isomorphic-dompurify';
 
 interface Template {
   id: string;
@@ -779,9 +780,18 @@ export default function TemplatesPage() {
                       )}
                       
                       {channel === 'email' ? (
-                        <div 
+                        /* The template body is HTML a colleague typed and merge fields expanded from
+                           lead data, and it is rendered here as markup. app/inbox/page.tsx sanitizes
+                           the same shape of content with the same dependency; this one did not, so a
+                           template body was a stored-XSS vector that fired in the author's own
+                           authenticated session and in any reviewer's. */
+                        <div
                           className="text-xs text-text-primary leading-relaxed font-sans select-text"
-                          dangerouslySetInnerHTML={{ __html: getPreviewText() || '<span class="text-text-muted italic">(Empty Template)</span>' }}
+                          dangerouslySetInnerHTML={{
+                            __html:
+                              DOMPurify.sanitize(getPreviewText()) ||
+                              '<span class="text-text-muted italic">(Empty Template)</span>',
+                          }}
                         />
                       ) : (
                         <div className="text-xs text-text-primary whitespace-pre-line leading-relaxed font-sans">

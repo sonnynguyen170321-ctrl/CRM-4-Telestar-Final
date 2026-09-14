@@ -17,6 +17,7 @@ import {
 } from '@telestar/core-research/parseDiscoveryResults';
 import { scoreCandidateHeuristic } from '@telestar/core-research/scoreCandidates';
 import { runQueryAcrossProviders, type SearchDeps } from '@telestar/core-search/search/companyIntelSearch';
+import { resolveUsableProviderChain } from '@telestar/core-search/search/env';
 
 import { prisma } from '@/lib/prisma';
 
@@ -118,7 +119,10 @@ export type DiscoveryPassResult = {
   rejected: number;
   /** False while queries remain — the caller re-enqueues rather than looping unbounded. */
   finished: boolean;
-  /** Set only when the run finished broken: every provider failed and nothing was found. */
+  /**
+   * Set only when the run finished broken: either there was no usable provider to search with, or
+   * every provider that was asked failed and nothing was found. Null on an honestly empty run.
+   */
   errorMessage?: string | null;
 };
 
@@ -177,6 +181,29 @@ export async function runDiscoveryPass(params: {
   let cursor = run.queryCursor;
   const providerFailures = new Map<string, number | null>();
   const deps = params.deps ?? searchDepsFor({ tenantId, runId, stage: 'discovery' });
+
+  // A run with nowhere to search has to say so, before it spends anything.
+  //
+  // `COMPANY_INTEL_SEARCH_ENABLED` defaults to false, and with it off `resolveUsableProviderChain`
+  // returns an empty chain. The harvest loop then queries nothing, so no provider can fail, so
+  // `providerFailures` stays empty — and the completion check below, which only calls a run broken
+  // when a provider *failed*, marked the whole thing `succeeded` with zero candidates and a green
+  // toast. The comment there warns that a dead API key spends a week looking like a narrow ICP;
+  // having no provider at all slipped past the guard entirely and looked the same way.
+  //
+  // Only checked when the chain came from the environment. Tests inject `deps` with their own
+  // providers, and the env says nothing about those.
+  if (!params.deps && resolveUsableProviderChain().length === 0) {
+    const errorMessage =
+      'No usable search provider. Set COMPANY_INTEL_SEARCH_ENABLED=true and configure at least one ' +
+      'provider: DDG_SEARCH_ENABLED=true (free, no key), SEARXNG_URL, or an EXA_API_KEY / ' +
+      'BRAVE_SEARCH_API_KEY / SERPER_API_KEY.';
+    await prisma.researchRun.updateMany({
+      where: { id: runId, tenantId },
+      data: { status: 'failed', errorMessage, finishedAt: new Date() },
+    });
+    return { ...result, finished: true, errorMessage };
+  }
 
   while (cursor < queries.length && result.queriesRun < budget) {
     const query = queries[cursor];

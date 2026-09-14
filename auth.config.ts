@@ -4,9 +4,36 @@ import MicrosoftEntraID from 'next-auth/providers/microsoft-entra-id';
 // Edge-compatible auth config — no Prisma, no bcrypt.
 // Used by proxy.ts to validate JWT tokens without importing heavy Node.js modules.
 // The full credentials provider (with Prisma) lives in auth.ts.
+/**
+ * How long a signed-in session stays valid.
+ *
+ * Auth.js defaults to 30 days, which for a CRM holding a company's whole pipeline is a long time
+ * for a laptop left on a train to keep working. Seven days rolling is short enough to matter and
+ * long enough that staff are not re-authenticating mid-week; `updateAge` refreshes the token at
+ * most once a day so active users are never interrupted.
+ *
+ * `jwt.maxAge` is set to the same value on purpose. With the JWT strategy the token is the
+ * session, and leaving them to drift apart means one of the two silently wins.
+ */
+const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+const SESSION_UPDATE_AGE_SECONDS = 24 * 60 * 60;
+
 export const authConfig: NextAuthConfig = {
   trustHost: true,
-  session: { strategy: 'jwt' },
+  session: {
+    strategy: 'jwt',
+    maxAge: SESSION_MAX_AGE_SECONDS,
+    updateAge: SESSION_UPDATE_AGE_SECONDS,
+  },
+  jwt: { maxAge: SESSION_MAX_AGE_SECONDS },
+  // No `cookies` block on purpose.
+  //
+  // It is tempting to declare httpOnly/secure/sameSite explicitly for auditability, but Auth.js
+  // already sets exactly those — `httpOnly: true, sameSite: 'lax', path: '/', secure` when the
+  // site URL is HTTPS — and it derives the `__Secure-` / `__Host-` cookie-name prefixes from the
+  // same signal. Restating the options means restating the names, and a name that disagrees with
+  // what the browser already holds signs every user out at deploy. The explicit block would buy
+  // no security and carry that risk, so the defaults stand and this comment is the audit trail.
   pages: { signIn: '/login' },
   providers: [
     MicrosoftEntraID({
