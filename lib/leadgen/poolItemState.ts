@@ -15,8 +15,13 @@ export interface PoolRoutingFields {
   status?: string | null;
 }
 
-/** Verdicts that retire a record — it will never be converted, and should stop being flagged. */
-const RETIRED_QUALIFICATIONS = new Set([
+/**
+ * Verdicts that retire a record — it will never be converted, and should stop being flagged.
+ *
+ * Exported so the Lead Filter read model filters on the same list. Two copies is how that read
+ * model kept showing records this file had already learned to hide.
+ */
+export const RETIRED_QUALIFICATIONS = new Set([
   'duplicate',
   'disqualified',
   'invalid_contact',
