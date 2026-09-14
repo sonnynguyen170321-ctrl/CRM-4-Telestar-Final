@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, tenantStorage } from '@/lib/prisma';
-import { auth } from '@/auth';
+import { authorizeCronRequest, tenantIdsFor } from '@/lib/cron/auth';
 import { enqueue } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
 import type { MaintenanceRepairPayload } from '@/lib/bullmq/types';
 
 export const dynamic = 'force-dynamic';
-
-const MANAGER_ROLES = ['director', 'floor_manager'];
 
 /**
  * Scheduled maintenance sweep.
@@ -35,12 +33,10 @@ const DEFAULT_TYPES: MaintenanceRepairPayload['types'] = [
 const KNOWN_TYPES = new Set<string>(DEFAULT_TYPES);
 
 export async function GET(req: NextRequest) {
-  const isCronSecret =
-    process.env.CRON_SECRET &&
-    req.headers.get('authorization') === `Bearer ${process.env.CRON_SECRET}`;
-  const session = isCronSecret ? null : await auth();
-  const isManager = session?.user && MANAGER_ROLES.includes((session.user as any)?.role ?? '');
-  if (!isCronSecret && !isManager) {
+  // Constant-time secret check, and a manager session reaches only its own tenant. The
+  // platform-wide sweep is the scheduler's alone — see lib/cron/auth.ts.
+  const authz = await authorizeCronRequest(req);
+  if (!authz) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -63,26 +59,30 @@ export async function GET(req: NextRequest) {
   try {
     // Discover tenants under a bypass, then enqueue one job each so the worker runs
     // every repair inside a single tenant's context.
-    const tenantIds = await tenantStorage.run({ tenantId: 'system', bypassRls: true }, async () => {
-      const rows = await prisma.tenant.findMany({ select: { id: true } });
-      return rows.map((r) => r.id);
-    });
+    const tenantIds = await tenantIdsFor(authz, () =>
+      tenantStorage.run({ tenantId: 'system', bypassRls: true }, async () => {
+        const rows = await prisma.tenant.findMany({ select: { id: true } });
+        return rows.map((r) => r.id);
+      })
+    );
 
-    const enqueued: string[] = [];
-    const failed: string[] = [];
+    let enqueued = 0;
+    let failed = 0;
 
     for (const tenantId of tenantIds) {
       try {
         await enqueue(JobType.MAINTENANCE_REPAIR, { types }, { tenantId });
-        enqueued.push(tenantId);
+        enqueued += 1;
       } catch (tenantErr) {
         // One bad tenant must not abort the sweep for the rest.
         console.error(`[cron/maintenance] tenant ${tenantId} enqueue failed:`, tenantErr);
-        failed.push(tenantId);
+        failed += 1;
       }
     }
 
-    return NextResponse.json({ tenants: tenantIds.length, enqueued: enqueued.length, failed, types });
+    // Counts only. The previous response listed every failing tenant's id, which told any
+    // manager who called this how many tenants share the platform and which ones they are.
+    return NextResponse.json({ tenants: tenantIds.length, enqueued, failed, types });
   } catch (err) {
     console.error('[cron/maintenance] sweep failed:', err);
     return NextResponse.json({ error: 'Maintenance sweep failed' }, { status: 500 });
