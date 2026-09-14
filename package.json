@@ -16,6 +16,7 @@
     "ai:smoke-gateway": "node node_modules/tsx/dist/cli.mjs scripts/ai-gateway-smoke.ts",
     "ai:smoke-providers": "node node_modules/tsx/dist/cli.mjs scripts/ai-provider-smoke.ts",
     "analyze": "node scripts/build.cjs --analyze",
+    "audit:icp-industry-evidence": "node node_modules/tsx/dist/cli.mjs scripts/audit-icp-industry-evidence.ts",
     "backfill:account-identity": "node node_modules/tsx/dist/cli.mjs scripts/backfill-account-identity.ts",
     "backfill:campaign-prospects": "node node_modules/tsx/dist/cli.mjs scripts/backfill-campaign-prospects.ts",
     "backfill:next-action": "node node_modules/tsx/dist/cli.mjs scripts/backfill-next-action-at.ts",

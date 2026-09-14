@@ -8,6 +8,7 @@ import {
 import type { IcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
 import type { RawScoringEvidence } from "@telestar/core-scoring/rules/evidence";
 import { normalizeEvidence } from "@telestar/core-scoring/rules/normalize/index";
+import type { IntelligenceCompanyEvidence } from "@telestar/core-intel/mapIntelligenceToCompanyEvidence";
 
 import { accountIdentityOf } from "@/lib/identity/resolveAccount";
 import { prisma } from "@/lib/prisma";
@@ -150,26 +151,65 @@ export async function resolveIcpVersionId(
   return fallback?.id ?? null;
 }
 
+/**
+ * The intelligence fields the V2 engine actually reads. `IntelligenceCompanyEvidence` is a pick of
+ * the V1 `CompanyEvidence`, which also carries `pricingSignals`, `platformSignals`, `notes` and
+ * `pipelineInferredCountry`; a spread would let those into `inputSnapshot` and the fingerprint,
+ * so a classifier rerun that changed nothing scoring reads would still mint a new assessment.
+ * Copying by name keeps the fingerprint sensitive to evidence only.
+ */
+const SCORING_INTELLIGENCE_FIELDS = [
+  "description",
+  "industryTags",
+  "industryCategory",
+  "productSignals",
+  "serviceSignals",
+  "employeeCount",
+  "employeeRange",
+  "revenueUsd",
+  "officeCountries",
+  "locationCount",
+  "evidenceText",
+] as const satisfies ReadonlyArray<keyof IntelligenceCompanyEvidence & keyof RawScoringEvidence["company"]>;
+
+type ScoringIntelligenceEvidence = Pick<
+  RawScoringEvidence["company"],
+  (typeof SCORING_INTELLIGENCE_FIELDS)[number]
+>;
+
+const scoringEvidenceFromIntelligence = (
+  intelligence: IntelligenceCompanyEvidence,
+): ScoringIntelligenceEvidence =>
+  Object.fromEntries(
+    SCORING_INTELLIGENCE_FIELDS.filter((field) => intelligence[field] !== undefined).map(
+      (field) => [field, intelligence[field]],
+    ),
+  ) as ScoringIntelligenceEvidence;
+
+/**
+ * Company intelligence enters scoring only as `IntelligenceCompanyEvidence` — the controlled-token
+ * mapping in `@telestar/core-intel`, never the free-text company summary. A summary is written by
+ * the classifier; feeding it back as `description` would let one run's verdict become the next
+ * run's evidence. The record's own fields win where the two overlap.
+ *
+ * Key order is part of the assessment fingerprint: the record fields keep their historical order so
+ * an unchanged record without intelligence still hashes to its existing assessment.
+ */
 export function buildScoringEvidence(
   item: ScorablePoolItem,
-  intelligence?: {
-    industryCategory: string | null;
-    facts: string[];
-    summary: string | null;
-  } | null,
+  intelligence?: IntelligenceCompanyEvidence | null,
 ): RawScoringEvidence {
   return {
     company: {
+      ...(intelligence ? scoringEvidenceFromIntelligence(intelligence) : {}),
       companyName: item.company,
       industry: item.industry ?? undefined,
-      industryCategory: intelligence?.industryCategory ?? undefined,
       country: item.country ?? undefined,
       domain:
         accountIdentityOf({ name: item.company, website: item.website })
           .canonicalDomain ?? undefined,
-      websiteStatus: item.website ? "reachable" : "missing",
-      description: intelligence?.summary ?? undefined,
-      industryTags: intelligence?.facts ?? undefined,
+      websiteStatus:
+        intelligence?.websiteStatus ?? (item.website ? "reachable" : "missing"),
     },
     contact: {
       rawTitle: item.title ?? undefined,
@@ -203,11 +243,7 @@ export async function scorePoolItem(params: {
   /** Set for campaign-scoped scoring; absent only for the tenant default/unassigned pool. */
   campaignId?: string | null;
   rules: IcpVersionRulesV2;
-  intelligence?: {
-    industryCategory: string | null;
-    facts: string[];
-    summary: string | null;
-  } | null;
+  intelligence?: IntelligenceCompanyEvidence | null;
 }): Promise<ScorePoolItemResult> {
   const { tenantId, item, icpVersionId, campaignId = null, rules } = params;
 
