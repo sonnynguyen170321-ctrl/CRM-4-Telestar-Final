@@ -213,7 +213,10 @@ describe('Client Reports Module - Unit Tests', () => {
       // not an acceptable price for fixing the hash, so the legacy digest stays verifiable and is
       // upgraded in place on the first correct password.
       const password = 'ClientSecret2026!';
-      const legacy = `crm_salt_${createHash('sha256').update(`crm_salt_${password}`).digest('hex')}`;
+      // Deliberately the weak legacy scheme: the fixture must look like a row written before the
+      // bcrypt change, or the test proves nothing about the migration path.
+      // codeql[js/insufficient-password-hash]
+      const legacy = `crm_salt_${createHash('sha256').update(`crm_salt_${password}`).digest('hex')}`; // lgtm[js/insufficient-password-hash]
 
       expect(await verifyPassword(password, legacy)).toEqual({ ok: true, needsRehash: true });
       expect(await verifyPassword('WrongPassword', legacy)).toEqual({ ok: false, needsRehash: false });

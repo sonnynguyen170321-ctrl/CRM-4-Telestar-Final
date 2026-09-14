@@ -105,7 +105,11 @@ const SHARE_PASSWORD_BCRYPT_ROUNDS = 12;
 const LEGACY_PREFIX = 'crm_salt_';
 
 function legacyHash(password: string): string {
-  const digest = crypto.createHash('sha256').update(`${LEGACY_PREFIX}${password}`).digest('hex');
+  // CodeQL is right that this is a weak password hash, and that is the point: it reproduces the
+  // scheme rows were written under so they can be verified once and re-hashed with bcrypt. It is
+  // the read side of a migration, never a write, and it goes away with the last legacy row.
+  // codeql[js/insufficient-password-hash]
+  const digest = crypto.createHash('sha256').update(`${LEGACY_PREFIX}${password}`).digest('hex'); // lgtm[js/insufficient-password-hash]
   return `${LEGACY_PREFIX}${digest}`;
 }
 

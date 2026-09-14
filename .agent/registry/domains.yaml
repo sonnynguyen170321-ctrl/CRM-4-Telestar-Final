@@ -46,6 +46,12 @@ domains:
     description: Sessions, the six roles, pod scoping, tenant isolation, admin control centre.
     risk: R4
     paths:
+      # The NextAuth entry points at the repo root. `auth.config.ts` is the edge-safe half (session
+      # lifetime, JWT/session callbacks) that proxy.ts consumes; `auth.ts` adds the credentials
+      # provider; proxy.ts is the Next 16 middleware that gates every route on the session.
+      - auth.ts
+      - auth.config.ts
+      - proxy.ts
       - lib/auth.ts
       - lib/auth/**
       - lib/authRoles.ts
