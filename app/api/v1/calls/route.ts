@@ -22,104 +22,114 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const tenantId = user.tenantId!;
-  const body = await req.json();
-  const {
-    leadId,
-    phone,
-    email,
-    direction = 'outbound',
-    durationSeconds = 0,
-    outcome = 'connected',
-    recordingUrl,
-    notes,
-    callerPhone,
-  } = body;
-
-  // 1. Locate the lead
-  let lead = null;
-  if (leadId) {
-    lead = await prisma.lead.findFirst({
-      where: { id: leadId, tenantId },
-    });
-  } else if (phone) {
-    lead = await prisma.lead.findFirst({
-      where: { phone: { contains: phone.trim() }, tenantId },
-    });
-  } else if (email) {
-    lead = await prisma.lead.findFirst({
-      where: { email: { equals: email.trim(), mode: 'insensitive' }, tenantId },
-    });
+  // Every read and write below runs inside the API key's tenant. The writes were wrapped
+  // individually and the reads were not; with a bearer token and no session cookie the Prisma
+  // extension then resolved no tenant for the reads and short-circuited them to empty/null, so
+  // the list came back blank, dedupe never matched, and calls/enrich 404'd on leads that exist.
+  // Wrapping the whole handler once means there is no next read to forget.
+  if (!user.tenantId) {
+    return NextResponse.json({ error: 'No tenant context' }, { status: 403 });
   }
+  const tenantId = user.tenantId;
+  return tenantStorage.run({ tenantId }, async () => {
+    const body = await req.json();
+    const {
+      leadId,
+      phone,
+      email,
+      direction = 'outbound',
+      durationSeconds = 0,
+      outcome = 'connected',
+      recordingUrl,
+      notes,
+      callerPhone,
+    } = body;
 
-  if (!lead) {
-    return NextResponse.json(
-      { error: 'Lead not found in CRM. Provide valid leadId, phone, or email.' },
-      { status: 404 }
-    );
-  }
+    // 1. Locate the lead
+    let lead = null;
+    if (leadId) {
+      lead = await prisma.lead.findFirst({
+        where: { id: leadId, tenantId },
+      });
+    } else if (phone) {
+      lead = await prisma.lead.findFirst({
+        where: { phone: { contains: phone.trim() }, tenantId },
+      });
+    } else if (email) {
+      lead = await prisma.lead.findFirst({
+        where: { email: { equals: email.trim(), mode: 'insensitive' }, tenantId },
+      });
+    }
 
-  // 2. Format description & metadata
-  const durationMin = Math.floor(durationSeconds / 60);
-  const durationSec = durationSeconds % 60;
-  const durationStr = `${durationMin}m ${durationSec}s`;
+    if (!lead) {
+      return NextResponse.json(
+        { error: 'Lead not found in CRM. Provide valid leadId, phone, or email.' },
+        { status: 404 }
+      );
+    }
 
-  const description = `📞 [VOIP Call] ${direction.toUpperCase()} (${durationStr}) - Outcome: ${outcome.toUpperCase()}${
-    notes ? `\nNotes: ${notes}` : ''
-  }${recordingUrl ? `\n🎙️ Audio Recording: ${recordingUrl}` : ''}`;
+    // 2. Format description & metadata
+    const durationMin = Math.floor(durationSeconds / 60);
+    const durationSec = durationSeconds % 60;
+    const durationStr = `${durationMin}m ${durationSec}s`;
 
-  // 3. Create Activity
-  const activity = await tenantStorage.run({ tenantId }, () =>
-    prisma.activity.create({
-      data: {
-        type: 'call_logged',
-        channel: 'phone',
-        description,
-        leadId: lead.id,
-        userId: user.id,
-        tenantId,
-        metadata: {
-          voip: true,
-          direction,
-          durationSeconds,
-          outcome,
-          recordingUrl: recordingUrl || null,
-          callerPhone: callerPhone || null,
-          loggedVia: user.apiKey ? `api_key:${user.apiKey.name}` : 'session',
-        },
-      },
-    })
-  );
+    const description = `📞 [VOIP Call] ${direction.toUpperCase()} (${durationStr}) - Outcome: ${outcome.toUpperCase()}${
+      notes ? `\nNotes: ${notes}` : ''
+    }${recordingUrl ? `\n🎙️ Audio Recording: ${recordingUrl}` : ''}`;
 
-  // 4. Update Lead Stage based on call outcome
-  let nextStage: LeadStage = lead.stage;
-  if (outcome === 'meeting_booked') {
-    nextStage = 'meeting_booked';
-  } else if (outcome === 'connected' && (lead.stage === 'new' || lead.stage === 'sequence_active')) {
-    nextStage = 'replied';
-  }
-
-  if (nextStage !== lead.stage) {
-    await tenantStorage.run({ tenantId }, () =>
-      prisma.lead.update({
-        where: { id: lead.id },
+    // 3. Create Activity
+    const activity = await tenantStorage.run({ tenantId }, () =>
+      prisma.activity.create({
         data: {
-          stage: nextStage,
-          updatedAt: new Date(),
+          type: 'call_logged',
+          channel: 'phone',
+          description,
+          leadId: lead.id,
+          userId: user.id,
+          tenantId,
+          metadata: {
+            voip: true,
+            direction,
+            durationSeconds,
+            outcome,
+            recordingUrl: recordingUrl || null,
+            callerPhone: callerPhone || null,
+            loggedVia: user.apiKey ? `api_key:${user.apiKey.name}` : 'session',
+          },
         },
       })
     );
-  }
 
-  return NextResponse.json(
-    {
-      success: true,
-      activityId: activity.id,
-      leadId: lead.id,
-      leadName: `${lead.firstName} ${lead.lastName}`.trim(),
-      updatedStage: nextStage,
-      message: 'Call activity logged successfully.',
-    },
-    { status: 201 }
-  );
+    // 4. Update Lead Stage based on call outcome
+    let nextStage: LeadStage = lead.stage;
+    if (outcome === 'meeting_booked') {
+      nextStage = 'meeting_booked';
+    } else if (outcome === 'connected' && (lead.stage === 'new' || lead.stage === 'sequence_active')) {
+      nextStage = 'replied';
+    }
+
+    if (nextStage !== lead.stage) {
+      await tenantStorage.run({ tenantId }, () =>
+        prisma.lead.update({
+          where: { id: lead.id },
+          data: {
+            stage: nextStage,
+            updatedAt: new Date(),
+          },
+        })
+      );
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        activityId: activity.id,
+        leadId: lead.id,
+        leadName: `${lead.firstName} ${lead.lastName}`.trim(),
+        updatedStage: nextStage,
+        message: 'Call activity logged successfully.',
+      },
+      { status: 201 }
+    );
+  });
 }
