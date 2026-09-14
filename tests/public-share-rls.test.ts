@@ -59,14 +59,25 @@ describe('the public share path survives database-level RLS', () => {
     expect(source).toContain('withPublicShareBypass');
   });
 
-  it('covers both the lookup and the view-counter write', () => {
+  it('covers the lookup, the view-counter write, and the password re-hash write', () => {
     // Call sites only — the definition is generic (`withPublicShareBypass<T>(`) and would not
     // be counted by a bare-paren match anyway, which is how the first version of this
     // assertion managed to be wrong about a file that was already correct.
+    //
+    // Three, not two: a share password stored under the legacy single-round SHA-256 scheme is
+    // re-hashed with bcrypt the first time it verifies. That write happens on behalf of the same
+    // unauthenticated visitor as the view counter, so it needs the same bypass — routed through
+    // the extended client it would silently update zero rows, and every legacy link would stay on
+    // the weak hash forever with nothing to say so.
     const calls = source.match(/await withPublicShareBypass\(/g) ?? [];
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     expect(source).toMatch(/withPublicShareBypass\(\(db\) =>\s*\n?\s*db\.clientReportShareLink\.findUnique/);
-    expect(source).toMatch(/withPublicShareBypass\(\(db\) =>\s*\n?\s*db\.clientReportShareLink\.update/);
+    expect(source).toMatch(
+      /withPublicShareBypass\(\(db\) =>\s*\n?\s*db\.clientReportShareLink\.update\(\{[\s\S]*?viewCount: \{ increment: 1 \}/
+    );
+    expect(source).toMatch(
+      /withPublicShareBypass\(\(db\) =>\s*\n?\s*db\.clientReportShareLink\.update\(\{[\s\S]*?passwordHash: upgraded/
+    );
   });
 
   it('sets the bypass transaction-locally, so it cannot leak across the pool', () => {

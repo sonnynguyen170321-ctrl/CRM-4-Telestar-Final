@@ -4,6 +4,8 @@ import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { encrypt } from '@/lib/crypto';
 import { verifyImapCredentials } from '@/lib/email/adapters/ImapAdapter';
+import { z } from 'zod';
+import { parseBody } from '@/lib/validation/core';
 
 export async function GET(_req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -32,20 +34,43 @@ export async function GET(_req: NextRequest) {
   return NextResponse.json(accounts);
 }
 
+/**
+ * Everything this endpoint reads off the body, with bounds.
+ *
+ * It used to read `req.json()` raw and pick fields by hand, so a port of `"abc"` became `NaN`
+ * and then `null`, a 10 MB `password` was accepted and encrypted, and an `email` of any shape
+ * reached the row. Gmail and Outlook are still refused below — they connect through OAuth — but
+ * their shape is validated first so the refusal is a clean 400 and not a crash on a missing field.
+ *
+ * `imapServer`/`smtpServer` are accepted as aliases of `imapHost`/`smtpHost`; the UI sent both at
+ * different points in its history and the older name is still in some saved forms.
+ */
+const port = z.coerce.number().int().min(1).max(65535);
+const host = z.string().trim().min(1).max(253);
+
+const createEmailAccountSchema = z.object({
+  provider: z.enum(['gmail', 'outlook', 'imap_smtp']),
+  email: z.string().trim().email().max(254),
+  password: z.string().min(1).max(512).optional(),
+  imapHost: host.optional(),
+  imapServer: host.optional(),
+  imapPort: port.optional(),
+  smtpHost: host.optional(),
+  smtpServer: host.optional(),
+  smtpPort: port.optional(),
+  accessToken: z.string().max(8192).optional().nullable(),
+  refreshToken: z.string().max(8192).optional().nullable(),
+  tokenExpiry: z.string().datetime({ offset: true }).optional().nullable(),
+});
+
 export async function POST(req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
-  const body = await req.json();
-
-  const VALID_PROVIDERS = ['gmail', 'outlook', 'imap_smtp'] as const;
-  if (!VALID_PROVIDERS.includes(body.provider)) {
-    return NextResponse.json(
-      { error: `Invalid provider. Must be one of: ${VALID_PROVIDERS.join(', ')}` },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseBody(req, createEmailAccountSchema);
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
   // OAuth providers (Gmail, Outlook) must use the OAuth callback flow
   if (body.provider === 'gmail' || body.provider === 'outlook') {
@@ -72,9 +97,9 @@ export async function POST(req: NextRequest) {
       email: body.email,
       password: body.password,
       smtpServer: smtpHost,
-      smtpPort: parseInt(body.smtpPort, 10) || 465,
+      smtpPort: body.smtpPort ?? 465,
       imapServer: imapHost,
-      imapPort: parseInt(body.imapPort, 10) || 993,
+      imapPort: body.imapPort ?? 993,
     });
 
     if (!valid) {
@@ -104,9 +129,9 @@ export async function POST(req: NextRequest) {
       encRefreshToken,
       tokenExpiry: body.tokenExpiry ? new Date(body.tokenExpiry) : null,
       imapServer: imapHost ?? null,
-      imapPort: body.imapPort ? (parseInt(body.imapPort, 10) || null) : null,
+      imapPort: body.imapPort ?? null,
       smtpServer: smtpHost ?? null,
-      smtpPort: body.smtpPort ? (parseInt(body.smtpPort, 10) || null) : null,
+      smtpPort: body.smtpPort ?? null,
       encPassword: body.password ? await encrypt(body.password) : null,
     },
     select: {

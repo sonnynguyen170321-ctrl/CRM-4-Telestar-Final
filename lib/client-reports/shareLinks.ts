@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { compare as bcryptCompare, hash as bcryptHash } from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ClientReportSnapshot } from './types';
@@ -88,14 +89,59 @@ export function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-export function hashPassword(password: string): string {
-  const digest = crypto.createHash('sha256').update(`crm_salt_${password}`).digest('hex');
-  return `crm_salt_${digest}`;
+/**
+ * Cost 12, matching every other password in this codebase (app/api/users, app/api/settings/password).
+ */
+const SHARE_PASSWORD_BCRYPT_ROUNDS = 12;
+
+/**
+ * The scheme share-link passwords used to be stored under: one round of SHA-256 over
+ * `crm_salt_<password>`. The prefix is a constant, visible in this file and identical for every
+ * row, so it is not a salt — it neither makes two identical passwords hash differently nor slows
+ * anything down. A leaked `passwordHash` column was crackable at GPU speed.
+ *
+ * Kept only to recognise and verify hashes already in the database. Nothing writes it any more.
+ */
+const LEGACY_PREFIX = 'crm_salt_';
+
+function legacyHash(password: string): string {
+  const digest = crypto.createHash('sha256').update(`${LEGACY_PREFIX}${password}`).digest('hex');
+  return `${LEGACY_PREFIX}${digest}`;
 }
 
-export function verifyPassword(password: string, hash: string): boolean {
-  if (!password || !hash) return false;
-  return hashPassword(password) === hash;
+function isLegacyHash(hash: string): boolean {
+  return hash.startsWith(LEGACY_PREFIX);
+}
+
+export async function hashPassword(password: string): Promise<string> {
+  return bcryptHash(password, SHARE_PASSWORD_BCRYPT_ROUNDS);
+}
+
+/**
+ * Verify a share-link password against either scheme.
+ *
+ * Existing links keep working: a stored legacy hash is checked with the legacy function and, on a
+ * correct password, transparently re-hashed with bcrypt by the caller. Breaking every share link
+ * already in customers' hands is not an acceptable price for fixing the hash.
+ *
+ * The legacy comparison is constant-time. The old one used `!==` on the hex digest, which leaks
+ * how many leading characters matched — enough, given a fast unsalted hash, to be worth removing
+ * rather than arguing about.
+ */
+export async function verifyPassword(
+  password: string,
+  hash: string
+): Promise<{ ok: boolean; needsRehash: boolean }> {
+  if (!password || !hash) return { ok: false, needsRehash: false };
+
+  if (isLegacyHash(hash)) {
+    const candidate = Buffer.from(legacyHash(password));
+    const stored = Buffer.from(hash);
+    const ok = candidate.length === stored.length && crypto.timingSafeEqual(candidate, stored);
+    return { ok, needsRehash: ok };
+  }
+
+  return { ok: await bcryptCompare(password, hash), needsRehash: false };
 }
 
 /**
@@ -148,7 +194,7 @@ export async function createShareLink(options: CreateShareLinkOptions): Promise<
   // Generate 32-byte cryptographically secure random token
   const rawToken = crypto.randomBytes(32).toString('hex');
   const tokenHash = hashToken(rawToken);
-  const passwordHash = password ? hashPassword(password) : null;
+  const passwordHash = password ? await hashPassword(password) : null;
 
   const shareLink = await prisma.clientReportShareLink.create({
     data: {
@@ -229,9 +275,21 @@ export async function verifyAndFetchSharedReport(
         clientName: shareLink.report.client.name,
       };
     }
-    const attemptHash = hashPassword(passwordAttempt);
-    if (attemptHash !== shareLink.passwordHash) {
+    const { ok, needsRehash } = await verifyPassword(passwordAttempt, shareLink.passwordHash);
+    if (!ok) {
       throw new Error('Incorrect password');
+    }
+    if (needsRehash) {
+      // Upgrade in place on the first correct password. Best-effort: a failed upgrade must not
+      // deny a visitor a report they just proved they may read — it only means the next visit
+      // tries again.
+      const upgraded = await hashPassword(passwordAttempt);
+      await withPublicShareBypass((db) =>
+        db.clientReportShareLink.update({
+          where: { id: shareLink.id },
+          data: { passwordHash: upgraded },
+        })
+      ).catch((error) => console.error('[client-reports] share password re-hash failed', error));
     }
   }
 

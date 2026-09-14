@@ -26,6 +26,7 @@ import {
 } from '@/lib/validation/schemas';
 import { ClientReportSnapshot } from '@/lib/client-reports/types';
 import { buildReportMetrics } from '@/lib/client-reports/metrics';
+import { createHash } from 'node:crypto';
 
 const mockPrismaClient = {
   client: { findUnique: vi.fn() },
@@ -192,13 +193,35 @@ describe('Client Reports Module - Unit Tests', () => {
       expect(hash1).not.toBe(rawToken);
     });
 
-    it('hashes and validates passwords with salt correctly', () => {
+    it('hashes passwords with bcrypt, not a single unsalted round', async () => {
       const password = 'ClientSecret2026!';
-      const hash = hashPassword(password);
+      const hash = await hashPassword(password);
 
-      expect(hash).toContain('crm_salt_');
-      expect(verifyPassword(password, hash)).toBe(true);
-      expect(verifyPassword('WrongPassword', hash)).toBe(false);
+      // The old scheme was `sha256('crm_salt_' + password)`. `crm_salt_` is a constant shared by
+      // every row, so identical passwords hashed identically and a leaked column cracked at GPU
+      // speed. bcrypt salts per row, so the same password twice must not produce the same hash.
+      expect(hash.startsWith('$2')).toBe(true);
+      expect(hash).not.toContain('crm_salt_');
+      expect(await hashPassword(password)).not.toBe(hash);
+
+      expect(await verifyPassword(password, hash)).toEqual({ ok: true, needsRehash: false });
+      expect(await verifyPassword('WrongPassword', hash)).toEqual({ ok: false, needsRehash: false });
+    });
+
+    it('still accepts a password stored under the old scheme, and asks to be re-hashed', async () => {
+      // Share links already in customers' hands must keep working. Breaking every one of them is
+      // not an acceptable price for fixing the hash, so the legacy digest stays verifiable and is
+      // upgraded in place on the first correct password.
+      const password = 'ClientSecret2026!';
+      const legacy = `crm_salt_${createHash('sha256').update(`crm_salt_${password}`).digest('hex')}`;
+
+      expect(await verifyPassword(password, legacy)).toEqual({ ok: true, needsRehash: true });
+      expect(await verifyPassword('WrongPassword', legacy)).toEqual({ ok: false, needsRehash: false });
+    });
+
+    it('rejects an empty password or an empty hash rather than throwing', async () => {
+      expect(await verifyPassword('', 'anything')).toEqual({ ok: false, needsRehash: false });
+      expect(await verifyPassword('anything', '')).toEqual({ ok: false, needsRehash: false });
     });
   });
 
