@@ -116,6 +116,42 @@ describe('connection options for a managed instance', () => {
     expect(opts.enableOfflineQueue).toBe(false);
   });
 
+  it('gives a worker connection room for BullMQ blocking reads', () => {
+    // BullMQ blocks on BZPOPMIN for up to `maximumBlockTimeout` (10 s, bullmq worker.ts) while
+    // a queue holds delayed jobs. The web-side 10 s command timeout then fires on every idle
+    // cycle — observed on the VPS as "[worker] sequence error: Command timed out" five times
+    // in five minutes with a healthy Redis. The worker bound must clear that window.
+    const BULLMQ_MAXIMUM_BLOCK_TIMEOUT_MS = 10_000;
+    const web = getRedisConfig().opts;
+    const worker = getRedisConfig({ role: 'worker' }).opts;
+    expect(worker.commandTimeout).toBeGreaterThan(BULLMQ_MAXIMUM_BLOCK_TIMEOUT_MS);
+    // Still bounded: an unreachable Redis must surface, not hang the process.
+    expect(worker.commandTimeout).toBeLessThanOrEqual(60_000);
+    // The web bound is unchanged — a request that enqueues must still fail fast.
+    expect(web.commandTimeout).toBeLessThanOrEqual(BULLMQ_MAXIMUM_BLOCK_TIMEOUT_MS);
+  });
+
+  it('closes a connection that never connected without rejecting', async () => {
+    // DR-010 regression: the worker connection is lazy and BullMQ only ever talks to its
+    // duplicate, so at shutdown the original is still in ioredis status 'wait'. quit() on it
+    // rejects with "Stream isn't writeable and enableOfflineQueue options is false", the
+    // rejection is unhandled, and the process no longer exits on SIGTERM.
+    const { getWorkerConnection, closeConnection } = await import('@/lib/bullmq/connection');
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      const worker = getWorkerConnection();
+      expect(worker.status).toBe('wait');
+      await expect(closeConnection()).resolves.toBeUndefined();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(unhandled).toEqual([]);
+      expect(worker.status).toBe('end');
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
   it('keeps reconnecting forever, so a worker survives a provider failover', () => {
     const { opts } = getRedisConfig();
     expect(typeof opts.retryStrategy).toBe('function');
