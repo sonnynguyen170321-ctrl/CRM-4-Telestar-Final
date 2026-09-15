@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 // Read models for the research surface.
@@ -129,6 +130,23 @@ export async function listResearchCandidates(query: CandidateListQuery, tenantId
   return { items, total, page, pageSize, counts };
 }
 
+/**
+ * Attempts the drawer shows for a candidate: its own, plus the discovery attempts of the run
+ * that surfaced it (those carry `runId` and no `candidateId`). `tenantId` sits above the OR so
+ * both arms are tenant-bound, and `runId` is required on ResearchCandidate so the run arm can
+ * never widen to "any run". Exported for the test that pins exactly that.
+ */
+export function candidateAttemptsWhere(input: {
+  tenantId: string;
+  candidateId: string;
+  runId: string;
+}): Prisma.ResearchProviderAttemptWhereInput {
+  return {
+    tenantId: input.tenantId,
+    OR: [{ candidateId: input.candidateId }, { candidateId: null, runId: input.runId }],
+  };
+}
+
 /** Everything the evidence drawer shows for one candidate. */
 export async function getCandidateEvidence(candidateId: string, tenantId: string) {
   const candidate = await prisma.researchCandidate.findFirst({
@@ -137,9 +155,11 @@ export async function getCandidateEvidence(candidateId: string, tenantId: string
       id: true, name: true, domain: true, linkedinUrl: true, title: true, companyName: true,
       location: true, fitScore: true, fitReason: true, fitSource: true, status: true,
       matchHintsJson: true, sourceJson: true, promotedAccountId: true, promotedContactId: true,
+      runId: true,
     },
   });
   if (!candidate) return null;
+  const { runId, ...candidateView } = candidate;
 
   const [evidence, attempts, ledger] = await Promise.all([
     prisma.researchEvidence.findMany({
@@ -151,11 +171,15 @@ export async function getCandidateEvidence(candidateId: string, tenantId: string
         sourceTitle: true, sourceSnippet: true, query: true, confidence: true, observedAt: true,
       },
     }),
+    // Discovery attempts carry the run, not the candidate — the candidate does not exist until the
+    // query has returned. Filtering on candidateId alone showed "Provider attempts (0)" for every
+    // candidate that had not been enriched yet, under a ledger full of evidence from those very
+    // queries. Candidate-scoped attempts still come first; the run's own follow.
     prisma.researchProviderAttempt.findMany({
-      where: { tenantId, candidateId },
+      where: candidateAttemptsWhere({ tenantId, candidateId, runId }),
       orderBy: { startedAt: 'asc' },
       take: 50,
-      select: { id: true, stage: true, provider: true, status: true, startedAt: true, finishedAt: true },
+      select: { id: true, stage: true, provider: true, status: true, startedAt: true, finishedAt: true, candidateId: true },
     }),
     prisma.researchCandidate
       .findFirst({ where: { id: candidateId, tenantId }, select: { dedupeFingerprint: true } })
@@ -169,5 +193,13 @@ export async function getCandidateEvidence(candidateId: string, tenantId: string
       ),
   ]);
 
-  return { candidate, evidence, attempts, history: ledger };
+  return {
+    candidate: candidateView,
+    evidence,
+    attempts: attempts.map(({ candidateId: attemptCandidateId, ...attempt }) => ({
+      ...attempt,
+      runScoped: attemptCandidateId === null,
+    })),
+    history: ledger,
+  };
 }

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
-  ExternalLink,
   FileSearch,
   History,
   Loader2,
@@ -13,6 +12,7 @@ import {
 } from 'lucide-react';
 
 import { readApiError } from '@/lib/api/client';
+import EvidenceCard from '@/components/research/EvidenceCard';
 
 type CandidateDetail = {
   candidate: {
@@ -48,6 +48,8 @@ type CandidateDetail = {
     status: string;
     startedAt: string;
     finishedAt: string | null;
+    /** True when the attempt belongs to the run that surfaced this candidate, not to the candidate itself. */
+    runScoped: boolean;
   }>;
   history: {
     timesSeen: number;
@@ -202,29 +204,7 @@ export default function ResearchCandidateDrawer({ candidateId, onClose }: Props)
                 ) : (
                   <div className="space-y-3">
                     {detail.evidence.map((item) => (
-                      <article key={item.id} className="rounded-xl border border-card-border bg-bg-main p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="type-meta font-semibold text-text-primary">
-                            {item.sourceTitle || item.sourceKind}
-                          </span>
-                          <span className="type-meta font-mono text-text-muted">
-                            {item.provider || 'source'}  /  {new Date(item.observedAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                        {item.sourceSnippet && (
-                          <p className="mt-2 type-meta leading-relaxed text-text-secondary">{item.sourceSnippet}</p>
-                        )}
-                        {item.sourceUrl && (
-                          <a
-                            href={item.sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-3 inline-flex min-h-11 items-center gap-2 type-meta font-semibold text-brand-red hover:underline"
-                          >
-                            Open source <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                          </a>
-                        )}
-                      </article>
+                      <EvidenceCard key={item.id} item={item} />
                     ))}
                   </div>
                 )}
@@ -235,12 +215,24 @@ export default function ResearchCandidateDrawer({ candidateId, onClose }: Props)
                   <History className="h-4 w-4" aria-hidden="true" />
                   Provider attempts ({detail.attempts.length})
                 </h3>
+                {detail.attempts.some((attempt) => attempt.runScoped) && (
+                  <p className="mb-2 type-meta text-text-muted">
+                    Includes the discovery queries of the run that surfaced this candidate.
+                  </p>
+                )}
                 <div className="space-y-2">
                   {detail.attempts.map((attempt) => (
                     <div key={attempt.id} className="flex items-center justify-between gap-3 rounded-lg border border-card-border px-3 py-2">
-                      <span className="type-meta text-text-secondary">{attempt.provider}  /  {attempt.stage}</span>
+                      <span className="type-meta text-text-secondary">
+                        {attempt.provider}  /  {attempt.stage}
+                        {attempt.runScoped && <span className="text-text-muted">  ·  run</span>}
+                      </span>
                       <span className="inline-flex items-center gap-1.5 type-meta font-semibold text-text-muted">
-                        <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        {attempt.status === 'failed' ? (
+                          <AlertTriangle className="h-3.5 w-3.5 text-red-300" aria-hidden="true" />
+                        ) : (
+                          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        )}
                         {attempt.status}
                       </span>
                     </div>
