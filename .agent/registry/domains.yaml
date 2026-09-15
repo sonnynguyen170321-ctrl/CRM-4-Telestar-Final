@@ -53,6 +53,8 @@ domains:
       - auth.config.ts
       - proxy.ts
       - lib/auth.ts
+      # Client-side mirror of the role predicates in lib/auth.ts, for UI gating.
+      - lib/permissions.ts
       - lib/auth/**
       - lib/authRoles.ts
       - lib/podScoping.ts
@@ -271,6 +273,10 @@ domains:
       - lib/dates/**
       # The leads list query hook; its result shape is owned with the leads API it reads.
       - lib/hooks/useLeads.ts
+      # Timezone inference, description and conversion behind the prospect clock, the booking
+      # preview and the converter; and the hook that reads the rep's own zone.
+      - lib/time/**
+      - lib/hooks/useUserTimezone.ts
       - app/api/leads/**
       - app/api/tasks/**
       - app/api/activities/**

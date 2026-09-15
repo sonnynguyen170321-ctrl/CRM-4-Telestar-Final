@@ -323,7 +323,19 @@ export function buildRoleScope(user: SessionUser) {
 
 /** Roles allowed to import and export leads. Team Lead is intentionally excluded. */
 export function canImportExport(role: SessionUser['role']): boolean {
-  return role === 'director' || role === 'floor_manager' || role === 'leadgen_manager' || role === 'leadgen' || role === 'sdr';
+  // Every role from sdr upward. team_lead was the one gap: a rep could import, the rep's own
+  // lead could not, and nothing recorded why. What each role may do *with* an import is bounded
+  // elsewhere — assignee defaults to self and anyone else must pass canAccessUser (pod scoping),
+  // and a campaign must pass canReferenceCampaign — so widening this list widens who may start
+  // an import, not what it can reach.
+  return (
+    role === 'director' ||
+    role === 'floor_manager' ||
+    role === 'team_lead' ||
+    role === 'leadgen_manager' ||
+    role === 'leadgen' ||
+    role === 'sdr'
+  );
 }
 
 /**
