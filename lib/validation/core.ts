@@ -67,6 +67,24 @@ export const httpUrl = z
   .url()
   .refine((value) => /^https?:\/\//i.test(value), { message: 'Must be an http(s) URL' });
 
+/**
+ * An IANA timezone id the runtime actually knows. `lead.timezone` decides when sequence email
+ * goes out; a typo stored here would silently push a prospect's send window to UTC.
+ */
+export const ianaTimezone = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .refine((tz) => {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: tz });
+      return true;
+    } catch {
+      return false;
+    }
+  }, { message: 'Must be an IANA timezone, e.g. Asia/Singapore' });
+
 export const id = z.string().min(1).max(64);
 export const isoDate = z.coerce.date();
 const emptyStringToNull = (value: unknown) => {

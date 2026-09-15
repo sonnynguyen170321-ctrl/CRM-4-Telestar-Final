@@ -119,6 +119,7 @@ export async function PUT(
       ...(body.priority !== undefined && { crmPriorityScore: body.priority }),
       ...(body.tags !== undefined && { tags: body.tags }),
       ...(body.lastContactedAt !== undefined && { lastContactedAt: body.lastContactedAt }),
+      ...(body.timezone !== undefined && { timezone: body.timezone }),
     },
   });
 

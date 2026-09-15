@@ -21,8 +21,10 @@ import {
   BarChart3,
   RefreshCw,
   Building,
+  Clock,
 } from 'lucide-react';
 import LeadDetailPanel from './LeadDetailPanel';
+import TimeConverter from './time/TimeConverter';
 
 interface Lead {
   id: string;
@@ -49,6 +51,7 @@ export default function CommandPalette() {
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [showTimeConverter, setShowTimeConverter] = useState(false);
   const [leadResults, setLeadResults] = useState<Lead[]>([]);
   const [isSearchingLeads, setIsSearchingLeads] = useState(false);
 
@@ -112,6 +115,9 @@ export default function CommandPalette() {
     // the codebase listened for — pressing it did nothing at all. It is removed rather than given a
     // listener because the dialer needs a lead to call, which a global command has no way to supply.
     // The Call button on the lead panel is the real entry point.
+    // Convert time renders its overlay directly from this component's state for the same reason:
+    // no event, so nothing to forget to listen for.
+    { id: 'act_time', name: 'Convert time', category: 'Quick Actions', icon: <Clock className="w-4 h-4 text-emerald-500" />, action: () => { setIsOpen(false); setShowTimeConverter(true); } },
     { id: 'act_webhook', name: 'Configure Outbound Webhooks', category: 'System', icon: <Layers className="w-4 h-4 text-violet-500" />, action: () => { router.push('/automation'); setIsOpen(false); } },
     { id: 'act_health', name: 'Audit Email Deliverability', category: 'System', icon: <ShieldAlert className="w-4 h-4 text-sky-500" />, action: () => { router.push('/email-health'); setIsOpen(false); } }
   ];
@@ -351,6 +357,8 @@ export default function CommandPalette() {
       {selectedLeadId && (
         <LeadDetailPanel leadId={selectedLeadId} onClose={() => setSelectedLeadId(null)} />
       )}
+
+      {showTimeConverter && <TimeConverter onClose={() => setShowTimeConverter(false)} />}
     </>
   );
 }

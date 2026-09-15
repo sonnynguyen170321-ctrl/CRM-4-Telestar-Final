@@ -16,6 +16,9 @@ import BookingLinkSettingsPanel from '@/components/meetings/BookingLinkSettingsP
 import DeveloperApiKeysPanel from '@/components/settings/DeveloperApiKeysPanel';
 import { NOTIF_EVENTS, NOTIF_PREFS_KEY, NOTIF_PREFS_EVENT, readNotifPrefs } from '@/lib/notifications/prefs';
 import { readApiError } from '@/lib/api/client';
+import TimezoneSelect from '@/components/time/TimezoneSelect';
+import { USER_TIMEZONE_QUERY_KEY } from '@/lib/hooks/useUserTimezone';
+import { useQueryClient } from '@tanstack/react-query';
 
 // EmailConnectionsPanel calls useSearchParams(), which requires a Suspense
 // boundary for static prerendering — it must stay rendered inside this one.
@@ -81,6 +84,8 @@ function SettingsPageInner() {
       .catch(() => {});
   }, []);
 
+  const queryClient = useQueryClient();
+
   const handleSaveProfile = async () => {
     setIsSavingProfile(true);
     const res = await fetch('/api/settings', {
@@ -93,6 +98,8 @@ function SettingsPageInner() {
       // Let the Topbar avatar update without a reload.
       if (typeof window !== 'undefined') window.dispatchEvent(new Event('crm:profile-updated'));
       showToast('Profile updated successfully!', 'success');
+      // The prospect clock, booking preview and converter read the zone through this key.
+      queryClient.invalidateQueries({ queryKey: USER_TIMEZONE_QUERY_KEY });
     } else {
       showToast(await readApiError(res, 'Failed to update profile'), 'error');
     }
@@ -204,15 +211,14 @@ function SettingsPageInner() {
                 <label className="text-[10px] font-bold text-text-muted uppercase block">
                   Timezone
                 </label>
-                <select
+                {/* Every IANA zone, the company's own first. The previous three fixed options
+                    meant a rep anywhere else could not set their zone at all — and this value is
+                    what business-day due dates and the booking modal's "your time" read. */}
+                <TimezoneSelect
                   value={profileTimezone}
-                  onChange={(e) => setProfileTimezone(e.target.value)}
-                  className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none"
-                >
-                  <option value="Asia/Ho_Chi_Minh">Asia/Ho Chi Minh (GMT+7)</option>
-                  <option value="Europe/London">Europe/London (GMT+1)</option>
-                  <option value="America/New_York">America/New York (GMT-5)</option>
-                </select>
+                  onChange={setProfileTimezone}
+                  className="w-full py-1.5 text-sm"
+                />
               </div>
             </div>
             <div className="flex justify-end pt-1">
