@@ -261,6 +261,48 @@ describe('CRM context', () => {
     expect(call.leadId).toBe('clh1234567890abcdefgh');
   });
 
+  it('names the lead id in the prompt so a tool that needs it can be called', async () => {
+    // Observed in production: the prompt carried the lead's name, company, stage, campaign and
+    // client — and the assistant answered "no lead ID is available in the current context" when
+    // asked to score it, because the only id-bearing line was missing. The server had already
+    // authorized the id; withholding it from the model left evaluate_lead_quality uncallable.
+    loadAuthorizedLeadContext.mockResolvedValue({
+      leadName: 'Dana Ito',
+      leadCompany: 'Kaisen Logistics',
+      leadStage: 'new',
+    });
+
+    await POST(
+      post({
+        messages: [{ role: 'user', content: 'score this lead' }],
+        context: { leadId: 'clh1234567890abcdefgh' },
+      }),
+    );
+
+    const prompt = executeMock.mock.calls[0][0].systemPrompt as string;
+    expect(prompt).toContain('Lead ID: clh1234567890abcdefgh');
+    expect(prompt).toMatch(/evaluate_lead_quality/);
+  });
+
+  it('tells a manager the direct-assignment counter is not their visible lead set', async () => {
+    // A team lead with no leads assigned to them personally saw "Assigned leads: 0" and told
+    // the user there was nothing to rank, without calling prioritize_leads — which ranks every
+    // lead the viewer can see, including their reports' and their campaigns'.
+    requireAuthMock.mockResolvedValue({ ...SDR, id: 'u-tl-1', role: 'team_lead' });
+    sdrMetricsMock.mockResolvedValue({
+      assignedLeadsCount: 0,
+      overdueTasksCount: 0,
+      hotRepliesCount: 0,
+      meetingsBookedThisMonth: 0,
+    });
+
+    await POST(post({ messages: [{ role: 'user', content: 'what should I work on' }] }));
+
+    const prompt = executeMock.mock.calls[0][0].systemPrompt as string;
+    expect(prompt).toContain('Leads assigned directly to you: 0');
+    expect(prompt).toMatch(/prioritize_leads/);
+  });
+
   it('drops a lead id that is not id-shaped instead of writing it to the ledger', async () => {
     await POST(post({ messages: [{ role: 'user', content: 'hi' }], context: { leadId: '../../etc/passwd' } }));
 
@@ -292,7 +334,7 @@ describe('CRM context', () => {
     expect(sdrMetricsMock).toHaveBeenCalledWith(SDR.tenantId, SDR.id);
     const prompt = executeMock.mock.calls[0][0].systemPrompt as string;
     expect(prompt).toContain('Overdue tasks: 42');
-    expect(prompt).toContain('Assigned leads: 61');
+    expect(prompt).toContain('Leads assigned directly to you: 61');
   });
 
   it('ignores performance counters a client attaches to the context object', async () => {

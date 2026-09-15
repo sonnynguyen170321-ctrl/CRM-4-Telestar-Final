@@ -1,7 +1,7 @@
 import { Worker, type Job, type Processor, type ConnectionOptions } from 'bullmq';
 import { Prisma } from '@prisma/client';
 import { prisma, tenantStorage, resolveWorkerJobTenant } from '@/lib/prisma';
-import { getConnection } from './connection';
+import { getWorkerConnection } from './connection';
 
 /**
  * Wraps a BullMQ processor to automatically handle the JobRun lifecycle.
@@ -120,7 +120,7 @@ export function createAppWorker<T = any, R = any>(
     queueName,
     wrapProcessor(processor),
     {
-      connection: getConnection() as unknown as ConnectionOptions,
+      connection: getWorkerConnection() as unknown as ConnectionOptions,
       concurrency: opts.concurrency ?? 1,
     }
   );

@@ -155,7 +155,15 @@ export async function POST(req: NextRequest) {
     ? await calculateDeterministicSdrMetrics(user.tenantId, user.id).catch(() => null)
     : null;
   if (workload) {
-    contextLines.push(`Assigned leads: ${workload.assignedLeadsCount}`);
+    // Direct assignments only. A team lead or floor manager usually has none of their own and
+    // still sees every lead on their team and in their campaigns — say so, or the model reads
+    // "0" as "nothing to rank" and never calls the tool that would have found them.
+    contextLines.push(`Leads assigned directly to you: ${workload.assignedLeadsCount}`);
+    if (user.role !== 'sdr' && user.role !== 'leadgen') {
+      contextLines.push(
+        "That counter excludes your team's and your campaigns' leads. To rank what you can actually see, call prioritize_leads — do not infer an empty pipeline from it."
+      );
+    }
     contextLines.push(`Overdue tasks: ${workload.overdueTasksCount}`);
     contextLines.push(`Leads awaiting a reply follow-up: ${workload.hotRepliesCount}`);
     contextLines.push(`Meetings booked this month: ${workload.meetingsBookedThisMonth}`);
@@ -179,6 +187,10 @@ export async function POST(req: NextRequest) {
     const leadContext = await loadAuthorizedLeadContext(user, validLeadId);
     if (leadContext) {
       contextLines.push(`\nCurrent lead: ${leadContext.leadName}`);
+      // The id the loader just authorized. Tools that act on the open record
+      // (evaluate_lead_quality, get_contact_intelligence, enroll_lead_in_sequence) take a
+      // leadId; without this line the model has a name and a company and no way to call them.
+      contextLines.push(`Lead ID: ${validLeadId} — pass this as leadId to evaluate_lead_quality or any other tool that needs the open lead.`);
       if (leadContext.leadCompany) contextLines.push(`Company: ${leadContext.leadCompany}`);
       if (leadContext.leadStage) contextLines.push(`Pipeline stage: ${leadContext.leadStage}`);
       if (leadContext.leadDaysSinceContact != null) contextLines.push(`Days since last contact: ${leadContext.leadDaysSinceContact}`);

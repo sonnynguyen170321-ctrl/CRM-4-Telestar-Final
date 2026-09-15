@@ -10,8 +10,26 @@ import { Redis, type RedisOptions } from 'ioredis';
  */
 const DEFAULT_REDIS_URL = 'redis://127.0.0.1:6379';
 
-export function getRedisConfig(): { url: string; opts: RedisOptions } {
+/**
+ * Bound on any single command from a web request. Ten seconds is far longer than a healthy
+ * round trip and far shorter than a request timeout.
+ */
+const WEB_COMMAND_TIMEOUT_MS = 10_000;
+
+/**
+ * Bound for a BullMQ worker. A worker's blocking read (BZPOPMIN) legitimately waits up to
+ * `maximumBlockTimeout` — 10 s in bullmq's worker.ts — whenever the queue holds delayed jobs,
+ * so the web bound fires on every idle cycle and the worker logs "Command timed out" against
+ * a Redis that answers instantly. Three times that window: an unreachable Redis still fails
+ * within the process's own health interval instead of hanging.
+ */
+const WORKER_COMMAND_TIMEOUT_MS = 30_000;
+
+export type RedisRole = 'web' | 'worker';
+
+export function getRedisConfig(options: { role?: RedisRole } = {}): { url: string; opts: RedisOptions } {
   const url = process.env.REDIS_URL || DEFAULT_REDIS_URL;
+  const commandTimeout = options.role === 'worker' ? WORKER_COMMAND_TIMEOUT_MS : WEB_COMMAND_TIMEOUT_MS;
   const isTls = url.startsWith('rediss://');
 
   // A managed provider hands you `rediss://user:password@host:6380`. ioredis parses the
@@ -32,9 +50,8 @@ export function getRedisConfig(): { url: string; opts: RedisOptions } {
       // Bound the wait for any single command. Without this an unreachable Redis makes
       // callers HANG rather than fail: BullMQ's own calls (getJobCounts, add) never
       // reject, so a web request that enqueues would sit until the platform's timeout
-      // killed it. Ten seconds is far longer than a healthy round trip — including to a
-      // managed instance across a private link — and far shorter than a request timeout.
-      commandTimeout: 10_000,
+      // killed it. The bound depends on who is asking — see the two constants above.
+      commandTimeout,
       // Do not queue commands while disconnected. Buffering them means a caller waits for
       // a reconnect that may never come; failing immediately surfaces the outage.
       enableOfflineQueue: false,
@@ -80,9 +97,10 @@ export function assertUsableRedisUrl(url: string | undefined): void {
 }
 
 let connection: Redis | null = null;
+let workerConnection: Redis | null = null;
 
-function createConnection(): Redis {
-  const { url, opts } = getRedisConfig();
+function createConnection(role: RedisRole): Redis {
+  const { url, opts } = getRedisConfig({ role });
   const client = new Redis(url, opts);
   client.on('error', (err) => {
     console.error('[bullmq] Redis connection error:', err.message);
@@ -98,14 +116,26 @@ function createConnection(): Redis {
 
 export function getConnection(): Redis {
   if (!connection) {
-    connection = createConnection();
+    connection = createConnection('web');
   }
   return connection;
 }
 
-export async function closeConnection(): Promise<void> {
-  if (connection) {
-    await connection.quit();
-    connection = null;
+/**
+ * The connection a BullMQ `Worker` is built on. BullMQ duplicates it for its blocking read,
+ * copying the options — so the wider command timeout has to be on the instance handed in,
+ * not applied afterwards.
+ */
+export function getWorkerConnection(): Redis {
+  if (!workerConnection) {
+    workerConnection = createConnection('worker');
   }
+  return workerConnection;
+}
+
+export async function closeConnection(): Promise<void> {
+  const open = [connection, workerConnection].filter((c): c is Redis => c !== null);
+  connection = null;
+  workerConnection = null;
+  await Promise.all(open.map((c) => c.quit()));
 }
