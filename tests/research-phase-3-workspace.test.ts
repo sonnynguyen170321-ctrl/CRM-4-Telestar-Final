@@ -122,7 +122,23 @@ describe('phase 3 research workspace contract', () => {
     expect(readModel).toContain(
       "where: { tenantId, ...(query.runId ? { runId: query.runId } : {}) }",
     );
+  });
 
+  it('renders evidence as parsed facts with the raw snippet one click away', () => {
+    // A 1,500-character Exa highlight used to be printed as one paragraph. The card parses it
+    // (display-only) and keeps the original reachable; attempts fall back to the run's own,
+    // because discovery attempts carry runId and not candidateId.
+    const drawer = source('components/research/ResearchCandidateDrawer.tsx');
+    const card = source('components/research/EvidenceCard.tsx');
+    const readModel = source('lib/research/readModel.ts');
+    expect(drawer).toContain("import EvidenceCard from '@/components/research/EvidenceCard'");
+    expect(drawer).not.toContain('{item.sourceSnippet}</p>');
+    expect(card).toContain('parseEvidenceFacts(item.sourceSnippet)');
+    expect(card).toContain('<details');
+    expect(card).toContain('aria-expanded={expanded}');
+    expect(card).toContain('rel="noopener noreferrer"');
+    expect(readModel).toContain('where: candidateAttemptsWhere({ tenantId, candidateId, runId })');
+    expect(readModel).toContain('runScoped: attemptCandidateId === null');
   });
   it('keeps published ICPs readable by both pool users and research managers', () => {
     const versionsRoute = source('app/api/icp/versions/route.ts');
