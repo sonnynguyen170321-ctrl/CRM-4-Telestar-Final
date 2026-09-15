@@ -133,9 +133,29 @@ export function getWorkerConnection(): Redis {
   return workerConnection;
 }
 
+/**
+ * A graceful QUIT needs a socket. The worker connection is lazy and BullMQ only ever talks to
+ * its duplicate, so at shutdown the original is usually still in status 'wait' — and with
+ * `enableOfflineQueue: false` a QUIT sent then rejects instead of queueing, which as an
+ * unhandled rejection kept the process alive through SIGTERM (DR-010). Tear those down
+ * locally; QUIT only what actually connected, and fall back to a local close if even that
+ * fails mid-outage.
+ */
+async function closeClient(client: Redis): Promise<void> {
+  if (client.status === 'wait' || client.status === 'end') {
+    client.disconnect();
+    return;
+  }
+  try {
+    await client.quit();
+  } catch {
+    client.disconnect();
+  }
+}
+
 export async function closeConnection(): Promise<void> {
   const open = [connection, workerConnection].filter((c): c is Redis => c !== null);
   connection = null;
   workerConnection = null;
-  await Promise.all(open.map((c) => c.quit()));
+  await Promise.all(open.map(closeClient));
 }

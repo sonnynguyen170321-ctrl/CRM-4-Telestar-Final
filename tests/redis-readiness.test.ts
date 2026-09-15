@@ -131,6 +131,27 @@ describe('connection options for a managed instance', () => {
     expect(web.commandTimeout).toBeLessThanOrEqual(BULLMQ_MAXIMUM_BLOCK_TIMEOUT_MS);
   });
 
+  it('closes a connection that never connected without rejecting', async () => {
+    // DR-010 regression: the worker connection is lazy and BullMQ only ever talks to its
+    // duplicate, so at shutdown the original is still in ioredis status 'wait'. quit() on it
+    // rejects with "Stream isn't writeable and enableOfflineQueue options is false", the
+    // rejection is unhandled, and the process no longer exits on SIGTERM.
+    const { getWorkerConnection, closeConnection } = await import('@/lib/bullmq/connection');
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      const worker = getWorkerConnection();
+      expect(worker.status).toBe('wait');
+      await expect(closeConnection()).resolves.toBeUndefined();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(unhandled).toEqual([]);
+      expect(worker.status).toBe('end');
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
   it('keeps reconnecting forever, so a worker survives a provider failover', () => {
     const { opts } = getRedisConfig();
     expect(typeof opts.retryStrategy).toBe('function');
