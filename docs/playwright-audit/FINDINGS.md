@@ -367,7 +367,7 @@ verified:
   widen an SDR
 - tenant A cannot read or mutate tenant B leads, users, campaigns or mailboxes by direct id
 - `authVersion` revocation works for deactivation, sign-out-all, role change and password reset
-- Team Lead is correctly excluded from import/export while an SDR is not
+- Team Lead was excluded from import/export while an SDR was not (as the code then stated; reversed by the owner on 2026-09-15 — no product reason for the exclusion was ever recorded)
 - a qualified meeting creates **exactly one** opportunity, and neither re-logging nor two
   concurrent submissions duplicate it — the chain BUG-003 found untested
 - an SDR cannot approve their own client handoff; a director can

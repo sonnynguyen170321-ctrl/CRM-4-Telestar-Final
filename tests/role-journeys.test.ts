@@ -37,7 +37,8 @@ describe('Role Personas & Journey Scope Hardening', () => {
       expect(canImportExport('leadgen_manager')).toBe(true);
       expect(canImportExport('leadgen')).toBe(true);
       expect(canImportExport('sdr')).toBe(true);
-      expect(canImportExport('team_lead')).toBe(false);
+      // Reversed 2026-09-15 by the owner: the exclusion had no recorded reason.
+      expect(canImportExport('team_lead')).toBe(true);
     });
 
     it('identifies leadgen users vs leadgen managers', () => {
