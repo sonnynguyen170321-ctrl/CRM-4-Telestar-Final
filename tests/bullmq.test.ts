@@ -16,11 +16,32 @@ vi.mock('bullmq', async (importOriginal) => {
     ...original,
     Queue: class {
       name: string;
+      // `enqueue` asks for the existing job before adding, so that a finished job's id is
+      // reclaimed instead of silently swallowing the next occurrence. A mock without `getJob`
+      // models a queue that cannot answer the question the production code asks.
+      jobs = new Map<string, { state: string }>();
       constructor(name: string) {
         this.name = name;
       }
       async add(name: string, data: any, opts: any) {
-        return { id: opts.jobId || 'mock-job-id', name, data, opts };
+        const id = opts.jobId || 'mock-job-id';
+        this.jobs.set(id, { state: (opts.delay ?? 0) > 0 ? 'delayed' : 'waiting' });
+        return { id, name, data, opts };
+      }
+      async getJob(id: string) {
+        const rec = this.jobs.get(id);
+        if (!rec) return undefined;
+        const jobs = this.jobs;
+        return {
+          id,
+          getState: async () => rec.state,
+          promote: async () => {
+            rec.state = 'waiting';
+          },
+          remove: async () => {
+            jobs.delete(id);
+          },
+        };
       }
       async close() {}
     },

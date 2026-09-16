@@ -37,6 +37,13 @@ export interface EnqueueOptions {
  * existing row back to 'queued' clears prior execution stats so the UI reflects a fresh run.
  * Shared by `enqueue` and `enqueueImmediate`.
  */
+/**
+ * States in which a BullMQ job is still going to run. Listed explicitly, and matched positively,
+ * so that a state this code has never heard of is treated as live — a missed cycle costs one
+ * scheduler tick, a spurious re-add costs a duplicate email.
+ */
+const LIVE_JOB_STATES = new Set(['waiting', 'waiting-children', 'active', 'delayed', 'prioritized', 'paused']);
+
 async function upsertJobRun(
   dedupeKey: string,
   jobType: JobType,
@@ -99,19 +106,44 @@ export async function enqueue<T extends JobType>(
     ...JOB_OPTIONS[jobType],
     delay: opts.delay,
     priority: opts.priority,
-    deduplication: {
-      id: dedupeKey,
-      ttl: 86400 * 7,
-    },
   };
-  if (opts.jobId) {
-    jobOptions.deduplication = undefined;
-  }
 
   // 1. Create or update the JobRun record in Postgres to track progress durable mirror
   const jobRun = await upsertJobRun(dedupeKey, jobType, tenantId, (jobOptions.attempts as number) || 3);
 
   const resolvedJobId = opts.jobId || jobRun.id;
+
+  // 2. Reclaim the id if the previous occurrence is over.
+  //
+  // The job id has to be `JobRun.id` — the worker reads `job.id` back as the JobRun primary key
+  // (`workerUtils.ts`). It is therefore stable for a stable payload, and BullMQ, handed an id it
+  // already holds, returns that job and queues nothing:
+  //
+  //     addStandardJob-9.lua:92   if rcall("EXISTS", jobIdKey) == 1 then return handleDuplicatedJob(...)
+  //
+  // With `removeOnComplete: { age: 86400 * 3 }` a finished job's hash outlives the job by days, so
+  // a recurring job ran once and every cycle afterwards was dropped without an error anywhere.
+  // Inbox sync died this way on 2026-09-16: ~720 enqueues in a day, four ids in
+  // `bull:sync:completed`, zero executions, and a cron logging `{"accounts":4,"enqueued":4}`
+  // throughout. `enqueueImmediate` below already reclaimed terminal ids, which is why the manual
+  // "run now" button worked while the scheduler did not.
+  //
+  // A live job is the de-duplication that matters: adding again would mean a second send for the
+  // same payload, so leave it alone. Anything else — finished, failed, or listed nowhere at all —
+  // is history, and its id is free.
+  const existing = await queue.getJob(resolvedJobId);
+  if (existing) {
+    const state = await existing.getState();
+    if (LIVE_JOB_STATES.has(state)) return resolvedJobId;
+    if (state === 'unknown') {
+      // `getStateV2-8.lua` falls through to 'unknown' when the hash is in no list: not completed,
+      // failed, delayed, prioritized, active, waiting or waiting-children. No worker can ever pick
+      // that job up, so holding the id would wedge the schedule exactly as the dedupe key did.
+      // It should not happen; say so rather than reclaiming a job in silence.
+      console.warn(`[bullmq] reclaiming ${jobType} job ${resolvedJobId}: hash present but in no list`);
+    }
+    await existing.remove();
+  }
 
   await queue.add(jobType, payload, {
     ...jobOptions,

@@ -143,7 +143,11 @@ domains:
       - lib/bullmq/**
       - scripts/worker-*.ts
       - scripts/worker-*.cjs
+      - scripts/queue-staleness-check.ts
       - scripts/diagnose-import.mjs
+      # Whether Postgres and Redis still agree about the queue — the judgement the staleness
+      # cron runs, kept pure so it can be tested without either of them.
+      - lib/ops/queueStaleness.ts
       - app/api/cron/**
       # Shared authorization for the cron routes: who is calling and how many tenants they reach.
       - lib/cron/**

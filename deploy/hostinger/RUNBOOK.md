@@ -219,8 +219,14 @@ database, and deleting it without an export destroys them.
 30 2 * * * cd /opt/crm && deploy/hostinger/backup.sh --tag nightly --offsite >> /var/log/crm-backup.log 2>&1
 # the backup nobody checks is the one that was broken for a month
 0  8 * * * cd /opt/crm && deploy/hostinger/backup-freshness-check.sh >> /var/log/crm-backup.log 2>&1
-# worker heartbeat every 5 min
-*/5 * * * * cd /opt/crm && npx tsx scripts/worker-healthcheck.ts >> /var/log/crm-worker-health.log 2>&1 || echo "worker unhealthy $(date)" | logger -t crm
+# worker heartbeat every 5 min — INSIDE the image. Running `npx tsx` on the host cannot work:
+# the Prisma client is generated during the image build and does not exist in /opt/crm, so the
+# host form failed with `Cannot find module '.prisma/client/default'` every five minutes from the
+# day it was installed, and nobody saw it.
+*/5 * * * * docker exec crm-worker-1 node node_modules/tsx/dist/cli.mjs scripts/worker-healthcheck.ts >> /var/log/crm-worker-health.log 2>&1 || echo "worker unhealthy $(date)" | logger -t crm
+# the heartbeat above proves a worker drains a job it enqueued itself, which stayed true all the
+# way through the month inbox sync fetched nothing. This one compares Postgres against Redis.
+*/10 * * * * docker exec crm-worker-1 node node_modules/tsx/dist/cli.mjs scripts/queue-staleness-check.ts >> /var/log/crm-worker-health.log 2>&1 || echo "queue stale $(date)" | logger -t crm
 # logs
 docker compose -p crm logs -f --tail 200 web
 docker compose -p crm logs -f --tail 200 worker

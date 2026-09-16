@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { createAppWorker } from '@/lib/bullmq';
 import { JobType } from '@/lib/bullmq/types';
 import type { ImportParsePayload, ImportChunkPayload, ImportCommitPayload } from '@/lib/bullmq/types';
-import { enqueue } from '@/lib/bullmq/enqueue';
+import { enqueue, enqueueReschedule } from '@/lib/bullmq/enqueue';
 import {
   normalizeCompanyName,
   normalizeEmail,
@@ -1022,6 +1022,9 @@ async function handleImportChunk(payload: ImportChunkPayload) {
   return { success: true, batchId, chunkIndex, created, errors };
 }
 
+/** How long the commit barrier waits before re-checking that every chunk has landed. */
+const COMMIT_BARRIER_RETRY_MS = 1000;
+
 async function handleImportCommit(payload: ImportCommitPayload) {
   const { batchId } = payload;
 
@@ -1034,11 +1037,25 @@ async function handleImportCommit(payload: ImportCommitPayload) {
     where: { batchId, status: { in: ['pending', 'valid'] } },
   });
   if (pendingOrValidCount > 0) {
-    // Re-enqueue commit with delay to guarantee eventual completion
-    await enqueue(
+    // Re-enqueue commit with delay to guarantee eventual completion.
+    //
+    // Through `enqueueReschedule`, not `enqueue`: the payload is unchanged, so a plain enqueue
+    // resolves to this very job's id, and the in-flight guard refuses to add over a running job.
+    // That guard is right — it is what stops a duplicate send — so the deferral needs its own
+    // identity instead. Without it the barrier returned `chunks_still_in_flight` and scheduled
+    // nothing: seven ImportBatch rows sat at `parsed` in production on 2026-09-16 with their
+    // leads already written, five `import.commit` JobRun rows queued and never started, and an
+    // empty import queue. The discriminator is the second the retry is due in, so two workers
+    // deferring to the same moment still collapse to one job.
+    const dueAt = new Date(Math.ceil((Date.now() + COMMIT_BARRIER_RETRY_MS) / 1000) * 1000);
+    await enqueueReschedule(
       JobType.IMPORT_COMMIT,
       { batchId },
-      { tenantId: batch.tenantId, delay: 1000 }
+      {
+        tenantId: batch.tenantId,
+        delay: COMMIT_BARRIER_RETRY_MS,
+        discriminator: `commit-barrier:${dueAt.toISOString()}`,
+      }
     );
     return {
       success: false,
