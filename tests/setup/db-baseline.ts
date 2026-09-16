@@ -34,6 +34,12 @@ export const DEFAULT_TEST_TENANT_ID = 'default-tenant';
  */
 export const BULLMQ_TEST_TENANT_ID = 'test-tenant-bullmq';
 export const RUN_NOW_TEST_TENANT_ID = 'test-tenant-run-now';
+/**
+ * Its own tenant, not BullMQ's: both suites clear every JobRun row for their tenant in
+ * `beforeEach`, and vitest runs files in parallel, so sharing one would let each wipe the other's
+ * rows mid-test — which reads back as a job that was just enqueued having vanished.
+ */
+export const RECURRING_TEST_TENANT_ID = 'test-tenant-recurring';
 
 // A bare client on purpose: the extended client in `lib/prisma.ts` resolves tenant context
 // per query, and this has to run before any context exists.
@@ -45,6 +51,7 @@ try {
       { id: DEFAULT_TEST_TENANT_ID, name: 'Default Test Tenant' },
       { id: BULLMQ_TEST_TENANT_ID, name: 'BullMQ Suite Tenant' },
       { id: RUN_NOW_TEST_TENANT_ID, name: 'Run-Now Suite Tenant' },
+      { id: RECURRING_TEST_TENANT_ID, name: 'Recurring Enqueue Suite Tenant' },
     ],
     skipDuplicates: true,
   });

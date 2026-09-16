@@ -12,6 +12,7 @@ vi.mock('@/auth', () => ({ auth: vi.fn(), handlers: {}, signIn: vi.fn(), signOut
 
 const { prisma, tenantStorage } = await import('@/lib/prisma');
 const { handleImportChunk, handleImportCommit } = await import('@/workers/import');
+const { enqueue: mockEnqueue, enqueueReschedule: mockEnqueueReschedule } = await import('@/lib/bullmq/enqueue');
 
 const T = 'fault-tenant';
 const USER = 'fault-user';
@@ -328,10 +329,26 @@ describe.skipIf(!hasDb)('TEL-P1-001 / TEL-P1-005 / TEL-P1-006 / TEL-P1-007 / TEL
         })
       );
 
+      vi.mocked(mockEnqueue).mockClear();
+      vi.mocked(mockEnqueueReschedule).mockClear();
+
       const earlyCommit = await run(() => handleImportCommit({ batchId: batch.id }));
       expect(earlyCommit.success).toBe(false);
       expect(earlyCommit.inProgress).toBe(true);
       expect(earlyCommit.reason).toBe('chunks_still_in_flight');
+
+      // The barrier defers *itself*. A plain `enqueue` cannot: the payload is unchanged, so the
+      // job id is this very job's id, and the in-flight guard refuses to add over a running job —
+      // correctly, since that guard is what stops a duplicate send. The retry therefore has to go
+      // through `enqueueReschedule`, which mixes a discriminator into the dedupe key.
+      // Production evidence 2026-09-16: seven ImportBatch rows stuck at `parsed`, five
+      // `import.commit` JobRun rows queued and never started, and the import queue empty.
+      expect(vi.mocked(mockEnqueueReschedule)).toHaveBeenCalledWith(
+        expect.anything(),
+        { batchId: batch.id },
+        expect.objectContaining({ discriminator: expect.any(String) })
+      );
+      expect(vi.mocked(mockEnqueue), 'a plain enqueue here is dropped by the in-flight guard').not.toHaveBeenCalled();
 
       await run(() =>
         handleImportChunk({
