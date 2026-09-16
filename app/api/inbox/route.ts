@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { getVisibleUserIds, requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
 
@@ -13,6 +13,26 @@ function getThreadKey(subject: string | null): string {
     .toLowerCase()
     .replace(/^(re|fwd|fw):\s*/gi, '')
     .trim();
+}
+
+/**
+ * Restrict a message query to the mailboxes this viewer may read.
+ *
+ * "Unified inbox" means every mailbox *you* send from, gathered in one place — an SDR runs
+ * campaigns from several addresses and wants them together. It does not mean the company's mail.
+ * Scoped by `tenantId` alone, and with one tenant per deployment, every SDR was reading (and
+ * marking read, spamming, trashing) every colleague's replies.
+ *
+ * Ownership runs message -> `accountId` -> `EmailAccount.userId`, and who a viewer may see is
+ * already settled by `getVisibleUserIds`: an SDR themselves, a manager their reports, a director
+ * everyone. Reusing it keeps the inbox and the lead list agreeing about the same person instead
+ * of inventing a second, quietly different rule. `null` means no user-axis restriction, so the
+ * tenant filter stands alone — an empty `in: []` would hide a director's own mail.
+ */
+async function mailboxScope(user: SessionUser): Promise<{ account?: { userId: { in: string[] } } }> {
+  const visibleUserIds = await getVisibleUserIds(user);
+  if (visibleUserIds === null) return {};
+  return { account: { userId: { in: visibleUserIds } } };
 }
 
 export async function GET(req: NextRequest) {
@@ -39,9 +59,12 @@ export async function GET(req: NextRequest) {
     // whatever falls inside it; the client is told when the window was full so it can say
     // "showing recent mail" instead of implying the list is complete. Real thread-level
     // pagination means threading in SQL, which is a redesign, not a cap.
+    const scope = await mailboxScope(user);
+
     const inbound = await prisma.inboundMessage.findMany({
       where: {
         tenantId: user.tenantId,
+        ...scope,
         ...(folder === 'spam' ? { isSpam: true, isTrash: false } : {}),
         ...(folder === 'trash' ? { isTrash: true } : {}),
         ...(folder === 'inbox' ? { isSpam: false, isTrash: false } : {}),
@@ -69,6 +92,7 @@ export async function GET(req: NextRequest) {
     const outbound = await prisma.outboundMessage.findMany({
       where: {
         tenantId: user.tenantId,
+        ...scope,
         status: {
           in: [
             OUTBOUND_STATUS.SENT,
@@ -234,29 +258,35 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'messageIds must be a non-empty array' }, { status: 400 });
     }
 
+    // The same scope the read uses. A filter that hides a colleague's mail from the list but
+    // still lets an id from that list be marked, spammed or deleted is not a restriction — and
+    // `delete` here is a real deleteMany.
+    const scope = await mailboxScope(user);
+    const target = { id: { in: messageIds }, tenantId: user.tenantId, ...scope };
+
     if (action === 'read') {
       await prisma.inboundMessage.updateMany({
-        where: { id: { in: messageIds }, tenantId: user.tenantId },
+        where: target,
         data: { isRead: true },
       });
     } else if (action === 'unread') {
       await prisma.inboundMessage.updateMany({
-        where: { id: { in: messageIds }, tenantId: user.tenantId },
+        where: target,
         data: { isRead: false },
       });
     } else if (action === 'spam') {
       await prisma.inboundMessage.updateMany({
-        where: { id: { in: messageIds }, tenantId: user.tenantId },
+        where: target,
         data: { isSpam: true, isTrash: false },
       });
     } else if (action === 'trash') {
       await prisma.inboundMessage.updateMany({
-        where: { id: { in: messageIds }, tenantId: user.tenantId },
+        where: target,
         data: { isTrash: true },
       });
     } else if (action === 'delete') {
       await prisma.inboundMessage.deleteMany({
-        where: { id: { in: messageIds }, tenantId: user.tenantId },
+        where: target,
       });
     }
 

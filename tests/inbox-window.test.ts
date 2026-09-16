@@ -11,7 +11,11 @@ import { NextRequest } from 'next/server';
  */
 const mockInbound = vi.fn();
 const mockOutbound = vi.fn();
-vi.mock('@/lib/auth', () => ({ requireAuth: vi.fn(async () => ({ id: 'u1', tenantId: 't1', role: 'sdr' })) }));
+vi.mock('@/lib/auth', () => ({
+  requireAuth: vi.fn(async () => ({ id: 'u1', tenantId: 't1', role: 'sdr' })),
+  // The route scopes the window to the mailboxes this viewer owns; see inbox-mailbox-scope.test.ts.
+  getVisibleUserIds: vi.fn(async () => ['u1']),
+}));
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     inboundMessage: { findMany: (...a: unknown[]) => mockInbound(...a) },

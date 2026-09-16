@@ -6,13 +6,13 @@ import type {
   SearchCategory,
   SingleProviderOutcome,
 } from "../types";
-import { domainFromUrl, executeProviderSearch, str } from "./shared";
+import { domainFromUrl, executeProviderSearch, str, stripUnsupportedOperators } from "./shared";
 
 // CINT2: Exa provider. RAW /search only — type:"auto", numResults, contents.highlights.
 // NO outputSchema / Agent / deep variants (no provider-side LLM synthesis this phase).
 // `category` routes to Exa's dedicated people/company index — the right lever for
-// contact vs company discovery (docs: people/company reject excludeDomains + date
-// filters; includeDomains for people is LinkedIn-only, so we send neither).
+// contact vs company discovery. Both "people" and "company" are valid category values;
+// `people`/`company` reject excludeDomains and date filters, so we send neither.
 // Docs source of truth: https://docs.exa.ai/reference/search-api-guide-for-coding-agents
 const EXA_ENDPOINT = "https://api.exa.ai/search";
 
@@ -30,7 +30,10 @@ export class ExaSearchProvider implements CompanyIntelSearchProvider {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": this.apiKey },
         body: JSON.stringify({
-          query: input.query,
+          // `site:` is a keyword-engine operator. Exa's reference says to filter by parameter
+          // instead, and sent in the query text it steers the semantic search rather than
+          // restricting it — which is how a contact run came back with no profiles in it.
+          query: stripUnsupportedOperators(input.query),
           type: "auto",
           numResults: input.resultsPerQuery,
           contents: { highlights: true },

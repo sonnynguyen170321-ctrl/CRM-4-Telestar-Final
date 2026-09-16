@@ -152,3 +152,25 @@ export function str(record: Record<string, unknown>, key: string): string | null
   const v = record[key];
   return typeof v === "string" && v.trim() ? v.trim() : null;
 }
+
+/**
+ * Remove search operators a neural provider does not implement.
+ *
+ * The discovery planner writes one query string for every provider in the chain. Brave and Serper
+ * are keyword engines and honour `site:` / `-site:`; Exa is neural, and its reference is explicit:
+ * "Use this parameter for domain or path filtering instead of adding a `site:` operator to the
+ * query." Sent anyway, the operator is not a filter — it is embedded in the semantic query and
+ * steers it. A production contact run asked for `site:linkedin.com/in "CEO" "Saas" Singapore`,
+ * got back 200 with pages that were not profiles, and `parseContactHits` discarded all of them.
+ *
+ * Quoted phrases are left alone: Exa does use those.
+ */
+export function stripUnsupportedOperators(query: string): string {
+  const stripped = query
+    .replace(/(^|\s)-?site:\S+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // A query that was nothing but operators would become an empty string, and an empty query asks
+  // for everything. Keep the original, whose domain at least reads as a semantic hint.
+  return stripped.length > 0 ? stripped : query;
+}
