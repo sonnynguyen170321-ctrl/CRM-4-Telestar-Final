@@ -179,6 +179,9 @@ export async function runDiscoveryPass(params: {
   };
 
   let cursor = run.queryCursor;
+  // Raw results the providers returned, before parsing. The difference between "the web had
+  // nothing" and "nothing we got back was readable" is only visible here.
+  let hitsSeen = 0;
   const providerFailures = new Map<string, number | null>();
   const deps = params.deps ?? searchDepsFor({ tenantId, runId, stage: 'discovery' });
 
@@ -211,6 +214,7 @@ export async function runDiscoveryPass(params: {
       discovered: 0,
       duplicates: 0,
       rejected: 0,
+      hits: 0,
       providerFailures: new Map(),
     };
     try {
@@ -238,6 +242,7 @@ export async function runDiscoveryPass(params: {
     result.discovered += harvested.discovered;
     result.duplicates += harvested.duplicates;
     result.rejected += harvested.rejected;
+    hitsSeen += harvested.hits;
     cursor += 1;
     result.queriesRun += 1;
 
@@ -264,8 +269,24 @@ export async function runDiscoveryPass(params: {
 
     // Zero candidates plus at least one provider that hard-failed is a broken run, not an empty one.
     // Reporting it as `succeeded` is how a dead API key spends a week looking like a narrow ICP.
-    const brokenRun = (totals?.discoveredCount ?? 0) === 0 && providerFailures.size > 0;
-    result.errorMessage = brokenRun ? describeProviderFailures(providerFailures) : null;
+    const nothingFound = (totals?.discoveredCount ?? 0) === 0;
+    const providersBroke = providerFailures.size > 0;
+
+    // The other way to find nothing while everything reports fine: the providers answered, and the
+    // parser threw every result away. A contact run did exactly this in production — Exa was asked
+    // for a category it does not have, with a `site:` operator a neural engine does not honour, so
+    // it returned 200 and pages that were not profiles. `succeeded` with zero candidates reads as
+    // "the ICP is narrow"; it was misconfiguration. An ICP rejection is not this: that is the
+    // filter working, and it is counted separately.
+    const parsedNothing = nothingFound && hitsSeen > 0 && result.duplicates === 0 && result.rejected === 0;
+
+    const brokenRun = nothingFound && (providersBroke || parsedNothing);
+    result.errorMessage = brokenRun
+      ? providersBroke
+        ? describeProviderFailures(providerFailures)
+        : `Providers returned ${hitsSeen} result(s) and none could be read as a ${run.kind === 'contact' ? 'person' : 'company'}. ` +
+          'Check the query plan and the provider category before treating this as an empty market.'
+      : null;
 
     await prisma.researchRun.updateMany({
       where: { id: runId, tenantId },
@@ -287,7 +308,7 @@ async function harvestQuery(input: {
   query: DiscoveryQuery;
   rules: unknown | null;
   deps: SearchDeps;
-}): Promise<{ discovered: number; duplicates: number; rejected: number; providerFailures: Map<string, number | null> }> {
+}): Promise<{ discovered: number; duplicates: number; rejected: number; hits: number; providerFailures: Map<string, number | null> }> {
   const { tenantId, runId, kind, query, rules, deps } = input;
 
   // `company_profile` is the widest of the chain's purposes — discovery is looking for who exists at
@@ -337,7 +358,7 @@ async function harvestQuery(input: {
     else duplicates += 1;
   }
 
-  return { discovered, duplicates, rejected, providerFailures };
+  return { discovered, duplicates, rejected, hits: hits.length, providerFailures };
 }
 
 async function persistCandidate(input: {

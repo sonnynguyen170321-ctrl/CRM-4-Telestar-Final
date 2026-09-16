@@ -293,6 +293,37 @@ describe('research discovery', () => {
     expect(run.errorMessage).toBeNull();
   });
 
+  it('fails a run whose providers answered but whose results all parsed to nothing', async () => {
+    // The failure that took a month to notice on a contact run: Exa was asked for a category it
+    // does not have and given a `site:` operator it does not honour, so it answered 200 with
+    // pages that are not company profiles. Every hit was dropped by the parser, the run was
+    // written `succeeded` with zero candidates, and the operator read a green toast over an empty
+    // table as "the ICP is narrow" rather than "this is misconfigured".
+    //
+    // Distinct from the test below: there, the providers genuinely returned nothing.
+    const marker = randomUUID().slice(0, 8);
+    const runId = await seedRun('company', [`unparseable serp ${marker}`]);
+
+    const result = await runDiscoveryPass({
+      tenantId: TENANT,
+      runId,
+      // Every hit is a roundup on a tech-media host — real results, no company among them.
+      deps: fixtureDeps([
+        { title: `Top 10 Software Companies ${marker}`, url: 'https://techradar.com/best-software', snippet: 'Our roundup of the ten best software companies to watch this year.' },
+        { title: `The 15 Best CRMs ${marker}`, url: 'https://techradar.com/best-crm', snippet: 'Fifteen CRM tools compared and ranked for small teams.' },
+      ]),
+    });
+
+    expect(result.discovered).toBe(0);
+    const run = await prisma.researchRun.findFirstOrThrow({
+      where: { id: runId },
+      select: { status: true, errorMessage: true },
+    });
+    expect(run.status).toBe('failed');
+    expect(run.errorMessage, 'the message has to name what happened, not just that it failed')
+      .toMatch(/result/i);
+  });
+
   it('refuses to create a run with no queries', async () => {
     await expect(createResearchRun({ tenantId: TENANT, kind: 'company' })).rejects.toThrow(
       /No discovery queries/

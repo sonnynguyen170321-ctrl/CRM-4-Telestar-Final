@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { canAccessLead, requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 import { newRequestId } from '@/lib/email/idempotency';
@@ -34,11 +34,19 @@ export async function POST(
     // 1. Fetch Lead details — scoped to the caller's tenant.
     const lead = await prisma.lead.findFirst({
       where: { id: leadId, tenantId: user.tenantId },
-      select: { id: true, email: true, assignedToId: true },
+      select: { id: true, email: true, assignedToId: true, campaignId: true },
     });
 
     if (!lead) {
       return NextResponse.json({ error: 'Associated lead not found' }, { status: 404 });
+    }
+
+    // Same tenant is not the same as yours. This send goes out through the mailbox of
+    // `lead.assignedToId` — so without this check any authenticated user could reply on any
+    // colleague's lead, and the prospect would receive mail signed by someone who never wrote it.
+    // An impersonated send cannot be recalled, which is why the gate is here and not in the UI.
+    if (!(await canAccessLead(user, lead))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // 2. Fetch the active email account for this lead's owner

@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import Linkedin from '@/components/icons/Linkedin';
+import { stepOwnership } from '@/lib/sequences/stepOwnership';
 import { useToast } from '@/context/ToastContext';
 import { useAppContext } from '@/context/AppContext';
 import Link from 'next/link';
@@ -916,6 +917,10 @@ export default function SequencesPage() {
                       {enrollments.map((enr) => {
                         const isSelected = selectedEnrollments.includes(enr.id);
                         const pendingTask = enr.lead.tasks?.[0];
+                        // A LinkedIn or call step is the rep's to make; the worker only sends
+                        // email. Saying so here is what stops a due date on a manual step from
+                        // reading as a broken engine.
+                        const ownership = stepOwnership(pendingTask?.type);
                         return (
                           <tr key={enr.id} className={`hover:bg-bg-main/30 transition-colors ${isSelected ? 'bg-brand-red/5' : ''}`}>
                             <td className="px-4 py-3">
@@ -941,7 +946,17 @@ export default function SequencesPage() {
                                 {enr.status.toUpperCase()}
                               </span>
                             </td>
-                            <td className="px-4 py-3 font-mono text-text-primary">Step {enr.currentStep}</td>
+                            <td className="px-4 py-3">
+                              <div className="font-mono text-text-primary">Step {enr.currentStep}</div>
+                              {pendingTask && (
+                                <div
+                                  className={`mt-0.5 type-meta ${ownership.owner === 'human' ? 'text-amber-500' : 'text-text-muted'}`}
+                                  title={ownership.reason}
+                                >
+                                  {ownership.label}
+                                </div>
+                              )}
+                            </td>
                             <td className="px-4 py-3 font-mono text-text-muted">
                               {pendingTask ? new Date(pendingTask.dueDate).toLocaleString() : '-'}
                             </td>
@@ -957,9 +972,9 @@ export default function SequencesPage() {
                                 {enr.status === 'active' && (
                                   <button
                                     onClick={() => handleRunNow(enr.id)}
-                                    disabled={actionLoadingId !== null}
-                                    className="p-1 hover:bg-green-500/10 text-text-muted hover:text-green-500 rounded transition-colors disabled:opacity-50"
-                                    title="Run Now (Execute pending step immediately)"
+                                    disabled={actionLoadingId !== null || !ownership.canRunNow}
+                                    className="p-1 hover:bg-green-500/10 text-text-muted hover:text-green-500 rounded transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-muted disabled:cursor-not-allowed"
+                                    title={ownership.canRunNow ? 'Run Now (Execute pending step immediately)' : ownership.reason}
                                   >
                                     <Play className="w-4 h-4 fill-current" />
                                   </button>
