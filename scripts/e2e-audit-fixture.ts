@@ -244,6 +244,46 @@ async function main(): Promise<void> {
       },
     });
 
+    // One mailbox per owner, inside the same tenant, each holding one message.
+    //
+    // The pair above is cross-tenant, which is a different question. What went unnoticed until
+    // 2026-09-17 is the intra-tenant one: `/api/inbox` filtered on `tenantId` alone, so with a
+    // single tenant every SDR read — and could mark, spam, trash and delete — every colleague's
+    // mail. Two mailboxes owned by two users in one tenant, with a message apiece, is the
+    // smallest arrangement in which that question has an answer.
+    for (const ownerKey of ownerKeys) {
+      const mailboxId = `pw-audit-mailbox-${ownerKey.toLowerCase()}`;
+      await prisma.emailAccount.upsert({
+        where: { id: mailboxId },
+        update: { userId: ids[ownerKey]! },
+        create: {
+          id: mailboxId,
+          userId: ids[ownerKey]!,
+          email: `${ownerKey.toLowerCase()}.box@audit.test`,
+          provider: 'imap_smtp',
+          isActive: true,
+          tenantId,
+        },
+      });
+      await prisma.inboundMessage.upsert({
+        where: { id: `pw-audit-inbound-${ownerKey.toLowerCase()}` },
+        update: {},
+        create: {
+          id: `pw-audit-inbound-${ownerKey.toLowerCase()}`,
+          accountId: mailboxId,
+          providerMessageId: `pw-audit-msg-${ownerKey.toLowerCase()}`,
+          fromEmail: `prospect.${ownerKey.toLowerCase()}@audit.test`,
+          fromName: `Prospect for ${ownerKey}`,
+          to: `${ownerKey.toLowerCase()}.box@audit.test`,
+          subject: `PW_AUDIT_INBOX_${ownerKey.toUpperCase()}`,
+          body: 'Reply body seeded for the mailbox-scope audit.',
+          date: new Date(),
+          tenantId,
+        },
+      });
+      built[`inboxMailbox${ownerKey.replace(/^./, (c) => c.toUpperCase())}`] = mailboxId;
+    }
+
     built[`client${suffix}`] = client.id;
     built[`campaign${suffix}`] = campaign.id;
     built[`mailbox${suffix}`] = `pw-audit-mailbox-${suffix.toLowerCase()}`;
