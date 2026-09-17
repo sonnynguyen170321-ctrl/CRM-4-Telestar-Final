@@ -37,6 +37,9 @@ export type Fixture = {
   campaignB: string;
   mailboxA: string;
   mailboxB: string;
+  /** Mailboxes owned by two different users inside tenant A, each holding one seeded message. */
+  inboxMailboxSdrA: string;
+  inboxMailboxSdrB: string;
 };
 
 const MANIFEST = path.join(process.cwd(), 'e2e', '.fixture.json');
