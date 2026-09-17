@@ -86,7 +86,11 @@ export async function POST(req: NextRequest) {
             autoComplete: step.autoComplete ?? false,
             sendWindowStartMinutes: step.sendWindowStartMinutes ?? null,
             sendWindowEndMinutes: step.sendWindowEndMinutes ?? null,
-            tenantId: user.tenantId!,
+            // No `tenantId` here. On SequenceStep that column is the foreign key of three
+            // relations at once (sequence, template, tenant), so Prisma does not expose it as a
+            // scalar in a nested create — it arrives down the relation from the parent, which the
+            // client extension has already stamped. Naming it made every create fail with
+            // `Unknown argument 'tenantId'`; the copy button 500'd six times on 2026-09-17.
           })),
         },
       },
