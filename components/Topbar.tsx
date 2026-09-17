@@ -154,43 +154,55 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
     }
   };
 
+  // Dismissals remove the row only once the server has accepted it. Removing first and never
+  // reading the response makes a refused dismissal look like a successful one — the item vanishes,
+  // then reappears on the next poll with no explanation.
   const handleDismissNotification = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    await fetch(`/api/notifications`, {
+    const res = await fetch(`/api/notifications`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     });
+    if (!res.ok) return;
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
   const handleDismissReminder = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    await fetch(`/api/reminders/${id}`, {
+    const res = await fetch(`/api/reminders/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ isDismissed: true }),
     });
+    if (!res.ok) return;
     setReminders((prev) => prev.filter((r) => r.id !== id));
   };
 
   const handleDismissAll = async () => {
-    await fetch('/api/notifications', {
+    const res = await fetch('/api/notifications', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ markAllRead: true }),
     });
-    setNotifications([]);
-    await Promise.all(
-      reminders.map((r) =>
-        fetch(`/api/reminders/${r.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ isDismissed: true }),
-        })
-      )
+    if (res.ok) setNotifications([]);
+
+    // Per reminder, keep the ones the server would not dismiss rather than clearing the list and
+    // letting them return on the next poll.
+    const outcomes = await Promise.all(
+      reminders.map(async (r) => ({
+        id: r.id,
+        ok: (
+          await fetch(`/api/reminders/${r.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isDismissed: true }),
+          })
+        ).ok,
+      }))
     );
-    setReminders([]);
+    const refused = new Set(outcomes.filter((o) => !o.ok).map((o) => o.id));
+    setReminders((prev) => prev.filter((r) => refused.has(r.id)));
   };
 
   const handleNewClick = (type: 'lead' | 'task' | 'reminder' | 'campaign') => {

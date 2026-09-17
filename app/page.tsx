@@ -259,12 +259,15 @@ export default function DashboardPage() {
     });
     if (!res.ok) {
       showToast('Failed to update task', 'error');
-      return;
+      // Returned, not just toasted: a caller that goes on to move the lead and announce it is
+      // reporting work the server refused.
+      return false;
     }
     if (status === 'skipped') showToast('Task skipped', 'info');
     else if (status === 'completed') showToast('Task completed ✓', 'success');
     clearDeferred(taskId);
     loadAll();
+    return true;
   };
 
   const handleLoggingSubmit = async (e: React.FormEvent) => {
@@ -277,17 +280,27 @@ export default function DashboardPage() {
       (task.type === 'linkedin' || task.type === 'whatsapp') && responseReceived
         ? `[Response received] ${activityNote}`.trim()
         : activityNote;
-    await submitComplete(task.id, 'completed', noteWithResponse, outcome);
+    const completed = await submitComplete(task.id, 'completed', noteWithResponse, outcome);
     setLoggingModalOpen(false);
     setLoggingTask(null);
+    // `submitComplete` has already said why. Going further would move the lead and announce a
+    // stage change on top of a touch that was never logged.
+    if (!completed) return;
 
     if (responseStage && (task.type === 'linkedin' || task.type === 'whatsapp')) {
-      await fetch(`/api/leads/${task.leadId}`, {
+      const moved = await fetch(`/api/leads/${task.leadId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage: responseStage }),
       });
-      showToast(`Lead moved to ${responseStage.replace(/_/g, ' ')}`, 'success');
+      // A 403 on a lead that is not this rep's looks exactly like success to anyone who does not
+      // read the response. The toast follows the answer.
+      if (moved.ok) {
+        showToast(`Lead moved to ${responseStage.replace(/_/g, ' ')}`, 'success');
+        loadAll();
+      } else {
+        showToast(`Touch logged, but the lead could not be moved to ${responseStage.replace(/_/g, ' ')}`, 'error');
+      }
     }
     setResponseStage('');
 
