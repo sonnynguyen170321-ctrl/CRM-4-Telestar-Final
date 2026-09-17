@@ -147,13 +147,30 @@ describe('scoreInbox — other thresholds', () => {
     ).toContain('no_replies_at_volume');
   });
 
-  it('penalises unverified DNS only for a mailbox that is actually sending', () => {
-    expect(scoreInbox(healthyMetrics({ dnsStatus: 'unknown', sentCount: 0, replyCount: 0 }), NOW).reasonCodes)
-      .not.toContain('dns_unverified');
-    expect(scoreInbox(healthyMetrics({ dnsStatus: 'unknown' }), NOW).reasonCodes)
-      .toContain('dns_unverified');
+  it('penalises failing DNS only for a mailbox that is actually sending', () => {
+    expect(scoreInbox(healthyMetrics({ dnsStatus: 'failed', sentCount: 0, replyCount: 0 }), NOW).reasonCodes)
+      .not.toContain('dns_failing');
     expect(scoreInbox(healthyMetrics({ dnsStatus: 'failed' }), NOW).reasonCodes)
-      .toContain('dns_unverified');
+      .toContain('dns_failing');
+  });
+
+  it('does not take points off for a DNS check nobody has run', () => {
+    // `EmailDomainHealth` for itelestar.com sat at spf/dkim/dmarc/mx = unknown with
+    // `lastCheckedAt` NULL — `checkDomainDns` is only reachable from a manual route and no
+    // schedule calls it. A mailbox was marked at_risk for that, on a domain whose SPF and DMARC
+    // are in fact correct. Deducting for our own failure to look is not a health signal, and with
+    // EMAIL_HEALTH_AUTOPAUSE on it is a phantom that can pause a working inbox.
+    const unchecked = scoreInbox(healthyMetrics({ dnsStatus: 'unknown' }), NOW);
+    const verified = scoreInbox(healthyMetrics({ dnsStatus: 'verified' }), NOW);
+
+    expect(unchecked.score).toBe(verified.score);
+    expect(unchecked.reasonCodes).not.toContain('dns_failing');
+  });
+
+  it('still says out loud that the domain has not been checked', () => {
+    // Silence would be the other failure: nobody would ever know to run the check.
+    const unchecked = scoreInbox(healthyMetrics({ dnsStatus: 'unknown' }), NOW);
+    expect(unchecked.reasonCodes).toContain('dns_unchecked');
   });
 
   it('penalises an inactive mailbox', () => {

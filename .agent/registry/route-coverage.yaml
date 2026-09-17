@@ -388,10 +388,12 @@ routes:
     methods: [POST]
     tests:
       - tests/email-health-access.test.ts
+      - tests/email-health-dns-refresh.test.ts
   - path: app/api/email-health/domains/route.ts
     methods: [GET]
     tests:
       - tests/email-health-access.test.ts
+      - tests/email-health-dns-refresh.test.ts
   - path: app/api/email-health/export/csv/route.ts
     methods: [GET]
     tests: []
@@ -768,6 +770,7 @@ routes:
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enroll/route.ts
     methods: [DELETE, POST]
@@ -775,6 +778,7 @@ routes:
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/logs/route.ts
     methods: [GET]
@@ -782,6 +786,7 @@ routes:
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/run-now/route.ts
     methods: [POST]
@@ -789,6 +794,7 @@ routes:
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/status/route.ts
     methods: [PATCH]
@@ -796,6 +802,7 @@ routes:
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enrollments/bulk-action/route.ts
     methods: [POST]
@@ -803,6 +810,7 @@ routes:
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enrollments/route.ts
     methods: [GET]
@@ -810,6 +818,7 @@ routes:
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/route.ts
     methods: [DELETE, GET, PUT]
@@ -817,6 +826,7 @@ routes:
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/analytics/route.ts
     methods: [GET]
@@ -831,6 +841,7 @@ routes:
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/team-analytics/route.ts
     methods: [GET]

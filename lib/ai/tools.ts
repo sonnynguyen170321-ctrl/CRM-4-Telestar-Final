@@ -629,12 +629,27 @@ async function runEvaluateLeadQuality(
     leadId,
   });
 
+  const duplicates =
+    assessment.duplicateLeadIds.length > 0
+      ? ` Possible duplicates: ${assessment.duplicateLeadIds.join(', ')}.`
+      : '';
+
+  // No requirements is not a failing grade. `meetsAnyRequirement` is `matches.some(...)`, which is
+  // `false` over an empty list — literally correct, and read as a verdict once a sentence is built
+  // on it. `CampaignLeadRequirement` has never held a row in production, so every lead came back
+  // as failing criteria nobody had written, which is why lead scoring was reported as useless.
+  if (assessment.requirements.length === 0) {
+    return (
+      `Lead ${assessment.leadId} was not measured: ${assessment.summary} ` +
+      'Configure lead requirements on the campaign to score leads against it.' +
+      duplicates
+    );
+  }
+
   return (
     `Lead ${assessment.leadId}: ${assessment.meetsAnyRequirement ? 'meets' : 'does not fully meet'} the campaign lead requirements. ` +
     `${assessment.summary}` +
-    (assessment.duplicateLeadIds.length > 0
-      ? ` Possible duplicates: ${assessment.duplicateLeadIds.join(', ')}.`
-      : '')
+    duplicates
   );
 }
 

@@ -21,7 +21,10 @@ const ALERTABLE_REASONS: ReadonlySet<HealthReasonCode> = new Set([
   'soft_bounce_elevated',
   'spam_signals',
   'daily_cap_nearly_exhausted',
-  'dns_unverified',
+  'dns_failing',
+  // `dns_unchecked` is deliberately absent. It is a prompt to run a check, not a reason to
+  // interrupt a manager — and raising it on every domain nobody has checked yet is how an alert
+  // panel becomes something people scroll past.
 ]);
 
 const SEVERITY_BY_REASON: Record<HealthReasonCode, EmailHealthAlertSeverity> = {
@@ -34,7 +37,8 @@ const SEVERITY_BY_REASON: Record<HealthReasonCode, EmailHealthAlertSeverity> = {
   spam_signals: 'critical',
   daily_cap_nearly_exhausted: 'info',
   no_replies_at_volume: 'info',
-  dns_unverified: 'warning',
+  dns_failing: 'warning',
+  dns_unchecked: 'info',
 };
 
 const SEVERITY_RANK: Record<EmailHealthAlertSeverity, number> = {
