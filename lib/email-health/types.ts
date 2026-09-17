@@ -18,7 +18,10 @@ export type HealthReasonCode =
   | 'spam_signals'
   | 'daily_cap_nearly_exhausted'
   | 'no_replies_at_volume'
-  | 'dns_unverified';
+  /** The DNS check ran and the domain failed it. A real deliverability risk. */
+  | 'dns_failing'
+  /** Nobody has run the DNS check. Says so; costs no points. */
+  | 'dns_unchecked';
 
 /** DNS posture for the domain a mailbox sends from. */
 export type DnsPosture = 'verified' | 'failed' | 'unknown';

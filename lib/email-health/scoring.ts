@@ -59,8 +59,18 @@ export function levelForScore(score: number): EmailHealthLevelValue {
   return 'critical';
 }
 
+/**
+ * Only a check that ran and failed is a risk.
+ *
+ * This used to be `status !== 'verified'`, which put "we looked and it is broken" and "nobody has
+ * looked" in the same bucket. `checkDomainDns` is reachable only from a manual route and no
+ * schedule calls it, so every domain sat at `unknown` forever and every sending mailbox carried
+ * the penalty — on 2026-09-17 a mailbox was `at_risk` for it while the domain's SPF and DMARC were
+ * in fact correct. Deducting for our own failure to look is not a health signal, and with
+ * `EMAIL_HEALTH_AUTOPAUSE` enabled it can pause a working inbox.
+ */
 function isDnsRisky(status: DnsPosture): boolean {
-  return status !== 'verified';
+  return status === 'failed';
 }
 
 export function scoreInbox(metrics: InboxHealthMetrics, now: Date = new Date()): InboxHealthResult {
@@ -116,7 +126,10 @@ export function scoreInbox(metrics: InboxHealthMetrics, now: Date = new Date()):
 
   // Unverified DNS only matters for a mailbox that is actually sending.
   if (isDnsRisky(metrics.dnsStatus) && metrics.sentCount > 0) {
-    deduct(PENALTY_DNS_UNVERIFIED, 'dns_unverified');
+    deduct(PENALTY_DNS_UNVERIFIED, 'dns_failing');
+  } else if (metrics.dnsStatus === 'unknown') {
+    // Visible without being a penalty: silence here is how a check goes unrun for months.
+    reasonCodes.push('dns_unchecked');
   }
 
   const clampedScore = Math.max(0, Math.min(STARTING_SCORE, score));

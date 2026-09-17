@@ -10,6 +10,7 @@ import {
   toHealthMetrics,
   type ScorableAccount,
 } from './metrics';
+import { checkDomainDns, type DomainDnsResult } from './domains';
 
 /**
  * The hourly health pass: score every active inbox, cache the result on
@@ -42,6 +43,51 @@ const ACCOUNT_SELECT = {
 } as const;
 
 /**
+ * How long a DNS verdict stays good for. An hourly health pass must not become an hourly
+ * resolver query, and SPF/DMARC/MX records do not change by the hour.
+ */
+export const DNS_RECHECK_MS = 24 * 60 * 60_000;
+
+/** True when a domain has never been checked, or its last check has gone stale. */
+export function shouldRefreshDns(lastCheckedAt: Date | null | undefined, now: Date): boolean {
+  if (!lastCheckedAt) return true;
+  return now.getTime() - lastCheckedAt.getTime() > DNS_RECHECK_MS;
+}
+
+/**
+ * Run the DNS check for one domain and shape the result for the `EmailDomainHealth` row.
+ *
+ * Returns `null` when the check itself could not be completed. An unreachable resolver is not
+ * evidence that a domain is misconfigured, and writing `fail` on our own outage is the same
+ * mistake as scoring an unrun check as risky — it turns our problem into theirs.
+ *
+ * The checker is a parameter so the hourly pass can be tested without DNS I/O.
+ */
+export async function refreshDomainDns(
+  domain: string,
+  check: (domain: string) => Promise<DomainDnsResult>
+): Promise<{
+  spfStatus: DomainDnsResult['spfStatus'];
+  dmarcStatus: DomainDnsResult['dmarcStatus'];
+  mxStatus: DomainDnsResult['mxStatus'];
+  dnsNotes: string;
+  lastCheckedAt: Date;
+} | null> {
+  try {
+    const result = await check(domain);
+    return {
+      spfStatus: result.spfStatus,
+      dmarcStatus: result.dmarcStatus,
+      mxStatus: result.mxStatus,
+      dnsNotes: result.notes.join('; '),
+      lastCheckedAt: result.checkedAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Scores every active inbox for one tenant.
  *
  * Must be called inside a tenantStorage.run for the tenant in question — writes
@@ -49,7 +95,9 @@ const ACCOUNT_SELECT = {
  */
 export async function runHealthPassForTenant(
   tenantId: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  // Injected so the pass can be exercised without DNS I/O; production takes the real resolver.
+  checkDns: (domain: string) => Promise<DomainDnsResult> = checkDomainDns
 ): Promise<RunHealthPassResult> {
   const accounts = await prisma.emailAccount.findMany({
     where: { isActive: true },
@@ -78,9 +126,37 @@ export async function runHealthPassForTenant(
   const domains = Array.from(
     new Set(accounts.map((a) => domainOf(a.email)).filter((d): d is string => Boolean(d)))
   );
-  const domainRows = await prisma.emailDomainHealth.findMany({
+  let domainRows = await prisma.emailDomainHealth.findMany({
     where: { domain: { in: domains } },
   });
+
+  // Verify the domains whose verdict is missing or stale, before the posture is read below, so a
+  // freshly checked domain is scored on this pass rather than the next one.
+  //
+  // Nothing did this. `checkDomainDns` was reachable only from a route a human had to press, so
+  // every domain sat at `unknown` indefinitely — and until the scorer was corrected alongside this,
+  // every sending mailbox on such a domain carried a penalty for a check nobody had run.
+  type DnsFields = NonNullable<Awaited<ReturnType<typeof refreshDomainDns>>>;
+  const refreshed = new Map<string, DnsFields>();
+  for (const domain of domains) {
+    const row = domainRows.find((d) => d.domain === domain);
+    if (!shouldRefreshDns(row?.lastCheckedAt ?? null, now)) continue;
+    const dns = await refreshDomainDns(domain, checkDns);
+    if (dns) refreshed.set(domain, dns);
+  }
+
+  if (refreshed.size > 0) {
+    for (const [domain, dns] of refreshed) {
+      await prisma.emailDomainHealth.upsert({
+        where: { tenantId_domain: { tenantId, domain } },
+        create: { domain, tenantId, ...dns },
+        update: dns,
+      });
+    }
+    domainRows = await prisma.emailDomainHealth.findMany({
+      where: { domain: { in: domains } },
+    });
+  }
   const domainByName = new Map(domainRows.map((d) => [d.domain, d]));
 
   // Per-domain accumulators for the rollup written at the end.

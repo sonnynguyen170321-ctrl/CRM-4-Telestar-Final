@@ -17,7 +17,8 @@ export const REASON_LABEL: Record<HealthReasonCode, string> = {
   spam_signals: 'Recipients are marking messages as spam',
   daily_cap_nearly_exhausted: 'Daily sending cap is nearly exhausted',
   no_replies_at_volume: 'No replies despite meaningful send volume',
-  dns_unverified: 'Sending domain DNS is unverified or failing',
+  dns_failing: 'Sending domain DNS checks are failing',
+  dns_unchecked: 'Sending domain DNS has not been checked yet',
 };
 
 export const RECOMMENDED_ACTION: Record<HealthReasonCode, string> = {
@@ -30,7 +31,8 @@ export const RECOMMENDED_ACTION: Record<HealthReasonCode, string> = {
   spam_signals: 'Review message content and cadence; consider switching to LinkedIn or calls',
   daily_cap_nearly_exhausted: 'Spread sends across the day or raise the cap if the domain is warm',
   no_replies_at_volume: 'Check that outbound mail is landing in the inbox; review copy and targeting',
-  dns_unverified: 'Run a DNS check and fix SPF, DKIM, DMARC and MX records for the domain',
+  dns_failing: 'Fix the failing SPF, DKIM, DMARC or MX record for the domain, then re-check',
+  dns_unchecked: 'Run the DNS check for this domain — nothing is known about it yet',
 };
 
 /** Maps reason codes to their labels, preserving order and dropping duplicates. */
