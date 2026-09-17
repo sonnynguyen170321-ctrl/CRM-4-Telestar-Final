@@ -241,8 +241,21 @@ export default function LeadsPage() {
   const { data: users = [] } = useUsers();
   const { data: sequences = [] } = useSequences();
   const queryClient = useQueryClient();
-  const invalidateLeads = () => queryClient.invalidateQueries({ queryKey: ['leads'] });
+  const invalidateLeads = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['leads'] }),
+    [queryClient]
+  );
   const updateStageMutation = useUpdateLeadStage();
+
+  // `DashboardShell` fires this after the New Lead modal succeeds. Nothing listened for it, so the
+  // lead was written and the list it belongs to went on showing the old page — the operator pressed
+  // a button, the modal closed, and nothing appeared to happen. Its siblings
+  // (`crm:task-created`, `crm:reminder-created`) have always been wired this way.
+  useEffect(() => {
+    const refresh = () => invalidateLeads();
+    window.addEventListener('crm:lead-created', refresh);
+    return () => window.removeEventListener('crm:lead-created', refresh);
+  }, [invalidateLeads]);
 
   const handleSetViewMode = (mode: 'kanban' | 'table') => {
     setViewMode(mode);
