@@ -30,9 +30,11 @@ export class ExaSearchProvider implements CompanyIntelSearchProvider {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": this.apiKey },
         body: JSON.stringify({
-          // `site:` is a keyword-engine operator. Exa's reference says to filter by parameter
-          // instead, and sent in the query text it steers the semantic search rather than
-          // restricting it — which is how a contact run came back with no profiles in it.
+          // `site:` is a keyword-engine operator; Exa's reference says to filter by parameter
+          // instead of putting one in the query. Stripping it is still right, but it was not the
+          // cause of the empty contact runs — measured on 2026-09-17, Exa returns the same
+          // LinkedIn profiles with the operator present or absent. The results were being lost
+          // afterwards, in `parseContactHits`; see the note there.
           query: stripUnsupportedOperators(input.query),
           type: "auto",
           numResults: input.resultsPerQuery,

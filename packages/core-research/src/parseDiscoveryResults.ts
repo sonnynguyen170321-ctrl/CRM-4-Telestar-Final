@@ -234,17 +234,27 @@ export function parseContactHits(query: string, hits: RawSearchHit[]): ParsedCan
     if (NON_PROFILE_SLUGS.has(slug) || /^\d+$/.test(slug)) continue;
 
     const cleanTitle = stripLinkedInSuffix(hit.title).trim();
+    // Two title shapes, because two kinds of engine name a page differently.
+    //
+    // A keyword engine returns the SERP title — "Name - Role - Company | LinkedIn" — and there a
+    // bare title means an index or listicle, which is why harvesting those produced junk contacts.
+    // A neural provider returns the page's own title, which for a profile is just the person.
+    // Measured against Exa with the query the planner emits (2026-09-17): every result was a real
+    // `/in/<slug>` profile titled "Janson Seah", "Dorothy Yiu", "Sukhveer Singh Bajaj" — and every
+    // one was discarded. That was the whole of "research for people doesn't work".
+    //
+    // The listicle guard survives intact: it now rests on `looksLikePersonName` over a
+    // `/in/<slug>` URL, which a directory page fails on both counts. What is not done here is
+    // guessing: a bare title carries no role, and mining one out of the snippet would put an
+    // invented job title on a real person.
     const parsed = splitLinkedInTitle(cleanTitle);
-    // No fallback to the raw page title: if the "Name - Role - Company" shape isn't there, this is an
-    // index/listicle/utility page, not a profile. Harvesting it produced the junk contacts.
-    if (!parsed) continue;
-    const name = parsed.name;
+    const name = parsed ? parsed.name : cleanTitle;
     if (!looksLikePersonName(name)) continue;
     // Middle segment = role; trailing "at Company" inside role also handled. Located with
     // `\s+(?:at|@)\s+` — a literal between two single quantifiers — instead of `(.+?)\s+…\s+(.+)`,
     // whose `.` also matches whitespace and backtracks polynomially.
-    let role: string | null = parsed.role;
-    let company: string | null = parsed.company;
+    let role: string | null = parsed ? parsed.role : null;
+    let company: string | null = parsed ? parsed.company : null;
     if (role && !company) {
       const at = /\s+(?:at|@)\s+/i.exec(role);
       if (at && at.index > 0 && at.index + at[0].length < role.length) {
