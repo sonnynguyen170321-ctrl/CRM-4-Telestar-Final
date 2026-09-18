@@ -11,6 +11,7 @@ const mockRowCount = vi.fn();
 const mockLeadFindMany = vi.fn();
 const mockLeadFindUnique = vi.fn();
 const mockLeadCreate = vi.fn();
+const mockEnrollmentCreate = vi.fn();
 const mockLeadUpdate = vi.fn();
 const mockActivityCreate = vi.fn();
 const mockSequenceFindUnique = vi.fn();
@@ -75,6 +76,9 @@ vi.mock('@/lib/prisma', () => ({
     },
     sequence: {
       findUnique: (...args: unknown[]) => mockSequenceFindUnique(...args),
+    },
+    sequenceEnrollment: {
+      create: (...args: unknown[]) => mockEnrollmentCreate(...args),
     },
     contact: {
       findUnique: (...args: unknown[]) => mockContactFindUnique(...args),
@@ -485,6 +489,37 @@ describe('handleImportChunk', () => {
       data: expect.objectContaining({ sequenceId: 'seq-1', sequenceStep: 1, sequenceStatus: 'active' }),
     });
     expect(createTaskForStep).toHaveBeenCalled();
+
+    // The lead fields above are a cache of the cadence; the enrollment row *is* the cadence.
+    // Setting the first without the second is what left 556 production leads holding a
+    // `sequenceId` that no surface could list, pause or repair — every Sequences-page action
+    // and `repairEnrollmentScheduleDrift` are keyed by enrollment id.
+    expect(mockEnrollmentCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        id: 'import-lead-1-seq-1-enrollment',
+        leadId: 'lead-1',
+        sequenceId: 'seq-1',
+        status: 'active',
+        currentStep: 1,
+        // Without the occupancy key the row exists but does not hold the lead, so a second
+        // cadence could start alongside it.
+        occupancyKey: `${CHUNK_PAYLOAD.tenantId}:lead-1`,
+      }),
+    });
+
+    // The task id has to carry the occurrence, or the repair sweep and run-now cannot put
+    // `expectedEnrollmentId` in a payload and fall back to matching on lead+sequence.
+    expect(createTaskForStep).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        taskId: 'sequence-enrollment-import-lead-1-seq-1-enrollment-step1',
+        strictScheduling: true,
+        expectedEnrollmentId: 'import-lead-1-seq-1-enrollment',
+      })
+    );
   });
 
   it('returns skipped if no rows found', async () => {

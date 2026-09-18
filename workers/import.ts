@@ -13,6 +13,8 @@ import {
 import { resolveAccount } from '@/lib/identity/resolveAccount';
 import { resolveContact } from '@/lib/identity/resolveContact';
 import { createTaskForStep } from '@/lib/sequences/engine';
+import { enrollmentStepTaskId, importEnrollmentIdFor } from '@/lib/sequences/identity';
+import { occupancyKeyFor } from '@/lib/sequences/occupancy';
 import {
   normalizeImportRow,
   validateNormalizedImportRow,
@@ -984,12 +986,59 @@ async function handleImportChunk(payload: ImportChunkPayload) {
           throw new Error('FAILPOINT_AFTER_ACTIVITY_SEQUENCE_ENROLLED');
         }
 
+        // An imported lead is enrolled in the same sense a manually enrolled one is, and needs
+        // the row that says so.
+        //
+        // This used to set `Lead.sequenceId/sequenceStep/sequenceStatus`, write the activity
+        // above, create the task — and stop. `applyStepScheduling` then scheduled the cadence
+        // with `sequenceEnrollment.updateMany(...)`, which matched nothing and returned
+        // `count: 0` without raising, because the `count !== 1` guard only runs for `strict`
+        // callers and this was not one. Measured on production 2026-09-18: 556 leads imported
+        // the previous day held `sequenceId` with no enrollment row anywhere.
+        //
+        // They still sent, on the delayed job chain and the legacy lead-field branch of
+        // `advanceSequence` — so the damage was not silence, it was invisibility. Every action
+        // on the Sequences page is keyed by `enrollmentId`, and so is
+        // `repairEnrollmentScheduleDrift`: 556 running cadences that could not be listed,
+        // paused, bulk-actioned, or repaired when one stalled.
+        const enrollmentId = importEnrollmentIdFor(createdLead.id, sequence.id);
+        try {
+          await prisma.sequenceEnrollment.create({
+            data: {
+              id: enrollmentId,
+              tenantId,
+              leadId: createdLead.id,
+              sequenceId: sequence.id,
+              status: 'active',
+              currentStep: sequence.steps[0].order,
+              // The occupancy key is what makes "one running cadence per lead" a database fact.
+              // Without it this enrollment is invisible to every guard that asks whether the
+              // lead is already busy.
+              occupancyKey: occupancyKeyFor(tenantId, createdLead.id),
+            },
+          });
+        } catch (err: unknown) {
+          // Two workers on the same chunk, or a retried chunk. Either the id collided or the
+          // occupancy key did; both mean an enrollment for this lead already exists and this
+          // one must defer to it rather than replace it.
+          if ((err as { code?: string })?.code !== 'P2002') throw err;
+        }
+
         // Deterministic id, so two workers handed the same chunk collide on the Task primary
         // key and the loser reuses the winner's row. The previous findFirst-then-create pair
         // let both through and scheduled the cadence twice - the same race that produced two
         // `lead_created` activities.
+        //
+        // Now derived from the enrollment, so `enrollmentIdFromStepTaskId` can recover the
+        // occurrence from the task alone — which is how the repair sweep and run-now put
+        // `expectedEnrollmentId` in a payload instead of guessing at lead+sequence.
         await createTaskForStep(createdLead, sequence, sequence.steps[0], new Date(), {
-          taskId: `import-${createdLead.id}-${sequence.id}-step${sequence.steps[0].order}`,
+          taskId: enrollmentStepTaskId(enrollmentId, sequence.steps[0].order),
+          // `strict`, so a schedule that matches no enrollment raises here instead of
+          // returning `count: 0` to nobody. The chunk retries, and every id in this block is
+          // derived rather than generated, so the retry converges on the same rows.
+          strictScheduling: true,
+          expectedEnrollmentId: enrollmentId,
         });
 
         if (data.__failpoint === 'after_task') {
