@@ -51,6 +51,8 @@ describe.skipIf(!hasDb)('import under sustained account contention', () => {
       await prisma.task.deleteMany({ where: { tenantId: T } });
       await prisma.importRow.deleteMany({ where: { tenantId: T } });
       await prisma.importBatch.deleteMany({ where: { tenantId: T } });
+      // Enrollments reference Lead under RESTRICT, and an import with a sequence now creates one.
+      await prisma.sequenceEnrollment.deleteMany({ where: { tenantId: T } });
       await prisma.lead.deleteMany({ where: { tenantId: T } });
       await prisma.contact.deleteMany({ where: { tenantId: T } });
       await prisma.account.deleteMany({ where: { tenantId: T } });

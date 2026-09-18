@@ -122,6 +122,7 @@ domains:
       - scripts/cutover/**
     tests:
       - tests/migration-*.test.ts
+      - tests/soft-foreign-keys.test.ts
       - tests/rls-policy-coverage.test.ts
       - tests/seed-guard.test.ts
       - tests/db-role-least-privilege.test.ts

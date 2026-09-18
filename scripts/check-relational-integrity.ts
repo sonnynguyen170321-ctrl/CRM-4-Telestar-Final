@@ -102,6 +102,58 @@ const CHECKS: Check[] = [
   },
 ];
 
+/**
+ * Columns that name a row without a foreign key behind them.
+ *
+ * Postgres enforces a declared relation and nothing else, so these can point at a row that was
+ * deleted or never existed and no write will complain. `tests/soft-foreign-keys.test.ts` freezes
+ * the full list of 44 in the schema; the ones below are the ones that carry live data and are
+ * worth a query. Add a row here when a soft column starts being written.
+ *
+ * Found this way on production 2026-09-18: `AiCall.userId` naming 74 deleted Users out of 106
+ * rows, from a re-seed in August that every hard foreign key survived untouched.
+ */
+const SOFT_REFERENCES: Array<{ table: string; column: string; target: string; note: string }> = [
+  {
+    table: 'AiCall',
+    column: 'userId',
+    target: 'User',
+    note: 'AI spend ledger. A dangling id is the only record of which now-deleted user spent it, so it is reported, never cleared.',
+  },
+  { table: 'AiCall', column: 'leadId', target: 'Lead', note: 'Which lead the AI call was about.' },
+  {
+    table: 'Task',
+    column: 'sequenceId',
+    target: 'Sequence',
+    note: 'Read by the whole sequence runtime — the worker decides a task is an automated step by this column being non-null.',
+  },
+  { table: 'OutboundMessage', column: 'sequenceId', target: 'Sequence', note: 'Attribution for sends.' },
+  { table: 'SequenceLaunch', column: 'enrollmentId', target: 'SequenceEnrollment', note: 'The cadence a launch created.' },
+  { table: 'SequenceLaunch', column: 'taskId', target: 'Task', note: 'The first step a launch created.' },
+  { table: 'Lead', column: 'archivedById', target: 'User', note: 'Who archived the lead.' },
+  { table: 'EmailAccount', column: 'sendPausedById', target: 'User', note: 'Who paused the mailbox.' },
+  { table: 'LeadPoolItem', column: 'latestAssessmentId', target: 'LeadPoolAssessment', note: 'The scoring run a pool item points at.' },
+];
+
+for (const ref of SOFT_REFERENCES) {
+  CHECKS.push({
+    key: `dangling_${ref.table}_${ref.column}`.toLowerCase(),
+    title: `${ref.table}.${ref.column} names a ${ref.target} that does not exist`,
+    detail: `${ref.note} No foreign key constrains this column.`,
+    // Identifiers are interpolated because they are literals in the table above, never input.
+    // `$queryRawUnsafe` is the only way to parameterise a column name, and a bound parameter
+    // would be a string literal rather than an identifier.
+    run: (db) =>
+      db.$queryRawUnsafe<Finding[]>(`
+        SELECT s.id, s."tenantId", s."${ref.column}" AS "relationId", NULL AS "relationTenantId"
+        FROM "${ref.table}" s
+        WHERE s."${ref.column}" IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM "${ref.target}" t WHERE t.id = s."${ref.column}")
+        ORDER BY s."tenantId", s.id
+      `),
+  });
+}
+
 async function main(): Promise<void> {
   const asJson = process.argv.includes('--json');
   const db = createAdminClient();

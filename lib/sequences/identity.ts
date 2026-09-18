@@ -10,6 +10,17 @@ export function launchEnrollmentIdFor(launchId: string): string {
   return `seqlaunch-${launchId}-enrollment`;
 }
 
+/**
+ * The enrollment an import intends to create for one lead on one sequence.
+ *
+ * Derived from the pair rather than generated, for the same reason the import's task id is:
+ * two workers handed the same chunk must collide on the primary key and let the loser reuse the
+ * winner's row, instead of both creating and then racing for the occupancy key.
+ */
+export function importEnrollmentIdFor(leadId: string, sequenceId: string): string {
+  return `import-${leadId}-${sequenceId}-enrollment`;
+}
+
 /** The task for one step of one enrollment occurrence. */
 export function enrollmentStepTaskId(enrollmentId: string, order: number): string {
   return `sequence-enrollment-${enrollmentId}-step${order}`;

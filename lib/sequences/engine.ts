@@ -175,6 +175,17 @@ export async function applyStepScheduling(
     );
   }
 
+  // A non-strict caller cannot be refused — it may legitimately be scheduling a cadence that
+  // predates enrollments. But "matched nothing" is still worth saying out loud, because it is
+  // indistinguishable from success to everyone downstream and that is exactly how 556 leads
+  // came to hold a `sequenceId` with no enrollment behind it. The import used to land here.
+  if (!options?.strict && scheduled.count === 0) {
+    console.warn(
+      `[applyStepScheduling] no active enrollment for lead ${task.leadId} on sequence ${sequenceId} — ` +
+        `task ${task.id} is scheduled, but nothing will list, pause or repair this cadence`
+    );
+  }
+
   await prisma.lead.update({
     where: { id: task.leadId },
     data: { nextTaskDue: dueDate },
