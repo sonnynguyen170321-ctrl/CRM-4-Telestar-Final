@@ -490,8 +490,69 @@ async function reconcileAmbiguousSends(): Promise<{ fixed: number; details: stri
   return { fixed, details };
 }
 
+/**
+ * Return daily send capacity that was reserved but never spent.
+ *
+ * `EmailAccount.dailySendCount` is a reservation taken before the provider call, so that two
+ * workers cannot both claim the last slot. Every path that abandons an attempt after that point
+ * owes the slot back. `workers/email.ts` now returns it on a `not_sent` failure, but a throw
+ * between the reservation and the provider call — a template that fails to render, a worker that
+ * dies — leaves the row `sending` with no way for anyone to tell whether it sent, and the slot
+ * with it.
+ *
+ * So this converges the counter on evidence instead of trusting the bookkeeping: what the mailbox
+ * actually spent today is the messages it sent, plus those still in flight or awaiting
+ * reconciliation, which may yet turn out to have been delivered.
+ *
+ * It only ever lowers the counter. Raising it here would create a second writer racing the
+ * reservation, and the failure this exists to repair is inflation: a mailbox that stops early.
+ * A counter below the truth is corrected by the next send's own increment.
+ */
+async function repairQuotaDrift(): Promise<{ fixed: number; details: string[] }> {
+  const details: string[] = [];
+  let fixed = 0;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const accounts = await prisma.emailAccount.findMany({
+    where: { dailySendDate: today, dailySendCount: { gt: 0 } },
+    select: { id: true, email: true, tenantId: true, dailySendCount: true },
+  });
+
+  for (const account of accounts) {
+    const [sent, inFlight] = await Promise.all([
+      prisma.outboundMessage.count({
+        where: { accountId: account.id, status: OUTBOUND_STATUS.SENT, sentAt: { gte: today } },
+      }),
+      prisma.outboundMessage.count({
+        where: {
+          accountId: account.id,
+          status: { in: [OUTBOUND_STATUS.SENDING, OUTBOUND_STATUS.RECONCILIATION_REQUIRED] },
+          claimedAt: { gte: today },
+        },
+      }),
+    ]);
+
+    const spent = sent + inFlight;
+    if (account.dailySendCount <= spent) continue;
+
+    await prisma.emailAccount.update({
+      where: { id: account.id },
+      data: { dailySendCount: spent },
+    });
+    details.push(
+      `account:${account.email} dailySendCount ${account.dailySendCount} -> ${spent} ` +
+        `(${sent} sent, ${inFlight} in flight) — ${account.dailySendCount - spent} slots returned`
+    );
+    fixed++;
+  }
+
+  return { fixed, details };
+}
+
 const REPAIR_FN: Record<string, () => Promise<{ fixed: number; details: string[] }>> = {
   'orphan-tasks': repairOrphanTasks,
+  'quota-drift': repairQuotaDrift,
   'stale-sending': repairStaleSending,
   'outbound-reconcile': reconcileAmbiguousSends,
   'stuck-running': repairStuckRunning,
