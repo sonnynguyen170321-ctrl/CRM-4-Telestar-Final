@@ -61,6 +61,24 @@ describe('the LinkedIn / WhatsApp logging flow', () => {
     expect(okCheck, 'the response is checked before the success toast is shown').toBeLessThan(successToast);
   });
 
+  it('checks the callback task it promises to create', () => {
+    // "Callback requested" is a commitment to the prospect. If the POST fails and the UI still
+    // says the task exists, nothing in the CRM will ever remind anyone to make that call.
+    const block = body.slice(body.indexOf("callback_requested"));
+    const toast = block.indexOf('callback task created');
+    const check = block.indexOf('.ok');
+    expect(check, 'the response is read before the success toast').toBeGreaterThan(-1);
+    expect(check).toBeLessThan(toast);
+  });
+
+  it('does not let a do_not_call tag fail silently', () => {
+    // An untagged lead goes back in the queue and gets called again after the person asked not
+    // to be. Silence here is the most expensive silence on this screen.
+    const tagging = body.slice(body.indexOf('existingTags.includes(tag)'));
+    expect(tagging, 'the tagging PUT response must be read').toContain('tagged.ok');
+    expect(tagging, 'a failed tag must be surfaced, not swallowed').toContain("'error'");
+  });
+
   it('tells the operator when the move failed, rather than staying silent', () => {
     const stageBlock = body.slice(body.indexOf('responseStage &&'));
     expect(stageBlock).toMatch(/'error'|"error"/);

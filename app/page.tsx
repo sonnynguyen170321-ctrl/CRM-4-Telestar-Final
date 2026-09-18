@@ -312,7 +312,7 @@ export default function DashboardPage() {
       const due = new Date();
       due.setDate(due.getDate() + 1);
       due.setHours(9, 0, 0, 0);
-      await fetch('/api/tasks', {
+      const created = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -324,7 +324,13 @@ export default function DashboardPage() {
           priority: 'high',
         }),
       });
-      showToast('Follow-up callback task created for tomorrow', 'success');
+      // The prospect asked to be called back. Saying the task exists when it does not is how that
+      // promise is quietly dropped — nothing else in the CRM will remind anyone.
+      if (created.ok) {
+        showToast('Follow-up callback task created for tomorrow', 'success');
+      } else {
+        showToast('Outcome logged, but the callback task could not be created — add it by hand', 'error');
+      }
     }
 
     if (outcome === 'wrong_number' || outcome === 'do_not_call') {
@@ -332,11 +338,16 @@ export default function DashboardPage() {
       const existingTags: string[] = (lead as any).tags ?? [];
       const tag = outcome === 'do_not_call' ? 'do_not_call' : 'wrong_number';
       if (!existingTags.includes(tag)) {
-        await fetch(`/api/leads/${task.leadId}`, {
+        const tagged = await fetch(`/api/leads/${task.leadId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tags: [...existingTags, tag] }),
         });
+        // `do_not_call` is the one tag that must never fail quietly: an untagged lead goes back in
+        // the queue and gets called again after the person asked not to be.
+        if (!tagged.ok) {
+          showToast(`Outcome logged, but the "${tag}" tag did not save — set it on the lead`, 'error');
+        }
       }
       showToast(
         outcome === 'do_not_call' ? 'Lead flagged as Do Not Call' : 'Lead flagged as wrong number',
