@@ -31,7 +31,7 @@
     "lib/research/cache.ts": "Cache updates through `withTenantRaw`, so the statement carries tenant context on its own connection.",
     "lib/search/accentSearch.ts": "Accent-insensitive search through `withTenantRaw`, with `tenantId` also named explicitly in the WHERE clause.",
     "lib/workflows/importInline.ts": "Scoped to `payload.tenantId`. The inline fallback runs when Redis is unavailable; its `importRow.count` calls are filtered by `batchId`, which belongs to the batch being imported.",
-    "workers/email.ts": "An atomic compare-and-set on `EmailAccount.sentTodayCount`, routed through `withTenantRaw` and addressing a single row by id. Raw SQL rather than a read-modify-write so two workers cannot both spend the last send of a quota.",
+    "workers/email.ts": "The daily send quota: an atomic compare-and-set reserving a slot on `EmailAccount.dailySendCount`, and the matching release when the provider refuses a message outright. Both go through `withTenantRaw` and address a single row by id. Raw SQL rather than a read-modify-write so two workers cannot both spend the last send of a quota; the release is dated to today and floored at zero so it can never mint one.",
     "workers/healthcheck.ts": "`SELECT 1` liveness probe. Touches no tenant-owned table."
   }
 }

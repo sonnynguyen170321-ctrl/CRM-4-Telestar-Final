@@ -43,7 +43,7 @@ The Prisma extension in `lib/prisma.ts` injects `where: { tenantId }` into every
 | `app/api/ai/nba/route.ts` | 28 | Session tenant from `requireAuth`. The scope wraps `calculateNextBestAction`, which reads `lead.findFirst({ where: { id: leadId, tenantId } })` — the id is paired with the tenant, so a foreign id resolves to nothing. |
 | `app/api/cron/email-health/route.ts` | 29 | System context (`tenantId: 'system'`), and deliberately cross-tenant: the job computes email health across every tenant. Reachable only with the `CRON_SECRET` bearer token, never from a user session. |
 | `app/api/cron/inbox-sync/route.ts` | 17 | System context, deliberately cross-tenant: it sweeps active mailboxes across tenants to enqueue per-account sync jobs. `CRON_SECRET` bearer token only. |
-| `app/api/cron/maintenance/route.ts` | 63 | System context, deliberately cross-tenant: it iterates tenants to schedule per-tenant maintenance. `CRON_SECRET` bearer token only. |
+| `app/api/cron/maintenance/route.ts` | 76 | System context, deliberately cross-tenant: it iterates tenants to schedule per-tenant maintenance. `CRON_SECRET` bearer token only. |
 | `app/api/cron/sequence-engine/route.ts` | 114, 221 | System context, deliberately cross-tenant: it scans due sequence steps for every tenant and processes each within its own tenant boundary. Task claims use a conditional `updateMany` on `id + status + lockedAt`, so two runners cannot both take a task. `CRON_SECRET` bearer token only. |
 | `app/api/leads/recalculate-scores/route.ts` | 27 | Session tenant from the verified `SessionUser`. The `lead.update` calls inside the scope address ids drawn from a preceding tenant-scoped read, so no caller-supplied id reaches the database. |
 | `app/api/unsubscribe/route.ts` | 20 | Public by necessity — an unsubscribe link is followed without a session. The tenant is not taken from the request but recovered from an HMAC-verified token that binds `tenantId`, `email` and `leadId`; a forged or edited token fails verification before any query runs. |
@@ -75,7 +75,7 @@ A `PrismaClient` constructed directly carries no tenant extension at all. Everyt
 
 Raw SQL is a ROOT client operation. The extension is registered as `query.$allModels` and cannot observe it, so no tenant filter is applied and no GUC is set unless the call goes through `withTenantRaw` or `withBypassRaw`.
 
-**14 file(s), 42 site(s).**
+**14 file(s), 43 site(s).**
 
 | File | Line(s) | Why this is safe |
 |---|---|---|
@@ -91,7 +91,7 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 | `lib/prisma.ts` | 138, 171, 172, 254, 255, 279, 313, 320, 321 | The extension itself — this is the file that implements tenant scoping, so it necessarily names the flag it honours and runs the `set_config` statements that carry tenant context into the database. Its own `$queryRaw`/`$executeRaw` calls are the GUC statements and the maintenance sweep, not data access. |
 | `lib/research/cache.ts` | 175, 410 | Cache updates through `withTenantRaw`, so the statement carries tenant context on its own connection. |
 | `lib/search/accentSearch.ts` | 83, 84 | Accent-insensitive search through `withTenantRaw`, with `tenantId` also named explicitly in the WHERE clause. |
-| `workers/email.ts` | 82 | An atomic compare-and-set on `EmailAccount.sentTodayCount`, routed through `withTenantRaw` and addressing a single row by id. Raw SQL rather than a read-modify-write so two workers cannot both spend the last send of a quota. |
+| `workers/email.ts` | 82, 125 | The daily send quota: an atomic compare-and-set reserving a slot on `EmailAccount.dailySendCount`, and the matching release when the provider refuses a message outright. Both go through `withTenantRaw` and address a single row by id. Raw SQL rather than a read-modify-write so two workers cannot both spend the last send of a quota; the release is dated to today and floored at zero so it can never mint one. |
 | `workers/healthcheck.ts` | 28 | `SELECT 1` liveness probe. Touches no tenant-owned table. |
 
 ---
@@ -102,7 +102,7 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 |---|---|
 | Category A sites | 20 |
 | Category B sites | 8 |
-| Category C sites | 42 |
-| All sites | 70 |
+| Category C sites | 43 |
+| All sites | 71 |
 | Unreviewed | 0 |
 
