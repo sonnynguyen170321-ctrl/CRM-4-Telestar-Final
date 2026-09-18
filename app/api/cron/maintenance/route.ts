@@ -20,6 +20,16 @@ export const dynamic = 'force-dynamic';
  *
  * Runtime law: this route records intent and returns. The worker executes it.
  */
+/**
+ * Every repair in the worker's registry, in the order the sweep runs them.
+ *
+ * This list and `REPAIR_FN` in `workers/maintenance.ts` must name the same set. They drifted
+ * once already: `enrollment-schedule-drift` and `stale-pending-outbound` were written,
+ * registered, and left out of this array — and because `KNOWN_TYPES` is derived from it, they
+ * could not even be asked for by hand without the route rejecting them as unknown. Two repairs
+ * existed and had never run. `tests/maintenance-repair-registry.test.ts` now fails if the two
+ * lists diverge again.
+ */
 const DEFAULT_TYPES: MaintenanceRepairPayload['types'] = [
   'orphan-tasks',
   'stale-sending',
@@ -27,6 +37,9 @@ const DEFAULT_TYPES: MaintenanceRepairPayload['types'] = [
   'stuck-running',
   'missing-delayed',
   'reassignment-drift',
+  'enrollment-schedule-drift',
+  'stale-pending-outbound',
+  'quota-drift',
   'audit-prune',
 ];
 

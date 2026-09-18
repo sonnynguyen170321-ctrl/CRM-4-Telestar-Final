@@ -98,6 +98,39 @@ async function atomicReserveQuota(tenantId: string, accountId: string): Promise<
 }
 
 /**
+ * Give back a slot reserved for a message that demonstrably never left the building.
+ *
+ * `atomicReserveQuota` increments before the provider call, because the increment *is* the
+ * concurrency guard: two workers must not both decide there is room for the last send. That
+ * makes the counter a reservation, and a reservation that is never released is capacity
+ * destroyed. `failed` is in `CLAIMABLE_STATUSES`, so a `not_sent` error is not the end of the
+ * message — it is retried, claims again, and reserves a *second* slot. Measured on production
+ * 2026-09-18: 80 slots consumed against 50 messages actually sent, on a cap of 80. The mailbox
+ * stopped for the day roughly 30 sends early, every day, and the sequence queue never drained.
+ *
+ * Only the `not_sent` branch may call this. An ambiguous failure goes to
+ * `reconciliation_required`, where the message may well be with the prospect — that slot was
+ * spent whether or not the provider told us so, and handing it back would let the mailbox
+ * exceed its real cap, which is the one thing the cap exists to prevent.
+ *
+ * Guarded on `dailySendDate = today` so a release arriving after local midnight cannot reach
+ * back and discount a day that has already rolled over, and floored at zero so a double
+ * release (a retry of the same failure) cannot mint capacity.
+ */
+async function releaseQuota(tenantId: string, accountId: string): Promise<void> {
+  const today = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+  // `withTenantRaw` for the same reason the reserve above needs it: raw SQL sits outside the
+  // tenant extension, and an unwrapped statement matches no RLS policy and silently updates
+  // nothing — here that would look exactly like the bug this repairs.
+  await withTenantRaw(tenantId, (db) => db.$executeRaw`
+    UPDATE "EmailAccount"
+    SET "dailySendCount" = GREATEST("dailySendCount" - 1, 0)
+    WHERE id = ${accountId}
+      AND "dailySendDate" = ${today}
+  `);
+}
+
+/**
  * Park a message whose provider outcome is unknown.
  *
  * Deliberately not `failed`: `failed` means "definitely not delivered" and is claimable
@@ -526,6 +559,9 @@ async function handleEmailSend(payload: EmailSendPayload) {
         where: { id: outboundMessageId },
         data: { status: OUTBOUND_STATUS.FAILED, errorMessage },
       });
+      // The row is claimable again, so this attempt's slot must go back with it. Without this
+      // the retry reserves a second one and the mailbox pays twice for one message.
+      await releaseQuota(existing.tenantId, accountId);
     } else {
       await markReconciliationRequired(outboundMessageId, errorMessage);
     }

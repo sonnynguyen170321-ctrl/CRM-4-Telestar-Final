@@ -187,6 +187,8 @@ domains:
       - tests/unsubscribe.test.ts
       - tests/demo-email-barrier.test.ts
       - tests/variant-attribution.test.ts
+      - tests/email-quota-release.test.ts
+      - tests/maintenance-repair-registry.test.ts
     e2e:
       - e2e/journeys/automation*.spec.ts
     verification: independent

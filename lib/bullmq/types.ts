@@ -179,6 +179,7 @@ export interface MaintenanceRepairPayload {
     | 'reassignment-drift'
     | 'enrollment-schedule-drift'
     | 'stale-pending-outbound'
+    | 'quota-drift'
     | 'audit-prune'
   )[];
 }
