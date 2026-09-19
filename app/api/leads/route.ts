@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Prisma } from '@prisma/client';
+import { Prisma, ProspectOperatingState } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, canAccessUser, canReferenceCampaign, getLeadWhereScope } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
@@ -43,6 +43,17 @@ export async function GET(req: NextRequest) {
   if (priorityCheck && !priorityCheck.success) {
     return NextResponse.json({ error: 'Invalid priority filter' }, { status: 400 });
   }
+  // The attention banner links to `?operatingState=unassigned`; a filter the list did not
+  // honour was a button that went nowhere. Validated against the enum like the two above.
+  const operatingStateRaw = searchParams.get('operatingState') || undefined;
+  const operatingState = operatingStateRaw
+    ? (Object.values(ProspectOperatingState) as string[]).includes(operatingStateRaw)
+      ? (operatingStateRaw as ProspectOperatingState)
+      : null
+    : undefined;
+  if (operatingState === null) {
+    return NextResponse.json({ error: 'Invalid operatingState filter' }, { status: 400 });
+  }
 
   // Scope: user axis for SDR/TL/FM/Director, account axis for leadgen.
   // Director / leadgen-manager → all; leadgen-member → assigned campaigns only.
@@ -67,6 +78,7 @@ export async function GET(req: NextRequest) {
         priority: priorityCheck?.success ? priorityCheck.data : undefined,
         assignedTo,
         campaignId,
+        operatingState,
         source,
         importListName,
         emailValidation,

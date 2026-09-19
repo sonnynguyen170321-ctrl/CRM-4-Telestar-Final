@@ -85,7 +85,8 @@ export async function getWhatNeedsAttention(params: {
         summary: `New leads from recent imports have not yet been distributed to active sales reps.`,
         reason: 'Speed-to-lead rule: Fresh leads lose 60% conversion potential if uncontacted for >24h.',
         evidence: `Direct database count shows ${unassignedCount} records with operatingState=unassigned.`,
-        targetUrl: `/leads?tab=pool`,
+        // A filter the list actually honours. It used to be `/leads?tab=pool`, which nothing read.
+        targetUrl: `/leads?operatingState=unassigned`,
         actionLabel: 'Assign Leads',
         dedupeKey: `unassigned_${tenantId}_${now.toISOString().slice(0, 13)}`,
         createdAt: now,

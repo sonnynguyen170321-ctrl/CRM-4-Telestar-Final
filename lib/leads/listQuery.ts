@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import type { ProspectOperatingState } from '@prisma/client';
 import type { z } from 'zod';
 import type { leadStage, priority } from '@/lib/validation/schemas';
 import { buildTermClauses } from '@/lib/search/terms';
@@ -8,6 +9,11 @@ export interface LeadListFilters {
   priority?: z.infer<typeof priority>;
   assignedTo?: string;
   campaignId?: string;
+  /**
+   * The prospect lifecycle state. `unassigned` is what the attention banner counts and links
+   * to, so the list has to be able to show exactly those rows.
+   */
+  operatingState?: ProspectOperatingState;
   source?: string;
   importListName?: string;
   emailValidation?: string;
@@ -49,6 +55,7 @@ export function buildLeadListWhere(
   if (filters.priority) clauses.push({ crmPriorityScore: filters.priority });
   if (filters.assignedTo) clauses.push({ assignedToId: filters.assignedTo });
   if (filters.campaignId) clauses.push({ campaignId: filters.campaignId });
+  if (filters.operatingState) clauses.push({ operatingState: filters.operatingState });
   if (filters.source) clauses.push({ source: { contains: filters.source, mode: 'insensitive' } });
   if (filters.importListName) clauses.push({ importListName: { contains: filters.importListName, mode: 'insensitive' } });
   if (filters.emailValidation) clauses.push({ emailValidation: filters.emailValidation });

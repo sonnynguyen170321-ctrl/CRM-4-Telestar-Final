@@ -210,7 +210,10 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
           items: [
             { name: 'Inbox', href: '/inbox', icon: Inbox },
             { name: 'Templates', href: '/templates', icon: FileText },
-            { name: 'Automation', href: '/automation', icon: Cpu },
+            // Same predicate as app/automation/page.tsx, which bounces everyone else home. A
+            // link that is shown and then refused reads as a broken button — the SDR role-play
+            // on 2026-09-19 clicked it and landed on the dashboard with no explanation.
+            ...(isManager ? [{ name: 'Automation', href: '/automation', icon: Cpu }] : []),
           ],
         },
         {

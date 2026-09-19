@@ -214,6 +214,15 @@ export default function LeadsPage() {
   // Archived leads are hidden by default; only managers can pull them back into view.
   const canSeeArchived = currentRole !== 'sdr';
   const [showArchived, setShowArchived] = useState(false);
+  // The one filter that arrives by URL. The attention banner's "Assign Leads" pointed at
+  // `/leads?tab=pool`, which this page never read, so a manager clicking it got the ordinary
+  // pipeline and no way to see the leads the banner had just counted. Read once on mount;
+  // the chip below clears it.
+  const [operatingStateFilter, setOperatingStateFilter] = useState<string>('');
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get('operatingState');
+    if (fromUrl) setOperatingStateFilter(fromUrl);
+  }, []);
 
   const filters = {
     archived: canSeeArchived && showArchived,
@@ -221,6 +230,7 @@ export default function LeadsPage() {
     stage: stageFilter,
     priority: priorityFilter,
     assignedTo: sdrFilter,
+    operatingState: operatingStateFilter || undefined,
     source: sourceFilter || undefined,
     importListName: importListFilter || undefined,
     emailValidation: emailValidationFilter,
@@ -517,6 +527,7 @@ export default function LeadsPage() {
     setTagFilter('');
     setDateFrom('');
     setDateTo('');
+    setOperatingStateFilter('');
   };
 
   return (
@@ -676,7 +687,19 @@ export default function LeadsPage() {
             </label>
           )}
 
-          {(priorityFilter !== 'all' || stageFilter !== 'all' || searchQuery || anyExtraFilter) && (
+          {operatingStateFilter && (
+            <button
+              type="button"
+              onClick={() => setOperatingStateFilter('')}
+              className="inline-flex items-center gap-1.5 rounded-full border border-brand-red/30 bg-brand-red/5 px-2.5 py-1 text-xs font-semibold text-brand-red hover:bg-brand-red/10 focus-ring whitespace-nowrap"
+              aria-label={`Showing ${operatingStateFilter.replace(/_/g, ' ')} leads only — remove this filter`}
+            >
+              {operatingStateFilter.replace(/_/g, ' ')} only
+              <span aria-hidden="true">×</span>
+            </button>
+          )}
+
+          {(priorityFilter !== 'all' || stageFilter !== 'all' || searchQuery || anyExtraFilter || operatingStateFilter) && (
             <button
               onClick={clearAllFilters}
               className="text-xs font-mono text-brand-red hover:underline whitespace-nowrap"
