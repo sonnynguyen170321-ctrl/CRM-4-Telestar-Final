@@ -6,6 +6,7 @@ import { parseBody } from '@/lib/validation/core';
 import { updateSequenceSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
 import { invalidateList } from '@/lib/cache';
+import { logAdminAudit } from '@/lib/audit';
 import { reconcileSequenceSteps } from '@/lib/sequences/steps';
 import { assertSendWindowPermission } from '@/lib/sequences/permissions';
 
@@ -132,6 +133,17 @@ export async function DELETE(
     await prisma.sequence.update({
       where: { id },
       data: { isArchived: true, isActive: false },
+    });
+
+    // Archiving stops every cadence running on this sequence. That is a management act with
+    // a blast radius, so it goes in the Audit Log's default view, with the name a reader will
+    // recognise rather than only the id.
+    await logAdminAudit({
+      actorId: user.id,
+      action: 'admin.sequence.archive',
+      tableName: 'Sequence',
+      recordId: id,
+      changedFields: { name: existing.name },
     });
 
     await invalidateList(user.tenantId, 'sequences');

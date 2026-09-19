@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { forbidden, notFound, handleApiError } from '@/lib/api/errors';
 import { getEmailAccountScope, canAccessEmailAccount } from '@/lib/email-health/access';
+import { logAdminAudit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,16 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         where: { id },
         data: { sendPausedAt: null, sendPausedById: null, sendPauseReason: null },
         select: { id: true, email: true, sendPausedAt: true },
+      })
+    );
+
+    await tenantStorage.run({ tenantId: account.tenantId }, () =>
+      logAdminAudit({
+        actorId: user.id,
+        action: 'admin.mailbox.resume',
+        tableName: 'EmailAccount',
+        recordId: account.id,
+        changedFields: { email: updated.email },
       })
     );
 

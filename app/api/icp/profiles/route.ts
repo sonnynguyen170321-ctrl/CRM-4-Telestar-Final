@@ -7,6 +7,7 @@ import {
   requireIcpManager,
 } from "@/app/api/icp/manager";
 import { requireTenantId } from "@/lib/api/tenant";
+import { logAdminAudit } from "@/lib/audit";
 import {
   createIcpProfile,
   listIcpProfiles,
@@ -60,6 +61,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await createIcpProfile({ tenantId, ...parsed.data });
+    // An ICP decides which prospects the whole floor is told to chase. Its creation is an
+    // admin action for the Audit Log's default view, not just a row in the all-changes feed.
+    await logAdminAudit({
+      actorId: user.id,
+      action: "admin.icp.create",
+      tableName: "IcpProfile",
+      recordId: result.profile.id,
+      changedFields: { name: parsed.data.name, templateId: parsed.data.templateId ?? null },
+    });
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     return icpAuthoringErrorResponse(error);

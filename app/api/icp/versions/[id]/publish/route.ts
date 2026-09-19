@@ -6,6 +6,7 @@ import {
   requireIcpManager,
 } from "@/app/api/icp/manager";
 import { requireTenantId } from "@/lib/api/tenant";
+import { logAdminAudit } from "@/lib/audit";
 import { publishIcpDraft } from "@/lib/leadgen/icpAuthoring";
 
 const publishSchema = z
@@ -41,6 +42,14 @@ export async function POST(
       tenantId,
       versionId: id,
       expectedUpdatedAt: parsed.data.expectedUpdatedAt,
+    });
+    // Publishing is the moment an ICP starts scoring real prospects — the action a reviewer
+    // of the Audit Log actually wants to find.
+    await logAdminAudit({
+      actorId: user.id,
+      action: "admin.icp.publish",
+      tableName: "IcpVersion",
+      recordId: id,
     });
     return NextResponse.json({ version });
   } catch (error) {
