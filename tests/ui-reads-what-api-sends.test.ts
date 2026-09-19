@@ -70,7 +70,10 @@ describe('the attention banner links to a filter the leads list honours', () => 
   });
 
   it('the page reads it from the URL and the hook forwards it', () => {
-    expect(leadsPage).toMatch(/URLSearchParams\(window\.location\.search\)\.get\('operatingState'\)/);
+    // Read off `window.location.search` on mount — through a shared `params` object now that
+    // more than one filter arrives by URL.
+    expect(leadsPage).toMatch(/new URLSearchParams\(window\.location\.search\)/);
+    expect(leadsPage).toMatch(/params\.get\('operatingState'\)/);
     expect(hook).toMatch(/params\.set\('operatingState'/);
   });
 

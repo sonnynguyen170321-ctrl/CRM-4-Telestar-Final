@@ -5,6 +5,7 @@ import { evaluateContactReuseEligibility } from './reuse';
 import { emitContactEvidence } from './evidence';
 import { recalculateContactIntelligence } from './service';
 import { logLeadgenActivity } from '@/lib/leadgen/pool';
+import { scoreNewLead } from '@/lib/leads/scoreNewLead';
 
 export interface AssignInternalContactsInput {
   campaignId: string;
@@ -138,6 +139,9 @@ export async function assignInternalInventoryToCampaign(
       description: `Assigned internal contact ${contact.firstName || ''} ${contact.lastName || ''} to ${campaign.name}`,
       metadata: { campaignId, leadId: lead.id, contactId: contact.id },
     });
+
+    // The lead exists now; give it the scores every other door gives (never throws).
+    await scoreNewLead({ tenantId, leadId: lead.id });
 
     // Recalculate intelligence in the background
     await recalculateContactIntelligence(contact.id, tenantId);

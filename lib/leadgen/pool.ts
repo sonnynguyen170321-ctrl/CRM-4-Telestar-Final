@@ -15,6 +15,7 @@ import { tenantIdOrThrow } from '@/lib/api/tenant';
 import { onLeadgenItemQualified } from '@/lib/contact-intelligence/events';
 import { ensureCampaignProspect } from '@/lib/leadgen/campaignProspects';
 import { deriveIcpMatch } from '@/lib/leadgen/icpMatch';
+import { scoreNewLead } from '@/lib/leads/scoreNewLead';
 
 // ─── Duplicate detection ─────────────────────────────────────────────────────
 
@@ -784,6 +785,11 @@ export async function convertPoolToLeads(params: {
 
         return createdLead;
       });
+
+      // The pool item had a verdict; the lead it became did not — the pool assessment stays
+      // on the pool row, and the lead's own verdict is what /leads and the panel read. Outside
+      // the transaction, so a scoring failure cannot undo a conversion that already happened.
+      await scoreNewLead({ tenantId, leadId: lead.id });
 
       await logLeadgenActivity({
         actor,

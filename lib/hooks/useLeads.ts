@@ -20,6 +20,9 @@ export interface Lead {
    * which spreads every Lead scalar; this only names it.
    */
   operatingState?: string | null;
+  icpFitScore?: number | null;
+  icpQualification?: 'qualified' | 'needs_review' | 'unqualified' | null;
+  icpScoredAt?: string | null;
   source?: string;
   importListName?: string | null;
   emailValidation?: string | null;
@@ -67,6 +70,8 @@ interface LeadFilters {
   assignedTo?: string;
   /** Prospect lifecycle state — `unassigned` is the one the attention banner deep-links to. */
   operatingState?: string;
+  /** ICP verdict filter — `qualified` / `needs_review` / `unqualified` — or `unscored`. */
+  icp?: string;
   source?: string;
   importListName?: string;
   emailValidation?: string;
@@ -85,6 +90,8 @@ function buildQueryString(filters: LeadFilters): string {
   if (filters.priority && filters.priority !== 'all') params.set('priority', filters.priority);
   if (filters.assignedTo && filters.assignedTo !== 'all') params.set('assignedTo', filters.assignedTo);
   if (filters.operatingState) params.set('operatingState', filters.operatingState);
+  if (filters.icp === 'unscored') params.set('icpUnscored', 'true');
+  else if (filters.icp && filters.icp !== 'all') params.set('icpQualification', filters.icp);
   if (filters.source) params.set('source', filters.source);
   if (filters.importListName) params.set('importListName', filters.importListName);
   if (filters.emailValidation && filters.emailValidation !== 'all') params.set('emailValidation', filters.emailValidation);

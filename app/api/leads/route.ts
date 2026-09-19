@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Prisma, ProspectOperatingState } from '@prisma/client';
+import { IcpQualification, Prisma, ProspectOperatingState } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, canAccessUser, canReferenceCampaign, getLeadWhereScope } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
@@ -10,6 +10,7 @@ import { findAccentInsensitiveIds, LEAD_SEARCH_COLUMNS } from '@/lib/search/acce
 import { handleApiError } from '@/lib/api/errors';
 import { normalizePhone, normalizeLinkedIn } from '@/lib/leads/normalize';
 import { scoreLead } from '@/lib/leads/scoring';
+import { scoreNewLead } from '@/lib/leads/scoreNewLead';
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -54,6 +55,16 @@ export async function GET(req: NextRequest) {
   if (operatingState === null) {
     return NextResponse.json({ error: 'Invalid operatingState filter' }, { status: 400 });
   }
+  const icpQualificationRaw = searchParams.get('icpQualification') || undefined;
+  const icpQualification = icpQualificationRaw
+    ? (Object.values(IcpQualification) as string[]).includes(icpQualificationRaw)
+      ? (icpQualificationRaw as IcpQualification)
+      : null
+    : undefined;
+  if (icpQualification === null) {
+    return NextResponse.json({ error: 'Invalid icpQualification filter' }, { status: 400 });
+  }
+  const icpUnscored = searchParams.get('icpUnscored') === 'true';
 
   // Scope: user axis for SDR/TL/FM/Director, account axis for leadgen.
   // Director / leadgen-manager → all; leadgen-member → assigned campaigns only.
@@ -79,6 +90,8 @@ export async function GET(req: NextRequest) {
         assignedTo,
         campaignId,
         operatingState,
+        icpQualification,
+        icpUnscored,
         source,
         importListName,
         emailValidation,
@@ -120,7 +133,7 @@ export async function GET(req: NextRequest) {
             size: true,
           },
         },
-        _count: { select: { tasks: true, notes: true } },
+        _count: { select: { tasks: true, notes: true, meetings: true } },
         tasks: {
           where: { status: 'pending' },
           orderBy: { dueDate: 'asc' },
@@ -141,7 +154,10 @@ export async function GET(req: NextRequest) {
       atRisk: (l.tasks ?? []).some(
         (t: any) => t.sequenceId && new Date(t.dueDate) < atRiskCutoff
       ),
-      aiScore: l.engagementScore,
+      // Computed the same way the detail route does, so the list and the panel agree. This
+      // used to read the stored column, which was null for 87% of production leads while the
+      // panel showed a live 0 for the same lead.
+      aiScore: scoreLead({ ...l, meetingCount: l._count?.meetings ?? 0 }).score,
       aiLabel: l.crmPriorityScore === 'hot' ? 'hot' : l.crmPriorityScore === 'warm' ? 'warm' : 'cold',
       tasks: undefined,
     }));
@@ -269,7 +285,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(lead, { status: 201 });
+    // Engagement was already written above; this adds the ICP verdict through the same hook
+    // every other door uses, and returns the lead as it now stands so the modal shows the
+    // score it just earned rather than the row from a moment before.
+    const scores = await scoreNewLead({ tenantId: lead.tenantId, leadId: lead.id });
+    const scored = await prisma.lead.findUnique({ where: { id: lead.id } });
+
+    return NextResponse.json({ ...(scored ?? lead), icp: scores.icp }, { status: 201 });
   } catch (err) {
     return handleApiError('api/leads POST', err);
   }

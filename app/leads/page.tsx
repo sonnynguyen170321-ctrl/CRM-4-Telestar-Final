@@ -219,9 +219,13 @@ export default function LeadsPage() {
   // pipeline and no way to see the leads the banner had just counted. Read once on mount;
   // the chip below clears it.
   const [operatingStateFilter, setOperatingStateFilter] = useState<string>('');
+  const [icpFilter, setIcpFilter] = useState<string>('all');
   useEffect(() => {
-    const fromUrl = new URLSearchParams(window.location.search).get('operatingState');
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get('operatingState');
     if (fromUrl) setOperatingStateFilter(fromUrl);
+    const icp = params.get('icp');
+    if (icp) setIcpFilter(icp);
   }, []);
 
   const filters = {
@@ -231,6 +235,7 @@ export default function LeadsPage() {
     priority: priorityFilter,
     assignedTo: sdrFilter,
     operatingState: operatingStateFilter || undefined,
+    icp: icpFilter,
     source: sourceFilter || undefined,
     importListName: importListFilter || undefined,
     emailValidation: emailValidationFilter,
@@ -502,9 +507,10 @@ export default function LeadsPage() {
 
   const sdrUsers = users.filter((u) => u.role === 'sdr');
 
-  const anyExtraFilter = sdrFilter !== 'all' || sourceFilter || importListFilter || emailValidationFilter !== 'all' || countryFilter || industryFilter || tagFilter || dateFrom || dateTo;
+  const anyExtraFilter = sdrFilter !== 'all' || icpFilter !== 'all' || sourceFilter || importListFilter || emailValidationFilter !== 'all' || countryFilter || industryFilter || tagFilter || dateFrom || dateTo;
   const extraFilterCount = [
     sdrFilter !== 'all',
+    icpFilter !== 'all',
     !!sourceFilter,
     !!importListFilter,
     emailValidationFilter !== 'all',
@@ -528,6 +534,7 @@ export default function LeadsPage() {
     setDateFrom('');
     setDateTo('');
     setOperatingStateFilter('');
+    setIcpFilter('all');
   };
 
   return (
@@ -724,6 +731,18 @@ export default function LeadsPage() {
                 ))}
               </select>
             )}
+            <select
+              value={icpFilter}
+              onChange={(e) => setIcpFilter(e.target.value)}
+              aria-label="Filter by ICP fit"
+              className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2.5 py-1.5 text-text-primary shadow-2xs focus:outline-none focus:border-brand-red cursor-pointer font-medium"
+            >
+              <option value="all">Any ICP fit</option>
+              <option value="qualified">ICP: qualified</option>
+              <option value="needs_review">ICP: needs review</option>
+              <option value="unqualified">ICP: unqualified</option>
+              <option value="unscored">ICP: not scored</option>
+            </select>
             <input
               type="text"
               placeholder="Source…"

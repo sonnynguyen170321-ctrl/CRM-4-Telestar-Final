@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 184   mutating: 116   mutating without a test: 26
+# routes: 185   mutating: 117   mutating without a test: 26
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -24,6 +24,7 @@ routes:
     tests:
       - e2e/admin/work-transfer-and-audit.spec.ts
       - e2e/roles/role-negative-access.spec.ts
+      - tests/admin-audit-coverage.test.ts
       - tests/admin-audit.test.ts
       - tests/admin.test.ts
   - path: app/api/admin/imports/[id]/route.ts
@@ -182,7 +183,9 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
+      - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/campaigns/[id]/member-impact/[userId]/route.ts
     methods: [GET]
     tests:
@@ -193,7 +196,9 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
+      - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/campaigns/[id]/members/route.ts
     methods: [DELETE, GET, POST]
     tests:
@@ -204,7 +209,9 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
+      - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/campaigns/[id]/requirements/preview-internal-match/route.ts
     methods: [GET]
     tests:
@@ -215,7 +222,9 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
+      - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/campaigns/[id]/route.ts
     methods: [PUT]
     tests:
@@ -226,7 +235,9 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
+      - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/campaigns/route.ts
     methods: [GET, POST]
     tests:
@@ -237,7 +248,9 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
+      - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/client-reports/[id]/approve/route.ts
     methods: [POST]
     tests:
@@ -292,11 +305,13 @@ routes:
     methods: [GET, PUT]
     tests:
       - e2e/admin/clients-and-campaigns.spec.ts
+      - tests/admin-audit-coverage.test.ts
       - tests/booking-link-reference-integrity.test.ts
   - path: app/api/clients/route.ts
     methods: [GET, POST]
     tests:
       - e2e/admin/clients-and-campaigns.spec.ts
+      - tests/admin-audit-coverage.test.ts
       - tests/booking-link-reference-integrity.test.ts
   - path: app/api/contacts/[id]/generate-memory/route.ts
     methods: [POST]
@@ -356,22 +371,27 @@ routes:
     methods: [PATCH]
     tests:
       - e2e/user-flow-31step.spec.ts
+      - tests/admin-audit-coverage.test.ts
   - path: app/api/email-health/accounts/[id]/pause/route.ts
     methods: [POST]
     tests:
       - e2e/user-flow-31step.spec.ts
+      - tests/admin-audit-coverage.test.ts
   - path: app/api/email-health/accounts/[id]/resume/route.ts
     methods: [POST]
     tests:
       - e2e/user-flow-31step.spec.ts
+      - tests/admin-audit-coverage.test.ts
   - path: app/api/email-health/accounts/[id]/route.ts
     methods: [GET]
     tests:
       - e2e/user-flow-31step.spec.ts
+      - tests/admin-audit-coverage.test.ts
   - path: app/api/email-health/accounts/route.ts
     methods: [GET]
     tests:
       - e2e/user-flow-31step.spec.ts
+      - tests/admin-audit-coverage.test.ts
   - path: app/api/email-health/alerts/[id]/acknowledge/route.ts
     methods: [PATCH]
     tests: []
@@ -454,20 +474,24 @@ routes:
   - path: app/api/icp/profiles/route.ts
     methods: [GET, POST]
     tests:
+      - tests/admin-audit-coverage.test.ts
       - tests/icp-management-ui.test.ts
   - path: app/api/icp/versions/[id]/publish/route.ts
     methods: [POST]
     tests:
+      - tests/admin-audit-coverage.test.ts
       - tests/icp-management-ui.test.ts
       - tests/research-phase-3-workspace.test.ts
   - path: app/api/icp/versions/[id]/route.ts
     methods: [PATCH]
     tests:
+      - tests/admin-audit-coverage.test.ts
       - tests/icp-management-ui.test.ts
       - tests/research-phase-3-workspace.test.ts
   - path: app/api/icp/versions/route.ts
     methods: [GET, POST]
     tests:
+      - tests/admin-audit-coverage.test.ts
       - tests/icp-management-ui.test.ts
       - tests/research-phase-3-workspace.test.ts
   - path: app/api/inbox/route.ts
@@ -573,6 +597,7 @@ routes:
       - tests/lead-reference-integrity.test.ts
       - tests/lead-timezone-update.test.ts
       - tests/leads-list-cap.test.ts
+      - tests/leads-rescore-icp-route.test.ts
   - path: app/api/leads/[id]/route.ts
     methods: [DELETE, GET, PUT]
     tests:
@@ -599,6 +624,7 @@ routes:
       - tests/lead-reference-integrity.test.ts
       - tests/lead-timezone-update.test.ts
       - tests/leads-list-cap.test.ts
+      - tests/leads-rescore-icp-route.test.ts
   - path: app/api/leads/import/route.ts
     methods: [POST]
     tests:
@@ -609,6 +635,10 @@ routes:
   - path: app/api/leads/recalculate-scores/route.ts
     methods: [POST]
     tests: []
+  - path: app/api/leads/rescore-icp/route.ts
+    methods: [POST]
+    tests:
+      - tests/leads-rescore-icp-route.test.ts
   - path: app/api/leads/route.ts
     methods: [GET, POST]
     tests:
@@ -635,6 +665,7 @@ routes:
       - tests/lead-reference-integrity.test.ts
       - tests/lead-timezone-update.test.ts
       - tests/leads-list-cap.test.ts
+      - tests/leads-rescore-icp-route.test.ts
   - path: app/api/leads/scoring-rules/route.ts
     methods: [GET, PUT]
     tests: []
@@ -769,66 +800,82 @@ routes:
   - path: app/api/sequences/[id]/analytics/route.ts
     methods: [GET]
     tests:
+      - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enroll/route.ts
     methods: [DELETE, POST]
     tests:
+      - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/logs/route.ts
     methods: [GET]
     tests:
+      - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/run-now/route.ts
     methods: [POST]
     tests:
+      - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/status/route.ts
     methods: [PATCH]
     tests:
+      - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enrollments/bulk-action/route.ts
     methods: [POST]
     tests:
+      - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enrollments/route.ts
     methods: [GET]
     tests:
+      - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/route.ts
     methods: [DELETE, GET, PUT]
     tests:
+      - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/analytics/route.ts
     methods: [GET]
@@ -840,10 +887,12 @@ routes:
   - path: app/api/sequences/route.ts
     methods: [GET, POST]
     tests:
+      - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/team-analytics/route.ts
     methods: [GET]
@@ -943,6 +992,7 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/admin-audit-coverage.test.ts
       - tests/admin-org.test.ts
       - tests/admin.test.ts
       - tests/floor-manager-administration.test.ts
@@ -958,6 +1008,7 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/admin-audit-coverage.test.ts
       - tests/admin-org.test.ts
       - tests/admin.test.ts
       - tests/floor-manager-administration.test.ts
@@ -973,6 +1024,7 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/admin-audit-coverage.test.ts
       - tests/admin-org.test.ts
       - tests/admin.test.ts
       - tests/floor-manager-administration.test.ts
