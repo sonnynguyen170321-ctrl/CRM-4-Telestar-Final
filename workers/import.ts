@@ -23,6 +23,7 @@ import {
 } from '@/lib/leads/importRows';
 import { buildPoolDuplicateKey } from '@/lib/leadgen/pool';
 import { scoreImportedPoolItem } from '@/lib/leadgen/scoreImportedPoolItem';
+import { scoreNewLead } from '@/lib/leads/scoreNewLead';
 
 const CHUNK_SIZE = 500;
 
@@ -1045,6 +1046,12 @@ async function handleImportChunk(payload: ImportChunkPayload) {
           throw new Error('FAILPOINT_AFTER_TASK');
         }
       }
+
+      // Score after the row and its cadence exist, never before: a lead that could not be
+      // scored is still a lead. `scoreNewLead` never throws. This was the door 984 production
+      // leads came through with no score of any kind — the importer scored pool items and
+      // nothing else.
+      await scoreNewLead({ tenantId, leadId: createdLead.id });
 
       created++;
     } catch (err: unknown) {

@@ -133,6 +133,7 @@ const SOFT_REFERENCES: Array<{ table: string; column: string; target: string; no
   { table: 'Lead', column: 'archivedById', target: 'User', note: 'Who archived the lead.' },
   { table: 'EmailAccount', column: 'sendPausedById', target: 'User', note: 'Who paused the mailbox.' },
   { table: 'LeadPoolItem', column: 'latestAssessmentId', target: 'LeadPoolAssessment', note: 'The scoring run a pool item points at.' },
+  { table: 'Lead', column: 'latestIcpAssessmentId', target: 'LeadIcpAssessment', note: 'The ICP scoring run a lead points at; the fit score and qualification on the lead are copies of that row.' },
 ];
 
 for (const ref of SOFT_REFERENCES) {

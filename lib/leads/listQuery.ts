@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import type { ProspectOperatingState } from '@prisma/client';
+import type { IcpQualification, ProspectOperatingState } from '@prisma/client';
 import type { z } from 'zod';
 import type { leadStage, priority } from '@/lib/validation/schemas';
 import { buildTermClauses } from '@/lib/search/terms';
@@ -14,6 +14,10 @@ export interface LeadListFilters {
    * to, so the list has to be able to show exactly those rows.
    */
   operatingState?: ProspectOperatingState;
+  /** The ICP engine's verdict on the lead, once it has one. */
+  icpQualification?: IcpQualification;
+  /** Leads with no ICP assessment at all — NOT SCORED, derived from the absent pointer. */
+  icpUnscored?: boolean;
   source?: string;
   importListName?: string;
   emailValidation?: string;
@@ -56,6 +60,8 @@ export function buildLeadListWhere(
   if (filters.assignedTo) clauses.push({ assignedToId: filters.assignedTo });
   if (filters.campaignId) clauses.push({ campaignId: filters.campaignId });
   if (filters.operatingState) clauses.push({ operatingState: filters.operatingState });
+  if (filters.icpQualification) clauses.push({ icpQualification: filters.icpQualification });
+  if (filters.icpUnscored) clauses.push({ latestIcpAssessmentId: null });
   if (filters.source) clauses.push({ source: { contains: filters.source, mode: 'insensitive' } });
   if (filters.importListName) clauses.push({ importListName: { contains: filters.importListName, mode: 'insensitive' } });
   if (filters.emailValidation) clauses.push({ emailValidation: filters.emailValidation });

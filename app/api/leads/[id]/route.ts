@@ -23,6 +23,13 @@ export async function GET(
     include: {
       assignedTo: { select: { id: true, firstName: true, lastName: true, role: true } },
       campaign: { select: { id: true, name: true, client: { select: { id: true, name: true } } } },
+      // The verdict behind `icpFitScore`: which rules fired and what was missing, for the
+      // panel's explanation. Latest only — the history is the assessment table itself.
+      icpAssessments: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: { id: true, fitScore: true, confidenceScore: true, dataQualityScore: true, qualification: true, evidenceJson: true, createdAt: true, icpVersion: { select: { id: true, versionNumber: true, icpProfile: { select: { name: true } } } } },
+      },
       contact: {
         include: {
           intelligence: true,

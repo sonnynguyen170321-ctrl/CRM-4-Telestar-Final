@@ -159,6 +159,7 @@
     "/api/leads/[id]/restore",
     "/api/leads/import",
     "/api/leads/recalculate-scores",
+    "/api/leads/rescore-icp",
     "/api/leads/scoring-rules",
     "/api/meetings",
     "/api/meetings/[id]",
@@ -231,5 +232,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 36,
-  "apiRouteCount": 184
+  "apiRouteCount": 185
 }

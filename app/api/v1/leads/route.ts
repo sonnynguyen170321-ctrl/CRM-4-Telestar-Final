@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, hasScope } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
+import { scoreNewLead } from '@/lib/leads/scoreNewLead';
 
 export const dynamic = 'force-dynamic';
 
@@ -218,9 +219,14 @@ export async function POST(req: NextRequest) {
       })
     );
 
+    // An externally ingested lead is scored like any other; the integration gets the
+    // verdict back so it can route on it without a second call.
+    const scores = await scoreNewLead({ tenantId, leadId: newLead.id });
+
     return NextResponse.json(
       {
         lead: newLead,
+        icp: scores.icp,
         action: 'created',
         message: 'Lead ingested successfully into CRM.',
       },

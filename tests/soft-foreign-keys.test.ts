@@ -67,6 +67,10 @@ const SOFT_FOREIGN_KEYS = new Set([
   'EmailHealthAlert.acknowledgedById',
   'EmailHealthAlert.resolvedById',
   'Lead.archivedById',
+  // Mirror pointer to the latest ICP assessment, soft by the same reasoning as
+  // LeadPoolItem.latestAssessmentId: the assessment row holds the hard relation to the lead,
+  // and a circular hard FK would make the pair un-deletable in either order.
+  'Lead.latestIcpAssessmentId',
   'LeadPoolItem.latestAssessmentId',
   'OutboundMessage.sequenceId',
   'OutcomeSignal.abVariantId',

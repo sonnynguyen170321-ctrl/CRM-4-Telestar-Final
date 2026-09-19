@@ -411,18 +411,23 @@ export async function executeTool(
     case 'prioritize_leads':
       return runPrioritizeLeads(stringArgs(args), context);
 
+    // Every lead-scoped tool falls back to the lead the user has open, the way `create_task`
+    // always has. The model is told the id in its context block, but it does not always echo
+    // it into the call; refusing then — "leadId is required" — was the error SDRs saw when
+    // they asked for a score with the lead panel open. 70 of 90 production chat calls carried
+    // no lead id at all.
     case 'evaluate_lead_quality':
-      return runEvaluateLeadQuality(stringArg(args.leadId), context);
+      return runEvaluateLeadQuality(stringArg(args.leadId) ?? context.leadId, context);
 
     case 'get_contact_intelligence':
-      return runGetContactIntelligence(stringArg(args.leadId), stringArg(args.contactId), context);
+      return runGetContactIntelligence(stringArg(args.leadId) ?? context.leadId, stringArg(args.contactId), context);
 
     case 'draft_sequence':
-      return runDraftSequence(stringArg(args.leadId), stringArg(args.channel), context);
+      return runDraftSequence(stringArg(args.leadId) ?? context.leadId, stringArg(args.channel), context);
 
     case 'enroll_lead_in_sequence':
       return runEnrollLeadInSequence(
-        stringArg(args.leadId),
+        stringArg(args.leadId) ?? context.leadId,
         stringArg(args.sequenceId),
         args.approvedCopy,
         context

@@ -849,6 +849,18 @@ model Lead {
   tags               String[]
   crmPriorityScore   Priority                  @default(warm)
   engagementScore    Int?
+  /// ICP fit, mirrored from the latest `LeadIcpAssessment` the same way `LeadPoolItem`
+  /// mirrors its pool assessment. All null means NOT SCORED — no ICP configured for the
+  /// lead's campaign, or the lead predates scoring. Never a fake zero. Until 2026-09-19
+  /// ICP scoring existed only for pool items; a lead an SDR uploaded had nowhere to hold it.
+  icpFitScore            Int?
+  icpQualification       IcpQualification?
+  icpVersionId           String?
+  icpVersion             IcpVersion?               @relation("LeadIcpVersion", fields: [icpVersionId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  /// Pointer to the assessment the three fields above were copied from. Soft on purpose
+  /// (see LeadPoolItem.latestAssessmentId): the assessment row carries the hard relation.
+  latestIcpAssessmentId  String?
+  icpScoredAt            DateTime?
   lastContactedAt    DateTime?
   nextTaskDue        DateTime?
   emailSentCount     Int                       @default(0)
@@ -882,6 +894,7 @@ model Lead {
   meetings             Meeting[]
   opportunities        Opportunity[]
   poolSources          LeadPoolItem[]       @relation("LeadPoolConverted")
+  icpAssessments       LeadIcpAssessment[]  @relation("LeadIcpAssessments")
   operatingTransitions ProspectTransition[]
   workOrders           WorkOrder[]
   workOrderLeases      WorkOrderLease[]
@@ -895,6 +908,8 @@ model Lead {
   @@index([accountId])
   @@index([crmPriorityScore])
   @@index([engagementScore])
+  @@index([tenantId, icpQualification])
+  @@index([icpVersionId])
   @@index([contactId])
   @@index([tenantId])
   @@index([tenantId, stage])
@@ -1801,6 +1816,8 @@ model IcpVersion {
   tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   assessments LeadPoolAssessment[]
+  leadAssessments LeadIcpAssessment[] @relation("LeadIcpAssessmentVersion")
+  scoredLeads     Lead[]              @relation("LeadIcpVersion")
   campaignProspects CampaignProspect[]
   researchRuns ResearchRun[]
   campaigns   Campaign[]
@@ -1849,6 +1866,43 @@ model LeadPoolAssessment {
   @@index([tenantId])
   @@index([tenantId, icpVersionId])
   @@index([poolItemId, createdAt])
+}
+
+/// The same scoring run, against a CRM lead instead of a pool record.
+///
+/// Until 2026-09-19 an ICP verdict could only be attached to a `LeadPoolItem`. A lead an SDR
+/// uploaded through Import CSV, created by hand, converted from the pool, or pushed through the
+/// v1 API had nowhere to hold one — on production 987 of 1,138 leads carried no score of any
+/// kind, and the team was filtering ICP fit in Excel before upload ("…_ICP_Filtered.xlsx").
+///
+/// Same contract as `LeadPoolAssessment`, on purpose: insert-only, full input and rules
+/// snapshots, a fingerprint so an identical re-score reuses the row, and a pointer on the lead
+/// (`Lead.latestIcpAssessmentId`) that moves in the same transaction. One engine, two subjects.
+model LeadIcpAssessment {
+  @@unique([id, tenantId], map: "LeadIcpAssessment_id_tenantId_key")
+  id           String     @id @default(cuid())
+  leadId       String
+  lead         Lead       @relation("LeadIcpAssessments", fields: [leadId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  icpVersionId String
+  icpVersion   IcpVersion @relation("LeadIcpAssessmentVersion", fields: [icpVersionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  fitScore         Int
+  confidenceScore  Int
+  dataQualityScore Int
+  qualification    IcpQualification
+  evidenceJson     Json?
+  inputSnapshot    Json
+  rulesSnapshot    Json
+  fingerprint      String
+
+  createdAt DateTime @default(now())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, leadId, fingerprint])
+  @@index([tenantId])
+  @@index([tenantId, icpVersionId])
+  @@index([leadId, createdAt])
 }
 
 // ─── Leadgen Ecosystem — Internal Lead Pool ──────────────────────────────────
@@ -2338,6 +2392,7 @@ model Tenant {
   icpProfiles              IcpProfile[]
   icpVersions              IcpVersion[]
   leadPoolAssessments      LeadPoolAssessment[]
+  leadIcpAssessments       LeadIcpAssessment[]
   researchRuns             ResearchRun[]
   researchCandidates       ResearchCandidate[]
   researchProspects        ResearchProspect[]
