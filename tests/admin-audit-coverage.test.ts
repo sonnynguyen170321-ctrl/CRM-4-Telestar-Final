@@ -43,8 +43,10 @@ describe('management routes record an admin audit action', () => {
     it(`${route} records ${action}`, () => {
       const src = read(route);
       expect(src, `${route} does not import logAdminAudit`).toMatch(/logAdminAudit/);
-      // Either quote style — the ICP routes are double-quoted, the rest single.
-      expect(src, `${route} does not record ${action}`).toMatch(new RegExp(`['"]${action.replace(/\./g, '\\.')}['"]`));
+      // Either quote style — the ICP routes are double-quoted, the rest single. A plain
+      // substring check rather than a regex built from the name: nothing to escape.
+      const recorded = src.includes(`'${action}'`) || src.includes(`"${action}"`);
+      expect(recorded, `${route} does not record ${action}`).toBe(true);
       // The action has to be one the type admits, or the call would not compile — but the
       // union is also what the log's filter dropdown is built from, so drift shows here first.
       expect(ADMIN_AUDIT_ACTIONS as readonly string[]).toContain(action);
