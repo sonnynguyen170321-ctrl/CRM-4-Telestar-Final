@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
@@ -22,9 +22,30 @@ import AttentionBanner from './ai/AttentionBanner';
 // team stops working and wakes on the first load the next morning.
 const HEARTBEAT_INTERVAL_MS = 4 * 60 * 1000;
 
+/**
+ * The SDR environment: pages the leadgen roles are never shown a link to.
+ *
+ * `app/page.tsx` already sends leadgen users to their own home. These routes stayed reachable
+ * by URL — the 2026-09-19 role-play typed them in and got the SDR pipeline, inbox and cadence
+ * builder. The data behind them is scoped per role, so nothing leaked; but a page that exists
+ * for a role only when they guess its address is neither offered nor refused. The sidebar's
+ * leadgen branch is the source of truth for what that role is offered; this mirrors it.
+ */
+const SDR_ENVIRONMENT_PREFIXES = ['/leads', '/inbox', '/sequences', '/templates', '/meetings', '/opportunities', '/email-health'];
+const LEADGEN_HOME: Record<string, string> = { leadgen: '/leadgen', leadgen_manager: '/leadgen-manager' };
+
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const { currentRole, setRole, setActiveNewModal, activeNewModal } = useAppContext();
   const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    const home = LEADGEN_HOME[currentRole];
+    if (!home || !pathname) return;
+    if (SDR_ENVIRONMENT_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+      router.replace(home);
+    }
+  }, [currentRole, pathname, router]);
 
   useEffect(() => {
     const ping = () => {

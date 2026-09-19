@@ -32,8 +32,19 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      {/* Fixed Toast Portal Stack Container */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+      {/*
+        Fixed toast stack. `role="status"` + `aria-live="polite"` so a screen reader hears
+        "Task created" without the toast stealing focus; before this the stack had no live
+        region and every confirmation in the app was silent to assistive tech.
+        `bottom-24`, not `bottom-6`: the AI Copilot launcher sits at bottom-6 right-6, and the
+        two overlapped — the toast's close button landed on top of the launcher.
+      */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="false"
+        className="fixed bottom-24 right-6 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none"
+      >
         {toasts.map(toast => (
           <Toast 
             key={toast.id} 

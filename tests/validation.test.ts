@@ -99,7 +99,8 @@ describe('createSequenceSchema', () => {
     expect(
       createSequenceSchema.safeParse({
         name: 'Outbound v1',
-        steps: [{ channel: 'email', delayDays: 0, delayHours: 0, autoComplete: true }],
+        // An auto-complete email step needs a template (tests/sequence-guards.test.ts).
+        steps: [{ channel: 'email', delayDays: 0, delayHours: 0, autoComplete: true, templateId: 'ckvlq4c1t0000abcdefghijkl' }],
       }).success
     ).toBe(true);
     expect(

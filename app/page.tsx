@@ -1396,9 +1396,16 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Call / Activity Logging Modal */}
+      {/* Call / Activity Logging Modal. `role="dialog"` like the composer and Log Activity
+          modals — this one had none, so assistive tech saw a form appear mid-page with no
+          announcement and no modal boundary. */}
       {loggingModalOpen && loggingTask && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={loggingTask.type === 'phone' ? 'Log call' : `Log ${loggingTask.type} activity`}
+        >
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setLoggingModalOpen(false)} />
           <form
             data-modal="call-logger"
