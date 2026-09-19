@@ -293,6 +293,7 @@ domains:
       - tests/activities.test.ts
       - tests/lifecycle-integration.test.ts
       - tests/prospect-operating-state.test.ts
+      - tests/ui-reads-what-api-sends.test.ts
     e2e:
       - e2e/leads/**
 

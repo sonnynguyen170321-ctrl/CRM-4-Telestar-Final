@@ -65,6 +65,8 @@ interface LeadFilters {
   stage?: string;
   priority?: string;
   assignedTo?: string;
+  /** Prospect lifecycle state — `unassigned` is the one the attention banner deep-links to. */
+  operatingState?: string;
   source?: string;
   importListName?: string;
   emailValidation?: string;
@@ -82,6 +84,7 @@ function buildQueryString(filters: LeadFilters): string {
   if (filters.stage && filters.stage !== 'all') params.set('stage', filters.stage);
   if (filters.priority && filters.priority !== 'all') params.set('priority', filters.priority);
   if (filters.assignedTo && filters.assignedTo !== 'all') params.set('assignedTo', filters.assignedTo);
+  if (filters.operatingState) params.set('operatingState', filters.operatingState);
   if (filters.source) params.set('source', filters.source);
   if (filters.importListName) params.set('importListName', filters.importListName);
   if (filters.emailValidation && filters.emailValidation !== 'all') params.set('emailValidation', filters.emailValidation);

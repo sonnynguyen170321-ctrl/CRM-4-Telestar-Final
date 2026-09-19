@@ -46,7 +46,9 @@ export async function GET(req: NextRequest) {
   const cacheKey = listKey(
     user.tenantId,
     'campaigns',
-    `${type === 'clients' ? 'clients' : 'list'}:${scopeTag(visibleCampaignIds)}`
+    // `v2`: the list shape gained `_count.leads` and `client.status`. A 60s TTL is short, but
+    // a deploy that serves the old shape for a minute is a minute of "0 leads" again.
+    `${type === 'clients' ? 'clients' : 'list-v2'}:${scopeTag(visibleCampaignIds)}`
   );
 
   const cached = await cacheGet<any>(cacheKey);
@@ -72,6 +74,12 @@ export async function GET(req: NextRequest) {
       // whole Client row — contactName and contactEmail included — into a list every
       // authenticated user could read. For a BPO the client roster with named buyer
       // contacts is the business; nothing in the UI consumes those two fields.
+      //
+      // When that select was narrowed, two fields the admin console reads went with it:
+      // `_count.leads` (the Leads column showed 0 for every campaign) and `client.status`
+      // (`undefined !== 'active'` rendered "Acme Corp ()" on every row and implied an
+      // inactive client). Neither is a buyer contact. `tests/campaigns-list-shape.test.ts`
+      // now pins what app/admin/campaigns/page.tsx reads.
       data = await prisma.campaign.findMany({
         where: campaignWhere,
         select: {
@@ -83,7 +91,8 @@ export async function GET(req: NextRequest) {
           status: true,
           startDate: true,
           endDate: true,
-          client: { select: { id: true, name: true, industry: true } },
+          client: { select: { id: true, name: true, industry: true, status: true } },
+          _count: { select: { leads: true } },
         },
         orderBy: { startDate: 'desc' },
       });
