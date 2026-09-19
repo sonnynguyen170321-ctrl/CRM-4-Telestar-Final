@@ -119,17 +119,27 @@ export const bulkTaskActionSchema = z
 
 // ─── Sequences ───────────────────────────────────────────────────────────────
 
-const sequenceStepSchema = z.object({
-  order: z.number().int().min(1).max(100).optional(),
-  channel,
-  delayDays: z.number().int().min(0).max(365).optional(),
-  delayHours: z.number().int().min(0).max(23).optional(),
-  templateId: id.nullish().optional(),
-  instructions: nullableLongText.optional(),
-  autoComplete: z.boolean().optional(),
-  sendWindowStartMinutes: z.number().int().min(0).max(1439).nullish().optional(),
-  sendWindowEndMinutes: z.number().int().min(0).max(1439).nullish().optional(),
-});
+const sequenceStepSchema = z
+  .object({
+    order: z.number().int().min(1).max(100).optional(),
+    channel,
+    delayDays: z.number().int().min(0).max(365).optional(),
+    delayHours: z.number().int().min(0).max(23).optional(),
+    templateId: id.nullish().optional(),
+    instructions: nullableLongText.optional(),
+    autoComplete: z.boolean().optional(),
+    sendWindowStartMinutes: z.number().int().min(0).max(1439).nullish().optional(),
+    sendWindowEndMinutes: z.number().int().min(0).max(1439).nullish().optional(),
+  })
+  // An email step marked auto-complete is a promise that the system will send it. With no
+  // template there is nothing to send: the worker's eligibility check returns
+  // `MANUAL_REQUIRED missing_template`, the task sits pending, and nobody is told the cadence
+  // they armed will never fire. The builder let this be saved — the seeded "Post-Meeting
+  // Follow-Up" step 1 was exactly this — so it is refused here, where the reason can be shown.
+  .refine((step) => !(step.autoComplete && step.channel === 'email' && !step.templateId), {
+    message: 'An auto-complete email step needs a template — pick one, or turn auto-complete off',
+    path: ['templateId'],
+  });
 
 export const createSequenceSchema = z.object({
   name: z.string().min(1).max(200),

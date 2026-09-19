@@ -395,15 +395,24 @@ function SettingsPageInner() {
         {/* Leadgen account assignment.
             User, campaign, client and team management moved to /admin (Admin
             Control Center). Leadgen roles are blocked from /admin by proxy.ts,
-            so this panel remains their only route to account assignment. */}
+            so this panel remains their only route to account assignment.
+
+            A `leadgen` only manages anyone when they have direct reports, and only the
+            server knows that. The panel asks, and renders nothing — heading included — when
+            the answer is no. It used to render a red "Console Blocked" card on the Settings
+            page of every leadgen without reports, which is most of them. */}
         {(currentRole === 'leadgen_manager' || currentRole === 'leadgen') && (
-          <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
-            <h2 className="type-section text-text-primary flex items-center gap-2">
-              <Users className="w-4 h-4 text-brand-red" />
-              <span>Team &amp; Accounts</span>
-            </h2>
-            <TeamAccountsPanel />
-          </div>
+          <TeamAccountsPanel
+            frame={(body) => (
+              <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
+                <h2 className="type-section text-text-primary flex items-center gap-2">
+                  <Users className="w-4 h-4 text-brand-red" />
+                  <span>Team &amp; Accounts</span>
+                </h2>
+                {body}
+              </div>
+            )}
+          />
         )}
       </div>
     </div>

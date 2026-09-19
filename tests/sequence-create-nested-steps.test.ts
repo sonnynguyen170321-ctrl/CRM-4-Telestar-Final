@@ -83,7 +83,9 @@ describe('POST /api/sequences', () => {
         name,
         isActive: false,
         steps: [
-          { order: 1, channel: 'email', delayDays: 0, delayHours: 0, instructions: 'Intro', autoComplete: true },
+          // Manual, because an auto-complete email step needs a template and this test has no
+          // Template row to point at (tests/sequence-guards.test.ts).
+          { order: 1, channel: 'email', delayDays: 0, delayHours: 0, instructions: 'Intro', autoComplete: false },
           { order: 2, channel: 'linkedin', delayDays: 2, delayHours: 0, instructions: 'Connect', autoComplete: false },
         ],
       })

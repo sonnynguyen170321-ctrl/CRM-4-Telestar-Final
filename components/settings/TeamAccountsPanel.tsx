@@ -51,7 +51,17 @@ interface PendingRemoval {
   campaignName: string;
 }
 
-export default function TeamAccountsPanel() {
+interface TeamAccountsPanelProps {
+  /**
+   * How to wrap the panel when there is something to show. The caller owns the card and
+   * heading, but only this component knows whether the caller manages anyone — so the frame
+   * is handed in and applied here, and a blocked panel renders nothing at all rather than a
+   * heading over a refusal.
+   */
+  frame?: (body: React.ReactNode) => React.ReactNode;
+}
+
+export default function TeamAccountsPanel({ frame = (body) => body }: TeamAccountsPanelProps = {}) {
   const { showToast } = useToast();
   const [data, setData] = useState<PanelData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -208,22 +218,26 @@ export default function TeamAccountsPanel() {
   );
 
   if (loading) {
-    return (
+    return frame(
       <div className="flex items-center gap-2 text-text-muted text-xs font-mono py-4">
         <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading team & accounts…
       </div>
     );
   }
 
-  if (blocked || !data) {
-    return (
+  // A 403 means "you manage nobody" — true of most leadgen reps. That is not an error to show
+  // them; it is a section that does not apply. Render nothing, frame included.
+  if (blocked) return null;
+
+  if (!data) {
+    return frame(
       <div className="p-4 bg-brand-red/5 border border-brand-red/10 rounded-xl space-y-2 text-xs">
         <div className="flex items-center gap-1.5 text-brand-red font-semibold">
           <ShieldAlert className="w-4 h-4 flex-shrink-0" />
-          <span>Console Blocked</span>
+          <span>Could not load team &amp; accounts</span>
         </div>
         <p className="text-[11px] text-text-secondary leading-normal">
-          You don&apos;t have permission to manage team and account assignments.
+          The assignment console did not respond. Reload the page to try again.
         </p>
       </div>
     );
@@ -231,7 +245,7 @@ export default function TeamAccountsPanel() {
 
   const isLeadgen = data.domain === 'leadgen';
 
-  return (
+  return frame(
     <div className="space-y-4 text-xs">
       <div className="space-y-1">
         <h4 className="font-bold text-text-primary flex items-center gap-1.5">

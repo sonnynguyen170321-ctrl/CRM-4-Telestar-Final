@@ -388,11 +388,12 @@ export default function SequencesPage() {
     });
     setSaving(false);
     if (!res.ok) {
-      // The API refuses two edits the builder cannot fully prevent: removing a step an
-      // active enrollment is sitting on, and a non-manager changing a send window. Both
-      // come back with a specific message worth surfacing verbatim.
+      // The API refuses edits the builder cannot fully prevent: removing a step an active
+      // enrollment is sitting on, a non-manager changing a send window, an auto-complete
+      // email step with no template. A validation refusal carries the specific reason in
+      // `details[0].message`; the top-level `error` is only "Invalid sequence update".
       const detail = await res.json().catch(() => null);
-      showToast(detail?.error ?? 'Failed to save sequence', 'error');
+      showToast(detail?.details?.[0]?.message ?? detail?.error ?? 'Failed to save sequence', 'error');
       return;
     }
     showToast('Sequence cadence saved!', 'success');
@@ -631,6 +632,13 @@ export default function SequencesPage() {
                             {step.autoComplete ? 'Auto-complete (email)' : 'Requires outcome log'}
                           </span>
                         </label>
+                        {/* Armed with nothing to send. The API refuses this on save; saying it
+                            here, next to the toggle, is what stops the click in the first place. */}
+                        {step.autoComplete && step.channel === 'email' && !step.templateId && (
+                          <p role="status" className="mt-1.5 text-[10px] font-mono text-brand-orange-text">
+                            Auto-complete needs a template — this step cannot send without one.
+                          </p>
+                        )}
                         {/* Send window — deliverability policy, so managers only (spec §27) */}
                         {step.autoComplete && (
                           <div className="flex items-center gap-2 mt-1.5">

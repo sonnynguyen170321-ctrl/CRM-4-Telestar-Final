@@ -130,6 +130,14 @@ export async function DELETE(
       where: { sequenceId: id },
       data: { sequenceId: null, sequenceStep: null, sequenceStatus: null },
     });
+    // The enrollment rows too, or the lead cache says "not in a sequence" while the row that
+    // *is* the cadence stays `active` and keeps its occupancy key — and the lead can never be
+    // enrolled anywhere again, because the unique key says it is still busy here. Terminal
+    // status and key release in one statement, as `lib/sequences/occupancy.ts` requires.
+    await prisma.sequenceEnrollment.updateMany({
+      where: { sequenceId: id, status: { in: ['active', 'paused'] } },
+      data: { status: 'unenrolled', occupancyKey: null, lastTransitionAt: new Date(), nextActionAt: null },
+    });
     await prisma.sequence.update({
       where: { id },
       data: { isArchived: true, isActive: false },

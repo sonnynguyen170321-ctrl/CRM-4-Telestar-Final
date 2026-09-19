@@ -312,6 +312,7 @@ domains:
       - tests/typography-design-system.test.ts
       - tests/phase-9-role-surfaces.test.ts
       - tests/telestar-ai-ui-routes.test.ts
+      - tests/surface-consistency.test.ts
     e2e:
       - e2e/crm-journeys.spec.ts
       - e2e/roles/desktop-gate.spec.ts
