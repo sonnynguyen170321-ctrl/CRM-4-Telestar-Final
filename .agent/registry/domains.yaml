@@ -185,6 +185,7 @@ domains:
       - tests/businessDays.test.ts
       - tests/email-idempotency.test.ts
       - tests/email-safety.test.ts
+      - tests/email-send-paused-mailbox.test.ts
       - tests/unsubscribe.test.ts
       - tests/demo-email-barrier.test.ts
       - tests/variant-attribution.test.ts

@@ -7,7 +7,7 @@ import { useToast } from '@/context/ToastContext';
 
 interface Task { id: string; type: string; title: string; description: string; dueDate: string; status: string; leadId: string; }
 interface Lead { id: string; firstName: string; lastName: string; company: string; title: string; email: string; phone?: string; sequenceId?: string; sequenceStep?: number; }
-interface EmailAccount { id: string; email: string; provider: string }
+interface EmailAccount { id: string; email: string; provider: string; sendPausedAt?: string | null; sendPauseReason?: string | null }
 interface Template { id: string; name: string; channel: string; subject?: string | null; body: string }
 
 interface MailComposerModalProps {
@@ -197,6 +197,18 @@ export default function MailComposerModal({ lead, onClose, task, onSent }: MailC
                 ))}
               </select>
             </div>
+          ) : account?.sendPausedAt ? (
+            // Say it before the rep writes the email, not after the worker refuses it. Without
+            // this the mailbox looked fine, the send answered 200, and the message sat at
+            // `failed` with a reason nobody on screen had seen.
+            <div role="status" className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 text-[11px] text-text-secondary leading-normal flex gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>
+                Sending is paused for <strong>{account.email}</strong>
+                {account.sendPauseReason ? <> — {account.sendPauseReason}</> : null}. A manager can resume it under{' '}
+                <Link href="/email-health" onClick={onClose} className="text-brand-orange-text font-semibold hover:underline">Email Health</Link>.
+              </span>
+            </div>
           ) : account ? (
             <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-3 text-[11px] text-text-secondary leading-normal flex gap-2">
               <AlertCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" aria-hidden="true" />
@@ -253,7 +265,7 @@ export default function MailComposerModal({ lead, onClose, task, onSent }: MailC
             className="px-3.5 py-2 border border-card-border bg-bg-main hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors focus-ring">
             Cancel
           </button>
-          <button type="submit" disabled={!account || sending || loadingAccount}
+          <button type="submit" disabled={!account || Boolean(account.sendPausedAt) || sending || loadingAccount}
             className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 active:scale-95 focus-ring">
             {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Send className="w-3.5 h-3.5" aria-hidden="true" />}
             <span>{sending ? 'Sending…' : 'Send Email'}</span>

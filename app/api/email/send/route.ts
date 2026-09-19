@@ -64,6 +64,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Email account not found' }, { status: 404 });
   }
 
+  // Refuse a paused mailbox here, where the rep is still looking at the composer. The worker
+  // already refuses it (`evaluateSendBlock`), but by then this route has answered 200, the
+  // composer has said "queued" and the panel has said "sent" — and the message sits at `failed`
+  // with a reason nobody in front of the screen was shown. Seen in the 2026-09-19 role-play: a
+  // manager paused the inbox, the SDR sent anyway, and saw "Email sent".
+  if (account.sendPausedAt) {
+    const why = account.sendPauseReason ? `: ${account.sendPauseReason}` : '';
+    return NextResponse.json(
+      { error: `Sending is paused for ${account.email}${why}. A manager can resume it under Email Health.`, code: 'mailbox_paused' },
+      { status: 409 }
+    );
+  }
+
   let subject: string = body.subject ?? '';
   let text: string = body.text ?? body.body ?? '';
 

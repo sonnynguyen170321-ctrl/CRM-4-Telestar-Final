@@ -129,3 +129,4 @@ vitest-results.json
 # Agent control plane — ephemeral session state (see .agent/state/README.md)
 .agent/state/*
 !.agent/state/README.md
+.qa/
