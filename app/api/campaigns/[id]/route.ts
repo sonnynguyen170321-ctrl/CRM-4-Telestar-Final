@@ -6,6 +6,7 @@ import { parseBody } from '@/lib/validation/core';
 import { updateCampaignSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
 import { invalidateList } from '@/lib/cache';
+import { logAdminAudit } from '@/lib/audit';
 
 export async function PUT(
   req: NextRequest,
@@ -33,6 +34,21 @@ export async function PUT(
         ...(body.targetGeo !== undefined && { targetGeo: body.targetGeo ?? null }),
       },
       include: { client: true },
+    });
+
+    // Admin-classified, so a status change (pausing a client's campaign) is visible in the
+    // Audit Log's default view and not only in the all-changes firehose.
+    await logAdminAudit({
+      actorId: user.id,
+      action: 'admin.campaign.update',
+      tableName: 'Campaign',
+      recordId: campaign.id,
+      changedFields: {
+        ...(body.name !== undefined && { name: body.name }),
+        ...(body.status !== undefined && { status: body.status }),
+        ...(body.targetVertical !== undefined && { targetVertical: body.targetVertical ?? null }),
+        ...(body.targetGeo !== undefined && { targetGeo: body.targetGeo ?? null }),
+      },
     });
 
     await invalidateList(user.tenantId, 'campaigns');

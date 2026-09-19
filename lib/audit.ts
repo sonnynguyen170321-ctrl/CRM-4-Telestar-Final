@@ -203,6 +203,17 @@ export const ADMIN_AUDIT_ACTIONS = [
   'admin.client.create',
   'admin.client.update',
   'admin.client.archive',
+  // Management acts that were only in the all-changes feed. The Audit Log opens on "Admin
+  // actions only", and in the 2026-09-19 role-play a director created a campaign and an ICP,
+  // then opened the log and read "No audit entries in this window".
+  'admin.campaign.create',
+  'admin.campaign.update',
+  'admin.icp.create',
+  'admin.icp.publish',
+  'admin.mailbox.pause',
+  'admin.mailbox.resume',
+  'admin.mailbox.cap',
+  'admin.sequence.archive',
   'admin.seed.reset',
 ] as const;
 

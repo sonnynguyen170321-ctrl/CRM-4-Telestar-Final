@@ -7,6 +7,7 @@ import { parseBody } from '@/lib/validation/core';
 import { createCampaignSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
 import { cacheGet, cacheSet, listKey, invalidateList } from '@/lib/cache';
+import { logAdminAudit } from '@/lib/audit';
 
 const CACHE_TTL = 60;
 
@@ -167,6 +168,18 @@ export async function POST(req: NextRequest) {
         startDate: body.startDate ?? new Date(),
         endDate: null,
       },
+    });
+
+    // Classified as an admin action so it shows under the Audit Log's default "Admin actions
+    // only" view. The Prisma extension already records `create_campaign`, but that lands in
+    // the "all changes" firehose beside every notification and job run; a director who has
+    // just created a campaign and opens the log should see it there.
+    await logAdminAudit({
+      actorId: user.id,
+      action: 'admin.campaign.create',
+      tableName: 'Campaign',
+      recordId: campaign.id,
+      changedFields: { name: campaign.name, clientId, status: campaign.status },
     });
 
     await invalidateList(user.tenantId, 'campaigns');

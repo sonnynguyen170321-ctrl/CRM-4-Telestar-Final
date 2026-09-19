@@ -6,6 +6,7 @@ import { forbidden, notFound, handleApiError } from '@/lib/api/errors';
 import { parseBody } from '@/lib/validation/core';
 import { pauseSendingSchema } from '@/lib/validation/schemas';
 import { getEmailAccountScope, canAccessEmailAccount } from '@/lib/email-health/access';
+import { logAdminAudit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +47,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           sendPauseReason: parsed.data.reason,
         },
         select: { id: true, email: true, sendPausedAt: true, sendPauseReason: true },
+      })
+    );
+
+    // Stopping a rep's outbound is a management act and belongs in the Audit Log's default
+    // view. Inside the same tenant context as the write, so the row is filed under the
+    // mailbox's tenant rather than the caller's.
+    await tenantStorage.run({ tenantId: account.tenantId }, () =>
+      logAdminAudit({
+        actorId: user.id,
+        action: 'admin.mailbox.pause',
+        tableName: 'EmailAccount',
+        recordId: account.id,
+        changedFields: { email: account.email },
+        reason: parsed.data.reason,
       })
     );
 
