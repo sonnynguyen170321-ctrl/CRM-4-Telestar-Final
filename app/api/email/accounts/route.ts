@@ -27,6 +27,10 @@ export async function GET(_req: NextRequest) {
       lastSyncAt: true,
       signature: true,
       createdAt: true,
+      // The composer needs to know a mailbox cannot send *before* the rep writes the email.
+      // Pause state is operational, not a credential — nothing here decrypts or exposes a token.
+      sendPausedAt: true,
+      sendPauseReason: true,
     },
     orderBy: { createdAt: 'asc' },
   });

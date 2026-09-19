@@ -2255,7 +2255,12 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
           }}
           onClose={() => setShowComposer(false)}
           onSent={() => {
-            showToast('Email sent', 'success');
+            // No toast here. `onSent` fires when the send is *queued* — the composer already
+            // says so — and the worker can still refuse it (paused mailbox, quota, suppression)
+            // or the provider can reject it. "Email sent" at this point was a claim about the
+            // future; in the 2026-09-19 role-play it was shown for a message that had already
+            // failed. The outcome reaches the rep through the Sent folder and the send-failure
+            // notification, both written from what actually happened.
             if (leadId) {
               fetch(`/api/leads/${leadId}`)
                 .then((r) => (r.ok ? r.json() : null))

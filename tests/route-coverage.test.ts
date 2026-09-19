@@ -29,7 +29,7 @@ const MUTATING = ['POST', 'PATCH', 'PUT', 'DELETE'];
  * must never rise: a new route arriving with nothing pointed at it is the failure this exists to
  * catch. Lower it when you cover one — that is the burn-down.
  */
-const UNCOVERED_BUDGET = 27;
+const UNCOVERED_BUDGET = 26;
 
 interface ManifestRow {
   path: string;
