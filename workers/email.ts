@@ -261,6 +261,17 @@ async function handleEmailSend(payload: EmailSendPayload) {
   // already delivered or *may* have delivered, and a resend is the exact duplicate this
   // pipeline exists to prevent.
   if (TERMINAL_STATUSES.includes(existing.status)) {
+    // Terminal for the *message*, but the step behind it may still be open — a job re-driven
+    // onto a row that was reconciled in the meantime arrives here, and returning without
+    // settling would leave that cadence stalled with nothing left to wake it. Both calls are
+    // convergent, so a step that is already settled is a no-op.
+    if (payload.sequenceStepRef) {
+      if (existing.status === OUTBOUND_STATUS.SENT) {
+        await finalizeSequenceStep(payload.sequenceStepRef);
+      } else {
+        await releaseSequenceStep(payload.sequenceStepRef, 'the message was permanently failed');
+      }
+    }
     return {
       skipped: true,
       reason: existing.status === OUTBOUND_STATUS.SENT ? 'already_sent' : 'permanently_failed',
@@ -281,6 +292,9 @@ async function handleEmailSend(payload: EmailSendPayload) {
         where: { id: outboundMessageId },
         data: { status: OUTBOUND_STATUS.SENT, sentAt: existing.sentAt ?? new Date() },
       });
+      // The send did get through, so the step it belongs to is settled here — the lost write
+      // this branch recovers included the settle.
+      if (payload.sequenceStepRef) await finalizeSequenceStep(payload.sequenceStepRef);
       return {
         skipped: true,
         reason: 'already_sent_provider_reconcile',

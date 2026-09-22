@@ -159,120 +159,193 @@ async function recoverTenant(tenantId: string, tenantName: string): Promise<void
     `    spread from ${times[0]?.toISOString()} to ${times[times.length - 1]?.toISOString()}`
   );
 
-  // ── repair: reset the message, reopen the task, rewind the cadence ────────
+  // ── what is wrong, before anything is touched ─────────────────────────────
+  const leadIds = [...new Set(refused.map((m) => m.leadId))];
+  const drift = await countDrift(leadIds);
+  const phantom = drift.reduce((sum, d) => sum + d.claimed - d.real, 0);
+  console.log(
+    `    ${drift.length} leads disagree with their sent rows (${phantom} phantom sends in total).`
+  );
+
+  if (!APPLY) {
+    console.log(
+      `    would reset ${refused.length} messages, rewind the cadences behind them, recount ` +
+        `${drift.length} leads and re-queue across that window.`
+    );
+    return;
+  }
+
+  // ── repair, recount and re-queue — one message at a time ──────────────────
+  //
+  // Each message is carried all the way through before the next is started, and one that throws
+  // does not stop the rest. Repairing all 228 first and recounting and re-queueing afterwards
+  // looked tidier and was wrong: a crash partway through would leave the already-repaired
+  // messages `pending` — no longer selected by this script's `failed` query on a re-run — with
+  // their counts never recomputed and their business-hours schedule discarded. Silent,
+  // permanent, and in exactly the category this script exists to repair.
   let reset = 0;
   let reopened = 0;
   let rewound = 0;
   let retracted = 0;
+  let recounted = 0;
+  let queued = 0;
+  const failures: string[] = [];
 
   for (const msg of refused) {
-    if (!APPLY) continue;
     const dueAt = schedule.get(msg.id)!;
-
-    await prisma.$transaction(async (tx) => {
-      // The message goes back into the claimable pool with a clean attempt count. Without the
-      // reset it would be refused by the redrive cap the moment a sweep picked it up.
-      const back = await tx.outboundMessage.updateMany({
-        where: { id: msg.id, status: OUTBOUND_STATUS.FAILED, sentAt: null },
-        data: {
-          status: OUTBOUND_STATUS.PENDING,
-          errorMessage: null,
-          attemptCount: 0,
-          claimedAt: null,
-        },
-      });
-      reset += back.count;
-
-      if (!msg.sequenceId || msg.sequenceStepOrder === null) return;
-
-      // Read before writing: whether this cadence was pushed ahead by the false advance decides
-      // whether the next step's task is a phantom to retract or legitimate work to leave alone.
-      const current = await tx.sequenceEnrollment.findFirst({
-        where: {
-          leadId: msg.leadId,
-          sequenceId: msg.sequenceId,
-          status: { in: ['active', 'paused'] },
-        },
-        select: { id: true, currentStep: true },
-      });
-      const wasAhead = (current?.currentStep ?? 0) > msg.sequenceStepOrder;
-
-      const task = await tx.task.findFirst({
-        where: {
-          leadId: msg.leadId,
-          sequenceId: msg.sequenceId,
-          sequenceStep: msg.sequenceStepOrder,
-        },
-        select: { id: true, status: true },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (task && task.status !== 'pending') {
-        await tx.task.update({
-          where: { id: task.id },
-          data: { status: 'pending', completedAt: null, lockedAt: null, dueDate: dueAt },
+    try {
+      await prisma.$transaction(async (tx) => {
+        // The message goes back into the claimable pool with a clean attempt count. Without the
+        // reset it would be refused by the redrive cap the moment a sweep picked it up.
+        const back = await tx.outboundMessage.updateMany({
+          where: { id: msg.id, status: OUTBOUND_STATUS.FAILED, sentAt: null },
+          data: {
+            status: OUTBOUND_STATUS.PENDING,
+            errorMessage: null,
+            attemptCount: 0,
+            claimedAt: null,
+          },
         });
-        reopened++;
-      } else if (task) {
-        await tx.task.update({ where: { id: task.id }, data: { dueDate: dueAt, lockedAt: null } });
-      }
+        reset += back.count;
 
-      // Back to the step that was refused, and active: a cadence sitting at step 2 would send
-      // a follow-up to a prospect who has never heard from us. `nextActionAt` is the same
-      // instant the job is queued for — a null there is what made 278 enrollments invisible to
-      // `repairEnrollmentScheduleDrift`, and two different times would let it queue a duplicate.
-      const enrollment = await tx.sequenceEnrollment.updateMany({
-        where: {
-          leadId: msg.leadId,
-          sequenceId: msg.sequenceId,
-          status: { in: ['active', 'paused'] },
-        },
-        data: {
-          status: 'active',
-          currentStep: msg.sequenceStepOrder,
-          pausedReason: null,
-          nextActionAt: dueAt,
-          lastTransitionAt: new Date(),
-        },
-      });
-      rewound += enrollment.count;
+        if (!msg.sequenceId || msg.sequenceStepOrder === null) return;
 
-      if (wasAhead) {
-        // The step-2 task exists only because step 1 was recorded as sent. Left pending it would
-        // go out as "just circling back" to someone who has never heard from us. `skipped`
-        // rather than deleted, so what this incident did stays readable in the history;
-        // `advanceSequence` creates a fresh one when step 1 genuinely lands.
-        const phantom = await tx.task.updateMany({
+        // Read before writing: whether this cadence was pushed ahead by the false advance decides
+        // whether the next step's task is a phantom to retract or legitimate work to leave alone.
+        const current = await tx.sequenceEnrollment.findFirst({
           where: {
             leadId: msg.leadId,
             sequenceId: msg.sequenceId,
-            sequenceStep: { gt: msg.sequenceStepOrder },
-            status: 'pending',
+            status: { in: ['active', 'paused'] },
+          },
+          select: { id: true, currentStep: true },
+        });
+        const wasAhead = (current?.currentStep ?? 0) > msg.sequenceStepOrder;
+
+        const task = await tx.task.findFirst({
+          where: {
+            leadId: msg.leadId,
+            sequenceId: msg.sequenceId,
+            sequenceStep: msg.sequenceStepOrder,
+          },
+          select: { id: true, status: true },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (task && task.status !== 'pending') {
+          await tx.task.update({
+            where: { id: task.id },
+            data: { status: 'pending', completedAt: null, lockedAt: null, dueDate: dueAt },
+          });
+          reopened++;
+        } else if (task) {
+          await tx.task.update({ where: { id: task.id }, data: { dueDate: dueAt, lockedAt: null } });
+        }
+
+        // Back to the step that was refused, and active: a cadence sitting at step 2 would send
+        // a follow-up to a prospect who has never heard from us. `nextActionAt` is the same
+        // instant the job is queued for — a null there is what made 278 enrollments invisible to
+        // `repairEnrollmentScheduleDrift`, and two different times would let it queue a duplicate.
+        const enrollment = await tx.sequenceEnrollment.updateMany({
+          where: {
+            leadId: msg.leadId,
+            sequenceId: msg.sequenceId,
+            status: { in: ['active', 'paused'] },
           },
           data: {
-            status: 'skipped',
-            lockedAt: null,
-            notes: 'Retracted: created by an advance for a send the provider refused (2026-09-21).',
+            status: 'active',
+            currentStep: msg.sequenceStepOrder,
+            pausedReason: null,
+            nextActionAt: dueAt,
+            lastTransitionAt: new Date(),
           },
         });
-        retracted += phantom.count;
+        rewound += enrollment.count;
+
+        if (wasAhead) {
+          // The step-2 task exists only because step 1 was recorded as sent. Left pending it would
+          // go out as "just circling back" to someone who has never heard from us. `skipped`
+          // rather than deleted, so what this incident did stays readable in the history;
+          // `advanceSequence` creates a fresh one when step 1 genuinely lands.
+          const phantom = await tx.task.updateMany({
+            where: {
+              leadId: msg.leadId,
+              sequenceId: msg.sequenceId,
+              sequenceStep: { gt: msg.sequenceStepOrder },
+              status: 'pending',
+            },
+            data: {
+              status: 'skipped',
+              lockedAt: null,
+              notes: 'Retracted: created by an advance for a send the provider refused (2026-09-21).',
+            },
+          });
+          retracted += phantom.count;
+        }
+
+        // The lead's own mirror of its cadence position, used by the legacy advance path.
+        await tx.lead.updateMany({
+          where: { id: msg.leadId, sequenceId: msg.sequenceId },
+          data: { sequenceStep: msg.sequenceStepOrder, sequenceStatus: 'active' },
+        });
+      });
+      // Recomputed from real sent rows, so running it once per message of the same lead
+      // converges rather than double-counting.
+      const [stillDrifted] = await countDrift([msg.leadId]);
+      if (stillDrifted) {
+        await prisma.lead.update({
+          where: { id: msg.leadId },
+          data: { emailSentCount: stillDrifted.real },
+        });
+        recounted++;
       }
 
-      // The lead's own mirror of its cadence position, used by the legacy advance path.
-      await tx.lead.updateMany({
-        where: { id: msg.leadId, sequenceId: msg.sequenceId },
-        data: { sequenceStep: msg.sequenceStepOrder, sequenceStatus: 'active' },
-      });
-    });
+      if (REQUEUE) {
+        await enqueueReschedule(
+          JobType.EMAIL_SEND,
+          {
+            outboundMessageId: msg.id,
+            accountId: msg.accountId,
+            to: msg.to,
+            subject: msg.subject ?? '',
+            body: msg.body ?? '',
+            leadId: msg.leadId,
+            ...(msg.sequenceId && msg.sequenceStepOrder !== null
+              ? { sequenceStepRef: await buildStepRef(msg) }
+              : {}),
+          },
+          {
+            tenantId,
+            delay: Math.max(0, dueAt.getTime() - Date.now()),
+            discriminator: `recovery:${dueAt.toISOString()}`,
+          }
+        );
+        queued++;
+      }
+    } catch (err) {
+      // Named, not swallowed. This message stays `failed`, so a re-run picks it up again with
+      // everything it needs; the ones already carried through are finished and stay finished.
+      failures.push(`${msg.id} (${msg.to}): ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   console.log(
-    APPLY
-      ? `    reset ${reset} messages, reopened ${reopened} tasks, rewound ${rewound} enrollments, retracted ${retracted} phantom follow-ups.`
-      : `    would reset ${refused.length} messages and rewind the cadences behind them.`
+    `    reset ${reset} messages, reopened ${reopened} tasks, rewound ${rewound} enrollments,` +
+      ` retracted ${retracted} phantom follow-ups, recounted ${recounted} leads, re-queued ${queued}.`
   );
+  if (!REQUEUE) {
+    console.log('    --no-requeue: the messages are claimable but nothing was enqueued.');
+  }
+  if (failures.length) {
+    console.log(`
+    ${failures.length} message(s) could not be recovered — re-run to retry:`);
+    for (const f of failures.slice(0, 10)) console.log(`      ${f}`);
+  }
+}
 
-  // ── recount from what actually sent ───────────────────────────────────────
-  const leadIds = [...new Set(refused.map((m) => m.leadId))];
+/** What each lead claims to have sent, against the sent rows that actually exist. */
+async function countDrift(
+  leadIds: string[]
+): Promise<{ id: string; claimed: number; real: number }[]> {
   const truth = await prisma.outboundMessage.groupBy({
     by: ['leadId'],
     where: { leadId: { in: leadIds }, status: OUTBOUND_STATUS.SENT },
@@ -284,63 +357,9 @@ async function recoverTenant(tenantId: string, tenantName: string): Promise<void
     where: { id: { in: leadIds } },
     select: { id: true, emailSentCount: true },
   });
-  const drifted = claimed.filter((l) => l.emailSentCount !== (realCount.get(l.id) ?? 0));
-  const phantom = drifted.reduce(
-    (sum, l) => sum + (l.emailSentCount - (realCount.get(l.id) ?? 0)),
-    0
-  );
-  console.log(
-    `    ${drifted.length} leads disagree with their sent rows (${phantom} phantom sends in total).`
-  );
-
-  if (APPLY) {
-    for (const lead of drifted) {
-      await prisma.lead.update({
-        where: { id: lead.id },
-        data: { emailSentCount: realCount.get(lead.id) ?? 0 },
-      });
-    }
-    console.log(`    recounted ${drifted.length} leads from their real sent rows.`);
-  }
-
-  // ── re-queue ──────────────────────────────────────────────────────────────
-  if (!REQUEUE) {
-    console.log('    --no-requeue: the messages are claimable but nothing was enqueued.');
-    return;
-  }
-
-  let queued = 0;
-  for (const msg of refused) {
-    const dueAt = schedule.get(msg.id)!;
-    if (!APPLY) continue;
-
-    await enqueueReschedule(
-      JobType.EMAIL_SEND,
-      {
-        outboundMessageId: msg.id,
-        accountId: msg.accountId,
-        to: msg.to,
-        subject: msg.subject ?? '',
-        body: msg.body ?? '',
-        leadId: msg.leadId,
-        ...(msg.sequenceId && msg.sequenceStepOrder !== null
-          ? { sequenceStepRef: await buildStepRef(msg) }
-          : {}),
-      },
-      {
-        tenantId,
-        delay: Math.max(0, dueAt.getTime() - Date.now()),
-        discriminator: `recovery:${dueAt.toISOString()}`,
-      }
-    );
-    queued++;
-  }
-
-  console.log(
-    APPLY
-      ? `    re-queued ${queued} messages.`
-      : `    would re-queue ${refused.length} messages across that window.`
-  );
+  return claimed
+    .map((l) => ({ id: l.id, claimed: l.emailSentCount, real: realCount.get(l.id) ?? 0 }))
+    .filter((d) => d.claimed !== d.real);
 }
 
 /** The reopened task and the rewound enrollment, so the recovered send settles its own step. */

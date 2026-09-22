@@ -50,23 +50,30 @@ export type SequenceStepRef = {
 export async function finalizeSequenceStep(ref: SequenceStepRef): Promise<void> {
   try {
     // Compare-and-set on `pending`: a redrive that sends the same outbound twice must not
-    // complete the task twice, and must not advance the cadence twice.
+    // count the send twice.
     const completed = await prisma.task.updateMany({
       where: { id: ref.taskId, status: 'pending' },
       data: { status: 'completed', completedAt: new Date(), lockedAt: null },
     });
-    if (completed.count !== 1) return;
 
-    if (ref.abVariantId) {
-      await prisma.abTestVariant.update({
-        where: { id: ref.abVariantId },
-        data: { sentCount: { increment: 1 } },
+    // The counters are the part that must happen exactly once, so they hang off the
+    // compare-and-set. The advance does not: it is guarded by `advanceOccurrence`, which
+    // requires the enrollment to still be `active` at exactly this step, so calling it again
+    // for a cadence that already moved is a no-op. Returning early here instead would strand
+    // any step whose task was completed but whose advance never ran — a crash in the three
+    // statements below, or a send reconciled by the sweep after the task was already closed.
+    if (completed.count === 1) {
+      if (ref.abVariantId) {
+        await prisma.abTestVariant.update({
+          where: { id: ref.abVariantId },
+          data: { sentCount: { increment: 1 } },
+        });
+      }
+      await prisma.lead.update({
+        where: { id: ref.leadId },
+        data: { emailSentCount: { increment: 1 } },
       });
     }
-    await prisma.lead.update({
-      where: { id: ref.leadId },
-      data: { emailSentCount: { increment: 1 } },
-    });
 
     await advanceSequence(
       { leadId: ref.leadId, sequenceId: ref.sequenceId, sequenceStep: ref.sequenceStep },
@@ -138,12 +145,16 @@ export async function resolveStepRefForOutbound(msg: {
 }): Promise<SequenceStepRef | null> {
   if (!msg.sequenceId || msg.sequenceStepOrder === null) return null;
 
+  // `completed` counts too. A send reconciled hours later by `workers/maintenance.ts` may find
+  // its task already closed while the cadence never advanced — the crash window between the
+  // completion write and the advance. `finalizeSequenceStep` is convergent, so handing it a
+  // closed task lets the advance finally run instead of leaving the cadence stuck forever.
   const task = await prisma.task.findFirst({
     where: {
       leadId: msg.leadId,
       sequenceId: msg.sequenceId,
       sequenceStep: msg.sequenceStepOrder,
-      status: 'pending',
+      status: { in: ['pending', 'completed'] },
     },
     select: { id: true, lead: { select: { assignedToId: true } } },
     orderBy: { createdAt: 'desc' },

@@ -54,6 +54,7 @@ vi.mock('@/lib/emailSafety', () => ({
 const { prisma, tenantStorage } = await import('@/lib/prisma');
 const { handleEmailSend } = await import('@/workers/email');
 const { handleRepair } = await import('@/workers/maintenance');
+const { finalizeSequenceStep } = await import('@/lib/sequences/stepOutcome');
 const { OUTBOUND_STATUS } = await import('@/lib/email/idempotency');
 
 let hasDb = false;
@@ -329,6 +330,36 @@ describe.skipIf(!hasDb)('a cadence step settles on the provider outcome', () => 
     expect(after.currentStep).toBe(1);
   });
 
+  it('still advances a step whose task was closed but whose cadence never moved', async () => {
+    // The crash window: the task completes, then the process dies before `advanceSequence`.
+    // Returning early on "task already completed" would strand that cadence permanently — the
+    // step looks done, the enrollment never moves, and no sweep re-opens a completed task. So
+    // the counters hang off the compare-and-set and the advance does not.
+    const { task, enrollment } = await openStep();
+    await run(async () => {
+      await prisma.task.update({
+        where: { id: task.id },
+        data: { status: 'completed', completedAt: new Date(), lockedAt: null },
+      });
+      await prisma.lead.update({ where: { id: leadId }, data: { emailSentCount: 1 } });
+    });
+
+    await finalizeSequenceStep({
+      taskId: task.id,
+      leadId,
+      actorUserId: userId,
+      sequenceId,
+      sequenceStep: 1,
+      enrollmentId: enrollment.id,
+    });
+
+    expect((await readEnrollment(enrollment.id)).currentStep).toBe(2);
+    expect(
+      (await readLead()).emailSentCount,
+      'the send was already counted; converging on the advance must not count it again'
+    ).toBe(1);
+  });
+
   it('does not advance twice when the same send is re-driven', async () => {
     const { task, message, enrollment } = await openStep();
     await attempt(message.id, task.id, enrollment.id);
@@ -477,5 +508,61 @@ describe.skipIf(!hasDb)('a refused message stays reachable by a repair sweep', (
     await run(() => handleRepair({ types: ['stale-pending-outbound'] }));
 
     expect(enqueueReschedule).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The third outcome, and the one with nowhere else to go.
+   *
+   * `workers/email.ts` settles nothing while a send is ambiguous, because the prospect may or
+   * may not have the message. That is right — but it means the step stays open, and the only
+   * thing that ever learns the answer is `reconcileAmbiguousSends`. If that sweep does not
+   * settle the step, the cadence is stuck forever with nothing left to wake it: the task never
+   * completes, the follow-up never fires, and no human is told. Same silence as 2026-09-21,
+   * reached by a different road.
+   */
+  describe('and an ambiguous one is settled when the sweep learns the answer', () => {
+    it('advances the cadence when delivery evidence turns up', async () => {
+      const { message, task, enrollment } = await openStep();
+      await run(() =>
+        prisma.outboundMessage.update({
+          where: { id: message.id },
+          data: {
+            status: OUTBOUND_STATUS.RECONCILIATION_REQUIRED,
+            providerMessageId: `provider-${crypto.randomUUID()}`,
+            claimedAt: ANCIENT,
+          },
+        })
+      );
+
+      await run(() => handleRepair({ types: ['outbound-reconcile'] }));
+
+      expect((await readMessage(message.id)).status).toBe(OUTBOUND_STATUS.SENT);
+      expect((await readTask(task.id)).status).toBe('completed');
+      expect((await readEnrollment(enrollment.id)).currentStep).toBe(2);
+    });
+
+    it('pauses the cadence when the grace window closes with no answer', async () => {
+      // Not retried, so the follow-up must not go out behind it. A paused enrollment carries a
+      // reason an SDR can act on; an active one silently stalled does not.
+      const { message, task, enrollment } = await openStep();
+      await run(() =>
+        prisma.outboundMessage.update({
+          where: { id: message.id },
+          data: {
+            status: OUTBOUND_STATUS.RECONCILIATION_REQUIRED,
+            claimedAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
+          },
+        })
+      );
+
+      await run(() => handleRepair({ types: ['outbound-reconcile'] }));
+
+      const after = await readEnrollment(enrollment.id);
+      expect((await readMessage(message.id)).status).toBe('permanently_failed');
+      expect((await readTask(task.id)).status).toBe('pending');
+      expect(after.status).toBe('paused');
+      expect(after.pausedReason).toBe('send_failed');
+      expect(after.currentStep).toBe(1);
+    });
   });
 });

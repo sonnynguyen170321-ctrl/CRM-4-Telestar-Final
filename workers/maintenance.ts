@@ -7,7 +7,7 @@ import type { MaintenanceRepairPayload } from '@/lib/bullmq/types';
 import { OUTBOUND_STATUS, SENDING_CLAIM_LEASE_MS } from '@/lib/email/idempotency';
 import { enqueueReschedule } from '@/lib/bullmq/enqueue';
 import { ensureOccurrenceStepTask } from '@/lib/sequences/occurrenceTask';
-import { resolveStepRefForOutbound } from '@/lib/sequences/stepOutcome';
+import { finalizeSequenceStep, releaseSequenceStep, resolveStepRefForOutbound } from '@/lib/sequences/stepOutcome';
 
 /**
  * Shared with the send path, which uses the same window to decide whether a `sending` claim is
@@ -457,6 +457,10 @@ async function reconcileAmbiguousSends(): Promise<{ fixed: number; details: stri
       updatedAt: true,
       to: true,
       tenantId: true,
+      leadId: true,
+      sequenceId: true,
+      sequenceStepOrder: true,
+      abVariantId: true,
       lead: { select: { id: true, assignedToId: true } },
     },
     take: RECONCILE_BATCH,
@@ -469,6 +473,14 @@ async function reconcileAmbiguousSends(): Promise<{ fixed: number; details: stri
         where: { id: msg.id },
         data: { status: OUTBOUND_STATUS.SENT, sentAt: new Date(), errorMessage: null },
       });
+      // This is where an ambiguous send finally gets an answer, so this is where its cadence
+      // step settles. `workers/email.ts` deliberately settles nothing while the outcome is
+      // unknown — the prospect may or may not have the message — and without this the step
+      // would stay open forever: the task never completes, the enrollment never advances, the
+      // follow-up never fires, and nothing tells a human. Silent, and the same shape as the
+      // 2026-09-21 incident arriving by a different road.
+      const sentRef = await resolveStepRefForOutbound(msg);
+      if (sentRef) await finalizeSequenceStep(sentRef);
       fixed++;
       details.push(`msg:${msg.id} -> sent (delivery evidence found)`);
       continue;
@@ -484,6 +496,13 @@ async function reconcileAmbiguousSends(): Promise<{ fixed: number; details: stri
         errorMessage: 'Unresolved after reconciliation window — delivery unconfirmed, not resent',
       },
     });
+    // Give the step back and stop the cadence. The message is not being retried, so the
+    // follow-up must not go out behind it, and a paused enrollment carries a reason a human can
+    // act on — which is the point of the notification below.
+    const unresolvedRef = await resolveStepRefForOutbound(msg);
+    if (unresolvedRef) {
+      await releaseSequenceStep(unresolvedRef, 'delivery never confirmed within the grace window');
+    }
     if (msg.lead?.assignedToId) {
       await prisma.notification.create({
         data: {
