@@ -545,7 +545,10 @@ describe.skipIf(!hasDb)('the Telestar golden journey', () => {
         tenantId: T,
         expectedEnrollmentId: state.enrollmentId,
       } as never);
-      expect(outcome.status).toBe('completed');
+      // The send is queued here; the step is settled by the email worker once the provider
+      // answers (`lib/sequences/stepOutcome.ts`). What this step of the journey is about is the
+      // wording that goes out, which is already durable on the outbound row below.
+      expect(outcome.status).toBe('queued');
 
       const outbound = await prisma.outboundMessage.findMany({ where: { tenantId: T, leadId: state.leadId } });
       expect(outbound).toHaveLength(1);

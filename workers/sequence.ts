@@ -502,6 +502,16 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     await enqueueEmailSendWorkflow(
       {
         outboundMessageId: outbound.id,
+        // Everything the email worker needs to settle this step once the provider answers.
+        sequenceStepRef: {
+          taskId: task.id,
+          leadId: task.leadId,
+          actorUserId: task.lead.assignedToId,
+          sequenceId: task.sequenceId!,
+          sequenceStep: task.sequenceStep!,
+          enrollmentId: expectedEnrollmentId,
+          abVariantId: selectedVariantId,
+        },
         accountId: account!.id,
         to: leadEmail,
         subject,
@@ -512,25 +522,18 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
       task.tenantId,
     );
 
-    // Complete the task, bump counters, advance the sequence.
-    await prisma.task.update({
-      where: { id: task.id },
-      data: { status: 'completed', completedAt: new Date() },
-    });
-    if (selectedVariantId) {
-      await prisma.abTestVariant.update({
-        where: { id: selectedVariantId },
-        data: { sentCount: { increment: 1 } },
-      });
-    }
-    await prisma.lead.update({
-      where: { id: task.leadId },
-      data: { emailSentCount: { increment: 1 } },
-    });
-    // The occurrence continues into the next step's task and its delayed job.
-    await advanceSequence(task, task.lead.assignedToId, expectedEnrollmentId);
-
-    return { status: 'completed', taskId: task.id };
+    // Nothing is completed, counted or advanced here.
+    //
+    // This is where the task used to be marked `completed`, `emailSentCount` and
+    // `AbTestVariant.sentCount` incremented and `advanceSequence` called — all of it in the
+    // four statements after the enqueue, before the provider had been asked anything. On
+    // 2026-09-21 the provider refused 228 messages and the CRM had already recorded 228
+    // deliveries and advanced 228 cadences to step 2.
+    //
+    // The task stays `pending` with its lock held: in flight, claimed by nobody else. The
+    // outcome is settled in `workers/email.ts` through `lib/sequences/stepOutcome.ts`, and a
+    // send that never resolves is recovered by the outbound sweeps in `workers/maintenance.ts`.
+    return { status: 'queued', taskId: task.id };
   } catch (err) {
     // Release the lock on exception so the task is not permanently stranded pending + locked
     await prisma.task.updateMany({

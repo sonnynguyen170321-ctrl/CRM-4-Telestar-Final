@@ -27,7 +27,12 @@ export type PausedReason =
   | 'manual'
   | 'email_health'
   | 'campaign_paused'
-  | 'mailbox_unavailable';
+  | 'mailbox_unavailable'
+  /**
+   * The provider refused this step's email outright. The cadence stops rather than sending
+   * step 2 referencing a step 1 that never arrived — see lib/sequences/stepOutcome.ts.
+   */
+  | 'send_failed';
 
 /** Display labels. The UI must render these rather than keying its own map. */
 export const PAUSED_REASON_LABELS: Record<PausedReason, string> = {
@@ -39,6 +44,7 @@ export const PAUSED_REASON_LABELS: Record<PausedReason, string> = {
   email_health: 'mailbox health',
   campaign_paused: 'campaign paused',
   mailbox_unavailable: 'mailbox unavailable',
+  send_failed: 'first email was refused',
 };
 
 /**

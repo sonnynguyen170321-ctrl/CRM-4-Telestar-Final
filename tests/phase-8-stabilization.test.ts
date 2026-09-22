@@ -283,7 +283,9 @@ describe('Phase 8 Stabilization Backlog (S1-S4)', () => {
 
       const result = await handleExecuteTask({ taskId: 'task-s1', expectedEnrollmentId: 'enr-1' });
 
-      expect(result).toEqual({ status: 'completed', taskId: 'task-s1' });
+      // `queued`: the retry's job is to re-derive the same send, not to declare the step done.
+      // Completion moved to `lib/sequences/stepOutcome.ts`, which runs on the provider's answer.
+      expect(result).toEqual({ status: 'queued', taskId: 'task-s1' });
       // Outbound message was upserted using durable taskId idempotencyKey
       expect(mockOutboundUpsert).toHaveBeenCalledWith(
         expect.objectContaining({

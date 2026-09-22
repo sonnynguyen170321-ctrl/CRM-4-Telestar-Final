@@ -1166,6 +1166,13 @@ model EmailAccount {
   dailySendCount   Int           @default(0)
   dailyCap         Int           @default(80)
   dailySendDate    DateTime?
+  /// Ceiling for one clock hour, enforced against real sent rows rather than a counter.
+  /// The daily cap alone let a whole day's queue leave in one minute: on 2026-09-21 all 278
+  /// deferred messages fired at 02:00 and the provider refused 228 with
+  /// `550 5.4.6 Sender Hourly Quota Exceeded`. Measured ceiling was ~50/hour; 40 leaves room.
+  hourlyCap        Int           @default(40)
+  /// Display-only, never enforced. Superseded by `hourlyCap`; left alone because the
+  /// automation page reads it.
   hourlySendWindow Int           @default(0)
   signature        String?       @db.Text
 

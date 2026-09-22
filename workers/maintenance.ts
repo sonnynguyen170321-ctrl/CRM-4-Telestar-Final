@@ -7,6 +7,7 @@ import type { MaintenanceRepairPayload } from '@/lib/bullmq/types';
 import { OUTBOUND_STATUS, SENDING_CLAIM_LEASE_MS } from '@/lib/email/idempotency';
 import { enqueueReschedule } from '@/lib/bullmq/enqueue';
 import { ensureOccurrenceStepTask } from '@/lib/sequences/occurrenceTask';
+import { resolveStepRefForOutbound } from '@/lib/sequences/stepOutcome';
 
 /**
  * Shared with the send path, which uses the same window to decide whether a `sending` claim is
@@ -245,7 +246,8 @@ async function repairEnrollmentScheduleDrift(): Promise<{ fixed: number; details
 }
 
 /**
- * Re-drive claimable outbound messages that no longer have a job behind them.
+ * Re-drive claimable outbound messages that no longer have a job behind them — `pending` and
+ * `failed` alike, since both mean the prospect has definitely not been written to.
  *
  * A message goes back to `pending` when a send is deferred (quota) and the worker
  * re-enqueues it. If that enqueue was lost — Redis flushed, the process died between the
@@ -259,9 +261,17 @@ async function repairStalePendingOutbound(): Promise<{ fixed: number; details: s
   let fixed = 0;
   const cutoff = new Date(Date.now() - STALE_PENDING_OUTBOUND_MS);
 
+  // `failed` belongs here too. It means "definitely not delivered" and is in
+  // `CLAIMABLE_STATUSES`, so re-driving one cannot double-send — but no sweep scanned it, and
+  // on 2026-09-21 that left 228 messages refused by the provider with nothing in any queue to
+  // try them again. A row already abandoned at the redrive cap is left alone, so this cannot
+  // loop on messages a human has to decide about.
   const stalled = await prisma.outboundMessage.findMany({
     where: {
-      status: OUTBOUND_STATUS.PENDING,
+      OR: [
+        { status: OUTBOUND_STATUS.PENDING },
+        { status: OUTBOUND_STATUS.FAILED, attemptCount: { lt: MAX_OUTBOUND_REDRIVES } },
+      ],
       createdAt: { lt: cutoff },
       sentAt: null,
     },
@@ -292,6 +302,9 @@ async function repairStalePendingOutbound(): Promise<{ fixed: number; details: s
           subject: msg.subject ?? '',
           body: msg.body ?? '',
           leadId: msg.leadId,
+          // Rebuilt from the row: a redrive has no payload from the sequence worker, and
+          // without this the message would send while its step stayed open forever.
+          sequenceStepRef: (await resolveStepRefForOutbound(msg)) ?? undefined,
         },
         {
           tenantId: msg.tenantId,

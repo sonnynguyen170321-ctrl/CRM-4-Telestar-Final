@@ -37,6 +37,7 @@ import { tenantStorage } from '@/lib/tenant-context';
 import { occupancyKeyFor } from '@/lib/sequences/occupancy';
 import { enrollmentStepTaskId } from '@/lib/sequences/identity';
 import { handleExecuteTask } from '@/workers/sequence';
+import { finalizeSequenceStep } from '@/lib/sequences/stepOutcome';
 
 /**
  * The execution lock, raced against a real database.
@@ -243,17 +244,24 @@ describe('Phase 8a — task execution lock', () => {
       ]);
       spy.mockRestore();
 
-      const completed = results.filter((r) => r.status === 'completed');
+      // `queued`, not `completed`: the winner hands the send to the email queue, and the step is
+      // settled there on what the provider answers (`lib/sequences/stepOutcome.ts`). The lock's
+      // job is unchanged — one execution through, one send — so the downstream assertions below
+      // still hold once the send is settled, which is what the email worker does next.
+      const queued = results.filter((r) => r.status === 'queued');
       const blocked = results.filter(
         (r) => (r as { reason?: string }).reason === 'concurrency_lock_failed'
       );
-      expect(completed).toHaveLength(1);
+      expect(queued).toHaveLength(1);
       expect(blocked).toHaveLength(1);
 
       // One of everything downstream of the lock.
       expect(await prisma.outboundMessage.count({ where: { tenantId } })).toBe(1);
       const emailJobs = Array.from(jobStore.values()).filter((j) => j.name === 'email.send');
       expect(emailJobs).toHaveLength(1);
+
+      await finalizeSequenceStep((emailJobs[0].payload as { sequenceStepRef: never }).sequenceStepRef);
+
       expect((await prisma.lead.findUniqueOrThrow({ where: { id: leadId } })).emailSentCount).toBe(1);
 
       const variants = await prisma.abTestVariant.findMany({
