@@ -7,6 +7,7 @@ import type { MaintenanceRepairPayload } from '@/lib/bullmq/types';
 import { OUTBOUND_STATUS, SENDING_CLAIM_LEASE_MS } from '@/lib/email/idempotency';
 import { enqueueReschedule } from '@/lib/bullmq/enqueue';
 import { ensureOccurrenceStepTask } from '@/lib/sequences/occurrenceTask';
+import { finalizeSequenceStep, releaseSequenceStep, resolveStepRefForOutbound } from '@/lib/sequences/stepOutcome';
 
 /**
  * Shared with the send path, which uses the same window to decide whether a `sending` claim is
@@ -245,7 +246,8 @@ async function repairEnrollmentScheduleDrift(): Promise<{ fixed: number; details
 }
 
 /**
- * Re-drive claimable outbound messages that no longer have a job behind them.
+ * Re-drive claimable outbound messages that no longer have a job behind them — `pending` and
+ * `failed` alike, since both mean the prospect has definitely not been written to.
  *
  * A message goes back to `pending` when a send is deferred (quota) and the worker
  * re-enqueues it. If that enqueue was lost — Redis flushed, the process died between the
@@ -259,9 +261,17 @@ async function repairStalePendingOutbound(): Promise<{ fixed: number; details: s
   let fixed = 0;
   const cutoff = new Date(Date.now() - STALE_PENDING_OUTBOUND_MS);
 
+  // `failed` belongs here too. It means "definitely not delivered" and is in
+  // `CLAIMABLE_STATUSES`, so re-driving one cannot double-send — but no sweep scanned it, and
+  // on 2026-09-21 that left 228 messages refused by the provider with nothing in any queue to
+  // try them again. A row already abandoned at the redrive cap is left alone, so this cannot
+  // loop on messages a human has to decide about.
   const stalled = await prisma.outboundMessage.findMany({
     where: {
-      status: OUTBOUND_STATUS.PENDING,
+      OR: [
+        { status: OUTBOUND_STATUS.PENDING },
+        { status: OUTBOUND_STATUS.FAILED, attemptCount: { lt: MAX_OUTBOUND_REDRIVES } },
+      ],
       createdAt: { lt: cutoff },
       sentAt: null,
     },
@@ -292,6 +302,9 @@ async function repairStalePendingOutbound(): Promise<{ fixed: number; details: s
           subject: msg.subject ?? '',
           body: msg.body ?? '',
           leadId: msg.leadId,
+          // Rebuilt from the row: a redrive has no payload from the sequence worker, and
+          // without this the message would send while its step stayed open forever.
+          sequenceStepRef: (await resolveStepRefForOutbound(msg)) ?? undefined,
         },
         {
           tenantId: msg.tenantId,
@@ -444,6 +457,10 @@ async function reconcileAmbiguousSends(): Promise<{ fixed: number; details: stri
       updatedAt: true,
       to: true,
       tenantId: true,
+      leadId: true,
+      sequenceId: true,
+      sequenceStepOrder: true,
+      abVariantId: true,
       lead: { select: { id: true, assignedToId: true } },
     },
     take: RECONCILE_BATCH,
@@ -456,6 +473,14 @@ async function reconcileAmbiguousSends(): Promise<{ fixed: number; details: stri
         where: { id: msg.id },
         data: { status: OUTBOUND_STATUS.SENT, sentAt: new Date(), errorMessage: null },
       });
+      // This is where an ambiguous send finally gets an answer, so this is where its cadence
+      // step settles. `workers/email.ts` deliberately settles nothing while the outcome is
+      // unknown — the prospect may or may not have the message — and without this the step
+      // would stay open forever: the task never completes, the enrollment never advances, the
+      // follow-up never fires, and nothing tells a human. Silent, and the same shape as the
+      // 2026-09-21 incident arriving by a different road.
+      const sentRef = await resolveStepRefForOutbound(msg);
+      if (sentRef) await finalizeSequenceStep(sentRef);
       fixed++;
       details.push(`msg:${msg.id} -> sent (delivery evidence found)`);
       continue;
@@ -471,6 +496,13 @@ async function reconcileAmbiguousSends(): Promise<{ fixed: number; details: stri
         errorMessage: 'Unresolved after reconciliation window — delivery unconfirmed, not resent',
       },
     });
+    // Give the step back and stop the cadence. The message is not being retried, so the
+    // follow-up must not go out behind it, and a paused enrollment carries a reason a human can
+    // act on — which is the point of the notification below.
+    const unresolvedRef = await resolveStepRefForOutbound(msg);
+    if (unresolvedRef) {
+      await releaseSequenceStep(unresolvedRef, 'delivery never confirmed within the grace window');
+    }
     if (msg.lead?.assignedToId) {
       await prisma.notification.create({
         data: {

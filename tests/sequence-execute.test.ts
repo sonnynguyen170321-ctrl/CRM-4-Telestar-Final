@@ -140,25 +140,32 @@ describe('handleExecuteTask', () => {
     vi.restoreAllMocks();
   });
 
-  it('sends, completes the task, bumps the counter, and advances the sequence', async () => {
+  // The worker hands the send to the email queue and stops there. Completing the task, counting
+  // the send and advancing the cadence now happen in `workers/email.ts` once the provider has
+  // answered — see `lib/sequences/stepOutcome.ts` and the 2026-09-21 incident, where 228 steps
+  // advanced for messages the provider had refused. What this guards is that the worker queues
+  // the send *and* carries the reference that lets the outcome settle the step later.
+  it('queues the send and carries the step reference instead of settling it', async () => {
     arrangeEligible();
 
     const result = await handleExecuteTask({ taskId: 'task-1' });
 
-    expect(result).toEqual({ status: 'completed', taskId: 'task-1' });
+    expect(result).toEqual({ status: 'queued', taskId: 'task-1' });
     expect(mockCreateOutbound).toHaveBeenCalledWith(
       expect.objectContaining({ leadId: 'lead-1', accountId: 'acct-1', to: 'prospect@acme.com', tenantId: TENANT_ID }),
     );
     expect(mockEnqueueSend).toHaveBeenCalledWith(
-      expect.objectContaining({ outboundMessageId: 'out-1', accountId: 'acct-1', to: 'prospect@acme.com' }),
+      expect.objectContaining({
+        outboundMessageId: 'out-1',
+        accountId: 'acct-1',
+        to: 'prospect@acme.com',
+        sequenceStepRef: expect.objectContaining({ taskId: 'task-1', leadId: 'lead-1', sequenceStep: 1 }),
+      }),
       TENANT_ID,
     );
-    expect(mockTaskUpdate).toHaveBeenCalledWith({
-      where: { id: 'task-1' },
-      data: expect.objectContaining({ status: 'completed' }),
-    });
-    expect(mockLeadUpdate).toHaveBeenCalledWith({ where: { id: 'lead-1' }, data: { emailSentCount: { increment: 1 } } });
-    expect(mockAdvance).toHaveBeenCalled();
+    expect(mockTaskUpdate, 'the task stays open until the provider answers').not.toHaveBeenCalled();
+    expect(mockLeadUpdate, 'a send is counted when it happens, not when it is queued').not.toHaveBeenCalled();
+    expect(mockAdvance, 'step 2 must not be scheduled off an unconfirmed step 1').not.toHaveBeenCalled();
   });
 
   it('ignores a missing task', async () => {
@@ -226,10 +233,17 @@ describe('handleExecuteTask', () => {
 
     await handleExecuteTask({ taskId: 'task-1' });
 
-    expect(mockAbVariantUpdate).toHaveBeenCalledWith({
-      where: { id: expect.stringMatching(/^v[ab]$/) },
-      data: { sentCount: { increment: 1 } },
-    });
+    // The variant is chosen here and travels with the send; its `sentCount` is incremented by
+    // `finalizeSequenceStep` once the provider accepts. Counting it at enqueue time would have
+    // credited 228 sends to variants on 2026-09-21 that no prospect ever saw, and an A/B result
+    // computed from sends that did not happen is worse than no A/B result.
+    expect(mockAbVariantUpdate, 'a variant is credited on delivery, not on dispatch').not.toHaveBeenCalled();
+    expect(mockEnqueueSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sequenceStepRef: expect.objectContaining({ abVariantId: expect.stringMatching(/^v[ab]$/) }),
+      }),
+      TENANT_ID,
+    );
   });
 
   // Selection is hashed from durable ids (spec §42), so a retry, a rebuild from the
@@ -250,7 +264,7 @@ describe('handleExecuteTask', () => {
       mockAbVariantUpdate.mockResolvedValue({});
 
       await handleExecuteTask({ taskId: 'task-1' });
-      chosen.push(mockAbVariantUpdate.mock.calls[0][0].where.id);
+      chosen.push(mockEnqueueSend.mock.calls[0][0].sequenceStepRef.abVariantId);
     }
 
     expect(new Set(chosen).size).toBe(1);
@@ -409,15 +423,23 @@ describe('handleExecuteTask — deferral (Phase 6)', () => {
     expect(mockCreateOutbound).not.toHaveBeenCalled();
   });
 
-  it('sends and advances the same occurrence when ownership holds at both checks', async () => {
+  it('queues the send against the same occurrence when ownership holds at both checks', async () => {
     arrangeEligible();
     mockEnrollmentFindFirst.mockResolvedValue(owningEnrollment);
 
     const result = await handleExecuteTask({ taskId: 'task-1', expectedEnrollmentId: 'enr-1' });
 
-    expect(result).toEqual({ status: 'completed', taskId: 'task-1' });
+    expect(result).toEqual({ status: 'queued', taskId: 'task-1' });
     expect(mockCreateOutbound).toHaveBeenCalledTimes(1);
-    expect(mockAdvance).toHaveBeenCalledWith(expect.anything(), 'user-1', 'enr-1');
+    // The occurrence that passed both ownership checks is the one the advance will run against,
+    // so it travels with the send rather than being looked up again after the provider answers.
+    expect(mockEnqueueSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sequenceStepRef: expect.objectContaining({ enrollmentId: 'enr-1', actorUserId: 'user-1' }),
+      }),
+      TENANT_ID,
+    );
+    expect(mockAdvance).not.toHaveBeenCalled();
   });
 
   it('does not send when the mailbox is paused, and defers instead', async () => {

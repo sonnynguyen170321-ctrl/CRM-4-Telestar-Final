@@ -49,6 +49,8 @@ export type OperatorReasonCode =
   | 'campaign_paused'
   /** A step was attempted and will be tried again. */
   | 'retry_pending'
+  /** The provider refused this step's email, so the cadence stopped for a human to decide. */
+  | 'send_refused'
   /** The cadence finished or was stopped; nothing further is expected. */
   | 'finished';
 
@@ -98,6 +100,7 @@ const PAUSED_REASON_CODES: Record<PausedReason, OperatorReasonCode> = {
   meeting_booked: 'meeting_booked',
   manual: 'paused_by_user',
   email_health: 'deliverability_hold',
+  send_failed: 'send_refused',
   campaign_paused: 'campaign_paused',
   mailbox_unavailable: 'mailbox_unavailable',
 };
@@ -114,6 +117,7 @@ const LABELS: Record<OperatorReasonCode, string> = {
   paused_by_user: 'Paused by a person',
   campaign_paused: 'Campaign is paused',
   retry_pending: 'Retrying shortly',
+  send_refused: 'Stopped — the email was refused',
   finished: 'Finished',
 };
 
@@ -122,6 +126,9 @@ const ATTENTION_CODES: ReadonlySet<OperatorReasonCode> = new Set<OperatorReasonC
   'mailbox_unavailable',
   'deliverability_hold',
   'campaign_paused',
+  // A refused send needs a person: the prospect received nothing and the cadence is stopped
+  // until someone decides to resend or drop them.
+  'send_refused',
 ]);
 
 function isQuotaExhausted(

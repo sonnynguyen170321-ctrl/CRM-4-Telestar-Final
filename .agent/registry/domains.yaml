@@ -176,6 +176,9 @@ domains:
       - lib/replies/**
       - app/api/sequences/**
       - scripts/sync-sequence-enrollments.ts
+      # One-off repair for the 2026-09-21 burst: rewinds cadences whose step advanced on a
+      # send the provider refused, and re-queues those sends spread across business hours.
+      - scripts/recover-refused-sequence-sends.ts
     tests:
       - tests/sequence-*.test.ts
       - tests/scheduling.test.ts
@@ -223,6 +226,9 @@ domains:
       - app/api/leadgen/**
       - app/leadgen/**
       - app/leadgen-manager/**
+      # Publishes TeleStar's own ICP, and reports the rules the publishable rule model
+      # cannot carry rather than implying they are enforced.
+      - scripts/seed-telestar-icp.ts
     tests:
       - tests/leadgen*.test.ts
       - tests/lead-filter*.test.ts

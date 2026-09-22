@@ -89,7 +89,9 @@
     "prod:cutover:postcheck",
     "prod:cutover:rehearse",
     "prod:cutover:verify",
+    "recover:refused-sends",
     "repair:approved-proposals",
+    "seed:telestar-icp",
     "setup:dev",
     "start",
     "sync-enrollments",
@@ -103,5 +105,5 @@
     "worker:healthcheck",
     "worker:start"
   ],
-  "scriptCount": 60
+  "scriptCount": 62
 }

@@ -124,16 +124,31 @@ vi.mock('@/lib/prisma', () => ({
         completedAt: null,
         tenantId: TENANT_ID,
       });
+      // The completion write is the one that turns "handed to the email pipeline" into "this
+      // step is done". Failing exactly there reproduces a worker dying in that window. It moved
+      // from `update` to `updateMany` when settling moved to `lib/sequences/stepOutcome.ts` —
+      // the compare-and-set that makes a repeated outcome settle the step only once — so both
+      // are guarded. Guarding only the one the spine no longer calls would leave these tests
+      // passing while injecting no crash at all.
+      const failCompletion = (data: Row | undefined) => {
+        if (store.failTaskCompletions > 0 && data?.status === 'completed') {
+          store.failTaskCompletions -= 1;
+          throw new Error('connection terminated unexpectedly');
+        }
+      };
       return {
         ...base,
         update: async (args: Row) => {
-          // The completion write is the one that turns "handed to the email pipeline" into
-          // "this step is done". Failing exactly here reproduces a worker dying in that window.
-          if (store.failTaskCompletions > 0 && args.data?.status === 'completed') {
-            store.failTaskCompletions -= 1;
-            throw new Error('connection terminated unexpectedly');
-          }
+          failCompletion(args.data);
           return base.update(args);
+        },
+        updateMany: async (args: Row) => {
+          failCompletion(args.data);
+          // Forwarded field by field rather than as an opaque object: the spine only ever sends
+          // these two, and `scripts/check-test-discipline.mjs` has to be able to see that this
+          // write is scoped — a bulk write with no visible `where` is the shared-database hazard
+          // that gate exists to catch.
+          return base.updateMany({ where: args.where, data: args.data });
         },
       };
     },
@@ -212,6 +227,7 @@ vi.mock('@/lib/templates/render', () => ({
 }));
 
 const { handleExecuteTask } = await import('@/workers/sequence');
+const { finalizeSequenceStep } = await import('@/lib/sequences/stepOutcome');
 const { enrollmentStepTaskId } = await import('@/lib/sequences/identity');
 const { computeStepDueDate } = await import('@/lib/sequences/engine');
 const { buildJitterSeed } = await import('@/lib/automation/jitter');
@@ -322,6 +338,19 @@ function seedLadder(): void {
   });
 }
 
+/**
+ * What `repairMissingDelayed` does for a step whose settle never finished.
+ *
+ * A crashed settle leaves the execution lock held, and the sequence worker refuses a locked
+ * task — correctly, since a second worker must not send the same step. Recovery is the
+ * maintenance sweep releasing it. Without this the retries below would be refused rather than
+ * retried, and would prove nothing while still passing.
+ */
+function releaseStepLock(order: number): void {
+  const task = store.tasks.get(enrollmentStepTaskId(ENROLLMENT_ID, order));
+  if (task) task.lockedAt = null;
+}
+
 /** The worker reads `task.lead` as an include; keep the joined copy pointing at the live row. */
 function relinkTaskLeads(): void {
   for (const task of store.tasks.values()) {
@@ -329,12 +358,33 @@ function relinkTaskLeads(): void {
   }
 }
 
-async function executeStep(order: number) {
+/**
+ * Run one step the way production runs it: the sequence worker queues the send, and the email
+ * worker settles the step on what the provider answered.
+ *
+ * Before 2026-09-22 `handleExecuteTask` did both, and this harness only had to call it. It no
+ * longer does — settling at enqueue time is what advanced 228 cadences for messages the provider
+ * had refused. So the harness now plays the second half too, and `provider` says what the
+ * provider did. `'accepted'` is the default because that is the ladder these tests are about;
+ * the refusal path has its own coverage in `tests/sequence-advance-on-confirmed-send.test.ts`.
+ */
+async function executeStep(order: number, provider: 'accepted' | 'none' = 'accepted') {
   relinkTaskLeads();
-  return handleExecuteTask({
+  const result = await handleExecuteTask({
     taskId: enrollmentStepTaskId(ENROLLMENT_ID, order),
     expectedEnrollmentId: ENROLLMENT_ID,
   });
+
+  if (provider === 'none' || (result as { status?: string }).status !== 'queued') return result;
+
+  const queued = store.sendJobs[store.sendJobs.length - 1];
+  if (queued?.sequenceStepRef) {
+    relinkTaskLeads();
+    await finalizeSequenceStep(queued.sequenceStepRef);
+  }
+  // The ladder's assertions are about durable state after a step lands, so the settled outcome
+  // is what this returns — `queued` describes only the halfway point.
+  return { ...(result as Record<string, unknown>), status: 'completed' };
 }
 
 // The eligibility check's send-window step (`lib/automation/eligibility.ts`, "Schedule / Send
@@ -612,14 +662,24 @@ describe('durable delivery seams', () => {
   });
 
   it('converges to one outbound occurrence when the process dies after the enqueue', async () => {
+    // The crash now lands in the settle, which is where the bookkeeping moved. It deliberately
+    // does not rethrow: the message is already with the provider, and failing the job over a
+    // lost write would re-send it. Losing the write leaves the step open, and an open step is
+    // recoverable — which is what the retry below proves.
     store.failTaskCompletions = 1;
 
-    await expect(executeStep(1)).rejects.toThrow(/connection terminated/);
+    await executeStep(1);
 
     // The send was already handed to the email pipeline before the crash.
+    const stepTask = store.tasks.get(enrollmentStepTaskId(ENROLLMENT_ID, 1))!;
     expect(store.sendJobs).toHaveLength(1);
     expect(store.outbound).toHaveLength(1);
-    expect(store.tasks.get(enrollmentStepTaskId(ENROLLMENT_ID, 1))!.status).toBe('pending');
+    expect(stepTask.status).toBe('pending');
+    // Still holding its execution lock: the settle clears it, and the settle is what crashed.
+    // Nothing else may claim this step in the meantime — that is the lock doing its job — and
+    // `repairMissingDelayed` in `workers/maintenance.ts` is what releases an abandoned one.
+    expect(stepTask.lockedAt).not.toBeNull();
+    stepTask.lockedAt = null;
 
     const retry = await executeStep(1);
 
@@ -632,9 +692,11 @@ describe('durable delivery seams', () => {
 
   it('re-enqueues the same email payload rather than a second distinct send on retry', async () => {
     store.failTaskCompletions = 1;
-    await expect(executeStep(1)).rejects.toThrow();
+    await executeStep(1);
+    releaseStepLock(1);
     await executeStep(1);
 
+    expect(store.sendJobs, 'the retry has to be a real second attempt, not a refusal').toHaveLength(2);
     // Both attempts name the same OutboundMessage, so the email worker's status guard — not luck —
     // is what stops the second delivery.
     const outboundIds = new Set(store.sendJobs.map((j) => j.outboundMessageId));
@@ -706,10 +768,12 @@ describe('approved per-occurrence copy', () => {
     ];
     store.failTaskCompletions = 1;
 
-    await expect(executeStep(1)).rejects.toThrow();
+    await executeStep(1);
+    releaseStepLock(1);
     await executeStep(1);
 
     // One occurrence, and both attempts derived identical content.
+    expect(store.sendJobs).toHaveLength(2);
     expect(store.outbound).toHaveLength(1);
     expect(store.sendJobs.every((j) => j.subject === 'Stable')).toBe(true);
   });
@@ -792,8 +856,9 @@ describe('A/B variant attribution at send time', () => {
   it('attributes a retry to the same variant — one send, one identity', async () => {
     store.failTaskCompletions = 1;
 
-    await expect(executeStep(1)).rejects.toThrow();
+    await executeStep(1);
     const afterCrash = store.outbound[0].abVariantId;
+    releaseStepLock(1);
     await executeStep(1);
 
     expect(store.outbound).toHaveLength(1);

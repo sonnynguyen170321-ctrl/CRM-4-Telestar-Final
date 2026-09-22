@@ -15,6 +15,8 @@ import {
   isClaimLive,
 } from '@/lib/email/idempotency';
 import { isHtml, stripHtml } from '@/lib/email/sanitize';
+import { nextSendAttemptAt } from '@/lib/email/sendWindow';
+import { finalizeSequenceStep, releaseSequenceStep } from '@/lib/sequences/stepOutcome';
 /** Minimal account shape the deliverability preflight needs. */
 type SendGateAccount = {
   isActive: boolean;
@@ -69,6 +71,31 @@ const MAX_QUOTA_DEFERRALS = 5;
  */
 function nextQuotaResetAt(now: Date = new Date()): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 5, 0, 0);
+}
+
+/**
+ * How many messages this mailbox has actually put on the wire in the last hour.
+ *
+ * Counted from `OutboundMessage`, not from a column. A counter would be one more number
+ * written at intent and drifting from the truth — the mistake this file has now made twice.
+ * `sending` and `reconciliation_required` count too: the provider may already have them.
+ *
+ * `excludeId` is the message being sent right now. It has already claimed itself by this
+ * point, so without the exclusion it counts towards its own ceiling — a mailbox at cap 1
+ * would defer its only message forever, and cap 40 would really be 39.
+ */
+async function sentInLastHour(accountId: string, excludeId: string): Promise<number> {
+  const since = new Date(Date.now() - 60 * 60 * 1000);
+  return prisma.outboundMessage.count({
+    where: {
+      accountId,
+      id: { not: excludeId },
+      OR: [
+        { status: OUTBOUND_STATUS.SENT, sentAt: { gte: since } },
+        { status: { in: [OUTBOUND_STATUS.SENDING, OUTBOUND_STATUS.RECONCILIATION_REQUIRED] }, claimedAt: { gte: since } },
+      ],
+    },
+  });
 }
 
 /**
@@ -225,7 +252,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
 
   const existing = await prisma.outboundMessage.findUnique({
     where: { id: outboundMessageId },
-    include: { lead: { select: { campaignId: true, assignedToId: true } } },
+    include: { lead: { select: { campaignId: true, assignedToId: true, timezone: true } } },
   });
   if (!existing) throw new Error(`OutboundMessage not found: ${outboundMessageId}`);
 
@@ -234,6 +261,17 @@ async function handleEmailSend(payload: EmailSendPayload) {
   // already delivered or *may* have delivered, and a resend is the exact duplicate this
   // pipeline exists to prevent.
   if (TERMINAL_STATUSES.includes(existing.status)) {
+    // Terminal for the *message*, but the step behind it may still be open — a job re-driven
+    // onto a row that was reconciled in the meantime arrives here, and returning without
+    // settling would leave that cadence stalled with nothing left to wake it. Both calls are
+    // convergent, so a step that is already settled is a no-op.
+    if (payload.sequenceStepRef) {
+      if (existing.status === OUTBOUND_STATUS.SENT) {
+        await finalizeSequenceStep(payload.sequenceStepRef);
+      } else {
+        await releaseSequenceStep(payload.sequenceStepRef, 'the message was permanently failed');
+      }
+    }
     return {
       skipped: true,
       reason: existing.status === OUTBOUND_STATUS.SENT ? 'already_sent' : 'permanently_failed',
@@ -254,6 +292,9 @@ async function handleEmailSend(payload: EmailSendPayload) {
         where: { id: outboundMessageId },
         data: { status: OUTBOUND_STATUS.SENT, sentAt: existing.sentAt ?? new Date() },
       });
+      // The send did get through, so the step it belongs to is settled here — the lost write
+      // this branch recovers included the settle.
+      if (payload.sequenceStepRef) await finalizeSequenceStep(payload.sequenceStepRef);
       return {
         skipped: true,
         reason: 'already_sent_provider_reconcile',
@@ -387,6 +428,31 @@ async function handleEmailSend(payload: EmailSendPayload) {
     return { skipped: true, reason: blocked.reason };
   }
 
+  // Hourly ceiling first, and before the daily reservation, so a deferral here costs no slot.
+  // The daily cap was the only ceiling the CRM modelled; the provider also has an hourly one,
+  // and 228 messages discovered it the hard way.
+  if (account.hourlyCap > 0 && (await sentInLastHour(accountId, outboundMessageId)) >= account.hourlyCap) {
+    const resumeAt = nextSendAttemptAt({
+      now: new Date(),
+      minHours: 1,
+      timezone: existing.lead?.timezone ?? null,
+      seed: outboundMessageId,
+    });
+    await prisma.outboundMessage.update({
+      where: { id: outboundMessageId },
+      data: {
+        status: OUTBOUND_STATUS.PENDING,
+        errorMessage: `Mailbox hourly limit reached — deferred to ${resumeAt.toISOString()}`,
+      },
+    });
+    await enqueueReschedule(JobType.EMAIL_SEND, payload, {
+      tenantId: existing.tenantId,
+      delay: Math.max(0, resumeAt.getTime() - Date.now()),
+      discriminator: `hourly:${resumeAt.toISOString()}`,
+    });
+    return { deferred: true, skipped: true, reason: 'hourly_quota', resumeAt };
+  }
+
   // Atomically reserve quota
   const quotaOk = await atomicReserveQuota(existing.tenantId, accountId);
   if (!quotaOk) {
@@ -413,7 +479,14 @@ async function handleEmailSend(payload: EmailSendPayload) {
       return { skipped: true, reason: 'quota_exhausted_max_deferrals' };
     }
 
-    const resumeAt = nextQuotaResetAt();
+    // Spread across tomorrow's window rather than stacking every deferred message on the
+    // same instant — see `nextSendAttemptAt`.
+    const resumeAt = nextSendAttemptAt({
+      now: nextQuotaResetAt(),
+      minHours: 0,
+      timezone: existing.lead?.timezone ?? null,
+      seed: outboundMessageId,
+    });
     await prisma.outboundMessage.update({
       where: { id: outboundMessageId },
       data: {
@@ -562,6 +635,9 @@ async function handleEmailSend(payload: EmailSendPayload) {
       // The row is claimable again, so this attempt's slot must go back with it. Without this
       // the retry reserves a second one and the mailbox pays twice for one message.
       await releaseQuota(existing.tenantId, accountId);
+      // And the cadence stops: the prospect received nothing, so step 2 must not go out
+      // referencing a step 1 that was refused. A person decides what happens next.
+      if (payload.sequenceStepRef) await releaseSequenceStep(payload.sequenceStepRef, errorMessage);
     } else {
       await markReconciliationRequired(outboundMessageId, errorMessage);
     }
@@ -589,6 +665,11 @@ async function handleEmailSend(payload: EmailSendPayload) {
       sentAt: new Date(),
     },
   });
+
+  // The provider has the message. *Now* the step is complete: the task closes, the counters
+  // move and the cadence advances. Doing this at enqueue time is what recorded 228 deliveries
+  // that never happened on 2026-09-21 — see lib/sequences/stepOutcome.ts.
+  if (payload.sequenceStepRef) await finalizeSequenceStep(payload.sequenceStepRef);
 
   // Log activity and update lead
   const resolvedLeadId = leadId ?? existing.leadId;

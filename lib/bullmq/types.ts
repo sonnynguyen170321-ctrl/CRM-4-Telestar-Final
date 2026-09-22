@@ -84,8 +84,27 @@ export interface SequenceExecuteTaskPayload {
   expectedEnrollmentId?: string;
 }
 
+/**
+ * The cadence step a send belongs to, when it is one.
+ *
+ * Carried so `workers/email.ts` can settle the step on the provider's answer instead of the
+ * sequence worker settling it at enqueue time — see `lib/sequences/stepOutcome.ts` and the
+ * 2026-09-21 incident it documents. Optional: a manual compose has no step, and a job queued
+ * before this field existed settles nothing, which is the old behaviour minus the false advance.
+ */
+export interface EmailSendSequenceStep {
+  taskId: string;
+  leadId: string;
+  actorUserId: string;
+  sequenceId: string;
+  sequenceStep: number;
+  enrollmentId?: string;
+  abVariantId?: string | null;
+}
+
 export interface EmailSendPayload {
   outboundMessageId: string;
+  sequenceStepRef?: EmailSendSequenceStep;
   accountId: string;
   to: string;
   subject: string;
