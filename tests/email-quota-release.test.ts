@@ -195,6 +195,11 @@ describe.skipIf(!hasDb)('daily send quota is spent by sends, not by attempts', (
     await run(async () => {
       await prisma.activity.deleteMany({ where: { tenantId: T } });
       await prisma.outboundMessage.deleteMany({ where: { tenantId: T } });
+      // Suppression outlives a message, by design. Without clearing it, one test suppressing
+      // the fixture address silently refuses every test after it, and each of those then fails
+      // somewhere unrelated to what it is actually about.
+      await prisma.suppressionEntry.deleteMany({ where: { tenantId: T } });
+      await prisma.lead.update({ where: { id: leadId }, data: { emailInvalid: false, tags: [] } });
       await prisma.emailAccount.update({
         where: { id: accountId },
         data: { dailySendCount: 0, dailySendDate: today() },
@@ -214,10 +219,14 @@ describe.skipIf(!hasDb)('daily send quota is spent by sends, not by attempts', (
   });
 
   it('returns the slot when the provider refuses the message outright', async () => {
-    // `invalid recipient` classifies as `not_sent`: nothing was queued for delivery, and the
-    // row goes back into the claimable pool, so its reservation must go back with it.
+    // Our own hourly ceiling: `not_sent`, nothing was queued for delivery, and the row goes
+    // back into the claimable pool — so its reservation must go back with it.
+    //
+    // Deliberately a *sender-side* refusal. A recipient-side one (`invalid recipient`) is now
+    // terminal and suppresses the address, which is correct but makes this test about
+    // suppression instead of about the counter. The dead-address case has its own test below.
     sendBehaviour = async () => {
-      throw new Error('550 invalid recipient');
+      throw new Error('550 5.4.6 Sender Hourly Quota Exceeded');
     };
     const msg = await createMessage(`refused-${crypto.randomUUID()}`);
     await attempt(msg.id);
@@ -229,6 +238,26 @@ describe.skipIf(!hasDb)('daily send quota is spent by sends, not by attempts', (
     expect(
       await sendCount(),
       'a refused message never reached the prospect — it must not cost the mailbox a send'
+    ).toBe(0);
+  });
+
+  it('returns the slot for a dead address, and does not keep the message claimable', async () => {
+    // A recipient-side refusal is still a message that never left the building, so the slot
+    // comes back. What changes is the row's fate: `permanently_failed`, not `failed`, so the
+    // redrive sweep cannot pick it up and spend the mailbox's reputation re-bouncing it.
+    sendBehaviour = async () => {
+      throw new Error('550 5.1.1 The email account that you tried to reach does not exist');
+    };
+    const msg = await createMessage(`dead-${crypto.randomUUID()}`);
+    await attempt(msg.id);
+
+    const after = await run(() =>
+      prisma.outboundMessage.findUniqueOrThrow({ where: { id: msg.id } })
+    );
+    expect(after.status).toBe(OUTBOUND_STATUS.PERMANENTLY_FAILED);
+    expect(
+      await sendCount(),
+      'nothing reached the prospect, so the mailbox keeps its capacity'
     ).toBe(0);
   });
 

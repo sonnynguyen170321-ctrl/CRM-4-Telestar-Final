@@ -47,6 +47,7 @@
     "ai:smoke-providers",
     "analyze",
     "backfill:account-identity",
+    "backfill:bounce-suppressions",
     "backfill:campaign-prospects",
     "backfill:next-action",
     "build",
@@ -105,5 +106,5 @@
     "worker:healthcheck",
     "worker:start"
   ],
-  "scriptCount": 62
+  "scriptCount": 63
 }

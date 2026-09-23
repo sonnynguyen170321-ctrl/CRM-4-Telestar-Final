@@ -291,10 +291,12 @@ describe.skipIf(!hasDb)('a cadence step settles on the provider outcome', () => 
   });
 
   it('gives the step back and pauses the cadence when the provider refuses', async () => {
-    // `550 invalid recipient` classifies as `not_sent`: nothing reached the prospect, so
-    // nothing about the cadence may move. This is the exact shape of the 228.
+    // A sender-side refusal: nothing reached the prospect, so nothing about the cadence may
+    // move. This is the exact shape of the 228. Deliberately *not* a recipient-side refusal —
+    // that one also suppresses the address and ends the message terminally, which is
+    // `tests/bounce-suppression.test.ts`.
     sendBehaviour = async () => {
-      throw new Error('550 invalid recipient');
+      throw new Error('550 5.4.6 Sender Hourly Quota Exceeded');
     };
     const { task, message, enrollment } = await openStep();
     await attempt(message.id, task.id, enrollment.id);

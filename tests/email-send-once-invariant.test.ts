@@ -318,7 +318,10 @@ describe.skipIf(!hasDb)('one logical step sends at most one physical email', () 
     expect(sendCalls).toHaveLength(0);
 
     const after = await run(() => prisma.outboundMessage.findUnique({ where: { id: message.id } }));
-    expect(after?.status).toBe(OUTBOUND_STATUS.FAILED);
+    // Terminal, not `failed`. `failed` is claimable, so the redrive sweep kept picking a
+    // suppressed message up, refusing it here again and writing it straight back — and this
+    // branch never increments `attemptCount`, so the redrive cap could never end the loop.
+    expect(after?.status).toBe(OUTBOUND_STATUS.PERMANENTLY_FAILED);
 
     await run(() => prisma.suppressionEntry.deleteMany({ where: { tenantId: T } }));
   });
@@ -479,7 +482,7 @@ describe.skipIf(!hasDb)('a stopped contact receives no further sends', () => {
 
     expect(sendCalls).toHaveLength(0);
     const after = await run(() => prisma.outboundMessage.findUnique({ where: { id: stepTwo.id } }));
-    expect(after?.status).toBe(OUTBOUND_STATUS.FAILED);
+    expect(after?.status).toBe(OUTBOUND_STATUS.PERMANENTLY_FAILED);
     expect(after?.errorMessage).toContain('suppressed');
   });
 
@@ -604,10 +607,12 @@ describe.skipIf(!hasDb)('a redelivered provider webhook does not double-apply', 
     const first = await run(() => handleApplyBounce(bounce));
     const second = await run(() => handleApplyBounce(bounce));
 
-    // The second delivery must recognise the state it already produced.
-    expect((second as { skipped?: boolean }).skipped).toBe(true);
-    expect((second as { reason?: string }).reason).toBe('already_invalid');
-    expect((first as { skipped?: boolean }).skipped).not.toBe(true);
+    // The second delivery must not double-apply. It no longer returns early on `emailInvalid`:
+    // that early return meant a lead which reached the flag by any other route could never gain
+    // the suppression that actually stops the sending, which is one reason production ran a
+    // month with an empty suppression list. Idempotence is proved by the state below instead.
+    expect((first as { success?: boolean }).success).toBe(true);
+    expect((second as { success?: boolean }).success).toBe(true);
 
     const suppressions = await run(() =>
       prisma.suppressionEntry.count({
@@ -661,7 +666,10 @@ describe.skipIf(!hasDb)('a redelivered provider webhook does not double-apply', 
     expect(bounceActivities).toBe(1);
   });
 
-  it('a soft bounce does not suppress the address', async () => {
+  // Policy change 2026-09-23: any bounce suppresses, hard or soft, with no retry. A full or
+  // disabled mailbox written to again on the next step is a bounce the provider counts against
+  // the sending domain, and the operator chose reputation over recovering those addresses.
+  it('a soft bounce suppresses the address too', async () => {
     const { handleApplyBounce } = await import('@/workers/sync');
     const sent = await createMessage(`soft-${crypto.randomUUID()}`);
     await run(() => handleEmailSend(payloadFor(sent.id)));
@@ -678,10 +686,10 @@ describe.skipIf(!hasDb)('a redelivered provider webhook does not double-apply', 
     const suppressions = await run(() =>
       prisma.suppressionEntry.count({ where: { tenantId: T, email: 'prospect@sendonce.test' } }),
     );
-    expect(suppressions).toBe(0);
+    expect(suppressions).toBe(1);
 
     const lead = await run(() => prisma.lead.findUnique({ where: { id: leadId } }));
-    expect(lead?.emailInvalid).toBe(false);
+    expect(lead?.emailInvalid).toBe(true);
   });
 });
 
@@ -822,7 +830,7 @@ describe.skipIf(!hasDb)('a redelivered reply webhook does not double-apply', () 
 
     expect(sendCalls).toHaveLength(0);
     const after = await run(() => prisma.outboundMessage.findUnique({ where: { id: nextStep.id } }));
-    expect(after?.status).toBe(OUTBOUND_STATUS.FAILED);
+    expect(after?.status).toBe(OUTBOUND_STATUS.PERMANENTLY_FAILED);
   });
 
   it('a reply for a lead with no active enrollment is skipped, not applied', async () => {

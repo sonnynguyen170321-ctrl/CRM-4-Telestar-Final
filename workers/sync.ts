@@ -6,6 +6,7 @@ import { EmailService } from '@/lib/email/EmailService';
 import type { InboxMessage } from '@/lib/email/EmailService';
 import { isBounceMessage, isAutoReply, extractBouncedRecipient } from '@/lib/email/bounceDetection';
 import { pauseEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
+import { suppressRecipient } from '@/lib/email/suppress';
 import { classifyReply } from '@/lib/replies/classification';
 import { applyReplyClassification } from '@/lib/replies/handling';
 
@@ -406,31 +407,27 @@ export async function handleApplyBounce(payload: EmailApplyBouncePayload) {
     });
   }
 
-  // Hard bounces make the email permanently invalid; soft bounces are transient
-  if (isHard) {
-    if (lead.emailInvalid) return { skipped: true, reason: 'already_invalid' };
-
-    const tags = lead.tags as string[] | undefined;
-    await prisma.lead.update({
-      where: { id: leadId },
-      data: {
-        emailInvalid: true,
-        tags: tags?.includes('invalid-email') ? undefined : { push: 'invalid-email' },
-      },
+  // Any bounce suppresses, hard or soft, with no second attempt — the operator's 2026-09-23
+  // rule, taken after a mailbox's health score fell. A soft bounce used to be left in the pool
+  // as "transient", which in practice meant the same full or disabled mailbox was written to
+  // again on the next step, and the provider counted every one of those against us.
+  //
+  // Routed through `lib/email/suppress.ts` rather than writing the rows here, so this path and
+  // the send path cannot drift. That helper also writes `campaignId: null`, where this code
+  // left it unset — which is how a dead address stayed reachable by the next campaign.
+  if (lead.email) {
+    await suppressRecipient({
+      tenantId: lead.tenantId,
+      email: lead.email,
+      leadId,
+      reason: isHard ? 'hard_bounce' : 'soft_bounce',
+      detail: `${isHard ? 'hard' : 'soft'} bounce reported by the provider`,
+      actorUserId: lead.assignedToId ?? accountId,
+      // The timeline entry above is keyed to the provider's message id, which is what makes a
+      // redelivered webhook write one row instead of two. A second entry from here would double
+      // the lead's history for a single bounce.
+      recordActivity: false,
     });
-
-    const existingSuppression = await prisma.suppressionEntry.findFirst({
-      where: { tenantId: lead.tenantId, email: lead.email, reason: 'hard_bounce' },
-    });
-    if (!existingSuppression) {
-      await prisma.suppressionEntry.create({
-        data: {
-          email: lead.email,
-          reason: 'hard_bounce',
-          tenantId: lead.tenantId,
-        },
-      });
-    }
   }
 
   if (lead.sequenceId) {
