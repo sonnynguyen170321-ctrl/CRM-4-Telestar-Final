@@ -266,6 +266,13 @@ async function repairStalePendingOutbound(): Promise<{ fixed: number; details: s
   // on 2026-09-21 that left 228 messages refused by the provider with nothing in any queue to
   // try them again. A row already abandoned at the redrive cap is left alone, so this cannot
   // loop on messages a human has to decide about.
+  //
+  // What must *never* arrive here is a message the provider refused because the address is
+  // dead. `workers/email.ts` now writes those `permanently_failed`, which this query does not
+  // select, so the separation is made at the point the provider answers rather than by
+  // re-reading error strings here. Before that split, this sweep re-sent to addresses the
+  // provider had already rejected — production reached `attemptCount: 8` against a cap of 5 —
+  // and every retry was another bounce against the sender's reputation.
   const stalled = await prisma.outboundMessage.findMany({
     where: {
       OR: [

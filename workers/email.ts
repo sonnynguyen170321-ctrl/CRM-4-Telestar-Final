@@ -16,6 +16,8 @@ import {
 } from '@/lib/email/idempotency';
 import { isHtml, stripHtml } from '@/lib/email/sanitize';
 import { nextSendAttemptAt } from '@/lib/email/sendWindow';
+import { classifyRecipientFailure } from '@/lib/email/recipientFailure';
+import { suppressRecipient } from '@/lib/email/suppress';
 import { finalizeSequenceStep, releaseSequenceStep } from '@/lib/sequences/stepOutcome';
 /** Minimal account shape the deliverability preflight needs. */
 type SendGateAccount = {
@@ -382,8 +384,20 @@ async function handleEmailSend(payload: EmailSendPayload) {
   if (suppressed) {
     await prisma.outboundMessage.update({
       where: { id: outboundMessageId },
-      data: { status: OUTBOUND_STATUS.FAILED, errorMessage: `Recipient suppressed: ${suppressed.reason}` },
+      data: {
+        // Terminal, not `failed`. `failed` is claimable, so a suppressed message was picked up
+        // by the redrive sweep, refused here again, written back as `failed` — and this branch
+        // never increments `attemptCount`, so the redrive cap could never end the loop. It sat
+        // in the backlog forever, being re-queued forever, and could never reach a final state.
+        status: OUTBOUND_STATUS.PERMANENTLY_FAILED,
+        errorMessage: `Recipient suppressed: ${suppressed.reason}`,
+      },
     });
+    // A suppressed address means the step will never be sent, so the cadence must not wait on
+    // it. Without this the enrollment stays active with a step that can only ever be refused.
+    if (payload.sequenceStepRef) {
+      await releaseSequenceStep(payload.sequenceStepRef, `recipient suppressed: ${suppressed.reason}`);
+    }
     return { skipped: true, reason: 'suppressed' };
   }
 
@@ -623,15 +637,46 @@ async function handleEmailSend(payload: EmailSendPayload) {
     });
   } catch (sendErr: unknown) {
     const errorMessage = sendErr instanceof Error ? sendErr.message : String(sendErr);
+    // Two different refusals wear the same `550`. One is about us — our hourly quota, our
+    // policy, our blocklist — and the message should be tried again later. The other is about
+    // the address, and trying again is how a sender's reputation is spent.
+    //
+    // A refusal of the *recipient* is also, necessarily, proof the message was never sent: the
+    // provider rejected the envelope. `classifySendFailure` did not know that, so
+    // `550 5.1.1 user unknown` came back `ambiguous` and the message went to
+    // `reconciliation_required` — where it waited 24 hours to become `permanently_failed` with
+    // nobody suppressing the address. That is how production reached 0 suppression rows while
+    // the provider was refusing addresses outright.
+    const deadAddress = classifyRecipientFailure(sendErr) === 'recipient';
+
     // Only errors that prove the message never left the building return the row to the
     // claimable pool. A timeout or a dropped connection might still deliver, so it goes
     // to reconciliation instead — the retry BullMQ is about to schedule will then bounce
     // off the status guard rather than send a second copy.
-    if (classifySendFailure(sendErr) === 'not_sent') {
+    if (deadAddress || classifySendFailure(sendErr) === 'not_sent') {
       await prisma.outboundMessage.update({
         where: { id: outboundMessageId },
-        data: { status: OUTBOUND_STATUS.FAILED, errorMessage },
+        data: {
+          // `permanently_failed` is terminal and outside every retry sweep. `failed` is
+          // claimable, and a claimable dead address is a bounce on a schedule.
+          status: deadAddress ? OUTBOUND_STATUS.PERMANENTLY_FAILED : OUTBOUND_STATUS.FAILED,
+          errorMessage,
+        },
       });
+
+      if (deadAddress) {
+        await suppressRecipient({
+          tenantId: existing.tenantId,
+          email: to,
+          leadId: existing.leadId,
+          // The operator's 2026-09-23 rule: any bounce suppresses immediately, with no second
+          // attempt, hard or soft. So the distinction is recorded but not acted on differently.
+          reason: 'hard_bounce',
+          detail: errorMessage,
+          actorUserId: existing.lead?.assignedToId ?? null,
+        });
+      }
+
       // The row is claimable again, so this attempt's slot must go back with it. Without this
       // the retry reserves a second one and the mailbox pays twice for one message.
       await releaseQuota(existing.tenantId, accountId);

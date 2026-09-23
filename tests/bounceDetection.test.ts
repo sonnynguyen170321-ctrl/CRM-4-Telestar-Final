@@ -67,3 +67,79 @@ describe('extractBouncedRecipient', () => {
     ).toBeNull();
   });
 });
+
+/**
+ * The address is usually in the body, not the subject.
+ *
+ * Production stored 42 hard bounces with `bouncedRecipient` null — all of them — because this
+ * function read `X-Failed-Recipients` and the subject and nothing else. With no address, no
+ * lead matched, `handleApplyBounce` never ran, and not one `SuppressionEntry` was ever written
+ * while those 42 mailboxes stayed in the sending pool.
+ */
+describe('extractBouncedRecipient reads the delivery-status body', () => {
+  const ndr = (body: string, subject = 'Delivery Status Notification (Failure)') => ({
+    providerMessageId: 'msg-dsn',
+    fromEmail: 'mailer-daemon@googlemail.com',
+    subject,
+    date: new Date(),
+    failedRecipient: null,
+    body,
+  });
+
+  it('reads Final-Recipient from the RFC 3464 delivery-status part', () => {
+    expect(
+      extractBouncedRecipient(
+        ndr(
+          [
+            'Reporting-MTA: dns; googlemail.com',
+            '',
+            'Final-Recipient: rfc822; ghost@deadcompany.io',
+            'Action: failed',
+            'Status: 5.1.1',
+          ].join('\n')
+        )
+      )
+    ).toBe('ghost@deadcompany.io');
+  });
+
+  it('reads Original-Recipient when Final-Recipient is absent', () => {
+    expect(
+      extractBouncedRecipient(ndr('Original-Recipient: rfc822;Someone@Example.COM\nAction: failed'))
+    ).toBe('someone@example.com');
+  });
+
+  it('reads a prose NDR with no delivery-status part', () => {
+    expect(
+      extractBouncedRecipient(
+        ndr("Your message to sales@gone.co.uk could not be delivered because the user unknown.")
+      )
+    ).toBe('sales@gone.co.uk');
+  });
+
+  it('never returns the bounce daemon as the prospect', () => {
+    // The daemon's own address appears first in almost every NDR body. Returning it would
+    // suppress `mailer-daemon@…` and leave the prospect untouched — worse than finding nothing.
+    expect(
+      extractBouncedRecipient(
+        ndr('From: mailer-daemon@googlemail.com\n\nFinal-Recipient: rfc822; real@prospect.com')
+      )
+    ).toBe('real@prospect.com');
+  });
+
+  it('falls back to an address quoted in the original message', () => {
+    expect(
+      extractBouncedRecipient(
+        ndr('----- Original message -----\nTo: quoted@prospect.dev\nSubject: Hello')
+      )
+    ).toBe('quoted@prospect.dev');
+  });
+
+  it('still prefers the explicit header when one is present', () => {
+    expect(
+      extractBouncedRecipient({
+        ...ndr('Final-Recipient: rfc822; wrong@body.com'),
+        failedRecipient: 'header@right.com',
+      })
+    ).toBe('header@right.com');
+  });
+});

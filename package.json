@@ -18,6 +18,7 @@
     "analyze": "node scripts/build.cjs --analyze",
     "backfill:account-identity": "node node_modules/tsx/dist/cli.mjs scripts/backfill-account-identity.ts",
     "backfill:campaign-prospects": "node node_modules/tsx/dist/cli.mjs scripts/backfill-campaign-prospects.ts",
+    "backfill:bounce-suppressions": "node node_modules/tsx/dist/cli.mjs scripts/backfill-bounce-suppressions.ts",
     "backfill:next-action": "node node_modules/tsx/dist/cli.mjs scripts/backfill-next-action-at.ts",
     "build": "node scripts/build.cjs",
     "certify:collect": "node scripts/certification/collect-evidence.mjs",

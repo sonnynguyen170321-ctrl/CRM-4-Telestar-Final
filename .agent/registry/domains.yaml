@@ -207,6 +207,8 @@ domains:
     paths:
       - lib/email-health/**
       - app/api/email-health/**
+      # Repairs bounces the old parser could not read an address out of, and suppresses them.
+      - scripts/backfill-bounce-suppressions.ts
       - scripts/diagnose-email-*.ts
       - scripts/test-email-*.ts
     tests:

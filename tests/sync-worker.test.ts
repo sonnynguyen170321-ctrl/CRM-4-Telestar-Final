@@ -355,8 +355,10 @@ describe('handleApplyBounce', () => {
       where: { id: 'lead-1' },
       data: { emailInvalid: true, tags: { push: 'invalid-email' } },
     });
+    // `campaignId: null` is the tenant-wide form. Written per campaign, as it used to be, a
+    // dead address stayed reachable by every other campaign in the tenant.
     expect(mockSuppressionCreate).toHaveBeenCalledWith({
-      data: { email: 'john@acme.com', reason: 'hard_bounce', tenantId: 'tenant-1' },
+      data: { email: 'john@acme.com', reason: 'hard_bounce', tenantId: 'tenant-1', campaignId: null },
     });
     expect(pauseEnrollmentOccurrence).toHaveBeenCalledWith(
       expect.objectContaining({ leadId: 'lead-1', reason: 'hard_bounce', actorUserId: 'user-1' })
@@ -364,19 +366,27 @@ describe('handleApplyBounce', () => {
     expect(mockNotificationCreate).toHaveBeenCalled();
   });
 
-  it('soft bounce: does not mark emailInvalid or create SuppressionEntry', async () => {
+  it('soft bounce: suppresses too, because any bounce costs sender reputation', async () => {
+    // Policy change, 2026-09-23, chosen by the operator after a mailbox's health score fell.
+    // A soft bounce used to be treated as transient and the address stayed in the pool — which
+    // in practice meant the same full or disabled mailbox was written to again on the next
+    // step, and the provider counted every one of those attempts against the sending domain.
+    // The trade is explicit: a mailbox that was only temporarily full is lost, and the
+    // reputation is kept.
     mockLeadFindUnique.mockResolvedValue(baseLead);
+    mockSuppressionFindFirst.mockResolvedValue(null);
+    mockAccountFindUnique.mockResolvedValue({ tenantId: 'tenant-1' });
 
     const result = await handleApplyBounce({
       providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1', bounceType: 'soft',
     });
 
     expect(result).toEqual({ success: true, leadId: 'lead-1', bounceType: 'soft', providerMessageId: 'msg-1' });
-    expect(mockLeadUpdate).not.toHaveBeenCalled();
-    expect(mockSuppressionCreate).not.toHaveBeenCalled();
-    // A soft bounce pauses for a different reason than a hard one, and the enrollment has to
-    // record which: 'bounced' collapsed both into a token that suppression semantics do not
-    // apply to.
+    expect(mockSuppressionCreate).toHaveBeenCalledWith({
+      data: { email: 'john@acme.com', reason: 'soft_bounce', tenantId: 'tenant-1', campaignId: null },
+    });
+    // A soft bounce still pauses for its own reason, so the operator console can tell the two
+    // apart even though both now stop the sending.
     expect(pauseEnrollmentOccurrence).toHaveBeenCalledWith(
       expect.objectContaining({ leadId: 'lead-1', reason: 'soft_bounce', actorUserId: 'user-1' })
     );
@@ -394,15 +404,23 @@ describe('handleApplyBounce', () => {
     expect(mockLeadUpdate).not.toHaveBeenCalled();
   });
 
-  it('skips if lead already has emailInvalid', async () => {
+  it('still ensures the suppression when the lead is already marked invalid', async () => {
+    // This used to return early on `emailInvalid`, which is one of the reasons production ran a
+    // month with `emailInvalid` set on nobody and `SuppressionEntry` empty: any lead that
+    // reached the flag by another route could never gain the suppression that actually stops
+    // the sending. The lead-level writes are still skipped — they are already applied — but the
+    // suppression is ensured every time.
     mockLeadFindUnique.mockResolvedValue({ ...baseLead, emailInvalid: true });
+    mockSuppressionFindFirst.mockResolvedValue(null);
+    mockAccountFindUnique.mockResolvedValue({ tenantId: 'tenant-1' });
 
     const result = await handleApplyBounce({
       providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1', bounceType: 'hard',
     });
 
-    expect(result).toEqual({ skipped: true, reason: 'already_invalid' });
-    expect(mockLeadUpdate).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ success: true, leadId: 'lead-1' });
+    expect(mockLeadUpdate, 'the flag is already set; nothing to write').not.toHaveBeenCalled();
+    expect(mockSuppressionCreate).toHaveBeenCalled();
   });
 
   it('does not create duplicate SuppressionEntry if one already exists', async () => {
@@ -445,16 +463,18 @@ describe('handleApplyBounce', () => {
     // the lead-level side effects are correctly skipped as already applied.
     mockLeadFindUnique.mockResolvedValue({ ...baseLead, emailInvalid: true });
     mockOutboundFindFirst.mockResolvedValue({ id: 'out-8' });
+    mockSuppressionFindFirst.mockResolvedValue({ id: 'existing-sup' });
 
     const result = await handleApplyBounce({
       providerMessageId: 'msg-2', leadId: 'lead-1', accountId: 'acct-1', bounceType: 'hard',
     });
 
-    expect(result).toEqual({ skipped: true, reason: 'already_invalid' });
+    expect(result).toMatchObject({ success: true, leadId: 'lead-1' });
     expect(mockOutboundUpdate).toHaveBeenCalledWith({
       where: { id: 'out-8' },
       data: { status: 'bounced', bouncedAt: expect.any(Date), bounceType: 'hard' },
     });
+    // Already suppressed, so nothing new is written — the ensure is idempotent.
     expect(mockSuppressionCreate).not.toHaveBeenCalled();
   });
 

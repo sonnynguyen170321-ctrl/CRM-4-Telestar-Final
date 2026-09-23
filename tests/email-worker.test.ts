@@ -213,7 +213,12 @@ describe('handleEmailSend', () => {
     expect(mockServiceSend).not.toHaveBeenCalled();
     expect(mockOutboundUpdate).toHaveBeenCalledWith({
       where: { id: 'msg-1' },
-      data: { status: 'failed', errorMessage: 'Recipient suppressed: unsubscribed' },
+      // Terminal. `failed` is claimable, so the redrive sweep kept re-queueing a suppressed
+      // message — and this branch never increments `attemptCount`, so the cap could not stop it.
+      data: {
+        status: 'permanently_failed',
+        errorMessage: 'Recipient suppressed: unsubscribed',
+      },
     });
   });
 
@@ -576,13 +581,16 @@ describe('handleEmailSend — exactly-once delivery', () => {
 
   it('returns a definitively rejected message to the claimable pool', async () => {
     mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
-    mockServiceSend.mockRejectedValueOnce(new Error('550 5.1.1 message rejected'));
+    // A sender-side rejection — our quota, not the prospect's mailbox. That is the one that
+    // goes back into the claimable pool. `5.1.1` is recipient-side: terminal, and it suppresses
+    // the address. That case has its own file, tests/bounce-suppression.test.ts.
+    mockServiceSend.mockRejectedValueOnce(new Error('550 5.4.6 message rejected'));
 
     await expect(handleEmailSend(buildPayload())).rejects.toThrow('message rejected');
 
     expect(mockOutboundUpdate).toHaveBeenCalledWith({
       where: { id: 'msg-1' },
-      data: { status: 'failed', errorMessage: '550 5.1.1 message rejected' },
+      data: { status: 'failed', errorMessage: '550 5.4.6 message rejected' },
     });
   });
 
