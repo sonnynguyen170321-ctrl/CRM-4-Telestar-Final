@@ -98,6 +98,9 @@ domains:
       - scripts/verify-rls-app-paths.probe.ts
       - scripts/verify-rls-enablement.mjs
       - scripts/verify-rls-live.mjs
+      # Tenant context for scripts. Without it a script reads nothing on production and says so
+      # as if it were an answer, so it belongs with the isolation layer it exists to satisfy.
+      - scripts/lib/tenantContext.ts
       # The tenant boundaries RLS cannot hold: foreign keys with no tenant component, and
       # tables with no tenantId for rls.sql to find. Reported from the datamodel and from the
       # data respectively.
@@ -146,6 +149,7 @@ domains:
       - scripts/worker-*.cjs
       - scripts/queue-staleness-check.ts
       - scripts/diagnose-import.mjs
+      - scripts/verify-import-worker.ts
       # Whether Postgres and Redis still agree about the queue — the judgement the staleness
       # cron runs, kept pure so it can be tested without either of them.
       - lib/ops/queueStaleness.ts
@@ -373,6 +377,10 @@ domains:
       - scripts/deploy*
       - scripts/rollback*
       - scripts/prod-*
+      # Tools that judge whether a live deployment is healthy. They belong here rather than
+      # with the data domain because what they gate is a release decision.
+      - scripts/production-readiness-audit.ts
+      - scripts/reconcile-production-db.ts
       - scripts/cutover-preflight.ts
       - scripts/verify-container-secrets.sh
       - scripts/post-deploy-*.sh
