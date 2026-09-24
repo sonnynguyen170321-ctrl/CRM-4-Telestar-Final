@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { asOperator } from './lib/tenantContext';
 
 async function main() {
   console.log('=================================================================');
@@ -65,4 +66,6 @@ async function main() {
   console.log('=================================================================');
 }
 
-main().catch(console.error);
+// Inside operator context, or every read returns `[]` on production and the reconciliation
+// reports nothing to reconcile — see scripts/lib/tenantContext.ts.
+asOperator(main).catch(console.error);
