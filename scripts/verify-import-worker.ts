@@ -11,6 +11,7 @@
  *   3. wrapProcessor() setting JobRun active → running handler → setting JobRun completed
  */
 import { prisma } from '../lib/prisma';
+import { asOperator } from './lib/tenantContext';
 import { enqueue } from '../lib/bullmq/enqueue';
 import { JobType, type ImportParsePayload } from '../lib/bullmq/types';
 import { importQueue } from '../lib/bullmq/queues';
@@ -100,7 +101,9 @@ async function main(): Promise<void> {
   process.exit(1);
 }
 
-main()
+// Inside operator context, or every read returns `[]` on production and a probe that read
+// nothing reports a pass — see scripts/lib/tenantContext.ts.
+asOperator(main)
   .catch((err) => {
     console.error('[probe] Fatal error:', err);
     process.exit(1);

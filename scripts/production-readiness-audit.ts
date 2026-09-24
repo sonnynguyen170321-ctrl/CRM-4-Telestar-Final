@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { isAutosendEnabled, isDryRun, isGlobalEmailPaused, isCanaryMode } from '@/lib/emailSafety';
+import { asOperator } from './lib/tenantContext';
 
 interface AuditItem {
   category: string;
@@ -153,7 +154,9 @@ async function main() {
   }
 }
 
-main().catch((err) => {
+// Inside operator context, or every read returns `[]` on production and an audit that cannot
+// see the data certifies it as healthy — see scripts/lib/tenantContext.ts.
+asOperator(main).catch((err) => {
   console.error('Audit fatal error:', err);
   process.exit(1);
 });
