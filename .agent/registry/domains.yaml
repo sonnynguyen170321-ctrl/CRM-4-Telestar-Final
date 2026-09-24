@@ -179,6 +179,8 @@ domains:
       # One-off repair for the 2026-09-21 burst: rewinds cadences whose step advanced on a
       # send the provider refused, and re-queues those sends spread across business hours.
       - scripts/recover-refused-sequence-sends.ts
+      # Makes Lead.emailSentCount agree with the sent rows that actually exist.
+      - scripts/recount-email-sent.ts
     tests:
       - tests/sequence-*.test.ts
       - tests/scheduling.test.ts

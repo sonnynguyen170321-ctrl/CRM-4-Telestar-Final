@@ -60,6 +60,7 @@
     "prod:cutover:postcheck": "node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/cutover/safe-cutover-tool.ts --mode=POSTCHECK",
     "prod:cutover:rehearse": "node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/cutover/safe-cutover-tool.ts --mode=REHEARSE",
     "prod:cutover:verify": "node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/cutover/safe-cutover-tool.ts --mode=VERIFY",
+    "recount:email-sent": "node node_modules/tsx/dist/cli.mjs scripts/recount-email-sent.ts",
     "recover:refused-sends": "node node_modules/tsx/dist/cli.mjs scripts/recover-refused-sequence-sends.ts",
     "repair:approved-proposals": "node node_modules/tsx/dist/cli.mjs scripts/repair-approved-proposals.ts",
     "seed:telestar-icp": "node node_modules/tsx/dist/cli.mjs scripts/seed-telestar-icp.ts",

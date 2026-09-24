@@ -483,12 +483,16 @@ describe.skipIf(!hasDb)('a refused message stays reachable by a repair sweep', (
 
     await run(() => handleRepair({ types: ['stale-pending-outbound'] }));
 
-    expect(enqueueReschedule, 'a failed send must be re-driven, not abandoned').toHaveBeenCalled();
-    const [, payload] = enqueueReschedule.mock.calls[0] as [unknown, Record<string, unknown>];
+    // Matched to this message rather than to `calls[0]`: the sweep is not tenant-scoped, and the
+    // shared test database always holds other suites' rows, so the first call is whichever row
+    // happened to sort first.
+    const payload = enqueueReschedule.mock.calls
+      .map((call) => call[1] as Record<string, unknown>)
+      .find((p) => p?.outboundMessageId === message.id);
+    expect(payload, 'a failed send must be re-driven, not abandoned').toBeDefined();
     // The redrive starts from the stored row, so the step reference has to be rebuilt — without
     // it the recovered message would send and leave its step open forever.
-    expect(payload.outboundMessageId).toBe(message.id);
-    expect(payload.sequenceStepRef).toMatchObject({
+    expect(payload!.sequenceStepRef).toMatchObject({
       taskId: task.id,
       leadId,
       sequenceStep: 1,
@@ -509,7 +513,10 @@ describe.skipIf(!hasDb)('a refused message stays reachable by a repair sweep', (
 
     await run(() => handleRepair({ types: ['stale-pending-outbound'] }));
 
-    expect(enqueueReschedule).not.toHaveBeenCalled();
+    // Again matched to this message: the sweep sees every tenant's rows in a shared database.
+    expect(
+      enqueueReschedule.mock.calls.map((call) => (call[1] as { outboundMessageId?: string })?.outboundMessageId)
+    ).not.toContain(message.id);
   });
 
   /**
