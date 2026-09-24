@@ -154,8 +154,10 @@ if $OFFSITE; then
 fi
 
 # Local retention. Off-host retention belongs to the remote's lifecycle policy.
-ls -1t "${BACKUP_DIR}"/*.dump "${BACKUP_DIR}"/*.dump.age 2>/dev/null \
-  | tail -n +$((KEEP + 1)) \
-  | while read -r old; do rm -f "$old" "${old%.age}.manifest.json"; done
+#
+# In its own script because this step used to fail the backup that had just succeeded: under
+# `set -euo pipefail`, once every dump had been encrypted nothing matched `*.dump`, `ls` exited
+# 2, and the deploy was refused. See deploy/hostinger/prune-backups.sh.
+"${SCRIPT_DIR}/prune-backups.sh" "$BACKUP_DIR" "$KEEP"
 
 printf '%s\n' "$UPLOAD"
