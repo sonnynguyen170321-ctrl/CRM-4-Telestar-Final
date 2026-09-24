@@ -261,22 +261,26 @@ describe('handleEmailSend', () => {
     expect(opts.discriminator).toMatch(/^quota:/);
   });
 
-  it('fails the message once it has exhausted the deferral budget', async () => {
+  it('keeps deferring a long-waiting message, and raises the shortage instead', async () => {
+    // This used to fail the message on the fifth deferral. Running out of quota says nothing
+    // about the prospect, so discarding their email turned a capacity shortage into silent data
+    // loss: production dropped `ulrika.soderholm@arcticgroup.se` on 2026-09-21 having never
+    // written to her, with 29 more one deferral away, because one mailbox carried an
+    // 821-cadence workload at 80 sends a day. The backlog is the thing a person has to decide
+    // about, so the backlog is what gets raised — and the email stays queued.
     mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage({ attemptCount: 4 }));
     mockSuppressionFindFirst.mockResolvedValueOnce(null);
     mockExecuteRaw.mockResolvedValueOnce(0);
 
     const result = await handleEmailSend(buildPayload());
 
-    expect(result).toEqual({ skipped: true, reason: 'quota_exhausted_max_deferrals' });
-    expect(mockEnqueueReschedule).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ deferred: true, reason: 'quota_exhausted' });
+    expect(mockEnqueueReschedule, 'the send must still be carried by a job').toHaveBeenCalled();
     expect(mockOutboundUpdate).toHaveBeenCalledWith({
       where: { id: 'msg-1' },
-      data: {
-        status: 'failed',
-        errorMessage: expect.stringContaining('Daily send limit reached on 5'),
-      },
+      data: expect.objectContaining({ status: 'pending' }),
     });
+    expect(mockNotificationCreate, 'somebody has to be told the mailbox cannot keep up').toHaveBeenCalled();
   });
 
   it('sends without leadId if payload omits it', async () => {

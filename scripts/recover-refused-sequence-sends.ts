@@ -49,6 +49,7 @@ import { enqueueReschedule } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
 import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
 import { nextSendAttemptAt } from '@/lib/email/sendWindow';
+import { classifyRecipientFailure } from '@/lib/email/recipientFailure';
 
 const APPLY = process.argv.includes('--apply');
 const REQUEUE = !process.argv.includes('--no-requeue');
@@ -75,7 +76,9 @@ type Affected = {
   sequenceId: string | null;
   sequenceStepOrder: number | null;
   abVariantId: string | null;
-  lead: { timezone: string | null } | null;
+  /** Read so a recipient-side refusal can be told from one about our own quota. */
+  errorMessage: string | null;
+  lead: { timezone: string | null; emailInvalid: boolean } | null;
 };
 
 /**
@@ -122,7 +125,7 @@ async function scheduleFor(messages: Affected[]): Promise<Map<string, Date>> {
 }
 
 async function recoverTenant(tenantId: string, tenantName: string): Promise<void> {
-  const refused: Affected[] = await prisma.outboundMessage.findMany({
+  const candidates = await prisma.outboundMessage.findMany({
     where: {
       status: OUTBOUND_STATUS.FAILED,
       sentAt: null,
@@ -138,13 +141,48 @@ async function recoverTenant(tenantId: string, tenantName: string): Promise<void
       sequenceId: true,
       sequenceStepOrder: true,
       abVariantId: true,
-      lead: { select: { timezone: true } },
+      errorMessage: true,
+      lead: { select: { timezone: true, emailInvalid: true } },
     },
     orderBy: { createdAt: 'asc' },
   });
 
+  // Never re-queue a send to an address the provider has already refused, or that somebody has
+  // suppressed since. This script resets `attemptCount` to zero, so without these checks it
+  // would hand a dead address a fresh five attempts — five more bounces against the sending
+  // domain, from a repair tool. `failed` is a mixed bag: it holds messages our own quota
+  // refused (retryable) and messages the recipient refused (never again).
+  const suppressed = new Set(
+    (
+      await prisma.suppressionEntry.findMany({
+        where: { email: { in: candidates.map((m) => m.to.toLowerCase()) } },
+        select: { email: true },
+      })
+    ).map((e) => e.email?.toLowerCase())
+  );
+
+  const skipped: string[] = [];
+  const refused: Affected[] = [];
+  for (const msg of candidates) {
+    const why =
+      classifyRecipientFailure(new Error(msg.errorMessage ?? '')) === 'recipient'
+        ? 'the provider refused the address'
+        : suppressed.has(msg.to.toLowerCase())
+          ? 'the address is suppressed'
+          : msg.lead?.emailInvalid
+            ? 'the lead is marked email-invalid'
+            : null;
+    if (why) skipped.push(`${msg.to}: ${why}`);
+    else refused.push(msg);
+  }
+
+  if (skipped.length) {
+    console.log(`  ${tenantName}: leaving ${skipped.length} message(s) alone —`);
+    for (const line of skipped.slice(0, 10)) console.log(`    ${line}`);
+  }
+
   if (refused.length === 0) {
-    console.log(`  ${tenantName}: nothing refused in the window.`);
+    console.log(`  ${tenantName}: nothing recoverable in the window.`);
     return;
   }
 

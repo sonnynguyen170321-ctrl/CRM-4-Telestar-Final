@@ -60,11 +60,14 @@ export function evaluateSendBlock(
 }
 
 /**
- * How many times a single message may be pushed to the next quota window before it is
- * treated as undeliverable. Without a cap, a permanently over-subscribed mailbox would
- * reschedule the same message forever and no one would ever see a failure.
+ * How many daily deferrals before the operator is told the mailbox cannot keep up.
+ *
+ * A message is never discarded for this — running out of quota says nothing about the
+ * prospect, and dropping their email would turn a capacity shortage into silent data loss.
+ * What an endlessly-deferred message *does* mean is that the cadences attached to this mailbox
+ * need more capacity than it has, which is a decision for a person, so it is raised as one.
  */
-const MAX_QUOTA_DEFERRALS = 5;
+const QUOTA_DEFERRAL_WARN_AFTER = 5;
 
 /**
  * The next moment quota frees up: `atomicReserveQuota` compares against local midnight,
@@ -475,22 +478,30 @@ async function handleEmailSend(payload: EmailSendPayload) {
     // breath: `pending` with no live job left is a message that stalls forever, which is
     // worse than the `failed` this replaced because nothing surfaces it.
     const attemptsSoFar = existing.attemptCount + 1; // the claim above already incremented
-    if (attemptsSoFar >= MAX_QUOTA_DEFERRALS) {
-      await prisma.outboundMessage.update({
-        where: { id: outboundMessageId },
-        data: {
-          status: OUTBOUND_STATUS.FAILED,
-          errorMessage: `Daily send limit reached on ${attemptsSoFar} consecutive attempts`,
-        },
-      });
+
+    // A message is never thrown away for want of capacity.
+    //
+    // This used to fail the message on the fifth deferral, on the reasoning that an
+    // endlessly-rescheduled send is a failure nobody sees. The reasoning was right and the
+    // remedy was wrong: running out of quota says nothing about the prospect, so discarding
+    // their email turns an operational shortage into silent data loss. Production proved it —
+    // `ulrika.soderholm@arcticgroup.se` was dropped on 2026-09-21 having never been written to,
+    // with 29 more one deferral away, because one mailbox carries 100% of an 821-cadence
+    // workload at 80 sends a day.
+    //
+    // So the deferral continues, and the *shortage* is what gets raised. Once per message, so a
+    // sustained backlog does not bury the operator in notifications it has already sent.
+    if (attemptsSoFar === QUOTA_DEFERRAL_WARN_AFTER) {
       await notifySendFailure({
         tenantId: existing.tenantId,
         leadId: existing.leadId,
         assignedToId: existing.lead?.assignedToId,
         to,
-        reason: `the mailbox hit its daily send limit on ${attemptsSoFar} consecutive attempts`,
+        reason:
+          `still waiting after ${attemptsSoFar} days — this mailbox has less daily capacity ` +
+          `than its cadences need. The email is still queued and will go out; the backlog is ` +
+          `what needs a decision.`,
       });
-      return { skipped: true, reason: 'quota_exhausted_max_deferrals' };
     }
 
     // Spread across tomorrow's window rather than stacking every deferred message on the
