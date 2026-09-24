@@ -91,7 +91,7 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 | `lib/prisma.ts` | 138, 171, 172, 254, 255, 279, 313, 320, 321 | The extension itself — this is the file that implements tenant scoping, so it necessarily names the flag it honours and runs the `set_config` statements that carry tenant context into the database. Its own `$queryRaw`/`$executeRaw` calls are the GUC statements and the maintenance sweep, not data access. |
 | `lib/research/cache.ts` | 175, 410 | Cache updates through `withTenantRaw`, so the statement carries tenant context on its own connection. |
 | `lib/search/accentSearch.ts` | 83, 84 | Accent-insensitive search through `withTenantRaw`, with `tenantId` also named explicitly in the WHERE clause. |
-| `workers/email.ts` | 111, 154 | The daily send quota: an atomic compare-and-set reserving a slot on `EmailAccount.dailySendCount`, and the matching release when the provider refuses a message outright. Both go through `withTenantRaw` and address a single row by id. Raw SQL rather than a read-modify-write so two workers cannot both spend the last send of a quota; the release is dated to today and floored at zero so it can never mint one. |
+| `workers/email.ts` | 114, 157 | The daily send quota: an atomic compare-and-set reserving a slot on `EmailAccount.dailySendCount`, and the matching release when the provider refuses a message outright. Both go through `withTenantRaw` and address a single row by id. Raw SQL rather than a read-modify-write so two workers cannot both spend the last send of a quota; the release is dated to today and floored at zero so it can never mint one. |
 | `workers/healthcheck.ts` | 28 | `SELECT 1` liveness probe. Touches no tenant-owned table. |
 
 ---
