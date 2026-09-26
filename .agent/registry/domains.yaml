@@ -188,6 +188,8 @@ domains:
       - scripts/recover-refused-sequence-sends.ts
       # Makes Lead.emailSentCount agree with the sent rows that actually exist.
       - scripts/recount-email-sent.ts
+      # Sends one real email to an operator-owned address and reports every hop it makes.
+      - scripts/e2e-outreach-probe.ts
     tests:
       - tests/sequence-*.test.ts
       - tests/scheduling.test.ts

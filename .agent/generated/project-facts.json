@@ -79,6 +79,7 @@
     "demo:seed",
     "dev",
     "doctor",
+    "e2e:outreach-probe",
     "encrypt-existing-tokens",
     "lint",
     "list-users",
@@ -108,5 +109,5 @@
     "worker:healthcheck",
     "worker:start"
   ],
-  "scriptCount": 65
+  "scriptCount": 66
 }
