@@ -49,6 +49,7 @@
     "demo:seed": "node node_modules/tsx/dist/cli.mjs scripts/demo-seed.ts",
     "dev": "next dev",
     "doctor": "node scripts/doctor.mjs",
+    "e2e:outreach-probe": "node node_modules/tsx/dist/cli.mjs scripts/e2e-outreach-probe.ts",
     "encrypt-existing-tokens": "node node_modules/tsx/dist/cli.mjs scripts/encrypt-existing-tokens.ts",
     "lint": "eslint app components lib context tests workers scripts e2e",
     "list-users": "node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/list-users.ts",
