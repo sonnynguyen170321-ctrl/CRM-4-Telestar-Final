@@ -82,6 +82,7 @@
     "encrypt-existing-tokens",
     "lint",
     "list-users",
+    "outcome-check",
     "prod:audit",
     "prod:check-env",
     "prod:check-migrations",
@@ -107,5 +108,5 @@
     "worker:healthcheck",
     "worker:start"
   ],
-  "scriptCount": 64
+  "scriptCount": 65
 }

@@ -52,6 +52,7 @@
     "encrypt-existing-tokens": "node node_modules/tsx/dist/cli.mjs scripts/encrypt-existing-tokens.ts",
     "lint": "eslint app components lib context tests workers scripts e2e",
     "list-users": "node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/list-users.ts",
+    "outcome-check": "node node_modules/tsx/dist/cli.mjs scripts/outcome-check.ts",
     "prod:audit": "node node_modules/tsx/dist/cli.mjs scripts/prod-audit.ts",
     "prod:check-env": "node node_modules/tsx/dist/cli.mjs scripts/prod-check-env.ts",
     "prod:check-migrations": "node node_modules/tsx/dist/cli.mjs scripts/prod-check-migrations.ts",
