@@ -88,6 +88,18 @@ describe('bounce suppression', () => {
     expect(f.detail).toContain('still in the sending pool');
   });
 
+  it('fails on 1 suppressed against 51 bounces', () => {
+    // The first version of this check only failed on an empty list, and on its first
+    // production run it reported `ok` for exactly this — the defect it exists to catch,
+    // waved through by the check written to catch it. One address is not a working list.
+    const f = checkSuppression({ bouncesRecorded: 51, suppressionEntries: 1 });
+    expect(f.level).toBe('fail');
+  });
+
+  it('accepts fewer entries than bounces, because addresses repeat', () => {
+    expect(checkSuppression({ bouncesRecorded: 51, suppressionEntries: 30 }).level).toBe('ok');
+  });
+
   it('says nothing when there have been no bounces to act on', () => {
     expect(checkSuppression({ bouncesRecorded: 0, suppressionEntries: 0 }).level).toBe('ok');
   });
@@ -100,7 +112,7 @@ describe('cadence', () => {
     const findings = checkCadence({
       activeEnrollments: 1105,
       withoutNextAction: 278,
-      advancedLastDay: 12,
+      stepsCompletedLastDay: 12,
       sentLastDay: 80,
     });
     expect(findings.find((f) => f.check === 'cadence-schedule')?.level).toBe('warn');
@@ -111,17 +123,31 @@ describe('cadence', () => {
     const findings = checkCadence({
       activeEnrollments: 827,
       withoutNextAction: 0,
-      advancedLastDay: 0,
+      stepsCompletedLastDay: 0,
       sentLastDay: 0,
     });
     expect(findings.find((f) => f.check === 'cadence-motion')?.level).toBe('fail');
+  });
+
+  it('does not call a healthy day dead because one timestamp was never written', () => {
+    // Production, 2026-09-26: 28 sends, 28 tasks completed, 28 enrollments moved to step 2 —
+    // and `lastTransitionAt` four days stale, because the advance path wrote `currentStep`
+    // and forgot the timestamp. Measuring the timestamp would have raised a false alarm on a
+    // system that was working; measuring completed tasks does not.
+    const findings = checkCadence({
+      activeEnrollments: 1105,
+      withoutNextAction: 0,
+      stepsCompletedLastDay: 28,
+      sentLastDay: 28,
+    });
+    expect(findings.find((f) => f.check === 'cadence-motion')?.level).toBe('ok');
   });
 
   it('does not cry about an empty system', () => {
     const findings = checkCadence({
       activeEnrollments: 0,
       withoutNextAction: 0,
-      advancedLastDay: 0,
+      stepsCompletedLastDay: 0,
       sentLastDay: 0,
     });
     expect(findings.every((f) => f.level === 'ok')).toBe(true);

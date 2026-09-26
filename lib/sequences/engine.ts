@@ -340,7 +340,11 @@ export async function advanceSequence(
 
   await prisma.sequenceEnrollment.updateMany({
     where: { leadId: lead.id, sequenceId: task.sequenceId, status: 'active' },
-    data: { currentStep: nextStepOrder },
+    // Advancing a step *is* a transition. Only pause and terminalize recorded one, so
+    // `lastTransitionAt` — the field that answers "is this cadence alive?" — stood still while
+    // cadences advanced daily. On production 2026-09-26 its newest value was four days old
+    // while 28 steps had advanced in the previous 24 hours.
+    data: { currentStep: nextStepOrder, lastTransitionAt: new Date() },
   });
 
   const nextStep = sequence.steps.find((s) => s.order === nextStepOrder);
@@ -446,7 +450,8 @@ async function advanceOccurrence(
       status: 'active',
       currentStep: completedStep,
     },
-    data: { currentStep: nextStepOrder },
+    // As above: the step moving is the transition, so it is what `lastTransitionAt` must record.
+    data: { currentStep: nextStepOrder, lastTransitionAt: new Date() },
   });
   if (advanced.count !== 1) return;
 

@@ -90,7 +90,7 @@ async function tenantFindings(): Promise<Finding[]> {
       prisma.suppressionEntry.count(),
       prisma.sequenceEnrollment.count({ where: { status: 'active' } }),
       prisma.sequenceEnrollment.count({ where: { status: 'active', nextActionAt: null } }),
-      prisma.sequenceEnrollment.count({ where: { lastTransitionAt: { gte: since } } }),
+      prisma.task.count({ where: { type: 'email', status: 'completed', completedAt: { gte: since } } }),
       prisma.outboundMessage.count({ where: { status: 'sent', sentAt: { gte: since } } }),
       prisma.outboundMessage.count({ where: { status: { in: ['pending', 'failed'] }, sentAt: null } }),
       prisma.emailAccount.findMany({
@@ -110,7 +110,7 @@ async function tenantFindings(): Promise<Finding[]> {
     ...checkCadence({
       activeEnrollments,
       withoutNextAction,
-      advancedLastDay: advanced,
+      stepsCompletedLastDay: advanced,
       sentLastDay: sent,
     }),
     checkCapacity({ queued, dailyCapacityInUse }),

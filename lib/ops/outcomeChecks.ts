@@ -117,17 +117,35 @@ export interface SuppressionFacts {
   suppressionEntries: number;
 }
 
-/** A bounce that suppresses nobody is a bounce the next campaign will repeat. */
+/**
+ * A bounce that suppresses nobody is a bounce the next campaign will repeat.
+ *
+ * Compared as a ratio, not against zero. The first version of this check only failed on an
+ * empty list, and on its first production run it reported `ok` for **1 suppressed against 51
+ * bounces** — the exact shape of the defect it exists to catch, passed by the check written to
+ * catch it. One address is not "the list is working"; it is a list that happens to be non-empty.
+ *
+ * Addresses repeat across bounces, so the ratio is loose on purpose: the concern is an order of
+ * magnitude, not an exact accounting.
+ */
+const SUPPRESSION_PER_BOUNCE_FAIL = 0.25;
+
 export function checkSuppression(f: SuppressionFacts): Finding {
-  if (f.bouncesRecorded > 0 && f.suppressionEntries === 0) {
+  if (f.bouncesRecorded === 0) {
+    return { check: 'bounce-suppression', level: 'ok', detail: 'no bounces on record' };
+  }
+
+  const ratio = f.suppressionEntries / f.bouncesRecorded;
+  if (ratio < SUPPRESSION_PER_BOUNCE_FAIL) {
     return {
       check: 'bounce-suppression',
       level: 'fail',
       detail:
-        `${f.bouncesRecorded} bounce(s) recorded and 0 addresses suppressed — ` +
-        `every one of those mailboxes is still in the sending pool`,
+        `${f.bouncesRecorded} bounce(s) recorded but only ${f.suppressionEntries} address(es) ` +
+        `suppressed — those mailboxes are still in the sending pool and will be written to again`,
     };
   }
+
   return {
     check: 'bounce-suppression',
     level: 'ok',
@@ -139,8 +157,15 @@ export interface CadenceFacts {
   activeEnrollments: number;
   /** Active but with no scheduled next action — invisible to the drift repair. */
   withoutNextAction: number;
-  /** Steps that actually advanced in the last day. */
-  advancedLastDay: number;
+  /**
+   * Cadence steps that actually closed in the last day, counted from `Task.completedAt`.
+   *
+   * Deliberately not `SequenceEnrollment.lastTransitionAt`: on its first production run this
+   * check read that field and saw four-day-old data while 28 steps had advanced in 24 hours,
+   * because the advance path wrote `currentStep` and forgot the timestamp. A completed task is
+   * the effect itself, so it cannot drift from the thing being measured.
+   */
+  stepsCompletedLastDay: number;
   sentLastDay: number;
 }
 
@@ -161,7 +186,7 @@ export function checkCadence(f: CadenceFacts): Finding[] {
 
   // Silence is the symptom that has no error attached to it, so it has to be asked about
   // directly: a cadence engine that stopped looks exactly like a quiet day.
-  if (f.activeEnrollments > 0 && f.advancedLastDay === 0 && f.sentLastDay === 0) {
+  if (f.activeEnrollments > 0 && f.stepsCompletedLastDay === 0 && f.sentLastDay === 0) {
     out.push({
       check: 'cadence-motion',
       level: 'fail',
@@ -171,7 +196,7 @@ export function checkCadence(f: CadenceFacts): Finding[] {
     out.push({
       check: 'cadence-motion',
       level: 'ok',
-      detail: `${f.sentLastDay} sent, ${f.advancedLastDay} advanced in 24h`,
+      detail: `${f.sentLastDay} sent, ${f.stepsCompletedLastDay} step(s) completed in 24h`,
     });
   }
 
