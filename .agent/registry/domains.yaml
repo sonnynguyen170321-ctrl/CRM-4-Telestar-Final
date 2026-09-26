@@ -153,6 +153,9 @@ domains:
       # Whether Postgres and Redis still agree about the queue — the judgement the staleness
       # cron runs, kept pure so it can be tested without either of them.
       - lib/ops/queueStaleness.ts
+      # Asks what production actually did, rather than what it is configured to do.
+      - lib/ops/outcomeChecks.ts
+      - scripts/outcome-check.ts
       - app/api/cron/**
       # Shared authorization for the cron routes: who is calling and how many tenants they reach.
       - lib/cron/**

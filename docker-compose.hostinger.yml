@@ -65,14 +65,29 @@ services:
       - shared_buffers=1GB
       - -c
       - max_connections=120
-      # Continuous archiving. archive_timeout closes a segment every minute even on a quiet
-      # database, which is what bounds the RPO when write volume is low.
+      # Continuous archiving, off unless somebody has turned it on and checked that it works.
+      #
+      # This used to hardcode `pgbackrest --stanza=crm archive-push %p` against a repo that had
+      # never been created, on a `/backups` mount the postgres user could not read. Every push
+      # failed. Postgres does the right thing when archiving fails — it keeps the WAL rather
+      # than losing data — so 179 GB accumulated in `pg_wal` against a 115 MB database, and on
+      # 2026-09-26 the 200 GB disk reached 100% with 1.1 GB to spare. `pg_stat_archiver` showed
+      # 54,283 failures and 0 successes, going back to the first WAL segment the cluster ever
+      # wrote. There was never any PITR here — only the belief in one.
+      #
+      # `archive_timeout=60` made it far worse: a 16 MB segment closed every minute whether or
+      # not anything was written. ~23 GB a day on an idle database, none of it reclaimable.
+      #
+      # Enabling this means, in order: make the repo readable by uid 999, run `pgbackrest
+      # --stanza=crm stanza-create`, set PG_ARCHIVE_COMMAND, recreate the container — and then
+      # verify `SELECT archived_count FROM pg_stat_archiver` is climbing. That last step is the
+      # one that was skipped, and skipping it is what cost the disk.
       - -c
       - archive_mode=on
       - -c
-      - archive_command=pgbackrest --stanza=crm archive-push %p
+      - archive_command=${PG_ARCHIVE_COMMAND:-/bin/true}
       - -c
-      - archive_timeout=60
+      - archive_timeout=${PG_ARCHIVE_TIMEOUT:-0}
       - -c
       - wal_level=replica
       - -c
