@@ -6,6 +6,7 @@ import { readSheet } from 'read-excel-file/browser';
 import { useToast } from '@/context/ToastContext';
 import { readApiError } from '@/lib/api/client';
 import { detectImportPreset, VENDOR_1CH_FIELD_MAP } from '@/lib/leads/importRows';
+import { parseCSV, detectFieldMap } from '@/lib/leads/csvParse';
 
 interface Props {
   onClose: () => void;
@@ -87,61 +88,16 @@ const QUALITY_MODES: { value: EmailQualityMode; label: string; description: stri
   { value: 'aggressive', label: 'Aggressive', description: 'Import any non-empty email.' },
 ];
 
+/**
+ * `parseCSV` and `detectFieldMap` now live in `lib/leads/csvParse.ts`. They used to be defined
+ * here, unexported, which is why neither had ever had a test — and both were wrong in ways that
+ * produced a successful import of the wrong data rather than a visible failure. See that file for
+ * what each one was getting wrong.
+ */
 const autoDetect = (headers: string[]) => {
   const preset = detectImportPreset(headers);
   if (preset === 'vendor_1ch') return { preset, map: VENDOR_1CH_FIELD_MAP };
-
-  const patterns: Record<string, RegExp> = {
-    firstName: /first[\s_-]?name/i,
-    lastName: /last[\s_-]?name/i,
-    fullName: /full[\s_-]?name|contact name/i,
-    company: /company|org(anization)?|account/i,
-    title: /title|position|role|job/i,
-    email: /e[\s-]?mail/i,
-    phone: /phone|tel(ephone)?|mobile/i,
-    linkedIn: /linkedin|linked in/i,
-    website: /website|domain/i,
-    industry: /industry/i,
-    contactCountry: /contact country|country/i,
-    priority: /priority|tier/i,
-  };
-  const map: Record<string, string> = {};
-  for (const [field, pattern] of Object.entries(patterns)) {
-    const match = headers.find((header) => pattern.test(header));
-    if (match) map[field] = match;
-  }
-  return { preset, map };
-};
-
-const parseCSV = (text: string): { headers: string[]; rows: string[][] } => {
-  const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
-  if (lines.length === 0) return { headers: [], rows: [] };
-
-  const splitLine = (line: string) => {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        if (inQuotes && line[i + 1] === '"') {
-          current += '"';
-          i++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (ch === ',' && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += ch;
-      }
-    }
-    result.push(current.trim());
-    return result;
-  };
-
-  return { headers: splitLine(lines[0]), rows: lines.slice(1).map(splitLine) };
+  return { preset, map: detectFieldMap(headers) };
 };
 
 export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead' }: Props) {
@@ -355,6 +311,26 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
     URL.revokeObjectURL(url);
   };
 
+  /**
+   * What this import will actually do, given the resolutions chosen on this screen.
+   *
+   * `summary.toImport` comes from the dry run, which excludes every duplicate row regardless of
+   * how it is resolved — so the headline used to read "Ready to queue 412 new rows" while the
+   * operator had set all 88 duplicates to "Import anyway" and 500 were about to be written. The
+   * counts have to follow the dropdowns, because those are what the worker is sent.
+   */
+  const plan = useMemo(() => {
+    if (!summary) return null;
+    const resolutionFor = (row: number) => rowResolutions[String(row)] ?? defaultResolution;
+    const resolved = summary.duplicates.map((duplicate) => resolutionFor(duplicate.row));
+    return {
+      creates: summary.toImport + resolved.filter((r) => r === 'import').length,
+      updates: resolved.filter((r) => r === 'update').length,
+      skipped: resolved.filter((r) => r === 'skip').length,
+      errors: summary.rowsWithErrors,
+    };
+  }, [summary, rowResolutions, defaultResolution]);
+
   const steps: { key: Step; label: string }[] = [
     { key: 'upload', label: 'Upload' },
     { key: 'map', label: 'Mapping' },
@@ -564,10 +540,12 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
                 <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
                   {[
                     ['Total', summary.total, 'text-text-primary'],
-                    ['Importable', summary.toImport, 'text-emerald-500'],
-                    ['Duplicates', summary.duplicates.length, 'text-amber-500'],
+                    // These three follow the resolutions chosen below, so the numbers on screen
+                    // are the ones the import will produce.
+                    ['Create', plan?.creates ?? summary.toImport, 'text-emerald-500'],
+                    ['Update', plan?.updates ?? 0, 'text-sky-500'],
+                    ['Skip', plan?.skipped ?? summary.duplicates.length, 'text-amber-500'],
                     ['Errors', summary.rowsWithErrors, 'text-brand-red'],
-                    ['Risky', summary.riskyEmails, 'text-amber-400'],
                     ['Bad Email', summary.undeliverableEmails, 'text-brand-red'],
                   ].map(([label, value, color]) => (
                     <div key={label} className="rounded-xl border border-card-border bg-bg-main/50 p-3">
@@ -618,6 +596,36 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
                   </div>
                 )}
 
+                {/*
+                  * The API has always computed and returned `warnings`, and nothing rendered them.
+                  * A duplicate phone within the file is the one it raises today, and it is exactly
+                  * the signal that says two rows are the same person — the operator could not see
+                  * it. Risky and unknown email validations sit here too, since they are accepted
+                  * by the default quality mode and so never appear as errors.
+                  */}
+                {(summary.warnings.length > 0 || summary.riskyEmails > 0) && (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-1.5">
+                    <p className="text-[10px] font-bold font-mono uppercase text-amber-500 tracking-wide">
+                      Worth a look before importing
+                    </p>
+                    {summary.riskyEmails > 0 && (
+                      <p className="text-[11px] text-text-secondary">
+                        {summary.riskyEmails} row{summary.riskyEmails === 1 ? '' : 's'} with a risky or
+                        unverified email. The current quality mode imports these.
+                      </p>
+                    )}
+                    {summary.warnings.length > 0 && (
+                      <ul className="max-h-32 overflow-y-auto space-y-0.5">
+                        {summary.warnings.map((warning) => (
+                          <li key={`${warning.row}-${warning.reason}`} className="text-[11px] text-text-secondary">
+                            Row {warning.row}: {warning.reason}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
                 {summary.errorRows.length > 0 && (
                   <button type="button" onClick={downloadErrorRows} className="w-full py-2 border border-brand-red/30 bg-brand-red/5 hover:bg-brand-red/10 rounded-lg text-xs font-semibold text-brand-red transition-colors flex items-center justify-center gap-1.5">
                     <Download className="w-3.5 h-3.5" />
@@ -631,10 +639,18 @@ export default function CSVImportModal({ onClose, onSuccess, targetType = 'lead'
               <div className="space-y-4">
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                   <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                  {/* The last screen before the write says what the write will do, not what the
+                    * dry run guessed before any duplicate was resolved. */}
                   <p className="text-[11px] text-emerald-600">
-                    Ready to queue {summary?.toImport ?? rows.length} new row{(summary?.toImport ?? rows.length) !== 1 ? 's' : ''}.
-                    {summary && summary.duplicates.length > 0 && (
-                      <span className="text-amber-600"> {summary.duplicates.length} duplicate row{summary.duplicates.length !== 1 ? 's' : ''} will follow your selected resolution.</span>
+                    Ready to create {plan?.creates ?? rows.length} lead{(plan?.creates ?? rows.length) !== 1 ? 's' : ''}.
+                    {plan && plan.updates > 0 && (
+                      <span className="text-sky-600"> {plan.updates} existing lead{plan.updates !== 1 ? 's' : ''} will be updated.</span>
+                    )}
+                    {plan && plan.skipped > 0 && (
+                      <span className="text-amber-600"> {plan.skipped} duplicate row{plan.skipped !== 1 ? 's' : ''} will be skipped.</span>
+                    )}
+                    {plan && plan.errors > 0 && (
+                      <span className="text-amber-600"> {plan.errors} row{plan.errors !== 1 ? 's' : ''} will not be imported at all.</span>
                     )}
                   </p>
                 </div>
