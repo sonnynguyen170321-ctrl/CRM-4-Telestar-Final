@@ -174,16 +174,28 @@ describe.skipIf(!hasDb)('TEL-P0-013: AI routes must not read another tenant lead
   }
 
   beforeAll(() => {
+    // `{ available, data }` is the shape `generateStructured` actually returns. This mock used
+    // to resolve the bare payload, so `result.available` was undefined and the route took its
+    // unavailable branch — which used to answer 200 with a fabricated body that interpolated
+    // the company name. The assertion below therefore passed for the wrong reason. The route no
+    // longer invents anything, so the mock has to be honest for this test to measure tenant
+    // isolation instead of the shape of a placeholder.
     generateStructured.mockResolvedValue({
-      companySummary: 'x',
-      industryFocus: 'x',
-      estimatedTechStack: [],
-      keyPainPoints: [],
-      icebreakers: [],
-      intent: 'x',
-      intentLabel: 'x',
-      confidence: 1,
-      options: [],
+      available: true,
+      data: {
+        // Deliberately mentions no tenant: other tests here assert the response does not
+        // contain the victim's company, so a shared mock that echoed it would report a leak
+        // that is only the fixture talking.
+        companySummary: 'A generic summary from the provider.',
+        industryFocus: 'Manufacturing',
+        estimatedTechStack: [],
+        keyPainPoints: [],
+        icebreakers: [],
+        intent: 'x',
+        intentLabel: 'x',
+        confidence: 1,
+        options: [],
+      },
     });
   });
 
@@ -278,9 +290,13 @@ describe.skipIf(!hasDb)('TEL-P0-013: AI routes must not read another tenant lead
     const response = await enrichLead(
       post('http://localhost/api/ai/enrich-lead', { leadId: VICTIM_LEAD }),
     );
-    const payload = JSON.stringify(await response.json().catch(() => ({})));
+    await response.json().catch(() => ({}));
 
+    // The evidence that the owner reached their own lead is that the route sent *that lead* to
+    // the provider. Looking for the company in the response only worked while the route echoed
+    // a fabricated body back; it now returns whatever the provider gave, which says nothing
+    // about which lead was read.
     expect(response.status).toBe(200);
-    expect(payload).toContain(SECRET_COMPANY);
+    expect(everythingSentToTheProvider()).toContain(SECRET_COMPANY);
   });
 });

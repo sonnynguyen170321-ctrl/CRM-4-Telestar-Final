@@ -259,10 +259,16 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ leadId }),
       });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.data) {
         setAiResearchResult(data.data);
         showToast('AI research & icebreakers generated!', 'success');
+      } else if (data?.available === false) {
+        // The route now refuses rather than inventing a payload, so the panel has to say why
+        // it is empty. "Failed to generate" reads like a transient glitch worth retrying; the
+        // truth is that no provider ran, and the operator should write the email themselves.
+        setAiResearchResult(null);
+        showToast(data.message ?? 'Research did not run — no provider available', 'error');
       } else {
         showToast('Failed to generate AI research', 'error');
       }
