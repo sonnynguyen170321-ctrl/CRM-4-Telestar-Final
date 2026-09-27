@@ -921,6 +921,12 @@ model Lead {
   @@index([tenantId, archivedAt])
   @@index([operatingState])
   @@index([tenantId, operatingState])
+  /// There is also a UNIQUE constraint on these three columns that this file cannot express:
+  /// `lead_normalized_email_unique`, a partial index `WHERE "normalizedEmail" IS NOT NULL`,
+  /// created by hand in migration 20260623070000. It is load-bearing — `workers/import.ts`
+  /// creates a lead and catches the P2002 it raises to converge when two workers race the same
+  /// row. Prisma cannot see it, so `migrate dev` will offer to drop it; `tests/partial-unique-indexes.test.ts`
+  /// fails if anything ever does.
   @@index([tenantId, campaignId, normalizedEmail])
   @@index([tenantId, importListName])
   sequenceLaunches   SequenceLaunch[]
