@@ -169,6 +169,11 @@ const buildDryRun = async (body: ImportBody, tenantId: string) => {
   const indexes = indexExistingLeads(existingLeads);
   const seenEmails = new Set<string>();
   const seenPhones = new Set<string>();
+  // `indexes` is built from the database once, before the loop, so it cannot see rows this same
+  // file has already contributed. Email and phone were tracked here; LinkedIn was not — and that
+  // is the worst of the three to miss, because a vendor export that puts the company page in the
+  // person's LinkedIn column gives every colleague the same URL, and nothing said so.
+  const seenLinkedIn = new Set<string>();
   const duplicates: Array<{
     row: number;
     matchType: 'email' | 'phone' | 'linkedin' | 'name_company';
@@ -193,15 +198,27 @@ const buildDryRun = async (body: ImportBody, tenantId: string) => {
 
     const email = normalizeEmail(row.email);
     const phone = normalizePhone(row.phone);
+    const linkedIn = normalizeLinkedIn(row.linkedIn);
     if (email && seenEmails.has(email)) {
       errorRows.push({ row: rowNumber, reason: 'Duplicate email within this file' });
       return;
     }
+    // A warning, not an error, for the same reason the phone one is: a shared number or a shared
+    // company page is usually a mapping mistake in the file rather than a reason to refuse the
+    // row, and the operator is the one who can tell which. Both are now visible on the review
+    // screen, which is the part that was missing.
     if (phone && seenPhones.has(phone)) {
       warnings.push({ row: rowNumber, reason: 'Duplicate phone within this file' });
     }
+    if (linkedIn && seenLinkedIn.has(linkedIn)) {
+      warnings.push({
+        row: rowNumber,
+        reason: 'Duplicate LinkedIn URL within this file — check the column is the person, not the company',
+      });
+    }
     if (email) seenEmails.add(email);
     if (phone) seenPhones.add(phone);
+    if (linkedIn) seenLinkedIn.add(linkedIn);
 
     const duplicate = findDuplicate(row, indexes);
     if (duplicate) {
