@@ -552,7 +552,6 @@ describe('Phase 8a — resume convergence', () => {
 
       // The launch's delayed job is still sitting in the queue, unfired.
       const [originalId] = Array.from(jobStore.keys());
-      const originalDelay = jobStore.get(originalId)!.delay;
       expect(jobStore.get(originalId)!.state).toBe('delayed');
 
       await new Promise((r) => setTimeout(r, 50));
@@ -567,7 +566,12 @@ describe('Phase 8a — resume convergence', () => {
       const rec = jobStore.get(originalId)!;
       expect(rec.moved).toBe(1);
       expect(rec.adds).toBe(1);
-      expect(rec.delay).not.toBe(originalDelay);
+      // Deliberately not `expect(rec.delay).not.toBe(originalDelay)`. The scheduler computes
+      // `Math.max(0, dueDate - Date.now())`, so when the step is already due both the launch and
+      // the resume clamp to 0 and the two delays are legitimately equal — the job's fire time is
+      // correct either way. That assertion failed CI for a system that was working. What "its fire
+      // time moved" actually means is checked below, against the task's current dueDate, and that
+      // holds whether or not the number changed.
       expect(rec.payload.expectedEnrollmentId).toBe(enrollmentId);
 
       // And it can no longer fire at the pre-pause moment.
