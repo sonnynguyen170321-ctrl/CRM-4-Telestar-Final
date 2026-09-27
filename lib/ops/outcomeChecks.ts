@@ -167,6 +167,16 @@ export interface CadenceFacts {
    */
   stepsCompletedLastDay: number;
   sentLastDay: number;
+  /**
+   * Email tasks whose due date has passed and which are still pending.
+   *
+   * The only unambiguous evidence the engine is stuck. A quiet day proves nothing — the queue
+   * is often legitimately waiting — but work that came due and did not run has no innocent
+   * explanation.
+   */
+  overdueTasks: number;
+  /** When the next step falls due, so a quiet system can say why it is quiet. */
+  nextTaskDueAt: Date | null;
 }
 
 export function checkCadence(f: CadenceFacts): Finding[] {
@@ -184,13 +194,32 @@ export function checkCadence(f: CadenceFacts): Finding[] {
     out.push({ check: 'cadence-schedule', level: 'ok', detail: 'every active enrollment is scheduled' });
   }
 
-  // Silence is the symptom that has no error attached to it, so it has to be asked about
-  // directly: a cadence engine that stopped looks exactly like a quiet day.
-  if (f.activeEnrollments > 0 && f.stepsCompletedLastDay === 0 && f.sentLastDay === 0) {
+  // Silence is the symptom with no error attached, so it has to be asked about directly — but
+  // the question is "did something that was due fail to run", not "was it quiet".
+  //
+  // The first version asked the second question and cried wolf on its first real run: 1,089
+  // active cadences, nothing sent in 24h, reported as broken. Nothing was broken. The recovery
+  // script had spread every step across the following week, so the whole queue was legitimately
+  // waiting. A check that fails on a healthy system is worse than no check, because the next
+  // time it fires nobody looks.
+  //
+  // What cannot be explained away is work that passed its due date and did not run.
+  if (f.overdueTasks > 0) {
     out.push({
       check: 'cadence-motion',
       level: 'fail',
-      detail: `${f.activeEnrollments} active cadences and nothing sent or advanced in 24h`,
+      detail:
+        `${f.overdueTasks} email task(s) past their due date and still pending — ` +
+        `${f.sentLastDay} sent, ${f.stepsCompletedLastDay} step(s) completed in 24h`,
+    });
+  } else if (f.activeEnrollments > 0 && f.stepsCompletedLastDay === 0 && f.sentLastDay === 0) {
+    out.push({
+      check: 'cadence-motion',
+      level: 'ok',
+      detail:
+        f.nextTaskDueAt
+          ? `quiet, and correctly so — nothing is overdue, next step due ${f.nextTaskDueAt.toISOString()}`
+          : 'quiet — nothing overdue and nothing scheduled',
     });
   } else {
     out.push({
