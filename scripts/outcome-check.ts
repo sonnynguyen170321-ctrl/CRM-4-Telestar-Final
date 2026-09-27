@@ -84,7 +84,7 @@ function diskUsedPercent(): number {
 async function tenantFindings(): Promise<Finding[]> {
   const since = DAY_AGO();
 
-  const [bounces, suppressions, activeEnrollments, withoutNextAction, advanced, sent, queued, accounts] =
+  const [bounces, suppressions, activeEnrollments, withoutNextAction, advanced, sent, queued, overdueTasks, nextTask, accounts] =
     await Promise.all([
       prisma.inboundMessage.count({ where: { isBounce: true } }),
       prisma.suppressionEntry.count(),
@@ -93,6 +93,8 @@ async function tenantFindings(): Promise<Finding[]> {
       prisma.task.count({ where: { type: 'email', status: 'completed', completedAt: { gte: since } } }),
       prisma.outboundMessage.count({ where: { status: 'sent', sentAt: { gte: since } } }),
       prisma.outboundMessage.count({ where: { status: { in: ['pending', 'failed'] }, sentAt: null } }),
+      prisma.task.count({ where: { type: 'email', status: 'pending', dueDate: { lt: new Date() } } }),
+      prisma.task.findFirst({ where: { type: 'email', status: 'pending' }, orderBy: { dueDate: 'asc' }, select: { dueDate: true } }),
       prisma.emailAccount.findMany({
         where: { isActive: true, sendPausedAt: null },
         select: { dailyCap: true, dailySendCount: true },
@@ -112,6 +114,8 @@ async function tenantFindings(): Promise<Finding[]> {
       withoutNextAction,
       stepsCompletedLastDay: advanced,
       sentLastDay: sent,
+      overdueTasks,
+      nextTaskDueAt: nextTask?.dueDate ?? null,
     }),
     checkCapacity({ queued, dailyCapacityInUse }),
   ];
