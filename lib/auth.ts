@@ -321,7 +321,23 @@ export function buildRoleScope(user: SessionUser) {
   }
 }
 
-/** Roles allowed to import and export leads. Team Lead is intentionally excluded. */
+/**
+ * Who sees every import in the tenant, as against only the ones they started.
+ *
+ * `canImportExport` admits sdr upward, so most roles that may start an import are not overseers of
+ * anyone else's. They still need their own outcome: the import POST answers 202 and the rows are
+ * processed by a worker, so a row that failed is recorded nowhere the uploader can reach.
+ */
+export function canSeeAllImports(role: SessionUser['role']): boolean {
+  return role === 'director' || role === 'floor_manager';
+}
+
+/**
+ * Roles allowed to import and export leads: every role from sdr upward.
+ *
+ * (This comment used to read "Team Lead is intentionally excluded", which the body below has not
+ * matched since team_lead was added to it.)
+ */
 export function canImportExport(role: SessionUser['role']): boolean {
   // Every role from sdr upward. team_lead was the one gap: a rep could import, the rep's own
   // lead could not, and nothing recorded why. What each role may do *with* an import is bounded
