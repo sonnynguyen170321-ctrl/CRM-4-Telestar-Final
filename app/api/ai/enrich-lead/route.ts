@@ -150,33 +150,31 @@ Generate structured prospect research and 3 calibrated icebreakers in JSON now:`
       );
 
       if (!result.available || !result.data) {
-        return NextResponse.json({
-          success: true,
-          data: {
-            companySummary: `${company} is an active player in the ${industry} space focusing on high-growth B2B services.`,
-            industryFocus: industry,
-            estimatedTechStack: ['CRM', 'Email Automation', 'Analytics'],
-            keyPainPoints: [
-              'Manual SDR prospecting workflows slowing cadence',
-              'Sub-optimal cold email deliverability and reply rates',
-              'Lack of real-time pipeline visibility across reps',
-            ],
-            icebreakers: [
-              {
-                id: 'pain_hypothesis',
-                style: '🔥 Operational Pain Hook',
-                hook: `Noticed ${company}'s focus on expanding sales velocity—curious how your team is managing SDR inbox deliverability this quarter?`,
-                rationale: `Targeted at ${title} scaling outbound without burning domains.`,
-              },
-              {
-                id: 'social_proof',
-                style: '📈 Case Study / ROI Hook',
-                hook: `We recently helped a B2B team in ${industry} double their qualified meetings by automating research-grounded outreach.`,
-                rationale: `Proof-first hook.`,
-              },
-            ],
+        // Say nothing rather than invent something.
+        //
+        // This used to answer `success: true` with a fabricated payload: a fixed tech stack of
+        // CRM / Email Automation / Analytics, three generic pain points, and an icebreaker
+        // asserting "We recently helped a B2B team in ${industry} double their qualified
+        // meetings by automating research-grounded outreach". Nothing marked any of it as
+        // invented, so the research panel rendered it exactly like real findings — and an SDR
+        // would paste that sentence, about a customer we never had and a result we never
+        // produced, into a cold email to a real prospect.
+        //
+        // `lib/research/leadRefinement.ts` is the standard already set in this codebase: it
+        // returns `degraded: true` with a reason, refines nothing, and drops any rationale
+        // citing evidence it was not given. An empty panel is a true statement. A full one that
+        // is made up is not, and the operator is the one who pays for the difference.
+        return NextResponse.json(
+          {
+            success: false,
+            available: false,
+            reason: 'no_research_provider',
+            message:
+              'Research did not run — no provider was available. Nothing was generated, so ' +
+              'nothing shown here is a guess.',
           },
-        });
+          { status: 503 }
+        );
       }
 
       return NextResponse.json({
