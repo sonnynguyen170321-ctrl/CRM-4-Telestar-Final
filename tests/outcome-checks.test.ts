@@ -114,19 +114,43 @@ describe('cadence', () => {
       withoutNextAction: 278,
       stepsCompletedLastDay: 12,
       sentLastDay: 80,
+      overdueTasks: 0,
+      nextTaskDueAt: new Date(Date.now() + 3_600_000),
     });
     expect(findings.find((f) => f.check === 'cadence-schedule')?.level).toBe('warn');
   });
 
-  it('fails when cadences exist and nothing moved for a day', () => {
-    // A stopped engine and a quiet day look identical unless something asks.
+  it('fails when work came due and did not run', () => {
+    // The unambiguous signal. Not "it was quiet" — quiet is usually a queue waiting its turn.
     const findings = checkCadence({
-      activeEnrollments: 827,
+      activeEnrollments: 1089,
       withoutNextAction: 0,
       stepsCompletedLastDay: 0,
       sentLastDay: 0,
+      overdueTasks: 2,
+      nextTaskDueAt: new Date(Date.now() - 86_400_000),
     });
-    expect(findings.find((f) => f.check === 'cadence-motion')?.level).toBe('fail');
+    const motion = findings.find((f) => f.check === 'cadence-motion');
+    expect(motion?.level).toBe('fail');
+    expect(motion?.detail).toContain('past their due date');
+  });
+
+  it('does not cry wolf on a queue that is legitimately waiting', () => {
+    // Production, 2026-09-27: 1,089 active cadences and nothing sent in 24h — reported as
+    // broken by the first version of this check. Nothing was broken. The recovery script had
+    // spread every step across the following week, so 418 of 420 tasks were simply not due
+    // yet. A check that fails on a healthy system trains people to ignore it.
+    const findings = checkCadence({
+      activeEnrollments: 1089,
+      withoutNextAction: 0,
+      stepsCompletedLastDay: 0,
+      sentLastDay: 0,
+      overdueTasks: 0,
+      nextTaskDueAt: new Date(Date.now() + 22 * 3_600_000),
+    });
+    const motion = findings.find((f) => f.check === 'cadence-motion');
+    expect(motion?.level).toBe('ok');
+    expect(motion?.detail).toContain('correctly so');
   });
 
   it('does not call a healthy day dead because one timestamp was never written', () => {
@@ -139,6 +163,8 @@ describe('cadence', () => {
       withoutNextAction: 0,
       stepsCompletedLastDay: 28,
       sentLastDay: 28,
+      overdueTasks: 0,
+      nextTaskDueAt: new Date(Date.now() + 3_600_000),
     });
     expect(findings.find((f) => f.check === 'cadence-motion')?.level).toBe('ok');
   });
@@ -149,6 +175,8 @@ describe('cadence', () => {
       withoutNextAction: 0,
       stepsCompletedLastDay: 0,
       sentLastDay: 0,
+      overdueTasks: 0,
+      nextTaskDueAt: null,
     });
     expect(findings.every((f) => f.level === 'ok')).toBe(true);
   });
