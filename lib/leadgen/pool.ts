@@ -316,12 +316,47 @@ export async function enrichPoolItem(params: {
   tenantId: string;
 }) {
   const { id, patch, actor, tenantId } = params;
-  const item = await prisma.leadPoolItem.findFirst({ where: { id, tenantId }, select: { id: true } });
+  const item = await prisma.leadPoolItem.findFirst({
+    where: { id, tenantId },
+    // The identity fields, not just the id: the dedupe key is derived from the whole record, so
+    // it cannot be recomputed from a patch alone.
+    select: {
+      id: true,
+      email: true,
+      phone: true,
+      linkedIn: true,
+      firstName: true,
+      lastName: true,
+      company: true,
+    },
+  });
   if (!item) return null;
 
-  const duplicateKey = patch.email || patch.phone || patch.linkedIn
-    ? buildPoolDuplicateKey({ email: patch.email, phone: patch.phone, linkedIn: patch.linkedIn })
-    : undefined;
+  /**
+   * The record as it will be after this edit, which is what the derived columns must describe.
+   *
+   * This used to build the key from the patch alone, and only when the patch carried one of email,
+   * phone or LinkedIn. `buildPoolDuplicateKey` returns the *first* identifier it finds — email,
+   * else phone, else LinkedIn, else name+company — so correcting only a phone number rebuilt the
+   * key as `phone:...` on a record that still had an email, and the key stopped describing the
+   * record. `findDuplicateLeadIds` then matches by that key's tier, and the phone tier only
+   * considers candidates that have no email of their own, so the downgraded record could never be
+   * found as a duplicate again by anything. Nothing reported this: the edit succeeded and the
+   * record looked right on screen.
+   *
+   * Clearing a field was the other half. `patch.email || patch.phone || patch.linkedIn` is falsy
+   * for `email: ''`, so removing an address left the old `email:<address>` key in place, pointing
+   * at an address the record no longer held.
+   */
+  const merged = {
+    email: patch.email !== undefined ? patch.email : item.email,
+    phone: patch.phone !== undefined ? patch.phone : item.phone,
+    linkedIn: patch.linkedIn !== undefined ? patch.linkedIn : item.linkedIn,
+    firstName: patch.firstName !== undefined ? patch.firstName : item.firstName,
+    lastName: patch.lastName !== undefined ? patch.lastName : item.lastName,
+    company: patch.company !== undefined ? patch.company : item.company,
+  };
+  const duplicateKey = buildPoolDuplicateKey(merged);
 
   const updated = await prisma.leadPoolItem.update({
     where: { id },
@@ -329,7 +364,12 @@ export async function enrichPoolItem(params: {
       ...(patch.firstName !== undefined ? { firstName: patch.firstName } : {}),
       ...(patch.lastName !== undefined ? { lastName: patch.lastName } : {}),
       ...(patch.fullName !== undefined ? { fullName: patch.fullName } : {}),
-      ...(patch.company !== undefined ? { company: patch.company } : {}),
+      // `normalizedCompany` is what the pool is deduped and grouped on, and creation has always
+      // set it. The edit path did not, so renaming a company left the normalized form describing
+      // the previous name — the same defect as the dedupe key above, on a different column.
+      ...(patch.company !== undefined
+        ? { company: patch.company, normalizedCompany: normalizeCompanyName(patch.company) }
+        : {}),
       ...(patch.title !== undefined ? { title: patch.title } : {}),
       ...(patch.email !== undefined ? { email: patch.email } : {}),
       ...(patch.phone !== undefined ? { phone: patch.phone } : {}),
@@ -340,7 +380,9 @@ export async function enrichPoolItem(params: {
       ...(patch.emailValidation !== undefined ? { emailValidation: patch.emailValidation } : {}),
       ...(patch.emailScore !== undefined ? { emailScore: patch.emailScore } : {}),
       ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
-      ...(duplicateKey !== undefined ? { duplicateKey } : {}),
+      // Written unconditionally, including when it comes back null. A record that has lost every
+      // identifier has no key, and saying so is correct; leaving the previous one behind is not.
+      duplicateKey,
     },
   });
 

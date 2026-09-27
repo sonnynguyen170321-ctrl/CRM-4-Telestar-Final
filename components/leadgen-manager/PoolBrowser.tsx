@@ -308,10 +308,35 @@ export default function PoolBrowser({ mode }: { mode: 'pool' | 'qualify' | 'rout
     if (selected.size === 0) return;
     setBusy(true);
     try {
-      for (const id of selected) {
-        await fetch(`/api/leadgen-pool/${id}`, { method: 'DELETE' });
+      // Every DELETE is checked. This used to fire one request per id, discard each response and
+      // then report `Archived ${selected.size} record(s)` as a success — so a record belonging to
+      // another tenant (404), one that was refused, or a run that died halfway all read as a clean
+      // archive of everything selected. `runAction` above already gets this right for the other
+      // bulk actions; this was the one that did not.
+      const ids = [...selected];
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const res = await fetch(`/api/leadgen-pool/${id}`, { method: 'DELETE' });
+            return res.ok;
+          } catch {
+            return false;
+          }
+        })
+      );
+      const archived = results.filter(Boolean).length;
+      const failed = ids.length - archived;
+
+      if (failed === 0) {
+        showToast(`Archived ${archived} record(s)`, 'success');
+        setSelected(new Set());
+      } else if (archived === 0) {
+        showToast(`Archived nothing — all ${failed} record(s) were refused`, 'error');
+      } else {
+        // The selection survives a partial failure, so the operator can retry the remainder
+        // instead of hunting those rows down again.
+        showToast(`Archived ${archived} of ${ids.length}; ${failed} refused`, 'error');
       }
-      showToast(`Archived ${selected.size} record(s)`, 'success');
       loadRef();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Archive failed', 'error');
