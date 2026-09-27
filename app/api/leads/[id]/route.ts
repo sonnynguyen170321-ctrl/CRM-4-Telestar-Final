@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth, canAccessUser, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { scoreLead } from '@/lib/leads/scoring';
+import { normalizeEmail, normalizePhone, normalizeLinkedIn } from '@/lib/leads/normalize';
 import { unenrollLead, pauseSequence } from '@/lib/sequences/engine';
 import { parseBody } from '@/lib/validation/core';
 import { updateLeadSchema } from '@/lib/validation/schemas';
@@ -121,6 +122,19 @@ export async function PUT(
       ...(body.phone !== undefined && { phone: body.phone }),
       ...(body.linkedIn !== undefined && { linkedIn: body.linkedIn }),
       ...(body.whatsApp !== undefined && { whatsApp: body.whatsApp }),
+      // The normalized columns are how this lead is recognised later: the importer's duplicate
+      // index, the pool's conversion lookup and contact matching all read them. Creation writes
+      // them (`app/api/leads/route.ts`) and this handler did not, so the first correction to a
+      // typo'd address left the lead answering to the old one forever — findable as the address
+      // it used to be, invisible as the address it now is.
+      //
+      // `normalizedEmail` is deliberately null on leads an import duplicated on purpose
+      // (`forceDuplicateLead`). Recomputing it here would silently undo that choice, so a null
+      // stays null and only a real edit sets it.
+      ...(body.email !== undefined &&
+        existing.normalizedEmail !== null && { normalizedEmail: normalizeEmail(body.email) }),
+      ...(body.phone !== undefined && { normalizedPhone: normalizePhone(body.phone) }),
+      ...(body.linkedIn !== undefined && { normalizedLinkedIn: normalizeLinkedIn(body.linkedIn) }),
       ...(body.stage !== undefined && { stage: body.stage }),
       ...(body.assignedToId !== undefined && { assignedToId: body.assignedToId }),
       ...(body.priority !== undefined && { crmPriorityScore: body.priority }),
@@ -131,6 +145,60 @@ export async function PUT(
   });
 
   const writes: Promise<any>[] = [];
+
+  // Keep the Contact the lead points at telling the same story.
+  //
+  // Creation upserts a `Contact` by `tenantId_normalizedEmail` and links it; editing the lead
+  // left that record holding the old details. Measured on production 2026-09-27: 74 leads had a
+  // Contact whose email disagreed with the lead's own. Contact intelligence, research and
+  // anything matching on Contact were reading the superseded value.
+  //
+  // Only the fields the operator actually changed are copied across, and `normalizedEmail` on
+  // the Contact is only moved when the address itself changed — that column is the Contact's
+  // identity key, and rewriting it on an unrelated edit would re-point the record.
+  const contactFieldsTouched =
+    body.email !== undefined ||
+    body.phone !== undefined ||
+    body.firstName !== undefined ||
+    body.lastName !== undefined ||
+    body.company !== undefined ||
+    body.title !== undefined ||
+    body.linkedIn !== undefined ||
+    body.whatsApp !== undefined;
+
+  if (existing.contactId && contactFieldsTouched) {
+    writes.push(
+      prisma.contact
+        .update({
+          where: { id: existing.contactId },
+          data: {
+            ...(body.firstName !== undefined && { firstName: body.firstName }),
+            ...(body.lastName !== undefined && { lastName: body.lastName }),
+            ...(body.company !== undefined && { company: body.company }),
+            ...(body.title !== undefined && { title: body.title }),
+            ...(body.email !== undefined && {
+              email: body.email,
+              normalizedEmail: normalizeEmail(body.email) ?? body.email.trim().toLowerCase(),
+            }),
+            ...(body.phone !== undefined && {
+              phone: body.phone,
+              normalizedPhone: normalizePhone(body.phone),
+            }),
+            ...(body.linkedIn !== undefined && {
+              linkedIn: body.linkedIn,
+              normalizedLinkedIn: normalizeLinkedIn(body.linkedIn),
+            }),
+            ...(body.whatsApp !== undefined && { whatsApp: body.whatsApp }),
+          },
+        })
+        // A Contact whose new address collides with another Contact's cannot be moved, and that
+        // must not fail the lead edit the operator asked for. The lead is correct either way;
+        // the two records simply stay apart until someone merges them.
+        .catch((err: unknown) => {
+          console.error(`[leads:update] could not sync contact ${existing.contactId}:`, err);
+        })
+    );
+  }
 
   if (body.stage && body.stage !== existing.stage) {
     writes.push(
