@@ -4,8 +4,9 @@ import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { updateOpportunitySchema } from '@/lib/validation/schemas';
-import { handleApiError, forbidden, notFound } from '@/lib/api/errors';
+import { handleApiError, forbidden, notFound, badRequest } from '@/lib/api/errors';
 import { canAccessOpportunity, canApproveClientHandoff } from '@/lib/opportunities/access';
+import { moveStage } from '@/lib/opportunities/lifecycle';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -77,17 +78,73 @@ export async function PUT(req: NextRequest, ctx: RouteContext) {
       return forbidden('Only managers can change opportunity value, owner, or status fields');
     }
 
+    /**
+     * A stage move goes through `moveStage`, never through this update.
+     *
+     * `lib/opportunities/lifecycle.ts` calls itself the single source of truth for stage moves, and
+     * it does five things this route's `data: body` never did: it refuses a move to `lost` with no
+     * reason, sets `status` and `closedAt`, reopens a closed deal by clearing them, records the
+     * client's acceptance on `handoffStatus`, and syncs the lead plus the contact-intelligence
+     * event. Writing `stage: 'won'` here left a deal that read as won on the board while `status`
+     * was still `open`, `closedAt` null and `handoffStatus` still `pending`.
+     *
+     * That last one has already cost something once: the comment in `moveStage` records that
+     * acceptance staying `pending` on won deals pinned `clientAcceptanceRate` at 0% while the
+     * report showed a six-figure won value. This route is a second door into the same state.
+     *
+     * No UI calls this route — the board uses `/stage`, `/handoff` and `/activity` — so this closes
+     * the bypass rather than changing a path anything currently walks.
+     */
+    const { stage, status, handoffStatus, lostReason, lostReasonDetails, ...rest } = body as Record<
+      string,
+      unknown
+    >;
+
+    if (status !== undefined && stage === undefined) {
+      return forbidden(
+        'status is derived from the stage — move the stage via POST /api/opportunities/[id]/stage'
+      );
+    }
+    if (handoffStatus !== undefined) {
+      return forbidden(
+        'handoffStatus is the client decision — record it via POST /api/opportunities/[id]/handoff'
+      );
+    }
+
+    // Checked here so the caller gets a 400 rather than the 500 that `moveStage`'s own throw would
+    // become. The rule is `moveStage`'s either way; this only states it in HTTP.
+    if (stage === 'lost' && !lostReason) {
+      return badRequest('lostReason is required when moving an opportunity to lost');
+    }
+
+    if (stage !== undefined) {
+      await moveStage({
+        opportunityId: id,
+        user,
+        tenantId: opp.tenantId,
+        stage: stage as string,
+        value: (rest.value as number | undefined) ?? null,
+        probability: (rest.probability as number | undefined) ?? null,
+        expectedCloseDate: (rest.expectedCloseDate as Date | undefined) ?? null,
+        lostReason: (lostReason as string | null | undefined) ?? null,
+        lostReasonDetails: (lostReasonDetails as string | null | undefined) ?? null,
+      });
+    }
+
+    // Whatever is left is an ordinary field edit. `moveStage` has already written value,
+    // probability and expectedCloseDate when it ran, and rewriting them here is a harmless no-op
+    // with the same values rather than a second source of truth.
     const updated = await prisma.opportunity.update({
       where: { id },
-      data: body as never,
+      data: rest as never,
       include: OPPORTUNITY_INCLUDE,
     });
 
+    // Stage and status are deliberately absent from this list now: `moveStage` writes its own
+    // `stage_changed` / `closed_won` / `closed_lost` activity with the from/to pair, and logging a
+    // second, vaguer 'Opportunity updated' beside it would make the deal's history read as two
+    // events where one happened.
     const activityTypes: string[] = [];
-    if (body.stage && body.stage !== opp.stage) activityTypes.push('stage_changed');
-    if (body.status && body.status !== opp.status) {
-      activityTypes.push(body.status === 'won' ? 'closed_won' : body.status === 'lost' ? 'closed_lost' : 'value_updated');
-    }
     if (body.value != null && body.value !== Number(opp.value)) activityTypes.push('value_updated');
     if (body.nextStep && body.nextStep !== opp.nextStep) activityTypes.push('next_step_updated');
 
