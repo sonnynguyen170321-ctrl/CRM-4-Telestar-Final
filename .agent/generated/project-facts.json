@@ -95,6 +95,7 @@
     "recount:email-sent",
     "recover:refused-sends",
     "repair:approved-proposals",
+    "report:duplicate-leads",
     "seed:telestar-icp",
     "setup:dev",
     "start",
@@ -109,5 +110,5 @@
     "worker:healthcheck",
     "worker:start"
   ],
-  "scriptCount": 66
+  "scriptCount": 67
 }
