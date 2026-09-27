@@ -481,6 +481,45 @@ export async function markDuplicate(params: {
 
 export type DistributionMethod = 'single' | 'round_robin';
 
+/**
+ * Find a campaign's existing lead for an address, including leads whose `normalizedEmail` is null.
+ *
+ * `Lead.normalizedEmail` is deliberately left null when an import creates a duplicate on purpose
+ * (`workers/import.ts`, `forceDuplicateLead`). The importer copes — its own duplicate index reads
+ * `lead.normalizedEmail || normalizeEmail(lead.email)` — but these conversion lookups queried the
+ * column directly and so could not see those rows at all.
+ *
+ * Measured on production 2026-09-27: 848 of 1,422 leads had a null `normalizedEmail`, and the
+ * campaign held 420 groups of same-address leads totalling 698 extra rows. Conversion could not
+ * see any of them, so it created another copy each time it ran.
+ *
+ * The second query is a case-insensitive match on the raw column, which is what the importer
+ * computes on the fly. It only runs when the indexed lookup finds nothing.
+ */
+async function findCampaignLeadByEmail(
+  tenantId: string,
+  campaignId: string,
+  normalizedEmail: string | null
+): Promise<{ id: string } | null> {
+  if (!normalizedEmail) return null;
+
+  const indexed = await prisma.lead.findFirst({
+    where: { tenantId, campaignId, normalizedEmail },
+    select: { id: true },
+  });
+  if (indexed) return indexed;
+
+  return prisma.lead.findFirst({
+    where: {
+      tenantId,
+      campaignId,
+      normalizedEmail: null,
+      email: { equals: normalizedEmail, mode: 'insensitive' },
+    },
+    select: { id: true },
+  });
+}
+
 function assignSdrId(sdrIds: string[], method: DistributionMethod, index: number): string | null {
   if (sdrIds.length === 0) return null;
   if (method === 'single') return sdrIds[0];
@@ -665,10 +704,7 @@ export async function convertPoolToLeads(params: {
 
       // A pre-existing campaign Lead is linked to this membership rather than copied. The caller
       // still receives the stable duplicate reason and the useful existing lead id.
-      const existingLead = await prisma.lead.findFirst({
-        where: { tenantId, campaignId, normalizedEmail },
-        select: { id: true },
-      });
+      const existingLead = await findCampaignLeadByEmail(tenantId, campaignId, normalizedEmail);
       if (existingLead) {
         await prisma.$transaction(async (tx) => {
           await tx.campaignProspect.update({
@@ -803,12 +839,7 @@ export async function convertPoolToLeads(params: {
     } catch (err) {
       if ((err as { code?: string } | null)?.code === PRISMA_UNIQUE_VIOLATION) {
         const normalizedEmail = normalizeEmail(item.email);
-        const existingLead = normalizedEmail
-          ? await prisma.lead.findFirst({
-              where: { tenantId, campaignId, normalizedEmail },
-              select: { id: true },
-            })
-          : null;
+        const existingLead = await findCampaignLeadByEmail(tenantId, campaignId, normalizedEmail);
         if (existingLead) {
           await prisma.$transaction(async (tx) => {
             await tx.campaignProspect.updateMany({
