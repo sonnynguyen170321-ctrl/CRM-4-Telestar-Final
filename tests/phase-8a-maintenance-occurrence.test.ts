@@ -132,35 +132,37 @@ describe('Phase 8a — maintenance keeps the occurrence', () => {
   });
 
   // =========================================================================
-  // missing-delayed: the repair claim on Task.lockedAt
+  // missing-delayed: why the sweep holds no claim on Task.lockedAt
   // =========================================================================
-  it('claims the task with a compare-and-set, not a blind write', async () => {
-    mockTaskFindMany.mockResolvedValue([overdueTask()]);
-
-    await handleRepair({ types: ['missing-delayed'] });
-
-    // `lockedAt: null` in the claim is what makes two simultaneous sweeps mutually exclusive.
-    expect(mockTaskUpdateMany).toHaveBeenNthCalledWith(1, {
-      where: { id: overdueTask().id, status: 'pending', lockedAt: null },
-      data: { lockedAt: expect.any(Date) },
-    });
-  });
-
-  it('releases the repair claim after a successful re-enqueue', async () => {
+  /**
+   * Four tests here used to pin the repair claim — CAS `lockedAt`, release on success, release on
+   * failure, skip when the CAS lost. The claim is what broke the repair, and they defended it.
+   *
+   * The sweep enqueues with `delay: 0`, so the job it creates reached the sequence worker's
+   * execution lock, `updateMany({ where: { …, lockedAt: null } })`, while the sweep still held that
+   * same field. The lock failed, the worker returned `concurrency_lock_failed`, and BullMQ recorded
+   * the job **completed** in ~40ms with nothing done. Then, because the discriminator was the
+   * task's due date — which never changes for an overdue task — that settled JobRun answered every
+   * later sweep `already_executed`, so no repair was ever attempted again.
+   *
+   * Production, 2026-09-28: two step-3 tasks due 2026-09-22, their repair JobRun `completed` at
+   * 03:30:06 that morning, still pending after six nightly sweeps.
+   *
+   * Nothing is lost by dropping the claim. The maintenance queue runs at concurrency 1, the dedupe
+   * key collapses duplicate enqueues within a pass, and the worker's own CAS lock is what actually
+   * prevents a double send.
+   */
+  it('does not touch lockedAt, so the job it enqueues can take the worker lock', async () => {
     mockTaskFindMany.mockResolvedValue([overdueTask()]);
 
     const result = await handleRepair({ types: ['missing-delayed'] });
 
     expect(result['missing-delayed'].fixed).toBe(1);
-    // Left claimed, the task would be invisible to the next sweep (its query filters
-    // `lockedAt: null`) *and* unlockable by the worker, whose execution lock now requires it too.
-    expect(mockTaskUpdateMany).toHaveBeenLastCalledWith({
-      where: { id: overdueTask().id, status: 'pending' },
-      data: { lockedAt: null },
-    });
+    expect(mockEnqueueReschedule).toHaveBeenCalledTimes(1);
+    expect(mockTaskUpdateMany).not.toHaveBeenCalled();
   });
 
-  it('releases the repair claim when the re-enqueue fails, so a later sweep can retry', async () => {
+  it('reports a failed re-enqueue rather than counting it as fixed', async () => {
     mockTaskFindMany.mockResolvedValue([overdueTask()]);
     mockEnqueueReschedule.mockRejectedValue(new Error('Redis unreachable'));
 
@@ -168,22 +170,19 @@ describe('Phase 8a — maintenance keeps the occurrence', () => {
 
     expect(result['missing-delayed'].fixed).toBe(0);
     expect(result['missing-delayed'].details[0]).toContain('re-enqueue failed');
-    expect(mockTaskUpdateMany).toHaveBeenLastCalledWith({
-      where: { id: overdueTask().id, status: 'pending' },
-      data: { lockedAt: null },
-    });
   });
 
-  it('skips a task another sweep already claimed', async () => {
+  it('can attempt the same overdue task again on a later sweep', async () => {
+    // The whole purpose of a nightly sweep. Under the old due-date discriminator the second pass
+    // rebuilt the first pass's dedupe key and was refused.
     mockTaskFindMany.mockResolvedValue([overdueTask()]);
-    mockTaskUpdateMany.mockResolvedValueOnce({ count: 0 }); // the CAS lost
 
-    const result = await handleRepair({ types: ['missing-delayed'] });
+    await handleRepair({ types: ['missing-delayed'] });
+    await new Promise((r) => setTimeout(r, 5));
+    await handleRepair({ types: ['missing-delayed'] });
 
-    expect(result['missing-delayed'].fixed).toBe(0);
-    expect(mockEnqueueReschedule).not.toHaveBeenCalled();
-    // No release either — the claim belongs to the sweep that won it.
-    expect(mockTaskUpdateMany).toHaveBeenCalledTimes(1);
+    const [a, b] = mockEnqueueReschedule.mock.calls;
+    expect(b[2].discriminator).not.toBe(a[2].discriminator);
   });
 
   it('carries the occurrence recovered from the deterministic task id', async () => {
