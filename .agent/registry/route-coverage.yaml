@@ -29,10 +29,12 @@ routes:
       - tests/admin.test.ts
   - path: app/api/admin/imports/[id]/route.ts
     methods: [GET]
-    tests: []
+    tests:
+      - tests/import-batch-visibility.test.ts
   - path: app/api/admin/imports/route.ts
     methods: [GET]
-    tests: []
+    tests:
+      - tests/import-batch-visibility.test.ts
   - path: app/api/admin/jobs/route.ts
     methods: [GET]
     tests:
@@ -106,6 +108,7 @@ routes:
     methods: [POST]
     tests:
       - tests/ai-route-cross-tenant-red-team.test.ts
+      - tests/enrichment-never-invents.test.ts
   - path: app/api/ai/memory/route.ts
     methods: [DELETE, GET, POST]
     tests: []
@@ -258,6 +261,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/client-report-preview-reference-integrity.test.ts
       - tests/client-report-reference-integrity.test.ts
+      - tests/client-report-share-authorization.test.ts
   - path: app/api/client-reports/[id]/export/csv/route.ts
     methods: [GET]
     tests:
@@ -265,6 +269,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/client-report-preview-reference-integrity.test.ts
       - tests/client-report-reference-integrity.test.ts
+      - tests/client-report-share-authorization.test.ts
   - path: app/api/client-reports/[id]/export/pdf/route.ts
     methods: [GET]
     tests:
@@ -272,6 +277,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/client-report-preview-reference-integrity.test.ts
       - tests/client-report-reference-integrity.test.ts
+      - tests/client-report-share-authorization.test.ts
   - path: app/api/client-reports/[id]/route.ts
     methods: [DELETE, GET, PATCH]
     tests:
@@ -279,6 +285,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/client-report-preview-reference-integrity.test.ts
       - tests/client-report-reference-integrity.test.ts
+      - tests/client-report-share-authorization.test.ts
   - path: app/api/client-reports/[id]/share/route.ts
     methods: [DELETE, GET, POST]
     tests:
@@ -286,6 +293,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/client-report-preview-reference-integrity.test.ts
       - tests/client-report-reference-integrity.test.ts
+      - tests/client-report-share-authorization.test.ts
   - path: app/api/client-reports/preview/route.ts
     methods: [POST]
     tests:
@@ -301,6 +309,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/client-report-preview-reference-integrity.test.ts
       - tests/client-report-reference-integrity.test.ts
+      - tests/client-report-share-authorization.test.ts
   - path: app/api/clients/[id]/route.ts
     methods: [GET, PUT]
     tests:
@@ -592,6 +601,7 @@ routes:
       - tests/admin.test.ts
       - tests/certification-role-evidence.test.ts
       - tests/inbox-reply-authorization.test.ts
+      - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
       - tests/lead-lifecycle.test.ts
       - tests/lead-reference-integrity.test.ts
@@ -619,6 +629,7 @@ routes:
       - tests/admin.test.ts
       - tests/certification-role-evidence.test.ts
       - tests/inbox-reply-authorization.test.ts
+      - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
       - tests/lead-lifecycle.test.ts
       - tests/lead-reference-integrity.test.ts
@@ -631,6 +642,7 @@ routes:
       - e2e/roles/role-negative-access.spec.ts
       - e2e/user-flow-31step.spec.ts
       - tests/admin.test.ts
+      - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
   - path: app/api/leads/recalculate-scores/route.ts
     methods: [POST]
@@ -660,6 +672,7 @@ routes:
       - tests/admin.test.ts
       - tests/certification-role-evidence.test.ts
       - tests/inbox-reply-authorization.test.ts
+      - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
       - tests/lead-lifecycle.test.ts
       - tests/lead-reference-integrity.test.ts
@@ -715,24 +728,28 @@ routes:
       - e2e/auth/authentication.spec.ts
       - e2e/meetings/meeting-to-opportunity.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/opportunity-stage-single-door.test.ts
   - path: app/api/opportunities/[id]/handoff/route.ts
     methods: [POST]
     tests:
       - e2e/auth/authentication.spec.ts
       - e2e/meetings/meeting-to-opportunity.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/opportunity-stage-single-door.test.ts
   - path: app/api/opportunities/[id]/route.ts
     methods: [GET, PUT]
     tests:
       - e2e/auth/authentication.spec.ts
       - e2e/meetings/meeting-to-opportunity.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/opportunity-stage-single-door.test.ts
   - path: app/api/opportunities/[id]/stage/route.ts
     methods: [POST]
     tests:
       - e2e/auth/authentication.spec.ts
       - e2e/meetings/meeting-to-opportunity.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/opportunity-stage-single-door.test.ts
   - path: app/api/opportunities/metrics/route.ts
     methods: [GET]
     tests: []
@@ -742,6 +759,7 @@ routes:
       - e2e/auth/authentication.spec.ts
       - e2e/meetings/meeting-to-opportunity.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/opportunity-stage-single-door.test.ts
   - path: app/api/prospects/[id]/assist/route.ts
     methods: [POST]
     tests: []
@@ -805,6 +823,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enroll/route.ts
@@ -815,6 +834,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/logs/route.ts
@@ -825,6 +845,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/run-now/route.ts
@@ -835,6 +856,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/status/route.ts
@@ -845,6 +867,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enrollments/bulk-action/route.ts
@@ -855,6 +878,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/enrollments/route.ts
@@ -865,6 +889,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/[id]/route.ts
@@ -875,6 +900,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/analytics/route.ts
@@ -892,6 +918,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
   - path: app/api/sequences/team-analytics/route.ts

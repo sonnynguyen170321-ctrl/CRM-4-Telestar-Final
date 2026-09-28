@@ -156,6 +156,11 @@ domains:
       # Asks what production actually did, rather than what it is configured to do.
       - lib/ops/outcomeChecks.ts
       - scripts/outcome-check.ts
+      # The one path in this system that reaches a human. Every other detector ends in a log file, a
+      # syslog line nothing reads, or a table somebody has to think to open.
+      - lib/ops/notifyOps.ts
+      # Proof that a cron ran, for the two crons that enqueue nothing and so left no trace at all.
+      - lib/ops/cronHeartbeat.ts
       - app/api/cron/**
       # Shared authorization for the cron routes: who is calling and how many tenants they reach.
       - lib/cron/**
