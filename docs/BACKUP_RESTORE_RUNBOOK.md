@@ -1,8 +1,37 @@
-# Cloud SQL Database Backup & Scratch Restore Runbook (Gate P3)
+# ⛔ HISTORICAL — Cloud SQL Backup & Scratch Restore Runbook (Gate P3)
 
-> **Scope:** Cloud SQL automated backup lifecycle, point-in-time recovery, and zero-downtime scratch drill.  
-> **Database Host:** GCP Cloud SQL `telestar-db` (PostgreSQL 16)  
-> **Instance Connection Name:** `telestar-crm-final:asia-southeast1:telestar-db`  
+> ## Do not follow this document.
+>
+> It describes a database this system no longer runs on, and it promises a recovery guarantee that
+> does not exist.
+>
+> **Where the CRM actually runs:** one Hostinger VPS, Postgres 16 in the `crm-crm-db-1` container,
+> deploy root `/opt/crm`. There is no Cloud SQL instance. Every `gcloud sql` command below will fail,
+> or address something unrelated.
+>
+> **The real recovery posture, measured 2026-09-28:**
+>
+> | | this document claims | reality |
+> |---|---|---|
+> | mechanism | Cloud SQL automated backups | nightly `pg_dump`, plus an off-site copy to R2 |
+> | PITR | enabled, 7-day WAL retention | **none.** WAL archiving is deliberately off |
+> | RPO | 300s, "MEASURED" | **up to 24 hours** — everything since last night's dump |
+>
+> That RPO line is the dangerous part. Read under pressure at 09:00 it tells an operator they can
+> recover to five minutes ago. They cannot: anything written since the last nightly dump is gone.
+>
+> **The procedure that works** is `deploy/hostinger/restore.sh`, whose own header is accurate about
+> what a logical dump does *not* restore — roles, GRANTs, and the RLS policies in `supabase/rls.sql`.
+> Read that and `deploy/hostinger/RUNBOOK.md` instead of this file.
+>
+> Kept rather than deleted because the GCP box still exists as a fallback proxy from the cutover, and
+> because a reader who finds a stale runbook with no explanation tends to assume it is merely out of
+> date rather than describing different infrastructure entirely.
+
+> **Scope (historical):** Cloud SQL automated backup lifecycle, point-in-time recovery, and
+> zero-downtime scratch drill.  
+> **Database Host (historical):** GCP Cloud SQL `telestar-db` (PostgreSQL 16)  
+> **Instance Connection Name (historical):** `telestar-crm-final:asia-southeast1:telestar-db`  
 
 ---
 
@@ -61,8 +90,15 @@ gcloud sql instances delete telestar-db-scratch --project=telestar-crm-final --q
 ---
 
 ## 3. RPO and RTO Targets
-- **Recovery Point Objective (RPO):** 300s, MEASURED 2026-08-23 from the live
-  `backupConfiguration` on `telestar-db` — point-in-time recovery enabled, 7 days of
+
+> **⛔ The RPO below was true of Cloud SQL and is false of the system that runs today.** On the
+> Hostinger VPS there is no PITR and no transaction-log retention: `archive_command` defaults to
+> `/bin/true` and WAL archiving is off by choice, so the nightly logical dump is the only backup and
+> **the real RPO is up to 24 hours.** Do not quote the number below to anyone, and do not plan a
+> recovery around it. The measurement was honest when it was taken; the infrastructure moved.
+
+- **Recovery Point Objective (RPO) — HISTORICAL, Cloud SQL only:** 300s, MEASURED 2026-08-23 from the
+  live `backupConfiguration` on `telestar-db` — point-in-time recovery enabled, 7 days of
   transaction-log retention, so recovery is bounded by transaction-log durability rather
   than by the backup interval. Evidence: `EV-DR-RPO`.
   Until 2026-08-23 this line asserted "< 5 minutes" with nothing behind it, while

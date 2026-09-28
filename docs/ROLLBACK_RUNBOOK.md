@@ -1,6 +1,27 @@
-# Application Rollback Runbook (Gate P4)
+# ⚠️ SUPERSEDED — Application Rollback Runbook (Gate P4)
 
-> **Scope:** Fast, deterministic application rollback on GCE VM.  
+> **The working rollback procedure is `deploy/hostinger/RUNBOOK.md`, section "Rollback".** On the box
+> the CRM actually runs on it is:
+>
+> ```bash
+> cd /opt/crm && ./scripts/rollback.sh
+> ```
+>
+> This file is kept for its reasoning about digest pinning, but three things in it are wrong for the
+> live system, and one of them will actively mislead you mid-incident:
+>
+> 1. **The host and paths are GCP.** `gcloud compute ssh telestar-crm-vm` and `/opt/crm-4-u` do not
+>    exist. Production is a Hostinger VPS with deploy root `/opt/crm`.
+> 2. **The "Expected output" block below is fiction.** It claims `PASS: Health redis is ok`,
+>    `PASS: Migration status reports applied migrations` and `PASS: Worker health check job
+>    succeeded`. `scripts/post-deploy-smoke.sh` prints none of those. It checks `/api/health`, the
+>    served commit, that `/admin` redirects an unauthenticated caller, that `/login` renders, that web
+>    and worker share one image digest, and that the worker registered its queues — and `/api/health`
+>    never reports Redis at all. An operator comparing real output against that block during a
+>    rollback would conclude the rollback had failed when it had succeeded.
+> 3. It predates the Hostinger cutover generally, so treat every command here as unverified.
+
+> **Scope (historical):** Fast, deterministic application rollback on GCE VM.  
 > **Mechanism:** Digest-pinned immutable container swap with `deployments.ndjson` audit trail.  
 
 ---
