@@ -3,7 +3,9 @@ import { exportReportToHTML } from '@/lib/client-reports/exporters';
 import type { ClientReportSnapshot } from '@/lib/client-reports/types';
 
 const mockPrisma = {
-  opportunity: { findUnique: vi.fn(), update: vi.fn() },
+  // `updateMany` is the compare-and-set moveStage now uses to settle a concurrent move, and
+  // `findUniqueOrThrow` is how it reads the row back afterwards.
+  opportunity: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   opportunityActivity: { create: vi.fn() },
   activity: { create: vi.fn() },
   // moveStage syncs the lead lifecycle on won/lost.
@@ -14,7 +16,9 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     opportunity: {
       findUnique: (...a: unknown[]) => mockPrisma.opportunity.findUnique(...a),
+      findUniqueOrThrow: (...a: unknown[]) => mockPrisma.opportunity.findUniqueOrThrow(...a),
       update: (...a: unknown[]) => mockPrisma.opportunity.update(...a),
+      updateMany: (...a: unknown[]) => mockPrisma.opportunity.updateMany(...a),
     },
     opportunityActivity: { create: (...a: unknown[]) => mockPrisma.opportunityActivity.create(...a) },
     activity: { create: (...a: unknown[]) => mockPrisma.activity.create(...a) },
@@ -30,11 +34,14 @@ async function move(stage: string, opp: Record<string, unknown>) {
     id: 'o1', stage: 'pending_client_review', status: 'open', handoffStatus: 'pending',
     lead: { id: 'l1' }, ...opp,
   });
-  mockPrisma.opportunity.update.mockResolvedValue({
+  // The write is a compare-and-set now, so the payload under test travels through `updateMany`
+  // and the row is read back afterwards. `count: 1` is this caller winning the race.
+  mockPrisma.opportunity.updateMany.mockResolvedValue({ count: 1 });
+  mockPrisma.opportunity.findUniqueOrThrow.mockResolvedValue({
     id: 'o1', client: { id: 'c1', name: 'Acme' }, campaign: null, owner: null,
   });
   await moveStage({ opportunityId: 'o1', user, tenantId: 't1', stage, lostReason: stage === 'lost' ? 'budget' : undefined });
-  return mockPrisma.opportunity.update.mock.calls[0][0].data as Record<string, unknown>;
+  return mockPrisma.opportunity.updateMany.mock.calls[0][0].data as Record<string, unknown>;
 }
 
 beforeEach(() => vi.clearAllMocks());
