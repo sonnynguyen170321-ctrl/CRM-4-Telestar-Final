@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 
 export async function GET(
@@ -16,7 +16,14 @@ export async function GET(
   try {
     const enrollment = await prisma.sequenceEnrollment.findUnique({
       where: { id: enrollmentId },
-      select: { id: true, leadId: true, tenantId: true },
+      // The lead's two access fields travel with the enrollment so the ownership check below costs
+      // no second query.
+      select: {
+        id: true,
+        leadId: true,
+        tenantId: true,
+        lead: { select: { assignedToId: true, campaignId: true } },
+      },
     });
 
     if (!enrollment) {
@@ -24,6 +31,13 @@ export async function GET(
     }
 
     if (enrollment.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // What this returns is a colleague's correspondence: the tasks, the outbound message bodies and
+    // the activity trail for someone else's prospect. Tenant-only scoping made every rep's
+    // conversation readable by every other rep who could name an enrollment id.
+    if (!(await canAccessLead(user, enrollment.lead))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

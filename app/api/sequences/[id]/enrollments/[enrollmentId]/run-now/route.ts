@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { enqueueImmediate } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
@@ -28,6 +28,20 @@ export async function POST(
     }
 
     if (enrollment.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Same tenant is not the same as yours to send from.
+    //
+    // This route forces an immediate provider send from the lead owner's mailbox, and the only
+    // checks were "logged in" and "same tenant" — so any sdr could fire an unscheduled email at any
+    // colleague's prospect. Not a hypothetical crafted request either: `GET /api/sequences/[id]/
+    // enrollments` returned every enrollment in the tenant and `/sequences` is in the sdr sidebar,
+    // so the UI handed each rep the whole list with a Run-now button beside it.
+    //
+    // `app/api/sequences/[id]/enroll/route.ts` already gates on the lead. This is that same gate,
+    // on the route that actually sends.
+    if (!(await canAccessLead(user, enrollment.lead))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
