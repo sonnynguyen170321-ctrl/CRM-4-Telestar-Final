@@ -33,7 +33,9 @@ describe('notifyOps', () => {
   });
 
   it('posts the alert and reports that a human was reached', async () => {
-    const fetchMock = vi.fn(async () => new Response('ok', { status: 200 }));
+    // Variadic on purpose: `vi.fn(async () => …)` types as taking no arguments, so
+    // `mock.calls[0][1]` would not type-check even though the call happens.
+    const fetchMock = vi.fn(async (_url?: unknown, _init?: RequestInit) => new Response('ok', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
     const delivered = await notifyOps({
@@ -77,12 +79,12 @@ describe('notifyOps', () => {
 
     // A failed post does not burn the cooldown — otherwise one outage of the webhook would silence
     // the next 30 minutes of real alerts.
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('ok', { status: 200 })));
+    vi.stubGlobal('fetch', vi.fn(async (_url?: unknown, _init?: RequestInit) => new Response('ok', { status: 200 })));
     await expect(notifyOps({ key: 'k', level: 'fail', summary: 'x' })).resolves.toBe(true);
   });
 
   it('reports a non-2xx as undelivered rather than as success', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 500 })));
+    vi.stubGlobal('fetch', vi.fn(async (_url?: unknown, _init?: RequestInit) => new Response('nope', { status: 500 })));
 
     await expect(notifyOps({ key: 'k', level: 'warn', summary: 'x' })).resolves.toBe(false);
   });
@@ -90,7 +92,9 @@ describe('notifyOps', () => {
   it('stays quiet on the same condition inside the cooldown', async () => {
     // A condition checked every five minutes would otherwise page someone every five minutes, and
     // the second message teaches nobody anything the first did not.
-    const fetchMock = vi.fn(async () => new Response('ok', { status: 200 }));
+    // Variadic on purpose: `vi.fn(async () => …)` types as taking no arguments, so
+    // `mock.calls[0][1]` would not type-check even though the call happens.
+    const fetchMock = vi.fn(async (_url?: unknown, _init?: RequestInit) => new Response('ok', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
     await notifyOps({ key: 'same', level: 'fail', summary: 'first' });
@@ -100,7 +104,9 @@ describe('notifyOps', () => {
   });
 
   it('does not let one condition silence a different one', async () => {
-    const fetchMock = vi.fn(async () => new Response('ok', { status: 200 }));
+    // Variadic on purpose: `vi.fn(async () => …)` types as taking no arguments, so
+    // `mock.calls[0][1]` would not type-check even though the call happens.
+    const fetchMock = vi.fn(async (_url?: unknown, _init?: RequestInit) => new Response('ok', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
     await notifyOps({ key: 'worker', level: 'fail', summary: 'a' });
