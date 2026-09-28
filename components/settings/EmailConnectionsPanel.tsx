@@ -201,10 +201,19 @@ export default function EmailConnectionsPanel() {
 
   const handleDeleteEmail = async (id: string) => {
     const target = connectedEmails.find((e) => e.id === id);
-    const res = await fetch(`/api/email/accounts/${id}`, { method: 'DELETE' });
-    if (res.ok) {
+    // A refusal is said out loud. This had no `else` and no `catch`, unlike every other handler in
+    // this file — so a 403, a 500 or a dropped connection left the account sitting in the list with
+    // no feedback at all, and the only thing the user could conclude was that the button was broken.
+    try {
+      const res = await fetch(`/api/email/accounts/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        showToast(await readApiError(res, 'Failed to disconnect account'), 'error');
+        return;
+      }
       setConnectedEmails((prev) => prev.filter((e) => e.id !== id));
       if (target) showToast(`Disconnected ${target.email}`, 'info');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Network error while disconnecting', 'error');
     }
   };
 
