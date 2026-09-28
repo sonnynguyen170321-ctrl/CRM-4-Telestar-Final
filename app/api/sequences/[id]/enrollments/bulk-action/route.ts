@@ -4,7 +4,7 @@ import { unenrollLead } from '@/lib/sequences/engine';
 import { releaseOccupancy } from '@/lib/sequences/occupancy';
 import { pauseEnrollmentOccurrence, resumeEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
 import { resolveOccurrenceTask } from '@/lib/sequences/occurrenceTask';
-import { requireRole } from '@/lib/auth';
+import { requireAuth, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { enqueueImmediate } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
@@ -13,7 +13,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userOrRes = await requireRole('sdr');
+  // `requireRole('sdr')` was the gate here, and sdr is the floor of the hierarchy — it admitted
+  // every authenticated user, so it was `requireAuth` wearing a costume. Say that plainly; the real
+  // gate is per-lead, below.
+  const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
@@ -25,10 +28,26 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
   }
 
-  const enrollments = await prisma.sequenceEnrollment.findMany({
+  const matched = await prisma.sequenceEnrollment.findMany({
     where: { id: { in: enrollmentIds }, sequenceId: id, tenantId: user.tenantId },
     include: { lead: true }
   });
+
+  /**
+   * Filtered to the leads this caller may act on, before anything is done to any of them.
+   *
+   * The query above is scoped by sequence and tenant only. Combined with a role gate that admitted
+   * everyone, that let any sdr pass a list of enrollment ids — which the enrollments list endpoint
+   * handed them for the whole company — and pause, resume, unenroll or immediately send on every
+   * other rep's cadence at once. `run-now` here reaches the provider, so the bulk version of this
+   * was the widest hole in the app: 1,086 active enrollments, one button.
+   */
+  const enrollments: typeof matched = [];
+  let refusedCount = 0;
+  for (const enr of matched) {
+    if (await canAccessLead(user, enr.lead)) enrollments.push(enr);
+    else refusedCount++;
+  }
 
   let processedCount = 0;
 
@@ -95,5 +114,7 @@ export async function POST(
     }
   }
 
-  return NextResponse.json({ success: true, processedCount });
+  // `refusedCount` is reported rather than swallowed: a caller who selected 40 rows and moved 12
+  // should be told the other 28 were not theirs, not left to infer it from a number.
+  return NextResponse.json({ success: true, processedCount, refusedCount });
 }

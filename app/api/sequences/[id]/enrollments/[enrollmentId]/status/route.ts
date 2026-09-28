@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { pauseEnrollmentOccurrence, resumeEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 
 export async function PATCH(
@@ -31,6 +31,13 @@ export async function PATCH(
     }
 
     if (enrollment.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Pausing or resuming a cadence decides whether a prospect hears from us. With only the tenant
+    // check, any sdr could kill a colleague's outreach — or resume one a manager had deliberately
+    // paused — for any lead in the company. See the note in the sibling `run-now` route.
+    if (!(await canAccessLead(user, enrollment.lead))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
