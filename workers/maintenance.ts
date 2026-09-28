@@ -19,6 +19,8 @@ const STUCK_RUNNING_THRESHOLD_MS = 15 * 60 * 1000;
 /** How long an ambiguous send may wait for delivery evidence before we give up on it. */
 const RECONCILE_GRACE_MS = 24 * 60 * 60 * 1000;
 const RECONCILE_BATCH = 200;
+/** One night's worth of orphan scanning. The sweep is nightly, so the remainder waits a day. */
+const ORPHAN_SCAN_LIMIT = 2000;
 /** Grace period before a claimable outbound with no live job counts as stalled. */
 const STALE_PENDING_OUTBOUND_MS = 60 * 60 * 1000;
 /** Re-drive ceiling — matches the send worker's own deferral cap. */
@@ -31,11 +33,31 @@ async function repairOrphanTasks(): Promise<{ fixed: number; details: string[] }
   const tasks = await prisma.task.findMany({
     where: { status: 'pending' },
     select: { id: true, leadId: true, userId: true },
+    // Bounded. This scanned every pending task in the tenant, which is fine at 400 and is not at
+    // 40,000; a sweep that runs nightly can take the rest tomorrow.
+    take: ORPHAN_SCAN_LIMIT,
   });
 
+  /**
+   * Two queries for the whole batch instead of two per task.
+   *
+   * This used to `findUnique` the lead and the user inside the loop — 2N round trips, so ~840 on
+   * today's 420 pending tasks, every night, each one holding a connection from the same 9-slot pool
+   * the other 20 worker handlers are sharing. The question being asked is only "does this id still
+   * exist", which one `IN` query per table answers for every task at once.
+   */
+  const leadIds = [...new Set(tasks.map((t) => t.leadId))];
+  const userIds = [...new Set(tasks.map((t) => t.userId))];
+  const [liveLeads, liveUsers] = await Promise.all([
+    prisma.lead.findMany({ where: { id: { in: leadIds } }, select: { id: true } }),
+    prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true } }),
+  ]);
+  const leadExists = new Set(liveLeads.map((l) => l.id));
+  const userExists = new Set(liveUsers.map((u) => u.id));
+
   for (const task of tasks) {
-    const lead = await prisma.lead.findUnique({ where: { id: task.leadId }, select: { id: true } });
-    const user = await prisma.user.findUnique({ where: { id: task.userId }, select: { id: true } });
+    const lead = leadExists.has(task.leadId) ? { id: task.leadId } : null;
+    const user = userExists.has(task.userId) ? { id: task.userId } : null;
     if (!lead || !user) {
       await prisma.task.update({
         where: { id: task.id, status: 'pending' },
@@ -340,6 +362,9 @@ async function repairReassignmentDrift(): Promise<{ fixed: number; details: stri
   const tasks = await prisma.task.findMany({
     where: { status: 'pending' },
     include: { lead: { select: { assignedToId: true } } },
+    // Bounded, like the orphan scan. One `include` over every pending task in the tenant is a
+    // full-table read with a join on a nightly timer.
+    take: ORPHAN_SCAN_LIMIT,
   });
 
   for (const task of tasks) {

@@ -185,7 +185,11 @@ export default function DashboardPage() {
       fetch(`/api/activities${actParams}`).then((r) => (r.ok ? r.json() : [])),
     ];
     if (!isManager) {
-      fetches.push(fetch('/api/leads').then((r) => (r.ok ? r.json() : [])));
+      // A tally, not the list. This used to fetch `/api/leads` — up to 200 rows, each with four
+      // joins, a `_count` and its first five tasks — and then count `stage` in the browser, for
+      // every non-manager, on mount and again on every `crm:task-created` event. The endpoint below
+      // answers the same question with one `groupBy` and no joins.
+      fetches.push(fetch('/api/leads/stage-counts').then((r) => (r.ok ? r.json() : {})));
     }
     const results = await Promise.all(fetches);
     const [today, yesterday, overdue, acts] = results;
@@ -205,10 +209,9 @@ export default function DashboardPage() {
       sdrEmailsToday: actsArr.filter((a: { type: string }) => a.type === 'email_sent').length,
     };
     if (!isManager && results[4]) {
-      const leadList: any[] = Array.isArray(results[4]) ? results[4] : [];
-      const counts: Record<string, number> = {};
-      leadList.forEach((l) => { counts[l.stage] = (counts[l.stage] ?? 0) + 1; });
-      setSdrPipelineCounts(counts);
+      // Already `{ stage: count }` from the server — nothing to tally here any more.
+      const counts = results[4];
+      setSdrPipelineCounts(counts && typeof counts === 'object' && !Array.isArray(counts) ? counts : {});
     }
   }, [isManager, selectedSdrId, fetchTasks]);
 

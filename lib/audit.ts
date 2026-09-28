@@ -10,6 +10,39 @@ const SENSITIVE_FIELDS = new Set([
   'password',
 ]);
 
+/**
+ * Models this extension does not audit, and why each one is here.
+ *
+ * The extension runs on `$allModels`, so before this list every write in the product paid for an
+ * audit row — and an `update` or `delete` pays twice, because the diff needs a `findUnique` of the
+ * row before the write. That is three sequential round trips for one logical write, each holding a
+ * pool connection for the duration.
+ *
+ * Measured on production 2026-09-28, `AuditLog` held 105,330 rows / 55 MB, and **86,350 of them —
+ * 82% — were JobRun**: a queue mirror whose whole purpose is to record job state, audited on every
+ * queued→active→completed transition. The workers declare 21 concurrent handlers against a
+ * 9-connection pool, so that self-inflicted traffic is what they were contending over.
+ *
+ * The bar for this list is narrow: the model must be machine bookkeeping whose own row already *is*
+ * the record of what happened, so an audit entry adds no fact a human could want. Business records —
+ * Lead, Opportunity, User, EmailAccount, Client, Campaign, Template, Sequence and the rest — are
+ * still fully audited, and nothing about the diff, redaction or tenant resolution changes for them.
+ *
+ * `AuditLog` and `Tenant` were already skipped inline (self-reference, and a tenant row has no
+ * tenant to file under). They are folded in here so there is one list rather than three copies of
+ * the same condition.
+ */
+const UNAUDITED_MODELS: ReadonlySet<string> = new Set([
+  // Writing an audit row about the audit table recurses.
+  'AuditLog',
+  // A Tenant row has no tenant to file the entry against.
+  'Tenant',
+  // The BullMQ durable mirror. Its status column is the record of the job; 82% of all audit volume.
+  'JobRun',
+  // An append-only measurement series. Each row is a sample, never an edit to a prior fact.
+  'EmailHealthSnapshot',
+]);
+
 const redactSensitiveFields = (value: any): any => {
   if (!value || typeof value !== 'object') return value;
   if (value instanceof Date) return value;
@@ -30,7 +63,7 @@ export const auditExtension = Prisma.defineExtension((client) => {
         async create({ model, args, query }) {
           const result = await query(args);
           
-          if (model === 'AuditLog' || model === 'Tenant') return result;
+          if (UNAUDITED_MODELS.has(model)) return result;
 
           try {
             const userId = (args.data as any).createdById || 
@@ -65,7 +98,7 @@ export const auditExtension = Prisma.defineExtension((client) => {
         },
 
         async update({ model, args, query }) {
-          if (model === 'AuditLog' || model === 'Tenant') return query(args);
+          if (UNAUDITED_MODELS.has(model)) return query(args);
 
           let currentData: any = null;
           try {
@@ -87,7 +120,25 @@ export const auditExtension = Prisma.defineExtension((client) => {
 
                 if (oldValue !== newValue && newValue !== undefined && key !== 'updatedAt') {
                   if (typeof newValue !== 'object' || newValue === null || Array.isArray(newValue)) {
-                    changedFields[key] = redactSensitiveFields({ old: oldValue, new: newValue });
+                    /**
+                     * Redacted by the field's own name, before the `{ old, new }` wrapper hides it.
+                     *
+                     * `redactSensitiveFields` decides what to blank from the *keys* it is handed.
+                     * Wrapping first meant the keys it saw were `old` and `new`, which are in no
+                     * sensitive list, so it recursed into two strings and returned them untouched.
+                     * The create and delete hooks pass the row itself, where the keys are the field
+                     * names, which is why redaction worked there and only here it did not.
+                     *
+                     * Measured on production 2026-09-28: 10 `AuditLog` rows held a bcrypt hash
+                     * under `password.new` and 5 held `encPassword` / `accessToken` /
+                     * `refreshToken` values, while all 37 rows written by the create path correctly
+                     * read `[REDACTED]`. Not plaintext credentials — but a hash is an offline
+                     * cracking target and an encrypted token is not meant to be copied into a
+                     * second table, and `AuditLog` is readable by every floor_manager.
+                     */
+                    changedFields[key] = SENSITIVE_FIELDS.has(key)
+                      ? { old: '[REDACTED]', new: '[REDACTED]' }
+                      : redactSensitiveFields({ old: oldValue, new: newValue });
                   }
                 }
               }
@@ -128,7 +179,7 @@ export const auditExtension = Prisma.defineExtension((client) => {
         },
 
         async delete({ model, args, query }) {
-          if (model === 'AuditLog' || model === 'Tenant') return query(args);
+          if (UNAUDITED_MODELS.has(model)) return query(args);
 
           let currentData: any = null;
           try {

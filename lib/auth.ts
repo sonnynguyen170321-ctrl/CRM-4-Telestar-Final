@@ -382,6 +382,8 @@ export async function getLeadgenScope(
  * FM / Team Lead / SDR → campaigns any of their visible users are assigned to.
  * Leadgen member → only their directly-assigned campaigns.
  */
+const visibleCampaignCache = new Map<string, { result: string[] | null; ts: number }>();
+
 export async function getVisibleCampaignIds(user: SessionUser): Promise<string[] | null> {
   if (user.role === 'director') return null;
   if (isLeadgenUser(user.role)) {
@@ -392,11 +394,24 @@ export async function getVisibleCampaignIds(user: SessionUser): Promise<string[]
   }
   const visibleIds = await getVisibleUserIds(user);
   if (visibleIds === null) return null;
+
+  // Cached on the same 60s TTL as `getVisibleUserIds` above, for the same reason and with the same
+  // invalidation. This is called by `getLeadWhereScope` on every `GET /api/leads` and
+  // unconditionally by `GET /api/opportunities`, for every team_lead and floor_manager — so it was
+  // one uncached round trip per page load while its sibling, which answers a question that changes
+  // just as rarely, was already memoised.
+  const cached = visibleCampaignCache.get(user.id);
+  if (cached && Date.now() - cached.ts < VISIBLE_USER_CACHE_TTL) {
+    return cached.result;
+  }
+
   const rows = await prisma.campaignSdr.findMany({
     where: { userId: { in: visibleIds } },
     select: { campaignId: true },
   });
-  return [...new Set(rows.map((r) => r.campaignId))];
+  const result = [...new Set(rows.map((r) => r.campaignId))];
+  visibleCampaignCache.set(user.id, { result, ts: Date.now() });
+  return result;
 }
 
 /**

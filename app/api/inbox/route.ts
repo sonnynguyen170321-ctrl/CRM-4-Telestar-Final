@@ -61,7 +61,10 @@ export async function GET(req: NextRequest) {
     // pagination means threading in SQL, which is a redesign, not a cap.
     const scope = await mailboxScope(user);
 
-    const inbound = await prisma.inboundMessage.findMany({
+    // Both reads are independent, so they go out together. They used to be awaited back to back,
+    // which doubled this page's database latency for every one of the people who live in it.
+    const [inbound, outbound] = await Promise.all([
+      prisma.inboundMessage.findMany({
       where: {
         tenantId: user.tenantId,
         ...scope,
@@ -76,7 +79,7 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { date: 'desc' },
       take: INBOX_MESSAGE_WINDOW,
-    });
+      }),
 
     // Sent must include the sends that did *not* work.
     //
@@ -89,7 +92,7 @@ export async function GET(req: NextRequest) {
     // `pending` and `sending` stay out on purpose — those are in flight, and a message enqueued
     // two seconds ago is not yet news. Anything genuinely stuck in `sending` is swept to
     // `reconciliation_required` by the maintenance worker and appears then.
-    const outbound = await prisma.outboundMessage.findMany({
+      prisma.outboundMessage.findMany({
       where: {
         tenantId: user.tenantId,
         ...scope,
@@ -114,7 +117,8 @@ export async function GET(req: NextRequest) {
       // column would group every failure at one end instead of in the timeline where it belongs.
       orderBy: { createdAt: 'desc' },
       take: INBOX_MESSAGE_WINDOW,
-    });
+      }),
+    ]);
     const truncated = inbound.length === INBOX_MESSAGE_WINDOW || outbound.length === INBOX_MESSAGE_WINDOW;
 
     // 2. Map messages into a unified format
