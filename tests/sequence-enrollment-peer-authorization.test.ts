@@ -28,7 +28,9 @@ import { NextRequest } from 'next/server';
 
 vi.mock('@/auth', () => ({ auth: vi.fn(), handlers: {}, signIn: vi.fn(), signOut: vi.fn() }));
 // No real provider send, and no BullMQ. What matters is whether the route got far enough to try.
-const enqueueImmediate = vi.fn(async () => 'job-1');
+// Explicitly variadic: a `vi.fn(async () => …)` types as taking no arguments, so spreading the
+// real call's arguments into it fails the type check (TS2556) even though the test passes.
+const enqueueImmediate = vi.fn(async (..._args: unknown[]) => 'job-1');
 vi.mock('@/lib/bullmq/enqueue', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/bullmq/enqueue')>()),
   enqueueImmediate: (...a: unknown[]) => enqueueImmediate(...a),
