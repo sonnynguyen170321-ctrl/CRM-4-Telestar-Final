@@ -33,8 +33,11 @@ vi.mock('@/lib/prisma', () => {
       opportunity: {
         findFirst: vi.fn(),
         findUnique: vi.fn(),
+        // `moveStage` compare-and-sets on the stage it read, then reads the row back.
+        findUniqueOrThrow: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
+        updateMany: vi.fn(),
       },
       opportunityActivity: {
         create: vi.fn(),
@@ -217,7 +220,9 @@ describe('opportunities/lifecycle — moveStage', () => {
       tenantId: 'tenant-1',
       lead: { id: 'lead-1' },
     });
-    (prisma.opportunity.update as any).mockResolvedValue(createdOpp);
+    // `count: 1` is this caller winning the compare-and-set; the row is then read back.
+    (prisma.opportunity.updateMany as any).mockResolvedValue({ count: 1 });
+    (prisma.opportunity.findUniqueOrThrow as any).mockResolvedValue(createdOpp);
 
     await moveStage({
       opportunityId: 'opp-1',
@@ -226,7 +231,7 @@ describe('opportunities/lifecycle — moveStage', () => {
       stage: 'won',
     });
 
-    const updateArg = (prisma.opportunity.update as any).mock.calls[0][0].data;
+    const updateArg = (prisma.opportunity.updateMany as any).mock.calls[0][0].data;
     expect(updateArg.stage).toBe('won');
     expect(updateArg.status).toBe('won');
     expect(updateArg.closedAt).toBeInstanceOf(Date);

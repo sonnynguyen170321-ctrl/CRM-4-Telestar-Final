@@ -74,9 +74,38 @@ export async function moveStage(input: {
     data.closedAt = null;
   }
 
-  const updated = await prisma.opportunity.update({
-    where: { id: opportunityId },
+  /**
+   * Compare-and-set on the stage this decision was made from.
+   *
+   * Everything above — `handoffStatus`, whether `status` becomes won/lost/open, whether `closedAt`
+   * is set or cleared, which activity type is logged — was computed from `opp`, read at the top of
+   * this function. The write then went out unguarded, so two callers reading within milliseconds of
+   * each other (an owner and their team lead, both plausible among 44 concurrent users) would each
+   * compute from a snapshot the other had already replaced: `status` could be reset to `open` on an
+   * opportunity the other request had just closed, and the activity row could name a `from` stage
+   * that was already gone.
+   *
+   * The rest of this codebase already settles races this way — `updateMany` with the expected value
+   * in the WHERE, then check the count. `workers/sequence.ts`, `lib/sequences/lifecycle.ts` and
+   * `lib/workorders/leases.ts` do it in about forty places; `moveStage` was the outlier, and its
+   * docblock's reason ("Neon HTTP driver has no interactive transactions") is stale for this
+   * deployment, which is self-hosted Postgres over TCP.
+   *
+   * Losing the race is not an error to throw: the other writer's move is a legitimate outcome, and
+   * this caller's decision was simply made against a state that no longer exists.
+   */
+  const claimed = await prisma.opportunity.updateMany({
+    where: { id: opportunityId, stage: prevStage },
     data: data as never,
+  });
+  if (claimed.count !== 1) {
+    throw new Error(
+      `Opportunity ${opportunityId} moved out of "${prevStage}" while this change was being made — reload and try again`
+    );
+  }
+
+  const updated = await prisma.opportunity.findUniqueOrThrow({
+    where: { id: opportunityId },
     include: {
       client: { select: { id: true, name: true } },
       campaign: { select: { id: true, name: true } },
