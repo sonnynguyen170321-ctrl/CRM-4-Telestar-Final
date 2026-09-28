@@ -103,11 +103,37 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
     };
     loadAvatar();
 
+    /**
+     * The bell has to ask again, because the server is what writes to it.
+     *
+     * Everything above fires once, on mount. Every other source of a `Notification` row is a
+     * background process that cannot dispatch a browser event: `workers/email.ts` raises "Email did
+     * not send" when a provider refuses, the sequence-engine cron raises overdue-task and step-due
+     * counts, the maintenance sweep raises a delivery it could not confirm. So a row written at
+     * 10:00 stayed invisible until the user happened to do a full page load — which in a single-page
+     * app can be the whole day. The bell was a channel in name only, and the failed-send notice was
+     * the thing most likely to be sitting in it.
+     *
+     * Two minutes, and only while the tab is visible: a hidden tab is nobody reading the bell, and 44
+     * users polling one is load spent on an audience of none. The visibilitychange listener refetches
+     * on return, so coming back to the tab is current rather than up to two minutes stale.
+     */
+    const BELL_POLL_MS = 2 * 60 * 1000;
+    const poll = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchBellData();
+    }, BELL_POLL_MS);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') fetchBellData();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     window.addEventListener('crm:reminder-created', fetchBellData);
     window.addEventListener('crm:notifications-updated', fetchBellData);
     window.addEventListener(NOTIF_PREFS_EVENT, syncPrefs);
     window.addEventListener('crm:profile-updated', loadAvatar);
     return () => {
+      clearInterval(poll);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('crm:reminder-created', fetchBellData);
       window.removeEventListener('crm:notifications-updated', fetchBellData);
       window.removeEventListener(NOTIF_PREFS_EVENT, syncPrefs);

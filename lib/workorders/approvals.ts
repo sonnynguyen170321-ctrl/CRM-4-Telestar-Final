@@ -212,6 +212,31 @@ export async function approveRequest(input: ApproveRequestInput): Promise<AgentA
     );
   }
 
+  /**
+   * A `user`-level approval means a human, but not *any* human.
+   *
+   * Only the `manager` level was checked above. `user` is the level `sequence_enroll` and
+   * `reengagement_activate` default to — both described in `lib/agent/capabilities.ts` as starting
+   * outreach a prospect will actually receive — and `GET /api/approvals` lists every pending
+   * `user`-level request in the tenant to every non-manager. So with 34 SDRs the queue was a shared
+   * list in which one rep could sign off an AI-drafted send against another rep's lead, and the
+   * prospect then hears from a rep who never agreed to contact them.
+   *
+   * The requester, or a manager. Deliberately not the lead's owner: the request already passed the
+   * capability's own authorization when it was created, and `requestedById` records who asked for
+   * it. What is being closed here is a *fourth* party deciding.
+   */
+  if (
+    request.requiredLevel === 'user' &&
+    request.requestedById !== input.approver.id &&
+    !canApproveAsManager(input.approver)
+  ) {
+    throw new ApprovalError(
+      'Only the person who requested this action, or a manager, may approve it',
+      'approver_not_permitted'
+    );
+  }
+
   const args = (request.args ?? {}) as Record<string, unknown>;
   const editedArgs =
     input.editedCopy === undefined ? null : { ...args, [EDITABLE_ARG]: applyCopyEdit(args, input.editedCopy) };
