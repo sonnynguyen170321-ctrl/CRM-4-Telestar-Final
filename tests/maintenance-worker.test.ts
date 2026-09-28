@@ -250,25 +250,66 @@ describe('handleRepair — stuck-running', () => {
 describe('handleRepair — missing-delayed', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
-  it('claims pending email tasks past due with a compare-and-set, then releases the claim', async () => {
+  /**
+   * This suite used to assert the opposite — that the sweep CAS-claims `lockedAt` and then releases
+   * it. That claim is what broke the repair, and the test defended it.
+   *
+   * The sweep enqueues with `delay: 0`, so the job it creates reached the sequence worker's
+   * execution lock — `updateMany({ where: { …, lockedAt: null } })` — while the sweep still held
+   * that very field. The lock failed, the worker returned `concurrency_lock_failed`, and BullMQ
+   * recorded the job **completed** in ~40ms with the task untouched. Measured on production
+   * 2026-09-28: two step-3 tasks due 2026-09-22, their repair JobRun `completed` at 03:30:06 that
+   * morning, still pending after six nightly sweeps.
+   */
+  it('takes no lock of its own, so the job it enqueues can claim the task', async () => {
     const pastDate = new Date(Date.now() - 3600000);
-    mockTaskFindMany.mockResolvedValue([{ id: 'task-1', dueDate: pastDate }]);
-    mockTaskUpdateMany.mockResolvedValue({ count: 1 });
+    mockTaskFindMany.mockResolvedValue([{ id: 'task-1', dueDate: pastDate, tenantId: 't1' }]);
 
     const result = await handleRepair({ types: ['missing-delayed'] });
 
     expect(result['missing-delayed'].fixed).toBe(1);
-    // `lockedAt: null` in the claim makes two simultaneous sweeps mutually exclusive.
-    expect(mockTaskUpdateMany).toHaveBeenNthCalledWith(1, {
-      where: { id: 'task-1', status: 'pending', lockedAt: null },
-      data: { lockedAt: expect.any(Date) },
-    });
-    // The claim is always released: the sweep's own query filters `lockedAt: null`, and so does
-    // the sequence worker's execution lock.
-    expect(mockTaskUpdateMany).toHaveBeenLastCalledWith({
-      where: { id: 'task-1', status: 'pending' },
-      data: { lockedAt: null },
-    });
+    expect(mockEnqueueReschedule).toHaveBeenCalledTimes(1);
+    // Nothing writes `lockedAt` here any more. The sequence worker's own CAS lock is what prevents
+    // a double send, and the maintenance queue's concurrency of 1 is what serialises sweeps.
+    expect(mockTaskUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('derives a fresh discriminator on a later sweep, so one settled job cannot answer forever', async () => {
+    // The discriminator used to be `repair:${task.dueDate}`. An overdue task's due date never
+    // changes, so once a repair job settled under that dedupe key — including by losing the lock
+    // race above — every later sweep was answered `already_executed` and enqueued nothing. That is
+    // what left two tasks sitting for six days.
+    const pastDate = new Date(Date.now() - 3600000);
+    mockTaskFindMany.mockResolvedValue([{ id: 'task-1', dueDate: pastDate, tenantId: 't1' }]);
+
+    await handleRepair({ types: ['missing-delayed'] });
+    const first = mockEnqueueReschedule.mock.calls[0][2].discriminator;
+
+    await new Promise((r) => setTimeout(r, 5));
+    await handleRepair({ types: ['missing-delayed'] });
+    const second = mockEnqueueReschedule.mock.calls[1][2].discriminator;
+
+    expect(second).not.toBe(first);
+    // Both still name the due date, so a repair job stays identifiable as one.
+    expect(first).toContain(pastDate.toISOString());
+    expect(second).toContain(pastDate.toISOString());
+  });
+
+  it('gives every task in one sweep the same sweep stamp, so repairs do not stack', async () => {
+    const a = new Date(Date.now() - 3600000);
+    const b = new Date(Date.now() - 7200000);
+    mockTaskFindMany.mockResolvedValue([
+      { id: 'task-1', dueDate: a, tenantId: 't1' },
+      { id: 'task-2', dueDate: b, tenantId: 't1' },
+    ]);
+
+    await handleRepair({ types: ['missing-delayed'] });
+
+    const [c1, c2] = mockEnqueueReschedule.mock.calls;
+    // `repair:<dueDate>:<sweepStart>` — the trailing sweep stamp is shared, the due date is not.
+    const sweepStamp = (d: string) => d.slice(d.lastIndexOf(':2'));
+    expect(sweepStamp(c1[2].discriminator)).toBe(sweepStamp(c2[2].discriminator));
+    expect(c1[2].discriminator).not.toBe(c2[2].discriminator);
   });
 });
 

@@ -126,20 +126,27 @@ async function repairMissingDelayed(): Promise<{ fixed: number; details: string[
   });
 
   for (const task of missing) {
-    // Compare-and-set the repair claim, so two sweeps cannot both re-enqueue the same task. The
-    // execution lock in the sequence worker now requires `lockedAt: null`, which makes this claim
-    // genuinely exclusive — and makes releasing it below mandatory.
-    const claimed = await prisma.task.updateMany({
-      where: { id: task.id, status: 'pending', lockedAt: null },
-      data: { lockedAt: now },
-    });
-    if (claimed.count !== 1) continue;
-
     try {
-      // The original job's dedupe key still resolves to this same payload, so a plain
-      // enqueue would be swallowed and the repair would report success while restoring
-      // nothing. The due date is the discriminator: repeated repair passes over the same
-      // overdue task collapse to one job instead of stacking.
+      /**
+       * No repair claim is taken here, and that is the fix rather than an omission.
+       *
+       * This used to CAS `lockedAt = now` as a claim, enqueue with `delay: 0`, and release the
+       * claim in a `finally`. The enqueued job runs immediately — so it reached the sequence
+       * worker's execution lock, `updateMany({ where: { …, lockedAt: null } })`, while the repair
+       * still held exactly that field. The lock failed, the worker returned
+       * `concurrency_lock_failed`, and BullMQ recorded the job **completed** in about 40ms. The
+       * repair then cleared `lockedAt` and reported `fixed`. The task had not moved.
+       *
+       * The discriminator made that permanent. It was `repair:${task.dueDate}`, and an overdue
+       * task's due date never changes, so the settled `JobRun` under that dedupe key meant every
+       * later sweep was answered `already_executed` and enqueued nothing. Measured on production
+       * 2026-09-28: two step-3 tasks due 2026-09-22 with their repair JobRun `completed` at
+       * 03:30:06 that morning, still pending, having survived six nightly sweeps.
+       *
+       * Serialising sweeps was the claim's only stated purpose, and it is not needed for it: the
+       * maintenance queue runs at concurrency 1, the dedupe key collapses duplicate enqueues
+       * within a pass, and the worker's own CAS lock is what actually prevents a double send.
+       */
       await enqueueReschedule(
         JobType.SEQUENCE_EXECUTE_TASK,
         // A repair must carry the occurrence too. The task's deterministic id names the
@@ -152,21 +159,18 @@ async function repairMissingDelayed(): Promise<{ fixed: number; details: string[
         {
           delay: 0,
           tenantId: task.tenantId,
-          discriminator: `repair:${task.dueDate.toISOString()}`,
+          // The sweep's own start time, not the task's due date. Within one pass every task still
+          // collapses to a single job, so repairs do not stack; across passes a *new* key is
+          // derived, because a previous pass whose job settled without moving the task must not
+          // be able to answer for this one. A task that is still overdue tomorrow gets another
+          // attempt, which is the entire point of a repair sweep.
+          discriminator: `repair:${task.dueDate.toISOString()}:${now.toISOString()}`,
         }
       );
       details.push(`task:${task.id} -> re-enqueued BullMQ job (due ${task.dueDate.toISOString()})`);
       fixed++;
     } catch (err) {
       details.push(`task:${task.id} -> re-enqueue failed: ${err}`);
-    } finally {
-      // Always release. The repair claim exists only to serialise sweeps; leaving it set would
-      // make the task invisible to the next sweep (this query filters `lockedAt: null`) *and*
-      // unclaimable by the worker's execution lock — pending, unlocked by nobody, and unrunnable.
-      await prisma.task.updateMany({
-        where: { id: task.id, status: 'pending' },
-        data: { lockedAt: null },
-      });
     }
   }
 
