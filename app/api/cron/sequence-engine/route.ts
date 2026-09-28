@@ -21,17 +21,26 @@ async function createDailyNotifications(now: Date, tenantScope: { tenantId?: str
 
   let created = 0;
 
-  // task_overdue — one notification per SDR per day for all overdue pending tasks
-  const overdueTasks = await prisma.task.findMany({
+  /**
+   * task_overdue — one notification per SDR per day for all their overdue pending tasks.
+   *
+   * Counted in the database. This used to select every overdue pending task in the tenant — no
+   * `take`, every five minutes, 288 times a day — and tally them per user in JS, discarding both
+   * columns afterwards. A `take` would have been the wrong fix: it bounds the query by silently
+   * undercounting, and the count is the whole content of the notification. `groupBy` is bounded by
+   * the number of users instead of the number of tasks, and stays exact.
+   */
+  const overdueByUser = await prisma.task.groupBy({
+    by: ['userId', 'tenantId'],
     where: { status: 'pending', dueDate: { lt: startOfDay }, ...tenantScope },
-    select: { userId: true, tenantId: true },
+    _count: { _all: true },
   });
 
-  if (overdueTasks.length > 0) {
+  if (overdueByUser.length > 0) {
     const countByUser = new Map<string, { count: number; tenantId: string }>();
-    for (const t of overdueTasks) {
-      const cur = countByUser.get(t.userId) ?? { count: 0, tenantId: t.tenantId };
-      countByUser.set(t.userId, { count: cur.count + 1, tenantId: t.tenantId });
+    for (const row of overdueByUser) {
+      const cur = countByUser.get(row.userId) ?? { count: 0, tenantId: row.tenantId };
+      countByUser.set(row.userId, { count: cur.count + row._count._all, tenantId: row.tenantId });
     }
 
     const existing = await prisma.notification.findMany({
@@ -56,22 +65,24 @@ async function createDailyNotifications(now: Date, tenantScope: { tenantId?: str
     }
   }
 
-  // sequence_step_due — one notification per SDR per day when they have sequence tasks due today
-  const seqTasksDueToday = await prisma.task.findMany({
+  // sequence_step_due — one notification per SDR per day when they have sequence tasks due today.
+  // Counted in the database for the same reason as the overdue tally above.
+  const seqDueByUser = await prisma.task.groupBy({
+    by: ['userId', 'tenantId'],
     where: {
       status: 'pending',
       sequenceId: { not: null },
       dueDate: { gte: startOfDay, lte: endOfDay },
       ...tenantScope,
     },
-    select: { userId: true, tenantId: true },
+    _count: { _all: true },
   });
 
-  if (seqTasksDueToday.length > 0) {
+  if (seqDueByUser.length > 0) {
     const seqCountByUser = new Map<string, { count: number; tenantId: string }>();
-    for (const t of seqTasksDueToday) {
-      const cur = seqCountByUser.get(t.userId) ?? { count: 0, tenantId: t.tenantId };
-      seqCountByUser.set(t.userId, { count: cur.count + 1, tenantId: t.tenantId });
+    for (const row of seqDueByUser) {
+      const cur = seqCountByUser.get(row.userId) ?? { count: 0, tenantId: row.tenantId };
+      seqCountByUser.set(row.userId, { count: cur.count + row._count._all, tenantId: row.tenantId });
     }
 
     const existingSeq = await prisma.notification.findMany({

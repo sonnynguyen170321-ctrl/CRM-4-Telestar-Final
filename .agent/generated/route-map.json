@@ -161,6 +161,7 @@
     "/api/leads/recalculate-scores",
     "/api/leads/rescore-icp",
     "/api/leads/scoring-rules",
+    "/api/leads/stage-counts",
     "/api/meetings",
     "/api/meetings/[id]",
     "/api/meetings/[id]/convert-to-opportunity",
@@ -232,5 +233,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 36,
-  "apiRouteCount": 185
+  "apiRouteCount": 186
 }
