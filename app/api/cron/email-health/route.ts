@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma, tenantStorage } from '@/lib/prisma';
 import { authorizeCronRequest, tenantIdsFor } from '@/lib/cron/auth';
 import { runHealthPassForTenant } from '@/lib/email-health/snapshots';
+import { recordCronHeartbeat } from '@/lib/ops/cronHeartbeat';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +64,11 @@ export async function GET(req: NextRequest) {
         failedTenants.push(tenantId);
       }
     }
+
+    // Leave a trace that this cron ran, so a recurrence budget can hold it to account. This pass
+    // works inline and enqueues nothing, so it previously left no row of any kind and its stopping
+    // was undetectable by anything in the system.
+    await recordCronHeartbeat('email-health', 'system');
 
     return NextResponse.json({
       tenants: tenantIds.length,

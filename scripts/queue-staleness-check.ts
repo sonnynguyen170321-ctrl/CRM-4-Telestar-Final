@@ -27,6 +27,7 @@ import {
   syncQueue,
 } from '@/lib/bullmq/queues';
 import { QUEUES, jobQueue, type JobType } from '@/lib/bullmq/types';
+import { notifyOps } from '@/lib/ops/notifyOps';
 
 /**
  * A `queued` row younger than this may simply be waiting its turn. Ten minutes is far longer than
@@ -43,6 +44,14 @@ const RECURRENCE_BUDGETS_MS: Record<string, number> = {
   'email.sync': 15 * 60_000,
   // cron: daily at 03:30
   'maintenance.repair': 26 * 60 * 60_000,
+  // The two crons that do their work inline and enqueue nothing. They left no row of any kind, so no
+  // budget could be written for them and either one stopping was undetectable by anything in the
+  // system. They now write a heartbeat (`lib/ops/cronHeartbeat.ts`), which is what makes these two
+  // lines possible at all.
+  // cron: every 5 minutes
+  'cron.sequence-engine': 30 * 60_000,
+  // cron: hourly
+  'cron.email-health': 3 * 60 * 60_000,
 };
 
 const POLICY: StalenessPolicy = {
@@ -104,6 +113,17 @@ async function main(): Promise<number> {
       return 0;
     }
     console.error(formatStaleness(findings));
+
+    // And to a person. This script is the one that can say "nothing has drained this queue for an
+    // hour" or "this cron has stopped" — and its entire output was an exit code and stderr, into a
+    // log file, from a cron line that was never installed on this deployment.
+    await notifyOps({
+      key: 'queue-staleness',
+      level: 'fail',
+      summary: `CRM queue check found ${findings.length} problem(s)`,
+      details: findings.map((f) => `${f.jobName}: ${f.detail}`),
+    });
+
     return 1;
   } finally {
     await closeAllQueues().catch(() => {});

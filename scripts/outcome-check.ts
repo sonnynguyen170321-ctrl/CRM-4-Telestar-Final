@@ -8,11 +8,16 @@
  *
  *   npx tsx scripts/outcome-check.ts
  *
- * Read-only. Exits 0 when everything is fine, 1 on a warning, 2 on a failure — so cron can
- * decide whether the output is worth a human's attention.
+ * Read-only against the database. Exits 0 when everything is fine, 1 on a warning, 2 on a failure.
  *
  *   30 7 * * *  docker exec crm-worker-1 node node_modules/tsx/dist/cli.mjs \
  *                 scripts/outcome-check.ts >>/var/log/crm-outcome.log 2>&1
+ *
+ * The exit code is no longer the only output that can reach a person. The cron line above appends to
+ * a log file, and for the first weeks of this deployment that log was the entire alerting story: the
+ * check ran, found things, wrote them down, and nobody read it. Any warning or failure now also goes
+ * through `notifyOps`, so it reaches whatever `ALERT_WEBHOOK_URL` points at. The exit code stays, for
+ * a cron that wants to branch on it.
  */
 import { statfsSync } from 'fs';
 import { prisma } from '@/lib/prisma';
@@ -26,6 +31,7 @@ import {
   overall,
   type Finding,
 } from '@/lib/ops/outcomeChecks';
+import { notifyOps } from '@/lib/ops/notifyOps';
 
 const DAY_AGO = () => new Date(Date.now() - 24 * 60 * 60 * 1000);
 
@@ -142,6 +148,22 @@ async function main() {
     console.log(
       `\n${worst === 'fail' ? 'Something is not working' : 'Something needs a decision'} — the lines above say which.`
     );
+
+    // Out loud, to a person. Only the findings that are not `ok` travel; a daily "all fine" message
+    // trains people to ignore the channel, which is how a real alert gets missed.
+    const notable = findings.filter((f) => f.level !== 'ok');
+    const delivered = await notifyOps({
+      key: 'outcome-check',
+      level: worst === 'fail' ? 'fail' : 'warn',
+      summary:
+        worst === 'fail'
+          ? `CRM outcome check failed: ${notable.length} finding(s)`
+          : `CRM outcome check raised ${notable.length} warning(s)`,
+      details: notable.map((f) => `${f.check}: ${f.detail}`),
+    });
+    if (!delivered) {
+      console.log('(this was not delivered to anyone — see the notifyOps line above for why)');
+    }
   }
 
   process.exitCode = worst === 'fail' ? 2 : worst === 'warn' ? 1 : 0;
