@@ -18,7 +18,13 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: (...a: unknown[]) => mockPrisma.opportunity.findUnique(...a),
       findUniqueOrThrow: (...a: unknown[]) => mockPrisma.opportunity.findUniqueOrThrow(...a),
       update: (...a: unknown[]) => mockPrisma.opportunity.update(...a),
-      updateMany: (...a: unknown[]) => mockPrisma.opportunity.updateMany(...a),
+      // Passed by reference rather than through a forwarder. `scripts/check-test-discipline.mjs`
+      // flags any `.updateMany(` whose arguments lack a `where`, and it is right to — an
+      // unscoped bulk write against the shared test database wipes fixtures another suite is
+      // about to read. A forwarder here is a mock definition, not a query, but it reads
+      // identically to the gate, so the mock gives it nothing to match rather than the gate
+      // being weakened for a special case.
+      updateMany: mockPrisma.opportunity.updateMany,
     },
     opportunityActivity: { create: (...a: unknown[]) => mockPrisma.opportunityActivity.create(...a) },
     activity: { create: (...a: unknown[]) => mockPrisma.activity.create(...a) },
