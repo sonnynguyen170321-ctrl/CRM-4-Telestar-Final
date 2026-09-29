@@ -180,7 +180,12 @@ function existingReasons() {
   if (!existsSync(MANIFEST)) return new Map();
   const reasons = new Map();
   let current = null;
-  for (const line of readFileSync(MANIFEST, 'utf8').split('\n')) {
+  // Either line ending. Git checks this manifest out with CRLF on Windows, and `(.+)$` cannot match
+  // past a `\r` — JavaScript's `.` excludes line terminators. Splitting on '\n' alone meant that
+  // regenerating silently dropped every hand-written reason: the one part of this file a human owns,
+  // and the one part a scan cannot recreate. Observed after the first git round-trip, when the
+  // unexplained count jumped from 48 to 61 with no route having changed.
+  for (const line of readFileSync(MANIFEST, 'utf8').split(/\r?\n/)) {
     const path = line.match(/^\s*-\s+path:\s+(\S+)/);
     if (path) current = path[1];
     const reason = line.match(/^\s*reason:\s+(.+)$/);
