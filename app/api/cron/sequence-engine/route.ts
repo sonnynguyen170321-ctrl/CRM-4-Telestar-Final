@@ -3,6 +3,7 @@ import { prisma, tenantStorage } from '@/lib/prisma';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 import { isAutosendEnabled } from '@/lib/emailSafety';
 import { authorizeCronRequest } from '@/lib/cron/auth';
+import { recordCronHeartbeat } from '@/lib/ops/cronHeartbeat';
 
 export const dynamic = 'force-dynamic';
 
@@ -235,6 +236,10 @@ export async function GET(req: NextRequest) {
     } catch (err) {
       console.error('[sequence-engine] daily notifications failed:', err);
     }
+
+    // Leave a trace that this cron ran. Without one, `queue-staleness-check` has no name to hang a
+    // recurrence budget on, so this cron silently stopping was undetectable by anything.
+    await recordCronHeartbeat('sequence-engine', 'system');
 
     return NextResponse.json({
       processed: (result.sent + result.skipped + result.errors.length + manualTasks.length),

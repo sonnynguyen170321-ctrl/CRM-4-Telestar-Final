@@ -34,17 +34,17 @@ Any statement that this system enforces isolation at the database layer today is
 
 The Prisma extension in `lib/prisma.ts` injects `where: { tenantId }` into every model operation. Inside one of these scopes it does not, so the query is only as tenant-correct as it was written to be. On a database with no RLS policies this is the entire boundary.
 
-**16 file(s), 20 site(s).**
+**17 file(s), 21 site(s).**
 
 | File | Line(s) | Why this is safe |
 |---|---|---|
 | `app/api/ai/attention/route.ts` | 21 | Session tenant from `requireAuth`. The scope wraps `getWhatNeedsAttention`, which filters every query in `lib/ai/engine/attention-engine.ts` by `tenantId` explicitly — overdue leads, unassigned leads and paused mailboxes all carry it. |
 | `app/api/ai/daily-briefing/route.ts` | 44 | Session tenant from `requireAuth`. All three reads inside the scope — `task.findMany`, `lead.findMany`, `activity.findMany` — name `tenantId` in their `where` explicitly. |
 | `app/api/ai/nba/route.ts` | 28 | Session tenant from `requireAuth`. The scope wraps `calculateNextBestAction`, which reads `lead.findFirst({ where: { id: leadId, tenantId } })` — the id is paired with the tenant, so a foreign id resolves to nothing. |
-| `app/api/cron/email-health/route.ts` | 29 | System context (`tenantId: 'system'`), and deliberately cross-tenant: the job computes email health across every tenant. Reachable only with the `CRON_SECRET` bearer token, never from a user session. |
+| `app/api/cron/email-health/route.ts` | 30 | System context (`tenantId: 'system'`), and deliberately cross-tenant: the job computes email health across every tenant. Reachable only with the `CRON_SECRET` bearer token, never from a user session. |
 | `app/api/cron/inbox-sync/route.ts` | 17 | System context, deliberately cross-tenant: it sweeps active mailboxes across tenants to enqueue per-account sync jobs. `CRON_SECRET` bearer token only. |
 | `app/api/cron/maintenance/route.ts` | 76 | System context, deliberately cross-tenant: it iterates tenants to schedule per-tenant maintenance. `CRON_SECRET` bearer token only. |
-| `app/api/cron/sequence-engine/route.ts` | 125, 232 | System context, deliberately cross-tenant: it scans due sequence steps for every tenant and processes each within its own tenant boundary. Task claims use a conditional `updateMany` on `id + status + lockedAt`, so two runners cannot both take a task. `CRON_SECRET` bearer token only. |
+| `app/api/cron/sequence-engine/route.ts` | 126, 233 | System context, deliberately cross-tenant: it scans due sequence steps for every tenant and processes each within its own tenant boundary. Task claims use a conditional `updateMany` on `id + status + lockedAt`, so two runners cannot both take a task. `CRON_SECRET` bearer token only. |
 | `app/api/leads/recalculate-scores/route.ts` | 27 | Session tenant from the verified `SessionUser`. The `lead.update` calls inside the scope address ids drawn from a preceding tenant-scoped read, so no caller-supplied id reaches the database. |
 | `app/api/unsubscribe/route.ts` | 20 | Public by necessity — an unsubscribe link is followed without a session. The tenant is not taken from the request but recovered from an HMAC-verified token that binds `tenantId`, `email` and `leadId`; a forged or edited token fails verification before any query runs. |
 | `lib/auth.ts` | 51, 75, 112 | Runs before a tenant is known, which is the reason the bypass exists. API keys are resolved by unique `keyHash` and users by the id inside an already-verified token; both are identity lookups whose whole purpose is to establish the tenant that later queries are scoped by. |
@@ -52,6 +52,7 @@ The Prisma extension in `lib/prisma.ts` injects `where: { tenantId }` into every
 | `lib/bullmq/ensureJob.ts` | 90, 120 | Idempotent job creation. The `jobRun.findUnique({ where: { dedupeKey } })` lookup runs before the tenant is known — a dedupe key is global by construction, because its job is to notice a duplicate whoever enqueued it. The row it finds carries its own `tenantId`, which scopes everything after. |
 | `lib/bullmq/rescheduleSequenceTask.ts` | 101 | Scoped to `input.tenantId`. The `jobRun` lookup by `dedupeKey` is the same pre-tenant identity lookup as `ensureJob`. |
 | `lib/bullmq/workerUtils.ts` | 40 | Scoped to the tenant declared on the job payload. `jobRun.update` calls address the row by its own id, obtained from the job being executed. |
+| `lib/ops/cronHeartbeat.ts` | 24 | Writes one JobRun heartbeat row so a stopped cron becomes detectable. The tenant is passed in by the caller and stamped onto the insert, never read from a request, and the only table touched is JobRun — the queue mirror, which carries no tenant-owned business data. It bypasses because a cron has no session to resolve a tenant from, exactly as the other cron and worker sites here do. Reads nothing, so there is no cross-tenant read to widen. |
 | `lib/prisma.ts` | 49 | The extension itself — this is the file that implements tenant scoping, so it necessarily names the flag it honours and runs the `set_config` statements that carry tenant context into the database. Its own `$queryRaw`/`$executeRaw` calls are the GUC statements and the maintenance sweep, not data access. |
 | `lib/workflows/importInline.ts` | 37 | Scoped to `payload.tenantId`. The inline fallback runs when Redis is unavailable; its `importRow.count` calls are filtered by `batchId`, which belongs to the batch being imported. |
 
@@ -91,7 +92,7 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 | `lib/prisma.ts` | 138, 171, 172, 254, 255, 279, 313, 320, 321 | The extension itself — this is the file that implements tenant scoping, so it necessarily names the flag it honours and runs the `set_config` statements that carry tenant context into the database. Its own `$queryRaw`/`$executeRaw` calls are the GUC statements and the maintenance sweep, not data access. |
 | `lib/research/cache.ts` | 175, 410 | Cache updates through `withTenantRaw`, so the statement carries tenant context on its own connection. |
 | `lib/search/accentSearch.ts` | 83, 84 | Accent-insensitive search through `withTenantRaw`, with `tenantId` also named explicitly in the WHERE clause. |
-| `workers/email.ts` | 114, 157 | The daily send quota: an atomic compare-and-set reserving a slot on `EmailAccount.dailySendCount`, and the matching release when the provider refuses a message outright. Both go through `withTenantRaw` and address a single row by id. Raw SQL rather than a read-modify-write so two workers cannot both spend the last send of a quota; the release is dated to today and floored at zero so it can never mint one. |
+| `workers/email.ts` | 115, 158 | The daily send quota: an atomic compare-and-set reserving a slot on `EmailAccount.dailySendCount`, and the matching release when the provider refuses a message outright. Both go through `withTenantRaw` and address a single row by id. Raw SQL rather than a read-modify-write so two workers cannot both spend the last send of a quota; the release is dated to today and floored at zero so it can never mint one. |
 | `workers/healthcheck.ts` | 28 | `SELECT 1` liveness probe. Touches no tenant-owned table. |
 
 ---
@@ -100,9 +101,9 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 
 | | Count |
 |---|---|
-| Category A sites | 20 |
+| Category A sites | 21 |
 | Category B sites | 8 |
 | Category C sites | 43 |
-| All sites | 71 |
+| All sites | 72 |
 | Unreviewed | 0 |
 
