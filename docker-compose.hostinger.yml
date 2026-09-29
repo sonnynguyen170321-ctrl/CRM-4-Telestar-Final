@@ -46,10 +46,20 @@ services:
       - crm_internal
 
   crm-db:
-    # The CRM's own Postgres, built with pgBackRest so recovery lands on a point in time rather
-    # than on last night's dump. Verified on this host 2026-09-13: 716 MB / 1.5 M rows backed up
-    # in 7 s to a 252 MB repository, restored to a chosen second in 6 s, with the row written
-    # before the target present and the row written after it absent.
+    # The CRM's own Postgres. The image is built with pgBackRest and the drill below was real, but
+    # **PITR is not in effect on this host today** — see `archive_command` further down in this same
+    # service: it defaults to `/bin/true`, so WAL is archived nowhere and the nightly logical dump is
+    # the only backup. Recovery lands on last night's dump, not on a chosen second. Two comments in
+    # one file used to disagree about this; this is the one that matches the running config.
+    #
+    # The default is deliberate. Archiving that silently never succeeded once took `pg_wal` to 179 GB
+    # and the disk to 100% on 2026-09-26. Turning PITR back on means setting `PG_ARCHIVE_COMMAND` to
+    # something that works *and* watching `pg_stat_archiver` prove it, not merely setting the value.
+    #
+    # The drill, kept because the capability is real and only switched off: verified on this host
+    # 2026-09-13, 716 MB / 1.5 M rows backed up in 7 s to a 252 MB repository, restored to a chosen
+    # second in 6 s, with the row written before the target present and the row written after it
+    # absent.
     build:
       context: ./deploy/hostinger/pgbackrest
     profiles:
