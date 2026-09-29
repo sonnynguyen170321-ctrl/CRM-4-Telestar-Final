@@ -1,7 +1,26 @@
 # Outbound Email Incident & Deliverability Runbook
 
+> **⚠️ The kill switches in this document are real and wired. The host paths are not.**
+>
+> `EMAIL_GLOBAL_PAUSE` (`lib/emailSafety.ts`), `SEQUENCE_AUTOSEND_ENABLED`
+> (`app/api/cron/sequence-engine/route.ts`) and `EMAIL_HEALTH_AUTOPAUSE` (`workers/email.ts`) each do
+> exactly what this document says — verified 2026-09-28. Use them with confidence.
+>
+> Substitute as you read:
+>
+> | this document says | use instead |
+> |---|---|
+> | `gcloud compute ssh telestar-crm-vm` | `ssh telestar-vps` |
+> | `/opt/crm-4-u` | `/opt/crm` |
+> | restart via gcloud | `cd /opt/crm && docker compose up -d --no-deps worker` |
+>
+> **§3.3 is wrong.** It says "SDR/Admin receives notification in CRM" for a deliverability event.
+> Email health writes an `EmailHealthAlert` row (`lib/email-health/alerts.ts`) and never a
+> `Notification`, so nothing reaches anyone's bell — the alert is visible only to somebody who opens
+> `/email-health`. Do not wait for a notification that will not arrive.
+
 > **Scope:** Outbound email safety, emergency pause, deliverability triage, and provider error recovery.  
-> **Target Environment:** GCP Production (`telestar-crm-vm` / `crm.telestar.cloud`)  
+> **Target Environment (historical):** GCP Production (`telestar-crm-vm` / `crm.telestar.cloud`)  
 > **Authoritative Specification:** Full Production Readiness Specification  
 
 ---

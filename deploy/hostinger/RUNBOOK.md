@@ -1,8 +1,18 @@
 # Hostinger VPS runbook — TeleStar CRM colocated with Nextcloud
 
-Companion to `docs/DEPLOY.md` (generic), `docs/GCP_DEPLOY.md` (where the CRM runs today),
-`docs/MIGRATION_RUNBOOK.md`, `docs/ROLLBACK_RUNBOOK.md`, `docs/BACKUP_RESTORE_RUNBOOK.md`.
-Facts about the box: `INVENTORY.md`. Firewall: `FIREWALL.md`. Env: `crm.env.example`.
+**This is where the CRM runs.** Companion to `docs/DEPLOY.md` (generic) and
+`docs/MIGRATION_RUNBOOK.md`. Facts about the box: `INVENTORY.md`. Firewall: `FIREWALL.md`. Env:
+`crm.env.example`.
+
+Three documents describe infrastructure this system has left behind, and each now says so at its
+top. Do not follow them:
+
+- `docs/GCP_DEPLOY.md` — the CRM no longer runs on GCP; that box is a fallback proxy from the cutover.
+  (This file used to describe it as "where the CRM runs today".)
+- `docs/ROLLBACK_RUNBOOK.md` — superseded by the Rollback section below. Its "expected output" block
+  lists checks `scripts/post-deploy-smoke.sh` does not print.
+- `docs/BACKUP_RESTORE_RUNBOOK.md` — Cloud SQL, and it promises a 300-second RPO that does not exist
+  here. The real figure is **up to 24 hours**: nightly dump, no PITR.
 
 Phases, gates and rollbacks follow the migration plan; this file is the command sheet.
 
@@ -248,3 +258,81 @@ is a hypothesis.
 `pgbackrest/README.md` — why it exists, the `crm-db` image and `archive_command`, the repository
 config, the bring-up commands, and the three-part gate that must pass before the database is
 allowed to leave Cloud SQL.
+
+## The five things somebody will ask for at 09:00
+
+Each of these existed as a script or a flag but was written down nowhere, which is the same as not
+existing when forty-four people are waiting and the person who knows is asleep.
+
+### Add a user
+
+```bash
+ssh telestar-vps
+docker exec crm-web-1 npm run create-user -- \
+  --email person@itelestar.com --password '<strong>' --role sdr \
+  --first-name Given --last-name Family
+```
+
+Roles: `sdr`, `leadgen`, `leadgen_manager`, `team_lead`, `floor_manager`, `director`. There is also a
+UI at `/admin/users` for director and floor_manager, which is the better route when one is available.
+Use `--deactivate` instead of deleting; `scripts/create-admin.ts` is **not** the tool for this — it
+hardcodes `role: 'director'`, so pointing it at an SDR promotes them.
+
+### Freeze all outbound email
+
+```bash
+ssh telestar-vps
+cd /opt/crm
+echo 'EMAIL_GLOBAL_PAUSE=true' >> .env.production
+docker compose up -d --no-deps worker
+```
+
+Takes effect on the next send attempt (`lib/emailSafety.ts`). Nothing is discarded — messages stay
+queued and go out when the flag is removed. `SEQUENCE_AUTOSEND_ENABLED=false` stops only cadence
+sends and leaves manual ones working.
+
+### Rotate a mailbox credential
+
+There is no CLI for this, by design: the credential is encrypted with `ENCRYPTION_KEY` and only the
+app can write it. Sign in as the mailbox owner (or a floor_manager), open **Settings → Email
+Accounts**, disconnect the account and reconnect it. The old `encPassword` / `encRefreshToken` is
+replaced in place, so queued messages keep their account binding and resume on the next attempt.
+
+If the provider has already started refusing, freeze outbound first (above) so the retry loop is not
+burning reputation while the credential is being replaced.
+
+### Inspect or clear a stuck queue
+
+```bash
+# What is actually in there
+docker exec crm-redis-1 redis-cli --scan --pattern 'bull:*:failed'
+for q in email sequence import sync maintenance notification agent; do
+  echo -n "$q delayed="; docker exec crm-redis-1 redis-cli ZCARD "bull:$q:delayed"
+  echo -n "$q failed=";  docker exec crm-redis-1 redis-cli ZCARD "bull:$q:failed"
+done
+
+# Ask the database and Redis whether they still agree
+docker exec crm-web-1 npx tsx scripts/queue-staleness-check.ts
+```
+
+**Prefer the repair sweep to touching Redis by hand.** It re-drives work whose job was lost, which is
+almost always the real problem:
+
+```bash
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
+  'https://crm.telestar.cloud/api/cron/maintenance?types=missing-delayed,stale-pending-outbound,stale-sending'
+```
+
+Never `obliterate` a queue. Postgres holds the durable `JobRun` mirror, so deleting Redis keys does
+not cancel the work — it strands it, and the sweep will then re-enqueue it anyway.
+
+### Restore the database
+
+```bash
+cd /opt/crm && ./deploy/hostinger/restore.sh <dump-file>
+```
+
+Read that script's header first. A logical dump does **not** carry roles, GRANTs or the RLS policies
+in `supabase/rls.sql`, so those are reapplied separately — and the same is true after any migration
+that adds a table. Expect to lose everything written since last night: there is no PITR on this host
+(see the note on `crm-db` in `docker-compose.hostinger.yml`).
