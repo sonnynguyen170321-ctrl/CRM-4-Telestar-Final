@@ -731,3 +731,83 @@ describe.skipIf(!hasDb)('approving with an edit', () => {
     });
   });
 });
+
+/**
+ * A `user`-level approval needs a human, but not *any* human.
+ *
+ * Only the `manager` level was ever checked. `user` is the level `sequence_enroll` and
+ * `reengagement_activate` default to — both described in `lib/agent/capabilities.ts` as starting
+ * outreach a prospect will actually receive — and `GET /api/approvals` lists every pending
+ * `user`-level request in the tenant to every non-manager. So with 34 sdrs in one tenant the queue
+ * was a shared list in which one rep could sign off an AI-drafted send against another rep's lead,
+ * and the prospect would then hear from a rep who never agreed to contact them.
+ */
+describe.skipIf(!hasDb)('a user-level approval belongs to its requester or a manager', () => {
+  const userLevelRequest = async (key: string, requestedById: string) => {
+    const order = await activeOrder(key);
+    const { request } = await requestApproval({
+      tenantId: fx.tenantId,
+      actionKey: key,
+      workOrderId: order.id,
+      capability: 'tasks',
+      toolName: 'create_task',
+      args: {},
+      requiredLevel: 'user',
+      requestedById,
+    });
+    return request;
+  };
+
+  it('refuses a peer who did not request it and is not a manager', async () => {
+    await run(async () => {
+      // Requested by somebody else (requestedById is a real FK, so it must be a real user);
+      // approved by an sdr who is neither that person nor a manager.
+      const request = await userLevelRequest('appr-peer-refused', fx.directorId);
+
+      await expect(
+        approveRequest({
+          requestId: request.id,
+          tenantId: fx.tenantId,
+          approver: { id: fx.sdrId, role: 'sdr' },
+        })
+      ).rejects.toBeInstanceOf(ApprovalError);
+
+      expect(
+        (await prisma.agentApprovalRequest.findFirstOrThrow({ where: { id: request.id } })).status
+      ).toBe('pending');
+    });
+  });
+
+  it('lets the person who asked for it approve it', async () => {
+    await run(async () => {
+      const request = await userLevelRequest('appr-requester-ok', fx.sdrId);
+
+      await approveRequest({
+        requestId: request.id,
+        tenantId: fx.tenantId,
+        approver: { id: fx.sdrId, role: 'sdr' },
+      });
+
+      expect(
+        (await prisma.agentApprovalRequest.findFirstOrThrow({ where: { id: request.id } })).status
+      ).toBe('approved');
+    });
+  });
+
+  it('still lets a manager approve somebody else request', async () => {
+    // Oversight has to survive the narrowing, or a rep on holiday blocks their own queue.
+    await run(async () => {
+      const request = await userLevelRequest('appr-manager-ok', fx.sdrId);
+
+      await approveRequest({
+        requestId: request.id,
+        tenantId: fx.tenantId,
+        approver: { id: fx.directorId, role: 'director' },
+      });
+
+      expect(
+        (await prisma.agentApprovalRequest.findFirstOrThrow({ where: { id: request.id } })).status
+      ).toBe('approved');
+    });
+  });
+});
