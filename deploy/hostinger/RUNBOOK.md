@@ -336,3 +336,52 @@ Read that script's header first. A logical dump does **not** carry roles, GRANTs
 in `supabase/rls.sql`, so those are reapplied separately — and the same is true after any migration
 that adds a table. Expect to lose everything written since last night: there is no PITR on this host
 (see the note on `crm-db` in `docker-compose.hostinger.yml`).
+
+## Changing an environment variable
+
+`scripts/deploy.sh` deploys an **image**. It compares the image you asked for against `CRM_IMAGE` in
+`.env.production` and, when they match, prints `Already running this digest. Nothing to do.` and
+exits 0. That is the right guard for a redeploy — and it means **an environment-only change never
+reaches the containers through it**. The edit lands in the file, the deploy reports success, and the
+running processes keep the old value.
+
+Two other things bite here, both discovered the hard way on 2026-09-29:
+
+- `deploy.sh` does **not** move this checkout. It pulls an image by digest. `/opt/crm` sat on
+  `98cc190d` while the app ran `6041c458`, so the compose file had no web/worker healthcheck and
+  `backup.sh` was the old one. Move the checkout yourself, with `git fetch origin && git checkout
+  <full-sha>` — not `git pull`, because the deploy leaves a detached HEAD on purpose.
+- A bare `docker compose up -d` fails with `CRM_IMAGE is missing a value`. That is deliberate: the
+  compose file refuses to run a mutable tag. `deploy.sh` supplies it via `--env-file`.
+
+So, to change a variable and have it take effect:
+
+```bash
+cd /opt/crm
+# 1. edit the value
+nano .env.production
+
+# 2. recreate the two app containers with it, using deploy.sh's own invocation
+docker compose --env-file .env.production \
+  -f docker-compose.yml -f docker-compose.hostinger.yml \
+  up -d --no-deps --force-recreate web worker
+
+# 3. prove the process actually has it — the file having it is not the same thing
+docker exec crm-web-1 printenv DATABASE_URL | sed 's#://[^@]*@#://USER:PASS@#'
+docker ps --format '{{.Names}}\t{{.Status}}'      # web and worker should read (healthy)
+```
+
+### If the variable is `DATABASE_URL`
+
+Take a backup by hand before trusting the next scheduled one:
+
+```bash
+deploy/hostinger/backup.sh --tag envchange
+```
+
+`DATABASE_URL` is read by Prisma *and* by `pg_dump`, `pg_restore` and `psql`, which accept different
+parameters. Adding `?connection_limit=25&pool_timeout=20` — Prisma's pool sizing, meaningless to
+libpq — aborted the pre-deploy backup with `invalid URI query parameter: "connection_limit"` and
+made the box undeployable until the scripts learned to strip them. The deploy gate caught it and
+refused to proceed, which is the behaviour to expect and to trust. A manual backup after any change
+to this variable tells you within a minute whether the same class of mistake has been made again.
