@@ -827,6 +827,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
@@ -838,6 +839,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
@@ -849,6 +851,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
@@ -860,6 +863,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
@@ -871,6 +875,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
@@ -882,6 +887,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
@@ -893,6 +899,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
@@ -904,6 +911,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
@@ -922,6 +930,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts

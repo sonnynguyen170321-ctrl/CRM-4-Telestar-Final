@@ -22,6 +22,7 @@ import { PrismaClient } from '@prisma/client';
 import { getConnection } from '@/lib/bullmq/connection';
 import { closeAllQueues } from '@/lib/bullmq/queues';
 import { createAdminClient } from '@/lib/db/adminClient.mjs';
+import { notifyOps } from '../lib/ops/notifyOps';
 
 export const DEFAULT_TIMEOUT_MS = 60_000;
 const POLL_INTERVAL_MS = 2_000;
@@ -118,6 +119,28 @@ async function main(): Promise<void> {
     const result = await runWorkerHealthcheck({ prisma, tenantId: process.env.CUTOVER_TENANT_ID });
     console.log(result.detail);
     completed = result.completed === true;
+
+    /**
+     * A failed health check reaches a person, not only an exit code.
+     *
+     * This script exists to prove that a job enqueued here was actually executed by a worker — the
+     * one thing `restart: unless-stopped` cannot tell you, because a worker that has lost Redis
+     * keeps retrying forever (`retryStrategy` never gives up) and stays `Up` while consuming
+     * nothing. The runbook prescribed it as a five-minute cron whose failure branch was
+     * `| logger -t crm`, into a syslog nothing reads — and on this deployment that cron line was
+     * never installed, so the check that would notice a dead worker has never run unattended.
+     */
+    if (!completed) {
+      await notifyOps({
+        key: 'worker-healthcheck',
+        level: 'fail',
+        summary: 'CRM worker did not execute a health check job',
+        details: [
+          result.detail,
+          'Email sends, sequence steps and imports are being queued but not processed. Every page still loads normally.',
+        ],
+      });
+    }
   } finally {
     await prisma.$disconnect();
     // Enqueuing opened a BullMQ queue and its Redis connection, and both keep the event loop

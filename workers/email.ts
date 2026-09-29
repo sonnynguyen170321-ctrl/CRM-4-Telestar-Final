@@ -2,6 +2,7 @@ import { prisma, withTenantRaw } from '@/lib/prisma';
 import { createAppWorker } from '@/lib/bullmq';
 import { enqueueReschedule } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
+import { notifyOps } from '@/lib/ops/notifyOps';
 import type { EmailSendPayload } from '@/lib/bullmq/types';
 import { EmailService } from '@/lib/email/EmailService';
 import { effectiveDryRun, isGlobalEmailPaused, isCanaryRecipientAllowed } from '@/lib/emailSafety';
@@ -501,6 +502,24 @@ async function handleEmailSend(payload: EmailSendPayload) {
           `still waiting after ${attemptsSoFar} days — this mailbox has less daily capacity ` +
           `than its cadences need. The email is still queued and will go out; the backlog is ` +
           `what needs a decision.`,
+      });
+
+      /**
+       * And to whoever can actually act on it.
+       *
+       * `notifySendFailure` writes a `Notification` for the lead's assigned SDR — who cannot add a
+       * mailbox or raise a cap. So the one person told about a capacity shortage was the one person
+       * unable to fix it, and the Topbar does not poll, so they saw it on their next full page load.
+       * The decision here — activate another sender, or accept the ceiling — is an operator's.
+       */
+      await notifyOps({
+        key: 'send-capacity',
+        level: 'warn',
+        summary: 'CRM outbound capacity is short of what its cadences need',
+        details: [
+          `A queued message has now been deferred ${attemptsSoFar} days for want of daily quota.`,
+          'Nothing was discarded, so the backlog is growing. Either activate another sending mailbox or accept the ceiling deliberately.',
+        ],
       });
     }
 

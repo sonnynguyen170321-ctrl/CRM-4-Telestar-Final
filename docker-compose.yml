@@ -74,6 +74,20 @@ services:
       redis:
         condition: service_healthy
     command: ["npm", "run", "start"]
+    # `restart: unless-stopped` only fires when the process *exits*, and this one need not.
+    # `unhandledRejection` is logged and swallowed (`workers/index.ts`), so a container serving 503s
+    # to all 44 users stays `Up` and Docker calls it healthy by absence of evidence. postgres and
+    # redis have had a probe all along; the two services carrying the product did not.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # Next has to boot before a failing probe means anything.
+      start_period: 60s
 
   worker:
     <<: *app-base
@@ -81,6 +95,20 @@ services:
       redis:
         condition: service_healthy
     command: ["npm", "run", "worker:start"]
+    # The worker serves no HTTP, so the probe asks the thing that actually decides whether it can do
+    # any work: can this process still reach Redis. `lib/bullmq/connection.ts` sets `retryStrategy`
+    # to never give up — right for a blip, and the reason a permanently detached worker sits `Up`
+    # forever consuming nothing while every page still returns 200. `ioredis` is already a direct
+    # dependency, so this needs nothing added to the image.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "const R=require('ioredis');const c=new R(process.env.REDIS_URL,{lazyConnect:true,maxRetriesPerRequest:1,retryStrategy:()=>null});c.on('error',()=>{});c.connect().then(()=>c.ping()).then(()=>{c.disconnect();process.exit(0)}).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
 
   caddy:
     image: caddy:2-alpine
