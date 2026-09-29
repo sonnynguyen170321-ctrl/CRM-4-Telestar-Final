@@ -45,7 +45,12 @@ function parseManifest(text: string): Row[] {
   let current: Row | null = null;
   let inGuards = false;
 
-  for (const raw of text.split('\n')) {
+  // Split on either line ending. Git checks this manifest out with CRLF on Windows, and JavaScript's
+  // `.` does not match `\r` — it is a line terminator — so `/^\s*-\s+(.+)$/` matched nothing and every
+  // route parsed as having no guard at all. The gate was written against a freshly generated LF file
+  // and only broke once the committed copy came back through git, which is exactly the way a gate
+  // ends up protecting nothing. It failed closed rather than open, which is the one mercy here.
+  for (const raw of text.split(/\r?\n/)) {
     if (raw.trimStart().startsWith('#') || raw.trim() === '') continue;
 
     const path = raw.match(/^\s*-\s+path:\s+(\S+)/);
@@ -102,7 +107,7 @@ describe('every route that writes has an ownership check or a written reason', (
    * The count of mutating routes with neither a per-record check nor a written reason, as of the day
    * this gate was added. It may fall and must never rise.
    *
-   * This is a review queue, not a list of 48 bugs. Most of these are role-gated routes acting on
+   * This is a review queue, not a list of 47 bugs. Most of these are role-gated routes acting on
    * records that have no owner column to check — an ICP version, a pool item before conversion, a
    * research run — and each needs a human to look once and write down which. That judgement is the
    * one thing a scan cannot produce, and a reason invented to clear a number would defeat the point:
@@ -110,7 +115,7 @@ describe('every route that writes has an ownership check or a written reason', (
    *
    * Lower it when you reason one away. That is the burn-down.
    */
-  const UNEXPLAINED_BUDGET = 48;
+  const UNEXPLAINED_BUDGET = 47;
 
   it('does not let the number of unexplained mutating routes grow', () => {
     const unexplained = mutating.filter((r) => r.guards.length === 0 && !r.reason);
