@@ -462,9 +462,55 @@ export default function LeadsPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [sortedLeads, focusedLeadIndex]);
 
-  const handleBatchAiEnrich = useCallback(() => {
+  /**
+   * Enrich the selected leads, and report what actually happened.
+   *
+   * This used to be the toast and nothing else — no fetch, no dispatch, no side effect at all:
+   *
+   *     showToast(`Initiated AI intelligence dossier for ${n} prospects`, 'success');
+   *
+   * There is no batch-enrich endpoint anywhere in the codebase, so the button could not have worked
+   * even in principle. It was handed to `FloatingBulkBar` unconditionally, so every role saw it, and
+   * it claimed success for work that was never attempted — the one kind of failure a user has no way
+   * to detect.
+   *
+   * It now fans out to the single-lead endpoint using the `Promise.allSettled` + `summarizeBulk`
+   * pattern that `applyBulkAction` above already uses, so the toast carries real counts. Research is
+   * the slowest thing this product does, so the requests go out in small batches: 40 selected leads
+   * must not open 40 simultaneous provider calls.
+   */
+  const handleBatchAiEnrich = useCallback(async () => {
     if (selectedLeads.size === 0) return;
-    showToast(`🤖 Initiated AI intelligence dossier for ${selectedLeads.size} prospects`, 'success');
+    const ids = Array.from(selectedLeads);
+    setBulkApplying(true);
+    try {
+      showToast(`Researching ${ids.length} prospect${ids.length === 1 ? '' : 's'}…`, 'info');
+
+      const BATCH_SIZE = 5;
+      const results: PromiseSettledResult<Response>[] = [];
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        const slice = ids.slice(i, i + BATCH_SIZE);
+        results.push(
+          ...(await Promise.allSettled(
+            slice.map((leadId) =>
+              fetch('/api/ai/enrich-lead', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ leadId }),
+              })
+            )
+          ))
+        );
+      }
+
+      // `enrich-lead` answers 503 when no research provider is configured, and `summarizeBulk`
+      // counts that as a failure — correctly. "Research did not run" is the honest outcome, and it
+      // is what an operator needs to see instead of a green toast.
+      const outcome = summarizeBulk('Researched', 'prospect', results);
+      showToast(outcome.message, outcome.tone);
+    } finally {
+      setBulkApplying(false);
+    }
   }, [selectedLeads, showToast]);
 
   // Render helper, not a component — defining components during render trips
