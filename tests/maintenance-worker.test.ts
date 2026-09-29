@@ -5,6 +5,10 @@ const mockTaskUpdate = vi.fn();
 const mockTaskUpdateMany = vi.fn();
 const mockLeadFindUnique = vi.fn();
 const mockUserFindUnique = vi.fn();
+// `repairOrphanTasks` now asks "which of these ids still exist" with one query per table
+// instead of two per task, so the existence check is a findMany.
+const mockLeadFindMany = vi.fn();
+const mockUserFindMany = vi.fn();
 const mockOutboundFindMany = vi.fn();
 const mockOutboundUpdate = vi.fn();
 const mockJobRunFindMany = vi.fn();
@@ -22,9 +26,11 @@ vi.mock('@/lib/prisma', () => ({
     },
     lead: {
       findUnique: (...args: unknown[]) => mockLeadFindUnique(...args),
+      findMany: (...args: unknown[]) => mockLeadFindMany(...args),
     },
     user: {
       findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
+      findMany: (...args: unknown[]) => mockUserFindMany(...args),
     },
     outboundMessage: {
       findMany: (...args: unknown[]) => mockOutboundFindMany(...args),
@@ -66,8 +72,10 @@ describe('handleRepair — orphan-tasks', () => {
 
   it('marks pending tasks as skipped when their lead is missing', async () => {
     mockTaskFindMany.mockResolvedValue([{ id: 'task-1', leadId: 'lead-1', userId: 'user-1' }]);
-    mockLeadFindUnique.mockResolvedValue(null);
-    mockUserFindUnique.mockResolvedValue({ id: 'user-1' });
+    // `repairOrphanTasks` asks "which of these ids still exist" with one query per table now,
+    // instead of two findUnique calls per task, so an absent row is an absent set member.
+    mockLeadFindMany.mockResolvedValue([]);
+    mockUserFindMany.mockResolvedValue([{ id: 'user-1' }]);
 
     const result = await handleRepair({ types: ['orphan-tasks'] });
 
@@ -80,8 +88,8 @@ describe('handleRepair — orphan-tasks', () => {
 
   it('marks pending tasks as skipped when their user is missing', async () => {
     mockTaskFindMany.mockResolvedValue([{ id: 'task-1', leadId: 'lead-1', userId: 'user-1' }]);
-    mockLeadFindUnique.mockResolvedValue({ id: 'lead-1' });
-    mockUserFindUnique.mockResolvedValue(null);
+    mockLeadFindMany.mockResolvedValue([{ id: 'lead-1' }]);
+    mockUserFindMany.mockResolvedValue([]);
 
     const result = await handleRepair({ types: ['orphan-tasks'] });
 
@@ -94,8 +102,8 @@ describe('handleRepair — orphan-tasks', () => {
 
   it('skips tasks where both lead and user exist', async () => {
     mockTaskFindMany.mockResolvedValue([{ id: 'task-1', leadId: 'lead-1', userId: 'user-1' }]);
-    mockLeadFindUnique.mockResolvedValue({ id: 'lead-1' });
-    mockUserFindUnique.mockResolvedValue({ id: 'user-1' });
+    mockLeadFindMany.mockResolvedValue([{ id: 'lead-1' }]);
+    mockUserFindMany.mockResolvedValue([{ id: 'user-1' }]);
 
     const result = await handleRepair({ types: ['orphan-tasks'] });
 
