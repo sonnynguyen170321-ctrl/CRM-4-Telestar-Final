@@ -51,8 +51,28 @@ read_env() {
   grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d '\r'
 }
 
+# Strip the query parameters Prisma understands and libpq does not.
+#
+# `connection_limit` and `pool_timeout` size Prisma's client-side pool. They are not connection
+# parameters, and libpq refuses any URI keyword it does not recognise:
+#
+#     pg_dump: error: invalid URI query parameter: "connection_limit"
+#
+# That aborted the pre-deploy backup, which then correctly refused to deploy — so adding a pool
+# setting the application needs made the box undeployable. Real libpq parameters such as `sslmode`
+# and `connect_timeout` are left alone.
+libpq_url() {
+  printf '%s' "$1" | sed -E '
+    s/([?&])(connection_limit|pool_timeout|pgbouncer|socket_timeout)=[^&]*/\1/g
+    s/&&+/\&/g
+    s/\?&/?/
+    s/[?&]+$//
+  '
+}
+
 DATABASE_URL="${DATABASE_URL:-$(read_env DATABASE_URL)}"
 [ -n "$DATABASE_URL" ] || { echo "DATABASE_URL missing in $ENV_FILE" >&2; exit 1; }
+DATABASE_URL="$(libpq_url "$DATABASE_URL")"
 
 PROJECT="${COMPOSE_PROJECT_NAME:-$(read_env COMPOSE_PROJECT_NAME)}"
 PROJECT="${PROJECT:-crm}"
