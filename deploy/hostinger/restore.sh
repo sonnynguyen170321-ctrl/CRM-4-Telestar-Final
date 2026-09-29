@@ -54,8 +54,21 @@ done
 read_env() {
   grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d '\r'
 }
+# Prisma-only query parameters, which libpq rejects outright — see the note in backup.sh. This
+# script hands the URL to `pg_restore` and `psql` and derives its admin DSN from it, so without the
+# same treatment a restore would start failing the moment the application is given a pool size.
+libpq_url() {
+  printf '%s' "$1" | sed -E '
+    s/([?&])(connection_limit|pool_timeout|pgbouncer|socket_timeout)=[^&]*/\1/g
+    s/&&+/\&/g
+    s/\?&/?/
+    s/[?&]+$//
+  '
+}
+
 DATABASE_URL="${DATABASE_URL:-$(read_env DATABASE_URL)}"
 [ -n "$DATABASE_URL" ] || { echo "DATABASE_URL missing in $ENV_FILE" >&2; exit 1; }
+DATABASE_URL="$(libpq_url "$DATABASE_URL")"
 
 command -v node >/dev/null || { echo "node is required (it parses the DSN)" >&2; exit 1; }
 eval "$(node -e '

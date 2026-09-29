@@ -49,8 +49,27 @@ done
 read_env() {
   grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d '\r'
 }
+# Prisma-only query parameters, which libpq rejects outright — see the note in backup.sh. Both DSNs
+# here reach `pg_dump` and `psql`, and the source one is typed by a human, so both are cleaned.
+libpq_url() {
+  printf '%s' "$1" | sed -E '
+    s/([?&])(connection_limit|pool_timeout|pgbouncer|socket_timeout)=[^&]*/\1/g
+    s/&&+/\&/g
+    s/\?&/?/
+    s/[?&]+$//
+  '
+}
+
 TARGET_DSN="${DATABASE_URL:-$(read_env DATABASE_URL)}"
 [ -n "$TARGET_DSN" ] || { echo "DATABASE_URL missing in $ENV_FILE" >&2; exit 1; }
+TARGET_DSN="$(libpq_url "$TARGET_DSN")"
+# `--from` is typed by a human, who may well paste an application URL complete with pool settings.
+# Written as an `if` rather than `[ -n … ] && …` because this script runs under `set -e`, where a
+# bare AND-OR list whose test fails is only exempt from aborting by a rule nobody should have to
+# remember while reading a restore script.
+if [ -n "$SOURCE_DSN" ]; then
+  SOURCE_DSN="$(libpq_url "$SOURCE_DSN")"
+fi
 
 PROJECT="${COMPOSE_PROJECT_NAME:-$(read_env COMPOSE_PROJECT_NAME)}"; PROJECT="${PROJECT:-crm}"
 NETWORK="${CRM_NETWORK:-${PROJECT}_crm_internal}"
