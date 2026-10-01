@@ -15,7 +15,9 @@
     "workers/index.ts",
     "workers/maintenance.ts",
     "workers/notification.ts",
+    "workers/research.ts",
     "workers/sequence.ts",
+    "workers/serverOnlyResolution.ts",
     "workers/sync.ts"
   ],
   "queues": [
@@ -23,6 +25,7 @@
     "email",
     "import",
     "maintenance",
+    "research",
     "sequence",
     "sync"
   ],
@@ -39,6 +42,7 @@
     "maintenance.healthcheck",
     "maintenance.repair",
     "reminder.due",
+    "research.discover",
     "sequence.advance",
     "sequence.enroll",
     "sequence.execute-task",

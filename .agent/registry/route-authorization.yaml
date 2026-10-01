@@ -13,7 +13,7 @@
 # `tests/route-authorization.test.ts` fails when a mutating route has neither a guard nor a
 # hand-written `reason`. Reasons survive regeneration; they are the only part a human owns.
 #
-# routes: 186   mutating: 117   mutating with neither guard nor reason: 47
+# routes: 187   mutating: 118   mutating with neither guard nor reason: 47
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -534,6 +534,10 @@ routes:
     methods: [POST]
     guards: []
     reason: requireResearchRunner, and a research run is tenant-level prospecting work rather than a personal record. UNRESOLVED: whether one runner should be able to execute another runner's queued run is a product question, not a leak — flagged rather than silently allowed.
+  - path: app/api/research/runs/[id]/pause/route.ts
+    methods: [POST]
+    guards: []
+    reason: requireResearchRunner, the same gate as execute — pausing is the inverse of starting the tenant-level run, and the write is scoped by the session tenant. It stops spending; it cannot start any or reach a record outside the run.
   - path: app/api/research/runs/route.ts
     methods: [GET, POST]
     guards: []

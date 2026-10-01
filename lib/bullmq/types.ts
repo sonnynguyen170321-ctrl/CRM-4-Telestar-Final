@@ -6,6 +6,8 @@ export const QUEUES = {
   MAINTENANCE: 'maintenance',
   /** Agent work (Revenue AI Phase 6b). Priorities are SLA-derived — see lib/agent/priorities.ts. */
   AGENT: 'agent',
+  /** Research discovery runs. Own queue so a 1,000-query run never sits in front of a send. */
+  RESEARCH: 'research',
 } as const;
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
@@ -29,6 +31,17 @@ export enum JobType {
   MAINTENANCE_HEALTHCHECK = 'maintenance.healthcheck',
   MAINTENANCE_REPAIR = 'maintenance.repair',
   AGENT_EXECUTE_WORK_ORDER = 'agent.execute-work-order',
+  RESEARCH_DISCOVER = 'research.discover',
+}
+
+/**
+ * One slice of a research run. `startToken` is minted per claim, so every start, resume and
+ * continuation is its own job — the de-duplication that matters (one runner per run) is the
+ * status claim in `lib/research/runner.ts`, not the payload hash.
+ */
+export interface ResearchDiscoverPayload {
+  runId: string;
+  startToken: string;
 }
 
 export interface SequenceEnrollPayload {
@@ -238,10 +251,12 @@ export type JobPayload = {
   [JobType.MAINTENANCE_HEALTHCHECK]: MaintenanceHealthcheckPayload;
   [JobType.MAINTENANCE_REPAIR]: MaintenanceRepairPayload;
   [JobType.AGENT_EXECUTE_WORK_ORDER]: AgentExecuteWorkOrderPayload;
+  [JobType.RESEARCH_DISCOVER]: ResearchDiscoverPayload;
 };
 
 export function jobQueue(jobType: JobType): QueueName {
   if (jobType.startsWith('agent.')) return QUEUES.AGENT;
+  if (jobType.startsWith('research.')) return QUEUES.RESEARCH;
   if (jobType.startsWith('sequence.')) return QUEUES.SEQUENCE;
   if (jobType === JobType.EMAIL_SEND) return QUEUES.EMAIL;
   if (jobType.startsWith('email.')) return QUEUES.SYNC;

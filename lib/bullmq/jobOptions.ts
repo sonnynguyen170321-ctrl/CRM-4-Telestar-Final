@@ -23,6 +23,14 @@ export const DEFAULT_JOB_OPTIONS: JobsOptions = {
 };
 
 export const JOB_OPTIONS: Partial<Record<JobType, JobsOptions>> = {
+  // One attempt. A research slice that throws marks its run `failed` with the reason, and the
+  // operator resumes from the cursor; an automatic retry would re-pay for the query in flight
+  // and race a Resume click for the same run.
+  [JobType.RESEARCH_DISCOVER]: {
+    attempts: 1,
+    removeOnComplete: { age: 86400, count: 200 },
+    removeOnFail: { age: 86400 * 7, count: 200 },
+  },
   [JobType.EMAIL_SEND]: {
     attempts: 5,
     backoff: { type: 'exponential', delay: 5000 },

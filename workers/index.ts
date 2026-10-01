@@ -1,3 +1,5 @@
+// Must stay first — see the file. Every later import may reach a `server-only` module.
+import './serverOnlyResolution';
 import { Worker } from 'bullmq';
 import { getConnection, closeConnection } from '@/lib/bullmq/connection';
 import { readReleaseInfo, describeRelease } from '@/lib/release';
@@ -10,6 +12,7 @@ import { createMaintenanceWorker } from './maintenance';
 import { createSyncWorker } from './sync';
 import { createImportWorker } from './import';
 import { createAgentWorker } from './agent';
+import { createResearchWorker } from './research';
 
 const workers: Worker[] = [];
 
@@ -30,6 +33,7 @@ function registerWorkers(): void {
     { name: 'sync', worker: createSyncWorker() },
     { name: 'import', worker: createImportWorker() },
     { name: 'agent', worker: createAgentWorker() },
+    { name: 'research', worker: createResearchWorker() },
   ];
 
   for (const { name, worker } of list) {

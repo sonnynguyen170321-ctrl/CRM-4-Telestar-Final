@@ -3693,6 +3693,8 @@ enum ResearchRunKind {
 enum ResearchRunStatus {
   queued
   running
+  /// Stopped between batches at an operator's request; resumable from `queryCursor`.
+  paused
   succeeded
   failed
 }
@@ -3746,6 +3748,9 @@ model ResearchRun {
 
   discoveredCount Int       @default(0)
   duplicateCount  Int       @default(0)
+  /// Set by Pause, read by the worker between batches. The worker owns the move to `paused`, so a
+  /// batch in flight always finishes and the cursor is never left mid-query.
+  pauseRequestedAt DateTime?
   errorMessage    String?
   startedAt       DateTime?
   finishedAt      DateTime?

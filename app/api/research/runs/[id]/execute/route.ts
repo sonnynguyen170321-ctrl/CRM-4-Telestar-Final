@@ -1,17 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 import { requireResearchRunner } from '@/app/api/research/guard';
 import { requireTenantId } from '@/lib/api/tenant';
-import { DISCOVERY_QUERY_BATCH, runDiscoveryPass } from '@/lib/research/discovery';
+import { ResearchRunnerUnavailableError, startResearchRun } from '@/lib/research/runner';
 
-// Runs one bounded pass and reports where the run got to.
-//
-// Bounded on purpose: a 1000-query run inside one request would hold a connection for minutes and die
-// to any proxy timeout. The response carries `finished`, so the caller keeps calling until it is true
-// — the same shape a queue consumer would have, without adding a queue for something no automation
-// enqueues yet.
-
-export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+/**
+ * Start or resume a research run on the background worker.
+ *
+ * This used to run one ten-query pass inside the request and leave the browser to call again until
+ * `finished` — which made the tab the runner. The run now belongs to the `research` queue: this
+ * claims it and returns 202, and the page only watches. Leaving the page no longer stops anything.
+ *
+ * Calling it again while the run is going is harmless: the claim in `startResearchRun` matches only
+ * a run nobody is working, so a second click, a second tab and a retried request all get
+ * `already_running` and queue nothing.
+ */
+export async function POST(_req: Request, context: { params: Promise<{ id: string }> }) {
   const user = await requireResearchRunner();
   if (user instanceof NextResponse) return user;
 
@@ -19,19 +23,27 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   if (tenantId instanceof NextResponse) return tenantId;
 
   const { id } = await context.params;
-  const requested = Number(new URL(req.url).searchParams.get('maxQueries') ?? DISCOVERY_QUERY_BATCH);
 
   try {
-    const result = await runDiscoveryPass({
-      tenantId,
-      runId: id,
-      maxQueries: Number.isFinite(requested) ? requested : DISCOVERY_QUERY_BATCH,
-    });
-    return NextResponse.json(result);
+    const result = await startResearchRun({ tenantId, runId: id });
+    switch (result.status) {
+      case 'not_found':
+        return NextResponse.json({ error: 'Research run not found' }, { status: 404 });
+      case 'already_finished':
+        return NextResponse.json(
+          { error: `This run has already ${result.runStatus === 'failed' ? 'failed' : 'finished'}.` , status: result.runStatus },
+          { status: 409 }
+        );
+      case 'already_running':
+        return NextResponse.json({ status: 'running', alreadyRunning: true }, { status: 202 });
+      case 'started':
+        return NextResponse.json({ status: 'running', alreadyRunning: false }, { status: 202 });
+    }
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Discovery pass failed' },
-      { status: 400 }
-    );
+    if (error instanceof ResearchRunnerUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+    console.error('[api/research/runs/execute] failed to start run', { runId: id, error });
+    return NextResponse.json({ error: 'Could not start the research run' }, { status: 500 });
   }
 }

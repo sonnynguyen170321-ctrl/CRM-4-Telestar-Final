@@ -98,7 +98,10 @@ describe('phase 3 research workspace contract', () => {
     expect(workspace).toContain('Dismissed');
     expect(workspace).toContain('Promote selected');
     expect(workspace).toContain('Pause after this batch');
-    expect(workspace).toContain('queriesRun === 0');
+    // The stall guard moved to the worker with the run loop: a batch that runs no query fails the
+    // run there, and the page reports the row's `stalled` flag instead of deciding it.
+    expect(source('lib/research/runner.ts')).toContain('pass.queriesRun === 0');
+    expect(workspace).toContain('run.stalled');
   });
 
   it('requires a real preview and supports all four builder modes', () => {
