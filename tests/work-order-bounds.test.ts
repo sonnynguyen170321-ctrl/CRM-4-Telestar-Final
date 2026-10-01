@@ -169,7 +169,11 @@ describe('work order bounds cannot widen agent capability policy', () => {
     // source so a capability, role or type added later widens the matrix instead of silently
     // leaving a hole in it.
     expect(ALL_WORK_ORDER_TYPES).toHaveLength(9);
-    expect(ALL_CAPABILITIES).toHaveLength(16);
+    // 18 since `task_update` and `task_complete` were split out of `tasks`, so the chat assistant
+    // can change existing tasks without `tasks` — which only creates them — having to carry the
+    // risk of completion. Raising this number is the ratchet working: it makes whoever adds a
+    // capability look at the matrix below rather than leave a hole in it.
+    expect(ALL_CAPABILITIES).toHaveLength(18);
     expect([...ALL_ROLES].sort()).toEqual(
       ['director', 'floor_manager', 'leadgen', 'leadgen_manager', 'sdr', 'team_lead'].sort()
     );

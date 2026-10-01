@@ -4,6 +4,8 @@ import { capabilityForTool } from '@/lib/agent/toolCapabilities';
 import { WRITE_CAPABILITIES } from '@/lib/agent/capabilities';
 import type { SessionUser } from '@/lib/auth';
 import { createTask as serviceCreateTask, getTasks } from '@/lib/tasks/service';
+import { applyBulkTaskAction } from '@/lib/tasks/bulkAction';
+import { bulkTaskActionSchema } from '@/lib/validation/schemas';
 import { TaskType, TaskPriority } from '@prisma/client';
 import { RetryableResearchError } from '@/lib/research/error';
 
@@ -127,7 +129,9 @@ export const AI_TOOLS: ToolDefinition[] = [
     function: {
       name: 'get_my_tasks',
       description:
-        "Fetch the current SDR's tasks from the CRM. Use when the SDR asks about their pending tasks, what they have left today, or what's overdue.",
+        "Fetch the current SDR's tasks from the CRM. Use when the SDR asks about their pending tasks, " +
+        "what they have left today, or what's overdue. Every line begins with the task id in square " +
+        'brackets — pass those exact ids to update_tasks or complete_tasks. Never invent a task id.',
       parameters: {
         type: 'object',
         properties: {
@@ -142,6 +146,85 @@ export const AI_TOOLS: ToolDefinition[] = [
           },
         },
         required: ['filter'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_tasks',
+      description:
+        'Change tasks that already exist: skip them, move their due date, hand them to another rep, ' +
+        "or attach a note to the task's lead. Get the ids from get_my_tasks first — every line there " +
+        'begins with the id in square brackets, and an id you did not read there does not exist. This ' +
+        'tool does not mark anything done; use complete_tasks for that. Every id is checked on its own, ' +
+        'so ids belonging to another rep come back refused while the rest still apply — report what ' +
+        'came back instead of assuming the whole list went through.',
+      parameters: {
+        type: 'object',
+        properties: {
+          taskIds: {
+            type: 'array',
+            description: 'Task ids, exactly as get_my_tasks printed them. At most 50 per call.',
+            items: { type: 'string' },
+          },
+          action: {
+            type: 'string',
+            description:
+              "What to do with them. 'skip' closes a task without doing it, 'reschedule' moves its due " +
+              "date, 'reassign' hands it to another user, 'note' writes a note on the task's lead and " +
+              'leaves the task open.',
+            enum: ['skip', 'reschedule', 'reassign', 'note'],
+          },
+          dueDate: {
+            type: 'string',
+            description: 'New due date in ISO 8601 format. Required to reschedule.',
+          },
+          userId: {
+            type: 'string',
+            description:
+              'User id to reassign to. Required to reassign, and must be someone the SDR manages.',
+          },
+          note: {
+            type: 'string',
+            description: 'Note text. Required for the note action, optional otherwise.',
+          },
+        },
+        required: ['taskIds', 'action'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'complete_tasks',
+      description:
+        "Mark tasks done. Use it for the rep's own manual reminders and one-off touches. Tasks that are " +
+        'steps in a live sequence are refused on purpose — completing one advances the cadence and can ' +
+        'send mail, so a person has to close it from the task list; when that comes back, say so plainly ' +
+        'rather than implying the task closed. Phone, LinkedIn and WhatsApp tasks need an outcome, and ' +
+        'one outcome covers the whole call, so only group tasks that genuinely share it. Ids come from ' +
+        'get_my_tasks.',
+      parameters: {
+        type: 'object',
+        properties: {
+          taskIds: {
+            type: 'array',
+            description: 'Task ids, exactly as get_my_tasks printed them. At most 50 per call.',
+            items: { type: 'string' },
+          },
+          outcome: {
+            type: 'string',
+            description:
+              'What happened, for phone / LinkedIn / WhatsApp tasks (for example "connected", ' +
+              '"no answer", "left voicemail"). Ask the SDR rather than guessing.',
+          },
+          note: {
+            type: 'string',
+            description: 'Optional note recorded against the completed tasks.',
+          },
+        },
+        required: ['taskIds'],
       },
     },
   },
@@ -340,6 +423,35 @@ function stringArg(value: unknown): string | undefined {
 }
 
 /**
+ * A list of strings out of a tool argument.
+ *
+ * Models do not reliably send an array where the schema asks for one — a single id arrives as a
+ * bare string, and several sometimes arrive as `"a, b"` or as a JSON array in a string. Each of
+ * those is unambiguous, so accepting them is not guessing; refusing them would only teach the
+ * model to retry the same call. Anything that is not a string is dropped rather than coerced,
+ * because a number or object here means the call was malformed and a task id is never either.
+ */
+function stringArrayArg(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((v): v is string => typeof v === 'string').map((v) => v.trim()).filter(Boolean);
+  }
+  if (typeof value !== 'string') return [];
+  const raw = value.trim();
+  if (raw.startsWith('[')) {
+    try {
+      return stringArrayArg(JSON.parse(raw));
+    } catch {
+      // Fall through to comma splitting — a truncated JSON array still names ids.
+    }
+  }
+  return raw
+    .replace(/^\[|\]$/g, '')
+    .split(',')
+    .map((part) => part.trim().replace(/^["']|["']$/g, ''))
+    .filter(Boolean);
+}
+
+/**
  * Does a human's approval already cover this call?
  *
  * `DENY` is never cleared — an approval cannot widen authority, only satisfy a requirement for it.
@@ -445,6 +557,14 @@ export async function executeTool(
         context.sessionUser
       );
 
+    // The action is the model's to choose here, and an unrecognized one is rejected by the schema
+    // inside the handler rather than silently falling through to some default verb.
+    case 'update_tasks':
+      return runTaskBulkTool(args, context, stringArg(args.action));
+
+    case 'complete_tasks':
+      return runTaskBulkTool(args, context, 'complete');
+
     default:
       return `Unknown tool: ${toolName}`;
   }
@@ -520,14 +640,112 @@ async function getMyTasks(
 
     if (!tasks.length) return `No ${filter} tasks found.`;
 
+    /**
+     * Each line leads with the task id, because anything that mutates a task needs one.
+     *
+     * This formatter emitted type, title, lead and due date and never the id, so a model asked to
+     * act on a task had no way to name it. That creates the worst kind of failure: an id is a cuid,
+     * a model will happily invent a plausible-looking one, and the mutation tool would then answer
+     * "Not found" for a task the SDR is looking at on screen. The real id is what makes
+     * `update_tasks` and `complete_tasks` addressable at all.
+     *
+     * The id is visible to the SDR as well. That is acceptable — it is their own task — and the
+     * alternative, a hidden id map carried across turns, is state this runtime does not keep.
+     */
     return tasks
       .map(
         (t) =>
-          `• ${t.type.toUpperCase()} — ${t.title}${t.lead ? ` (${t.lead.firstName} ${t.lead.lastName})` : ''} — due ${new Date(t.dueDate).toLocaleString()}`
+          `• [${t.id}] ${t.type.toUpperCase()} — ${t.title}${t.lead ? ` (${t.lead.firstName} ${t.lead.lastName})` : ''} — due ${new Date(t.dueDate).toLocaleString()}`
       )
       .join('\n');
   } catch {
     return 'Could not fetch tasks.';
+  }
+}
+
+/**
+ * How many tasks the assistant may name in one call.
+ *
+ * Far below the route's 200, and the gap is the point: a person selecting 200 checkboxes has seen
+ * 200 rows, while a model producing 200 ids from one sentence has seen a sentence. Fifty is more
+ * than any real "clear my overdue list" and small enough that a hallucinated spray is capped.
+ */
+const AGENT_BULK_TASK_LIMIT = 50;
+
+const BULK_ACTION_PAST_TENSE: Record<string, string> = {
+  complete: 'completed',
+  skip: 'skipped',
+  reschedule: 'rescheduled',
+  reassign: 'reassigned',
+  note: 'given a note',
+};
+
+/**
+ * `update_tasks` and `complete_tasks`, which are the same call with a different verb.
+ *
+ * Both go through `applyBulkTaskAction` with `actor: 'agent'` — the same function the task list's
+ * bulk bar uses, so the per-task access checks, the pending compare-and-set, the outcome
+ * requirement and the cadence refusal are the ones already in production rather than a second set
+ * written for chat. `actor` is what makes the cadence gate fire; it is not derived from anything
+ * the model controls.
+ *
+ * `ctx.sessionUser` is required and never reconstructed from `ctx.userId`. A hand-built user object
+ * would have to invent a role and a tenant, and `canAccessUser` / `canAccessLead` believe what they
+ * are given, so inventing one is how an agent would quietly acquire a manager's reach.
+ */
+async function runTaskBulkTool(
+  args: Record<string, unknown>,
+  ctx: ToolContext,
+  action: string | undefined
+): Promise<string> {
+  if (!ctx.sessionUser) {
+    return 'Cannot change tasks without session user context. Nothing was changed.';
+  }
+
+  const taskIds = stringArrayArg(args.taskIds);
+  if (!taskIds.length) {
+    return 'No task ids were given, so nothing was changed. Call get_my_tasks first and use the ids it prints in square brackets.';
+  }
+  if (taskIds.length > AGENT_BULK_TASK_LIMIT) {
+    return `That names ${taskIds.length} tasks and the limit for one call is ${AGENT_BULK_TASK_LIMIT}. Nothing was changed — ask the SDR which ones they mean, or work through them in smaller batches.`;
+  }
+
+  const parsed = bulkTaskActionSchema.safeParse({
+    taskIds,
+    action,
+    dueDate: stringArg(args.dueDate),
+    userId: stringArg(args.userId),
+    note: stringArg(args.note),
+    outcome: stringArg(args.outcome),
+  });
+  if (!parsed.success) {
+    const why = parsed.error.issues.map((issue) => issue.message).join('; ');
+    return `Those arguments were rejected and nothing was changed: ${why}`;
+  }
+
+  try {
+    const result = await applyBulkTaskAction(ctx.sessionUser, parsed.data, 'agent');
+
+    // The reassignment target is not someone this SDR manages, and the call wrote nothing at all.
+    if (result.refusedTarget) {
+      return 'That user is not someone this SDR can hand work to, so nothing was changed.';
+    }
+
+    const verb = BULK_ACTION_PAST_TENSE[parsed.data.action] ?? 'changed';
+    const lines = [`${result.updated} task${result.updated === 1 ? '' : 's'} ${verb}.`];
+    if (result.failed.length) {
+      // Reported, never summarised away: a partial result that reads as a whole one is how the CRM
+      // ends up recording work nobody did.
+      lines.push(
+        `${result.failed.length} were not changed — ${result.failed
+          .map((f) => `${f.taskId}: ${f.reason}`)
+          .join('; ')}`
+      );
+    }
+    return lines.join(' ');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return `Could not change those tasks, and nothing was changed: ${message}`;
   }
 }
 

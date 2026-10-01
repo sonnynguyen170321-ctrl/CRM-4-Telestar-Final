@@ -19,6 +19,14 @@ export const TOOL_CAPABILITY: Record<string, AgentCapability> = {
   research_contact: 'research',
   create_task: 'tasks',
   get_my_tasks: 'research',
+  // Changing tasks that already exist. Two tools rather than one, because they do not carry the
+  // same risk and a single capability could not express the difference: `update_tasks` is skip /
+  // reschedule / reassign / note, none of which touch a cadence, while `complete_tasks` calls
+  // `advanceSequence` — the seam where a chat sentence can reach a prospect's inbox. The
+  // per-row refusal for cadence steps lives in `lib/tasks/bulkAction.ts`; this map only decides
+  // which policy row each tool consults.
+  update_tasks: 'task_update',
+  complete_tasks: 'task_complete',
   // Phase 8a. `prioritize_leads` and `evaluate_lead_quality` read and analyse, so they map to
   // `research`; `draft_sequence` produces words a human reads, so `sequence_draft`; only
   // `enroll_lead_in_sequence` reaches the prospect, and it maps to the capability the ceiling
