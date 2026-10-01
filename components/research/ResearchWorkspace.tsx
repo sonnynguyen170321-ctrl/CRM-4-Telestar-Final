@@ -43,7 +43,14 @@ type RunRow = {
   promotedCount: number;
   createdAt: string;
   errorMessage?: string | null;
+  /** Pause was pressed; the worker stops after the batch in flight. */
+  pauseRequested?: boolean;
+  /** `running`, but nobody has written to the run for minutes — the worker died. */
+  stalled?: boolean;
 };
+
+/** How often the page re-reads a run the worker is executing. The page watches; it never drives. */
+const RUN_POLL_MS = 4000;
 
 type CandidateRow = {
   id: string;
@@ -93,25 +100,15 @@ export default function ResearchWorkspace() {
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
   const [builderOpen, setBuilderOpen] = useState(false);
   const [drawerCandidateId, setDrawerCandidateId] = useState<string | null>(null);
-  const [busyRunId, setBusyRunId] = useState<string | null>(null);
-  const [pausedRunId, setPausedRunId] = useState<string | null>(null);
-  const [stalledRunId, setStalledRunId] = useState<string | null>(null);
+  // A Start / Pause request in flight, so the button cannot be pressed twice. The run itself is
+  // executed by the `research` worker; nothing on this page drives it any more.
+  const [controlBusyRunId, setControlBusyRunId] = useState<string | null>(null);
   const [promoting, setPromoting] = useState(false);
-  const pauseRequested = useRef(false);
-  // Whether this workspace is still on screen. The execute loop below is a plain async
-  // function started from a click, not an effect, so nothing cancelled it when the user
-  // navigated away: it kept POSTing /execute passes — each one spending search-provider
-  // budget — and calling setState on an unmounted component, with no button left to stop it.
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
+  // Last status seen per run, so a poll that finds a run settled can say so once.
+  const lastStatuses = useRef<Map<string, string>>(new Map());
 
-  const loadRuns = useCallback(async (): Promise<RunRow[]> => {
-    setRunsLoading(true);
+  const loadRuns = useCallback(async (options: { quiet?: boolean } = {}): Promise<RunRow[]> => {
+    if (!options.quiet) setRunsLoading(true);
     try {
       const response = await fetch('/api/research/runs');
       if (!response.ok) {
@@ -125,12 +122,24 @@ export default function ResearchWorkspace() {
       setSelectedRunId((current) =>
         current && nextRuns.some((run) => run.id === current) ? current : nextRuns[0]?.id ?? null,
       );
+
+      // Announce transitions out of `running` that happened while the page was watching. A run that
+      // settled while the SDR was elsewhere is simply shown in its new state on the next visit.
+      for (const run of nextRuns) {
+        const previous = lastStatuses.current.get(run.id);
+        if (previous === 'running' && run.status !== 'running') {
+          if (run.status === 'succeeded') showToast('Research run finished.', 'success');
+          else if (run.status === 'paused') showToast('Research run paused between batches.', 'info');
+          else if (run.status === 'failed') showToast(run.errorMessage || 'Research run failed.', 'error');
+        }
+        lastStatuses.current.set(run.id, run.status);
+      }
       return nextRuns;
     } catch {
-      showToast('Network error while loading research runs', 'error');
+      if (!options.quiet) showToast('Network error while loading research runs', 'error');
       return [];
     } finally {
-      setRunsLoading(false);
+      if (!options.quiet) setRunsLoading(false);
     }
   }, [showToast]);
 
@@ -160,8 +169,8 @@ export default function ResearchWorkspace() {
   }, [showToast]);
 
   const loadCandidates = useCallback(
-    async (runId: string) => {
-      setCandidatesLoading(true);
+    async (runId: string, options: { quiet?: boolean } = {}) => {
+      if (!options.quiet) setCandidatesLoading(true);
       try {
         const params = new URLSearchParams({ runId, pageSize: '200' });
         const response = await fetch(`/api/research/candidates?${params}`);
@@ -170,13 +179,20 @@ export default function ResearchWorkspace() {
           return;
         }
         const data = await response.json();
-        setCandidates(data.items ?? []);
+        const items: CandidateRow[] = data.items ?? [];
+        setCandidates(items);
         setCandidateCounts(data.counts ?? {});
-        setSelectedCandidates(new Set());
+        // A background refresh must not throw away what the SDR has ticked; it only drops rows that
+        // are gone. A deliberate reload starts clean, as it always did.
+        setSelectedCandidates((current) =>
+          options.quiet
+            ? new Set(items.filter((item) => current.has(item.id)).map((item) => item.id))
+            : new Set(),
+        );
       } catch {
-        showToast('Network error while loading candidates', 'error');
+        if (!options.quiet) showToast('Network error while loading candidates', 'error');
       } finally {
-        setCandidatesLoading(false);
+        if (!options.quiet) setCandidatesLoading(false);
       }
     },
     [showToast],
@@ -203,6 +219,18 @@ export default function ResearchWorkspace() {
     [runs, selectedRunId],
   );
 
+  // Watch while anything is running. Stops by itself once every run has settled.
+  const anyRunActive = runs.some((run) => run.status === 'running' && !run.stalled);
+  const selectedRunActive = selectedRun?.status === 'running' && !selectedRun.stalled;
+  useEffect(() => {
+    if (!anyRunActive) return;
+    const timer = window.setInterval(() => {
+      void loadRuns({ quiet: true });
+      if (selectedRunActive && selectedRunId) void loadCandidates(selectedRunId, { quiet: true });
+    }, RUN_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [anyRunActive, loadCandidates, loadRuns, selectedRunActive, selectedRunId]);
+
   const visibleCandidates = useMemo(
     () =>
       candidates.filter((candidate) => {
@@ -227,49 +255,45 @@ export default function ResearchWorkspace() {
     all: Object.values(candidateCounts).reduce((sum, count) => sum + count, 0),
   };
 
-  async function executeRun(runId: string) {
-    pauseRequested.current = false;
-    setBusyRunId(runId);
-    setPausedRunId(null);
-    setStalledRunId(null);
+  async function startRun(runId: string) {
+    setControlBusyRunId(runId);
     try {
-      for (;;) {
-        // Checked before every pass, so leaving the page ends the run at the next batch boundary
-        // — the same boundary Pause uses — rather than after however many passes remain.
-        if (!mounted.current) return;
-        const response = await fetch(`/api/research/runs/${runId}/execute`, { method: 'POST' });
-        if (!mounted.current) return;
-        if (!response.ok) {
-          showToast(await readApiError(response, 'Discovery pass failed'), 'error');
-          return;
-        }
-        const pass = await response.json();
-        await Promise.all([loadRuns(), loadCandidates(runId)]);
-        if (!mounted.current) return;
-        if (pass.finished) {
-          showToast('Research run finished.', 'success');
-          return;
-        }
-        if (pass.queriesRun === 0) {
-          setStalledRunId(runId);
-          showToast('The run stopped making progress. Check provider readiness and resume.', 'error');
-          return;
-        }
-        if (pauseRequested.current) {
-          setPausedRunId(runId);
-          showToast('Research run paused between query batches.', 'info');
-          return;
-        }
+      const response = await fetch(`/api/research/runs/${runId}/execute`, { method: 'POST' });
+      if (!response.ok) {
+        showToast(await readApiError(response, 'Could not start the research run'), 'error');
+        return;
       }
+      const data = await response.json();
+      // Recorded before the reload, so the poll that later sees the run settle announces it.
+      lastStatuses.current.set(runId, 'running');
+      showToast(
+        data.alreadyRunning
+          ? 'This run is already running.'
+          : 'Research is running in the background — you can leave this page.',
+        'info',
+      );
+      await loadRuns({ quiet: true });
     } catch {
-      if (mounted.current) showToast('Network error during discovery', 'error');
+      showToast('Network error while starting the research run', 'error');
     } finally {
-      if (mounted.current) setBusyRunId(null);
+      setControlBusyRunId(null);
     }
   }
 
-  function pauseRun() {
-    pauseRequested.current = true;
+  async function pauseRun(runId: string) {
+    setControlBusyRunId(runId);
+    try {
+      const response = await fetch(`/api/research/runs/${runId}/pause`, { method: 'POST' });
+      if (!response.ok) {
+        showToast(await readApiError(response, 'Could not pause the research run'), 'error');
+        return;
+      }
+      await loadRuns({ quiet: true });
+    } catch {
+      showToast('Network error while pausing the research run', 'error');
+    } finally {
+      setControlBusyRunId(null);
+    }
   }
 
   function requestPromotion(ids: string[]) {
@@ -393,37 +417,38 @@ export default function ResearchWorkspace() {
                 <CockpitMetric label="Already known" value={String(selectedRun?.duplicateCount ?? 0)} icon={CheckCircle2} />
               </div>
 
-              {selectedRun && selectedRun.queryCursor < selectedRun.totalQueries && (
+              {selectedRun && (selectedRun.queryCursor < selectedRun.totalQueries || selectedRun.status === 'running') && (
                 <div className="mt-4 border-t border-card-border pt-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="type-meta font-semibold text-text-primary">
-                        {stalledRunId === selectedRun.id
-                          ? 'Run needs attention'
-                          : pausedRunId === selectedRun.id
-                            ? 'Paused safely between batches'
-                            : busyRunId === selectedRun.id
-                              ? 'Searching in bounded batches'
-                              : 'Ready to continue'}
+                        {runStateLabel(selectedRun)}
                       </p>
                       <p className="mt-1 type-meta text-text-muted">
-                        Progress is saved after every query. Pause or resume without starting over.
+                        {selectedRunActive
+                          ? 'Runs on the server — leave this page and come back; progress keeps going.'
+                          : 'Progress is saved after every query. Pause or resume without starting over.'}
                       </p>
                     </div>
-                    {busyRunId === selectedRun.id ? (
-                      <button type="button" className={actionButton} onClick={pauseRun}>
+                    {selectedRunActive ? (
+                      <button
+                        type="button"
+                        className={actionButton}
+                        disabled={selectedRun.pauseRequested || controlBusyRunId === selectedRun.id}
+                        onClick={() => pauseRun(selectedRun.id)}
+                      >
                         <CirclePause className="h-4 w-4" aria-hidden="true" />
-                        Pause after this batch
+                        {selectedRun.pauseRequested ? 'Pausing after this batch…' : 'Pause after this batch'}
                       </button>
                     ) : (
                       <button
                         type="button"
                         className={primaryButton}
-                        disabled={!providerStatus.ready}
-                        onClick={() => executeRun(selectedRun.id)}
+                        disabled={!providerStatus.ready || controlBusyRunId === selectedRun.id}
+                        onClick={() => startRun(selectedRun.id)}
                       >
                         <CirclePlay className="h-4 w-4" aria-hidden="true" />
-                        {pausedRunId === selectedRun.id ? 'Resume run' : 'Run research'}
+                        {selectedRun.status === 'queued' ? 'Run research' : 'Resume run'}
                       </button>
                     )}
                   </div>
@@ -764,4 +789,17 @@ function FitRing({ score }: { score: number | null }) {
       </span>
     </div>
   );
+}
+
+/** What the run's own row says it is doing — never what this page last asked it to do. */
+function runStateLabel(run: RunRow): string {
+  if (run.status === 'running') {
+    if (run.stalled) return 'Run needs attention — the worker stopped. Resume to continue.';
+    if (run.pauseRequested) return 'Pausing after the batch in flight';
+    return 'Running in the background';
+  }
+  if (run.status === 'paused') return 'Paused safely between batches';
+  if (run.status === 'failed') return 'Run needs attention';
+  if (run.status === 'queued') return 'Ready to start';
+  return 'Ready to continue';
 }

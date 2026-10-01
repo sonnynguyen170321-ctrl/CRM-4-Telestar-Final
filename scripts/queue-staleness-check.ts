@@ -19,6 +19,7 @@ import { createAdminClient } from '@/lib/db/adminClient.mjs';
 import { findStaleness, formatStaleness, type StalenessPolicy } from '@/lib/ops/queueStaleness';
 import {
   agentQueue,
+  researchQueue,
   closeAllQueues,
   emailQueue,
   importQueue,
@@ -67,6 +68,7 @@ function queueForJobName(jobName: string) {
     case QUEUES.IMPORT: return importQueue();
     case QUEUES.SYNC: return syncQueue();
     case QUEUES.AGENT: return agentQueue();
+    case QUEUES.RESEARCH: return researchQueue();
     default: return maintenanceQueue();
   }
 }

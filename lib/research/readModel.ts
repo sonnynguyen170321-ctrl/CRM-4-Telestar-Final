@@ -6,6 +6,16 @@ import { prisma } from '@/lib/prisma';
 // Kept apart from the pipeline so the UI can never reach a write path, and so every list here carries
 // its tenant filter explicitly rather than inheriting one from a caller.
 
+/**
+ * How long a `running` run may go without a row write before it counts as abandoned.
+ *
+ * Each query bumps `updatedAt` through the cursor write, and a query is bounded by provider timeouts
+ * measured in seconds, so five minutes of silence means the worker died — a deploy, an OOM kill —
+ * rather than that it is slow. Lives here, beside the read that reports it, and the runner imports it
+ * for the claim that acts on it, so "stalled" means one thing on both sides.
+ */
+export const STALE_RUNNER_MS = 5 * 60_000;
+
 export type ResearchRunRow = {
   id: string;
   kind: string;
@@ -19,9 +29,14 @@ export type ResearchRunRow = {
   startedAt: Date | null;
   finishedAt: Date | null;
   errorMessage: string | null;
+  /** Pause was pressed; the worker stops after the batch in flight. */
+  pauseRequested: boolean;
+  /** `running` with nobody writing to it for `STALE_RUNNER_MS` — the worker died. Resume claims it. */
+  stalled: boolean;
 };
 
 export async function listResearchRuns(tenantId: string, limit = 50): Promise<ResearchRunRow[]> {
+  const now = Date.now();
   const runs = await prisma.researchRun.findMany({
     where: { tenantId },
     orderBy: { createdAt: 'desc' },
@@ -30,7 +45,7 @@ export async function listResearchRuns(tenantId: string, limit = 50): Promise<Re
       id: true, kind: true, status: true, queriesJson: true, queryCursor: true,
       discoveredCount: true, duplicateCount: true, createdAt: true,
       startedAt: true, finishedAt: true, errorMessage: true,
-      _count: { select: { candidates: true } },
+      pauseRequestedAt: true, updatedAt: true,
     },
   });
 
@@ -56,6 +71,8 @@ export async function listResearchRuns(tenantId: string, limit = 50): Promise<Re
     startedAt: run.startedAt,
     finishedAt: run.finishedAt,
     errorMessage: run.errorMessage,
+    pauseRequested: run.pauseRequestedAt !== null,
+    stalled: run.status === 'running' && now - run.updatedAt.getTime() > STALE_RUNNER_MS,
   }));
 }
 

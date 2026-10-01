@@ -188,6 +188,7 @@
     "/api/research/preview",
     "/api/research/runs",
     "/api/research/runs/[id]/execute",
+    "/api/research/runs/[id]/pause",
     "/api/seed",
     "/api/sequences",
     "/api/sequences/[id]",
@@ -233,5 +234,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 36,
-  "apiRouteCount": 186
+  "apiRouteCount": 187
 }
