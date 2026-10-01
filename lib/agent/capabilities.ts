@@ -22,6 +22,16 @@ export type AgentCapability =
   // CRM writes the agent may make on the SDR's behalf.
   | 'notes'
   | 'tasks'
+  // Changing a task that already exists, split from `tasks` (which only creates them) because the
+  // two carry different risk. `task_update` is skip / reschedule / reassign — reversible, and none
+  // of them touch a cadence. `task_complete` closes a task, and closing one calls `advanceSequence`.
+  //
+  // One capability cannot express two risk levels. Left on `tasks`, a tenant wanting to restrain
+  // completion would have had to set `tasks` to `approval`, which also kills `create_task` — the one
+  // task write that is genuinely harmless. That is how a policy row becomes unusable, gets set back
+  // to `auto`, and stops meaning anything.
+  | 'task_update'
+  | 'task_complete'
   | 'reminders'
   // Outreach — touches what a prospect receives.
   | 'sequence_draft'
@@ -42,6 +52,8 @@ export const ALL_CAPABILITIES: readonly AgentCapability[] = [
   'meeting_prep',
   'notes',
   'tasks',
+  'task_update',
+  'task_complete',
   'reminders',
   'sequence_draft',
   'sequence_enroll',
@@ -92,6 +104,8 @@ export function isAgentCapability(value: string): value is AgentCapability {
 export const WRITE_CAPABILITIES: ReadonlySet<AgentCapability> = new Set<AgentCapability>([
   'notes',
   'tasks',
+  'task_update',
+  'task_complete',
   'reminders',
   'sequence_draft',
   'sequence_enroll',
@@ -126,6 +140,18 @@ export const CAPABILITY_CEILING: Partial<Record<AgentCapability, AutonomyMode>> 
  * Assistance and low-risk CRM writes are automatic — an SDR confirming every note, task and
  * research result stops using the agent, which is the failure mode this phase exists to
  * avoid. Everything that reaches a prospect requires a human.
+ *
+ * `task_complete` is `auto` and that needs explaining, because completing a task *can* reach a
+ * prospect: it calls `advanceSequence`, which for an `autoComplete` email step enqueues a send. The
+ * gate for that is not here. It is in `lib/tasks/bulkAction.ts`, which refuses outright when an
+ * agent asks to complete a task with a `sequenceId` — an object-level floor no stored policy can
+ * raise, in the spirit of `CAPABILITY_CEILING` but applied to the row rather than the capability.
+ *
+ * A ceiling of `approval` was the obvious alternative and would not have worked: `requestApproval`
+ * has exactly one caller, `lib/workorders/execution.ts`, and `resumeApprovedAction` refuses anything
+ * carrying no work order. A chat turn has neither, so `approval` here would mean the tool answers
+ * "that needs approval" forever and queues nothing — dead configuration that reads as a safety
+ * control, which is precisely what the ceiling tests exist to prevent.
  */
 export const DEFAULT_AUTONOMY: Record<AgentCapability, AutonomyMode> = {
   research: 'auto',
@@ -135,6 +161,10 @@ export const DEFAULT_AUTONOMY: Record<AgentCapability, AutonomyMode> = {
   meeting_prep: 'auto',
   notes: 'auto',
   tasks: 'auto',
+  task_update: 'auto',
+  // See the note above: the prospect-reach gate for this one is object-level, in
+  // `lib/tasks/bulkAction.ts`, not a ceiling here.
+  task_complete: 'auto',
   reminders: 'auto',
   sequence_draft: 'auto',
   sequence_enroll: 'approval',

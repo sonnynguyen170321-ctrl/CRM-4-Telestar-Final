@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 186   mutating: 117   mutating without a test: 25
+# routes: 186   mutating: 117   mutating without a test: 24
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -956,6 +956,7 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - tests/agent-object-authorization.test.ts
+      - tests/task-bulk-action.test.ts
   - path: app/api/tasks/[id]/run-now/route.ts
     methods: [POST]
     tests:
@@ -966,9 +967,11 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - tests/agent-object-authorization.test.ts
+      - tests/task-bulk-action.test.ts
   - path: app/api/tasks/bulk/route.ts
     methods: [POST]
-    tests: []
+    tests:
+      - tests/task-bulk-action.test.ts
   - path: app/api/tasks/route.ts
     methods: [GET, POST]
     tests:
@@ -979,6 +982,7 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - tests/agent-object-authorization.test.ts
+      - tests/task-bulk-action.test.ts
   - path: app/api/team/alerts/route.ts
     methods: [GET]
     tests:

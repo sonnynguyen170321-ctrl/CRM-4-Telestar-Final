@@ -144,6 +144,35 @@ describe('defaults keep the agent usable without making it dangerous', () => {
     expect(decideCapability(SDR, 'notes', 'approval').outcome).toBe('REQUIRE_USER_APPROVAL');
     expect(decideCapability(SDR, 'research', 'human_only').outcome).toBe('DENY');
   });
+
+  /**
+   * `task_update` and `task_complete` are both `auto`, and `task_complete` deserves the explanation.
+   *
+   * Completing a task calls `advanceSequence`, so it *can* reach a prospect — which normally means
+   * a ceiling. A ceiling of `approval` would not have worked: `requestApproval` has one caller,
+   * `lib/workorders/execution.ts`, and `resumeApprovedAction` refuses anything carrying no work
+   * order. A chat turn has neither, so the tool would answer "that needs approval" forever and
+   * queue nothing — dead configuration that reads as a safety control.
+   *
+   * The real control is object-level, in `lib/tasks/bulkAction.ts`: an agent completing a task with
+   * a `sequenceId` is refused outright. `tests/task-bulk-action.test.ts` holds that gate; this pair
+   * records that `auto` here is deliberate and not an oversight.
+   */
+  it('task changes are automatic, and nothing here pretends to gate the cadence', () => {
+    expect(decideCapability(SDR, 'task_update', null).outcome).toBe('ALLOW');
+    expect(decideCapability(SDR, 'task_complete', null).outcome).toBe('ALLOW');
+
+    // No ceiling on either — stated, so a future reader does not add one expecting it to work.
+    expect(CAPABILITY_CEILING.task_update).toBeUndefined();
+    expect(CAPABILITY_CEILING.task_complete).toBeUndefined();
+  });
+
+  it('a tenant that wants completion restrained can still tighten it to human_only', () => {
+    // Tightening works the ordinary way, and matters: `human_only` is the setting that turns the
+    // whole tool off for a tenant, as opposed to `approval`, which would queue nothing.
+    expect(decideCapability(SDR, 'task_complete', 'human_only').outcome).toBe('DENY');
+    expect(decideCapability(SDR, 'task_update', null).outcome).toBe('ALLOW');
+  });
 });
 
 describe('tool registry', () => {

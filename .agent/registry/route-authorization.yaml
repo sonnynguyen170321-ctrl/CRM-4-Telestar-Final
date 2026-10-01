@@ -607,9 +607,8 @@ routes:
   - path: app/api/tasks/bulk/route.ts
     methods: [POST]
     guards:
-      - canAccessLead
-      - canAccessUser
-      - owner-column-comparison
+      - canAccessLead (via lib/tasks/bulkAction.ts)
+      - canAccessUser (via lib/tasks/bulkAction.ts)
   - path: app/api/tasks/route.ts
     methods: [GET, POST]
     guards:

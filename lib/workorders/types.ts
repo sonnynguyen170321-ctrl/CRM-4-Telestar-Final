@@ -112,6 +112,19 @@ export const CAPABILITY_PROSPECT_EFFECT: Record<AgentCapability, ProspectEffect>
   // CRM writes on the SDR's behalf. Visible to the team, not to the prospect.
   notes: 'internal',
   tasks: 'internal',
+  // Skip, reschedule, reassign. Nothing a prospect experiences, and none of them advance a cadence.
+  task_update: 'internal',
+  // Completion is classified by what it *can* cause, not by what it usually causes. Completing a
+  // task calls `advanceSequence`, which creates the next step and — for an `autoComplete` email
+  // step — enqueues a send. A work order able to complete tasks could therefore reach a prospect,
+  // and this map is what stops one doing it on a human-managed lead.
+  //
+  // The chat assistant does not depend on this line. It is refused at the object level in
+  // `lib/tasks/bulkAction.ts` for any task carrying a `sequenceId`, which is the stricter rule and
+  // the one that protects the chat path. This classification is for the work-order path, where no
+  // type uses the capability yet — so the honest answer costs nothing today and fails closed the
+  // day one does.
+  task_complete: 'touches_prospect',
   reminders: 'internal',
   // A draft is not a send, and a proposal is not an activation. `reengagement_propose` is inert
   // by design (ARCHITECTURE §4.2a) — it produces eligibility and a recommendation, never an
