@@ -5,6 +5,7 @@ import {
   buildContactDiscoveryQueries,
   buildQueriesFromBuilderParams,
   normalizeResearchQueryLimit,
+  personaTitlesOf,
   type DiscoveryQuery,
   type ResearchBuilderParams,
 } from '@telestar/core-research/buildDiscoveryQueries';
@@ -15,12 +16,13 @@ import {
   type ParsedCandidate,
   type RawSearchHit,
 } from '@telestar/core-research/parseDiscoveryResults';
-import { scoreCandidateHeuristic } from '@telestar/core-research/scoreCandidates';
+import { OFF_PERSONA_SCORE_CAP, scoreCandidateHeuristic } from '@telestar/core-research/scoreCandidates';
 import { runQueryAcrossProviders, type SearchDeps } from '@telestar/core-search/search/companyIntelSearch';
 import { resolveUsableProviderChain } from '@telestar/core-search/search/env';
 
 import { prisma } from '@/lib/prisma';
 
+import { applyAiFit, type AiFitCandidate } from './aiFit';
 import { searchDepsFor } from './searchGateway';
 
 // Discovery: find companies and people the CRM has never seen.
@@ -54,6 +56,8 @@ export type CreateRunInput = {
   /** Free-form builder params. When absent the queries come from the ICP rules. */
   builderParams?: ResearchBuilderParams | null;
   queryLimit?: number;
+  /** Re-rank each pass's new candidates with the AI-fit layer (`lib/research/aiFit.ts`). */
+  aiFit?: boolean;
 };
 
 export async function planResearchRunQueries(
@@ -103,7 +107,11 @@ export async function createResearchRun(input: CreateRunInput): Promise<{ id: st
       campaignId: input.campaignId ?? null,
       createdById: input.createdById ?? null,
       queriesJson: queries as never,
-      paramsJson: (input.builderParams ?? null) as never,
+      // The only reader is the pass, for `aiFit`. Builder params ride along for the record, and an
+      // ICP-mode run that asked for AI fit stores just the flag.
+      paramsJson: (input.builderParams || input.aiFit
+        ? { ...(input.builderParams ?? {}), ...(input.aiFit ? { aiFit: true } : {}) }
+        : null) as never,
     },
     select: { id: true },
   });
@@ -157,12 +165,17 @@ export async function runDiscoveryPass(params: {
 
   const run = await prisma.researchRun.findFirst({
     where: { id: runId, tenantId },
-    select: { id: true, kind: true, status: true, queriesJson: true, queryCursor: true, icpVersionId: true },
+    select: { id: true, kind: true, status: true, queriesJson: true, queryCursor: true, icpVersionId: true, paramsJson: true },
   });
   if (!run) throw new Error('Research run not found in this tenant');
 
   const queries = readQueries(run.queriesJson);
   const rules = await loadRules(tenantId, run.icpVersionId);
+  // Judged against the run's whole persona set, not only the query that surfaced a candidate: a CTO
+  // found by the "CEO" query is on-persona when the run also searched for CTOs.
+  const personaTitles = personaTitlesOf(queries);
+  const aiFitRequested = readAiFitFlag(run.paramsJson);
+  const createdThisPass: AiFitCandidate[] = [];
 
   await prisma.researchRun.updateMany({
     where: { id: runId, tenantId, startedAt: null },
@@ -225,6 +238,8 @@ export async function runDiscoveryPass(params: {
         query,
         rules,
         deps,
+        personaTitles,
+        created: createdThisPass,
       });
     } catch (error) {
       // A dead provider or a malformed SERP page kills one query, not the run. The attempt is already
@@ -256,6 +271,24 @@ export async function runDiscoveryPass(params: {
         duplicateCount: { increment: harvested.duplicates },
       },
     });
+  }
+
+  // Re-rank what this pass found, before the run can be marked finished — a `succeeded` run is one
+  // whose scores are final. Advisory: any failure leaves the heuristic scores standing.
+  if (aiFitRequested && createdThisPass.length > 0) {
+    try {
+      const signals = Array.from(new Set(queries.flatMap((q) => q.hints))).slice(0, 40);
+      await applyAiFit({
+        tenantId,
+        runId,
+        kind: run.kind as ResearchRunKind,
+        targetSignals: signals,
+        personaTitles,
+        candidates: createdThisPass,
+      });
+    } catch (error) {
+      console.error('[research] AI fit failed; heuristic scores kept', { runId, error });
+    }
   }
 
   result.finished = cursor >= queries.length;
@@ -308,6 +341,9 @@ async function harvestQuery(input: {
   query: DiscoveryQuery;
   rules: unknown | null;
   deps: SearchDeps;
+  personaTitles?: string[];
+  /** Collects every candidate this query created, for the AI-fit re-rank at the end of the pass. */
+  created?: AiFitCandidate[];
 }): Promise<{ discovered: number; duplicates: number; rejected: number; hits: number; providerFailures: Map<string, number | null> }> {
   const { tenantId, runId, kind, query, rules, deps } = input;
 
@@ -353,9 +389,27 @@ async function harvestQuery(input: {
       }
     }
 
-    const outcome = await persistCandidate({ tenantId, runId, kind, query, candidate });
-    if (outcome === 'created') discovered += 1;
-    else duplicates += 1;
+    const outcome = await persistCandidate({
+      tenantId,
+      runId,
+      kind,
+      query,
+      candidate,
+      personaTitles: input.personaTitles ?? [],
+    });
+    if (outcome.status === 'created') {
+      discovered += 1;
+      input.created?.push({
+        id: outcome.id,
+        name: candidate.name,
+        title: candidate.title,
+        companyName: candidate.companyName,
+        domain: candidate.domain,
+        snippet: candidate.source.snippet,
+        offPersona: outcome.offPersona,
+        heuristicScore: outcome.score,
+      });
+    } else duplicates += 1;
   }
 
   return { discovered, duplicates, rejected, hits: hits.length, providerFailures };
@@ -367,10 +421,18 @@ async function persistCandidate(input: {
   kind: ResearchRunKind;
   query: DiscoveryQuery;
   candidate: ParsedCandidate;
-}): Promise<'created' | 'duplicate'> {
+  personaTitles: string[];
+}): Promise<{ status: 'created'; id: string; offPersona: boolean; score: number } | { status: 'duplicate' }> {
   const { tenantId, runId, kind, query, candidate } = input;
   const hints = query.hints ?? [];
-  const fit = scoreCandidateHeuristic(candidate, hints);
+  const fit = scoreCandidateHeuristic(candidate, hints, { personaTitles: input.personaTitles });
+  // A titled contact the heuristic put under the persona cap is off-persona; the AI layer may not
+  // lift it back over.
+  const offPersona =
+    candidate.kind === 'CONTACT' &&
+    input.personaTitles.length > 0 &&
+    Boolean(candidate.title?.trim()) &&
+    fit.score <= OFF_PERSONA_SCORE_CAP;
 
   let created: { id: string } | null = null;
   try {
@@ -403,10 +465,10 @@ async function persistCandidate(input: {
 
   await touchProspectLedger(tenantId, runId, kind, candidate);
 
-  if (!created) return 'duplicate';
+  if (!created) return { status: 'duplicate' };
 
   await recordEvidence(tenantId, runId, created.id, query.query, candidate);
-  return 'created';
+  return { status: 'created', id: created.id, offPersona, score: fit.score };
 }
 
 /**
@@ -476,8 +538,13 @@ function readQueries(json: unknown): DiscoveryQuery[] {
     const query = typeof obj.query === 'string' ? obj.query : null;
     if (!query) return [];
     const hints = Array.isArray(obj.hints) ? obj.hints.filter((h): h is string => typeof h === 'string') : [];
-    return [{ ...(obj as object), query, hints } as DiscoveryQuery];
+    const titleHint = typeof obj.titleHint === 'string' && obj.titleHint.trim() ? obj.titleHint : undefined;
+    return [{ query, hints, ...(titleHint ? { titleHint } : {}) }];
   });
+}
+
+function readAiFitFlag(paramsJson: unknown): boolean {
+  return Boolean(paramsJson && typeof paramsJson === 'object' && (paramsJson as { aiFit?: unknown }).aiFit === true);
 }
 
 async function loadRules(tenantId: string, icpVersionId: string | null): Promise<unknown | null> {

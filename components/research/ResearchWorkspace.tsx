@@ -414,7 +414,7 @@ export default function ResearchWorkspace() {
                   value={selectedRun ? `${selectedRun.queryCursor}/${selectedRun.totalQueries}` : '0/0'}
                   icon={Clock3}
                 />
-                <CockpitMetric label="Already known" value={String(selectedRun?.duplicateCount ?? 0)} icon={CheckCircle2} />
+                <CockpitMetric label="Repeat hits" value={String(selectedRun?.duplicateCount ?? 0)} icon={CheckCircle2} />
               </div>
 
               {selectedRun && (selectedRun.queryCursor < selectedRun.totalQueries || selectedRun.status === 'running') && (
@@ -728,7 +728,7 @@ function CandidateTable({
                 </td>
                 <td className="px-3 py-3">
                   <StatusBadge
-                    status={candidate.previouslyPromoted ? 'already_known' : candidate.status}
+                    status={candidate.status === 'promoted' ? 'promoted' : candidate.previouslyPromoted ? 'already_known' : candidate.status}
                   />
                   {candidate.previouslyPromoted && (
                     <span className="mt-1 block type-meta text-text-muted">Already in prospect library</span>

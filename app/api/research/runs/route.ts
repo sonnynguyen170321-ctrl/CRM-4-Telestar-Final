@@ -14,6 +14,7 @@ const createSchema = z.object({
   campaignId: z.string().min(1).optional(),
   queryLimit: z.number().int().positive().optional(),
   builderParams: z.record(z.string(), z.unknown()).optional(),
+  aiFit: z.boolean().optional(),
 });
 
 export async function GET() {
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
       campaignId: parsed.data.campaignId ?? null,
       queryLimit: parsed.data.queryLimit,
       builderParams: (parsed.data.builderParams ?? null) as never,
+      aiFit: parsed.data.aiFit === true,
       createdById: user.id,
     });
     return NextResponse.json(run, { status: 201 });
