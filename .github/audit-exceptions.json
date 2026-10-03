@@ -1,0 +1,12 @@
+{
+  "_readme": "Dev-only advisories with no available fix, read by scripts/check-audit.mjs. Production dependencies can never be excepted. Every entry expires within 45 days, and an entry for an advisory no longer reported fails the gate until it is removed.",
+  "exceptions": [
+    {
+      "advisory": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "reason": "Reached only via eslint-config-next -> @next/eslint-plugin-next -> fast-glob -> micromatch, at lint time, with glob patterns from our own config. No patched braces exists: 3.0.3 is both the latest release and the vulnerable range bound. Not in the production dependency tree (npm audit --omit=dev is clean).",
+      "addedOn": "2026-10-03",
+      "expires": "2026-11-15"
+    }
+  ]
+}
