@@ -20,6 +20,7 @@ interface EmailAccount {
   provider: string;
   isActive: boolean;
   signature?: string | null;
+  fromName?: string | null;
 }
 
 interface OAuthProviderStatus {
@@ -54,6 +55,7 @@ export default function EmailConnectionsPanel() {
 
   const [editingSignatureAccountId, setEditingSignatureAccountId] = useState<string | null>(null);
   const [signatureText, setSignatureText] = useState('');
+  const [fromNameText, setFromNameText] = useState('');
   const [isSavingSignature, setIsSavingSignature] = useState(false);
 
   useEffect(() => {
@@ -110,6 +112,7 @@ export default function EmailConnectionsPanel() {
   const handleStartEditSignature = (account: EmailAccount) => {
     setEditingSignatureAccountId(account.id);
     setSignatureText(account.signature ?? '');
+    setFromNameText(account.fromName ?? '');
   };
 
   const handleSaveSignature = async () => {
@@ -119,18 +122,20 @@ export default function EmailConnectionsPanel() {
       const res = await fetch(`/api/email/accounts/${editingSignatureAccountId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signature: signatureText || null }),
+        body: JSON.stringify({ signature: signatureText || null, fromName: fromNameText.trim() || null }),
       });
       if (res.ok) {
         const updated = await res.json();
         setConnectedEmails((prev) =>
-          prev.map((e) => (e.id === editingSignatureAccountId ? { ...e, signature: updated.signature } : e))
+          prev.map((e) =>
+            e.id === editingSignatureAccountId ? { ...e, signature: updated.signature, fromName: updated.fromName } : e
+          )
         );
         setEditingSignatureAccountId(null);
         setSignatureText('');
-        showToast('Email signature updated!', 'success');
+        showToast('Sender settings saved', 'success');
       } else {
-        showToast('Failed to save email signature', 'error');
+        showToast('Failed to save sender settings', 'error');
       }
     } catch {
       showToast('Network error saving email signature', 'error');
@@ -252,6 +257,9 @@ export default function EmailConnectionsPanel() {
               <span className="text-base flex-shrink-0">📧</span>
               <div className="min-w-0">
                 <p className="font-semibold text-text-primary truncate">{item.email}</p>
+                <p className="text-[10px] text-text-secondary mt-0.5">
+                  {item.fromName ? `Sends as "${item.fromName}"` : 'No sender name set'}
+                </p>
                 <p className="text-[10px] text-text-muted font-mono mt-0.5">
                   Connected via{' '}
                   <span className="text-brand-orange-text">{providerLabel(item.provider)}</span>
@@ -265,7 +273,7 @@ export default function EmailConnectionsPanel() {
               <button
                 onClick={() => handleStartEditSignature(item)}
                 className="p-1 hover:bg-brand-orange/10 text-text-muted hover:text-brand-orange-text rounded"
-                title="Edit Email Signature"
+                title="Sender name & signature"
               >
                 <Pencil className="w-4.5 h-4.5" />
               </button>
@@ -285,14 +293,31 @@ export default function EmailConnectionsPanel() {
         <div className="border border-brand-orange/20 rounded-xl p-4 bg-brand-orange/[0.01] space-y-3 animate-in fade-in duration-200 text-xs">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-brand-orange-text uppercase">
-              Edit Email Signature for {connectedEmails.find(e => e.id === editingSignatureAccountId)?.email}
+              Sender settings for {connectedEmails.find(e => e.id === editingSignatureAccountId)?.email}
             </h3>
             <button
-              onClick={() => { setEditingSignatureAccountId(null); setSignatureText(''); }}
+              onClick={() => { setEditingSignatureAccountId(null); setSignatureText(''); setFromNameText(''); }}
               className="p-1 hover:bg-card-border/60 text-text-muted hover:text-text-primary rounded"
             >
               <X className="w-4 h-4" />
             </button>
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="sender-name" className="block text-[10px] font-semibold text-text-secondary">
+              Sender name — what prospects see next to the address
+            </label>
+            <input
+              id="sender-name"
+              value={fromNameText}
+              onChange={(e) => setFromNameText(e.target.value)}
+              maxLength={64}
+              className="w-full bg-bg-main border border-card-border rounded-xl px-3 py-2 text-text-primary focus:outline-none focus:border-brand-red placeholder-text-muted text-xs"
+              placeholder="e.g. Judy Nguyen"
+            />
+            <p className="text-[10px] text-text-muted leading-relaxed">
+              Empty sends the bare address, and the recipient&apos;s mail app shows whatever name the provider has on file
+              for this mailbox.
+            </p>
           </div>
           <div className="space-y-1.5">
             <p className="text-[10px] text-text-secondary leading-relaxed">
@@ -307,7 +332,7 @@ export default function EmailConnectionsPanel() {
           </div>
           <div className="flex justify-end gap-2">
             <button
-              onClick={() => { setEditingSignatureAccountId(null); setSignatureText(''); }}
+              onClick={() => { setEditingSignatureAccountId(null); setSignatureText(''); setFromNameText(''); }}
               className="px-3 py-1.5 bg-bg-main border border-card-border text-text-secondary hover:text-text-primary text-xs font-semibold rounded-lg transition-colors"
             >
               Cancel
@@ -317,7 +342,7 @@ export default function EmailConnectionsPanel() {
               disabled={isSavingSignature}
               className="px-3 py-1.5 bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60"
             >
-              {isSavingSignature ? 'Saving...' : 'Save Signature'}
+              {isSavingSignature ? 'Saving...' : 'Save'}
             </button>
           </div>
         </div>

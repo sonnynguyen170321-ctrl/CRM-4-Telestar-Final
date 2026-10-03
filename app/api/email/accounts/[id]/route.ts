@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { z } from 'zod';
+import { parseBody } from '@/lib/validation/core';
+import { normalizeSenderName } from '@/lib/email/senderName';
 
 export async function DELETE(
   _req: NextRequest,
@@ -27,6 +30,23 @@ export async function DELETE(
   return NextResponse.json({ success: true });
 }
 
+/**
+ * Update a mailbox's sender settings: signature and From display name.
+ *
+ * A partial update — only the fields present in the body change. The previous version read
+ * `String(body.signature)` unconditionally, so any request that did not carry a signature (the
+ * new sender-name save, for one) would have stored the literal text "undefined" as the signature
+ * and appended it to every email that mailbox sent.
+ *
+ * Owner-only, as before: a mailbox's From line speaks for the person who connected it.
+ */
+const patchSchema = z
+  .object({
+    signature: z.string().max(10_000).nullable().optional(),
+    fromName: z.string().max(200).nullable().optional(),
+  })
+  .strict();
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -43,19 +63,28 @@ export async function PATCH(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  try {
-    const body = await req.json();
-    const signature = body.signature === null ? null : String(body.signature);
+  const parsed = await parseBody(req, patchSchema, 'Invalid mailbox update');
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
+  const data: { signature?: string | null; fromName?: string | null } = {};
+  if (body.signature !== undefined) data.signature = body.signature;
+  if (body.fromName !== undefined) data.fromName = normalizeSenderName(body.fromName);
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
+  }
+
+  try {
     const updated = await prisma.emailAccount.update({
       where: { id },
-      data: { signature },
+      data,
       select: {
         id: true,
         email: true,
         provider: true,
         isActive: true,
         signature: true,
+        fromName: true,
       },
     });
 

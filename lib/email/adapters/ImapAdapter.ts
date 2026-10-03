@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { fromHeaderValue } from '@/lib/email/senderName';
 import { ImapFlow } from 'imapflow';
 import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailService';
 
@@ -35,7 +36,7 @@ export class ImapAdapter implements EmailAdapter {
     });
 
     const info = await transporter.sendMail({
-      from: options.from,
+      from: fromHeaderValue(options.from, options.fromName),
       to: options.to,
       subject: options.subject,
       html: options.html,

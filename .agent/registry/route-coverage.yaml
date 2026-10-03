@@ -439,12 +439,14 @@ routes:
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
       - tests/email-account-token-storage.test.ts
+      - tests/mailbox-sender-name.test.ts
   - path: app/api/email/accounts/route.ts
     methods: [GET, POST]
     tests:
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
       - tests/email-account-token-storage.test.ts
+      - tests/mailbox-sender-name.test.ts
   - path: app/api/email/oauth/google/callback/route.ts
     methods: [GET]
     tests:

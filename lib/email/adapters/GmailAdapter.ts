@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { fromHeaderValue } from '@/lib/email/senderName';
 import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailService';
 import { encrypt } from '@/lib/crypto';
 
@@ -55,7 +56,7 @@ export class GmailAdapter implements EmailAdapter {
 
     const MailComposer = (await import('nodemailer/lib/mail-composer')).default;
     const mail = new MailComposer({
-      from: options.from,
+      from: fromHeaderValue(options.from, options.fromName),
       to: options.to,
       subject: options.subject,
       html: options.html,
