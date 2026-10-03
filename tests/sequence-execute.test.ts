@@ -25,6 +25,8 @@ vi.mock('@/lib/prisma', () => ({
     },
     sequenceStep: { findFirst: (...a: unknown[]) => mockStepFindFirst(...a) },
     emailAccount: { findFirst: (...a: unknown[]) => mockAccountFindFirst(...a) },
+    // No sequence senders here: the mailbox resolver falls through to the owner's mailbox.
+    sequenceSender: { findMany: async () => [] },
     sequenceEnrollment: {
       findFirst: (...a: unknown[]) => mockEnrollmentFindFirst(...a),
       findUnique: (...a: unknown[]) => mockEnrollmentFindFirst(...a),
@@ -398,6 +400,7 @@ describe('handleExecuteTask — deferral (Phase 6)', () => {
     arrangeEligible();
     mockEnrollmentFindFirst
       .mockResolvedValueOnce(owningEnrollment) // entry check: on step 1, eligible
+      .mockResolvedValueOnce(owningEnrollment) // the mailbox resolver reads which mailbox it uses
       .mockResolvedValueOnce({ ...owningEnrollment, currentStep: 2 }); // advanced meanwhile
 
     const result = await handleExecuteTask({ taskId: 'task-1', expectedEnrollmentId: 'enr-1' });
@@ -415,6 +418,7 @@ describe('handleExecuteTask — deferral (Phase 6)', () => {
     arrangeEligible();
     mockEnrollmentFindFirst
       .mockResolvedValueOnce(owningEnrollment)
+      .mockResolvedValueOnce(owningEnrollment) // the mailbox resolver reads which mailbox it uses
       .mockResolvedValueOnce({ ...owningEnrollment, occupancyKey: `${TENANT_ID}:other-lead:seq-1` });
 
     const result = await handleExecuteTask({ taskId: 'task-1', expectedEnrollmentId: 'enr-1' });

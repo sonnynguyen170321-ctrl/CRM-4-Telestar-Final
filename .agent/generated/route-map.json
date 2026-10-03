@@ -201,6 +201,7 @@
     "/api/sequences/[id]/enrollments/[enrollmentId]/run-now",
     "/api/sequences/[id]/enrollments/[enrollmentId]/status",
     "/api/sequences/[id]/enrollments/bulk-action",
+    "/api/sequences/[id]/senders",
     "/api/sequences/analytics",
     "/api/sequences/preview",
     "/api/sequences/team-analytics",
@@ -236,5 +237,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 36,
-  "apiRouteCount": 189
+  "apiRouteCount": 190
 }

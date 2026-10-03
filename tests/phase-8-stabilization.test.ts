@@ -78,6 +78,7 @@ vi.mock('@/lib/prisma', () => ({
     notification: {
       create: (...args: unknown[]) => mockNotificationCreate(...args),
     },
+    sequenceSender: { findMany: async () => [] },
     emailAccount: {
       findUnique: (...args: unknown[]) => mockAccountFindUnique(...args),
       findFirst: (...args: unknown[]) => mockAccountFindFirst(...args),

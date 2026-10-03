@@ -164,6 +164,9 @@ vi.mock('@/lib/prisma', () => ({
     emailAccount: {
       findFirst: async ({ where }: Row) => store.accounts.find((a) => matches(a, where)) ?? null,
     },
+    // No sequence in this suite configures senders, so the mailbox resolver falls through to the
+    // lead owner's mailbox (lib/sequences/sender.ts).
+    sequenceSender: { findMany: async () => [] },
     suppressionEntry: { findFirst: async () => store.suppression },
     sequenceStepCopy: {
       findUnique: async ({ where }: Row) => {
@@ -276,7 +279,7 @@ function seedLadder(): void {
   store.tasks.clear();
   store.enrollments.clear();
   store.steps = [stepFixture(1), stepFixture(2, { delayDays: 3 }), stepFixture(3, { delayDays: 4 })];
-  store.accounts = [{ id: 'acct-1', userId: USER_ID, isActive: true, email: 'sdr@telestar.vn' }];
+  store.accounts = [{ id: 'acct-1', userId: USER_ID, tenantId: TENANT_ID, isActive: true, email: 'sdr@telestar.vn', createdAt: new Date('2026-01-01') }];
   store.activities = [];
   store.notifications = [];
   store.outbound = [];

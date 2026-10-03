@@ -1,5 +1,6 @@
 'use client';
 
+import { SequenceSendersPanel } from '@/components/sequences/SequenceSendersPanel';
 import { useState, useEffect, useCallback } from 'react';
 import {
   Plus,
@@ -72,7 +73,7 @@ export default function SequencesPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
 
   // Enrollment Dashboard State
-  const [activeTab, setActiveTab] = useState<'builder' | 'enrollments'>('builder');
+  const [activeTab, setActiveTab] = useState<'builder' | 'enrollments' | 'settings'>('builder');
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [selectedEnrollments, setSelectedEnrollments] = useState<string[]>([]);
   const [enrollmentFilters, setEnrollmentFilters] = useState({ step: '', status: '' });
@@ -592,10 +593,18 @@ export default function SequencesPage() {
               >
                 Enrollments Dashboard
               </button>
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`pb-2 text-xs font-semibold transition-colors ${activeTab === 'settings' ? 'text-brand-red border-b-2 border-brand-red' : 'text-text-secondary hover:text-text-primary'}`}
+              >
+                Settings
+              </button>
             </div>
           </div>
 
-          {activeTab === 'builder' ? (
+          {activeTab === 'settings' ? (
+            <SequenceSendersPanel sequenceId={selectedSeq.id} />
+          ) : activeTab === 'builder' ? (
             <div className="grid grid-cols-3 gap-6 flex-1 items-start">
               <div className="col-span-2 space-y-3">
                 {steps.map((step, idx) => (

@@ -90,6 +90,11 @@ const SOFT_FOREIGN_KEYS = new Set([
   'SequenceDraftRecord.workOrderId',
   'SequenceLaunch.enrollmentId',
   'SequenceLaunch.taskId',
+  // The mailbox an enrollment was fixed to. Soft on purpose: a disconnected or deleted mailbox makes
+  // the resolver choose again (lib/sequences/sender.ts) instead of taking the enrollment with it.
+  'SequenceEnrollment.senderAccountId',
+  // Who attached a sending mailbox — an audit stamp, soft like every other *ById here.
+  'SequenceSender.addedById',
   'Task.sequenceId',
 ]);
 

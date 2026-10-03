@@ -16,6 +16,7 @@ import {
   unenrollLead,
 } from '@/lib/sequences/engine';
 import { pauseEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
+import { resolveSendingMailbox } from '@/lib/sequences/sender';
 import { enrollmentStepTaskId } from '@/lib/sequences/identity';
 import { renderTemplate } from '@/lib/templates/render';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
@@ -277,9 +278,13 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     }
   }
 
-  // Fetch mailbox
-  const account = await prisma.emailAccount.findFirst({
-    where: { userId: task.lead.assignedToId, isActive: true },
+  // Which mailbox sends: the one this occurrence already uses, else one of the sequence's senders,
+  // else the owner's oldest — see lib/sequences/sender.ts.
+  const account = await resolveSendingMailbox({
+    tenantId: task.tenantId,
+    enrollmentId: expectedEnrollmentId ?? null,
+    sequenceId: task.sequenceId,
+    ownerUserId: task.lead.assignedToId,
   });
 
   // Check suppression
