@@ -6,6 +6,8 @@ import { decrypt } from '@/lib/crypto';
 
 export interface SendEmailOptions {
   from: string;
+  /** Display name for the From header; see `lib/email/senderName.ts`. */
+  fromName?: string | null;
   to: string;
   subject: string;
   html?: string;

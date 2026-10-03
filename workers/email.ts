@@ -658,6 +658,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
     const emailService = await EmailService.fromAccount(account);
     providerMessageId = await emailService.send({
       from: account.email,
+      fromName: account.fromName,
       to,
       subject: finalSubject,
       text: textPayload,

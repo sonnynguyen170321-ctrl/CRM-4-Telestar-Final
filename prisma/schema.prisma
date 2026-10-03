@@ -1181,6 +1181,8 @@ model EmailAccount {
   /// automation page reads it.
   hourlySendWindow Int           @default(0)
   signature        String?       @db.Text
+  /// Display name in the From header ("Judy Nguyen" <judy@…>). Null sends the bare address, as before.
+  fromName         String?
 
   // ── Deliverability / health ──
   // healthScore + healthLevel are a denormalised cache written by the hourly

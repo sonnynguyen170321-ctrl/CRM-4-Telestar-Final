@@ -1,4 +1,5 @@
 import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailService';
+import { fromHeaderValue } from '@/lib/email/senderName';
 import { encrypt } from '@/lib/crypto';
 
 interface OutlookConfig {
@@ -73,7 +74,7 @@ export class OutlookAdapter implements EmailAdapter {
 
     const MailComposer = (await import('nodemailer/lib/mail-composer')).default;
     const mail = new MailComposer({
-      from: options.from,
+      from: fromHeaderValue(options.from, options.fromName),
       to: options.to,
       subject: options.subject,
       html: options.html,
