@@ -1,4 +1,5 @@
 import { prisma, withTenantRaw } from '@/lib/prisma';
+import { openPixelHtml, rewriteLinksForTracking, trackingConfigured } from '@/lib/email/tracking';
 import { createAppWorker } from '@/lib/bullmq';
 import { enqueueReschedule } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
@@ -654,6 +655,24 @@ async function handleEmailSend(payload: EmailSendPayload) {
       campaignId: existing.lead?.campaignId || undefined,
     });
     const headers = buildUnsubscribeHeaders(baseUrl, unsubToken);
+
+    // Open and click tracking, only for a sequence that opted in (both off by default — a pixel and
+    // rewritten links are deliverability signals). The unsubscribe link is never rewritten.
+    if (existing.sequenceId && !trackingConfigured()) {
+      // A send must never fail because tracking cannot sign links; it goes out untracked.
+      console.warn('[email] tracking skipped: no TRACKING_SECRET / AUTH_SECRET in this process', { outboundMessageId });
+    } else if (existing.sequenceId) {
+      const tracking = await prisma.sequence.findFirst({
+        where: { id: existing.sequenceId, tenantId: existing.tenantId },
+        select: { trackOpens: true, trackClicks: true },
+      });
+      if (tracking?.trackClicks) {
+        htmlPayload = rewriteLinksForTracking(htmlPayload, baseUrl, existing.tenantId, outboundMessageId);
+      }
+      if (tracking?.trackOpens) {
+        htmlPayload = `${htmlPayload}${openPixelHtml(baseUrl, existing.tenantId, outboundMessageId)}`;
+      }
+    }
 
     const emailService = await EmailService.fromAccount(account);
     providerMessageId = await emailService.send({

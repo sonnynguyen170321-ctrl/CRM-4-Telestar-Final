@@ -1,6 +1,7 @@
 'use client';
 
 import { SequenceSendersPanel } from '@/components/sequences/SequenceSendersPanel';
+import { SequenceTrackingPanel } from '@/components/sequences/SequenceTrackingPanel';
 import { useState, useEffect, useCallback } from 'react';
 import {
   Plus,
@@ -603,7 +604,10 @@ export default function SequencesPage() {
           </div>
 
           {activeTab === 'settings' ? (
-            <SequenceSendersPanel sequenceId={selectedSeq.id} />
+            <div className="space-y-4">
+              <SequenceSendersPanel sequenceId={selectedSeq.id} />
+              <SequenceTrackingPanel sequenceId={selectedSeq.id} />
+            </div>
           ) : activeTab === 'builder' ? (
             <div className="grid grid-cols-3 gap-6 flex-1 items-start">
               <div className="col-span-2 space-y-3">

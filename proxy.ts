@@ -58,6 +58,8 @@ export const proxy = auth(function handler(req: NextRequest & { auth: { user?: u
 // report on the database. The handler runs `SELECT 1` and returns nothing but a
 // boolean, so it is safe to reach unauthenticated.
 //
+// api/t/ (open pixel and click redirect) is excluded for the same reason: the person opening or
+// clicking an email has no staff session. Its tokens are HMAC-signed — see lib/email/tracking.ts.
 // api/unsubscribe is excluded because recipients clicking one-click or web
 // unsubscribe headers do not have a staff session — the route authenticates via
 // cryptographic HMAC token in the query params.
@@ -66,6 +68,6 @@ export const proxy = auth(function handler(req: NextRequest & { auth: { user?: u
 // authorization codes without an active session cookie.
 export const config = {
   matcher: [
-    '/((?!api/auth|api/cron|api/health|api/csp-report|api/unsubscribe|api/email/oauth|api/client-reports/public|client-reports/public|login|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)',
+    '/((?!api/auth|api/cron|api/health|api/csp-report|api/unsubscribe|api/t/|api/email/oauth|api/client-reports/public|client-reports/public|login|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)',
   ],
 };

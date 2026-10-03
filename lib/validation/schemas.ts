@@ -145,6 +145,9 @@ export const createSequenceSchema = z.object({
   name: z.string().min(1).max(200),
   description: nullableLongText.optional(),
   isActive: z.boolean().optional(),
+  /** Open / click tracking for this sequence's email (lib/email/tracking.ts). Off unless set. */
+  trackOpens: z.boolean().optional(),
+  trackClicks: z.boolean().optional(),
   steps: z.array(sequenceStepSchema).max(50).optional(),
 });
 

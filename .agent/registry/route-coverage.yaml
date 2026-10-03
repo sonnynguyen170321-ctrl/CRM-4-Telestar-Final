@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 190   mutating: 121   mutating without a test: 24
+# routes: 192   mutating: 121   mutating without a test: 24
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -991,6 +991,14 @@ routes:
     methods: [GET, PUT]
     tests:
       - tests/user-timezone-default.test.ts
+  - path: app/api/t/c/[token]/route.ts
+    methods: [GET]
+    tests:
+      - tests/email-tracking.test.ts
+  - path: app/api/t/o/[token]/route.ts
+    methods: [GET]
+    tests:
+      - tests/email-tracking.test.ts
   - path: app/api/tasks/[id]/route.ts
     methods: [DELETE, GET, PUT]
     tests:
@@ -1071,6 +1079,7 @@ routes:
   - path: app/api/unsubscribe/route.ts
     methods: [GET, POST]
     tests:
+      - tests/email-tracking.test.ts
       - tests/unsubscribe.test.ts
   - path: app/api/users/[id]/impact/route.ts
     methods: [GET]
