@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 189   mutating: 120   mutating without a test: 24
+# routes: 190   mutating: 121   mutating without a test: 24
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -856,6 +856,7 @@ routes:
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enroll/route.ts
     methods: [DELETE, POST]
     tests:
@@ -868,6 +869,7 @@ routes:
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/logs/route.ts
     methods: [GET]
     tests:
@@ -880,6 +882,7 @@ routes:
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/run-now/route.ts
     methods: [POST]
     tests:
@@ -892,6 +895,7 @@ routes:
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/status/route.ts
     methods: [PATCH]
     tests:
@@ -904,6 +908,7 @@ routes:
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enrollments/bulk-action/route.ts
     methods: [POST]
     tests:
@@ -916,6 +921,7 @@ routes:
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enrollments/route.ts
     methods: [GET]
     tests:
@@ -928,6 +934,7 @@ routes:
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/route.ts
     methods: [DELETE, GET, PUT]
     tests:
@@ -940,6 +947,20 @@ routes:
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-senders.test.ts
+  - path: app/api/sequences/[id]/senders/route.ts
+    methods: [GET, PUT]
+    tests:
+      - tests/admin-audit-coverage.test.ts
+      - tests/phase-8a-lifecycle-routes.test.ts
+      - tests/phase-8a-occurrence-advance.test.ts
+      - tests/route-authorization.test.ts
+      - tests/route-coverage.test.ts
+      - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-enrollment-peer-authorization.test.ts
+      - tests/sequence-guards.test.ts
+      - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-senders.test.ts
   - path: app/api/sequences/analytics/route.ts
     methods: [GET]
     tests: []
@@ -959,6 +980,7 @@ routes:
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-senders.test.ts
   - path: app/api/sequences/team-analytics/route.ts
     methods: [GET]
     tests: []

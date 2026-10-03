@@ -954,8 +954,30 @@ model Sequence {
   sequenceLaunches    SequenceLaunch[]
   activities          Activity[]
   sequenceEnrollments SequenceEnrollment[]
+  senders             SequenceSender[]
 
   @@index([tenantId])
+}
+
+/// A mailbox a sequence may send from (owner request, 2026-10-02: "add sending email for sequence
+/// campaign"). When a sequence has any, each enrollment is given one of them on its first send and
+/// keeps it, so every step to one prospect comes from one address and replies thread. With none,
+/// the lead owner's oldest active mailbox is used, as before.
+model SequenceSender {
+  @@unique([id, tenantId], map: "SequenceSender_id_tenantId_key")
+  id             String       @id @default(cuid())
+  sequenceId     String
+  sequence       Sequence     @relation(fields: [sequenceId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  emailAccountId String
+  emailAccount   EmailAccount @relation(fields: [emailAccountId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  addedById      String
+  createdAt      DateTime     @default(now())
+  tenantId       String
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([sequenceId, emailAccountId])
+  @@index([tenantId])
+  @@index([emailAccountId])
 }
 
 model SequenceStep {
@@ -1204,6 +1226,7 @@ model EmailAccount {
   inboundMessages  InboundMessage[]
   healthSnapshots  EmailHealthSnapshot[]
   healthAlerts     EmailHealthAlert[]
+  sequenceSenders  SequenceSender[]
 
   @@index([userId])
   @@index([tenantId])
@@ -1410,6 +1433,10 @@ model SequenceEnrollment {
   pausedReason     String? // reply|hard_bounce|soft_bounce|meeting_booked|manual|email_health|campaign_paused|mailbox_unavailable
   lastTransitionAt DateTime? // Last time status/state changed
   lastEvaluatedAt  DateTime? // Last time eligibility was evaluated
+  /// The mailbox this occurrence sends from, fixed on its first send when the sequence has senders,
+  /// so a prospect's thread never changes address mid-cadence. A plain id (no relation): a deleted
+  /// mailbox simply falls back to selection, rather than taking the enrollment with it.
+  senderAccountId  String?
   tenantId         String
   tenant           Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -2359,6 +2386,7 @@ model Tenant {
   inboundMessages          InboundMessage[]
   suppressionEntries       SuppressionEntry[]
   sequenceEnrollments      SequenceEnrollment[]
+  sequenceSenders          SequenceSender[]
   sequenceStepCopies       SequenceStepCopy[]
   sequenceDraftRecords     SequenceDraftRecord[]
   importBatches            ImportBatch[]
