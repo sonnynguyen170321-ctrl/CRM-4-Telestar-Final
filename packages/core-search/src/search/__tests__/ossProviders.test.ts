@@ -100,6 +100,45 @@ describe("Exa provider — category", () => {
   });
 });
 
+describe("Exa provider — highlights", () => {
+  function capture(results: unknown[]) {
+    const seen: { body: Record<string, unknown> } = { body: {} };
+    const spy: typeof fetch = (async (_url: string, init: RequestInit) => {
+      seen.body = JSON.parse(String(init.body));
+      return { ok: true, status: 200, json: async () => ({ results }), text: async () => "" };
+    }) as unknown as typeof fetch;
+    return { seen, spy };
+  }
+
+  it("asks for a real highlight budget, and steers people highlights to the job title", async () => {
+    // `highlights: true` returned one short passage; the spec's supported control is maxCharacters
+    // (numSentences is deprecated, highlightsPerUrl is ignored).
+    const { seen, spy } = capture([]);
+    await new ExaSearchProvider("k", spy).search({ query: "cto saas denmark", ...CALL, category: "people" });
+    const highlights = (seen.body.contents as { highlights: Record<string, unknown> }).highlights;
+    expect(highlights.maxCharacters).toBeGreaterThanOrEqual(1000);
+    expect(String(highlights.query)).toMatch(/job title/);
+    expect("highlightsPerUrl" in highlights).toBe(false);
+    expect("numSentences" in highlights).toBe(false);
+  });
+
+  it("leaves company highlight selection to Exa, which evidenceFacts parses", async () => {
+    const { seen, spy } = capture([]);
+    await new ExaSearchProvider("k", spy).search({ query: "saas denmark", ...CALL, category: "company" });
+    const highlights = (seen.body.contents as { highlights: Record<string, unknown> }).highlights;
+    expect("query" in highlights).toBe(false);
+    expect(highlights.maxCharacters).toBeGreaterThanOrEqual(1000);
+  });
+
+  it("keeps every passage, not just the first — the title is often in the second", async () => {
+    const { spy } = capture([
+      { url: "https://linkedin.com/in/jane", title: "Jane Doe", highlights: ["Copenhagen, Denmark", "CTO at Acme SaaS"] },
+    ]);
+    const outcome = await new ExaSearchProvider("k", spy).search({ query: "x", ...CALL, category: "people" });
+    expect(outcome.results[0].highlight).toBe("Copenhagen, Denmark … CTO at Acme SaaS");
+  });
+});
+
 describe("env — OSS providers join the usable chain", () => {
   it("treats SEARXNG_URL as configured and DDG_SEARCH_ENABLED as a flag", () => {
     const chain = resolveUsableProviderChain({

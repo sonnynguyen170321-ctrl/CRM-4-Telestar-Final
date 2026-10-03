@@ -80,6 +80,9 @@ export default function ResearchRunBuilder({
   const [preview, setPreview] = useState<Preview | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [creating, setCreating] = useState(false);
+  // Sent with the create call only, not part of the previewed payload: it changes how candidates are
+  // ranked, not which queries run, so toggling it must not invalidate a preview.
+  const [aiFit, setAiFit] = useState(false);
 
   useEffect(() => {
     setQueryLimit((current) => (queryOptions.includes(current) ? current : queryOptions[0] ?? 50));
@@ -212,7 +215,7 @@ export default function ResearchRunBuilder({
       const response = await fetch('/api/research/runs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, ...(aiFit ? { aiFit: true } : {}) }),
       });
       if (!response.ok) {
         showToast(await readApiError(response, 'Could not create the run'), 'error');
@@ -332,6 +335,22 @@ export default function ResearchRunBuilder({
               </select>
             </label>
           </div>
+
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-card-border bg-bg-main p-3">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-brand-red"
+              checked={aiFit}
+              onChange={(event) => setAiFit(event.target.checked)}
+            />
+            <span>
+              <span className="block type-meta font-semibold text-text-primary">AI fit scoring</span>
+              <span className="mt-0.5 block type-meta text-text-muted">
+                Re-scores each batch of candidates with AI against the ICP and the target job titles. Uses AI
+                budget; if AI is unavailable the keyword score is kept.
+              </span>
+            </span>
+          </label>
 
           {mode !== 'ICP' && (
             <div className="grid grid-cols-2 gap-4 border-t border-card-border pt-4">

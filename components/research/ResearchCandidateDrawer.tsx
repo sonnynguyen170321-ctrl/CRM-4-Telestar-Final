@@ -210,38 +210,7 @@ export default function ResearchCandidateDrawer({ candidateId, onClose }: Props)
                 )}
               </section>
 
-              <section>
-                <h3 className="mb-3 flex items-center gap-2 type-meta font-bold text-text-primary">
-                  <History className="h-4 w-4" aria-hidden="true" />
-                  Provider attempts ({detail.attempts.length})
-                </h3>
-                {detail.attempts.some((attempt) => attempt.runScoped) && (
-                  <p className="mb-2 type-meta text-text-muted">
-                    Includes the discovery queries of the run that surfaced this candidate.
-                  </p>
-                )}
-                <div className="space-y-2">
-                  {detail.attempts.map((attempt) => (
-                    <div key={attempt.id} className="flex items-center justify-between gap-3 rounded-lg border border-card-border px-3 py-2">
-                      <span className="type-meta text-text-secondary">
-                        {attempt.provider}  /  {attempt.stage}
-                        {attempt.runScoped && <span className="text-text-muted">  ·  run</span>}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 type-meta font-semibold text-text-muted">
-                        {attempt.status === 'failed' ? (
-                          <AlertTriangle className="h-3.5 w-3.5 text-red-300" aria-hidden="true" />
-                        ) : (
-                          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                        )}
-                        {attempt.status}
-                      </span>
-                    </div>
-                  ))}
-                  {detail.attempts.length === 0 && (
-                    <p className="type-meta text-text-muted">No provider attempts recorded.</p>
-                  )}
-                </div>
-              </section>
+              <ProvenanceSection detail={detail} />
             </div>
           )}
         </div>
@@ -263,4 +232,93 @@ function toLabels(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === 'string')
     : [];
+}
+
+/** The read model caps attempts at this many; a full list is shown as "N+". */
+const ATTEMPT_READ_CAP = 50;
+
+/**
+ * How this candidate was found — replacing a flat "Provider attempts (19)" list.
+ *
+ * That list mixed two different things: lookups made for this candidate, and every search the whole
+ * run made before this candidate existed. Nineteen rows of `exa / discovery / ok` under one person
+ * read as nineteen searches about them, and told the SDR nothing they could act on. Now: the search
+ * that surfaced it, the lookups that are genuinely this candidate's, and the run's search activity
+ * folded into one tally that is there for diagnosing a run, not for judging a lead.
+ */
+function ProvenanceSection({ detail }: { detail: CandidateDetail }) {
+  const own = detail.attempts.filter((attempt) => !attempt.runScoped);
+  const run = detail.attempts.filter((attempt) => attempt.runScoped);
+  const queries = Array.from(
+    new Set(detail.evidence.map((item) => item.query).filter((query): query is string => Boolean(query))),
+  );
+
+  const tally = new Map<string, { ok: number; failed: number }>();
+  for (const attempt of run) {
+    const row = tally.get(attempt.provider) ?? { ok: 0, failed: 0 };
+    if (attempt.status === 'ok') row.ok += 1;
+    else row.failed += 1;
+    tally.set(attempt.provider, row);
+  }
+  const runCount = `${run.length}${detail.attempts.length >= ATTEMPT_READ_CAP ? '+' : ''}`;
+
+  return (
+    <section>
+      <h3 className="mb-3 flex items-center gap-2 type-meta font-bold text-text-primary">
+        <History className="h-4 w-4" aria-hidden="true" />
+        How it was found
+      </h3>
+
+      {queries.length > 0 ? (
+        <ul className="space-y-1.5">
+          {queries.map((query) => (
+            <li key={query} className="rounded-lg border border-card-border px-3 py-2 type-meta font-mono text-text-secondary">
+              {query}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="type-meta text-text-muted">The search that surfaced this candidate was not recorded.</p>
+      )}
+
+      {own.length > 0 && (
+        <div className="mt-3 space-y-2">
+          <p className="type-meta font-semibold text-text-secondary">Lookups for this candidate ({own.length})</p>
+          {own.map((attempt) => (
+            <div key={attempt.id} className="flex items-center justify-between gap-3 rounded-lg border border-card-border px-3 py-2">
+              <span className="type-meta text-text-secondary">
+                {attempt.provider}  /  {attempt.stage}
+              </span>
+              <span className="inline-flex items-center gap-1.5 type-meta font-semibold text-text-muted">
+                {attempt.status === 'ok' ? (
+                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                ) : (
+                  <AlertTriangle className="h-3.5 w-3.5 text-red-300" aria-hidden="true" />
+                )}
+                {attempt.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {run.length > 0 && (
+        <details className="mt-3 rounded-lg border border-card-border px-3 py-2">
+          <summary className="cursor-pointer type-meta text-text-muted">
+            Provider attempts for the whole run ({runCount}) — for diagnosing the run, not this lead
+          </summary>
+          <ul className="mt-2 space-y-1">
+            {Array.from(tally.entries()).map(([provider, counts]) => (
+              <li key={provider} className="flex items-center justify-between type-meta text-text-secondary">
+                <span>{provider}</span>
+                <span className="font-mono text-text-muted">
+                  {counts.ok} ok{counts.failed > 0 ? `  ·  ${counts.failed} failed` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
+  );
 }

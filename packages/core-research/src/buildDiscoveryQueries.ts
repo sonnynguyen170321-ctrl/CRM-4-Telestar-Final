@@ -13,6 +13,11 @@ export type DiscoveryQuery = {
   query: string;
   // Which ICP/manual terms produced this query -- stored on candidates as match hints.
   hints: string[];
+  // The persona title a contact query searched for. Kept apart from `hints` because it is judged
+  // against a candidate's job title and nothing else: a title term found in a company name, a
+  // location or a page snippet says nothing about who the person is. Absent on company queries and
+  // on runs planned before it existed.
+  titleHint?: string;
 };
 
 export const DISCOVERY_QUERY_LIMIT_OPTIONS = [50, 100, 200, 1000] as const;
@@ -142,7 +147,10 @@ const SENIORITY_TITLES: Record<string, string[]> = {
   vp: ["VP", "Vice President"],
   director: ["Director", "Head of"],
   head: ["Head of"],
-  manager: ["Manager", "Lead"],
+  // No bare "Lead": as a search term and as a match it is "Lead Developer", "Team Lead" and "Lead
+  // Generation Specialist" — individual contributors — and it was the single largest source of
+  // off-persona contacts ("Matched 3 ICP signals: lead, saas, united kingdom").
+  manager: ["Manager"],
 };
 function seniorityToTitles(seniority: string[]): string[] {
   return seniority.flatMap((s) => SENIORITY_TITLES[s.trim().toLowerCase()] ?? [s]);
@@ -249,7 +257,7 @@ function buildContactQueries(input: { titles: string[]; industries: string[]; ge
     for (const title of titles) {
       for (const target of targets) {
         // Focused LinkedIn people search — a single high-signal operator, not 6 noisy ones.
-        pushQuery(queries, ["site:linkedin.com/in", `"${title}"`, target ? `"${target}"` : "", domain, geo], [title, target, input.scope?.domain ?? "", geo]);
+        pushQuery(queries, ["site:linkedin.com/in", `"${title}"`, target ? `"${target}"` : "", domain, geo], [title, target, input.scope?.domain ?? "", geo], title);
         if (queries.length >= cap) break outer;
       }
     }
@@ -291,10 +299,25 @@ function buildLookalikeQueries(input: { seed: NonNullable<ResearchBuilderParams[
   return dedupeQueries(queries).slice(0, input.limit);
 }
 
-function pushQuery(queries: DiscoveryQuery[], parts: string[], hints: string[]) {
+function pushQuery(queries: DiscoveryQuery[], parts: string[], hints: string[], titleHint?: string) {
   const query = parts.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
   if (!query) return;
-  queries.push({ query, hints: hints.filter(Boolean) });
+  queries.push({ query, hints: hints.filter(Boolean), ...(titleHint ? { titleHint } : {}) });
+}
+
+/**
+ * Every persona title a run searched for, across all its queries.
+ *
+ * A contact is judged against the whole set, not only the query that surfaced it: a CTO found by the
+ * "CEO" query is still on-persona when the run also searched for CTOs.
+ */
+export function personaTitlesOf(queries: DiscoveryQuery[]): string[] {
+  const seen = new Map<string, string>();
+  for (const q of queries) {
+    const title = q.titleHint?.trim();
+    if (title && !seen.has(title.toLowerCase())) seen.set(title.toLowerCase(), title);
+  }
+  return [...seen.values()];
 }
 
 function dedupeQueries(queries: DiscoveryQuery[]): DiscoveryQuery[] {

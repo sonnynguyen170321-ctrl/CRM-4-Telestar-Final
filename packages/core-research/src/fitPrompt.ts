@@ -13,9 +13,21 @@ export type AiFit = { fitScore: number; fitReason: string; location: string | nu
 
 export const MAX_CANDIDATES_PER_CALL = 30;
 
-/** Assemble the scoring prompt. Compact JSON in / JSON out so it is cheap + parseable. */
-export function buildFitPrompt(kind: "COMPANY" | "CONTACT", targetSignals: string[], candidates: AiFitInput[]): string {
+/**
+ * Assemble the scoring prompt. Compact JSON in / JSON out so it is cheap + parseable.
+ *
+ * `personaTitles` names the job titles a contact search was for. Stated as its own rule rather than
+ * folded into the signals because the failure it prevents is the model doing what the keyword
+ * heuristic did — crediting a Lead Developer at a well-fitting company for the company.
+ */
+export function buildFitPrompt(
+  kind: "COMPANY" | "CONTACT",
+  targetSignals: string[],
+  candidates: AiFitInput[],
+  personaTitles: string[] = []
+): string {
   const signals = targetSignals.filter(Boolean).slice(0, 40).join(", ") || "(none provided)";
+  const personas = personaTitles.filter(Boolean).slice(0, 30);
   const rows = candidates.slice(0, MAX_CANDIDATES_PER_CALL).map((c, i) => ({
     i,
     name: c.name,
@@ -26,6 +38,12 @@ export function buildFitPrompt(kind: "COMPANY" | "CONTACT", targetSignals: strin
     `ICP target signals (${kind.toLowerCase()} search): ${signals}.`,
     `Score each candidate 0-100 for how well it fits the ICP based only on the evidence given.`,
     `Be strict: aggregators, directories, or off-target results score low.`,
+    ...(kind === "CONTACT" && personas.length > 0
+      ? [
+          `Target job titles: ${personas.join(", ")}. The person's title decides fit first: a title that is not one of these ` +
+            `(or a clear equivalent at the same seniority) scores below 40 however well the company fits, and the reason must say so.`,
+        ]
+      : []),
     `Return ONLY a JSON array, one object per candidate: {"i": <index>, "score": <0-100>, "reason": "<short reason>", "location": "<city/country or empty>"}.`,
     `Candidates:`,
     JSON.stringify(rows),

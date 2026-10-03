@@ -184,6 +184,55 @@ describe('research discovery', () => {
     expect(candidates.every((c) => typeof c.fitScore === 'number' && c.fitSource === 'heuristic')).toBe(true);
   });
 
+  it('scores contacts on their job title against the run personas, from the stored plan', async () => {
+    // The owner's report: "Matched 3 ICP signals: lead, saas, united kingdom" over people with the
+    // wrong titles. The persona now travels in the stored query plan (`titleHint`) and the scorer
+    // judges the title field against it, so the right company with the wrong person stays low.
+    const marker = randomUUID().slice(0, 8);
+    const run = await prisma.researchRun.create({
+      data: {
+        tenantId: TENANT,
+        kind: 'contact',
+        status: 'queued',
+        queriesJson: [
+          { query: `site:linkedin.com/in "CEO" "saas" ${marker}`, hints: ['CEO', 'saas', 'united kingdom'], titleHint: 'CEO' },
+          { query: `site:linkedin.com/in "CTO" "saas" ${marker}`, hints: ['CTO', 'saas', 'united kingdom'], titleHint: 'CTO' },
+        ] as never,
+      },
+      select: { id: true },
+    });
+
+    await runDiscoveryPass({
+      tenantId: TENANT,
+      runId: run.id,
+      deps: fixtureDeps([
+        {
+          title: `Sam Taylor - Lead Developer - Acme SaaS | LinkedIn`,
+          url: `https://www.linkedin.com/in/sam-taylor-${marker}`,
+          snippet: 'Lead Developer at Acme SaaS, a B2B SaaS company based in the United Kingdom.',
+        },
+        {
+          title: `Jane Doe - CTO - Beta SaaS | LinkedIn`,
+          url: `https://www.linkedin.com/in/jane-doe-${marker}`,
+          snippet: 'CTO at Beta SaaS, building B2B SaaS infrastructure in the United Kingdom.',
+        },
+      ]),
+    });
+
+    const candidates = await prisma.researchCandidate.findMany({
+      where: { tenantId: TENANT, runId: run.id },
+      select: { name: true, fitScore: true, fitReason: true },
+    });
+    const sam = candidates.find((c) => c.name === 'Sam Taylor');
+    const jane = candidates.find((c) => c.name === 'Jane Doe');
+
+    expect(sam?.fitScore).toBeLessThanOrEqual(35);
+    expect(sam?.fitReason).toMatch(/Title "Lead Developer" is outside the searched personas/);
+    // Found by the "CEO" query, still on-persona: the run searched for CTOs too.
+    expect(jane?.fitScore).toBeGreaterThanOrEqual(60);
+    expect(jane?.fitReason).toMatch(/Title matches persona "CTO"/);
+  });
+
   it('rejects listicles rather than harvesting the roundup as a company', async () => {
     const marker = randomUUID().slice(0, 8);
     const runId = await seedRun('company', [`best software ${marker}`]);
