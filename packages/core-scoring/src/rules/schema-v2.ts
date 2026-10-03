@@ -306,6 +306,46 @@ const DictionaryVersionsSchema = z
   .strict();
 
 // ---------------------------------------------------------------------------
+// Point rules — per-value points (owner request, 2026-10-03)
+// ---------------------------------------------------------------------------
+//
+// "CEO +30, VP Sales +25, United States +20": one row per value, its own points. When `enabled`,
+// the stored verdict is the sum of points (best-matching row per group) against `fitAt` /
+// `reviewAt`, and the dimension weights above are not used. Disqualifiers and the exclusion lists
+// stay fatal either way. Optional, so every rule set written before it still validates.
+
+export const POINT_RULE_GROUPS = ["title", "country", "industry", "size", "keyword"] as const;
+export type PointRuleGroup = (typeof POINT_RULE_GROUPS)[number];
+
+export const PointRuleSchema = z
+  .object({
+    id: z.string().min(1).max(64),
+    group: z.enum(POINT_RULE_GROUPS),
+    // Matched case-insensitively on word boundaries (title, industry, keyword) or as a country
+    // name/alias (country). Unused by `size`, which reads the employee range below.
+    values: z.array(z.string().min(1).max(120)).max(60),
+    minEmployees: z.number().int().min(0).optional(),
+    maxEmployees: z.number().int().min(0).optional(),
+    points: z.number().int().min(-100).max(100),
+  })
+  .strict();
+
+export const PointRulesSchema = z
+  .object({
+    enabled: z.boolean(),
+    rules: z.array(PointRuleSchema).max(200),
+    fitAt: z.number().int().min(-1000).max(1000),
+    reviewAt: z.number().int().min(-1000).max(1000),
+  })
+  .strict()
+  .refine((value) => value.fitAt > value.reviewAt, {
+    message: "pointRules.fitAt must be greater than pointRules.reviewAt",
+  });
+
+export type PointRule = z.infer<typeof PointRuleSchema>;
+export type PointRules = z.infer<typeof PointRulesSchema>;
+
+// ---------------------------------------------------------------------------
 // Top-level rule object
 // ---------------------------------------------------------------------------
 
@@ -330,6 +370,7 @@ export const IcpVersionRulesV2Schema = z
     dictionaryVersions: DictionaryVersionsSchema,
     blocksFinalQualificationFromCompanyOnlyEvidence: z.boolean(),
     negativeSignals: z.array(z.string()).optional(),
+    pointRules: PointRulesSchema.optional(),
     goodFitExamples: z.array(z.string()).optional(),
     badFitExamples: z.array(z.string()).optional(),
   })

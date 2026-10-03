@@ -133,8 +133,10 @@
     "/api/icp/campaigns",
     "/api/icp/campaigns/[id]",
     "/api/icp/profiles",
+    "/api/icp/profiles/[id]/default",
     "/api/icp/versions",
     "/api/icp/versions/[id]",
+    "/api/icp/versions/[id]/preview-score",
     "/api/icp/versions/[id]/publish",
     "/api/inbox",
     "/api/inbox/threads/[id]/reply",
@@ -234,5 +236,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 36,
-  "apiRouteCount": 187
+  "apiRouteCount": 189
 }

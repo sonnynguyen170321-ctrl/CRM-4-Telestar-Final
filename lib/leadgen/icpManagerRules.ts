@@ -116,6 +116,12 @@ export function normalizeManagerRules(
   // ever enforce one of its five. A rule set that cannot keep its own exclusions is not one an
   // operator can trust, whatever the scoring does with it.
   rules.scoringWeights = { ...source.scoringWeights };
+  if (source.pointRules) {
+    rules.pointRules = {
+      ...source.pointRules,
+      rules: source.pointRules.rules.map((rule) => ({ ...rule, values: [...rule.values] })),
+    };
+  }
   rules.scorePolicy = { ...source.scorePolicy };
   rules.disqualifiers.genericEmailContact = { ...source.disqualifiers.genericEmailContact };
   rules.disqualifiers.onePersonCompany = { ...source.disqualifiers.onePersonCompany };

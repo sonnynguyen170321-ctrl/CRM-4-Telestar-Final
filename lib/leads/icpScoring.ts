@@ -30,7 +30,7 @@ import { prisma } from '@/lib/prisma';
 import {
   assessmentFingerprint,
   buildScoringEvidence,
-  deriveWeightedIcpQualification,
+  deriveIcpVerdict,
   resolveIcpVersionId,
   verdictEvidence,
 } from '@/lib/leadgen/scorePoolItem';
@@ -40,7 +40,7 @@ export type ScoreLeadIcpResult =
   | { status: 'not_scored'; reason: 'lead_not_found' | 'no_icp_configured' | 'icp_version_unreadable' };
 
 /** The lead fields the engine reads, with company facts pulled from the account when present. */
-const SCORABLE_LEAD_SELECT = {
+export const SCORABLE_LEAD_SELECT = {
   id: true,
   tenantId: true,
   company: true,
@@ -53,7 +53,7 @@ const SCORABLE_LEAD_SELECT = {
   },
 } satisfies Prisma.LeadSelect;
 
-type ScorableLead = Prisma.LeadGetPayload<{ select: typeof SCORABLE_LEAD_SELECT }>;
+export type ScorableLead = Prisma.LeadGetPayload<{ select: typeof SCORABLE_LEAD_SELECT }>;
 
 
 /**
@@ -89,7 +89,7 @@ export async function scoreLeadIcp(params: { tenantId: string; leadId: string })
   }
 
   const assessed = assessIcpRulesV2(evidence, rules);
-  const verdict = deriveWeightedIcpQualification(assessed, rules, evidence);
+  const verdict = deriveIcpVerdict(assessed, rules, evidence);
   const { qualification, fitScore } = verdict;
   const dataQualityScore = Math.max(0, 100 - assessed.missingEvidence.length * 10);
 
@@ -109,7 +109,7 @@ export async function scoreLeadIcp(params: { tenantId: string; leadId: string })
             gates: assessed.gates,
             missingEvidence: assessed.missingEvidence,
             requiredEvidenceMissing: assessed.requiredEvidenceMissing,
-            ...verdictEvidence(verdict),
+            ...verdictEvidence(verdict, rules),
             weightedDiagnostics: {
               qualification: assessed.qualification,
               reasonCodes: assessed.reasonCodes,
@@ -142,7 +142,8 @@ export async function scoreLeadIcp(params: { tenantId: string; leadId: string })
   }
 }
 
-function toScorable(lead: ScorableLead) {
+/** The engine's view of a lead. Shared with the ICP live preview so both read leads identically. */
+export function toScorable(lead: ScorableLead) {
   return {
     id: lead.id,
     company: lead.company,
@@ -223,7 +224,7 @@ export async function previewLeadIcp(params: {
   const rules = version.rulesJson as unknown as IcpVersionRulesV2;
 
   const evidence = buildScoringEvidence(toScorable(lead));
-  const verdict = deriveWeightedIcpQualification(assessIcpRulesV2(evidence, rules), rules, evidence);
+  const verdict = deriveIcpVerdict(assessIcpRulesV2(evidence, rules), rules, evidence);
   return { status: 'previewed', from: lead.icpQualification ?? null, to: verdict.qualification, fitScore: verdict.fitScore };
 }
 

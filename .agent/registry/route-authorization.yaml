@@ -13,7 +13,7 @@
 # `tests/route-authorization.test.ts` fails when a mutating route has neither a guard nor a
 # hand-written `reason`. Reasons survive regeneration; they are the only part a human owns.
 #
-# routes: 187   mutating: 118   mutating with neither guard nor reason: 47
+# routes: 189   mutating: 120   mutating with neither guard nor reason: 47
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -318,10 +318,18 @@ routes:
     methods: [GET]
     guards:
       - getVisibleCampaignIds
+  - path: app/api/icp/profiles/[id]/default/route.ts
+    methods: [POST]
+    guards: []
+    reason: requireIcpManager (manager roles, scoring:write for API keys); an ICP profile is tenant-level scoring configuration, not a personal record, and both writes are scoped by the session tenant inside one transaction. Audited as admin.icp.set_default.
   - path: app/api/icp/profiles/route.ts
     methods: [GET, POST]
     guards: []
     reason: requireIcpManager. An ICP profile is a tenant-level scoring definition with no owner column — nobody has a personal ICP — so the only meaningful question is whether the caller may manage scoring at all.
+  - path: app/api/icp/versions/[id]/preview-score/route.ts
+    methods: [POST]
+    guards: []
+    reason: requireIcpManager; read-only despite POST (the unsaved rules travel in the body) — previewIcpRules writes nothing, and the version id must belong to the session tenant or it answers 404.
   - path: app/api/icp/versions/[id]/publish/route.ts
     methods: [POST]
     guards: []
