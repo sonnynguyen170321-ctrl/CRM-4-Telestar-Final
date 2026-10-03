@@ -68,7 +68,14 @@ vi.mock('@/lib/prisma', () => ({
     },
     sequenceEnrollment: {
       findFirst: (...args: unknown[]) => mockEnrollmentFindFirst(...args),
-      // The reply/bounce paths pause the exact occurrence they resolved, which is a conditional
+      // A bounce now stops every running cadence on the lead (lib/sequences/leadStop.ts), which
+      // lists them first. Each test arranges the single enrollment it cares about through
+      // `findFirst`; the list is that same row, so the arrangement keeps meaning what it says.
+      findMany: async (...args: unknown[]) => {
+        const row = await mockEnrollmentFindFirst(...args);
+        return row ? [row] : [];
+      },
+      // The reply/bounce paths pause each occurrence they resolved with a conditional
       // updateMany rather than a lead-scoped helper.
       updateMany: (...args: unknown[]) => mockEnrollmentUpdateMany(...args),
     },

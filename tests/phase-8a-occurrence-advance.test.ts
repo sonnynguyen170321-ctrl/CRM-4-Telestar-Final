@@ -152,7 +152,7 @@ describe('Phase 8a — occurrence identity through run-now and advancement', () 
         sequenceId,
         status: 'active',
         currentStep: 1,
-        occupancyKey: occupancyKeyFor(tenantId, leadId),
+        occupancyKey: occupancyKeyFor(tenantId, leadId, sequenceId),
       },
     });
   };
@@ -443,7 +443,7 @@ describe('Phase 8a — occurrence identity through run-now and advancement', () 
       expect(live.status).toBe('active');
       expect(live.currentStep).toBe(1);
       expect(live.completedAt).toBeNull();
-      expect(live.occupancyKey).toBe(occupancyKeyFor(tenantId, leadId));
+      expect(live.occupancyKey).toBe(occupancyKeyFor(tenantId, leadId, sequenceId));
 
       // The lead cache still describes the replacement, and no step-2 task or job appeared.
       const lead = await prisma.lead.findUniqueOrThrow({ where: { id: leadId } });
@@ -543,7 +543,7 @@ describe('Phase 8a — occurrence identity through run-now and advancement', () 
       const live = await prisma.sequenceEnrollment.findUniqueOrThrow({ where: { id: replacement.id } });
       expect(live.status).toBe('active');
       expect(live.completedAt).toBeNull();
-      expect(live.occupancyKey).toBe(occupancyKeyFor(tenantId, leadId));
+      expect(live.occupancyKey).toBe(occupancyKeyFor(tenantId, leadId, sequenceId));
       expect((await prisma.lead.findUniqueOrThrow({ where: { id: leadId } })).sequenceId).toBe(
         sequenceId
       );

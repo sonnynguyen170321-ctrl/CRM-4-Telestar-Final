@@ -80,8 +80,14 @@ export interface EnrollLeadInput {
    * That distinction is the whole race. With one shared behaviour, an SDR who enrolled the lead
    * a moment after the agent's eligibility check would have their live cadence closed by the
    * agent before the database ever got to arbitrate.
+   *
+   * `add` (2026-10-03) is an SDR adding a cadence *beside* the ones already running — a lead may
+   * run several sequences at once. Nothing is unenrolled; the unique occupancy key still refuses
+   * the same sequence twice. Since the key became per-sequence, `cold_launch` no longer collides
+   * with a human's cadence on a different sequence, so it checks for one explicitly, before its
+   * insert and again after it, and backs out if one exists: the human always wins.
    */
-  mode?: 'human' | 'cold_launch';
+  mode?: 'human' | 'add' | 'cold_launch';
   /**
    * A caller-derived primary key for the enrollment.
    *
@@ -125,6 +131,19 @@ export interface EnrollLeadResult {
  * have been granted before a handoff. Re-checking here makes "AI cannot enroll a human-managed
  * prospect" a property of the write.
  */
+/** Any running or paused cadence on the lead other than `exceptId`. */
+async function findOtherOccupyingEnrollment(tenantId: string, leadId: string, exceptId: string | null) {
+  return prisma.sequenceEnrollment.findFirst({
+    where: {
+      tenantId,
+      leadId,
+      status: { in: ['active', 'paused'] },
+      ...(exceptId ? { id: { not: exceptId } } : {}),
+    },
+    select: { id: true, sequenceId: true, status: true },
+  });
+}
+
 export async function prepareEnrollment(
   user: SessionUser,
   input: EnrollLeadInput
@@ -214,6 +233,16 @@ export async function prepareEnrollment(
   const mode = input.mode ?? 'human';
   let unenrolledFromSequenceId: string | null = null;
 
+  if (mode === 'cold_launch') {
+    const occupied = await findOtherOccupyingEnrollment(lead.tenantId, input.leadId, null);
+    if (occupied) {
+      throw new SequenceEnrollmentError(
+        'lead_already_occupied',
+        `Lead is already in sequence ${occupied.sequenceId} (enrollment ${occupied.id}, ${occupied.status}); the agent does not start outreach beside a running cadence`
+      );
+    }
+  }
+
   if (mode === 'human' && lead.sequenceId && lead.sequenceId !== input.sequenceId) {
     const previous = await prisma.sequence.findUnique({ where: { id: lead.sequenceId } });
     await unenrollLead(input.leadId, lead.sequenceId);
@@ -251,7 +280,7 @@ export async function prepareEnrollment(
         status: 'active',
         currentStep: 1,
         tenantId: lead.tenantId,
-        occupancyKey: occupancyKeyFor(lead.tenantId, input.leadId),
+        occupancyKey: occupancyKeyFor(lead.tenantId, input.leadId, input.sequenceId),
       },
     });
   } catch (err) {
@@ -278,13 +307,29 @@ export async function prepareEnrollment(
     }
 
     const holder = await prisma.sequenceEnrollment.findUnique({
-      where: { occupancyKey: occupancyKeyFor(lead.tenantId, input.leadId) },
+      where: { occupancyKey: occupancyKeyFor(lead.tenantId, input.leadId, input.sequenceId) },
       select: { id: true, sequenceId: true, status: true },
     });
     throw new SequenceEnrollmentError(
       'lead_already_occupied',
       `Lead is already occupied by enrollment ${holder?.id ?? 'unknown'} (${holder?.status ?? 'unknown'}) on sequence ${holder?.sequenceId ?? 'unknown'}`
     );
+  }
+
+  if (mode === 'cold_launch') {
+    // The pre-check above is a read; an SDR may have enrolled the lead on another sequence between
+    // it and this insert. Re-check now that our row exists, and give the lead back if so.
+    const raced = await findOtherOccupyingEnrollment(lead.tenantId, input.leadId, enrollment.id);
+    if (raced) {
+      await prisma.sequenceEnrollment.updateMany({
+        where: { id: enrollment.id, status: 'active' },
+        data: { status: 'unenrolled', completedAt: new Date(), ...releaseOccupancy() },
+      });
+      throw new SequenceEnrollmentError(
+        'lead_already_occupied',
+        `Lead was enrolled in sequence ${raced.sequenceId} while the agent was launching; the agent's enrollment was withdrawn`
+      );
+    }
   }
 
   await ensureEnrollmentBookkeeping({
@@ -350,7 +395,7 @@ async function validateAndResumeEnrollment(input: {
   leadId: string;
   sequenceId: string;
   sequenceName: string;
-  mode: 'human' | 'cold_launch';
+  mode: 'human' | 'add' | 'cold_launch';
   workOrderId: string | null;
 }): Promise<EnrollLeadResult> {
   const { existing } = input;
@@ -372,7 +417,7 @@ async function validateAndResumeEnrollment(input: {
       `Enrollment ${existing.id} is ${existing.status}; a terminal occurrence cannot be resumed`
     );
   }
-  if (existing.occupancyKey !== occupancyKeyFor(existing.tenantId, input.leadId)) {
+  if (existing.occupancyKey !== occupancyKeyFor(existing.tenantId, input.leadId, existing.sequenceId)) {
     throw new SequenceEnrollmentError(
       'lead_already_occupied',
       `Enrollment ${existing.id} no longer holds this lead's occupancy`
@@ -431,7 +476,7 @@ export async function ensureEnrollmentBookkeeping(input: {
   enrollmentId: string;
   /** Where the cadence actually is, from the enrollment. Never assumed to be 1. */
   currentStep: number;
-  mode: 'human' | 'cold_launch';
+  mode: 'human' | 'add' | 'cold_launch';
   workOrderId: string | null;
 }): Promise<void> {
   if (input.mode === 'cold_launch') {
@@ -541,7 +586,7 @@ export async function finalizeFirstStep(
     enrollment.leadId !== input.leadId ||
     enrollment.sequenceId !== input.sequenceId ||
     enrollment.status !== 'active' ||
-    enrollment.occupancyKey !== occupancyKeyFor(enrollment.tenantId, input.leadId)
+    enrollment.occupancyKey !== occupancyKeyFor(enrollment.tenantId, input.leadId, enrollment.sequenceId)
   ) {
     throw new SequenceEnrollmentError(
       'enrollment_not_owner',

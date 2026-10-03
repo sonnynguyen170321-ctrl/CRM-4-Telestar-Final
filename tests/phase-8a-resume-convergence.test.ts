@@ -246,7 +246,7 @@ describe('Phase 8a — resume convergence', () => {
         // crashed resume, the launch's. It is older than the resume transition, which is exactly
         // what marks the bookkeeping as unfinished.
         lastEvaluatedAt: new Date(resumeAt.getTime() - 60_000),
-        occupancyKey: occupancyKeyFor(tenantId, leadId),
+        occupancyKey: occupancyKeyFor(tenantId, leadId, sequenceId),
       },
     });
     if (crashAfter >= 2) {
@@ -284,7 +284,7 @@ describe('Phase 8a — resume convergence', () => {
     const row = await prisma.sequenceEnrollment.findUniqueOrThrow({ where: { id: enrollmentId } });
     expect(row.status).toBe('active');
     expect(row.pausedReason).toBeNull();
-    expect(row.occupancyKey).toBe(occupancyKeyFor(tenantId, leadId));
+    expect(row.occupancyKey).toBe(occupancyKeyFor(tenantId, leadId, sequenceId));
     expect(row.currentStep).toBe(1);
     expect(row.nextActionAt).not.toBeNull();
 

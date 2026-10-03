@@ -156,14 +156,14 @@ describe('Phase 8a — enrollment occupancy', () => {
       const row = await prisma.sequenceEnrollment.findUniqueOrThrow({
         where: { id: result.enrollmentId },
       });
-      expect(row.occupancyKey).toBe(occupancyKeyFor(tenantId, leadId));
+      expect(row.occupancyKey).toBe(occupancyKeyFor(tenantId, leadId, sequenceA));
     });
   }, 60_000);
 
   it('preserves occupancy across active → paused → active', async () => {
     await inTenant(async () => {
       const { enrollmentId } = await prepareEnrollment(userA, { leadId, sequenceId: sequenceA });
-      const key = occupancyKeyFor(tenantId, leadId);
+      const key = occupancyKeyFor(tenantId, leadId, sequenceA);
 
       await prisma.sequenceEnrollment.update({
         where: { id: enrollmentId },
@@ -219,7 +219,7 @@ describe('Phase 8a — enrollment occupancy', () => {
       expect(
         (await prisma.sequenceEnrollment.findUniqueOrThrow({ where: { id: second.enrollmentId } }))
           .occupancyKey
-      ).toBe(occupancyKeyFor(tenantId, leadId));
+      ).toBe(occupancyKeyFor(tenantId, leadId, sequenceB));
 
       // Many terminal rows, one occupying row — exactly what the NULL-tolerant unique index buys.
       expect(await prisma.sequenceEnrollment.count({ where: { tenantId, leadId } })).toBe(2);
@@ -227,7 +227,9 @@ describe('Phase 8a — enrollment occupancy', () => {
     });
   }, 60_000);
 
-  it('refuses a second occupying enrollment at the database level', async () => {
+  it('refuses a second occupying enrollment of the same sequence at the database level', async () => {
+    // Since 2026-10-03 the key is per sequence: a lead may run several *different* sequences, but
+    // never the same one twice, which would send every step twice.
     await inTenant(async () => {
       await prepareEnrollment(userA, { leadId, sequenceId: sequenceA });
 
@@ -236,15 +238,34 @@ describe('Phase 8a — enrollment occupancy', () => {
           data: {
             tenantId,
             leadId,
-            sequenceId: sequenceB,
+            sequenceId: sequenceA,
             status: 'active',
             currentStep: 1,
-            occupancyKey: occupancyKeyFor(tenantId, leadId),
+            occupancyKey: occupancyKeyFor(tenantId, leadId, sequenceA),
           },
         })
       ).rejects.toMatchObject({ code: 'P2002' });
 
       expect(await occupying()).toHaveLength(1);
+    });
+  }, 60_000);
+
+  it('admits a second occupying enrollment on a different sequence', async () => {
+    await inTenant(async () => {
+      await prepareEnrollment(userA, { leadId, sequenceId: sequenceA });
+
+      await prisma.sequenceEnrollment.create({
+        data: {
+          tenantId,
+          leadId,
+          sequenceId: sequenceB,
+          status: 'active',
+          currentStep: 1,
+          occupancyKey: occupancyKeyFor(tenantId, leadId, sequenceB),
+        },
+      });
+
+      expect(await occupying()).toHaveLength(2);
     });
   }, 60_000);
 
@@ -312,7 +333,7 @@ describe('Phase 8a — enrollment occupancy', () => {
       // Whatever happened, exactly one enrollment occupies the lead.
       const rows = await occupying();
       expect(rows).toHaveLength(1);
-      expect(rows.every((r) => r.occupancyKey === occupancyKeyFor(tenantId, leadId))).toBe(true);
+      expect(rows.every((r) => r.occupancyKey === occupancyKeyFor(tenantId, leadId, sequenceB))).toBe(true);
       expect(
         (await prisma.sequenceEnrollment.findUniqueOrThrow({ where: { id: enrollmentId } })).status
       ).toBe('unenrolled');
@@ -410,7 +431,7 @@ describe('Phase 8a — enrollment occupancy', () => {
         sequenceId: sequenceA,
         status: 'active',
         currentStep: 1,
-        occupancyKey: occupancyKeyFor(tenantId, leadId),
+        occupancyKey: occupancyKeyFor(tenantId, leadId, sequenceA),
       },
     });
     return enrollmentId;
@@ -555,7 +576,7 @@ describe('Phase 8a — enrollment occupancy', () => {
     it('rejects a terminal enrollment that still holds occupancy', async () => {
       await inTenant(async () => {
         await expect(
-          bad({ status: 'completed', occupancyKey: occupancyKeyFor(tenantId, leadId) })
+          bad({ status: 'completed', occupancyKey: occupancyKeyFor(tenantId, leadId, sequenceA) })
         ).rejects.toThrow();
       });
     }, 60_000);

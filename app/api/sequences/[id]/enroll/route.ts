@@ -18,7 +18,7 @@ const ENROLLMENT_STATUS: Record<SequenceEnrollmentError['code'], number> = {
   forbidden: 403,
   // A human owns this conversation. Not a permission problem — a state one.
   prospect_human_owned: 409,
-  // Another cadence already occupies this lead. Also a state conflict.
+  // This sequence is already running on the lead (or, for the agent, any cadence is). A state conflict.
   lead_already_occupied: 409,
   // A terminal occurrence cannot be revived; a new enrollment is required.
   enrollment_terminal: 409,
@@ -41,12 +41,12 @@ export async function POST(
   const { id } = await params;
   const parsed = await parseBody(req, enrollSchema, 'Invalid sequence enrollment');
   if (parsed.error) return parsed.error;
-  const { leadId } = parsed.data;
+  const { leadId, keepExisting } = parsed.data;
 
   try {
     // Enrollment logic lives in the domain service so the agent's `outreach_launch` work order
     // and this route run the same code (ARCHITECTURE §9). The route maps its errors to HTTP.
-    await enrollLeadInSequence(user, { leadId, sequenceId: id });
+    await enrollLeadInSequence(user, { leadId, sequenceId: id, mode: keepExisting ? 'add' : 'human' });
     const updatedLead = await prisma.lead.findUnique({ where: { id: leadId } });
 
     return NextResponse.json({ success: true, lead: updatedLead });

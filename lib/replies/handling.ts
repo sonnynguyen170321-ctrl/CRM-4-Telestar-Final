@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { calculateNextActionAt } from '@/lib/automation/scheduling';
 import { resolveTimezone } from '@/lib/automation/timezone';
 import { pauseEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
-import { unenrollLead } from '@/lib/sequences/engine';
+import { pauseAllLeadCadences, unenrollAllLeadCadences } from '@/lib/sequences/leadStop';
 import { handoffProspectToHuman, stopProspectOutreach } from '@/lib/prospects/ownership';
 import { CLASS_LABEL, KIND_LABEL, type ReplyClassification } from './types';
 import { onActivityLogged, onSuppressionOrArchive } from '@/lib/contact-intelligence/events';
@@ -63,7 +63,15 @@ async function pauseOccurrence(
   input: ReplyHandlingInput,
   reason: string
 ): Promise<'paused' | 'not_paused' | 'no_enrollment'> {
-  if (!input.enrollment) return 'no_enrollment';
+  // A reply stops the *lead*, not only the cadence it was matched to: with several sequences on
+  // one prospect, the others would otherwise keep sending to someone who has just answered.
+  const others = await pauseAllLeadCadences({
+    leadId: input.leadId,
+    reason,
+    actorUserId: input.actorUserId,
+    exceptEnrollmentId: input.enrollment?.id ?? null,
+  });
+  if (!input.enrollment) return others.paused > 0 ? 'paused' : 'no_enrollment';
   const result = await pauseEnrollmentOccurrence({
     enrollmentId: input.enrollment.id,
     leadId: input.leadId,
@@ -71,7 +79,7 @@ async function pauseOccurrence(
     reason,
     actorUserId: input.actorUserId,
   });
-  return result.ok ? 'paused' : 'not_paused';
+  return result.ok || others.paused > 0 ? 'paused' : 'not_paused';
 }
 
 /**
@@ -88,10 +96,9 @@ async function applyStop(input: ReplyHandlingInput): Promise<ReplyHandlingOutcom
   });
 
   const cadence = await pauseOccurrence(input, 'manual');
-  if (input.enrollment) {
-    // A stop is not a pause: unenroll so nothing resumes it, and release the lead's occupancy.
-    await unenrollLead(input.leadId, input.enrollment.sequenceId);
-  }
+  // A stop is not a pause: unenroll every cadence on the lead so nothing resumes any of them, and
+  // release each occupancy.
+  await unenrollAllLeadCadences(input.leadId);
 
   let suppressed = false;
   if (input.classification.kind === 'unsubscribe' && lead?.email) {

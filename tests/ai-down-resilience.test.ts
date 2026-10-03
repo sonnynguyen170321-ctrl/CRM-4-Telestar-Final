@@ -56,8 +56,19 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: (...a: unknown[]) => mockLeadFindUnique(...a),
       update: (...a: unknown[]) => mockLeadUpdate(...a),
     },
-    sequence: { findUnique: (...a: unknown[]) => mockSequenceFindUnique(...a) },
-    sequenceEnrollment: { updateMany: (...a: unknown[]) => mockEnrollmentUpdateMany(...a) },
+    sequence: {
+      findUnique: (...a: unknown[]) => mockSequenceFindUnique(...a),
+      // `pauseSequence` names every cadence it paused; this suite has one, named by findUnique.
+      findMany: async (...a: unknown[]) => {
+        const row = await mockSequenceFindUnique(...a);
+        return row ? [{ id: 'seq-1', ...row }] : [];
+      },
+    },
+    sequenceEnrollment: {
+      // `pauseSequence` pauses every running cadence on the lead; the lead in this suite runs one.
+      findMany: async () => [{ sequenceId: 'seq-1' }],
+      updateMany: (...a: unknown[]) => mockEnrollmentUpdateMany(...a),
+    },
     task: {
       updateMany: (...a: unknown[]) => mockTaskUpdateMany(...a),
       create: (...a: unknown[]) => mockTaskCreate(...a),

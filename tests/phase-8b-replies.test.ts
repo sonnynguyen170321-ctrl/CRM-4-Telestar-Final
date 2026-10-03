@@ -192,7 +192,7 @@ describe('Phase 8b — reply classification and handoff', () => {
           id: enrollmentId,
           tenantId, leadId, sequenceId,
           status: 'active', currentStep: 1,
-          occupancyKey: occupancyKeyFor(tenantId, leadId),
+          occupancyKey: occupancyKeyFor(tenantId, leadId, sequenceId),
         },
       });
       await prisma.task.create({
@@ -405,7 +405,13 @@ describe('Phase 8b — reply classification and handoff', () => {
   // =========================================================================
   // Occurrence safety carried over from Phase 8a
   // =========================================================================
-  it('pauses the exact occurrence it was given, never the lead current cadence', async () => {
+  // CHANGED 2026-10-03. This used to assert the opposite — that a reply matched to an ended cadence
+  // left the lead's newer cadence running. Once a lead could run several sequences at once, that
+  // rule meant a prospect who had just replied with interest kept receiving automated email from
+  // every other cadence. A reply is about the prospect, not the cadence: it stops them all. The
+  // occurrence-scoping that still matters — a stale SEQUENCE_PAUSE job never pausing a different
+  // cadence — lives in workers/sequence.ts handlePause and is unchanged.
+  it('a reply stops every running cadence on the lead, including one that replaced the matched occurrence', async () => {
     await inTenant(async () => {
       // The AI cadence ends and a human one replaces it before the reply is handled.
       await prisma.sequenceEnrollment.update({
@@ -416,7 +422,7 @@ describe('Phase 8b — reply classification and handoff', () => {
         data: {
           tenantId, leadId, sequenceId,
           status: 'active', currentStep: 1,
-          occupancyKey: occupancyKeyFor(tenantId, leadId),
+          occupancyKey: occupancyKeyFor(tenantId, leadId, sequenceId),
         },
       });
 
@@ -432,13 +438,13 @@ describe('Phase 8b — reply classification and handoff', () => {
         },
       });
 
-      // The stale pause refuses, and the replacement keeps running — but the handoff still lands,
+      // The matched occurrence had already ended; the replacement is stopped, and the handoff lands
       // because the prospect genuinely engaged.
-      expect(outcome.cadence).toBe('not_paused');
+      expect(outcome.cadence).toBe('paused');
       expect(outcome.handedOff).toBe(true);
       expect(
         (await prisma.sequenceEnrollment.findUniqueOrThrow({ where: { id: replacement.id } })).status
-      ).toBe('active');
+      ).toBe('paused');
     });
   }, 120_000);
 });

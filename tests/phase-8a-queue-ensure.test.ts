@@ -348,7 +348,7 @@ describe('Phase 8a — durable queue ensure', () => {
           sequenceId,
           status: 'active',
           currentStep: 1,
-          occupancyKey: `${tenantId}:${leadId}`,
+          occupancyKey: `${tenantId}:${leadId}:${sequenceId}`,
         },
       });
 
@@ -521,7 +521,7 @@ describe('Phase 8a — durable queue ensure', () => {
           sequenceId,
           status: 'active',
           currentStep: 1,
-          occupancyKey: `${tenantId}:${leadId}`,
+          occupancyKey: `${tenantId}:${leadId}:${sequenceId}`,
         },
       });
 

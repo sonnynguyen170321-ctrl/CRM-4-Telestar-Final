@@ -182,7 +182,7 @@ describe('Phase 8a — task execution lock', () => {
           sequenceId,
           status: 'active',
           currentStep: 1,
-          occupancyKey: occupancyKeyFor(tenantId, leadId),
+          occupancyKey: occupancyKeyFor(tenantId, leadId, sequenceId),
         },
       });
 

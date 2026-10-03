@@ -483,6 +483,14 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
 
   if (!lead) return null;
 
+  // Every sequence the lead is in right now, not only the one `Lead.sequenceId` points at: a lead
+  // can run several at once, and a sequence already running cannot be added again.
+  const runningSequenceIds = new Set(
+    (((lead as unknown as { sequenceEnrollments?: { sequenceId: string; status: string }[] }).sequenceEnrollments) ?? [])
+      .filter((enrollment) => enrollment.status === 'active' || enrollment.status === 'paused')
+      .map((enrollment) => enrollment.sequenceId)
+  );
+
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNote.trim()) return;
@@ -815,18 +823,37 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
     doEnroll(sequenceId);
   };
 
-  const doEnroll = async (sequenceId: string) => {
+  const doEnroll = async (sequenceId: string, keepExisting = false) => {
     setEnrollConfirm(null);
     setEnrolling(sequenceId);
     const res = await fetch(`/api/sequences/${sequenceId}/enroll`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leadId: lead.id }),
+      body: JSON.stringify({ leadId: lead.id, keepExisting }),
     });
     setEnrolling(null);
     if (res.ok) {
-      setLead((prev) => prev ? { ...prev, sequenceId, sequenceStep: 1, sequenceStatus: 'active', sequence: sequences.find((s) => s.id === sequenceId) ?? prev.sequence } : prev);
-      showToast('Lead enrolled in sequence', 'success');
+      const data = await res.json().catch(() => null);
+      setLead((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...(data?.lead ?? {}),
+              sequenceId,
+              sequenceStep: 1,
+              sequenceStatus: 'active',
+              sequence: sequences.find((s) => s.id === sequenceId) ?? prev.sequence,
+              // Keep the history in step: an added cadence shows up as running beside the others.
+              sequenceEnrollments: keepExisting
+                ? [
+                    { id: `pending-${sequenceId}`, sequenceId, status: 'active', startedAt: new Date().toISOString(), sequence: sequences.find((s) => s.id === sequenceId) },
+                    ...(((prev as unknown as { sequenceEnrollments?: unknown[] }).sequenceEnrollments) ?? []),
+                  ]
+                : (prev as unknown as { sequenceEnrollments?: unknown[] }).sequenceEnrollments,
+            }
+          : prev
+      );
+      showToast(keepExisting ? 'Sequence added — it runs beside the others' : 'Lead enrolled in sequence', 'success');
     } else {
       showToast(await readApiError(res, 'Failed to enroll lead'), 'error');
     }
@@ -2047,32 +2074,50 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
               {/* Available sequences */}
               <div>
                 <h3 className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">
-                  {lead.sequenceStatus === 'active' ? 'Switch Sequence' : 'Available Sequences'}
+                  {lead.sequenceStatus === 'active' ? 'Add or switch sequence' : 'Available Sequences'}
                 </h3>
                 {sequences.length === 0 ? (
                   <p className="text-xs text-text-muted">No sequences found.</p>
                 ) : (
                   <div className="space-y-2">
                     {sequences
-                      .filter((s) => s.id !== lead.sequenceId)
+                      .filter((s) => s.id !== lead.sequenceId && !runningSequenceIds.has(s.id))
                       .map((seq) => (
                         <div key={seq.id} className="flex items-center justify-between p-3 glass-card rounded-xl">
                           <div>
                             <p className="text-xs font-semibold text-text-primary">{seq.name}</p>
                             <p className="text-[10px] text-text-muted font-mono">{seq.steps?.length ?? 0} steps</p>
                           </div>
-                          <button
-                            onClick={() => handleEnroll(seq.id)}
-                            disabled={enrolling === seq.id}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold bg-brand-red/10 text-brand-red border border-brand-red/30 rounded-lg hover:bg-brand-red/20 transition-colors disabled:opacity-50"
-                          >
-                            {enrolling === seq.id ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <Repeat className="w-3 h-3" aria-hidden="true" />
+                          <div className="flex items-center gap-1.5">
+                            {lead.sequenceId && (
+                              <button
+                                onClick={() => doEnroll(seq.id, true)}
+                                disabled={enrolling === seq.id}
+                                title="Run this sequence as well — the current one keeps going"
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-text-primary border border-card-border rounded-lg hover:bg-bg-main transition-colors disabled:opacity-50"
+                              >
+                                {enrolling === seq.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Plus className="w-3 h-3" aria-hidden="true" />
+                                )}
+                                Add
+                              </button>
                             )}
-                            {lead.sequenceId ? 'Switch' : 'Enroll'}
-                          </button>
+                            <button
+                              onClick={() => handleEnroll(seq.id)}
+                              disabled={enrolling === seq.id}
+                              title={lead.sequenceId ? 'Stop the current sequences and start this one instead' : undefined}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold bg-brand-red/10 text-brand-red border border-brand-red/30 rounded-lg hover:bg-brand-red/20 transition-colors disabled:opacity-50"
+                            >
+                              {enrolling === seq.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Repeat className="w-3 h-3" aria-hidden="true" />
+                              )}
+                              {lead.sequenceId ? 'Switch' : 'Enroll'}
+                            </button>
+                          </div>
                         </div>
                       ))}
                   </div>
@@ -2318,7 +2363,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
                   </span>.
                 </p>
                 <p className="text-xs text-text-secondary mt-2 leading-relaxed">
-                  Switching to <span className="font-semibold text-brand-red">{enrollConfirm.sequenceName}</span> will unenroll them from the current sequence. All pending steps on the old sequence will be skipped.
+                  Switching to <span className="font-semibold text-brand-red">{enrollConfirm.sequenceName}</span> will unenroll them from every sequence they are in now, and their pending steps will be skipped. To keep those running, use Add instead.
                 </p>
               </div>
             </div>

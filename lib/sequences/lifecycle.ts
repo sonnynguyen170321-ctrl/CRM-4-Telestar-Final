@@ -184,7 +184,7 @@ export async function resumeEnrollmentOccurrence(
         status: 'active',
         pausedReason: null,
         lastTransitionAt: now,
-        occupancyKey: occupancyKeyFor(input.tenantId, input.leadId),
+        occupancyKey: occupancyKeyFor(input.tenantId, input.leadId, input.sequenceId),
       },
     });
   } catch (err) {
@@ -192,7 +192,7 @@ export async function resumeEnrollmentOccurrence(
       return {
         ok: false,
         refusal: 'occupancy_conflict',
-        detail: 'Another sequence is already running for this lead.',
+        detail: 'This sequence is already running again for this lead in another enrollment.',
       };
     }
     throw err;

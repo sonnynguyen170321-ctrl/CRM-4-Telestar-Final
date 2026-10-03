@@ -73,7 +73,7 @@ export async function handleEnroll(payload: SequenceEnrollPayload) {
     data: {
       leadId, sequenceId,
       status: 'active', currentStep: 1,
-      occupancyKey: occupancyKeyFor(lead.tenantId, leadId),
+      occupancyKey: occupancyKeyFor(lead.tenantId, leadId, sequenceId),
       tenantId: lead.tenantId,
     },
   });
@@ -271,7 +271,7 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
       enrollment.leadId === task.leadId &&
       enrollment.sequenceId === task.sequenceId &&
       enrollment.status === 'active' &&
-      enrollment.occupancyKey === `${task.tenantId}:${task.leadId}`;
+      enrollment.occupancyKey === occupancyKeyFor(task.tenantId, task.leadId, task.sequenceId ?? '');
     if (!owns) {
       return { status: 'skipped', reason: 'occurrence_no_longer_active', taskId: task.id };
     }
@@ -463,7 +463,7 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
         live.leadId === task.leadId &&
         live.sequenceId === task.sequenceId &&
         live.status === 'active' &&
-        live.occupancyKey === `${task.tenantId}:${task.leadId}`;
+        live.occupancyKey === occupancyKeyFor(task.tenantId, task.leadId, task.sequenceId ?? '');
       // The same occurrence advancing is a different failure from losing it: eligibility checked the
       // step order several awaits ago, and a step-1 task must not send once the cadence is on step 2.
       const sameStep = live && live.currentStep === task.sequenceStep;

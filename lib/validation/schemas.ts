@@ -150,7 +150,11 @@ export const createSequenceSchema = z.object({
 
 export const updateSequenceSchema = createSequenceSchema.partial();
 
-export const enrollSchema = z.object({ leadId: id });
+/**
+ * Enroll a lead. `keepExisting` adds the sequence beside the lead's running cadences instead of
+ * switching away from them — a lead may run several at once (2026-10-03).
+ */
+export const enrollSchema = z.object({ leadId: id, keepExisting: z.boolean().optional() });
 
 // ─── Templates ───────────────────────────────────────────────────────────────
 

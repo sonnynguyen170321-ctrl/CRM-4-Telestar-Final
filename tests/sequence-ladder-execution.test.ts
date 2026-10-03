@@ -317,7 +317,7 @@ function seedLadder(): void {
     tenantId: TENANT_ID,
     status: 'active',
     currentStep: 1,
-    occupancyKey: `${TENANT_ID}:${LEAD_ID}`,
+    occupancyKey: `${TENANT_ID}:${LEAD_ID}:${SEQUENCE_ID}`,
     nextActionAt: null,
     lastEvaluatedAt: null,
   });

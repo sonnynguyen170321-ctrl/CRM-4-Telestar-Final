@@ -16,8 +16,16 @@ vi.mock('@/lib/prisma', () => ({
     },
     sequence: {
       findUnique: (...args: unknown[]) => mockSequenceFindUnique(...args),
+      // `pauseSequence` names every cadence it paused; each case here has one, from findUnique.
+      findMany: async (...args: unknown[]) => {
+        const row = await mockSequenceFindUnique(...args);
+        return row ? [{ id: 'seq-1', ...row }] : [];
+      },
     },
     sequenceEnrollment: {
+      // `pauseSequence` pauses every running cadence on the lead (2026-10-03); the lead in each
+      // case runs only the one its `sequenceId` names, so the listing is empty and that id is used.
+      findMany: async () => [],
       updateMany: (...args: unknown[]) => mockEnrollmentUpdateMany(...args),
     },
     task: {
@@ -52,7 +60,7 @@ describe('Lifecycle Integration Tests (Phase 13 / Spec §35–39)', () => {
       data: { sequenceStatus: 'paused' },
     });
     expect(mockEnrollmentUpdateMany).toHaveBeenCalledWith({
-      where: { leadId: 'lead-1', sequenceId: 'seq-1', status: 'active' },
+      where: { leadId: 'lead-1', sequenceId: { in: ['seq-1'] }, status: 'active' },
       data: expect.objectContaining({
         status: 'paused',
         pausedReason: 'reply',
@@ -78,7 +86,7 @@ describe('Lifecycle Integration Tests (Phase 13 / Spec §35–39)', () => {
     await pauseSequence('lead-1b', 'replied', 'user-1');
 
     expect(mockEnrollmentUpdateMany).toHaveBeenCalledWith({
-      where: { leadId: 'lead-1b', sequenceId: 'seq-1', status: 'active' },
+      where: { leadId: 'lead-1b', sequenceId: { in: ['seq-1'] }, status: 'active' },
       data: expect.objectContaining({ pausedReason: 'reply' }),
     });
   });
@@ -98,7 +106,7 @@ describe('Lifecycle Integration Tests (Phase 13 / Spec §35–39)', () => {
     await pauseSequence('lead-2', 'hard_bounce', 'system');
 
     expect(mockEnrollmentUpdateMany).toHaveBeenCalledWith({
-      where: { leadId: 'lead-2', sequenceId: 'seq-1', status: 'active' },
+      where: { leadId: 'lead-2', sequenceId: { in: ['seq-1'] }, status: 'active' },
       data: expect.objectContaining({
         status: 'paused',
         pausedReason: 'hard_bounce',
@@ -121,7 +129,7 @@ describe('Lifecycle Integration Tests (Phase 13 / Spec §35–39)', () => {
     await pauseSequence('lead-2b', 'soft_bounce', 'system');
 
     expect(mockEnrollmentUpdateMany).toHaveBeenCalledWith({
-      where: { leadId: 'lead-2b', sequenceId: 'seq-1', status: 'active' },
+      where: { leadId: 'lead-2b', sequenceId: { in: ['seq-1'] }, status: 'active' },
       data: expect.objectContaining({ pausedReason: 'soft_bounce' }),
     });
   });
@@ -141,7 +149,7 @@ describe('Lifecycle Integration Tests (Phase 13 / Spec §35–39)', () => {
     await pauseSequence('lead-3', 'meeting_booked', 'user-1');
 
     expect(mockEnrollmentUpdateMany).toHaveBeenCalledWith({
-      where: { leadId: 'lead-3', sequenceId: 'seq-1', status: 'active' },
+      where: { leadId: 'lead-3', sequenceId: { in: ['seq-1'] }, status: 'active' },
       data: expect.objectContaining({
         status: 'paused',
         pausedReason: 'meeting_booked',

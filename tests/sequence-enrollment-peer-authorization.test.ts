@@ -158,10 +158,10 @@ describe.skipIf(!hasDb)('one rep cannot reach another rep cadence', () => {
           leadId: OWNER_LEAD,
           status: 'active',
           currentStep: 1,
-          // A check constraint requires `occupancyKey = tenantId || ':' || leadId` for any
-          // active or paused enrollment — one live cadence per lead. Omitting it fails at the
-          // database, not in application code.
-          occupancyKey: `${T}:${OWNER_LEAD}`,
+          // A check constraint requires `occupancyKey = tenantId || ':' || leadId || ':' || sequenceId`
+          // for any active or paused enrollment — one live cadence per lead per sequence. Omitting
+          // it fails at the database, not in application code.
+          occupancyKey: `${T}:${OWNER_LEAD}:${SEQ}`,
         },
       });
     });

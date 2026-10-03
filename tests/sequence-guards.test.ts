@@ -95,7 +95,7 @@ describe.skipIf(!hasDb)('archiving a sequence releases its enrollments', () => {
       const lead = await prisma.lead.create({ data: { tenantId: TENANT, firstName: 'Archive', lastName: `Lead-${tag}`, company: 'Co', email: `archive-${tag}@t.test`, assignedToId: 'seq-guard-actor', campaignId: campaign.id } });
       const sequence = await prisma.sequence.create({ data: { tenantId: TENANT, name: `Guard Seq ${tag}`, isActive: true, createdById: 'seq-guard-actor' } });
       const enrollment = await prisma.sequenceEnrollment.create({
-        data: { tenantId: TENANT, leadId: lead.id, sequenceId: sequence.id, status: 'active', currentStep: 1, occupancyKey: `${TENANT}:${lead.id}` },
+        data: { tenantId: TENANT, leadId: lead.id, sequenceId: sequence.id, status: 'active', currentStep: 1, occupancyKey: `${TENANT}:${lead.id}:${sequence.id}` },
       });
       await prisma.lead.update({ where: { id: lead.id }, data: { sequenceId: sequence.id, sequenceStep: 1, sequenceStatus: 'active' } });
       return { lead: lead.id, sequence: sequence.id, enrollment: enrollment.id };
@@ -115,7 +115,7 @@ describe.skipIf(!hasDb)('archiving a sequence releases its enrollments', () => {
     await expect(
       run(() =>
         prisma.sequenceEnrollment.create({
-          data: { tenantId: TENANT, leadId: ids.lead, sequenceId: other.id, status: 'active', currentStep: 1, occupancyKey: `${TENANT}:${ids.lead}` },
+          data: { tenantId: TENANT, leadId: ids.lead, sequenceId: other.id, status: 'active', currentStep: 1, occupancyKey: `${TENANT}:${ids.lead}:${other.id}` },
         })
       )
     ).resolves.toBeTruthy();

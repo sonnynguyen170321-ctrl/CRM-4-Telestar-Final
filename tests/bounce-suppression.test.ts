@@ -176,7 +176,7 @@ async function openStep() {
         sequenceId,
         status: 'active',
         currentStep: 1,
-        occupancyKey: `${T}:${leadId}`,
+        occupancyKey: `${T}:${leadId}:${sequenceId}`,
         nextActionAt: new Date(),
       },
     });
