@@ -26,10 +26,8 @@ export function managerSimplificationNotes(rulesJson: unknown): string[] {
     "Industry keywords and sub-industries will be folded into the visible industry rule",
   );
   note(
-    rules.companyType.allow.length > 0 ||
-      rules.companyType.deny.length > 0 ||
-      rules.companyType.servicesConsultingPolicy.disqualify,
-    "Company-type rules will be removed",
+    rules.companyType.allow.length > 0 || rules.companyType.deny.length > 0,
+    "Company-type allow/deny lists will be removed (the services/consulting exclusion is kept)",
   );
   note(
     rules.persona.titleTiers.length > 0 ||
@@ -55,12 +53,9 @@ export function managerSimplificationNotes(rulesJson: unknown): string[] {
     "Revenue and advanced company-size rules will be removed",
   );
   note(
-    rules.disqualifiers.genericEmailContact.disqualify ||
-      rules.disqualifiers.onePersonCompany.disqualify ||
-      rules.disqualifiers.websiteOffline.disqualify ||
-      rules.disqualifiers.projectBased.disqualify ||
+    rules.disqualifiers.projectBased.disqualify ||
       rules.disqualifiers.competitorDenylist.length > 0,
-    "Advanced automatic exclusions will be removed",
+    "Project-based and competitor exclusions will be removed",
   );
   note(
     rules.accountSupplied.mode !== "score" ||
@@ -114,6 +109,21 @@ export function normalizeManagerRules(
     (bandRanges.length && bandRanges.every((range) => range.maxEmployees != null)
       ? Math.max(...bandRanges.map((range) => range.maxEmployees ?? 0))
       : undefined);
+
+  // Kept since the verdict became weighted (2026-10-03). They used to be reset to the defaults on
+  // every save, silently: the weights and thresholds the verdict now reads, and four of the
+  // disqualifiers the owner listed as "never qualified" — which is why the TeleStar ICP could only
+  // ever enforce one of its five. A rule set that cannot keep its own exclusions is not one an
+  // operator can trust, whatever the scoring does with it.
+  rules.scoringWeights = { ...source.scoringWeights };
+  rules.scorePolicy = { ...source.scorePolicy };
+  rules.disqualifiers.genericEmailContact = { ...source.disqualifiers.genericEmailContact };
+  rules.disqualifiers.onePersonCompany = { ...source.disqualifiers.onePersonCompany };
+  rules.disqualifiers.websiteOffline = { ...source.disqualifiers.websiteOffline };
+  rules.companyType.servicesConsultingPolicy = {
+    ...source.companyType.servicesConsultingPolicy,
+    exceptMarkets: [...source.companyType.servicesConsultingPolicy.exceptMarkets],
+  };
 
   return validateIcpVersionRulesV2(rules);
 }

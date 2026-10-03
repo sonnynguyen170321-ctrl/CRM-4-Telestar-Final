@@ -8,7 +8,7 @@ import {
   canManageScoringRequest,
 } from "@/lib/leads/scoringAccess";
 import { deriveIcpMatch } from "@/lib/leadgen/icpMatch";
-import { deriveSimpleIcpQualification } from "@/lib/leadgen/scorePoolItem";
+import { deriveWeightedIcpQualification } from "@/lib/leadgen/weightedQualification";
 
 describe("simple engagement contract", () => {
   it("uses meeting, reply, opens, then cold as an explicit precedence ladder", () => {
@@ -164,9 +164,17 @@ describe("scoring management access", () => {
     ).toBe(false);
   });
 });
-describe("simple must-have ICP qualification", () => {
+describe("weighted ICP qualification", () => {
+  // Replaced the "simple must-have" contract, whose rule was that any single mismatch is No fit.
+  // The owner's report (2026-10-02): "mất 1 element là unqualify luôn" — and their decision was
+  // weighted points with only the disqualifiers fatal. Cases whose expected verdict changed say so.
+  const verdictOf = (
+    input: Parameters<typeof assessIcpRulesV2>[0],
+    ruleSet: Parameters<typeof assessIcpRulesV2>[1],
+  ) => deriveWeightedIcpQualification(assessIcpRulesV2(input, ruleSet), ruleSet, input);
+
   const rules = (() => {
-    const value = emptyIcpRulesV2("simple-contract", "Simple contract");
+    const value = emptyIcpRulesV2("weighted-contract", "Weighted contract");
     value.industry = {
       ...value.industry,
       mode: "allowlist",
@@ -175,185 +183,126 @@ describe("simple must-have ICP qualification", () => {
     return value;
   })();
 
-  const evidence = (industry?: string, rawTitle: string | null = "CEO") => ({
+  const evidence = (industry?: string, rawTitle: string | null = "CEO", email = "ceo@acme.test") => ({
     company: {
       companyName: "Acme",
       industry,
       websiteStatus: "reachable" as const,
     },
-    contact: rawTitle
-      ? { rawTitle, email: "ceo@acme.test" }
-      : { email: "ceo@acme.test" },
+    contact: rawTitle ? { rawTitle, email } : { email },
   });
 
-  it("uses known mismatch -> No fit, missing evidence -> Review, all pass -> Fit", () => {
+  it("scores a clear miss No fit, missing data Review, and a match Fit", () => {
     for (const [industry, expected] of [
       ["Mining", "unqualified"],
       [undefined, "needs_review"],
       ["Software", "qualified"],
     ] as const) {
-      const input = evidence(industry);
-      expect(
-        deriveSimpleIcpQualification(
-          assessIcpRulesV2(input, rules),
-          rules,
-          input,
-        ),
-      ).toBe(expected);
+      expect(verdictOf(evidence(industry), rules).qualification).toBe(expected);
     }
   });
 
-  it("does not let a soft industry keyword override a hard allowlist mismatch", () => {
+  it("averages only the dimensions the ICP constrains — a perfect lead is not dragged under the bar", () => {
+    // The engine's own fitScore counts unconstrained dimensions at a neutral 60-70; under an ICP
+    // that only names an industry a perfect lead came out at 69, below the 75 the policy asks for.
+    const verdict = verdictOf(evidence("Software"), rules);
+    expect(verdict.scoredDimensions).toEqual(["industry"]);
+    expect(verdict.fitScore).toBeGreaterThanOrEqual(95);
+  });
+
+  it("CHANGED: a soft keyword hit on an allowlist miss is Review, not No fit", () => {
     const keywordRules = {
       ...rules,
-      industry: {
-        ...rules.industry,
-        industryKeywords: ["automation"],
-      },
+      industry: { ...rules.industry, industryKeywords: ["automation"] },
     };
     const input = {
       ...evidence("Mining"),
-      company: {
-        ...evidence("Mining").company,
-        description: "Workflow automation platform",
-      },
+      company: { ...evidence("Mining").company, description: "Workflow automation platform" },
     };
-    expect(
-      deriveSimpleIcpQualification(
-        assessIcpRulesV2(input, keywordRules),
-        keywordRules,
-        input,
-      ),
-    ).toBe("unqualified");
+    expect(verdictOf(input, keywordRules).qualification).toBe("needs_review");
   });
-  it("requires evidence for configured persona must-haves", () => {
+
+  it("sends a missing title to Review when the ICP names buyer titles", () => {
     const personaRules = {
       ...rules,
-      persona: {
-        ...rules.persona,
-        titleAllowlist: ["CEO"],
-        departmentAllowlist: ["SALES" as const],
-      },
+      persona: { ...rules.persona, titleAllowlist: ["CEO"] },
     };
-
-    const missingTitle = evidence("Software", null);
-    expect(
-      deriveSimpleIcpQualification(
-        assessIcpRulesV2(missingTitle, personaRules),
-        personaRules,
-        missingTitle,
-      ),
-    ).toBe("needs_review");
-
-    const departmentRules = {
-      ...rules,
-      persona: {
-        ...rules.persona,
-        departmentAllowlist: ["SALES" as const],
-      },
-    };
-    const unknownDepartment = evidence("Software", "Manager");
-    expect(
-      deriveSimpleIcpQualification(
-        assessIcpRulesV2(unknownDepartment, departmentRules),
-        departmentRules,
-        unknownDepartment,
-      ),
-    ).toBe("needs_review");
+    const verdict = verdictOf(evidence("Software", null), personaRules);
+    expect(verdict.qualification).toBe("needs_review");
+    expect(verdict.missingCoreEvidence).toEqual(["persona"]);
   });
 
-  it("treats unknown seniority as Review and a known lower title as No fit", () => {
+  it("CHANGED: one off-target title is Review, not No fit — the points decide", () => {
     const seniorityRules = {
       ...rules,
-      persona: {
-        ...rules.persona,
-        seniorityFloor: "MANAGER" as const,
-      },
+      persona: { ...rules.persona, seniorityFloor: "MANAGER" as const },
     };
-    const unknownSeniority = evidence("Software", "Strategic Wizard");
-    expect(
-      deriveSimpleIcpQualification(
-        assessIcpRulesV2(unknownSeniority, seniorityRules),
-        seniorityRules,
-        unknownSeniority,
-      ),
-    ).toBe("needs_review");
-
-    const knownLowerSeniority = evidence("Software", "Software Engineer");
-    expect(
-      deriveSimpleIcpQualification(
-        assessIcpRulesV2(knownLowerSeniority, seniorityRules),
-        seniorityRules,
-        knownLowerSeniority,
-      ),
-    ).toBe("unqualified");
+    expect(verdictOf(evidence("Software", "Software Engineer"), seniorityRules).qualification).toBe("needs_review");
   });
 
-  it("requires title evidence even when persona only defines exclusions", () => {
-    const exclusionRules = emptyIcpRulesV2(
-      "negative-persona-contract",
-      "Negative persona contract",
-    );
+  it("keeps an explicit exclusion fatal: a denied title is No fit however good the rest is", () => {
+    const exclusionRules = emptyIcpRulesV2("negative-persona-contract", "Negative persona contract");
     exclusionRules.persona.titleDenylist = ["intern"];
 
-    const missingTitle = evidence("Software", null);
-    expect(
-      deriveSimpleIcpQualification(
-        assessIcpRulesV2(missingTitle, exclusionRules),
-        exclusionRules,
-        missingTitle,
-      ),
-    ).toBe("needs_review");
-
-    const knownSafeTitle = evidence("Software", "CEO");
-    expect(
-      deriveSimpleIcpQualification(
-        assessIcpRulesV2(knownSafeTitle, exclusionRules),
-        exclusionRules,
-        knownSafeTitle,
-      ),
-    ).toBe("qualified");
+    expect(verdictOf(evidence("Software", "Marketing Intern"), exclusionRules).qualification).toBe("unqualified");
+    expect(verdictOf(evidence("Software", null), exclusionRules).qualification).toBe("needs_review");
+    // Nothing positive to score and every exclusion passed.
+    const pass = verdictOf(evidence("Software", "CEO"), exclusionRules);
+    expect(pass.qualification).toBe("qualified");
+    expect(pass.reason).toBe("exclusions_only_passed");
   });
 
-  it("requires industry evidence even when industry only defines exclusions", () => {
-    const exclusionRules = emptyIcpRulesV2(
-      "negative-industry-contract",
-      "Negative industry contract",
-    );
+  it("keeps an excluded industry fatal, and asks for industry data before passing it", () => {
+    const exclusionRules = emptyIcpRulesV2("negative-industry-contract", "Negative industry contract");
     exclusionRules.industry.excludedIndustries = ["gambling"];
 
-    const missingIndustry = evidence(undefined);
-    expect(
-      deriveSimpleIcpQualification(
-        assessIcpRulesV2(missingIndustry, exclusionRules),
-        exclusionRules,
-        missingIndustry,
-      ),
-    ).toBe("needs_review");
-
-    const knownSafeIndustry = evidence("Software");
-    expect(
-      deriveSimpleIcpQualification(
-        assessIcpRulesV2(knownSafeIndustry, exclusionRules),
-        exclusionRules,
-        knownSafeIndustry,
-      ),
-    ).toBe("qualified");
+    expect(verdictOf(evidence("Gambling"), exclusionRules).qualification).toBe("unqualified");
+    expect(verdictOf(evidence(undefined), exclusionRules).qualification).toBe("needs_review");
+    expect(verdictOf(evidence("Software"), exclusionRules).qualification).toBe("qualified");
   });
-  it("does not let weighted thresholds override passed must-haves", () => {
-    const extremeThresholds = {
-      ...rules,
-      scorePolicy: { ...rules.scorePolicy, qualifiedMinFitScore: 100 },
-      confidencePolicy: {
-        ...rules.confidencePolicy,
-        highConfidenceThreshold: 100,
-      },
-    };
-    const input = evidence("Software");
-    const assessed = assessIcpRulesV2(input, extremeThresholds);
-    expect(assessed.qualification).not.toBe("QUALIFIED");
-    expect(
-      deriveSimpleIcpQualification(assessed, extremeThresholds, input),
-    ).toBe("qualified");
+
+  it("CHANGED: the score-policy thresholds decide — they used to be stored and ignored", () => {
+    const strict = { ...rules, scorePolicy: { ...rules.scorePolicy, qualifiedMinFitScore: 100 } };
+    expect(verdictOf(evidence("Software"), strict).qualification).toBe("needs_review");
+
+    const lenient = { ...rules, scorePolicy: { ...rules.scorePolicy, qualifiedMinFitScore: 15, needsReviewMinFitScore: 10 } };
+    expect(verdictOf(evidence("Mining"), lenient).qualification).toBe("qualified");
+  });
+
+  describe("the TeleStar ICP shape", () => {
+    const telestar = (() => {
+      const value = emptyIcpRulesV2("telestar-shape", "TeleStar shape");
+      value.geography.targetCountries = ["United States", "United Kingdom", "Denmark"];
+      value.geography.excludedCountries = ["India"];
+      value.persona.titleAllowlist = ["CEO", "Founder", "VP Sales"];
+      value.size.minEmployees = 3;
+      value.disqualifiers.genericEmailContact = { disqualify: true };
+      return value;
+    })();
+    const lead = (country: string, rawTitle: string | null, email = "jane@acme.io", employeeCount?: number) => ({
+      company: { companyName: "Acme", country, websiteStatus: "reachable" as const, employeeCount },
+      contact: rawTitle ? { rawTitle, email } : { email },
+    });
+
+    it("qualifies a buyer in a target country even with no headcount on file", () => {
+      // Size is configured (min 3) and almost never known; it used to hold every lead in Review.
+      const verdict = verdictOf(lead("United Kingdom", "CEO"), telestar);
+      expect(verdict.qualification).toBe("qualified");
+      expect(verdict.scoredDimensions).not.toContain("size");
+    });
+
+    it("does not reject a right buyer for one wrong country — Review instead", () => {
+      expect(verdictOf(lead("Germany", "CEO"), telestar).qualification).toBe("needs_review");
+    });
+
+    it("still rejects a free-mail contact and an excluded HQ country outright", () => {
+      expect(verdictOf(lead("United Kingdom", "CEO", "jane@gmail.com"), telestar).qualification).toBe("unqualified");
+      expect(verdictOf(lead("India", "CEO"), telestar).qualification).toBe("unqualified");
+    });
+
+    it("rejects a company too small when the headcount is known", () => {
+      const verdict = verdictOf(lead("United Kingdom", "Software Engineer", "jane@acme.io", 1), telestar);
+      expect(verdict.qualification).not.toBe("qualified");
+    });
   });
 });

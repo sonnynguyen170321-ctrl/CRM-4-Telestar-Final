@@ -1,15 +1,16 @@
 import { createHash } from "node:crypto";
 
 import type { IcpQualification, Prisma } from "@prisma/client";
-import {
-  assessIcpRulesV2,
-  type IcpRulesV2Assessment,
-} from "@telestar/core-scoring/rules/deriveQualification";
+import { assessIcpRulesV2 } from "@telestar/core-scoring/rules/deriveQualification";
 import type { IcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
 import type { RawScoringEvidence } from "@telestar/core-scoring/rules/evidence";
-import { normalizeEvidence } from "@telestar/core-scoring/rules/normalize/index";
 
 import { accountIdentityOf } from "@/lib/identity/resolveAccount";
+import {
+  ICP_VERDICT_VERSION,
+  deriveWeightedIcpQualification,
+  type WeightedVerdict,
+} from "@/lib/leadgen/weightedQualification";
 import { prisma } from "@/lib/prisma";
 
 type ScorablePoolItem = {
@@ -21,108 +22,31 @@ type ScorablePoolItem = {
   industry: string | null;
   website: string | null;
   accountId: string | null;
+  /** Headcount from the account (import staff size), when known. */
+  employeeCount?: number | null;
 };
 
-const MISMATCH_REASON_CODES = new Set([
-  "target_geo_mismatch_explicit",
-  "target_industry_mismatch",
-  "target_company_type_mismatch",
-  "target_size_too_small",
-  "target_size_too_large",
-  "target_size_mismatch",
-  "persona_title_denylisted",
-  "persona_seniority_excluded",
-  "persona_title_off_target",
-  "persona_below_seniority_floor",
-  "persona_department_off_target",
-]);
-
 /**
- * Three-state must-have decision. Weighted scores remain evidence for explanation/sorting only.
- *
- * A known contradiction wins over missing evidence; otherwise incomplete required/configured
- * evidence goes to human Review. With no contradiction or missing must-have, the prospect Fits.
+ * The stored verdict comes from `deriveWeightedIcpQualification` (weighted points; only disqualifiers
+ * and explicit exclusions are fatal). It replaced a must-have rule under which any single mismatch
+ * was `unqualified` — see `lib/leadgen/weightedQualification.ts`.
  */
-export function deriveSimpleIcpQualification(
-  assessed: IcpRulesV2Assessment,
-  rules: IcpVersionRulesV2,
-  rawEvidence: RawScoringEvidence,
-): IcpQualification {
-  if (assessed.gates.disqualified) return "unqualified";
+export { deriveWeightedIcpQualification };
 
-  const evidence = normalizeEvidence(rawEvidence);
-  const dimensionResults = Object.values(assessed.dimensionResults);
-  const hasKnownMismatch = dimensionResults.some((result) =>
-    result.hits.some((hit) => {
-      // An unrecognized title is missing evidence, not proof that the contact is
-      // below the configured seniority floor.
-      if (
-        hit.reasonCode === "persona_below_seniority_floor" &&
-        evidence.contact?.seniorityTier === "UNKNOWN"
-      ) {
-        return false;
-      }
-      return MISMATCH_REASON_CODES.has(hit.reasonCode);
-    }),
-  );
-  const industryAllowlistMiss =
-    rules.industry.mode === "allowlist" &&
-    assessed.dimensionResults.industry.missingEvidence.length === 0 &&
-    !assessed.dimensionResults.industry.hits.some(
-      (hit) => hit.id === "industry_allowlist_match",
-    );
-
-  if (hasKnownMismatch || industryAllowlistMiss) return "unqualified";
-
-  const personaNeedsTitle =
-    rules.persona.requirePersonaForFinalQualification ||
-    rules.persona.titleAllowlist.length > 0 ||
-    rules.persona.titleDenylist.length > 0 ||
-    rules.persona.titleTiers.length > 0 ||
-    rules.persona.titleKeywords.length > 0 ||
-    rules.persona.seniorityFloor !== undefined ||
-    rules.persona.seniorityExclusions.length > 0 ||
-    rules.persona.departmentAllowlist.length > 0;
-  const personaEvidenceMissing =
-    (personaNeedsTitle && !evidence.contact?.titlePresent) ||
-    (rules.persona.seniorityFloor !== undefined &&
-      evidence.contact?.seniorityTier === "UNKNOWN") ||
-    (rules.persona.departmentAllowlist.length > 0 &&
-      evidence.contact?.department === "UNKNOWN");
-  const geoEvidenceMissing =
-    (rules.geography.targetCountries.length > 0 ||
-      rules.geography.targetRegions.length > 0 ||
-      rules.geography.excludedCountries.length > 0) &&
-    !evidence.company.countryKnown;
-  const industryEvidenceMissing =
-    (rules.industry.mode === "allowlist" ||
-      rules.industry.mode === "denylist" ||
-      rules.industry.excludedIndustries.length > 0) &&
-    !evidence.company.industryCanonical &&
-    !evidence.company.industryRaw &&
-    evidence.company.industryTags.length === 0;
-
-  const missingConfiguredEvidence = dimensionResults
-    .filter((result) => result.dimension !== "signals")
-    .some((result) => result.missingEvidence.length > 0);
-  if (
-    assessed.requiredEvidenceMissing.length > 0 ||
-    missingConfiguredEvidence ||
-    personaEvidenceMissing ||
-    geoEvidenceMissing ||
-    industryEvidenceMissing
-  ) {
-    return "needs_review";
-  }
-
-  return "qualified";
+/** What `evidenceJson` records about the verdict, for the explanation drawers. */
+export function verdictEvidence(verdict: WeightedVerdict) {
+  return {
+    reasonCodes: [verdict.reason],
+    verdict: {
+      version: ICP_VERDICT_VERSION,
+      reason: verdict.reason,
+      fitScore: verdict.fitScore,
+      scoredDimensions: verdict.scoredDimensions,
+      missingCoreEvidence: verdict.missingCoreEvidence,
+    },
+  };
 }
 
-function simpleQualificationReason(qualification: IcpQualification): string {
-  if (qualification === "unqualified") return "simple_known_mismatch";
-  if (qualification === "needs_review") return "simple_missing_evidence";
-  return "simple_all_must_haves_pass";
-}
 export type ScorePoolItemResult = {
   assessmentId: string;
   inserted: boolean;
@@ -167,6 +91,10 @@ export function buildScoringEvidence(
       domain:
         accountIdentityOf({ name: item.company, website: item.website })
           .canonicalDomain ?? undefined,
+      employeeCount:
+        item.employeeCount != null && item.employeeCount > 0
+          ? item.employeeCount
+          : undefined,
       websiteStatus: item.website ? "reachable" : "missing",
       description: intelligence?.summary ?? undefined,
       industryTags: intelligence?.facts ?? undefined,
@@ -191,8 +119,10 @@ export function assessmentFingerprint(
   rules: IcpVersionRulesV2,
   icpVersionId: string,
 ): string {
+  // The verdict rule's version is hashed in: assessments are reused by fingerprint, so without it a
+  // rescore under a new rule would find the old row and return the old verdict.
   return createHash("sha256")
-    .update(JSON.stringify({ evidence, rules, icpVersionId }))
+    .update(JSON.stringify({ evidence, rules, icpVersionId, verdict: ICP_VERDICT_VERSION }))
     .digest("hex");
 }
 
@@ -238,7 +168,8 @@ export async function scorePoolItem(params: {
   }
 
   const assessed = assessIcpRulesV2(evidence, rules);
-  const qualification = deriveSimpleIcpQualification(assessed, rules, evidence);
+  const verdict = deriveWeightedIcpQualification(assessed, rules, evidence);
+  const { qualification, fitScore } = verdict;
   const dataQualityScore = Math.max(
     0,
     100 - assessed.missingEvidence.length * 10,
@@ -251,7 +182,7 @@ export async function scorePoolItem(params: {
           tenantId,
           poolItemId: item.id,
           icpVersionId,
-          fitScore: assessed.fitScore,
+          fitScore,
           confidenceScore: assessed.confidenceScore,
           dataQualityScore,
           qualification,
@@ -260,10 +191,11 @@ export async function scorePoolItem(params: {
             gates: assessed.gates,
             missingEvidence: assessed.missingEvidence,
             requiredEvidenceMissing: assessed.requiredEvidenceMissing,
-            reasonCodes: [simpleQualificationReason(qualification)],
+            ...verdictEvidence(verdict),
             weightedDiagnostics: {
               qualification: assessed.qualification,
               reasonCodes: assessed.reasonCodes,
+              engineFitScore: assessed.fitScore,
             },
             accountPreRank: assessed.accountPreRank,
             confidenceBand: assessed.confidenceBand,
@@ -281,7 +213,7 @@ export async function scorePoolItem(params: {
         poolItemId: item.id,
         icpVersionId,
         assessmentId: row.id,
-        fitScore: assessed.fitScore,
+        fitScore,
         dataQualityScore,
         qualification,
       });
@@ -292,7 +224,7 @@ export async function scorePoolItem(params: {
     return {
       assessmentId: created.id,
       inserted: true,
-      fitScore: assessed.fitScore,
+      fitScore,
       qualification,
     };
   } catch (error) {

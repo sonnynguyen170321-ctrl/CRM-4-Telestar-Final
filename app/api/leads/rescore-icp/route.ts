@@ -25,6 +25,8 @@ const rescoreSchema = z.object({
   campaignId: z.string().min(1).max(64).optional(),
   onlyUnscored: z.boolean().optional(),
   limit: z.number().int().min(1).max(RESCORE_LEADS_BATCH_LIMIT).optional(),
+  /** Report the verdict moves a rescore would make, and write nothing. */
+  dryRun: z.boolean().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -43,7 +45,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const report = await tenantStorage.run({ tenantId }, () =>
-      rescoreLeadsIcp({ tenantId, campaignId: parsed.data.campaignId, onlyUnscored: parsed.data.onlyUnscored, limit: parsed.data.limit })
+      rescoreLeadsIcp({
+        tenantId,
+        campaignId: parsed.data.campaignId,
+        onlyUnscored: parsed.data.onlyUnscored,
+        limit: parsed.data.limit,
+        dryRun: parsed.data.dryRun,
+      })
     );
     return NextResponse.json({ success: true, ...report });
   } catch (err) {

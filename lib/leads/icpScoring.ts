@@ -30,8 +30,9 @@ import { prisma } from '@/lib/prisma';
 import {
   assessmentFingerprint,
   buildScoringEvidence,
-  deriveSimpleIcpQualification,
+  deriveWeightedIcpQualification,
   resolveIcpVersionId,
+  verdictEvidence,
 } from '@/lib/leadgen/scorePoolItem';
 
 export type ScoreLeadIcpResult =
@@ -47,16 +48,13 @@ const SCORABLE_LEAD_SELECT = {
   email: true,
   campaignId: true,
   contact: { select: { country: true } },
-  account: { select: { id: true, industry: true, country: true, website: true } },
+  account: {
+    select: { id: true, industry: true, country: true, website: true, size: true, staffCountMin: true, staffCountMax: true },
+  },
 } satisfies Prisma.LeadSelect;
 
 type ScorableLead = Prisma.LeadGetPayload<{ select: typeof SCORABLE_LEAD_SELECT }>;
 
-function simpleQualificationReason(qualification: IcpQualification): string {
-  if (qualification === 'unqualified') return 'simple_known_mismatch';
-  if (qualification === 'needs_review') return 'simple_missing_evidence';
-  return 'simple_all_must_haves_pass';
-}
 
 /**
  * Score one lead against the ICP its campaign carries (or the tenant default).
@@ -91,7 +89,8 @@ export async function scoreLeadIcp(params: { tenantId: string; leadId: string })
   }
 
   const assessed = assessIcpRulesV2(evidence, rules);
-  const qualification = deriveSimpleIcpQualification(assessed, rules, evidence);
+  const verdict = deriveWeightedIcpQualification(assessed, rules, evidence);
+  const { qualification, fitScore } = verdict;
   const dataQualityScore = Math.max(0, 100 - assessed.missingEvidence.length * 10);
 
   try {
@@ -101,7 +100,7 @@ export async function scoreLeadIcp(params: { tenantId: string; leadId: string })
           tenantId,
           leadId: lead.id,
           icpVersionId,
-          fitScore: assessed.fitScore,
+          fitScore,
           confidenceScore: assessed.confidenceScore,
           dataQualityScore,
           qualification,
@@ -110,8 +109,12 @@ export async function scoreLeadIcp(params: { tenantId: string; leadId: string })
             gates: assessed.gates,
             missingEvidence: assessed.missingEvidence,
             requiredEvidenceMissing: assessed.requiredEvidenceMissing,
-            reasonCodes: [simpleQualificationReason(qualification)],
-            weightedDiagnostics: { qualification: assessed.qualification, reasonCodes: assessed.reasonCodes },
+            ...verdictEvidence(verdict),
+            weightedDiagnostics: {
+              qualification: assessed.qualification,
+              reasonCodes: assessed.reasonCodes,
+              engineFitScore: assessed.fitScore,
+            },
             accountPreRank: assessed.accountPreRank,
             confidenceBand: assessed.confidenceBand,
           } as unknown as Prisma.InputJsonValue,
@@ -121,10 +124,10 @@ export async function scoreLeadIcp(params: { tenantId: string; leadId: string })
         },
         select: { id: true },
       });
-      await pointLeadAt(tx, { leadId: lead.id, icpVersionId, assessmentId: row.id, fitScore: assessed.fitScore, qualification });
+      await pointLeadAt(tx, { leadId: lead.id, icpVersionId, assessmentId: row.id, fitScore, qualification });
       return row;
     });
-    return { status: 'scored', assessmentId: created.id, inserted: true, fitScore: assessed.fitScore, qualification };
+    return { status: 'scored', assessmentId: created.id, inserted: true, fitScore, qualification };
   } catch (error) {
     if ((error as { code?: string } | null)?.code !== 'P2002') throw error;
     // Two callers missed the optimistic lookup together — an import chunk and a rescore, say.
@@ -151,7 +154,28 @@ function toScorable(lead: ScorableLead) {
     industry: lead.account?.industry ?? null,
     website: lead.account?.website ?? null,
     accountId: lead.account?.id ?? null,
+    employeeCount: headcountOf(lead.account),
   };
+}
+
+/**
+ * The account's headcount, from whatever the import recorded.
+ *
+ * Every lead used to reach the engine with no size at all, though imports write `Account.size` and
+ * the staff-count range: the TeleStar ICP's "minimum 3 employees" therefore read as unknown on every
+ * lead. A range contributes its midpoint only when both ends are known; a lone minimum is used as
+ * is, since it is a floor the company already clears.
+ */
+function headcountOf(
+  account: { size: number | null; staffCountMin: number | null; staffCountMax: number | null } | null | undefined
+): number | null {
+  if (!account) return null;
+  if (account.size != null && account.size > 0) return account.size;
+  if (account.staffCountMin != null && account.staffCountMax != null) {
+    return Math.round((account.staffCountMin + account.staffCountMax) / 2);
+  }
+  if (account.staffCountMin != null && account.staffCountMin > 0) return account.staffCountMin;
+  return null;
 }
 
 async function pointLeadAt(
@@ -170,6 +194,39 @@ async function pointLeadAt(
   });
 }
 
+/**
+ * What a rescore would do to one lead, without doing it.
+ *
+ * The same load, evidence and verdict as `scoreLeadIcp`, and no write of any kind. It exists for
+ * the moment the verdict rule changes: a manager has to see "142 leads move from No fit to Review,
+ * 9 from Fit to Review" before they move, because SDRs have already worked lists built from the
+ * old verdicts and an unannounced reshuffle is how a queue loses its owner's trust.
+ */
+export async function previewLeadIcp(params: {
+  tenantId: string;
+  leadId: string;
+}): Promise<
+  | { status: 'previewed'; from: IcpQualification | null; to: IcpQualification; fitScore: number }
+  | { status: 'not_scored'; reason: 'lead_not_found' | 'no_icp_configured' | 'icp_version_unreadable' }
+> {
+  const { tenantId, leadId } = params;
+  const lead = await prisma.lead.findFirst({
+    where: { id: leadId, tenantId },
+    select: { ...SCORABLE_LEAD_SELECT, icpQualification: true },
+  });
+  if (!lead) return { status: 'not_scored', reason: 'lead_not_found' };
+
+  const icpVersionId = await resolveIcpVersionId(tenantId, lead.campaignId ?? null);
+  if (!icpVersionId) return { status: 'not_scored', reason: 'no_icp_configured' };
+  const version = await prisma.icpVersion.findFirst({ where: { id: icpVersionId, tenantId }, select: { rulesJson: true } });
+  if (!version?.rulesJson) return { status: 'not_scored', reason: 'icp_version_unreadable' };
+  const rules = version.rulesJson as unknown as IcpVersionRulesV2;
+
+  const evidence = buildScoringEvidence(toScorable(lead));
+  const verdict = deriveWeightedIcpQualification(assessIcpRulesV2(evidence, rules), rules, evidence);
+  return { status: 'previewed', from: lead.icpQualification ?? null, to: verdict.qualification, fitScore: verdict.fitScore };
+}
+
 export const RESCORE_LEADS_BATCH_LIMIT = 500;
 
 export type RescoreLeadsReport = {
@@ -180,6 +237,14 @@ export type RescoreLeadsReport = {
   reasons: Record<string, number>;
   /** True when the batch limit cut the run short and another call is needed. */
   truncated: boolean;
+  /** Dry run only: nothing was written. */
+  dryRun?: boolean;
+  /**
+   * Dry run only: verdict moves, keyed "from→to" ("unscored" for a lead with no verdict yet).
+   * Leads whose verdict would not change are counted under `unchanged`.
+   */
+  transitions?: Record<string, number>;
+  unchanged?: number;
 };
 
 /**
@@ -194,6 +259,8 @@ export async function rescoreLeadsIcp(params: {
   campaignId?: string;
   onlyUnscored?: boolean;
   limit?: number;
+  /** Report what would change and write nothing. */
+  dryRun?: boolean;
 }): Promise<RescoreLeadsReport> {
   const { tenantId, campaignId } = params;
   const onlyUnscored = params.onlyUnscored ?? true;
@@ -214,6 +281,29 @@ export async function rescoreLeadsIcp(params: {
   const batch = targets.slice(0, limit);
 
   const report: RescoreLeadsReport = { considered: batch.length, scored: 0, notScored: 0, reasons: {}, truncated };
+
+  if (params.dryRun) {
+    report.dryRun = true;
+    report.transitions = {};
+    report.unchanged = 0;
+    for (const target of batch) {
+      const preview = await previewLeadIcp({ tenantId, leadId: target.id });
+      if (preview.status !== 'previewed') {
+        report.notScored += 1;
+        report.reasons[preview.reason] = (report.reasons[preview.reason] ?? 0) + 1;
+        continue;
+      }
+      report.scored += 1;
+      if (preview.from === preview.to) {
+        report.unchanged += 1;
+        continue;
+      }
+      const key = `${preview.from ?? 'unscored'}→${preview.to}`;
+      report.transitions[key] = (report.transitions[key] ?? 0) + 1;
+    }
+    return report;
+  }
+
   for (const target of batch) {
     const result = await scoreLeadIcp({ tenantId, leadId: target.id });
     if (result.status === 'scored') report.scored += 1;

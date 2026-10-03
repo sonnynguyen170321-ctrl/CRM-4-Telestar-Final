@@ -17,22 +17,22 @@
  *
  * ## What this can and cannot enforce — read this part
  *
- * The publishable rule model (`normalizeManagerRules`) carries geography allow/deny, industry
- * mode, the title allowlist and an employee range. It strips everything else, and
- * `publishIcpDraft` refuses a draft that still contains stripped rules. So of the five
- * disqualifiers above, exactly one survives as written:
+ * Until 2026-10-03 the publishable rule model (`normalizeManagerRules`) stripped every
+ * disqualifier, so exactly one of the five survived. It now keeps them, so:
  *
- *   enforced      min 3 employees, which also rules out the one-person company
+ *   enforced      free-mail contact, website offline, services/consulting product, one-person
+ *                 company — all as "never qualified", whatever the score
+ *   enforced      min 3 employees, *when the headcount is known*; unknown size no longer holds a
+ *                 lead in Review (the verdict is weighted — lib/leadgen/weightedQualification.ts)
  *   approximated  the four excluded countries go in as *HQ* exclusions. The business rule is
  *                 "has an office there", which the model has a field for
- *                 (`geography.excludedOfficeCountries`) but the publishable subset drops. A
+ *                 (`geography.excludedOfficeCountries`) but no lead carries office data for. A
  *                 company headquartered elsewhere with a Manila office still passes.
- *   not enforced  Gmail contact, website offline, services/consulting product
  *
- * The three unenforced rules are printed on every run. They are real business rules with no
- * home in the scoring model yet, and carrying them in a comment nobody reads is how a CRM ends
- * up claiming a qualification it never checked. Making them enforceable means extending the
- * manager rule model and the engine behind it — a separate change, not a line in this script.
+ * Two of the enforced rules are only as good as the data behind them, and that is printed on
+ * every run: "website offline" needs a website check (a missing website is not an offline one),
+ * and services/consulting is read from industry and description text, not a verified company
+ * type. Neither can wrongly reject a lead; both can miss one.
  *
  * ## Read before running
  *
@@ -95,9 +95,13 @@ const TITLES = [
 const MIN_EMPLOYEES = 3;
 
 const NOT_ENFORCED = [
-  'prospect is on a Gmail (or other free) address',
-  'company website is offline',
-  'the product is services or consulting rather than software',
+  'office (rather than HQ) in India / Pakistan / Bangladesh / Philippines — no lead carries office locations',
+];
+
+const DATA_LIMITED = [
+  'website offline — fires only where a website check recorded the site as offline',
+  'services / consulting — read from industry and description text, not a verified company type; ' +
+    "LinkedIn's 'IT Services and IT Consulting' industry counts as consulting",
 ];
 
 function telestarRules() {
@@ -110,6 +114,13 @@ function telestarRules() {
   rules.industry.mode = 'all';
   rules.persona.titleAllowlist = [...TITLES];
   rules.size.minEmployees = MIN_EMPLOYEES;
+  rules.disqualifiers.genericEmailContact = { disqualify: true };
+  rules.disqualifiers.websiteOffline = { disqualify: true };
+  rules.disqualifiers.onePersonCompany = { ...rules.disqualifiers.onePersonCompany, disqualify: true };
+  rules.companyType.servicesConsultingPolicy = {
+    ...rules.companyType.servicesConsultingPolicy,
+    disqualify: true,
+  };
 
   // Through the same normalizer the publish path uses, so what this script stores is exactly
   // what would survive publication — no rule that looks set here and is dropped there.
@@ -201,12 +212,10 @@ async function main() {
     await tenantStorage.run({ tenantId: tenant.id }, () => seedTenant(tenant.id, tenant.name));
   }
 
-  console.log('\nNot enforced by this ICP — the scoring model has nowhere to put them:');
+  console.log('\nNot enforced by this ICP — no lead carries the data:');
   for (const rule of NOT_ENFORCED) console.log(`  - ${rule}`);
-  console.log(
-    'A meeting can still be booked that breaks one of these. Until the rule model carries them,\n' +
-      'they are a human check, not a machine one.'
-  );
+  console.log('Enforced, but only as good as the data behind them:');
+  for (const rule of DATA_LIMITED) console.log(`  - ${rule}`);
 
   console.log(
     APPLY ? '\nDone. Rescore with: npx tsx scripts/backfill-lead-icp.ts --apply' : '\nDry run complete — nothing was written.'

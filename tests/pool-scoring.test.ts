@@ -127,7 +127,7 @@ describe("scorePoolItem", () => {
       select: { evidenceJson: true },
     });
     expect(assessment.evidenceJson).toMatchObject({
-      reasonCodes: ["simple_all_must_haves_pass"],
+      reasonCodes: ["weighted_qualified"],
       weightedDiagnostics: {
         qualification: expect.any(String),
         reasonCodes: expect.any(Array),
