@@ -386,6 +386,10 @@ domains:
       # because the CLI and the client must move together or install fails, and the
       # TypeScript ignore exists because @typescript-eslint pins the compiler below 7.
       - .github/dependabot.yml
+      # The dependency-vulnerability gate and its dated, dev-only exceptions: like dependabot.yml,
+      # they decide whether a dependency state can pass CI at all.
+      - .github/audit-exceptions.json
+      - scripts/check-audit.mjs
       - scripts/deploy*
       - scripts/rollback*
       - scripts/prod-*

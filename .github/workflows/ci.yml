@@ -633,8 +633,14 @@ jobs:
           cache: npm
 
       # No `|| true`, no `continue-on-error`: this decides the merge.
-      - name: npm audit (high and above)
-        run: npm audit --audit-level=high
+      #
+      # `scripts/check-audit.mjs` is `npm audit --audit-level=high` plus one dated escape hatch for
+      # dev-only advisories with no fix published (.github/audit-exceptions.json). Production
+      # dependencies can never be excepted, exceptions expire within 45 days, and a stale one fails.
+      # It exists because a bare audit could only be bypassed or deleted on 2026-10-03, when a lint-only
+      # `braces` advisory with no patched release turned every pull request red.
+      - name: npm audit (high and above; dated dev-only exceptions)
+        run: node scripts/check-audit.mjs
         shell: bash
 
       # `npm audit` answers "is anything here known-vulnerable". It says nothing about whether
