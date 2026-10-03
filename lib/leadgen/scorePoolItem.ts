@@ -7,10 +7,10 @@ import type { RawScoringEvidence } from "@telestar/core-scoring/rules/evidence";
 
 import { accountIdentityOf } from "@/lib/identity/resolveAccount";
 import {
-  ICP_VERDICT_VERSION,
-  deriveWeightedIcpQualification,
-  type WeightedVerdict,
-} from "@/lib/leadgen/weightedQualification";
+  deriveIcpVerdict,
+  verdictVersionFor,
+  type IcpVerdict,
+} from "@/lib/leadgen/pointsQualification";
 import { prisma } from "@/lib/prisma";
 
 type ScorablePoolItem = {
@@ -27,18 +27,20 @@ type ScorablePoolItem = {
 };
 
 /**
- * The stored verdict comes from `deriveWeightedIcpQualification` (weighted points; only disqualifiers
- * and explicit exclusions are fatal). It replaced a must-have rule under which any single mismatch
- * was `unqualified` — see `lib/leadgen/weightedQualification.ts`.
+ * The stored verdict comes from `deriveIcpVerdict`: per-value points when the ICP turns them on
+ * (`lib/leadgen/pointsQualification.ts`), otherwise weighted dimensions
+ * (`lib/leadgen/weightedQualification.ts`). Only disqualifiers and explicit exclusions are fatal under
+ * either. Both replaced a must-have rule under which any single mismatch was `unqualified`.
  */
-export { deriveWeightedIcpQualification };
+export { deriveIcpVerdict };
 
 /** What `evidenceJson` records about the verdict, for the explanation drawers. */
-export function verdictEvidence(verdict: WeightedVerdict) {
+export function verdictEvidence(verdict: IcpVerdict, rules: IcpVersionRulesV2) {
   return {
     reasonCodes: [verdict.reason],
     verdict: {
-      version: ICP_VERDICT_VERSION,
+      version: verdictVersionFor(rules),
+      ...(verdict.points ? { points: verdict.points } : {}),
       reason: verdict.reason,
       fitScore: verdict.fitScore,
       scoredDimensions: verdict.scoredDimensions,
@@ -122,7 +124,7 @@ export function assessmentFingerprint(
   // The verdict rule's version is hashed in: assessments are reused by fingerprint, so without it a
   // rescore under a new rule would find the old row and return the old verdict.
   return createHash("sha256")
-    .update(JSON.stringify({ evidence, rules, icpVersionId, verdict: ICP_VERDICT_VERSION }))
+    .update(JSON.stringify({ evidence, rules, icpVersionId, verdict: verdictVersionFor(rules) }))
     .digest("hex");
 }
 
@@ -168,7 +170,7 @@ export async function scorePoolItem(params: {
   }
 
   const assessed = assessIcpRulesV2(evidence, rules);
-  const verdict = deriveWeightedIcpQualification(assessed, rules, evidence);
+  const verdict = deriveIcpVerdict(assessed, rules, evidence);
   const { qualification, fitScore } = verdict;
   const dataQualityScore = Math.max(
     0,
@@ -191,7 +193,7 @@ export async function scorePoolItem(params: {
             gates: assessed.gates,
             missingEvidence: assessed.missingEvidence,
             requiredEvidenceMissing: assessed.requiredEvidenceMissing,
-            ...verdictEvidence(verdict),
+            ...verdictEvidence(verdict, rules),
             weightedDiagnostics: {
               qualification: assessed.qualification,
               reasonCodes: assessed.reasonCodes,

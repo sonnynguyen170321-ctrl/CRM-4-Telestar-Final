@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { IcpVersionRulesV2 } from '@telestar/core-scoring/rules/schema-v2';
 import { useToast } from '@/context/ToastContext';
 import { RescorePreview } from '@/components/automation/RescorePreview';
+import { ScoringPointsEditor } from '@/components/automation/ScoringPointsEditor';
 import {
   clearIcpDraft,
   loadIcpDraft,
@@ -61,6 +62,14 @@ type Summary = {
 const inputClass =
   'min-h-11 w-full rounded-lg border border-card-border bg-bg-main px-3 py-2 text-sm text-text-primary outline-none transition-colors focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 disabled:cursor-not-allowed disabled:opacity-50';
 
+type Section = 'icp' | 'points' | 'rescore' | 'engagement';
+const SECTION_LABEL: Record<Section, string> = {
+  icp: 'ICP rules',
+  points: 'Scoring points',
+  rescore: 'Campaigns & re-score',
+  engagement: 'Engagement',
+};
+
 const csv = (value: string) =>
   Array.from(new Set(value.split(',').map((part) => part.trim()).filter(Boolean)));
 
@@ -72,7 +81,7 @@ async function json<T>(response: Response): Promise<T> {
 
 export function IcpScoringPanel() {
   const { showToast } = useToast();
-  const [section, setSection] = useState<'icp' | 'engagement'>('icp');
+  const [section, setSection] = useState<Section>('icp');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -289,6 +298,17 @@ export function IcpScoringPanel() {
       'ICP version published',
     );
 
+  const makeDefault = () =>
+    profile &&
+    act(
+      'default',
+      async () => {
+        await fetch(`/api/icp/profiles/${profile.id}/default`, { method: 'POST' }).then(json);
+        await load(profileId);
+      },
+      `${profile.name} now scores every lead whose campaign has no ICP`,
+    );
+
   const assign = (campaignId: string, icpVersionId: string) =>
     act(
       `campaign:${campaignId}`,
@@ -347,7 +367,7 @@ export function IcpScoringPanel() {
             </p>
           </div>
           <div className="inline-flex rounded-lg border border-card-border bg-bg-main p-1" aria-label="Scoring settings">
-            {(['icp', 'engagement'] as const).map((item) => (
+            {(['icp', 'points', 'rescore', 'engagement'] as const).map((item) => (
               <button
                 key={item}
                 type="button"
@@ -359,7 +379,7 @@ export function IcpScoringPanel() {
                     : 'text-text-secondary hover:bg-card-bg hover:text-text-primary'
                 }`}
               >
-                {item === 'icp' ? 'ICP library' : 'Engagement'}
+                {SECTION_LABEL[item]}
               </button>
             ))}
           </div>
@@ -368,6 +388,11 @@ export function IcpScoringPanel() {
 
       {section === 'engagement' ? (
         <Engagement summary={summary} busy={busy === 'recalculate'} onRun={recalculate} />
+      ) : section === 'rescore' ? (
+        <>
+          <CampaignTable campaigns={campaigns} versions={published} busy={busy} onAssign={assign} />
+          <RescorePreview showToast={showToast} />
+        </>
       ) : (
         <>
           <section className="grid grid-cols-2 gap-4" aria-label="Two independent signals">
@@ -457,7 +482,10 @@ export function IcpScoringPanel() {
                             <Button label="Publish" icon={Check} busy={busy === 'publish'} disabled={Boolean(busy) || needsSave} onClick={publish} primary />
                           </>
                         ) : (
-                          <Button label="Create editable draft" icon={Copy} busy={busy === 'clone'} disabled={Boolean(busy)} onClick={clone} />
+                          <Button label="Edit" icon={Copy} busy={busy === 'clone'} disabled={Boolean(busy)} onClick={clone} primary />
+                        )}
+                        {!profile.isDefault && version.status === 'published' && (
+                          <Button label="Set as default" icon={Check} busy={busy === 'default'} disabled={Boolean(busy)} onClick={makeDefault} />
                         )}
                       </div>
                     </div>
@@ -465,7 +493,8 @@ export function IcpScoringPanel() {
                     {!editable && (
                       <p className="mt-4 flex items-center gap-2 border-l-2 border-blue-500 bg-blue-500/5 px-4 py-3 text-xs text-text-secondary">
                         <AlertCircle className="h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />
-                        Clone this version to change rules without rewriting campaign history.
+                        Published versions are read-only so past scores keep the rules they were made with. Edit
+                        makes a new draft from this one; publish it to replace this version.
                       </p>
                     )}
 
@@ -497,6 +526,16 @@ export function IcpScoringPanel() {
                         Unsaved changes. Save the draft before publishing or leaving this profile.
                       </p>
                     )}
+                    {section === 'points' ? (
+                      <ScoringPointsEditor
+                        rules={rules}
+                        editable={editable}
+                        versionId={version.id}
+                        onChange={setRules}
+                        onEdit={clone}
+                      />
+                    ) : (
+                    <>
                     <fieldset disabled={!editable} className="mt-6 grid grid-cols-2 gap-5">
                       <Field label="Target countries">
                         <input className={inputClass} value={rules.geography.targetCountries.join(', ')} onChange={(e) => setList('geography', 'targetCountries', e.target.value)} placeholder="Vietnam, Singapore" />
@@ -546,14 +585,14 @@ export function IcpScoringPanel() {
                       </Field>
                     </fieldset>
                     <ScoringControls rules={rules} editable={editable} onChange={setRules} problem={scoringProblem} />
+                    </>
+                    )}
                   </div>
                 )}
               </div>
             )}
           </section>
 
-          <CampaignTable campaigns={campaigns} versions={published} busy={busy} onAssign={assign} />
-          <RescorePreview showToast={showToast} />
         </>
       )}
     </div>
@@ -719,6 +758,9 @@ const WEIGHT_FIELDS: { key: keyof IcpVersionRulesV2['scoringWeights']; label: st
 ];
 
 function describeScoringProblem(rules: IcpVersionRulesV2): string | null {
+  if (rules.pointRules && rules.pointRules.fitAt <= rules.pointRules.reviewAt) {
+    return 'Points: the Fit total must be higher than the Review total.';
+  }
   const sum = Object.values(rules.scoringWeights).reduce((total, value) => total + (Number(value) || 0), 0);
   if (sum !== 100) return `Points must add up to 100 (now ${sum}).`;
   if (rules.scorePolicy.qualifiedMinFitScore <= rules.scorePolicy.needsReviewMinFitScore) {
@@ -756,8 +798,14 @@ function ScoringControls({
 
   return (
     <fieldset disabled={!editable} className="mt-8 space-y-6 border-t border-card-border pt-6">
-      <div>
-        <h4 className="text-sm font-bold text-text-primary">Scoring points</h4>
+      {rules.pointRules?.enabled ? (
+        <p className="rounded-lg border border-card-border px-3 py-2 text-xs text-text-secondary">
+          This ICP scores with per-value points (Scoring points tab), so the weights and thresholds below are not used.
+          The &ldquo;Never qualified&rdquo; switches still apply.
+        </p>
+      ) : null}
+      <div className={rules.pointRules?.enabled ? 'hidden' : undefined}>
+        <h4 className="text-sm font-bold text-text-primary">Dimension weights</h4>
         <p className="mt-1 text-xs leading-5 text-text-secondary">
           A lead scores the weighted average of the rules above that it has data for. Rules you have not set, and data the
           lead does not have, are left out rather than counted against it.
@@ -785,7 +833,7 @@ function ScoringControls({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className={`grid grid-cols-2 gap-4 ${rules.pointRules?.enabled ? 'hidden' : ''}`}>
         <label className="space-y-1 text-xs font-semibold text-text-secondary">
           Fit at or above
           <input type="number" min={0} max={100} className={inputClass} value={rules.scorePolicy.qualifiedMinFitScore} onChange={(e) => setPolicy('qualifiedMinFitScore', e.target.value)} />

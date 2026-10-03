@@ -25,7 +25,10 @@ describe("manager ICP and scoring surface", () => {
 
   it("makes version safety and campaign-scoped reuse visible", () => {
     expect(panel).toContain("Published versions are immutable");
-    expect(panel).toContain("Create editable draft");
+    // The clone action is the "Edit" button now (owner, 2026-10-03: "I need an edit button for a
+    // published ICP"). It still makes a new draft; it is just findable.
+    expect(panel).toContain('label="Edit"');
+    expect(panel).toContain("makes a new draft from this one");
     expect(panel).toContain("The same prospect can use a different published ICP in every campaign");
     expect(panel).toContain("old results stale until campaign rescore");
     expect(panel).toContain("(pinned)");

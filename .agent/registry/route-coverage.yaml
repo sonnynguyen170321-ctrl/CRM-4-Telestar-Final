@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 187   mutating: 118   mutating without a test: 24
+# routes: 189   mutating: 120   mutating without a test: 24
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -483,28 +483,45 @@ routes:
     methods: [GET]
     tests:
       - tests/icp-management-ui.test.ts
+  - path: app/api/icp/profiles/[id]/default/route.ts
+    methods: [POST]
+    tests:
+      - tests/admin-audit-coverage.test.ts
+      - tests/icp-management-ui.test.ts
+      - tests/icp-preview-score.test.ts
   - path: app/api/icp/profiles/route.ts
     methods: [GET, POST]
     tests:
       - tests/admin-audit-coverage.test.ts
       - tests/icp-management-ui.test.ts
+      - tests/icp-preview-score.test.ts
+  - path: app/api/icp/versions/[id]/preview-score/route.ts
+    methods: [POST]
+    tests:
+      - tests/admin-audit-coverage.test.ts
+      - tests/icp-management-ui.test.ts
+      - tests/icp-preview-score.test.ts
+      - tests/research-phase-3-workspace.test.ts
   - path: app/api/icp/versions/[id]/publish/route.ts
     methods: [POST]
     tests:
       - tests/admin-audit-coverage.test.ts
       - tests/icp-management-ui.test.ts
+      - tests/icp-preview-score.test.ts
       - tests/research-phase-3-workspace.test.ts
   - path: app/api/icp/versions/[id]/route.ts
     methods: [PATCH]
     tests:
       - tests/admin-audit-coverage.test.ts
       - tests/icp-management-ui.test.ts
+      - tests/icp-preview-score.test.ts
       - tests/research-phase-3-workspace.test.ts
   - path: app/api/icp/versions/route.ts
     methods: [GET, POST]
     tests:
       - tests/admin-audit-coverage.test.ts
       - tests/icp-management-ui.test.ts
+      - tests/icp-preview-score.test.ts
       - tests/research-phase-3-workspace.test.ts
   - path: app/api/inbox/route.ts
     methods: [GET, PATCH]

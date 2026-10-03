@@ -28,6 +28,7 @@ const MANAGEMENT_ROUTES: Array<[string, string]> = [
   ['app/api/campaigns/[id]/route.ts', 'admin.campaign.update'],
   ['app/api/icp/profiles/route.ts', 'admin.icp.create'],
   ['app/api/icp/versions/[id]/publish/route.ts', 'admin.icp.publish'],
+  ['app/api/icp/profiles/[id]/default/route.ts', 'admin.icp.set_default'],
   ['app/api/email-health/accounts/[id]/pause/route.ts', 'admin.mailbox.pause'],
   ['app/api/email-health/accounts/[id]/resume/route.ts', 'admin.mailbox.resume'],
   ['app/api/email-health/accounts/[id]/cap/route.ts', 'admin.mailbox.cap'],
