@@ -23,6 +23,7 @@ import { prisma, tenantStorage } from '@/lib/prisma';
 import { emptyIcpRulesV2 } from '@telestar/core-scoring/rules/emptyIcpRulesV2';
 
 import { rescoreLeadsIcp, scoreLeadIcp } from '@/lib/leads/icpScoring';
+import { ICP_VERDICT_VERSION } from '@/lib/leadgen/weightedQualification';
 
 let hasDb = false;
 try {
@@ -58,6 +59,7 @@ async function seed() {
     await run(t, async () => {
       await prisma.leadIcpAssessment.deleteMany({ where: { tenantId: t } });
       await prisma.lead.deleteMany({ where: { tenantId: t } });
+      await prisma.account.deleteMany({ where: { tenantId: t } });
       await prisma.campaign.deleteMany({ where: { tenantId: t } });
       await prisma.icpVersion.deleteMany({ where: { tenantId: t } });
       await prisma.icpProfile.deleteMany({ where: { tenantId: t } });
@@ -196,5 +198,64 @@ describe.skipIf(!hasDb)('rescoreLeadsIcp', () => {
     const report = await run(T, () => rescoreLeadsIcp({ tenantId: T, campaignId: ids.campaignBare, onlyUnscored: false, limit: 50 }));
     expect(report.scored).toBe(0);
     expect((await reload(inScope.id)).icpFitScore).toBeNull();
+  });
+});
+
+describe.skipIf(!hasDb)('weighted verdict on leads', () => {
+  beforeAll(seed);
+
+  async function accountFor(fields: Record<string, unknown>) {
+    return run(T, () =>
+      prisma.account.create({ data: { tenantId: T, name: `Acct ${randomUUID().slice(0, 6)}`, ...fields }, select: { id: true } })
+    );
+  }
+
+  it('reaches the engine with the account headcount — size used to be unknown on every lead', async () => {
+    const account = await accountFor({ industry: 'Software', size: 42 });
+    const l = await lead(ids.campaignScored, { accountId: account.id });
+
+    await run(T, () => scoreLeadIcp({ tenantId: T, leadId: l.id }));
+
+    const [row] = await assessments(l.id);
+    expect((row.inputSnapshot as { company: { employeeCount?: number } }).company.employeeCount).toBe(42);
+    expect((row.evidenceJson as { verdict: { version: string } }).verdict.version).toBe(ICP_VERDICT_VERSION);
+  });
+
+  it('qualifies a lead that matches what the ICP asks for, scoring only those dimensions', async () => {
+    const account = await accountFor({ industry: 'Software' });
+    const l = await lead(ids.campaignScored, { accountId: account.id, title: 'CEO' });
+
+    const result = await run(T, () => scoreLeadIcp({ tenantId: T, leadId: l.id }));
+
+    expect(result.status).toBe('scored');
+    if (result.status === 'scored') {
+      expect(result.qualification).toBe('qualified');
+      expect(result.fitScore).toBeGreaterThanOrEqual(90);
+    }
+  });
+
+  it('previews a rescore without writing a single row', async () => {
+    const l = await lead(ids.campaignScored, { title: 'CEO' });
+
+    const report = await run(T, () => rescoreLeadsIcp({ tenantId: T, onlyUnscored: true, limit: 50, dryRun: true }));
+
+    expect(report.dryRun).toBe(true);
+    // No account means no industry: the ICP's industry rule cannot be checked, so Review.
+    expect(report.transitions?.['unscored→needs_review']).toBeGreaterThanOrEqual(1);
+    expect((await reload(l.id)).icpQualification).toBeNull();
+    expect(await assessments(l.id)).toHaveLength(0);
+  });
+
+  it('counts a lead whose verdict would not move as unchanged', async () => {
+    const account = await accountFor({ industry: 'Software' });
+    const l = await lead(ids.campaignScored, { accountId: account.id, title: 'CEO' });
+    await run(T, () => scoreLeadIcp({ tenantId: T, leadId: l.id }));
+
+    const report = await run(T, () =>
+      rescoreLeadsIcp({ tenantId: T, campaignId: ids.campaignScored, onlyUnscored: false, limit: 500, dryRun: true })
+    );
+
+    expect(report.unchanged).toBeGreaterThanOrEqual(1);
+    expect(await assessments(l.id)).toHaveLength(1);
   });
 });

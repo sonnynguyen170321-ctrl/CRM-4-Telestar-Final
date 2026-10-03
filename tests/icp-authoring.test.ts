@@ -64,7 +64,31 @@ describe("manager ICP authoring validation", () => {
     rules.disqualifiers.competitorDenylist = ["competitor.example"];
 
     expect(managerSimplificationNotes(rules)).toContain(
-      "Advanced automatic exclusions will be removed",
+      "Project-based and competitor exclusions will be removed",
     );
+  });
+
+  it("keeps the points, thresholds and disqualifiers through a save", () => {
+    // They used to be reset to defaults on every save, silently — which is why the TeleStar ICP
+    // could enforce one of its five disqualifiers, and why its weights could never be tuned.
+    const rules = emptyIcpRulesV2("kept", "Kept");
+    rules.geography.targetCountries = ["United Kingdom"];
+    rules.scoringWeights = { geo: 40, industry: 10, companyType: 0, size: 10, persona: 40, signals: 0 };
+    rules.scorePolicy = { ...rules.scorePolicy, qualifiedMinFitScore: 70, needsReviewMinFitScore: 40 };
+    rules.disqualifiers.genericEmailContact = { disqualify: true };
+    rules.disqualifiers.websiteOffline = { disqualify: true };
+    rules.disqualifiers.onePersonCompany = { disqualify: true };
+    rules.companyType.servicesConsultingPolicy = { disqualify: true, exceptMarkets: ["Vietnam"] };
+
+    expect(managerSimplificationNotes(rules)).toEqual([]);
+
+    const saved = normalizeManagerRules(rules);
+    expect(saved.scoringWeights).toEqual(rules.scoringWeights);
+    expect(saved.scorePolicy.qualifiedMinFitScore).toBe(70);
+    expect(saved.scorePolicy.needsReviewMinFitScore).toBe(40);
+    expect(saved.disqualifiers.genericEmailContact.disqualify).toBe(true);
+    expect(saved.disqualifiers.websiteOffline.disqualify).toBe(true);
+    expect(saved.disqualifiers.onePersonCompany.disqualify).toBe(true);
+    expect(saved.companyType.servicesConsultingPolicy).toEqual({ disqualify: true, exceptMarkets: ["Vietnam"] });
   });
 });

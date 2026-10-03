@@ -17,6 +17,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { IcpVersionRulesV2 } from '@telestar/core-scoring/rules/schema-v2';
 import { useToast } from '@/context/ToastContext';
+import { RescorePreview } from '@/components/automation/RescorePreview';
 import {
   clearIcpDraft,
   loadIcpDraft,
@@ -126,6 +127,9 @@ export function IcpScoringPanel() {
   const dirty =
     Boolean(rules && version && rulesVersionId === version.id) &&
     JSON.stringify(rules) !== JSON.stringify(version?.rulesJson);
+  // The schema rejects weights that do not sum to 100 and a Fit bar at or under the Review bar;
+  // saying so here, before the save round-trip, is what makes those two numbers safe to edit.
+  const scoringProblem = rules ? describeScoringProblem(rules) : null;
   const advanced = useMemo(() => (rules ? managerSimplificationNotes(rules) : []), [rules]);
   const needsSave = dirty || advanced.length > 0;
 
@@ -449,7 +453,7 @@ export function IcpScoringPanel() {
                       <div className="flex gap-2">
                         {editable ? (
                           <>
-                            <Button label="Save draft" icon={Save} busy={busy === 'save'} disabled={Boolean(busy) || !needsSave} onClick={save} />
+                            <Button label="Save draft" icon={Save} busy={busy === 'save'} disabled={Boolean(busy) || !needsSave || Boolean(scoringProblem)} onClick={save} />
                             <Button label="Publish" icon={Check} busy={busy === 'publish'} disabled={Boolean(busy) || needsSave} onClick={publish} primary />
                           </>
                         ) : (
@@ -541,9 +545,7 @@ export function IcpScoringPanel() {
                         <input type="number" min={0} className={inputClass} value={rules.size.maxEmployees ?? ''} onChange={(e) => setRules({ ...rules, size: { ...rules.size, maxEmployees: e.target.value ? Number(e.target.value) : undefined } })} placeholder="No maximum" />
                       </Field>
                     </fieldset>
-                    <p className="mt-4 text-xs leading-5 text-text-secondary">
-                      Missing configured evidence becomes Review. Only a known mismatch becomes No fit.
-                    </p>
+                    <ScoringControls rules={rules} editable={editable} onChange={setRules} problem={scoringProblem} />
                   </div>
                 )}
               </div>
@@ -551,6 +553,7 @@ export function IcpScoringPanel() {
           </section>
 
           <CampaignTable campaigns={campaigns} versions={published} busy={busy} onAssign={assign} />
+          <RescorePreview showToast={showToast} />
         </>
       )}
     </div>
@@ -703,5 +706,153 @@ function Engagement({
         </p>
       )}
     </section>
+  );
+}
+
+const WEIGHT_FIELDS: { key: keyof IcpVersionRulesV2['scoringWeights']; label: string; hint: string }[] = [
+  { key: 'persona', label: 'Buyer title', hint: 'Title matches the accepted buyers' },
+  { key: 'geo', label: 'Country', hint: 'Company is in a target country' },
+  { key: 'industry', label: 'Industry', hint: 'Only counts with "Must match target industries"' },
+  { key: 'size', label: 'Company size', hint: 'Only counts when headcount is known' },
+  { key: 'companyType', label: 'Company type', hint: 'Rarely known; usually leave low' },
+  { key: 'signals', label: 'Keywords', hint: 'Industry keywords when industry is "Any"' },
+];
+
+function describeScoringProblem(rules: IcpVersionRulesV2): string | null {
+  const sum = Object.values(rules.scoringWeights).reduce((total, value) => total + (Number(value) || 0), 0);
+  if (sum !== 100) return `Points must add up to 100 (now ${sum}).`;
+  if (rules.scorePolicy.qualifiedMinFitScore <= rules.scorePolicy.needsReviewMinFitScore) {
+    return 'The Fit score must be higher than the Review score.';
+  }
+  return null;
+}
+
+/**
+ * Points, thresholds and the "never qualified" switches.
+ *
+ * The verdict became weighted on 2026-10-03 (`lib/leadgen/weightedQualification.ts`): only the
+ * dimensions this ICP constrains are averaged, by these points, and the two thresholds turn the
+ * average into Fit / Review / No fit. Before, the points and thresholds were stored, unread, and
+ * reset to defaults on every save — and so were four of the five disqualifiers below.
+ */
+function ScoringControls({
+  rules,
+  editable,
+  onChange,
+  problem,
+}: {
+  rules: IcpVersionRulesV2;
+  editable: boolean;
+  onChange: (rules: IcpVersionRulesV2) => void;
+  problem: string | null;
+}) {
+  const sum = Object.values(rules.scoringWeights).reduce((total, value) => total + (Number(value) || 0), 0);
+  const setWeight = (key: keyof IcpVersionRulesV2['scoringWeights'], value: string) =>
+    onChange({ ...rules, scoringWeights: { ...rules.scoringWeights, [key]: Math.max(0, Math.round(Number(value) || 0)) } });
+  const setPolicy = (key: 'qualifiedMinFitScore' | 'needsReviewMinFitScore', value: string) =>
+    onChange({ ...rules, scorePolicy: { ...rules.scorePolicy, [key]: Math.max(0, Math.min(100, Math.round(Number(value) || 0))) } });
+  const setToggle = (key: 'genericEmailContact' | 'websiteOffline', checked: boolean) =>
+    onChange({ ...rules, disqualifiers: { ...rules.disqualifiers, [key]: { ...rules.disqualifiers[key], disqualify: checked } } });
+
+  return (
+    <fieldset disabled={!editable} className="mt-8 space-y-6 border-t border-card-border pt-6">
+      <div>
+        <h4 className="text-sm font-bold text-text-primary">Scoring points</h4>
+        <p className="mt-1 text-xs leading-5 text-text-secondary">
+          A lead scores the weighted average of the rules above that it has data for. Rules you have not set, and data the
+          lead does not have, are left out rather than counted against it.
+        </p>
+        <div className="mt-4 grid grid-cols-3 gap-4">
+          {WEIGHT_FIELDS.map((field) => (
+            <label key={field.key} className="space-y-1 text-xs font-semibold text-text-secondary">
+              <span className="flex items-baseline justify-between gap-2">
+                {field.label}
+                <span className="font-normal text-text-muted">{field.hint}</span>
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                className={inputClass}
+                value={rules.scoringWeights[field.key]}
+                onChange={(e) => setWeight(field.key, e.target.value)}
+              />
+            </label>
+          ))}
+        </div>
+        <p className={`mt-2 text-xs font-semibold ${sum === 100 ? 'text-text-muted' : 'text-amber-700'}`} role="status">
+          Total {sum} / 100
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <label className="space-y-1 text-xs font-semibold text-text-secondary">
+          Fit at or above
+          <input type="number" min={0} max={100} className={inputClass} value={rules.scorePolicy.qualifiedMinFitScore} onChange={(e) => setPolicy('qualifiedMinFitScore', e.target.value)} />
+        </label>
+        <label className="space-y-1 text-xs font-semibold text-text-secondary">
+          Review at or above (below is No fit)
+          <input type="number" min={0} max={100} className={inputClass} value={rules.scorePolicy.needsReviewMinFitScore} onChange={(e) => setPolicy('needsReviewMinFitScore', e.target.value)} />
+        </label>
+      </div>
+      <p className="text-xs leading-5 text-text-secondary">
+        A lead missing its country, industry or title (where you set one) is Review at best — the score cannot vouch for
+        what it never saw.
+      </p>
+
+      <div>
+        <h4 className="text-sm font-bold text-text-primary">Never qualified</h4>
+        <p className="mt-1 text-xs leading-5 text-text-secondary">
+          These, excluded countries, excluded industries and excluded titles are No fit whatever the score.
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <Toggle
+            label="Contact on a free email (Gmail, Yahoo…)"
+            checked={rules.disqualifiers.genericEmailContact.disqualify}
+            onChange={(checked) => setToggle('genericEmailContact', checked)}
+          />
+          <Toggle
+            label="Company website is offline"
+            checked={rules.disqualifiers.websiteOffline.disqualify}
+            onChange={(checked) => setToggle('websiteOffline', checked)}
+          />
+          <Toggle
+            label="One-person company"
+            checked={rules.disqualifiers.onePersonCompany.disqualify}
+            onChange={(checked) =>
+              onChange({ ...rules, disqualifiers: { ...rules.disqualifiers, onePersonCompany: { ...rules.disqualifiers.onePersonCompany, disqualify: checked } } })
+            }
+          />
+          <Toggle
+            label="Sells services or consulting rather than a product"
+            checked={rules.companyType.servicesConsultingPolicy.disqualify}
+            onChange={(checked) =>
+              onChange({
+                ...rules,
+                companyType: {
+                  ...rules.companyType,
+                  servicesConsultingPolicy: { ...rules.companyType.servicesConsultingPolicy, disqualify: checked },
+                },
+              })
+            }
+          />
+        </div>
+      </div>
+
+      {problem && (
+        <p className="text-xs font-semibold text-amber-700" role="alert">
+          {problem} Fix this to save.
+        </p>
+      )}
+    </fieldset>
+  );
+}
+
+function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-card-border px-3 text-xs font-semibold text-text-secondary">
+      <input type="checkbox" className="h-4 w-4 accent-brand-red" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      {label}
+    </label>
   );
 }

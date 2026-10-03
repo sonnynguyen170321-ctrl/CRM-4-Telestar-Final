@@ -33,6 +33,7 @@ import dynamic from 'next/dynamic';
 import { safeHttpUrl } from '@/lib/security/safeHref';
 import { summarizeBulk } from '@/lib/leads/bulkOutcome';
 
+import LeadSignals from '@/components/leads/LeadSignals';
 const LeadDetailPanel = dynamic(() => import('@/components/LeadDetailPanel'), { ssr: false });
 const NewLeadModal = dynamic(() => import('@/components/NewLeadModal'), { ssr: false });
 const CSVImportModal = dynamic(() => import('@/components/CSVImportModal'), { ssr: false });
@@ -1021,24 +1022,9 @@ export default function LeadsPage() {
                             {lead.stage.replace(/_/g, ' ')}
                           </span>
                         </td>
-                        {/* Clay-Style Intent Signals */}
-                        <td className="p-3 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            {lead.priority === 'hot' && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-500/10 text-red-400 border border-red-500/20 font-bold text-[10px]">
-                                🔥 High Intent
-                              </span>
-                            )}
-                            {lead.company?.toLowerCase().includes('tech') || lead.company?.toLowerCase().includes('cloud') || lead.company?.toLowerCase().includes('ai') ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px]">
-                                💼 Tech/SaaS
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px]">
-                                📈 Growth
-                              </span>
-                            )}
-                          </div>
+                        {/* Stored signals only — see components/leads/LeadSignals.tsx. */}
+                        <td className="p-3">
+                          <LeadSignals lead={lead} />
                         </td>
                         <td className="p-3">
                           <PriorityIndicator priority={lead.priority} />
