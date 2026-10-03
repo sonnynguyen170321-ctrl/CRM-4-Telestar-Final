@@ -1314,7 +1314,7 @@ describe('Phase 8a — AI-managed prospecting', () => {
               status: 'paused',
               currentStep: 2,
               pausedReason,
-              occupancyKey: occupancyKeyFor(tenantA, leadA),
+              occupancyKey: occupancyKeyFor(tenantA, leadA, sequenceA),
             },
           });
 

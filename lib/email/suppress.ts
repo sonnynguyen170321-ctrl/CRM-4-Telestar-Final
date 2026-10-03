@@ -26,7 +26,7 @@
  * this module an "unsuppress" would make it the thing that silently lets a dead address back in.
  */
 import { prisma } from '@/lib/prisma';
-import { pauseEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
+import { pauseAllLeadCadences } from '@/lib/sequences/leadStop';
 
 export type SuppressionReason = 'hard_bounce' | 'soft_bounce' | 'spam' | 'manual' | 'unsubscribed';
 
@@ -122,19 +122,13 @@ export async function suppressRecipient(
       // A suppressed address with a running cadence would keep producing steps that can only
       // be refused. Pausing names the reason on the enrollment, which is what the operator
       // console reads.
-      const enrollment = await prisma.sequenceEnrollment.findFirst({
-        where: { leadId: lead.id, status: 'active' },
-        select: { id: true, sequenceId: true },
+      // Every cadence on the lead, not the first active one: a suppressed address in a second
+      // sequence would otherwise keep producing steps that can only be refused.
+      await pauseAllLeadCadences({
+        leadId: lead.id,
+        reason: input.reason === 'soft_bounce' ? 'soft_bounce' : 'hard_bounce',
+        actorUserId,
       });
-      if (enrollment) {
-        await pauseEnrollmentOccurrence({
-          enrollmentId: enrollment.id,
-          leadId: lead.id,
-          sequenceId: enrollment.sequenceId,
-          reason: input.reason === 'soft_bounce' ? 'soft_bounce' : 'hard_bounce',
-          actorUserId,
-        });
-      }
     }
 
     return { suppressed: true, newlySuppressed: !existing };

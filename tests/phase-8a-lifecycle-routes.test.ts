@@ -192,7 +192,7 @@ describe('Phase 8a — sequence lifecycle routes and occurrence ownership', () =
           where: { id: live.enrollmentId },
         });
         expect(current.status).toBe('active');
-        expect(current.occupancyKey).toBe(occupancyKeyFor(tenantId, leadId));
+        expect(current.occupancyKey).toBe(occupancyKeyFor(tenantId, leadId, sequenceA));
       });
     }, 60_000);
 
@@ -211,7 +211,7 @@ describe('Phase 8a — sequence lifecycle routes and occurrence ownership', () =
   it('pauses an active enrollment and resumes it, preserving the exact occupancy key', async () => {
     await inTenant(async () => {
       const { enrollmentId } = await prepareEnrollment(userA, { leadId, sequenceId: sequenceA });
-      const key = occupancyKeyFor(tenantId, leadId);
+      const key = occupancyKeyFor(tenantId, leadId, sequenceA);
 
       expect((await patch(sequenceA, enrollmentId, 'paused')).status).toBe(200);
       const paused = await prisma.sequenceEnrollment.findUniqueOrThrow({ where: { id: enrollmentId } });
@@ -322,7 +322,7 @@ describe('Phase 8a — sequence lifecycle routes and occurrence ownership', () =
       // for active rows to stamp and found none.
       expect(row.pausedReason).toBe('manual');
       expect(row.lastTransitionAt).not.toBeNull();
-      expect(row.occupancyKey).toBe(occupancyKeyFor(tenantId, leadId));
+      expect(row.occupancyKey).toBe(occupancyKeyFor(tenantId, leadId, sequenceA));
     });
   }, 60_000);
 
@@ -377,7 +377,7 @@ describe('Phase 8a — sequence lifecycle routes and occurrence ownership', () =
       const row = await prisma.sequenceEnrollment.findUniqueOrThrow({ where: { id: enrollmentId } });
       expect(row.status).toBe('active');
       expect(row.pausedReason).toBeNull();
-      expect(row.occupancyKey).toBe(occupancyKeyFor(tenantId, leadId));
+      expect(row.occupancyKey).toBe(occupancyKeyFor(tenantId, leadId, sequenceA));
     });
   }, 60_000);
 
@@ -396,7 +396,7 @@ describe('Phase 8a — sequence lifecycle routes and occurrence ownership', () =
           sequenceId: sequenceA,
           status: 'active',
           currentStep: 1,
-          occupancyKey: occupancyKeyFor(tenantId, leadId),
+          occupancyKey: occupancyKeyFor(tenantId, leadId, sequenceA),
         },
       });
 
@@ -482,7 +482,7 @@ describe('Phase 8a — sequence lifecycle routes and occurrence ownership', () =
           sequenceId: sequenceA,
           status: 'active',
           currentStep: 1,
-          occupancyKey: occupancyKeyFor(tenantId, leadId),
+          occupancyKey: occupancyKeyFor(tenantId, leadId, sequenceA),
         },
       });
 
@@ -517,7 +517,7 @@ describe('Phase 8a — sequence lifecycle routes and occurrence ownership', () =
           sequenceId: sequenceA,
           status: 'active',
           currentStep: 1,
-          occupancyKey: occupancyKeyFor(tenantId, leadId),
+          occupancyKey: occupancyKeyFor(tenantId, leadId, sequenceA),
         },
       });
       // The AI even got as far as the transition.
@@ -564,7 +564,7 @@ describe('Phase 8a — sequence lifecycle routes and occurrence ownership', () =
           sequenceId: sequenceA,
           status: 'active',
           currentStep: 1,
-          occupancyKey: occupancyKeyFor(tenantId, leadId),
+          occupancyKey: occupancyKeyFor(tenantId, leadId, sequenceA),
         },
       });
 

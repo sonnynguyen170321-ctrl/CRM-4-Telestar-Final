@@ -214,7 +214,7 @@ describe('Phase 8 Stabilization Backlog (S1-S4)', () => {
       leadId: 'lead-1',
       sequenceId: 'seq-1',
       status: 'active',
-      occupancyKey: 'tenant-1:lead-1',
+      occupancyKey: 'tenant-1:lead-1:seq-1',
       currentStep: 1,
     };
 

@@ -386,7 +386,7 @@ async function advanceOccurrence(
     enrollment.sequenceId === task.sequenceId &&
     enrollment.status === 'active' &&
     enrollment.currentStep === completedStep &&
-    enrollment.occupancyKey === occupancyKeyFor(lead.tenantId, task.leadId);
+    enrollment.occupancyKey === occupancyKeyFor(lead.tenantId, task.leadId, task.sequenceId);
   if (!owns) return;
 
   const sequence = await prisma.sequence.findUnique({
@@ -495,8 +495,12 @@ export type PauseOutcome =
   | 'no_sequence';
 
 /**
- * Pause a lead's sequence run: mark paused, skip its pending sequence tasks,
- * log an activity. Callers create the reason-specific notification/task.
+ * Pause a lead's sequence runs — all of them: mark paused, skip their pending sequence tasks,
+ * log an activity per cadence. Callers create the reason-specific notification/task.
+ *
+ * "All of them" since 2026-10-03, when a lead became able to run several sequences at once. The
+ * callers are a reply and a booked meeting on the lead page; pausing only `Lead.sequenceId` would
+ * have left every other cadence emailing a prospect who had just answered.
  *
  * Throws on a database failure. Callers must not treat an absent side effect as an error —
  * that is what the returned outcome is for.
@@ -514,7 +518,16 @@ export async function pauseSequence(
     where: { id: leadId },
     select: { id: true, sequenceId: true, firstName: true, lastName: true },
   });
-  if (!lead?.sequenceId) return 'no_sequence';
+  if (!lead) return 'no_sequence';
+
+  const running = await prisma.sequenceEnrollment.findMany({
+    where: { leadId, status: 'active' },
+    select: { sequenceId: true },
+  });
+  const sequenceIds = Array.from(
+    new Set([...running.map((row) => row.sequenceId), ...(lead.sequenceId ? [lead.sequenceId] : [])])
+  );
+  if (sequenceIds.length === 0) return 'no_sequence';
 
   await prisma.lead.update({
     where: { id: leadId },
@@ -524,7 +537,7 @@ export async function pauseSequence(
   // The enrollment is authoritative for execution state, so its update count — not the lead
   // cache — is what says whether a running cadence was actually stopped.
   const pausedEnrollments = await prisma.sequenceEnrollment.updateMany({
-    where: { leadId, sequenceId: lead.sequenceId, status: 'active' },
+    where: { leadId, sequenceId: { in: sequenceIds }, status: 'active' },
     data: {
       status: 'paused',
       pausedReason,
@@ -533,26 +546,29 @@ export async function pauseSequence(
   });
 
   await prisma.task.updateMany({
-    where: { leadId, sequenceId: lead.sequenceId, status: 'pending' },
+    where: { leadId, sequenceId: { in: sequenceIds }, status: 'pending' },
     data: { status: 'skipped' },
   });
 
-  const sequence = await prisma.sequence.findUnique({
-    where: { id: lead.sequenceId },
-    select: { name: true },
+  const sequences = await prisma.sequence.findMany({
+    where: { id: { in: sequenceIds } },
+    select: { id: true, name: true },
   });
+  const nameOf = new Map(sequences.map((sequence) => [sequence.id, sequence.name]));
 
   // No dedicated "paused" ActivityType in the enum — record it as a sequence_unenrolled
   // activity with `paused: true` in metadata so the feed/analytics can distinguish it.
-  await prisma.activity.create({
-    data: {
-      userId: actorUserId,
-      leadId,
-      type: 'sequence_unenrolled',
-      description: `Sequence "${sequence?.name ?? lead.sequenceId}" paused — ${PAUSED_REASON_LABELS[pausedReason]}`,
-      metadata: { sequenceId: lead.sequenceId, reason: pausedReason, paused: true },
-    },
-  });
+  for (const sequenceId of sequenceIds) {
+    await prisma.activity.create({
+      data: {
+        userId: actorUserId,
+        leadId,
+        type: 'sequence_unenrolled',
+        description: `Sequence "${nameOf.get(sequenceId) ?? sequenceId}" paused — ${PAUSED_REASON_LABELS[pausedReason]}`,
+        metadata: { sequenceId, reason: pausedReason, paused: true },
+      },
+    });
+  }
 
   return pausedEnrollments.count > 0 ? 'paused' : 'already_paused_or_stopped';
 }
@@ -627,10 +643,6 @@ export async function pauseSequencesBulk(
  * clear enrollment fields and skip any pending sequence tasks.
  */
 export async function unenrollLead(leadId: string, sequenceId: string): Promise<void> {
-  await prisma.lead.update({
-    where: { id: leadId },
-    data: { sequenceId: null, sequenceStep: null, sequenceStatus: null },
-  });
   await prisma.task.updateMany({
     where: { leadId, sequenceId, status: 'pending' },
     data: { status: 'skipped' },
@@ -638,5 +650,21 @@ export async function unenrollLead(leadId: string, sequenceId: string): Promise<
   await prisma.sequenceEnrollment.updateMany({
     where: { leadId, sequenceId, status: { in: ['active', 'paused'] } },
     data: { status: 'unenrolled', completedAt: new Date(), ...releaseOccupancy() },
+  });
+
+  // The lead's sequence fields are a cache of "the cadence this lead is on". With several running
+  // they point at the most recent one; removing that one moves the pointer to the next still
+  // running, rather than blanking the lead while other cadences keep working it. Only a lead that
+  // pointed at this sequence is touched.
+  const next = await prisma.sequenceEnrollment.findFirst({
+    where: { leadId, status: { in: ['active', 'paused'] } },
+    orderBy: { startedAt: 'desc' },
+    select: { sequenceId: true, currentStep: true, status: true },
+  });
+  await prisma.lead.updateMany({
+    where: { id: leadId, OR: [{ sequenceId }, { sequenceId: null }] },
+    data: next
+      ? { sequenceId: next.sequenceId, sequenceStep: next.currentStep, sequenceStatus: next.status }
+      : { sequenceId: null, sequenceStep: null, sequenceStatus: null },
   });
 }

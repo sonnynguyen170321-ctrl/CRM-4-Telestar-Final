@@ -26,6 +26,7 @@
 import { hash } from 'bcryptjs';
 import { resolveDemoPassword } from '@/lib/seed-guard';
 import { createAdminClient } from '@/lib/db/adminClient.mjs';
+import { occupancyKeyFor } from '@/lib/sequences/occupancy';
 
 const prisma = createAdminClient();
 
@@ -392,7 +393,7 @@ async function seedDemoTenant(): Promise<void> {
   await prisma.sequenceEnrollment.create({
     data: {
       id: DEMO_IDS.enrollment, tenantId: t, leadId: lead.id, sequenceId: sequence.id,
-      status: 'active', currentStep: 2, occupancyKey: `${t}:${lead.id}`,
+      status: 'active', currentStep: 2, occupancyKey: occupancyKeyFor(t, lead.id, sequence.id),
       startedAt: new Date(now - 6 * DAY), nextActionAt: new Date(now + 2 * DAY),
     },
   });

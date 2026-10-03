@@ -5,7 +5,7 @@ import type { EmailSyncPayload, EmailApplyReplyPayload, EmailApplyBouncePayload 
 import { EmailService } from '@/lib/email/EmailService';
 import type { InboxMessage } from '@/lib/email/EmailService';
 import { isBounceMessage, isAutoReply, extractBouncedRecipient } from '@/lib/email/bounceDetection';
-import { pauseEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
+import { pauseAllLeadCadences } from '@/lib/sequences/leadStop';
 import { suppressRecipient } from '@/lib/email/suppress';
 import { classifyReply } from '@/lib/replies/classification';
 import { applyReplyClassification } from '@/lib/replies/handling';
@@ -430,21 +430,13 @@ export async function handleApplyBounce(payload: EmailApplyBouncePayload) {
     });
   }
 
-  if (lead.sequenceId) {
-    const bounced = await prisma.sequenceEnrollment.findFirst({
-      where: { leadId, status: 'active' },
-      select: { id: true, sequenceId: true },
-    });
-    if (bounced) {
-      await pauseEnrollmentOccurrence({
-        enrollmentId: bounced.id,
-        leadId,
-        sequenceId: bounced.sequenceId,
-        reason: isHard ? 'hard_bounce' : 'soft_bounce',
-        actorUserId: lead.assignedToId ?? accountId,
-      });
-    }
-  }
+  // Every running cadence, not the first one found: with several sequences on a lead, pausing
+  // one left the rest generating steps to an address the provider had just refused.
+  await pauseAllLeadCadences({
+    leadId,
+    reason: isHard ? 'hard_bounce' : 'soft_bounce',
+    actorUserId: lead.assignedToId ?? accountId,
+  });
 
   await prisma.notification.create({
     data: {

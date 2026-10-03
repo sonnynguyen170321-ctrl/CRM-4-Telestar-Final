@@ -503,7 +503,7 @@ describe('handleImportChunk', () => {
         currentStep: 1,
         // Without the occupancy key the row exists but does not hold the lead, so a second
         // cadence could start alongside it.
-        occupancyKey: `${CHUNK_PAYLOAD.tenantId}:lead-1`,
+        occupancyKey: `${CHUNK_PAYLOAD.tenantId}:lead-1:seq-1`,
       }),
     });
 

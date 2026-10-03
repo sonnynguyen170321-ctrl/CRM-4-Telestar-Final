@@ -85,7 +85,7 @@ async function main() {
           data: {
             status: targetStatus,
             currentStep: targetStep,
-            occupancyKey: occupancyFor(targetStatus, lead.tenantId, lead.id),
+            occupancyKey: occupancyFor(targetStatus, lead.tenantId, lead.id, lead.sequenceId),
           },
         });
       }
@@ -93,10 +93,10 @@ async function main() {
       continue;
     }
 
-    // The lead may already be held by a cadence on another sequence. The occupancy key is
-    // unique, so creating here would throw and abandon the rest of the run.
+    // The lead may already be held on this same sequence by another occurrence. The occupancy
+    // key is unique per lead and sequence, so creating here would throw and abandon the run.
     const occupant = await prisma.sequenceEnrollment.findUnique({
-      where: { occupancyKey: occupancyKeyFor(lead.tenantId, lead.id) },
+      where: { occupancyKey: occupancyKeyFor(lead.tenantId, lead.id, lead.sequenceId) },
       select: { id: true, sequenceId: true },
     });
     if (occupant) {
@@ -116,7 +116,7 @@ async function main() {
           status: targetStatus,
           currentStep: targetStep,
           tenantId: lead.tenantId,
-          occupancyKey: occupancyFor(targetStatus, lead.tenantId, lead.id),
+          occupancyKey: occupancyFor(targetStatus, lead.tenantId, lead.id, lead.sequenceId),
         },
       });
     }

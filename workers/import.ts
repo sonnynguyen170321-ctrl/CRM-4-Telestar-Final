@@ -1015,7 +1015,7 @@ async function handleImportChunk(payload: ImportChunkPayload) {
               // The occupancy key is what makes "one running cadence per lead" a database fact.
               // Without it this enrollment is invisible to every guard that asks whether the
               // lead is already busy.
-              occupancyKey: occupancyKeyFor(tenantId, createdLead.id),
+              occupancyKey: occupancyKeyFor(tenantId, createdLead.id, sequence.id),
             },
           });
         } catch (err: unknown) {

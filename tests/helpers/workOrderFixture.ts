@@ -236,7 +236,7 @@ export async function setupWorkOrderFixture(prefix: string): Promise<WorkOrderFi
         tenantId,
         // The occupancy invariant is a database CHECK now: an active enrollment must carry its
         // own lead's key. A fixture that skips it is a forgotten writer like any other.
-        occupancyKey: occupancyKeyFor(tenantId, ids.enrolledLeadId),
+        occupancyKey: occupancyKeyFor(tenantId, ids.enrolledLeadId, ids.sequenceId),
       },
     });
     await prisma.lead.update({

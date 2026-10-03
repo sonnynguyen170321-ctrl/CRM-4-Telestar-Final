@@ -368,7 +368,7 @@ describe('handleExecuteTask — deferral (Phase 6)', () => {
     sequenceId: 'seq-1',
     status: 'active',
     currentStep: 1,
-    occupancyKey: `${TENANT_ID}:lead-1`,
+    occupancyKey: `${TENANT_ID}:lead-1:seq-1`,
   };
 
   it('refuses at the send boundary when the occurrence lost ownership after the lock', async () => {
@@ -415,7 +415,7 @@ describe('handleExecuteTask — deferral (Phase 6)', () => {
     arrangeEligible();
     mockEnrollmentFindFirst
       .mockResolvedValueOnce(owningEnrollment)
-      .mockResolvedValueOnce({ ...owningEnrollment, occupancyKey: `${TENANT_ID}:other-lead` });
+      .mockResolvedValueOnce({ ...owningEnrollment, occupancyKey: `${TENANT_ID}:other-lead:seq-1` });
 
     const result = await handleExecuteTask({ taskId: 'task-1', expectedEnrollmentId: 'enr-1' });
 

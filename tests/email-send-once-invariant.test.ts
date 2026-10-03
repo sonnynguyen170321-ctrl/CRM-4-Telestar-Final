@@ -730,7 +730,7 @@ describe.skipIf(!hasDb)('a redelivered reply webhook does not double-apply', () 
           leadId,
           sequenceId,
           status: 'active',
-          occupancyKey: `${T}:${leadId}`,
+          occupancyKey: `${T}:${leadId}:${sequenceId}`,
           currentStep: 1,
         },
       });
