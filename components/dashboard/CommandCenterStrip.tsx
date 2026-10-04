@@ -28,10 +28,14 @@ import { relativeTime } from '@/components/ai/types';
  */
 
 export default function CommandCenterStrip({
-  tasksToday, tasksDone,
+  tasksToday, tasksDone, repUserId, refreshKey = 0,
 }: {
   tasksToday: number;
   tasksDone: number;
+  /** The rep picked on Home ("all" or empty = the viewer's whole scope), so all four tiles agree. */
+  repUserId?: string | null;
+  /** Bumped by the page when work changes (a task created or completed), to refetch. */
+  refreshKey?: number;
 }) {
   const [data, setData] = useState<ConsoleData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,24 +43,28 @@ export default function CommandCenterStrip({
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/ai/console')
+    const query = repUserId && repUserId !== 'all' ? `?userId=${encodeURIComponent(repUserId)}` : '';
+    // A new rep or a refresh: clear the last outcome, so neither an old error nor the previous
+    // rep's numbers stay on screen while this answer is on its way.
+    setFailed(false);
+    setIsLoading(true);
+    fetch(`/api/ai/console${query}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('console'))))
       .then((body) => { if (!cancelled) setData(body); })
       .catch(() => { if (!cancelled) setFailed(true); })
       .finally(() => { if (!cancelled) setIsLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [repUserId, refreshKey]);
 
   const counts: Record<string, number> = {};
   for (const b of data?.buckets ?? []) counts[b.key] = b.count;
 
   const attention = data?.buckets.find((b) => b.key === 'needs_attention')?.prospects ?? [];
 
-  // "Replies today" is counted from the same activity timeline the console renders, not from a
-  // second query that could drift from it.
-  const repliesToday = (data?.timeline ?? []).filter(
-    (t) => t.type === 'email_replied' && new Date(t.at).toDateString() === new Date().toDateString()
-  ).length;
+  // Counted by the server over the viewer's leads, from midnight in their timezone. It used to be
+  // filtered out of the newest 40 timeline events, tenant-wide — a busy morning of sends pushed the
+  // replies out of that window, and a rep saw everyone else's.
+  const repliesToday = data?.repliesToday ?? 0;
 
   if (failed) {
     return (

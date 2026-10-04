@@ -351,6 +351,9 @@ routes:
   - path: app/api/csp-report/route.ts
     methods: [POST]
     tests: []
+  - path: app/api/dashboard/my-day/route.ts
+    methods: [GET]
+    tests: []
   - path: app/api/demo/diagnostics/route.ts
     methods: [GET]
     tests:

@@ -61,7 +61,9 @@ export async function getTasks(user: SessionUser, options: GetTasksOptions) {
   const tasks = await prisma.task.findMany({
     where: {
       ...userScope,
-      ...(leadId ? { leadId } : {}),
+      // A task on an archived lead is not work: archiving ends the lead's cadences, but manual and
+      // callback tasks stayed in Today and Overdue. A single lead's own view still lists them.
+      ...(leadId ? { leadId } : { lead: { archivedAt: null } }),
       ...dateFilter,
     },
     include: {
