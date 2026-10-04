@@ -13,7 +13,7 @@
 # `tests/route-authorization.test.ts` fails when a mutating route has neither a guard nor a
 # hand-written `reason`. Reasons survive regeneration; they are the only part a human owns.
 #
-# routes: 197   mutating: 122   mutating with neither guard nor reason: 46
+# routes: 198   mutating: 123   mutating with neither guard nor reason: 46
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -673,6 +673,10 @@ routes:
   - path: app/api/team/sdr-progress/route.ts
     methods: [GET]
     guards: []
+  - path: app/api/telephony/calls/route.ts
+    methods: [POST]
+    guards:
+      - canAccessLead (via lib/telephony/gate.ts)
   - path: app/api/telephony/token/route.ts
     methods: [POST]
     guards: []
