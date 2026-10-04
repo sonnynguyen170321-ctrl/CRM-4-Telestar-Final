@@ -53,6 +53,14 @@
       "OPENAI_API_KEY",
       "GEMINI_API_KEY",
       "GROQ_API_KEY"
+    ],
+    "Telephony": [
+      "TELNYX_API_KEY",
+      "TELNYX_PUBLIC_KEY",
+      "TELNYX_CREDENTIAL_CONNECTION_ID",
+      "TELNYX_CALL_CONTROL_APP_ID",
+      "TELNYX_OUTBOUND_VOICE_PROFILE_ID",
+      "TELEPHONY_AUTH_SECRET"
     ]
   },
   "note": "Names only. Presence is reported as SET / NOT SET; values are never read here."

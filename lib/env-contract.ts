@@ -42,6 +42,20 @@ export const RUNTIME_REQUIRED_ENV = ['DATABASE_URL', 'AUTH_SECRET', 'ENCRYPTION_
 export const AI_PROVIDER_ENV = ['OPENAI_API_KEY', 'GEMINI_API_KEY', 'GROQ_API_KEY'] as const;
 
 /**
+ * The Telnyx dialer (docs/dialer/). All or none: a partly configured dialer cannot place a call,
+ * and lib/telephony/flags.ts treats it as off. `TELEPHONY_ENABLED` / `TELEPHONY_DRY_RUN` are flags,
+ * not part of the group.
+ */
+export const TELEPHONY_ENV = [
+  'TELNYX_API_KEY',
+  'TELNYX_PUBLIC_KEY',
+  'TELNYX_CREDENTIAL_CONNECTION_ID',
+  'TELNYX_CALL_CONTROL_APP_ID',
+  'TELNYX_OUTBOUND_VOICE_PROFILE_ID',
+  'TELEPHONY_AUTH_SECRET',
+] as const;
+
+/**
  * Optional integration groups. Partially configured is a warning; entirely absent disables
  * the feature and, in production, says so.
  */
@@ -50,6 +64,7 @@ export const OPTIONAL_ENV_GROUPS: Record<string, readonly string[]> = {
   'Microsoft OAuth': ['MICROSOFT_CLIENT_ID', 'MICROSOFT_CLIENT_SECRET', 'MICROSOFT_REDIRECT_URI'],
   'Cron auth': ['CRON_SECRET'],
   'Telestar AI providers': AI_PROVIDER_ENV,
+  Telephony: TELEPHONY_ENV,
 };
 
 /** Additionally required in a production deployment, beyond the runtime set above. */

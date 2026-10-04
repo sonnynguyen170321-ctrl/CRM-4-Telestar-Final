@@ -42,6 +42,9 @@ Tick each box and note the ID it produced. The IDs (not the keys) can go into th
 - [ ] Outbound → **Outbound Voice Profile**: `crm-outbound`.
 - [ ] Outbound → **Call parking**: **enabled**. This is what lets the CRM check every call before it is
       connected (the "park and authorize" design in `ADR-001`).
+      **Security-critical:** a rep's browser holds a 24-hour login token, and with parking off it
+      could dial any number straight from the SDK, past every check the CRM makes. Verify parking is
+      on before `TELEPHONY_ENABLED=true`, and re-check it after any change to this connection.
 - [ ] Webhooks → **Webhook URL**: `https://crm.telestar.cloud/api/telephony/telnyx/webhook`
       (the route lands in Phase 4; until then calls will not connect — expected).
 - [ ] **Webhook failover URL**: same path for now (a second host can be added later).

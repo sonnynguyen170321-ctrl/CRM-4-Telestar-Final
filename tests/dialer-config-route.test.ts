@@ -1,21 +1,15 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { NextRequest } from 'next/server';
 import type { SessionUser } from '@/lib/auth';
 
 /**
- * `/api/dialer/config` must report telephony readiness, not invent it.
+ * `/api/dialer/config` — the legacy SIP dialer's config route, retired (docs/dialer/TASKS.md D2.6).
  *
- * Every field here used to carry a hardcoded fallback — a PBX hostname, extension `101`, and the
- * password `telestarPass123` committed to this repository and returned to any authenticated
- * browser. The leak was bad; the second-order effect was worse. Because the fallbacks were never
- * empty, the client could not distinguish *unconfigured* from *configured*, so on a host with no
- * SIP the dialer tried anyway, failed, and `CallDialerModal` caught the failure and **simulated a
- * connected call**. "Hang Up & Save Outcome" then wrote a real Activity, so the CRM accumulated
- * call records for calls that never happened.
- *
- * The split between readiness and credentials is deliberate and also tested: the lead panel asks
- * for readiness on every lead it opens, and it has no business receiving a SIP password to decide
- * whether a button is enabled.
+ * CHANGED 2026-10-05. It used to return the deployment-wide SIP password to any signed-in browser
+ * that asked with `?withCredentials`, and before that it carried a hardcoded fallback
+ * (`telestarPass123`) that made an unconfigured dialer simulate connected calls. The Telnyx softphone
+ * logs in with a per-rep token instead, so this route now answers "not configured" with no credentials
+ * whatever the environment holds — the old Call button stays disabled until the modal is deleted in
+ * Phase 5.
  */
 
 const ACTOR: SessionUser = {
@@ -38,13 +32,8 @@ const { GET } = await import('@/app/api/dialer/config/route');
 const SIP_KEYS = ['SIP_WEBSOCKET_URL', 'SIP_DOMAIN', 'SIP_DEFAULT_USERNAME', 'SIP_DEFAULT_PASSWORD'] as const;
 let saved: Record<string, string | undefined> = {};
 
-function req(url: string) {
-  return new NextRequest(new Request(url));
-}
-
 beforeEach(() => {
   saved = Object.fromEntries(SIP_KEYS.map((k) => [k, process.env[k]]));
-  for (const k of SIP_KEYS) delete process.env[k];
 });
 
 afterEach(() => {
@@ -54,69 +43,23 @@ afterEach(() => {
   }
 });
 
-describe('GET /api/dialer/config', () => {
-  it('reports not-configured instead of substituting a hardcoded PBX', async () => {
-    const body = await (await GET(req('https://crm.telestar.cloud/api/dialer/config'))).json();
-
-    expect(body.configured).toBe(false);
-    expect(body.missing).toEqual([...SIP_KEYS]);
-    // The specific regression: none of these may reappear as a default.
-    expect(JSON.stringify(body)).not.toMatch(/pbx\.telestar\.vn|telestarPass123/);
-  });
-
-  it('names exactly the variables that are missing, not all of them', async () => {
-    process.env.SIP_WEBSOCKET_URL = 'wss://pbx.example.test:8089/ws';
-    process.env.SIP_DOMAIN = 'pbx.example.test';
-
-    const body = await (await GET(req('https://crm.telestar.cloud/api/dialer/config'))).json();
-
-    expect(body.configured).toBe(false);
-    expect(body.missing).toEqual(['SIP_DEFAULT_USERNAME', 'SIP_DEFAULT_PASSWORD']);
-  });
-
-  it('treats a whitespace-only value as absent', async () => {
-    for (const k of SIP_KEYS) process.env[k] = '   ';
-
-    const body = await (await GET(req('https://crm.telestar.cloud/api/dialer/config'))).json();
-
-    expect(body.configured).toBe(false);
-    expect(body.missing).toEqual([...SIP_KEYS]);
-  });
-
-  it('withholds the SIP password from the readiness response even when fully configured', async () => {
-    for (const k of SIP_KEYS) process.env[k] = 'set';
-
-    const body = await (await GET(req('https://crm.telestar.cloud/api/dialer/config'))).json();
-
-    expect(body.configured).toBe(true);
-    expect(body).not.toHaveProperty('password');
-    expect(body).not.toHaveProperty('username');
-    expect(body).not.toHaveProperty('websocketUrl');
-  });
-
-  it('returns credentials only when they are asked for', async () => {
+describe('GET /api/dialer/config (retired)', () => {
+  it('never returns SIP credentials, even when the environment still holds them', async () => {
     process.env.SIP_WEBSOCKET_URL = 'wss://pbx.example.test:8089/ws';
     process.env.SIP_DOMAIN = 'pbx.example.test';
     process.env.SIP_DEFAULT_USERNAME = '202';
     process.env.SIP_DEFAULT_PASSWORD = 'not-in-git';
 
-    const body = await (
-      await GET(req('https://crm.telestar.cloud/api/dialer/config?withCredentials=1'))
-    ).json();
+    const response = await GET();
+    const body = await response.json();
 
-    expect(body.configured).toBe(true);
-    expect(body.websocketUrl).toBe('wss://pbx.example.test:8089/ws');
-    expect(body.username).toBe('202');
-    expect(body.password).toBe('not-in-git');
-    expect(body.identity).toBe(ACTOR.id);
+    expect(body).toEqual({ configured: false, missing: [], retired: true });
+    expect(JSON.stringify(body)).not.toMatch(/not-in-git|pbx\.example\.test|202/);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
   });
 
-  it('refuses credentials when SIP is not configured, rather than inventing them', async () => {
-    const body = await (
-      await GET(req('https://crm.telestar.cloud/api/dialer/config?withCredentials=1'))
-    ).json();
-
-    expect(body.configured).toBe(false);
-    expect(body).not.toHaveProperty('password');
+  it('keeps the old Call button disabled when nothing is configured', async () => {
+    for (const k of SIP_KEYS) delete process.env[k];
+    expect((await (await GET()).json()).configured).toBe(false);
   });
 });
