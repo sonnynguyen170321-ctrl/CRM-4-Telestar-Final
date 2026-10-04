@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { handleApiError } from '@/lib/api/errors';
@@ -15,13 +15,17 @@ import { buildRoleSurface } from '@/lib/console/surfaces';
  * Read-only. Scoping is the CRM's own pod walk inside each builder; the client sends no role and
  * cannot ask for another one's view.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
   try {
-    const console_ = await buildAiConsole(user);
+    // Home's rep picker. Only narrows: the builder AND-s it with the viewer's own lead scope, and
+    // ignores it for a rep. "all" (or nothing) is the viewer's whole scope.
+    const requested = req.nextUrl.searchParams.get('userId');
+    const focusUserId = requested && requested !== 'all' ? requested : null;
+    const console_ = await buildAiConsole(user, { focusUserId });
     const surface = await buildRoleSurface(user, console_);
     return NextResponse.json({ ...console_, surface });
   } catch (err) {

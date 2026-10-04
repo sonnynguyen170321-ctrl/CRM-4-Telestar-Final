@@ -89,6 +89,8 @@ export interface ConsoleData {
   blocked: WorkItem[];
   timeline: Array<{ at: string; leadId: string | null; type: string; description: string }>;
   totals: { aiManaged: number; humanOwned: number; needsAttention: number; blocked: number };
+  /** Replies from a person since midnight in the viewer's timezone, over the viewer's leads. */
+  repliesToday: number;
   surface: RoleSurfaceData;
 }
 

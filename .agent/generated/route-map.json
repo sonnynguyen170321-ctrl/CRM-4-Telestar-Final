@@ -102,6 +102,7 @@
     "/api/cron/maintenance",
     "/api/cron/sequence-engine",
     "/api/csp-report",
+    "/api/dashboard/my-day",
     "/api/demo/diagnostics",
     "/api/demo/environment",
     "/api/demo/inbound-reply",
@@ -241,5 +242,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 36,
-  "apiRouteCount": 194
+  "apiRouteCount": 195
 }

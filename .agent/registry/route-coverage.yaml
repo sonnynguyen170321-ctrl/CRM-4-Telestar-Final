@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 194   mutating: 121   mutating without a test: 19
+# routes: 195   mutating: 121   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -350,6 +350,9 @@ routes:
       - tests/cron-routes-tenant-scope.test.ts
   - path: app/api/csp-report/route.ts
     methods: [POST]
+    tests: []
+  - path: app/api/dashboard/my-day/route.ts
+    methods: [GET]
     tests: []
   - path: app/api/demo/diagnostics/route.ts
     methods: [GET]

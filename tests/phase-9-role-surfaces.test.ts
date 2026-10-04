@@ -99,6 +99,7 @@ const emptyConsole = {
   blocked: [],
   timeline: [],
   totals: { aiManaged: 0, humanOwned: 0, needsAttention: 0, blocked: 0 },
+  repliesToday: 0,
 };
 
 const sessionUser = (role: string) =>

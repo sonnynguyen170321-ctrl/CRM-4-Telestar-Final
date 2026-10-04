@@ -123,6 +123,8 @@ export default function DashboardPage() {
   const [quickNoteText, setQuickNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [sdrPipelineCounts, setSdrPipelineCounts] = useState<Record<string, number>>({});
+  // Today's calls / emails / LinkedIn and leads in a running sequence, counted by the server.
+  const [myDay, setMyDay] = useState<{ calls: number; emails: number; linkedin: number; inSequence: number } | null>(null);
   // Starts at the server's value and adopts the stored preference after mount.
   //
   // Reading localStorage in the initializer made the first *client* render disagree with the
@@ -190,6 +192,7 @@ export default function DashboardPage() {
       // every non-manager, on mount and again on every `crm:task-created` event. The endpoint below
       // answers the same question with one `groupBy` and no joins.
       fetches.push(fetch('/api/leads/stage-counts').then((r) => (r.ok ? r.json() : {})));
+      fetches.push(fetch('/api/dashboard/my-day').then((r) => (r.ok ? r.json() : null)));
     }
     const results = await Promise.all(fetches);
     const [today, yesterday, overdue, acts] = results;
@@ -201,12 +204,14 @@ export default function DashboardPage() {
     setOverdueTasks(overdueArr);
     setActivities(actsArr);
 
-    // Expose live stats for the AI Assistant widget
+    const day = !isManager && results[5] && typeof results[5] === 'object' ? results[5] : null;
+    setMyDay(day);
+    // Expose live stats for the AI Assistant widget — the same counts the card shows.
     (window as any).__crm_sdr_stats = {
       overdueTasks: overdueArr.length,
       todayTasks: todayArr.length,
-      sdrCallsToday: actsArr.filter((a: { type: string }) => a.type === 'call_logged').length,
-      sdrEmailsToday: actsArr.filter((a: { type: string }) => a.type === 'email_sent').length,
+      sdrCallsToday: day?.calls ?? 0,
+      sdrEmailsToday: day?.emails ?? 0,
     };
     if (!isManager && results[4]) {
       // Already `{ stage: count }` from the server — nothing to tally here any more.
@@ -217,10 +222,24 @@ export default function DashboardPage() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
+  // Bumped with every reload so the command strip refetches alongside the task list.
+  const [stripRefresh, setStripRefresh] = useState(0);
   useEffect(() => {
-    const handler = () => loadAll();
+    // Debounced: creating tasks in bulk fires one event per task, and each reload rebuilds the
+    // task lists and the board. One reload after the burst settles.
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const handler = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        loadAll();
+        setStripRefresh((n) => n + 1);
+      }, 400);
+    };
     window.addEventListener('crm:task-created', handler);
-    return () => window.removeEventListener('crm:task-created', handler);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener('crm:task-created', handler);
+    };
   }, [loadAll]);
 
   useEffect(() => {
@@ -779,6 +798,8 @@ export default function DashboardPage() {
       <CommandCenterStrip
         tasksToday={completedTodayCount + pendingTodayCount}
         tasksDone={completedTodayCount}
+        repUserId={isManager ? selectedSdrId : null}
+        refreshKey={stripRefresh}
       />
 
       {/* Main Layout */}
@@ -1295,12 +1316,13 @@ export default function DashboardPage() {
                 <h2 className="type-section text-text-primary flex items-center gap-2">
                   <Award className="w-5 h-5 text-brand-gold-text" aria-hidden="true" />
                   My Performance
+                  <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">today</span>
                 </h2>
                 <div className="grid grid-cols-3 gap-3 text-center">
                   {[
-                    { label: 'Calls', count: activities.filter((a) => a.type === 'call_logged').length, color: 'text-emerald-500' },
-                    { label: 'Emails', count: activities.filter((a) => a.type === 'email_sent').length, color: 'text-blue-500' },
-                    { label: 'LinkedIn', count: activities.filter((a) => a.type === 'linkedin_touch').length, color: 'text-indigo-500' },
+                    { label: 'Calls', count: myDay?.calls ?? 0, color: 'text-emerald-500' },
+                    { label: 'Emails', count: myDay?.emails ?? 0, color: 'text-blue-500' },
+                    { label: 'LinkedIn', count: myDay?.linkedin ?? 0, color: 'text-indigo-500' },
                   ].map(({ label, count, color }) => (
                     <div key={label} className="bg-bg-main/60 border border-card-border rounded-xl p-3">
                       <p className={`font-display font-extrabold text-xl ${color}`}>{count}</p>
@@ -1313,12 +1335,14 @@ export default function DashboardPage() {
                   {(() => {
                     const stages = ['new', 'sequence_active', 'replied', 'meeting_booked', 'won', 'lost'] as const;
                     const totalLeads = stages.reduce((s, st) => s + (sdrPipelineCounts[st] ?? 0), 0) || 1;
-                    const labels: Record<string, string> = { new: 'New', sequence_active: 'Active', replied: 'Replied', meeting_booked: 'Meeting', won: 'Won', lost: 'Lost' };
+                    // "In sequence" is leads with a cadence running now (from the enrollments). The
+                    // `sequence_active` stage stays set after every cadence on a lead has finished.
+                    const labels: Record<string, string> = { new: 'New', sequence_active: 'In sequence', replied: 'Replied', meeting_booked: 'Meeting', won: 'Won', lost: 'Lost' };
                     const colors: Record<string, string> = { new: 'bg-text-muted/50', sequence_active: 'bg-blue-500', replied: 'bg-amber-500', meeting_booked: 'bg-emerald-500', won: 'bg-green-500', lost: 'bg-brand-red' };
                     return stages
                       .filter((st) => (sdrPipelineCounts[st] ?? 0) > 0 || ['new', 'sequence_active', 'replied', 'meeting_booked'].includes(st))
                       .map((stage) => {
-                        const count = sdrPipelineCounts[stage] ?? 0;
+                        const count = stage === 'sequence_active' ? myDay?.inSequence ?? 0 : sdrPipelineCounts[stage] ?? 0;
                         const pct = Math.round((count / totalLeads) * 100);
                         return (
                           <div key={stage} className="flex items-center gap-2">
