@@ -9,7 +9,8 @@ vi.mock('@/auth', () => ({ auth: vi.fn(), handlers: {}, signIn: vi.fn(), signOut
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
 import { getCandidateEvidence, listResearchCandidates, listResearchRuns } from '@/lib/research/readModel';
-import { validateResearchQueryLimit } from '@/lib/research/access';
+import { RESEARCH_QUERY_BUDGETS, validateResearchQueryLimit } from '@/lib/research/access';
+import { DISCOVERY_QUERY_LIMIT_OPTIONS } from '@telestar/core-research';
 import { createTestTenant } from './helpers/testTenant';
 
 /**
@@ -90,6 +91,10 @@ describe('the candidate tabs', () => {
 });
 
 describe('the query budget', () => {
+  it('offers exactly the sizes the planner knows', () => {
+    expect([...RESEARCH_QUERY_BUDGETS]).toEqual([...DISCOVERY_QUERY_LIMIT_OPTIONS]);
+  });
+
   it('refuses a size the planner does not offer instead of quietly using 50', () => {
     expect(validateResearchQueryLimit('director', 150)).toMatchObject({ ok: false, options: [50, 100, 200, 1000] });
     expect(validateResearchQueryLimit('director', 100)).toEqual({ ok: true });
