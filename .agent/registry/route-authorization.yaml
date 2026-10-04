@@ -663,8 +663,7 @@ routes:
   - path: app/api/team/meetings/route.ts
     methods: [GET]
     guards:
-      - getVisibleUserIds
-      - getLeadgenScope
+      - getLeadWhereScope
   - path: app/api/team/sdr-progress/route.ts
     methods: [GET]
     guards: []

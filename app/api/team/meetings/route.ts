@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireManager, getVisibleUserIds, getLeadgenScope, isLeadgenUser } from '@/lib/auth';
+import { requireManager, getLeadWhereScope } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { handleApiError } from '@/lib/api/errors';
 
@@ -12,13 +12,9 @@ export async function GET(_req: NextRequest) {
   const user = userOrRes as SessionUser;
 
   try {
-    let visibleUserIds = await getVisibleUserIds(user);
-    if (isLeadgenUser(user.role)) {
-      const scope = await getLeadgenScope(user);
-      if (scope.kind === 'manager') {
-        visibleUserIds = null;
-      }
-    }
+    // The CRM's lead scope — assignee or campaign axis — the same one the Leadgen summary and the
+    // Leads page use, so a team lead's board and their "Meetings Booked" describe the same leads.
+    const scope = await getLeadWhereScope(user);
     // A lead with a meeting: a Meeting row that was not cancelled, or a booking logged by moving
     // the lead to "meeting booked" (that path writes the activity, not a Meeting row). Archived
     // leads are off the board.
@@ -32,12 +28,10 @@ export async function GET(_req: NextRequest) {
       ],
     };
 
-    if (visibleUserIds) {
-      whereClause.assignedToId = { in: visibleUserIds };
-    }
+    const where = { AND: [scope, whereClause] };
 
     const leads = await prisma.lead.findMany({
-      where: whereClause,
+      where,
       include: {
         assignedTo: {
           select: {

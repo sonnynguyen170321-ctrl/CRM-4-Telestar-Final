@@ -230,6 +230,10 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200/80">
                             Lost
                           </span>
+                        ) : isNoShow(m) ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200/80">
+                            No-show
+                          </span>
                         ) : (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
                             Scheduled
@@ -237,7 +241,8 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
                         )}
                       </td>
                       <td className="py-3.5 px-5 text-right">
-                        {m.stage === 'meeting_booked' ? (
+                        {/* Undecided — booked, or a no-show not yet closed — gets the outcome buttons. */}
+                        {m.stage !== 'won' && m.stage !== 'lost' ? (
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => handleUpdateStage(m.id, 'won')}
