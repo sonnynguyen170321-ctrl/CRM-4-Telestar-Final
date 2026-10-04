@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { requireAuth } from '@/lib/auth';
+import { requireRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
 import { z } from 'zod';
@@ -40,7 +40,7 @@ export const dynamic = 'force-dynamic';
  * List active and revoked API keys for the current tenant.
  */
 export async function GET() {
-  const user = await requireAuth();
+  const user = await requireRole('floor_manager');
   if (user instanceof NextResponse) return user;
 
   const keys = await prisma.apiKey.findMany({
@@ -74,7 +74,7 @@ export async function GET() {
  * Returns the plain-text secret token ONLY ONCE in the response.
  */
 export async function POST(req: NextRequest) {
-  const user = await requireAuth();
+  const user = await requireRole('floor_manager');
   if (user instanceof NextResponse) return user;
 
   const parsed = await parseBody(req, createApiKeySchema);

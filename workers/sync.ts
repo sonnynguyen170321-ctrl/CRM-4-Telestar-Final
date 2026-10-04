@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { createAppWorker } from '@/lib/bullmq';
 import { JobType } from '@/lib/bullmq/types';
@@ -46,6 +47,9 @@ type ClassifiedMessage = {
   isAutoReply: boolean;
   lead: MatchedLead | undefined;
 };
+
+/** Postgres text cannot hold NUL; a message containing one would be refused on every retry. */
+const stripNul = (value: string) => value.replace(/\u0000/g, '');
 
 async function handleEmailSync(payload: EmailSyncPayload) {
   const { accountId } = payload;
@@ -122,6 +126,7 @@ async function handleEmailSync(payload: EmailSyncPayload) {
 
   // Persist every message, bounces included. Bounces used to be discarded here,
   // which made historical bounce rate impossible to reconstruct.
+  let unsaved = 0;
   for (const c of classified) {
     if (!c.msg.fromEmail) continue;
 
@@ -137,11 +142,11 @@ async function handleEmailSync(payload: EmailSyncPayload) {
           accountId,
           leadId: c.lead?.id ?? null,
           fromEmail: c.msg.fromEmail,
-          fromName: c.msg.fromName ?? null,
+          fromName: c.msg.fromName ? stripNul(c.msg.fromName) : null,
           to: c.msg.to || account.email,
-          subject: c.msg.subject,
-          body: c.msg.body ?? '',
-          bodyHtml: c.msg.bodyHtml ?? c.msg.body ?? '',
+          subject: stripNul(c.msg.subject ?? ''),
+          body: stripNul(c.msg.body ?? ''),
+          bodyHtml: stripNul(c.msg.bodyHtml ?? c.msg.body ?? ''),
           providerMessageId: c.msg.providerMessageId,
           date: c.msg.date,
           isSpam: c.msg.isSpam ?? false,
@@ -154,6 +159,16 @@ async function handleEmailSync(payload: EmailSyncPayload) {
         },
       });
     } catch (saveErr) {
+      // Another sync of the same mailbox stored it between our check and our insert: fine.
+      if (saveErr instanceof Prisma.PrismaClientKnownRequestError && saveErr.code === 'P2002') continue;
+      // A request the database rejected for its content (a value too long, …) fails the same way
+      // on every retry. Holding the cursor for it would stop this mailbox syncing for good, so it
+      // is skipped, loudly. Only a failure that may pass next time (connection, timeout) holds it.
+      if (saveErr instanceof Prisma.PrismaClientKnownRequestError && !saveErr.code.startsWith('P1')) {
+        console.error(`[sync:handleEmailSync] Skipping message ${c.msg.providerMessageId}: rejected by the database (${saveErr.code})`, saveErr);
+        continue;
+      }
+      unsaved += 1;
       console.error(`[sync:handleEmailSync] Failed to save message ${c.msg.providerMessageId}:`, saveErr);
     }
   }
@@ -195,6 +210,14 @@ async function handleEmailSync(payload: EmailSyncPayload) {
     });
     if (c.isReply) replies++;
     else autoReplies++;
+  }
+
+  if (unsaved > 0) {
+    // Do not move the cursor past messages that were not stored: the next fetch starts from
+    // `lastSyncAt`, so advancing it lost those replies and bounces for good (pre-launch audit,
+    // 2026-10-05). The retry re-fetches them; stored ones are skipped by the exists check and the
+    // reply/bounce handlers de-duplicate on the provider message id. Failing the job makes it visible.
+    throw new Error(`[sync] ${unsaved} of ${messages.length} message(s) could not be saved for account ${accountId}; will retry from ${since.toISOString()}`);
   }
 
   await prisma.emailAccount.update({

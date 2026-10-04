@@ -19,7 +19,6 @@ async function handleUnsubscribe(token: string, source: 'one_click_header' | 'br
 
   return tenantStorage.run({ tenantId, bypassRls: true }, async () => {
     // 1. Idempotent suppression entry recording
-    const recipientDomain = normalizedEmail.split('@')[1]?.toLowerCase();
     const existing = await prisma.suppressionEntry.findFirst({
       where: {
         tenantId,
@@ -34,7 +33,9 @@ async function handleUnsubscribe(token: string, source: 'one_click_header' | 'br
           data: {
             tenantId,
             email: normalizedEmail,
-            domain: recipientDomain,
+            // No `domain`: a domain entry blocks every address there, so one person
+            // unsubscribing used to stop all email to their company — or to every gmail.com
+            // prospect. Domain blocks are a deliberate manual act (pre-launch audit, 2026-10-05).
             reason: 'unsubscribed',
             campaignId: targetCampaignId,
           },

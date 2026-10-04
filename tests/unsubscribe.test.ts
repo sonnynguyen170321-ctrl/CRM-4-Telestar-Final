@@ -131,6 +131,8 @@ describe('Unsubscribe HMAC token and RFC 8058 handling', () => {
           }),
         })
       );
+      // One person unsubscribing must not block their whole domain (pre-launch audit, 2026-10-05).
+      expect(mockCreate.mock.calls[0][0].data).not.toHaveProperty('domain');
       expect(mockUpdateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { tenantId: 't-1', leadId: 'l-1', status: 'active' },

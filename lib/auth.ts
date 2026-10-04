@@ -158,6 +158,20 @@ export function hasScope(user: SessionUser, requiredScope: string): boolean {
   return user.apiKey.scopes.includes(requiredScope) || user.apiKey.scopes.includes('*');
 }
 
+/**
+ * `/api/v1` is for integrations holding an API key. A browser session is refused: these routes
+ * scope by tenant only, so an SDR's session reaching them read every lead in the company and
+ * could log calls on anyone's (pre-launch audit, 2026-10-05). The app's own routes are the scoped
+ * way in for a person.
+ */
+export function rejectSessionCaller(user: SessionUser): NextResponse | null {
+  if (user.apiKey) return null;
+  return NextResponse.json(
+    { error: 'The /api/v1 endpoints take an API key, not a browser session', code: 'api_key_required' },
+    { status: 403 }
+  );
+}
+
 /** Require a specific role (or above) in an API route handler. */
 export async function requireRole(
   minRole: SessionUser['role']
@@ -485,4 +499,17 @@ export async function canAccessLead(
   const campaignIds = await getVisibleCampaignIds(viewer);
   if (campaignIds === null) return true; // unrestricted (director / leadgen-manager)
   return campaignIds.includes(lead.campaignId);
+}
+
+/**
+ * `canAccessLead` for a lead known only by id (a query or body parameter): false when the lead is
+ * not in the viewer's tenant or not theirs to work. Callers answer 404 either way.
+ */
+export async function canAccessLeadId(viewer: SessionUser, leadId: string): Promise<boolean> {
+  const tenantId = viewer.tenantId;
+  if (!tenantId) return false;
+  const lead = await tenantStorage.run({ tenantId }, () =>
+    prisma.lead.findFirst({ where: { id: leadId, tenantId }, select: { assignedToId: true, campaignId: true } })
+  );
+  return lead ? canAccessLead(viewer, lead) : false;
 }

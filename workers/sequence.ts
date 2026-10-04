@@ -16,6 +16,7 @@ import {
   unenrollLead,
 } from '@/lib/sequences/engine';
 import { pauseEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
+import { findSuppression } from '@/lib/email/suppress';
 import { resolveSendingMailbox } from '@/lib/sequences/sender';
 import { enrollmentStepTaskId } from '@/lib/sequences/identity';
 import { renderTemplate } from '@/lib/templates/render';
@@ -288,20 +289,7 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
   });
 
   // Check suppression
-  const recipientDomain = task.lead.email ? task.lead.email.split('@')[1] : '';
-  const suppressed = recipientDomain
-    ? await prisma.suppressionEntry.findFirst({
-        where: {
-          tenantId: task.tenantId,
-          AND: [
-            { OR: [{ email: task.lead.email }, { domain: recipientDomain }] },
-            ...(task.lead.campaignId
-              ? [{ OR: [{ campaignId: task.lead.campaignId }, { campaignId: null }] }]
-              : []),
-          ],
-        },
-      })
-    : null;
+  const suppressed = await findSuppression({ tenantId: task.tenantId, email: task.lead.email, campaignId: task.lead.campaignId });
 
   // The sequence this task belongs to — not `lead.sequence`, which is only the lead's pointer to
   // its most recent cadence. With several sequences running, the pointer can name a different,

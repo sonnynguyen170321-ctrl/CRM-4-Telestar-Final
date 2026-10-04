@@ -31,7 +31,7 @@ async function deferralPolicyFor(sequenceId: string | null) {
   return businessDayPolicyFor(sequence);
 }
 import { classifyRecipientFailure } from '@/lib/email/recipientFailure';
-import { suppressRecipient } from '@/lib/email/suppress';
+import { findSuppression, suppressRecipient } from '@/lib/email/suppress';
 import { finalizeSequenceStep, releaseSequenceStep } from '@/lib/sequences/stepOutcome';
 /** Minimal account shape the deliverability preflight needs. */
 type SendGateAccount = {
@@ -386,17 +386,10 @@ async function handleEmailSend(payload: EmailSendPayload) {
   }
 
   // Check suppression
-  const recipientDomain = to.split('@')[1];
-  const suppressed = await prisma.suppressionEntry.findFirst({
-    where: {
-      tenantId: existing.tenantId,
-      AND: [
-        { OR: [{ email: to }, { domain: recipientDomain }] },
-        ...(leadId && existing.lead?.campaignId
-          ? [{ OR: [{ campaignId: existing.lead.campaignId }, { campaignId: null }] }]
-          : []),
-      ],
-    },
+  const suppressed = await findSuppression({
+    tenantId: existing.tenantId,
+    email: to,
+    campaignId: leadId ? existing.lead?.campaignId : null,
   });
   if (suppressed) {
     await prisma.outboundMessage.update({

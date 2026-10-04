@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { findSuppression } from '@/lib/email/suppress';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
@@ -37,16 +38,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Suppression gate — check recipient email/domain against suppression entries
-  const recipientDomain = body.to.split('@')[1];
-  const suppressed = await prisma.suppressionEntry.findFirst({
-    where: {
-      tenantId,
-      AND: [
-        { OR: [{ email: body.to }, { domain: recipientDomain }] },
-        { OR: [{ campaignId: leadCampaignId }, { campaignId: null }] },
-      ],
-    },
-  });
+  const suppressed = await findSuppression({ tenantId, email: body.to, campaignId: leadCampaignId });
   if (suppressed) {
     return NextResponse.json({ error: 'Recipient is suppressed' }, { status: 403 });
   }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, hasScope } from '@/lib/auth';
+import { requireAuth, hasScope, rejectSessionCaller } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
 
@@ -12,6 +12,8 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   const user = await requireAuth();
   if (user instanceof NextResponse) return user;
+  const sessionRefused = rejectSessionCaller(user);
+  if (sessionRefused) return sessionRefused;
 
   if (!hasScope(user, 'enrich:write') && !hasScope(user, 'leads:write')) {
     return NextResponse.json(

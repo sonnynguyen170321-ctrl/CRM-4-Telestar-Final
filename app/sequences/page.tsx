@@ -342,7 +342,9 @@ export default function SequencesPage() {
       showToast('Sequence archived', 'success');
       await loadSequences();
     } else {
-      showToast('Failed to archive sequence', 'error');
+      // 403 for someone who is neither its creator nor a manager; the API says so.
+      const detail = await res.json().catch(() => null);
+      showToast(detail?.error ?? 'Failed to archive sequence', 'error');
     }
   };
 

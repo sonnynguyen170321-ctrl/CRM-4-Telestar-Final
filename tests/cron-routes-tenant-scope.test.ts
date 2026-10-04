@@ -80,9 +80,18 @@ describe('GET /api/cron/maintenance', () => {
 
 describe('GET /api/cron/inbox-sync', () => {
   it('scopes the mailbox scan to the manager\'s tenant', async () => {
-    mockAuth.mockResolvedValue({ user: { id: 'u1', role: 'team_lead', tenantId: 't-acme' } });
+    mockAuth.mockResolvedValue({ user: { id: 'u1', role: 'floor_manager', tenantId: 't-acme' } });
     await inboxSync(req());
     expect(mockAccountFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { isActive: true, tenantId: 't-acme' } }));
+  });
+
+  it('syncs every mailbox each run, not the ten oldest', async () => {
+    // A mailbox that fails never advances lastSyncAt, so with ten slots per run ordered by it,
+    // ten broken mailboxes starved every healthy one (pre-launch audit, 2026-10-05).
+    mockAuth.mockResolvedValue(null);
+    await inboxSync(req('Bearer sched-secret'));
+    const take = (mockAccountFindMany.mock.calls.at(-1)![0] as { take: number }).take;
+    expect(take).toBeGreaterThanOrEqual(500);
   });
 
   it('scans every tenant for the scheduler', async () => {
@@ -93,36 +102,57 @@ describe('GET /api/cron/inbox-sync', () => {
 });
 
 describe('GET /api/cron/sequence-engine', () => {
-  // The daily-notification sweep and the manual-task scan inside this route had no tenant
-  // filter and ran for every tenant whichever caller triggered them. Found by security review
-  // after the first pass scoped only the account scan.
-  const mockTaskFindMany = vi.fn();
+  // The daily-notification sweep inside this route had no tenant filter and ran for every tenant
+  // whichever caller triggered it. Found by security review after the first pass scoped only the
+  // account scan.
+  const mockTaskGroupBy = vi.fn();
   const mockNotifFindMany = vi.fn();
+  const mockOutboundCreate = vi.fn();
 
-  it('scopes the notification sweep and the task scan to the manager\'s tenant', async () => {
+  async function loadRoute(autosend: boolean) {
     vi.doMock('@/lib/prisma', () => ({
       prisma: {
         emailAccount: { findMany: (...a: unknown[]) => mockAccountFindMany(...a), findFirst: vi.fn() },
         user: { findMany: vi.fn().mockResolvedValue([]) },
-        task: { findMany: (...a: unknown[]) => mockTaskFindMany(...a), updateMany: vi.fn() },
+        task: { groupBy: (...a: unknown[]) => mockTaskGroupBy(...a), findMany: vi.fn().mockResolvedValue([]), updateMany: vi.fn() },
         notification: { findMany: (...a: unknown[]) => mockNotifFindMany(...a), create: vi.fn() },
+        outboundMessage: { create: (...a: unknown[]) => mockOutboundCreate(...a) },
       },
       tenantStorage: { run: (_: unknown, fn: () => unknown) => fn() },
     }));
-    vi.doMock('@/lib/emailSafety', () => ({ isAutosendEnabled: () => true }));
+    vi.doMock('@/lib/emailSafety', () => ({ isAutosendEnabled: () => autosend }));
+    vi.doMock('@/lib/ops/cronHeartbeat', () => ({ recordCronHeartbeat: vi.fn() }));
     vi.resetModules();
-    const { GET } = await import('@/app/api/cron/sequence-engine/route');
+    return (await import('@/app/api/cron/sequence-engine/route')).GET;
+  }
+
+  it("scopes the notification sweep to the manager's tenant", async () => {
+    const GET = await loadRoute(true);
     mockAuth.mockResolvedValue({ user: { id: 'u1', role: 'director', tenantId: 't-acme' } });
-    mockAccountFindMany.mockResolvedValue([]);
-    mockTaskFindMany.mockResolvedValue([]);
+    mockTaskGroupBy.mockResolvedValue([]);
     mockNotifFindMany.mockResolvedValue([]);
 
     await GET(req());
 
-    // every task scan on this route carries the tenant
-    expect(mockTaskFindMany).toHaveBeenCalled();
-    for (const call of mockTaskFindMany.mock.calls) {
+    expect(mockTaskGroupBy).toHaveBeenCalled();
+    for (const call of mockTaskGroupBy.mock.calls) {
       expect((call[0] as { where: Record<string, unknown> }).where).toMatchObject({ tenantId: 't-acme' });
+    }
+  });
+
+  it('never emails a manual to-do task to the lead, with autosend on or off', async () => {
+    // A rep's own "email" task ("Chase John, said not interested") used to be sent to John, with
+    // the task title as the subject. Pre-launch audit, 2026-10-05.
+    for (const autosend of [true, false]) {
+      const GET = await loadRoute(autosend);
+      mockAuth.mockResolvedValue({ user: { id: 'u1', role: 'director', tenantId: 't-acme' } });
+      mockTaskGroupBy.mockResolvedValue([]);
+      mockNotifFindMany.mockResolvedValue([]);
+
+      const body = await (await GET(req())).json();
+
+      expect(body).toMatchObject({ disabled: !autosend, sent: 0 });
+      expect(mockOutboundCreate).not.toHaveBeenCalled();
     }
   });
 });

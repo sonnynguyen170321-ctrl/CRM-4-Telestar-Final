@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, tenantStorage } from '@/lib/prisma';
-import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 import { isAutosendEnabled } from '@/lib/emailSafety';
 import { authorizeCronRequest } from '@/lib/cron/auth';
 import { recordCronHeartbeat } from '@/lib/ops/cronHeartbeat';
 
 export const dynamic = 'force-dynamic';
 
-const LOCK_STALE_MS = 10 * 60 * 1000;
 
 /**
  * @param tenantScope `{}` for the scheduler's platform-wide run, `{ tenantId }` for a manager's
@@ -111,6 +109,16 @@ async function createDailyNotifications(now: Date, tenantScope: { tenantId?: str
   return created;
 }
 
+/**
+ * The daily "tasks due" and "sequence steps due" notifications, and this cron's heartbeat.
+ *
+ * It used to also email every due manual task of type `email` (no sequence) to the lead, using the
+ * task title as the subject and its description as the body. A manual task is the rep's own to-do —
+ * "Chase John, said not interested" — and `email` is the default type in both task forms, so the
+ * prospect received the rep's private note, or a blank email, as soon as the task fell due. Removed
+ * (pre-launch audit, 2026-10-05): manual tasks only remind the rep; sequence steps send through
+ * the sequence worker. The notifications and heartbeat now run whether or not autosend is on.
+ */
 export async function GET(req: NextRequest) {
   // Constant-time secret check, and a manager session reaches only its own tenant. The
   // platform-wide sweep is the scheduler's alone — see lib/cron/auth.ts.
@@ -119,120 +127,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (!isAutosendEnabled()) {
-    return NextResponse.json({ disabled: true, sent: 0 });
-  }
-
   return await tenantStorage.run({ tenantId: 'system', bypassRls: true }, async () => {
-    // A manager's manual run touches their own tenant's mailboxes only.
     const tenantScope = authz.scope === 'platform' ? {} : { tenantId: authz.tenantId };
-    const activeAccounts = await prisma.emailAccount.findMany({
-      where: { isActive: true, ...tenantScope },
-      select: { id: true, userId: true },
-    });
-
-    const userIds = [...new Set(activeAccounts.map(a => a.userId))];
-    const userTenants = userIds.length > 0 ? await prisma.user.findMany({
-      where: { id: { in: userIds } },
-      select: { id: true, tenantId: true },
-    }) : [];
-    const tenantMap = new Map(userTenants.map(u => [u.id, u.tenantId]));
-
-    const result = { sent: 0, skipped: 0, errors: [] as string[] };
-
-    const now = new Date();
-    const lockCutoff = new Date(now.getTime() - LOCK_STALE_MS);
-
-    const manualTasks = await prisma.task.findMany({
-      where: {
-        status: 'pending',
-        type: 'email',
-        sequenceId: null,
-        dueDate: { lte: now },
-        // Explicit, not implied: the loop below already drops tasks whose assignee has no active
-        // account in scope, but a filter that exists only as a side effect of a later `continue`
-        // is one refactor away from not existing.
-        ...tenantScope,
-        OR: [{ lockedAt: null }, { lockedAt: { lt: lockCutoff } }],
-      },
-      orderBy: { dueDate: 'asc' },
-      take: 10,
-      include: {
-        lead: {
-          include: { assignedTo: { select: { id: true, firstName: true, lastName: true, role: true } } },
-        },
-      },
-    });
-
-    for (const task of manualTasks) {
-      try {
-        const account = await prisma.emailAccount.findFirst({
-          where: { userId: task.lead.assignedToId, isActive: true },
-        });
-        if (!account) continue;
-
-        const tenantId = tenantMap.get(task.lead.assignedToId);
-        if (!tenantId) continue;
-
-        const claimed = await prisma.task.updateMany({
-          where: { id: task.id, status: 'pending', lockedAt: task.lockedAt },
-          data: { lockedAt: now },
-        });
-        if (claimed.count !== 1) continue;
-
-        try {
-          await tenantStorage.run({ tenantId }, async () => {
-            const outbound = await createOutboundMessage({
-              source: { kind: 'task', taskId: task.id },
-              leadId: task.lead.id,
-              accountId: account.id,
-              to: task.lead.email,
-              subject: task.title,
-              body: task.description ?? '',
-              tenantId,
-            });
-            await enqueueEmailSendWorkflow(
-              {
-                outboundMessageId: outbound.id,
-                accountId: account.id,
-                to: task.lead.email,
-                subject: task.title,
-                body: task.description ?? '',
-                leadId: task.lead.id,
-              },
-              tenantId
-            );
-          });
-        } catch (sendErr) {
-          console.error(`[sequence-engine] Failed to enqueue email for task ${task.id}:`, sendErr);
-          await prisma.task.update({ where: { id: task.id }, data: { lockedAt: null } });
-          result.errors.push(task.id);
-          continue;
-        }
-
-        try {
-          await tenantStorage.run({ tenantId }, async () => {
-            await prisma.task.update({
-              where: { id: task.id },
-              data: { status: 'completed', completedAt: new Date() },
-            });
-          });
-          result.sent++;
-        } catch (dbErr) {
-          console.error(`[sequence-engine] Failed to mark task ${task.id} as completed after sending:`, dbErr);
-          result.sent++;
-        }
-      } catch (err) {
-        console.error(`[sequence-engine] Error processing manual task ${task.id}:`, err);
-        result.errors.push(task.id);
-      }
-    }
 
     let notified = 0;
     try {
-      notified = await tenantStorage.run({ tenantId: 'system', bypassRls: true }, async () => {
-        return await createDailyNotifications(now, tenantScope);
-      });
+      notified = await createDailyNotifications(new Date(), tenantScope);
     } catch (err) {
       console.error('[sequence-engine] daily notifications failed:', err);
     }
@@ -241,12 +141,7 @@ export async function GET(req: NextRequest) {
     // recurrence budget on, so this cron silently stopping was undetectable by anything.
     await recordCronHeartbeat('sequence-engine', 'system');
 
-    return NextResponse.json({
-      processed: (result.sent + result.skipped + result.errors.length + manualTasks.length),
-      sent: result.sent,
-      skipped: result.skipped,
-      errors: result.errors.length,
-      notified,
-    });
+    // `disabled` reports the autosend flag (deep-smoke reads it); this route itself never sends.
+    return NextResponse.json({ disabled: !isAutosendEnabled(), sent: 0, notified });
   });
 }

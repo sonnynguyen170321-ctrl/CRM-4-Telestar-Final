@@ -5,7 +5,14 @@ import { authorizeCronRequest } from '@/lib/cron/auth';
 
 export const dynamic = 'force-dynamic';
 
-const ACCOUNTS_PER_RUN = 10;
+/**
+ * Every active mailbox, every run. It was 10, oldest `lastSyncAt` first — but `lastSyncAt` only
+ * advances on a successful sync, so a mailbox with a revoked grant or a bad password stayed at the
+ * front forever and held a slot each run; ten broken mailboxes and nobody else's replies or bounces
+ * were ever read (pre-launch audit, 2026-10-05). Each mailbox is one queued job; the cap only bounds
+ * a runaway table.
+ */
+const ACCOUNTS_PER_RUN = 500;
 export async function GET(req: NextRequest) {
   // Constant-time secret check, and a manager session reaches only its own tenant. The
   // platform-wide sweep is the scheduler's alone — see lib/cron/auth.ts.

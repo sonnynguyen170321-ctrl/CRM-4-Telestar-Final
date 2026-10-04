@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, type SessionUser } from '@/lib/auth';
+import { canAccessLeadId, requireAuth, type SessionUser } from '@/lib/auth';
 import { tenantStorage } from '@/lib/tenant-context';
 import { calculateNextBestAction } from '@/lib/ai/engine/next-best-action';
 
@@ -22,6 +22,10 @@ export async function GET(req: NextRequest) {
   }
 
   const tenantId = sessionUser.tenantId;
+  // Tenant scoping alone let any rep read another rep's lead here (pre-launch audit, 2026-10-05).
+  if (!(await canAccessLeadId(sessionUser, leadId))) {
+    return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+  }
 
   try {
     const result = await tenantStorage.run(
