@@ -4,7 +4,9 @@ import { requireAuth, canAccessUser, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { scoreLead } from '@/lib/leads/scoring';
 import { normalizeEmail, normalizePhone, normalizeLinkedIn } from '@/lib/leads/normalize';
-import { unenrollLead, pauseSequence } from '@/lib/sequences/engine';
+import { pauseSequence } from '@/lib/sequences/engine';
+import { unenrollAllLeadCadences } from '@/lib/sequences/leadStop';
+import { pauseCompanyCadencesSafely } from '@/lib/sequences/companyStop';
 import { parseBody } from '@/lib/validation/core';
 import { updateLeadSchema } from '@/lib/validation/schemas';
 import { onSuppressionOrArchive } from '@/lib/contact-intelligence/events';
@@ -256,12 +258,29 @@ export async function PUT(
       );
     }
 
-    if (body.stage && body.stage !== existing.stage && existing.sequenceId) {
+    // A lead can run cadences while its pointer is empty (production held 266 such enrollments),
+    // so whether there is anything to stop is read from the enrollments, not from the pointer.
+    const stageChanged = Boolean(body.stage && body.stage !== existing.stage);
+    const hasCadence =
+      stageChanged &&
+      (Boolean(existing.sequenceId) ||
+        (await prisma.sequenceEnrollment.count({ where: { leadId: id, status: { in: ['active', 'paused'] } } })) > 0);
+
+    // A reply marked by hand is still a reply from this company (lib/sequences/companyStop.ts).
+    if (stageChanged && body.stage === 'replied' && user.tenantId) {
+      writes.push(pauseCompanyCadencesSafely({ tenantId: user.tenantId, leadId: id, actorUserId: user.id }));
+    }
+
+    if (stageChanged && hasCadence) {
+      // `sequenceStatus` is the lead's pointer to one cadence. With several running, the pointer can
+      // be paused while others are active, so the pause itself is never skipped on it —
+      // `pauseSequence` pauses every active cadence and leaves paused ones alone. Only the
+      // notification keys on the pointer, so a lead already paused does not re-notify.
       const isCurrentlyPaused = existing.sequenceStatus === 'paused';
 
       if (body.stage === 'replied') {
+        writes.push(pauseSequence(id, 'reply', user.id));
         if (!isCurrentlyPaused) {
-          writes.push(pauseSequence(id, 'reply', user.id));
           if (existing.assignedToId) {
             writes.push(
               prisma.notification.create({
@@ -277,11 +296,10 @@ export async function PUT(
           }
         }
       } else if (body.stage === 'meeting_booked') {
-        if (!isCurrentlyPaused) {
-          writes.push(pauseSequence(id, 'meeting_booked', user.id));
-        }
+        writes.push(pauseSequence(id, 'meeting_booked', user.id));
       } else if (body.stage === 'won' || body.stage === 'lost') {
-        writes.push(unenrollLead(id, existing.sequenceId));
+        // A closed deal ends every cadence on the lead, not only the one the pointer names.
+        writes.push(unenrollAllLeadCadences(id));
         writes.push(
           prisma.activity.create({
             data: {
@@ -388,9 +406,8 @@ export async function DELETE(
     // Request has no JSON body, ignore
   }
 
-  if (lead.sequenceId) {
-    await unenrollLead(id, lead.sequenceId);
-  }
+  // An archived lead must stop receiving every cadence, not only the one its pointer names.
+  await unenrollAllLeadCadences(id);
 
   await prisma.lead.update({
     where: { id },

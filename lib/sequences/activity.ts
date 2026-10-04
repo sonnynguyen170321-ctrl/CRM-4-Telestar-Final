@@ -38,6 +38,9 @@ const FIELD_LABEL: Record<string, string> = {
   isActive: 'active',
   trackOpens: 'open tracking',
   trackClicks: 'click tracking',
+  sendOnWeekends: 'weekend sending',
+  stopOnCompanyReply: 'stop on company reply',
+  excludeLeadsInOtherSequences: 'exclusive enrollment',
   steps: 'steps',
 };
 

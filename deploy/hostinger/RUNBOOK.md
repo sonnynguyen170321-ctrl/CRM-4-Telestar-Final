@@ -163,8 +163,9 @@ counts against the source when it can reach it.
 ### 3 — Roles, RLS, and the thing that fails silently
 
 ```bash
-$DC run --rm --no-deps -v "$PWD/supabase:/sql:ro" --entrypoint sh web -c   'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /sql/roles.sql'
-$DC run --rm --no-deps -v "$PWD/supabase:/sql:ro" --entrypoint sh web -c   'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /sql/rls.sql'
+# Through crm-db: the web image has no psql client ("sh: 1: psql: not found", 2026-10-04).
+$DC exec -T crm-db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' < supabase/roles.sql
+$DC exec -T crm-db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' < supabase/rls.sql
 npm run verify:rls
 ./scripts/deploy.sh <sha>
 ```
@@ -244,7 +245,7 @@ docker compose -p crm logs -f --tail 200 worker
 docker compose -p crm exec redis redis-cli --scan --pattern 'bull:*:failed'
 # database
 docker compose -p crm exec crm-db psql -U crm telestar_crm          # after 6b
-docker compose -p crm run --rm --no-deps --entrypoint sh web -c 'psql "$DATABASE_URL"'   # before 6b
+# (before 6b the database was Cloud SQL; the web image has no psql, so use a postgres client image)
 # local repro from a sanitized dump
 deploy/hostinger/backup.sh --tag repro --sanitize   # then scp the .sanitized.dump, restore into local docker-compose.yml postgres
 ```

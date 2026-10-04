@@ -630,6 +630,7 @@ routes:
       - tests/lead-timezone-update.test.ts
       - tests/leads-list-cap.test.ts
       - tests/leads-rescore-icp-route.test.ts
+      - tests/sequence-rules.test.ts
   - path: app/api/leads/[id]/route.ts
     methods: [DELETE, GET, PUT]
     tests:
@@ -658,6 +659,7 @@ routes:
       - tests/lead-timezone-update.test.ts
       - tests/leads-list-cap.test.ts
       - tests/leads-rescore-icp-route.test.ts
+      - tests/sequence-rules.test.ts
   - path: app/api/leads/import/route.ts
     methods: [POST]
     tests:
@@ -701,6 +703,7 @@ routes:
       - tests/lead-timezone-update.test.ts
       - tests/leads-list-cap.test.ts
       - tests/leads-rescore-icp-route.test.ts
+      - tests/sequence-rules.test.ts
   - path: app/api/leads/scoring-rules/route.ts
     methods: [GET, PUT]
     tests: []

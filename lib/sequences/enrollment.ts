@@ -53,6 +53,7 @@ export class SequenceEnrollmentError extends Error {
       | 'forbidden'
       | 'prospect_human_owned'
       | 'lead_already_occupied'
+      | 'lead_in_other_sequence'
       | 'enrollment_terminal'
       | 'enrollment_paused'
       | 'enrollment_not_owner'
@@ -232,6 +233,27 @@ export async function prepareEnrollment(
 
   const mode = input.mode ?? 'human';
   let unenrolledFromSequenceId: string | null = null;
+
+  // A sequence set to take only leads that run nothing else (lib/sequences/rules.ts). A human
+  // switch is exempt: it closes the lead's other cadences below, so the lead ends up in this one
+  // alone — which is what the rule asks for.
+  if (sequence.excludeLeadsInOtherSequences && mode !== 'human') {
+    const other = await prisma.sequenceEnrollment.findFirst({
+      where: {
+        tenantId: lead.tenantId,
+        leadId: input.leadId,
+        sequenceId: { not: input.sequenceId },
+        status: { in: ['active', 'paused'] },
+      },
+      select: { sequenceId: true, sequence: { select: { name: true } } },
+    });
+    if (other) {
+      throw new SequenceEnrollmentError(
+        'lead_in_other_sequence',
+        `${sequence.name} only takes leads that are not running another sequence; this lead is in ${other.sequence?.name ?? other.sequenceId}`
+      );
+    }
+  }
 
   if (mode === 'cold_launch') {
     const occupied = await findOtherOccupyingEnrollment(lead.tenantId, input.leadId, null);

@@ -3,6 +3,7 @@ import { calculateNextActionAt } from '@/lib/automation/scheduling';
 import { resolveTimezone } from '@/lib/automation/timezone';
 import { pauseEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
 import { pauseAllLeadCadences, unenrollAllLeadCadences } from '@/lib/sequences/leadStop';
+import { pauseCompanyCadencesSafely } from '@/lib/sequences/companyStop';
 import { handoffProspectToHuman, stopProspectOutreach } from '@/lib/prospects/ownership';
 import { CLASS_LABEL, KIND_LABEL, type ReplyClassification } from './types';
 import { onActivityLogged, onSuppressionOrArchive } from '@/lib/contact-intelligence/events';
@@ -56,6 +57,8 @@ export interface ReplyHandlingOutcome {
   resumeAt?: Date | null;
   /** Set for class A when the prospect was suppressed. */
   suppressed?: boolean;
+  /** Colleagues' cadences paused by a sequence's "stop on company reply" rule. */
+  companyPaused?: number;
 }
 
 /** Pause the exact occurrence, reporting what actually happened rather than assuming. */
@@ -274,6 +277,18 @@ export async function applyReplyClassification(
     case 'D':
       outcome = await applyHumanHandoff(input);
       break;
+  }
+
+  // A person at the company answered — interest, a question, but also an unsubscribe or a "no" —
+  // so sequences with "stop on company reply" pause for their colleagues. An out-of-office or a
+  // "wrong person" (class B) is not the company answering (lib/sequences/companyStop.ts).
+  if (input.classification.replyClass !== 'B') {
+    const company = await pauseCompanyCadencesSafely({
+      tenantId: input.tenantId,
+      leadId: input.leadId,
+      actorUserId: input.actorUserId,
+    });
+    outcome = { ...outcome, companyPaused: company.paused };
   }
 
   // Hook Contact Intelligence evidence

@@ -27,6 +27,8 @@ vi.mock('@/lib/prisma', () => ({
     emailAccount: { findFirst: (...a: unknown[]) => mockAccountFindFirst(...a) },
     // No sequence senders here: the mailbox resolver falls through to the owner's mailbox.
     sequenceSender: { findMany: async () => [] },
+    // The task's own sequence (workers/sequence.ts reads it for eligibility, not the lead's pointer).
+    sequence: { findUnique: async () => ({ id: 'seq-1', isActive: true, isArchived: false, sendOnWeekends: false }) },
     sequenceEnrollment: {
       findFirst: (...a: unknown[]) => mockEnrollmentFindFirst(...a),
       findUnique: (...a: unknown[]) => mockEnrollmentFindFirst(...a),

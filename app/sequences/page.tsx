@@ -4,6 +4,7 @@ import { SequenceSendersPanel } from '@/components/sequences/SequenceSendersPane
 import { SequenceTrackingPanel } from '@/components/sequences/SequenceTrackingPanel';
 import { SequencePerformancePanel } from '@/components/sequences/SequencePerformancePanel';
 import { SequenceActivityPanel } from '@/components/sequences/SequenceActivityPanel';
+import { SequenceRulesPanel } from '@/components/sequences/SequenceRulesPanel';
 import { useState, useEffect, useCallback } from 'react';
 import {
   Plus,
@@ -624,6 +625,7 @@ export default function SequencesPage() {
           ) : activeTab === 'settings' ? (
             <div className="space-y-4">
               <SequenceSendersPanel sequenceId={selectedSeq.id} />
+              <SequenceRulesPanel sequenceId={selectedSeq.id} />
               <SequenceTrackingPanel sequenceId={selectedSeq.id} />
             </div>
           ) : activeTab === 'builder' ? (

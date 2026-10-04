@@ -7,6 +7,8 @@ import { handleApiError } from '@/lib/api/errors';
 import { calculateNextActionAt } from '@/lib/automation/scheduling';
 import { resolveTimezone } from '@/lib/automation/timezone';
 import { buildJitterSeed } from '@/lib/automation/jitter';
+import { prisma } from '@/lib/prisma';
+import { businessDayPolicyFor } from '@/lib/sequences/rules';
 
 /**
  * Cadence preview for the sequence builder (spec §28).
@@ -50,6 +52,14 @@ export async function POST(req: NextRequest) {
   try {
     const timezone = resolveTimezone(body.timezone);
     let cursor = body.startAt ? new Date(body.startAt) : new Date();
+    // A saved sequence previews with its own weekend rule (lib/sequences/rules.ts).
+    const saved = body.sequenceId && user.tenantId
+      ? await prisma.sequence.findFirst({
+          where: { id: body.sequenceId, tenantId: user.tenantId },
+          select: { sendOnWeekends: true },
+        })
+      : null;
+    const businessDayPolicy = businessDayPolicyFor(saved);
 
     const steps = body.steps.map((step, idx) => {
       const order = step.order ?? idx + 1;
@@ -69,7 +79,7 @@ export async function POST(req: NextRequest) {
         sendWindowStartMinutes: step.sendWindowStartMinutes ?? null,
         sendWindowEndMinutes: step.sendWindowEndMinutes ?? null,
         timezone,
-        businessDayPolicy: 'skip_weekends',
+        businessDayPolicy,
         deterministicSeed: seed,
       });
 

@@ -39,6 +39,8 @@ export type OperatorReasonCode =
   | 'mailbox_unavailable'
   /** The prospect replied; a human owns the conversation now. */
   | 'prospect_replied'
+  /** Someone else at the prospect's company replied; the sequence paused for the whole company. */
+  | 'colleague_replied'
   /** A meeting exists — outreach has done its job. */
   | 'meeting_booked'
   /** The address hard-bounced. */
@@ -103,6 +105,7 @@ const PAUSED_REASON_CODES: Record<PausedReason, OperatorReasonCode> = {
   send_failed: 'send_refused',
   campaign_paused: 'campaign_paused',
   mailbox_unavailable: 'mailbox_unavailable',
+  company_reply: 'colleague_replied',
 };
 
 const LABELS: Record<OperatorReasonCode, string> = {
@@ -112,6 +115,7 @@ const LABELS: Record<OperatorReasonCode, string> = {
   deliverability_hold: 'Sending on hold',
   mailbox_unavailable: 'Needs attention — mailbox unavailable',
   prospect_replied: 'Paused — prospect replied',
+  colleague_replied: 'Paused — a colleague replied',
   meeting_booked: 'Stopped — meeting booked',
   email_bounced: 'Stopped — email bounced',
   paused_by_user: 'Paused by a person',

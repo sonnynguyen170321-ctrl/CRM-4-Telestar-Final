@@ -32,7 +32,9 @@ export type PausedReason =
    * The provider refused this step's email outright. The cadence stops rather than sending
    * step 2 referencing a step 1 that never arrived — see lib/sequences/stepOutcome.ts.
    */
-  | 'send_failed';
+  | 'send_failed'
+  /** Someone else at the lead's company replied (lib/sequences/companyStop.ts). */
+  | 'company_reply';
 
 /** Display labels. The UI must render these rather than keying its own map. */
 export const PAUSED_REASON_LABELS: Record<PausedReason, string> = {
@@ -45,6 +47,7 @@ export const PAUSED_REASON_LABELS: Record<PausedReason, string> = {
   campaign_paused: 'campaign paused',
   mailbox_unavailable: 'mailbox unavailable',
   send_failed: 'first email was refused',
+  company_reply: 'a colleague at the company replied',
 };
 
 /**
@@ -111,6 +114,8 @@ export interface AutomationEvaluationContext {
     id: string;
     isActive: boolean;
     isArchived: boolean;
+    /** Per-sequence rule (lib/sequences/rules.ts). Absent = weekends skipped. */
+    sendOnWeekends?: boolean;
   } | null;
   /** Sequence step record. */
   step?: {

@@ -945,6 +945,12 @@ model Sequence {
   /// penalise, so a sequence opts in. See lib/email/tracking.ts.
   trackOpens  Boolean  @default(false)
   trackClicks Boolean  @default(false)
+  /// Steps may land on Saturday and Sunday (lead's timezone). Off: weekends are skipped.
+  sendOnWeekends               Boolean @default(false)
+  /// A reply from one lead pauses this sequence for other leads at the same company.
+  stopOnCompanyReply           Boolean @default(false)
+  /// Refuse to add a lead that is already running another sequence.
+  excludeLeadsInOtherSequences Boolean @default(false)
   isArchived  Boolean  @default(false)
   createdById String
   createdBy   User     @relation(fields: [createdById, tenantId], references: [id, tenantId])

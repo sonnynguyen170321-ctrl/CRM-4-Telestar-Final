@@ -303,6 +303,14 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
       })
     : null;
 
+  // The sequence this task belongs to — not `lead.sequence`, which is only the lead's pointer to
+  // its most recent cadence. With several sequences running, the pointer can name a different,
+  // active sequence while this task's own sequence was archived or paused (or the reverse).
+  const taskSequence = await prisma.sequence.findUnique({
+    where: { id: task.sequenceId! },
+    select: { id: true, isActive: true, isArchived: true, sendOnWeekends: true },
+  });
+
   // Evaluate central eligibility decision (spec §11–13)
   const eligibility = evaluateAutomationEligibility({
     tenantId: task.tenantId,
@@ -310,7 +318,8 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     lead: task.lead,
     user: task.lead.assignedTo,
     campaign: task.lead.campaign,
-    sequence: task.lead.sequence,
+    // A sequence that no longer exists is not one this task may send for.
+    sequence: taskSequence ?? { id: task.sequenceId!, isActive: false, isArchived: true },
     step: stepInfo,
     template: stepInfo?.template,
     account,

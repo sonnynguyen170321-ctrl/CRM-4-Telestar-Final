@@ -18,6 +18,18 @@ import {
 } from '@/lib/email/idempotency';
 import { isHtml, stripHtml } from '@/lib/email/sanitize';
 import { nextSendAttemptAt } from '@/lib/email/sendWindow';
+import { businessDayPolicyFor } from '@/lib/sequences/rules';
+
+/**
+ * A capacity deferral keeps the sequence's weekend rule (lib/sequences/rules.ts): a sequence that
+ * sends on Saturday must not have its Saturday email pushed to Monday because the mailbox was full.
+ * A one-off email (no sequence) keeps the business-week default.
+ */
+async function deferralPolicyFor(sequenceId: string | null) {
+  if (!sequenceId) return 'skip_weekends' as const;
+  const sequence = await prisma.sequence.findUnique({ where: { id: sequenceId }, select: { sendOnWeekends: true } });
+  return businessDayPolicyFor(sequence);
+}
 import { classifyRecipientFailure } from '@/lib/email/recipientFailure';
 import { suppressRecipient } from '@/lib/email/suppress';
 import { finalizeSequenceStep, releaseSequenceStep } from '@/lib/sequences/stepOutcome';
@@ -456,6 +468,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
       minHours: 1,
       timezone: existing.lead?.timezone ?? null,
       seed: outboundMessageId,
+      businessDayPolicy: await deferralPolicyFor(existing.sequenceId),
     });
     await prisma.outboundMessage.update({
       where: { id: outboundMessageId },
@@ -531,6 +544,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
       minHours: 0,
       timezone: existing.lead?.timezone ?? null,
       seed: outboundMessageId,
+      businessDayPolicy: await deferralPolicyFor(existing.sequenceId),
     });
     await prisma.outboundMessage.update({
       where: { id: outboundMessageId },
