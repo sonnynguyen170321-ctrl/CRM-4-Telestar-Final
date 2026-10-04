@@ -1,5 +1,6 @@
 'use client';
 
+import type { LeadgenSummary } from '@/lib/leadgen/summary';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -75,6 +76,10 @@ export default function LeadgenPage() {
   const router = useRouter();
 
   const [leads, setLeads] = useState<Lead[]>([]);
+  // The list below is the first page of leads; the headline numbers are counted by the server over
+  // the whole scope (lib/leadgen/summary.ts), so they never stop at the page size.
+  const [leadsTruncated, setLeadsTruncated] = useState(false);
+  const [summary, setSummary] = useState<LeadgenSummary | null>(null);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
@@ -114,11 +119,16 @@ export default function LeadgenPage() {
 
   const fetchLeads = useCallback(async () => {
     setIsLoading(true);
-    const res = await fetch('/api/leads');
+    const [res, summaryRes] = await Promise.all([
+      fetch('/api/leads'),
+      fetch('/api/leadgen/summary').catch(() => null),
+    ]);
     if (res.ok) {
       const data = await res.json();
       setLeads(data);
+      setLeadsTruncated(res.headers.get('X-Leads-Truncated') === 'true');
     }
+    if (summaryRes?.ok) setSummary((await summaryRes.json()) as LeadgenSummary);
     setIsLoading(false);
   }, []);
 
@@ -232,18 +242,7 @@ export default function LeadgenPage() {
 
   const isManager = scope.kind === 'manager';
 
-  // Stats calculation
-  const now = new Date();
-  const weekAgo = new Date(now);
-  weekAgo.setDate(weekAgo.getDate() - 7);
 
-  const importedThisWeek = leads.filter(
-    (l) => l.source === 'csv-import' && l.createdAt && new Date(l.createdAt) >= weekAgo
-  ).length;
-
-  const readyToHandOff = leads.filter(
-    (l) => l.stage === 'replied' || l.stage === 'meeting_booked'
-  ).length;
 
   // Filtered list
   const bookedLeads = leads.filter((l) => ['meeting_booked', 'won', 'lost'].includes(l.stage)).slice(0, 10);
@@ -299,10 +298,10 @@ export default function LeadgenPage() {
       <div className="px-6 py-3 border-b border-card-border bg-bg-main flex-shrink-0">
         <div className="grid grid-cols-4 gap-3">
           {[
-            { label: 'Total Leads Pool', value: leads.length, icon: Target, color: 'text-purple-400' },
-            { label: 'Imported This Week', value: importedThisWeek, icon: Upload, color: 'text-blue-400' },
-            { label: 'Qualified (Ready for SDR)', value: readyToHandOff, icon: ArrowRight, color: 'text-emerald-400' },
-            { label: 'Assigned Outreach Reps', value: teamMembers.filter((u) => u.role === 'sdr').length, icon: Users, color: 'text-amber-400' },
+            { label: 'Total Leads Pool', value: summary?.totalLeads ?? '—', icon: Target, color: 'text-purple-400' },
+            { label: 'Added This Week', value: summary?.addedThisWeek ?? '—', icon: Upload, color: 'text-blue-400' },
+            { label: 'ICP Qualified', value: summary?.icpQualified ?? '—', icon: ArrowRight, color: 'text-emerald-400' },
+            { label: 'Reps Working These Leads', value: summary?.repsWorking ?? '—', icon: Users, color: 'text-amber-400' },
           ].map(({ label, value, icon: Icon, color }) => (
             <div key={label} className="bg-card-bg border border-card-border rounded-xl px-4 py-3 flex items-center gap-3">
               <Icon className={`w-5 h-5 ${color} flex-shrink-0`} />
@@ -531,10 +530,11 @@ export default function LeadgenPage() {
                 {/* Outcomes Grid */}
                 <div className="grid grid-cols-4 gap-4">
                   {[
-                    { label: 'Replied Leads', count: leads.filter((l) => l.stage === 'replied').length, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-                    { label: 'Meetings Booked', count: leads.filter((l) => l.stage === 'meeting_booked').length, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-                    { label: 'Deals Won', count: leads.filter((l) => l.stage === 'won').length, color: 'text-green-400', bg: 'bg-green-500/10' },
-                    { label: 'Deals Lost', count: leads.filter((l) => l.stage === 'lost').length, color: 'text-red-400', bg: 'bg-red-500/10' },
+                    { label: 'Replied Leads', count: summary?.stages.replied ?? 0, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+                    // Every lead a meeting was booked with, including those whose deal has since closed.
+                    { label: 'Meetings Booked', count: summary?.meetingsBooked ?? 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+                    { label: 'Deals Won', count: summary?.stages.won ?? 0, color: 'text-green-400', bg: 'bg-green-500/10' },
+                    { label: 'Deals Lost', count: summary?.stages.lost ?? 0, color: 'text-red-400', bg: 'bg-red-500/10' },
                   ].map((stat) => (
                     <div key={stat.label} className="bg-card-bg border border-card-border p-4 rounded-2xl flex items-center justify-between">
                       <div>
@@ -623,7 +623,7 @@ export default function LeadgenPage() {
                     className="flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all active:scale-95 disabled:opacity-50"
                   >
                     <Download className="w-4 h-4" />
-                    {isExporting ? 'Exporting…' : 'Export Outcome Data'}
+                    {isExporting ? 'Exporting…' : leadsTruncated ? `Export loaded leads (${leads.length})` : 'Export Outcome Data'}
                   </button>
                 </div>
               </div>

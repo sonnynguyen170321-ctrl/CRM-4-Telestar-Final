@@ -70,14 +70,16 @@ export default function DatabaseHealthSummary({ onApplyFilter }: DatabaseHealthS
         <div className="p-4 rounded-xl bg-zinc-900/70 border border-zinc-800 flex items-center justify-between">
           <div>
             <span className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">
-              Verified Contacts
+              Contacts
             </span>
             <div className="text-xl font-bold text-zinc-100 mt-0.5">
               {data.totalContacts.toLocaleString()}
             </div>
+            {/* The rate is over contacts that have been checked, not over every contact: say so,
+                or 50 checked out of 10,000 reads as "10,000 · 100% deliverable". */}
             <span className="text-[11px] text-emerald-400 flex items-center gap-1 mt-0.5">
               <CheckCircle2 className="w-3 h-3" />
-              {data.verifiedEmailRate}% Deliverable
+              {data.verifiedEmailRate}% verified of {data.totalWithIntelligence.toLocaleString()} checked
             </span>
           </div>
           <div className="p-2.5 rounded-lg bg-zinc-800/80 text-zinc-300">
