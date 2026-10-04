@@ -31,6 +31,7 @@ import dynamic from 'next/dynamic';
 
 const CallDialerModal = dynamic(() => import('@/components/CallDialerModal'), { ssr: false });
 import NextBestActionCard from '@/components/ai/NextBestActionCard';
+import { DrawerNavButtons, useDrawerNavigation } from '@/components/shared/DrawerNavigation';
 import ContactIntelligenceBadge from '@/components/intelligence/ContactIntelligenceBadge';
 import ContactIntelligenceDrawer from '@/components/intelligence/ContactIntelligenceDrawer';
 import { safeHttpUrl } from '@/lib/security/safeHref';
@@ -175,9 +176,57 @@ interface LeadDetailPanelProps {
   leadId: string | null;
   onClose: () => void;
   onLeadUpdate?: (lead: any) => void;
+  /**
+   * The leads the page is showing, in its order. With `onNavigate`, the drawer gets previous /
+   * next buttons (and `j` / `k`) that move along it without closing.
+   */
+  siblingIds?: readonly string[];
+  onNavigate?: (leadId: string) => void;
 }
 
-export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadDetailPanelProps) {
+/**
+ * The drawer, plus previous / next.
+ *
+ * The body is keyed on the lead, so moving to another lead mounts it fresh. That is deliberate:
+ * the body holds a half-typed note, an open task form, a pending enrol confirmation and a dozen
+ * other drafts, and every one of them belongs to the lead it was started on. Resetting them by
+ * hand would be a list that silently goes stale the day someone adds one more; a fresh mount
+ * cannot save a note to the wrong lead. Only the first lead opened slides in, so stepping through
+ * a list does not replay the animation.
+ */
+export default function LeadDetailPanel({ leadId, siblingIds, onNavigate, ...rest }: LeadDetailPanelProps) {
+  // Every call site mounts the panel only while a lead is open, so this is the lead it opened with.
+  const [openedWith] = useState(leadId);
+  // A composer, dialer or booking open inside the body: stepping would remount it away.
+  const [busy, setBusy] = useState(false);
+  const navigation = useDrawerNavigation({ currentId: leadId, siblingIds, onNavigate, disabled: busy });
+  if (!leadId) return null;
+  return (
+    <>
+      <LeadDetailPanelBody
+        key={leadId}
+        leadId={leadId}
+        animateIn={leadId === openedWith}
+        onBusyChange={setBusy}
+        {...rest}
+      />
+      {/* Outside the keyed body, so it stays put — and keeps keyboard focus — while the next lead loads. */}
+      {navigation && (
+        <div className="fixed bottom-5 right-5 z-[55] rounded-xl border border-card-border bg-card-bg px-1 py-0.5 shadow-lg">
+          <DrawerNavButtons navigation={navigation} noun="lead" />
+        </div>
+      )}
+    </>
+  );
+}
+
+function LeadDetailPanelBody({
+  leadId,
+  onClose,
+  onLeadUpdate,
+  animateIn,
+  onBusyChange,
+}: Omit<LeadDetailPanelProps, 'siblingIds' | 'onNavigate'> & { animateIn: boolean; onBusyChange: (busy: boolean) => void }) {
   const { isManager, currentRole } = useAppContext();
   const [lead, setLead] = useState<LeadDetail | null>(null);
   const [notes, setNotes] = useState<NoteItem[]>([]);
@@ -250,6 +299,23 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
   const [copiedHookId, setCopiedHookId] = useState<string | null>(null);
   const [showIntelligenceDrawer, setShowIntelligenceDrawer] = useState(false);
 
+  // Anything open that holds work in progress. While one is, previous / next is off: stepping
+  // remounts this body, and the open composer, call or form would vanish with it.
+  const busy =
+    showComposer ||
+    showDialer ||
+    showBookingModal ||
+    Boolean(outcomeMeeting) ||
+    Boolean(enrollConfirm) ||
+    showIntelligenceDrawer ||
+    showTaskForm ||
+    showReminderForm ||
+    showLogActivity ||
+    editingProfile;
+  useEffect(() => {
+    onBusyChange(busy);
+  }, [busy, onBusyChange]);
+
   const handleGenerateResearch = async () => {
     if (!leadId) return;
     setAiResearchLoading(true);
@@ -306,11 +372,14 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
       (window as any).__crm_lead_context = null;
       return;
     }
+    // Stepping through a list unmounts this body with requests in flight. A late answer must not
+    // re-point the AI assistant at the lead the person already left.
+    let cancelled = false;
     setLoading(true);
     fetch(`/api/leads/${leadId}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data) {
+        if (data && !cancelled) {
           setLead(data);
           const sorted = (data.notes ?? []).sort((a: NoteItem, b: NoteItem) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           setNotes(sorted);
@@ -361,6 +430,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
     // Closing the panel unmounts it, and an unmount never re-runs the `!leadId` branch above
     // — so the Copilot kept acting on a lead the user had already closed. Clear on the way out.
     return () => {
+      cancelled = true;
       const w = window as unknown as { __crm_lead_context?: { leadId?: string } | null };
       if (w.__crm_lead_context?.leadId === leadId) w.__crm_lead_context = null;
     };
@@ -951,7 +1021,7 @@ export default function LeadDetailPanel({ leadId, onClose, onLeadUpdate }: LeadD
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onClick={onClose} />
 
-      <div className="relative w-full max-w-lg h-full bg-card-bg border-l border-card-border shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-300">
+      <div className={`relative w-full max-w-lg h-full bg-card-bg border-l border-card-border shadow-2xl flex flex-col z-10 ${animateIn ? 'animate-in slide-in-from-right duration-300' : ''}`}>
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-card-border bg-bg-main/50">
           <div>

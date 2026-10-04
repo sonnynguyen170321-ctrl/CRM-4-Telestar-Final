@@ -193,6 +193,10 @@ export default function MeetingsPage() {
       return true;
     });
   }, [meetings, statusFilter, outcomeFilter, clientFilter, campaignFilter, sdrFilter, search]);
+  const meetingLeadIds = useMemo(
+    () => Array.from(new Set(filteredMeetings.map((m) => m.leadId).filter((id): id is string => Boolean(id)))),
+    [filteredMeetings]
+  );
 
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto min-h-screen">
@@ -556,6 +560,8 @@ export default function MeetingsPage() {
       {selectedLeadId && (
         <LeadDetailPanel
           leadId={selectedLeadId}
+          siblingIds={meetingLeadIds}
+          onNavigate={setSelectedLeadId}
           onClose={() => setSelectedLeadId(null)}
           onLeadUpdate={() => fetchMeetings()}
         />

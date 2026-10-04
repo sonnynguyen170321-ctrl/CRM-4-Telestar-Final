@@ -58,6 +58,10 @@ export default function DirectorPage() {
       .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
       .slice(0, 8);
   }, [tasks, currentUserId]);
+  const taskLeadIds = useMemo(
+    () => Array.from(new Set(myTasks.map((t) => t.lead?.id).filter((id): id is string => Boolean(id)))),
+    [myTasks]
+  );
 
   if (currentRole && currentRole !== 'director') return null;
 
@@ -167,7 +171,12 @@ export default function DirectorPage() {
       </div>
 
       {selectedLeadId && (
-        <LeadDetailPanel leadId={selectedLeadId} onClose={() => setSelectedLeadId(null)} />
+        <LeadDetailPanel
+          leadId={selectedLeadId}
+          siblingIds={taskLeadIds}
+          onNavigate={setSelectedLeadId}
+          onClose={() => setSelectedLeadId(null)}
+        />
       )}
     </div>
   );

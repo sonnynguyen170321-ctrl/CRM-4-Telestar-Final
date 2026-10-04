@@ -408,6 +408,8 @@ export default function LeadsPage() {
       const activeEl = document.activeElement;
       const isInput = activeEl && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName);
       if (isInput) return;
+      // With the drawer open its own j / k move between leads (components/shared/DrawerNavigation).
+      if (selectedLeadId) return;
 
       if (e.key === '?') {
         e.preventDefault();
@@ -461,7 +463,9 @@ export default function LeadsPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [sortedLeads, focusedLeadIndex]);
+  }, [sortedLeads, focusedLeadIndex, selectedLeadId]);
+
+  const sortedLeadIds = useMemo(() => sortedLeads.map((lead) => lead.id), [sortedLeads]);
 
   /**
    * Enrich the selected leads, and report what actually happened.
@@ -1125,6 +1129,12 @@ export default function LeadsPage() {
       {selectedLeadId && (
         <LeadDetailPanel
           leadId={selectedLeadId}
+          siblingIds={sortedLeadIds}
+          onNavigate={(id) => {
+            setSelectedLeadId(id);
+            // The list highlight follows, so closing the drawer leaves you on the last lead viewed.
+            setFocusedLeadIndex(sortedLeadIds.indexOf(id));
+          }}
           onLeadUpdate={() => invalidateLeads()}
           onClose={() => {
             setSelectedLeadId(null);

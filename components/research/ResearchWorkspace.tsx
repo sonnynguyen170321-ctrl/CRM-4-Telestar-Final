@@ -243,6 +243,7 @@ export default function ResearchWorkspace() {
       }),
     [candidateTab, candidates],
   );
+  const visibleCandidateIds = useMemo(() => visibleCandidates.map((candidate) => candidate.id), [visibleCandidates]);
 
   const tabCounts: Record<CandidateTab, number> = {
     review: candidates.filter(
@@ -576,6 +577,8 @@ export default function ResearchWorkspace() {
       />
       <ResearchCandidateDrawer
         candidateId={drawerCandidateId}
+        siblingIds={visibleCandidateIds}
+        onNavigate={setDrawerCandidateId}
         onClose={() => setDrawerCandidateId(null)}
       />
       <ResearchPromotionDialog
