@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -13,6 +13,7 @@ import {
 
 import { readApiError } from '@/lib/api/client';
 import EvidenceCard from '@/components/research/EvidenceCard';
+import { DrawerNavButtons, useDrawerNavigation } from '@/components/shared/DrawerNavigation';
 
 type CandidateDetail = {
   candidate: {
@@ -62,28 +63,41 @@ type CandidateDetail = {
 type Props = {
   candidateId: string | null;
   onClose: () => void;
+  /** The candidates the table is showing, in its order; with `onNavigate`, previous / next. */
+  siblingIds?: readonly string[];
+  onNavigate?: (candidateId: string) => void;
 };
 
-export default function ResearchCandidateDrawer({ candidateId, onClose }: Props) {
+export default function ResearchCandidateDrawer({ candidateId, onClose, siblingIds, onNavigate }: Props) {
   const [detail, setDetail] = useState<CandidateDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const navigation = useDrawerNavigation({ currentId: candidateId, siblingIds, onNavigate });
+  // Stepping quickly fires several loads; only the one for the candidate on screen may land, or a
+  // slow answer for the previous candidate would show its evidence under this one's name.
+  const latestRequest = useRef<string | null>(null);
 
   const load = useCallback(async () => {
+    // Closing the drawer retires whatever was in flight, so it cannot land on a reopened drawer.
+    latestRequest.current = candidateId;
     if (!candidateId) return;
+    const isCurrent = () => latestRequest.current === candidateId;
     setLoading(true);
     setError(null);
     try {
       const response = await fetch(`/api/research/candidates/${candidateId}`);
+      if (!isCurrent()) return;
       if (!response.ok) {
-        setError(await readApiError(response, 'Could not load candidate evidence'));
+        const message = await readApiError(response, 'Could not load candidate evidence');
+        if (isCurrent()) setError(message);
         return;
       }
-      setDetail(await response.json());
+      const body = await response.json();
+      if (isCurrent()) setDetail(body);
     } catch {
-      setError('Network error while loading candidate evidence');
+      if (isCurrent()) setError('Network error while loading candidate evidence');
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [candidateId]);
 
@@ -129,6 +143,8 @@ export default function ResearchCandidateDrawer({ candidateId, onClose }: Props)
               <p className="type-meta text-text-muted">{detail.candidate.companyName}</p>
             )}
           </div>
+          <div className="flex items-center gap-1">
+          {navigation && <DrawerNavButtons navigation={navigation} noun="candidate" />}
           <button
             type="button"
             aria-label="Close"
@@ -137,6 +153,7 @@ export default function ResearchCandidateDrawer({ candidateId, onClose }: Props)
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-5">

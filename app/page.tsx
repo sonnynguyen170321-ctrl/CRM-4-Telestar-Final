@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Check,
   Clock,
@@ -483,6 +483,15 @@ export default function DashboardPage() {
   };
 
   const visibleTasks = tabTasks.filter(matchesFilters);
+  // The queue's leads in queue order, once each — the drawer's previous / next walk this.
+  // Keyed on the joined ids so the array keeps its identity across renders that change nothing.
+  const visibleTaskLeadKey = Array.from(
+    new Set(visibleTasks.map((task) => task.lead?.id).filter((id): id is string => Boolean(id)))
+  ).join('|');
+  const visibleTaskLeadIds = useMemo(
+    () => (visibleTaskLeadKey ? visibleTaskLeadKey.split('|') : []),
+    [visibleTaskLeadKey]
+  );
 
   const activeFilterCount = [
     typeFilter !== 'all',
@@ -1365,7 +1374,12 @@ export default function DashboardPage() {
       </div>
 
       {selectedLeadId && (
-        <LeadDetailPanel leadId={selectedLeadId} onClose={() => setSelectedLeadId(null)} />
+        <LeadDetailPanel
+          leadId={selectedLeadId}
+          siblingIds={visibleTaskLeadIds}
+          onNavigate={setSelectedLeadId}
+          onClose={() => setSelectedLeadId(null)}
+        />
       )}
 
       {/* Meeting Booked follow-up prompt */}
