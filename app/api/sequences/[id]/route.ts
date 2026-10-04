@@ -95,6 +95,8 @@ export async function PUT(
         ...(body.name !== undefined && { name: body.name }),
         ...(body.description !== undefined && { description: body.description }),
         ...(body.isActive !== undefined && { isActive: body.isActive }),
+        ...(body.trackOpens !== undefined && { trackOpens: body.trackOpens }),
+        ...(body.trackClicks !== undefined && { trackClicks: body.trackClicks }),
       },
       include: { steps: { orderBy: { order: 'asc' } } },
     });

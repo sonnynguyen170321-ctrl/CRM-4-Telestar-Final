@@ -941,6 +941,10 @@ model Sequence {
   name        String
   description String?
   isActive    Boolean  @default(true)
+  /// Off by default: a tracking pixel and rewritten links are deliverability signals some filters
+  /// penalise, so a sequence opts in. See lib/email/tracking.ts.
+  trackOpens  Boolean  @default(false)
+  trackClicks Boolean  @default(false)
   isArchived  Boolean  @default(false)
   createdById String
   createdBy   User     @relation(fields: [createdById, tenantId], references: [id, tenantId])
@@ -1349,7 +1353,14 @@ model OutboundMessage {
    */
   attemptCount      Int          @default(0)
   sentAt            DateTime?
-  openedAt          DateTime? // NOTE: no writer exists — there is no open-tracking pixel route.
+  /// First open seen by the tracking pixel (lib/email/tracking.ts). Only when the sequence has open
+  /// tracking on; null means "not tracked or not opened", never "not opened" alone.
+  openedAt          DateTime?
+  openCount         Int          @default(0)
+  /// First click through a tracked link, when the sequence has click tracking on.
+  clickedAt         DateTime?
+  clickCount        Int          @default(0)
+  trackingEvents    EmailEvent[]
   repliedAt         DateTime?
   bouncedAt         DateTime?
   bounceType        String? // hard | soft — set by workers/sync.ts handleApplyBounce
@@ -1383,6 +1394,29 @@ model OutboundMessage {
   // outcome back to the message the prospect was answering.
   @@index([tenantId, abVariantId])
   @@index([leadId, sentAt])
+}
+
+/// One open or click recorded by the tracking routes. Kept per event (not only as counts on the
+/// message) so a suspected machine open — an image proxy prefetch, a security scanner following
+/// every link seconds after delivery — is visible and excluded rather than silently counted.
+model EmailEvent {
+  @@unique([id, tenantId], map: "EmailEvent_id_tenantId_key")
+  id                String          @id @default(cuid())
+  outboundMessageId String
+  outboundMessage   OutboundMessage @relation(fields: [outboundMessageId], references: [id], onDelete: Cascade)
+  /// "open" or "click"
+  type              String
+  /// The destination of a click; null for an open.
+  url               String?         @db.Text
+  /// Machine traffic by the heuristics in lib/email/tracking.ts. Stored, never counted.
+  suspectedBot      Boolean         @default(false)
+  userAgent         String?
+  createdAt         DateTime        @default(now())
+  tenantId          String
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([outboundMessageId])
 }
 
 // ─── Suppression Entries ─────────────────────────────────────────────────────
@@ -2387,6 +2421,7 @@ model Tenant {
   suppressionEntries       SuppressionEntry[]
   sequenceEnrollments      SequenceEnrollment[]
   sequenceSenders          SequenceSender[]
+  emailEvents              EmailEvent[]
   sequenceStepCopies       SequenceStepCopy[]
   sequenceDraftRecords     SequenceDraftRecord[]
   importBatches            ImportBatch[]

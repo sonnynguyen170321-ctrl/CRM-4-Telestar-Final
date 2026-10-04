@@ -207,6 +207,8 @@
     "/api/sequences/team-analytics",
     "/api/settings",
     "/api/settings/password",
+    "/api/t/c/[token]",
+    "/api/t/o/[token]",
     "/api/tasks",
     "/api/tasks/[id]",
     "/api/tasks/[id]/run-now",
@@ -237,5 +239,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 36,
-  "apiRouteCount": 190
+  "apiRouteCount": 192
 }
