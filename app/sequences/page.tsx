@@ -2,6 +2,8 @@
 
 import { SequenceSendersPanel } from '@/components/sequences/SequenceSendersPanel';
 import { SequenceTrackingPanel } from '@/components/sequences/SequenceTrackingPanel';
+import { SequencePerformancePanel } from '@/components/sequences/SequencePerformancePanel';
+import { SequenceActivityPanel } from '@/components/sequences/SequenceActivityPanel';
 import { useState, useEffect, useCallback } from 'react';
 import {
   Plus,
@@ -74,7 +76,7 @@ export default function SequencesPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
 
   // Enrollment Dashboard State
-  const [activeTab, setActiveTab] = useState<'builder' | 'enrollments' | 'settings'>('builder');
+  const [activeTab, setActiveTab] = useState<'builder' | 'enrollments' | 'performance' | 'activity' | 'settings'>('builder');
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [selectedEnrollments, setSelectedEnrollments] = useState<string[]>([]);
   const [enrollmentFilters, setEnrollmentFilters] = useState({ step: '', status: '' });
@@ -595,6 +597,18 @@ export default function SequencesPage() {
                 Enrollments Dashboard
               </button>
               <button
+                onClick={() => setActiveTab('performance')}
+                className={`pb-2 text-xs font-semibold transition-colors ${activeTab === 'performance' ? 'text-brand-red border-b-2 border-brand-red' : 'text-text-secondary hover:text-text-primary'}`}
+              >
+                Performance
+              </button>
+              <button
+                onClick={() => setActiveTab('activity')}
+                className={`pb-2 text-xs font-semibold transition-colors ${activeTab === 'activity' ? 'text-brand-red border-b-2 border-brand-red' : 'text-text-secondary hover:text-text-primary'}`}
+              >
+                Activity
+              </button>
+              <button
                 onClick={() => setActiveTab('settings')}
                 className={`pb-2 text-xs font-semibold transition-colors ${activeTab === 'settings' ? 'text-brand-red border-b-2 border-brand-red' : 'text-text-secondary hover:text-text-primary'}`}
               >
@@ -603,7 +617,11 @@ export default function SequencesPage() {
             </div>
           </div>
 
-          {activeTab === 'settings' ? (
+          {activeTab === 'performance' ? (
+            <SequencePerformancePanel sequenceId={selectedSeq.id} />
+          ) : activeTab === 'activity' ? (
+            <SequenceActivityPanel sequenceId={selectedSeq.id} />
+          ) : activeTab === 'settings' ? (
             <div className="space-y-4">
               <SequenceSendersPanel sequenceId={selectedSeq.id} />
               <SequenceTrackingPanel sequenceId={selectedSeq.id} />

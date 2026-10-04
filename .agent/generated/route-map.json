@@ -194,6 +194,7 @@
     "/api/seed",
     "/api/sequences",
     "/api/sequences/[id]",
+    "/api/sequences/[id]/activity",
     "/api/sequences/[id]/analytics",
     "/api/sequences/[id]/enroll",
     "/api/sequences/[id]/enrollments",
@@ -201,6 +202,7 @@
     "/api/sequences/[id]/enrollments/[enrollmentId]/run-now",
     "/api/sequences/[id]/enrollments/[enrollmentId]/status",
     "/api/sequences/[id]/enrollments/bulk-action",
+    "/api/sequences/[id]/performance",
     "/api/sequences/[id]/senders",
     "/api/sequences/analytics",
     "/api/sequences/preview",
@@ -239,5 +241,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 36,
-  "apiRouteCount": 192
+  "apiRouteCount": 194
 }

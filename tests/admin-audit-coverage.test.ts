@@ -33,6 +33,8 @@ const MANAGEMENT_ROUTES: Array<[string, string]> = [
   ['app/api/email-health/accounts/[id]/resume/route.ts', 'admin.mailbox.resume'],
   ['app/api/email-health/accounts/[id]/cap/route.ts', 'admin.mailbox.cap'],
   ['app/api/sequences/[id]/route.ts', 'admin.sequence.archive'],
+  ['app/api/sequences/[id]/route.ts', 'admin.sequence.update'],
+  ['app/api/sequences/[id]/senders/route.ts', 'admin.sequence.senders'],
   // The ones that were already there, so a refactor cannot quietly drop them.
   ['app/api/users/route.ts', 'admin.user.create'],
   ['app/api/clients/route.ts', 'admin.client.create'],

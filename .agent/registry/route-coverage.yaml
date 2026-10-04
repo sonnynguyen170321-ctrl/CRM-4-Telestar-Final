@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 192   mutating: 121   mutating without a test: 24
+# routes: 194   mutating: 121   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -844,6 +844,20 @@ routes:
   - path: app/api/seed/route.ts
     methods: [POST]
     tests: []
+  - path: app/api/sequences/[id]/activity/route.ts
+    methods: [GET]
+    tests:
+      - tests/admin-audit-coverage.test.ts
+      - tests/phase-8a-lifecycle-routes.test.ts
+      - tests/phase-8a-occurrence-advance.test.ts
+      - tests/route-authorization.test.ts
+      - tests/route-coverage.test.ts
+      - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-enrollment-peer-authorization.test.ts
+      - tests/sequence-guards.test.ts
+      - tests/sequence-performance-activity.test.ts
+      - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/analytics/route.ts
     methods: [GET]
     tests:
@@ -855,6 +869,7 @@ routes:
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
+      - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enroll/route.ts
@@ -868,6 +883,7 @@ routes:
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
+      - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/logs/route.ts
@@ -881,6 +897,7 @@ routes:
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
+      - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/run-now/route.ts
@@ -894,6 +911,7 @@ routes:
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
+      - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/status/route.ts
@@ -907,6 +925,7 @@ routes:
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
+      - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enrollments/bulk-action/route.ts
@@ -920,6 +939,7 @@ routes:
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
+      - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enrollments/route.ts
@@ -933,6 +953,21 @@ routes:
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
+      - tests/sequence-performance-activity.test.ts
+      - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-senders.test.ts
+  - path: app/api/sequences/[id]/performance/route.ts
+    methods: [GET]
+    tests:
+      - tests/admin-audit-coverage.test.ts
+      - tests/phase-8a-lifecycle-routes.test.ts
+      - tests/phase-8a-occurrence-advance.test.ts
+      - tests/route-authorization.test.ts
+      - tests/route-coverage.test.ts
+      - tests/sequence-create-nested-steps.test.ts
+      - tests/sequence-enrollment-peer-authorization.test.ts
+      - tests/sequence-guards.test.ts
+      - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/route.ts
@@ -946,6 +981,7 @@ routes:
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
+      - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/senders/route.ts
@@ -959,6 +995,7 @@ routes:
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
+      - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/analytics/route.ts
@@ -979,6 +1016,7 @@ routes:
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
+      - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/team-analytics/route.ts
@@ -1009,6 +1047,7 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - tests/agent-object-authorization.test.ts
+      - tests/email-tracking.test.ts
       - tests/task-bulk-action.test.ts
   - path: app/api/tasks/[id]/run-now/route.ts
     methods: [POST]
@@ -1020,6 +1059,7 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - tests/agent-object-authorization.test.ts
+      - tests/email-tracking.test.ts
       - tests/task-bulk-action.test.ts
   - path: app/api/tasks/bulk/route.ts
     methods: [POST]
@@ -1035,6 +1075,7 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - tests/agent-object-authorization.test.ts
+      - tests/email-tracking.test.ts
       - tests/task-bulk-action.test.ts
   - path: app/api/team/alerts/route.ts
     methods: [GET]
@@ -1060,22 +1101,27 @@ routes:
       - e2e/roles/role-negative-access.spec.ts
   - path: app/api/templates/[id]/ab-test/route.ts
     methods: [DELETE, GET, POST]
-    tests: []
+    tests:
+      - tests/email-tracking.test.ts
   - path: app/api/templates/[id]/attachments/[attachmentId]/route.ts
     methods: [DELETE]
-    tests: []
+    tests:
+      - tests/email-tracking.test.ts
   - path: app/api/templates/[id]/attachments/route.ts
     methods: [GET, POST]
-    tests: []
+    tests:
+      - tests/email-tracking.test.ts
   - path: app/api/templates/[id]/route.ts
     methods: [DELETE, GET, PUT]
-    tests: []
+    tests:
+      - tests/email-tracking.test.ts
   - path: app/api/templates/analytics/route.ts
     methods: [GET]
     tests: []
   - path: app/api/templates/route.ts
     methods: [GET, POST]
-    tests: []
+    tests:
+      - tests/email-tracking.test.ts
   - path: app/api/unsubscribe/route.ts
     methods: [GET, POST]
     tests:

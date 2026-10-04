@@ -101,6 +101,25 @@ export async function PUT(
       include: { steps: { orderBy: { order: 'asc' } } },
     });
 
+    // The automatic audit row names the sequence's creator, not the editor; the sequence's
+    // Activity tab needs who actually changed it (lib/sequences/activity.ts).
+    const changed = Object.entries(body).filter(([, value]) => value !== undefined);
+    if (changed.length > 0) {
+      await logAdminAudit({
+        actorId: user.id,
+        action: 'admin.sequence.update',
+        tableName: 'Sequence',
+        recordId: id,
+        // Free text (description, step copy) is recorded as changed, not copied into the log.
+        changedFields: Object.fromEntries(
+          changed.map(([key, value]) => [
+            key,
+            key === 'steps' ? `${(value as unknown[]).length} steps` : key === 'description' ? 'changed' : value,
+          ])
+        ),
+      });
+    }
+
     await invalidateList(user.tenantId, 'sequences');
     return NextResponse.json(sequence);
   } catch (err) {

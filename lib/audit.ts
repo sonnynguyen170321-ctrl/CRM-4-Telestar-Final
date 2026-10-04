@@ -267,6 +267,8 @@ export const ADMIN_AUDIT_ACTIONS = [
   'admin.mailbox.resume',
   'admin.mailbox.cap',
   'admin.sequence.archive',
+  'admin.sequence.update',
+  'admin.sequence.senders',
   'admin.seed.reset',
 ] as const;
 
