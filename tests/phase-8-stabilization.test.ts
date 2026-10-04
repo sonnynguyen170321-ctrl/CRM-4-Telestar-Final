@@ -55,6 +55,7 @@ vi.mock('@/lib/prisma', () => ({
       findFirst: (...args: unknown[]) => mockLeadFindFirst(...args),
       findMany: (...args: unknown[]) => mockLeadFindMany(...args),
       update: (...args: unknown[]) => mockLeadUpdate(...args),
+      updateMany: async () => ({ count: 1 }),
     },
     sequenceEnrollment: {
       findUnique: (...args: unknown[]) => mockEnrollmentFindUnique(...args),
@@ -483,7 +484,7 @@ describe('Phase 8 Stabilization Backlog (S1-S4)', () => {
       // Increments reply counter even though stage is already 'replied'
       expect(mockLeadUpdate).toHaveBeenCalledWith({
         where: { id: 'lead-s4' },
-        data: { stage: 'replied', emailReplyCount: { increment: 1 } },
+        data: { emailReplyCount: { increment: 1 } },
       });
 
       // Event-based occurrence handoff created with eventId 'msg-second-456'
