@@ -34,6 +34,12 @@ export function normalizePhoneIdentifier(
   return { e164: null, isValid: false };
 }
 
+/** The ISO 3166 alpha-2 country an E.164 number belongs to, or null when it does not parse. */
+export function countryOfE164(e164: string | null | undefined): CountryCode | null {
+  if (!e164) return null;
+  return parsePhoneNumberFromString(e164)?.country ?? null;
+}
+
 // Country NAME (as it appears in uploads, e.g. "Vietnam") -> ISO 3166 alpha-2 for libphonenumber's
 // default-country. Uploads carry country names, not codes, and libphonenumber needs the code to parse
 // a bare national number. Focused on the markets that actually appear in the data; unknowns return

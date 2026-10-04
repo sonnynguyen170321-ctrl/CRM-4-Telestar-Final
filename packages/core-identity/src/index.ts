@@ -26,5 +26,5 @@ export {
   resolveIdentity,
 } from "./resolveIdentity";
 
-export { normalizePhoneIdentifier, countryNameToIso, type NormalizedPhone } from "./phone";
+export { normalizePhoneIdentifier, countryNameToIso, countryOfE164, type NormalizedPhone } from "./phone";
 export { foldAscii, isVietnameseSurnameFirst, splitPersonName, VN_SURNAMES } from "./personName";

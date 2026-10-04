@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 197   mutating: 122   mutating without a test: 19
+# routes: 198   mutating: 123   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -1124,6 +1124,10 @@ routes:
     methods: [GET]
     tests:
       - e2e/roles/role-negative-access.spec.ts
+  - path: app/api/telephony/calls/route.ts
+    methods: [POST]
+    tests:
+      - tests/telephony-calls-route.test.ts
   - path: app/api/telephony/token/route.ts
     methods: [POST]
     tests:
