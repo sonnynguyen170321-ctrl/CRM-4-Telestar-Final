@@ -60,7 +60,7 @@ export default function SequencePerformanceReport({ stats, loading, scopeLabel }
       tone: 'text-red-500',
       label: 'Bounces',
       value: stats.totalBounces,
-      sub: 'flagged invalid',
+      sub: 'emails bounced, last 30 days',
     },
   ];
 

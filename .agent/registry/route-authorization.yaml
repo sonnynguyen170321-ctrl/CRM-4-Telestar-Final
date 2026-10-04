@@ -560,7 +560,6 @@ routes:
     methods: [GET]
     guards:
       - getLeadWhereScope (via lib/sequences/analytics.ts)
-      - getVisibleUserIds (via lib/sequences/analytics.ts)
   - path: app/api/sequences/[id]/enroll/route.ts
     methods: [DELETE, POST]
     guards:
@@ -599,7 +598,6 @@ routes:
     methods: [GET]
     guards:
       - getLeadWhereScope (via lib/sequences/analytics.ts)
-      - getVisibleUserIds (via lib/sequences/analytics.ts)
   - path: app/api/sequences/preview/route.ts
     methods: [POST]
     guards: []
@@ -683,7 +681,6 @@ routes:
     methods: [GET]
     guards:
       - getLeadWhereScope (via lib/sequences/analytics.ts)
-      - getVisibleUserIds (via lib/sequences/analytics.ts)
   - path: app/api/templates/route.ts
     methods: [GET, POST]
     guards: []

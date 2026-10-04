@@ -1,3 +1,6 @@
+import type { Prisma } from '@prisma/client';
+
+import { getLocalDayBoundaries } from '@/lib/dates/timezone';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -11,7 +14,8 @@ import { prisma } from '@/lib/prisma';
  *
  * Here every number comes from its own source of truth:
  *   - enrollments: `SequenceEnrollment` by status;
- *   - sends: `OutboundMessage` with a `sentAt` — accepted by the provider, not merely queued;
+ *   - sends: `OutboundMessage` with a `sentAt` — accepted by the provider, not merely queued, and
+ *     not a dry run (`REAL_SEND`);
  *   - opens / clicks: the message's `openedAt` / `clickedAt`, written only by verified, non-machine
  *     tracking hits, and reported as `null` (not 0%) when the sequence does not track them;
  *   - replies / bounces: the message's `repliedAt` / `bouncedAt`.
@@ -22,6 +26,62 @@ import { prisma } from '@/lib/prisma';
  * are exact, a step's reply rate is "replies after this step". Messages whose step no longer exists
  * (or never had one) are reported in an `order: null` row, so the steps always add up to the total.
  */
+
+/**
+ * A message that was really handed to a provider. The dry-run gate (workers/email.ts) also sets
+ * `sentAt`, under a `dry-run-` provider id, so a demo or staging tenant would otherwise report
+ * sends nobody received. Written as an explicit OR: `NOT startsWith` alone is false for a NULL id
+ * in SQL and would silently drop real sends that carry no provider id.
+ */
+export const REAL_SEND: Prisma.OutboundMessageWhereInput = {
+  OR: [{ providerMessageId: null }, { NOT: { providerMessageId: { startsWith: 'dry-run-' } } }],
+};
+
+/** Days in the sends-per-day series. */
+export const DAILY_SERIES_DAYS = 30;
+
+/**
+ * Sends per calendar day in the viewer's timezone for the last `days` days, oldest first, a zero
+ * for a quiet day — so the last bar is the same "today" the cards count.
+ *
+ * One exact count per day rather than loading the rows: a busy tenant sends far more in a month
+ * than is worth pulling into memory, and a capped read would undercount without saying so.
+ */
+export async function getDailySends(input: {
+  tenantId: string;
+  sequenceId?: string;
+  leadWhere?: Prisma.LeadWhereInput;
+  timezone?: string;
+  days?: number;
+  now?: Date;
+}): Promise<Array<{ date: string; count: number }>> {
+  const days = input.days ?? DAILY_SERIES_DAYS;
+  const now = input.now ?? new Date();
+  const timezone = input.timezone || 'UTC';
+  // Midnight of each day, oldest first, plus tomorrow's to close the last one.
+  const starts = Array.from({ length: days + 1 }, (_, index) =>
+    getLocalDayBoundaries(new Date(now.getTime() - (days - 1 - index) * 86_400_000), timezone).start
+  );
+  const label = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+  return Promise.all(
+    starts.slice(0, days).map(async (start, index) => ({
+      date: label.format(start),
+      count: await prisma.outboundMessage.count({
+        where: {
+          AND: [
+            REAL_SEND,
+            {
+              tenantId: input.tenantId,
+              ...(input.sequenceId ? { sequenceId: input.sequenceId } : { sequenceId: { not: null } }),
+              sentAt: { gte: start, lt: starts[index + 1] },
+              ...(input.leadWhere ? { lead: input.leadWhere } : {}),
+            },
+          ],
+        },
+      }),
+    }))
+  );
+}
 
 export const PERFORMANCE_WINDOWS = { '7d': 7, '30d': 30, '90d': 90, all: null } as const;
 export type PerformanceWindow = keyof typeof PERFORMANCE_WINDOWS;
@@ -74,6 +134,8 @@ export async function getSequencePerformance(input: {
   sequenceId: string;
   window?: PerformanceWindow;
   now?: Date;
+  /** Count only these leads (a viewer's scope). Omitted: every lead in the tenant. */
+  leadWhere?: Prisma.LeadWhereInput;
 }): Promise<SequencePerformance | null> {
   const window = input.window ?? '30d';
   const days = PERFORMANCE_WINDOWS[window];
@@ -90,22 +152,23 @@ export async function getSequencePerformance(input: {
   if (!sequence) return null;
   const tracking = { opens: sequence.trackOpens, clicks: sequence.trackClicks };
 
-  const sentWhere = {
+  const sentWhere: Prisma.OutboundMessageWhereInput = {
     tenantId: input.tenantId,
     sequenceId: input.sequenceId,
     sentAt: since ? { gte: since } : { not: null },
+    ...(input.leadWhere ? { lead: input.leadWhere } : {}),
   };
-  const countByStep = (extra: Record<string, unknown>) =>
+  const countByStep = (extra: Prisma.OutboundMessageWhereInput) =>
     prisma.outboundMessage.groupBy({
       by: ['sequenceStepOrder'],
-      where: { ...sentWhere, ...extra },
+      where: { AND: [REAL_SEND, sentWhere, extra] },
       _count: { _all: true },
     });
 
   const [byStatus, ...grouped] = await Promise.all([
     prisma.sequenceEnrollment.groupBy({
       by: ['status'],
-      where: { tenantId: input.tenantId, sequenceId: input.sequenceId },
+      where: { tenantId: input.tenantId, sequenceId: input.sequenceId, ...(input.leadWhere ? { lead: input.leadWhere } : {}) },
       _count: { _all: true },
     }),
     countByStep({}),
