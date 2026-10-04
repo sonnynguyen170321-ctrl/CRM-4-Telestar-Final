@@ -244,8 +244,7 @@ export default function ResearchWorkspace() {
           return candidate.status === 'promoted' || candidate.previouslyPromoted;
         }
         if (candidateTab === 'dismissed') return candidate.status === 'dismissed';
-        // Review is what is still new: a candidate already promoted in an earlier run is pipeline.
-        return candidate.status === 'discovered' && !candidate.previouslyPromoted;
+        return candidate.status === 'discovered';
       }),
     [candidateTab, candidates],
   );

@@ -95,10 +95,13 @@ function readQueryBudget(paramsJson: unknown): number | null {
 }
 
 /**
- * The workspace's tabs for one run, counted over every candidate in it so they add up:
- * pipeline = promoted here or already promoted in an earlier run; review = still new and not
- * already taken; dismissed = dismissed; all = every candidate. They used to be counted in the
- * browser from the first 200 rows, beside an "All" counted on the server.
+ * The workspace's tabs for one run, counted over every candidate in it. They used to be counted in
+ * the browser from the first 200 rows, beside an "All" counted on the server.
+ *
+ * review = not yet promoted from this run; pipeline = promoted here or already promoted in an
+ * earlier run; dismissed; all = every candidate. Review and Pipeline overlap on purpose: a prospect
+ * already in the library stays reviewable so it can join another campaign (the Phase 4 contract),
+ * and it is badged "Already in prospect library" there.
  */
 export type CandidateTabCounts = { review: number; pipeline: number; dismissed: number; all: number };
 
@@ -121,8 +124,8 @@ async function candidateTabCounts(tenantId: string, runId: string): Promise<Cand
   const counts: CandidateTabCounts = { review: 0, pipeline: 0, dismissed: 0, all: rows.length };
   for (const row of rows) {
     if (row.status === 'promoted' || taken.has(row.dedupeFingerprint)) counts.pipeline += 1;
-    else if (row.status === 'dismissed') counts.dismissed += 1;
-    else if (row.status === 'discovered') counts.review += 1;
+    if (row.status === 'dismissed') counts.dismissed += 1;
+    if (row.status === 'discovered') counts.review += 1;
   }
   return counts;
 }

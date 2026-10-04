@@ -74,10 +74,10 @@ describe('the run list', () => {
 });
 
 describe('the candidate tabs', () => {
-  it('partition the run: review, pipeline and dismissed add up to all', async () => {
+  it('count the whole run; a prospect already in the library is in Review and in Pipeline', async () => {
     const result = await inTenant(async () => {
       await candidate('discovered'); // new — review
-      await candidate('discovered', 'fp-taken'); // promoted in an earlier run — pipeline, not review
+      await candidate('discovered', 'fp-taken'); // promoted in an earlier run: still reviewable, and pipeline
       await candidate('promoted'); // pipeline
       await candidate('dismissed'); // dismissed
       await prisma.researchProspect.create({
@@ -85,9 +85,7 @@ describe('the candidate tabs', () => {
       });
       return listResearchCandidates({ runId, pageSize: 1 }, tenantId);
     });
-    expect(result.tabCounts).toEqual({ review: 1, pipeline: 2, dismissed: 1, all: 4 });
-    const { review, pipeline, dismissed, all } = result.tabCounts!;
-    expect(review + pipeline + dismissed).toBe(all);
+    expect(result.tabCounts).toEqual({ review: 2, pipeline: 2, dismissed: 1, all: 4 });
   });
 });
 
