@@ -148,6 +148,10 @@ export const createSequenceSchema = z.object({
   /** Open / click tracking for this sequence's email (lib/email/tracking.ts). Off unless set. */
   trackOpens: z.boolean().optional(),
   trackClicks: z.boolean().optional(),
+  /** Per-sequence rules (lib/sequences/rules.ts). Off unless set. */
+  sendOnWeekends: z.boolean().optional(),
+  stopOnCompanyReply: z.boolean().optional(),
+  excludeLeadsInOtherSequences: z.boolean().optional(),
   steps: z.array(sequenceStepSchema).max(50).optional(),
 });
 

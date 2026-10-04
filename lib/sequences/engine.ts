@@ -24,13 +24,15 @@ import { JobType } from '@/lib/bullmq/types';
 import { calculateNextActionAt } from '@/lib/automation/scheduling';
 import { resolveTimezone } from '@/lib/automation/timezone';
 import { buildJitterSeed } from '@/lib/automation/jitter';
+import type { BusinessDayPolicy } from '@/lib/automation/scheduling';
+import { businessDayPolicyFor } from './rules';
 
 const PRIORITY_MAP = { hot: 'high', warm: 'medium', cold: 'low' } as const;
 
 export function computeStepDueDate(
   base: Date,
   step: Pick<SequenceStep, 'delayDays' | 'delayHours' | 'sendWindowStartMinutes' | 'sendWindowEndMinutes'>,
-  options?: { timezone?: string | null; seed?: string | null }
+  options?: { timezone?: string | null; seed?: string | null; businessDayPolicy?: BusinessDayPolicy }
 ): Date {
   const tz = options?.timezone ? resolveTimezone(options.timezone) : 'UTC';
   const sched = calculateNextActionAt({
@@ -40,7 +42,8 @@ export function computeStepDueDate(
     sendWindowStartMinutes: step.sendWindowStartMinutes ?? null,
     sendWindowEndMinutes: step.sendWindowEndMinutes ?? null,
     timezone: tz,
-    businessDayPolicy: 'skip_weekends',
+    // The sequence decides (lib/sequences/rules.ts); weekends are skipped unless it allows them.
+    businessDayPolicy: options?.businessDayPolicy ?? 'skip_weekends',
     deterministicSeed: options?.seed ?? null,
   });
   return sched.dueAtUtc;
@@ -80,7 +83,8 @@ export async function createTaskForStep(
     leadId: lead.id,
   });
 
-  const dueDate = computeStepDueDate(baseDate, step, { timezone: tz, seed });
+  const businessDayPolicy = await businessDayPolicyForSequence(sequence.id);
+  const dueDate = computeStepDueDate(baseDate, step, { timezone: tz, seed, businessDayPolicy });
   const channelLabel = step.channel.charAt(0).toUpperCase() + step.channel.slice(1);
 
   const task = await createOrReuseTask({
@@ -226,6 +230,15 @@ export async function applyStepScheduling(
   }
 }
 
+/** The weekend rule of one sequence (lib/sequences/rules.ts), read from the row. */
+async function businessDayPolicyForSequence(sequenceId: string): Promise<BusinessDayPolicy> {
+  const sequence = await prisma.sequence.findUnique({
+    where: { id: sequenceId },
+    select: { sendOnWeekends: true },
+  });
+  return businessDayPolicyFor(sequence);
+}
+
 /** Recompute a step's due date the same way `createTaskForStep` did, for a resumed finalizer. */
 export async function computeStepDueDateForLead(
   leadId: string,
@@ -244,7 +257,8 @@ export async function computeStepDueDateForLead(
     sequenceStepId: step.id,
     leadId,
   });
-  return computeStepDueDate(baseDate, step, { timezone: tz, seed });
+  const businessDayPolicy = await businessDayPolicyForSequence(sequenceId);
+  return computeStepDueDate(baseDate, step, { timezone: tz, seed, businessDayPolicy });
 }
 
 /**

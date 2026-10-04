@@ -79,6 +79,8 @@ vi.mock('@/lib/prisma', () => ({
       create: (...args: unknown[]) => mockNotificationCreate(...args),
     },
     sequenceSender: { findMany: async () => [] },
+    // The task's own sequence (workers/sequence.ts reads it for eligibility, not the lead's pointer).
+    sequence: { findUnique: async () => ({ id: 'seq-1', isActive: true, isArchived: false, sendOnWeekends: false }) },
     emailAccount: {
       findUnique: (...args: unknown[]) => mockAccountFindUnique(...args),
       findFirst: (...args: unknown[]) => mockAccountFindFirst(...args),

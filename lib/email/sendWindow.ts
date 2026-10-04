@@ -10,7 +10,7 @@
  * messages without re-forming the burst that refused them. Two copies of this would be two
  * spreads that could drift apart while both claimed to protect the same mailbox.
  */
-import { calculateNextActionAt, resolveTimezone } from '@/lib/automation/scheduling';
+import { calculateNextActionAt, resolveTimezone, type BusinessDayPolicy } from '@/lib/automation/scheduling';
 
 /** 09:00–17:00 in the prospect's timezone. */
 export const BUSINESS_WINDOW_START_MINUTES = 9 * 60;
@@ -28,6 +28,8 @@ export function nextSendAttemptAt(params: {
   minHours: number;
   timezone: string | null | undefined;
   seed: string;
+  /** The sequence's weekend rule (lib/sequences/rules.ts). Absent: weekends are skipped. */
+  businessDayPolicy?: BusinessDayPolicy;
 }): Date {
   const { dueAtUtc } = calculateNextActionAt({
     baseAt: params.now,
@@ -38,7 +40,7 @@ export function nextSendAttemptAt(params: {
     sendWindowStartMinutes: BUSINESS_WINDOW_START_MINUTES,
     sendWindowEndMinutes: BUSINESS_WINDOW_END_MINUTES,
     timezone: resolveTimezone(params.timezone) || 'UTC',
-    businessDayPolicy: 'skip_weekends',
+    businessDayPolicy: params.businessDayPolicy ?? 'skip_weekends',
     deterministicSeed: params.seed,
   });
   return dueAtUtc;

@@ -18,6 +18,14 @@ import { calculateNextActionAt } from './scheduling';
 import { resolveTimezone } from './timezone';
 import { buildJitterSeed } from './jitter';
 
+/**
+ * The sequence's weekend rule (lib/sequences/rules.ts). Inline rather than imported: this module
+ * is a pure decision function and stays free of database imports.
+ */
+function businessDayPolicyOf(ctx: AutomationEvaluationContext): 'skip_weekends' | 'none' {
+  return ctx.sequence?.sendOnWeekends ? 'none' : 'skip_weekends';
+}
+
 export function evaluateAutomationEligibility(
   ctx: AutomationEvaluationContext
 ): EligibilityResult {
@@ -151,7 +159,7 @@ export function evaluateAutomationEligibility(
         sendWindowStartMinutes: ctx.step?.sendWindowStartMinutes ?? null,
         sendWindowEndMinutes: ctx.step?.sendWindowEndMinutes ?? null,
         timezone,
-        businessDayPolicy: 'skip_weekends',
+        businessDayPolicy: businessDayPolicyOf(ctx),
         deterministicSeed: seed,
       });
 
@@ -184,7 +192,7 @@ export function evaluateAutomationEligibility(
       sendWindowStartMinutes: ctx.step.sendWindowStartMinutes ?? null,
       sendWindowEndMinutes: ctx.step.sendWindowEndMinutes ?? null,
       timezone,
-      businessDayPolicy: 'skip_weekends',
+      businessDayPolicy: businessDayPolicyOf(ctx),
       deterministicSeed: seed,
     });
 

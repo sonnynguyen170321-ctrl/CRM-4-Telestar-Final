@@ -97,6 +97,11 @@ export async function PUT(
         ...(body.isActive !== undefined && { isActive: body.isActive }),
         ...(body.trackOpens !== undefined && { trackOpens: body.trackOpens }),
         ...(body.trackClicks !== undefined && { trackClicks: body.trackClicks }),
+        ...(body.sendOnWeekends !== undefined && { sendOnWeekends: body.sendOnWeekends }),
+        ...(body.stopOnCompanyReply !== undefined && { stopOnCompanyReply: body.stopOnCompanyReply }),
+        ...(body.excludeLeadsInOtherSequences !== undefined && {
+          excludeLeadsInOtherSequences: body.excludeLeadsInOtherSequences,
+        }),
       },
       include: { steps: { orderBy: { order: 'asc' } } },
     });

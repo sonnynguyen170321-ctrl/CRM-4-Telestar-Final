@@ -20,6 +20,8 @@ const ENROLLMENT_STATUS: Record<SequenceEnrollmentError['code'], number> = {
   prospect_human_owned: 409,
   // This sequence is already running on the lead (or, for the agent, any cadence is). A state conflict.
   lead_already_occupied: 409,
+  // The sequence takes only leads that run nothing else, and this one runs another.
+  lead_in_other_sequence: 409,
   // A terminal occurrence cannot be revived; a new enrollment is required.
   enrollment_terminal: 409,
   // The occurrence stopped being the lead's active cadence mid-flight.
