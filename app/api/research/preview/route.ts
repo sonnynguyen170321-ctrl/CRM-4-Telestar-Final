@@ -45,7 +45,9 @@ export async function POST(req: NextRequest) {
   if (!limit.ok) {
     return NextResponse.json(
       {
-        error: `queryLimit exceeds the maximum of ${limit.max} for ${user.role}`,
+        error: limit.options
+          ? `queryLimit must be one of ${limit.options.join(', ')}`
+          : `queryLimit exceeds the maximum of ${limit.max} for ${user.role}`,
         code: 'research_query_limit_exceeded',
       },
       { status: 400 },

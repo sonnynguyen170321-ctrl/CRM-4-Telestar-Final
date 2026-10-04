@@ -47,6 +47,9 @@ export type ResearchRunKind = 'company' | 'contact';
 
 const PACKAGE_KIND = { company: 'COMPANY', contact: 'CONTACT' } as const;
 
+/** How often a working pass touches its run row while it does work that writes nothing else. */
+const HEARTBEAT_MS = 60_000;
+
 export type CreateRunInput = {
   tenantId: string;
   kind: ResearchRunKind;
@@ -109,9 +112,12 @@ export async function createResearchRun(input: CreateRunInput): Promise<{ id: st
       queriesJson: queries as never,
       // The only reader is the pass, for `aiFit`. Builder params ride along for the record, and an
       // ICP-mode run that asked for AI fit stores just the flag.
-      paramsJson: (input.builderParams || input.aiFit
-        ? { ...(input.builderParams ?? {}), ...(input.aiFit ? { aiFit: true } : {}) }
-        : null) as never,
+      // `queryBudget` is the size asked for; `queriesJson.length` is what the ICP's terms made of it.
+      paramsJson: {
+        ...(input.builderParams ?? {}),
+        ...(input.aiFit ? { aiFit: true } : {}),
+        queryBudget: normalizeResearchQueryLimit(input.queryLimit),
+      } as never,
     },
     select: { id: true },
   });
@@ -276,6 +282,14 @@ export async function runDiscoveryPass(params: {
   // Re-rank what this pass found, before the run can be marked finished — a `succeeded` run is one
   // whose scores are final. Advisory: any failure leaves the heuristic scores standing.
   if (aiFitRequested && createdThisPass.length > 0) {
+    // The cursor write is the run's heartbeat, and re-ranking writes none. A slow model would let the
+    // row go quiet past STALE_RUNNER_MS, the UI would offer Resume, and a second slice would run the
+    // same cursor beside this one. Touch the row while it works.
+    const heartbeat = setInterval(() => {
+      void prisma.researchRun
+        .updateMany({ where: { id: runId, tenantId, status: 'running' }, data: { updatedAt: new Date() } })
+        .catch((error) => console.error('[research] heartbeat failed', { runId, error }));
+    }, HEARTBEAT_MS);
     try {
       const signals = Array.from(new Set(queries.flatMap((q) => q.hints))).slice(0, 40);
       await applyAiFit({
@@ -288,6 +302,8 @@ export async function runDiscoveryPass(params: {
       });
     } catch (error) {
       console.error('[research] AI fit failed; heuristic scores kept', { runId, error });
+    } finally {
+      clearInterval(heartbeat);
     }
   }
 
@@ -295,14 +311,11 @@ export async function runDiscoveryPass(params: {
   if (result.finished) {
     // The counter on the row, not this pass's tally: a run finished across several passes may have
     // found everything it found in an earlier one.
-    const totals = await prisma.researchRun.findFirst({
-      where: { id: runId, tenantId },
-      select: { discoveredCount: true },
-    });
+    const candidateRows = await prisma.researchCandidate.count({ where: { runId, tenantId } });
 
     // Zero candidates plus at least one provider that hard-failed is a broken run, not an empty one.
     // Reporting it as `succeeded` is how a dead API key spends a week looking like a narrow ICP.
-    const nothingFound = (totals?.discoveredCount ?? 0) === 0;
+    const nothingFound = candidateRows === 0;
     const providersBroke = providerFailures.size > 0;
 
     // The other way to find nothing while everything reports fine: the providers answered, and the

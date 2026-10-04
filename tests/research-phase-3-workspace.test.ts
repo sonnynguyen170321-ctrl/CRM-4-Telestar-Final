@@ -140,7 +140,11 @@ describe('phase 3 research workspace contract', () => {
     expect(card).toContain('<details');
     expect(card).toContain('aria-expanded={expanded}');
     expect(card).toContain('rel="noopener noreferrer"');
-    expect(readModel).toContain('where: candidateAttemptsWhere({ tenantId, candidateId, runId })');
+    // CHANGED 2026-10-04 (Phase 6 audit): the run's discovery attempts are still shown, but as a
+    // per-provider tally counted over all of them, not the oldest 50 rows mixed with the
+    // candidate's own lookups — which let the run crowd the candidate's lookups out.
+    expect(readModel).toContain("where: { tenantId, runId, candidateId: null }");
+    expect(readModel).toContain('runAttemptTally: tallyByProvider(runTally)');
     expect(readModel).toContain('runScoped: attemptCandidateId === null');
   });
   it('keeps published ICPs readable by both pool users and research managers', () => {
