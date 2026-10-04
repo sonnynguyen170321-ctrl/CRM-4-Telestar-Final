@@ -861,6 +861,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-analytics.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
@@ -875,6 +876,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-analytics.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
@@ -889,6 +891,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-analytics.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
@@ -903,6 +906,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-analytics.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
@@ -917,6 +921,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-analytics.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
@@ -931,6 +936,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-analytics.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
@@ -945,6 +951,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-analytics.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
@@ -959,6 +966,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-analytics.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
@@ -973,6 +981,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-analytics.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
@@ -987,6 +996,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-analytics.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
@@ -1001,6 +1011,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-analytics.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts
@@ -1022,6 +1033,7 @@ routes:
       - tests/phase-8a-occurrence-advance.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
+      - tests/sequence-analytics.test.ts
       - tests/sequence-create-nested-steps.test.ts
       - tests/sequence-enrollment-peer-authorization.test.ts
       - tests/sequence-guards.test.ts

@@ -30,11 +30,16 @@ interface SequenceAnalytics {
   totalSends: number;
   uniqueReplies: number;
   bounceCount: number;
-  replyRate: number;
-  bounceRate: number;
+  /** Null when nothing was sent — shown as "—", not 0%. */
+  replyRate: number | null;
+  bounceRate: number | null;
+  /** The last 30 calendar days, oldest first, with a zero for a quiet day. */
   sendsByDay: { date: string; count: number }[];
-  stepBreakdown: { step: number; channel: string; sent: number; replies: number }[];
+  /** `step` is null for emails from steps that were removed. */
+  stepBreakdown: { step: number | null; channel: string; sent: number; replies: number }[];
 }
+
+const rateText = (rate: number | null) => (rate === null ? '—' : `${rate}%`);
 
 export default function SequencePerformancePage() {
   const { showToast } = useToast();
@@ -123,7 +128,7 @@ export default function SequencePerformancePage() {
             {stats?.activeEnrollments ?? 0}
           </div>
           <div className="type-meta text-text-muted mt-1">
-            of {stats?.totalLeads ?? 0} total leads
+            on {stats?.totalLeads ?? 0} active leads
           </div>
         </div>
 
@@ -136,7 +141,7 @@ export default function SequencePerformancePage() {
             {stats?.totalBounces ?? 0}
           </div>
           <div className="type-meta text-text-muted mt-1">
-            flagged invalid
+            emails bounced, last 30 days
           </div>
         </div>
       </div>
@@ -147,7 +152,7 @@ export default function SequencePerformancePage() {
           <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm">
             <h2 className="font-display font-bold text-sm text-text-primary mb-3 flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-brand-orange-text" />
-              Your Sequences
+              Sequences
             </h2>
             <div className="space-y-1">
               {stats?.sequences.map((seq) => (
@@ -168,7 +173,7 @@ export default function SequencePerformancePage() {
               ))}
               {(!stats?.sequences || stats.sequences.length === 0) && (
                 <p className="type-body text-text-muted py-4 text-center">
-                  No sequences yet. Create sequences in the Sequence Builder.
+                  No sequence has leads you can see yet.
                 </p>
               )}
             </div>
@@ -192,11 +197,11 @@ export default function SequencePerformancePage() {
                   </div>
                   <div>
                     <div className="text-[10px] text-text-muted uppercase">Reply Rate</div>
-                    <div className="text-lg font-display font-extrabold text-emerald-500">{seqAnalytics.replyRate}%</div>
+                    <div className="text-lg font-display font-extrabold text-emerald-500">{rateText(seqAnalytics.replyRate)}</div>
                   </div>
                   <div>
                     <div className="text-[10px] text-text-muted uppercase">Bounce Rate</div>
-                    <div className="text-lg font-display font-extrabold text-red-500">{seqAnalytics.bounceRate}%</div>
+                    <div className="text-lg font-display font-extrabold text-red-500">{rateText(seqAnalytics.bounceRate)}</div>
                   </div>
                 </div>
                 <div className="grid grid-cols-4 gap-4 mt-4 pt-4 border-t border-card-border">
@@ -228,17 +233,20 @@ export default function SequencePerformancePage() {
                 <div className="space-y-2">
                   {seqAnalytics.stepBreakdown.map((step) => (
                     <div
-                      key={step.step}
+                      key={step.step ?? 'removed'}
                       className="flex items-center justify-between px-3 py-2 bg-bg-main rounded-xl border border-card-border"
                     >
                       <div className="flex items-center gap-3">
                         <span className="w-6 h-6 rounded-lg bg-card-border/40 border border-card-border flex items-center justify-center font-mono font-bold text-[10px] text-text-secondary">
-                          {step.step}
+                          {step.step ?? '–'}
                         </span>
-                        <span className="text-xs font-semibold text-text-primary capitalize">{step.channel}</span>
+                        <span className="text-xs font-semibold text-text-primary capitalize">
+                          {step.step === null ? 'Removed steps' : step.channel}
+                        </span>
                       </div>
                       <div className="flex items-center gap-4 text-[10px] font-mono">
                         <span className="text-text-muted">{step.sent} sent</span>
+                        <span className="text-text-muted">{step.replies} replied</span>
                       </div>
                     </div>
                   ))}
@@ -249,18 +257,18 @@ export default function SequencePerformancePage() {
               </div>
 
               {/* Send activity chart */}
-              {seqAnalytics.sendsByDay.length > 0 && (
+              {seqAnalytics.sendsByDay.some((day) => day.count > 0) && (
                 <div className="bg-card-bg border border-card-border rounded-2xl p-4 shadow-sm">
                   <h2 className="font-display font-bold text-sm text-text-primary mb-4">Send Activity (Last 30 Days)</h2>
                   <div className="flex items-end gap-1 h-24">
-                    {seqAnalytics.sendsByDay.slice(-30).map((day) => {
+                    {seqAnalytics.sendsByDay.map((day) => {
                       const max = Math.max(...seqAnalytics.sendsByDay.map(d => d.count), 1);
                       const height = (day.count / max) * 100;
                       return (
                         <div
                           key={day.date}
                           className="flex-1 bg-brand-red/20 hover:bg-brand-red/40 rounded-t relative group transition-colors min-w-[4px]"
-                          style={{ height: `${Math.max(height, 4)}%` }}
+                          style={{ height: `${day.count === 0 ? 0 : Math.max(height, 4)}%` }}
                           title={`${day.date}: ${day.count} sends`}
                         />
                       );
@@ -295,9 +303,9 @@ export default function SequencePerformancePage() {
           <div>
             <h3 className="font-display font-bold text-sm text-text-primary mb-1">Smart Send-Time Optimization</h3>
             <p className="type-body text-text-muted leading-relaxed max-w-[68ch]">
-              Emails are automatically scheduled during business hours based on the lead&apos;s detected timezone.
-              Sends are distributed in 2-hour windows to avoid spam-filter clustering, with a maximum of 80 sends/day
-              per email account. A/B subject line testing is supported for templates with variants configured.
+              Emails are scheduled inside each step&apos;s send window in the lead&apos;s timezone, spread across the
+              window rather than sent in a burst, and each mailbox stays within its own daily and hourly caps.
+              A/B subject lines are tested for templates with variants configured.
             </p>
           </div>
         </div>
