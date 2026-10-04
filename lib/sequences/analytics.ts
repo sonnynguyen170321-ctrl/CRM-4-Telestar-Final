@@ -49,11 +49,35 @@ export interface TemplateAnalytics {
   variants: { version: string; sent: number; replies: number; rate: number }[];
 }
 
-/** One sequence, all time, plus the last 30 days of sends. Null when not in this tenant. */
-export async function getSequenceAnalytics(sequenceId: string, tenantId: string): Promise<SequenceAnalytics | null> {
+/** What a viewer may count: their leads (`getLeadWhereScope`), archived leads left out. */
+async function viewerScope(user: SessionUser): Promise<{ tenantId: string; leads: Prisma.LeadWhereInput; timezone: string }> {
+  if (!user.tenantId) throw new Error('sequence analytics need a tenant');
+  const [scope, viewer] = await Promise.all([
+    getLeadWhereScope(user),
+    prisma.user.findUnique({ where: { id: user.id }, select: { timezone: true } }),
+  ]);
+  // AND, so an extra condition can never widen what the viewer may see.
+  return {
+    tenantId: user.tenantId,
+    leads: { AND: [scope as Prisma.LeadWhereInput, { archivedAt: null }] },
+    timezone: viewer?.timezone || 'UTC',
+  };
+}
+
+/**
+ * One sequence for one viewer: all time, plus the last 30 days of sends. Scoped like the list it
+ * is opened from, so the drill-down and the list beside it describe the same leads. Null when the
+ * sequence is not in this tenant.
+ */
+export async function getSequenceAnalytics(
+  sequenceId: string,
+  user: SessionUser,
+  now: Date = new Date()
+): Promise<SequenceAnalytics | null> {
+  const { tenantId, leads, timezone } = await viewerScope(user);
   const [performance, sendsByDay] = await Promise.all([
-    getSequencePerformance({ tenantId, sequenceId, window: 'all' }),
-    getDailySends({ tenantId, sequenceId }),
+    getSequencePerformance({ tenantId, sequenceId, window: 'all', leadWhere: leads, now }),
+    getDailySends({ tenantId, sequenceId, leadWhere: leads, timezone, now }),
   ]);
   if (!performance) return null;
   const { enrollments, totals, steps } = performance;
@@ -127,17 +151,14 @@ const DAY_MS = 86_400_000;
  * Leadgen report alike, so the same viewer gets the same numbers on every page.
  */
 export async function getScopedSequenceStats(user: SessionUser, now: Date = new Date()): Promise<ScopedSequenceStats> {
-  if (!user.tenantId) throw new Error('getScopedSequenceStats needs a tenant');
-  const tenantId = user.tenantId;
-
-  const viewer = await prisma.user.findUnique({ where: { id: user.id }, select: { timezone: true } });
-  const { start: todayStart } = getLocalDayBoundaries(now, viewer?.timezone || 'UTC');
+  const { tenantId, leads: activeLeads, timezone } = await viewerScope(user);
+  const { start: todayStart } = getLocalDayBoundaries(now, timezone);
   const weekAgo = new Date(now.getTime() - 7 * DAY_MS);
   const monthAgo = new Date(now.getTime() - 30 * DAY_MS);
-
-  const leadScope = (await getLeadWhereScope(user)) as Prisma.LeadWhereInput;
-  // AND, so an extra condition can never widen what the viewer may see.
-  const activeLeads: Prisma.LeadWhereInput = { AND: [leadScope, { archivedAt: null }] };
+  // Replies and bounces are counted by when they happened, but only on messages sent in the last
+  // 90 days — a reply to a three-month-old email is vanishingly rare, and the bound keeps the
+  // count on the (tenant, sequence, sentAt) index instead of scanning every message ever sent.
+  const replyHorizon = new Date(now.getTime() - 90 * DAY_MS);
 
   const messages = (condition: Prisma.OutboundMessageWhereInput) =>
     prisma.outboundMessage.count({
@@ -147,13 +168,15 @@ export async function getScopedSequenceStats(user: SessionUser, now: Date = new 
   const [totalLeads, activeEnrollments, todaySends, weekSends, monthSends, todayReplies, weekReplies, totalBounces, byStatus] =
     await Promise.all([
       prisma.lead.count({ where: { AND: [activeLeads, { tenantId }] } }),
-      prisma.sequenceEnrollment.count({ where: { tenantId, status: 'active', lead: activeLeads } }),
+      prisma.sequenceEnrollment.count({
+        where: { tenantId, status: 'active', lead: activeLeads, sequence: { isArchived: false } },
+      }),
       messages({ sentAt: { gte: todayStart } }),
       messages({ sentAt: { gte: weekAgo } }),
       messages({ sentAt: { gte: monthAgo } }),
-      messages({ repliedAt: { gte: todayStart } }),
-      messages({ repliedAt: { gte: weekAgo } }),
-      messages({ bouncedAt: { gte: monthAgo } }),
+      messages({ repliedAt: { gte: todayStart }, sentAt: { gte: replyHorizon } }),
+      messages({ repliedAt: { gte: weekAgo }, sentAt: { gte: replyHorizon } }),
+      messages({ bouncedAt: { gte: monthAgo }, sentAt: { gte: replyHorizon } }),
       prisma.sequenceEnrollment.groupBy({
         by: ['sequenceId', 'status'],
         where: { tenantId, lead: activeLeads },

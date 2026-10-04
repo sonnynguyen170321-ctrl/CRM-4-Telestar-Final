@@ -147,7 +147,7 @@ describe('the per-sequence drill-down', () => {
       await message({ leadId: a, sequenceId: ids.seqA, sentAt: hoursAgo(2), dryRun: true }); // never left the building
       await message({ leadId: a, sequenceId: ids.seqA, sentAt: null }); // queued
       await message({ leadId: b, sequenceId: ids.seqA, step: 4, sentAt: hoursAgo(5) }); // step since removed
-      return getSequenceAnalytics(ids.seqA, tenantId);
+      return getSequenceAnalytics(ids.seqA, session(ids.director, 'director'), NOW);
     });
 
     expect(result).toMatchObject({
@@ -166,8 +166,35 @@ describe('the per-sequence drill-down', () => {
     expect(result?.sendsByDay.reduce((sum, day) => sum + day.count, 0)).toBe(3);
   });
 
+  it('shows a viewer only their own leads, like the list it is opened from', async () => {
+    const result = await inTenant(async () => {
+      const mine = await lead(ids.outsider);
+      const theirs = await lead(ids.report);
+      await enroll(mine, ids.seqB);
+      await enroll(theirs, ids.seqB);
+      await message({ leadId: mine, sequenceId: ids.seqB, sentAt: hoursAgo(2) });
+      await message({ leadId: theirs, sequenceId: ids.seqB, sentAt: hoursAgo(2), repliedAt: hoursAgo(1) });
+      return getSequenceAnalytics(ids.seqB, session(ids.outsider, 'sdr'), NOW);
+    });
+    expect(result).toMatchObject({ totalEnrolled: 1, totalSends: 1, uniqueReplies: 0 });
+  });
+
+  it('puts a send in the viewer local day, so the last bar of the chart is the "today" of the cards', async () => {
+    const result = await inTenant(async () => {
+      const a = await lead(ids.report);
+      await enroll(a, ids.seqA);
+      await message({ leadId: a, sequenceId: ids.seqA, sentAt: hoursAgo(2) }); // 01:00 on 5 Oct, local
+      await message({ leadId: a, sequenceId: ids.seqA, sentAt: hoursAgo(4) }); // 23:00 on 4 Oct, local
+      return getSequenceAnalytics(ids.seqA, session(ids.director, 'director'), NOW);
+    });
+    expect(result?.sendsByDay.slice(-2)).toEqual([
+      { date: '2026-10-04', count: 1 },
+      { date: '2026-10-05', count: 1 },
+    ]);
+  });
+
   it('reports a rate of nothing as null, not 0%', async () => {
-    const result = await inTenant(() => getSequenceAnalytics(ids.seqB, tenantId));
+    const result = await inTenant(() => getSequenceAnalytics(ids.seqB, session(ids.director, 'director'), NOW));
     expect(result).toMatchObject({ totalSends: 0, replyRate: null, bounceRate: null });
   });
 
@@ -194,6 +221,9 @@ describe('the overview and team numbers', () => {
       await enroll(mine, ids.seqB);
       await enroll(theirs, ids.seqB);
       await enroll(archived, ids.seqA);
+      // A cadence left running on a sequence since archived: not shown in the list, so not counted.
+      const shelved = await prisma.sequence.create({ data: { tenantId, name: 'Shelved', createdById: ids.director, isArchived: true } });
+      await enroll(mine, shelved.id);
       // 18:00 UTC = 01:00 on 5 Oct local: today. 16:00 UTC = 23:00 on 4 Oct local: not today.
       await message({ leadId: mine, sequenceId: ids.seqA, sentAt: hoursAgo(2), repliedAt: hoursAgo(1) });
       await message({ leadId: mine, sequenceId: ids.seqB, sentAt: hoursAgo(4) });

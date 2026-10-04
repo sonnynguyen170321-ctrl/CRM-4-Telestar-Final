@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 
+import { getLocalDayBoundaries } from '@/lib/dates/timezone';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -39,41 +40,47 @@ export const REAL_SEND: Prisma.OutboundMessageWhereInput = {
 /** Days in the sends-per-day series. */
 export const DAILY_SERIES_DAYS = 30;
 
-/** Sends per calendar day (UTC) for the last `days` days, oldest first, a zero for a quiet day. */
+/**
+ * Sends per calendar day in the viewer's timezone for the last `days` days, oldest first, a zero
+ * for a quiet day — so the last bar is the same "today" the cards count.
+ *
+ * One exact count per day rather than loading the rows: a busy tenant sends far more in a month
+ * than is worth pulling into memory, and a capped read would undercount without saying so.
+ */
 export async function getDailySends(input: {
   tenantId: string;
   sequenceId?: string;
   leadWhere?: Prisma.LeadWhereInput;
+  timezone?: string;
   days?: number;
   now?: Date;
 }): Promise<Array<{ date: string; count: number }>> {
   const days = input.days ?? DAILY_SERIES_DAYS;
   const now = input.now ?? new Date();
-  const firstDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (days - 1)));
-  const rows = await prisma.outboundMessage.findMany({
-    where: {
-      AND: [
-        REAL_SEND,
-        {
-          tenantId: input.tenantId,
-          ...(input.sequenceId ? { sequenceId: input.sequenceId } : { sequenceId: { not: null } }),
-          sentAt: { gte: firstDay },
-          ...(input.leadWhere ? { lead: input.leadWhere } : {}),
+  const timezone = input.timezone || 'UTC';
+  // Midnight of each day, oldest first, plus tomorrow's to close the last one.
+  const starts = Array.from({ length: days + 1 }, (_, index) =>
+    getLocalDayBoundaries(new Date(now.getTime() - (days - 1 - index) * 86_400_000), timezone).start
+  );
+  const label = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+  return Promise.all(
+    starts.slice(0, days).map(async (start, index) => ({
+      date: label.format(start),
+      count: await prisma.outboundMessage.count({
+        where: {
+          AND: [
+            REAL_SEND,
+            {
+              tenantId: input.tenantId,
+              ...(input.sequenceId ? { sequenceId: input.sequenceId } : { sequenceId: { not: null } }),
+              sentAt: { gte: start, lt: starts[index + 1] },
+              ...(input.leadWhere ? { lead: input.leadWhere } : {}),
+            },
+          ],
         },
-      ],
-    },
-    select: { sentAt: true },
-    take: 100_000,
-  });
-  const counts = new Map<string, number>();
-  for (const row of rows) {
-    const key = row.sentAt!.toISOString().slice(0, 10);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return Array.from({ length: days }, (_, index) => {
-    const date = new Date(firstDay.getTime() + index * 86_400_000).toISOString().slice(0, 10);
-    return { date, count: counts.get(date) ?? 0 };
-  });
+      }),
+    }))
+  );
 }
 
 export const PERFORMANCE_WINDOWS = { '7d': 7, '30d': 30, '90d': 90, all: null } as const;
@@ -127,6 +134,8 @@ export async function getSequencePerformance(input: {
   sequenceId: string;
   window?: PerformanceWindow;
   now?: Date;
+  /** Count only these leads (a viewer's scope). Omitted: every lead in the tenant. */
+  leadWhere?: Prisma.LeadWhereInput;
 }): Promise<SequencePerformance | null> {
   const window = input.window ?? '30d';
   const days = PERFORMANCE_WINDOWS[window];
@@ -147,6 +156,7 @@ export async function getSequencePerformance(input: {
     tenantId: input.tenantId,
     sequenceId: input.sequenceId,
     sentAt: since ? { gte: since } : { not: null },
+    ...(input.leadWhere ? { lead: input.leadWhere } : {}),
   };
   const countByStep = (extra: Prisma.OutboundMessageWhereInput) =>
     prisma.outboundMessage.groupBy({
@@ -158,7 +168,7 @@ export async function getSequencePerformance(input: {
   const [byStatus, ...grouped] = await Promise.all([
     prisma.sequenceEnrollment.groupBy({
       by: ['status'],
-      where: { tenantId: input.tenantId, sequenceId: input.sequenceId },
+      where: { tenantId: input.tenantId, sequenceId: input.sequenceId, ...(input.leadWhere ? { lead: input.leadWhere } : {}) },
       _count: { _all: true },
     }),
     countByStep({}),
