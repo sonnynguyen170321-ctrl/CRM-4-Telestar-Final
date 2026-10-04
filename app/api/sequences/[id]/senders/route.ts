@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { requireAuth, type SessionUser } from '@/lib/auth';
 import { MANAGER_ROLES } from '@/lib/authRoles';
 import { prisma } from '@/lib/prisma';
+import { logAdminAudit } from '@/lib/audit';
 import { parseBody } from '@/lib/validation/core';
 
 /**
@@ -97,5 +98,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   ]);
 
   const senders = await listSenders(id, tenantId);
+  await logAdminAudit({
+    actorId: user.id,
+    action: 'admin.sequence.senders',
+    tableName: 'Sequence',
+    recordId: id,
+    // Mailbox ids, not addresses: the audit log is read more widely than the mailbox list.
+    changedFields: { senderAccountIds: senders.map((row) => row.emailAccount.id) },
+  });
   return NextResponse.json({ senders: senders.map((row) => row.emailAccount) });
 }
