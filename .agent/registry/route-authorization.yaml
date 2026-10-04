@@ -13,7 +13,7 @@
 # `tests/route-authorization.test.ts` fails when a mutating route has neither a guard nor a
 # hand-written `reason`. Reasons survive regeneration; they are the only part a human owns.
 #
-# routes: 196   mutating: 121   mutating with neither guard nor reason: 47
+# routes: 197   mutating: 122   mutating with neither guard nor reason: 47
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -672,6 +672,10 @@ routes:
   - path: app/api/team/sdr-progress/route.ts
     methods: [GET]
     guards: []
+  - path: app/api/telephony/token/route.ts
+    methods: [POST]
+    guards: []
+    reason: Takes no record id — the user and tenant come only from the session, so a rep can only ever create or use their own softphone credential. Refused unless the deployment flag and the tenant's TelephonySettings (enabled, kill switch off) allow it; one token per rep per 10 seconds.
   - path: app/api/templates/[id]/ab-test/route.ts
     methods: [DELETE, GET, POST]
     guards: []

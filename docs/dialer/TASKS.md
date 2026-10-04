@@ -49,6 +49,15 @@ click-to-call and update ADR-001 before Phase 2.
 | D2.7 | `Telephony` env group | `lib/env-contract.ts`, `crm.env.example`, `scripts/prod-check-env.ts` | Env contract test | — | C |
 | D2.8 | Production env values | VPS env | `prod-check-env` passes | D2.7 | O |
 
+**Done 2026-10-05 (D2.1–D2.7).** Changes from the plan, from the security and code reviews: concurrent
+first requests for a rep share one in-process creation (not a database lock — the provider call must
+not hold a pooled connection, or the 08:00 first logins would starve the app's pool); `createCredential`
+is never retried and a credential is adopted by its exact name (`crm:<tenant>:<user>`) when an earlier
+create's answer was lost; an unsaved credential is revoked unless another row holds it; a signing
+secret under 32 characters (or with surrounding whitespace) counts as not configured; the deploy gate (`lib/telephony/envCheck.ts`) fails
+an enabled dialer with a missing or malformed variable. Every staff role may get a token — the `Role`
+enum has no client or viewer role; revisit if one is added.
+
 ## Phase 3 — Compliance gate
 | ID | Task | Files | Tests | Deps | Owner |
 |---|---|---|---|---|---|
@@ -59,7 +68,7 @@ click-to-call and update ADR-001 before Phase 2.
 ## Phase 4 — Webhooks, worker, reconciliation
 | ID | Task | Files | Tests | Deps | Owner |
 |---|---|---|---|---|---|
-| D4.1 | Webhook route: verify → inbox insert (on conflict do nothing) → `call.initiated` inline (token + hours → connect or hang up, fail-closed) → enqueue the rest → 200 | `app/api/telephony/telnyx/webhook/route.ts` | Bad signature 401; duplicate; out-of-order; invalid token ⇒ hangup; 5xx only on insert failure | D2.2, D3.3 | C |
+| D4.1 | Webhook route: verify → inbox insert (on conflict do nothing) → `call.initiated` inline (token + hours → connect or hang up, fail-closed) → enqueue the rest → 200 | `app/api/telephony/telnyx/webhook/route.ts` | Bad signature 401; duplicate; out-of-order; invalid token ⇒ hangup; **token used twice ⇒ second hangup** (claim the `Call` row `authorized → initiated` with a guarded update: the HMAC token alone is replayable for its 120 s); event id seen twice ⇒ one inbox row (signature only bounds replay to 300 s); 5xx only on insert failure | D2.2, D3.3 | C |
 | D4.2 | Proxy matcher exclusion; route-authorization `public` reason | `proxy.ts`, registry | Authorization coverage gate | D4.1 | C |
 | D4.3 | `telephony` queue + worker: correlate by session id, forward-only status, finalize duration/cause, write `call_made` once (`call:<id>:final`) | `lib/bullmq/types.ts`, `queues.ts`, `jobOptions.ts`, `workers/telephony.ts`, `workers/index.ts` | Replay ⇒ one Activity. Mutants: status order, idempotency key | D4.1 | C |
 | D4.4 | Reconcile cron (5 min): replay unprocessed events, cancel stale `authorized`, finalize stuck calls | `app/api/cron/telephony-reconcile/route.ts` | `CRON_SECRET` required; each repair branch | D4.3 | C |

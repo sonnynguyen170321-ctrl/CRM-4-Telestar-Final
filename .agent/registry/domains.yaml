@@ -334,6 +334,8 @@ domains:
     # Each dialer phase adds its own paths (lib/telephony, app/api/telephony, components/dialer,
     # workers/telephony.ts) when it creates them — the registry only accepts paths that exist.
     paths:
+      - lib/telephony/**
+      - app/api/telephony/**
       - app/api/dialer/**
       - components/CallDialerModal.tsx
       - docs/dialer/**

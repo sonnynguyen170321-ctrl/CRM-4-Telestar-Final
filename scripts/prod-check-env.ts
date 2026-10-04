@@ -1,5 +1,6 @@
 import { parseEnvFile } from './prod-env';
 import { describeMutableImageRef } from '@/lib/release';
+import { checkTelephonyEnv } from '@/lib/telephony/envCheck';
 import {
   placeholderPattern,
   parseUrl,
@@ -147,6 +148,8 @@ const validate = (): Check[] => {
   if (env.SEQUENCE_AUTOSEND_ENABLED && !['true', 'false'].includes(env.SEQUENCE_AUTOSEND_ENABLED)) {
     add(checks, 'FAIL', 'SEQUENCE_AUTOSEND_ENABLED must be "true" or "false"');
   }
+
+  checks.push(...checkTelephonyEnv(env));
 
   if (!checks.some((check) => check.level === 'FAIL')) {
     add(checks, 'PASS', 'Production env passed validation');

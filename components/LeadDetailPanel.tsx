@@ -1180,7 +1180,9 @@ function LeadDetailPanelBody({
                     !lead.phone
                       ? 'No phone number'
                       : dialerReady?.configured === false
-                        ? `Telephony is not configured on this deployment (missing ${dialerReady.missing.join(', ')})`
+                        ? dialerReady.missing.length === 0
+                          ? 'The new dialer is being set up'
+                          : `Telephony is not configured on this deployment (missing ${dialerReady.missing.join(', ')})`
                         : `Call ${lead.phone}`
                   }
                   className={`flex flex-col items-center justify-center p-2.5 rounded-xl transition-all text-center gap-1 ${

@@ -1,60 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import type { SessionUser } from '@/lib/auth';
 
 /**
- * SIP registration details for the browser softphone.
+ * The legacy SIP dialer's config route — retired (docs/dialer/TASKS.md D2.6).
  *
- * Every field used to carry a hardcoded fallback — a PBX hostname, extension `101`, and a
- * plaintext password committed to this repository and served to any authenticated browser. The
- * damage was not only the leaked credential. Because the fallbacks were never empty, the client's
- * "incomplete SIP configuration" guard could not fire, so the app had no way to tell *unconfigured*
- * from *configured*. On a host without SIP the dialer therefore connected to someone else's PBX or
- * failed, and `CallDialerModal` caught the failure and simulated a connected call — after which
- * "Hang Up & Save Outcome" wrote a real Activity for a call that never happened.
+ * It served one deployment-wide SIP password to every signed-in browser that asked with
+ * `?withCredentials`, so the sip.js softphone in `components/CallDialerModal.tsx` could register.
+ * That dialer never worked in production (the Permissions-Policy header blocks the microphone) and is
+ * being replaced by the Telnyx softphone, which logs in with a short-lived per-rep token from
+ * `POST /api/telephony/token` and never sees a password.
  *
- * So this reports readiness instead of guessing, exactly as app/api/email/providers/route.ts does
- * for OAuth, and the UI disables the Call button and says which variables are missing.
+ * Until the old modal is deleted (Phase 5) this answers "not configured" with no credentials, whatever
+ * the environment holds, so the old Call button stays disabled and no shared secret can leave the server.
  */
-const SIP_KEYS = [
-  'SIP_WEBSOCKET_URL',
-  'SIP_DOMAIN',
-  'SIP_DEFAULT_USERNAME',
-  'SIP_DEFAULT_PASSWORD',
-] as const;
-
-export async function GET(req: NextRequest) {
+export async function GET() {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
-  const user = userOrRes as SessionUser;
-
-  const missing = SIP_KEYS.filter((key) => !process.env[key]?.trim());
-
-  // Readiness is what the lead panel needs to decide whether the Call button is usable, and it
-  // needs it on every lead it opens. Credentials are what the dialer needs, once, at the moment a
-  // call starts. Serving both from one unconditional response meant the SIP password was handed
-  // out on every one of those reads; asking for it explicitly keeps it to the one caller that
-  // actually places calls.
-  if (!req.nextUrl.searchParams.has('withCredentials')) {
-    return NextResponse.json({ configured: missing.length === 0, missing });
-  }
-
-  if (missing.length > 0) {
-    // 200, not an error status: "no telephony on this deployment" is a configuration answer the
-    // UI renders as a disabled button, not a request that failed.
-    return NextResponse.json({ configured: false, missing });
-  }
-
-  // A browser softphone has to receive credentials — SIP.js registers from the page. What it must
-  // not receive is a *shared* credential. These are still deployment-wide; per-user extensions
-  // belong on the user row, and until they exist every rep registers as the same extension.
-  return NextResponse.json({
-    configured: true,
-    missing: [],
-    websocketUrl: process.env.SIP_WEBSOCKET_URL,
-    domain: process.env.SIP_DOMAIN,
-    username: process.env.SIP_DEFAULT_USERNAME,
-    password: process.env.SIP_DEFAULT_PASSWORD,
-    identity: user.id,
-  });
+  return NextResponse.json(
+    { configured: false, missing: [], retired: true },
+    { headers: { 'Cache-Control': 'no-store' } }
+  );
 }
