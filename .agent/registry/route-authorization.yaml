@@ -13,7 +13,7 @@
 # `tests/route-authorization.test.ts` fails when a mutating route has neither a guard nor a
 # hand-written `reason`. Reasons survive regeneration; they are the only part a human owns.
 #
-# routes: 194   mutating: 121   mutating with neither guard nor reason: 47
+# routes: 195   mutating: 121   mutating with neither guard nor reason: 47
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -74,7 +74,8 @@ routes:
       - canAccessLead (via lib/leads/context.ts)
   - path: app/api/ai/console/route.ts
     methods: [GET]
-    guards: []
+    guards:
+      - getLeadWhereScope (via lib/console/aiConsole.ts)
   - path: app/api/ai/daily-briefing/route.ts
     methods: [GET]
     guards: []
@@ -223,6 +224,10 @@ routes:
     methods: [POST]
     guards: []
     reason: A browser CSP violation sink. Touches no tenant-owned record and identifies nobody; its body is a report, not a request to change anything.
+  - path: app/api/dashboard/my-day/route.ts
+    methods: [GET]
+    guards:
+      - getLeadWhereScope (via lib/dashboard/myDay.ts)
   - path: app/api/demo/diagnostics/route.ts
     methods: [GET]
     guards:

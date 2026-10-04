@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 194   mutating: 121   mutating without a test: 19
+# routes: 195   mutating: 121   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -351,6 +351,9 @@ routes:
   - path: app/api/csp-report/route.ts
     methods: [POST]
     tests: []
+  - path: app/api/dashboard/my-day/route.ts
+    methods: [GET]
+    tests: []
   - path: app/api/demo/diagnostics/route.ts
     methods: [GET]
     tests:
@@ -613,6 +616,7 @@ routes:
       - e2e/certification/six-role-acceptance.spec.ts
       - e2e/journeys/commercial-intelligence.spec.ts
       - e2e/leads/dashboard-counters.spec.ts
+      - e2e/leads/drawer-navigation.spec.ts
       - e2e/leads/filters-and-scope.spec.ts
       - e2e/leads/lead-crud.spec.ts
       - e2e/meetings/meeting-to-opportunity.spec.ts
@@ -642,6 +646,7 @@ routes:
       - e2e/certification/six-role-acceptance.spec.ts
       - e2e/journeys/commercial-intelligence.spec.ts
       - e2e/leads/dashboard-counters.spec.ts
+      - e2e/leads/drawer-navigation.spec.ts
       - e2e/leads/filters-and-scope.spec.ts
       - e2e/leads/lead-crud.spec.ts
       - e2e/meetings/meeting-to-opportunity.spec.ts
@@ -686,6 +691,7 @@ routes:
       - e2e/certification/six-role-acceptance.spec.ts
       - e2e/journeys/commercial-intelligence.spec.ts
       - e2e/leads/dashboard-counters.spec.ts
+      - e2e/leads/drawer-navigation.spec.ts
       - e2e/leads/filters-and-scope.spec.ts
       - e2e/leads/lead-crud.spec.ts
       - e2e/meetings/meeting-to-opportunity.spec.ts

@@ -1,6 +1,8 @@
+import type { Prisma } from '@prisma/client';
+
 import { prisma } from '@/lib/prisma';
-import type { SessionUser } from '@/lib/auth';
-import { computeVisibleUserIds } from '@/lib/podScoping';
+import { getLeadWhereScope, type SessionUser } from '@/lib/auth';
+import { getLocalDayBoundaries } from '@/lib/dates/timezone';
 import { CLASS_LABEL, KIND_LABEL, type ReplyClass, type ReplyKind } from '@/lib/replies/types';
 
 /**
@@ -76,7 +78,15 @@ export interface AiConsole {
   /** Recent AI/CRM events, newest first — the "what happened" column. */
   timeline: Array<{ at: Date; leadId: string | null; type: string; description: string }>;
   totals: { aiManaged: number; humanOwned: number; needsAttention: number; blocked: number };
+  /** Replies from a person (not an out-of-office) since midnight in the viewer's timezone. */
+  repliesToday: number;
 }
+
+/** Reply classes that are a person answering. Class B (out-of-office, wrong person) is not. */
+const HUMAN_REPLY_CLASSES = ['A', 'C', 'D'];
+
+/** Prospects listed per bucket. The counts are exact; only the lists are this long. */
+const LIST_LIMIT = 300;
 
 const BUCKET_META: Record<BucketKey, { label: string; hint: string }> = {
   needs_attention: { label: 'Needs my attention', hint: 'A prospect replied. AI has stopped.' },
@@ -100,26 +110,38 @@ const STATE_BUCKET: Partial<Record<string, BucketKey>> = {
   reengagement_eligible: 'reengagement_eligible',
 };
 
-export async function buildAiConsole(user: SessionUser): Promise<AiConsole> {
+/**
+ * The board for one viewer.
+ *
+ * Scope is the CRM's lead scope (`getLeadWhereScope`) — the one the Leads page applies — so a
+ * team lead's board and their Leads list describe the same prospects. `focusUserId` narrows a
+ * manager's board to one rep (Home's rep picker); it is AND-ed with the scope, so it can only
+ * narrow, never reach a rep the viewer cannot see.
+ *
+ * Every count is exact. The lists under each bucket are capped at `LIST_LIMIT`; the counts were
+ * once those lists' lengths, which stopped at 300 for any team larger than that.
+ */
+export async function buildAiConsole(
+  user: SessionUser,
+  options: { focusUserId?: string | null; now?: Date } = {}
+): Promise<AiConsole> {
   const tenantId = user.tenantId as string;
   const scope: 'own' | 'team' = user.role === 'sdr' ? 'own' : 'team';
+  const focusUserId = user.role === 'sdr' ? null : options.focusUserId ?? null;
 
-  // The CRM's own pod/role walk — the same one the team surfaces use. An SDR sees their prospects,
-  // a Team Lead their pod, a Director everyone. There is no AI-side role matrix.
-  const allUsers = await prisma.user.findMany({
-    where: { tenantId },
-    select: { id: true, role: true, managerId: true },
-  });
-  // null means "everyone" — a Director is not scoped down to a list.
-  const userIds = computeVisibleUserIds(allUsers, user);
+  const leadScope = (await getLeadWhereScope(user)) as Prisma.LeadWhereInput;
+  const unrestricted = Object.keys(leadScope).length === 0 && !focusUserId;
+  // The prospects this viewer may see, archived ones left out.
+  const visibleLeads: Prisma.LeadWhereInput = {
+    AND: [leadScope, { tenantId, archivedAt: null }, ...(focusUserId ? [{ assignedToId: focusUserId }] : [])],
+  };
+  const boardLeads: Prisma.LeadWhereInput = { AND: [visibleLeads, { operatingState: { not: 'unassigned' } }] };
+
+  const tzOwner = await prisma.user.findUnique({ where: { id: focusUserId ?? user.id }, select: { timezone: true } });
+  const { start: todayStart } = getLocalDayBoundaries(options.now ?? new Date(), tzOwner?.timezone || 'UTC');
 
   const leads = await prisma.lead.findMany({
-    where: {
-      tenantId,
-      ...(userIds ? { assignedToId: { in: userIds } } : {}),
-      archivedAt: null,
-      operatingState: { not: 'unassigned' },
-    },
+    where: boardLeads,
     select: {
       id: true, firstName: true, lastName: true, company: true, title: true,
       operatingState: true, stage: true, crmPriorityScore: true, assignedToId: true,
@@ -138,7 +160,7 @@ export async function buildAiConsole(user: SessionUser): Promise<AiConsole> {
       },
     },
     orderBy: { updatedAt: 'desc' },
-    take: 300,
+    take: LIST_LIMIT,
   });
 
   const toProspect = (l: (typeof leads)[number]): ConsoleProspect => {
@@ -182,15 +204,30 @@ export async function buildAiConsole(user: SessionUser): Promise<AiConsole> {
     }
   }
 
-  const [pendingApprovals, blockedOrders, activities] = await Promise.all([
+  // Approval requests carry a lead id but no relation, so a scoped viewer's are matched by id.
+  const visibleLeadIds = unrestricted
+    ? null
+    : (await prisma.lead.findMany({ where: visibleLeads, select: { id: true } })).map((lead) => lead.id);
+  const approvalWhere: Prisma.AgentApprovalRequestWhereInput = {
+    tenantId,
+    status: 'pending',
+    ...(visibleLeadIds ? { leadId: { in: visibleLeadIds } } : {}),
+  };
+  const blockedWhere: Prisma.WorkOrderWhereInput = {
+    tenantId,
+    status: { in: ['paused', 'failed'] },
+    ...(unrestricted ? {} : { lead: visibleLeads }),
+  };
+
+  const [pendingApprovals, blockedOrders, activities, approvalCount, blockedCount, stateCounts, draftCount, repliesToday] = await Promise.all([
     prisma.agentApprovalRequest.findMany({
-      where: { tenantId, status: 'pending' },
+      where: approvalWhere,
       orderBy: { createdAt: 'desc' },
       take: 25,
       select: { id: true, capability: true, toolName: true, leadId: true, requiredLevel: true, createdAt: true, status: true },
     }),
     prisma.workOrder.findMany({
-      where: { tenantId, status: { in: ['paused', 'failed'] } },
+      where: blockedWhere,
       orderBy: { updatedAt: 'desc' },
       take: 25,
       select: { id: true, type: true, status: true, pausedReason: true, leadId: true, updatedAt: true },
@@ -198,6 +235,7 @@ export async function buildAiConsole(user: SessionUser): Promise<AiConsole> {
     prisma.activity.findMany({
       where: {
         tenantId,
+        ...(unrestricted ? {} : { lead: visibleLeads }),
         type: {
           in: [
             'prospect_handed_off', 'prospect_handed_back', 'prospect_reengagement_eligible',
@@ -211,7 +249,34 @@ export async function buildAiConsole(user: SessionUser): Promise<AiConsole> {
       take: 40,
       select: { createdAt: true, leadId: true, type: true, description: true },
     }),
+    prisma.agentApprovalRequest.count({ where: approvalWhere }),
+    prisma.workOrder.count({ where: blockedWhere }),
+    prisma.lead.groupBy({ by: ['operatingState'], where: boardLeads, _count: { _all: true } }),
+    // A classified sales reply on a prospect not yet completed: a draft can be generated.
+    prisma.lead.count({
+      where: {
+        AND: [
+          boardLeads,
+          { operatingState: { not: 'completed' } },
+          { inboundMessages: { some: { replyClass: { in: ['C', 'D'] } } } },
+        ],
+      },
+    }),
+    prisma.inboundMessage.count({
+      where: { tenantId, replyClass: { in: HUMAN_REPLY_CLASSES }, date: { gte: todayStart }, lead: visibleLeads },
+    }),
   ]);
+
+  // Exact per-bucket counts, from the state every prospect is in — not the length of a capped list.
+  const exactCount = new Map<BucketKey, number>();
+  for (const row of stateCounts) {
+    const key = STATE_BUCKET[row.operatingState];
+    if (key) exactCount.set(key, (exactCount.get(key) ?? 0) + row._count._all);
+  }
+  exactCount.set('draft_available', draftCount);
+  exactCount.set('approval_pending', approvalCount);
+  exactCount.set('blocked', blockedCount);
+  const countOf = (key: BucketKey) => exactCount.get(key) ?? 0;
 
   const approvals: ConsoleWorkItem[] = pendingApprovals.map((a) => ({
     id: a.id,
@@ -238,12 +303,13 @@ export async function buildAiConsole(user: SessionUser): Promise<AiConsole> {
   }
   byBucket.set('approval_pending', byBucket.get('approval_pending') ?? []);
 
-  const buckets: ConsoleBucket[] = (Object.keys(BUCKET_META) as BucketKey[]).map((key) => {
-    const prospects = byBucket.get(key) ?? [];
-    const count =
-      key === 'approval_pending' ? approvals.length : key === 'blocked' ? blocked.length : prospects.length;
-    return { key, label: BUCKET_META[key].label, hint: BUCKET_META[key].hint, count, prospects };
-  });
+  const buckets: ConsoleBucket[] = (Object.keys(BUCKET_META) as BucketKey[]).map((key) => ({
+    key,
+    label: BUCKET_META[key].label,
+    hint: BUCKET_META[key].hint,
+    count: countOf(key),
+    prospects: byBucket.get(key) ?? [],
+  }));
 
   return {
     scope,
@@ -257,13 +323,11 @@ export async function buildAiConsole(user: SessionUser): Promise<AiConsole> {
       description: a.description ?? a.type,
     })),
     totals: {
-      aiManaged: (byBucket.get('ai_managed') ?? []).length,
-      humanOwned:
-        (byBucket.get('needs_attention') ?? []).length +
-        (byBucket.get('human_managed') ?? []).length +
-        (byBucket.get('waiting') ?? []).length,
-      needsAttention: (byBucket.get('needs_attention') ?? []).length,
-      blocked: blocked.length,
+      aiManaged: countOf('ai_managed'),
+      humanOwned: countOf('needs_attention') + countOf('human_managed') + countOf('waiting'),
+      needsAttention: countOf('needs_attention'),
+      blocked: countOf('blocked'),
     },
+    repliesToday,
   };
 }
