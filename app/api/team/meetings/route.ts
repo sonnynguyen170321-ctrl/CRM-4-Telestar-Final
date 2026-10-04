@@ -19,12 +19,17 @@ export async function GET(_req: NextRequest) {
         visibleUserIds = null;
       }
     }
+    // A lead with a meeting: a Meeting row that was not cancelled, or a booking logged by moving
+    // the lead to "meeting booked" (that path writes the activity, not a Meeting row). Archived
+    // leads are off the board.
+    // Tenant stated here, not left to the request-scoped extension alone.
     const whereClause: any = {
-      activities: {
-        some: {
-          type: 'meeting_booked',
-        },
-      },
+      tenantId: user.tenantId,
+      archivedAt: null,
+      OR: [
+        { meetings: { some: { status: { not: 'cancelled' } } } },
+        { activities: { some: { type: 'meeting_booked' } } },
+      ],
     };
 
     if (visibleUserIds) {
@@ -60,6 +65,13 @@ export async function GET(_req: NextRequest) {
           select: {
             createdAt: true,
           },
+        },
+        // The latest meeting, so a no-show is visible as one.
+        meetings: {
+          where: { status: { not: 'cancelled' } },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { status: true, scheduledAt: true, createdAt: true },
         },
       },
       orderBy: { updatedAt: 'desc' },

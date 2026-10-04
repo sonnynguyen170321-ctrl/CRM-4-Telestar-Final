@@ -13,7 +13,7 @@
 # `tests/route-authorization.test.ts` fails when a mutating route has neither a guard nor a
 # hand-written `reason`. Reasons survive regeneration; they are the only part a human owns.
 #
-# routes: 194   mutating: 121   mutating with neither guard nor reason: 47
+# routes: 195   mutating: 121   mutating with neither guard nor reason: 47
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -404,6 +404,10 @@ routes:
     methods: [GET]
     guards:
       - getLeadgenScope
+  - path: app/api/leadgen/summary/route.ts
+    methods: [GET]
+    guards:
+      - getLeadWhereScope (via lib/leadgen/summary.ts)
   - path: app/api/leadgen/team-progress/route.ts
     methods: [GET]
     guards:

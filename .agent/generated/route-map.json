@@ -155,6 +155,7 @@
     "/api/leadgen/assign",
     "/api/leadgen/health",
     "/api/leadgen/scope",
+    "/api/leadgen/summary",
     "/api/leadgen/team-progress",
     "/api/leads",
     "/api/leads/[id]",
@@ -241,5 +242,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 36,
-  "apiRouteCount": 194
+  "apiRouteCount": 195
 }

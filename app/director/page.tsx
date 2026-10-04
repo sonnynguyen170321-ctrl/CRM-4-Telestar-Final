@@ -45,11 +45,15 @@ export default function DirectorPage() {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/tasks')
+    if (!currentUserId) return;
+    // The Director's own open tasks, asked for directly. Fetching every org task (500 at most,
+    // any status, soonest first) and filtering here meant a busy org pushed the Director's own
+    // work past the cut, and the card said "All caught up".
+    fetch(`/api/tasks?tab=pending&userId=${encodeURIComponent(currentUserId)}`)
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => setTasks(Array.isArray(data) ? data : (data.tasks ?? data.data ?? [])))
       .catch(() => setTasks([]));
-  }, []);
+  }, [currentUserId]);
 
   // The Director's own prep / follow-up tasks (his, still open), soonest first.
   const myTasks = useMemo(() => {

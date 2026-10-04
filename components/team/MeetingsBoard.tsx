@@ -20,6 +20,7 @@ interface Lead {
       name: string;
     };
   };
+  meetings?: { status: string; scheduledAt: string | null; createdAt: string }[];
   activities: {
     createdAt: string;
   }[];
@@ -79,18 +80,24 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
   };
 
   // KPI calculations
+  // Won and lost are decided outcomes; a no-show (the latest meeting's status) counts with lost.
+  // Win rate is over decided meetings only — one still to happen is neither a win nor a loss.
+  const isNoShow = (m: Lead) => m.meetings?.[0]?.status === 'no_show';
+  const isWon = (m: Lead) => m.stage === 'won';
+  const isLost = (m: Lead) => m.stage === 'lost' || (isNoShow(m) && m.stage !== 'won');
   const totalBooked = meetings.length;
-  const wonCount = meetings.filter((m) => m.stage === 'won').length;
-  const lostCount = meetings.filter((m) => m.stage === 'lost').length;
-  const winRate = totalBooked > 0 ? Math.round((wonCount / totalBooked) * 100) : 0;
+  const wonCount = meetings.filter(isWon).length;
+  const lostCount = meetings.filter(isLost).length;
+  const decided = wonCount + lostCount;
+  const winRate = decided > 0 ? Math.round((wonCount / decided) * 100) : null;
 
   // Filter & Search logic
   const filteredMeetings = meetings.filter((m) => {
     const matchesStage =
       filterStage === 'all' ||
-      (filterStage === 'scheduled' && m.stage === 'meeting_booked') ||
-      (filterStage === 'won' && m.stage === 'won') ||
-      (filterStage === 'lost' && m.stage === 'lost');
+      (filterStage === 'scheduled' && !isWon(m) && !isLost(m)) ||
+      (filterStage === 'won' && isWon(m)) ||
+      (filterStage === 'lost' && isLost(m));
 
     const fullName = `${m.firstName} ${m.lastName} ${m.company} ${m.assignedTo?.firstName} ${m.assignedTo?.lastName}`.toLowerCase();
     const matchesSearch = fullName.includes(searchQuery.toLowerCase());
@@ -118,8 +125,8 @@ export default function MeetingsBoard({ onSelectLead }: MeetingsBoardProps) {
         </div>
 
         <div className="flex flex-col border-l border-card-border/60 pl-4">
-          <span className="text-xs font-semibold text-text-muted">Win Rate</span>
-          <span className="font-display font-extrabold text-2xl text-amber-600 mt-1">{winRate}%</span>
+          <span className="text-xs font-semibold text-text-muted">Win Rate (decided)</span>
+          <span className="font-display font-extrabold text-2xl text-amber-600 mt-1">{winRate === null ? '—' : `${winRate}%`}</span>
         </div>
       </div>
 
