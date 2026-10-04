@@ -78,6 +78,14 @@ export default function LeadgenPage() {
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  // Which list a lead was opened from — the filtered pipeline (table, kanban, cards) or the recent
+  // bookings — so previous / next walk that one. The source is kept, not a copy of its ids: the
+  // ids are read from the live list at render, so a refetch after a stage change is reflected.
+  const [drawerSource, setDrawerSource] = useState<'filtered' | 'booked' | null>(null);
+  const openLead = (id: string, source: 'filtered' | 'booked') => {
+    setDrawerSource(source);
+    setSelectedLeadId(id);
+  };
   const [viewMode, setViewMode] = useState<'kanban' | 'table'>('kanban');
   const [search, setSearch] = useState('');
   const [filterMember, setFilterMember] = useState('');
@@ -238,6 +246,7 @@ export default function LeadgenPage() {
   ).length;
 
   // Filtered list
+  const bookedLeads = leads.filter((l) => ['meeting_booked', 'won', 'lost'].includes(l.stage)).slice(0, 10);
   const filtered = leads.filter((l) => {
     if (search) {
       const q = search.toLowerCase();
@@ -408,7 +417,7 @@ export default function LeadgenPage() {
                         </tr>
                       ) : (
                         filtered.map((lead) => (
-                          <tr key={lead.id} className="hover:bg-bg-main/40 cursor-pointer" onClick={() => setSelectedLeadId(lead.id)}>
+                          <tr key={lead.id} className="hover:bg-bg-main/40 cursor-pointer" onClick={() => openLead(lead.id, 'filtered')}>
                             <td className="p-3" onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="checkbox"
@@ -478,7 +487,7 @@ export default function LeadgenPage() {
                           <tr
                             key={lead.id}
                             className="hover:bg-purple-500/5 cursor-pointer"
-                            onClick={() => setSelectedLeadId(lead.id)}
+                            onClick={() => openLead(lead.id, 'filtered')}
                           >
                             <td className="p-3">
                               <p className="font-semibold text-text-primary">{lead.firstName} {lead.lastName}</p>
@@ -562,14 +571,11 @@ export default function LeadgenPage() {
                             </td>
                           </tr>
                         ) : (
-                          leads
-                            .filter((l) => ['meeting_booked', 'won', 'lost'].includes(l.stage))
-                            .slice(0, 10)
-                            .map((l) => (
+                          bookedLeads.map((l) => (
                               <tr
                                 key={l.id}
                                 className="hover:bg-purple-500/5 cursor-pointer"
-                                onClick={() => setSelectedLeadId(l.id)}
+                                onClick={() => openLead(l.id, 'booked')}
                               >
                                 <td className="p-3">
                                   <p className="font-semibold text-text-primary">{l.firstName} {l.lastName}</p>
@@ -738,9 +744,9 @@ export default function LeadgenPage() {
                 <p className="text-sm text-text-muted">No leads found.</p>
               </div>
             ) : viewMode === 'kanban' ? (
-              <KanbanView leads={filtered} onSelectLead={setSelectedLeadId} />
+              <KanbanView leads={filtered} onSelectLead={(id) => openLead(id, 'filtered')} />
             ) : (
-              <TableView leads={filtered} onSelectLead={setSelectedLeadId} />
+              <TableView leads={filtered} onSelectLead={(id) => openLead(id, 'filtered')} />
             )}
           </div>
         </div>
@@ -750,7 +756,12 @@ export default function LeadgenPage() {
       {selectedLeadId && (
         <LeadDetailPanel
           leadId={selectedLeadId}
-          onClose={() => setSelectedLeadId(null)}
+          siblingIds={(drawerSource === 'booked' ? bookedLeads : filtered).map((lead) => lead.id)}
+          onNavigate={setSelectedLeadId}
+          onClose={() => {
+            setSelectedLeadId(null);
+            setDrawerSource(null);
+          }}
           onLeadUpdate={fetchLeads}
         />
       )}
