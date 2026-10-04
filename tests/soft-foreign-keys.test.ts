@@ -40,6 +40,15 @@ const EXTERNAL_IDS = new Set([
   'JobRun.bullJobId', // a BullMQ job id, which lives in Redis
   'Meeting.externalEventId', // the calendar provider's event
   'Opportunity.externalDealId',
+  // Telephony provider identifiers (docs/dialer/): Telnyx's ids for a call, a leg, a recording, a
+  // credential, a number and a webhook event.
+  'Call.providerSessionId',
+  'Call.providerControlId',
+  'Call.recordingProviderId',
+  'TelephonyCredential.providerCredentialId',
+  'TelephonyNumber.providerNumberId',
+  'TelephonyEvent.providerEventId',
+  'TelephonyEvent.sessionId',
 ]);
 
 /**
@@ -49,6 +58,13 @@ const EXTERNAL_IDS = new Set([
  * touched. `Task.sequenceId` is the one to look at first: the whole sequence runtime reads it.
  */
 const SOFT_FOREIGN_KEYS = new Set([
+  // Telephony: unique soft links (one Activity, one missed-call Task per call) written in the same
+  // step that creates the target, and the actors behind a suppression or a settings change.
+  'Call.activityId',
+  'Call.missedCallTaskId',
+  'PhoneSuppression.createdById',
+  'TelephonySettings.killedById',
+  'TelephonySettings.updatedById',
   'AccountPainHypothesis.accountResearchRunId',
   'AgentAction.campaignId',
   'AgentAction.leadId',

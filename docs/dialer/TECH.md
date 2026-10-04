@@ -32,7 +32,9 @@ lives, which existing helpers it reuses, and the rules a change to it must keep.
 - Encryption: none needed for credentials (tokens are minted on demand; no password stored). If a secret
   ever has to be stored, `lib/crypto.ts` `encrypt`/`decrypt`.
 - Phone numbers: `normalizePhoneIdentifier(raw, defaultCountry)` in `packages/core-identity/src/phone.ts`
-  (libphonenumber-js) → E.164. Default country: the lead's, else `VN`.
+  (libphonenumber-js) → E.164 at dial time. Default country: the lead's, else `VN`. **Never rewrite
+  `Lead/Contact.normalizedPhone`:** dedupe compares it in the format `normalizePhone(phone)` writes (no
+  country, so VN locals stay `0…`); inbound lookup matches every stored form of the caller's number instead.
 - Time: `resolveTimezone`, `getLocalTime` (`lib/automation/timezone.ts`); single-zone inference from
   `lib/time/inferTimezone.ts`.
 - Access: `canAccessLead`, `getLeadWhereScope`, `MANAGER_ROLES`, `requireManager` (`lib/auth.ts`,
@@ -55,7 +57,19 @@ lives, which existing helpers it reuses, and the rules a change to it must keep.
 6. **Recording URLs never reach the browser.** Playback streams through our route after an access check;
    each access is audited; recordings are deleted at `recordingPurgeAt` (90 days).
 7. **Tenant on every query**, stated explicitly, not left to the request-scoped extension alone.
-8. **No 24-hour frequency rule** (owner decision, 2026-10-04). Calling hours 08:00–17:00 lead-local, every
+8. **Status updates are guarded in SQL**, not only in code: `UPDATE "Call" … WHERE status IN (<earlier
+   states>)`, so a late or out-of-order webhook cannot overwrite a finished call.
+9. **Soft links are checked, not trusted:** a `Call.activityId` / `missedCallTaskId` that points at a row
+   that no longer exists means "recreate", not "done".
+10. **`TelephonyEvent` is global (no tenantId, so no RLS policy)** and is read only by
+    `lib/telephony/**`, the webhook route and `workers/telephony.ts` — `tests/telephony-schema.test.ts`
+    fails if any other file touches it. Processed events are deleted after 30 days (Phase 4).
+11. **Cross-tenant reads run in an explicit operator context** (inbound number → tenant, recording purge):
+    under RLS a tenant-scoped read there returns nothing and looks like an empty result.
+12. **Deactivating a rep revokes their Telnyx credential at the provider**, not only locally.
+13. **`TelephonySettings` is upserted** (no row exists until a manager saves); `fallbackUserIds` are
+    re-validated against active users when used.
+14. **No 24-hour frequency rule** (owner decision, 2026-10-04). Calling hours 08:00–17:00 lead-local, every
    day; own Do-Not-Call list and lead/contact `doNotCall`; unknown lead timezone blocks the call.
 
 ## Browser requirements

@@ -26,6 +26,9 @@
     },
     "SequenceSender": {
       "emailAccountId": "A cuid foreign key to EmailAccount, not an address. The address it points at is scrubbed on EmailAccount itself."
+    },
+    "TelephonyCredential": {
+      "providerCredentialId": "The telephony provider's opaque id for a rep's softphone credential, not a person's identifier. It is useless without the provider API key, which never goes into a dump, and keeping it lets credential bugs reproduce locally."
     }
   }
 }
