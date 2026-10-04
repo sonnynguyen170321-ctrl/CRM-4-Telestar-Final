@@ -328,6 +328,21 @@ domains:
     e2e:
       - e2e/leads/**
 
+  - id: telephony
+    description: Browser dialer (Telnyx WebRTC), compliance gate, call records, webhooks, inbound routing, recordings.
+    risk: R3
+    # Each dialer phase adds its own paths (lib/telephony, app/api/telephony, components/dialer,
+    # workers/telephony.ts) when it creates them — the registry only accepts paths that exist.
+    paths:
+      - app/api/dialer/**
+      - components/CallDialerModal.tsx
+      - docs/dialer/**
+    tests:
+      - tests/telephony-*.test.ts
+      - tests/dialer-*.test.ts
+    e2e:
+      - e2e/leads/dialer.spec.ts
+
   - id: frontend-role-ux
     description: Components, pages, role-scoped surfaces, design system.
     risk: R1
