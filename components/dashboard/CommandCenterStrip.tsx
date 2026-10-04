@@ -44,6 +44,10 @@ export default function CommandCenterStrip({
   useEffect(() => {
     let cancelled = false;
     const query = repUserId && repUserId !== 'all' ? `?userId=${encodeURIComponent(repUserId)}` : '';
+    // A new rep or a refresh: clear the last outcome, so neither an old error nor the previous
+    // rep's numbers stay on screen while this answer is on its way.
+    setFailed(false);
+    setIsLoading(true);
     fetch(`/api/ai/console${query}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('console'))))
       .then((body) => { if (!cancelled) setData(body); })

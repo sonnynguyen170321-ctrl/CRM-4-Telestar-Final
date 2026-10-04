@@ -148,6 +148,47 @@ describe('the command strip', () => {
     expect(focused.timeline.map((event) => event.description)).toEqual(['peer']);
   });
 
+  it('lists every prospect it counts as having a draft, whatever their latest reply was', async () => {
+    const result = await inTenant(async () => {
+      const keen = await lead(ids.rep, { operatingState: 'human_managed' });
+      await reply(keen, 'C', hoursAgo(30));
+      await reply(keen, 'B', hoursAgo(2)); // an out-of-office after the interest
+      return buildAiConsole(session(ids.rep, 'sdr'), { now: NOW });
+    });
+    const drafts = result.buckets.find((bucket) => bucket.key === 'draft_available');
+    expect(drafts?.count).toBe(1);
+    expect(drafts?.prospects.length).toBe(1);
+  });
+
+  it('counts approvals on the viewer\'s leads only', async () => {
+    const { repView, directorView } = await inTenant(async () => {
+      const mine = await lead(ids.rep);
+      const theirs = await lead(ids.peer);
+      for (const leadId of [mine, theirs]) {
+        await prisma.agentApprovalRequest.create({
+          data: {
+            tenantId,
+            actionKey: `k-${randomUUID()}`,
+            capability: 'send_email',
+            toolName: 'send',
+            args: {},
+            requiredLevel: 'manager',
+            requestedById: ids.rep,
+            expiresAt: new Date(Date.now() + 86_400_000),
+            leadId,
+          },
+        });
+      }
+      return {
+        repView: await buildAiConsole(session(ids.rep, 'sdr'), { now: NOW }),
+        directorView: await buildAiConsole(session(ids.director, 'director'), { now: NOW }),
+      };
+    });
+    const pending = (view: typeof repView) => view.buckets.find((bucket) => bucket.key === 'approval_pending')?.count;
+    expect(pending(repView)).toBe(1);
+    expect(pending(directorView)).toBe(2);
+  });
+
   it('leaves archived prospects out of every count', async () => {
     const result = await inTenant(async () => {
       await lead(ids.rep);

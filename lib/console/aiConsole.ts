@@ -137,7 +137,7 @@ export async function buildAiConsole(
   };
   const boardLeads: Prisma.LeadWhereInput = { AND: [visibleLeads, { operatingState: { not: 'unassigned' } }] };
 
-  const tzOwner = await prisma.user.findUnique({ where: { id: focusUserId ?? user.id }, select: { timezone: true } });
+  const tzOwner = await prisma.user.findFirst({ where: { id: focusUserId ?? user.id, tenantId }, select: { timezone: true } });
   const { start: todayStart } = getLocalDayBoundaries(options.now ?? new Date(), tzOwner?.timezone || 'UTC');
 
   const leads = await prisma.lead.findMany({
@@ -152,6 +152,8 @@ export async function buildAiConsole(
         take: 1,
         select: { replyClass: true, replyKind: true, date: true },
       },
+      // The draft cross-cut's rule — any sales reply — so the list and its count agree.
+      _count: { select: { inboundMessages: { where: { replyClass: { in: ['C', 'D'] } } } } },
       outboundMessages: {
         where: { status: 'sent' },
         orderBy: { sentAt: 'desc' },
@@ -199,24 +201,38 @@ export async function buildAiConsole(
     if (key) push(key, p);
     // A classified sales reply on a human-owned prospect is a draft waiting to be generated. It is
     // a *cross-cut*, not a state: the same prospect also appears under whoever owns them.
-    if ((p.replyClass === 'C' || p.replyClass === 'D') && lead.operatingState !== 'completed') {
+    if (lead._count.inboundMessages > 0 && lead.operatingState !== 'completed') {
       push('draft_available', p);
     }
   }
 
-  // Approval requests carry a lead id but no relation, so a scoped viewer's are matched by id.
-  const visibleLeadIds = unrestricted
-    ? null
-    : (await prisma.lead.findMany({ where: visibleLeads, select: { id: true } })).map((lead) => lead.id);
-  const approvalWhere: Prisma.AgentApprovalRequestWhereInput = {
-    tenantId,
-    status: 'pending',
-    ...(visibleLeadIds ? { leadId: { in: visibleLeadIds } } : {}),
-  };
+  // Approval requests carry a lead id but no relation. A scoped viewer's are found from the other
+  // side: the leads named by pending approvals that the viewer can see. That list is as long as the
+  // approval queue, not as long as the viewer's book of leads.
+  let approvalWhere: Prisma.AgentApprovalRequestWhereInput = { tenantId, status: 'pending' };
+  if (!unrestricted) {
+    const pendingLeadIds = (
+      await prisma.agentApprovalRequest.findMany({
+        where: { tenantId, status: 'pending', leadId: { not: null } },
+        select: { leadId: true },
+        distinct: ['leadId'],
+      })
+    ).map((row) => row.leadId as string);
+    const visibleIds = pendingLeadIds.length
+      ? (await prisma.lead.findMany({ where: { AND: [visibleLeads, { id: { in: pendingLeadIds } }] }, select: { id: true } })).map(
+          (lead) => lead.id
+        )
+      : [];
+    approvalWhere = { ...approvalWhere, leadId: { in: visibleIds } };
+  }
+  // Work that names no lead (a campaign batch) is a manager's to see; work on an archived lead is
+  // nobody's.
+  const leadOrNone = (relation: Prisma.LeadWhereInput) =>
+    unrestricted ? { OR: [{ leadId: null }, { lead: relation }] } : { lead: relation };
   const blockedWhere: Prisma.WorkOrderWhereInput = {
     tenantId,
     status: { in: ['paused', 'failed'] },
-    ...(unrestricted ? {} : { lead: visibleLeads }),
+    ...leadOrNone(visibleLeads),
   };
 
   const [pendingApprovals, blockedOrders, activities, approvalCount, blockedCount, stateCounts, draftCount, repliesToday] = await Promise.all([
@@ -235,7 +251,7 @@ export async function buildAiConsole(
     prisma.activity.findMany({
       where: {
         tenantId,
-        ...(unrestricted ? {} : { lead: visibleLeads }),
+        ...leadOrNone(visibleLeads),
         type: {
           in: [
             'prospect_handed_off', 'prospect_handed_back', 'prospect_reengagement_eligible',

@@ -65,8 +65,13 @@ export default function ProspectQueue({
 }) {
   const byKey = new Map((buckets ?? []).map((b) => [b.key, b]));
 
+  // "All" is every prospect on the board: the state buckets are disjoint, so their exact counts
+  // add up to it. The cross-cuts (drafts, approvals, blocked work) are not states.
+  const NOT_STATES = new Set(['draft_available', 'approval_pending', 'blocked']);
   const countFor = (key: string): number => {
-    if (key === 'all') return unionProspects().length;
+    if (key === 'all') {
+      return (buckets ?? []).filter((b) => !NOT_STATES.has(b.key)).reduce((sum, b) => sum + b.count, 0);
+    }
     return byKey.get(key)?.count ?? 0;
   };
 

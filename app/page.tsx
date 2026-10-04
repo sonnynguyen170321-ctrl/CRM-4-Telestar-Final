@@ -225,12 +225,21 @@ export default function DashboardPage() {
   // Bumped with every reload so the command strip refetches alongside the task list.
   const [stripRefresh, setStripRefresh] = useState(0);
   useEffect(() => {
+    // Debounced: creating tasks in bulk fires one event per task, and each reload rebuilds the
+    // task lists and the board. One reload after the burst settles.
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const handler = () => {
-      loadAll();
-      setStripRefresh((n) => n + 1);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        loadAll();
+        setStripRefresh((n) => n + 1);
+      }, 400);
     };
     window.addEventListener('crm:task-created', handler);
-    return () => window.removeEventListener('crm:task-created', handler);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener('crm:task-created', handler);
+    };
   }, [loadAll]);
 
   useEffect(() => {
