@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, type SessionUser } from '@/lib/auth';
+import { canAccessLeadId, requireAuth, type SessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
 import { generateStructured } from '@/lib/ai/generation';
@@ -36,6 +36,10 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { threadId: _threadId, leadId, messageText, subject, customInstructions } = body;
+    // Tenant scoping alone let any rep read another rep's lead here (pre-launch audit, 2026-10-05).
+    if (leadId && !(await canAccessLeadId(sessionUser, String(leadId)))) {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
 
     // Scoped, not bypassed — see enrich-lead for the full reasoning. This route reads one
     // lead belonging to the caller's own tenant and does nothing cross-tenant, so

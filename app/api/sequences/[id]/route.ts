@@ -8,6 +8,15 @@ import { handleApiError } from '@/lib/api/errors';
 import { invalidateList } from '@/lib/cache';
 import { logAdminAudit } from '@/lib/audit';
 import { reconcileSequenceSteps } from '@/lib/sequences/steps';
+import { MANAGER_ROLES } from '@/lib/authRoles';
+
+/**
+ * Editing or archiving a sequence acts on every rep's leads in it — archiving unenrolls them all —
+ * so only its creator or a manager may, as for its senders (pre-launch audit, 2026-10-05).
+ */
+function canChangeSequence(user: SessionUser, sequence: { createdById: string }): boolean {
+  return (MANAGER_ROLES as readonly string[]).includes(user.role) || sequence.createdById === user.id;
+}
 import { assertSendWindowPermission } from '@/lib/sequences/permissions';
 
 export async function GET(
@@ -53,6 +62,9 @@ export async function PUT(
 
   const existing = await prisma.sequence.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!canChangeSequence(user, existing)) {
+    return NextResponse.json({ error: 'Only the sequence owner or a manager can change it' }, { status: 403 });
+  }
 
   try {
     // Reconcile rather than delete-and-recreate: step ids seed the deterministic jitter
@@ -144,6 +156,9 @@ export async function DELETE(
 
   const existing = await prisma.sequence.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!canChangeSequence(user, existing)) {
+    return NextResponse.json({ error: 'Only the sequence owner or a manager can change it' }, { status: 403 });
+  }
 
   try {
     // Archive, don't delete (SKILL.md §3): history and step config stay intact.

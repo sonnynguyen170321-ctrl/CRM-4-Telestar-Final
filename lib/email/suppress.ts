@@ -51,6 +51,35 @@ export interface SuppressRecipientInput {
   recordActivity?: boolean;
 }
 
+/**
+ * The suppression entry that stops a send to this address, if any — the check every send path
+ * makes immediately before the provider call.
+ *
+ * Case-insensitive on both the address and the domain. Entries are written lowercase, but
+ * `Lead.email` keeps the case it was imported with, and an exact match let `John.Doe@Acme.com`
+ * be emailed after `john.doe@acme.com` bounced or unsubscribed (pre-launch audit, 2026-10-05).
+ * With a campaign, entries for that campaign and tenant-wide entries apply; without one, any entry.
+ */
+export async function findSuppression(input: { tenantId: string; email: string | null | undefined; campaignId?: string | null }) {
+  const email = input.email?.trim().toLowerCase();
+  if (!email) return null;
+  const domain = email.split('@')[1];
+  return prisma.suppressionEntry.findFirst({
+    where: {
+      tenantId: input.tenantId,
+      AND: [
+        {
+          OR: [
+            { email: { equals: email, mode: 'insensitive' } },
+            ...(domain ? [{ domain: { equals: domain, mode: 'insensitive' as const } }] : []),
+          ],
+        },
+        ...(input.campaignId ? [{ OR: [{ campaignId: input.campaignId }, { campaignId: null }] }] : []),
+      ],
+    },
+  });
+}
+
 export interface SuppressRecipientResult {
   suppressed: boolean;
   /** False when the address was already on the list — the caller usually has nothing to do. */

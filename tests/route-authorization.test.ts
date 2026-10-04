@@ -115,7 +115,7 @@ describe('every route that writes has an ownership check or a written reason', (
    *
    * Lower it when you reason one away. That is the burn-down.
    */
-  const UNEXPLAINED_BUDGET = 47;
+  const UNEXPLAINED_BUDGET = 46;
 
   it('does not let the number of unexplained mutating routes grow', () => {
     const unexplained = mutating.filter((r) => r.guards.length === 0 && !r.reason);

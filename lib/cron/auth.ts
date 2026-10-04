@@ -20,7 +20,9 @@ export type CronAuthorization =
   | { scope: 'tenant'; tenantId: string; userId: string }
   | null;
 
-export const CRON_MANAGER_ROLES: ReadonlyArray<string> = ['director', 'floor_manager', 'team_lead'];
+// Not team_lead: these runs are tenant-wide (maintenance prunes audit rows and repairs tasks for
+// everyone), so a team lead triggering one acted far beyond their team (pre-launch audit, 2026-10-05).
+export const CRON_MANAGER_ROLES: ReadonlyArray<string> = ['director', 'floor_manager'];
 
 function secretMatches(header: string | null, secret: string | undefined): boolean {
   if (!secret || !header) return false;

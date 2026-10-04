@@ -350,8 +350,8 @@ function SettingsPageInner() {
           {/* Email Account Connections */}
           <EmailConnectionsPanel />
 
-          {/* Developer API Keys & External Integrations */}
-          <DeveloperApiKeysPanel />
+          {/* Developer API Keys & External Integrations (Director / Floor Manager — the API refuses anyone else) */}
+          {(currentRole === 'director' || currentRole === 'floor_manager') && <DeveloperApiKeysPanel />}
 
           {/* Booking Links (Director / Floor Manager / Team Lead) */}
           {(currentRole === 'director' || currentRole === 'floor_manager' || currentRole === 'team_lead') && (

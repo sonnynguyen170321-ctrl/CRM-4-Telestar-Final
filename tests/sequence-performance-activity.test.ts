@@ -287,7 +287,8 @@ describe('getSequenceActivity', () => {
   });
 
   it('names the person who edited the sequence, not the person who created it', async () => {
-    authUser.current = session(ids.editor, 'sdr');
+    // A team lead: since the pre-launch audit only the creator or a manager may edit a sequence.
+    authUser.current = session(ids.editor, 'team_lead');
     const res = await inTenant(() =>
       putSequence(
         new NextRequest(`http://localhost/api/sequences/${ids.sequence}`, {

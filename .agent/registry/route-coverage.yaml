@@ -118,6 +118,7 @@ routes:
     tests:
       - e2e/journeys/commercial-intelligence.spec.ts
       - tests/ai-route-cross-tenant-red-team.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/telestar-ai-ui-routes.test.ts
   - path: app/api/ai/onboarding/route.ts
     methods: [POST]
@@ -371,12 +372,14 @@ routes:
     tests:
       - tests/api-key-http-surface.test.ts
       - tests/api-key-privilege-escalation.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/safe-href.test.ts
   - path: app/api/developer/keys/route.ts
     methods: [GET, POST]
     tests:
       - tests/api-key-http-surface.test.ts
       - tests/api-key-privilege-escalation.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/safe-href.test.ts
   - path: app/api/dialer/config/route.ts
     methods: [GET]
@@ -862,6 +865,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-analytics.test.ts
@@ -877,6 +881,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-analytics.test.ts
@@ -892,6 +897,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-analytics.test.ts
@@ -907,6 +913,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-analytics.test.ts
@@ -922,6 +929,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-analytics.test.ts
@@ -937,6 +945,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-analytics.test.ts
@@ -952,6 +961,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-analytics.test.ts
@@ -967,6 +977,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-analytics.test.ts
@@ -982,6 +993,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-analytics.test.ts
@@ -997,6 +1009,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-analytics.test.ts
@@ -1012,6 +1025,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-analytics.test.ts
@@ -1034,6 +1048,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/phase-8a-lifecycle-routes.test.ts
       - tests/phase-8a-occurrence-advance.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/route-authorization.test.ts
       - tests/route-coverage.test.ts
       - tests/sequence-analytics.test.ts
@@ -1222,6 +1237,7 @@ routes:
     methods: [GET, POST]
     tests:
       - tests/api-keys-and-integrations.test.ts
+      - tests/prelaunch-authz.test.ts
       - tests/v1-api-key-tenant-context.test.ts
   - path: app/api/v1/openapi.json/route.ts
     methods: [GET]

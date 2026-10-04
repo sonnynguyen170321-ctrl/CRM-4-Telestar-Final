@@ -700,6 +700,70 @@ describe('handleEmailSync', () => {
     );
   });
 
+  it('does not move the sync cursor past a message it failed to store, and fails visibly', async () => {
+    // Advancing lastSyncAt after a failed save meant the next fetch started after that message,
+    // so the reply or bounce was lost for good (pre-launch audit, 2026-10-05).
+    mockAccountFindUnique.mockResolvedValue(mockAccount);
+    (EmailService.fromAccount as ReturnType<typeof vi.fn>).mockResolvedValue({
+      fetchMessagesSince: vi.fn().mockResolvedValue([{ providerMessageId: 'gmail-lost', fromEmail: 'p@acme.com', subject: 'Re: hi', date: new Date() }]),
+    });
+    (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    mockLeadFindMany.mockResolvedValue([]);
+    mockInboundFindUnique.mockResolvedValue(null);
+    mockInboundCreate.mockRejectedValueOnce(new Error('connection reset'));
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(handleEmailSync({ accountId: 'acct-1' })).rejects.toThrow(/could not be saved/);
+    expect(mockAccountUpdate).not.toHaveBeenCalled();
+  });
+
+  it('treats a message another sync stored first as stored, and moves on', async () => {
+    const { Prisma } = await import('@prisma/client');
+    mockAccountFindUnique.mockResolvedValue(mockAccount);
+    (EmailService.fromAccount as ReturnType<typeof vi.fn>).mockResolvedValue({
+      fetchMessagesSince: vi.fn().mockResolvedValue([{ providerMessageId: 'gmail-race', fromEmail: 'p@acme.com', subject: 'Re: hi', date: new Date() }]),
+    });
+    (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    mockLeadFindMany.mockResolvedValue([]);
+    mockInboundFindUnique.mockResolvedValue(null);
+    mockInboundCreate.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'test' }));
+
+    await expect(handleEmailSync({ accountId: 'acct-1' })).resolves.toMatchObject({ success: true });
+    expect(mockAccountUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: { lastSyncAt: expect.any(Date) } }));
+  });
+
+  it('skips a message the database rejects for its content instead of stalling the mailbox', async () => {
+    const { Prisma } = await import('@prisma/client');
+    mockAccountFindUnique.mockResolvedValue(mockAccount);
+    (EmailService.fromAccount as ReturnType<typeof vi.fn>).mockResolvedValue({
+      fetchMessagesSince: vi.fn().mockResolvedValue([{ providerMessageId: 'gmail-poison', fromEmail: 'p@acme.com', subject: 'x', date: new Date() }]),
+    });
+    (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    mockLeadFindMany.mockResolvedValue([]);
+    mockInboundFindUnique.mockResolvedValue(null);
+    mockInboundCreate.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError('too long', { code: 'P2000', clientVersion: 'test' }));
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(handleEmailSync({ accountId: 'acct-1' })).resolves.toMatchObject({ success: true });
+    expect(mockAccountUpdate).toHaveBeenCalled();
+  });
+
+  it('strips NUL bytes, which Postgres text refuses on every retry', async () => {
+    const NUL = String.fromCharCode(0);
+    mockAccountFindUnique.mockResolvedValue(mockAccount);
+    (EmailService.fromAccount as ReturnType<typeof vi.fn>).mockResolvedValue({
+      fetchMessagesSince: vi.fn().mockResolvedValue([{ providerMessageId: 'gmail-nul', fromEmail: 'p@acme.com', fromName: `P${NUL}`, subject: `Re${NUL}: hi`, body: `a${NUL}b`, date: new Date() }]),
+    });
+    (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    mockLeadFindMany.mockResolvedValue([]);
+    mockInboundFindUnique.mockResolvedValue(null);
+
+    await handleEmailSync({ accountId: 'acct-1' });
+
+    const data = mockInboundCreate.mock.calls.at(-1)![0].data;
+    expect([data.fromName, data.subject, data.body, data.bodyHtml]).toEqual(['P', 'Re: hi', 'ab', 'ab']);
+  });
+
   it('persists bounce notifications instead of discarding them', async () => {
     const mockMsg = {
       providerMessageId: 'gmail-b2',

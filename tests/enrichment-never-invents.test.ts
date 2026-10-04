@@ -27,6 +27,7 @@ const leadFindFirst = vi.fn();
 vi.mock('@/lib/auth', () => ({
   requireAuth: () => requireAuth(),
   canAccessLead: async () => true,
+  canAccessLeadId: async () => true,
 }));
 
 vi.mock('@/lib/prisma', () => ({

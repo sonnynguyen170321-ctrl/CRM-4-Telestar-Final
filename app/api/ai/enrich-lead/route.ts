@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, type SessionUser } from '@/lib/auth';
+import { canAccessLeadId, requireAuth, type SessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
 import { generateStructured } from '@/lib/ai/generation';
@@ -35,6 +35,10 @@ export async function POST(req: NextRequest) {
     const { leadId, customContext } = await req.json();
     if (!leadId) {
       return NextResponse.json({ error: 'leadId is required' }, { status: 400 });
+    }
+    // Tenant scoping alone let any rep read another rep's lead here (pre-launch audit, 2026-10-05).
+    if (!(await canAccessLeadId(sessionUser, leadId))) {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
 
     // Scoped, not bypassed. This route reads one lead belonging to the caller's own

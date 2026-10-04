@@ -58,7 +58,10 @@ const AVAILABLE_EVENTS: Array<{ key: WebhookEvent; label: string; desc: string }
 ];
 
 export default function AutomationDashboard() {
-  const { isManager, isSessionLoading } = useAppContext();
+  const { isManager, isSessionLoading, currentRole } = useAppContext();
+  // The run buttons start tenant-wide jobs, which the cron routes allow only to a director or
+  // floor manager (lib/cron/auth.ts).
+  const canTriggerRuns = currentRole === 'director' || currentRole === 'floor_manager';
   const { showToast } = useToast();
   const router = useRouter();
 
@@ -372,7 +375,7 @@ export default function AutomationDashboard() {
                   </div>
                 </div>
 
-                {isManager && (
+                {canTriggerRuns && (
                   <button
                     onClick={handleTriggerSequence}
                     disabled={isTriggeringSequence}
@@ -427,7 +430,7 @@ export default function AutomationDashboard() {
                   </p>
                 </div>
 
-                {isManager && (
+                {canTriggerRuns && (
                   <button
                     onClick={handleTriggerInbox}
                     disabled={isTriggeringInbox}

@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 
 vi.mock('@/lib/auth', () => ({
   requireAuth: vi.fn(),
+  canAccessLeadId: vi.fn(async () => true),
 }));
 
 vi.mock('@/lib/tenant-context', () => ({
