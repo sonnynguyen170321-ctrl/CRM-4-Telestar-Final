@@ -114,4 +114,20 @@ UPDATE "ResearchProspect"  SET "displayName" = 'Prospect ' || left(id, 6), "link
 -- The normalised form of the name scrubbed above; leaving it re-identifies the row.
 UPDATE "Contact" SET "fullNameNormalized" = NULL;
 
+-- ── Telephony (docs/dialer/) ──────────────────────────────────────────────────────────────────
+-- Phone numbers are a named person as surely as an email address; call notes are free text about
+-- them; the webhook inbox is the provider's raw payload, numbers included. Recording ids are kept
+-- out too: with the provider key they fetch the audio of a real conversation.
+-- Replacement numbers stay valid E.164 (the tables CHECK it) and unique where the table requires it.
+UPDATE "Call" SET "toE164" = '+10000000000', "fromE164" = NULL, notes = NULL,
+                  compliance = NULL, "recordingProviderId" = NULL;
+UPDATE "PhoneSuppression" SET reason = NULL;
+UPDATE "PhoneSuppression" p SET e164 = '+1' || lpad(n::text, 12, '0')
+  FROM (SELECT id, row_number() OVER (ORDER BY id) AS n FROM "PhoneSuppression") s WHERE p.id = s.id;
+UPDATE "TelephonyNumber" t SET e164 = '+2' || lpad(n::text, 12, '0')
+  FROM (SELECT id, row_number() OVER (ORDER BY id) AS n FROM "TelephonyNumber") s WHERE t.id = s.id;
+UPDATE "TelephonyEvent" SET payload = '{}'::jsonb;
+UPDATE "Lead"    SET "doNotCallReason" = NULL;
+UPDATE "Contact" SET "doNotCallReason" = NULL;
+
 COMMIT;

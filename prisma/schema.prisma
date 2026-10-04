@@ -411,6 +411,8 @@ model User {
   tasks                    Task[]
   notes                    Note[]
   activities               Activity[]
+  calls                    Call[]
+  telephonyCredential      TelephonyCredential?
   emailAccounts            EmailAccount[]
   notifications            Notification[]
   reminders                Reminder[]
@@ -608,6 +610,10 @@ model Contact {
   alternateEmailValidation String?
   normalizedEmail          String?
   normalizedPhone          String?
+  /// Do-not-call, as on Lead.
+  doNotCall                Boolean   @default(false)
+  doNotCallAt              DateTime?
+  doNotCallReason          String?
   normalizedLinkedIn       String?
 
   // A contact belongs to a company. Until now the only link was the free-text `company` column, so
@@ -641,6 +647,8 @@ model Contact {
   @@index([tenantId, emailValidation])
   @@index([tenantId, accountId])
   @@index([tenantId, normalizedCompany])
+  @@index([tenantId, normalizedPhone])
+  calls                    Call[]
 }
 
 // ─── ContactEmployment — who worked where, and when ─────────────────────────
@@ -872,6 +880,11 @@ model Lead {
   tenant             Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   normalizedEmail    String?
   normalizedPhone    String?
+  /// Our own do-not-call flag (docs/dialer/PRD.md US4). Set by the `do_not_call` call outcome or by hand;
+  /// the dialer's compliance gate refuses any outbound call to a lead carrying it.
+  doNotCall          Boolean   @default(false)
+  doNotCallAt        DateTime?
+  doNotCallReason    String?
   normalizedLinkedIn String?
   archivedAt         DateTime?
   archivedById       String?
@@ -886,6 +899,7 @@ model Lead {
   tasks                Task[]
   notes                Note[]
   activities           Activity[]
+  calls                Call[]
   reminders            Reminder[]
   outboundMessages     OutboundMessage[]
   inboundMessages      InboundMessage[]
@@ -931,6 +945,7 @@ model Lead {
   @@index([tenantId, importListName])
   sequenceLaunches   SequenceLaunch[]
   campaignProspect   CampaignProspect? @relation("CampaignProspectLead")
+  @@index([tenantId, normalizedPhone])
 }
 
 // ─── Sequences ───────────────────────────────────────────────────────────────
@@ -2420,6 +2435,11 @@ model Tenant {
   notes                    Note[]
   reminders                Reminder[]
   activities               Activity[]
+  calls                    Call[]
+  telephonyCredentials     TelephonyCredential[]
+  telephonyNumbers         TelephonyNumber[]
+  telephonySettings        TelephonySettings?
+  phoneSuppressions        PhoneSuppression[]
   emailAccounts            EmailAccount[]
   notifications            Notification[]
   auditLogs                AuditLog[]
@@ -4076,4 +4096,209 @@ model CompanyIntelligenceProfile {
   @@index([tenantId, accountId, createdAt])
   @@index([tenantId, industryCategory])
   @@index([profileStatus])
+}
+
+
+// ─── Telephony (docs/dialer/) ────────────────────────────────────────────────
+
+enum CallDirection {
+  outbound
+  inbound
+}
+
+/// Forward-only call lifecycle (docs/dialer/SYSTEM_DESIGN.md). `authorized` and `blocked` are written
+/// by the compliance gate before any provider call; every later status comes from a signed provider event.
+enum CallStatus {
+  authorized
+  blocked
+  initiated
+  ringing
+  answered
+  completed
+  no_answer
+  busy
+  failed
+  missed
+  canceled
+}
+
+/// What the rep says happened, chosen after hangup (lib/telephony/outcomes.ts is the one list).
+enum CallOutcome {
+  connected_interested
+  connected_not_interested
+  meeting_booked
+  callback_requested
+  gatekeeper
+  voicemail_left
+  no_answer
+  wrong_number
+  do_not_call
+}
+
+enum PhoneSuppressionSource {
+  manual
+  call_outcome
+  lead_request
+  wrong_number
+  complaint
+}
+
+/// One phone call, outbound or inbound — the record every dashboard counts (docs/dialer/TECH.md).
+model Call {
+  @@unique([id, tenantId], map: "Call_id_tenantId_key")
+  id                  String        @id @default(cuid())
+  direction           CallDirection
+  status              CallStatus
+  /// The rep who placed the call, or who answered it. Null for an inbound call nobody answered.
+  userId              String?
+  user                User?         @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  leadId              String?
+  lead                Lead?         @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  contactId           String?
+  contact             Contact?      @relation(fields: [contactId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  toE164              String
+  fromE164            String?
+  provider            String        @default("telnyx")
+  /// Telnyx `call_session_id` — shared by every leg of the call; what webhooks are matched on.
+  providerSessionId   String?
+  /// Telnyx `call_control_id` of the leg we command.
+  providerControlId   String?
+  authorizedAt        DateTime?
+  initiatedAt         DateTime?
+  answeredAt          DateTime?
+  endedAt             DateTime?
+  billedDurationSec   Int?
+  hangupCause         String?
+  outcome             CallOutcome?
+  notes               String?
+  /// What the gate checked and decided: rules, timezone, local time, reasons. Kept for every attempt,
+  /// including blocked ones, so a call can be shown to have been allowed.
+  compliance          Json?
+  blockedReasons      String[]      @default([])
+  recordingProviderId String?
+  recordingPurgeAt    DateTime?
+  /// The `call_made` Activity written once from the final provider event (soft link, unique).
+  activityId          String?       @unique
+  /// The missed-call Task created for an unanswered inbound call (soft link, unique = one per call).
+  missedCallTaskId    String?       @unique
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  tenantId            String
+  tenant              Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSessionId])
+  /// Commands and some webhooks name only the leg's control id.
+  @@index([providerControlId])
+  @@index([tenantId, userId, createdAt])
+  @@index([tenantId, leadId, createdAt])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, toE164, createdAt])
+  @@index([recordingPurgeAt])
+}
+
+/// A rep's provider identity for the browser softphone. No secret is stored: the WebRTC token is minted
+/// on demand from `providerCredentialId` (POST /v2/telephony_credentials/{id}/token).
+model TelephonyCredential {
+  @@unique([id, tenantId], map: "TelephonyCredential_id_tenantId_key")
+  id                   String    @id @default(cuid())
+  userId               String
+  user                 User      @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  provider             String    @default("telnyx")
+  providerCredentialId String    @unique
+  sipUsername          String
+  status               String    @default("active")
+  lastTokenAt          DateTime?
+  lastRegisteredAt     DateTime?
+  revokedAt            DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  tenantId             String
+  tenant               Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// One credential per rep (a second login with the same credential would take their incoming calls).
+  @@unique([userId, tenantId])
+  @@index([tenantId])
+}
+
+/// A phone number bought through the provider: caller ID for outbound, the hotline for inbound.
+model TelephonyNumber {
+  @@unique([id, tenantId], map: "TelephonyNumber_id_tenantId_key")
+  id               String   @id @default(cuid())
+  /// Unique across the deployment, not per tenant, on purpose: one provider account serves every
+  /// tenant, and an inbound call to a number must resolve to exactly one tenant.
+  e164             String   @unique
+  provider         String   @default("telnyx")
+  providerNumberId String?
+  /// outbound | inbound | both
+  purpose          String   @default("both")
+  country          String
+  label            String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+/// Signed provider webhooks, stored before anything acts on them (the inbox). Deployment-wide, not
+/// tenant-owned: one provider account serves every tenant, and an event's tenant is only known once it
+/// has been matched to a Call or a number. The payload holds phone numbers and is scrubbed in sanitized dumps.
+model TelephonyEvent {
+  id              String    @id @default(cuid())
+  provider        String    @default("telnyx")
+  /// Telnyx `data.id` — a redelivered webhook carries the same id and is dropped here.
+  providerEventId String    @unique
+  type            String
+  sessionId       String?
+  payload         Json
+  receivedAt      DateTime  @default(now())
+  processedAt     DateTime?
+  attempts        Int       @default(0)
+  lastError       String?
+
+  @@index([processedAt, receivedAt])
+  @@index([sessionId])
+}
+
+/// Per-tenant dialer settings, edited by managers on settings/telephony. Off and in dry-run until a
+/// manager turns it on.
+model TelephonySettings {
+  id                     String    @id @default(cuid())
+  enabled                Boolean   @default(false)
+  dryRun                 Boolean   @default(true)
+  /// Calling hours in the lead's local time, minutes since midnight (08:00–17:00).
+  callingHoursStart      Int       @default(480)
+  callingHoursEnd        Int       @default(1020)
+  /// 0 = Sunday … 6 = Saturday. Every day by default (owner decision, 2026-10-04).
+  allowedWeekdays        Int[]     @default([0, 1, 2, 3, 4, 5, 6])
+  /// ISO country codes the team may call.
+  allowedCountries       String[]  @default(["VN"])
+  recordingEnabled       Boolean   @default(true)
+  recordingRetentionDays Int       @default(90)
+  inboundRingSecs        Int       @default(20)
+  /// Users tried in order when the lead's owner does not answer an inbound call.
+  fallbackUserIds        String[]  @default([])
+  killedAt               DateTime?
+  killedById             String?
+  updatedById            String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  tenantId               String    @unique
+  tenant                 Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+/// Our own do-not-call list, by E.164 number. The dialer's gate refuses any outbound call to a number here.
+model PhoneSuppression {
+  id          String                 @id @default(cuid())
+  e164        String
+  source      PhoneSuppressionSource
+  reason      String?
+  createdById String?
+  createdAt   DateTime               @default(now())
+  tenantId    String
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, e164])
 }

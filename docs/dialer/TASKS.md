@@ -34,9 +34,8 @@ click-to-call and update ADR-001 before Phase 2.
 |---|---|---|---|---|---|
 | D1.1 | Migration `telephony_core`: `Call` (status/outcome enums, compliance JSON, recording fields, unique `activityId`/`missedCallTaskId`, unique `[provider, providerSessionId]`), `TelephonyCredential`, `TelephonyNumber`, `TelephonyEvent` (unique `providerEventId`), `TelephonySettings`, `PhoneSuppression` | `prisma/schema.prisma`, `prisma/migrations/*_telephony_core` | Migration order, stale models | D0.6 | C |
 | D1.2 | `doNotCall`/`doNotCallAt`/`doNotCallReason` on Lead and Contact; index `[tenantId, normalizedPhone]` | schema | Unique/index tests | D1.1 | C |
-| D1.3 | Backfill E.164 into `normalizedPhone` with `normalizePhoneIdentifier` | `scripts/backfill-phone-e164.ts` | Dry-run counts; VN + international fixtures; idempotent rerun | D1.2 | C |
+| D1.3 | ~~Backfill E.164 into `normalizedPhone`~~ **Dropped (2026-10-05):** `normalizedPhone` is written by `normalizePhone(phone)` without a country (VN locals stay `0…`) and lead/contact dedupe compares it, so rewriting it to E.164 would make new imports miss backfilled rows and create duplicates. Instead: E.164 is computed at dial time (D3.1), and inbound matches a caller against every stored form of the number (D6.1). | — | — | — | — |
 | D1.4 | Gates: RLS, sanitize coverage (phones, notes, payloads, recording id), soft foreign keys, seed delete order | gate configs | Each gate passes, and fails when the entry is removed | D1.1 | C |
-| D1.5 | Run the backfill on production (dry-run, then `--apply`) | — | Count report | D1.3 + deploy | O |
 
 ## Phase 2 — Provider adapter + token endpoint
 | ID | Task | Files | Tests | Deps | Owner |
@@ -79,7 +78,7 @@ click-to-call and update ADR-001 before Phase 2.
 ## Phase 6 — Inbound + missed calls
 | ID | Task | Files | Tests | Deps | Owner |
 |---|---|---|---|---|---|
-| D6.1 | Number → tenant; caller → Lead/Contact → owner; transfer to owner, then fallback | `lib/telephony/inbound.ts`, worker | Owner answers; fallback answers; tenant isolation | D4.3 | C |
+| D6.1 | Number → tenant; caller → Lead/Contact (match `normalizedPhone` against the caller's E.164, international digits and national `0…` forms) → owner; transfer to owner, then fallback | `lib/telephony/inbound.ts`, worker | Owner answers; fallback answers; a lead stored as `0948…` matches a `+84948…` caller; tenant isolation | D4.3 | C |
 | D6.2 | Missed: voicemail, `missed`, one task (dedupe), notification; unknown caller ⇒ stub lead | `lib/telephony/inbound.ts` | Duplicate event ⇒ one task. Mutants: dedupe | D6.1 | C |
 | D6.3 | Point the VN number at the Call Control app | Telnyx portal | Live inbound test | D6.2 + deploy | O |
 
