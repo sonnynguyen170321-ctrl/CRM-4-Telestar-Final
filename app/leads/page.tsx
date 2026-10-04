@@ -553,6 +553,17 @@ export default function LeadsPage() {
     return map;
   }, [leads]);
 
+  // The order the drawer's previous / next follow is the order on screen: column by column, top
+  // to bottom, on the board; the sorted rows in the table.
+  const columnOrder = columns.map((col) => col.id).join('|');
+  const drawerLeadIds = useMemo(
+    () =>
+      viewMode === 'kanban'
+        ? columnOrder.split('|').flatMap((stage) => (leadsByStage[stage] ?? []).map((lead) => lead.id))
+        : sortedLeadIds,
+    [viewMode, columnOrder, leadsByStage, sortedLeadIds]
+  );
+
   // Stage and priority chips in the table are now `OperatingStateBadge` / `PriorityIndicator`,
   // which resolve their own colours from the shared status system in `components/operating`.
 
@@ -1129,11 +1140,11 @@ export default function LeadsPage() {
       {selectedLeadId && (
         <LeadDetailPanel
           leadId={selectedLeadId}
-          siblingIds={sortedLeadIds}
+          siblingIds={drawerLeadIds}
           onNavigate={(id) => {
             setSelectedLeadId(id);
-            // The list highlight follows, so closing the drawer leaves you on the last lead viewed.
-            setFocusedLeadIndex(sortedLeadIds.indexOf(id));
+            // The table highlight follows, so closing the drawer leaves you on the last lead viewed.
+            if (viewMode === 'table') setFocusedLeadIndex(sortedLeadIds.indexOf(id));
           }}
           onLeadUpdate={() => invalidateLeads()}
           onClose={() => {

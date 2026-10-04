@@ -36,6 +36,8 @@ test('the lead drawer steps through the table and drops drafts on the way', asyn
 
   try {
     await page.goto('/leads');
+    // The page opens on the board; the table is the view with a single, sorted order to follow.
+    await page.getByRole('button', { name: 'Table view' }).click();
     await page.getByPlaceholder('Search full name, email, company, phone...').fill(company);
     const rows = page.locator('tbody tr').filter({ hasText: company });
     await expect(rows).toHaveCount(2);
