@@ -34,17 +34,17 @@ Any statement that this system enforces isolation at the database layer today is
 
 The Prisma extension in `lib/prisma.ts` injects `where: { tenantId }` into every model operation. Inside one of these scopes it does not, so the query is only as tenant-correct as it was written to be. On a database with no RLS policies this is the entire boundary.
 
-**17 file(s), 21 site(s).**
+**17 file(s), 20 site(s).**
 
 | File | Line(s) | Why this is safe |
 |---|---|---|
 | `app/api/ai/attention/route.ts` | 21 | Session tenant from `requireAuth`. The scope wraps `getWhatNeedsAttention`, which filters every query in `lib/ai/engine/attention-engine.ts` by `tenantId` explicitly — overdue leads, unassigned leads and paused mailboxes all carry it. |
 | `app/api/ai/daily-briefing/route.ts` | 44 | Session tenant from `requireAuth`. All three reads inside the scope — `task.findMany`, `lead.findMany`, `activity.findMany` — name `tenantId` in their `where` explicitly. |
-| `app/api/ai/nba/route.ts` | 28 | Session tenant from `requireAuth`. The scope wraps `calculateNextBestAction`, which reads `lead.findFirst({ where: { id: leadId, tenantId } })` — the id is paired with the tenant, so a foreign id resolves to nothing. |
+| `app/api/ai/nba/route.ts` | 32 | Session tenant from `requireAuth`. The scope wraps `calculateNextBestAction`, which reads `lead.findFirst({ where: { id: leadId, tenantId } })` — the id is paired with the tenant, so a foreign id resolves to nothing. |
 | `app/api/cron/email-health/route.ts` | 30 | System context (`tenantId: 'system'`), and deliberately cross-tenant: the job computes email health across every tenant. Reachable only with the `CRON_SECRET` bearer token, never from a user session. |
-| `app/api/cron/inbox-sync/route.ts` | 17 | System context, deliberately cross-tenant: it sweeps active mailboxes across tenants to enqueue per-account sync jobs. `CRON_SECRET` bearer token only. |
+| `app/api/cron/inbox-sync/route.ts` | 24 | System context, deliberately cross-tenant: it sweeps active mailboxes across tenants to enqueue per-account sync jobs. `CRON_SECRET` bearer token only. |
 | `app/api/cron/maintenance/route.ts` | 76 | System context, deliberately cross-tenant: it iterates tenants to schedule per-tenant maintenance. `CRON_SECRET` bearer token only. |
-| `app/api/cron/sequence-engine/route.ts` | 126, 233 | System context, deliberately cross-tenant: it scans due sequence steps for every tenant and processes each within its own tenant boundary. Task claims use a conditional `updateMany` on `id + status + lockedAt`, so two runners cannot both take a task. `CRON_SECRET` bearer token only. |
+| `app/api/cron/sequence-engine/route.ts` | 130 | System context, deliberately cross-tenant: it scans due sequence steps for every tenant and processes each within its own tenant boundary. Task claims use a conditional `updateMany` on `id + status + lockedAt`, so two runners cannot both take a task. `CRON_SECRET` bearer token only. |
 | `app/api/leads/recalculate-scores/route.ts` | 27 | Session tenant from the verified `SessionUser`. The `lead.update` calls inside the scope address ids drawn from a preceding tenant-scoped read, so no caller-supplied id reaches the database. |
 | `app/api/unsubscribe/route.ts` | 20 | Public by necessity — an unsubscribe link is followed without a session. The tenant is not taken from the request but recovered from an HMAC-verified token that binds `tenantId`, `email` and `leadId`; a forged or edited token fails verification before any query runs. |
 | `lib/auth.ts` | 51, 75, 112 | Runs before a tenant is known, which is the reason the bypass exists. API keys are resolved by unique `keyHash` and users by the id inside an already-verified token; both are identity lookups whose whole purpose is to establish the tenant that later queries are scoped by. |
@@ -101,9 +101,9 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 
 | | Count |
 |---|---|
-| Category A sites | 21 |
+| Category A sites | 20 |
 | Category B sites | 8 |
 | Category C sites | 43 |
-| All sites | 72 |
+| All sites | 71 |
 | Unreviewed | 0 |
 
