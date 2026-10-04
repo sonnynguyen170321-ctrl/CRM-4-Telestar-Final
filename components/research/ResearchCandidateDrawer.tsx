@@ -52,6 +52,8 @@ type CandidateDetail = {
     /** True when the attempt belongs to the run that surfaced this candidate, not to the candidate itself. */
     runScoped: boolean;
   }>;
+  /** The run's searches per provider, counted over all of them. */
+  runAttemptTally?: Array<{ provider: string; ok: number; failed: number }>;
   history: {
     timesSeen: number;
     firstSeenAt: string;
@@ -251,8 +253,6 @@ function toLabels(value: unknown): string[] {
     : [];
 }
 
-/** The read model caps attempts at this many; a full list is shown as "N+". */
-const ATTEMPT_READ_CAP = 50;
 
 /**
  * How this candidate was found — replacing a flat "Provider attempts (19)" list.
@@ -265,19 +265,13 @@ const ATTEMPT_READ_CAP = 50;
  */
 function ProvenanceSection({ detail }: { detail: CandidateDetail }) {
   const own = detail.attempts.filter((attempt) => !attempt.runScoped);
-  const run = detail.attempts.filter((attempt) => attempt.runScoped);
+  // Counted by the server over every search the run made (lib/research/readModel.ts).
+  const tally = detail.runAttemptTally ?? [];
+  const runTotal = tally.reduce((sum, row) => sum + row.ok + row.failed, 0);
   const queries = Array.from(
     new Set(detail.evidence.map((item) => item.query).filter((query): query is string => Boolean(query))),
   );
 
-  const tally = new Map<string, { ok: number; failed: number }>();
-  for (const attempt of run) {
-    const row = tally.get(attempt.provider) ?? { ok: 0, failed: 0 };
-    if (attempt.status === 'ok') row.ok += 1;
-    else row.failed += 1;
-    tally.set(attempt.provider, row);
-  }
-  const runCount = `${run.length}${detail.attempts.length >= ATTEMPT_READ_CAP ? '+' : ''}`;
 
   return (
     <section>
@@ -319,15 +313,15 @@ function ProvenanceSection({ detail }: { detail: CandidateDetail }) {
         </div>
       )}
 
-      {run.length > 0 && (
+      {runTotal > 0 && (
         <details className="mt-3 rounded-lg border border-card-border px-3 py-2">
           <summary className="cursor-pointer type-meta text-text-muted">
-            Provider attempts for the whole run ({runCount}) — for diagnosing the run, not this lead
+            Provider attempts for the whole run ({runTotal}) — for diagnosing the run, not this lead
           </summary>
           <ul className="mt-2 space-y-1">
-            {Array.from(tally.entries()).map(([provider, counts]) => (
-              <li key={provider} className="flex items-center justify-between type-meta text-text-secondary">
-                <span>{provider}</span>
+            {tally.map((counts) => (
+              <li key={counts.provider} className="flex items-center justify-between type-meta text-text-secondary">
+                <span>{counts.provider}</span>
                 <span className="font-mono text-text-muted">
                   {counts.ok} ok{counts.failed > 0 ? `  ·  ${counts.failed} failed` : ''}
                 </span>

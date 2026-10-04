@@ -21,7 +21,10 @@ export type ResearchRunRow = {
   kind: string;
   status: string;
   totalQueries: number;
+  /** The query budget asked for. `totalQueries` is how many searches the ICP's terms made of it. */
+  queryBudget: number | null;
   queryCursor: number;
+  /** Candidate rows this run created — counted, not a counter a failed query can leave short. */
   discoveredCount: number;
   duplicateCount: number;
   promotedCount: number;
@@ -42,8 +45,8 @@ export async function listResearchRuns(tenantId: string, limit = 50): Promise<Re
     orderBy: { createdAt: 'desc' },
     take: Math.min(limit, 200),
     select: {
-      id: true, kind: true, status: true, queriesJson: true, queryCursor: true,
-      discoveredCount: true, duplicateCount: true, createdAt: true,
+      id: true, kind: true, status: true, queriesJson: true, paramsJson: true, queryCursor: true,
+      duplicateCount: true, createdAt: true,
       startedAt: true, finishedAt: true, errorMessage: true,
       pauseRequestedAt: true, updatedAt: true,
     },
@@ -51,20 +54,30 @@ export async function listResearchRuns(tenantId: string, limit = 50): Promise<Re
 
   // Promoted counts come from one grouped query rather than a per-run count: a list of 50 runs would
   // otherwise fire 50 extra round trips to render one column.
-  const promoted = await prisma.researchCandidate.groupBy({
-    by: ['runId'],
-    where: { tenantId, status: 'promoted', runId: { in: runs.map((r) => r.id) } },
-    _count: { _all: true },
-  });
+  const runIds = runs.map((r) => r.id);
+  const [promoted, created] = await Promise.all([
+    prisma.researchCandidate.groupBy({
+      by: ['runId'],
+      where: { tenantId, status: 'promoted', runId: { in: runIds } },
+      _count: { _all: true },
+    }),
+    prisma.researchCandidate.groupBy({
+      by: ['runId'],
+      where: { tenantId, runId: { in: runIds } },
+      _count: { _all: true },
+    }),
+  ]);
   const promotedByRun = new Map(promoted.map((p) => [p.runId, p._count._all]));
+  const createdByRun = new Map(created.map((p) => [p.runId, p._count._all]));
 
   return runs.map((run) => ({
     id: run.id,
     kind: run.kind,
     status: run.status,
     totalQueries: Array.isArray(run.queriesJson) ? run.queriesJson.length : 0,
+    queryBudget: readQueryBudget(run.paramsJson),
     queryCursor: run.queryCursor,
-    discoveredCount: run.discoveredCount,
+    discoveredCount: createdByRun.get(run.id) ?? 0,
     duplicateCount: run.duplicateCount,
     promotedCount: promotedByRun.get(run.id) ?? 0,
     createdAt: run.createdAt,
@@ -74,6 +87,44 @@ export async function listResearchRuns(tenantId: string, limit = 50): Promise<Re
     pauseRequested: run.pauseRequestedAt !== null,
     stalled: run.status === 'running' && now - run.updatedAt.getTime() > STALE_RUNNER_MS,
   }));
+}
+
+function readQueryBudget(paramsJson: unknown): number | null {
+  const value = paramsJson && typeof paramsJson === 'object' ? (paramsJson as { queryBudget?: unknown }).queryBudget : null;
+  return typeof value === 'number' ? value : null;
+}
+
+/**
+ * The workspace's tabs for one run, counted over every candidate in it so they add up:
+ * pipeline = promoted here or already promoted in an earlier run; review = still new and not
+ * already taken; dismissed = dismissed; all = every candidate. They used to be counted in the
+ * browser from the first 200 rows, beside an "All" counted on the server.
+ */
+export type CandidateTabCounts = { review: number; pipeline: number; dismissed: number; all: number };
+
+async function candidateTabCounts(tenantId: string, runId: string): Promise<CandidateTabCounts> {
+  const rows = await prisma.researchCandidate.findMany({
+    where: { tenantId, runId },
+    select: { status: true, dedupeFingerprint: true },
+  });
+  const fingerprints = Array.from(new Set(rows.map((row) => row.dedupeFingerprint)));
+  const taken = new Set(
+    fingerprints.length
+      ? (
+          await prisma.researchProspect.findMany({
+            where: { tenantId, dedupeFingerprint: { in: fingerprints }, promotedAccountId: { not: null } },
+            select: { dedupeFingerprint: true },
+          })
+        ).map((entry) => entry.dedupeFingerprint)
+      : []
+  );
+  const counts: CandidateTabCounts = { review: 0, pipeline: 0, dismissed: 0, all: rows.length };
+  for (const row of rows) {
+    if (row.status === 'promoted' || taken.has(row.dedupeFingerprint)) counts.pipeline += 1;
+    else if (row.status === 'dismissed') counts.dismissed += 1;
+    else if (row.status === 'discovered') counts.review += 1;
+  }
+  return counts;
 }
 
 export type CandidateListQuery = {
@@ -122,7 +173,8 @@ export async function listResearchCandidates(query: CandidateListQuery, tenantId
   const counts = Object.fromEntries(
     grouped.map((entry) => [entry.status, entry._count._all]),
   ) as Record<string, number>;
-  if (rows.length === 0) return { items: [], total, page, pageSize, counts };
+  const tabCounts = query.runId ? await candidateTabCounts(tenantId, query.runId) : null;
+  if (rows.length === 0) return { items: [], total, page, pageSize, counts, tabCounts };
 
   // "Already taken in an earlier run" is a property of the fingerprint, not of this run's row, so it
   // needs the ledger. Without it a weekly run re-offers everything the team already imported.
@@ -144,7 +196,7 @@ export async function listResearchCandidates(query: CandidateListQuery, tenantId
     ? annotated.filter((row) => !row.previouslyPromoted)
     : annotated;
 
-  return { items, total, page, pageSize, counts };
+  return { items, total, page, pageSize, counts, tabCounts };
 }
 
 /**
@@ -164,6 +216,17 @@ export function candidateAttemptsWhere(input: {
   };
 }
 
+function tallyByProvider(rows: Array<{ provider: string; status: string; _count: { _all: number } }>) {
+  const byProvider = new Map<string, { provider: string; ok: number; failed: number }>();
+  for (const row of rows) {
+    const entry = byProvider.get(row.provider) ?? { provider: row.provider, ok: 0, failed: 0 };
+    if (row.status === 'ok') entry.ok += row._count._all;
+    else entry.failed += row._count._all;
+    byProvider.set(row.provider, entry);
+  }
+  return [...byProvider.values()].sort((a, b) => b.ok + b.failed - (a.ok + a.failed));
+}
+
 /** Everything the evidence drawer shows for one candidate. */
 export async function getCandidateEvidence(candidateId: string, tenantId: string) {
   const candidate = await prisma.researchCandidate.findFirst({
@@ -178,7 +241,7 @@ export async function getCandidateEvidence(candidateId: string, tenantId: string
   if (!candidate) return null;
   const { runId, ...candidateView } = candidate;
 
-  const [evidence, attempts, ledger] = await Promise.all([
+  const [evidence, attempts, runTally, ledger] = await Promise.all([
     prisma.researchEvidence.findMany({
       where: { tenantId, candidateId },
       orderBy: { createdAt: 'asc' },
@@ -192,11 +255,19 @@ export async function getCandidateEvidence(candidateId: string, tenantId: string
     // query has returned. Filtering on candidateId alone showed "Provider attempts (0)" for every
     // candidate that had not been enriched yet, under a ledger full of evidence from those very
     // queries. Candidate-scoped attempts still come first; the run's own follow.
+    // This candidate's own lookups, listed. The run's searches are a tally, counted over all of
+    // them: reading the oldest 50 of both together let the run's discovery attempts crowd out the
+    // candidate's own, and made a "whole run" tally out of its first few queries.
     prisma.researchProviderAttempt.findMany({
-      where: candidateAttemptsWhere({ tenantId, candidateId, runId }),
+      where: { tenantId, candidateId },
       orderBy: { startedAt: 'asc' },
       take: 50,
       select: { id: true, stage: true, provider: true, status: true, startedAt: true, finishedAt: true, candidateId: true },
+    }),
+    prisma.researchProviderAttempt.groupBy({
+      by: ['provider', 'status'],
+      where: { tenantId, runId, candidateId: null },
+      _count: { _all: true },
     }),
     prisma.researchCandidate
       .findFirst({ where: { id: candidateId, tenantId }, select: { dedupeFingerprint: true } })
@@ -217,6 +288,7 @@ export async function getCandidateEvidence(candidateId: string, tenantId: string
       ...attempt,
       runScoped: attemptCandidateId === null,
     })),
+    runAttemptTally: tallyByProvider(runTally),
     history: ledger,
   };
 }

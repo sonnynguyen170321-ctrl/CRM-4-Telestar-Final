@@ -1,3 +1,4 @@
+import { DISCOVERY_QUERY_LIMIT_OPTIONS } from "@telestar/core-research";
 import type { SessionUser } from "@/lib/auth";
 
 export type ResearchAction = "read" | "run" | "promote" | "manage";
@@ -60,10 +61,15 @@ export function researchQueryOptionsForRole(
 export function validateResearchQueryLimit(
   role: SessionUser["role"],
   requested: number | undefined,
-): { ok: true } | { ok: false; max: number } {
+): { ok: true } | { ok: false; max: number; options?: readonly number[] } {
   const max = researchQueryLimitForRole(role);
   if (requested !== undefined && requested > max) {
     return { ok: false, max };
+  }
+  // The planner only knows these sizes and used to turn anything else into 50 without a word, so a
+  // caller asking for 150 got a third of it. Say so instead.
+  if (requested !== undefined && !(DISCOVERY_QUERY_LIMIT_OPTIONS as readonly number[]).includes(requested)) {
+    return { ok: false, max, options: DISCOVERY_QUERY_LIMIT_OPTIONS };
   }
   return { ok: true };
 }

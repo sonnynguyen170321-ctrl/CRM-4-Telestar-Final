@@ -37,6 +37,8 @@ type RunRow = {
   kind: string;
   status: string;
   totalQueries: number;
+  /** The budget asked for; null on runs created before it was recorded. */
+  queryBudget?: number | null;
   queryCursor: number;
   discoveredCount: number;
   duplicateCount: number;
@@ -95,6 +97,8 @@ export default function ResearchWorkspace() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [candidateCounts, setCandidateCounts] = useState<Record<string, number>>({});
+  // Counted by the server over the whole run (lib/research/readModel.ts), so the tabs add up.
+  const [serverTabCounts, setServerTabCounts] = useState<Record<CandidateTab, number> | null>(null);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [candidateTab, setCandidateTab] = useState<CandidateTab>('review');
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
@@ -182,6 +186,7 @@ export default function ResearchWorkspace() {
         const items: CandidateRow[] = data.items ?? [];
         setCandidates(items);
         setCandidateCounts(data.counts ?? {});
+        setServerTabCounts(data.tabCounts ?? null);
         // A background refresh must not throw away what the SDR has ticked; it only drops rows that
         // are gone. A deliberate reload starts clean, as it always did.
         setSelectedCandidates((current) =>
@@ -239,19 +244,16 @@ export default function ResearchWorkspace() {
           return candidate.status === 'promoted' || candidate.previouslyPromoted;
         }
         if (candidateTab === 'dismissed') return candidate.status === 'dismissed';
-        return candidate.status === 'discovered';
+        // Review is what is still new: a candidate already promoted in an earlier run is pipeline.
+        return candidate.status === 'discovered' && !candidate.previouslyPromoted;
       }),
     [candidateTab, candidates],
   );
   const visibleCandidateIds = useMemo(() => visibleCandidates.map((candidate) => candidate.id), [visibleCandidates]);
 
-  const tabCounts: Record<CandidateTab, number> = {
-    review: candidates.filter(
-      (candidate) => candidate.status === 'discovered',
-    ).length,
-    pipeline: candidates.filter(
-      (candidate) => candidate.status === 'promoted' || candidate.previouslyPromoted,
-    ).length,
+  const tabCounts: Record<CandidateTab, number> = serverTabCounts ?? {
+    review: 0,
+    pipeline: 0,
     dismissed: candidateCounts.dismissed ?? 0,
     all: Object.values(candidateCounts).reduce((sum, count) => sum + count, 0),
   };
@@ -324,8 +326,11 @@ export default function ResearchWorkspace() {
       const suppressedCount = (data.results ?? []).filter(
         (result: { status?: string }) => result.status === 'suppressed',
       ).length;
+      // Everything else the server reported (skipped, not found): the parts add up to the selection.
+      const otherCount = Math.max(promotionIds.length - promotedCount - existingCount - suppressedCount, 0);
       showToast(
-        `${promotedCount} added, ${existingCount} already in campaign, ${suppressedCount} blocked by suppression.`,
+        `${promotedCount} added, ${existingCount} already in campaign, ${suppressedCount} blocked by suppression` +
+          (otherCount > 0 ? `, ${otherCount} skipped.` : '.'),
         suppressedCount > 0 && promotedCount === 0 ? 'error' : 'success',
       );
       setPromotionIds([]);
@@ -409,14 +414,22 @@ export default function ResearchWorkspace() {
 
               <div className="mt-4 grid grid-cols-4 border-y border-card-border py-3">
                 <CockpitMetric label="Candidates" value={String(selectedRun?.discoveredCount ?? 0)} icon={Search} />
-                <CockpitMetric label="In pipeline" value={String(selectedRun?.promotedCount ?? 0)} icon={Database} />
+                {/* The Pipeline tab's own number: promoted here or already taken in an earlier run. */}
+                <CockpitMetric label="In pipeline" value={String(serverTabCounts?.pipeline ?? selectedRun?.promotedCount ?? 0)} icon={Database} />
                 <CockpitMetric
                   label="Progress"
                   value={selectedRun ? `${selectedRun.queryCursor}/${selectedRun.totalQueries}` : '0/0'}
                   icon={Clock3}
                 />
-                <CockpitMetric label="Repeat hits" value={String(selectedRun?.duplicateCount ?? 0)} icon={CheckCircle2} />
+                <CockpitMetric label="Same company twice" value={String(selectedRun?.duplicateCount ?? 0)} icon={CheckCircle2} />
               </div>
+              {selectedRun?.queryBudget != null && selectedRun.totalQueries < selectedRun.queryBudget && (
+                <p className="mt-2 type-meta text-text-muted">
+                  {selectedRun.totalQueries} searches planned of a {selectedRun.queryBudget}-query budget: the ICP&apos;s
+                  industries, keywords and locations only combine into {selectedRun.totalQueries} distinct searches. Add
+                  more of them to use more of the budget.
+                </p>
+              )}
 
               {selectedRun && (selectedRun.queryCursor < selectedRun.totalQueries || selectedRun.status === 'running') && (
                 <div className="mt-4 border-t border-card-border pt-4">
