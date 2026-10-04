@@ -49,7 +49,7 @@ click-to-call and update ADR-001 before Phase 2.
 | D2.7 | `Telephony` env group | `lib/env-contract.ts`, `crm.env.example`, `scripts/prod-check-env.ts` | Env contract test | — | C |
 | D2.8 | Production env values | VPS env | `prod-check-env` passes | D2.7 | O |
 
-**Done 2026-10-05 (D2.1–D2.7).** Changes from the plan, from the security and code reviews: concurrent
+**Done 2026-10-04 (D2.1–D2.7).** Changes from the plan, from the security and code reviews: concurrent
 first requests for a rep share one in-process creation (not a database lock — the provider call must
 not hold a pooled connection, or the 08:00 first logins would starve the app's pool); `createCredential`
 is never retried and a credential is adopted by its exact name (`crm:<tenant>:<user>`) when an earlier
@@ -62,13 +62,34 @@ enum has no client or viewer role; revisit if one is added.
 | ID | Task | Files | Tests | Deps | Owner |
 |---|---|---|---|---|---|
 | D3.1 | Pure `evaluateCallPermission`, ordered rules, all reasons collected, exception ⇒ `gate_error` | `lib/telephony/compliance.ts` | Table-driven: 07:59:59 / 08:00 / 16:59:59 / 17:00 in VN and US zones; suppression; DNC flag; country; invalid E.164; **repeat call allowed**. Mutants: every comparison and rule short-circuit | D1.2, D2.3 | C |
-| D3.2 | Timezone: lead → phone country (single zone) → lead country (single zone) → `tz_unknown` | `lib/telephony/timezone.ts` (reuses `lib/automation/timezone.ts`, `lib/time/inferTimezone.ts`) | Single- and multi-zone countries (US, AU) | D3.1 | C |
+| D3.2 | Timezone: phone country (single zone) → lead timezone (region zone inside the number's country) → record country (same country as the number) → `tz_unknown` | `lib/telephony/timezone.ts` (reuses `lib/automation/timezone.ts`, `lib/time/inferTimezone.ts`) | Single- and multi-zone countries (US, AU) | D3.1 | C |
 | D3.3 | Loader + `POST /api/telephony/calls` (Call row authorized/blocked with snapshot; returns token) | `app/api/telephony/calls/route.ts` | Blocked attempt audited; `canAccessLead` denial; cross-tenant 404 | D3.1, D2.4 | C |
+
+**Done 2026-10-04 (D3.1–D3.3).** Decisions made while building it:
+- The number always comes from the record (the lead's phone, or its own contact's), never the browser.
+- A national number is read with the record's country (contact, then account), then as `VN`, so a
+  Vietnamese "0948…" on a lead whose company is in Singapore is still dialable.
+- A record with no dialable number gets 422 and **no** `Call` row (`toE164` must be a valid E.164).
+- Dry-run writes the attempt as `blocked` with `dry_run` added to its reasons and `wouldBeAllowed`.
+- A lead the rep may not work is answered exactly like a missing one (404, no row, a server log line),
+  so the route reveals nothing about leads the rep cannot see; another tenant's or an archived lead is
+  the same 404.
+- One attempt per rep per 3 s (database check + an in-process guard against parallel requests); repeat
+  calls are otherwise unlimited. The token is signed before the row is written.
+- The country allow-list is judged on the dialled number, not the record. Premium-rate and
+  shared-cost numbers are blocked (`number_type_not_allowed`, libphonenumber full metadata via
+  `@telestar/core-identity/phone-type`).
+- **Timezone order changed from the plan (security review):** the number's zone first when its country
+  has one zone — `lead.timezone` is rep-editable, so trusting it first let a rep move a 21:00 Hanoi call
+  into hours by setting the lead to Auckland. `lead.timezone` is used only for multi-zone numbers, and
+  only a region/city zone inside that country; the record's country only when it is the number's.
+  Spain (+34, Canaries), Portugal (+351, Azores) and New Zealand (+64, Chatham) share one calling code
+  across zones, so the gate treats them as multi-zone (code review).
 
 ## Phase 4 — Webhooks, worker, reconciliation
 | ID | Task | Files | Tests | Deps | Owner |
 |---|---|---|---|---|---|
-| D4.1 | Webhook route: verify → inbox insert (on conflict do nothing) → `call.initiated` inline (token + hours → connect or hang up, fail-closed) → enqueue the rest → 200 | `app/api/telephony/telnyx/webhook/route.ts` | Bad signature 401; duplicate; out-of-order; invalid token ⇒ hangup; **token used twice ⇒ second hangup** (claim the `Call` row `authorized → initiated` with a guarded update: the HMAC token alone is replayable for its 120 s); event id seen twice ⇒ one inbox row (signature only bounds replay to 300 s); 5xx only on insert failure | D2.2, D3.3 | C |
+| D4.1 | Webhook route: verify → inbox insert (on conflict do nothing) → `call.initiated` inline (token + hours → connect or hang up, fail-closed) → enqueue the rest → 200 | `app/api/telephony/telnyx/webhook/route.ts` | Bad signature 401; duplicate; out-of-order; invalid token ⇒ hangup; **re-run the pure gate at `call.initiated`** (hours, suppression, DNC — a call authorized at 16:59:59 must not connect at 17:00); **token used twice ⇒ second hangup** (claim the `Call` row `authorized → initiated` with a guarded update: the HMAC token alone is replayable for its 120 s); event id seen twice ⇒ one inbox row (signature only bounds replay to 300 s); 5xx only on insert failure | D2.2, D3.3 | C |
 | D4.2 | Proxy matcher exclusion; route-authorization `public` reason | `proxy.ts`, registry | Authorization coverage gate | D4.1 | C |
 | D4.3 | `telephony` queue + worker: correlate by session id, forward-only status, finalize duration/cause, write `call_made` once (`call:<id>:final`) | `lib/bullmq/types.ts`, `queues.ts`, `jobOptions.ts`, `workers/telephony.ts`, `workers/index.ts` | Replay ⇒ one Activity. Mutants: status order, idempotency key | D4.1 | C |
 | D4.4 | Reconcile cron (5 min): replay unprocessed events, cancel stale `authorized`, finalize stuck calls | `app/api/cron/telephony-reconcile/route.ts` | `CRON_SECRET` required; each repair branch | D4.3 | C |

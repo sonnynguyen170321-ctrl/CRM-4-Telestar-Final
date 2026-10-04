@@ -13,7 +13,8 @@ lives, which existing helpers it reuses, and the rules a change to it must keep.
 | `lib/telephony/fake.ts` | In-memory provider for tests |
 | `lib/telephony/flags.ts` | `isTelephonyEnabled(tenantId)`, `effectiveDryRun(tenantId)` — mirrors `lib/emailSafety.ts`; demo tenants never dial |
 | `lib/telephony/authToken.ts` | HMAC call token bound to `callId + userId + toE164`, 120 s TTL |
-| `lib/telephony/compliance.ts` | `evaluateCallPermission` (pure) + loader; the only place that decides whether a call may be placed |
+| `lib/telephony/compliance.ts` | `evaluateCallPermission` (pure); the only place that decides whether a call may be placed |
+| `lib/telephony/gate.ts` | Loader: reads lead/contact, suppression, credential and settings for the session's tenant, then calls the pure gate |
 | `lib/telephony/timezone.ts` | Lead-local time for the calling-hours rule |
 | `lib/telephony/outcomes.ts` | The one outcome list, shared by UI and server |
 | `lib/telephony/inbound.ts` | Inbound routing: number → tenant → caller → owner → fallback → missed |
