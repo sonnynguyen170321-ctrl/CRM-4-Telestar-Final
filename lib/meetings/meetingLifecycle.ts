@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { resolveBookingLink } from './bookingLinks';
+import { pauseSequence } from '@/lib/sequences/engine';
 import type { SessionUser } from '@/lib/auth';
 import type { MeetingStatus, MeetingOutcome } from '@prisma/client';
 import { onMeetingOutcomeLogged } from '@/lib/contact-intelligence/events';
@@ -124,18 +125,11 @@ export async function bookMeeting(input: {
     },
   });
 
-  // 2. Pause active sequence enrollment if any
-  if (lead.sequenceStatus === 'active') {
-    await prisma.lead.update({
-      where: { id: leadId },
-      data: { sequenceStatus: 'paused' },
-    });
-    // Also pause the SequenceEnrollment record
-    await prisma.sequenceEnrollment.updateMany({
-      where: { leadId, status: 'active' },
-      data: { status: 'paused' },
-    });
-  }
+  // 2. Pause every running cadence on the lead. Through `pauseSequence`, not a raw status write:
+  //    that path also skips the cadence's pending tasks and records the reason, and it reads the
+  //    enrollments themselves — a lead can run several, and its `sequenceStatus` pointer can say
+  //    nothing (or "paused") while others are still sending.
+  await pauseSequence(leadId, 'meeting_booked', user.id);
 
   // 3. Log meeting_booked activity
   await prisma.activity.create({

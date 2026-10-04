@@ -157,6 +157,18 @@ describe('handleApplyReply', () => {
     assignedToId: 'user-1', firstName: 'John', lastName: 'Doe', company: 'Acme',
   };
 
+  it('leaves a later stage alone and records no stage change when a meeting-booked lead replies', async () => {
+    mockLeadFindUnique.mockResolvedValue({ ...baseLead, stage: 'meeting_booked' });
+    // The forward-only stage write matches nothing for a lead already past "replied".
+    mockLeadUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+    await handleApplyReply({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1' });
+
+    const types = mockActivityCreate.mock.calls.map((call) => (call[0] as { data: { type: string } }).data.type);
+    expect(types).not.toContain('stage_changed');
+    expect(types).toContain('email_replied');
+  });
+
   it('records a sales reply and hands the classified prospect onward', async () => {
     mockLeadFindUnique.mockResolvedValue(baseLead);
 
@@ -173,7 +185,12 @@ describe('handleApplyReply', () => {
     });
     expect(mockLeadUpdate).toHaveBeenCalledWith({
       where: { id: 'lead-1' },
-      data: { stage: 'replied', emailReplyCount: { increment: 1 } },
+      data: { emailReplyCount: { increment: 1 } },
+    });
+    // Forward only: the stage moves to replied from new / sequence_active, never back from later.
+    expect(mockLeadUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'lead-1', stage: { in: ['new', 'sequence_active'] } },
+      data: { stage: 'replied' },
     });
     expect(mockActivityCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -602,7 +619,12 @@ describe('handleEmailSync', () => {
     expect(result).toEqual({ success: true, accountId: 'acct-1', messagesProcessed: 1, replies: 1, bounces: 0, autoReplies: 0 });
     expect(mockLeadUpdate).toHaveBeenCalledWith({
       where: { id: 'lead-1' },
-      data: { stage: 'replied', emailReplyCount: { increment: 1 } },
+      data: { emailReplyCount: { increment: 1 } },
+    });
+    // Forward only: the stage moves to replied from new / sequence_active, never back from later.
+    expect(mockLeadUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'lead-1', stage: { in: ['new', 'sequence_active'] } },
+      data: { stage: 'replied' },
     });
     expect(mockAccountUpdate).toHaveBeenCalled();
   });

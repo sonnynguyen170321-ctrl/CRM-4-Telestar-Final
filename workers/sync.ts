@@ -10,6 +10,9 @@ import { suppressRecipient } from '@/lib/email/suppress';
 import { classifyReply } from '@/lib/replies/classification';
 import { applyReplyClassification } from '@/lib/replies/handling';
 
+/** Stages a reply moves forward to "replied". Later stages (meeting booked, won, lost) stay put. */
+const STAGES_A_REPLY_ADVANCES = ['new', 'sequence_active'] as const;
+
 const SOFT_BOUNCE_RE = /temporarily|try again later|mailbox full|over quota|too large|try again/i;
 const DEFAULT_SYNC_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
@@ -289,23 +292,33 @@ export async function handleApplyReply(payload: EmailApplyReplyPayload) {
       });
     }
 
+    // A reply moves a lead forward to "replied", never back: a prospect answering a thread after
+    // their meeting was booked, or after the deal was won or lost, must not drop them out of that
+    // stage. The count still goes up either way.
     await prisma.lead.update({
       where: { id: leadId },
-      data: { stage: 'replied', emailReplyCount: { increment: 1 } },
+      data: { emailReplyCount: { increment: 1 } },
+    });
+    const advanced = await prisma.lead.updateMany({
+      where: { id: leadId, stage: { in: [...STAGES_A_REPLY_ADVANCES] } },
+      data: { stage: 'replied' },
     });
 
     // Two activities on purpose: `stage_changed` drives the pipeline views, while
-    // `email_replied` is the channel-level signal that reporting aggregates on.
-    await prisma.activity.create({
-      data: {
-        userId: actorUserId,
-        leadId,
-        type: 'stage_changed',
-        channel: 'email',
-        description: `Reply received from ${lead.firstName} ${lead.lastName} — moved to Replied`,
-        metadata: { from: lead.stage, to: 'replied', providerMessageId, auto: true },
-      },
-    });
+    // `email_replied` is the channel-level signal that reporting aggregates on. The stage change
+    // is recorded only when the stage changed — a second reply is not a second move to Replied.
+    if (advanced.count > 0) {
+      await prisma.activity.create({
+        data: {
+          userId: actorUserId,
+          leadId,
+          type: 'stage_changed',
+          channel: 'email',
+          description: `Reply received from ${lead.firstName} ${lead.lastName} — moved to Replied`,
+          metadata: { from: lead.stage, to: 'replied', providerMessageId, auto: true },
+        },
+      });
+    }
 
     await prisma.activity.create({
       data: {
