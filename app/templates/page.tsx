@@ -28,6 +28,8 @@ interface Template {
   /** Visible to the whole company; otherwise to its author and the managers above them. */
   isShared?: boolean;
   createdById?: string;
+  /** The caller may change it: its author, or a manager above the author (from the API). */
+  canManage?: boolean;
 }
 
 interface AbTestVariant {
@@ -64,7 +66,9 @@ export default function TemplatesPage() {
   const [isShared, setIsShared] = useState(false);
   // Sharing a template with the whole team is a manager's call (lib/visibility.ts).
   const { currentRole } = useAppContext();
-  const canShare = currentRole === 'director' || currentRole === 'floor_manager' || currentRole === 'team_lead';
+  const isManagerRole = currentRole === 'director' || currentRole === 'floor_manager' || currentRole === 'team_lead';
+  // A manager, and one who may change this template — the same two conditions the API checks.
+  const canShare = isManagerRole && Boolean(selectedTemp?.canManage);
   const [activePane, setActivePane] = useState<'edit' | 'preview'>('edit');
   const [filterChannel, setFilterChannel] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -262,8 +266,9 @@ export default function TemplatesPage() {
     setSaving(false);
     if (res.ok) {
       const updated = await res.json();
-      setTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-      setSelectedTemp(updated);
+      // The update response has no canManage; keep the one the list gave this row.
+      setTemplates((prev) => prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)));
+      setSelectedTemp((prev) => (prev ? { ...prev, ...updated } : updated));
       showToast('Template saved!', 'success');
     } else {
       // A shared template can be read by everyone and changed only by its author and their
@@ -286,7 +291,8 @@ export default function TemplatesPage() {
       }),
     });
     if (res.ok) {
-      const created = await res.json();
+      // The caller wrote it, so the caller may change it.
+      const created = { ...(await res.json()), canManage: true };
       setTemplates((prev) => [created, ...prev]);
       handleSelectTemplate(created);
       showToast('Template created', 'success');

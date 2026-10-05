@@ -8,7 +8,7 @@ import { handleApiError } from '@/lib/api/errors';
 import { cacheGet, cacheSet, listKey, invalidateList } from '@/lib/cache';
 import { assertSendWindowPermission } from '@/lib/sequences/permissions';
 import { canReplyInThread } from '@/lib/sequences/threadingRules';
-import { canShare, ownedOrSharedWhere } from '@/lib/visibility';
+import { canShare, ownedOrSharedWhere, unusableTemplateIds, withCanManage } from '@/lib/visibility';
 
 const CACHE_TTL = 60;
 
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
     });
 
-    const sequences = await prisma.sequence.findMany({
+    const rows = await prisma.sequence.findMany({
       where: { isArchived: showArchived, ...(await ownedOrSharedWhere(user)) },
       include: {
         steps: { orderBy: { order: 'asc' } },
@@ -38,6 +38,8 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
       take: 500,
     });
+    // Whether the caller may change each one, so the page offers only what the API allows.
+    const sequences = await withCanManage(user, rows);
 
     await cacheSet(cacheKey, sequences, CACHE_TTL);
     return NextResponse.json(sequences, {
@@ -70,6 +72,13 @@ export async function POST(req: NextRequest) {
       },
       { status: forbidden ? 403 : 400 }
     );
+  }
+
+  // A step may only use a template the caller can see (lib/visibility.ts): pointing a step at a
+  // colleague's private template would send their copy under the caller's name.
+  const unusable = await unusableTemplateIds(user, (body.steps ?? []).map((step) => step.templateId));
+  if (unusable.length > 0) {
+    return NextResponse.json({ error: 'Template not found', templateIds: unusable }, { status: 404 });
   }
 
   const orderedSteps = (body.steps ?? []).map((step, idx) => ({

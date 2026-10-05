@@ -22,6 +22,8 @@ import { tenantStorage } from '@/lib/tenant-context';
 import { GET as v1Leads } from '@/app/api/v1/leads/route';
 import { GET as listKeys, POST as createKey } from '@/app/api/developer/keys/route';
 import { DELETE as archiveSequence } from '@/app/api/sequences/[id]/route';
+import { POST as createSequence } from '@/app/api/sequences/route';
+import { POST as enroll } from '@/app/api/sequences/[id]/enroll/route';
 import { GET as nextBestAction } from '@/app/api/ai/nba/route';
 import { CRON_MANAGER_ROLES } from '@/lib/cron/auth';
 import { createTestTenant } from './helpers/testTenant';
@@ -113,6 +115,51 @@ describe('a sequence is changed only by its creator or a manager', () => {
     as(users.lead);
     expect((await archive(id)).status).toBe(404);
     expect(await inTenant(() => prisma.sequence.findUniqueOrThrow({ where: { id } }))).toMatchObject({ isArchived: false });
+  });
+});
+
+describe('a private template or sequence cannot be reached by id', () => {
+  // Since 2026-10-05 templates and sequences are private to their creator and the managers above
+  // them unless a manager shares them (lib/visibility.ts). Knowing an id must not get round that.
+  async function templateBy(createdById: string, isShared = false) {
+    return inTenant(async () => (await prisma.template.create({
+      data: { tenantId, name: `T ${randomUUID()}`, channel: 'email', subject: 'S', body: 'B', createdById, isShared },
+    })).id);
+  }
+  const create = (templateId: string) =>
+    createSequence(req('/api/sequences', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: `S ${randomUUID()}`, steps: [{ channel: 'email', autoComplete: true, templateId }] }),
+    }));
+
+  it('refuses a step pointed at a colleague’s private template, and creates nothing', async () => {
+    const templateId = await templateBy(users.peer);
+    as(users.rep);
+    expect((await create(templateId)).status).toBe(404);
+    expect(await inTenant(() => prisma.sequence.count({ where: { createdById: users.rep } }))).toBe(0);
+  });
+
+  it('allows a shared template, and the caller’s own', async () => {
+    as(users.rep);
+    expect((await create(await templateBy(users.peer, true))).status).toBe(201);
+    expect((await create(await templateBy(users.rep))).status).toBe(201);
+  });
+
+  it('will not enroll a lead in a sequence the caller cannot see', async () => {
+    const sequenceId = await inTenant(async () => (await prisma.sequence.create({ data: { tenantId, name: `S ${randomUUID()}`, createdById: users.peer } })).id);
+    const leadId = await inTenant(async () => {
+      const client = await prisma.client.create({ data: { tenantId, name: 'C', industry: 'SaaS', contactName: 'c', contactEmail: `c.${randomUUID()}@t.test` } });
+      const campaign = await prisma.campaign.create({ data: { tenantId, clientId: client.id, name: 'Out', startDate: new Date() } });
+      return (await prisma.lead.create({ data: { tenantId, firstName: 'A', lastName: 'B', email: `a.${randomUUID()}@acme.test`, company: 'Acme', campaignId: campaign.id, assignedToId: users.rep } })).id;
+    });
+    as(users.rep);
+    const res = await enroll(
+      req(`/api/sequences/${sequenceId}/enroll`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ leadId }) }),
+      { params: Promise.resolve({ id: sequenceId }) },
+    );
+    expect(res.status).toBe(404);
+    expect(await inTenant(() => prisma.sequenceEnrollment.count({ where: { sequenceId } }))).toBe(0);
   });
 });
 

@@ -10,7 +10,7 @@ import { logAdminAudit } from '@/lib/audit';
 import { reconcileSequenceSteps } from '@/lib/sequences/steps';
 
 import { assertSendWindowPermission } from '@/lib/sequences/permissions';
-import { canManageOwned, canShare, canViewOwned } from '@/lib/visibility';
+import { canManageOwned, canShare, canViewOwned, unusableTemplateIds } from '@/lib/visibility';
 
 /**
  * Editing or archiving a sequence acts on every rep's leads in it — archiving unenrolls them all —
@@ -82,7 +82,7 @@ export async function PUT(
     if (body.steps !== undefined) {
       const priorSteps = await prisma.sequenceStep.findMany({
         where: { sequenceId: id },
-        select: { order: true, sendWindowStartMinutes: true, sendWindowEndMinutes: true },
+        select: { order: true, sendWindowStartMinutes: true, sendWindowEndMinutes: true, templateId: true },
       });
       const windowViolations = assertSendWindowPermission(user.role, body.steps ?? [], priorSteps);
       if (windowViolations.length > 0) {
@@ -96,6 +96,18 @@ export async function PUT(
           },
           { status: forbidden ? 403 : 400 }
         );
+      }
+
+      // A step may only be pointed at a template the caller can see (lib/visibility.ts). Only a
+      // template new to this sequence is checked: re-saving a step that already uses one — which
+      // after the privacy migration may be a colleague's private template — must keep working.
+      const alreadyUsed = new Set(priorSteps.map((step) => step.templateId).filter(Boolean));
+      const unusable = await unusableTemplateIds(
+        user,
+        (body.steps ?? []).map((step) => step.templateId).filter((templateId) => !alreadyUsed.has(templateId ?? null)),
+      );
+      if (unusable.length > 0) {
+        return NextResponse.json({ error: 'Template not found', templateIds: unusable }, { status: 404 });
       }
 
       const reconciled = await reconcileSequenceSteps(id, user.tenantId!, body.steps ?? []);

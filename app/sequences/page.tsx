@@ -70,6 +70,8 @@ interface Sequence {
   isShared?: boolean;
   createdById?: string;
   createdBy?: { id: string; firstName: string; lastName: string } | null;
+  /** The caller may change it: its creator, or a manager above the creator (from the API). */
+  canManage?: boolean;
   steps: SequenceStep[];
   _count?: { leads: number };
 }
@@ -697,7 +699,10 @@ export default function SequencesPage() {
                       ? `${selectedSeq.createdBy.firstName} ${selectedSeq.createdBy.lastName}`
                       : null
                 }
-                canShare={currentRole === 'director' || currentRole === 'floor_manager' || currentRole === 'team_lead'}
+                canShare={
+                  (currentRole === 'director' || currentRole === 'floor_manager' || currentRole === 'team_lead') &&
+                  Boolean(selectedSeq.canManage)
+                }
                 onChange={(isShared) => {
                   setSelectedSeq((current) => (current ? { ...current, isShared } : current));
                   setSequences((prev) => prev.map((s) => (s.id === selectedSeq.id ? { ...s, isShared } : s)));

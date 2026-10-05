@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { findSuppression } from '@/lib/email/suppress';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, canAccessLead, getVisibleUserIds } from '@/lib/auth';
+import { canViewOwned } from '@/lib/visibility';
 import type { SessionUser } from '@/lib/auth';
 import { renderTemplate } from '@/lib/templates/render';
 import { parseBody } from '@/lib/validation/core';
@@ -81,7 +82,10 @@ export async function POST(req: NextRequest) {
     const lead = await prisma.lead.findUnique({ where: { id: body.leadId } });
     if (lead) {
       if (body.templateId) {
-        const template = await prisma.template.findUnique({ where: { id: body.templateId } });
+        // Only a template the sender can see (lib/visibility.ts); otherwise this would read a
+        // colleague's private copy out through the sent message.
+        const found = await prisma.template.findUnique({ where: { id: body.templateId } });
+        const template = found && (await canViewOwned(user, found)) ? found : null;
         if (template && !subject.trim() && !text.trim()) {
           subject = renderTemplate(template.subject ?? '', lead, user);
           text = renderTemplate(template.body, lead, user);

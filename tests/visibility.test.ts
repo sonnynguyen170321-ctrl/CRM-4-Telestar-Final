@@ -7,14 +7,20 @@ vi.mock('@/lib/auth', () => ({ getVisibleUserIds: (user: SessionUser) => mockVis
 
 const mockSequenceFindFirst = vi.fn();
 const mockTemplateFindFirst = vi.fn();
+const mockTemplateFindMany = vi.fn();
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     sequence: { findFirst: (...a: unknown[]) => mockSequenceFindFirst(...a) },
-    template: { findFirst: (...a: unknown[]) => mockTemplateFindFirst(...a) },
+    template: {
+      findFirst: (...a: unknown[]) => mockTemplateFindFirst(...a),
+      findMany: (...a: unknown[]) => mockTemplateFindMany(...a),
+    },
   },
 }));
 
-const { canManageOwned, canShare, canViewOwned, canViewSequenceId, ownedOrSharedWhere, templateAccess } = await import(
+const {
+  canManageOwned, canShare, canViewOwned, canViewSequenceId, ownedOrSharedWhere, templateAccess, unusableTemplateIds, withCanManage,
+} = await import(
   '@/lib/visibility'
 );
 
@@ -130,5 +136,33 @@ describe('lookups by id', () => {
     expect(await canViewSequenceId(stray, 'seq-1')).toBe(false);
     expect(await templateAccess(stray, 'tmpl')).toBe('none');
     expect(mockSequenceFindFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe('unusableTemplateIds', () => {
+  it('names the templates a caller may not point a step at: private to someone else, or not in the tenant', async () => {
+    mockTemplateFindMany.mockResolvedValueOnce([
+      { id: 'mine', createdById: 'rep', isShared: false },
+      { id: 'shared', createdById: 'peer', isShared: true },
+      { id: 'private', createdById: 'peer', isShared: false },
+    ]);
+    expect(await unusableTemplateIds(rep, ['mine', 'shared', 'private', 'foreign', null, 'mine'])).toEqual(['private', 'foreign']);
+    expect(mockTemplateFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ['mine', 'shared', 'private', 'foreign'] }, tenantId: 't1' } }),
+    );
+  });
+
+  it('asks nothing when no template is named', async () => {
+    expect(await unusableTemplateIds(rep, [null, undefined])).toEqual([]);
+    expect(mockTemplateFindMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('withCanManage', () => {
+  it('marks the rows the caller may change, by the same rule as canManageOwned', async () => {
+    const rows = [{ createdById: 'rep' }, { createdById: 'other-pod-rep' }];
+    expect((await withCanManage(rep, rows)).map((r) => r.canManage)).toEqual([true, false]);
+    expect((await withCanManage(teamLead, rows)).map((r) => r.canManage)).toEqual([true, false]);
+    expect((await withCanManage(director, rows)).map((r) => r.canManage)).toEqual([true, true]);
   });
 });

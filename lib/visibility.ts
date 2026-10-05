@@ -69,6 +69,42 @@ export async function templateAccess(user: SessionUser, templateId: string): Pro
   return (await canManageOwned(user, template)) ? 'manage' : 'view';
 }
 
+/**
+ * The templates among `ids` the caller may not use: invisible to them, or not in their tenant.
+ *
+ * Checked when a sequence step is pointed at a template, which is the moment the copy becomes the
+ * caller's to send. Never at send time — a cadence that is already running keeps its template
+ * whoever can see it now.
+ */
+export async function unusableTemplateIds(user: SessionUser, ids: Array<string | null | undefined>): Promise<string[]> {
+  const wanted = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  if (wanted.length === 0) return [];
+  if (!user.tenantId) return wanted;
+  const rows = await prisma.template.findMany({
+    where: { id: { in: wanted }, tenantId: user.tenantId },
+    select: { id: true, createdById: true, isShared: true },
+  });
+  const usable = new Set<string>();
+  for (const row of rows) if (await canViewOwned(user, row)) usable.add(row.id);
+  return wanted.filter((id) => !usable.has(id));
+}
+
+/**
+ * `canManageOwned` for a whole list at once, so a page can disable what the API would refuse
+ * without one lookup per row.
+ */
+export async function withCanManage<T extends { createdById: string }>(
+  user: SessionUser,
+  rows: T[],
+): Promise<Array<T & { canManage: boolean }>> {
+  const isManager = (MANAGER_ROLES as readonly string[]).includes(user.role);
+  const visible = isManager ? await getVisibleUserIds(user) : [];
+  return rows.map((row) => ({
+    ...row,
+    canManage: row.createdById === user.id || (isManager && (visible === null || visible.includes(row.createdById))),
+  }));
+}
+
 /** Marking something shared puts it in front of the whole company, so it is a manager's call. */
 export function canShare(user: SessionUser): boolean {
   return (MANAGER_ROLES as readonly string[]).includes(user.role);

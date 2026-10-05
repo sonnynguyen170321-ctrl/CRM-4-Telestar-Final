@@ -6,7 +6,7 @@ import { parseBody } from '@/lib/validation/core';
 import { createTemplateSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
 import { cacheGet, cacheSet, listKey, invalidateList } from '@/lib/cache';
-import { canShare, ownedOrSharedWhere } from '@/lib/visibility';
+import { canShare, ownedOrSharedWhere, withCanManage } from '@/lib/visibility';
 
 const CACHE_TTL = 60;
 
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     if (cached) return NextResponse.json(cached);
 
     const visible = await ownedOrSharedWhere(user);
-    const templates = await prisma.template.findMany({
+    const rows = await prisma.template.findMany({
       where: {
         ...(channel ? { channel: channel as any } : {}),
         // Two independent conditions, each of which may be an OR, so they are joined with AND
@@ -50,6 +50,8 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { updatedAt: 'desc' },
     });
+    // Whether the caller may change each one, so the page offers only what the API allows.
+    const templates = await withCanManage(user, rows);
 
     await cacheSet(cacheKey, templates, CACHE_TTL);
     return NextResponse.json(templates);
