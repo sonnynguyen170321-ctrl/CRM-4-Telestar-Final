@@ -34,6 +34,7 @@ async function deferralPolicyFor(sequenceId: string | null) {
   return businessDayPolicyFor(sequence);
 }
 import { classifyRecipientFailure } from '@/lib/email/recipientFailure';
+import { classifyProviderLimit } from '@/lib/email/providerLimit';
 import { findSuppression, suppressRecipient } from '@/lib/email/suppress';
 import { finalizeSequenceStep, releaseSequenceStep } from '@/lib/sequences/stepOutcome';
 /** Minimal account shape the deliverability preflight needs. */
@@ -728,6 +729,56 @@ async function handleEmailSend(payload: EmailSendPayload) {
     // nobody suppressing the address. That is how production reached 0 suppression rows while
     // the provider was refusing addresses outright.
     const deadAddress = classifyRecipientFailure(sendErr) === 'recipient';
+
+    // The provider's own sending limit (lib/email/providerLimit.ts): nothing was sent and nothing
+    // is wrong with the prospect or the message. Defer like our own quota — back to `pending`,
+    // re-queued for when the limit lifts, step left open. It used to fail the message and pause
+    // the lead's whole cadence, one lead at a time, for every send that met the cap.
+    const providerLimit = deadAddress ? null : classifyProviderLimit(sendErr);
+    if (providerLimit) {
+      const now = new Date();
+      const resumeAt = nextSendAttemptAt({
+        now: providerLimit === 'daily' ? nextQuotaResetAt(now) : now,
+        minHours: providerLimit === 'daily' ? 0 : 1,
+        timezone: existing.lead?.timezone ?? null,
+        seed: outboundMessageId,
+        businessDayPolicy: await deferralPolicyFor(existing.sequenceId),
+      });
+      await prisma.outboundMessage.update({
+        where: { id: outboundMessageId },
+        data: {
+          status: OUTBOUND_STATUS.PENDING,
+          errorMessage: `Provider ${providerLimit} sending limit — deferred to ${resumeAt.toISOString()}: ${errorMessage}`.slice(0, 1000),
+        },
+      });
+      // This attempt's slot goes back; it was not spent.
+      await releaseQuota(existing.tenantId, accountId);
+      // A daily refusal means the provider has stopped this mailbox for the day, whatever our own
+      // count says. Mark it full so the rest of today's sends from it defer here, cheaply, instead
+      // of each one being refused by the provider in turn.
+      if (providerLimit === 'daily' && account.dailyCap > 0) {
+        await prisma.emailAccount.updateMany({
+          where: { id: accountId, tenantId: existing.tenantId },
+          data: { dailySendCount: account.dailyCap, dailySendDate: new Date(now.getFullYear(), now.getMonth(), now.getDate()) },
+        });
+      }
+      await enqueueReschedule(JobType.EMAIL_SEND, payload, {
+        tenantId: existing.tenantId,
+        delay: Math.max(0, resumeAt.getTime() - Date.now()),
+        discriminator: `provider-limit:${resumeAt.toISOString()}`,
+      });
+      await notifyOps({
+        key: `provider-limit:${accountId}`,
+        level: 'warn',
+        summary: `Mailbox ${account.email} reached its provider's ${providerLimit} sending limit`,
+        details: [
+          `The provider refused a send: ${errorMessage.slice(0, 300)}`,
+          `Sends from this mailbox are deferred to ${resumeAt.toISOString()} and will go out then; nothing was discarded.`,
+          'If this repeats, lower the mailbox daily cap in Email Health to match what the provider allows.',
+        ],
+      });
+      return { deferred: true, skipped: true, reason: 'provider_limit', resumeAt };
+    }
 
     // Only errors that prove the message never left the building return the row to the
     // claimable pool. A timeout or a dropped connection might still deliver, so it goes

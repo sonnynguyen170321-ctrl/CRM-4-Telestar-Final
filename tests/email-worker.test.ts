@@ -7,6 +7,7 @@ const mockOutboundUpdate = vi.fn();
 const mockOutboundUpdateMany = vi.fn();
 const mockSuppressionFindFirst = vi.fn();
 const mockAccountFindUnique = vi.fn();
+const mockAccountUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 const mockLeadFindUnique = vi.fn();
 const mockLeadUpdate = vi.fn();
 const mockActivityCreate = vi.fn();
@@ -29,6 +30,7 @@ vi.mock('@/lib/prisma', () => ({
     },
     emailAccount: {
       findUnique: (...args: unknown[]) => mockAccountFindUnique(...args),
+      updateMany: (...args: unknown[]) => mockAccountUpdateMany(...args),
     },
     lead: {
       findUnique: (...args: unknown[]) => mockLeadFindUnique(...args),
@@ -724,13 +726,65 @@ describe('handleEmailSend — exactly-once delivery', () => {
     // A sender-side rejection — our quota, not the prospect's mailbox. That is the one that
     // goes back into the claimable pool. `5.1.1` is recipient-side: terminal, and it suppresses
     // the address. That case has its own file, tests/bounce-suppression.test.ts.
-    mockServiceSend.mockRejectedValueOnce(new Error('550 5.4.6 message rejected'));
+    mockServiceSend.mockRejectedValueOnce(new Error('550 5.7.1 message rejected by policy'));
 
     await expect(handleEmailSend(buildPayload())).rejects.toThrow('message rejected');
 
     expect(mockOutboundUpdate).toHaveBeenCalledWith({
       where: { id: 'msg-1' },
-      data: { status: 'failed', errorMessage: '550 5.4.6 message rejected' },
+      data: { status: 'failed', errorMessage: '550 5.7.1 message rejected by policy' },
+    });
+  });
+
+  // Reported 2026-10-05: a sequence "failing on provider limit". The refusal was read as a failed
+  // send, and each one paused that lead's cadence until someone resumed it by hand.
+  describe('the provider sending limit', () => {
+    function arrangeLimit(error: Error) {
+      mockAccountFindUnique.mockResolvedValue(mockEmailAccount({ dailyCap: 80, hourlyCap: 0 }));
+      mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+      mockSuppressionFindFirst.mockResolvedValueOnce(null);
+      mockExecuteRaw.mockResolvedValue(1);
+      mockServiceSend.mockRejectedValueOnce(error);
+    }
+
+    it('defers an hourly limit: back to pending, re-queued an hour or more out, nothing thrown', async () => {
+      arrangeLimit(new Error('550 5.4.6 Sender Hourly Quota Exceeded'));
+
+      const result = await handleEmailSend(buildPayload());
+
+      expect(result).toMatchObject({ deferred: true, reason: 'provider_limit' });
+      expect(mockOutboundUpdate).toHaveBeenCalledWith({
+        where: { id: 'msg-1' },
+        data: { status: 'pending', errorMessage: expect.stringMatching(/^Provider hourly sending limit — deferred to /) },
+      });
+      const [jobType, , opts] = mockEnqueueReschedule.mock.calls[0];
+      expect(jobType).toBe('email.send');
+      expect(opts.delay).toBeGreaterThanOrEqual(59 * 60 * 1000);
+      expect(mockAccountUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('defers a daily limit to tomorrow and marks the mailbox full for today', async () => {
+      arrangeLimit(new Error('550 5.4.5 Daily user sending limit exceeded'));
+
+      const result = await handleEmailSend(buildPayload());
+
+      expect(result).toMatchObject({ deferred: true, reason: 'provider_limit' });
+      expect(mockAccountUpdateMany).toHaveBeenCalledWith({
+        where: { id: 'acc-1', tenantId: TENANT_ID },
+        data: { dailySendCount: 80, dailySendDate: expect.any(Date) },
+      });
+    });
+
+    it('never marks the message failed or stops the cadence', async () => {
+      arrangeLimit(new Error('451 4.7.1 Rate limited: too many messages, try again later'));
+
+      await handleEmailSend(buildPayload({
+        sequenceStepRef: { taskId: 't-1', leadId: 'lead-1', actorUserId: 'user-1', sequenceId: 's-1', sequenceStep: 1 },
+      }));
+
+      const statuses = mockOutboundUpdate.mock.calls.map((call) => (call[0] as { data: { status?: string } }).data.status);
+      expect(statuses).not.toContain('failed');
+      expect(statuses).not.toContain('reconciliation_required');
     });
   });
 

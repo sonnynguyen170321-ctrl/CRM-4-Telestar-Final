@@ -225,8 +225,10 @@ describe.skipIf(!hasDb)('daily send quota is spent by sends, not by attempts', (
     // Deliberately a *sender-side* refusal. A recipient-side one (`invalid recipient`) is now
     // terminal and suppresses the address, which is correct but makes this test about
     // suppression instead of about the counter. The dead-address case has its own test below.
+    // A policy refusal, not a sending limit: limits are deferred rather than failed (see the next
+    // test), so they no longer exercise the failed branch.
     sendBehaviour = async () => {
-      throw new Error('550 5.4.6 Sender Hourly Quota Exceeded');
+      throw new Error('550 5.7.1 Message rejected by policy');
     };
     const msg = await createMessage(`refused-${crypto.randomUUID()}`);
     await attempt(msg.id);
@@ -239,6 +241,20 @@ describe.skipIf(!hasDb)('daily send quota is spent by sends, not by attempts', (
       await sendCount(),
       'a refused message never reached the prospect — it must not cost the mailbox a send'
     ).toBe(0);
+  });
+
+  it('returns the slot when the provider defers us with an hourly limit, and keeps the message pending', async () => {
+    sendBehaviour = async () => {
+      throw new Error('550 5.4.6 Sender Hourly Quota Exceeded');
+    };
+    const msg = await createMessage(`limited-${crypto.randomUUID()}`);
+    await attempt(msg.id);
+
+    const after = await run(() =>
+      prisma.outboundMessage.findUniqueOrThrow({ where: { id: msg.id } })
+    );
+    expect(after.status).toBe(OUTBOUND_STATUS.PENDING);
+    expect(await sendCount(), 'a deferred message has not spent a send').toBe(0);
   });
 
   it('returns the slot for a dead address, and does not keep the message claimable', async () => {

@@ -45,6 +45,26 @@ curl -s https://crm.telestar.cloud/api/health      # .commit = what production r
 | 6 | "Make sure email can send properly" | Items 1, 3, 4 and 5. Idempotency keys and the claim CAS are unchanged. | — |
 | 7 | "Everybody shares the same view, no privacy per account" | Owner's decisions: an SDR sees their own rows plus shared ones; managers see their tree (`managerId`); existing rows become **private immediately**. Implemented for sequences and templates with `isShared` (only a manager may share), and per-viewer scoping for approvals, work orders, client by id, the mailbox list and send, admin outbound, template A/B and attachments, enroll and unenroll, and template use in steps and manual send. Deactivated reps stay in their manager's reach. | `lib/visibility.ts` plus the routes it is used in |
 
+## Provider sending limits (added late in the session)
+
+Reported: Judy's sequence "failing on provider limit". The 2026-09-23 fix (`lib/email/recipientFailure.ts`)
+stopped such refusals from suppressing the prospect, but the send was still `failed` and the lead's
+whole cadence paused `send_failed`. Gmail API `User-rate limit exceeded` went to reconciliation
+for 24h.
+
+- `lib/email/providerLimit.ts` classifies Gmail (API and SMTP), Microsoft 365 / Graph, and SMTP
+  hosts such as Titan Mail into `daily` and `hourly` limits.
+- `workers/email.ts` treats a limit as a deferral, the same as our own quota:
+  - the message goes back to `pending` and is re-queued (next window for daily, at least an hour
+    for hourly);
+  - the step stays open and the cadence is not paused;
+  - a daily refusal marks the mailbox full for today;
+  - one ops alert is sent per mailbox.
+- `workers/maintenance.ts` no longer re-drives a `pending` message deferred into the future, and
+  no longer abandons `pending` messages after five deferrals.
+- **Leads already paused `send_failed` by a limit before this deploy do not resume themselves.**
+  Resume them from the Enrollments tab (bulk Resume).
+
 ## Decisions the owner made (do not reverse without asking)
 
 - **Visibility:** creator, plus the managers above them through `managerId`, plus everyone when
