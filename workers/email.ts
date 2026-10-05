@@ -6,6 +6,7 @@ import { JobType } from '@/lib/bullmq/types';
 import { notifyOps } from '@/lib/ops/notifyOps';
 import type { EmailSendPayload } from '@/lib/bullmq/types';
 import { EmailService } from '@/lib/email/EmailService';
+import type { SendEmailOptions } from '@/lib/email/EmailService';
 import { effectiveDryRun, isGlobalEmailPaused, isCanaryRecipientAllowed } from '@/lib/emailSafety';
 import { generateUnsubscribeToken, buildUnsubscribeHeaders } from '@/lib/email/unsubscribe';
 import { renderTemplate } from '@/lib/templates/render';
@@ -17,6 +18,7 @@ import {
   isClaimLive,
 } from '@/lib/email/idempotency';
 import { isHtml, stripHtml } from '@/lib/email/sanitize';
+import { signatureForSend } from '@/lib/email/signature';
 import { nextSendAttemptAt } from '@/lib/email/sendWindow';
 import { businessDayPolicyFor } from '@/lib/sequences/rules';
 
@@ -627,17 +629,20 @@ async function handleEmailSend(payload: EmailSendPayload) {
       ? await prisma.attachment.findMany({ where: { templateId: existing.templateId } })
       : [];
 
-    const mappedAttachments = attachments.map((att) => ({
+    const mappedAttachments: NonNullable<SendEmailOptions['attachments']> = attachments.map((att) => ({
       filename: att.name,
       content: Buffer.from(att.content, 'base64'),
       contentType: att.contentType,
     }));
 
-    // Append signature if available
+    // Append signature if available. Its images travel as inline attachments under the `cid:` the
+    // stored HTML references (lib/email/signature.ts); a plain-text body gets the text alone.
     let bodyWithSig = finalBody;
     if (account.signature) {
       if (isHtml(finalBody)) {
-        bodyWithSig = `${finalBody}<br><br>--<br>${account.signature}`;
+        const signature = signatureForSend(account.signature, account.signatureImages);
+        bodyWithSig = `${finalBody}<br><br>--<br>${signature.html}`;
+        mappedAttachments.push(...signature.attachments);
       } else {
         bodyWithSig = `${finalBody}\n\n--\n${stripHtml(account.signature)}`;
       }

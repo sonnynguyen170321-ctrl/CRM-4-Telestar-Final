@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { readApiError } from '@/lib/api/client';
+import SignatureEditor from './SignatureEditor';
 
 interface EmailAccount {
   id: string;
@@ -129,10 +130,22 @@ export default function EmailConnectionsPanel() {
       .catch(() => {});
   }, [showToast]);
 
-  const handleStartEditSignature = (account: EmailAccount) => {
-    setEditingSignatureAccountId(account.id);
-    setSignatureText(account.signature ?? '');
+  const handleStartEditSignature = async (account: EmailAccount) => {
+    setSignatureText('');
     setFromNameText(account.fromName ?? '');
+    // The list carries the stored form (images as cid: references); the editor needs them inline.
+    try {
+      const res = await fetch(`/api/email/accounts/${account.id}`);
+      if (!res.ok) {
+        showToast(await readApiError(res, 'Could not load the signature'), 'error');
+        return;
+      }
+      const body: { signature: string | null } = await res.json();
+      setSignatureText(body.signature ?? '');
+      setEditingSignatureAccountId(account.id);
+    } catch {
+      showToast('Network error loading the signature', 'error');
+    }
   };
 
   const handleSaveSignature = async () => {
@@ -155,7 +168,7 @@ export default function EmailConnectionsPanel() {
         setSignatureText('');
         showToast('Sender settings saved', 'success');
       } else {
-        showToast('Failed to save sender settings', 'error');
+        showToast(await readApiError(res, 'Failed to save sender settings'), 'error');
       }
     } catch {
       showToast('Network error saving email signature', 'error');
@@ -341,13 +354,17 @@ export default function EmailConnectionsPanel() {
           </div>
           <div className="space-y-1.5">
             <p className="text-[10px] text-text-secondary leading-relaxed">
-              This signature will be appended to the end of all emails sent from this account (HTML supported).
+              Signature — added to the end of every email sent from this mailbox.
             </p>
-            <textarea
+            <SignatureEditor
+              key={editingSignatureAccountId}
               value={signatureText}
-              onChange={(e) => setSignatureText(e.target.value)}
-              className="w-full bg-bg-main border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-24 placeholder-text-muted resize-none leading-relaxed font-mono text-xs"
-              placeholder="Best regards,<br><b>Dean</b><br>Director"
+              onChange={setSignatureText}
+              seed={{
+                email: connectedEmails.find((e) => e.id === editingSignatureAccountId)?.email ?? '',
+                name: fromNameText,
+              }}
+              onError={(message) => showToast(message, 'error')}
             />
           </div>
           <div className="flex justify-end gap-2">

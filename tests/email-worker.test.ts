@@ -181,6 +181,34 @@ describe('handleEmailSend', () => {
     });
   });
 
+  it('sends the signature with its images attached inline under the cid it references', async () => {
+    const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    mockAccountFindUnique.mockResolvedValue(mockEmailAccount({
+      signature: '<p>Mei</p><img src="cid:sig-0123456789abcdef">',
+      signatureImages: [
+        { id: '0123456789abcdef', contentType: 'image/png', data: png },
+        { id: 'fedcba9876543210', contentType: 'image/png', data: png },
+      ],
+    }));
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockSuppressionFindFirst.mockResolvedValueOnce(null);
+    mockExecuteRaw.mockResolvedValueOnce(1);
+    mockServiceSend.mockResolvedValueOnce('provider-msg-id-sig');
+
+    await handleEmailSend(buildPayload({ body: '<p>Hello</p>' }));
+
+    const sent = mockServiceSend.mock.calls[0][0] as { html: string; attachments: unknown[] };
+    expect(sent.html).toContain('<p>Mei</p><img src="cid:sig-0123456789abcdef">');
+    expect(sent.attachments).toEqual([
+      {
+        filename: 'signature-0123456789abcdef.png',
+        content: Buffer.from(png, 'base64'),
+        contentType: 'image/png',
+        cid: 'sig-0123456789abcdef',
+      },
+    ]);
+  });
+
   it('skips if already sent with providerMessageId', async () => {
     mockOutboundFindUnique.mockResolvedValueOnce(
       mockOutboundMessage({ status: 'sent', providerMessageId: 'abc-123' })

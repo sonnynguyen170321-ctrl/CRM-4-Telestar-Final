@@ -440,11 +440,12 @@ routes:
     methods: [GET]
     tests: []
   - path: app/api/email/accounts/[id]/route.ts
-    methods: [DELETE, PATCH]
+    methods: [DELETE, GET, PATCH]
     tests:
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
       - tests/email-account-token-storage.test.ts
+      - tests/email-signature.test.ts
       - tests/mailbox-sender-name.test.ts
   - path: app/api/email/accounts/route.ts
     methods: [GET, POST]
