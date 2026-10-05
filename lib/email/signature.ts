@@ -91,8 +91,11 @@ function matchesType(bytes: Buffer, type: SignatureImageType): boolean {
   }
 }
 
+/** No image and no visible text. Text comes from the parser, not a tag-stripping regex. */
 function isBlank(html: string): boolean {
-  return !/<img\b/i.test(html) && html.replace(/<[^>]*>|&nbsp;|\s/g, '') === '';
+  if (/<img\b/i.test(html)) return false;
+  const text = DOMPurify.sanitize(html, { ALLOWED_TAGS: [], KEEP_CONTENT: true });
+  return text.replace(/&nbsp;| |\s/g, '') === '';
 }
 
 /** Sanitize, then move every inline image into the image list. */
