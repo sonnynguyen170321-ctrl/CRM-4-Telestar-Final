@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { requireAuth } from '@/lib/auth';
+import { settingsRedirect } from '@/lib/email/oauthRedirect';
 import { getGoogleAuthUrl } from '@/lib/email/adapters/GmailAdapter';
 
 export async function GET(_req: NextRequest) {
@@ -8,7 +9,7 @@ export async function GET(_req: NextRequest) {
   if (userOrRes instanceof NextResponse) return userOrRes;
 
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REDIRECT_URI) {
-    return NextResponse.redirect(new URL('/settings?error=google_not_configured', _req.url));
+    return settingsRedirect(_req.url, { error: 'google_not_configured' });
   }
 
   try {
@@ -26,6 +27,6 @@ export async function GET(_req: NextRequest) {
     return res;
   } catch (err) {
     console.error('[oauth/google] Failed to generate auth URL:', err);
-    return NextResponse.redirect(new URL('/settings?error=google_auth_failed', _req.url));
+    return settingsRedirect(_req.url, { error: 'google_auth_failed' });
   }
 }

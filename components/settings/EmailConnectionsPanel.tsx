@@ -28,6 +28,26 @@ interface OAuthProviderStatus {
   missing: string[];
 }
 
+/** What to do about each `reason` the OAuth callbacks report (lib/email/oauthRedirect.ts). */
+const OAUTH_REASON_HINTS: Record<string, string> = {
+  redirect_uri_mismatch: 'the redirect URI on the server does not match the one registered with the provider',
+  invalid_client: 'the client ID or secret on the server is wrong',
+  unauthorized_client: 'this OAuth client is not allowed to use this sign-in flow',
+  invalid_grant: 'the sign-in code expired or was already used — connect again',
+  access_denied: 'access was denied — if the app is in testing, add this account as a test user',
+  invalid_scope: 'the provider rejected the requested permissions',
+  invalid_request: 'the provider rejected the request',
+  api_not_enabled: 'the Gmail API is not enabled in the Google Cloud project',
+  network: 'the server could not reach the provider — try again',
+};
+
+function oauthReasonHint(reason: string | null): string {
+  // `reason` comes from the URL: an own-property check keeps `constructor` and friends out.
+  return reason && Object.hasOwn(OAUTH_REASON_HINTS, reason)
+    ? OAUTH_REASON_HINTS[reason]
+    : 'check the server log for the provider error';
+}
+
 /**
  * Email account connections for the current user — Gmail/Outlook OAuth, manual
  * IMAP/SMTP, and per-account signatures.
@@ -71,7 +91,7 @@ export default function EmailConnectionsPanel() {
     } else if (error === 'google_invalid_state') {
       showToast('Google OAuth state mismatch — please try connecting again', 'error');
     } else if (error === 'google_token_exchange_failed') {
-      showToast('Google token exchange failed — check your OAuth credentials', 'error');
+      showToast(`Google token exchange failed — ${oauthReasonHint(searchParams.get('reason'))}`, 'error');
     } else if (error === 'google_missing_refresh_token') {
       showToast('Google did not return a refresh token — remove the app grant in Google and reconnect', 'error');
     } else if (error === 'microsoft_auth_failed') {
@@ -79,7 +99,7 @@ export default function EmailConnectionsPanel() {
     } else if (error === 'microsoft_invalid_state') {
       showToast('Microsoft OAuth state mismatch — please try connecting again', 'error');
     } else if (error === 'microsoft_token_exchange_failed') {
-      showToast('Microsoft token exchange failed — check your OAuth credentials', 'error');
+      showToast(`Microsoft token exchange failed — ${oauthReasonHint(searchParams.get('reason'))}`, 'error');
     } else if (error === 'microsoft_missing_refresh_token') {
       showToast('Microsoft did not return a refresh token — reconnect and confirm offline_access consent', 'error');
     } else if (error === 'microsoft_no_email') {

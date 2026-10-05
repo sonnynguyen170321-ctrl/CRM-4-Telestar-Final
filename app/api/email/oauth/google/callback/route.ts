@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
+import { describeOAuthFailure, settingsRedirect } from '@/lib/email/oauthRedirect';
 import type { SessionUser } from '@/lib/auth';
 import { exchangeGoogleCode } from '@/lib/email/adapters/GmailAdapter';
 import { upsertOAuthEmailAccount } from '@/lib/email/oauthAccounts';
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
   const state = searchParams.get('state');
 
   if (!code) {
-    const res = NextResponse.redirect(new URL('/settings?error=google_auth_failed', req.url));
+    const res = settingsRedirect(req.url, { error: 'google_auth_failed' });
     res.cookies.delete('oauth_nonce_google');
     return res;
   }
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
   // CSRF validation: compare state against the nonce stored in the HttpOnly cookie
   const nonce = req.cookies.get('oauth_nonce_google')?.value;
   if (!nonce || state !== nonce) {
-    const res = NextResponse.redirect(new URL('/settings?error=google_invalid_state', req.url));
+    const res = settingsRedirect(req.url, { error: 'google_invalid_state' });
     res.cookies.delete('oauth_nonce_google');
     return res;
   }
@@ -40,16 +41,20 @@ export async function GET(req: NextRequest) {
     });
 
     if (!result.ok) {
-      const res = NextResponse.redirect(new URL('/settings?error=google_missing_refresh_token', req.url));
+      const res = settingsRedirect(req.url, { error: 'google_missing_refresh_token' });
       res.cookies.delete('oauth_nonce_google');
       return res;
     }
 
-    const res = NextResponse.redirect(new URL('/settings?success=gmail_connected', req.url));
+    const res = settingsRedirect(req.url, { success: 'gmail_connected' });
     res.cookies.delete('oauth_nonce_google');
     return res;
   } catch (error) {
-    console.error('Error exchanging Google OAuth code:', error);
-    return NextResponse.redirect(new URL('/settings?error=google_token_exchange_failed', req.url));
+    // Fields only: the error object carries the token request, client secret included.
+    const failure = describeOAuthFailure(error);
+    console.error('Error exchanging Google OAuth code:', failure);
+    const res = settingsRedirect(req.url, { error: 'google_token_exchange_failed', reason: failure.reason });
+    res.cookies.delete('oauth_nonce_google');
+    return res;
   }
 }

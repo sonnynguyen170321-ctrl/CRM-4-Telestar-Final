@@ -213,4 +213,125 @@ describe('email OAuth routes', () => {
       }),
     });
   });
+
+  // 2026-10-05: behind the proxy the server sees its own bind address in `req.url`, so a failed
+  // Gmail connect on crm.telestar.cloud sent the browser to http://localhost:3000/settings.
+  describe('redirects back to the public origin, not the address the server is bound to', () => {
+    const internalCallback = (provider: 'google' | 'microsoft', state = 'nonce') =>
+      new NextRequest(`http://localhost:3000/api/email/oauth/${provider}/callback?code=abc&state=${state}`, {
+        headers: { cookie: `oauth_nonce_${provider}=nonce` },
+      });
+
+    it('sends a Google failure to NEXTAUTH_URL', async () => {
+      setOAuthEnv();
+      process.env.NEXTAUTH_URL = 'https://crm.telestar.cloud';
+      mocks.exchangeGoogleCode.mockRejectedValue(new Error('boom'));
+
+      const res = await googleCallback(internalCallback('google'));
+
+      expect(res.headers.get('location')).toMatch(
+        /^https:\/\/crm\.telestar\.cloud\/settings\?error=google_token_exchange_failed/
+      );
+    });
+
+    it('sends every callback outcome to NEXTAUTH_URL, including a bad state and a success', async () => {
+      setOAuthEnv();
+      process.env.NEXTAUTH_URL = 'https://crm.telestar.cloud/';
+      mocks.exchangeMicrosoftCode.mockResolvedValue({
+        email: 'sender@outlook.com', accessToken: 'a', refreshToken: 'r', tokenExpiry: null,
+      });
+      mocks.emailAccountFindFirst.mockResolvedValue(null);
+      mocks.emailAccountCreate.mockResolvedValue({ id: 'account-3' });
+
+      const badState = await googleCallback(internalCallback('google', 'wrong'));
+      const success = await microsoftCallback(internalCallback('microsoft'));
+
+      expect(badState.headers.get('location')).toBe('https://crm.telestar.cloud/settings?error=google_invalid_state');
+      expect(success.headers.get('location')).toBe('https://crm.telestar.cloud/settings?success=outlook_connected');
+    });
+
+    it('sends a not-configured start to NEXTAUTH_URL', async () => {
+      process.env.NEXTAUTH_URL = 'https://crm.telestar.cloud';
+      delete process.env.GOOGLE_CLIENT_ID;
+
+      const res = await startGoogleOAuth(new NextRequest('http://localhost:3000/api/email/oauth/google'));
+
+      expect(res.headers.get('location')).toBe('https://crm.telestar.cloud/settings?error=google_not_configured');
+    });
+
+    it('falls back to the request origin when NEXTAUTH_URL is unset or malformed', async () => {
+      setOAuthEnv();
+      delete process.env.AUTH_URL;
+
+      delete process.env.NEXTAUTH_URL;
+      const unset = await googleCallback(internalCallback('google', 'wrong'));
+      process.env.NEXTAUTH_URL = 'not a url';
+      const malformed = await googleCallback(internalCallback('google', 'wrong'));
+
+      expect(unset.headers.get('location')).toBe('http://localhost:3000/settings?error=google_invalid_state');
+      expect(malformed.headers.get('location')).toBe('http://localhost:3000/settings?error=google_invalid_state');
+    });
+  });
+
+  describe('a failed token exchange says why, without logging the request', () => {
+    // The shape googleapis (gaxios) throws: `config` carries the token request, client secret included.
+    const gaxiosError = (status: number, data: unknown) =>
+      Object.assign(new Error('Request failed'), {
+        response: { status, data },
+        config: { data: 'code=abc&client_secret=google-secret&grant_type=authorization_code' },
+      });
+
+    const loggedText = (spy: ReturnType<typeof vi.spyOn>) =>
+      JSON.stringify(spy.mock.calls, (_k, v) => (v instanceof Error ? { ...v, message: v.message } : v));
+
+    it.each([
+      ['redirect_uri_mismatch', gaxiosError(400, { error: 'redirect_uri_mismatch', error_description: 'Bad Request' })],
+      ['invalid_grant', gaxiosError(400, { error: 'invalid_grant', error_description: 'Malformed auth code.' })],
+      ['invalid_client', gaxiosError(401, { error: 'invalid_client', error_description: 'Unauthorized' })],
+      [
+        'api_not_enabled',
+        gaxiosError(403, {
+          error: {
+            code: 403,
+            status: 'PERMISSION_DENIED',
+            message: 'Gmail API has not been used in project 123 before or it is disabled.',
+            errors: [{ reason: 'accessNotConfigured' }],
+          },
+        }),
+      ],
+      ['unknown', new Error('something nobody anticipated')],
+    ])('reports %s', async (reason, error) => {
+      setOAuthEnv();
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      mocks.exchangeGoogleCode.mockRejectedValue(error);
+
+      const res = await googleCallback(
+        new NextRequest('http://localhost:3000/api/email/oauth/google/callback?code=abc&state=nonce', {
+          headers: { cookie: 'oauth_nonce_google=nonce' },
+        })
+      );
+
+      const location = new URL(res.headers.get('location')!);
+      expect(location.searchParams.get('error')).toBe('google_token_exchange_failed');
+      expect(location.searchParams.get('reason')).toBe(reason);
+      expect(spy).toHaveBeenCalled();
+      expect(loggedText(spy)).toContain(reason === 'unknown' ? 'something nobody anticipated' : reason);
+      expect(loggedText(spy)).not.toContain('google-secret');
+      spy.mockRestore();
+    });
+
+    it('never forwards a provider-supplied code it does not recognise', async () => {
+      setOAuthEnv();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      mocks.exchangeGoogleCode.mockRejectedValue(gaxiosError(400, { error: '<script>alert(1)</script>' }));
+
+      const res = await googleCallback(
+        new NextRequest('http://localhost:3000/api/email/oauth/google/callback?code=abc&state=nonce', {
+          headers: { cookie: 'oauth_nonce_google=nonce' },
+        })
+      );
+
+      expect(new URL(res.headers.get('location')!).searchParams.get('reason')).toBe('unknown');
+    });
+  });
 });
