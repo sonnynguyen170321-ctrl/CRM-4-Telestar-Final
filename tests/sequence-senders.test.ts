@@ -15,9 +15,13 @@ import type { SessionUser } from '@/lib/auth';
  */
 
 const authUser = vi.hoisted(() => ({ current: null as SessionUser | null }));
-vi.mock('@/lib/auth', async () => {
+vi.mock('@/lib/auth', async (importOriginal) => {
   const { NextResponse } = await import('next/server');
+  // The real visibility helpers (getVisibleUserIds walks managerId in the database); only the
+  // session is stubbed.
+  const actual = await importOriginal<typeof import('@/lib/auth')>();
   return {
+    ...actual,
     requireAuth: async () => authUser.current ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
   };
 });

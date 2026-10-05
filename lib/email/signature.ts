@@ -184,18 +184,20 @@ function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-/** Tag-stripping that keeps a table signature readable: a row is a line, a cell is a gap. */
+/**
+ * The signature as plain text, readable for a table layout: a row is a line, a cell is a gap.
+ *
+ * Text comes from the parser, not a tag-stripping regex — a regex that removes `<…>` and then
+ * decodes `&lt;` can hand back markup it just removed. Only line breaks are placed by pattern.
+ */
 function signatureText(html: string): string {
-  return html
+  const marked = html
     .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(?:p|div|tr|table)>/gi, '\n')
-    .replace(/<\/t[dh]>/gi, ' ')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, '&')
+    .replace(/<\/(?:p|div|tr|table)>/gi, '\n$&')
+    .replace(/<\/t[dh]>/gi, ' $&');
+  const fragment = DOMPurify.sanitize(marked, { ALLOWED_TAGS: [], KEEP_CONTENT: true, RETURN_DOM_FRAGMENT: true });
+  return (fragment.textContent ?? '')
+    .replace(/ /g, ' ')
     .replace(/[ \t]+/g, ' ')
     .replace(/ *\n */g, '\n')
     .replace(/\n{3,}/g, '\n\n')

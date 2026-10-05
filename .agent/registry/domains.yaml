@@ -58,6 +58,8 @@ domains:
       - lib/auth/**
       - lib/authRoles.ts
       - lib/podScoping.ts
+      # Who sees a sequence or template: creator, the managers above them, or shared (isShared).
+      - lib/visibility.ts
       - lib/admin/**
       - lib/tenant*.ts
       - app/api/auth/**
@@ -185,6 +187,8 @@ domains:
       - lib/automation/**
       - lib/email/**
       - lib/emailSafety.ts
+      # createOutboundMessage / enqueueEmailSendWorkflow: the one door every send goes through.
+      - lib/workflows/email.ts
       - lib/replies/**
       - app/api/sequences/**
       - scripts/sync-sequence-enrollments.ts

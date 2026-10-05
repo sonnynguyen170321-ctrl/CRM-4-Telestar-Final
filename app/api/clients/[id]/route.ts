@@ -21,7 +21,11 @@ export async function GET(
     // The list (GET /api/clients) shows a caller only the clients they have a campaign with; by
     // id it answered for any client in the tenant, contact name and email included. Both answers
     // are "not found", so a client the caller may not see is not confirmed to exist.
-    if ((await canReferenceClient(user, id)) !== 'ok') return notFound('Client not found');
+    //
+    // A director or floor manager is exempt: they create and edit any client (PUT below), and a
+    // client they have just created has no campaign yet for the rule to find.
+    const managesClients = user.role === 'director' || user.role === 'floor_manager';
+    if (!managesClients && (await canReferenceClient(user, id)) !== 'ok') return notFound('Client not found');
 
     const client = await prisma.client.findUnique({
       where: { id },
