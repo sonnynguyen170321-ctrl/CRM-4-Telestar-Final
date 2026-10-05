@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { requireAuth } from '@/lib/auth';
 import { getSequenceActivity } from '@/lib/sequences/activity';
+import { canViewSequenceId } from '@/lib/visibility';
 
 /**
  * What happened to one sequence: edits (AuditLog) and cadence events (Activity), newest first
@@ -14,6 +15,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!user.tenantId) return NextResponse.json({ error: 'No tenant context' }, { status: 403 });
 
   const { id } = await params;
+  if (!(await canViewSequenceId(user, id))) return NextResponse.json({ error: 'Sequence not found' }, { status: 404 });
   const items = await getSequenceActivity({ user, tenantId: user.tenantId, sequenceId: id });
   if (!items) return NextResponse.json({ error: 'Sequence not found' }, { status: 404 });
   return NextResponse.json({ items });

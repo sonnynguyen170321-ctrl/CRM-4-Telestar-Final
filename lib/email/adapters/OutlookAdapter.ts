@@ -82,6 +82,10 @@ export class OutlookAdapter implements EmailAdapter {
       replyTo: options.replyTo,
       headers: options.headers,
       attachments: options.attachments,
+      // The recipient's client threads on these. Graph reports no Message-ID for a send, so a
+      // step after this one has nothing to reply to and goes out as a new email.
+      inReplyTo: options.threading?.inReplyTo,
+      references: options.threading?.references,
     });
 
     const rawMessageBuffer = await mail.compile().build();

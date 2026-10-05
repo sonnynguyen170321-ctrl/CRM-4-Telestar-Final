@@ -26,6 +26,25 @@ function businessDayPolicyOf(ctx: AutomationEvaluationContext): 'skip_weekends' 
   return ctx.sequence?.sendOnWeekends ? 'none' : 'skip_weekends';
 }
 
+/**
+ * How many sends this mailbox has used today.
+ *
+ * `dailySendCount` is only reset by the send path itself (`atomicReserveQuota` in workers/email.ts,
+ * which compares against local midnight). Read raw, yesterday's full count looks like today's: a
+ * mailbox that reached its cap deferred every cadence step here, so nothing reached the send path
+ * to reset it, and it stayed "full" for good. A caller that does not pass the date keeps the raw
+ * count.
+ */
+function sentToday(
+  account: NonNullable<AutomationEvaluationContext['account']>,
+  now: Date,
+): number {
+  if (account.dailySendDate === undefined) return account.dailySendCount;
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (!account.dailySendDate || account.dailySendDate < midnight) return 0;
+  return account.dailySendCount;
+}
+
 export function evaluateAutomationEligibility(
   ctx: AutomationEvaluationContext
 ): EligibilityResult {
@@ -138,7 +157,7 @@ export function evaluateAutomationEligibility(
     // Quota exhausted (spec §14: DEFER, not permanent failure)
     if (
       ctx.account.dailyCap > 0 &&
-      ctx.account.dailySendCount >= ctx.account.dailyCap
+      sentToday(ctx.account, now) >= ctx.account.dailyCap
     ) {
       // Calculate next day window for rescheduling
       const timezone = resolveTimezone(
@@ -167,7 +186,7 @@ export function evaluateAutomationEligibility(
         decision: 'DEFER',
         reason: 'daily_quota_exhausted',
         nextActionAt: sched.dueAtUtc,
-        details: { dailyCap: ctx.account.dailyCap, dailySendCount: ctx.account.dailySendCount },
+        details: { dailyCap: ctx.account.dailyCap, dailySendCount: sentToday(ctx.account, now) },
       };
     }
   } else if (ctx.step && ctx.step.channel !== 'email') {
@@ -176,7 +195,7 @@ export function evaluateAutomationEligibility(
   }
 
   // 14. Schedule / Send window check
-  if (ctx.step) {
+  if (ctx.step && !ctx.ignoreSchedule) {
     const timezone = resolveTimezone(ctx.lead.timezone, ctx.user?.timezone);
     const seed = buildJitterSeed({
       tenantId: ctx.tenantId,

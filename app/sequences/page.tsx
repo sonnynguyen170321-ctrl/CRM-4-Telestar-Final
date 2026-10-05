@@ -1,11 +1,12 @@
 'use client';
 
 import { SequenceSendersPanel } from '@/components/sequences/SequenceSendersPanel';
+import { SequenceSharingPanel } from '@/components/sequences/SequenceSharingPanel';
 import { SequenceTrackingPanel } from '@/components/sequences/SequenceTrackingPanel';
 import { SequencePerformancePanel } from '@/components/sequences/SequencePerformancePanel';
 import { SequenceActivityPanel } from '@/components/sequences/SequenceActivityPanel';
 import { SequenceRulesPanel } from '@/components/sequences/SequenceRulesPanel';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Plus,
   ArrowUp,
@@ -24,6 +25,11 @@ import {
   X,
 } from 'lucide-react';
 import Linkedin from '@/components/icons/Linkedin';
+import SequencePreview from '@/components/sequences/SequencePreview';
+import { describeHold } from '@/lib/sequences/holdReasons';
+import { canConfigureSendWindow } from '@/lib/sequences/permissions';
+import { describeSendWindow, describeStepWait, describeWeekendRule } from '@/lib/sequences/stepDescription';
+import { canReplyInThread, previousEmailOrder } from '@/lib/sequences/threadingRules';
 import { stepOwnership } from '@/lib/sequences/stepOwnership';
 import { useToast } from '@/context/ToastContext';
 import { useAppContext } from '@/context/AppContext';
@@ -42,6 +48,8 @@ interface SequenceStep {
   /** Minutes since midnight in the lead's timezone. Null on both = send any time. */
   sendWindowStartMinutes?: number | null;
   sendWindowEndMinutes?: number | null;
+  /** Send as a reply in the previous email's thread instead of a new email. */
+  replyInThread?: boolean;
 }
 
 interface Template {
@@ -56,13 +64,28 @@ interface Sequence {
   name: string;
   description: string;
   isActive: boolean;
+  /** Per-sequence rule (Settings → Rules). Absent or false = weekends are skipped. */
+  sendOnWeekends?: boolean;
+  /** Visible to the whole company; otherwise to its creator and the managers above them. */
+  isShared?: boolean;
+  createdById?: string;
+  createdBy?: { id: string; firstName: string; lastName: string } | null;
   steps: SequenceStep[];
   _count?: { leads: number };
 }
 
+/** A step that can only be a new email — the first one, or any non-email — is never a reply. */
+function withValidThreading(list: SequenceStep[]): SequenceStep[] {
+  return list.map((step) =>
+    step.replyInThread && !(step.channel === 'email' && step.autoComplete && canReplyInThread(list, step.order))
+      ? { ...step, replyInThread: false }
+      : step
+  );
+}
+
 export default function SequencesPage() {
   const { showToast } = useToast();
-  const { isManager } = useAppContext();
+  const { currentRole, currentUserId } = useAppContext();
   const [sequences, setSequences] = useState<Sequence[]>([]);
   const [selectedSeq, setSelectedSeq] = useState<Sequence | null>(null);
   const [steps, setSteps] = useState<SequenceStep[]>([]);
@@ -82,6 +105,8 @@ export default function SequencesPage() {
   const [selectedEnrollments, setSelectedEnrollments] = useState<string[]>([]);
   const [enrollmentFilters, setEnrollmentFilters] = useState({ step: '', status: '' });
   const [loadingEnrollments, setLoadingEnrollments] = useState(false);
+  // When the list was read, so "overdue" is judged against that moment and not during render.
+  const [enrollmentsLoadedAt, setEnrollmentsLoadedAt] = useState(0);
   const [bulkActioning, setBulkActioning] = useState(false);
 
   const [selectedEnrollmentForLogs, setSelectedEnrollmentForLogs] = useState<string | null>(null);
@@ -89,7 +114,16 @@ export default function SequencesPage() {
   const [logsData, setLogsData] = useState<{ tasks: any[]; outboundMessages: any[]; activities: any[] } | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
-  const canEditSendWindow = isManager;
+  // The same rule the API enforces (lib/sequences/permissions.ts). It was `isManager`, which is
+  // wider: a team lead got live time inputs and then a 403 on save.
+  const canEditSendWindow = canConfigureSendWindow(currentRole);
+
+  // The viewer's timezone for the schedule preview. Read after mount: the server render has no
+  // browser to ask, and a value that differs between the two is a hydration mismatch.
+  const [viewerTimezone, setViewerTimezone] = useState('UTC');
+  useEffect(() => {
+    setViewerTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+  }, []);
 
   const minutesToTimeValue = (mins?: number | null): string => {
     if (mins == null) return '';
@@ -123,40 +157,8 @@ export default function SequencesPage() {
     );
   };
 
-  const generateCadencePreview = (stepsList: SequenceStep[]) => {
-    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    let currentDayIndex = 0; // Starts Monday
-    return stepsList.map((step) => {
-      currentDayIndex = (currentDayIndex + step.delayDays) % 7;
-      const dayName = dayNames[currentDayIndex];
-      let timeStr = '09:00 AM';
-      let windowText = 'Any time';
-
-      if (step.sendWindowStartMinutes != null && step.sendWindowEndMinutes != null) {
-        const startH = Math.floor(step.sendWindowStartMinutes / 60);
-        const startM = step.sendWindowStartMinutes % 60;
-        const endH = Math.floor(step.sendWindowEndMinutes / 60);
-        const endM = step.sendWindowEndMinutes % 60;
-
-        const formatTime = (h: number, m: number) => {
-          const ampm = h >= 12 ? 'PM' : 'AM';
-          const h12 = h % 12 === 0 ? 12 : h % 12;
-          return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
-        };
-
-        timeStr = formatTime(startH, (startM + 18) % 60);
-        windowText = `${formatTime(startH, startM)} – ${formatTime(endH, endM)}`;
-      } else if (step.delayHours > 0) {
-        timeStr = `+${step.delayHours}h`;
-      }
-
-      return {
-        order: step.order,
-        channel: step.channel,
-        estimatedTime: `${dayName} ${timeStr}`,
-        windowText,
-      };
-    });
+  const handleThreadModeChange = (stepId: string, replyInThread: boolean) => {
+    setSteps((prev) => prev.map((s) => (s.id === stepId ? { ...s, replyInThread } : s)));
   };
 
   const fetchLogs = useCallback(async (enrollmentId: string) => {
@@ -196,6 +198,7 @@ export default function SequencesPage() {
         const result = await res.json();
         showToast(result.message || 'Execution triggered successfully!', 'success');
         loadEnrollments();
+        refreshEnrollmentsSoon();
       } else {
         const err = await res.json().catch(() => ({}));
         showToast(err.error || 'Failed to force execute step', 'error');
@@ -251,6 +254,7 @@ export default function SequencesPage() {
     const res = await fetch(`/api/sequences/${selectedSeq.id}/enrollments?${q.toString()}`);
     if (res.ok) {
       setEnrollments(await res.json());
+      setEnrollmentsLoadedAt(Date.now());
     }
     setLoadingEnrollments(false);
   }, [selectedSeq, enrollmentFilters]);
@@ -270,11 +274,42 @@ export default function SequencesPage() {
     }
   }, [activeTab, selectedSeq, enrollmentFilters, loadEnrollments]);
 
+  // After Run now the worker answers a moment later, so the list is read once more to show the
+  // send, or why it was held. The timer always calls the newest loader: one captured at the click
+  // would refetch the sequence and filters of five seconds ago and put those rows over the
+  // current ones.
+  const loadEnrollmentsRef = useRef(loadEnrollments);
+  useEffect(() => { loadEnrollmentsRef.current = loadEnrollments; }, [loadEnrollments]);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshEnrollmentsSoon = () => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => { void loadEnrollmentsRef.current(); }, 5000);
+  };
+  useEffect(() => () => { if (refreshTimer.current) clearTimeout(refreshTimer.current); }, []);
+
   const handleSelectSequence = (seq: Sequence) => {
     setSelectedSeq(seq);
     setSteps(seq.steps.map((s) => ({ ...s })));
     setActiveTab('builder');
   };
+
+  // The weekend rule is edited on the Settings tab and described on every step card, so it is
+  // re-read whenever the builder is shown rather than trusted from the list this row came from.
+  const selectedSeqId = selectedSeq?.id;
+  useEffect(() => {
+    if (activeTab !== 'builder' || !selectedSeqId) return;
+    let cancelled = false;
+    fetch(`/api/sequences/${selectedSeqId}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((fresh) => {
+        if (cancelled || !fresh) return;
+        setSelectedSeq((current) =>
+          current && current.id === selectedSeqId ? { ...current, sendOnWeekends: Boolean(fresh.sendOnWeekends) } : current
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeTab, selectedSeqId]);
 
   const handleAddStep = () => {
     const nextOrder = steps.length + 1;
@@ -287,6 +322,8 @@ export default function SequencesPage() {
       instructions: `Log touchpoint details for the ${newStepChannel} outreach.`,
       templateId: null,
       autoComplete: newStepChannel === 'email',
+      // A follow-up email continues the conversation unless someone decides otherwise.
+      replyInThread: newStepChannel === 'email' && canReplyInThread(steps, nextOrder),
     };
     setSteps((prev) => [...prev, newStep]);
   };
@@ -320,10 +357,11 @@ export default function SequencesPage() {
         name: `${seq.name} (Copy)`,
         description: seq.description,
         isActive: false,
-        steps: seq.steps.map(({ channel, order, delayDays, delayHours, instructions, templateId, autoComplete, sendWindowStartMinutes, sendWindowEndMinutes }) => ({
+        steps: seq.steps.map(({ channel, order, delayDays, delayHours, instructions, templateId, autoComplete, sendWindowStartMinutes, sendWindowEndMinutes, replyInThread }) => ({
           channel, order, delayDays, delayHours, instructions, templateId, autoComplete,
           sendWindowStartMinutes: sendWindowStartMinutes ?? null,
           sendWindowEndMinutes: sendWindowEndMinutes ?? null,
+          replyInThread: Boolean(replyInThread),
         })),
       }),
     });
@@ -357,7 +395,7 @@ export default function SequencesPage() {
 
   const handleDeleteStep = (id: string) => {
     const filtered = steps.filter((s) => s.id !== id);
-    setSteps(filtered.map((s, idx) => ({ ...s, order: idx + 1 })));
+    setSteps(withValidThreading(filtered.map((s, idx) => ({ ...s, order: idx + 1 }))));
   };
 
   const handleMoveStep = (index: number, direction: 'up' | 'down') => {
@@ -367,7 +405,7 @@ export default function SequencesPage() {
     const temp = updated[index];
     updated[index] = updated[targetIndex];
     updated[targetIndex] = temp;
-    setSteps(updated.map((s, idx) => ({ ...s, order: idx + 1 })));
+    setSteps(withValidThreading(updated.map((s, idx) => ({ ...s, order: idx + 1 }))));
   };
 
   const handleSaveBuilder = async () => {
@@ -390,6 +428,7 @@ export default function SequencesPage() {
           autoComplete: s.autoComplete,
           sendWindowStartMinutes: s.sendWindowStartMinutes ?? null,
           sendWindowEndMinutes: s.sendWindowEndMinutes ?? null,
+          replyInThread: Boolean(s.replyInThread),
         })),
       }),
     });
@@ -420,7 +459,19 @@ export default function SequencesPage() {
     });
     setBulkActioning(false);
     if (res.ok) {
-      showToast('Bulk action completed', 'success');
+      // Say how many actually moved: a paused lead, a manual step or someone else's lead is
+      // skipped, and "completed" for a click that changed nothing reads as a broken button.
+      const result = await res.json().catch(() => null);
+      const done = typeof result?.processedCount === 'number' ? result.processedCount : selectedEnrollments.length;
+      const skipped = selectedEnrollments.length - done;
+      // For Run now the count is what was started, not what was delivered: the mailbox can still
+      // hold one, and the Status column says so.
+      const verb = action === 'run-now' ? 'Sending now for' : 'Done for';
+      showToast(
+        skipped > 0 ? `${verb} ${done} of ${selectedEnrollments.length} — ${skipped} skipped` : `${verb} ${done}`,
+        done > 0 ? 'success' : 'error'
+      );
+      if (action === 'run-now') refreshEnrollmentsSoon();
       setSelectedEnrollments([]);
       loadEnrollments();
       loadSequences(); // Refresh lead counts
@@ -517,6 +568,16 @@ export default function SequencesPage() {
                     <span className="text-text-muted">Total Steps:</span>
                     <span className="font-semibold text-text-primary font-mono">
                       {seq.steps.length} steps
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-text-muted">Visible to:</span>
+                    <span className="font-semibold text-text-primary">
+                      {seq.isShared
+                        ? 'Whole team'
+                        : seq.createdById === currentUserId
+                          ? 'Only you and your managers'
+                          : `${seq.createdBy ? `${seq.createdBy.firstName} ${seq.createdBy.lastName}` : 'Its owner'} and their managers`}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -626,6 +687,22 @@ export default function SequencesPage() {
             <SequenceActivityPanel sequenceId={selectedSeq.id} />
           ) : activeTab === 'settings' ? (
             <div className="space-y-4">
+              <SequenceSharingPanel
+                sequenceId={selectedSeq.id}
+                isShared={Boolean(selectedSeq.isShared)}
+                ownerName={
+                  selectedSeq.createdById === currentUserId
+                    ? 'you'
+                    : selectedSeq.createdBy
+                      ? `${selectedSeq.createdBy.firstName} ${selectedSeq.createdBy.lastName}`
+                      : null
+                }
+                canShare={currentRole === 'director' || currentRole === 'floor_manager' || currentRole === 'team_lead'}
+                onChange={(isShared) => {
+                  setSelectedSeq((current) => (current ? { ...current, isShared } : current));
+                  setSequences((prev) => prev.map((s) => (s.id === selectedSeq.id ? { ...s, isShared } : s)));
+                }}
+              />
               <SequenceSendersPanel sequenceId={selectedSeq.id} />
               <SequenceRulesPanel sequenceId={selectedSeq.id} />
               <SequenceTrackingPanel sequenceId={selectedSeq.id} />
@@ -633,7 +710,18 @@ export default function SequencesPage() {
           ) : activeTab === 'builder' ? (
             <div className="grid grid-cols-3 gap-6 flex-1 items-start">
               <div className="col-span-2 space-y-3">
-                {steps.map((step, idx) => (
+                {steps.map((step, idx) => {
+                  const previous = idx > 0 ? steps[idx - 1] : null;
+                  const sendOnWeekends = Boolean(selectedSeq.sendOnWeekends);
+                  // The CRM sends it, rather than a rep.
+                  const sendsItself = step.channel === 'email' && step.autoComplete;
+                  const mayReply = sendsItself && canReplyInThread(steps, step.order);
+                  const isReply = mayReply && Boolean(step.replyInThread);
+                  const replyTo = previousEmailOrder(steps, step.order);
+                  const stepTemplate = templates.find((t) => t.id === step.templateId);
+                  const subjectMissing = Boolean(stepTemplate) && !(stepTemplate?.subject ?? '').trim();
+                  const windowUnset = step.sendWindowStartMinutes == null && step.sendWindowEndMinutes == null;
+                  return (
                   <div
                     key={step.id}
                     className="bg-card-bg border border-card-border rounded-xl p-4 shadow-sm flex items-start justify-between gap-4 hover:bg-bg-main/20 transition-all"
@@ -650,35 +738,109 @@ export default function SequencesPage() {
                             {getChannelIcon(step.channel)}
                             <span>{step.channel}</span>
                           </span>
-                          <span className="text-[10px] font-mono text-text-muted">
-                            Delay: {step.delayDays}d {step.delayHours}h
-                          </span>
+                          {sendsItself && (
+                            <span className="type-micro font-semibold text-text-secondary">
+                              {isReply ? `Reply in thread · step ${replyTo}` : 'New email'}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs text-text-primary leading-normal pr-4">{step.instructions}</p>
-                        {/* autoComplete toggle */}
-                        <label className="flex items-center gap-2 cursor-pointer mt-1.5 select-none">
-                          <div
-                            onClick={() => setSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, autoComplete: !s.autoComplete } : s))}
-                            className={`w-8 h-4 rounded-full border transition-colors flex items-center px-0.5 ${step.autoComplete ? 'bg-emerald-500/20 border-emerald-500/40' : 'bg-card-border border-card-border'}`}
-                          >
-                            <div className={`w-3 h-3 rounded-full transition-transform ${step.autoComplete ? 'bg-emerald-500 translate-x-4' : 'bg-text-muted translate-x-0'}`} />
-                          </div>
-                          <span className="text-[10px] font-mono text-text-muted">
-                            {step.autoComplete ? 'Auto-complete (email)' : 'Requires outcome log'}
+                        {/* When it is due, in a sentence: what the wait is measured from, and
+                            whether its days are business days. */}
+                        <p className="type-meta text-text-primary pr-4">
+                          {describeStepWait({
+                            delayDays: step.delayDays,
+                            delayHours: step.delayHours,
+                            previousOrder: previous?.order ?? null,
+                            previousIsAutomatic: Boolean(previous && previous.channel === 'email' && previous.autoComplete),
+                            sendOnWeekends,
+                          })}{' '}
+                          <span className="text-text-muted">
+                            {describeWeekendRule(sendOnWeekends)}
                           </span>
-                        </label>
+                        </p>
+                        {/* A task note is for a person. An email the CRM sends has no one to read it. */}
+                        {!sendsItself && step.instructions && (
+                          <p className="type-meta text-text-secondary pr-4">{step.instructions}</p>
+                        )}
+                        {/* Who sends it. Only email can be sent by the CRM; every other channel is
+                            a task for the rep, so the switch is offered for email alone. */}
+                        {step.channel === 'email' ? (
+                          <label className="flex items-center gap-2 cursor-pointer mt-1.5 select-none">
+                            <div
+                              onClick={() => setSteps((prev) => withValidThreading(prev.map((s) => s.id === step.id ? { ...s, autoComplete: !s.autoComplete } : s)))}
+                              className={`w-8 h-4 rounded-full border transition-colors flex items-center px-0.5 ${step.autoComplete ? 'bg-emerald-500/20 border-emerald-500/40' : 'bg-card-border border-card-border'}`}
+                            >
+                              <div className={`w-3 h-3 rounded-full transition-transform ${step.autoComplete ? 'bg-emerald-500 translate-x-4' : 'bg-text-muted translate-x-0'}`} />
+                            </div>
+                            <span className="type-micro text-text-secondary">
+                              {step.autoComplete
+                                ? 'Sends automatically — the CRM sends this email when it is due'
+                                : 'Manual — the rep gets a task and sends this email themselves'}
+                            </span>
+                          </label>
+                        ) : (
+                          <p className="mt-1.5 type-micro text-text-secondary">
+                            Manual — the rep gets a task for this. Completing it starts the next step’s wait.
+                          </p>
+                        )}
                         {/* Armed with nothing to send. The API refuses this on save; saying it
                             here, next to the toggle, is what stops the click in the first place. */}
-                        {step.autoComplete && step.channel === 'email' && !step.templateId && (
-                          <p role="status" className="mt-1.5 text-[10px] font-mono text-brand-orange-text">
-                            Auto-complete needs a template — this step cannot send without one.
+                        {sendsItself && !step.templateId && (
+                          <p role="status" className="mt-1.5 type-micro text-brand-orange-text">
+                            An automatic email needs a template — this step cannot send without one.
                           </p>
+                        )}
+                        {/* Same thread or a new email. Only a follow-up can be a reply: the first
+                            email has nothing to reply to. */}
+                        {sendsItself && (
+                          <div className="mt-2">
+                            {mayReply ? (
+                              <div role="radiogroup" aria-label={`Step ${step.order}: send as`} className="flex items-center gap-2">
+                                <span className="type-micro text-text-secondary">Send as</span>
+                                {([true, false] as const).map((asReply) => (
+                                  <button
+                                    key={String(asReply)}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={isReply === asReply}
+                                    onClick={() => handleThreadModeChange(step.id, asReply)}
+                                    className={`rounded border px-2 py-1 type-micro font-semibold ${
+                                      isReply === asReply
+                                        ? 'border-brand-red bg-brand-red/10 text-text-primary'
+                                        : 'border-card-border text-text-secondary hover:bg-card-border/40'
+                                    }`}
+                                  >
+                                    {asReply ? 'Reply in same thread' : 'New email'}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="type-micro text-text-muted">
+                                Sent as a new email — there is no earlier automatic email in this sequence to reply to.
+                              </p>
+                            )}
+                            {mayReply && (
+                              <p className="mt-1 type-micro text-text-muted">
+                                {isReply
+                                  ? `Goes out as a reply to the email from step ${replyTo}, under “Re:” and that email’s subject; this step’s template subject is not used. Gmail and SMTP mailboxes thread it. An Outlook mailbox, or a lead whose earlier email came from a different mailbox, gets it as a new email under the same subject.`
+                                  : 'Starts a new conversation under this template’s own subject.'}
+                              </p>
+                            )}
+                            {!isReply && step.templateId && subjectMissing && (
+                              <p role="status" className="mt-1 type-micro text-brand-orange-text">
+                                {mayReply
+                                  ? 'This template has no subject, so the email will reuse the earlier email’s subject. Add a subject under Templates to start a new conversation, or switch to “Reply in same thread”.'
+                                  : 'This template has no subject, so the email would arrive with an empty subject line. Add one under Templates.'}
+                              </p>
+                            )}
+                          </div>
                         )}
                         {/* Send window — deliverability policy, so managers only (spec §27) */}
                         {step.autoComplete && (
-                          <div className="flex items-center gap-2 mt-1.5">
-                            <label className="text-[10px] font-mono text-text-muted" htmlFor={`win-start-${step.id}`}>
-                              Send between
+                          <>
+                          <div className="flex items-center gap-2 mt-2">
+                            <label className="type-micro text-text-secondary" htmlFor={`win-start-${step.id}`}>
+                              Time of day: between
                             </label>
                             <input
                               id={`win-start-${step.id}`}
@@ -697,21 +859,22 @@ export default function SequencesPage() {
                               onChange={(e) => handleSendWindowChange(step.id, 'end', e.target.value)}
                               className="bg-bg-main border border-card-border rounded px-2 py-1 text-[10px] text-text-secondary focus:outline-none focus:border-brand-red font-mono disabled:opacity-50"
                             />
-                            <span className="text-[10px] font-mono text-text-muted">
-                              {step.sendWindowStartMinutes == null && step.sendWindowEndMinutes == null
-                                ? 'any time'
-                                : "lead's local time"}
-                            </span>
-                            {canEditSendWindow &&
-                              (step.sendWindowStartMinutes != null || step.sendWindowEndMinutes != null) && (
+                            {canEditSendWindow && !windowUnset && (
                                 <button
                                   onClick={() => handleClearSendWindow(step.id)}
-                                  className="text-[10px] text-text-muted hover:text-brand-red underline"
+                                  className="type-micro text-text-muted hover:text-brand-red underline"
                                 >
                                   Clear
                                 </button>
                               )}
                           </div>
+                          {/* What the two boxes mean, including when they are empty — the blank
+                              "--:--" pair with "any time" beside it is what nobody could read. */}
+                          <p className="mt-1 type-micro text-text-muted pr-4">
+                            {describeSendWindow(step.sendWindowStartMinutes, step.sendWindowEndMinutes)}
+                            {!canEditSendWindow && ' Only a Director or Floor Manager can change send times.'}
+                          </p>
+                          </>
                         )}
                         {/* Template link */}
                         {(step.channel === 'email' || step.channel === 'linkedin') && (
@@ -759,7 +922,8 @@ export default function SequencesPage() {
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
 
                 {steps.length === 0 && (
                   <div className="border border-dashed border-card-border rounded-xl p-8 text-center text-xs text-text-muted">
@@ -768,6 +932,9 @@ export default function SequencesPage() {
                 )}
               </div>
 
+              {/* One right-hand column for the form and the preview. No card chrome on the wrapper:
+                  the two cards are its children, and a card does not go inside a card. */}
+              <div className="space-y-6">
               <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-4">
                 <h3 className="type-section text-text-primary flex items-center gap-2">
                   <span>➕</span> Add New Cadence Step
@@ -819,6 +986,11 @@ export default function SequencesPage() {
                     </div>
                   </div>
 
+                  <p className="type-micro text-text-muted">
+                    The wait counts from when the previous step is sent or completed; the first step counts from
+                    enrollment. Days are business days unless this sequence sends on weekends.
+                  </p>
+
                   <button
                     onClick={handleAddStep}
                     className="w-full py-2 bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center justify-center gap-1 active:scale-95"
@@ -833,37 +1005,30 @@ export default function SequencesPage() {
                 </div>
               </div>
 
-              {/* Sequence Schedule Preview (Spec §28) */}
+              {/* Schedule preview (spec §28), computed by the server with the same function the
+                  worker uses. The table that stood here was worked out in the browser: it always
+                  began on "Monday 09:00", counted calendar days and ignored the weekend rule, so
+                  it showed sends on days the engine never sends. */}
               <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm space-y-3">
-                <h3 className="type-section text-text-primary flex items-center gap-2 text-xs font-bold uppercase">
-                  <span>📅</span> Sequence Schedule Preview
-                </h3>
-                <p className="text-[10px] text-text-muted leading-normal">
-                  Estimated cadence preview starting Monday 09:00 AM in prospect&apos;s local timezone.
+                <SequencePreview
+                  steps={steps.map((s) => ({
+                    order: s.order,
+                    channel: s.channel,
+                    delayDays: s.delayDays,
+                    delayHours: s.delayHours,
+                    autoComplete: s.channel === 'email' && s.autoComplete,
+                    sendWindowStartMinutes: s.sendWindowStartMinutes ?? null,
+                    sendWindowEndMinutes: s.sendWindowEndMinutes ?? null,
+                  }))}
+                  timezone={viewerTimezone}
+                  sequenceId={selectedSeq.id}
+                />
+                <p className="type-micro text-text-muted">
+                  {describeWeekendRule(Boolean(selectedSeq.sendOnWeekends))} Change it under Settings. Each step waits
+                  for the one before it, so a step that goes late moves every step after it. A full or paused mailbox
+                  can also hold an email past the time shown.
                 </p>
-                {steps.length === 0 ? (
-                  <p className="text-[10px] text-text-muted italic">Add steps to see estimated cadence.</p>
-                ) : (
-                  <div className="space-y-2 font-mono text-[11px]">
-                    {generateCadencePreview(steps).map((item) => (
-                      <div key={item.order} className="flex items-center justify-between p-2 rounded-lg border border-card-border/60 bg-bg-main/50">
-                        <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 rounded bg-card-border/50 flex items-center justify-center font-bold text-[10px] text-text-secondary">
-                            {item.order}
-                          </span>
-                          <span className="capitalize font-semibold text-text-primary text-xs">{item.channel}</span>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold text-brand-orange-text text-xs">{item.estimatedTime}</div>
-                          <div className="text-[9px] text-text-muted">{item.windowText}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="pt-2 border-t border-card-border/40 text-[9px] text-text-muted leading-tight">
-                  ℹ️ Future steps begin after the previous step is completed.
-                </div>
+              </div>
               </div>
             </div>
           ) : (
@@ -952,7 +1117,7 @@ export default function SequencesPage() {
                         <th className="px-4 py-3 font-semibold text-text-secondary">Company</th>
                         <th className="px-4 py-3 font-semibold text-text-secondary">Status</th>
                         <th className="px-4 py-3 font-semibold text-text-secondary">Current Step</th>
-                        <th className="px-4 py-3 font-semibold text-text-secondary">Next Task Due</th>
+                        <th className="px-4 py-3 font-semibold text-text-secondary">Next step due (your time)</th>
                         <th className="px-4 py-3 font-semibold text-text-secondary text-right">Actions</th>
                       </tr>
                     </thead>
@@ -964,6 +1129,12 @@ export default function SequencesPage() {
                         // email. Saying so here is what stops a due date on a manual step from
                         // reading as a broken engine.
                         const ownership = stepOwnership(pendingTask?.type);
+                        const hold = describeHold(enr.holdReason);
+                        // More than a few minutes late; a step due this minute is simply due.
+                        const isOverdue =
+                          enr.status === 'active' &&
+                          Boolean(pendingTask) &&
+                          new Date(pendingTask.dueDate).getTime() < enrollmentsLoadedAt - 5 * 60 * 1000;
                         return (
                           <tr key={enr.id} className={`hover:bg-bg-main/30 transition-colors ${isSelected ? 'bg-brand-red/5' : ''}`}>
                             <td className="px-4 py-3">
@@ -988,6 +1159,20 @@ export default function SequencesPage() {
                               }`}>
                                 {enr.status.toUpperCase()}
                               </span>
+                              {/* Why the step has not gone, when it has not. Without this a held
+                                  step and a broken one look the same: a date in the past. */}
+                              {enr.status === 'active' && hold && (
+                                <div className={`mt-1 type-meta ${hold.needsAction ? 'text-brand-orange-text' : 'text-text-muted'}`}>
+                                  {hold.label}
+                                </div>
+                              )}
+                              {enr.status === 'paused' && enr.pausedReason && (
+                                <div className="mt-1 type-meta text-text-muted">
+                                  {enr.pausedReason === 'send_failed'
+                                    ? 'The last email could not be sent — check the mailbox, then resume'
+                                    : `Paused: ${String(enr.pausedReason).replace(/_/g, ' ')}`}
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-3">
                               <div className="font-mono text-text-primary">Step {enr.currentStep}</div>
@@ -1002,6 +1187,9 @@ export default function SequencesPage() {
                             </td>
                             <td className="px-4 py-3 font-mono text-text-muted">
                               {pendingTask ? new Date(pendingTask.dueDate).toLocaleString() : '-'}
+                              {isOverdue && (
+                                <div className="mt-0.5 type-meta font-sans text-brand-orange-text">Overdue</div>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-1.5">
@@ -1017,7 +1205,7 @@ export default function SequencesPage() {
                                     onClick={() => handleRunNow(enr.id)}
                                     disabled={actionLoadingId !== null || !ownership.canRunNow}
                                     className="p-1 hover:bg-green-500/10 text-text-muted hover:text-green-500 rounded transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-muted disabled:cursor-not-allowed"
-                                    title={ownership.canRunNow ? 'Run Now (Execute pending step immediately)' : ownership.reason}
+                                    title={ownership.canRunNow ? 'Send this step now — skips the send window and the weekend rule' : ownership.reason}
                                   >
                                     <Play className="w-4 h-4 fill-current" />
                                   </button>

@@ -6,8 +6,7 @@ import { pauseEnrollmentOccurrence, resumeEnrollmentOccurrence } from '@/lib/seq
 import { resolveOccurrenceTask } from '@/lib/sequences/occurrenceTask';
 import { requireAuth, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
-import { enqueueImmediate } from '@/lib/bullmq/enqueue';
-import { JobType } from '@/lib/bullmq/types';
+import { runEmailStepNow } from '@/lib/sequences/runNow';
 
 export async function POST(
   req: NextRequest,
@@ -60,17 +59,8 @@ export async function POST(
         const resolved = await resolveOccurrenceTask(enr);
         if (resolved && resolved.task.type === 'email') {
           const { task, expectedEnrollmentId } = resolved;
-          // Fast forward task
-          await prisma.task.update({
-            where: { id: task.id },
-            data: { dueDate: new Date() }
-          });
-          await enqueueImmediate(
-            JobType.SEQUENCE_EXECUTE_TASK,
-            { taskId: task.id, expectedEnrollmentId },
-            { tenantId: user.tenantId }
-          );
-          processedCount++;
+          const run = await runEmailStepNow({ taskId: task.id, expectedEnrollmentId, tenantId: user.tenantId! });
+          if (run.ok) processedCount++;
         }
       } else if (action === 'pause' && enr.status === 'active') {
         // Same domain service the single route uses — one lifecycle state machine, and the

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import Linkedin from '@/components/icons/Linkedin';
 import { useToast } from '@/context/ToastContext';
+import { useAppContext } from '@/context/AppContext';
 import DOMPurify from 'isomorphic-dompurify';
 
 interface Template {
@@ -24,6 +25,9 @@ interface Template {
   body: string;
   category: string;
   updatedAt: string;
+  /** Visible to the whole company; otherwise to its author and the managers above them. */
+  isShared?: boolean;
+  createdById?: string;
 }
 
 interface AbTestVariant {
@@ -57,6 +61,10 @@ export default function TemplatesPage() {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [category, setCategory] = useState('');
+  const [isShared, setIsShared] = useState(false);
+  // Sharing a template with the whole team is a manager's call (lib/visibility.ts).
+  const { currentRole } = useAppContext();
+  const canShare = currentRole === 'director' || currentRole === 'floor_manager' || currentRole === 'team_lead';
   const [activePane, setActivePane] = useState<'edit' | 'preview'>('edit');
   const [filterChannel, setFilterChannel] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -118,6 +126,7 @@ export default function TemplatesPage() {
     setSubject(temp.subject ?? '');
     setBody(temp.body);
     setCategory(temp.category);
+    setIsShared(Boolean(temp.isShared));
     setActivePane('edit');
     setAbOpen(false);
     loadAbVariants(temp.id);
@@ -246,6 +255,8 @@ export default function TemplatesPage() {
         subject: channel === 'email' ? subject : null,
         body,
         category,
+        // Only sent by someone who may change it; the API refuses the field from anyone else.
+        ...(canShare ? { isShared } : {}),
       }),
     });
     setSaving(false);
@@ -255,7 +266,10 @@ export default function TemplatesPage() {
       setSelectedTemp(updated);
       showToast('Template saved!', 'success');
     } else {
-      showToast('Failed to save template', 'error');
+      // A shared template can be read by everyone and changed only by its author and their
+      // managers; the API says which it was.
+      const detail = await res.json().catch(() => null);
+      showToast(detail?.error ?? 'Failed to save template', 'error');
     }
   };
 
@@ -438,6 +452,7 @@ export default function TemplatesPage() {
                   <span className="bg-card-border/50 text-text-secondary text-xs font-extrabold px-1.5 py-0.5 rounded uppercase">
                     {temp.category}
                   </span>
+                  <span className="ml-1.5 text-xs text-text-muted">{temp.isShared ? 'Shared with team' : 'Private'}</span>
                   <h2 className="font-display font-bold text-xs text-text-primary mt-1.5 truncate">
                     {temp.name}
                   </h2>
@@ -532,6 +547,25 @@ export default function TemplatesPage() {
                         />
                       </div>
                     </div>
+
+                    <label className="flex items-start gap-2 text-xs text-text-secondary">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 accent-brand-red"
+                        checked={isShared}
+                        disabled={!canShare}
+                        onChange={(e) => setIsShared(e.target.checked)}
+                      />
+                      <span>
+                        <span className="font-semibold text-text-primary">Share with the whole team</span>
+                        <span className="block text-text-muted">
+                          {isShared
+                            ? 'Everyone in the company can see and use this template. Only its author and their managers can change it.'
+                            : 'Private: only its author and the managers above them can see it.'}
+                          {!canShare && ' Only a manager can change this.'}
+                        </span>
+                      </span>
+                    </label>
 
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-text-muted uppercase block">

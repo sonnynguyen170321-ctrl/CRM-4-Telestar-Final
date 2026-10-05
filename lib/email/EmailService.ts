@@ -21,7 +21,29 @@ export interface SendEmailOptions {
     /** Content id for an inline image (`<img src="cid:…">`); nodemailer embeds it in the MIME. */
     cid?: string;
   }>;
+  /** Present when this message is a reply in an existing conversation (lib/sequences/threading.ts). */
+  threading?: SendThreading;
 }
+
+/** What makes a message land in an existing thread instead of starting one. */
+export interface SendThreading {
+  /** RFC Message-ID of the message being replied to, angle brackets included. */
+  inReplyTo: string;
+  /** The parent's References chain followed by its Message-ID, space separated. */
+  references: string;
+  /** Gmail conversation id; Gmail threads the sender's copy only when this is given. */
+  threadId?: string;
+}
+
+/** What a provider reported about a send. Every field is the provider's word, or absent. */
+export interface SendReceipt {
+  providerMessageId?: string;
+  rfcMessageId?: string;
+  providerThreadId?: string;
+}
+
+/** An adapter reports its bare provider id, nothing, or a full receipt. */
+export type SendResult = string | undefined | SendReceipt;
 
 /** A message fetched from a connected inbox (metadata only — no body). */
 export interface InboxMessage {
@@ -41,8 +63,8 @@ export interface InboxMessage {
 }
 
 export interface EmailAdapter {
-  /** Send an email. Returns the provider's message ID if available (for reconciliation). */
-  send(options: SendEmailOptions): Promise<string | undefined>;
+  /** Send an email. Returns what the provider reported: its message id, or a full receipt. */
+  send(options: SendEmailOptions): Promise<SendResult>;
   /** Fetch inbox messages received since `since`. Optional — not all adapters sync. */
   fetchMessagesSince?(since: Date): Promise<InboxMessage[]>;
 }
@@ -58,7 +80,7 @@ export class EmailService {
     this.adapter = adapter;
   }
 
-  async send(options: SendEmailOptions): Promise<string | undefined> {
+  async send(options: SendEmailOptions): Promise<SendResult> {
     return this.adapter.send(options);
   }
 

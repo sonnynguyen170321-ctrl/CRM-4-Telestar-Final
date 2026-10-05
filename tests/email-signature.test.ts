@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 
 import {
   SIGNATURE_LIMITS,
+  composeEmailBody,
   editableSignature,
   prepareSignatureForStorage,
   signatureForSend,
@@ -220,6 +221,85 @@ describe('buildSignatureHtml', () => {
 
     expect(html).not.toContain('tel:');
     expect(html).not.toContain('<img');
+  });
+});
+
+describe('composeEmailBody — the message with its signature, as a prospect receives it', () => {
+  const card = '<table><tbody><tr><td><b>Mei</b> <b>Phuong</b></td></tr><tr><td>mei@nekko.tech</td></tr></tbody></table>';
+  const designed = `<p>Best regards,<br>Mei</p><img src="cid:sig-0123456789abcdef">${card}`;
+  const images = [{ id: '0123456789abcdef', contentType: 'image/png', data: PNG }];
+
+  it('puts the designed signature under an HTML body and attaches its images', () => {
+    const out = composeEmailBody('<p>Hello Linh</p>', true, designed, images);
+
+    expect(out.html).toBe(`<p>Hello Linh</p><br><br>--<br>${designed}`);
+    expect(out.attachments.map((a) => a.cid)).toEqual(['sig-0123456789abcdef']);
+    expect(out.text).toContain('Hello Linh');
+    expect(out.text).toContain('-- \nBest regards,\nMei');
+  });
+
+  // The reported defect: a message typed as plain text (the lead-panel composer) got the signature
+  // run through a tag stripper, so the logo and the layout never reached the prospect.
+  it('keeps the designed signature, images included, under a plain-text body', () => {
+    const out = composeEmailBody('Hi Linh,\nQuick question.', false, designed, images);
+
+    expect(out.html).toContain(designed);
+    expect(out.html).toContain('white-space: pre-wrap');
+    expect(out.attachments).toHaveLength(1);
+    expect(out.text.startsWith('Hi Linh,\nQuick question.\n\n-- \n')).toBe(true);
+  });
+
+  it('escapes a plain-text body instead of letting it be read as markup', () => {
+    const out = composeEmailBody('Is 3 < 5 & 5 > 3?', false, null, null);
+
+    expect(out.html).toContain('Is 3 &lt; 5 &amp; 5 &gt; 3?');
+    expect(out.text).toBe('Is 3 < 5 & 5 > 3?');
+  });
+
+  it('changes nothing when the mailbox has no signature', () => {
+    expect(composeEmailBody('<p>Hello</p>', true, null, null)).toEqual({ html: '<p>Hello</p>', text: 'Hello', attachments: [] });
+    expect(composeEmailBody('<p>Hello</p>', true, '   ', null).html).toBe('<p>Hello</p>');
+  });
+
+  it('keeps the line breaks of a plain-text signature saved before the designer existed', () => {
+    const out = composeEmailBody('<p>Hello</p>', true, 'Mei Phuong\nNekko & Co', null);
+
+    expect(out.html).toContain('Mei Phuong<br>Nekko &amp; Co');
+    expect(out.text).toContain('Mei Phuong\nNekko & Co');
+  });
+
+  // Reps end templates with a hand-typed sign-off; the builder's signature opens with its own.
+  it('drops the signature’s own closing when the message already signs off', () => {
+    const body = '<p>Happy to share examples.</p><p>Best regards,</p><p>Mei</p>';
+    const out = composeEmailBody(body, true, designed, images);
+
+    expect(out.html.match(/Best regards,/g)).toHaveLength(1);
+    expect(out.html).toContain(card);
+    expect(out.attachments).toHaveLength(1);
+  });
+
+  it('keeps the closing when the message does not sign off, or only thanks the reader in a sentence', () => {
+    expect(composeEmailBody('<p>Happy to share examples.</p>', true, designed, images).html).toContain('Best regards,<br>Mei');
+    expect(composeEmailBody('<p>Thanks for your time today.</p>', true, designed, images).html).toContain('Best regards,<br>Mei');
+  });
+
+  // A signature pasted from Gmail is often a single block. Dropping "the closing paragraph" there
+  // would drop the name, title and phone with it.
+  it('leaves a one-block signature whole even when the message signs off', () => {
+    const flat = '<div>Best regards,<br>Mei Phuong<br>Business Development Manager<br>+84 968052740</div><img src="https://nekko.tech/logo.png">';
+    const out = composeEmailBody('<p>Hi</p><p>Best regards,</p><p>Mei</p>', true, flat, null);
+    expect(out.html).toContain(flat);
+  });
+
+  it('leaves a signature whole when its closing sits inside a wrapper block', () => {
+    const wrapped = '<div dir="ltr"><div>Best regards,</div><div>Mei Phuong · CEO</div></div>';
+    const out = composeEmailBody('<p>Hi</p><p>Thanks,</p>', true, wrapped, null);
+    expect(out.html).toContain(wrapped);
+  });
+
+  it('never drops a signature that is nothing but a closing', () => {
+    const out = composeEmailBody('<p>Hi</p><p>Thanks,</p>', true, '<p>Best regards,<br>Mei</p>', null);
+    expect(out.html).toContain('<p>Best regards,<br>Mei</p>');
   });
 });
 

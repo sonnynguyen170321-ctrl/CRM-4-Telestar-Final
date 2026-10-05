@@ -23,12 +23,39 @@ import { prisma } from '@/lib/prisma';
  * account into a deferral with a reason, so this never invents one.
  */
 
-function remainingToday(account: Pick<EmailAccount, 'dailyCap' | 'dailySendCount' | 'dailySendDate'>, now: Date): number {
-  const sentToday =
-    account.dailySendDate && account.dailySendDate.toISOString().slice(0, 10) === now.toISOString().slice(0, 10)
-      ? account.dailySendCount
-      : 0;
+/** Local midnight, the same day boundary `atomicReserveQuota` (workers/email.ts) resets on. */
+export function remainingToday(account: Pick<EmailAccount, 'dailyCap' | 'dailySendCount' | 'dailySendDate'>, now: Date): number {
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const sentToday = account.dailySendDate && account.dailySendDate >= midnight ? account.dailySendCount : 0;
   return account.dailyCap - sentToday;
+}
+
+/**
+ * Whether a mailbox would actually send right now — the same conditions the eligibility decision
+ * defers on. A paused mailbox sends nothing, so it always has the most of today's cap left; chosen
+ * on that alone it collected every new lead while the working mailboxes beside it sat idle.
+ */
+export function canSendNow(
+  account: Pick<EmailAccount, 'isActive' | 'sendPausedAt' | 'healthLevel' | 'dailyCap' | 'dailySendCount' | 'dailySendDate'>,
+  now: Date,
+): boolean {
+  if (!account.isActive || account.sendPausedAt) return false;
+  if (account.healthLevel === 'critical' && process.env.EMAIL_HEALTH_AUTOPAUSE === 'true') return false;
+  return account.dailyCap <= 0 || remainingToday(account, now) > 0;
+}
+
+export type SenderState = 'sending' | 'at_limit' | 'paused' | 'held' | 'disconnected';
+
+/** What a mailbox is doing right now, in the order the reasons would stop a send. */
+export function senderState(
+  account: Pick<EmailAccount, 'isActive' | 'sendPausedAt' | 'healthLevel' | 'dailyCap' | 'dailySendCount' | 'dailySendDate'>,
+  now: Date,
+): SenderState {
+  if (!account.isActive) return 'disconnected';
+  if (account.sendPausedAt) return 'paused';
+  if (account.healthLevel === 'critical' && process.env.EMAIL_HEALTH_AUTOPAUSE === 'true') return 'held';
+  if (account.dailyCap > 0 && remainingToday(account, now) <= 0) return 'at_limit';
+  return 'sending';
 }
 
 export async function resolveSendingMailbox(input: {
@@ -65,8 +92,11 @@ export async function resolveSendingMailbox(input: {
       orderBy: { createdAt: 'asc' },
     });
     if (senders.length > 0) {
-      const chosen = senders
-        .map((sender) => sender.emailAccount)
+      // Among the mailboxes that can send now; if none can, the fullest choice still stands so the
+      // step defers with that mailbox's reason instead of quietly changing sender.
+      const accounts = senders.map((sender) => sender.emailAccount);
+      const sendable = accounts.filter((account) => canSendNow(account, now));
+      const chosen = (sendable.length > 0 ? sendable : accounts)
         .sort((a, b) => remainingToday(b, now) - remainingToday(a, now) || a.createdAt.getTime() - b.createdAt.getTime())[0];
 
       if (input.enrollmentId) {

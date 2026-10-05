@@ -287,7 +287,10 @@ describe('getSequenceActivity', () => {
   });
 
   it('names the person who edited the sequence, not the person who created it', async () => {
-    // A team lead: since the pre-launch audit only the creator or a manager may edit a sequence.
+    // The creator's own team lead: only the creator or a manager above them may edit a sequence
+    // (lib/visibility.ts). A team lead of another pod cannot even see it.
+    await inTenant(() => prisma.user.update({ where: { id: ids.creator }, data: { managerId: ids.editor } }));
+    clearVisibleUserCache();
     authUser.current = session(ids.editor, 'team_lead');
     const res = await inTenant(() =>
       putSequence(
@@ -336,8 +339,21 @@ describe('getSequenceActivity', () => {
     expect(JSON.stringify(row.changedFields)).not.toContain('@');
   });
 
+  it('answers 404 to a rep who cannot see the sequence at all', async () => {
+    await cadenceEvents();
+    authUser.current = session(ids.outsider, 'sdr');
+    const res = await inTenant(() =>
+      getActivityRoute(new Request(`http://localhost/api/sequences/${ids.sequence}/activity`), {
+        params: Promise.resolve({ id: ids.sequence }),
+      })
+    );
+    expect(res.status).toBe(404);
+  });
+
   it('scopes the route by the caller, not just the library', async () => {
     await cadenceEvents();
+    // Shared with the team, so the rep may open it — and then sees only their own lead on it.
+    await inTenant(() => prisma.sequence.update({ where: { id: ids.sequence }, data: { isShared: true } }));
     authUser.current = session(ids.outsider, 'sdr');
     const res = await inTenant(() =>
       getActivityRoute(new Request(`http://localhost/api/sequences/${ids.sequence}/activity`), {

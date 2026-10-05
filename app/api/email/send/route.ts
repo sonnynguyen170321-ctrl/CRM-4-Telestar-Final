@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { findSuppression } from '@/lib/email/suppress';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, canAccessLead } from '@/lib/auth';
+import { requireAuth, canAccessLead, getVisibleUserIds } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { renderTemplate } from '@/lib/templates/render';
 import { parseBody } from '@/lib/validation/core';
@@ -43,13 +43,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Recipient is suppressed' }, { status: 403 });
   }
 
+  // Your own mailbox. A director or floor manager may also send from a mailbox of someone under
+  // them — not, as before, from any mailbox in the company. A From line speaks for whoever
+  // connected the mailbox, so this is not widened to team leads.
   const isManager = user.role === 'director' || user.role === 'floor_manager';
+  const reach = isManager ? await getVisibleUserIds(user) : [user.id];
   const account = await prisma.emailAccount.findFirst({
     where: {
       id: body.accountId,
       tenantId,
       isActive: true,
-      ...(isManager ? {} : { userId: user.id }),
+      ...(reach === null ? {} : { userId: { in: reach.includes(user.id) ? reach : [...reach, user.id] } }),
     },
   });
   if (!account) {

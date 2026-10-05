@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, requireRole } from '@/lib/auth';
+import { canReferenceClient, requireAuth, requireRole } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { updateClientSchema } from '@/lib/validation/schemas';
@@ -14,9 +14,15 @@ export async function GET(
 ) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
+  const user = userOrRes as SessionUser;
 
   const { id } = await params;
   try {
+    // The list (GET /api/clients) shows a caller only the clients they have a campaign with; by
+    // id it answered for any client in the tenant, contact name and email included. Both answers
+    // are "not found", so a client the caller may not see is not confirmed to exist.
+    if ((await canReferenceClient(user, id)) !== 'ok') return notFound('Client not found');
+
     const client = await prisma.client.findUnique({
       where: { id },
       select: {

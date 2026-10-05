@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { getVisibleUserIds, requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { handleApiError } from '@/lib/api/errors';
 import { canApproveAsManager } from '@/lib/agent/authorization';
@@ -26,10 +26,16 @@ export async function GET(req: NextRequest) {
 
     const status = req.nextUrl.searchParams.get('status') ?? 'pending';
 
+    // Whose requests the caller sees: their own, and those of the people under them. The list
+    // was tenant-wide — every rep could read the actions the agent had drafted on every
+    // colleague's leads, copy and lead ids included.
+    const visible = await getVisibleUserIds(user);
+
     const requests = await prisma.agentApprovalRequest.findMany({
       where: {
         tenantId: user.tenantId,
         status,
+        ...(visible === null ? {} : { requestedById: { in: visible } }),
         // A non-manager sees only what they could actually decide. Showing an SDR a queue of
         // manager-level requests they cannot action is noise that trains people to ignore it.
         ...(canApproveAsManager(user) ? {} : { requiredLevel: 'user' }),

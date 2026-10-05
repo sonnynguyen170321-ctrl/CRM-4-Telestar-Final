@@ -7,6 +7,8 @@ import { createSequenceSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
 import { cacheGet, cacheSet, listKey, invalidateList } from '@/lib/cache';
 import { assertSendWindowPermission } from '@/lib/sequences/permissions';
+import { canReplyInThread } from '@/lib/sequences/threadingRules';
+import { canShare, ownedOrSharedWhere } from '@/lib/visibility';
 
 const CACHE_TTL = 60;
 
@@ -17,7 +19,9 @@ export async function GET(req: NextRequest) {
   const user = userOrRes as SessionUser;
   try {
     const showArchived = new URL(req.url).searchParams.get('archived') === '1';
-    const cacheKey = listKey(user.tenantId, 'sequences', String(showArchived));
+    // Keyed by viewer: the list is now different for each of them (lib/visibility.ts), and a
+    // per-tenant key would hand one person's list to the next caller for a minute.
+    const cacheKey = listKey(user.tenantId, 'sequences', `${showArchived}:${user.id}`);
 
     const cached = await cacheGet<any[]>(cacheKey);
     if (cached) return NextResponse.json(cached, {
@@ -25,7 +29,7 @@ export async function GET(req: NextRequest) {
     });
 
     const sequences = await prisma.sequence.findMany({
-      where: { isArchived: showArchived },
+      where: { isArchived: showArchived, ...(await ownedOrSharedWhere(user)) },
       include: {
         steps: { orderBy: { order: 'asc' } },
         createdBy: { select: { id: true, firstName: true, lastName: true } },
@@ -68,12 +72,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const orderedSteps = (body.steps ?? []).map((step, idx) => ({
+    order: step.order ?? idx + 1,
+    channel: step.channel,
+    autoComplete: step.autoComplete ?? false,
+  }));
+
   try {
     const sequence = await prisma.sequence.create({
       data: {
         name: body.name,
         description: body.description,
         isActive: body.isActive ?? true,
+        // Sharing with the whole company is a manager's call; from anyone else it is ignored.
+        ...(body.isShared && canShare(user) ? { isShared: true } : {}),
         createdById: user.id,
         steps: {
           create: (body.steps ?? []).map((step, idx) => ({
@@ -86,6 +98,10 @@ export async function POST(req: NextRequest) {
             autoComplete: step.autoComplete ?? false,
             sendWindowStartMinutes: step.sendWindowStartMinutes ?? null,
             sendWindowEndMinutes: step.sendWindowEndMinutes ?? null,
+            // Only an email step with an earlier email before it can be a reply.
+            ...(step.replyInThread && step.channel === 'email' && canReplyInThread(orderedSteps, step.order ?? idx + 1)
+              ? { replyInThread: true }
+              : {}),
             // No `tenantId` here. On SequenceStep that column is the foreign key of three
             // relations at once (sequence, template, tenant), so Prisma does not expose it as a
             // scalar in a nested create — it arrives down the relation from the parent, which the

@@ -142,8 +142,13 @@ async function repairMissingDelayed(): Promise<{ fixed: number; details: string[
   let fixed = 0;
   const now = new Date();
 
+  // Cadence steps only, oldest first. Without the sequence filter the batch of 100 also took
+  // every overdue email a rep must send by hand — which the worker can only answer "manual" to —
+  // and without an order Postgres chose which hundred, so the same overdue step could be passed
+  // over night after night while the batch filled with tasks no job could ever move.
   const missing = await prisma.task.findMany({
-    where: { status: 'pending', type: 'email', dueDate: { lt: now }, lockedAt: null },
+    where: { status: 'pending', type: 'email', sequenceId: { not: null }, dueDate: { lt: now }, lockedAt: null },
+    orderBy: { dueDate: 'asc' },
     take: 100,
   });
 

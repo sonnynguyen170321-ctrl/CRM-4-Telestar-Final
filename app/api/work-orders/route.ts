@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, canAccessLead, canReferenceCampaign } from '@/lib/auth';
+import { requireAuth, canAccessLead, canReferenceCampaign, getVisibleUserIds } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { handleApiError } from '@/lib/api/errors';
 import { createWorkOrder, WorkOrderValidationError } from '@/lib/workorders/service';
@@ -42,8 +42,15 @@ export async function GET(req: NextRequest) {
 
   try {
     const status = req.nextUrl.searchParams.get('status');
+    // The caller's own work orders and those of the people under them. Dispatching one was
+    // already gated; listing was not, so any rep could read everyone's.
+    const visible = await getVisibleUserIds(user);
     const orders = await prisma.workOrder.findMany({
-      where: { tenantId: user.tenantId, ...(status ? { status } : {}) },
+      where: {
+        tenantId: user.tenantId,
+        ...(status ? { status } : {}),
+        ...(visible === null ? {} : { createdById: { in: visible } }),
+      },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });

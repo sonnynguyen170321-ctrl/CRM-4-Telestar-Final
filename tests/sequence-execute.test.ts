@@ -65,6 +65,11 @@ vi.mock('@/lib/templates/render', () => ({
   renderTemplate: (text: string) => `rendered:${text}`,
 }));
 
+const mockPlanThread = vi.fn();
+vi.mock('@/lib/sequences/threading', () => ({
+  planStepThread: (...a: unknown[]) => mockPlanThread(...a),
+}));
+
 const mockAdvance = vi.fn();
 vi.mock('@/lib/sequences/engine', () => ({
   createTaskForStep: vi.fn(),
@@ -275,6 +280,78 @@ describe('handleExecuteTask', () => {
   });
 });
 
+describe('handleExecuteTask — reply in the same thread', () => {
+  const ENROLLED_AT = new Date('2026-08-01T00:00:00Z');
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-10T10:00:00Z')); // Monday 10:00 UTC
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  function arrangeFollowUp(step: Record<string, unknown>) {
+    arrangeEligible();
+    mockTaskFindUnique.mockResolvedValue(buildTask({ sequenceStep: 2 }));
+    mockStepFindFirst.mockResolvedValue(buildStep({ order: 2, ...step }));
+    mockEnrollmentFindFirst.mockResolvedValue({ id: 'enr-1', status: 'active', currentStep: 2, startedAt: ENROLLED_AT });
+  }
+
+  it('sends a follow-up as a reply to the earlier email when the step says so', async () => {
+    arrangeFollowUp({ replyInThread: true });
+    mockPlanThread.mockResolvedValue({ mode: 'reply', subject: 'Re: Quick question', inReplyToOutboundId: 'out-0' });
+
+    await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(mockPlanThread).toHaveBeenCalledWith({
+      tenantId: TENANT_ID,
+      leadId: 'lead-1',
+      sequenceId: 'seq-1',
+      stepOrder: 2,
+      enrolledAt: ENROLLED_AT,
+      accountId: 'acct-1',
+    });
+    // The template's own subject is not used; the thread's is, on the row and on the job.
+    expect(mockCreateOutbound).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: 'Re: Quick question', inReplyToOutboundId: 'out-0' }),
+    );
+    expect(mockEnqueueSend).toHaveBeenCalledWith(expect.objectContaining({ subject: 'Re: Quick question' }), TENANT_ID);
+  });
+
+  it('keeps the earlier subject, as a new email, when the thread cannot be continued', async () => {
+    arrangeFollowUp({ replyInThread: true });
+    mockPlanThread.mockResolvedValue({ mode: 'continue', subject: 'Quick question', reason: 'no_message_id' });
+
+    const result = await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(result).toEqual({ status: 'queued', taskId: 'task-1' });
+    const created = mockCreateOutbound.mock.calls[0][0];
+    expect(created.subject).toBe('Quick question');
+    expect(created).not.toHaveProperty('inReplyToOutboundId');
+  });
+
+  it('uses the step’s own subject when nothing was sent before it', async () => {
+    arrangeFollowUp({ replyInThread: true });
+    mockPlanThread.mockResolvedValue({ mode: 'new', reason: 'no_prior_email' });
+
+    await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(mockCreateOutbound.mock.calls[0][0].subject).toBe('rendered:Hi {{firstName}}');
+  });
+
+  it('does not look for a thread on a step set to send a new email', async () => {
+    arrangeFollowUp({ replyInThread: false });
+
+    await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(mockPlanThread).not.toHaveBeenCalled();
+    expect(mockCreateOutbound.mock.calls[0][0]).not.toHaveProperty('inReplyToOutboundId');
+  });
+});
+
 describe('handleExecuteTask — deferral (Phase 6)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -341,6 +418,67 @@ describe('handleExecuteTask — deferral (Phase 6)', () => {
     expect(payload).toEqual({ taskId: 'task-1' });
     expect(opts.discriminator).toMatch(/^defer:/);
     expect(opts.delay).toBeGreaterThan(0);
+  });
+
+  // The enrollments table reads this: a held step used to look the same as a broken one.
+  it('records on the enrollment what the step is waiting for', async () => {
+    arrangeOutsideSendWindow();
+
+    await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(mockEnrollmentUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'enr-1' },
+      data: { holdReason: 'before_send_window' },
+    });
+  });
+
+  // "I pressed run and it did not run": the click moved the due date, and the worker then applied
+  // the send window again and wrote the old date back.
+  /** The same step, on a task someone pressed Run now on `minutesAgo` minutes ago. */
+  function arrangeRunNow(minutesAgo: number) {
+    arrangeOutsideSendWindow();
+    mockTaskFindUnique.mockResolvedValue(
+      buildTask({
+        lead: buildLead({ timezone: 'UTC', campaignId: 'camp-1' }),
+        runNowRequestedAt: new Date(Date.now() - minutesAgo * 60_000),
+      }),
+    );
+  }
+
+  it('sends outside the send window when someone has just pressed Run now', async () => {
+    arrangeRunNow(1);
+
+    const result = await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(result).toEqual({ status: 'queued', taskId: 'task-1' });
+    expect(mockEnqueueSend).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueReschedule).not.toHaveBeenCalled();
+    expect(mockEnrollmentUpdateMany).toHaveBeenCalledWith({ where: { id: 'enr-1' }, data: { holdReason: null } });
+  });
+
+  // The override is for the click. A task left with an old request must not ignore its send
+  // window forever, and a deferral hands the next attempt back to the schedule.
+  it('goes back to the schedule once the Run now is no longer fresh, and clears it', async () => {
+    arrangeRunNow(45);
+
+    const result = await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(result).toMatchObject({ status: 'deferred', reason: 'before_send_window' });
+    expect(mockEnqueueSend).not.toHaveBeenCalled();
+    expect(mockTaskUpdate).toHaveBeenCalledWith({
+      where: { id: 'task-1' },
+      data: { dueDate: expect.any(Date), runNowRequestedAt: null },
+    });
+  });
+
+  it('never fails a send because the wait reason could not be written', async () => {
+    arrangeRunNow(1);
+    mockEnrollmentUpdateMany.mockRejectedValueOnce(new Error('column "holdReason" does not exist'));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(result).toEqual({ status: 'queued', taskId: 'task-1' });
   });
 
   it('records the deferral reason as an activity on the lead', async () => {

@@ -81,18 +81,38 @@ describe('a sequence is changed only by its creator or a manager', () => {
   }
   const archive = (id: string) => archiveSequence(req(`/api/sequences/${id}`, { method: 'DELETE' }), { params: Promise.resolve({ id }) });
 
-  it('refuses another SDR, and leaves the sequence untouched', async () => {
+  // Since 2026-10-05 a sequence is private to its creator and the managers above them unless a
+  // manager shares it (lib/visibility.ts), so one a rep cannot see answers "not found" rather than
+  // "forbidden" — it is not confirmed to exist.
+  it('hides another SDR’s sequence, and leaves it untouched', async () => {
     const id = await sequenceBy(users.peer);
+    as(users.rep);
+    expect((await archive(id)).status).toBe(404);
+    expect(await inTenant(() => prisma.sequence.findUniqueOrThrow({ where: { id } }))).toMatchObject({ isArchived: false });
+  });
+
+  it('refuses an SDR who can see a shared sequence but did not create it', async () => {
+    const id = await sequenceBy(users.peer);
+    await inTenant(() => prisma.sequence.update({ where: { id }, data: { isShared: true } }));
     as(users.rep);
     expect((await archive(id)).status).toBe(403);
     expect(await inTenant(() => prisma.sequence.findUniqueOrThrow({ where: { id } }))).toMatchObject({ isArchived: false });
   });
 
-  it('allows its creator and a team lead', async () => {
+  it('allows its creator and the creator’s own team lead', async () => {
     as(users.peer);
     expect((await archive(await sequenceBy(users.peer))).status).toBe(200);
+
+    await inTenant(() => prisma.user.update({ where: { id: users.peer }, data: { managerId: users.lead } }));
     as(users.lead);
     expect((await archive(await sequenceBy(users.peer))).status).toBe(200);
+  });
+
+  it('hides it from a team lead of another pod — being a manager is not enough', async () => {
+    const id = await sequenceBy(users.peer);
+    as(users.lead);
+    expect((await archive(id)).status).toBe(404);
+    expect(await inTenant(() => prisma.sequence.findUniqueOrThrow({ where: { id } }))).toMatchObject({ isArchived: false });
   });
 });
 

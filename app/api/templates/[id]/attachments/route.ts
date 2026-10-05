@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { templateAccess } from '@/lib/visibility';
 
 export async function GET(
   _req: NextRequest,
@@ -24,6 +25,10 @@ export async function GET(
 
   if (template.tenantId !== user.tenantId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  // A template the caller may not see has no attachments to list either (lib/visibility.ts).
+  if ((await templateAccess(user, templateId)) === 'none') {
+    return NextResponse.json({ error: 'Template not found' }, { status: 404 });
   }
 
   const attachments = await prisma.attachment.findMany({
@@ -61,6 +66,15 @@ export async function POST(
 
   if (template.tenantId !== user.tenantId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  // An attachment goes out with every email the template sends, so adding one is changing it.
+  const access = await templateAccess(user, templateId);
+  if (access === 'none') return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+  if (access !== 'manage') {
+    return NextResponse.json(
+      { error: 'Only the template author or their manager can change its attachments' },
+      { status: 403 }
+    );
   }
 
   try {

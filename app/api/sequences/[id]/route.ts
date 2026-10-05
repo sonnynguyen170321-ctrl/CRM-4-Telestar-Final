@@ -8,16 +8,16 @@ import { handleApiError } from '@/lib/api/errors';
 import { invalidateList } from '@/lib/cache';
 import { logAdminAudit } from '@/lib/audit';
 import { reconcileSequenceSteps } from '@/lib/sequences/steps';
-import { MANAGER_ROLES } from '@/lib/authRoles';
+
+import { assertSendWindowPermission } from '@/lib/sequences/permissions';
+import { canManageOwned, canShare, canViewOwned } from '@/lib/visibility';
 
 /**
  * Editing or archiving a sequence acts on every rep's leads in it — archiving unenrolls them all —
- * so only its creator or a manager may, as for its senders (pre-launch audit, 2026-10-05).
+ * so only its creator or a manager above them may (lib/visibility.ts). It was "any manager"; a team
+ * lead could rewrite or archive a cadence belonging to another pod.
  */
-function canChangeSequence(user: SessionUser, sequence: { createdById: string }): boolean {
-  return (MANAGER_ROLES as readonly string[]).includes(user.role) || sequence.createdById === user.id;
-}
-import { assertSendWindowPermission } from '@/lib/sequences/permissions';
+const canChangeSequence = canManageOwned;
 
 export async function GET(
   _req: NextRequest,
@@ -25,6 +25,7 @@ export async function GET(
 ) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
+  const user = userOrRes as SessionUser;
 
   const { id } = await params;
 
@@ -40,7 +41,10 @@ export async function GET(
       },
     });
 
-    if (!sequence) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    // A sequence the caller may not see answers exactly like one that does not exist.
+    if (!sequence || !(await canViewOwned(user, sequence))) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
     return NextResponse.json(sequence);
   } catch (err) {
     return handleApiError('api/sequences/[id] GET', err);
@@ -61,9 +65,15 @@ export async function PUT(
   const body = parsed.data;
 
   const existing = await prisma.sequence.findUnique({ where: { id } });
-  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!canChangeSequence(user, existing)) {
-    return NextResponse.json({ error: 'Only the sequence owner or a manager can change it' }, { status: 403 });
+  if (!existing || !(await canViewOwned(user, existing))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+  if (!(await canChangeSequence(user, existing))) {
+    return NextResponse.json({ error: 'Only the sequence owner or their manager can change it' }, { status: 403 });
+  }
+  // Sharing puts a sequence in front of the whole company; an owner who is not a manager asks one.
+  if (body.isShared !== undefined && body.isShared !== existing.isShared && !canShare(user)) {
+    return NextResponse.json({ error: 'Only a manager can share a sequence with the team' }, { status: 403 });
   }
 
   try {
@@ -114,6 +124,7 @@ export async function PUT(
         ...(body.excludeLeadsInOtherSequences !== undefined && {
           excludeLeadsInOtherSequences: body.excludeLeadsInOtherSequences,
         }),
+        ...(body.isShared !== undefined && { isShared: body.isShared }),
       },
       include: { steps: { orderBy: { order: 'asc' } } },
     });
@@ -155,9 +166,11 @@ export async function DELETE(
   const { id } = await params;
 
   const existing = await prisma.sequence.findUnique({ where: { id } });
-  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!canChangeSequence(user, existing)) {
-    return NextResponse.json({ error: 'Only the sequence owner or a manager can change it' }, { status: 403 });
+  if (!existing || !(await canViewOwned(user, existing))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+  if (!(await canChangeSequence(user, existing))) {
+    return NextResponse.json({ error: 'Only the sequence owner or their manager can change it' }, { status: 403 });
   }
 
   try {
