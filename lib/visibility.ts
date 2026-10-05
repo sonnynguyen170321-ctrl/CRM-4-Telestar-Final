@@ -18,13 +18,30 @@ import { prisma } from '@/lib/prisma';
  * them, so a shared template cannot be rewritten under the cadences that send it.
  */
 
+/**
+ * The creators whose sequences and templates the caller reaches, or null for everyone.
+ *
+ * `getVisibleUserIds` walks active users only. A rep who is deactivated keeps their cadences
+ * running, and without this their private sequences and templates would be reachable by a
+ * director alone — their own team lead could no longer see, fix or share them.
+ */
+async function creatorsInReach(user: SessionUser): Promise<string[] | null> {
+  const visible = await getVisibleUserIds(user);
+  if (visible === null || user.role === 'sdr' || !user.tenantId) return visible;
+  const departed = await prisma.user.findMany({
+    where: { tenantId: user.tenantId, isActive: false, managerId: { in: visible } },
+    select: { id: true },
+  });
+  return departed.length ? [...visible, ...departed.map((u) => u.id)] : visible;
+}
+
 type Owned = { createdById: string; isShared: boolean };
 
 /** A Prisma `where` fragment for a model with `createdById` and `isShared`. `{}` = unrestricted. */
 export async function ownedOrSharedWhere(
   user: SessionUser,
 ): Promise<{ OR?: [{ isShared: true }, { createdById: { in: string[] } }] }> {
-  const visible = await getVisibleUserIds(user);
+  const visible = await creatorsInReach(user);
   if (visible === null) return {};
   // The viewer's own id is always included: a role whose tree is empty still owns what it made.
   const ids = visible.includes(user.id) ? visible : [...visible, user.id];
@@ -33,7 +50,7 @@ export async function ownedOrSharedWhere(
 
 export async function canViewOwned(user: SessionUser, row: Owned): Promise<boolean> {
   if (row.isShared || row.createdById === user.id) return true;
-  const visible = await getVisibleUserIds(user);
+  const visible = await creatorsInReach(user);
   return visible === null || visible.includes(row.createdById);
 }
 
@@ -41,7 +58,7 @@ export async function canViewOwned(user: SessionUser, row: Owned): Promise<boole
 export async function canManageOwned(user: SessionUser, row: { createdById: string }): Promise<boolean> {
   if (row.createdById === user.id) return true;
   if (!(MANAGER_ROLES as readonly string[]).includes(user.role)) return false;
-  const visible = await getVisibleUserIds(user);
+  const visible = await creatorsInReach(user);
   return visible === null || visible.includes(row.createdById);
 }
 
@@ -98,7 +115,7 @@ export async function withCanManage<T extends { createdById: string }>(
   rows: T[],
 ): Promise<Array<T & { canManage: boolean }>> {
   const isManager = (MANAGER_ROLES as readonly string[]).includes(user.role);
-  const visible = isManager ? await getVisibleUserIds(user) : [];
+  const visible = isManager ? await creatorsInReach(user) : [];
   return rows.map((row) => ({
     ...row,
     canManage: row.createdById === user.id || (isManager && (visible === null || visible.includes(row.createdById))),

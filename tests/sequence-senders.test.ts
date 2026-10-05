@@ -14,6 +14,7 @@ import type { SessionUser } from '@/lib/auth';
  * colleague's mailbox on a cadence unless they are a director or floor manager.
  */
 
+vi.mock('@/auth', () => ({ auth: vi.fn(), handlers: {}, signIn: vi.fn(), signOut: vi.fn() }));
 const authUser = vi.hoisted(() => ({ current: null as SessionUser | null }));
 vi.mock('@/lib/auth', async (importOriginal) => {
   const { NextResponse } = await import('next/server');

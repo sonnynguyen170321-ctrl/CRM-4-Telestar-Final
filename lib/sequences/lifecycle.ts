@@ -114,7 +114,9 @@ export async function pauseEnrollmentOccurrence(
   // Only this cadence's pending tasks.
   await prisma.task.updateMany({
     where: { leadId: input.leadId, sequenceId: input.sequenceId, status: 'pending' },
-    data: { status: 'skipped' },
+    // A Run now pressed before the pause was for that moment; a resume must not inherit it and
+    // send outside the window (lib/sequences/runNow.ts).
+    data: { status: 'skipped', runNowRequestedAt: null },
   });
 
   await prisma.activity.create({

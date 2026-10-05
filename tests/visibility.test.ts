@@ -8,8 +8,10 @@ vi.mock('@/lib/auth', () => ({ getVisibleUserIds: (user: SessionUser) => mockVis
 const mockSequenceFindFirst = vi.fn();
 const mockTemplateFindFirst = vi.fn();
 const mockTemplateFindMany = vi.fn();
+const mockUserFindMany = vi.fn();
 vi.mock('@/lib/prisma', () => ({
   prisma: {
+    user: { findMany: (...a: unknown[]) => mockUserFindMany(...a) },
     sequence: { findFirst: (...a: unknown[]) => mockSequenceFindFirst(...a) },
     template: {
       findFirst: (...a: unknown[]) => mockTemplateFindFirst(...a),
@@ -37,6 +39,7 @@ const director = user('dir', 'director');
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockUserFindMany.mockResolvedValue([]);
   mockVisible.mockImplementation(async (viewer) => {
     if (viewer.role === 'director') return null;
     if (viewer.role === 'team_lead') return ['lead', 'rep'];
@@ -164,5 +167,21 @@ describe('withCanManage', () => {
     expect((await withCanManage(rep, rows)).map((r) => r.canManage)).toEqual([true, false]);
     expect((await withCanManage(teamLead, rows)).map((r) => r.canManage)).toEqual([true, false]);
     expect((await withCanManage(director, rows)).map((r) => r.canManage)).toEqual([true, true]);
+  });
+});
+
+describe('a deactivated rep', () => {
+  it('stays in their manager’s reach, so their private rows can still be seen and fixed', async () => {
+    mockUserFindMany.mockResolvedValue([{ id: 'gone-rep' }]);
+    expect(await canViewOwned(teamLead, { createdById: 'gone-rep', isShared: false })).toBe(true);
+    expect(await canManageOwned(teamLead, { createdById: 'gone-rep' })).toBe(true);
+    expect(mockUserFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tenantId: 't1', isActive: false, managerId: { in: ['lead', 'rep'] } } }),
+    );
+  });
+
+  it('is not looked up for a rep, who sees only their own', async () => {
+    await ownedOrSharedWhere(rep);
+    expect(mockUserFindMany).not.toHaveBeenCalled();
   });
 });
