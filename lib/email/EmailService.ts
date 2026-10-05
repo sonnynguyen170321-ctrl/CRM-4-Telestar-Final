@@ -18,6 +18,8 @@ export interface SendEmailOptions {
     filename: string;
     content: string | Buffer;
     contentType?: string;
+    /** Content id for an inline image (`<img src="cid:…">`); nodemailer embeds it in the MIME. */
+    cid?: string;
   }>;
 }
 

@@ -93,7 +93,7 @@ UPDATE "Attachment" SET content = '[sanitized]';
 -- real name, title and direct phone number.
 UPDATE "Contact"      SET "fullName" = 'Contact ' || left(id, 6) WHERE "fullName" IS NOT NULL;
 UPDATE "LeadPoolItem" SET "fullName" = 'Pool ' || left(id, 6) WHERE "fullName" IS NOT NULL;
-UPDATE "EmailAccount" SET signature = NULL;
+UPDATE "EmailAccount" SET signature = NULL, "signatureImages" = NULL;
 
 -- Person names carried alongside the email columns already scrubbed above. Missed by the first
 -- pass because it grepped for `email|phone|token`; `contactName` and `prospectName` hold exactly

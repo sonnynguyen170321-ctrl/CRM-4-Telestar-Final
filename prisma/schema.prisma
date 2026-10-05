@@ -1229,6 +1229,10 @@ model EmailAccount {
   /// automation page reads it.
   hourlySendWindow Int           @default(0)
   signature        String?       @db.Text
+  /// Images a signature shows, referenced from `signature` as `cid:sig-<id>` and attached inline at
+  /// send: [{ id, contentType, data (base64) }]. Gmail and Outlook do not render data-URI images.
+  /// Written only through lib/email/signature.ts, which validates type, size and count.
+  signatureImages  Json?
   /// Display name in the From header ("Judy Nguyen" <judy@…>). Null sends the bare address, as before.
   fromName         String?
 
