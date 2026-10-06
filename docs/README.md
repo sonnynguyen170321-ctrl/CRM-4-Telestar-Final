@@ -44,6 +44,7 @@ Every non-obvious document carries one, in YAML front matter:
 | Production certification | [`production-certification/STATUS.md`](./production-certification/STATUS.md) |
 | Warmup certification | [`warmup-certification/STATUS.md`](./warmup-certification/STATUS.md) |
 | Session log 2026-10-05 (sequences, threading, signatures, privacy — PR #249) | [`agent-handoff/2026-10-05-SESSION-LOG.md`](./agent-handoff/2026-10-05-SESSION-LOG.md) |
+| Session log 2026-10-06 (sender rule, Email Log, banner, open items — PR #250) | [`agent-handoff/2026-10-06-SESSION-LOG.md`](./agent-handoff/2026-10-06-SESSION-LOG.md) |
 
 ## `docs/archive/` — finished, kept for reasoning
 
