@@ -25,7 +25,9 @@ import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
 import { updateIcpAllowlist } from '@/lib/leadgen/icpAllowlistUpdate';
 
-const TITLES = ['Managing Director', 'Owner', 'President', 'Sales Director', 'CSO', 'VP Sales'];
+// "CSO" is spelled out too: the engine does not expand it (sales, security and strategy all use it),
+// and production has 9 leads titled "Chief Sales Officer" that the bare abbreviation misses.
+const TITLES = ['Managing Director', 'Owner', 'President', 'Sales Director', 'CSO', 'Chief Sales Officer', 'VP Sales'];
 const PROFILE_NAME = 'TeleStar ICP';
 const CAMPAIGN_NAMES = ['Tele Campaign Alpha', 'Telestar - 2nd Floor campaign test'];
 
