@@ -132,7 +132,8 @@ export function SequenceSendersPanel({ sequenceId }: { sequenceId: string }) {
           <p className="mt-1 max-w-[62ch] text-xs leading-5 text-text-secondary">
             Each lead is given one of the ticked mailboxes on its first email and keeps it for the whole cadence, so
             replies stay in one thread. New leads go to the mailbox that can send and has the most of today&apos;s
-            limit left. Leave all unticked to send from each lead owner&apos;s own mailbox.
+            limit left. A sequence sends only from the mailboxes ticked here — never from a rep&apos;s own mailbox,
+            which may be on another domain.
           </p>
         </div>
         {canEdit && (
@@ -146,6 +147,16 @@ export function SequenceSendersPanel({ sequenceId }: { sequenceId: string }) {
           </button>
         )}
       </div>
+
+      {!loading && attached.length === 0 && (
+        <p
+          role="alert"
+          className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-text-primary"
+        >
+          No sending mailbox chosen — this sequence sends no email until at least one is ticked and saved. Its
+          steps wait rather than fail, and go out within the hour once a mailbox is chosen.
+        </p>
+      )}
 
       {loading ? (
         <p className="mt-4 flex items-center gap-2 text-xs text-text-muted">

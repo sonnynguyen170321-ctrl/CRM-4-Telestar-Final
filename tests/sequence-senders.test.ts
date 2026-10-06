@@ -28,7 +28,7 @@ vi.mock('@/lib/auth', async (importOriginal) => {
 });
 
 import { prisma, tenantStorage } from '@/lib/prisma';
-import { resolveSendingMailbox } from '@/lib/sequences/sender';
+import { resolveSendingMailbox, sequenceSenderGap } from '@/lib/sequences/sender';
 import { PUT } from '@/app/api/sequences/[id]/senders/route';
 import { createTestTenant } from './helpers/testTenant';
 
@@ -110,8 +110,31 @@ describe('resolveSendingMailbox', () => {
       resolveSendingMailbox({ tenantId, enrollmentId: ids.enrollment, sequenceId: ids.sequence, ownerUserId: ids.owner, now: new Date('2026-10-03T10:00:00Z') })
     );
 
-  it('falls back to the owner\'s oldest active mailbox when the sequence has no senders — no longer arbitrary', async () => {
+  // Owner, 2026-10-06: a sequence sends only from the mailboxes it names — never the rep's own,
+  // which may be on another domain. With none chosen nothing is resolved and the step waits.
+  it('never falls back to the owner\'s mailbox when the sequence has no senders', async () => {
+    expect(await resolve()).toBeNull();
+    expect(await inTenant(() => sequenceSenderGap(tenantId, ids.sequence))).toBe('none_chosen');
+  });
+
+  it('chooses again among the senders when the fixed mailbox was removed from the sequence', async () => {
+    await inTenant(async () => {
+      await prisma.sequenceSender.create({ data: { tenantId, sequenceId: ids.sequence, emailAccountId: ids.boxOld, addedById: ids.owner } });
+      // Fixed on a mailbox that is active but no longer one of this sequence's senders.
+      await prisma.sequenceEnrollment.update({ where: { id: ids.enrollment }, data: { senderAccountId: ids.boxNew } });
+    });
+
     expect((await resolve())?.id).toBe(ids.boxOld);
+  });
+
+  it('reports every chosen mailbox disconnected as its own reason', async () => {
+    await inTenant(async () => {
+      await prisma.sequenceSender.create({ data: { tenantId, sequenceId: ids.sequence, emailAccountId: ids.boxNew, addedById: ids.owner } });
+      await prisma.emailAccount.update({ where: { id: ids.boxNew }, data: { isActive: false } });
+    });
+
+    expect(await resolve()).toBeNull();
+    expect(await inTenant(() => sequenceSenderGap(tenantId, ids.sequence))).toBe('all_disconnected');
   });
 
   it('uses a sequence sender, choosing the one with the most of today\'s cap left, and fixes it on the enrollment', async () => {

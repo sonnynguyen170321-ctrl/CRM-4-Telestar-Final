@@ -17,7 +17,7 @@ import {
 } from '@/lib/sequences/engine';
 import { pauseEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
 import { findSuppression } from '@/lib/email/suppress';
-import { resolveSendingMailbox } from '@/lib/sequences/sender';
+import { resolveSendingMailbox, sequenceSenderGap } from '@/lib/sequences/sender';
 import { enrollmentStepTaskId } from '@/lib/sequences/identity';
 import { renderTemplate } from '@/lib/templates/render';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
@@ -300,14 +300,15 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     }
   }
 
-  // Which mailbox sends: the one this occurrence already uses, else one of the sequence's senders,
-  // else the owner's oldest — see lib/sequences/sender.ts.
+  // Which mailbox sends: the one this occurrence already uses, else one of the sequence's senders —
+  // never the rep's own (lib/sequences/sender.ts). With none, `senderGap` says why and the step waits.
   const account = await resolveSendingMailbox({
     tenantId: task.tenantId,
     enrollmentId: expectedEnrollmentId ?? null,
     sequenceId: task.sequenceId,
     ownerUserId: task.lead.assignedToId,
   });
+  const senderGap = !account && task.sequenceId ? await sequenceSenderGap(task.tenantId, task.sequenceId) : null;
 
   // Check suppression
   const suppressed = await findSuppression({ tenantId: task.tenantId, email: task.lead.email, campaignId: task.lead.campaignId });
@@ -336,6 +337,7 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     template: stepInfo?.template,
     account,
     isSuppressed: Boolean(suppressed),
+    senderGap,
     now: new Date(),
     ignoreSchedule: runNow,
   });

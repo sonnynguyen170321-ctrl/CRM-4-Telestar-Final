@@ -25,8 +25,14 @@ vi.mock('@/lib/prisma', () => ({
     },
     sequenceStep: { findFirst: (...a: unknown[]) => mockStepFindFirst(...a) },
     emailAccount: { findFirst: (...a: unknown[]) => mockAccountFindFirst(...a) },
-    // No sequence senders here: the mailbox resolver falls through to the owner's mailbox.
-    sequenceSender: { findMany: async () => [] },
+    // The sequence's one sender is whatever mailbox the test arranged (lib/sequences/sender.ts no
+    // longer falls back to the rep's own mailbox, 2026-10-06). None arranged → the sequence chose none.
+    sequenceSender: {
+      findMany: async () => {
+        const account = await mockAccountFindFirst();
+        return account ? [{ emailAccountId: account.id, emailAccount: account, createdAt: new Date(0) }] : [];
+      },
+    },
     // The task's own sequence (workers/sequence.ts reads it for eligibility, not the lead's pointer).
     sequence: { findUnique: async () => ({ id: 'seq-1', isActive: true, isArchived: false, sendOnWeekends: false }) },
     sequenceEnrollment: {
@@ -204,13 +210,14 @@ describe('handleExecuteTask', () => {
     expect(mockCreateOutbound).not.toHaveBeenCalled();
   });
 
-  it('fails when the assignee has no active mailbox', async () => {
+  it('holds the step, without sending or handing it to the rep, when the sequence has no sending mailbox', async () => {
     arrangeEligible();
     mockAccountFindFirst.mockResolvedValue(null);
-    expect(await handleExecuteTask({ taskId: 'task-1' })).toEqual({
-      status: 'manual_action_required',
-      reason: 'no_connected_mailbox',
+    expect(await handleExecuteTask({ taskId: 'task-1' })).toMatchObject({
+      status: 'deferred',
+      reason: 'no_sequence_sender',
     });
+    expect(mockCreateOutbound).not.toHaveBeenCalled();
   });
 
   it('does not send when the CAS lock is lost to another runner', async () => {

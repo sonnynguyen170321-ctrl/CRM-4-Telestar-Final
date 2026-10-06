@@ -17,10 +17,13 @@ import { prisma } from '@/lib/prisma';
  *   2. **A sequence with senders picks among them** — the active one with the most of today's cap
  *      left — and fixes the choice on the enrollment with a compare-and-set, so two steps resolving
  *      at once agree on one mailbox.
- *   3. **Otherwise, the lead owner's oldest active mailbox** — today's behaviour, made deterministic.
+ *   3. **A sequence never falls back to the rep's own mailbox** (owner, 2026-10-06: "it may be on
+ *      another domain"). A sequence step sends only from the sequence's senders; with none chosen,
+ *      or all disconnected, this returns null and `senderGap` says which, so the step waits.
+ *      The owner's oldest mailbox remains only for a send with no sequence at all.
  *
- * Returns null when nothing can send; the eligibility decision downstream already turns a missing
- * account into a deferral with a reason, so this never invents one.
+ * Returns null when nothing can send; the eligibility decision downstream turns that into a hold
+ * with a reason, so this never invents one.
  */
 
 /** Local midnight, the same day boundary `atomicReserveQuota` (workers/email.ts) resets on. */
@@ -74,10 +77,16 @@ export async function resolveSendingMailbox(input: {
       })
     : null;
 
-  // 1. Already fixed for this occurrence.
+  // 1. Already fixed for this occurrence — while it is still one of the sequence's senders. A mailbox
+  // removed from the sequence must not keep sending its cadences.
   if (enrollment?.senderAccountId) {
     const fixed = await prisma.emailAccount.findFirst({
-      where: { id: enrollment.senderAccountId, tenantId: input.tenantId, isActive: true },
+      where: {
+        id: enrollment.senderAccountId,
+        tenantId: input.tenantId,
+        isActive: true,
+        ...(input.sequenceId ? { sequenceSenders: { some: { sequenceId: input.sequenceId } } } : {}),
+      },
     });
     if (fixed) return fixed;
     // The fixed mailbox was disconnected. Fall through and choose again rather than stall the
@@ -125,10 +134,29 @@ export async function resolveSendingMailbox(input: {
     }
   }
 
-  // 3. The owner's oldest active mailbox.
+  // 3. Never the rep's mailbox for a sequence step: the sequence chose its senders, or it sends nothing.
+  if (input.sequenceId) return null;
+
+  // A send with no sequence: the owner's oldest active mailbox.
   if (!input.ownerUserId) return null;
   return prisma.emailAccount.findFirst({
     where: { tenantId: input.tenantId, userId: input.ownerUserId, isActive: true },
     orderBy: { createdAt: 'asc' },
   });
+}
+
+/**
+ * Why a sequence has no mailbox to send from: it chose none, or every mailbox it chose is
+ * disconnected. Null when it has a usable one. Read only after `resolveSendingMailbox` returned null.
+ */
+export async function sequenceSenderGap(
+  tenantId: string,
+  sequenceId: string,
+): Promise<'none_chosen' | 'all_disconnected' | null> {
+  const senders = await prisma.sequenceSender.findMany({
+    where: { tenantId, sequenceId },
+    select: { emailAccount: { select: { isActive: true } } },
+  });
+  if (senders.length === 0) return 'none_chosen';
+  return senders.some((sender) => sender.emailAccount.isActive) ? null : 'all_disconnected';
 }

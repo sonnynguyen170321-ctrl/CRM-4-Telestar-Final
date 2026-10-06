@@ -18,6 +18,8 @@ const HOLD_LABELS: Record<string, string> = {
   step_is_manual: 'Manual step — the rep sends this one',
   missing_template: 'No template on this step',
   no_connected_mailbox: 'No connected mailbox to send from',
+  no_sequence_sender: 'No sending mailbox chosen for this sequence — choose one under Send from',
+  sequence_senders_disconnected: 'Every mailbox this sequence sends from is disconnected',
   channel_requires_manual_action: 'Manual step — the rep completes this one',
   mailbox_inactive: 'The sending mailbox is disconnected',
   // Blocked: it will not send as things stand.
