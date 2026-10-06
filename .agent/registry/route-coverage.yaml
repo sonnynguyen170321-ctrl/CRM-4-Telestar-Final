@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 198   mutating: 123   mutating without a test: 19
+# routes: 199   mutating: 123   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -193,6 +193,9 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
+      - tests/campaign-create-team-lead.test.ts
+      - tests/campaign-members-team-lead.test.ts
+      - tests/leads-campaign-filter.test.ts
       - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/campaigns/[id]/member-impact/[userId]/route.ts
     methods: [GET]
@@ -206,6 +209,9 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
+      - tests/campaign-create-team-lead.test.ts
+      - tests/campaign-members-team-lead.test.ts
+      - tests/leads-campaign-filter.test.ts
       - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/campaigns/[id]/members/route.ts
     methods: [DELETE, GET, POST]
@@ -219,7 +225,9 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
+      - tests/campaign-create-team-lead.test.ts
       - tests/campaign-members-team-lead.test.ts
+      - tests/leads-campaign-filter.test.ts
       - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/campaigns/[id]/requirements/preview-internal-match/route.ts
     methods: [GET]
@@ -233,6 +241,9 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
+      - tests/campaign-create-team-lead.test.ts
+      - tests/campaign-members-team-lead.test.ts
+      - tests/leads-campaign-filter.test.ts
       - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/campaigns/[id]/route.ts
     methods: [PUT]
@@ -246,6 +257,9 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
+      - tests/campaign-create-team-lead.test.ts
+      - tests/campaign-members-team-lead.test.ts
+      - tests/leads-campaign-filter.test.ts
       - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/campaigns/route.ts
     methods: [GET, POST]
@@ -260,6 +274,8 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
       - tests/campaign-create-team-lead.test.ts
+      - tests/campaign-members-team-lead.test.ts
+      - tests/leads-campaign-filter.test.ts
       - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/client-reports/[id]/approve/route.ts
     methods: [POST]
@@ -442,6 +458,10 @@ routes:
   - path: app/api/email-health/overview/route.ts
     methods: [GET]
     tests: []
+  - path: app/api/email-log/route.ts
+    methods: [GET]
+    tests:
+      - tests/email-log.test.ts
   - path: app/api/email/accounts/[id]/route.ts
     methods: [DELETE, GET, PATCH]
     tests:
@@ -456,6 +476,7 @@ routes:
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
       - tests/email-account-token-storage.test.ts
+      - tests/email-signature.test.ts
       - tests/mailbox-sender-name.test.ts
   - path: app/api/email/oauth/google/callback/route.ts
     methods: [GET]
@@ -642,6 +663,7 @@ routes:
       - tests/lead-lifecycle.test.ts
       - tests/lead-reference-integrity.test.ts
       - tests/lead-timezone-update.test.ts
+      - tests/leads-campaign-filter.test.ts
       - tests/leads-list-cap.test.ts
       - tests/leads-rescore-icp-route.test.ts
       - tests/sequence-rules.test.ts
@@ -672,6 +694,7 @@ routes:
       - tests/lead-lifecycle.test.ts
       - tests/lead-reference-integrity.test.ts
       - tests/lead-timezone-update.test.ts
+      - tests/leads-campaign-filter.test.ts
       - tests/leads-list-cap.test.ts
       - tests/leads-rescore-icp-route.test.ts
       - tests/sequence-rules.test.ts
@@ -717,6 +740,7 @@ routes:
       - tests/lead-lifecycle.test.ts
       - tests/lead-reference-integrity.test.ts
       - tests/lead-timezone-update.test.ts
+      - tests/leads-campaign-filter.test.ts
       - tests/leads-list-cap.test.ts
       - tests/leads-rescore-icp-route.test.ts
       - tests/sequence-rules.test.ts

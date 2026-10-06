@@ -26,6 +26,7 @@ import {
   FileBarChart,
   ShieldCheck,
   Radar,
+  Send,
 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 import { canUseResearchRole } from '@/lib/research/access';
@@ -209,6 +210,7 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
           label: 'Work',
           items: [
             { name: 'Inbox', href: '/inbox', icon: Inbox },
+            { name: 'Email Log', href: '/email-log', icon: Send },
             { name: 'Templates', href: '/templates', icon: FileText },
             // Same predicate as app/automation/page.tsx, which bounces everyone else home. A
             // link that is shown and then refused reads as a broken button — the SDR role-play
