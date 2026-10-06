@@ -67,6 +67,13 @@ const SOFT_FOREIGN_KEYS = new Set([
   'PhoneSuppression.createdById',
   'TelephonySettings.killedById',
   'TelephonySettings.updatedById',
+  // A person's ICP verdict (lib/leads/effectiveQualification.ts): the reviewer and the reviewed
+  // assessment are history the review must outlive; the lead's mirror points at its latest review
+  // the way `latestIcpAssessmentId` does.
+  'LeadQualificationReview.reviewedById',
+  'LeadQualificationReview.assessmentId',
+  'Lead.qualificationOverrideById',
+  'Lead.latestQualificationReviewId',
   'AccountPainHypothesis.accountResearchRunId',
   'AgentAction.campaignId',
   'AgentAction.leadId',

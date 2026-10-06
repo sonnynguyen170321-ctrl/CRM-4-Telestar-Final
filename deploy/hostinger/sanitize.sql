@@ -129,5 +129,7 @@ UPDATE "TelephonyNumber" t SET e164 = '+2' || lpad(n::text, 12, '0')
 UPDATE "TelephonyEvent" SET payload = '{}'::jsonb;
 UPDATE "Lead"    SET "doNotCallReason" = NULL;
 UPDATE "Contact" SET "doNotCallReason" = NULL;
+-- A rep's free-text note on why they qualified or ruled out a lead.
+UPDATE "LeadQualificationReview" SET note = NULL;
 
 COMMIT;

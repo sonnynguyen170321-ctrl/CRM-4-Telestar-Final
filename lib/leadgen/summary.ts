@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 
 import { getLeadWhereScope, type SessionUser } from '@/lib/auth';
+import { qualificationWhere } from '@/lib/leads/effectiveQualification';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -39,7 +40,7 @@ export async function getLeadgenSummary(user: SessionUser, now: Date = new Date(
   const [totalLeads, addedThisWeek, icpQualified, byStage, owners, meetingsBooked] = await Promise.all([
     prisma.lead.count({ where: inScope() }),
     prisma.lead.count({ where: inScope({ createdAt: { gte: new Date(now.getTime() - 7 * 86_400_000) } }) }),
-    prisma.lead.count({ where: inScope({ icpQualification: 'qualified' }) }),
+    prisma.lead.count({ where: inScope(qualificationWhere('qualified')) }),
     prisma.lead.groupBy({ by: ['stage'], where: inScope(), _count: { _all: true } }),
     prisma.lead.groupBy({
       by: ['assignedToId'],

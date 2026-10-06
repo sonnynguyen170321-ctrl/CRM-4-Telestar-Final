@@ -37,6 +37,7 @@ import ContactIntelligenceDrawer from '@/components/intelligence/ContactIntellig
 import { safeHttpUrl } from '@/lib/security/safeHref';
 import ProspectClock from '@/components/time/ProspectClock';
 import { inferTimezone } from '@/lib/time/inferTimezone';
+import { IcpFitCard, type IcpFitLead } from '@/components/leads/IcpFitCard';
 
 interface MeetingItem {
   id: string;
@@ -126,13 +127,18 @@ interface LeadDetail {
   icpFitScore?: number | null;
   icpQualification?: 'qualified' | 'needs_review' | 'unqualified' | null;
   icpScoredAt?: string | null;
+  /** A person's verdict after review; wins over `icpQualification` (lib/leads/effectiveQualification.ts). */
+  qualificationOverride?: 'qualified' | 'needs_review' | 'unqualified' | null;
+  qualificationReviews?: IcpFitLead['qualificationReviews'];
   icpAssessments?: Array<{
     id: string;
     fitScore: number;
     confidenceScore: number;
     dataQualityScore: number;
     qualification: 'qualified' | 'needs_review' | 'unqualified';
-    evidenceJson?: { missingEvidence?: string[]; requiredEvidenceMissing?: string[]; reasonCodes?: string[] } | null;
+    evidenceJson?: unknown;
+    inputSnapshot?: unknown;
+    rulesSummary?: IcpFitLead['icpAssessments'] extends Array<infer A> | undefined ? A extends { rulesSummary?: infer R } ? R : never : never;
     createdAt: string;
     icpVersion?: { id: string; versionNumber: number; icpProfile?: { name: string } | null } | null;
   }>;
@@ -1230,78 +1236,25 @@ function LeadDetailPanelBody({
                 </a>
               </div>
 
-              {/* ICP fit — how well the lead matches the campaign's ideal customer profile. A
-                  different question from the engagement score below (what the prospect has
-                  done), and until 2026-09-19 one a CRM lead could not answer at all. */}
-              <div className="bg-card-bg border border-card-border rounded-xl p-4 space-y-3 shadow-xs" data-testid="icp-fit-card">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">ICP Fit</h3>
-                  {lead.icpQualification ? (
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                        lead.icpQualification === 'qualified' ? 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20' :
-                        lead.icpQualification === 'needs_review' ? 'bg-brand-gold/10 text-brand-gold-text border-brand-gold/20' :
-                        'bg-brand-red/10 text-brand-red border-brand-red/20'
-                      }`}
-                    >
-                      {lead.icpFitScore ?? '—'}/100 · {lead.icpQualification.replace('_', ' ').toUpperCase()}
-                    </span>
-                  ) : (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-card-border/30 text-text-muted border-card-border">
-                      NOT SCORED
-                    </span>
-                  )}
-                </div>
-                {lead.icpQualification ? (
-                  <>
-                    <div className="h-2 bg-bg-main border border-card-border rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          lead.icpQualification === 'qualified' ? 'bg-green-500' : lead.icpQualification === 'needs_review' ? 'bg-brand-gold' : 'bg-brand-red'
-                        }`}
-                        style={{ width: `${lead.icpFitScore ?? 0}%` }}
-                      />
-                    </div>
-                    {(() => {
-                      const latest = lead.icpAssessments?.[0];
-                      const missing = latest?.evidenceJson?.missingEvidence ?? [];
-                      return (
-                        <p className="text-[10px] text-text-muted font-mono">
-                          {latest?.icpVersion?.icpProfile?.name ? `${latest.icpVersion.icpProfile.name} v${latest.icpVersion.versionNumber}` : 'Campaign ICP'}
-                          {lead.icpScoredAt ? ` · scored ${new Date(lead.icpScoredAt).toLocaleDateString()}` : ''}
-                          {missing.length > 0 ? ` · missing: ${missing.slice(0, 4).join(', ')}${missing.length > 4 ? '…' : ''}` : ''}
-                        </p>
-                      );
-                    })()}
-                  </>
-                ) : (
-                  <p className="text-[11px] text-text-secondary leading-normal">
-                    {lead.campaign?.id
-                      ? 'No ICP is published for this campaign, so there is nothing to score against. A manager can configure one under ICP & Scoring.'
-                      : 'This lead has no campaign, so there is no ICP to score it against.'}
-                  </p>
-                )}
-                {isManager && lead.campaign?.id && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const res = await fetch('/api/leads/rescore-icp', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ campaignId: lead.campaign?.id, onlyUnscored: false, limit: 500 }),
-                      });
-                      if (!res.ok) { showToast('Rescore failed', 'error'); return; }
-                      const r = await res.json();
-                      showToast(`Rescored ${r.scored} lead(s) on this campaign${r.notScored ? `, ${r.notScored} not scored` : ''}`, r.scored > 0 ? 'success' : 'error');
-                      const fresh = await fetch(`/api/leads/${lead.id}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
-                      if (fresh) setLead(fresh);
-                    }}
-                    className="text-[10px] font-semibold text-brand-red hover:underline focus-ring rounded"
-                  >
-                    Rescore this campaign against its ICP
-                  </button>
-                )}
-              </div>
+              {/* ICP fit — how well the lead matches the campaign's ideal customer profile, why,
+                  and the rep's own verdict (components/leads/IcpFitCard.tsx). A different question
+                  from the engagement score below (what the prospect has done). */}
+              <IcpFitCard
+                lead={lead as IcpFitLead}
+                isManager={isManager}
+                showToast={showToast}
+                onRefresh={async () => {
+                  const res = await fetch(`/api/leads/${lead.id}`).catch(() => null);
+                  if (!res?.ok) {
+                    showToast('Saved, but the lead could not be reloaded — reopen it to see the change', 'error');
+                    return;
+                  }
+                  const fresh = await res.json();
+                  setLead(fresh);
+                  // The list's chip reads the same verdict; keep it in step.
+                  if (onLeadUpdate) onLeadUpdate(fresh);
+                }}
+              />
 
               {lead.aiScore !== undefined && (
                 <div className="bg-card-bg border border-card-border rounded-xl p-4 space-y-3.5 shadow-xs">

@@ -100,6 +100,7 @@ enum ActivityType {
   prospect_research_started
   prospect_ready_for_outreach
   prospect_ai_managed
+  qualification_reviewed
 }
 
 /// Who or what should be acting on this prospect right now.
@@ -869,6 +870,15 @@ model Lead {
   /// (see LeadPoolItem.latestAssessmentId): the assessment row carries the hard relation.
   latestIcpAssessmentId  String?
   icpScoredAt            DateTime?
+  /// A person's verdict after reviewing the lead (lib/leads/effectiveQualification.ts). When set
+  /// it wins over `icpQualification` everywhere the CRM reads qualification; a rescore never
+  /// touches it. Mirrored from the latest `LeadQualificationReview`, the way the three fields
+  /// above mirror the latest assessment. Null = nobody has reviewed it (or the verdict was cleared).
+  qualificationOverride       IcpQualification?
+  qualificationOverrideAt     DateTime?
+  /// Soft: who recorded it (see LeadQualificationReview.reviewedById).
+  qualificationOverrideById   String?
+  latestQualificationReviewId String?
   lastContactedAt    DateTime?
   nextTaskDue        DateTime?
   emailSentCount     Int                       @default(0)
@@ -909,6 +919,7 @@ model Lead {
   opportunities        Opportunity[]
   poolSources          LeadPoolItem[]       @relation("LeadPoolConverted")
   icpAssessments       LeadIcpAssessment[]  @relation("LeadIcpAssessments")
+  qualificationReviews LeadQualificationReview[] @relation("LeadQualificationReviews")
   operatingTransitions ProspectTransition[]
   workOrders           WorkOrder[]
   workOrderLeases      WorkOrderLease[]
@@ -923,6 +934,7 @@ model Lead {
   @@index([crmPriorityScore])
   @@index([engagementScore])
   @@index([tenantId, icpQualification])
+  @@index([tenantId, qualificationOverride])
   @@index([icpVersionId])
   @@index([contactId])
   @@index([tenantId])
@@ -2043,6 +2055,31 @@ model LeadIcpAssessment {
   @@index([leadId, createdAt])
 }
 
+/// A person's verdict on a lead's ICP fit (owner request, 2026-10-06), append-only like
+/// `LeadIcpAssessment`. The computed verdict at the time is kept beside it, so "the score now
+/// says X" and the audit trail both work. `verdict` null records a cleared verdict.
+model LeadQualificationReview {
+  @@unique([id, tenantId], map: "LeadQualificationReview_id_tenantId_key")
+  id                    String            @id @default(cuid())
+  leadId                String
+  lead                  Lead              @relation("LeadQualificationReviews", fields: [leadId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  verdict               IcpQualification?
+  /// From lib/leads/qualificationReasons.ts — a code, so new reasons need no migration.
+  reasonCode            String
+  note                  String?
+  /// Soft (see `Lead.qualificationOverrideById`): a deleted user must not take the history with it.
+  reviewedById          String
+  computedQualification IcpQualification?
+  computedFitScore      Int?
+  /// Soft: the assessment that was current when the verdict was recorded.
+  assessmentId          String?
+  createdAt             DateTime          @default(now())
+  tenantId              String
+  tenant                Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, leadId, createdAt])
+}
+
 // ─── Leadgen Ecosystem — Internal Lead Pool ──────────────────────────────────
 
 enum LeadPoolStatus {
@@ -2538,6 +2575,7 @@ model Tenant {
   icpVersions              IcpVersion[]
   leadPoolAssessments      LeadPoolAssessment[]
   leadIcpAssessments       LeadIcpAssessment[]
+  leadQualificationReviews LeadQualificationReview[]
   researchRuns             ResearchRun[]
   researchCandidates       ResearchCandidate[]
   researchProspects        ResearchProspect[]

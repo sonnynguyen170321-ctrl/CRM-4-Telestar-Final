@@ -163,6 +163,7 @@
     "/api/leadgen/team-progress",
     "/api/leads",
     "/api/leads/[id]",
+    "/api/leads/[id]/qualification",
     "/api/leads/[id]/restore",
     "/api/leads/import",
     "/api/leads/recalculate-scores",
@@ -248,5 +249,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 38,
-  "apiRouteCount": 199
+  "apiRouteCount": 200
 }
