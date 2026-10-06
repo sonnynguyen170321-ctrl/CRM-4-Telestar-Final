@@ -4,7 +4,7 @@ import type {
   TerminalGateResult,
 } from "../evidence";
 import type { IcpVersionRulesV2 } from "../schema-v2";
-import { foldText } from "../normalize/normalizeCountry";
+import { countryKey, foldText } from "../normalize/normalizeCountry";
 
 // SC2: pipeline step 2 — terminal hard gates. Each gate is a pure predicate
 // returning a GateHit when it fires, else null. Any hit -> UNQUALIFIED (in SC3).
@@ -27,7 +27,7 @@ type Gate = (
 ) => GateHit | null;
 
 function foldedSet(values: readonly string[]): Set<string> {
-  return new Set(values.map((value) => foldText(value)));
+  return new Set(values.map((value) => countryKey(value)));
 }
 
 // Excluded HQ country, or excluded office/delivery country when the rule scopes
@@ -38,7 +38,7 @@ const excludedCountryGate: Gate = (evidence, rules) => {
   const excludedOffice = foldedSet(geography.excludedOfficeCountries);
 
   const hqCountry = evidence.company.country;
-  if (hqCountry && excludedHq.has(foldText(hqCountry))) {
+  if (hqCountry && excludedHq.has(countryKey(hqCountry))) {
     return {
       id: "excluded_country",
       label: "Excluded HQ geography",
@@ -54,7 +54,7 @@ const excludedCountryGate: Gate = (evidence, rules) => {
     : [];
 
   for (const office of officeChecks) {
-    const folded = foldText(office);
+    const folded = countryKey(office);
     if (excludedOffice.has(folded) || excludedHq.has(folded)) {
       return {
         id: "excluded_office_country",
@@ -106,37 +106,52 @@ const websiteOfflineGate: Gate = (evidence, rules) => {
   return null;
 };
 
-// Services/consulting disqualifier with conditional market exception:
-// TeleStar excludes services/consulting EXCEPT in Vietnam.
-const servicesConsultingGate: Gate = (evidence, rules) => {
+const SERVICES_CONSULTING_PATTERNS = SERVICES_CONSULTING_KEYWORDS.map(
+  (keyword) => new RegExp(`(?<![\\p{L}\\p{N}])${keyword}(?![\\p{L}\\p{N}])`, "u")
+);
+
+/**
+ * How strongly the evidence says "services / consulting firm", for an ICP that excludes them.
+ *
+ * `strong`: the company is classified SERVICE_ONLY / AGENCY. The only signal that rules a lead out.
+ * `mentioned`: the words appear somewhere — the industry label, the description, research facts.
+ * LinkedIn files most software companies under "IT Services and IT Consulting", and a description
+ * that "replaces consulting-heavy rollouts" is no consultancy, so a word alone used to rule out good
+ * leads (production, 2026-10-06). A mention is for a person to judge: a lead that would otherwise
+ * qualify goes to needs_review instead (lib/leadgen/weightedQualification.ts, pointsQualification.ts).
+ */
+export function servicesSignal(
+  evidence: NormalizedScoringEvidence,
+  rules: IcpVersionRulesV2
+): "none" | "mentioned" | "strong" {
   const policy = rules.companyType.servicesConsultingPolicy;
-  if (!policy.disqualify) {
-    return null;
-  }
+  if (!policy.disqualify) return "none";
 
   const country = evidence.company.country;
   const exceptMarkets = foldedSet(policy.exceptMarkets);
-  if (country && exceptMarkets.has(foldText(country))) {
-    return null; // conditional exception — allowed in this market
+  if (country && exceptMarkets.has(countryKey(country))) {
+    return "none"; // conditional exception — allowed in this market
   }
 
-  const typeIsServices =
-    evidence.company.companyType === "SERVICE_ONLY" ||
-    evidence.company.companyType === "AGENCY";
-  const textHasServices = SERVICES_CONSULTING_KEYWORDS.some((keyword) =>
-    evidence.company.evidenceText.includes(keyword)
-  );
-
-  if (typeIsServices || textHasServices) {
-    return {
-      id: "services_consulting_based",
-      label: "Services / consulting based company",
-      reasonCode: "services_consulting_based",
-      evidence: typeIsServices ? evidence.company.companyType : "services/consulting language",
-    };
+  if (evidence.company.companyType === "SERVICE_ONLY" || evidence.company.companyType === "AGENCY") {
+    return "strong";
   }
+  const text = evidence.company.evidenceText;
+  return SERVICES_CONSULTING_PATTERNS.some((pattern) => pattern.test(text)) ? "mentioned" : "none";
+}
 
-  return null;
+// Services/consulting disqualifier with conditional market exception:
+// TeleStar excludes services/consulting EXCEPT in Vietnam. Fatal only on a classification.
+const servicesConsultingGate: Gate = (evidence, rules) => {
+  if (servicesSignal(evidence, rules) !== "strong") {
+    return null;
+  }
+  return {
+    id: "services_consulting_based",
+    label: "Services / consulting based company",
+    reasonCode: "services_consulting_based",
+    evidence: evidence.company.companyType,
+  };
 };
 
 const genericEmailGate: Gate = (evidence, rules) => {

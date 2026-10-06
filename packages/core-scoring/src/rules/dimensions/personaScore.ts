@@ -48,7 +48,47 @@ export function expandTitleSynonyms(foldedTitle: string): string {
   return extras.length > 0 ? `${foldedTitle} ${extras.join(" ")}` : foldedTitle;
 }
 
-function titleMatches(foldedTitle: string, entries: readonly string[]): boolean {
+/** Joining words that carry no meaning in a title: "VP of Sales" and "VP, Sales" are the same role. */
+const TITLE_STOPWORDS = new Set(["of", "the", "and", "for", "at", "in", "to"]);
+
+/**
+ * A title as a set of meaningful words, every abbreviation spelled out ("vp" -> "vice", "president").
+ * Word order and punctuation drop away, so "Director of Sales" and "Sales Director", or
+ * "VP, Sales" and "Vice President of Sales", become the same set.
+ */
+export function titleWordSet(text: string): Set<string> {
+  const words = foldText(text)
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word && !TITLE_STOPWORDS.has(word));
+  const out = new Set<string>();
+  for (const word of words) {
+    const expansion = TITLE_SYNONYMS.find(([abbr]) => abbr === word)?.[1];
+    for (const part of (expansion ?? word).split(" ")) out.add(part);
+  }
+  return out;
+}
+
+/**
+ * Every meaningful word of a multi-word entry appears in the title, in any order (production,
+ * 2026-10-06: "Vice President of Sales" and "Sales Director" scored as off-target against "VP Sales"
+ * and "Director of Sales"). A one-word entry never matches this way: "GM" spelled out is
+ * {general, manager}, which "General Counsel / Sales Manager" contains without being a GM.
+ */
+export function titleContainsEntry(title: string, entry: string): boolean {
+  const meaningful = foldText(entry)
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word && !TITLE_STOPWORDS.has(word));
+  if (meaningful.length < 2) return false;
+  const titleWords = titleWordSet(title);
+  return [...titleWordSet(entry)].every((word) => titleWords.has(word));
+}
+
+/**
+ * `loose` adds word-set matching on top of the exact forms. The denylist stays exact: a denylist hit
+ * rules a lead out, and word sets ignore adjacency — "Marketing Manager" would hit
+ * "Senior Manager, Sales and Marketing".
+ */
+function titleMatches(foldedTitle: string, entries: readonly string[], loose = true): boolean {
   const titleTokens = new Set(foldedTitle.split(/[^a-z0-9]+/).filter(Boolean));
 
   return entries.some((entry) => {
@@ -58,10 +98,12 @@ function titleMatches(foldedTitle: string, entries: readonly string[]): boolean 
     }
 
     if (/^[a-z0-9]{2,4}$/.test(folded)) {
-      return titleTokens.has(folded);
+      if (titleTokens.has(folded)) return true;
+    } else if (foldedTitle.includes(folded)) {
+      return true;
     }
 
-    return foldedTitle.includes(folded);
+    return loose && titleContainsEntry(foldedTitle, folded);
   });
 }
 
@@ -86,7 +128,7 @@ export function personaScore(
   const department: Department = contact.department;
 
   // 1. Hard negatives (decisive)
-  if (titleMatches(foldedTitle, persona.titleDenylist)) {
+  if (titleMatches(foldedTitle, persona.titleDenylist, false)) {
     hits.push({ id: "persona_denylisted", label: "Title on persona denylist", reasonCode: "persona_title_denylisted" });
     return { dimension: "persona", score: 0, hits, missingEvidence };
   }

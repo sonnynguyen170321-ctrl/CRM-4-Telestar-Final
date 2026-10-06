@@ -2,6 +2,7 @@ import type { IcpQualification } from '@prisma/client';
 import type { IcpRulesV2Assessment } from '@telestar/core-scoring/rules/deriveQualification';
 import type { DimensionKey, RawScoringEvidence } from '@telestar/core-scoring/rules/evidence';
 import { normalizeEvidence } from '@telestar/core-scoring/rules/normalize/index';
+import { servicesSignal } from '@telestar/core-scoring/rules/gates/terminalGates';
 import type { IcpVersionRulesV2 } from '@telestar/core-scoring/rules/schema-v2';
 
 /**
@@ -36,7 +37,9 @@ import type { IcpVersionRulesV2 } from '@telestar/core-scoring/rules/schema-v2';
  * insert-only and reused by fingerprint, so without it a rescore under a new rule would find the
  * old row — evidence and ICP unchanged — and hand back the old verdict.
  */
-export const ICP_VERDICT_VERSION = 'weighted-v1';
+// v2 (2026-10-06): country aliases on the ICP side, title word-set matching, services words send
+// a lead to review instead of ruling it out.
+export const ICP_VERDICT_VERSION = 'weighted-v2';
 
 export type WeightedVerdictReason =
   | 'disqualified'
@@ -45,7 +48,8 @@ export type WeightedVerdictReason =
   | 'core_evidence_missing'
   | 'weighted_borderline'
   | 'weighted_below_threshold'
-  | 'exclusions_only_passed';
+  | 'exclusions_only_passed'
+  | 'services_review';
 
 export type WeightedVerdict = {
   qualification: IcpQualification;
@@ -181,16 +185,20 @@ export function deriveWeightedIcpQualification(
 
   // Nothing positive to score. Either every check is an exclusion list and all of them passed, or
   // the lead lacks the data the ICP needs — the second is a human's call, never a pass.
+  // A lead that would qualify, but the ICP excludes services firms and the words appear somewhere
+  // (packages/core-scoring servicesSignal): a person checks what they actually sell.
+  const servicesMentioned = servicesSignal(evidence, rules) === 'mentioned';
+
   if (scored.length === 0) {
-    return missingCore.length > 0
-      ? verdict('needs_review', 'core_evidence_missing')
-      : verdict('qualified', 'exclusions_only_passed');
+    if (missingCore.length > 0) return verdict('needs_review', 'core_evidence_missing');
+    if (servicesMentioned) return verdict('needs_review', 'services_review');
+    return verdict('qualified', 'exclusions_only_passed');
   }
 
   if (fitScore >= qualifiedMinFitScore) {
-    return missingCore.length > 0
-      ? verdict('needs_review', 'core_evidence_missing')
-      : verdict('qualified', 'weighted_qualified');
+    if (missingCore.length > 0) return verdict('needs_review', 'core_evidence_missing');
+    if (servicesMentioned) return verdict('needs_review', 'services_review');
+    return verdict('qualified', 'weighted_qualified');
   }
   if (fitScore >= needsReviewMinFitScore) return verdict('needs_review', 'weighted_borderline');
   return verdict('unqualified', 'weighted_below_threshold');
