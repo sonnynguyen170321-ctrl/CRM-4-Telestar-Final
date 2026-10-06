@@ -1,4 +1,4 @@
-import { Role } from '@prisma/client';
+import { Role, type Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 export interface AttentionItem {
@@ -31,8 +31,10 @@ export async function getWhatNeedsAttention(params: {
   userId: string;
   role: Role;
   tenantId: string;
+  /** The viewer's lead scope (getLeadWhereScope), so a count matches the list it links to. */
+  leadScope?: Prisma.LeadWhereInput;
 }): Promise<AttentionReport> {
-  const { userId, role, tenantId } = params;
+  const { userId, role, tenantId, leadScope = {} } = params;
   const items: AttentionItem[] = [];
   const now = new Date();
 
@@ -69,10 +71,17 @@ export async function getWhatNeedsAttention(params: {
 
   // 2. FLOOR MANAGER & TEAM LEAD ATTENTION: Unassigned leads & rep workload
   if (role === 'floor_manager' || role === 'team_lead' || role === 'director') {
+    // Leads nobody is working: their rep is deactivated. Every Lead has a rep (assignedToId is
+    // required), so a null owner never exists. This counted `operatingState: 'unassigned'` across the
+    // tenant — the AI prospecting state, which defaults to unassigned and only the AI flow moves — so
+    // every imported lead, assigned and running a sequence, was "waiting in pool" for good (1671 on
+    // 2026-10-06, the owner's fresh upload among them), and a team lead saw the company's number.
     const unassignedCount = await prisma.lead.count({
       where: {
-        tenantId,
-        operatingState: 'unassigned',
+        AND: [
+          leadScope,
+          { tenantId, assignedTo: { isActive: false }, archivedAt: null, stage: { notIn: ['won', 'lost'] } },
+        ],
       },
     });
 
@@ -81,12 +90,12 @@ export async function getWhatNeedsAttention(params: {
         id: `unassigned_leads_pool`,
         category: 'unassigned_leads',
         severity: unassignedCount > 20 ? 'critical' : 'high',
-        title: `${unassignedCount} unassigned lead${unassignedCount > 1 ? 's' : ''} waiting in pool`,
-        summary: `New leads from recent imports have not yet been distributed to active sales reps.`,
+        title: `${unassignedCount} lead${unassignedCount > 1 ? 's' : ''} with a deactivated rep`,
+        summary: `Nobody is working these: their rep's account is deactivated. Reassign them to an active rep.`,
         reason: 'Speed-to-lead rule: Fresh leads lose 60% conversion potential if uncontacted for >24h.',
-        evidence: `Direct database count shows ${unassignedCount} records with operatingState=unassigned.`,
-        // A filter the list actually honours. It used to be `/leads?tab=pool`, which nothing read.
-        targetUrl: `/leads?operatingState=unassigned`,
+        evidence: `${unassignedCount} live leads in your scope are owned by a deactivated user.`,
+        // The list filter that shows exactly these rows (lib/leads/listQuery.ts `ownerInactive`).
+        targetUrl: `/leads?ownerInactive=true`,
         actionLabel: 'Assign Leads',
         dedupeKey: `unassigned_${tenantId}_${now.toISOString().slice(0, 13)}`,
         createdAt: now,

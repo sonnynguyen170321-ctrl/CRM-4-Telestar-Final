@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
-import { requireAuth, type SessionUser } from '@/lib/auth';
+import { requireAuth, getLeadWhereScope, type SessionUser } from '@/lib/auth';
 import { tenantStorage } from '@/lib/tenant-context';
 import { getWhatNeedsAttention } from '@/lib/ai/engine/attention-engine';
 
 export const dynamic = 'force-dynamic';
+
+const MANAGER_ATTENTION_ROLES = new Set(['director', 'floor_manager', 'team_lead']);
 
 export async function GET() {
   const userOrRes = await requireAuth();
@@ -24,6 +26,8 @@ export async function GET() {
           userId: sessionUser.id,
           role: sessionUser.role,
           tenantId,
+          // Only the manager roles see the leads-nobody-works count, so only they pay for the scope.
+          leadScope: MANAGER_ATTENTION_ROLES.has(sessionUser.role) ? await getLeadWhereScope(sessionUser) : undefined,
         });
       }
     );
