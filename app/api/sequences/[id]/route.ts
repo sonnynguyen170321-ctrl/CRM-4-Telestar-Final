@@ -9,7 +9,7 @@ import { invalidateList } from '@/lib/cache';
 import { logAdminAudit } from '@/lib/audit';
 import { reconcileSequenceSteps } from '@/lib/sequences/steps';
 
-import { assertSendWindowPermission } from '@/lib/sequences/permissions';
+import { INVALID_SEND_WINDOW_MESSAGE, findInvalidSendWindows } from '@/lib/sequences/permissions';
 import { canManageOwned, canShare, canViewOwned, unusableTemplateIds } from '@/lib/visibility';
 
 /**
@@ -82,20 +82,11 @@ export async function PUT(
     if (body.steps !== undefined) {
       const priorSteps = await prisma.sequenceStep.findMany({
         where: { sequenceId: id },
-        select: { order: true, sendWindowStartMinutes: true, sendWindowEndMinutes: true, templateId: true },
+        select: { order: true, templateId: true },
       });
-      const windowViolations = assertSendWindowPermission(user.role, body.steps ?? [], priorSteps);
-      if (windowViolations.length > 0) {
-        const forbidden = windowViolations.some((v) => v.reason === 'forbidden_role');
-        return NextResponse.json(
-          {
-            error: forbidden
-              ? 'Only a Director or Floor Manager can change a step send window'
-              : 'A send window needs both a start and an end, with the end after the start',
-            steps: windowViolations,
-          },
-          { status: forbidden ? 403 : 400 }
-        );
+      const invalidWindows = findInvalidSendWindows(body.steps ?? []);
+      if (invalidWindows.length > 0) {
+        return NextResponse.json({ error: INVALID_SEND_WINDOW_MESSAGE, steps: invalidWindows }, { status: 400 });
       }
 
       // A step may only be pointed at a template the caller can see (lib/visibility.ts). Only a

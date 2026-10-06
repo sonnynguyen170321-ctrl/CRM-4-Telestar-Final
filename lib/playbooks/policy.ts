@@ -52,7 +52,7 @@ const ghostThresholds = z
  * Send-window policy expressed as a campaign default.
  *
  * It is **not applied here.** The playbook states intent; the value reaches a prospect only
- * through the existing path — approved sequence configuration, `assertSendWindowPermission`,
+ * through the existing path — approved sequence configuration, `findInvalidSendWindows`,
  * `SequenceStep` fields, then the automation scheduler. There is no playbook-side scheduler
  * and no second interpreter of send windows.
  */

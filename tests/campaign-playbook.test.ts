@@ -371,7 +371,7 @@ describe('a playbook operation never executes outreach', () => {
 
   it('declares a send window but applies nothing itself', async () => {
     // The value reaches a prospect only through approved sequence configuration,
-    // assertSendWindowPermission, SequenceStep and the automation scheduler.
+    // findInvalidSendWindows, SequenceStep and the automation scheduler.
     const source = await import('@/lib/playbooks/versions');
     const policy = await import('@/lib/playbooks/policy');
     for (const mod of [source, policy]) {

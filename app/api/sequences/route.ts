@@ -6,7 +6,7 @@ import { parseBody } from '@/lib/validation/core';
 import { createSequenceSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
 import { cacheGet, cacheSet, listKey, invalidateList } from '@/lib/cache';
-import { assertSendWindowPermission } from '@/lib/sequences/permissions';
+import { INVALID_SEND_WINDOW_MESSAGE, findInvalidSendWindows } from '@/lib/sequences/permissions';
 import { canReplyInThread } from '@/lib/sequences/threadingRules';
 import { canShare, ownedOrSharedWhere, unusableTemplateIds, withCanManage } from '@/lib/visibility';
 
@@ -59,19 +59,9 @@ export async function POST(req: NextRequest) {
   if (parsed.error) return parsed.error;
   const body = parsed.data;
 
-  // A new sequence has no stored steps, so every window on it counts as a change.
-  const windowViolations = assertSendWindowPermission(user.role, body.steps ?? []);
-  if (windowViolations.length > 0) {
-    const forbidden = windowViolations.some((v) => v.reason === 'forbidden_role');
-    return NextResponse.json(
-      {
-        error: forbidden
-          ? 'Only a Director or Floor Manager can set a step send window'
-          : 'A send window needs both a start and an end, with the end after the start',
-        steps: windowViolations,
-      },
-      { status: forbidden ? 403 : 400 }
-    );
+  const invalidWindows = findInvalidSendWindows(body.steps ?? []);
+  if (invalidWindows.length > 0) {
+    return NextResponse.json({ error: INVALID_SEND_WINDOW_MESSAGE, steps: invalidWindows }, { status: 400 });
   }
 
   // A step may only use a template the caller can see (lib/visibility.ts): pointing a step at a

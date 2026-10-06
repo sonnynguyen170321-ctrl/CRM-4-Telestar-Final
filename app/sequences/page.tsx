@@ -27,7 +27,6 @@ import {
 import Linkedin from '@/components/icons/Linkedin';
 import SequencePreview from '@/components/sequences/SequencePreview';
 import { describeHold } from '@/lib/sequences/holdReasons';
-import { canConfigureSendWindow } from '@/lib/sequences/permissions';
 import { describeSendWindow, describeStepWait, describeWeekendRule } from '@/lib/sequences/stepDescription';
 import { canReplyInThread, previousEmailOrder } from '@/lib/sequences/threadingRules';
 import { stepOwnership } from '@/lib/sequences/stepOwnership';
@@ -115,10 +114,6 @@ export default function SequencesPage() {
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsData, setLogsData] = useState<{ tasks: any[]; outboundMessages: any[]; activities: any[] } | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
-
-  // The same rule the API enforces (lib/sequences/permissions.ts). It was `isManager`, which is
-  // wider: a team lead got live time inputs and then a 403 on save.
-  const canEditSendWindow = canConfigureSendWindow(currentRole);
 
   // The viewer's timezone for the schedule preview. Read after mount: the server render has no
   // browser to ask, and a value that differs between the two is a hydration mismatch.
@@ -850,7 +845,6 @@ export default function SequencesPage() {
                             <input
                               id={`win-start-${step.id}`}
                               type="time"
-                              disabled={!canEditSendWindow}
                               value={minutesToTimeValue(step.sendWindowStartMinutes)}
                               onChange={(e) => handleSendWindowChange(step.id, 'start', e.target.value)}
                               className="bg-bg-main border border-card-border rounded px-2 py-1 text-[10px] text-text-secondary focus:outline-none focus:border-brand-red font-mono disabled:opacity-50"
@@ -859,12 +853,11 @@ export default function SequencesPage() {
                             <input
                               type="time"
                               aria-label={`Step ${step.order} send window end`}
-                              disabled={!canEditSendWindow}
                               value={minutesToTimeValue(step.sendWindowEndMinutes)}
                               onChange={(e) => handleSendWindowChange(step.id, 'end', e.target.value)}
                               className="bg-bg-main border border-card-border rounded px-2 py-1 text-[10px] text-text-secondary focus:outline-none focus:border-brand-red font-mono disabled:opacity-50"
                             />
-                            {canEditSendWindow && !windowUnset && (
+                            {!windowUnset && (
                                 <button
                                   onClick={() => handleClearSendWindow(step.id)}
                                   className="type-micro text-text-muted hover:text-brand-red underline"
@@ -877,7 +870,6 @@ export default function SequencesPage() {
                               "--:--" pair with "any time" beside it is what nobody could read. */}
                           <p className="mt-1 type-micro text-text-muted pr-4">
                             {describeSendWindow(step.sendWindowStartMinutes, step.sendWindowEndMinutes)}
-                            {!canEditSendWindow && ' Only a Director or Floor Manager can change send times.'}
                           </p>
                           </>
                         )}
