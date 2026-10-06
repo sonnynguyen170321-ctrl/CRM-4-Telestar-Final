@@ -220,6 +220,23 @@ describe('handleExecuteTask', () => {
     expect(mockCreateOutbound).not.toHaveBeenCalled();
   });
 
+  it('writes the no-mailbox hold to the timeline once, not on every hourly recheck', async () => {
+    arrangeEligible();
+    mockAccountFindFirst.mockResolvedValue(null);
+    mockActivityCreate.mockClear();
+    await handleExecuteTask({ taskId: 'task-1' });
+    const first = mockActivityCreate.mock.calls.filter(([arg]) => arg.data.type === 'sequence_deferred').length;
+
+    // The recheck an hour later: the enrollment already carries the same hold.
+    mockEnrollmentFindFirst.mockResolvedValue({ ...(await mockEnrollmentFindFirst()), holdReason: 'no_sequence_sender' });
+    mockActivityCreate.mockClear();
+    await handleExecuteTask({ taskId: 'task-1' });
+    const again = mockActivityCreate.mock.calls.filter(([arg]) => arg.data.type === 'sequence_deferred').length;
+
+    expect(first).toBe(1);
+    expect(again).toBe(0);
+  });
+
   it('does not send when the CAS lock is lost to another runner', async () => {
     arrangeEligible();
     mockTaskUpdateMany.mockResolvedValue({ count: 0 });

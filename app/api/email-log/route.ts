@@ -39,6 +39,8 @@ export async function GET(req: NextRequest) {
     const scopeOnly = buildEmailLogWhere(scope, {});
     const cursor = params.get('cursor');
 
+    // Counts and filter options do not change with the cursor: only the first page computes them.
+    const firstPage = !cursor;
     const [rows, byStatus, byAccount, bySequence] = await Promise.all([
       prisma.outboundMessage.findMany({
         where,
@@ -74,9 +76,9 @@ export async function GET(req: NextRequest) {
           },
         },
       }),
-      prisma.outboundMessage.groupBy({ by: ['status'], where: countWhere, _count: { _all: true } }),
-      prisma.outboundMessage.groupBy({ by: ['accountId'], where: scopeOnly, _count: { _all: true } }),
-      prisma.outboundMessage.groupBy({ by: ['sequenceId'], where: scopeOnly, _count: { _all: true } }),
+      firstPage ? prisma.outboundMessage.groupBy({ by: ['status'], where: countWhere, _count: { _all: true } }) : [],
+      firstPage ? prisma.outboundMessage.groupBy({ by: ['accountId'], where: scopeOnly, _count: { _all: true } }) : [],
+      firstPage ? prisma.outboundMessage.groupBy({ by: ['sequenceId'], where: scopeOnly, _count: { _all: true } }) : [],
     ]);
 
     const accountIds = byAccount.map((row) => row.accountId).filter((value): value is string => Boolean(value));
@@ -111,8 +113,8 @@ export async function GET(req: NextRequest) {
         sequenceName: row.sequenceId ? (sequenceName.get(row.sequenceId) ?? null) : null,
       })),
       nextCursor: hasMore ? page[page.length - 1].id : null,
-      counts,
-      options: { mailboxes, sequences },
+      counts: firstPage ? counts : null,
+      options: firstPage ? { mailboxes, sequences } : null,
     });
   } catch (err) {
     return handleApiError('api/email-log GET', err);

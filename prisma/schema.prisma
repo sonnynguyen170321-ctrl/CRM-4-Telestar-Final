@@ -1447,6 +1447,8 @@ model OutboundMessage {
   @@index([tenantId, abVariantId])
   @@index([tenantId, sequenceId, sentAt])
   @@index([leadId, sentAt])
+  // Email Log (/api/email-log): a tenant's sends, newest first.
+  @@index([tenantId, createdAt])
 }
 
 /// One open or click recorded by the tracking routes. Kept per event (not only as counts on the

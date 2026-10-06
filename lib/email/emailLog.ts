@@ -35,12 +35,20 @@ export type EmailLogFilters = {
 const ENGAGEMENTS: readonly EmailLogEngagement[] = ['opened', 'clicked', 'replied'];
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** An instant from the browser — its own local midnight — so ranges follow the viewer's timezone. */
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 
 function id(value: string | null): string | undefined {
   return value && ID.test(value) ? value : undefined;
 }
 
 function day(value: string | null, plusDays = 0): Date | undefined {
+  // The browser sends its own midnights as instants (EmailLogTable); a bare date falls back to the
+  // server's, for links typed by hand.
+  if (value && INSTANT.test(value)) {
+    const instant = new Date(value);
+    return Number.isNaN(instant.getTime()) ? undefined : instant;
+  }
   if (!value || !DAY.test(value)) return undefined;
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return undefined;

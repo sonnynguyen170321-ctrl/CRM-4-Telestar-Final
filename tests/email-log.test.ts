@@ -31,6 +31,15 @@ describe('parseEmailLogFilters', () => {
     });
   });
 
+  it('takes the browser’s own midnights as instants, so the range follows the viewer’s timezone', () => {
+    const filters = parseEmailLogFilters(
+      new URLSearchParams('dateFrom=2026-09-30T17:00:00.000Z&dateTo=2026-10-06T17:00:00.000Z')
+    );
+
+    expect(filters.dateFrom?.toISOString()).toBe('2026-09-30T17:00:00.000Z');
+    expect(filters.dateTo?.toISOString()).toBe('2026-10-06T17:00:00.000Z');
+  });
+
   it('drops values that are not one of the allowed ones', () => {
     const filters = parseEmailLogFilters(new URLSearchParams('status=everything&step=x&engagement=liked&dateFrom=nope'));
 
@@ -120,5 +129,16 @@ describe('GET /api/email-log', () => {
     const body = await (await GET(new NextRequest('http://localhost:3000/api/email-log'))).json();
 
     expect(body.counts).toMatchObject({ sent: 40, failed: 5 });
+  });
+
+  it('skips the counts and filter options on later pages — they do not change with the cursor', async () => {
+    const { GET } = await import('@/app/api/email-log/route');
+
+    const body = await (await GET(new NextRequest('http://localhost:3000/api/email-log?cursor=msg-50'))).json();
+
+    expect(groupBy).not.toHaveBeenCalled();
+    expect(body.counts).toBeNull();
+    expect(body.options).toBeNull();
+    expect(findMany.mock.calls[0][0]).toMatchObject({ cursor: { id: 'msg-50' }, skip: 1 });
   });
 });

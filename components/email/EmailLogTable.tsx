@@ -47,9 +47,17 @@ type Row = {
 type Payload = {
   rows: Row[];
   nextCursor: string | null;
-  counts: Record<StatusGroup | 'all', number>;
-  options: { mailboxes: { id: string; email: string }[]; sequences: { id: string; name: string }[] };
+  /** First page only; later pages answer null and the first page's values stand. */
+  counts: Record<StatusGroup | 'all', number> | null;
+  options: { mailboxes: { id: string; email: string }[]; sequences: { id: string; name: string }[] } | null;
 };
+
+/** The browser's own midnight, as an instant, so a date range means the viewer's days. */
+function localMidnight(day: string, plusDays = 0): string {
+  const date = new Date(`${day}T00:00:00`);
+  date.setDate(date.getDate() + plusDays);
+  return date.toISOString();
+}
 
 const STATUS_TABS: { id: StatusGroup | ''; label: string }[] = [
   { id: '', label: 'All' },
@@ -106,7 +114,13 @@ export default function EmailLogTable({ sequenceId }: Props) {
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
+    for (const [key, value] of Object.entries(filters)) {
+      if (!value) continue;
+      // dateTo is exclusive on the server: the midnight after the last day chosen.
+      if (key === 'dateFrom') params.set(key, localMidnight(value));
+      else if (key === 'dateTo') params.set(key, localMidnight(value, 1));
+      else params.set(key, value);
+    }
     return params.toString();
   }, [filters]);
 
@@ -142,7 +156,7 @@ export default function EmailLogTable({ sequenceId }: Props) {
     setLoadingMore(true);
     try {
       const payload = await load(data.nextCursor);
-      setData(payload);
+      setData((prev) => (prev ? { ...prev, nextCursor: payload.nextCursor } : payload));
       setRows((prev) => [...prev, ...payload.rows]);
     } catch (err) {
       setError((err as Error).message);
@@ -158,7 +172,7 @@ export default function EmailLogTable({ sequenceId }: Props) {
     <section className="space-y-3">
       <div role="tablist" aria-label="Email status" className="flex flex-wrap gap-1">
         {STATUS_TABS.map((tab) => {
-          const count = data?.counts[tab.id || 'all'];
+          const count = data?.counts?.[tab.id || 'all'];
           return (
             <button
               key={tab.label}
@@ -180,7 +194,7 @@ export default function EmailLogTable({ sequenceId }: Props) {
       <div className="flex flex-wrap items-center gap-2">
         <select aria-label="Sending mailbox" value={filters.accountId} onChange={(e) => set('accountId', e.target.value)} className={CONTROL}>
           <option value="">All mailboxes</option>
-          {data?.options.mailboxes.map((m) => <option key={m.id} value={m.id}>{m.email}</option>)}
+          {data?.options?.mailboxes.map((m) => <option key={m.id} value={m.id}>{m.email}</option>)}
         </select>
         <select aria-label="Rep" value={filters.assignedToId} onChange={(e) => set('assignedToId', e.target.value)} className={CONTROL}>
           <option value="">All reps</option>
@@ -189,7 +203,7 @@ export default function EmailLogTable({ sequenceId }: Props) {
         {!sequenceId && (
           <select aria-label="Sequence" value={filters.sequenceId} onChange={(e) => set('sequenceId', e.target.value)} className={CONTROL}>
             <option value="">All sequences</option>
-            {data?.options.sequences.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {data?.options?.sequences.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         )}
         <select aria-label="Step" value={filters.step} onChange={(e) => set('step', e.target.value)} className={CONTROL}>
