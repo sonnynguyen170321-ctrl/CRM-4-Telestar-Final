@@ -37,6 +37,8 @@ const EXTERNAL_IDS = new Set([
   'AuditLog.recordId', // polymorphic — names a row in whichever table the entry is about
   'InboundMessage.providerMessageId',
   'OutboundMessage.providerMessageId',
+  'OutboundMessage.rfcMessageId', // the RFC Message-ID the provider put on the wire
+  'OutboundMessage.providerThreadId', // Gmail's conversation id
   'JobRun.bullJobId', // a BullMQ job id, which lives in Redis
   'Meeting.externalEventId', // the calendar provider's event
   'Opportunity.externalDealId',
@@ -109,6 +111,9 @@ const SOFT_FOREIGN_KEYS = new Set([
   // The mailbox an enrollment was fixed to. Soft on purpose: a disconnected or deleted mailbox makes
   // the resolver choose again (lib/sequences/sender.ts) instead of taking the enrollment with it.
   'SequenceEnrollment.senderAccountId',
+  // The earlier message a reply-in-thread step answers. Read back and re-checked before use
+  // (workers/email.ts); a missing parent sends as a new email, so no cascade is wanted.
+  'OutboundMessage.inReplyToOutboundId',
   // Who attached a sending mailbox — an audit stamp, soft like every other *ById here.
   'SequenceSender.addedById',
   'Task.sequenceId',

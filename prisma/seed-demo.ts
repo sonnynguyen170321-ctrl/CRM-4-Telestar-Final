@@ -461,6 +461,8 @@ Best,
 {{sdrTitle}}, Telestar`,
       category: 'cold-outreach',
       createdById: dean.id,
+      // The demo library is the company's: shared, so every seeded rep sees it (lib/visibility.ts).
+      isShared: true,
     },
   });
 
@@ -480,6 +482,8 @@ Happy to share the case study if that's useful. 15 mins this week?
 {{sdrName}}`,
       category: 'follow-up',
       createdById: dean.id,
+      // The demo library is the company's: shared, so every seeded rep sees it (lib/visibility.ts).
+      isShared: true,
     },
   });
 
@@ -491,6 +495,8 @@ Happy to share the case study if that's useful. 15 mins this week?
       body: `Hi {{firstName}} — saw your work at {{company}} and thought we might have some overlap. I help ops leaders streamline their workflows. Would love to connect!`,
       category: 'cold-outreach',
       createdById: dean.id,
+      // The demo library is the company's: shared, so every seeded rep sees it (lib/visibility.ts).
+      isShared: true,
     },
   });
 
@@ -502,6 +508,8 @@ Happy to share the case study if that's useful. 15 mins this week?
       body: `Hi {{firstName}}, this is {{sdrName}} from Telestar. Following up on my email — did you get a chance to look at it? Happy to answer any questions here. 🙏`,
       category: 'follow-up',
       createdById: dean.id,
+      // The demo library is the company's: shared, so every seeded rep sees it (lib/visibility.ts).
+      isShared: true,
     },
   });
 
@@ -522,6 +530,8 @@ Value statement: "Based on what you've shared, I think we could help. We've help
 Close: "Would a 20-minute demo be worth your time this week?"`,
       category: 'cold-outreach',
       createdById: dean.id,
+      // The demo library is the company's: shared, so every seeded rep sees it (lib/visibility.ts).
+      isShared: true,
     },
   });
 
@@ -534,6 +544,8 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
       description: 'Standard cold outreach across email, phone, and LinkedIn for ERP prospects.',
       isActive: true,
       createdById: dean.id,
+      // The demo library is the company's: shared, so every seeded rep sees it (lib/visibility.ts).
+      isShared: true,
       steps: {
         create: [
           { order: 1, channel: 'email', delayDays: 0, delayHours: 0, templateId: tmplColdEmail.id, instructions: 'Send personalised cold intro email. Reference company size or recent news.', autoComplete: true },
@@ -552,6 +564,8 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
       description: 'For leads that showed early interest but went cold. Re-engage over 3 steps.',
       isActive: true,
       createdById: dean.id,
+      // The demo library is the company's: shared, so every seeded rep sees it (lib/visibility.ts).
+      isShared: true,
       steps: {
         create: [
           { order: 1, channel: 'email', delayDays: 0, delayHours: 0, instructions: 'Re-engagement email — reference previous conversation. New value prop or case study.', autoComplete: false },
@@ -568,6 +582,8 @@ Close: "Would a 20-minute demo be worth your time this week?"`,
       description: 'Nurture sequence after a meeting is booked — keep momentum before the call.',
       isActive: true,
       createdById: dean.id,
+      // The demo library is the company's: shared, so every seeded rep sees it (lib/visibility.ts).
+      isShared: true,
       steps: {
         create: [
           { order: 1, channel: 'email', delayDays: 0, delayHours: 2, instructions: 'Send meeting confirmation + agenda. Attach relevant case study.', autoComplete: false },

@@ -130,6 +130,8 @@ const sequenceStepSchema = z
     autoComplete: z.boolean().optional(),
     sendWindowStartMinutes: z.number().int().min(0).max(1439).nullish().optional(),
     sendWindowEndMinutes: z.number().int().min(0).max(1439).nullish().optional(),
+    /** Reply in the previous email's thread instead of starting a new one. */
+    replyInThread: z.boolean().optional(),
   })
   // An email step marked auto-complete is a promise that the system will send it. With no
   // template there is nothing to send: the worker's eligibility check returns
@@ -152,6 +154,8 @@ export const createSequenceSchema = z.object({
   sendOnWeekends: z.boolean().optional(),
   stopOnCompanyReply: z.boolean().optional(),
   excludeLeadsInOtherSequences: z.boolean().optional(),
+  /** Visible to the whole tenant (lib/visibility.ts). Only a manager may set it. */
+  isShared: z.boolean().optional(),
   steps: z.array(sequenceStepSchema).max(50).optional(),
 });
 
@@ -171,6 +175,8 @@ export const createTemplateSchema = z.object({
   subject: z.preprocess((value) => (typeof value === 'string' && value.trim() === '' ? null : value), z.string().max(998).nullish()).optional(),
   body: longText.min(1),
   category: nullableShortText.optional(),
+  /** Visible to the whole tenant (lib/visibility.ts). Only a manager may set it. */
+  isShared: z.boolean().optional(),
 });
 
 export const updateTemplateSchema = createTemplateSchema.partial();

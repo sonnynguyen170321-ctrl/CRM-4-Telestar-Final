@@ -278,11 +278,13 @@ async function seedDemoTenant(): Promise<void> {
         'We cut that for two EU logistics operators without changing their TMS. Worth 20 minutes?\n\n' +
         'Maya',
       createdById: sdr.id,
+      // Shared, so the demo's other personas see the library too (lib/visibility.ts).
+      isShared: true,
     },
   });
 
   const sequence = await prisma.sequence.create({
-    data: { id: DEMO_IDS.sequence, tenantId: t, name: 'EU Logistics — cold outbound', createdById: sdr.id, isActive: true },
+    data: { id: DEMO_IDS.sequence, tenantId: t, name: 'EU Logistics — cold outbound', createdById: sdr.id, isActive: true, isShared: true },
   });
   await prisma.sequenceStep.createMany({
     data: [

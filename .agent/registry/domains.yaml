@@ -58,6 +58,8 @@ domains:
       - lib/auth/**
       - lib/authRoles.ts
       - lib/podScoping.ts
+      # Who sees a sequence or template: creator, the managers above them, or shared (isShared).
+      - lib/visibility.ts
       - lib/admin/**
       - lib/tenant*.ts
       - app/api/auth/**
@@ -185,6 +187,8 @@ domains:
       - lib/automation/**
       - lib/email/**
       - lib/emailSafety.ts
+      # createOutboundMessage / enqueueEmailSendWorkflow: the one door every send goes through.
+      - lib/workflows/email.ts
       - lib/replies/**
       - app/api/sequences/**
       - scripts/sync-sequence-enrollments.ts
@@ -264,6 +268,8 @@ domains:
       - lib/opportunities/**
       - lib/reporting/**
       - lib/client-reports/**
+      # Campaign playbook policy and versions (Revenue AI Phase 4); read by lib/learning.
+      - lib/playbooks/**
       - app/api/client-reports/**
       - app/api/opportunities/**
       - app/api/meetings/**
@@ -274,6 +280,7 @@ domains:
       - tests/meetings.test.ts
       - tests/client-report*.test.ts
       - tests/relationship-capital.test.ts
+      - tests/campaign-playbook.test.ts
     e2e:
       - e2e/reports/**
       - e2e/meetings/**

@@ -19,6 +19,7 @@ routes:
     tests:
       - e2e/admin/campaign-member-impact.spec.ts
       - tests/access-control.test.ts
+      - tests/campaign-members-team-lead.test.ts
   - path: app/api/admin/audit-log/route.ts
     methods: [GET]
     tests:
@@ -218,6 +219,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
+      - tests/campaign-members-team-lead.test.ts
       - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/campaigns/[id]/requirements/preview-internal-match/route.ts
     methods: [GET]
@@ -257,6 +259,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
+      - tests/campaign-create-team-lead.test.ts
       - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/client-reports/[id]/approve/route.ts
     methods: [POST]

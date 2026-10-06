@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
-import { enqueueImmediate } from '@/lib/bullmq/enqueue';
-import { JobType } from '@/lib/bullmq/types';
 import { advanceSequence } from '@/lib/sequences/engine';
+import { runEmailStepNow } from '@/lib/sequences/runNow';
 import { resolveOccurrenceTask } from '@/lib/sequences/occurrenceTask';
 
 export async function POST(
@@ -68,23 +67,27 @@ export async function POST(
     const { task, expectedEnrollmentId } = resolved;
 
     if (task.type === 'email') {
-      // 1. Force the task dueDate to now
-      await prisma.task.update({
-        where: { id: task.id },
-        data: { dueDate: new Date() },
+      // A paused cadence does not send, and the worker would skip it without a word.
+      if (enrollment.status !== 'active') {
+        return NextResponse.json(
+          { error: 'This lead is paused in the sequence. Resume it first, then run the step.' },
+          { status: 409 }
+        );
+      }
+
+      const run = await runEmailStepNow({ taskId: task.id, expectedEnrollmentId, tenantId: user.tenantId! });
+      if (!run.ok) {
+        return NextResponse.json(
+          { error: 'This email is already being sent. Its result will show here in a moment.' },
+          { status: 409 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message:
+          'Sending now. The send window and weekend rule are skipped; a paused or full mailbox still holds it, and the Status column will say so.',
       });
-
-      // 2. Promote the scheduled job so it runs instantly on the worker (a plain
-      //    delay:0 enqueue collides with the existing delayed job and gets dropped).
-      //    The payload matches the delayed one exactly, occurrence included — a payload missing
-      //    it hashes to a different job identity and promotes nothing.
-      await enqueueImmediate(
-        JobType.SEQUENCE_EXECUTE_TASK,
-        { taskId: task.id, expectedEnrollmentId },
-        { tenantId: user.tenantId! }
-      );
-
-      return NextResponse.json({ success: true, message: 'Email sequence execution enqueued.' });
     } else {
       // Manual steps (LinkedIn, call) can just be advanced
       await prisma.task.update({

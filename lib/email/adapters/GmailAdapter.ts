@@ -1,6 +1,6 @@
 import { google } from 'googleapis';
 import { fromHeaderValue } from '@/lib/email/senderName';
-import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailService';
+import type { EmailAdapter, InboxMessage, SendEmailOptions, SendResult } from '../EmailService';
 import { encrypt } from '@/lib/crypto';
 
 interface GmailConfig {
@@ -22,7 +22,7 @@ export class GmailAdapter implements EmailAdapter {
     this.config = config;
   }
 
-  async send(options: SendEmailOptions): Promise<string | undefined> {
+  async send(options: SendEmailOptions): Promise<SendResult> {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
@@ -64,6 +64,8 @@ export class GmailAdapter implements EmailAdapter {
       replyTo: options.replyTo,
       headers: options.headers,
       attachments: options.attachments,
+      inReplyTo: options.threading?.inReplyTo,
+      references: options.threading?.references,
     });
 
     const rawMessageBuffer = await mail.compile().build();
@@ -75,11 +77,41 @@ export class GmailAdapter implements EmailAdapter {
 
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-    const msg = await gmail.users.messages.send({
-      userId: 'me',
-      requestBody: { raw },
-    });
-    return msg.data.id ?? undefined;
+    // Gmail keeps the sender's copy in the conversation only when the thread id travels with the
+    // headers; the headers alone thread it for the recipient.
+    const threadId = options.threading?.threadId;
+    const msg = await gmail.users.messages
+      .send({ userId: 'me', requestBody: threadId ? { raw, threadId } : { raw } })
+      .catch((err: { code?: number; response?: { status?: number } }) => {
+        // The rep deleted that conversation from their mailbox, so Gmail has no thread with this
+        // id. Nothing was sent. The prospect's copy threads on the headers alone, so send it
+        // without the id rather than strand the cadence on a refusal.
+        if (threadId && (err?.code === 404 || err?.response?.status === 404)) {
+          return gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
+        }
+        throw err;
+      });
+    const id = msg.data.id ?? undefined;
+    if (!id) return undefined;
+
+    // The Message-ID Gmail put on the wire, read back rather than assumed: it is what the next
+    // step replies to, and a guessed one would thread nothing. The message is already sent, so a
+    // failed read costs the next step its thread and must never fail this send.
+    let rfcMessageId: string | undefined;
+    try {
+      const sent = await gmail.users.messages.get({
+        userId: 'me',
+        id,
+        format: 'metadata',
+        metadataHeaders: ['Message-ID'],
+      });
+      rfcMessageId =
+        sent.data.payload?.headers?.find((header) => header.name?.toLowerCase() === 'message-id')?.value ?? undefined;
+    } catch (err) {
+      console.warn('[gmail] sent, but could not read back the Message-ID:', err instanceof Error ? err.message : err);
+    }
+
+    return { providerMessageId: id, rfcMessageId, providerThreadId: msg.data.threadId ?? undefined };
   }
 
   /** Fetch inbox messages received since `since` (metadata only). */

@@ -144,9 +144,16 @@ export interface AutomationEvaluationContext {
     healthLevel: string | null;
     dailyCap: number;
     dailySendCount: number;
+    /** The day `dailySendCount` belongs to. A count from an earlier day is not today's usage. */
+    dailySendDate?: Date | null;
   } | null;
   /** Recipient suppression match (if checked). */
   isSuppressed?: boolean;
+  /**
+   * A person asked for this step to go now (Run now). The send window and the weekend rule are
+   * the schedule they are overriding; every other check — suppression, pause, quota — still holds.
+   */
+  ignoreSchedule?: boolean;
   /** Current evaluation timestamp (defaults to now). */
   now?: Date;
 }

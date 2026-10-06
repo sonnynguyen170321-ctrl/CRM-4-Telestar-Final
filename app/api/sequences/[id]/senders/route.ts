@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { requireAuth, type SessionUser } from '@/lib/auth';
-import { MANAGER_ROLES } from '@/lib/authRoles';
+import { getVisibleUserIds, requireAuth, type SessionUser } from '@/lib/auth';
+import { canManageOwned, canViewOwned } from '@/lib/visibility';
 import { prisma } from '@/lib/prisma';
 import { logAdminAudit } from '@/lib/audit';
 import { parseBody } from '@/lib/validation/core';
+import { REAL_SEND } from '@/lib/sequences/performance';
+import { remainingToday, senderState } from '@/lib/sequences/sender';
 
 /**
  * The mailboxes a sequence sends from ("Send from"). See `lib/sequences/sender.ts` for how one is
@@ -21,11 +23,15 @@ import { parseBody } from '@/lib/validation/core';
 
 const putSchema = z.object({ emailAccountIds: z.array(z.string().min(1).max(64)).max(20) }).strict();
 
-const isManager = (user: SessionUser) => (MANAGER_ROLES as readonly string[]).includes(user.role);
-const canUseAnyMailbox = (user: SessionUser) => user.role === 'director' || user.role === 'floor_manager';
+const canUseOthersMailboxes = (user: SessionUser) => user.role === 'director' || user.role === 'floor_manager';
 
-async function loadSequence(id: string, tenantId: string) {
-  return prisma.sequence.findFirst({ where: { id, tenantId }, select: { id: true, createdById: true } });
+/** The sequence, when the caller may see it (lib/visibility.ts); otherwise as if it did not exist. */
+async function loadSequence(id: string, user: SessionUser) {
+  const sequence = await prisma.sequence.findFirst({
+    where: { id, tenantId: user.tenantId! },
+    select: { id: true, createdById: true, isShared: true },
+  });
+  return sequence && (await canViewOwned(user, sequence)) ? sequence : null;
 }
 
 function listSenders(sequenceId: string, tenantId: string) {
@@ -40,19 +46,88 @@ function listSenders(sequenceId: string, tenantId: string) {
   });
 }
 
+/**
+ * Each sender with what it is doing: its state, today's usage against its limit, and what this
+ * sequence has sent through it. The panel used to show a tick box and an address, which answered
+ * "which mailboxes are attached" and nothing about which of them was actually sending.
+ *
+ * `sentToday` is the mailbox's whole day across every sequence — it is the number its limit is
+ * measured against. The per-sequence figures are counted from the rows, never from a counter.
+ */
+async function listSenderActivity(sequenceId: string, tenantId: string, viewer: { id: string; canEdit: boolean }) {
+  const rows = await prisma.sequenceSender.findMany({
+    where: { sequenceId, tenantId },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      emailAccount: {
+        select: {
+          id: true, email: true, fromName: true, isActive: true, dailyCap: true, userId: true,
+          dailySendCount: true, dailySendDate: true, sendPausedAt: true, sendPauseReason: true,
+          healthLevel: true, signature: true,
+        },
+      },
+    },
+  });
+  const accountIds = rows.map((row) => row.emailAccount.id);
+  if (accountIds.length === 0) return [];
+
+  const [sent, assigned] = await Promise.all([
+    prisma.outboundMessage.groupBy({
+      by: ['accountId'],
+      where: { tenantId, sequenceId, accountId: { in: accountIds }, sentAt: { not: null }, ...REAL_SEND },
+      _count: { _all: true },
+      _max: { sentAt: true },
+    }),
+    prisma.sequenceEnrollment.groupBy({
+      by: ['senderAccountId'],
+      where: { tenantId, sequenceId, senderAccountId: { in: accountIds }, status: { in: ['active', 'paused'] } },
+      _count: { _all: true },
+    }),
+  ]);
+  const sentBy = new Map(sent.map((row) => [row.accountId, row]));
+  const assignedTo = new Map(assigned.map((row) => [row.senderAccountId, row._count._all]));
+
+  const now = new Date();
+  return rows.map(({ emailAccount: account }) => {
+    // A pause reason is free text a manager typed, and a missing signature is something only the
+    // mailbox's owner or whoever runs this sequence can act on. Neither goes to a bystander.
+    const privy = viewer.canEdit || account.userId === viewer.id;
+    return {
+      id: account.id,
+      email: account.email,
+      fromName: account.fromName,
+      isActive: account.isActive,
+      dailyCap: account.dailyCap,
+      userId: account.userId,
+      state: senderState(account, now),
+      sentToday: Math.max(0, account.dailyCap - remainingToday(account, now)),
+      sequenceSent: sentBy.get(account.id)?._count._all ?? 0,
+      sequenceLastSentAt: sentBy.get(account.id)?._max.sentAt ?? null,
+      sequenceLeads: assignedTo.get(account.id) ?? 0,
+      ...(privy
+        ? {
+            pauseReason: account.sendPauseReason,
+            // The designed signature is large and is not this panel's to show; whether one exists is.
+            hasSignature: Boolean(account.signature && account.signature.trim()),
+          }
+        : {}),
+    };
+  });
+}
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireAuth();
   if (user instanceof NextResponse) return user;
   if (!user.tenantId) return NextResponse.json({ error: 'No tenant context' }, { status: 403 });
 
   const { id } = await params;
-  const sequence = await loadSequence(id, user.tenantId);
+  const sequence = await loadSequence(id, user);
   if (!sequence) return NextResponse.json({ error: 'Sequence not found' }, { status: 404 });
 
-  const senders = await listSenders(id, user.tenantId);
+  const canEdit = await canManageOwned(user, sequence);
   return NextResponse.json({
-    senders: senders.map((row) => row.emailAccount),
-    canEdit: isManager(user) || sequence.createdById === user.id,
+    senders: await listSenderActivity(id, user.tenantId, { id: user.id, canEdit }),
+    canEdit,
   });
 }
 
@@ -63,10 +138,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const tenantId = user.tenantId;
 
   const { id } = await params;
-  const sequence = await loadSequence(id, tenantId);
+  const sequence = await loadSequence(id, user);
   if (!sequence) return NextResponse.json({ error: 'Sequence not found' }, { status: 404 });
-  if (!isManager(user) && sequence.createdById !== user.id) {
-    return NextResponse.json({ error: 'Only the sequence owner or a manager can change its senders' }, { status: 403 });
+  if (!(await canManageOwned(user, sequence))) {
+    return NextResponse.json({ error: 'Only the sequence owner or their manager can change its senders' }, { status: 403 });
   }
 
   const parsed = await parseBody(req, putSchema, 'Invalid senders');
@@ -80,8 +155,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (accounts.length !== wanted.length) {
     return NextResponse.json({ error: 'One or more mailboxes were not found' }, { status: 400 });
   }
-  if (!canUseAnyMailbox(user) && accounts.some((account) => account.userId !== user.id)) {
-    return NextResponse.json({ error: 'You can only send from your own mailboxes' }, { status: 403 });
+  // Your own mailboxes, or — for a director or floor manager, the two roles the mailbox list
+  // shows other people's mailboxes to — those of the people under you. A mailbox already on the
+  // sequence stays allowed, so saving a list a manager built does not fail on the mailboxes the
+  // saver could not have added themselves.
+  const already = new Set(
+    (await prisma.sequenceSender.findMany({ where: { tenantId, sequenceId: id }, select: { emailAccountId: true } }))
+      .map((row) => row.emailAccountId),
+  );
+  const reach = canUseOthersMailboxes(user) ? await getVisibleUserIds(user) : [user.id];
+  const outOfReach = accounts.some(
+    (account) => !already.has(account.id) && account.userId !== user.id && reach !== null && !reach.includes(account.userId),
+  );
+  if (outOfReach) {
+    return NextResponse.json(
+      { error: 'You can only add your own mailboxes, or those of people on your team' },
+      { status: 403 }
+    );
   }
 
   await prisma.$transaction([

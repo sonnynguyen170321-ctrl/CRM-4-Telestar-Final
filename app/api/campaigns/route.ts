@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireRole, requireAuth, getVisibleCampaignIds } from '@/lib/auth';
+import { requireRole, requireAuth, getVisibleCampaignIds, clearVisibleUserCache } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import crypto from 'crypto';
 import { parseBody } from '@/lib/validation/core';
@@ -108,8 +108,16 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/**
+ * Create a campaign — team lead and above (owner, 2026-10-06; it was floor manager and above).
+ *
+ * The creator, unless a director, becomes its first member. Campaign visibility for everyone below
+ * director runs through CampaignSdr (getVisibleCampaignIds), so a campaign with no members was
+ * invisible to the person who had just created it: missing from their list, from the bulk-upload
+ * campaign picker, and from their own member management.
+ */
 export async function POST(req: NextRequest) {
-  const userOrRes = await requireRole('floor_manager');
+  const userOrRes = await requireRole('team_lead');
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
@@ -174,6 +182,15 @@ export async function POST(req: NextRequest) {
     // only" view. The Prisma extension already records `create_campaign`, but that lands in
     // the "all changes" firehose beside every notification and job run; a director who has
     // just created a campaign and opens the log should see it there.
+    if (user.role !== 'director') {
+      await prisma.campaignSdr.upsert({
+        where: { campaignId_userId: { campaignId: campaign.id, userId: user.id } },
+        create: { campaignId: campaign.id, userId: user.id },
+        update: {},
+      });
+      clearVisibleUserCache();
+    }
+
     await logAdminAudit({
       actorId: user.id,
       action: 'admin.campaign.create',

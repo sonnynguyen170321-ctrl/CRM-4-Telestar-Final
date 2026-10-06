@@ -1,5 +1,6 @@
 import React from 'react';
-import { BarChart3, TrendingUp, ChevronRight, CalendarCheck, Layers } from 'lucide-react';
+import Link from 'next/link';
+import { BarChart3, TrendingUp, ChevronRight, CalendarCheck, Layers, Users2 } from 'lucide-react';
 
 interface CampaignSummary {
   id: string;
@@ -16,12 +17,15 @@ interface CampaignOverviewProps {
   campaigns: CampaignSummary[];
   onSelectCampaign: (id: string) => void;
   dateRange: 'today' | 'week' | 'month';
+  /** Where a campaign's member management lives for this viewer; absent hides the link. */
+  membersHref?: (campaignId: string) => string;
 }
 
 export default function CampaignOverview({
   campaigns,
   onSelectCampaign,
-  dateRange
+  dateRange,
+  membersHref,
 }: CampaignOverviewProps) {
   // Aggregate stats across visible campaigns
   const totalMeetings = campaigns.reduce((sum, c) => sum + c.meetingsBooked, 0);
@@ -93,7 +97,7 @@ export default function CampaignOverview({
                 <th className="p-3 text-center">Meetings Booked</th>
                 <th className="p-3 text-center">Contacts Touched</th>
                 <th className="p-3 text-center">Reply Rate</th>
-                <th className="p-3 w-12"></th>
+                <th className="p-3 w-32"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-card-border text-text-secondary">
@@ -136,7 +140,18 @@ export default function CampaignOverview({
                       {camp.replyRate}%
                     </td>
                     <td className="p-3 text-right">
-                      <ChevronRight className="w-4 h-4 text-text-muted group-hover:text-brand-red group-hover:translate-x-0.5 transition-all" />
+                      <span className="inline-flex items-center gap-3">
+                        {membersHref && (
+                          <Link
+                            href={membersHref(camp.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-brand-red underline-offset-2 hover:underline"
+                          >
+                            <Users2 className="w-3.5 h-3.5" aria-hidden="true" /> Members
+                          </Link>
+                        )}
+                        <ChevronRight className="w-4 h-4 text-text-muted group-hover:text-brand-red group-hover:translate-x-0.5 transition-all" />
+                      </span>
                     </td>
                   </tr>
                 ))

@@ -357,7 +357,7 @@ describe('Admin Control Center - 401/403 matrix', () => {
     ).toBe(200);
   });
 
-  it('campaigns/[id]/members GET: 401, 403 for SDR and TL, allowed for FM', async () => {
+  it('campaigns/[id]/members GET: 401, 403 for SDR, 404 for a TL outside their campaigns, allowed for FM', async () => {
     const params = { params: Promise.resolve({ id: campaignId }) };
     mockUser(null);
     expect((await getCampaignMembers(new NextRequest('http://localhost:3000/api/campaigns/x/members'), params)).status).toBe(401);
@@ -365,8 +365,10 @@ describe('Admin Control Center - 401/403 matrix', () => {
     mockUser(sdr);
     expect((await getCampaignMembers(new NextRequest('http://localhost:3000/api/campaigns/x/members'), params)).status).toBe(403);
 
+    // A team lead has the pod scope (lib/admin/scope.ts, 2026-10-06): membership on the campaigns they can
+    // see. This campaign's only member is the floor manager, so it is outside theirs and answers as absent.
     mockUser(teamLead);
-    expect((await getCampaignMembers(new NextRequest('http://localhost:3000/api/campaigns/x/members'), params)).status).toBe(403);
+    expect((await getCampaignMembers(new NextRequest('http://localhost:3000/api/campaigns/x/members'), params)).status).toBe(404);
 
     mockUser(floorManager);
     const ok = await getCampaignMembers(new NextRequest('http://localhost:3000/api/campaigns/x/members'), params);

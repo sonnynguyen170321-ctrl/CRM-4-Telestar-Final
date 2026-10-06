@@ -25,8 +25,29 @@ import { evaluateAutomationEligibility } from '@/lib/automation/eligibility';
 import { getApprovedStepCopy } from '@/lib/sequences/stepCopy';
 import { deterministicOffset, buildJitterSeed } from '@/lib/automation/jitter';
 import { enqueueReschedule } from '@/lib/bullmq/enqueue';
+import { planStepThread } from '@/lib/sequences/threading';
+import { runNowRequested } from '@/lib/sequences/runNow';
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
+
+/**
+ * Record why the current step did not send (or clear it), for the enrollments table.
+ *
+ * Until this existed the reason lived in a job result nobody could see: a step held by a full
+ * mailbox, a missing template or a paused campaign all looked the same — overdue. This is
+ * visibility only, so a failed write must never fail a send or re-run one.
+ */
+async function recordHold(enrollmentId: string | null | undefined, reason: string | null): Promise<void> {
+  if (!enrollmentId) return;
+  try {
+    await prisma.sequenceEnrollment.updateMany({
+      where: { id: enrollmentId },
+      data: { holdReason: reason },
+    });
+  } catch (err) {
+    console.warn(`[worker:sequence] could not record the hold reason for enrollment ${enrollmentId}:`, err);
+  }
+}
 
 // Exported for testing
 export async function handleEnroll(payload: SequenceEnrollPayload) {
@@ -299,6 +320,9 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     select: { id: true, isActive: true, isArchived: true, sendOnWeekends: true },
   });
 
+  // Someone pressed Run now on this step a moment ago: the schedule is what they are overriding.
+  const runNow = runNowRequested(task.runNowRequestedAt);
+
   // Evaluate central eligibility decision (spec §11–13)
   const eligibility = evaluateAutomationEligibility({
     tenantId: task.tenantId,
@@ -313,6 +337,7 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     account,
     isSuppressed: Boolean(suppressed),
     now: new Date(),
+    ignoreSchedule: runNow,
   });
 
   // Handle decisions
@@ -322,7 +347,9 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
 
     await prisma.task.update({
       where: { id: task.id },
-      data: { dueDate: nextActionAt },
+      // The click was answered — held by something Run now does not override — so the attempt
+      // this deferral schedules goes back to obeying the send window.
+      data: { dueDate: nextActionAt, ...(task.runNowRequestedAt ? { runNowRequestedAt: null } : {}) },
     });
 
     if (enrollment) {
@@ -367,6 +394,7 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
       });
     }
 
+    await recordHold(enrollment?.id, eligibility.reason);
     return { status: 'deferred', reason: eligibility.reason, nextActionAt };
   }
 
@@ -394,10 +422,12 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
         },
       });
     }
+    await recordHold(enrollment?.id, eligibility.reason);
     return { status: 'manual_action_required', reason: eligibility.reason };
   }
 
   if (eligibility.decision !== 'ALLOW') {
+    await recordHold(enrollment?.id, eligibility.reason);
     return { status: 'skipped', reason: eligibility.reason };
   }
 
@@ -483,6 +513,23 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
       }
     }
 
+    // Same thread or a new email (lib/sequences/threading.ts). A follow-up whose template has no
+    // subject is planned the same way: reps leave it blank expecting it to continue the first
+    // email, and sent as written it reached the prospect with an empty subject line.
+    let inReplyToOutboundId: string | null = null;
+    if (enrollment && (stepInfo!.replyInThread || !subject.trim())) {
+      const plan = await planStepThread({
+        tenantId: task.tenantId,
+        leadId: task.leadId,
+        sequenceId: task.sequenceId!,
+        stepOrder: task.sequenceStep ?? 0,
+        enrolledAt: enrollment.startedAt,
+        accountId: account!.id,
+      });
+      if (plan.mode !== 'new') subject = plan.subject;
+      if (plan.mode === 'reply') inReplyToOutboundId = plan.inReplyToOutboundId;
+    }
+
     // OutboundMessage (idempotent) + enqueue the actual provider send.
     const outbound = await createOutboundMessage({
       source: { kind: 'task', taskId: task.id },
@@ -499,6 +546,7 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
       abVariantId: selectedVariantId,
       sequenceId: task.sequenceId,
       sequenceStepOrder: task.sequenceStep,
+      ...(inReplyToOutboundId ? { inReplyToOutboundId } : {}),
     });
 
     await enqueueEmailSendWorkflow(
@@ -535,6 +583,7 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     // The task stays `pending` with its lock held: in flight, claimed by nobody else. The
     // outcome is settled in `workers/email.ts` through `lib/sequences/stepOutcome.ts`, and a
     // send that never resolves is recovered by the outbound sweeps in `workers/maintenance.ts`.
+    await recordHold(enrollment?.id, null);
     return { status: 'queued', taskId: task.id };
   } catch (err) {
     // Release the lock on exception so the task is not permanently stranded pending + locked

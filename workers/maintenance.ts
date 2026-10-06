@@ -142,8 +142,13 @@ async function repairMissingDelayed(): Promise<{ fixed: number; details: string[
   let fixed = 0;
   const now = new Date();
 
+  // Cadence steps only, oldest first. Without the sequence filter the batch of 100 also took
+  // every overdue email a rep must send by hand — which the worker can only answer "manual" to —
+  // and without an order Postgres chose which hundred, so the same overdue step could be passed
+  // over night after night while the batch filled with tasks no job could ever move.
   const missing = await prisma.task.findMany({
-    where: { status: 'pending', type: 'email', dueDate: { lt: now }, lockedAt: null },
+    where: { status: 'pending', type: 'email', sequenceId: { not: null }, dueDate: { lt: now }, lockedAt: null },
+    orderBy: { dueDate: 'asc' },
     take: 100,
   });
 
@@ -312,7 +317,16 @@ async function repairStalePendingOutbound(): Promise<{ fixed: number; details: s
   });
 
   for (const msg of stalled) {
-    if (msg.attemptCount >= MAX_OUTBOUND_REDRIVES) {
+    // A message deferred on purpose — our daily or hourly cap, or the provider's — is `pending`
+    // with a job already scheduled for the time in its errorMessage. Re-driving it now would send
+    // it into the same limit, and counting those deferrals as failed attempts would abandon a
+    // message the worker promised never to discard for want of capacity.
+    const deferredUntil = /deferred to (\d{4}-\d{2}-\d{2}T[\d:.]+Z)/.exec(msg.errorMessage ?? '')?.[1];
+    if (msg.status === OUTBOUND_STATUS.PENDING && deferredUntil && new Date(deferredUntil).getTime() > Date.now()) {
+      continue;
+    }
+
+    if (msg.status === OUTBOUND_STATUS.FAILED && msg.attemptCount >= MAX_OUTBOUND_REDRIVES) {
       await prisma.outboundMessage.update({
         where: { id: msg.id },
         data: {

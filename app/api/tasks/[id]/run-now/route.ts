@@ -6,6 +6,7 @@ import { handleApiError } from '@/lib/api/errors';
 import { enqueueImmediate } from '@/lib/bullmq/enqueue';
 import { JobType } from '@/lib/bullmq/types';
 import { enrollmentIdFromStepTaskId } from '@/lib/sequences/identity';
+import { runEmailStepNow } from '@/lib/sequences/runNow';
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -32,6 +33,25 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     }
     if (!(await canAccessLead(user, task.lead))) {
       return NextResponse.json({ error: 'Forbidden access to lead' }, { status: 403 });
+    }
+
+    // A cadence email goes through the same Run now as the sequence page: it overrides the send
+    // window and weekend rule, and says so when the message is already on its way. This button
+    // used to share the old behaviour — move the date, promote the job, and let the worker put
+    // the date straight back.
+    if (task.type === 'email' && task.sequenceId) {
+      const run = await runEmailStepNow({
+        taskId: task.id,
+        expectedEnrollmentId: enrollmentIdFromStepTaskId(task.id) ?? undefined,
+        tenantId: user.tenantId!,
+      });
+      if (!run.ok) {
+        return NextResponse.json(
+          { error: 'This email is already being sent. Its result will show in a moment.' },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json({ success: true, taskId: task.id }, { status: 200 });
     }
 
     // Update due date to now so UI reflects it immediately

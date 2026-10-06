@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { getTemplateAnalytics } from '@/lib/sequences/analytics';
 import { handleApiError } from '@/lib/api/errors';
+import { ownedOrSharedWhere, templateAccess } from '@/lib/visibility';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,13 +16,19 @@ export async function GET(req: NextRequest) {
   try {
     const templateId = req.nextUrl.searchParams.get('id');
     if (templateId) {
+      // By id it answered for any template in the tenant; now only for one the caller can see.
+      if ((await templateAccess(user, templateId)) === 'none') {
+        return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+      }
       const analytics = await getTemplateAnalytics(templateId);
       if (!analytics) return NextResponse.json({ error: 'Template not found' }, { status: 404 });
       return NextResponse.json(analytics);
     }
 
+    // The same templates the library lists (lib/visibility.ts). It was "created by me" alone, so
+    // a manager saw no numbers for the team's templates.
     const templates = await prisma.template.findMany({
-      where: { createdById: user.id },
+      where: await ownedOrSharedWhere(user),
       include: { abVariants: true },
       orderBy: { createdAt: 'desc' },
     });

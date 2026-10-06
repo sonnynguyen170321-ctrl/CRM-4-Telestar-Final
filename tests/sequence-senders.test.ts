@@ -14,10 +14,15 @@ import type { SessionUser } from '@/lib/auth';
  * colleague's mailbox on a cadence unless they are a director or floor manager.
  */
 
+vi.mock('@/auth', () => ({ auth: vi.fn(), handlers: {}, signIn: vi.fn(), signOut: vi.fn() }));
 const authUser = vi.hoisted(() => ({ current: null as SessionUser | null }));
-vi.mock('@/lib/auth', async () => {
+vi.mock('@/lib/auth', async (importOriginal) => {
   const { NextResponse } = await import('next/server');
+  // The real visibility helpers (getVisibleUserIds walks managerId in the database); only the
+  // session is stubbed.
+  const actual = await importOriginal<typeof import('@/lib/auth')>();
   return {
+    ...actual,
     requireAuth: async () => authUser.current ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
   };
 });
@@ -177,9 +182,22 @@ describe('PUT /api/sequences/[id]/senders', () => {
     expect(await inTenant(() => prisma.sequenceSender.count({ where: { sequenceId: ids.sequence } }))).toBe(0);
   });
 
-  it('refuses a rep who does not own the sequence', async () => {
+  // A sequence is seen by its creator, the managers above them, and — once shared — everyone
+  // (lib/visibility.ts). One a rep cannot see answers as if it did not exist.
+  it('hides the sequence from a rep who does not own it', async () => {
     asUser(ids.peer, 'sdr');
-    expect((await inTenant(() => put([ids.peerBox]))).status).toBe(403);
+    expect((await inTenant(() => put([ids.peerBox]))).status).toBe(404);
+    expect(await inTenant(() => prisma.sequenceSender.count({ where: { sequenceId: ids.sequence } }))).toBe(0);
+  });
+
+  it('refuses a rep who can see a shared sequence but does not own it', async () => {
+    await inTenant(() => prisma.sequence.update({ where: { id: ids.sequence }, data: { isShared: true } }));
+    try {
+      asUser(ids.peer, 'sdr');
+      expect((await inTenant(() => put([ids.peerBox]))).status).toBe(403);
+    } finally {
+      await inTenant(() => prisma.sequence.update({ where: { id: ids.sequence }, data: { isShared: false } }));
+    }
   });
 
   it('lets a director attach any mailbox in the tenant, and replace the list', async () => {

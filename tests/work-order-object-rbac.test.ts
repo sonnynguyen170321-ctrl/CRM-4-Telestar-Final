@@ -159,32 +159,25 @@ describe.skipIf(!hasDb)('work order object-level RBAC', () => {
   const as = (u: SessionUser) => vi.mocked(auth).mockResolvedValue({ user: u } as never);
 
   // ── CASE 1: GET /api/work-orders ─────────────────────────────────────────
-  it('records who can list work orders targeting a lead they cannot access', async () => {
+  it('lists a rep only their own work orders, and a director everyone’s', async () => {
     as(sdrB);
     const created = await runAs(() => createOrder({ type: 'research_batch', leadId: LEAD_B }));
     expect(created.status).toBe(201);
     const ownedByB = (await created.json()).workOrder as { id: string };
 
-    // SDR A cannot access lead B — `role-negative-access` and `tenant-isolation` already prove
-    // that for the lead itself. The question is whether a work order *about* that lead is
-    // visible, since the route filters on tenant alone.
+    // This test used to record the opposite: the route scoped by tenant alone, so SDR A could
+    // list a work order about SDR B's lead, and the comment said it would invert if the product
+    // decision was "scope it". On 2026-10-05 it was — "no privacy per account" — and the list now
+    // follows `getVisibleUserIds`, like every other per-user record.
     as(sdrA);
     const res = await runAs(() => list());
     expect(res.status).toBe(200);
     const orders = (await res.json()).workOrders as { id: string; leadId: string | null }[];
+    expect(orders.filter((o) => o.leadId === LEAD_B)).toEqual([]);
 
-    const leaked = orders.filter((o) => o.leadId === LEAD_B);
-    expect(
-      leaked.length,
-      'SDR A can list a work order targeting SDR B lead — the route scopes by tenant only'
-    ).toBeGreaterThan(0);
-
-    // Recorded, not asserted as correct. Work orders carry no prospect content — id, type,
-    // status, budgets and the target ids — and there is no work order UI in this phase, so this
-    // is a metadata read rather than a disclosure of another rep's prospect. Flagged for the
-    // product decision rather than silently fixed; if the answer is "scope it", this test
-    // inverts.
-    expect(ownedByB.id).toBeTruthy();
+    as(director);
+    const all = (await (await runAs(() => list())).json()).workOrders as { id: string }[];
+    expect(all.map((o) => o.id)).toContain(ownedByB.id);
   });
 
   // ── CASE 3: dispatch ──────────────────────────────────────────────────────

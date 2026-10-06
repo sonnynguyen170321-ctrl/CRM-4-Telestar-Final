@@ -967,6 +967,9 @@ model Sequence {
   /// Refuse to add a lead that is already running another sequence.
   excludeLeadsInOtherSequences Boolean @default(false)
   isArchived  Boolean  @default(false)
+  /// Visible to everyone in the tenant. Off: only its creator and the managers above them see it
+  /// (lib/visibility.ts). Set by a manager.
+  isShared    Boolean  @default(false)
   createdById String
   createdBy   User     @relation(fields: [createdById, tenantId], references: [id, tenantId])
   createdAt   DateTime @default(now())
@@ -1022,6 +1025,10 @@ model SequenceStep {
   // null = no window restriction (send anytime the cadence allows).
   sendWindowStartMinutes Int?
   sendWindowEndMinutes   Int?
+  /// An email step after the first: true sends it as a reply in the thread of this enrollment's
+  /// previous email ("Re: <its subject>", the template subject is not used); false sends a new email
+  /// with its own subject. Ignored for the first email and for other channels.
+  replyInThread          Boolean   @default(false)
   tenantId               String
   tenant                 Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -1053,6 +1060,10 @@ model Task {
   // Soft lock claimed by the auto-send cron; CAS via updateMany since the
   // Neon HTTP driver does not support interactive transactions.
   lockedAt     DateTime?
+  /// When someone pressed Run now on this step. For a few minutes after it the worker sends
+  /// regardless of the send window and the weekend rule (lib/sequences/runNow.ts). On the row, not
+  /// in the job: the queue executes, the database records what was asked.
+  runNowRequestedAt DateTime?
   priority     TaskPriority @default(medium)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
@@ -1079,6 +1090,9 @@ model Template {
   subject     String?
   body        String
   category    String?
+  /// Visible to everyone in the tenant. Off: only its creator and the managers above them see it
+  /// (lib/visibility.ts). Set by a manager.
+  isShared    Boolean  @default(false)
   createdById String
   createdBy   User     @relation(fields: [createdById, tenantId], references: [id, tenantId])
   createdAt   DateTime @default(now())
@@ -1360,7 +1374,19 @@ model OutboundMessage {
   to                String
   subject           String?
   body              String?
+  /// The provider's own id for the send (Gmail message id, SMTP Message-ID; null on Outlook), and
+  /// the evidence that it happened. Never written from anything but a provider answer.
   providerMessageId String?
+  /// RFC 5322 Message-ID as the provider sent it, angle brackets included. What a later step puts
+  /// in In-Reply-To to land in the same thread. Null when the provider did not report one.
+  rfcMessageId      String?
+  /// Gmail threadId of the conversation this message is in. Null for other providers.
+  providerThreadId  String?
+  /// The References header this message was sent with, so the next reply can extend the chain.
+  referencesHeader  String?      @db.Text
+  /// The OutboundMessage this one was written as a reply to (lib/sequences/threading.ts). A plain
+  /// id like SequenceEnrollment.senderAccountId: on the row, so a redrive rebuilds the same thread.
+  inReplyToOutboundId String?
   // Derived from durable ids only (see lib/email/idempotency.ts) — never from the
   // subject, which is re-rendered on every attempt.
   idempotencyKey    String       @unique
@@ -1494,6 +1520,10 @@ model SequenceEnrollment {
   pausedReason     String? // reply|hard_bounce|soft_bounce|meeting_booked|manual|email_health|campaign_paused|mailbox_unavailable
   lastTransitionAt DateTime? // Last time status/state changed
   lastEvaluatedAt  DateTime? // Last time eligibility was evaluated
+  /// Why the current step did not send the last time it was evaluated (an eligibility reason such as
+  /// `daily_quota_exhausted` or `missing_template`), cleared when the step is handed to the mailbox.
+  /// The enrollments table reads it so a waiting step says what it is waiting for.
+  holdReason       String?
   /// The mailbox this occurrence sends from, fixed on its first send when the sequence has senders,
   /// so a prospect's thread never changes address mid-cadence. A plain id (no relation): a deleted
   /// mailbox simply falls back to selection, rather than taking the enrollment with it.

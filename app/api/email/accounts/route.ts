@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { getVisibleUserIds, requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { encrypt } from '@/lib/crypto';
 import { verifyImapCredentials } from '@/lib/email/adapters/ImapAdapter';
@@ -12,12 +12,16 @@ export async function GET(_req: NextRequest) {
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
 
+  // Your own mailboxes. A director or floor manager also gets those of the people under them
+  // (`getVisibleUserIds` walks managerId) — it used to be every mailbox in the company. This is
+  // the list the composer sends from, so it matches what POST /api/email/send will accept.
   const isManager = user.role === 'director' || user.role === 'floor_manager';
+  const reach = isManager ? await getVisibleUserIds(user) : [user.id];
   const accounts = await prisma.emailAccount.findMany({
     where: {
       tenantId: user.tenantId,
       isActive: true,
-      ...(isManager ? {} : { userId: user.id }),
+      ...(reach === null ? {} : { userId: { in: reach.includes(user.id) ? reach : [...reach, user.id] } }),
     },
     select: {
       id: true,

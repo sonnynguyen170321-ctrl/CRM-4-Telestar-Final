@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 import { fromHeaderValue } from '@/lib/email/senderName';
 import { ImapFlow } from 'imapflow';
-import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailService';
+import type { EmailAdapter, InboxMessage, SendEmailOptions, SendResult } from '../EmailService';
 
 interface ImapConfig {
   email: string;
@@ -23,7 +23,7 @@ export class ImapAdapter implements EmailAdapter {
     this.config = config;
   }
 
-  async send(options: SendEmailOptions): Promise<string | undefined> {
+  async send(options: SendEmailOptions): Promise<SendResult> {
     const transporter = nodemailer.createTransport({
       host: this.config.smtpServer,
       port: this.config.smtpPort,
@@ -44,8 +44,12 @@ export class ImapAdapter implements EmailAdapter {
       replyTo: options.replyTo,
       headers: options.headers,
       attachments: options.attachments,
+      inReplyTo: options.threading?.inReplyTo,
+      references: options.threading?.references,
     });
-    return info.messageId;
+    // An SMTP server keeps the Message-ID it was handed, so the id nodemailer reports is the one
+    // the prospect's mail client sees.
+    return { providerMessageId: info.messageId, rfcMessageId: info.messageId };
   }
 
   /** Fetch inbox messages received since `since` via IMAP. */

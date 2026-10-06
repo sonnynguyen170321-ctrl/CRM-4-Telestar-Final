@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { decideCapability } from '@/lib/agent/authorization';
-import { assertSendWindowPermission, canConfigureSendWindow } from '@/lib/sequences/permissions';
+import { findInvalidSendWindows } from '@/lib/sequences/permissions';
 import type { AutonomyMode } from '@/lib/agent/capabilities';
 
 /**
@@ -225,26 +225,41 @@ describe('the domain layer still owns object authorization', () => {
 });
 
 describe('an auto capability cannot widen send-window authority', () => {
-  it.each(ALL_MODES)('capability mode %s still leaves the SDR denied', (mode) => {
-    // Two independent gates, and the test asserts both. The capability layer denies on role,
-    // and lib/sequences/permissions.ts denies again at the domain boundary — so even a bug in
-    // one does not open the other.
+  // People who may edit a sequence may set its send window (owner, 2026-10-06: the
+  // Director/Floor-Manager-only rule blocked team leads from saving their own cadences). The AI
+  // capability is a separate gate and keeps its own cap: an agent acting for an SDR is still denied,
+  // and one acting for a manager still needs approval.
+  it.each(ALL_MODES)('capability mode %s still leaves an AI acting for an SDR denied', (mode) => {
     expect(decideCapability({ role: 'sdr' }, 'send_window_change', mode).outcome).toBe('DENY');
-    expect(canConfigureSendWindow('sdr')).toBe(false);
-
-    const violations = assertSendWindowPermission(
-      'sdr',
-      [{ order: 1, sendWindowStartMinutes: 540, sendWindowEndMinutes: 1020 }],
-      [{ order: 1, sendWindowStartMinutes: null, sendWindowEndMinutes: null }]
-    );
-    expect(violations).toEqual([{ order: 1, reason: 'forbidden_role' }]);
   });
 
-  it('a manager passes the capability gate and still faces the domain check', () => {
+  it('an AI acting for a manager still needs approval', () => {
     expect(decideCapability({ role: 'floor_manager' }, 'send_window_change', 'auto').outcome).toBe(
       'REQUIRE_MANAGER_APPROVAL'
     );
-    expect(canConfigureSendWindow('floor_manager')).toBe(true);
+  });
+});
+
+describe('findInvalidSendWindows', () => {
+  it('accepts a window from any role, and no window at all', () => {
+    expect(
+      findInvalidSendWindows([
+        { order: 1, sendWindowStartMinutes: 540, sendWindowEndMinutes: 1020 },
+        { order: 2, sendWindowStartMinutes: null, sendWindowEndMinutes: null },
+        { order: 3 },
+      ])
+    ).toEqual([]);
+  });
+
+  it('refuses a window the scheduler would silently ignore: one bound, or an end not after the start', () => {
+    expect(
+      findInvalidSendWindows([
+        { order: 1, sendWindowStartMinutes: 540, sendWindowEndMinutes: null },
+        { order: 2, sendWindowStartMinutes: 1020, sendWindowEndMinutes: 540 },
+        { order: 3, sendWindowStartMinutes: 600, sendWindowEndMinutes: 600 },
+        { sendWindowStartMinutes: null, sendWindowEndMinutes: 600 },
+      ])
+    ).toEqual([1, 2, 3, 4]);
   });
 });
 

@@ -619,6 +619,13 @@ ${detail.sequences && detail.sequences.length > 0 ? `
               campaigns={filteredCampaigns}
               onSelectCampaign={setSelectedCampaignId}
               dateRange={dateRange}
+              membersHref={
+                currentRole === 'director' || currentRole === 'floor_manager'
+                  ? (id) => `/admin/campaigns/${id}/members`
+                  : currentRole === 'team_lead'
+                    ? (id) => `/team/campaigns/${id}/members`
+                    : undefined
+              }
             />
           )
         ) : activeTab === 'meetings' ? (

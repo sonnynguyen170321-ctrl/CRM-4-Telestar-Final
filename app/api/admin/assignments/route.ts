@@ -28,7 +28,8 @@ export async function GET() {
   const user = userOrRes as SessionUser;
 
   const scope = await getManageScope(user);
-  if (scope.kind === 'none') {
+  // A team lead's pod scope covers campaign membership only; this panel also edits reporting lines.
+  if (scope.kind === 'none' || scope.kind === 'pod') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

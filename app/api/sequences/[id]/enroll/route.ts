@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { releaseOccupancy } from '@/lib/sequences/occupancy';
 import { requireAuth, canAccessLead } from '@/lib/auth';
+import { canViewSequenceId } from '@/lib/visibility';
 import type { SessionUser } from '@/lib/auth';
 import { unenrollLead } from '@/lib/sequences/engine';
 import { enrollLeadInSequence, SequenceEnrollmentError } from '@/lib/sequences/enrollment';
@@ -45,6 +46,11 @@ export async function POST(
   if (parsed.error) return parsed.error;
   const { leadId, keepExisting } = parsed.data;
 
+  // A sequence the caller cannot see (lib/visibility.ts) is not one they can enroll into.
+  if (!(await canViewSequenceId(user, id))) {
+    return NextResponse.json({ error: 'Sequence not found' }, { status: 404 });
+  }
+
   try {
     // Enrollment logic lives in the domain service so the agent's `outreach_launch` work order
     // and this route run the same code (ARCHITECTURE §9). The route maps its errors to HTTP.
@@ -87,7 +93,7 @@ export async function DELETE(
     }
 
     const sequence = await prisma.sequence.findUnique({ where: { id } });
-    if (!sequence) {
+    if (!sequence || !(await canViewSequenceId(user, id))) {
       return NextResponse.json({ error: 'Sequence not found' }, { status: 404 });
     }
 

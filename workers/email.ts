@@ -6,7 +6,7 @@ import { JobType } from '@/lib/bullmq/types';
 import { notifyOps } from '@/lib/ops/notifyOps';
 import type { EmailSendPayload } from '@/lib/bullmq/types';
 import { EmailService } from '@/lib/email/EmailService';
-import type { SendEmailOptions } from '@/lib/email/EmailService';
+import type { SendEmailOptions, SendReceipt, SendThreading } from '@/lib/email/EmailService';
 import { effectiveDryRun, isGlobalEmailPaused, isCanaryRecipientAllowed } from '@/lib/emailSafety';
 import { generateUnsubscribeToken, buildUnsubscribeHeaders } from '@/lib/email/unsubscribe';
 import { renderTemplate } from '@/lib/templates/render';
@@ -17,8 +17,9 @@ import {
   classifySendFailure,
   isClaimLive,
 } from '@/lib/email/idempotency';
-import { isHtml, stripHtml } from '@/lib/email/sanitize';
-import { signatureForSend } from '@/lib/email/signature';
+import { isHtml } from '@/lib/email/sanitize';
+import { composeEmailBody } from '@/lib/email/signature';
+import { buildReferences, normalizeMessageId, replySubject, stripReplyPrefix } from '@/lib/sequences/threadingRules';
 import { nextSendAttemptAt } from '@/lib/email/sendWindow';
 import { businessDayPolicyFor } from '@/lib/sequences/rules';
 
@@ -33,6 +34,7 @@ async function deferralPolicyFor(sequenceId: string | null) {
   return businessDayPolicyFor(sequence);
 }
 import { classifyRecipientFailure } from '@/lib/email/recipientFailure';
+import { classifyProviderLimit } from '@/lib/email/providerLimit';
 import { findSuppression, suppressRecipient } from '@/lib/email/suppress';
 import { finalizeSequenceStep, releaseSequenceStep } from '@/lib/sequences/stepOutcome';
 /** Minimal account shape the deliverability preflight needs. */
@@ -623,6 +625,8 @@ async function handleEmailSend(payload: EmailSendPayload) {
 
   // Send
   let providerMessageId: string | undefined;
+  let receipt: SendReceipt = {};
+  let threading: SendThreading | undefined;
   try {
     // Fetch attachments if templateId is present
     const attachments = existing.templateId
@@ -635,28 +639,39 @@ async function handleEmailSend(payload: EmailSendPayload) {
       contentType: att.contentType,
     }));
 
-    // Append signature if available. Its images travel as inline attachments under the `cid:` the
-    // stored HTML references (lib/email/signature.ts); a plain-text body gets the text alone.
-    let bodyWithSig = finalBody;
-    if (account.signature) {
-      if (isHtml(finalBody)) {
-        const signature = signatureForSend(account.signature, account.signatureImages);
-        bodyWithSig = `${finalBody}<br><br>--<br>${signature.html}`;
-        mappedAttachments.push(...signature.attachments);
-      } else {
-        bodyWithSig = `${finalBody}\n\n--\n${stripHtml(account.signature)}`;
-      }
-    }
+    // The message with the sending mailbox's signature under it, as HTML and as text. Signature
+    // images travel as inline attachments under the `cid:` the stored HTML references
+    // (lib/email/signature.ts).
+    const composed = composeEmailBody(finalBody, isHtml(finalBody), account.signature, account.signatureImages);
+    mappedAttachments.push(...composed.attachments);
+    const textPayload = composed.text;
+    let htmlPayload = composed.html;
 
-    // Prepare text and HTML versions
-    let textPayload: string;
-    let htmlPayload: string;
-    if (isHtml(bodyWithSig)) {
-      htmlPayload = bodyWithSig;
-      textPayload = stripHtml(bodyWithSig);
-    } else {
-      textPayload = bodyWithSig;
-      htmlPayload = `<div style="font-family: sans-serif; white-space: pre-wrap;">${bodyWithSig}</div>`;
+    // A reply in the thread of an earlier step. The parent is re-read here, not trusted from the
+    // job: it must have been sent, from this mailbox, with a Message-ID the provider reported.
+    // Anything less goes out as a new email under the same subject — never a failed send, and
+    // never a "Re:" that replies to nothing.
+    if (existing.inReplyToOutboundId) {
+      const parent = await prisma.outboundMessage.findFirst({
+        where: { id: existing.inReplyToOutboundId, tenantId: existing.tenantId },
+        select: {
+          status: true, accountId: true, subject: true,
+          rfcMessageId: true, providerThreadId: true, referencesHeader: true,
+        },
+      });
+      const parentSubject = replySubject(parent?.subject);
+      if (parent && parent.status === OUTBOUND_STATUS.SENT && parent.accountId === account.id && parent.rfcMessageId && parentSubject) {
+        threading = {
+          inReplyTo: normalizeMessageId(parent.rfcMessageId),
+          references: buildReferences(parent.referencesHeader, parent.rfcMessageId),
+          threadId: parent.providerThreadId ?? undefined,
+        };
+        // Gmail only threads when the subject matches the conversation, so it comes from the
+        // parent rather than from a job payload that is rebuilt on every attempt.
+        finalSubject = parentSubject;
+      } else {
+        finalSubject = stripReplyPrefix(finalSubject) || finalSubject;
+      }
     }
 
     const baseUrl = process.env.NEXTAUTH_URL || `https://${process.env.CRM_DOMAIN || 'crm.telestar.cloud'}`;
@@ -687,7 +702,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
     }
 
     const emailService = await EmailService.fromAccount(account);
-    providerMessageId = await emailService.send({
+    const result = await emailService.send({
       from: account.email,
       fromName: account.fromName,
       to,
@@ -696,7 +711,11 @@ async function handleEmailSend(payload: EmailSendPayload) {
       html: htmlPayload,
       headers,
       attachments: mappedAttachments,
+      ...(threading ? { threading } : {}),
     });
+    // An adapter reports either its bare message id or a full receipt.
+    receipt = typeof result === 'string' ? { providerMessageId: result } : result ?? {};
+    providerMessageId = receipt.providerMessageId;
   } catch (sendErr: unknown) {
     const errorMessage = sendErr instanceof Error ? sendErr.message : String(sendErr);
     // Two different refusals wear the same `550`. One is about us — our hourly quota, our
@@ -710,6 +729,56 @@ async function handleEmailSend(payload: EmailSendPayload) {
     // nobody suppressing the address. That is how production reached 0 suppression rows while
     // the provider was refusing addresses outright.
     const deadAddress = classifyRecipientFailure(sendErr) === 'recipient';
+
+    // The provider's own sending limit (lib/email/providerLimit.ts): nothing was sent and nothing
+    // is wrong with the prospect or the message. Defer like our own quota — back to `pending`,
+    // re-queued for when the limit lifts, step left open. It used to fail the message and pause
+    // the lead's whole cadence, one lead at a time, for every send that met the cap.
+    const providerLimit = deadAddress ? null : classifyProviderLimit(sendErr);
+    if (providerLimit) {
+      const now = new Date();
+      const resumeAt = nextSendAttemptAt({
+        now: providerLimit === 'daily' ? nextQuotaResetAt(now) : now,
+        minHours: providerLimit === 'daily' ? 0 : 1,
+        timezone: existing.lead?.timezone ?? null,
+        seed: outboundMessageId,
+        businessDayPolicy: await deferralPolicyFor(existing.sequenceId),
+      });
+      await prisma.outboundMessage.update({
+        where: { id: outboundMessageId },
+        data: {
+          status: OUTBOUND_STATUS.PENDING,
+          errorMessage: `Provider ${providerLimit} sending limit — deferred to ${resumeAt.toISOString()}: ${errorMessage}`.slice(0, 1000),
+        },
+      });
+      // This attempt's slot goes back; it was not spent.
+      await releaseQuota(existing.tenantId, accountId);
+      // A daily refusal means the provider has stopped this mailbox for the day, whatever our own
+      // count says. Mark it full so the rest of today's sends from it defer here, cheaply, instead
+      // of each one being refused by the provider in turn.
+      if (providerLimit === 'daily' && account.dailyCap > 0) {
+        await prisma.emailAccount.updateMany({
+          where: { id: accountId, tenantId: existing.tenantId },
+          data: { dailySendCount: account.dailyCap, dailySendDate: new Date(now.getFullYear(), now.getMonth(), now.getDate()) },
+        });
+      }
+      await enqueueReschedule(JobType.EMAIL_SEND, payload, {
+        tenantId: existing.tenantId,
+        delay: Math.max(0, resumeAt.getTime() - Date.now()),
+        discriminator: `provider-limit:${resumeAt.toISOString()}`,
+      });
+      await notifyOps({
+        key: `provider-limit:${accountId}`,
+        level: 'warn',
+        summary: `Mailbox ${account.email} reached its provider's ${providerLimit} sending limit`,
+        details: [
+          `The provider refused a send: ${errorMessage.slice(0, 300)}`,
+          `Sends from this mailbox are deferred to ${resumeAt.toISOString()} and will go out then; nothing was discarded.`,
+          'If this repeats, lower the mailbox daily cap in Email Health to match what the provider allows.',
+        ],
+      });
+      return { deferred: true, skipped: true, reason: 'provider_limit', resumeAt };
+    }
 
     // Only errors that prove the message never left the building return the row to the
     // claimable pool. A timeout or a dropped connection might still deliver, so it goes
@@ -770,6 +839,11 @@ async function handleEmailSend(payload: EmailSendPayload) {
       status: OUTBOUND_STATUS.SENT,
       providerMessageId: providerMessageId ?? null,
       sentAt: new Date(),
+      // What the next step needs to reply in this thread. Only what the provider reported — an
+      // absent id is stored as absent, and that step then goes out as a new email.
+      ...(receipt.rfcMessageId ? { rfcMessageId: normalizeMessageId(receipt.rfcMessageId) } : {}),
+      ...(receipt.providerThreadId ? { providerThreadId: receipt.providerThreadId } : {}),
+      ...(threading ? { referencesHeader: threading.references } : {}),
     },
   });
 

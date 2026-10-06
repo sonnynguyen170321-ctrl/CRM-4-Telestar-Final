@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import type { Channel } from '@prisma/client';
 
+import { canReplyInThread } from './threadingRules';
+
 /**
  * Step reconciliation for the sequence builder.
  *
@@ -27,6 +29,8 @@ export interface IncomingStep {
   autoComplete?: boolean;
   sendWindowStartMinutes?: number | null;
   sendWindowEndMinutes?: number | null;
+  /** Reply in the previous email's thread (lib/sequences/threading.ts). */
+  replyInThread?: boolean;
 }
 
 export interface ReconcileResult {
@@ -77,19 +81,33 @@ export async function reconcileSequenceSteps(
 
   const result: ReconcileResult = { created: 0, updated: 0, deleted: 0, blockedOrders: [] };
 
+  const ordered = incoming.map((step, idx) => ({
+    order: step.order ?? idx + 1,
+    channel: step.channel,
+    autoComplete: step.autoComplete ?? false,
+  }));
+
   for (const [idx, step] of incoming.entries()) {
     const order = step.order ?? idx + 1;
     const current = byOrder.get(order);
+    // A reply needs an earlier email to reply to; the first email is always a new one, whatever
+    // the request says. An absent value is left alone on update — every other field here falls
+    // back to its default, and a browser tab opened before this field existed must not be able to
+    // switch a step back to "new email" by saving.
+    const replyInThread =
+      step.replyInThread === undefined
+        ? undefined
+        : step.replyInThread && step.channel === 'email' && canReplyInThread(ordered, order);
 
     if (current) {
       await prisma.sequenceStep.update({
         where: { id: current.id },
-        data: stepFields(step, order),
+        data: { ...stepFields(step, order), ...(replyInThread === undefined ? {} : { replyInThread }) },
       });
       result.updated++;
     } else {
       await prisma.sequenceStep.create({
-        data: { ...stepFields(step, order), sequenceId, tenantId },
+        data: { ...stepFields(step, order), ...(replyInThread ? { replyInThread } : {}), sequenceId, tenantId },
       });
       result.created++;
     }

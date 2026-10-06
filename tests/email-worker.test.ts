@@ -2,10 +2,12 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import type { EmailSendPayload } from '@/lib/bullmq/types';
 
 const mockOutboundFindUnique = vi.fn();
+const mockOutboundFindFirst = vi.fn();
 const mockOutboundUpdate = vi.fn();
 const mockOutboundUpdateMany = vi.fn();
 const mockSuppressionFindFirst = vi.fn();
 const mockAccountFindUnique = vi.fn();
+const mockAccountUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 const mockLeadFindUnique = vi.fn();
 const mockLeadUpdate = vi.fn();
 const mockActivityCreate = vi.fn();
@@ -18,6 +20,7 @@ const mockEnqueueReschedule = vi.fn();
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     outboundMessage: {
+      findFirst: (...args: unknown[]) => mockOutboundFindFirst(...args),
       findUnique: (...args: unknown[]) => mockOutboundFindUnique(...args),
       update: (...args: unknown[]) => mockOutboundUpdate(...args),
       updateMany: (...args: unknown[]) => mockOutboundUpdateMany(...args),
@@ -27,6 +30,7 @@ vi.mock('@/lib/prisma', () => ({
     },
     emailAccount: {
       findUnique: (...args: unknown[]) => mockAccountFindUnique(...args),
+      updateMany: (...args: unknown[]) => mockAccountUpdateMany(...args),
     },
     lead: {
       findUnique: (...args: unknown[]) => mockLeadFindUnique(...args),
@@ -207,6 +211,112 @@ describe('handleEmailSend', () => {
         cid: 'sig-0123456789abcdef',
       },
     ]);
+  });
+
+  // A message typed as plain text used to get the signature flattened to a few lines of text.
+  it('sends the designed signature under a plain-text body too', async () => {
+    mockAccountFindUnique.mockResolvedValue(mockEmailAccount({
+      signature: '<table><tbody><tr><td><b>Mei</b></td></tr></tbody></table>',
+    }));
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockSuppressionFindFirst.mockResolvedValueOnce(null);
+    mockExecuteRaw.mockResolvedValueOnce(1);
+    mockServiceSend.mockResolvedValueOnce('provider-msg-id-plain');
+
+    await handleEmailSend(buildPayload({ body: 'Hi Linh,\nQuick question.' }));
+
+    const sent = mockServiceSend.mock.calls[0][0] as { html: string; text: string };
+    expect(sent.html).toContain('<table><tbody><tr><td><b>Mei</b></td></tr></tbody></table>');
+    expect(sent.text).toBe('Hi Linh,\nQuick question.\n\n-- \nMei');
+  });
+
+  describe('reply in the same thread', () => {
+    const parent = {
+      status: 'sent',
+      accountId: 'acc-1',
+      subject: 'Quick question',
+      rfcMessageId: '<m1@mail.gmail.com>',
+      providerThreadId: 'thread-1',
+      referencesHeader: null,
+    };
+
+    function arrangeReply(parentRow: Record<string, unknown> | null) {
+      mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage({ inReplyToOutboundId: 'msg-0' }));
+      mockOutboundFindFirst.mockResolvedValueOnce(parentRow);
+      mockSuppressionFindFirst.mockResolvedValueOnce(null);
+      mockExecuteRaw.mockResolvedValueOnce(1);
+    }
+
+    it('sends with the parent’s Message-ID, thread and subject, and stores what the provider reports', async () => {
+      arrangeReply(parent);
+      mockServiceSend.mockResolvedValueOnce({
+        providerMessageId: 'gm-2', rfcMessageId: '<m2@mail.gmail.com>', providerThreadId: 'thread-1',
+      });
+
+      // The job's own subject is rebuilt on every attempt; the thread's subject comes from the parent.
+      await handleEmailSend(buildPayload({ subject: 'Something else' }));
+
+      expect(mockOutboundFindFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'msg-0', tenantId: TENANT_ID } }),
+      );
+      expect(mockServiceSend.mock.calls[0][0]).toMatchObject({
+        subject: 'Re: Quick question',
+        threading: { inReplyTo: '<m1@mail.gmail.com>', references: '<m1@mail.gmail.com>', threadId: 'thread-1' },
+      });
+      expect(mockOutboundUpdate).toHaveBeenCalledWith({
+        where: { id: 'msg-1' },
+        data: {
+          status: 'sent',
+          providerMessageId: 'gm-2',
+          sentAt: expect.any(Date),
+          rfcMessageId: '<m2@mail.gmail.com>',
+          providerThreadId: 'thread-1',
+          referencesHeader: '<m1@mail.gmail.com>',
+        },
+      });
+    });
+
+    it('extends the References chain of a reply to a reply', async () => {
+      arrangeReply({ ...parent, rfcMessageId: '<m2@x>', referencesHeader: '<m1@x>' });
+      mockServiceSend.mockResolvedValueOnce('gm-3');
+
+      await handleEmailSend(buildPayload());
+
+      expect(mockServiceSend.mock.calls[0][0].threading).toMatchObject({
+        inReplyTo: '<m2@x>',
+        references: '<m1@x> <m2@x>',
+      });
+    });
+
+    // Never a failed send, and never a "Re:" that replies to nothing.
+    it.each([
+      ['the parent was sent from another mailbox', { ...parent, accountId: 'acc-other' }],
+      ['the parent has no Message-ID', { ...parent, rfcMessageId: null }],
+      ['the parent was never sent', { ...parent, status: 'failed' }],
+      ['the parent no longer exists', null],
+    ])('goes out as a new email when %s', async (_case, parentRow) => {
+      arrangeReply(parentRow);
+      mockServiceSend.mockResolvedValueOnce('gm-4');
+
+      const result = await handleEmailSend(buildPayload({ subject: 'Re: Quick question' }));
+
+      expect(result).toMatchObject({ success: true });
+      const sent = mockServiceSend.mock.calls[0][0] as { subject: string; threading?: unknown };
+      expect(sent.threading).toBeUndefined();
+      expect(sent.subject).toBe('Quick question');
+    });
+
+    it('does not look for a parent, or send any thread headers, for an ordinary message', async () => {
+      mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+      mockSuppressionFindFirst.mockResolvedValueOnce(null);
+      mockExecuteRaw.mockResolvedValueOnce(1);
+      mockServiceSend.mockResolvedValueOnce('gm-5');
+
+      await handleEmailSend(buildPayload());
+
+      expect(mockOutboundFindFirst).not.toHaveBeenCalled();
+      expect(mockServiceSend.mock.calls[0][0]).not.toHaveProperty('threading');
+    });
   });
 
   it('skips if already sent with providerMessageId', async () => {
@@ -616,13 +726,65 @@ describe('handleEmailSend — exactly-once delivery', () => {
     // A sender-side rejection — our quota, not the prospect's mailbox. That is the one that
     // goes back into the claimable pool. `5.1.1` is recipient-side: terminal, and it suppresses
     // the address. That case has its own file, tests/bounce-suppression.test.ts.
-    mockServiceSend.mockRejectedValueOnce(new Error('550 5.4.6 message rejected'));
+    mockServiceSend.mockRejectedValueOnce(new Error('550 5.7.1 message rejected by policy'));
 
     await expect(handleEmailSend(buildPayload())).rejects.toThrow('message rejected');
 
     expect(mockOutboundUpdate).toHaveBeenCalledWith({
       where: { id: 'msg-1' },
-      data: { status: 'failed', errorMessage: '550 5.4.6 message rejected' },
+      data: { status: 'failed', errorMessage: '550 5.7.1 message rejected by policy' },
+    });
+  });
+
+  // Reported 2026-10-05: a sequence "failing on provider limit". The refusal was read as a failed
+  // send, and each one paused that lead's cadence until someone resumed it by hand.
+  describe('the provider sending limit', () => {
+    function arrangeLimit(error: Error) {
+      mockAccountFindUnique.mockResolvedValue(mockEmailAccount({ dailyCap: 80, hourlyCap: 0 }));
+      mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+      mockSuppressionFindFirst.mockResolvedValueOnce(null);
+      mockExecuteRaw.mockResolvedValue(1);
+      mockServiceSend.mockRejectedValueOnce(error);
+    }
+
+    it('defers an hourly limit: back to pending, re-queued an hour or more out, nothing thrown', async () => {
+      arrangeLimit(new Error('550 5.4.6 Sender Hourly Quota Exceeded'));
+
+      const result = await handleEmailSend(buildPayload());
+
+      expect(result).toMatchObject({ deferred: true, reason: 'provider_limit' });
+      expect(mockOutboundUpdate).toHaveBeenCalledWith({
+        where: { id: 'msg-1' },
+        data: { status: 'pending', errorMessage: expect.stringMatching(/^Provider hourly sending limit — deferred to /) },
+      });
+      const [jobType, , opts] = mockEnqueueReschedule.mock.calls[0];
+      expect(jobType).toBe('email.send');
+      expect(opts.delay).toBeGreaterThanOrEqual(59 * 60 * 1000);
+      expect(mockAccountUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('defers a daily limit to tomorrow and marks the mailbox full for today', async () => {
+      arrangeLimit(new Error('550 5.4.5 Daily user sending limit exceeded'));
+
+      const result = await handleEmailSend(buildPayload());
+
+      expect(result).toMatchObject({ deferred: true, reason: 'provider_limit' });
+      expect(mockAccountUpdateMany).toHaveBeenCalledWith({
+        where: { id: 'acc-1', tenantId: TENANT_ID },
+        data: { dailySendCount: 80, dailySendDate: expect.any(Date) },
+      });
+    });
+
+    it('never marks the message failed or stops the cadence', async () => {
+      arrangeLimit(new Error('451 4.7.1 Rate limited: too many messages, try again later'));
+
+      await handleEmailSend(buildPayload({
+        sequenceStepRef: { taskId: 't-1', leadId: 'lead-1', actorUserId: 'user-1', sequenceId: 's-1', sequenceStep: 1 },
+      }));
+
+      const statuses = mockOutboundUpdate.mock.calls.map((call) => (call[0] as { data: { status?: string } }).data.status);
+      expect(statuses).not.toContain('failed');
+      expect(statuses).not.toContain('reconciliation_required');
     });
   });
 

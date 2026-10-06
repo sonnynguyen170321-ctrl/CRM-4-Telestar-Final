@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
+import { templateAccess } from '@/lib/visibility';
 
 export async function DELETE(
   _req: NextRequest,
@@ -24,6 +25,15 @@ export async function DELETE(
 
   if (attachment.templateId !== templateId || attachment.tenantId !== user.tenantId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  // Removing an attachment changes what the template sends (lib/visibility.ts).
+  const access = await templateAccess(user, templateId);
+  if (access === 'none') return NextResponse.json({ error: 'Attachment not found' }, { status: 404 });
+  if (access !== 'manage') {
+    return NextResponse.json(
+      { error: 'Only the template author or their manager can change its attachments' },
+      { status: 403 }
+    );
   }
 
   await prisma.attachment.delete({

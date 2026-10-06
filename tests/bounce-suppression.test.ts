@@ -350,17 +350,26 @@ describe.skipIf(!hasDb)('an address the provider rejects is never written to aga
     expect((await readLead()).emailInvalid).toBe(false);
     expect(
       (await readMessage(message.id)).status,
-      'still claimable, because this one deserves another try'
-    ).toBe(OUTBOUND_STATUS.FAILED);
+      'deferred, not failed: a sending limit lifts, and the message goes out when it does'
+    ).toBe(OUTBOUND_STATUS.PENDING);
   });
 
-  it('still re-drives a message refused by our own quota', async () => {
+  it('schedules a message refused by a sending limit for later, and the sweep leaves that schedule alone', async () => {
     sendBehaviour = async () => {
       throw new Error('550 5.4.6 Sender Hourly Quota Exceeded');
     };
     const { message, enrollment, task } = await openStep();
+    enqueueReschedule.mockClear();
     await attempt(message.id, task.id, enrollment.id);
 
+    expect(redrivenIds(), 'the worker re-queues it for when the limit lifts').toContain(message.id);
+    expect((await readMessage(message.id)).errorMessage).toMatch(/deferred to \d{4}-/);
+
+    // The cadence is not stopped: a limit is about our mailbox, not this prospect.
+    const live = await run(() => prisma.sequenceEnrollment.findUniqueOrThrow({ where: { id: enrollment.id } }));
+    expect(live.status).toBe('active');
+
+    // The sweep must not send it straight back into the same limit.
     await run(() =>
       prisma.outboundMessage.update({
         where: { id: message.id },
@@ -369,10 +378,7 @@ describe.skipIf(!hasDb)('an address the provider rejects is never written to aga
     );
     enqueueReschedule.mockClear();
     await run(() => handleRepair({ types: ['stale-pending-outbound'] }));
-
-    expect(redrivenIds(), 'our own quota is temporary — this one deserves another try').toContain(
-      message.id
-    );
+    expect(redrivenIds()).not.toContain(message.id);
   });
 
   it('refuses a later send to a suppressed address without calling the provider', async () => {
