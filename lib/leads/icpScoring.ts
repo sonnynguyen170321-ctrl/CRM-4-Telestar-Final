@@ -281,6 +281,8 @@ export type RescoreLeadsReport = {
   reasons: Record<string, number>;
   /** True when the batch limit cut the run short and another call is needed. */
   truncated: boolean;
+  /** Pass back as `cursor` to continue after this batch; null when there is nothing after it. */
+  nextCursor: string | null;
   /** Dry run only: nothing was written. */
   dryRun?: boolean;
   /**
@@ -292,6 +294,15 @@ export type RescoreLeadsReport = {
   /** Dry run only: leads a person has given a verdict — what they act on would not move. */
   pinned?: number;
 };
+
+function decodeRescoreCursor(cursor: string | undefined): { createdAt: Date; id: string } | null {
+  if (!cursor) return null;
+  const sep = cursor.indexOf('|');
+  const createdAt = new Date(cursor.slice(0, sep));
+  const id = cursor.slice(sep + 1);
+  if (sep < 1 || !id || Number.isNaN(createdAt.getTime())) throw new Error('Invalid rescore cursor');
+  return { createdAt, id };
+}
 
 /**
  * Score many leads, bounded, for the rescore endpoint and the backfill script.
@@ -305,6 +316,8 @@ export async function rescoreLeadsIcp(params: {
   campaignId?: string;
   onlyUnscored?: boolean;
   limit?: number;
+  /** `nextCursor` from the previous batch. */
+  cursor?: string;
   /** Report what would change and write nothing. */
   dryRun?: boolean;
 }): Promise<RescoreLeadsReport> {
@@ -312,21 +325,28 @@ export async function rescoreLeadsIcp(params: {
   const onlyUnscored = params.onlyUnscored ?? true;
   const limit = Math.min(params.limit ?? RESCORE_LEADS_BATCH_LIMIT, RESCORE_LEADS_BATCH_LIMIT);
 
+  // Keyset pagination. "Repeat the call" used to re-read the same first batch: with
+  // `onlyUnscored: false` every lead still matches, so a 1,692-lead campaign never got past lead
+  // 500 (2026-10-07). With `onlyUnscored` a lead that stays NOT SCORED also kept its place.
+  const after = decodeRescoreCursor(params.cursor);
   const targets = await prisma.lead.findMany({
     where: {
       tenantId,
       archivedAt: null,
       ...(campaignId ? { campaignId } : {}),
       ...(onlyUnscored ? { latestIcpAssessmentId: null } : {}),
+      ...(after ? { OR: [{ createdAt: { gt: after.createdAt } }, { createdAt: after.createdAt, id: { gt: after.id } }] } : {}),
     },
-    select: { id: true },
-    orderBy: { createdAt: 'asc' },
+    select: { id: true, createdAt: true },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     take: limit + 1,
   });
   const truncated = targets.length > limit;
   const batch = targets.slice(0, limit);
+  const last = batch.at(-1);
+  const nextCursor = truncated && last ? `${last.createdAt.toISOString()}|${last.id}` : null;
 
-  const report: RescoreLeadsReport = { considered: batch.length, scored: 0, notScored: 0, reasons: {}, truncated };
+  const report: RescoreLeadsReport = { considered: batch.length, scored: 0, notScored: 0, reasons: {}, truncated, nextCursor };
 
   if (params.dryRun) {
     report.dryRun = true;

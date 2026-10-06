@@ -17,14 +17,20 @@ export const dynamic = 'force-dynamic';
  * (`onlyUnscored`, the default), and the re-run after a manager publishes a new rule set
  * (`onlyUnscored: false`), where the fingerprint makes every unchanged lead free.
  *
- * Bounded to `RESCORE_LEADS_BATCH_LIMIT` per call and reports `truncated`, so a tenant with
- * thousands of leads is scored by repeating the call, not by a request that runs until the
- * proxy gives up on it.
+ * Bounded to `RESCORE_LEADS_BATCH_LIMIT` per call and reports `truncated` and `nextCursor`, so a
+ * tenant with thousands of leads is scored by calling again with that cursor, not by a request
+ * that runs until the proxy gives up on it.
  */
 const rescoreSchema = z.object({
   campaignId: z.string().min(1).max(64).optional(),
   onlyUnscored: z.boolean().optional(),
   limit: z.number().int().min(1).max(RESCORE_LEADS_BATCH_LIMIT).optional(),
+  /** `nextCursor` from the previous call: continue after it. */
+  cursor: z
+    .string()
+    .max(100)
+    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\|[A-Za-z0-9_-]+$/, 'Invalid cursor')
+    .optional(),
   /** Report the verdict moves a rescore would make, and write nothing. */
   dryRun: z.boolean().optional(),
 });
@@ -50,6 +56,7 @@ export async function POST(req: NextRequest) {
         campaignId: parsed.data.campaignId,
         onlyUnscored: parsed.data.onlyUnscored,
         limit: parsed.data.limit,
+        cursor: parsed.data.cursor,
         dryRun: parsed.data.dryRun,
       })
     );
