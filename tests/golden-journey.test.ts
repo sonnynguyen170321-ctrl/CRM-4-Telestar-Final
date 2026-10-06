@@ -276,8 +276,12 @@ beforeAll(async () => {
       ],
     });
 
-    await prisma.emailAccount.create({
+    const mailbox = await prisma.emailAccount.create({
       data: { userId: SDR, email: 'sam@telestar.test', provider: 'imap_smtp', isActive: true, dailyCap: 100, tenantId: T },
+    });
+    // A sequence sends only from the mailboxes it names (lib/sequences/sender.ts, 2026-10-06).
+    await prisma.sequenceSender.create({
+      data: { tenantId: T, sequenceId: sequence.id, emailAccountId: mailbox.id, addedById: SDR },
     });
 
     const playbook = await prisma.campaignPlaybook.create({
