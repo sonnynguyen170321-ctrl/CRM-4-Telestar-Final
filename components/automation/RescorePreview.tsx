@@ -4,17 +4,7 @@ import { useState } from 'react';
 import { Eye, RefreshCw } from 'lucide-react';
 
 import { readApiError } from '@/lib/api/client';
-
-type Report = {
-  considered: number;
-  scored: number;
-  notScored: number;
-  reasons: Record<string, number>;
-  truncated: boolean;
-  dryRun?: boolean;
-  transitions?: Record<string, number>;
-  unchanged?: number;
-};
+import { rescoreAllLeads, type RescoreAllTotals } from '@/lib/leads/rescoreAllClient';
 
 const LABEL: Record<string, string> = {
   qualified: 'Fit',
@@ -36,31 +26,27 @@ function describe(key: string): string {
  * verdicts, so the move is shown before it is made: Preview reports how many leads would change and
  * in which direction, writing nothing; Apply is only offered after a preview.
  *
- * One call covers up to 500 leads; `truncated` says when there are more, and the operator repeats.
+ * Each button walks every lead, batch by batch (`rescoreAllLeads`); the operator never repeats.
  */
 export function RescorePreview({ showToast }: { showToast: (message: string, kind: 'success' | 'error' | 'info') => void }) {
   const [busy, setBusy] = useState<'' | 'preview' | 'apply'>('');
-  const [preview, setPreview] = useState<Report | null>(null);
+  const [preview, setPreview] = useState<RescoreAllTotals | null>(null);
 
   async function run(dryRun: boolean) {
     setBusy(dryRun ? 'preview' : 'apply');
     try {
-      const response = await fetch('/api/leads/rescore-icp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ onlyUnscored: false, dryRun }),
-      });
-      if (!response.ok) {
-        showToast(await readApiError(response, dryRun ? 'Preview failed' : 'Rescore failed'), 'error');
+      const result = await rescoreAllLeads({ onlyUnscored: false, dryRun });
+      if (!result.ok) {
+        showToast(await readApiError(result.response, dryRun ? 'Preview failed' : 'Rescore failed'), 'error');
         return;
       }
-      const report = (await response.json()) as Report;
+      const { totals } = result;
       if (dryRun) {
-        setPreview(report);
+        setPreview(totals);
       } else {
         setPreview(null);
         showToast(
-          `Rescored ${report.scored} lead(s)${report.truncated ? ' — more remain, run again' : ''}.`,
+          `Rescored ${totals.scored} lead(s)${totals.stoppedEarly ? ' — stopped at the safety limit, run again' : ''}.`,
           'success',
         );
       }
@@ -107,9 +93,10 @@ export function RescorePreview({ showToast }: { showToast: (message: string, kin
       {preview && (
         <div className="mt-4 space-y-2 text-xs text-text-secondary" role="status">
           <p>
-            {preview.scored} lead(s) checked · {preview.unchanged ?? 0} unchanged
+            {preview.scored} lead(s) checked · {preview.unchanged} unchanged
             {preview.notScored > 0 && ` · ${preview.notScored} not scorable`}
-            {preview.truncated && ' · first 500 only — more remain'}
+            {preview.pinned > 0 && ` · ${preview.pinned} kept by a rep's verdict`}
+            {preview.stoppedEarly && ' · stopped at the safety limit — more remain'}
           </p>
           {moves.length === 0 ? (
             <p className="font-semibold text-text-primary">No verdict would change.</p>

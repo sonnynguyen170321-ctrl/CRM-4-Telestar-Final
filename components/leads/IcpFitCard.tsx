@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, CircleHelp, Loader2, UserCheck, X } from 'lucide-react';
 
 import { readApiError } from '@/lib/api/client';
+import { rescoreAllLeads } from '@/lib/leads/rescoreAllClient';
 import { effectiveQualification, type Qualification } from '@/lib/leads/effectiveQualification';
 import { explainIcp, type ExplainableAssessment } from '@/lib/leads/explainIcp';
 import { reasonLabel, reasonsFor } from '@/lib/leads/qualificationReasons';
@@ -88,16 +89,12 @@ export function IcpFitCard({
     if (!lead.campaign?.id) return;
     setRescoring(true);
     try {
-      const res = await fetch('/api/leads/rescore-icp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaignId: lead.campaign.id, onlyUnscored: false, limit: 500 }),
-      });
-      if (!res.ok) {
-        showToast(await readApiError(res, 'Rescore failed'), 'error');
+      const result = await rescoreAllLeads({ campaignId: lead.campaign.id, onlyUnscored: false });
+      if (!result.ok) {
+        showToast(await readApiError(result.response, 'Rescore failed'), 'error');
         return;
       }
-      const r = await res.json();
+      const r = result.totals;
       showToast(`Rescored ${r.scored} lead(s) on this campaign${r.notScored ? `, ${r.notScored} not scored` : ''}`, r.scored > 0 ? 'success' : 'error');
       await onRefresh();
     } catch {

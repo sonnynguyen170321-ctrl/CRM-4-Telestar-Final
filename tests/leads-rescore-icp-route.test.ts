@@ -53,6 +53,18 @@ describe('POST /api/leads/rescore-icp', () => {
     expect(await res.json()).toMatchObject({ success: true, considered: 3, scored: 2, notScored: 1, reasons: { no_icp_configured: 1 } });
   });
 
+  it('passes a continuation cursor through, and refuses a malformed one', async () => {
+    const cursor = '2026-10-07T01:02:03.456Z|cmt9tacgk000hqr0kpupnkdmy';
+    expect((await POST(req({ onlyUnscored: false, cursor }))).status).toBe(200);
+    expect(mockRescore).toHaveBeenCalledWith(expect.objectContaining({ cursor }));
+
+    mockRescore.mockClear();
+    for (const bad of ['nope', '2026-10-07|x', `${cursor}' OR 1=1`, 7]) {
+      expect((await POST(req({ cursor: bad }))).status).toBe(400);
+    }
+    expect(mockRescore).not.toHaveBeenCalled();
+  });
+
   it('defaults to every unscored lead in the tenant', async () => {
     const res = await POST(req({}));
     expect(res.status).toBe(200);

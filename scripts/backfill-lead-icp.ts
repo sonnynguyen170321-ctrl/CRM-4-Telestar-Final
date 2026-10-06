@@ -8,14 +8,20 @@
  *
  * Two passes per tenant:
  *   1. engagement — `recalculateTenantEngagement`, the existing single-statement repair
- *   2. ICP — `rescoreLeadsIcp` over unscored leads, in batches until it reports no more
+ *   2. ICP — `rescoreLeadsIcp` over unscored leads (or every lead with `--all`), batch after
+ *      batch by cursor until there are no more
  *
  * ## Read before running
  *
  * Dry run by default. It prints what it would score and writes nothing until `--apply`.
  *
- *   npx tsx scripts/backfill-lead-icp.ts            # counts only
- *   npx tsx scripts/backfill-lead-icp.ts --apply     # write
+ *   npx tsx scripts/backfill-lead-icp.ts                 # counts only
+ *   npx tsx scripts/backfill-lead-icp.ts --all           # counts + the verdict moves a full rescore would make
+ *   npx tsx scripts/backfill-lead-icp.ts --apply         # write: unscored leads only
+ *   npx tsx scripts/backfill-lead-icp.ts --all --apply   # write: every lead (after a rules or engine change)
+ *
+ * `--all` is for when the engine or an ICP changed (the verdict version moves the fingerprint, so
+ * every lead gets a fresh assessment). A rep's own verdict still wins over the new score.
  *
  * Idempotent: a re-run finds nothing unscored and the fingerprint makes a re-score of an
  * unchanged lead free. NOT SCORED stays NOT SCORED where a campaign has no published ICP —
@@ -27,6 +33,27 @@ import { recalculateTenantEngagement } from '@/lib/leads/recalculateEngagement';
 import { rescoreLeadsIcp, RESCORE_LEADS_BATCH_LIMIT } from '@/lib/leads/icpScoring';
 
 const APPLY = process.argv.includes('--apply');
+const ALL = process.argv.includes('--all');
+
+const list = (counts: Record<string, number>) =>
+  Object.keys(counts).length ? ` (${Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(', ')})` : '';
+
+/** Every lead in scope, batch after batch by cursor. Dry run reports moves; apply writes. */
+async function rescoreTenant(tenantId: string, dryRun: boolean) {
+  const totals = { scored: 0, notScored: 0, unchanged: 0, pinned: 0, reasons: {} as Record<string, number>, transitions: {} as Record<string, number> };
+  let cursor: string | undefined;
+  do {
+    const report = await rescoreLeadsIcp({ tenantId, onlyUnscored: !ALL, limit: RESCORE_LEADS_BATCH_LIMIT, cursor, dryRun });
+    totals.scored += report.scored;
+    totals.notScored += report.notScored;
+    totals.unchanged += report.unchanged ?? 0;
+    totals.pinned += report.pinned ?? 0;
+    for (const [k, v] of Object.entries(report.reasons)) totals.reasons[k] = (totals.reasons[k] ?? 0) + v;
+    for (const [k, v] of Object.entries(report.transitions ?? {})) totals.transitions[k] = (totals.transitions[k] ?? 0) + v;
+    cursor = report.nextCursor ?? undefined;
+  } while (cursor);
+  return totals;
+}
 
 async function main() {
   console.log(APPLY ? 'Backfilling lead scores (WRITING).' : 'Backfilling lead scores (dry run — pass --apply to write).');
@@ -48,27 +75,22 @@ async function main() {
       if (publishedIcps === 0) {
         console.log('  no published ICP — leads will stay NOT SCORED for ICP until a manager publishes one');
       }
-      if (!APPLY) return;
+      if (!APPLY) {
+        if (ALL) {
+          const preview = await rescoreTenant(tenant.id, true);
+          console.log(`  ICP preview (--all): ${preview.scored} checked, ${preview.unchanged} unchanged, ${preview.pinned} kept by a rep's verdict, not scorable ${preview.notScored}${list(preview.reasons)}`);
+          console.log(`  verdict moves${list(preview.transitions) || ': none'}`);
+        }
+        return;
+      }
 
       if (engagementNull > 0) {
         const summary = await tenantStorage.run({ tenantId: tenant.id, bypassRls: true }, () => recalculateTenantEngagement(tenant.id));
         console.log(`  engagement: updated ${summary.updatedCount} (hot ${summary.hotCount} / warm ${summary.warmCount} / cold ${summary.coldCount})`);
       }
 
-      let scored = 0;
-      let notScored = 0;
-      const reasons: Record<string, number> = {};
-      // Each batch only picks up leads still unscored, so a lead that stays NOT SCORED is
-      // considered once per batch — bound the loop by the number of batches the count implies.
-      const maxBatches = Math.ceil(icpUnscored / RESCORE_LEADS_BATCH_LIMIT) + 1;
-      for (let i = 0; i < maxBatches; i++) {
-        const report = await rescoreLeadsIcp({ tenantId: tenant.id, onlyUnscored: true, limit: RESCORE_LEADS_BATCH_LIMIT });
-        scored += report.scored;
-        notScored += report.notScored;
-        for (const [k, v] of Object.entries(report.reasons)) reasons[k] = (reasons[k] ?? 0) + v;
-        if (report.considered === 0 || report.scored === 0) break;
-      }
-      console.log(`  ICP: scored ${scored}, not scored ${notScored}${Object.keys(reasons).length ? ` (${Object.entries(reasons).map(([k, v]) => `${k}: ${v}`).join(', ')})` : ''}`);
+      const done = await rescoreTenant(tenant.id, false);
+      console.log(`  ICP${ALL ? ' (--all)' : ''}: scored ${done.scored}, not scored ${done.notScored}${list(done.reasons)}`);
     });
   }
 }
