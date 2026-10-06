@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, UserMinus, UserPlus, Users2, Loader2 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
@@ -49,9 +48,21 @@ interface MembersPayload {
   availableUsers: AvailableUser[];
 }
 
-export default function CampaignMembersPage() {
-  const params = useParams<{ id: string }>();
-  const campaignId = params.id;
+type Props = {
+  campaignId: string;
+  /** Where "All campaigns" goes back to: the admin list, or a team lead's Team view. */
+  backHref: string;
+};
+
+/**
+ * Campaign membership: who is assigned, who can be added, and removal with its impact.
+ *
+ * Shared by /admin/campaigns/[id]/members (director, floor manager) and
+ * /team/campaigns/[id]/members (team lead). What each caller may change is decided server-side by
+ * the manage scope (lib/admin/scope.ts) — a team lead's covers their own pod on the campaigns they
+ * can see — so this component renders whatever the API lets the caller act on.
+ */
+export default function CampaignMembersManager({ campaignId, backHref }: Props) {
   const { showToast } = useToast();
 
   const [data, setData] = useState<MembersPayload | null>(null);
@@ -193,7 +204,7 @@ export default function CampaignMembersPage() {
   return (
     <div className="space-y-4">
       <Link
-        href="/admin/campaigns"
+        href={backHref}
         className="inline-flex items-center gap-1.5 type-meta text-text-muted hover:text-text-primary transition-colors"
       >
         <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" /> All campaigns

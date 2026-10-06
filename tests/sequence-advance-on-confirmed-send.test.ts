@@ -291,12 +291,13 @@ describe.skipIf(!hasDb)('a cadence step settles on the provider outcome', () => 
   });
 
   it('gives the step back and pauses the cadence when the provider refuses', async () => {
-    // A sender-side refusal: nothing reached the prospect, so nothing about the cadence may
-    // move. This is the exact shape of the 228. Deliberately *not* a recipient-side refusal —
-    // that one also suppresses the address and ends the message terminally, which is
-    // `tests/bounce-suppression.test.ts`.
+    // A definitive sender-side refusal: nothing reached the prospect, so nothing about the cadence
+    // may move. Not a recipient-side refusal — that also suppresses the address and ends the message
+    // terminally (`tests/bounce-suppression.test.ts`). And no longer the 228's `5.4.6 Sender Hourly
+    // Quota Exceeded`: since lib/email/providerLimit.ts (2026-10-05) a provider sending limit is a
+    // deferral — back to pending, cadence untouched — covered in tests/email-worker.test.ts.
     sendBehaviour = async () => {
-      throw new Error('550 5.4.6 Sender Hourly Quota Exceeded');
+      throw new Error('550 5.7.1 Message rejected by sender policy');
     };
     const { task, message, enrollment } = await openStep();
     await attempt(message.id, task.id, enrollment.id);
