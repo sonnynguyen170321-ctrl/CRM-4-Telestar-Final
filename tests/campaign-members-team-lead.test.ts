@@ -89,6 +89,17 @@ describe('the pod manage scope', () => {
     expect(res.status).toBe(404);
   });
 
+  it('answers 404 to a floor manager for a campaign outside their floor — it used to answer any id', async () => {
+    session.current = { ...teamLead, id: 'u-fm', role: 'floor_manager' };
+    campaignFindUnique.mockResolvedValue({ id: 'camp-elsewhere', name: 'X', status: 'active', client: null, _count: {} });
+
+    const res = await getMembers(new NextRequest('http://localhost:3000/api/campaigns/camp-elsewhere/members'), {
+      params: Promise.resolve({ id: 'camp-elsewhere' }),
+    });
+
+    expect(res.status).toBe(404);
+  });
+
   it('lists the members of a campaign the team lead can see', async () => {
     campaignFindUnique.mockResolvedValue({
       id: 'camp-mine', name: 'Mine', status: 'active',

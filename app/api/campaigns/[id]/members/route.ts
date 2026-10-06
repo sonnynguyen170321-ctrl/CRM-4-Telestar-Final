@@ -42,8 +42,11 @@ export async function GET(
       },
     });
     if (!campaign) return notFound('Campaign not found');
-    // A team lead manages membership only on campaigns they can see; whether another exists is not theirs to learn.
-    if (scope.kind === 'pod' && !scope.campaignIds.has(campaignId)) return notFound('Campaign not found');
+    // A floor manager or team lead reads membership only on campaigns in their scope. It used to answer any
+    // campaign id to a floor manager; whether a campaign outside their scope exists is not theirs to learn.
+    if ((scope.kind === 'floor' || scope.kind === 'pod') && !scope.campaignIds.has(campaignId)) {
+      return notFound('Campaign not found');
+    }
 
     const memberRows = await prisma.campaignSdr.findMany({
       where: { campaignId },
