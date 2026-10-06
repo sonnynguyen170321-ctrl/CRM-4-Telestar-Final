@@ -154,8 +154,9 @@ test.describe('campaigns', () => {
     await api.dispose();
   });
 
-  test('a team lead can create a campaign and see it, but cannot edit one', async ({ baseURL, recorder }) => {
-    recorder.expectFailures(403);
+  // Owner request, 2026-10-06: team leads edit and archive campaigns — their pod's, not others'.
+  test('a team lead can create a campaign and edit it, but not one outside their pod', async ({ baseURL, recorder }) => {
+    recorder.expectFailures(404);
     const api = await apiAs('teamLead', baseURL!);
 
     const create = await readJson(
@@ -168,15 +169,21 @@ test.describe('campaigns', () => {
     const own = await listIds(api, '/api/campaigns', 'campaigns');
     expect(own, 'the team lead cannot see the campaign they just created').toContain(createdId);
 
-    const edit = await readJson(
-      await api.put(`/api/campaigns/${fixture().campaignA}`, { data: { name: 'PW_AUDIT_NOPE' } })
-    );
-    expect(edit.status, `a team lead edited a campaign (${edit.status})`).toBe(403);
+    const renamed = `PW_AUDIT_CAMPAIGN_TL_RENAMED_${stamp()}`;
+    const edit = await readJson(await api.put(`/api/campaigns/${createdId}`, { data: { name: renamed } }));
+    expect(edit.status, `a team lead could not edit their own campaign (${edit.status})`).toBe(200);
+    expect((edit.body as { name?: string }).name).toBe(renamed);
 
-    // And prove the refusal: the campaign is unchanged.
+    // A campaign the director creates has no member from the team lead's pod: out of reach,
+    // and answered like a missing one.
     const admin = await apiAs('director', baseURL!);
-    const ids = await listIds(admin, '/api/campaigns', 'campaigns');
-    expect(ids).toContain(fixture().campaignA);
+    const foreign = await readJson(
+      await admin.post('/api/campaigns', { data: { name: `PW_AUDIT_CAMPAIGN_DIR_${stamp()}`, clientId: fixture().clientA } })
+    );
+    expect(foreign.status).toBe(201);
+    const foreignId = (foreign.body as { id?: string }).id;
+    const refused = await readJson(await api.put(`/api/campaigns/${foreignId}`, { data: { name: 'PW_AUDIT_NOPE' } }));
+    expect(refused.status, `a team lead edited a campaign outside their pod (${refused.status})`).toBe(404);
     await admin.dispose();
     await api.dispose();
   });
