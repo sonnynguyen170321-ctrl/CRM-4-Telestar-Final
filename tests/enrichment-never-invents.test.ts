@@ -130,6 +130,9 @@ describe('enrich-lead refuses rather than inventing research', () => {
 
     expect(body.success).toBe(true);
     expect(body.data.companySummary).toBe(real.companySummary);
-    expect(body.data.estimatedTechStack).toEqual(['HubSpot', 'PostgreSQL']);
+    expect(body.data.icebreakers).toEqual(real.icebreakers);
+    // A tech stack is no longer asked for and never passed through: the model had nothing to
+    // base one on (AI review, 2026-10-06).
+    expect(body.data.estimatedTechStack).toEqual([]);
   });
 });

@@ -105,10 +105,12 @@ routes:
   - path: app/api/ai/draft-reply/route.ts
     methods: [POST]
     tests:
+      - tests/ai-no-fabrication.test.ts
       - tests/ai-route-cross-tenant-red-team.test.ts
   - path: app/api/ai/enrich-lead/route.ts
     methods: [POST]
     tests:
+      - tests/ai-no-fabrication.test.ts
       - tests/ai-route-cross-tenant-red-team.test.ts
       - tests/enrichment-never-invents.test.ts
   - path: app/api/ai/memory/route.ts

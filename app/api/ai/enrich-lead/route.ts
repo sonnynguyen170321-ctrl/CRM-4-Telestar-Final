@@ -9,7 +9,9 @@ export const dynamic = 'force-dynamic';
 export interface LeadEnrichmentResponse {
   companySummary: string;
   industryFocus: string;
+  /** Always empty: no longer generated (it was invented). Kept so older clients do not break. */
   estimatedTechStack: string[];
+  grounding?: { usedResearch: boolean; researchedFacts: number; hasTitle: boolean; hasNotes: boolean };
   keyPainPoints: string[];
   icebreakers: Array<{
     id: string;
@@ -75,62 +77,63 @@ export async function POST(req: NextRequest) {
       }
 
       const prospectName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Prospect';
-      const company = lead.company || 'Unknown Company';
-      const title = lead.title || 'Decision Maker';
-      const industry = lead.account?.industry || lead.campaign?.targetVertical || 'Technology / B2B';
-      const notesSummary = lead.notes.map((n) => n.content).join('; ') || 'None';
+      const company = lead.company || 'Unknown company';
+      const title = lead.title || null;
+      const notesSummary = lead.notes.map((n) => n.content.slice(0, 400)).join('; ');
 
-      const systemPrompt = `You are a world-class sales intelligence researcher and copywriter (Clay.com + Gong.io specialist).
-Your job is to deeply analyze a prospect's company and generate 3 hyper-personalized, non-generic cold email opening hooks (icebreakers).
+      // What the CRM actually knows about the company, from its research run. Without it the
+      // model was asked for a tech stack and a "how similar companies scaled pipeline" hook about
+      // a company it knew nothing of — and wrote both anyway (AI review, 2026-10-06).
+      const research = lead.accountId
+        ? await prisma.companyIntelligenceProfile.findFirst({
+            where: { tenantId, accountId: lead.accountId, profileStatus: { in: ['extracted', 'partial'] } },
+            orderBy: { createdAt: 'desc' },
+            select: { companySummary: true, industryCategory: true, factsJson: true },
+          })
+        : null;
+      const facts = Array.isArray(research?.factsJson)
+        ? (research!.factsJson as unknown[]).filter((f): f is string => typeof f === 'string').slice(0, 12).map((f) => f.replace(/_/g, ' '))
+        : [];
 
-Rules for Icebreakers:
-- Keep each hook under 35 words.
-- Sound natural and peer-to-peer, not like a marketing brochure.
-- NEVER use generic fluff like "Hope this email finds you well" or "I came across your profile".
-- Connect directly to their likely business friction or operational bottlenecks.
+      const known: string[] = [
+        `Name: ${prospectName}`,
+        `Company: ${company}`,
+        title ? `Title: ${title}` : 'Title: unknown',
+        lead.account?.industry ? `Industry (from the CRM): ${lead.account.industry}` : null,
+        lead.account?.country ? `Country: ${lead.account.country}` : null,
+        lead.account?.size ? `Employees: ${lead.account.size}` : null,
+        lead.account?.website ? `Website: ${lead.account.website}` : null,
+        research?.companySummary ? `What the company does (from our research): ${research.companySummary.slice(0, 800)}` : null,
+        research?.industryCategory ? `Category (from our research): ${research.industryCategory}` : null,
+        facts.length ? `Researched facts: ${facts.join('; ')}` : null,
+        lead.campaign?.name ? `Our campaign: ${lead.campaign.name}${lead.campaign.targetVertical ? ` (targeting ${lead.campaign.targetVertical})` : ''}` : null,
+        notesSummary ? `Rep notes: ${notesSummary}` : null,
+      ].filter((line): line is string => Boolean(line));
 
-Output valid JSON matching this schema:
+      const systemPrompt = `You help a B2B SDR prepare a first cold email. You are given everything the CRM knows about one prospect.
+
+Hard rules — breaking any of them makes the output unusable:
+- Use ONLY the facts provided. Never invent customers, case studies, results, numbers, funding, news, tools or technology the company uses.
+- When you reason beyond the facts, say so plainly ("likely", "teams like yours often") and keep it general to the role, never a specific claim about this company.
+- If the facts are thin, say so in companySummary ("We have little on this company: …") instead of filling the gap.
+- Each hook is under 35 words, peer-to-peer, no "Hope this finds you well", no "I came across your profile".
+- Write in English unless the rep notes ask for another language.
+
+Output valid JSON exactly in this schema:
 {
-  "companySummary": "2-sentence breakdown of what the company does and who they sell to.",
-  "industryFocus": "Specific B2B niche.",
-  "estimatedTechStack": ["e.g. Salesforce", "Outreach", "Stripe", "PostgreSQL"],
-  "keyPainPoints": [
-    "Pain 1",
-    "Pain 2",
-    "Pain 3"
-  ],
+  "companySummary": "1-2 sentences, only from the facts given.",
+  "industryFocus": "Their niche, or \"unknown\".",
+  "keyPainPoints": ["2-3 likely frictions for someone in this role, each phrased as likely, not as fact"],
   "icebreakers": [
-    {
-      "id": "pain_hypothesis",
-      "style": "🔥 Operational Pain Hook",
-      "hook": "Specific 1-2 sentence hook calling out a likely friction point for their role.",
-      "rationale": "Why this resonates with a ${title}."
-    },
-    {
-      "id": "social_proof",
-      "style": "📈 Case Study / ROI Hook",
-      "hook": "Specific 1-2 sentence hook citing how similar companies scaled pipeline.",
-      "rationale": "Builds fast credibility."
-    },
-    {
-      "id": "industry_trend",
-      "style": "🌐 Market Shift Hook",
-      "hook": "Specific 1-2 sentence hook about an industry bottleneck affecting their niche.",
-      "rationale": "Demonstrates domain expertise."
-    }
+    { "id": "role_friction", "style": "Role friction", "hook": "...", "rationale": "Which fact or role it is based on." },
+    { "id": "fact_reference", "style": "Something we know about them", "hook": "A hook built on one researched fact. If there is no researched fact, a hook about their stated role instead.", "rationale": "The fact used." },
+    { "id": "question", "style": "Sharp question", "hook": "One specific, low-pressure question about their priorities.", "rationale": "Why this question fits." }
   ]
 }`;
 
-      const userPrompt = `Prospect:
-- Name: ${prospectName}
-- Title: ${title}
-- Company: ${company}
-- Industry: ${industry}
-- Campaign: ${lead.campaign?.name || 'General Outbound'}
-- Notes: ${notesSummary}
-${customContext ? `- Additional Context: ${customContext}` : ''}
-
-Generate structured prospect research and 3 calibrated icebreakers in JSON now:`;
+      const knownBlock = known.map((line) => `- ${line}`).join('\n');
+      const repAsk = customContext ? `\nThe rep asks: ${String(customContext).slice(0, 500)}` : '';
+      const userPrompt = `What the CRM knows:\n${knownBlock}\n${repAsk}\n\nReturn the JSON now.`;
 
       const result = await generateStructured<LeadEnrichmentResponse>(
         {
@@ -183,11 +186,17 @@ Generate structured prospect research and 3 calibrated icebreakers in JSON now:`
 
       return NextResponse.json({
         success: true,
-        data: result.data,
+        data: {
+          ...result.data,
+          // The tech-stack guess is no longer asked for; never pass one through.
+          estimatedTechStack: [],
+          // What the hooks were built from, so the rep can judge them.
+          grounding: { usedResearch: Boolean(research), researchedFacts: facts.length, hasTitle: Boolean(title), hasNotes: Boolean(notesSummary) },
+        },
       });
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to enrich lead:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not generate research for this lead' }, { status: 500 });
   }
 }
