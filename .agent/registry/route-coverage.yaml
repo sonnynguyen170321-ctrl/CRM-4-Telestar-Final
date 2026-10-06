@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 199   mutating: 123   mutating without a test: 19
+# routes: 200   mutating: 124   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -644,6 +644,38 @@ routes:
     methods: [GET]
     tests:
       - tests/leadgen-redesign.test.ts
+  - path: app/api/leads/[id]/qualification/route.ts
+    methods: [DELETE, POST]
+    tests:
+      - e2e/admin/campaign-member-impact.spec.ts
+      - e2e/admin/member-removal-dialog.spec.ts
+      - e2e/admin/work-transfer-and-audit.spec.ts
+      - e2e/auth/authentication.spec.ts
+      - e2e/certification/golden-journey.spec.ts
+      - e2e/certification/six-role-acceptance.spec.ts
+      - e2e/journeys/commercial-intelligence.spec.ts
+      - e2e/leads/dashboard-counters.spec.ts
+      - e2e/leads/drawer-navigation.spec.ts
+      - e2e/leads/filters-and-scope.spec.ts
+      - e2e/leads/lead-crud.spec.ts
+      - e2e/meetings/meeting-to-opportunity.spec.ts
+      - e2e/roles/body-parameter-spoofing.spec.ts
+      - e2e/roles/role-negative-access.spec.ts
+      - e2e/roles/tenant-isolation.spec.ts
+      - e2e/user-flow-31step.spec.ts
+      - tests/admin.test.ts
+      - tests/certification-role-evidence.test.ts
+      - tests/inbox-reply-authorization.test.ts
+      - tests/lead-import-dry-run-warnings.test.ts
+      - tests/lead-import-reference-integrity.test.ts
+      - tests/lead-lifecycle.test.ts
+      - tests/lead-qualification-review.test.ts
+      - tests/lead-reference-integrity.test.ts
+      - tests/lead-timezone-update.test.ts
+      - tests/leads-campaign-filter.test.ts
+      - tests/leads-list-cap.test.ts
+      - tests/leads-rescore-icp-route.test.ts
+      - tests/sequence-rules.test.ts
   - path: app/api/leads/[id]/restore/route.ts
     methods: [POST]
     tests:
@@ -669,6 +701,7 @@ routes:
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
       - tests/lead-lifecycle.test.ts
+      - tests/lead-qualification-review.test.ts
       - tests/lead-reference-integrity.test.ts
       - tests/lead-timezone-update.test.ts
       - tests/leads-campaign-filter.test.ts
@@ -700,6 +733,7 @@ routes:
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
       - tests/lead-lifecycle.test.ts
+      - tests/lead-qualification-review.test.ts
       - tests/lead-reference-integrity.test.ts
       - tests/lead-timezone-update.test.ts
       - tests/leads-campaign-filter.test.ts
@@ -746,6 +780,7 @@ routes:
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
       - tests/lead-lifecycle.test.ts
+      - tests/lead-qualification-review.test.ts
       - tests/lead-reference-integrity.test.ts
       - tests/lead-timezone-update.test.ts
       - tests/leads-campaign-filter.test.ts

@@ -207,13 +207,20 @@ export async function previewLeadIcp(params: {
   tenantId: string;
   leadId: string;
 }): Promise<
-  | { status: 'previewed'; from: IcpQualification | null; to: IcpQualification; fitScore: number }
+  | {
+      status: 'previewed';
+      from: IcpQualification | null;
+      to: IcpQualification;
+      fitScore: number;
+      /** A person has given this lead a verdict, which a new score cannot move (lib/leads/effectiveQualification.ts). */
+      pinned: boolean;
+    }
   | { status: 'not_scored'; reason: 'lead_not_found' | 'no_icp_configured' | 'icp_version_unreadable' }
 > {
   const { tenantId, leadId } = params;
   const lead = await prisma.lead.findFirst({
     where: { id: leadId, tenantId },
-    select: { ...SCORABLE_LEAD_SELECT, icpQualification: true },
+    select: { ...SCORABLE_LEAD_SELECT, icpQualification: true, qualificationOverride: true },
   });
   if (!lead) return { status: 'not_scored', reason: 'lead_not_found' };
 
@@ -225,7 +232,13 @@ export async function previewLeadIcp(params: {
 
   const evidence = buildScoringEvidence(toScorable(lead));
   const verdict = deriveIcpVerdict(assessIcpRulesV2(evidence, rules), rules, evidence);
-  return { status: 'previewed', from: lead.icpQualification ?? null, to: verdict.qualification, fitScore: verdict.fitScore };
+  return {
+    status: 'previewed',
+    from: lead.icpQualification ?? null,
+    to: verdict.qualification,
+    fitScore: verdict.fitScore,
+    pinned: lead.qualificationOverride != null,
+  };
 }
 
 export const RESCORE_LEADS_BATCH_LIMIT = 500;
@@ -246,6 +259,8 @@ export type RescoreLeadsReport = {
    */
   transitions?: Record<string, number>;
   unchanged?: number;
+  /** Dry run only: leads a person has given a verdict — what they act on would not move. */
+  pinned?: number;
 };
 
 /**
@@ -287,6 +302,7 @@ export async function rescoreLeadsIcp(params: {
     report.dryRun = true;
     report.transitions = {};
     report.unchanged = 0;
+    report.pinned = 0;
     for (const target of batch) {
       const preview = await previewLeadIcp({ tenantId, leadId: target.id });
       if (preview.status !== 'previewed') {
@@ -295,6 +311,10 @@ export async function rescoreLeadsIcp(params: {
         continue;
       }
       report.scored += 1;
+      if (preview.pinned) {
+        report.pinned += 1;
+        continue;
+      }
       if (preview.from === preview.to) {
         report.unchanged += 1;
         continue;

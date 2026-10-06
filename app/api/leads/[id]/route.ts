@@ -31,7 +31,13 @@ export async function GET(
       icpAssessments: {
         orderBy: { createdAt: 'desc' },
         take: 1,
-        select: { id: true, fitScore: true, confidenceScore: true, dataQualityScore: true, qualification: true, evidenceJson: true, createdAt: true, icpVersion: { select: { id: true, versionNumber: true, icpProfile: { select: { name: true } } } } },
+        select: { id: true, fitScore: true, confidenceScore: true, dataQualityScore: true, qualification: true, evidenceJson: true, inputSnapshot: true, rulesSnapshot: true, createdAt: true, icpVersion: { select: { id: true, versionNumber: true, icpProfile: { select: { name: true } } } } },
+      },
+      // A person's verdicts on this lead (lib/leads/effectiveQualification.ts), newest first.
+      qualificationReviews: {
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: { id: true, verdict: true, reasonCode: true, note: true, reviewedById: true, computedQualification: true, createdAt: true },
       },
       contact: {
         include: {
@@ -87,7 +93,39 @@ export async function GET(
     tasks: (lead.tasks ?? []).map((t) => ({ status: t.status, dueDate: t.dueDate.toISOString() })),
   });
 
-  return NextResponse.json({ ...lead, aiScore: aiScore.score, aiLabel: aiScore.label, aiInsights: aiScore.insights, aiRecommendation: aiScore.recommendation });
+  // `reviewedById` is a soft link (the history outlives a deleted user), so names are looked up.
+  const reviewerIds = [...new Set(lead.qualificationReviews.map((r) => r.reviewedById))];
+  const reviewers = reviewerIds.length
+    ? await prisma.user.findMany({ where: { id: { in: reviewerIds }, tenantId: user.tenantId! }, select: { id: true, firstName: true, lastName: true } })
+    : [];
+  const reviewerName = new Map(reviewers.map((u) => [u.id, `${u.firstName} ${u.lastName}`.trim()]));
+
+  return NextResponse.json({
+    ...lead,
+    icpAssessments: lead.icpAssessments.map(({ rulesSnapshot, ...assessment }) => ({
+      ...assessment,
+      // Only what the explanation names: thresholds, the target lists, the weights. The full
+      // rule set is not the drawer's business.
+      rulesSummary: summariseRules(rulesSnapshot),
+    })),
+    qualificationReviews: lead.qualificationReviews.map((r) => ({ ...r, reviewedByName: reviewerName.get(r.reviewedById) ?? null })),
+    aiScore: aiScore.score,
+    aiLabel: aiScore.label,
+    aiInsights: aiScore.insights,
+    aiRecommendation: aiScore.recommendation,
+  });
+}
+
+function summariseRules(rules: unknown) {
+  const r = (rules ?? {}) as Record<string, any>;
+  return {
+    scorePolicy: r.scorePolicy ?? null,
+    scoringWeights: r.scoringWeights ?? null,
+    titleAllowlist: Array.isArray(r.persona?.titleAllowlist) ? r.persona.titleAllowlist : [],
+    targetCountries: Array.isArray(r.geography?.targetCountries) ? r.geography.targetCountries : [],
+    excludedCountries: Array.isArray(r.geography?.excludedCountries) ? r.geography.excludedCountries : [],
+    minEmployees: typeof r.size?.minEmployees === 'number' ? r.size.minEmployees : null,
+  };
 }
 
 export async function PUT(

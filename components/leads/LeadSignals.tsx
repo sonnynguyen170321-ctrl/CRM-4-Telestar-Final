@@ -1,4 +1,9 @@
+import { UserCheck } from 'lucide-react';
+
 import type { Lead } from '@/lib/hooks/useLeads';
+import { effectiveQualification } from '@/lib/leads/effectiveQualification';
+
+import { QUALIFICATION_CHIP, QUALIFICATION_LABEL } from './qualificationStyle';
 
 /**
  * The SIGNALS column on the leads table.
@@ -13,11 +18,13 @@ import type { Lead } from '@/lib/hooks/useLeads';
  * plausible guess.
  */
 
-const VERDICT: Record<NonNullable<Lead['icpQualification']>, { label: string; className: string }> = {
-  qualified: { label: 'ICP fit', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-  needs_review: { label: 'ICP review', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-  unqualified: { label: 'No fit', className: 'bg-zinc-500/10 text-text-muted border-card-border' },
-};
+// One vocabulary with the drawer's ICP card (components/leads/qualificationStyle.ts).
+const VERDICT = Object.fromEntries(
+  (Object.keys(QUALIFICATION_LABEL) as Array<keyof typeof QUALIFICATION_LABEL>).map((q) => [
+    q,
+    { label: QUALIFICATION_LABEL[q], className: QUALIFICATION_CHIP[q] },
+  ])
+) as Record<keyof typeof QUALIFICATION_LABEL, { label: string; className: string }>;
 
 const chip = 'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold';
 
@@ -32,7 +39,9 @@ function headcount(account: Lead['account']): string | null {
 }
 
 export default function LeadSignals({ lead }: { lead: Lead }) {
-  const verdict = lead.icpQualification ? VERDICT[lead.icpQualification] : null;
+  // A rep's verdict wins over the score (lib/leads/effectiveQualification.ts).
+  const effective = effectiveQualification(lead);
+  const verdict = effective.value ? VERDICT[effective.value] : null;
   const industry = lead.account?.industry?.trim() || null;
   const size = headcount(lead.account);
 
@@ -44,10 +53,22 @@ export default function LeadSignals({ lead }: { lead: Lead }) {
       {verdict ? (
         <span
           className={`${chip} ${verdict.className}`}
-          title={lead.icpScoredAt ? `Scored ${new Date(lead.icpScoredAt).toLocaleDateString()}` : undefined}
+          title={
+            effective.source === 'human'
+              ? `Set by a person after review${effective.disagrees && effective.computed ? ` — the score says ${VERDICT[effective.computed].label}` : ''}`
+              : lead.icpScoredAt
+                ? `Scored ${new Date(lead.icpScoredAt).toLocaleDateString()}`
+                : undefined
+          }
         >
+          {effective.source === 'human' && (
+            <>
+              <UserCheck className="w-3 h-3" aria-hidden="true" />
+              <span className="sr-only">Reviewed: </span>
+            </>
+          )}
           {verdict.label}
-          {typeof lead.icpFitScore === 'number' && <span className="font-mono">{lead.icpFitScore}</span>}
+          {effective.source === 'computed' && typeof lead.icpFitScore === 'number' && <span className="font-mono">{lead.icpFitScore}</span>}
         </span>
       ) : (
         <span className={`${chip} border-dashed border-card-border text-text-muted`}>Not scored</span>

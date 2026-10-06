@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import type { IcpQualification, ProspectOperatingState } from '@prisma/client';
 import type { z } from 'zod';
 import type { leadStage, priority } from '@/lib/validation/schemas';
+import { qualificationWhere } from '@/lib/leads/effectiveQualification';
 import { buildTermClauses } from '@/lib/search/terms';
 
 export interface LeadListFilters {
@@ -66,7 +67,8 @@ export function buildLeadListWhere(
   if (filters.ownerInactive) clauses.push({ assignedTo: { isActive: false } });
   if (filters.campaignId) clauses.push({ campaignId: filters.campaignId });
   if (filters.operatingState) clauses.push({ operatingState: filters.operatingState });
-  if (filters.icpQualification) clauses.push({ icpQualification: filters.icpQualification });
+  // A person's verdict wins over the score (lib/leads/effectiveQualification.ts).
+  if (filters.icpQualification) clauses.push(qualificationWhere(filters.icpQualification));
   if (filters.icpUnscored) clauses.push({ latestIcpAssessmentId: null });
   if (filters.source) clauses.push({ source: { contains: filters.source, mode: 'insensitive' } });
   if (filters.importListName) clauses.push({ importListName: { contains: filters.importListName, mode: 'insensitive' } });
