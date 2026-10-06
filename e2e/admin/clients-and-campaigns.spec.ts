@@ -143,10 +143,10 @@ test.describe('campaigns', () => {
     );
     expect(updated.status, `campaign update failed: ${JSON.stringify(updated.body).slice(0, 200)}`).toBeLessThan(300);
 
-    // Read it back as a director, not as the creator. `/api/campaigns` is scoped by
-    // `getVisibleCampaignIds`, which for a floor manager means campaigns their people are
-    // assigned to — a brand-new campaign has no members and correctly does not appear in their
-    // own list. Asserting otherwise would be asserting a bug.
+    // `/api/campaigns` is scoped by `getVisibleCampaignIds` (CampaignSdr). The creator is made
+    // the first member (2026-10-06), so the campaign is in their own list as well as a director's.
+    const own = await listIds(api, '/api/campaigns', 'campaigns');
+    expect(own, 'the creator cannot see the campaign they just created').toContain(campaignId);
     const admin = await apiAs('director', baseURL!);
     const ids = await listIds(admin, '/api/campaigns', 'campaigns');
     expect(ids, 'the new campaign is missing from the unrestricted list').toContain(campaignId);
@@ -154,16 +154,19 @@ test.describe('campaigns', () => {
     await api.dispose();
   });
 
-  test('a team lead cannot create or edit a campaign', async ({ baseURL, recorder }) => {
+  test('a team lead can create a campaign and see it, but cannot edit one', async ({ baseURL, recorder }) => {
     recorder.expectFailures(403);
     const api = await apiAs('teamLead', baseURL!);
 
     const create = await readJson(
       await api.post('/api/campaigns', {
-        data: { name: `PW_AUDIT_CAMPAIGN_DENIED_${stamp()}`, clientId: fixture().clientA },
+        data: { name: `PW_AUDIT_CAMPAIGN_TL_${stamp()}`, clientId: fixture().clientA },
       })
     );
-    expect(create.status, `a team lead created a campaign (${create.status})`).toBe(403);
+    expect(create.status, `a team lead could not create a campaign (${create.status})`).toBe(201);
+    const createdId = (create.body as { id?: string }).id;
+    const own = await listIds(api, '/api/campaigns', 'campaigns');
+    expect(own, 'the team lead cannot see the campaign they just created').toContain(createdId);
 
     const edit = await readJson(
       await api.put(`/api/campaigns/${fixture().campaignA}`, { data: { name: 'PW_AUDIT_NOPE' } })

@@ -257,6 +257,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
+      - tests/campaign-create-team-lead.test.ts
       - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/client-reports/[id]/approve/route.ts
     methods: [POST]

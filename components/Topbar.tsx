@@ -311,7 +311,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
                 >
                   <span className="text-brand-gold-text">🔔</span> New Reminder
                 </button>
-                {(currentRole === 'director' || currentRole === 'floor_manager') && (
+                {(currentRole === 'director' || currentRole === 'floor_manager' || currentRole === 'team_lead') && (
                   <>
                     <div className="my-1 border-t border-card-border" />
                     <button
