@@ -7,6 +7,7 @@ import { useToast } from '@/context/ToastContext';
 import { readApiError } from '@/lib/api/client';
 import AdminTable, { type Column } from '@/components/admin/AdminTable';
 import StatusBadge from '@/components/admin/StatusBadge';
+import { CampaignActions } from '@/components/campaigns/CampaignActions';
 
 interface AdminCampaign {
   id: string;
@@ -135,12 +136,15 @@ export default function AdminCampaignsPage() {
       key: 'actions',
       label: '',
       render: (c) => (
-        <Link
-          href={`/admin/campaigns/${c.id}/members`}
-          className="inline-flex items-center gap-1.5 px-3 py-1 border border-card-border bg-bg-main hover:bg-card-border/30 text-text-secondary text-xs font-semibold rounded-lg transition-colors"
-        >
-          <Users2 className="w-3.5 h-3.5" aria-hidden="true" /> Manage members
-        </Link>
+        <div className="inline-flex items-center gap-2 justify-end">
+          <CampaignActions campaign={c} onChanged={fetchCampaigns} />
+          <Link
+            href={`/admin/campaigns/${c.id}/members`}
+            className="inline-flex items-center gap-1.5 px-3 py-1 border border-card-border bg-bg-main hover:bg-card-border/30 text-text-secondary text-xs font-semibold rounded-lg transition-colors"
+          >
+            <Users2 className="w-3.5 h-3.5" aria-hidden="true" /> Manage members
+          </Link>
+        </div>
       ),
       className: 'text-right',
     },

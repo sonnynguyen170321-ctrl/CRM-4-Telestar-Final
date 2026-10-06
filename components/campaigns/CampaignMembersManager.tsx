@@ -7,6 +7,7 @@ import { useToast } from '@/context/ToastContext';
 import { readApiError } from '@/lib/api/client';
 import AdminTable, { type Column } from '@/components/admin/AdminTable';
 import StatusBadge from '@/components/admin/StatusBadge';
+import { CampaignActions } from '@/components/campaigns/CampaignActions';
 import ConfirmDialog from '@/components/admin/ConfirmDialog';
 import ImpactPanel, {
   emptyChoice,
@@ -217,6 +218,7 @@ export default function CampaignMembersManager({ campaignId, backHref }: Props) 
             <p className="type-meta text-text-muted">{data.campaign.clientName}</p>
           </div>
           <StatusBadge status={data.campaign.status} />
+          <CampaignActions campaign={data.campaign} onChanged={fetchMembers} />
           <div className="flex items-center gap-6 ml-auto">
             <Stat label="Leads" value={data.campaign.leadCount} />
             <Stat label="Meetings" value={data.campaign.meetingCount} />

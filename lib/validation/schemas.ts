@@ -279,6 +279,7 @@ export const updateCampaignSchema = z.object({
   targetVertical: nullableShortText.optional(),
   targetGeo: nullableShortText.optional(),
   status: campaignStatus.optional(),
+  endDate: isoDate.nullable().optional(),
 });
 
 export const markNotificationSchema = z.object({
