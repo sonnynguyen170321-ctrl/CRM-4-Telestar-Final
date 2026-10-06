@@ -100,6 +100,20 @@ describe('updateIcpAllowlist', () => {
     expect(await versions()).toHaveLength(3);
   });
 
+  it('finishes a run that died between publishing and moving the campaigns', async () => {
+    // What a crash after publish leaves: the new version live, the campaigns still on old ones.
+    const v3 = await inTenant(async () => {
+      await prisma.icpVersion.update({ where: { id: ids.published }, data: { status: 'archived' } });
+      const rules = { ...RULES, persona: { ...RULES.persona, titleAllowlist: [...RULES.persona.titleAllowlist, 'Managing Director', 'Owner', 'President', 'Sales Director', 'CSO'] } };
+      return prisma.icpVersion.create({ data: { tenantId, icpProfileId: ids.profile, versionNumber: 3, status: 'published', rulesJson: rules as never } });
+    });
+    const plan = await update(true, { campaignIds: [] });
+    expect(plan.titlesToAdd).toEqual([]);
+    expect(plan.publishedVersionId).toBe(v3.id);
+    for (const id of [ids.alpha, ids.floor, ids.onPublished]) expect((await campaign(id)).icpVersionId).toBe(v3.id);
+    expect((await campaign(ids.untouched)).icpVersionId).toBeNull();
+  });
+
   it('still moves a campaign off an old version when there is no title to add', async () => {
     const plan = await update(true, { addTitles: ['CEO'] });
     expect(plan.publishedVersionId).toBe(ids.published);
@@ -205,7 +219,17 @@ describe('rescoreAllLeads (browser loop)', () => {
     const failed = new Response('{}', { status: 403 });
     const fetchImpl = vi.fn().mockResolvedValueOnce(ok({ scored: 1, nextCursor: 'c1' })).mockResolvedValueOnce(failed);
     const result = await rescoreAllLeads({}, fetchImpl as unknown as typeof fetch);
-    expect(result).toEqual({ ok: false, response: failed });
+    expect(result).toMatchObject({ ok: false, response: failed, totals: { scored: 1 } });
+  });
+
+  it('reports the running totals after every batch', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(ok({ scored: 2, notScored: 1, nextCursor: 'c1' }))
+      .mockResolvedValueOnce(ok({ scored: 3, nextCursor: null }));
+    const seen: number[] = [];
+    await rescoreAllLeads({}, fetchImpl as unknown as typeof fetch, (t) => seen.push(t.scored + t.notScored));
+    expect(seen).toEqual([3, 6]);
   });
 
   it('stops at the safety cap and says so', async () => {

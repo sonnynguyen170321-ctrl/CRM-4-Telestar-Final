@@ -25,10 +25,15 @@ const add = (into: Record<string, number>, from: Record<string, number> | undefi
   for (const [key, value] of Object.entries(from ?? {})) into[key] = (into[key] ?? 0) + value;
 };
 
+/**
+ * `onProgress` gets the running totals after each batch. A failure hands back the totals so far:
+ * on an apply, those leads are already rescored, and re-running is free for them (fingerprint).
+ */
 export async function rescoreAllLeads(
   body: { campaignId?: string; onlyUnscored?: boolean; dryRun?: boolean },
-  fetchImpl: typeof fetch = fetch
-): Promise<{ ok: true; totals: RescoreAllTotals } | { ok: false; response: Response }> {
+  fetchImpl: typeof fetch = fetch,
+  onProgress?: (totals: RescoreAllTotals) => void
+): Promise<{ ok: true; totals: RescoreAllTotals } | { ok: false; response: Response; totals: RescoreAllTotals }> {
   const totals: RescoreAllTotals = { scored: 0, notScored: 0, reasons: {}, transitions: {}, unchanged: 0, pinned: 0, stoppedEarly: false };
   let cursor: string | undefined;
 
@@ -38,7 +43,7 @@ export async function rescoreAllLeads(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...body, ...(cursor ? { cursor } : {}) }),
     });
-    if (!response.ok) return { ok: false, response };
+    if (!response.ok) return { ok: false, response, totals: { ...totals } };
 
     const report = (await response.json()) as BatchReport;
     totals.scored += report.scored ?? 0;
@@ -47,6 +52,7 @@ export async function rescoreAllLeads(
     totals.pinned += report.pinned ?? 0;
     add(totals.reasons, report.reasons);
     add(totals.transitions, report.transitions);
+    onProgress?.({ ...totals });
 
     if (!report.nextCursor) return { ok: true, totals };
     cursor = report.nextCursor;

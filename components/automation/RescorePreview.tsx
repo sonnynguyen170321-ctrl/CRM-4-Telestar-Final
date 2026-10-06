@@ -31,13 +31,18 @@ function describe(key: string): string {
 export function RescorePreview({ showToast }: { showToast: (message: string, kind: 'success' | 'error' | 'info') => void }) {
   const [busy, setBusy] = useState<'' | 'preview' | 'apply'>('');
   const [preview, setPreview] = useState<RescoreAllTotals | null>(null);
+  // Leads done so far in the running pass: a full rescore is several batches, minutes on a big tenant.
+  const [done, setDone] = useState(0);
 
   async function run(dryRun: boolean) {
     setBusy(dryRun ? 'preview' : 'apply');
+    setDone(0);
     try {
-      const result = await rescoreAllLeads({ onlyUnscored: false, dryRun });
+      const result = await rescoreAllLeads({ onlyUnscored: false, dryRun }, fetch, (totals) => setDone(totals.scored + totals.notScored));
       if (!result.ok) {
-        showToast(await readApiError(result.response, dryRun ? 'Preview failed' : 'Rescore failed'), 'error');
+        const message = await readApiError(result.response, dryRun ? 'Preview failed' : 'Rescore failed');
+        const partial = result.totals.scored + result.totals.notScored;
+        showToast(partial > 0 && !dryRun ? `${message} — ${result.totals.scored} lead(s) were rescored before it stopped; run again to finish.` : message, 'error');
         return;
       }
       const { totals } = result;
@@ -75,7 +80,7 @@ export function RescorePreview({ showToast }: { showToast: (message: string, kin
           className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-card-border px-4 text-xs font-bold text-text-primary hover:bg-bg-main disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Eye className="h-4 w-4" aria-hidden="true" />
-          {busy === 'preview' ? 'Previewing…' : 'Preview changes'}
+          {busy === 'preview' ? `Previewing… ${done > 0 ? `${done} checked` : ''}` : 'Preview changes'}
         </button>
         {preview && (
           <button
@@ -85,7 +90,7 @@ export function RescorePreview({ showToast }: { showToast: (message: string, kin
             className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand-red px-4 text-xs font-bold text-white hover:bg-brand-red-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            {busy === 'apply' ? 'Applying…' : `Apply to ${preview.scored} lead(s)`}
+            {busy === 'apply' ? `Applying… ${done > 0 ? `${done} done` : ''}` : `Apply to ${preview.scored} lead(s)`}
           </button>
         )}
       </div>

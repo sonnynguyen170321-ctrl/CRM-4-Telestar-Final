@@ -77,11 +77,13 @@ export async function updateIcpAllowlist(input: {
     }
   }
 
-  // The named campaigns, plus every campaign already on the version being replaced: publishing
-  // archives it, and a campaign left behind would keep scoring against the old list.
+  // The named campaigns, plus every campaign on any version of this profile: publishing archives
+  // the current one, and a campaign left on an old version keeps scoring against the old list.
+  // Matching every version (not just the current) is what lets a re-run finish a run that died
+  // between publishing and moving the campaigns.
   const requested = input.campaignIds ?? [];
   const campaigns = await prisma.campaign.findMany({
-    where: { tenantId, OR: [{ id: { in: requested } }, ...(titlesToAdd.length ? [{ icpVersionId: source.id }] : [])] },
+    where: { tenantId, OR: [{ id: { in: requested } }, { icpVersion: { icpProfileId: profile.id } }] },
     select: { id: true, name: true, icpVersionId: true },
     orderBy: { name: 'asc' },
   });

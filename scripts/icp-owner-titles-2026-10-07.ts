@@ -18,7 +18,8 @@
  *   npx tsx scripts/icp-owner-titles-2026-10-07.ts --tenant <tenantId> --apply
  *
  * Then rescore so leads pick it up: `npx tsx scripts/backfill-lead-icp.ts --all` (preview), then
- * with `--apply`. Re-running this script after it applied is a no-op.
+ * with `--apply`. Re-running after a full apply changes nothing; re-running after a failed one
+ * finishes it (any campaign still on an old version of the profile is moved).
  */
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
@@ -49,12 +50,27 @@ async function main() {
     const jobs = [{ profileId: named.id, campaignIds: campaigns.map((c) => c.id) }];
     if (fallback && fallback.id !== named.id) jobs.push({ profileId: fallback.id, campaignIds: [] });
 
+    // Plan every job before writing any, so a refusal (open draft, two published versions) stops
+    // the run before the first profile changes.
     for (const job of jobs) {
-      const plan = await updateIcpAllowlist({ tenantId: TENANT_ID, profileId: job.profileId, addTitles: TITLES, campaignIds: job.campaignIds, apply: APPLY });
+      const plan = await updateIcpAllowlist({ tenantId: TENANT_ID, profileId: job.profileId, addTitles: TITLES, campaignIds: job.campaignIds });
       console.log(`\n"${plan.profileName}" (from v${plan.fromVersionNumber})`);
       console.log(`  add titles: ${plan.titlesToAdd.join(', ') || 'none'}${plan.titlesAlreadyThere.length ? ` · already there: ${plan.titlesAlreadyThere.join(', ')}` : ''}`);
       console.log(`  campaigns to move: ${plan.campaignsToMove.map((c) => c.name).join(', ') || 'none'}`);
-      if (plan.publishedVersionId) console.log(`  done: campaigns now on version ${plan.publishedVersionId}`);
+    }
+    if (!APPLY) return;
+
+    const applied: string[] = [];
+    for (const job of jobs) {
+      try {
+        const done = await updateIcpAllowlist({ tenantId: TENANT_ID, profileId: job.profileId, addTitles: TITLES, campaignIds: job.campaignIds, apply: true });
+        applied.push(`"${done.profileName}" → version ${done.publishedVersionId}`);
+        console.log(`\napplied: ${applied[applied.length - 1]}`);
+      } catch (error) {
+        console.error(`\nFAILED after ${applied.length} of ${jobs.length} profile(s). Already applied: ${applied.join('; ') || 'nothing'}.`);
+        console.error('Fix the cause and run again: a re-run finishes the moves and adds nothing twice.');
+        throw error;
+      }
     }
   });
 }

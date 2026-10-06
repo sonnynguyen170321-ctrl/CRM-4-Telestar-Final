@@ -91,7 +91,8 @@ export function IcpFitCard({
     try {
       const result = await rescoreAllLeads({ campaignId: lead.campaign.id, onlyUnscored: false });
       if (!result.ok) {
-        showToast(await readApiError(result.response, 'Rescore failed'), 'error');
+        const message = await readApiError(result.response, 'Rescore failed');
+        showToast(result.totals.scored > 0 ? `${message} — ${result.totals.scored} lead(s) were rescored first; run again to finish.` : message, 'error');
         return;
       }
       const r = result.totals;
