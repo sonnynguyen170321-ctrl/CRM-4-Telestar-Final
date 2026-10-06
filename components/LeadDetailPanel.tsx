@@ -1383,6 +1383,15 @@ function LeadDetailPanelBody({
 
                 {aiResearchResult ? (
                   <div className="space-y-3.5 pt-2 border-t border-card-border/60">
+                    {/* What the AI had to go on (app/api/ai/enrich-lead): without company research it
+                        only knows the name, title and company, and says so. */}
+                    {aiResearchResult.grounding && (
+                      <p className="text-[11px] text-text-secondary" role="note">
+                        {aiResearchResult.grounding.usedResearch
+                          ? `Based on our company research (${aiResearchResult.grounding.researchedFacts} fact${aiResearchResult.grounding.researchedFacts === 1 ? '' : 's'})${aiResearchResult.grounding.hasTitle ? ', their title' : ''}${aiResearchResult.grounding.hasNotes ? ' and your notes' : ''}. Check before sending.`
+                          : 'No company research on file yet — these are based only on their name, title and company. Run research first for sharper hooks.'}
+                      </p>
+                    )}
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Company Intelligence:</p>
                       <p className="text-xs text-text-primary leading-relaxed bg-bg-main/60 p-2.5 rounded-lg border border-card-border/40 font-normal">

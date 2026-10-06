@@ -273,7 +273,9 @@ export default function InboxPage() {
         const data = await res.json();
         setAiDraftResult(data.data);
       } else {
-        showToast('Failed to generate AI drafts', 'error');
+        // The route says why (e.g. no AI provider available) and never fills in canned drafts.
+        const failure = await res.json().catch(() => null);
+        showToast(failure?.message || failure?.error || 'Failed to generate AI drafts', 'error');
       }
     } catch {
       showToast('Network error generating AI drafts', 'error');
@@ -821,8 +823,16 @@ export default function InboxPage() {
                     </div>
                   </div>
 
+                  {/* An unsubscribe or out-of-office gets advice, not a pitch. */}
+                  {showAiDrafts && aiDraftResult?.guidance && (
+                    <p className="mt-3 pt-2 border-t border-card-border/40 text-[12px] text-text-secondary" role="status">
+                      {aiDraftResult.summary ? `${aiDraftResult.summary} ` : ''}
+                      {aiDraftResult.guidance}
+                    </p>
+                  )}
+
                   {/* Render 3 Calibrated Draft Options */}
-                  {showAiDrafts && aiDraftResult?.drafts && (
+                  {showAiDrafts && aiDraftResult?.drafts && aiDraftResult.drafts.length > 0 && (
                     <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-2 border-t border-card-border/40">
                       {aiDraftResult.drafts.map((d: any) => (
                         <div
