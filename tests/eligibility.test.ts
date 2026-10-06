@@ -225,6 +225,23 @@ describe('evaluateAutomationEligibility', () => {
     expect(result.reason).toBe('no_connected_mailbox');
   });
 
+  // Owner, 2026-10-06: a sequence must name its sending mailboxes; it never falls back to the rep's
+  // own mailbox, which can be on another domain. With none chosen the step waits, it does not turn
+  // into a manual task or tell the rep to connect a mailbox they may well have.
+  it('holds the step, not hands it to the rep, when the sequence has no sending mailbox chosen', () => {
+    const now = new Date('2026-10-06T04:00:00Z');
+    const result = evaluateAutomationEligibility({ ...baseContext, account: null, senderGap: 'none_chosen', now });
+    expect(result.decision).toBe('DEFER');
+    expect(result.reason).toBe('no_sequence_sender');
+    expect(result.nextActionAt?.getTime()).toBe(now.getTime() + 60 * 60 * 1000);
+  });
+
+  it('holds the step when every mailbox the sequence chose is disconnected', () => {
+    const result = evaluateAutomationEligibility({ ...baseContext, account: null, senderGap: 'all_disconnected' });
+    expect(result.decision).toBe('DEFER');
+    expect(result.reason).toBe('sequence_senders_disconnected');
+  });
+
   it('blocks if mailbox is inactive', () => {
     const result = evaluateAutomationEligibility({
       ...baseContext,

@@ -34,8 +34,10 @@ export async function getFloorPulse(tenantId: string): Promise<FloorPulseData> {
     prisma.lead.count({
       where: { tenantId, stage: { notIn: ['won', 'lost'] } },
     }),
+    // Leads whose rep is deactivated — nobody works them. Not `operatingState: 'unassigned'`, the AI
+    // prospecting state every imported lead keeps (see lib/ai/engine/attention-engine.ts).
     prisma.lead.count({
-      where: { tenantId, operatingState: 'unassigned' },
+      where: { tenantId, assignedTo: { isActive: false }, archivedAt: null, stage: { notIn: ['won', 'lost'] } },
     }),
     prisma.lead.count({
       where: { tenantId, nextTaskDue: { lt: new Date() }, stage: { notIn: ['won', 'lost'] } },
@@ -94,7 +96,7 @@ export async function generateDirectorBrief(tenantId: string): Promise<DirectorE
 
   if (pulse.unassignedLeads > 0) {
     risksAtScale.push(
-      `${pulse.unassignedLeads} newly imported leads are unassigned in pool and idling.`
+      `${pulse.unassignedLeads} leads are owned by deactivated reps and idling — reassign them.`
     );
     pendingDecisions.push('Approve lead distribution across available SDR roster.');
   }

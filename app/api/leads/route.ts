@@ -23,6 +23,8 @@ export async function GET(req: NextRequest) {
   const priorityRaw = searchParams.get('priority') || undefined;
   const assignedTo = searchParams.get('assignedTo') || undefined;
   const campaignId = searchParams.get('campaignId') || undefined;
+  // The attention banner links here with `?ownerInactive=true`: leads whose rep is deactivated.
+  const ownerInactive = searchParams.get('ownerInactive') === 'true';
   const source = searchParams.get('source') || undefined;
   const importListName = searchParams.get('importListName') || undefined;
   const emailValidation = searchParams.get('emailValidation') || undefined;
@@ -88,6 +90,7 @@ export async function GET(req: NextRequest) {
         stage: stageCheck?.success ? stageCheck.data : undefined,
         priority: priorityCheck?.success ? priorityCheck.data : undefined,
         assignedTo,
+        ownerInactive,
         campaignId,
         operatingState,
         icpQualification,

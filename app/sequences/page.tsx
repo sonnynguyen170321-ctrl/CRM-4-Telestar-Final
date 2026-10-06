@@ -1,6 +1,7 @@
 'use client';
 
 import { SequenceSendersPanel } from '@/components/sequences/SequenceSendersPanel';
+import EmailLogTable from '@/components/email/EmailLogTable';
 import { SequenceSharingPanel } from '@/components/sequences/SequenceSharingPanel';
 import { SequenceTrackingPanel } from '@/components/sequences/SequenceTrackingPanel';
 import { SequencePerformancePanel } from '@/components/sequences/SequencePerformancePanel';
@@ -101,7 +102,7 @@ export default function SequencesPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
 
   // Enrollment Dashboard State
-  const [activeTab, setActiveTab] = useState<'builder' | 'enrollments' | 'performance' | 'activity' | 'settings'>('builder');
+  const [activeTab, setActiveTab] = useState<'builder' | 'enrollments' | 'performance' | 'activity' | 'sends' | 'settings'>('builder');
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [selectedEnrollments, setSelectedEnrollments] = useState<string[]>([]);
   const [enrollmentFilters, setEnrollmentFilters] = useState({ step: '', status: '' });
@@ -670,6 +671,12 @@ export default function SequencesPage() {
                 Activity
               </button>
               <button
+                onClick={() => setActiveTab('sends')}
+                className={`pb-2 text-xs font-semibold transition-colors ${activeTab === 'sends' ? 'text-brand-red border-b-2 border-brand-red' : 'text-text-secondary hover:text-text-primary'}`}
+              >
+                Sends
+              </button>
+              <button
                 onClick={() => setActiveTab('settings')}
                 className={`pb-2 text-xs font-semibold transition-colors ${activeTab === 'settings' ? 'text-brand-red border-b-2 border-brand-red' : 'text-text-secondary hover:text-text-primary'}`}
               >
@@ -682,6 +689,8 @@ export default function SequencesPage() {
             <SequencePerformancePanel sequenceId={selectedSeq.id} />
           ) : activeTab === 'activity' ? (
             <SequenceActivityPanel sequenceId={selectedSeq.id} />
+          ) : activeTab === 'sends' ? (
+            <EmailLogTable sequenceId={selectedSeq.id} />
           ) : activeTab === 'settings' ? (
             <div className="space-y-4">
               <SequenceSharingPanel

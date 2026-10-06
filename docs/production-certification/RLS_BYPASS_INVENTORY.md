@@ -38,7 +38,7 @@ The Prisma extension in `lib/prisma.ts` injects `where: { tenantId }` into every
 
 | File | Line(s) | Why this is safe |
 |---|---|---|
-| `app/api/ai/attention/route.ts` | 21 | Session tenant from `requireAuth`. The scope wraps `getWhatNeedsAttention`, which filters every query in `lib/ai/engine/attention-engine.ts` by `tenantId` explicitly — overdue leads, unassigned leads and paused mailboxes all carry it. |
+| `app/api/ai/attention/route.ts` | 23 | Session tenant from `requireAuth`. The scope wraps `getWhatNeedsAttention`, which filters every query in `lib/ai/engine/attention-engine.ts` by `tenantId` explicitly — overdue leads, unassigned leads and paused mailboxes all carry it. |
 | `app/api/ai/daily-briefing/route.ts` | 44 | Session tenant from `requireAuth`. All three reads inside the scope — `task.findMany`, `lead.findMany`, `activity.findMany` — name `tenantId` in their `where` explicitly. |
 | `app/api/ai/nba/route.ts` | 32 | Session tenant from `requireAuth`. The scope wraps `calculateNextBestAction`, which reads `lead.findFirst({ where: { id: leadId, tenantId } })` — the id is paired with the tenant, so a foreign id resolves to nothing. |
 | `app/api/cron/email-health/route.ts` | 30 | System context (`tenantId: 'system'`), and deliberately cross-tenant: the job computes email health across every tenant. Reachable only with the `CRON_SECRET` bearer token, never from a user session. |

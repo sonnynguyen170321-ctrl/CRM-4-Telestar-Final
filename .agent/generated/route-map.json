@@ -29,6 +29,7 @@
     "/docs",
     "/docs/typography",
     "/email-health",
+    "/email-log",
     "/inbox",
     "/lead-filter",
     "/leadgen",
@@ -123,6 +124,7 @@
     "/api/email-health/domains/[domain]/check",
     "/api/email-health/export/csv",
     "/api/email-health/overview",
+    "/api/email-log",
     "/api/email/accounts",
     "/api/email/accounts/[id]",
     "/api/email/oauth/google",
@@ -245,6 +247,6 @@
     "/api/work-orders",
     "/api/work-orders/[id]/dispatch"
   ],
-  "pageCount": 37,
-  "apiRouteCount": 198
+  "pageCount": 38,
+  "apiRouteCount": 199
 }

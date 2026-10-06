@@ -144,7 +144,7 @@ describe('Phase 8a — task execution lock', () => {
         });
       }
 
-      await prisma.emailAccount.create({
+      const mailbox = await prisma.emailAccount.create({
         data: {
           tenantId,
           userId: user.id,
@@ -154,6 +154,10 @@ describe('Phase 8a — task execution lock', () => {
           dailyCap: 100,
           dailySendCount: 0,
         },
+      });
+      // A sequence sends only from the mailboxes it names (lib/sequences/sender.ts, 2026-10-06).
+      await prisma.sequenceSender.create({
+        data: { tenantId, sequenceId, emailAccountId: mailbox.id, addedById: user.id },
       });
 
       const lead = await prisma.lead.create({
@@ -296,8 +300,9 @@ describe('Phase 8a — task execution lock', () => {
 
   it('sends nothing when the same occurrence advanced past this step before the send', async () => {
     await inTenant(async () => {
-      // The entry validation passes; the cadence then advances while eligibility work runs.
-      const original = prisma.emailAccount.findFirst.bind(prisma.emailAccount);
+      // The entry validation passes; the cadence then advances while eligibility work runs. The
+      // hook is the sender lookup — a sequence resolves its mailbox from its own senders now.
+      const original = prisma.sequenceSender.findMany.bind(prisma.sequenceSender);
       const advanceThenRead = async (args: unknown) => {
         await prisma.sequenceEnrollment.update({
           where: { id: enrollmentId },
@@ -306,7 +311,7 @@ describe('Phase 8a — task execution lock', () => {
         return original(args as Parameters<typeof original>[0]);
       };
       const spy = vi
-        .spyOn(prisma.emailAccount, 'findFirst')
+        .spyOn(prisma.sequenceSender, 'findMany')
         .mockImplementation(advanceThenRead as never);
 
       const result = await handleExecuteTask({ taskId, expectedEnrollmentId: enrollmentId });

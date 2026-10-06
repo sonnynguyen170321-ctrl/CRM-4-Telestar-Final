@@ -62,6 +62,8 @@ vi.mock('@/lib/prisma', () => ({
       findFirst: (...args: unknown[]) => mockEnrollmentFindFirst(...args),
       findMany: (...args: unknown[]) => mockEnrollmentFindMany(...args),
       update: (...args: unknown[]) => mockEnrollmentUpdate(...args),
+      // The sender choice is fixed on the enrollment with a compare-and-set (lib/sequences/sender.ts).
+      updateMany: async () => ({ count: 1 }),
     },
     outboundMessage: {
       upsert: (...args: unknown[]) => mockOutboundUpsert(...args),
@@ -79,7 +81,13 @@ vi.mock('@/lib/prisma', () => ({
     notification: {
       create: (...args: unknown[]) => mockNotificationCreate(...args),
     },
-    sequenceSender: { findMany: async () => [] },
+    // The sequence's one sender is the mailbox the test arranged (lib/sequences/sender.ts, 2026-10-06).
+    sequenceSender: {
+      findMany: async () => {
+        const account = await mockAccountFindFirst();
+        return account ? [{ emailAccountId: account.id, emailAccount: account, createdAt: new Date(0) }] : [];
+      },
+    },
     // The task's own sequence (workers/sequence.ts reads it for eligibility, not the lead's pointer).
     sequence: { findUnique: async () => ({ id: 'seq-1', isActive: true, isArchived: false, sendOnWeekends: false }) },
     emailAccount: {

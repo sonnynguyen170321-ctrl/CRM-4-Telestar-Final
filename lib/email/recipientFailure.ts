@@ -52,7 +52,9 @@ const RECIPIENT_PHRASES = [
   /invalid recipient/i,
   /mailbox (is )?(full|disabled|not found|does not exist|over quota)/i,
   /quota exceeded for (this )?(mailbox|recipient)/i,
-  /account (is )?(disabled|inactive|closed)/i,
+  // Not `account (is )?(disabled|inactive|closed)`: without a code it names no side, and is as
+  // often the *sending* mailbox (revoked, suspended, not activated). Read as recipient, one broken
+  // sender suppressed every prospect it touched (2026-10-06). A disabled recipient carries 5.2.1.
 ];
 
 export type RecipientVerdict = 'recipient' | 'sender';

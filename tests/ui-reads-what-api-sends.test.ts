@@ -59,8 +59,11 @@ describe('the attention banner links to a filter the leads list honours', () => 
   const leadsPage = read('app', 'leads', 'page.tsx');
   const hook = read('lib', 'hooks', 'useLeads.ts');
 
-  it('points at ?operatingState=unassigned, not the tab that never existed', () => {
-    expect(engine).toContain('/leads?operatingState=unassigned');
+  // Since 2026-10-06 the banner counts leads whose rep is deactivated and links to
+  // `?ownerInactive=true` (tests/attention-unassigned-leads.test.ts); the operatingState filter
+  // below still stands.
+  it('points at ?ownerInactive=true, not the tab that never existed', () => {
+    expect(engine).toContain('/leads?ownerInactive=true');
     expect(engine).not.toMatch(/targetUrl:\s*`\/leads\?tab=pool`/);
   });
 

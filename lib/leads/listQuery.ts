@@ -8,6 +8,11 @@ export interface LeadListFilters {
   stage?: z.infer<typeof leadStage>;
   priority?: z.infer<typeof priority>;
   assignedTo?: string;
+  /**
+   * Leads whose rep is deactivated: still owned, worked by nobody. Every Lead has a rep
+   * (assignedToId is required), so this — not a null owner — is a lead that needs reassigning.
+   */
+  ownerInactive?: boolean;
   campaignId?: string;
   /**
    * The prospect lifecycle state. `unassigned` is what the attention banner counts and links
@@ -58,6 +63,7 @@ export function buildLeadListWhere(
   if (filters.stage) clauses.push({ stage: filters.stage });
   if (filters.priority) clauses.push({ crmPriorityScore: filters.priority });
   if (filters.assignedTo) clauses.push({ assignedToId: filters.assignedTo });
+  if (filters.ownerInactive) clauses.push({ assignedTo: { isActive: false } });
   if (filters.campaignId) clauses.push({ campaignId: filters.campaignId });
   if (filters.operatingState) clauses.push({ operatingState: filters.operatingState });
   if (filters.icpQualification) clauses.push({ icpQualification: filters.icpQualification });

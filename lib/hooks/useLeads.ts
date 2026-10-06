@@ -68,6 +68,10 @@ interface LeadFilters {
   stage?: string;
   priority?: string;
   assignedTo?: string;
+  /** A campaign id, or 'all'. */
+  campaignId?: string;
+  /** Only leads whose rep is deactivated — the attention banner's "Assign Leads" list. */
+  ownerInactive?: boolean;
   /** Prospect lifecycle state — `unassigned` is the one the attention banner deep-links to. */
   operatingState?: string;
   /** ICP verdict filter — `qualified` / `needs_review` / `unqualified` — or `unscored`. */
@@ -83,12 +87,14 @@ interface LeadFilters {
   archived?: boolean;
 }
 
-function buildQueryString(filters: LeadFilters): string {
+export function buildLeadsQueryString(filters: LeadFilters): string {
   const params = new URLSearchParams();
   if (filters.search) params.set('search', filters.search);
   if (filters.stage && filters.stage !== 'all') params.set('stage', filters.stage);
   if (filters.priority && filters.priority !== 'all') params.set('priority', filters.priority);
   if (filters.assignedTo && filters.assignedTo !== 'all') params.set('assignedTo', filters.assignedTo);
+  if (filters.campaignId && filters.campaignId !== 'all') params.set('campaignId', filters.campaignId);
+  if (filters.ownerInactive) params.set('ownerInactive', 'true');
   if (filters.operatingState) params.set('operatingState', filters.operatingState);
   if (filters.icp === 'unscored') params.set('icpUnscored', 'true');
   else if (filters.icp && filters.icp !== 'all') params.set('icpQualification', filters.icp);
@@ -116,7 +122,7 @@ export function useLeads(filters: LeadFilters) {
   return useQuery<LeadsPage>({
     queryKey: ['leads', filters],
     queryFn: async () => {
-      const qs = buildQueryString(filters);
+      const qs = buildLeadsQueryString(filters);
       const res = await fetch(`/api/leads?${qs}`);
       if (!res.ok) throw new Error(await readApiError(res, 'Failed to fetch leads'));
       const data = await res.json();

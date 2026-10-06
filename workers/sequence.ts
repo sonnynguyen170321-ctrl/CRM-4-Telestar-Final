@@ -17,7 +17,7 @@ import {
 } from '@/lib/sequences/engine';
 import { pauseEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
 import { findSuppression } from '@/lib/email/suppress';
-import { resolveSendingMailbox } from '@/lib/sequences/sender';
+import { resolveSendingMailbox, sequenceSenderGap } from '@/lib/sequences/sender';
 import { enrollmentStepTaskId } from '@/lib/sequences/identity';
 import { renderTemplate } from '@/lib/templates/render';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
@@ -37,6 +37,9 @@ const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
  * mailbox, a missing template or a paused campaign all looked the same — overdue. This is
  * visibility only, so a failed write must never fail a send or re-run one.
  */
+/** Holds rechecked hourly until someone acts; see the deferral audit below. */
+const SENDER_GAP_HOLDS = new Set(['no_sequence_sender', 'sequence_senders_disconnected']);
+
 async function recordHold(enrollmentId: string | null | undefined, reason: string | null): Promise<void> {
   if (!enrollmentId) return;
   try {
@@ -300,14 +303,15 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     }
   }
 
-  // Which mailbox sends: the one this occurrence already uses, else one of the sequence's senders,
-  // else the owner's oldest — see lib/sequences/sender.ts.
+  // Which mailbox sends: the one this occurrence already uses, else one of the sequence's senders —
+  // never the rep's own (lib/sequences/sender.ts). With none, `senderGap` says why and the step waits.
   const account = await resolveSendingMailbox({
     tenantId: task.tenantId,
     enrollmentId: expectedEnrollmentId ?? null,
     sequenceId: task.sequenceId,
     ownerUserId: task.lead.assignedToId,
   });
+  const senderGap = !account && task.sequenceId ? await sequenceSenderGap(task.tenantId, task.sequenceId) : null;
 
   // Check suppression
   const suppressed = await findSuppression({ tenantId: task.tenantId, email: task.lead.email, campaignId: task.lead.campaignId });
@@ -336,6 +340,7 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     template: stepInfo?.template,
     account,
     isSuppressed: Boolean(suppressed),
+    senderGap,
     now: new Date(),
     ignoreSchedule: runNow,
   });
@@ -374,7 +379,13 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     // Audit the deferral so the reason is visible in the lead timeline rather than only
     // in worker logs. Activity.userId is a real FK, so an unassigned lead gets no row —
     // there is no system user to attribute it to.
-    if (task.lead.assignedToId) {
+    //
+    // A step held for want of a sequence mailbox is rechecked hourly until one is chosen; writing
+    // a row on every recheck filled lead timelines with one line an hour. Only the first hold with
+    // that reason is recorded — the enrollment still carries it (holdReason) for the table.
+    const repeatedSenderHold =
+      SENDER_GAP_HOLDS.has(eligibility.reason) && enrollment?.holdReason === eligibility.reason;
+    if (task.lead.assignedToId && !repeatedSenderHold) {
       await prisma.activity.create({
         data: {
           type: 'sequence_deferred',

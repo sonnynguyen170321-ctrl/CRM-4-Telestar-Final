@@ -164,9 +164,12 @@ vi.mock('@/lib/prisma', () => ({
     emailAccount: {
       findFirst: async ({ where }: Row) => store.accounts.find((a) => matches(a, where)) ?? null,
     },
-    // No sequence in this suite configures senders, so the mailbox resolver falls through to the
-    // lead owner's mailbox (lib/sequences/sender.ts).
-    sequenceSender: { findMany: async () => [] },
+    // Every account in the store is a sender of the sequence: a sequence sends only from the
+    // mailboxes it names (lib/sequences/sender.ts, 2026-10-06), never the rep's own.
+    sequenceSender: {
+      findMany: async () =>
+        store.accounts.map((a) => ({ emailAccountId: a.id, emailAccount: a, createdAt: new Date(0) })),
+    },
     suppressionEntry: { findFirst: async () => store.suppression },
     sequenceStepCopy: {
       findUnique: async ({ where }: Row) => {
@@ -600,16 +603,16 @@ describe('interruptions — a queued follow-up refuses on its own', () => {
     noSecondContact(await executeStep(2), { status: 'skipped', reason: 'campaign_paused' });
   });
 
-  it('holds rather than stops when the mailbox is unavailable, and tells the SDR', async () => {
+  it('holds rather than stops when the sequence has no mailbox to send from', async () => {
     await afterFirstEmail();
-    store.accounts = []; // the SDR disconnected their mailbox
+    store.accounts = []; // the sequence's sending mailbox is gone
 
     const result = await executeStep(2);
 
-    expect(result).toMatchObject({ status: 'manual_action_required', reason: 'no_connected_mailbox' });
+    // Held with its reason on the enrollment (the sequence page warns to choose a mailbox); not the
+    // rep's manual task, and never the rep's own mailbox.
+    expect(result).toMatchObject({ status: 'deferred', reason: 'no_sequence_sender' });
     expect(store.sendJobs).toHaveLength(1);
-    // A held step is worth interrupting a human for; a stopped one is not.
-    expect(store.notifications.some((n) => n.type === 'sequence_error')).toBe(true);
     // The cadence is still on step 2 — this is a hold, not a terminal state.
     expect(store.enrollments.get(ENROLLMENT_ID)!.currentStep).toBe(2);
   });

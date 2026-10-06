@@ -18,6 +18,9 @@ import { calculateNextActionAt } from './scheduling';
 import { resolveTimezone } from './timezone';
 import { buildJitterSeed } from './jitter';
 
+/** How often a step held for want of a sequence mailbox looks again. */
+const SENDER_GAP_RECHECK_MS = 60 * 60 * 1000;
+
 /**
  * The sequence's weekend rule (lib/sequences/rules.ts). Inline rather than imported: this module
  * is a pure decision function and stays free of database imports.
@@ -127,8 +130,17 @@ export function evaluateAutomationEligibility(
       return { decision: 'MANUAL_REQUIRED', reason: 'missing_template' };
     }
 
-    // Mailbox missing
+    // Mailbox missing. A sequence sends only from the mailboxes it names (owner, 2026-10-06); with
+    // none to use the step waits for a manager to choose one — it does not become the rep's manual
+    // task, and it rechecks hourly so it goes as soon as a mailbox is chosen or reconnected.
     if (!ctx.account) {
+      if (ctx.senderGap) {
+        return {
+          decision: 'DEFER',
+          reason: ctx.senderGap === 'none_chosen' ? 'no_sequence_sender' : 'sequence_senders_disconnected',
+          nextActionAt: new Date(now.getTime() + SENDER_GAP_RECHECK_MS),
+        };
+      }
       return { decision: 'MANUAL_REQUIRED', reason: 'no_connected_mailbox' };
     }
 

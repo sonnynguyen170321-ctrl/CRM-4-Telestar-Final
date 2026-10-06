@@ -150,6 +150,11 @@ export interface AutomationEvaluationContext {
   /** Recipient suppression match (if checked). */
   isSuppressed?: boolean;
   /**
+   * Why a sequence step has no mailbox (lib/sequences/sender.ts): the sequence chose none, or every
+   * one it chose is disconnected. A sequence never falls back to the rep's own mailbox.
+   */
+  senderGap?: 'none_chosen' | 'all_disconnected' | null;
+  /**
    * A person asked for this step to go now (Run now). The send window and the weekend rule are
    * the schedule they are overriding; every other check — suppression, pause, quota — still holds.
    */

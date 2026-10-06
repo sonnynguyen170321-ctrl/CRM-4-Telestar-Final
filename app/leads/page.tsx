@@ -193,6 +193,9 @@ export default function LeadsPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [stageFilter, setStageFilter] = useState<string>('all');
   const [sdrFilter, setSdrFilter] = useState<string>('all');
+  // The campaigns this viewer can see (GET /api/campaigns is scoped), for the campaign filter.
+  const [campaignFilter, setCampaignFilter] = useState<string>('all');
+  const [campaignOptions, setCampaignOptions] = useState<{ id: string; name: string }[]>([]);
   const [sourceFilter, setSourceFilter] = useState<string>('');
   const [importListFilter, setImportListFilter] = useState<string>('');
   const [emailValidationFilter, setEmailValidationFilter] = useState<string>('all');
@@ -220,6 +223,8 @@ export default function LeadsPage() {
   // pipeline and no way to see the leads the banner had just counted. Read once on mount;
   // the chip below clears it.
   const [operatingStateFilter, setOperatingStateFilter] = useState<string>('');
+  // Leads whose rep is deactivated: where the attention banner's "Assign Leads" lands.
+  const [ownerInactiveOnly, setOwnerInactiveOnly] = useState(false);
   const [icpFilter, setIcpFilter] = useState<string>('all');
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -227,6 +232,19 @@ export default function LeadsPage() {
     if (fromUrl) setOperatingStateFilter(fromUrl);
     const icp = params.get('icp');
     if (icp) setIcpFilter(icp);
+    const campaign = params.get('campaignId');
+    if (campaign) setCampaignFilter(campaign);
+    if (params.get('ownerInactive') === 'true') setOwnerInactiveOnly(true);
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/campaigns')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: unknown) => {
+        if (Array.isArray(rows)) setCampaignOptions(rows.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })));
+      })
+      // The filter is a convenience; without the list the page still works, just without it.
+      .catch(() => setCampaignOptions([]));
   }, []);
 
   const filters = {
@@ -235,6 +253,8 @@ export default function LeadsPage() {
     stage: stageFilter,
     priority: priorityFilter,
     assignedTo: sdrFilter,
+    campaignId: campaignFilter,
+    ownerInactive: ownerInactiveOnly,
     operatingState: operatingStateFilter || undefined,
     icp: icpFilter,
     source: sourceFilter || undefined,
@@ -569,9 +589,10 @@ export default function LeadsPage() {
 
   const sdrUsers = users.filter((u) => u.role === 'sdr');
 
-  const anyExtraFilter = sdrFilter !== 'all' || icpFilter !== 'all' || sourceFilter || importListFilter || emailValidationFilter !== 'all' || countryFilter || industryFilter || tagFilter || dateFrom || dateTo;
+  const anyExtraFilter = sdrFilter !== 'all' || campaignFilter !== 'all' || icpFilter !== 'all' || sourceFilter || importListFilter || emailValidationFilter !== 'all' || countryFilter || industryFilter || tagFilter || dateFrom || dateTo;
   const extraFilterCount = [
     sdrFilter !== 'all',
+    campaignFilter !== 'all',
     icpFilter !== 'all',
     !!sourceFilter,
     !!importListFilter,
@@ -586,6 +607,7 @@ export default function LeadsPage() {
     setPriorityFilter('all');
     setStageFilter('all');
     setSdrFilter('all');
+    setCampaignFilter('all');
     setSearchQuery('');
     setSourceFilter('');
     setImportListFilter('');
@@ -596,6 +618,7 @@ export default function LeadsPage() {
     setDateFrom('');
     setDateTo('');
     setOperatingStateFilter('');
+    setOwnerInactiveOnly(false);
     setIcpFilter('all');
   };
 
@@ -768,7 +791,19 @@ export default function LeadsPage() {
             </button>
           )}
 
-          {(priorityFilter !== 'all' || stageFilter !== 'all' || searchQuery || anyExtraFilter || operatingStateFilter) && (
+          {ownerInactiveOnly && (
+            <button
+              type="button"
+              onClick={() => setOwnerInactiveOnly(false)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-brand-red/30 bg-brand-red/5 px-2.5 py-1 text-xs font-semibold text-brand-red hover:bg-brand-red/10 focus-ring whitespace-nowrap"
+              aria-label="Showing leads whose rep is deactivated only — remove this filter"
+            >
+              Rep deactivated only
+              <span aria-hidden="true">×</span>
+            </button>
+          )}
+
+          {(priorityFilter !== 'all' || stageFilter !== 'all' || searchQuery || anyExtraFilter || operatingStateFilter || ownerInactiveOnly) && (
             <button
               onClick={clearAllFilters}
               className="text-xs font-mono text-brand-red hover:underline whitespace-nowrap"
@@ -781,6 +816,19 @@ export default function LeadsPage() {
         {/* Extra filters row */}
         {showExtraFilters && (
           <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-card-border/80">
+            {campaignOptions.length > 0 && (
+              <select
+                value={campaignFilter}
+                onChange={(e) => setCampaignFilter(e.target.value)}
+                aria-label="Filter by campaign"
+                className="bg-bg-main dark:bg-zinc-900 border border-card-border dark:border-zinc-700 rounded-lg text-xs px-2.5 py-1.5 text-text-primary shadow-2xs focus:outline-none focus:border-brand-red cursor-pointer font-medium max-w-56"
+              >
+                <option value="all">All Campaigns</option>
+                {campaignOptions.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
             {currentRole !== 'sdr' && sdrUsers.length > 0 && (
               <select
                 value={sdrFilter}
