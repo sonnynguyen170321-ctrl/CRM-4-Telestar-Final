@@ -154,6 +154,7 @@ export const createSequenceSchema = z.object({
   sendOnWeekends: z.boolean().optional(),
   stopOnCompanyReply: z.boolean().optional(),
   excludeLeadsInOtherSequences: z.boolean().optional(),
+  sendFirstStepImmediately: z.boolean().optional(),
   /** Visible to the whole tenant (lib/visibility.ts). Only a manager may set it. */
   isShared: z.boolean().optional(),
   steps: z.array(sequenceStepSchema).max(50).optional(),

@@ -20,7 +20,10 @@ export function describeStepWait(input: {
   /** The previous step is an email the CRM sends itself, rather than a task a rep completes. */
   previousIsAutomatic: boolean;
   sendOnWeekends: boolean;
+  /** Step 1 of a sequence that sends it on enrollment (`sendsImmediatelyOnEnroll`). */
+  sendsImmediately?: boolean;
 }): string {
+  if (input.sendsImmediately) return 'Sent as soon as the lead is enrolled, even outside the send window or on a weekend.';
   const anchor =
     input.previousOrder === null
       ? 'the lead is enrolled'

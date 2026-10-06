@@ -8,7 +8,7 @@ import { calculateNextActionAt } from '@/lib/automation/scheduling';
 import { resolveTimezone } from '@/lib/automation/timezone';
 import { buildJitterSeed } from '@/lib/automation/jitter';
 import { prisma } from '@/lib/prisma';
-import { businessDayPolicyFor } from '@/lib/sequences/rules';
+import { businessDayPolicyFor, sendsImmediatelyOnEnroll } from '@/lib/sequences/rules';
 
 /**
  * Cadence preview for the sequence builder (spec §28).
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     const saved = body.sequenceId && user.tenantId
       ? await prisma.sequence.findFirst({
           where: { id: body.sequenceId, tenantId: user.tenantId },
-          select: { sendOnWeekends: true },
+          select: { sendOnWeekends: true, sendFirstStepImmediately: true },
         })
       : null;
     const businessDayPolicy = businessDayPolicyFor(saved);
@@ -72,14 +72,22 @@ export async function POST(req: NextRequest) {
         leadId: body.leadId,
       });
 
+      // Step 1 of a sequence that sends it on enrollment: due at once, as `engine.ts` schedules it.
+      const immediate = sendsImmediatelyOnEnroll(saved, {
+        order,
+        channel: step.channel,
+        autoComplete: step.autoComplete,
+        delayDays: step.delayDays ?? 1,
+        delayHours: step.delayHours,
+      });
       const sched = calculateNextActionAt({
         baseAt: cursor,
-        delayDays: step.delayDays ?? 1,
-        delayHours: step.delayHours ?? 0,
-        sendWindowStartMinutes: step.sendWindowStartMinutes ?? null,
-        sendWindowEndMinutes: step.sendWindowEndMinutes ?? null,
+        delayDays: immediate ? 0 : step.delayDays ?? 1,
+        delayHours: immediate ? 0 : step.delayHours ?? 0,
+        sendWindowStartMinutes: immediate ? null : step.sendWindowStartMinutes ?? null,
+        sendWindowEndMinutes: immediate ? null : step.sendWindowEndMinutes ?? null,
         timezone,
-        businessDayPolicy,
+        businessDayPolicy: immediate ? 'none' : businessDayPolicy,
         deterministicSeed: seed,
       });
 

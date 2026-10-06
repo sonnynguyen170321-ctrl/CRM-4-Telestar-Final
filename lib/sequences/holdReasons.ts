@@ -12,6 +12,9 @@ const HOLD_LABELS: Record<string, string> = {
   outside_send_window: 'Outside the send window',
   weekend_adjustment: 'Weekend — goes on the next weekday',
   daily_quota_exhausted: 'Mailbox reached today’s limit — goes tomorrow',
+  mailbox_hourly_cap: 'Mailbox reached its hourly limit — goes in the next hour',
+  provider_hourly_limit: 'The mail provider’s hourly limit was reached — goes later by itself',
+  provider_daily_limit: 'The mail provider’s daily limit was reached — goes tomorrow',
   mailbox_paused: 'Sending is paused on this mailbox',
   inbox_health_critical: 'Held: mailbox health is critical',
   // Needs a person.
@@ -39,6 +42,7 @@ const HOLD_LABELS: Record<string, string> = {
 /** Reasons that clear themselves; everything else needs someone to change something. */
 const SELF_CLEARING = new Set([
   'before_send_window', 'after_send_window', 'outside_send_window', 'weekend_adjustment', 'daily_quota_exhausted',
+  'mailbox_hourly_cap', 'provider_hourly_limit', 'provider_daily_limit',
 ]);
 
 export function describeHold(reason: string | null | undefined): { label: string; needsAction: boolean } | null {

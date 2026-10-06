@@ -518,6 +518,8 @@ describe('handleImportChunk', () => {
         taskId: 'sequence-enrollment-import-lead-1-seq-1-enrollment-step1',
         strictScheduling: true,
         expectedEnrollmentId: 'import-lead-1-seq-1-enrollment',
+        // An import is an enrollment: "send step 1 immediately" may apply (lib/sequences/rules.ts).
+        onEnrollment: true,
       })
     );
   });

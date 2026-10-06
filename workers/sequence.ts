@@ -17,6 +17,7 @@ import {
 } from '@/lib/sequences/engine';
 import { pauseEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
 import { findSuppression } from '@/lib/email/suppress';
+import { sendsImmediatelyOnEnroll } from '@/lib/sequences/rules';
 import { resolveSendingMailbox, sequenceSenderGap } from '@/lib/sequences/sender';
 import { enrollmentStepTaskId } from '@/lib/sequences/identity';
 import { renderTemplate } from '@/lib/templates/render';
@@ -39,6 +40,12 @@ const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
  */
 /** Holds rechecked hourly until someone acts; see the deferral audit below. */
 const SENDER_GAP_HOLDS = new Set(['no_sequence_sender', 'sequence_senders_disconnected']);
+
+/** The task is due the moment it was created: how an enrollment-time immediate step is scheduled. */
+const ENROLLMENT_SCHEDULE_TOLERANCE_MS = 60_000;
+function scheduledAtEnrollment(createdAt: Date, dueDate: Date | null): boolean {
+  return Boolean(dueDate) && Math.abs(dueDate!.getTime() - createdAt.getTime()) <= ENROLLMENT_SCHEDULE_TOLERANCE_MS;
+}
 
 async function recordHold(enrollmentId: string | null | undefined, reason: string | null): Promise<void> {
   if (!enrollmentId) return;
@@ -321,11 +328,17 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
   // active sequence while this task's own sequence was archived or paused (or the reverse).
   const taskSequence = await prisma.sequence.findUnique({
     where: { id: task.sequenceId! },
-    select: { id: true, isActive: true, isArchived: true, sendOnWeekends: true },
+    select: { id: true, isActive: true, isArchived: true, sendOnWeekends: true, sendFirstStepImmediately: true },
   });
 
   // Someone pressed Run now on this step a moment ago: the schedule is what they are overriding.
   const runNow = runNowRequested(task.runNowRequestedAt);
+  // The sequence sends step 1 the moment a lead is enrolled (lib/sequences/rules.ts). Without this
+  // the job scheduled for "now" would be deferred here to the next window anyway. Only while the
+  // task is still due when it was created, i.e. scheduled at enrollment: a resume or a cap
+  // deferral moves the due date, and from then on the send window applies again.
+  const immediateStep =
+    sendsImmediatelyOnEnroll(taskSequence, stepInfo) && scheduledAtEnrollment(task.createdAt, task.dueDate);
 
   // Evaluate central eligibility decision (spec §11–13)
   const eligibility = evaluateAutomationEligibility({
@@ -342,7 +355,7 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     isSuppressed: Boolean(suppressed),
     senderGap,
     now: new Date(),
-    ignoreSchedule: runNow,
+    ignoreSchedule: runNow || immediateStep,
   });
 
   // Handle decisions

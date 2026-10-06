@@ -16,6 +16,7 @@ const mockNotificationCreate = vi.fn();
 const mockExecuteRaw = vi.fn();
 const mockServiceSend = vi.fn();
 const mockEnqueueReschedule = vi.fn();
+const mockEnrollmentUpdateMany = vi.fn();
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -42,6 +43,9 @@ vi.mock('@/lib/prisma', () => ({
     notification: {
       findFirst: (...args: unknown[]) => mockNotificationFindFirst(...args),
       create: (...args: unknown[]) => mockNotificationCreate(...args),
+    },
+    sequenceEnrollment: {
+      updateMany: (...args: unknown[]) => mockEnrollmentUpdateMany(...args),
     },
     $executeRaw: (...args: unknown[]) => mockExecuteRaw(...args),
   },
@@ -773,6 +777,32 @@ describe('handleEmailSend — exactly-once delivery', () => {
         where: { id: 'acc-1', tenantId: TENANT_ID },
         data: { dailySendCount: 80, dailySendDate: expect.any(Date) },
       });
+    });
+
+    // The enrollments table showed these as "Overdue" with no reason (2026-10-06).
+    it('records on the enrollment that the step waits for the provider', async () => {
+      arrangeLimit(new Error('550 5.4.6 Sender Hourly Quota Exceeded'));
+
+      await handleEmailSend(buildPayload({
+        sequenceStepRef: { taskId: 't-1', leadId: 'lead-1', actorUserId: 'user-1', sequenceId: 's-1', sequenceStep: 1, enrollmentId: 'enr-1' },
+      }));
+
+      expect(mockEnrollmentUpdateMany).toHaveBeenCalledWith({
+        where: { id: 'enr-1', tenantId: TENANT_ID },
+        data: { holdReason: 'provider_hourly_limit' },
+      });
+    });
+
+    it('never fails the deferral because the hold reason could not be written', async () => {
+      arrangeLimit(new Error('550 5.4.6 Sender Hourly Quota Exceeded'));
+      mockEnrollmentUpdateMany.mockRejectedValueOnce(new Error('db down'));
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const result = await handleEmailSend(buildPayload({
+        sequenceStepRef: { taskId: 't-1', leadId: 'lead-1', actorUserId: 'user-1', sequenceId: 's-1', sequenceStep: 1 },
+      }));
+
+      expect(result).toMatchObject({ deferred: true, reason: 'provider_limit' });
     });
 
     it('never marks the message failed or stops the cadence', async () => {
