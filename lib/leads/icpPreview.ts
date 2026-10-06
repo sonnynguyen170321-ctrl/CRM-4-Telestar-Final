@@ -34,6 +34,11 @@ export type IcpPreviewResult = {
   after: Counts;
   /** "from→to" for every lead whose verdict would change; "unscored" when it had none. */
   moves: Record<string, number>;
+  /**
+   * Leads a person has given a verdict: a new score cannot move them (lib/leads/effectiveQualification.ts),
+   * so they count the same before and after and are never in `moves`.
+   */
+  pinned: number;
   examples: Array<{
     leadId: string;
     name: string;
@@ -58,6 +63,7 @@ export async function previewIcpRules(input: {
     lastName: true,
     icpQualification: true,
     icpFitScore: true,
+    qualificationOverride: true,
   } as const;
 
   let scope: IcpPreviewResult['scope'] = 'icp_campaigns';
@@ -80,9 +86,16 @@ export async function previewIcpRules(input: {
   const before: Before = { qualified: 0, needs_review: 0, unqualified: 0, unscored: 0 };
   const after: Counts = { qualified: 0, needs_review: 0, unqualified: 0 };
   const moves: Record<string, number> = {};
+  let pinned = 0;
   const scored: Array<IcpPreviewResult['examples'][number] & { change: number }> = [];
 
   for (const lead of leads) {
+    if (lead.qualificationOverride) {
+      before[lead.qualificationOverride] += 1;
+      after[lead.qualificationOverride] += 1;
+      pinned += 1;
+      continue;
+    }
     const evidence = buildScoringEvidence(toScorable(lead));
     const verdict = deriveIcpVerdict(assessIcpRulesV2(evidence, rules), rules, evidence);
 
@@ -120,5 +133,5 @@ export async function previewIcpRules(input: {
     .slice(0, EXAMPLE_COUNT)
     .map(({ change: _change, ...example }) => example);
 
-  return { sampleSize: leads.length, scope, before, after, moves, examples };
+  return { sampleSize: leads.length, scope, before, after, moves, pinned, examples };
 }

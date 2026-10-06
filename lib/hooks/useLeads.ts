@@ -22,6 +22,8 @@ export interface Lead {
   operatingState?: string | null;
   icpFitScore?: number | null;
   icpQualification?: 'qualified' | 'needs_review' | 'unqualified' | null;
+  /** A person's verdict after review; wins over `icpQualification` (lib/leads/effectiveQualification.ts). */
+  qualificationOverride?: 'qualified' | 'needs_review' | 'unqualified' | null;
   icpScoredAt?: string | null;
   source?: string;
   importListName?: string | null;
