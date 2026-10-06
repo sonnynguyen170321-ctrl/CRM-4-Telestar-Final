@@ -141,7 +141,7 @@ Rollback: `./scripts/rollback.sh` — both #253 migrations are additive.
 - Worldwide title / industry / niche / vertical research.
 - AI full upgrade (approved): insert into composer, regenerate with an instruction in the drawer,
   keep the last result, full email draft.
-- Owner items carried over: reset the shared Telestar2026 passwords; rotate the PBX password in the
+- Owner items carried over: reset the shared default login password (pre-launch audit, 2026-10-05); rotate the PBX password in the
   repo; `ALERT_WEBHOOK_URL`; uptime monitor; mailbox daily-cap warm-up; `DATABASE_URL`
   `connection_limit`; run `preflight-health.sql`; clear old domain-wide unsubscribe rows; stale
   pgbackrest cron lines.
