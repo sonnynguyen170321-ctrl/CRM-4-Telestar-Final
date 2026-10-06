@@ -53,7 +53,6 @@ describe('a refusal about the address suppresses it', () => {
     'unrouteable address',
     "Can't send mail - all recipients were rejected: invalid recipient",
     'mailbox is full',
-    'Account is disabled',
   ];
 
   for (const message of recipientSide) {
@@ -66,6 +65,16 @@ describe('a refusal about the address suppresses it', () => {
     // 5.2.2 is a soft bounce by the RFC. The 2026-09-23 decision was to suppress on any bounce
     // with no retry, so it belongs here and not in `sender`.
     expect(classifyRecipientFailure(new Error('452 the mailbox is full'))).toBe('recipient');
+  });
+});
+
+describe('a disabled account without a code is not proof the recipient is dead', () => {
+  // 2026-10-06: a sequence paused a whole batch of unrelated prospects as hard bounces in one
+  // second. "Account is disabled" names no side: it is as often the sending mailbox (revoked,
+  // suspended, not yet activated) as the recipient. Read as recipient, one broken sender suppressed
+  // every prospect it touched, permanently. A disabled *recipient* carries 5.2.1, which still counts.
+  it.each(['Account is disabled', 'Your account is inactive', 'This account is closed'])('leaves "%s" alone', (message) => {
+    expect(classifyRecipientFailure(new Error(message))).toBe('sender');
   });
 });
 
