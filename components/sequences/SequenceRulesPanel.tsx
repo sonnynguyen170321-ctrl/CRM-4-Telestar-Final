@@ -14,6 +14,12 @@ const SETTINGS: Array<{ key: keyof SequenceRules; label: string; detail: string 
     detail: 'Steps may land on Saturday and Sunday in the lead’s timezone. Off: they move to Monday.',
   },
   {
+    key: 'sendFirstStepImmediately',
+    label: 'Send step 1 immediately when a lead is added',
+    detail:
+      'Step 1 goes out as soon as a lead is enrolled, even outside its send window or on a weekend — leads added at 6 pm do not wait until the next morning. Only for a step 1 that is an automatic email with no wait, and only at the moment of adding: a lead resumed later, or held by a full mailbox, waits for the window again. Sending caps and the suppression list still apply.',
+  },
+  {
     key: 'stopOnCompanyReply',
     label: 'Stop when someone at the company replies',
     detail:
@@ -60,6 +66,7 @@ export function SequenceRulesPanel({ sequenceId }: { sequenceId: string }) {
         sendOnWeekends: Boolean(sequence.sendOnWeekends),
         stopOnCompanyReply: Boolean(sequence.stopOnCompanyReply),
         excludeLeadsInOtherSequences: Boolean(sequence.excludeLeadsInOtherSequences),
+        sendFirstStepImmediately: Boolean(sequence.sendFirstStepImmediately),
       });
       setLoaded(true);
     })();

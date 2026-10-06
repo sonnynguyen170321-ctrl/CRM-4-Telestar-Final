@@ -902,6 +902,7 @@ routes:
       - tests/sequence-guards.test.ts
       - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-rules.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/analytics/route.ts
     methods: [GET]
@@ -918,6 +919,7 @@ routes:
       - tests/sequence-guards.test.ts
       - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-rules.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enroll/route.ts
     methods: [DELETE, POST]
@@ -934,6 +936,7 @@ routes:
       - tests/sequence-guards.test.ts
       - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-rules.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/logs/route.ts
     methods: [GET]
@@ -950,6 +953,7 @@ routes:
       - tests/sequence-guards.test.ts
       - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-rules.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/run-now/route.ts
     methods: [POST]
@@ -966,6 +970,7 @@ routes:
       - tests/sequence-guards.test.ts
       - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-rules.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enrollments/[enrollmentId]/status/route.ts
     methods: [PATCH]
@@ -982,6 +987,7 @@ routes:
       - tests/sequence-guards.test.ts
       - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-rules.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enrollments/bulk-action/route.ts
     methods: [POST]
@@ -998,6 +1004,7 @@ routes:
       - tests/sequence-guards.test.ts
       - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-rules.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/enrollments/route.ts
     methods: [GET]
@@ -1014,6 +1021,7 @@ routes:
       - tests/sequence-guards.test.ts
       - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-rules.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/performance/route.ts
     methods: [GET]
@@ -1030,6 +1038,7 @@ routes:
       - tests/sequence-guards.test.ts
       - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-rules.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/route.ts
     methods: [DELETE, GET, PUT]
@@ -1046,6 +1055,7 @@ routes:
       - tests/sequence-guards.test.ts
       - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-rules.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/[id]/senders/route.ts
     methods: [GET, PUT]
@@ -1062,6 +1072,7 @@ routes:
       - tests/sequence-guards.test.ts
       - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-rules.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/analytics/route.ts
     methods: [GET]
@@ -1085,6 +1096,7 @@ routes:
       - tests/sequence-guards.test.ts
       - tests/sequence-performance-activity.test.ts
       - tests/sequence-preview-opaque-ids.test.ts
+      - tests/sequence-rules.test.ts
       - tests/sequence-senders.test.ts
   - path: app/api/sequences/team-analytics/route.ts
     methods: [GET]

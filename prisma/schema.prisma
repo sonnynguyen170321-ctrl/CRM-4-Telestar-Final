@@ -966,6 +966,9 @@ model Sequence {
   stopOnCompanyReply           Boolean @default(false)
   /// Refuse to add a lead that is already running another sequence.
   excludeLeadsInOtherSequences Boolean @default(false)
+  /// Step 1 (an automatic email with no wait) goes out the moment a lead is enrolled, ignoring its
+  /// send window and the weekend rule. Caps and suppression still apply (lib/sequences/rules.ts).
+  sendFirstStepImmediately     Boolean @default(false)
   isArchived  Boolean  @default(false)
   /// Visible to everyone in the tenant. Off: only its creator and the managers above them see it
   /// (lib/visibility.ts). Set by a manager.

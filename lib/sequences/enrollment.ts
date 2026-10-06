@@ -644,7 +644,8 @@ export async function finalizeFirstStep(
       input.leadId,
       input.sequenceId,
       step,
-      existing.createdAt
+      existing.createdAt,
+      { onEnrollment: true }
     );
     await applyStepScheduling(existing, input.sequenceId, step, dueDate, {
       strict: input.strictScheduling,
@@ -661,10 +662,13 @@ export async function finalizeFirstStep(
   const task = await createTaskForStep(lead, sequence, step, new Date(), {
     taskId,
     deferScheduling: true,
+    onEnrollment: true,
   });
   if (input.onTaskCreated) await input.onTaskCreated(task.id);
 
-  const dueDate = await computeStepDueDateForLead(input.leadId, input.sequenceId, step, task.createdAt);
+  const dueDate = await computeStepDueDateForLead(input.leadId, input.sequenceId, step, task.createdAt, {
+    onEnrollment: true,
+  });
   await applyStepScheduling(task, input.sequenceId, step, dueDate, {
     strict: input.strictScheduling,
     expectedEnrollmentId: input.enrollmentId,

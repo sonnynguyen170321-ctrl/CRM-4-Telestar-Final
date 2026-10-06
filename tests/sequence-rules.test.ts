@@ -138,6 +138,62 @@ beforeEach(async () => {
   });
 });
 
+describe('send step 1 immediately', () => {
+  // Monday 2026-10-05 20:00 UTC: after a 09:00–17:00 window in the lead's (UTC) timezone.
+  const EVENING = new Date('2026-10-05T20:00:00Z');
+  const step1 = { id: 'step-1', order: 1, channel: 'email', autoComplete: true, delayDays: 0, delayHours: 0, sendWindowStartMinutes: 540, sendWindowEndMinutes: 1020 };
+
+  it('schedules step 1 at enrollment when the sequence asks for it, and at the next window otherwise', async () => {
+    await inTenant(async () => {
+      const leadId = await lead(`ann.${randomUUID()}@acme.test`, { timezone: 'UTC' });
+      const windowed = await sequence('Windowed');
+      const immediate = await sequence('Immediate', { sendFirstStepImmediately: true });
+
+      const enrolling = { onEnrollment: true };
+      expect((await computeStepDueDateForLead(leadId, immediate, step1 as any, EVENING, enrolling)).toISOString()).toBe(EVENING.toISOString());
+      const next = await computeStepDueDateForLead(leadId, windowed, step1 as any, EVENING, enrolling);
+      expect(next.toISOString() >= '2026-10-06T09:00:00.000Z').toBe(true);
+      // A resume or a repair is not an enrollment: the window applies.
+      const resumed = await computeStepDueDateForLead(leadId, immediate, step1 as any, EVENING);
+      expect(resumed.toISOString() >= '2026-10-06T09:00:00.000Z').toBe(true);
+    });
+  });
+
+  it('makes a real enrollment due at once outside the window, and only with the switch on', async () => {
+    const { enrollLeadInSequence } = await import('@/lib/sequences/enrollment');
+    // A one-hour window that does not contain the current UTC time.
+    const nowMinutes = new Date().getUTCHours() * 60 + new Date().getUTCMinutes();
+    const [start, end] = nowMinutes < 720 ? [1200, 1260] : [300, 360];
+
+    const dueFor = async (sendFirstStepImmediately: boolean) =>
+      inTenant(async () => {
+        const seq = await prisma.sequence.create({ data: { tenantId, name: `W ${randomUUID()}`, createdById: user.id, sendFirstStepImmediately } });
+        await prisma.sequenceStep.create({
+          data: { tenantId, sequenceId: seq.id, order: 1, channel: 'email', delayDays: 0, delayHours: 0, autoComplete: true, sendWindowStartMinutes: start, sendWindowEndMinutes: end },
+        });
+        const leadId = await lead(`e.${randomUUID()}@acme.test`, { timezone: 'UTC' });
+        await enrollLeadInSequence(user, { leadId, sequenceId: seq.id });
+        const task = await prisma.task.findFirstOrThrow({ where: { leadId, sequenceId: seq.id } });
+        return task.dueDate.getTime() - task.createdAt.getTime();
+      });
+
+    expect(Math.abs(await dueFor(true))).toBeLessThan(60_000);
+    expect(await dueFor(false)).toBeGreaterThan(60 * 60_000);
+  });
+
+  it('is saved by the sequence update and read back', async () => {
+    const { PUT: putSequence } = await import('@/app/api/sequences/[id]/route');
+    const id = await inTenant(() => sequence('Toggle'));
+    authUser.current = user;
+    const res = await putSequence(
+      new NextRequest(`http://localhost/api/sequences/${id}`, { method: 'PUT', body: JSON.stringify({ sendFirstStepImmediately: true }), headers: { 'content-type': 'application/json' } }),
+      { params: Promise.resolve({ id }) },
+    );
+    expect(res.status).toBe(200);
+    expect((await inTenant(() => prisma.sequence.findUniqueOrThrow({ where: { id } }))).sendFirstStepImmediately).toBe(true);
+  });
+});
+
 describe('send on weekends', () => {
   const step = { id: 'step-2', order: 2, delayDays: 1, delayHours: 0, sendWindowStartMinutes: null, sendWindowEndMinutes: null };
 

@@ -28,6 +28,32 @@ import { businessDayPolicyFor } from '@/lib/sequences/rules';
  * sends on Saturday must not have its Saturday email pushed to Monday because the mailbox was full.
  * A one-off email (no sequence) keeps the business-week default.
  */
+/**
+ * What a cadence step is waiting for, on its enrollment (lib/sequences/holdReasons.ts).
+ *
+ * The sequence worker records the holds it decides. A send it handed over and this worker then
+ * deferred for a cap was shown as "Overdue" with no reason — on 2026-10-06, 85 steps that were
+ * all simply waiting for their mailbox's daily cap. Visibility only: a failed write never fails or
+ * repeats a send.
+ */
+async function recordSendHold(
+  ref: EmailSendPayload['sequenceStepRef'],
+  tenantId: string,
+  reason: string | null
+): Promise<void> {
+  if (!ref) return;
+  try {
+    await prisma.sequenceEnrollment.updateMany({
+      where: ref.enrollmentId
+        ? { id: ref.enrollmentId, tenantId }
+        : { tenantId, leadId: ref.leadId, sequenceId: ref.sequenceId, status: 'active' },
+      data: { holdReason: reason },
+    });
+  } catch (err) {
+    console.warn('[worker:email] could not record the hold reason for a cadence step:', err);
+  }
+}
+
 async function deferralPolicyFor(sequenceId: string | null) {
   if (!sequenceId) return 'skip_weekends' as const;
   const sequence = await prisma.sequence.findUnique({ where: { id: sequenceId }, select: { sendOnWeekends: true } });
@@ -474,6 +500,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
         errorMessage: `Mailbox hourly limit reached — deferred to ${resumeAt.toISOString()}`,
       },
     });
+    await recordSendHold(payload.sequenceStepRef, existing.tenantId, 'mailbox_hourly_cap');
     await enqueueReschedule(JobType.EMAIL_SEND, payload, {
       tenantId: existing.tenantId,
       delay: Math.max(0, resumeAt.getTime() - Date.now()),
@@ -550,6 +577,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
         errorMessage: `Daily send limit reached — deferred to ${resumeAt.toISOString()}`,
       },
     });
+    await recordSendHold(payload.sequenceStepRef, existing.tenantId, 'daily_quota_exhausted');
     await enqueueReschedule(
       JobType.EMAIL_SEND,
       payload,
@@ -751,6 +779,11 @@ async function handleEmailSend(payload: EmailSendPayload) {
           errorMessage: `Provider ${providerLimit} sending limit — deferred to ${resumeAt.toISOString()}: ${errorMessage}`.slice(0, 1000),
         },
       });
+      await recordSendHold(
+        payload.sequenceStepRef,
+        existing.tenantId,
+        providerLimit === 'daily' ? 'provider_daily_limit' : 'provider_hourly_limit'
+      );
       // This attempt's slot goes back; it was not spent.
       await releaseQuota(existing.tenantId, accountId);
       // A daily refusal means the provider has stopped this mailbox for the day, whatever our own
@@ -851,6 +884,8 @@ async function handleEmailSend(payload: EmailSendPayload) {
   // move and the cadence advances. Doing this at enqueue time is what recorded 228 deliveries
   // that never happened on 2026-09-21 — see lib/sequences/stepOutcome.ts.
   if (payload.sequenceStepRef) await finalizeSequenceStep(payload.sequenceStepRef);
+  // Sent: whatever it was waiting for is over.
+  await recordSendHold(payload.sequenceStepRef, existing.tenantId, null);
 
   // Log activity and update lead
   const resolvedLeadId = leadId ?? existing.leadId;

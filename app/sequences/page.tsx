@@ -29,6 +29,7 @@ import Linkedin from '@/components/icons/Linkedin';
 import SequencePreview from '@/components/sequences/SequencePreview';
 import { describeHold } from '@/lib/sequences/holdReasons';
 import { describeSendWindow, describeStepWait, describeWeekendRule } from '@/lib/sequences/stepDescription';
+import { sendsImmediatelyOnEnroll } from '@/lib/sequences/rules';
 import { canReplyInThread, previousEmailOrder } from '@/lib/sequences/threadingRules';
 import { stepOwnership } from '@/lib/sequences/stepOwnership';
 import { useToast } from '@/context/ToastContext';
@@ -66,6 +67,8 @@ interface Sequence {
   isActive: boolean;
   /** Per-sequence rule (Settings → Rules). Absent or false = weekends are skipped. */
   sendOnWeekends?: boolean;
+  /** Per-sequence rule (Settings → Rules): step 1 goes out the moment a lead is enrolled. */
+  sendFirstStepImmediately?: boolean;
   /** Visible to the whole company; otherwise to its creator and the managers above them. */
   isShared?: boolean;
   createdById?: string;
@@ -302,7 +305,13 @@ export default function SequencesPage() {
       .then((fresh) => {
         if (cancelled || !fresh) return;
         setSelectedSeq((current) =>
-          current && current.id === selectedSeqId ? { ...current, sendOnWeekends: Boolean(fresh.sendOnWeekends) } : current
+          current && current.id === selectedSeqId
+            ? {
+                ...current,
+                sendOnWeekends: Boolean(fresh.sendOnWeekends),
+                sendFirstStepImmediately: Boolean(fresh.sendFirstStepImmediately),
+              }
+            : current
         );
       })
       .catch(() => {});
@@ -730,6 +739,11 @@ export default function SequencesPage() {
                   const stepTemplate = templates.find((t) => t.id === step.templateId);
                   const subjectMissing = Boolean(stepTemplate) && !(stepTemplate?.subject ?? '').trim();
                   const windowUnset = step.sendWindowStartMinutes == null && step.sendWindowEndMinutes == null;
+                  // Step 1 under Settings → "Send step 1 immediately" (lib/sequences/rules.ts).
+                  const sendsImmediately = sendsImmediatelyOnEnroll(selectedSeq, step);
+                  // A step 1 that would send at once but for its window: the case the switch is for.
+                  const windowHoldsFirstSend =
+                    sendsItself && step.order === 1 && step.delayDays === 0 && (step.delayHours ?? 0) === 0 && !windowUnset;
                   return (
                   <div
                     key={step.id}
@@ -762,10 +776,13 @@ export default function SequencesPage() {
                             previousOrder: previous?.order ?? null,
                             previousIsAutomatic: Boolean(previous && previous.channel === 'email' && previous.autoComplete),
                             sendOnWeekends,
+                            sendsImmediately,
                           })}{' '}
-                          <span className="text-text-muted">
-                            {describeWeekendRule(sendOnWeekends)}
-                          </span>
+                          {!sendsImmediately && (
+                            <span className="text-text-muted">
+                              {describeWeekendRule(sendOnWeekends)}
+                            </span>
+                          )}
                         </p>
                         {/* A task note is for a person. An email the CRM sends has no one to read it. */}
                         {!sendsItself && step.instructions && (
@@ -880,6 +897,13 @@ export default function SequencesPage() {
                           <p className="mt-1 type-micro text-text-muted pr-4">
                             {describeSendWindow(step.sendWindowStartMinutes, step.sendWindowEndMinutes)}
                           </p>
+                          {windowHoldsFirstSend && (
+                            <p className="mt-1 type-micro text-text-secondary pr-4">
+                              {sendsImmediately
+                                ? 'Ignored for step 1: “Send step 1 immediately when a lead is added” is on under Settings, so leads added outside this window are written to at once.'
+                                : 'Leads added outside this window wait for it to open. To write to them at once instead, turn on “Send step 1 immediately when a lead is added” under Settings.'}
+                            </p>
+                          )}
                           </>
                         )}
                         {/* Template link */}

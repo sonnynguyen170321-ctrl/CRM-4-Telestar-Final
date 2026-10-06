@@ -25,15 +25,22 @@ import { calculateNextActionAt } from '@/lib/automation/scheduling';
 import { resolveTimezone } from '@/lib/automation/timezone';
 import { buildJitterSeed } from '@/lib/automation/jitter';
 import type { BusinessDayPolicy } from '@/lib/automation/scheduling';
-import { businessDayPolicyFor } from './rules';
+import { businessDayPolicyFor, sendsImmediatelyOnEnroll } from './rules';
 
 const PRIORITY_MAP = { hot: 'high', warm: 'medium', cold: 'low' } as const;
 
 export function computeStepDueDate(
   base: Date,
   step: Pick<SequenceStep, 'delayDays' | 'delayHours' | 'sendWindowStartMinutes' | 'sendWindowEndMinutes'>,
-  options?: { timezone?: string | null; seed?: string | null; businessDayPolicy?: BusinessDayPolicy }
+  options?: {
+    timezone?: string | null;
+    seed?: string | null;
+    businessDayPolicy?: BusinessDayPolicy;
+    /** The step sends the moment the lead is enrolled (`sendsImmediatelyOnEnroll`): no window, no weekend move. */
+    immediate?: boolean;
+  }
 ): Date {
+  if (options?.immediate) return base;
   const tz = options?.timezone ? resolveTimezone(options.timezone) : 'UTC';
   const sched = calculateNextActionAt({
     baseAt: base,
@@ -68,6 +75,11 @@ export async function createTaskForStep(
     strictScheduling?: boolean;
     deferScheduling?: boolean;
     expectedEnrollmentId?: string;
+    /**
+     * The lead is being enrolled now. Only then may "send step 1 immediately" apply — a resume or
+     * a repair keeps the step's send window.
+     */
+    onEnrollment?: boolean;
   }
 ): Promise<Task> {
   const leadFull = await prisma.lead.findUnique({
@@ -83,8 +95,13 @@ export async function createTaskForStep(
     leadId: lead.id,
   });
 
-  const businessDayPolicy = await businessDayPolicyForSequence(sequence.id);
-  const dueDate = computeStepDueDate(baseDate, step, { timezone: tz, seed, businessDayPolicy });
+  const rules = await schedulingRulesForSequence(sequence.id);
+  const dueDate = computeStepDueDate(baseDate, step, {
+    timezone: tz,
+    seed,
+    businessDayPolicy: businessDayPolicyFor(rules),
+    immediate: Boolean(options?.onEnrollment) && sendsImmediatelyOnEnroll(rules, step),
+  });
   const channelLabel = step.channel.charAt(0).toUpperCase() + step.channel.slice(1);
 
   const task = await createOrReuseTask({
@@ -230,13 +247,12 @@ export async function applyStepScheduling(
   }
 }
 
-/** The weekend rule of one sequence (lib/sequences/rules.ts), read from the row. */
-async function businessDayPolicyForSequence(sequenceId: string): Promise<BusinessDayPolicy> {
-  const sequence = await prisma.sequence.findUnique({
+/** The scheduling rules of one sequence (lib/sequences/rules.ts), read from the row. */
+async function schedulingRulesForSequence(sequenceId: string) {
+  return prisma.sequence.findUnique({
     where: { id: sequenceId },
-    select: { sendOnWeekends: true },
+    select: { sendOnWeekends: true, sendFirstStepImmediately: true },
   });
-  return businessDayPolicyFor(sequence);
 }
 
 /** Recompute a step's due date the same way `createTaskForStep` did, for a resumed finalizer. */
@@ -244,7 +260,8 @@ export async function computeStepDueDateForLead(
   leadId: string,
   sequenceId: string,
   step: SequenceStep,
-  baseDate: Date
+  baseDate: Date,
+  options?: { onEnrollment?: boolean }
 ): Promise<Date> {
   const leadFull = await prisma.lead.findUnique({
     where: { id: leadId },
@@ -257,8 +274,14 @@ export async function computeStepDueDateForLead(
     sequenceStepId: step.id,
     leadId,
   });
-  const businessDayPolicy = await businessDayPolicyForSequence(sequenceId);
-  return computeStepDueDate(baseDate, step, { timezone: tz, seed, businessDayPolicy });
+  // Must decide exactly as `createTaskForStep` did, or a resumed finalizer overwrites the date.
+  const rules = await schedulingRulesForSequence(sequenceId);
+  return computeStepDueDate(baseDate, step, {
+    timezone: tz,
+    seed,
+    businessDayPolicy: businessDayPolicyFor(rules),
+    immediate: Boolean(options?.onEnrollment) && sendsImmediatelyOnEnroll(rules, step),
+  });
 }
 
 /**

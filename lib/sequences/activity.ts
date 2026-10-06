@@ -41,6 +41,7 @@ const FIELD_LABEL: Record<string, string> = {
   sendOnWeekends: 'weekend sending',
   stopOnCompanyReply: 'stop on company reply',
   excludeLeadsInOtherSequences: 'exclusive enrollment',
+  sendFirstStepImmediately: 'immediate first step',
   steps: 'steps',
 };
 

@@ -124,6 +124,9 @@ export async function PUT(
         ...(body.trackClicks !== undefined && { trackClicks: body.trackClicks }),
         ...(body.sendOnWeekends !== undefined && { sendOnWeekends: body.sendOnWeekends }),
         ...(body.stopOnCompanyReply !== undefined && { stopOnCompanyReply: body.stopOnCompanyReply }),
+        ...(body.sendFirstStepImmediately !== undefined && {
+          sendFirstStepImmediately: body.sendFirstStepImmediately,
+        }),
         ...(body.excludeLeadsInOtherSequences !== undefined && {
           excludeLeadsInOtherSequences: body.excludeLeadsInOtherSequences,
         }),

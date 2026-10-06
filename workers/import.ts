@@ -1040,6 +1040,7 @@ async function handleImportChunk(payload: ImportChunkPayload) {
           // derived rather than generated, so the retry converges on the same rows.
           strictScheduling: true,
           expectedEnrollmentId: enrollmentId,
+          onEnrollment: true,
         });
 
         if (data.__failpoint === 'after_task') {

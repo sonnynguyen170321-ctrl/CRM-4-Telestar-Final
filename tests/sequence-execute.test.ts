@@ -2,6 +2,8 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // Prisma model mocks
 const mockTaskFindUnique = vi.fn();
+const SEQUENCE_ROW = { id: 'seq-1', isActive: true, isArchived: false, sendOnWeekends: false, sendFirstStepImmediately: false };
+const mockSequenceFindUnique = vi.fn(async () => SEQUENCE_ROW);
 const mockTaskUpdateMany = vi.fn();
 const mockTaskUpdate = vi.fn();
 const mockStepFindFirst = vi.fn();
@@ -34,7 +36,7 @@ vi.mock('@/lib/prisma', () => ({
       },
     },
     // The task's own sequence (workers/sequence.ts reads it for eligibility, not the lead's pointer).
-    sequence: { findUnique: async () => ({ id: 'seq-1', isActive: true, isArchived: false, sendOnWeekends: false }) },
+    sequence: { findUnique: (...a: unknown[]) => mockSequenceFindUnique(...(a as [])) },
     sequenceEnrollment: {
       findFirst: (...a: unknown[]) => mockEnrollmentFindFirst(...a),
       findUnique: (...a: unknown[]) => mockEnrollmentFindFirst(...a),
@@ -147,6 +149,7 @@ function arrangeEligible() {
 describe('handleExecuteTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSequenceFindUnique.mockResolvedValue(SEQUENCE_ROW);
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-10T10:00:00Z')); // Monday 10:00 UTC
   });
@@ -309,6 +312,7 @@ describe('handleExecuteTask — reply in the same thread', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSequenceFindUnique.mockResolvedValue(SEQUENCE_ROW);
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-10T10:00:00Z')); // Monday 10:00 UTC
   });
@@ -379,6 +383,7 @@ describe('handleExecuteTask — reply in the same thread', () => {
 describe('handleExecuteTask — deferral (Phase 6)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSequenceFindUnique.mockResolvedValue(SEQUENCE_ROW);
     vi.useFakeTimers();
     // 08:00 UTC Monday — an hour before the step's 09:00 send window opens.
     vi.setSystemTime(new Date('2026-08-10T08:00:00Z'));
@@ -493,6 +498,64 @@ describe('handleExecuteTask — deferral (Phase 6)', () => {
       where: { id: 'task-1' },
       data: { dueDate: expect.any(Date), runNowRequestedAt: null },
     });
+  });
+
+  // Settings → "Send step 1 immediately" (owner request, 2026-10-06): a lead added after the window
+  // is written to at once instead of the next morning.
+  /** A step-1 task as enrollment schedules it under the switch: due the moment it was created. */
+  function arrangeImmediateStepOne(dueAfterCreationMs = 0) {
+    arrangeOutsideSendWindow();
+    mockSequenceFindUnique.mockResolvedValue({ ...SEQUENCE_ROW, sendFirstStepImmediately: true });
+    const createdAt = new Date(Date.now() - 30_000);
+    mockTaskFindUnique.mockResolvedValue(
+      buildTask({
+        createdAt,
+        dueDate: new Date(createdAt.getTime() + dueAfterCreationMs),
+        lead: buildLead({ timezone: 'UTC', campaignId: 'camp-1' }),
+      }),
+    );
+  }
+
+  it('sends step 1 outside its window when the sequence sends it immediately', async () => {
+    arrangeImmediateStepOne();
+
+    const result = await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(result).toEqual({ status: 'queued', taskId: 'task-1' });
+    expect(mockEnqueueSend).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueReschedule).not.toHaveBeenCalled();
+    // The real query must ask for the switch; a mock returns it either way.
+    expect(mockSequenceFindUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ select: expect.objectContaining({ sendFirstStepImmediately: true }) }),
+    );
+  });
+
+  // A paused step 1 resumed at night, or one a full mailbox pushed back, has a due date later
+  // than its creation: the switch was about enrollment, so the window applies again.
+  it('holds a step 1 whose due date moved since enrollment for its window', async () => {
+    arrangeImmediateStepOne(3 * 60 * 60 * 1000);
+
+    const result = await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(result).toMatchObject({ status: 'deferred', reason: 'before_send_window' });
+    expect(mockEnqueueSend).not.toHaveBeenCalled();
+  });
+
+  it('still holds a later step for its window when the sequence sends step 1 immediately', async () => {
+    arrangeOutsideSendWindow();
+    mockSequenceFindUnique.mockResolvedValue({ ...SEQUENCE_ROW, sendFirstStepImmediately: true });
+    mockStepFindFirst.mockResolvedValue(
+      buildStep({ order: 2, sendWindowStartMinutes: 540, sendWindowEndMinutes: 660, delayDays: 0, delayHours: 0 }),
+    );
+    mockTaskFindUnique.mockResolvedValue(
+      buildTask({ sequenceStep: 2, lead: buildLead({ timezone: 'UTC', campaignId: 'camp-1' }) }),
+    );
+    mockEnrollmentFindFirst.mockResolvedValue({ id: 'enr-1', status: 'active', currentStep: 2 });
+
+    const result = await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(result).toMatchObject({ status: 'deferred', reason: 'before_send_window' });
+    expect(mockEnqueueSend).not.toHaveBeenCalled();
   });
 
   it('never fails a send because the wait reason could not be written', async () => {
