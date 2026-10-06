@@ -42,6 +42,7 @@
     "/sequences/performance",
     "/settings",
     "/team",
+    "/team/campaigns/[id]/members",
     "/templates"
   ],
   "apiRoutes": [
@@ -244,6 +245,6 @@
     "/api/work-orders",
     "/api/work-orders/[id]/dispatch"
   ],
-  "pageCount": 36,
+  "pageCount": 37,
   "apiRouteCount": 198
 }

@@ -11,6 +11,9 @@ import type { SessionUser } from '@/lib/auth';
  *                personally run an account).
  *   - Leadgen  — Leadgen Manager (his direct leadgen-member reports ↔ any
  *                account). He cannot touch SDRs / team membership.
+ *   - Pod      — Team Lead (their pod ↔ the campaigns they can see), campaign
+ *                membership only (2026-10-06). No whole-user operation, and no
+ *                Team & Accounts panel: /api/admin/assignments refuses it.
  *
  * Extracted from `app/api/admin/assignments/route.ts` so the campaign-member and
  * work-transfer services can enforce the same rules — a `route.ts` may only
@@ -20,6 +23,7 @@ export type ManageScope =
   | { kind: 'all' } // director — any user ↔ any account
   | { kind: 'floor'; userIds: Set<string>; campaignIds: Set<string> } // floor manager
   | { kind: 'leadgen'; userIds: Set<string> } // leadgen manager — any account
+  | { kind: 'pod'; userIds: Set<string>; campaignIds: Set<string> } // team lead — membership only
   | { kind: 'none' };
 
 export async function getManageScope(user: SessionUser): Promise<ManageScope> {
@@ -32,6 +36,18 @@ export async function getManageScope(user: SessionUser): Promise<ManageScope> {
     ]);
     return {
       kind: 'floor',
+      userIds: new Set(userIds ?? []),
+      campaignIds: new Set(campaignIds ?? []),
+    };
+  }
+
+  if (user.role === 'team_lead') {
+    const [userIds, campaignIds] = await Promise.all([
+      getVisibleUserIds(user),
+      getVisibleCampaignIds(user),
+    ]);
+    return {
+      kind: 'pod',
       userIds: new Set(userIds ?? []),
       campaignIds: new Set(campaignIds ?? []),
     };
@@ -56,6 +72,7 @@ export function canManage(scope: ManageScope, userId: string, campaignId: string
     case 'all':
       return true;
     case 'floor':
+    case 'pod':
       return scope.userIds.has(userId) && scope.campaignIds.has(campaignId);
     case 'leadgen':
       return scope.userIds.has(userId); // any account for his own members
@@ -76,6 +93,7 @@ export function canManageUser(scope: ManageScope, userId: string): boolean {
     case 'floor':
     case 'leadgen':
       return scope.userIds.has(userId);
+    case 'pod': // a team lead acts on a person only within a campaign
     case 'none':
       return false;
   }
