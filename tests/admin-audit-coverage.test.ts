@@ -26,6 +26,7 @@ const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 const MANAGEMENT_ROUTES: Array<[string, string]> = [
   ['app/api/campaigns/route.ts', 'admin.campaign.create'],
   ['app/api/campaigns/[id]/route.ts', 'admin.campaign.update'],
+  ['app/api/campaigns/[id]/route.ts', 'admin.campaign.archive'],
   ['app/api/icp/profiles/route.ts', 'admin.icp.create'],
   ['app/api/icp/versions/[id]/publish/route.ts', 'admin.icp.publish'],
   ['app/api/icp/profiles/[id]/default/route.ts', 'admin.icp.set_default'],

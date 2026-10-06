@@ -259,6 +259,7 @@ export const ADMIN_AUDIT_ACTIONS = [
   // then opened the log and read "No audit entries in this window".
   'admin.campaign.create',
   'admin.campaign.update',
+  'admin.campaign.archive',
   'admin.icp.create',
   'admin.icp.publish',
   // Changes which ICP scores every lead whose campaign has none of its own.

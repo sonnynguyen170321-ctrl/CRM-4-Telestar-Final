@@ -194,6 +194,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
       - tests/campaign-create-team-lead.test.ts
+      - tests/campaign-edit-archive.test.ts
       - tests/campaign-members-team-lead.test.ts
       - tests/leads-campaign-filter.test.ts
       - tests/ui-reads-what-api-sends.test.ts
@@ -210,6 +211,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
       - tests/campaign-create-team-lead.test.ts
+      - tests/campaign-edit-archive.test.ts
       - tests/campaign-members-team-lead.test.ts
       - tests/leads-campaign-filter.test.ts
       - tests/ui-reads-what-api-sends.test.ts
@@ -226,6 +228,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
       - tests/campaign-create-team-lead.test.ts
+      - tests/campaign-edit-archive.test.ts
       - tests/campaign-members-team-lead.test.ts
       - tests/leads-campaign-filter.test.ts
       - tests/ui-reads-what-api-sends.test.ts
@@ -242,11 +245,12 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
       - tests/campaign-create-team-lead.test.ts
+      - tests/campaign-edit-archive.test.ts
       - tests/campaign-members-team-lead.test.ts
       - tests/leads-campaign-filter.test.ts
       - tests/ui-reads-what-api-sends.test.ts
   - path: app/api/campaigns/[id]/route.ts
-    methods: [PUT]
+    methods: [DELETE, GET, PUT]
     tests:
       - e2e/admin/campaign-member-impact.spec.ts
       - e2e/admin/clients-and-campaigns.spec.ts
@@ -258,6 +262,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
       - tests/campaign-create-team-lead.test.ts
+      - tests/campaign-edit-archive.test.ts
       - tests/campaign-members-team-lead.test.ts
       - tests/leads-campaign-filter.test.ts
       - tests/ui-reads-what-api-sends.test.ts
@@ -274,6 +279,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/admin.test.ts
       - tests/campaign-create-team-lead.test.ts
+      - tests/campaign-edit-archive.test.ts
       - tests/campaign-members-team-lead.test.ts
       - tests/leads-campaign-filter.test.ts
       - tests/ui-reads-what-api-sends.test.ts
