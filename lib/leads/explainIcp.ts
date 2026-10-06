@@ -147,6 +147,9 @@ function headline(
     return fitAt != null ? `Fits the ICP: ${score}/100, at or above the ${fitAt} needed.` : `Fits the ICP: ${score}/100.`;
   }
   if (assessment.qualification === 'needs_review') {
+    if (reason === 'services_review') {
+      return `Worth a look: ${score}/100, but the company is described with services or consulting words — check what they actually sell.`;
+    }
     if (reason === 'core_evidence_missing' || (failing.length === 0 && unknown.length > 0)) {
       return `Not enough to tell: ${unknown.join(', ') || 'key details are missing'}.`;
     }

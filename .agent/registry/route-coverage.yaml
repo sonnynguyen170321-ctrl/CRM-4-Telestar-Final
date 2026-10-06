@@ -665,6 +665,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin.test.ts
       - tests/certification-role-evidence.test.ts
+      - tests/icp-scoring-research-and-edit.test.ts
       - tests/inbox-reply-authorization.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
@@ -697,6 +698,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin.test.ts
       - tests/certification-role-evidence.test.ts
+      - tests/icp-scoring-research-and-edit.test.ts
       - tests/inbox-reply-authorization.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
@@ -729,6 +731,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin.test.ts
       - tests/certification-role-evidence.test.ts
+      - tests/icp-scoring-research-and-edit.test.ts
       - tests/inbox-reply-authorization.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
@@ -776,6 +779,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin.test.ts
       - tests/certification-role-evidence.test.ts
+      - tests/icp-scoring-research-and-edit.test.ts
       - tests/inbox-reply-authorization.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts

@@ -3,6 +3,8 @@ import type { IcpRulesV2Assessment } from '@telestar/core-scoring/rules/deriveQu
 import type { RawScoringEvidence } from '@telestar/core-scoring/rules/evidence';
 import { foldText, normalizeCountry, normalizeEvidence } from '@telestar/core-scoring/rules/normalize/index';
 import type { IcpVersionRulesV2, PointRule, PointRuleGroup, PointRules } from '@telestar/core-scoring/rules/schema-v2';
+import { titleContainsEntry } from '@telestar/core-scoring/rules/dimensions/personaScore';
+import { servicesSignal } from '@telestar/core-scoring/rules/gates/terminalGates';
 
 import {
   ICP_VERDICT_VERSION,
@@ -29,7 +31,8 @@ import {
  * percentage; the raw total is kept in the assessment's `evidenceJson.verdict.points`.
  */
 
-export const POINTS_VERDICT_VERSION = 'points-v1';
+// v2 (2026-10-06): the engine's country and title matching changed underneath (see ICP_VERDICT_VERSION).
+export const POINTS_VERDICT_VERSION = 'points-v2';
 
 export type PointMatch = { ruleId: string; group: PointRuleGroup; points: number; matched: string };
 
@@ -104,7 +107,12 @@ function ruleMatches(rule: PointRule, subject: string, evidence: Normalized): st
   if (rule.group === 'country') {
     return rule.values.find((value) => normalizeCountry(value) === subject) ?? null;
   }
-  return rule.values.find((value) => value.trim() && wordMatcher(value).test(subject)) ?? null;
+  // Word-set title matching only adds points; a negative row is an exclusion and stays exact.
+  return (
+    rule.values.find(
+      (value) => value.trim() && (wordMatcher(value).test(subject) || (rule.group === 'title' && rule.points > 0 && titleContainsEntry(subject, value)))
+    ) ?? null
+  );
 }
 
 function hasExplicitExclusion(assessed: IcpRulesV2Assessment): boolean {
@@ -173,7 +181,10 @@ export function derivePointsVerdict(
   if (hasExplicitExclusion(assessed)) return verdict('unqualified', 'explicit_exclusion');
 
   if (total >= fitAt) {
-    return missingCore.length ? verdict('needs_review', 'core_evidence_missing') : verdict('qualified', 'weighted_qualified');
+    if (missingCore.length) return verdict('needs_review', 'core_evidence_missing');
+    // Same rule as the weighted path: services words alone are for a person to judge.
+    if (servicesSignal(evidence, rules) === 'mentioned') return verdict('needs_review', 'services_review');
+    return verdict('qualified', 'weighted_qualified');
   }
   if (total >= reviewAt) return verdict('needs_review', 'weighted_borderline');
   if (total + missingUpside >= reviewAt) return verdict('needs_review', 'core_evidence_missing');

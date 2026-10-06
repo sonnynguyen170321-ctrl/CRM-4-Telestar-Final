@@ -76,7 +76,8 @@ export async function scoreLeadIcp(params: { tenantId: string; leadId: string })
   if (!version?.rulesJson) return { status: 'not_scored', reason: 'icp_version_unreadable' };
   const rules = version.rulesJson as unknown as IcpVersionRulesV2;
 
-  const evidence = buildScoringEvidence(toScorable(lead));
+  const intelligence = (await loadScoringIntelligence(tenantId, [lead.account?.id])).get(lead.account?.id ?? '') ?? null;
+  const evidence = buildScoringEvidence(toScorable(lead), intelligence);
   const fingerprint = assessmentFingerprint(evidence, rules, icpVersionId);
 
   const existing = await prisma.leadIcpAssessment.findFirst({
@@ -143,6 +144,34 @@ export async function scoreLeadIcp(params: { tenantId: string; leadId: string })
 }
 
 /** The engine's view of a lead. Shared with the ICP live preview so both read leads identically. */
+export type ScoringIntelligence = { industryCategory: string | null; facts: string[]; summary: string | null };
+
+/**
+ * What the company research found, per account, for the scoring evidence. Leads were scored on the
+ * account's industry string alone — the description and research facts `buildScoringEvidence`
+ * accepts were never passed (2026-10-06), so the services check and industry matching saw one line
+ * of text. Latest usable profile per account; batched for the previews.
+ */
+export async function loadScoringIntelligence(tenantId: string, accountIds: Array<string | null | undefined>): Promise<Map<string, ScoringIntelligence>> {
+  const ids = [...new Set(accountIds.filter((id): id is string => Boolean(id)))];
+  if (ids.length === 0) return new Map();
+  const profiles = await prisma.companyIntelligenceProfile.findMany({
+    where: { tenantId, accountId: { in: ids }, profileStatus: { in: ['extracted', 'partial'] } },
+    orderBy: { createdAt: 'desc' },
+    select: { accountId: true, industryCategory: true, companySummary: true, factsJson: true },
+  });
+  const out = new Map<string, ScoringIntelligence>();
+  for (const p of profiles) {
+    if (out.has(p.accountId)) continue;
+    out.set(p.accountId, {
+      industryCategory: p.industryCategory,
+      summary: p.companySummary,
+      facts: Array.isArray(p.factsJson) ? (p.factsJson as unknown[]).filter((f): f is string => typeof f === 'string') : [],
+    });
+  }
+  return out;
+}
+
 export function toScorable(lead: ScorableLead) {
   return {
     id: lead.id,
@@ -230,7 +259,8 @@ export async function previewLeadIcp(params: {
   if (!version?.rulesJson) return { status: 'not_scored', reason: 'icp_version_unreadable' };
   const rules = version.rulesJson as unknown as IcpVersionRulesV2;
 
-  const evidence = buildScoringEvidence(toScorable(lead));
+  const intelligence = (await loadScoringIntelligence(tenantId, [lead.account?.id])).get(lead.account?.id ?? '') ?? null;
+  const evidence = buildScoringEvidence(toScorable(lead), intelligence);
   const verdict = deriveIcpVerdict(assessIcpRulesV2(evidence, rules), rules, evidence);
   return {
     status: 'previewed',

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth, canAccessUser, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { scoreLead } from '@/lib/leads/scoring';
+import { scoreLeadIcp } from '@/lib/leads/icpScoring';
 import { normalizeEmail, normalizePhone, normalizeLinkedIn } from '@/lib/leads/normalize';
 import { pauseSequence } from '@/lib/sequences/engine';
 import { unenrollAllLeadCadences } from '@/lib/sequences/leadStop';
@@ -403,6 +404,19 @@ export async function PUT(
   }
 
   await Promise.all(writes);
+
+  // The ICP verdict reads the title, company and email. Re-score when one actually changed, so the
+  // drawer never explains a verdict made from data that is no longer there (2026-10-06). The drawer
+  // sends the whole form, so "present in the body" is not "changed". A failed score never fails the
+  // save; the rescore endpoint can re-run it.
+  const changed = (field: 'title' | 'company' | 'email') => body[field] !== undefined && (body[field] ?? null) !== (existing[field] ?? null);
+  if (changed('title') || changed('company') || changed('email')) {
+    try {
+      await scoreLeadIcp({ tenantId: user.tenantId!, leadId: id });
+    } catch (err) {
+      console.error(`[leads PUT] ICP rescore failed for lead ${id}:`, err);
+    }
+  }
 
   if (body.stage && body.stage !== existing.stage && existing.sequenceId) {
     const refetched = await prisma.lead.findUnique({ where: { id }, select: { sequenceId: true, sequenceStep: true, sequenceStatus: true } });

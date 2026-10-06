@@ -1,7 +1,7 @@
 import type { DimensionHit, DimensionResult, NormalizedScoringEvidence } from "../evidence";
 import type { IcpVersionRulesV2 } from "../schema-v2";
 import { expandRegionsToCountries } from "../dictionaries/regions";
-import { foldText } from "../normalize/normalizeCountry";
+import { countryKey } from "../normalize/normalizeCountry";
 
 // SC2: geo dimension. Country/region fit + priority-tier bonus + required-office.
 // Excluded countries are handled by the terminal gate, not here. Pure.
@@ -18,7 +18,7 @@ export function geoScore(
     [
       ...geography.targetCountries,
       ...expandRegionsToCountries(geography.targetRegions),
-    ].map((country) => foldText(country))
+    ].map((country) => countryKey(country))
   );
   const hasGeoConstraint =
     allowed.size > 0 || geography.requiredOfficeCountries.length > 0;
@@ -41,7 +41,7 @@ export function geoScore(
   }
 
   let score: number;
-  const foldedCountry = foldText(country);
+  const foldedCountry = countryKey(country);
 
   if (allowed.size === 0 || allowed.has(foldedCountry)) {
     score = 100;
@@ -52,7 +52,7 @@ export function geoScore(
     });
 
     for (const tier of geography.priorityTiers) {
-      if (tier.countries.map((c) => foldText(c)).includes(foldedCountry)) {
+      if (tier.countries.map((c) => countryKey(c)).includes(foldedCountry)) {
         score = Math.min(100, score + tier.weightBonus);
         hits.push({
           id: `geo_priority_tier_${tier.tier}`,
@@ -74,10 +74,10 @@ export function geoScore(
   // Required office/factory location (STS: factory in Vietnam).
   if (geography.requiredOfficeCountries.length > 0) {
     const requiredOffices = new Set(
-      geography.requiredOfficeCountries.map((c) => foldText(c))
+      geography.requiredOfficeCountries.map((c) => countryKey(c))
     );
     const hasRequiredOffice = evidence.company.officeCountries.some((office) =>
-      requiredOffices.has(foldText(office))
+      requiredOffices.has(countryKey(office))
     );
 
     if (hasRequiredOffice) {

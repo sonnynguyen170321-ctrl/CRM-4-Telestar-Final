@@ -4,7 +4,7 @@ import type { IcpVersionRulesV2 } from '@telestar/core-scoring/rules/schema-v2';
 
 import { buildScoringEvidence } from '@/lib/leadgen/scorePoolItem';
 import { deriveIcpVerdict, type PointMatch } from '@/lib/leadgen/pointsQualification';
-import { SCORABLE_LEAD_SELECT, toScorable } from '@/lib/leads/icpScoring';
+import { SCORABLE_LEAD_SELECT, loadScoringIntelligence, toScorable } from '@/lib/leads/icpScoring';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -89,6 +89,7 @@ export async function previewIcpRules(input: {
   let pinned = 0;
   const scored: Array<IcpPreviewResult['examples'][number] & { change: number }> = [];
 
+  const intelligence = await loadScoringIntelligence(tenantId, leads.map((l) => l.account?.id));
   for (const lead of leads) {
     if (lead.qualificationOverride) {
       before[lead.qualificationOverride] += 1;
@@ -96,7 +97,7 @@ export async function previewIcpRules(input: {
       pinned += 1;
       continue;
     }
-    const evidence = buildScoringEvidence(toScorable(lead));
+    const evidence = buildScoringEvidence(toScorable(lead), intelligence.get(lead.account?.id ?? '') ?? null);
     const verdict = deriveIcpVerdict(assessIcpRulesV2(evidence, rules), rules, evidence);
 
     if (lead.icpQualification) before[lead.icpQualification] += 1;

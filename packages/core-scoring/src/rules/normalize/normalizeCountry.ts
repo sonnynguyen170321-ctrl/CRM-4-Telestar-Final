@@ -52,19 +52,57 @@ export function foldText(value: string): string {
     .toLowerCase();
 }
 
+/** Alias lookup that survives a stripped final dot: "u.k" (from "U.K.") is still "u.k.". */
+function aliasOf(folded: string): string | undefined {
+  return COUNTRY_ALIASES[folded] ?? COUNTRY_ALIASES[`${folded}.`];
+}
+
 /** Map a raw country string to a canonical country name, or null when empty. */
 export function normalizeCountry(raw: string | undefined | null): string | null {
-  const folded = foldText(raw ?? "");
+  const trimmed = String(raw ?? "").trim().replace(/[.,;]+$/, "");
+  // "United Kingdom (UK)", "Vietnam (VN)": the parenthetical restates the country — an alias of it
+  // or a two-letter code — so it drops. "Korea (North)" and "Congo (Brazzaville)" are not
+  // restatements: there the parenthetical IS the country, and dropping it would read North Korea
+  // as South Korea. Those keep their full text.
+  const restated = /^([^()]+)\(([^()]+)\)$/.exec(trimmed);
+  if (restated) {
+    const head = normalizeCountry(restated[1]);
+    const inner = restated[2].trim();
+    if (head && (/^[a-z]{2}$/i.test(inner) || head === normalizeCountry(inner))) return head;
+    return titleCaseCountry(foldText(trimmed));
+  }
+  const folded = foldText(trimmed);
 
   if (!folded) {
     return null;
   }
 
-  if (COUNTRY_ALIASES[folded]) {
-    return COUNTRY_ALIASES[folded];
+  const alias = aliasOf(folded);
+  if (alias) {
+    return alias;
+  }
+
+  // "United Kingdom Uk", "United States USA": a name followed by its own abbreviation, as
+  // spreadsheet exports write it. Production had 90 leads read as a non-target country this way.
+  const words = folded.split(" ");
+  if (words.length > 1) {
+    const tail = aliasOf(words[words.length - 1]);
+    const head = words.slice(0, -1).join(" ");
+    if (tail && (foldText(tail) === head || aliasOf(head) === tail)) {
+      return tail;
+    }
   }
 
   return titleCaseCountry(folded);
+}
+
+/**
+ * The form two country strings are compared in: aliases resolved ("USA" -> "United States"),
+ * then folded. Every country comparison goes through this — comparing a normalized lead country
+ * with a raw ICP list ("USA") is how a United States lead scored as outside a USA-targeting ICP.
+ */
+export function countryKey(raw: string | undefined | null): string {
+  return foldText(normalizeCountry(raw) ?? "");
 }
 
 /** Normalize a list of raw countries, dropping empties and de-duping. */
