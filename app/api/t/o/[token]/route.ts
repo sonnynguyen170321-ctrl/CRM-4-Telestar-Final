@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { TRANSPARENT_GIF, verifyTrackingToken } from '@/lib/email/tracking';
 import { recordTrackingEvent } from '@/lib/email/trackingEvents';
+import { clientIpFrom } from '@/lib/auth/loginThrottleStore';
 
 /**
  * The open-tracking pixel. Public: a prospect's mail client has no CRM session.
@@ -14,7 +15,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   const { token } = await params;
   const verified = verifyTrackingToken(token.replace(/\.gif$/i, ''));
   if (verified) {
-    await recordTrackingEvent({ token: verified, type: 'open', userAgent: req.headers.get('user-agent') });
+    await recordTrackingEvent({
+      token: verified,
+      type: 'open',
+      userAgent: req.headers.get('user-agent'),
+      ip: clientIpFrom(req.headers),
+    });
   }
   return new NextResponse(new Uint8Array(TRANSPARENT_GIF), {
     status: 200,

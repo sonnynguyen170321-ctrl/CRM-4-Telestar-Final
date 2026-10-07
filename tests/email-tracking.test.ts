@@ -153,6 +153,30 @@ describe('machine traffic', () => {
   it('counts an ordinary person later on', () => {
     expect(isSuspectedMachine({ type: 'click', userAgent: 'Mozilla/5.0 (Macintosh)', sentAt, now: new Date('2026-10-04T10:05:00Z') })).toBe(false);
   });
+
+  // Owner, 2026-10-07: "is the open rate legit?" Apple Mail Privacy Protection fetches every pixel
+  // on delivery through Apple's proxies, opened or not.
+  describe('Apple Mail Privacy Protection', () => {
+    const later = new Date('2026-10-04T11:00:00Z');
+
+    it('treats a pixel fetch from Apple’s 17.0.0.0/8 network as a machine', () => {
+      expect(isSuspectedMachine({ type: 'open', userAgent: 'Mozilla/5.0 (Macintosh)', ip: '17.58.101.20', sentAt, now: later })).toBe(true);
+      expect(isSuspectedMachine({ type: 'open', userAgent: null, ip: '::ffff:17.1.2.3', sentAt, now: later })).toBe(true);
+    });
+
+    it('treats the proxy’s bare Mozilla/5.0 agent as a machine for opens', () => {
+      expect(isSuspectedMachine({ type: 'open', userAgent: 'Mozilla/5.0', ip: '203.0.113.9', sentAt, now: later })).toBe(true);
+    });
+
+    it('does not mistake a neighbouring network or a real client for Apple’s proxy', () => {
+      expect(isSuspectedMachine({ type: 'open', userAgent: 'Mozilla/5.0 (Windows NT 10.0) Outlook', ip: '170.1.2.3', sentAt, now: later })).toBe(false);
+      expect(isSuspectedMachine({ type: 'open', userAgent: 'Mozilla/5.0 (Windows NT 5.1; rv:11.0) Gecko Firefox/11.0 (via ggpht.com GoogleImageProxy)', ip: '66.249.84.1', sentAt, now: later })).toBe(false);
+    });
+
+    it('leaves clicks to the scanner rules — a person clicking from an Apple network is a person', () => {
+      expect(isSuspectedMachine({ type: 'click', userAgent: 'Mozilla/5.0 (iPhone)', ip: '17.58.101.20', sentAt, now: later })).toBe(false);
+    });
+  });
 });
 
 describe('recording, against the database', () => {
@@ -293,5 +317,15 @@ describe('recording, against the database', () => {
     );
     expect(evil.status).toBe(400);
     expect(evil.headers.get('location')).toBeNull();
+  });
+});
+
+describe('the open rate’s denominator', () => {
+  // A send without the pixel cannot be seen opening, so the rate is taken over sends that carried
+  // it (lib/sequences/performance.ts). The worker records that where it adds the pixel.
+  it('is recorded by the send worker exactly where the pixel is added', () => {
+    const worker = readFileSync(join(process.cwd(), 'workers', 'email.ts'), 'utf8');
+    expect(worker).toMatch(/openPixelHtml\([^)]*\)\}`;\s*openTracked = true;/);
+    expect(worker).toMatch(/sentAt: new Date\(\),\s*openTracked,/);
   });
 });

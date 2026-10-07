@@ -35,6 +35,8 @@ export async function recordTrackingEvent(input: {
   type: 'open' | 'click';
   url?: string | null;
   userAgent: string | null;
+  /** The requester's address, for the Apple privacy-proxy check (lib/email/tracking.ts). */
+  ip?: string | null;
   now?: Date;
 }): Promise<'recorded' | 'recorded_as_machine' | 'unknown_message' | 'failed'> {
   const now = input.now ?? new Date();
@@ -52,7 +54,7 @@ export async function recordTrackingEvent(input: {
       });
       if (stored >= MAX_EVENTS_PER_MESSAGE) return 'recorded_as_machine' as const;
 
-      const machine = isSuspectedMachine({ type: input.type, userAgent: input.userAgent, sentAt: message.sentAt, now });
+      const machine = isSuspectedMachine({ type: input.type, userAgent: input.userAgent, sentAt: message.sentAt, ip: input.ip, now });
       const repeat =
         !machine &&
         (await prisma.emailEvent.count({

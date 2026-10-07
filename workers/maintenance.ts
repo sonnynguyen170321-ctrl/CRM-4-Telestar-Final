@@ -25,6 +25,30 @@ const ORPHAN_SCAN_LIMIT = 2000;
 const STALE_PENDING_OUTBOUND_MS = 60 * 60 * 1000;
 /** Re-drive ceiling — matches the send worker's own deferral cap. */
 const MAX_OUTBOUND_REDRIVES = 5;
+/**
+ * Rows a schedule sweep reads per batch, and per pass. One batch of 100 used to be the whole pass:
+ * the same hundred rows that no repair can move (held cadences, refused schedules) came first on
+ * every run, and everything behind them was never looked at.
+ */
+const SCHEDULE_SWEEP_BATCH = 100;
+const SCHEDULE_SWEEP_LIMIT = 1000;
+/** An enrollment this old with no next action was never scheduled (owner, 2026-10-07). */
+const UNSCHEDULED_ENROLLMENT_GRACE_MS = 15 * 60 * 1000;
+
+/** Every page of a keyset-paginated read, up to `SCHEDULE_SWEEP_LIMIT` rows. */
+async function readSweepPages<T extends { id: string }>(read: (cursor?: string) => Promise<T[]>): Promise<T[]> {
+  const rows: T[] = [];
+  for (let cursor: string | undefined; rows.length < SCHEDULE_SWEEP_LIMIT; ) {
+    const batch = await read(cursor);
+    rows.push(...batch);
+    if (batch.length < SCHEDULE_SWEEP_BATCH) break;
+    cursor = batch[batch.length - 1].id;
+  }
+  return rows;
+}
+
+const pageAfter = (cursor?: string): { cursor?: { id: string }; skip?: number } =>
+  cursor ? { cursor: { id: cursor }, skip: 1 } : {};
 
 async function repairOrphanTasks(): Promise<{ fixed: number; details: string[] }> {
   const details: string[] = [];
@@ -146,11 +170,14 @@ async function repairMissingDelayed(): Promise<{ fixed: number; details: string[
   // every overdue email a rep must send by hand — which the worker can only answer "manual" to —
   // and without an order Postgres chose which hundred, so the same overdue step could be passed
   // over night after night while the batch filled with tasks no job could ever move.
-  const missing = await prisma.task.findMany({
-    where: { status: 'pending', type: 'email', sequenceId: { not: null }, dueDate: { lt: now }, lockedAt: null },
-    orderBy: { dueDate: 'asc' },
-    take: 100,
-  });
+  const missing = await readSweepPages((cursor) =>
+    prisma.task.findMany({
+      where: { status: 'pending', type: 'email', sequenceId: { not: null }, dueDate: { lt: now }, lockedAt: null },
+      orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
+      take: SCHEDULE_SWEEP_BATCH,
+      ...pageAfter(cursor),
+    })
+  );
 
   for (const task of missing) {
     try {
@@ -209,17 +236,28 @@ async function repairEnrollmentScheduleDrift(): Promise<{ fixed: number; details
   let fixed = 0;
   const now = new Date();
 
-  const driftEnrollments = await prisma.sequenceEnrollment.findMany({
-    where: {
-      status: 'active',
-      nextActionAt: { lt: now },
-    },
-    include: {
-      lead: { select: { id: true, assignedToId: true, crmPriorityScore: true } },
-      sequence: { select: { id: true, name: true } },
-    },
-    take: 100,
-  });
+  // Overdue, or never scheduled at all. The import creates the enrollment and then schedules its
+  // first step; when the scheduling failed, the row kept `nextActionAt: null` with no task, and
+  // `nextActionAt < now` never matches null — the enrollment sat "active" forever with nothing
+  // behind it. The grace keeps an enrollment being created right now out of it.
+  const driftEnrollments = await readSweepPages((cursor) =>
+    prisma.sequenceEnrollment.findMany({
+      where: {
+        status: 'active',
+        OR: [
+          { nextActionAt: { lt: now } },
+          { nextActionAt: null, startedAt: { lt: new Date(now.getTime() - UNSCHEDULED_ENROLLMENT_GRACE_MS) } },
+        ],
+      },
+      include: {
+        lead: { select: { id: true, assignedToId: true, crmPriorityScore: true } },
+        sequence: { select: { id: true, name: true } },
+      },
+      orderBy: { id: 'asc' },
+      take: SCHEDULE_SWEEP_BATCH,
+      ...pageAfter(cursor),
+    })
+  );
 
   for (const enr of driftEnrollments) {
     const expectedTaskId = enrollmentStepTaskId(enr.id, enr.currentStep);

@@ -1160,10 +1160,19 @@ export default function SequencesPage() {
                         // reading as a broken engine.
                         const ownership = stepOwnership(pendingTask?.type);
                         const hold = describeHold(enr.holdReason);
-                        // More than a few minutes late; a step due this minute is simply due.
+                        // The worker holds a task while it runs it: late by the clock, but moving.
+                        const isInFlight = enr.status === 'active' && Boolean(pendingTask?.lockedAt);
+                        // Active with no step to run is a cadence nothing will move until the
+                        // repair sweep rebuilds its task (workers/maintenance.ts) — say so instead
+                        // of a bare dash (owner, 2026-10-07: sequences stuck after an import).
+                        const isUnscheduled = enr.status === 'active' && !pendingTask;
+                        // More than a few minutes late; a step due this minute is simply due. A
+                        // held step already says why it is waiting.
                         const isOverdue =
                           enr.status === 'active' &&
                           Boolean(pendingTask) &&
+                          !isInFlight &&
+                          !hold &&
                           new Date(pendingTask.dueDate).getTime() < enrollmentsLoadedAt - 5 * 60 * 1000;
                         return (
                           <tr key={enr.id} className={`hover:bg-bg-main/30 transition-colors ${isSelected ? 'bg-brand-red/5' : ''}`}>
@@ -1219,6 +1228,17 @@ export default function SequencesPage() {
                               {pendingTask ? new Date(pendingTask.dueDate).toLocaleString() : '-'}
                               {isOverdue && (
                                 <div className="mt-0.5 type-meta font-sans text-brand-orange-text">Overdue</div>
+                              )}
+                              {isInFlight && (
+                                <div className="mt-0.5 type-meta font-sans text-text-muted">Sending now</div>
+                              )}
+                              {isUnscheduled && (
+                                <div
+                                  className="mt-0.5 type-meta font-sans text-brand-orange-text"
+                                  title="No step is scheduled. The repair sweep reschedules it automatically."
+                                >
+                                  Not scheduled — repair pending
+                                </div>
                               )}
                             </td>
                             <td className="px-4 py-3 text-right">
