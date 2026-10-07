@@ -68,6 +68,8 @@ vi.mock('@/lib/prisma', () => ({
     outboundMessage: {
       upsert: (...args: unknown[]) => mockOutboundUpsert(...args),
       findFirst: (...args: unknown[]) => mockOutboundFindFirst(...args),
+      // The inbox sync matches replies through this mailbox's own sends (workers/sync.ts).
+      findMany: async () => [],
       update: (...args: unknown[]) => mockOutboundUpdate(...args),
     },
     inboundMessage: {

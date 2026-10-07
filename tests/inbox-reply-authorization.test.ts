@@ -1,31 +1,40 @@
 /**
- * Replying from the inbox sends mail *as the lead's owner*.
+ * Replying from the inbox sends mail as someone — so who may reply, and from which mailbox, is
+ * settled on the server.
  *
- * The route looks the lead up by id and tenant, then picks the active `EmailAccount` belonging to
- * `lead.assignedToId` and sends through it. With one tenant per deployment that made every lead
- * reachable by every authenticated user, and the resulting mail went out over a colleague's
- * address — not a read leak but an impersonated send, which cannot be taken back.
+ * The route used to pick any active mailbox of `lead.assignedToId`, gated by `canAccessLead`. Two
+ * problems: the reply could leave from a different domain than the one the prospect wrote to,
+ * breaking the thread; and once a reply follows its lead rather than its mailbox (owner,
+ * 2026-10-07), the people who can see a conversation are not exactly the lead's viewers.
  *
- * `canAccessLead` is the answer the rest of the CRM already gives (`app/api/leads/[id]/route.ts`
- * gates on it), and the reply path has to give the same one.
+ * Now: the reply goes out from the mailbox the prospect's latest message landed in, and that
+ * message is looked for only inside the viewer's inbox scope (lib/inbox/scope.ts). A viewer who
+ * cannot see the conversation finds no message and is refused; nothing is queued.
  */
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const mockRequireAuth = vi.fn();
-const mockCanAccessLead = vi.fn();
+const mockVisibleUserIds = vi.fn();
+const mockInboxScope = vi.fn();
 const mockLeadFindFirst = vi.fn();
+const mockInboundFindMany = vi.fn();
 const mockAccountFindFirst = vi.fn();
 const mockCreateOutbound = vi.fn();
 const mockEnqueueSend = vi.fn();
 
 vi.mock('@/lib/auth', () => ({
   requireAuth: (...a: unknown[]) => mockRequireAuth(...a),
-  canAccessLead: (...a: unknown[]) => mockCanAccessLead(...a),
+  getVisibleUserIds: (...a: unknown[]) => mockVisibleUserIds(...a),
+}));
+vi.mock('@/lib/inbox/scope', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/inbox/scope')>()),
+  inboxScope: (...a: unknown[]) => mockInboxScope(...a),
 }));
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     lead: { findFirst: (...a: unknown[]) => mockLeadFindFirst(...a) },
+    inboundMessage: { findMany: (...a: unknown[]) => mockInboundFindMany(...a) },
     emailAccount: { findFirst: (...a: unknown[]) => mockAccountFindFirst(...a) },
   },
 }));
@@ -38,7 +47,8 @@ vi.mock('@/lib/workflows/email', () => ({
 const { POST } = await import('@/app/api/inbox/threads/[id]/reply/route');
 
 const SDR = { id: 'u-sdr', tenantId: 't1', role: 'sdr' };
-const OTHER_LEAD = { id: 'lead-9', email: 'prospect@example.test', assignedToId: 'u-colleague', campaignId: 'c1' };
+const LEAD = { id: 'lead-9', email: 'prospect@example.test', assignedToId: 'u-sdr', campaignId: 'c1' };
+const SCOPE = { inbound: { OR: [{ account: { userId: { in: ['u-sdr'] } } }] }, outbound: {} };
 
 const req = (body: unknown) =>
   new NextRequest(
@@ -54,42 +64,106 @@ const params = { params: Promise.resolve({ id: 'thread-1' }) };
 beforeEach(() => {
   vi.clearAllMocks();
   mockRequireAuth.mockResolvedValue(SDR);
-  mockLeadFindFirst.mockResolvedValue(OTHER_LEAD);
-  mockAccountFindFirst.mockResolvedValue({ id: 'acct-colleague', userId: 'u-colleague' });
-  mockCreateOutbound.mockResolvedValue({ id: 'out-1' });
+  mockVisibleUserIds.mockResolvedValue(['u-sdr']);
+  mockInboxScope.mockResolvedValue(SCOPE);
+  mockLeadFindFirst.mockResolvedValue(LEAD);
+  mockInboundFindMany.mockResolvedValue([{ accountId: 'acct-sender', subject: 'Re: Intro' }]);
+  mockAccountFindFirst.mockResolvedValue({ id: 'acct-sender', email: 'mei@nekko.tech', userId: 'u-team-lead' });
+  mockCreateOutbound.mockResolvedValue({ id: 'out-1', leadId: LEAD.id, tenantId: 't1', to: LEAD.email, subject: 'Re: Intro', body: 'hello', createdAt: new Date() });
   mockEnqueueSend.mockResolvedValue('job-1');
 });
 
 describe('POST /api/inbox/threads/[id]/reply', () => {
-  it('refuses to send on a lead the caller may not access', async () => {
-    mockCanAccessLead.mockResolvedValue(false);
+  it('refuses a conversation outside the caller’s inbox scope, and queues nothing', async () => {
+    mockInboundFindMany.mockResolvedValue([]);
 
-    const res = await POST(req({ leadId: OTHER_LEAD.id, body: 'hello', subject: 'Intro' }), params);
+    const res = await POST(req({ leadId: LEAD.id, body: 'hello', subject: 'Intro' }), params);
 
     expect(res.status).toBe(403);
     expect(mockCreateOutbound, 'nothing may be queued for a refused caller').not.toHaveBeenCalled();
     expect(mockEnqueueSend).not.toHaveBeenCalled();
   });
 
-  it('checks access against the lead it actually loaded', async () => {
-    mockCanAccessLead.mockResolvedValue(true);
+  it('looks for the prospect’s latest message only inside the caller’s scope', async () => {
+    await POST(req({ leadId: LEAD.id, body: 'hello', subject: 'Intro' }), params);
 
-    await POST(req({ leadId: OTHER_LEAD.id, body: 'hello', subject: 'Intro' }), params);
-
-    expect(mockCanAccessLead).toHaveBeenCalledWith(
-      SDR,
-      expect.objectContaining({ assignedToId: 'u-colleague' })
-    );
+    expect(mockInboxScope).toHaveBeenCalledWith(['u-sdr']);
+    expect(mockInboundFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { tenantId: 't1', leadId: LEAD.id, isBounce: false, AND: [SCOPE.inbound] },
+      orderBy: { date: 'desc' },
+    }));
   });
 
-  it('still sends for a caller who owns the lead', async () => {
-    mockLeadFindFirst.mockResolvedValue({ ...OTHER_LEAD, assignedToId: SDR.id });
-    mockAccountFindFirst.mockResolvedValue({ id: 'acct-mine', userId: SDR.id });
-    mockCanAccessLead.mockResolvedValue(true);
-
-    const res = await POST(req({ leadId: OTHER_LEAD.id, body: 'hello', subject: 'Intro' }), params);
+  it('replies from the mailbox the prospect wrote to, not the lead holder’s own', async () => {
+    const res = await POST(req({ leadId: LEAD.id, body: 'hello', subject: 'Intro' }), params);
 
     expect(res.status).toBeLessThan(400);
-    expect(mockEnqueueSend).toHaveBeenCalled();
+    expect(mockAccountFindFirst).toHaveBeenCalledWith({ where: { id: 'acct-sender', tenantId: 't1', isActive: true } });
+    expect(mockCreateOutbound).toHaveBeenCalledWith(expect.objectContaining({ accountId: 'acct-sender', to: LEAD.email }));
+    expect(mockEnqueueSend).toHaveBeenCalledWith(expect.objectContaining({ accountId: 'acct-sender' }), 't1');
+  });
+
+  it('says so when that mailbox is no longer connected, rather than switching domains', async () => {
+    mockAccountFindFirst.mockResolvedValue(null);
+
+    const res = await POST(req({ leadId: LEAD.id, body: 'hello', subject: 'Intro' }), params);
+
+    expect(res.status).toBe(400);
+    expect(mockCreateOutbound).not.toHaveBeenCalled();
+  });
+
+  it('refuses a lead outside the caller’s tenant', async () => {
+    mockLeadFindFirst.mockResolvedValue(null);
+
+    const res = await POST(req({ leadId: 'lead-elsewhere', body: 'hello', subject: 'Intro' }), params);
+
+    expect(res.status).toBe(404);
+    expect(mockCreateOutbound).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/inbox/threads/[id]/reply — review findings', () => {
+  const threadReq = (thread: string, body: unknown) => [
+    new NextRequest(new Request(`https://crm.test/api/inbox/threads/${encodeURIComponent(thread)}/reply`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })),
+    { params: Promise.resolve({ id: thread }) },
+  ] as const;
+
+  it('answers 400, not 500, to a malformed request', async () => {
+    for (const bad of [{ leadId: LEAD.id }, { leadId: LEAD.id, body: 42 }, { body: 'hi' }, null]) {
+      const res = await POST(...threadReq('thread-1', bad));
+      expect(res.status).toBe(400);
+    }
+    expect(mockCreateOutbound).not.toHaveBeenCalled();
+  });
+
+  it('treats a missing subject as empty instead of crashing', async () => {
+    const res = await POST(...threadReq('thread-1', { leadId: LEAD.id, body: 'hello' }));
+    expect(res.status).toBeLessThan(400);
+  });
+
+  it('replies from the mailbox of the thread being viewed, not just the lead’s latest', async () => {
+    mockInboundFindMany.mockResolvedValue([
+      { accountId: 'acct-other', subject: 'Re: Pricing' },
+      { accountId: 'acct-sender', subject: 'RE: Intro' },
+    ]);
+    mockAccountFindFirst.mockImplementation(async ({ where }: { where: { id: string } }) => ({ id: where.id, email: 'x@y.z' }));
+
+    await POST(...threadReq(`${LEAD.id}-intro`, { leadId: LEAD.id, body: 'hello', subject: 'Intro' }));
+
+    expect(mockCreateOutbound).toHaveBeenCalledWith(expect.objectContaining({ accountId: 'acct-sender' }));
+  });
+
+  it('keys the reply on the lead, and refuses a row that belongs to another lead', async () => {
+    mockCreateOutbound.mockResolvedValue({ id: 'out-x', leadId: 'lead-other', tenantId: 't1' });
+
+    const res = await POST(...threadReq('thread-1', { leadId: LEAD.id, body: 'hello', subject: 'Intro', clientRequestId: 'req-12345678' }));
+
+    expect(mockCreateOutbound).toHaveBeenCalledWith(expect.objectContaining({
+      source: { kind: 'reply', threadKey: `${LEAD.id}:thread-1`, requestId: 'req-12345678' },
+    }));
+    expect(res.status).toBe(409);
+    expect(mockEnqueueSend).not.toHaveBeenCalled();
   });
 });

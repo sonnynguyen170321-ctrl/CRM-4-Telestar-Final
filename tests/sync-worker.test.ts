@@ -16,6 +16,7 @@ const mockSuppressionCreate = vi.fn();
 const mockInboundFindUnique = vi.fn();
 const mockInboundCreate = vi.fn();
 const mockOutboundFindFirst = vi.fn();
+const mockOutboundFindMany = vi.fn().mockResolvedValue([]);
 const mockOutboundUpdate = vi.fn();
 const mockLeadUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 const mockTaskUpdateManyOcc = vi.fn().mockResolvedValue({ count: 0 });
@@ -64,6 +65,7 @@ vi.mock('@/lib/prisma', () => ({
     },
     outboundMessage: {
       findFirst: (...args: unknown[]) => mockOutboundFindFirst(...args),
+      findMany: (...args: unknown[]) => mockOutboundFindMany(...args),
       update: (...args: unknown[]) => mockOutboundUpdate(...args),
     },
     sequenceEnrollment: {
@@ -524,6 +526,7 @@ describe('handleEmailSync', () => {
     mockInboundFindUnique.mockResolvedValue(null);
     mockInboundCreate.mockResolvedValue({ id: 'inbound-1' });
     mockOutboundFindFirst.mockResolvedValue(null);
+    mockOutboundFindMany.mockResolvedValue([]);
     mockLeadFindMany.mockResolvedValue([]);
   });
 
@@ -690,12 +693,12 @@ describe('handleEmailSync', () => {
 
     await handleEmailSync({ accountId: 'acct-1' });
 
+    expect(mockOutboundFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { accountId: 'acct-1', sentAt: { gte: expect.any(Date) }, to: { in: ['lead@acme.com'], mode: 'insensitive' } } })
+    );
     expect(mockLeadFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({
-          email: { in: ['lead@acme.com'], mode: 'insensitive' },
-          assignedToId: 'user-1',
-        }),
+        where: { OR: [{ email: { in: ['lead@acme.com'], mode: 'insensitive' }, assignedToId: 'user-1' }] },
       })
     );
   });
@@ -708,7 +711,8 @@ describe('handleEmailSync', () => {
       fetchMessagesSince: vi.fn().mockResolvedValue([{ providerMessageId: 'gmail-lost', fromEmail: 'p@acme.com', subject: 'Re: hi', date: new Date() }]),
     });
     (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(false);
-    mockLeadFindMany.mockResolvedValue([]);
+    // Only prospect mail is stored now (owner, 2026-10-07).
+    mockLeadFindMany.mockResolvedValue([{ id: 'lead-p', email: 'p@acme.com', sequenceId: null, sequenceStatus: null, emailInvalid: false }]);
     mockInboundFindUnique.mockResolvedValue(null);
     mockInboundCreate.mockRejectedValueOnce(new Error('connection reset'));
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -724,7 +728,8 @@ describe('handleEmailSync', () => {
       fetchMessagesSince: vi.fn().mockResolvedValue([{ providerMessageId: 'gmail-race', fromEmail: 'p@acme.com', subject: 'Re: hi', date: new Date() }]),
     });
     (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(false);
-    mockLeadFindMany.mockResolvedValue([]);
+    // Only prospect mail is stored now (owner, 2026-10-07).
+    mockLeadFindMany.mockResolvedValue([{ id: 'lead-p', email: 'p@acme.com', sequenceId: null, sequenceStatus: null, emailInvalid: false }]);
     mockInboundFindUnique.mockResolvedValue(null);
     mockInboundCreate.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'test' }));
 
@@ -739,7 +744,8 @@ describe('handleEmailSync', () => {
       fetchMessagesSince: vi.fn().mockResolvedValue([{ providerMessageId: 'gmail-poison', fromEmail: 'p@acme.com', subject: 'x', date: new Date() }]),
     });
     (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(false);
-    mockLeadFindMany.mockResolvedValue([]);
+    // Only prospect mail is stored now (owner, 2026-10-07).
+    mockLeadFindMany.mockResolvedValue([{ id: 'lead-p', email: 'p@acme.com', sequenceId: null, sequenceStatus: null, emailInvalid: false }]);
     mockInboundFindUnique.mockResolvedValue(null);
     mockInboundCreate.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError('too long', { code: 'P2000', clientVersion: 'test' }));
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -755,7 +761,8 @@ describe('handleEmailSync', () => {
       fetchMessagesSince: vi.fn().mockResolvedValue([{ providerMessageId: 'gmail-nul', fromEmail: 'p@acme.com', fromName: `P${NUL}`, subject: `Re${NUL}: hi`, body: `a${NUL}b`, date: new Date() }]),
     });
     (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(false);
-    mockLeadFindMany.mockResolvedValue([]);
+    // Only prospect mail is stored now (owner, 2026-10-07).
+    mockLeadFindMany.mockResolvedValue([{ id: 'lead-p', email: 'p@acme.com', sequenceId: null, sequenceStatus: null, emailInvalid: false }]);
     mockInboundFindUnique.mockResolvedValue(null);
 
     await handleEmailSync({ accountId: 'acct-1' });
@@ -871,7 +878,7 @@ describe('handleEmailSync', () => {
     expect(pauseEnrollmentOccurrence).not.toHaveBeenCalled();
   });
 
-  it('does not count inbound mail from a non-lead as a reply', async () => {
+  it('does not store inbound mail from a non-lead (owner, 2026-10-07)', async () => {
     const mockMsg = {
       providerMessageId: 'gmail-r3',
       fromEmail: 'colleague@telestar.com',
@@ -886,10 +893,87 @@ describe('handleEmailSync', () => {
     (isAutoReply as ReturnType<typeof vi.fn>).mockReturnValue(false);
     mockLeadFindMany.mockResolvedValue([]);
 
-    await handleEmailSync({ accountId: 'acct-1' });
+    const result = await handleEmailSync({ accountId: 'acct-1' });
 
-    expect(mockInboundCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ isReply: false, leadId: null }),
+    expect(mockInboundCreate).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ success: true, replies: 0 });
+  });
+
+  // A sequence sends only from its chosen sender mailboxes, which are often not the lead
+  // holder's. Replies and bounces landing there matched no lead, so the cadence kept going.
+  describe("a sender mailbox that is not the lead holder's", () => {
+    const senderMailbox = { ...mockAccount, id: 'acct-tl', userId: 'team-lead-1', email: 'mei@nekko.tech' };
+    const sdrLead = {
+      id: 'lead-9', email: 'prospect@acme.com', sequenceId: 'seq-1', sequenceStatus: 'active',
+      emailInvalid: false, assignedToId: 'sdr-7', stage: 'sequence_active',
+    };
+
+    it('matches a reply to the lead this mailbox wrote to, and pauses its cadence', async () => {
+      mockAccountFindUnique.mockResolvedValue(senderMailbox);
+      (EmailService.fromAccount as ReturnType<typeof vi.fn>).mockResolvedValue({
+        fetchMessagesSince: vi.fn().mockResolvedValue([
+          { providerMessageId: 'gmail-x1', fromEmail: 'Prospect@Acme.com', subject: 'Re: intro', date: new Date() },
+        ]),
+      });
+      (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(false);
+      (isAutoReply as ReturnType<typeof vi.fn>).mockReturnValue(false);
+      mockOutboundFindMany.mockResolvedValue([{ leadId: 'lead-9', to: 'prospect@acme.com' }]);
+      mockLeadFindMany.mockResolvedValue([sdrLead]);
+
+      const result = await handleEmailSync({ accountId: 'acct-tl' });
+
+      expect(mockOutboundFindMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { accountId: 'acct-tl', sentAt: { gte: expect.any(Date) }, to: { in: ['Prospect@Acme.com'], mode: 'insensitive' } },
+      }));
+      expect(mockLeadFindMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { OR: [
+          { id: { in: ['lead-9'] } },
+          { email: { in: ['Prospect@Acme.com'], mode: 'insensitive' }, assignedToId: 'team-lead-1' },
+        ] },
+      }));
+      expect(mockInboundCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ leadId: 'lead-9', isReply: true }) });
+      expect(result).toMatchObject({ replies: 1 });
+    });
+
+    it('matches a bounce to the lead this mailbox wrote to, and suppresses the address', async () => {
+      mockAccountFindUnique.mockResolvedValue(senderMailbox);
+      (EmailService.fromAccount as ReturnType<typeof vi.fn>).mockResolvedValue({
+        fetchMessagesSince: vi.fn().mockResolvedValue([
+          { providerMessageId: 'gmail-x2', fromEmail: 'mailer-daemon@google.com', subject: 'Delivery Status Notification (Failure)', date: new Date() },
+        ]),
+      });
+      (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(true);
+      (extractBouncedRecipient as ReturnType<typeof vi.fn>).mockReturnValue('prospect@acme.com');
+      mockOutboundFindMany.mockResolvedValue([{ leadId: 'lead-9', to: 'prospect@acme.com' }]);
+      mockLeadFindMany.mockResolvedValue([{ ...sdrLead, tenantId: 'tenant-1', tags: [] }]);
+      mockLeadFindUnique.mockResolvedValue({ ...sdrLead, tenantId: 'tenant-1', tags: [] });
+      mockSuppressionFindFirst.mockResolvedValue(null);
+
+      const result = await handleEmailSync({ accountId: 'acct-tl' });
+
+      expect(result).toMatchObject({ bounces: 1 });
+      expect(mockSuppressionCreate).toHaveBeenCalled();
+    });
+
+    it('takes the lead of the latest send when an address was written to for two leads', async () => {
+      mockAccountFindUnique.mockResolvedValue(senderMailbox);
+      (EmailService.fromAccount as ReturnType<typeof vi.fn>).mockResolvedValue({
+        fetchMessagesSince: vi.fn().mockResolvedValue([
+          { providerMessageId: 'gmail-x3', fromEmail: 'prospect@acme.com', subject: 'Re: intro', date: new Date() },
+        ]),
+      });
+      (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(false);
+      (isAutoReply as ReturnType<typeof vi.fn>).mockReturnValue(false);
+      // newest first, as queried
+      mockOutboundFindMany.mockResolvedValue([
+        { leadId: 'lead-new', to: 'prospect@acme.com' },
+        { leadId: 'lead-9', to: 'prospect@acme.com' },
+      ]);
+      mockLeadFindMany.mockResolvedValue([sdrLead, { ...sdrLead, id: 'lead-new' }]);
+
+      await handleEmailSync({ accountId: 'acct-tl' });
+
+      expect(mockInboundCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ leadId: 'lead-new' }) });
     });
   });
 

@@ -20,6 +20,8 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     inboundMessage: { findMany: (...a: unknown[]) => mockInbound(...a) },
     outboundMessage: { findMany: (...a: unknown[]) => mockOutbound(...a) },
+    // The inbox scope reads the sequences the viewer owns (lib/inbox/scope.ts).
+    sequence: { findMany: async () => [] },
   },
 }));
 
