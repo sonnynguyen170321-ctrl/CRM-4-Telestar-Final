@@ -27,6 +27,25 @@ describe('formatEmailBodyHtml — the body laid out as the editor shows it', () 
     expect(html).toContain('<p style="margin: 0; margin-bottom: 12px">A</p>');
   });
 
+  // Review findings on the first cut, which matched `style=` with a loose regex.
+  it('reads attributes whole: a "style" inside another value, unquoted styles, `$` and `>` in values', () => {
+    expect(formatEmailBodyHtml(`<p data-x="a style='b'">A</p>`, true)).toContain(
+      `<p data-x="a style='b'" style="margin: 0;">A</p>`,
+    );
+    expect(formatEmailBodyHtml('<p style=color:red>A</p>', true)).toContain('<p style="margin: 0; color:red">A</p>');
+    expect(formatEmailBodyHtml(`<p style="font-family: 'A$&B'">A</p>`, true)).toContain(
+      `<p style="margin: 0; font-family: 'A$&B'">A</p>`,
+    );
+    expect(formatEmailBodyHtml('<p title="a > b">A</p>', true)).toContain('<p title="a > b" style="margin: 0;">A</p>');
+    expect(formatEmailBodyHtml('<P/>', true)).toContain('<p style="margin: 0;" />');
+  });
+
+  it('carries a single-quoted style that holds double quotes', () => {
+    expect(formatEmailBodyHtml(`<p style='font-family: "Arial"'>A</p>`, true)).toContain(
+      '<p style="margin: 0; font-family: &quot;Arial&quot;">A</p>',
+    );
+  });
+
   it('indents lists the way the editor does', () => {
     const html = formatEmailBodyHtml('<ul><li>One</li></ul><ol class="x"><li>Two</li></ol>', true);
 

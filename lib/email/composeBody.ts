@@ -36,14 +36,27 @@ function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-/** Put `css` first in each opening `tag`'s style, so a margin the author set still wins. */
+// One attribute: a name, then optionally a double-quoted, single-quoted or bare value. Read whole,
+// so `style=` inside another attribute's value, or a `>` inside quotes, is never mistaken for markup.
+const ATTRIBUTE_SOURCE = `\\s+[^\\s=/>]+(?:\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s"'=<>\`]+))?`;
+const ATTRIBUTE = new RegExp(`\\s+([^\\s=/>]+)(?:\\s*=\\s*("[^"]*"|'[^']*'|[^\\s"'=<>\`]+))?`, 'g');
+
+/**
+ * Put `css` first in each opening `tag`'s style, so a margin the author set still wins. A tag that
+ * does not parse as plain attributes is left exactly as written.
+ */
 function withInlineDefault(html: string, tag: string, css: string): string {
-  const opening = new RegExp(`<${tag}\\b([^>]*)>`, 'gi');
-  return html.replace(opening, (whole, attrs: string) => {
-    const style = attrs.match(/\sstyle\s*=\s*(["'])([\s\S]*?)\1/i);
-    if (!style) return `<${tag}${attrs} style="${css}">`;
-    const merged = ` style=${style[1]}${css} ${style[2]}${style[1]}`;
-    return `<${tag}${attrs.replace(style[0], merged)}>`;
+  const opening = new RegExp(`<${tag}((?:${ATTRIBUTE_SOURCE})*)\\s*(/?)>`, 'gi');
+  return html.replace(opening, (_whole, attrs: string, selfClosing: string) => {
+    let styled = false;
+    const rewritten = attrs.replace(ATTRIBUTE, (attribute: string, name: string, value?: string) => {
+      if (styled || name.toLowerCase() !== 'style') return attribute;
+      styled = true;
+      const own = value === undefined ? '' : /^["']/.test(value) ? value.slice(1, -1) : value;
+      return ` style="${css} ${own.replace(/"/g, '&quot;')}"`;
+    });
+    const withStyle = styled ? rewritten : `${attrs} style="${css}"`;
+    return `<${tag}${withStyle}${selfClosing ? ' /' : ''}>`;
   });
 }
 

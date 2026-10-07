@@ -88,7 +88,6 @@ export default function TemplatesPage() {
   const [mailboxes, setMailboxes] = useState<PreviewMailbox[]>([]);
   const [previewAccountId, setPreviewAccountId] = useState('');
   const [previewSignature, setPreviewSignature] = useState<string | null>(null);
-  const [sendingTest, setSendingTest] = useState(false);
   const [saving, setSaving] = useState(false);
   const [abVariants, setAbVariants] = useState<AbTestVariant[]>([]);
   const [abOpen, setAbOpen] = useState(false);
@@ -307,41 +306,6 @@ export default function TemplatesPage() {
       input?.focus();
       input?.setSelectionRange(next.cursor, next.cursor);
     });
-  };
-
-  // A real send to the mailbox's own address, through the normal send path, with the demo data
-  // the preview shows. It is the only way to see what Gmail or Outlook makes of the message.
-  const handleSendTest = async () => {
-    const mailbox = mailboxes.find((m) => m.id === previewAccountId);
-    if (!mailbox) {
-      showToast('Connect a mailbox under Settings to send a test', 'error');
-      return;
-    }
-    setSendingTest(true);
-    try {
-      const res = await fetch('/api/email/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accountId: mailbox.id,
-          to: mailbox.email,
-          subject: applyMergeFields(subject),
-          body: applyMergeFields(body),
-          ...(selectedTemp ? { templateId: selectedTemp.id } : {}),
-          clientRequestId: crypto.randomUUID(),
-        }),
-      });
-      if (res.ok) {
-        showToast(`Test queued to ${mailbox.email}`, 'success');
-      } else {
-        const err = await res.json().catch(() => ({}));
-        showToast(err.error || 'Failed to send the test', 'error');
-      }
-    } catch {
-      showToast('Network error sending the test', 'error');
-    } finally {
-      setSendingTest(false);
-    }
   };
 
   const handleSaveTemplate = async () => {
@@ -953,14 +917,6 @@ export default function TemplatesPage() {
                                 <option key={m.id} value={m.id}>{m.email}</option>
                               ))}
                             </select>
-                            <button
-                              type="button"
-                              onClick={handleSendTest}
-                              disabled={sendingTest || !previewAccountId || !body.trim()}
-                              className="ml-auto px-2.5 py-1 border border-card-border bg-bg-main hover:bg-card-border/40 rounded-lg font-semibold text-text-secondary disabled:opacity-50 transition-colors"
-                            >
-                              {sendingTest ? 'Sending…' : 'Send test to me'}
-                            </button>
                           </div>
                           <div
                             className="email-canvas rounded-lg p-3 select-text"
@@ -981,7 +937,7 @@ export default function TemplatesPage() {
                       <span className="text-xs">💡</span>
                       <span>
                         Preview shows merge tokens substituted with demo data: Sarah Chen (VP Operations at Acme Corp).
-                        {channel === 'email' && ' Email layout and signature are exactly what the prospect receives; "Send test to me" sends this version to the chosen mailbox.'}
+                        {channel === 'email' && ' Layout and signature are exactly what the prospect receives.'}
                       </span>
                     </div>
                   </div>
