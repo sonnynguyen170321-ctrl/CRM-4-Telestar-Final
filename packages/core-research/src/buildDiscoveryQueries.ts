@@ -156,16 +156,20 @@ function seniorityToTitles(seniority: string[]): string[] {
   return seniority.flatMap((s) => SENIORITY_TITLES[s.trim().toLowerCase()] ?? [s]);
 }
 
-// Append the builder's include/exclude refinements to already-built queries: exclude domains
-// (-site:), exclude keywords (-"kw"), and a positive company-size term. Bounded to a safe length.
+// Append the builder's exclude refinements to already-built queries: exclude domains (-site:) and
+// exclude keywords (-"kw"). Bounded to a safe length.
+//
+// The company-size band is deliberately not here. It used to be appended as one quoted phrase —
+// `"51-200, 201-500, 501-1000"` — which no page contains, so every query carrying it returned nothing
+// (production, 2026-10-07: an FMCG run of four queries, zero results, reported as succeeded). Size is
+// checked on the company once it is found, not searched for as text.
 function applyBuilderModifiers(queries: DiscoveryQuery[], params: ResearchBuilderParams): DiscoveryQuery[] {
   const negatives = [
     ...params.excludeDomains.map((d) => `-site:${d}`),
     ...params.excludeKeywords.map((k) => `-"${k}"`),
   ].join(" ");
-  const sizeTerm = params.companySize ? `"${params.companySize}"` : "";
-  if (!negatives && !sizeTerm) return queries;
-  return queries.map((q) => ({ ...q, query: [q.query, sizeTerm, negatives].filter(Boolean).join(" ").slice(0, 350) }));
+  if (!negatives) return queries;
+  return queries.map((q) => ({ ...q, query: [q.query, negatives].filter(Boolean).join(" ").slice(0, 350) }));
 }
 
 export function isEmptyResearchBuilderParams(params: ResearchBuilderParams | null): boolean {
@@ -220,21 +224,23 @@ function buildCompanyQueries(input: { industries: string[]; keywords: string[]; 
   if (primaries.length === 0) return [];
   const refiners = input.industries.length > 0 ? input.keywords : [];
   const geos = input.geos.length > 0 ? input.geos : [""];
-  const queries: DiscoveryQuery[] = [];
-  const cap = input.limit * 2;
+  const refinersUsed = refiners.slice(0, MAX_REFINERS_PER_PRIMARY);
 
-  outer: for (const geo of geos) {
-    for (const primary of primaries) {
-      // 1. Core intent query — real company sites, aggregators excluded.
-      pushQuery(queries, [`"${primary}"`, geo, NEGATIVE_OPERATORS], [primary, geo]);
-      // 2. Directory-style — listing pages that yield many candidate domains.
-      pushQuery(queries, ["top", `"${primary}"`, "companies", geo], [primary, geo]);
-      // 3. Keyword refinements — sharpen fit, bounded so one industry can't explode the plan.
-      for (const keyword of refiners.slice(0, MAX_REFINERS_PER_PRIMARY)) {
-        pushQuery(queries, [`"${primary}"`, `"${keyword}"`, geo, NEGATIVE_OPERATORS], [primary, keyword, geo]);
-        if (queries.length >= cap) break outer;
-      }
-      if (queries.length >= cap) break outer;
+  // Rounds of (industry, keyword) pairs, each visiting every country once, so the budget reaches
+  // every target country before any country gets a second query. Geo-major order spent the whole
+  // budget on the first countries listed (production, 2026-10-08: a sixteen-country ICP came back
+  // with Saudi Arabia and the UAE only). Plain industry queries first, then keyword refinements.
+  //
+  // No "top <industry> companies <geo>" query any more: it aimed at directory pages, the parser
+  // rightly refuses directory pages as candidates, and so every one of those queries was wasted.
+  const queries: DiscoveryQuery[] = [];
+  const rounds = primaries.length * (refinersUsed.length + 1);
+  for (let round = 0; round < rounds && queries.length < input.limit * 2; round++) {
+    const primary = primaries[round % primaries.length];
+    const keyword = refinersUsed[Math.floor(round / primaries.length) - 1] ?? null;
+    for (const geo of geos) {
+      if (keyword) pushQuery(queries, [`"${primary}"`, `"${keyword}"`, geo, NEGATIVE_OPERATORS], [primary, keyword, geo]);
+      else pushQuery(queries, [`"${primary}"`, geo, NEGATIVE_OPERATORS], [primary, geo]);
     }
   }
 

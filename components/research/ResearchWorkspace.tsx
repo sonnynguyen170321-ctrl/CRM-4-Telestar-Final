@@ -132,7 +132,8 @@ export default function ResearchWorkspace() {
       for (const run of nextRuns) {
         const previous = lastStatuses.current.get(run.id);
         if (previous === 'running' && run.status !== 'running') {
-          if (run.status === 'succeeded') showToast('Research run finished.', 'success');
+          // A run that found nothing carries the reason; say it instead of a green "finished".
+          if (run.status === 'succeeded') showToast(run.errorMessage || 'Research run finished.', run.errorMessage ? 'info' : 'success');
           else if (run.status === 'paused') showToast('Research run paused between batches.', 'info');
           else if (run.status === 'failed') showToast(run.errorMessage || 'Research run failed.', 'error');
         }
@@ -476,11 +477,17 @@ export default function ResearchWorkspace() {
                 </div>
               )}
 
-              {selectedRun?.errorMessage && (
-                <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 type-meta text-red-300" role="alert">
-                  {selectedRun.errorMessage}
-                </p>
-              )}
+              {selectedRun?.errorMessage &&
+                (selectedRun.status === 'failed' ? (
+                  <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 type-meta text-red-300" role="alert">
+                    {selectedRun.errorMessage}
+                  </p>
+                ) : (
+                  // Finished, nothing found: a note about the result, not an error.
+                  <p className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 type-meta text-amber-300" role="status">
+                    {selectedRun.errorMessage}
+                  </p>
+                ))}
             </section>
 
             <section className="overflow-hidden rounded-2xl border border-card-border bg-card-bg">
