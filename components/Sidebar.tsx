@@ -233,6 +233,8 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
             ...(userRole === 'director' || userRole === 'floor_manager'
               ? [{ name: 'Admin', href: '/admin', icon: Shield }]
               : []),
+            // A team lead opens the admin campaign pages only (lib/admin/teamLeadAdminPaths.ts).
+            ...(userRole === 'team_lead' ? [{ name: 'Campaigns', href: '/admin/campaigns', icon: Briefcase }] : []),
             // Everyone gets a link: managers see their whole pod, SDRs see only
             // their own mailbox (read-only) — the API scopes it either way.
             { name: 'Email Health', href: '/email-health', icon: ShieldCheck },
