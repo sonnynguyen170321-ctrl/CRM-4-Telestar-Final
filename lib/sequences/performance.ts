@@ -172,6 +172,13 @@ export async function getSequencePerformance(input: {
       _count: { _all: true },
     });
 
+  // Sent with the pixel. A message from before `openTracked` existed (null) is taken to follow the
+  // sequence's current setting — the owner's call, 2026-10-07, and the reason the rate is labelled
+  // an estimate.
+  const carriedPixel: Prisma.OutboundMessageWhereInput = tracking.opens
+    ? { OR: [{ openTracked: true }, { openTracked: null }] }
+    : { openTracked: true };
+
   const [byStatus, ...grouped] = await Promise.all([
     prisma.sequenceEnrollment.groupBy({
       by: ['status'],
@@ -179,13 +186,12 @@ export async function getSequencePerformance(input: {
       _count: { _all: true },
     }),
     countByStep({}),
-    ...Object.values(MARKER).map((field) => countByStep({ [field]: { not: null } })),
-    // Sent with the pixel. A message from before `openTracked` existed (null) is taken to follow
-    // the sequence's current setting — the owner's call, 2026-10-07, and the reason the rate is
-    // labelled an estimate.
-    countByStep(
-      tracking.opens ? { OR: [{ openTracked: true }, { openTracked: null }] } : { openTracked: true }
+    // An open counts only on a send in the denominator, so the rate cannot pass 100% when old
+    // sends opened under a setting that has since changed.
+    ...Object.values(MARKER).map((field) =>
+      countByStep(field === 'openedAt' ? { AND: [{ openedAt: { not: null } }, carriedPixel] } : { [field]: { not: null } })
     ),
+    countByStep(carriedPixel),
   ]);
 
   const statusCount = (status: string) => byStatus.find((row) => row.status === status)?._count._all ?? 0;

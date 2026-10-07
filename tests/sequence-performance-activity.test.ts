@@ -209,6 +209,18 @@ describe('getSequencePerformance', () => {
     expect(perf?.totals).toMatchObject({ sent: 4, openTracked: 2, opened: 1, openRate: 50, replyRate: 0 });
   });
 
+  it('counts an open only on a send that carried the pixel, so the rate cannot pass 100%', async () => {
+    await inTenant(async () => {
+      // Opened under an earlier setting, but recorded as sent without the pixel: not in either count.
+      await message({ leadId: ids.reportLead, step: 1, sentAt: daysAgo(1), openedAt: daysAgo(1), openTracked: false });
+      await message({ leadId: ids.reportLead, step: 1, sentAt: daysAgo(1), openTracked: true });
+    });
+
+    const perf = await read();
+
+    expect(perf?.totals).toMatchObject({ openTracked: 1, opened: 0, openRate: 0 });
+  });
+
   it('reports an untracked rate as null — "off", never 0%', async () => {
     await inTenant(() => message({ leadId: ids.reportLead, step: 1, sentAt: daysAgo(1), clickedAt: daysAgo(1) }));
 
