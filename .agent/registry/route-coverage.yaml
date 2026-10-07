@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 200   mutating: 124   mutating without a test: 19
+# routes: 201   mutating: 124   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -576,6 +576,9 @@ routes:
     tests:
       - e2e/roles/inbox-mailbox-scope.spec.ts
       - tests/inbox-reply-authorization.test.ts
+  - path: app/api/inbox/views/route.ts
+    methods: [GET]
+    tests: []
   - path: app/api/lead-filter/route.ts
     methods: [GET]
     tests:
@@ -666,7 +669,6 @@ routes:
       - tests/admin.test.ts
       - tests/certification-role-evidence.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
-      - tests/inbox-reply-authorization.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
       - tests/lead-lifecycle.test.ts
@@ -699,7 +701,6 @@ routes:
       - tests/admin.test.ts
       - tests/certification-role-evidence.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
-      - tests/inbox-reply-authorization.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
       - tests/lead-lifecycle.test.ts
@@ -732,7 +733,6 @@ routes:
       - tests/admin.test.ts
       - tests/certification-role-evidence.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
-      - tests/inbox-reply-authorization.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
       - tests/lead-lifecycle.test.ts
@@ -780,7 +780,6 @@ routes:
       - tests/admin.test.ts
       - tests/certification-role-evidence.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
-      - tests/inbox-reply-authorization.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
       - tests/lead-lifecycle.test.ts

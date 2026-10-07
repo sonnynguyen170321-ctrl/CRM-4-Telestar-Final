@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getVisibleUserIds, requireAuth } from '@/lib/auth';
+import { inboxScope, resolveInboxOwner } from '@/lib/inbox/scope';
 import type { SessionUser } from '@/lib/auth';
 import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
 
@@ -15,26 +16,6 @@ function getThreadKey(subject: string | null): string {
     .trim();
 }
 
-/**
- * Restrict a message query to the mailboxes this viewer may read.
- *
- * "Unified inbox" means every mailbox *you* send from, gathered in one place — an SDR runs
- * campaigns from several addresses and wants them together. It does not mean the company's mail.
- * Scoped by `tenantId` alone, and with one tenant per deployment, every SDR was reading (and
- * marking read, spamming, trashing) every colleague's replies.
- *
- * Ownership runs message -> `accountId` -> `EmailAccount.userId`, and who a viewer may see is
- * already settled by `getVisibleUserIds`: an SDR themselves, a manager their reports, a director
- * everyone. Reusing it keeps the inbox and the lead list agreeing about the same person instead
- * of inventing a second, quietly different rule. `null` means no user-axis restriction, so the
- * tenant filter stands alone — an empty `in: []` would hide a director's own mail.
- */
-async function mailboxScope(user: SessionUser): Promise<{ account?: { userId: { in: string[] } } }> {
-  const visibleUserIds = await getVisibleUserIds(user);
-  if (visibleUserIds === null) return {};
-  return { account: { userId: { in: visibleUserIds } } };
-}
-
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
@@ -47,6 +28,11 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const folder = searchParams.get('folder') || 'inbox'; // inbox, sent, spam, trash
+  // One person's inbox at a time (lib/inbox/scope.ts): the viewer's, or a rep they manage.
+  const owner = await resolveInboxOwner(user, searchParams.get('userId'));
+  if (!owner.ok) return NextResponse.json({ error: owner.error }, { status: owner.status });
+  // Narrow to one mailbox. Only ever inside the owner's scope, so it cannot widen anything.
+  const accountId = searchParams.get('accountId') || undefined;
 
   try {
     // 1. Fetch Inbound & Outbound messages
@@ -59,7 +45,7 @@ export async function GET(req: NextRequest) {
     // whatever falls inside it; the client is told when the window was full so it can say
     // "showing recent mail" instead of implying the list is complete. Real thread-level
     // pagination means threading in SQL, which is a redesign, not a cap.
-    const scope = await mailboxScope(user);
+    const scope = await inboxScope([owner.ownerId]);
 
     // Both reads are independent, so they go out together. They used to be awaited back to back,
     // which doubled this page's database latency for every one of the people who live in it.
@@ -67,7 +53,12 @@ export async function GET(req: NextRequest) {
       prisma.inboundMessage.findMany({
       where: {
         tenantId: user.tenantId,
-        ...scope,
+        AND: [scope.inbound],
+        ...(accountId ? { accountId } : {}),
+        // Conversations with prospects only. Bounces are handled by the sync and are not mail to
+        // answer; mail from non-leads is no longer stored, and what was stored before stays hidden.
+        leadId: { not: null },
+        isBounce: false,
         ...(folder === 'spam' ? { isSpam: true, isTrash: false } : {}),
         ...(folder === 'trash' ? { isTrash: true } : {}),
         ...(folder === 'inbox' ? { isSpam: false, isTrash: false } : {}),
@@ -95,7 +86,8 @@ export async function GET(req: NextRequest) {
       prisma.outboundMessage.findMany({
       where: {
         tenantId: user.tenantId,
-        ...scope,
+        AND: [scope.outbound],
+        ...(accountId ? { accountId } : {}),
         status: {
           in: [
             OUTBOUND_STATUS.SENT,
@@ -262,11 +254,11 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'messageIds must be a non-empty array' }, { status: 400 });
     }
 
-    // The same scope the read uses. A filter that hides a colleague's mail from the list but
+    // Any message in an inbox this viewer may open (their own, or a managed rep's). A filter that hides a colleague's mail from the list but
     // still lets an id from that list be marked, spammed or deleted is not a restriction — and
     // `delete` here is a real deleteMany.
-    const scope = await mailboxScope(user);
-    const target = { id: { in: messageIds }, tenantId: user.tenantId, ...scope };
+    const scope = await inboxScope(await getVisibleUserIds(user));
+    const target = { id: { in: messageIds }, tenantId: user.tenantId, AND: [scope.inbound] };
 
     if (action === 'read') {
       await prisma.inboundMessage.updateMany({

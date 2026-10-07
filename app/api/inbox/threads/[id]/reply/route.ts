@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { canAccessLead, requireAuth } from '@/lib/auth';
+import { getVisibleUserIds, requireAuth } from '@/lib/auth';
+import { inboxScope } from '@/lib/inbox/scope';
 import type { SessionUser } from '@/lib/auth';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 import { newRequestId } from '@/lib/email/idempotency';
@@ -41,21 +42,30 @@ export async function POST(
       return NextResponse.json({ error: 'Associated lead not found' }, { status: 404 });
     }
 
-    // Same tenant is not the same as yours. This send goes out through the mailbox of
-    // `lead.assignedToId` — so without this check any authenticated user could reply on any
-    // colleague's lead, and the prospect would receive mail signed by someone who never wrote it.
-    // An impersonated send cannot be recalled, which is why the gate is here and not in the UI.
-    if (!(await canAccessLead(user, lead))) {
+    // 2. The mailbox the prospect wrote to — the one their latest message in an inbox this viewer
+    //    may open landed in (owner, 2026-10-07). It used to be any mailbox of the lead holder,
+    //    which could change the domain mid-conversation and broke the thread.
+    //
+    //    Same tenant is not the same as yours: the latest message is looked for only inside the
+    //    viewer's inbox scope (lib/inbox/scope.ts), so a viewer who cannot see this conversation
+    //    finds none and is refused. An impersonated send cannot be recalled, which is why the
+    //    gate is here and not in the UI.
+    const scope = await inboxScope(await getVisibleUserIds(user));
+    const latest = await prisma.inboundMessage.findFirst({
+      where: { tenantId: user.tenantId, leadId: lead.id, isBounce: false, AND: [scope.inbound] },
+      orderBy: { date: 'desc' },
+      select: { accountId: true },
+    });
+    if (!latest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // 2. Fetch the active email account for this lead's owner
     const account = await prisma.emailAccount.findFirst({
-      where: { userId: lead.assignedToId, isActive: true },
+      where: { id: latest.accountId, tenantId: user.tenantId, isActive: true },
     });
 
     if (!account) {
-      return NextResponse.json({ error: 'No active email account connected for this user' }, { status: 400 });
+      return NextResponse.json({ error: 'The mailbox this prospect wrote to is no longer connected' }, { status: 400 });
     }
 
     // 3. Record the send through the shared service, so this path gets the same
