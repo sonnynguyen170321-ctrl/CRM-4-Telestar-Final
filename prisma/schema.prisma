@@ -1424,6 +1424,10 @@ model OutboundMessage {
   /// tracking on; null means "not tracked or not opened", never "not opened" alone.
   openedAt          DateTime?
   openCount         Int          @default(0)
+  /// The open pixel went out with this message (workers/email.ts). Null on messages sent before the
+  /// column existed: open rates then infer it from the sequence's current setting. It is the open
+  /// rate's denominator — an untracked send cannot be opened as far as anyone can tell.
+  openTracked       Boolean?
   /// First click through a tracked link, when the sequence has click tracking on.
   clickedAt         DateTime?
   clickCount        Int          @default(0)

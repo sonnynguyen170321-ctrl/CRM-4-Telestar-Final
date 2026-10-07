@@ -125,14 +125,30 @@ export function rewriteLinksForTracking(html: string, baseUrl: string, tenantId:
   });
 }
 
-/** Machine traffic: a known scanner or proxy agent, or a hit inside the machine window after sending. */
+/**
+ * Apple Mail Privacy Protection loads every image on delivery through Apple's proxies, opened or
+ * not. Those fetches come from Apple's own 17.0.0.0/8 network, with a bare `Mozilla/5.0` agent.
+ * Real opens in Apple Mail go through the same proxy and are lost with them, which is why an open
+ * rate is an estimate (owner, 2026-10-07).
+ */
+function isApplePrivacyProxy(ip: string | null | undefined, userAgent: string | null): boolean {
+  if (ip && /^(::ffff:)?17\./.test(ip)) return true;
+  return userAgent?.trim() === 'Mozilla/5.0';
+}
+
+/**
+ * Machine traffic: a known scanner or proxy agent, an Apple privacy-proxy prefetch of the pixel, or
+ * a hit inside the machine window after sending.
+ */
 export function isSuspectedMachine(input: {
   type: 'open' | 'click';
   userAgent: string | null;
   sentAt: Date | null;
+  ip?: string | null;
   now?: Date;
 }): boolean {
   if (input.userAgent && BOT_AGENT.test(input.userAgent)) return true;
+  if (input.type === 'open' && isApplePrivacyProxy(input.ip, input.userAgent)) return true;
   // No `sentAt` yet means the provider call has not returned: nobody can have read the email, but an
   // image proxy prefetching on delivery can already be fetching the pixel.
   if (!input.sentAt) return true;

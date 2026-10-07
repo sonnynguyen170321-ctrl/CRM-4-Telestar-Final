@@ -174,7 +174,8 @@ describe('handleEmailSend', () => {
     });
     expect(mockOutboundUpdate).toHaveBeenCalledWith({
       where: { id: 'msg-1' },
-      data: { status: 'sent', providerMessageId: 'provider-msg-id-123', sentAt: expect.any(Date) },
+      // openTracked: no sequence here, so no pixel went out.
+      data: { status: 'sent', providerMessageId: 'provider-msg-id-123', sentAt: expect.any(Date), openTracked: false },
     });
     expect(mockActivityCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -273,6 +274,7 @@ describe('handleEmailSend', () => {
           status: 'sent',
           providerMessageId: 'gm-2',
           sentAt: expect.any(Date),
+          openTracked: false,
           rfcMessageId: '<m2@mail.gmail.com>',
           providerThreadId: 'thread-1',
           referencesHeader: '<m1@mail.gmail.com>',

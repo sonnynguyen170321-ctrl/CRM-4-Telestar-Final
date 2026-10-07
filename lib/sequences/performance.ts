@@ -86,7 +86,12 @@ export async function getDailySends(input: {
 export const PERFORMANCE_WINDOWS = { '7d': 7, '30d': 30, '90d': 90, all: null } as const;
 export type PerformanceWindow = keyof typeof PERFORMANCE_WINDOWS;
 
-type Counts = { sent: number; opened: number; clicked: number; replied: number; bounced: number };
+/**
+ * `openTracked`: sends that carried the open pixel — the open rate's denominator. A send without
+ * the pixel cannot be seen opening, and counting it made a sequence that turned tracking on half
+ * way look half as opened (owner, 2026-10-07: "is the open rate legit?").
+ */
+type Counts = { sent: number; openTracked: number; opened: number; clicked: number; replied: number; bounced: number };
 type CountKey = keyof Counts;
 
 export type RateRow = Counts & {
@@ -112,17 +117,19 @@ function rate(part: number, whole: number): number | null {
 function toRow(counts: Counts, tracking: { opens: boolean; clicks: boolean }): RateRow {
   return {
     ...counts,
-    openRate: tracking.opens ? rate(counts.opened, counts.sent) : null,
+    // An estimate either way: Apple Mail Privacy Protection and scanners are filtered out as
+    // machines (lib/email/tracking.ts), which also drops real opens made through them.
+    openRate: tracking.opens || counts.openTracked > 0 ? rate(counts.opened, counts.openTracked) : null,
     clickRate: tracking.clicks ? rate(counts.clicked, counts.sent) : null,
     replyRate: rate(counts.replied, counts.sent),
     bounceRate: rate(counts.bounced, counts.sent),
   };
 }
 
-const empty = (): Counts => ({ sent: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 });
+const empty = (): Counts => ({ sent: 0, openTracked: 0, opened: 0, clicked: 0, replied: 0, bounced: 0 });
 
 /** The timestamp each count requires, beyond having been sent. */
-const MARKER: Record<Exclude<CountKey, 'sent'>, 'openedAt' | 'clickedAt' | 'repliedAt' | 'bouncedAt'> = {
+const MARKER: Record<Exclude<CountKey, 'sent' | 'openTracked'>, 'openedAt' | 'clickedAt' | 'repliedAt' | 'bouncedAt'> = {
   opened: 'openedAt',
   clicked: 'clickedAt',
   replied: 'repliedAt',
@@ -165,6 +172,13 @@ export async function getSequencePerformance(input: {
       _count: { _all: true },
     });
 
+  // Sent with the pixel. A message from before `openTracked` existed (null) is taken to follow the
+  // sequence's current setting — the owner's call, 2026-10-07, and the reason the rate is labelled
+  // an estimate.
+  const carriedPixel: Prisma.OutboundMessageWhereInput = tracking.opens
+    ? { OR: [{ openTracked: true }, { openTracked: null }] }
+    : { openTracked: true };
+
   const [byStatus, ...grouped] = await Promise.all([
     prisma.sequenceEnrollment.groupBy({
       by: ['status'],
@@ -172,7 +186,12 @@ export async function getSequencePerformance(input: {
       _count: { _all: true },
     }),
     countByStep({}),
-    ...Object.values(MARKER).map((field) => countByStep({ [field]: { not: null } })),
+    // An open counts only on a send in the denominator, so the rate cannot pass 100% when old
+    // sends opened under a setting that has since changed.
+    ...Object.values(MARKER).map((field) =>
+      countByStep(field === 'openedAt' ? { AND: [{ openedAt: { not: null } }, carriedPixel] } : { [field]: { not: null } })
+    ),
+    countByStep(carriedPixel),
   ]);
 
   const statusCount = (status: string) => byStatus.find((row) => row.status === status)?._count._all ?? 0;
@@ -188,7 +207,7 @@ export async function getSequencePerformance(input: {
   const total = empty();
   const perStep = new Map<number, Counts>();
   const other = empty();
-  const keys: CountKey[] = ['sent', ...(Object.keys(MARKER) as CountKey[])];
+  const keys: CountKey[] = ['sent', ...(Object.keys(MARKER) as CountKey[]), 'openTracked'];
   keys.forEach((key, index) => {
     for (const row of grouped[index]) {
       const order = row.sequenceStepOrder;

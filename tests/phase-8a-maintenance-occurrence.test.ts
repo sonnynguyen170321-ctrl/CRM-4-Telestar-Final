@@ -106,6 +106,42 @@ describe('Phase 8a — maintenance keeps the occurrence', () => {
     expect(Date.now() - input.baseDate.getTime()).toBeGreaterThanOrEqual(86_400_000);
   });
 
+  // Owner, 2026-10-07: sequences still stuck after a lead import. The import creates the enrollment
+  // and then schedules step 1; when scheduling failed the enrollment kept nextActionAt null with no
+  // task, and `nextActionAt < now` never matches null — no sweep ever looked at it.
+  it('also finds enrollments that were never scheduled, past a grace period', async () => {
+    await handleRepair({ types: ['enrollment-schedule-drift'] });
+
+    const where = mockEnrollmentFindMany.mock.calls[0][0].where;
+    expect(where.status).toBe('active');
+    expect(where.OR[0]).toEqual({ nextActionAt: { lt: expect.any(Date) } });
+    expect(where.OR[1]).toEqual({ nextActionAt: null, startedAt: { lt: expect.any(Date) } });
+    expect(Date.now() - where.OR[1].startedAt.lt.getTime()).toBeGreaterThanOrEqual(15 * 60 * 1000 - 1000);
+  });
+
+  it('reads past the first hundred enrollments instead of stopping at them', async () => {
+    const page = Array.from({ length: 100 }, (_, i) => driftedEnrollment({ id: `enr-${String(i).padStart(3, '0')}` }));
+    mockEnrollmentFindMany.mockResolvedValueOnce(page).mockResolvedValueOnce([driftedEnrollment({ id: 'enr-last' })]);
+    mockTaskFindFirst.mockResolvedValue({ id: 'task-pending' });
+
+    await handleRepair({ types: ['enrollment-schedule-drift'] });
+
+    expect(mockEnrollmentFindMany).toHaveBeenCalledTimes(2);
+    expect(mockEnrollmentFindMany.mock.calls[1][0]).toMatchObject({ cursor: { id: 'enr-099' }, skip: 1 });
+    expect(mockTaskFindFirst.mock.calls.length).toBeGreaterThanOrEqual(101);
+  });
+
+  it('reads past the first hundred overdue tasks too', async () => {
+    const page = Array.from({ length: 100 }, (_, i) => overdueTask({ id: `task-${String(i).padStart(3, '0')}` }));
+    mockTaskFindMany.mockResolvedValueOnce(page).mockResolvedValueOnce([overdueTask({ id: 'task-last' })]);
+
+    const result = await handleRepair({ types: ['missing-delayed'] });
+
+    expect(mockTaskFindMany).toHaveBeenCalledTimes(2);
+    expect(mockTaskFindMany.mock.calls[1][0]).toMatchObject({ cursor: { id: 'task-099' }, skip: 1 });
+    expect(result['missing-delayed'].fixed).toBe(101);
+  });
+
   it('records a refusal instead of crashing the sweep when the occurrence lost ownership', async () => {
     mockEnrollmentFindMany.mockResolvedValue([driftedEnrollment()]);
     mockTaskFindFirst.mockResolvedValue(null);
