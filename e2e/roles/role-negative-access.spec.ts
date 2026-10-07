@@ -27,16 +27,27 @@ const NON_ADMIN: Denial[] = [
 
 const ADMIN_PAGES = ['/admin', '/admin/users', '/admin/teams', '/admin/campaigns', '/admin/clients', '/admin/audit', '/admin/jobs'];
 
+// A team lead manages their own campaigns (2026-10-07, lib/admin/teamLeadAdminPaths.ts): the campaign
+// list and its members page open for them. Every other admin page stays closed.
+const TEAM_LEAD_OPEN = new Set(['/admin/campaigns']);
+
 test.describe('admin surface is closed to non-admin roles', () => {
   for (const { role, label } of NON_ADMIN) {
     test.describe(label, () => {
       test.use({ storageState: storageStatePath(role) as string });
 
-      for (const route of ADMIN_PAGES) {
+      for (const route of ADMIN_PAGES.filter((r) => !(role === 'teamLead' && TEAM_LEAD_OPEN.has(r)))) {
         test(`${label} is redirected away from ${route}`, async ({ page }) => {
           await page.goto(route, { waitUntil: 'domcontentloaded' });
           // proxy.ts sends them to '/' before any admin HTML is produced.
           expect(new URL(page.url()).pathname, `${label} reached ${route}`).not.toContain('/admin');
+        });
+      }
+
+      if (role === 'teamLead') {
+        test('team_lead reaches /admin/campaigns', async ({ page }) => {
+          await page.goto('/admin/campaigns', { waitUntil: 'domcontentloaded' });
+          expect(new URL(page.url()).pathname).toBe('/admin/campaigns');
         });
       }
 

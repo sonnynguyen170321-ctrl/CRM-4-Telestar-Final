@@ -216,8 +216,8 @@ describe('recording, against the database', () => {
 
   it('records an open once for the timestamp and every time for the count', async () => {
     const token = { tenantId, messageId };
-    await recordTrackingEvent({ token, type: 'open', userAgent: 'Mozilla/5.0', now: new Date('2026-10-04T11:00:00Z') });
-    await recordTrackingEvent({ token, type: 'open', userAgent: 'Mozilla/5.0', now: new Date('2026-10-04T12:00:00Z') });
+    await recordTrackingEvent({ token, type: 'open', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', now: new Date('2026-10-04T11:00:00Z') });
+    await recordTrackingEvent({ token, type: 'open', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', now: new Date('2026-10-04T12:00:00Z') });
 
     const row = await read();
     expect(row.openCount).toBe(2);
@@ -226,8 +226,8 @@ describe('recording, against the database', () => {
 
   it('does not count a repeat open within a minute — image proxies refetch', async () => {
     const token = { tenantId, messageId };
-    await recordTrackingEvent({ token, type: 'open', userAgent: 'Mozilla/5.0', now: new Date('2026-10-04T11:00:00Z') });
-    await recordTrackingEvent({ token, type: 'open', userAgent: 'Mozilla/5.0', now: new Date('2026-10-04T11:00:30Z') });
+    await recordTrackingEvent({ token, type: 'open', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', now: new Date('2026-10-04T11:00:00Z') });
+    await recordTrackingEvent({ token, type: 'open', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', now: new Date('2026-10-04T11:00:30Z') });
     expect((await read()).openCount).toBe(1);
   });
 
@@ -242,7 +242,7 @@ describe('recording, against the database', () => {
         })),
       })
     );
-    await recordTrackingEvent({ token: { tenantId, messageId }, type: 'open', userAgent: 'Mozilla/5.0', now: new Date('2026-10-04T15:00:00Z') });
+    await recordTrackingEvent({ token: { tenantId, messageId }, type: 'open', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', now: new Date('2026-10-04T15:00:00Z') });
     expect(await inTenant(() => prisma.emailEvent.count({ where: { outboundMessageId: messageId } }))).toBe(MAX_EVENTS_PER_MESSAGE);
   });
 
@@ -250,7 +250,7 @@ describe('recording, against the database', () => {
     const outcome = await recordTrackingEvent({
       token: { tenantId, messageId },
       type: 'open',
-      userAgent: 'Mozilla/5.0',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
       now: new Date('2026-10-04T10:00:01Z'),
     });
 
@@ -266,7 +266,7 @@ describe('recording, against the database', () => {
       token: { tenantId, messageId },
       type: 'click',
       url: 'https://telestar.cloud/demo',
-      userAgent: 'Mozilla/5.0',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
       now: new Date('2026-10-04T11:00:00Z'),
     });
 
@@ -280,7 +280,7 @@ describe('recording, against the database', () => {
     const outcome = await recordTrackingEvent({
       token: { tenantId: otherTenantId, messageId },
       type: 'open',
-      userAgent: 'Mozilla/5.0',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
       now: new Date('2026-10-04T11:00:00Z'),
     });
     expect(outcome).toBe('unknown_message');
@@ -293,7 +293,7 @@ describe('recording, against the database', () => {
     expect(bad.headers.get('content-type')).toBe('image/gif');
 
     const token = trackingToken(tenantId, messageId);
-    await pixel(new NextRequest(`${BASE}/api/t/o/${token}`, { headers: { 'user-agent': 'Mozilla/5.0' } }), {
+    await pixel(new NextRequest(`${BASE}/api/t/o/${token}`, { headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } }), {
       params: Promise.resolve({ token }),
     });
     expect((await read()).openCount).toBe(1);
