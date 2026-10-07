@@ -29,6 +29,10 @@ type MatchedLead = {
   emailInvalid: boolean;
 };
 
+// How far back a reply or bounce is traced to the send it answers. Bounded so the lookup rides the
+// (accountId, sentAt) index instead of scanning a busy sender mailbox's whole history.
+const SENT_MATCH_WINDOW_MS = 180 * 24 * 60 * 60 * 1000;
+
 const MATCHED_LEAD_SELECT = {
   id: true, email: true, sequenceId: true, sequenceStatus: true, emailInvalid: true,
 } as const;
@@ -52,9 +56,14 @@ async function matchLeads(
   if (emails.length === 0) return byEmail;
 
   const sent = await prisma.outboundMessage.findMany({
-    where: { accountId: account.id, to: { in: emails, mode: 'insensitive' } },
+    // Sends that left (sentAt set): an attempt that never went out cannot be what was answered.
+    where: {
+      accountId: account.id,
+      sentAt: { gte: new Date(Date.now() - SENT_MATCH_WINDOW_MS) },
+      to: { in: emails, mode: 'insensitive' },
+    },
     select: { leadId: true, to: true },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { sentAt: 'desc' },
   });
   // The latest send to each address names the lead.
   const sentLeadByAddress = new Map<string, string>();

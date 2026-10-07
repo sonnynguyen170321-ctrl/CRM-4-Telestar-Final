@@ -694,7 +694,7 @@ describe('handleEmailSync', () => {
     await handleEmailSync({ accountId: 'acct-1' });
 
     expect(mockOutboundFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { accountId: 'acct-1', to: { in: ['lead@acme.com'], mode: 'insensitive' } } })
+      expect.objectContaining({ where: { accountId: 'acct-1', sentAt: { gte: expect.any(Date) }, to: { in: ['lead@acme.com'], mode: 'insensitive' } } })
     );
     expect(mockLeadFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -923,7 +923,7 @@ describe('handleEmailSync', () => {
       const result = await handleEmailSync({ accountId: 'acct-tl' });
 
       expect(mockOutboundFindMany).toHaveBeenCalledWith(expect.objectContaining({
-        where: { accountId: 'acct-tl', to: { in: ['Prospect@Acme.com'], mode: 'insensitive' } },
+        where: { accountId: 'acct-tl', sentAt: { gte: expect.any(Date) }, to: { in: ['Prospect@Acme.com'], mode: 'insensitive' } },
       }));
       expect(mockLeadFindMany).toHaveBeenCalledWith(expect.objectContaining({
         where: { OR: [
