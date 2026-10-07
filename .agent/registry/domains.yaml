@@ -60,6 +60,8 @@ domains:
       - lib/podScoping.ts
       # Who sees a sequence or template: creator, the managers above them, or shared (isShared).
       - lib/visibility.ts
+      # Whose inbox a viewer may open: their own, or a visible user's in the same tenant.
+      - lib/inbox/scope.ts
       - lib/admin/**
       - lib/tenant*.ts
       - app/api/auth/**
@@ -187,6 +189,8 @@ domains:
       - lib/automation/**
       - lib/email/**
       - lib/emailSafety.ts
+      # Inserts a merge field into a template subject or body at the cursor.
+      - lib/templates/insertMergeTag.ts
       # createOutboundMessage / enqueueEmailSendWorkflow: the one door every send goes through.
       - lib/workflows/email.ts
       - lib/replies/**

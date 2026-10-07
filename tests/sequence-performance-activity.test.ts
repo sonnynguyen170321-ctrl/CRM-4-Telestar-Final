@@ -93,6 +93,7 @@ async function message(input: {
   clickedAt?: Date;
   repliedAt?: Date;
   bouncedAt?: Date;
+  openTracked?: boolean | null;
 }) {
   messageSeq += 1;
   await prisma.outboundMessage.create({
@@ -107,6 +108,7 @@ async function message(input: {
       status: input.sentAt ? 'sent' : 'pending',
       sentAt: input.sentAt,
       openedAt: input.openedAt ?? null,
+      openTracked: input.openTracked ?? null,
       clickedAt: input.clickedAt ?? null,
       repliedAt: input.repliedAt ?? null,
       bouncedAt: input.bouncedAt ?? null,
@@ -190,6 +192,33 @@ describe('getSequencePerformance', () => {
       [1, 2, 50],
       [2, 2, 0],
     ]);
+  });
+
+  // Owner, 2026-10-07: "is the open rate legit?" A send without the pixel cannot be seen opening;
+  // it used to sit in the denominator anyway.
+  it('takes the open rate over sends that carried the pixel, inferring it for older sends', async () => {
+    await inTenant(async () => {
+      await message({ leadId: ids.reportLead, step: 1, sentAt: daysAgo(1), openedAt: daysAgo(1), openTracked: true });
+      await message({ leadId: ids.reportLead, step: 1, sentAt: daysAgo(1), openTracked: false });
+      await message({ leadId: ids.reportLead, step: 1, sentAt: daysAgo(1), openTracked: false });
+      await message({ leadId: ids.reportLead, step: 1, sentAt: daysAgo(1) }); // before the column: follows the sequence
+    });
+
+    const perf = await read();
+
+    expect(perf?.totals).toMatchObject({ sent: 4, openTracked: 2, opened: 1, openRate: 50, replyRate: 0 });
+  });
+
+  it('counts an open only on a send that carried the pixel, so the rate cannot pass 100%', async () => {
+    await inTenant(async () => {
+      // Opened under an earlier setting, but recorded as sent without the pixel: not in either count.
+      await message({ leadId: ids.reportLead, step: 1, sentAt: daysAgo(1), openedAt: daysAgo(1), openTracked: false });
+      await message({ leadId: ids.reportLead, step: 1, sentAt: daysAgo(1), openTracked: true });
+    });
+
+    const perf = await read();
+
+    expect(perf?.totals).toMatchObject({ openTracked: 1, opened: 0, openRate: 0 });
   });
 
   it('reports an untracked rate as null — "off", never 0%', async () => {

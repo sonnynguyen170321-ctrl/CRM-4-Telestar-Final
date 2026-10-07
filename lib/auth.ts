@@ -228,11 +228,18 @@ export async function getVisibleUserIds(user: SessionUser): Promise<string[] | n
   return result;
 }
 
+/**
+ * Drops the pod and campaign visibility caches. Campaign visibility follows pod membership and
+ * campaign membership, so it goes with them: it used to stay, and a team lead who had just created
+ * a campaign or been added to one waited up to a minute to see it.
+ */
 export function clearVisibleUserCache(userId?: string) {
   if (userId) {
     visibleUserCache.delete(userId);
+    visibleCampaignCache.delete(userId);
   } else {
     visibleUserCache.clear();
+    visibleCampaignCache.clear();
   }
 }
 
@@ -447,7 +454,18 @@ export async function getLeadWhereScope(user: SessionUser): Promise<Record<strin
   const visibleIds = await getVisibleUserIds(user);
   if (visibleIds === null) return {}; // director — all leads
 
-  if (user.role === 'team_lead' || user.role === 'floor_manager') {
+  if (user.role === 'team_lead') {
+    const campaignIds = await getVisibleCampaignIds(user);
+    if (campaignIds === null) return {};
+    return {
+      OR: [
+        { assignedToId: { in: visibleIds } },
+        ...(campaignIds.length > 0 ? [teamLeadCampaignReach(campaignIds)] : []),
+      ],
+    };
+  }
+
+  if (user.role === 'floor_manager') {
     const campaignIds = await getVisibleCampaignIds(user);
     if (campaignIds === null) return {}; // safety; only director/leadgen-mgr return null
     return {
@@ -459,6 +477,16 @@ export async function getLeadWhereScope(user: SessionUser): Promise<Record<strin
   }
 
   return { assignedToId: { in: visibleIds } };
+}
+
+/**
+ * What a team lead reaches in their campaigns beyond their pod's own leads (owner, 2026-10-07:
+ * a team lead saw every other team's leads in a shared campaign). Only leads nobody can work: ones
+ * whose rep was deactivated, so they can be taken over. Another team's working lead is not theirs.
+ * (Every lead has an assignee — `Lead.assignedToId` is required — so there is no unassigned case.)
+ */
+function teamLeadCampaignReach(campaignIds: string[]): Record<string, unknown> {
+  return { assignedTo: { isActive: false }, campaignId: { in: campaignIds } };
 }
 
 /**
@@ -496,6 +524,15 @@ export async function canAccessLead(
   // Account axis is a manager/leadgen privilege only — never widens SDR access.
   if (!ACCOUNT_AXIS_ROLES.includes(viewer.role)) return false;
   if (!lead.campaignId) return false;
+  // A team lead's campaign reach stops at leads nobody can work (teamLeadCampaignReach).
+  if (viewer.role === 'team_lead') {
+    if (!lead.assignedToId) return false;
+    const assignee = await prisma.user.findUnique({
+      where: { id: lead.assignedToId },
+      select: { isActive: true },
+    });
+    if (assignee?.isActive !== false) return false;
+  }
   const campaignIds = await getVisibleCampaignIds(viewer);
   if (campaignIds === null) return true; // unrestricted (director / leadgen-manager)
   return campaignIds.includes(lead.campaignId);

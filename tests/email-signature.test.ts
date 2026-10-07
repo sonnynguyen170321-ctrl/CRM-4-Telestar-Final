@@ -9,6 +9,7 @@ import {
   signatureForSend,
 } from '@/lib/email/signature';
 import { buildSignatureHtml } from '@/lib/email/signatureBuilder';
+import { EMAIL_FONT_STYLE } from '@/lib/email/composeBody';
 
 /**
  * Designed email signatures (owner, 2026-10-05: "make/edit all kind of signatures like the one Mei
@@ -232,10 +233,18 @@ describe('composeEmailBody — the message with its signature, as a prospect rec
   it('puts the designed signature under an HTML body and attaches its images', () => {
     const out = composeEmailBody('<p>Hello Linh</p>', true, designed, images);
 
-    expect(out.html).toBe(`<p>Hello Linh</p><br><br>--<br>${designed}`);
+    expect(out.html).toBe(`<div style="${EMAIL_FONT_STYLE}"><p style="margin: 0;">Hello Linh</p></div><br><div>${designed}</div>`);
     expect(out.attachments.map((a) => a.cid)).toEqual(['sig-0123456789abcdef']);
-    expect(out.text).toContain('Hello Linh');
-    expect(out.text).toContain('-- \nBest regards,\nMei');
+    expect(out.text.startsWith('Hello Linh\n\nBest regards,\nMei')).toBe(true);
+  });
+
+  // Gmail folds whatever follows a `--` line into the "⋯" of trimmed content (owner, 2026-10-07:
+  // "no signature even though it was added").
+  it('puts no "--" divider in front of the signature', () => {
+    const out = composeEmailBody('<p>Hello Linh</p>', true, designed, images);
+
+    expect(out.html).not.toMatch(/--/);
+    expect(out.text).not.toMatch(/^-- ?$/m);
   });
 
   // The reported defect: a message typed as plain text (the lead-panel composer) got the signature
@@ -244,9 +253,9 @@ describe('composeEmailBody — the message with its signature, as a prospect rec
     const out = composeEmailBody('Hi Linh,\nQuick question.', false, designed, images);
 
     expect(out.html).toContain(designed);
-    expect(out.html).toContain('white-space: pre-wrap');
+    expect(out.html).toContain('Hi Linh,<br>Quick question.');
     expect(out.attachments).toHaveLength(1);
-    expect(out.text.startsWith('Hi Linh,\nQuick question.\n\n-- \n')).toBe(true);
+    expect(out.text.startsWith('Hi Linh,\nQuick question.\n\nBest regards,')).toBe(true);
   });
 
   it('escapes a plain-text body instead of letting it be read as markup', () => {
@@ -257,8 +266,9 @@ describe('composeEmailBody — the message with its signature, as a prospect rec
   });
 
   it('changes nothing when the mailbox has no signature', () => {
-    expect(composeEmailBody('<p>Hello</p>', true, null, null)).toEqual({ html: '<p>Hello</p>', text: 'Hello', attachments: [] });
-    expect(composeEmailBody('<p>Hello</p>', true, '   ', null).html).toBe('<p>Hello</p>');
+    const alone = `<div style="${EMAIL_FONT_STYLE}"><p style="margin: 0;">Hello</p></div>`;
+    expect(composeEmailBody('<p>Hello</p>', true, null, null)).toEqual({ html: alone, text: 'Hello', attachments: [] });
+    expect(composeEmailBody('<p>Hello</p>', true, '   ', null).html).toBe(alone);
   });
 
   it('keeps the line breaks of a plain-text signature saved before the designer existed', () => {

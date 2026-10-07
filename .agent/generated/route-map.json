@@ -144,6 +144,7 @@
     "/api/icp/versions/[id]/publish",
     "/api/inbox",
     "/api/inbox/threads/[id]/reply",
+    "/api/inbox/views",
     "/api/lead-filter",
     "/api/leadgen-pool",
     "/api/leadgen-pool/[id]",
@@ -249,5 +250,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 38,
-  "apiRouteCount": 200
+  "apiRouteCount": 201
 }

@@ -88,8 +88,10 @@ export class OutlookAdapter implements EmailAdapter {
       references: options.threading?.references,
     });
 
+    // Graph's sendMail takes MIME only base64-encoded (text/plain body); raw MIME is refused as
+    // invalid base64. https://learn.microsoft.com/graph/api/user-sendmail#request-body
     const rawMessageBuffer = await mail.compile().build();
-    const rawMime = rawMessageBuffer.toString('utf-8');
+    const rawMime = rawMessageBuffer.toString('base64');
 
     const sendRequest = async (accessToken: string) => {
       return fetch(GRAPH_SEND_URL, {

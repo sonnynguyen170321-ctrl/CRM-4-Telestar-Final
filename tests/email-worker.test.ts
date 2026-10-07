@@ -174,7 +174,8 @@ describe('handleEmailSend', () => {
     });
     expect(mockOutboundUpdate).toHaveBeenCalledWith({
       where: { id: 'msg-1' },
-      data: { status: 'sent', providerMessageId: 'provider-msg-id-123', sentAt: expect.any(Date) },
+      // openTracked: no sequence here, so no pixel went out.
+      data: { status: 'sent', providerMessageId: 'provider-msg-id-123', sentAt: expect.any(Date), openTracked: false },
     });
     expect(mockActivityCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -231,7 +232,7 @@ describe('handleEmailSend', () => {
 
     const sent = mockServiceSend.mock.calls[0][0] as { html: string; text: string };
     expect(sent.html).toContain('<table><tbody><tr><td><b>Mei</b></td></tr></tbody></table>');
-    expect(sent.text).toBe('Hi Linh,\nQuick question.\n\n-- \nMei');
+    expect(sent.text).toBe('Hi Linh,\nQuick question.\n\nMei');
   });
 
   describe('reply in the same thread', () => {
@@ -273,6 +274,7 @@ describe('handleEmailSend', () => {
           status: 'sent',
           providerMessageId: 'gm-2',
           sentAt: expect.any(Date),
+          openTracked: false,
           rfcMessageId: '<m2@mail.gmail.com>',
           providerThreadId: 'thread-1',
           referencesHeader: '<m1@mail.gmail.com>',

@@ -265,14 +265,18 @@ async function main(): Promise<void> {
           tenantId,
         },
       });
+      // A reply from the owner's own lead: the inbox shows conversations with leads only
+      // (2026-10-07), so an unlinked message would prove nothing about whose mailbox it is in.
+      const leadId = `pw-audit-lead-${ownerKey.toLowerCase()}`;
       await prisma.inboundMessage.upsert({
         where: { id: `pw-audit-inbound-${ownerKey.toLowerCase()}` },
-        update: {},
+        update: { leadId },
         create: {
           id: `pw-audit-inbound-${ownerKey.toLowerCase()}`,
           accountId: mailboxId,
+          leadId,
           providerMessageId: `pw-audit-msg-${ownerKey.toLowerCase()}`,
-          fromEmail: `prospect.${ownerKey.toLowerCase()}@audit.test`,
+          fromEmail: `lead.${ownerKey.toLowerCase()}@audit.test`,
           fromName: `Prospect for ${ownerKey}`,
           to: `${ownerKey.toLowerCase()}.box@audit.test`,
           subject: `PW_AUDIT_INBOX_${ownerKey.toUpperCase()}`,

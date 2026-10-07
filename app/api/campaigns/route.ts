@@ -47,9 +47,9 @@ export async function GET(req: NextRequest) {
   const cacheKey = listKey(
     user.tenantId,
     'campaigns',
-    // `v2`: the list shape gained `_count.leads` and `client.status`. A 60s TTL is short, but
-    // a deploy that serves the old shape for a minute is a minute of "0 leads" again.
-    `${type === 'clients' ? 'clients' : 'list-v2'}:${scopeTag(visibleCampaignIds)}`
+    // `v3`: the list shape gained member counts (v2: `_count.leads` and `client.status`). A 60s
+    // TTL is short, but a deploy that serves the old shape for a minute is a minute of wrong counts.
+    `${type === 'clients' ? 'clients' : 'list-v3'}:${scopeTag(visibleCampaignIds)}`
   );
 
   const cached = await cacheGet<any>(cacheKey);
@@ -93,7 +93,13 @@ export async function GET(req: NextRequest) {
           startDate: true,
           endDate: true,
           client: { select: { id: true, name: true, industry: true, status: true } },
-          _count: { select: { leads: true } },
+          _count: { select: { leads: true, campaignSdrs: true } },
+          // Who can work it: the admin list flags an active campaign with nobody to work it. Read
+          // here rather than from /api/admin/assignments, which a team lead may not call.
+          campaignSdrs: {
+            where: { user: { isActive: true, role: { in: ['sdr', 'team_lead'] } } },
+            select: { userId: true },
+          },
         },
         orderBy: { startDate: 'desc' },
       });

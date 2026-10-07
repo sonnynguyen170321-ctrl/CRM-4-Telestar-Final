@@ -22,10 +22,10 @@ function RateCells({ row, tracking }: { row: RateRow; tracking: SequencePerforma
   return (
     <>
       <td className="px-3 py-2 text-right font-mono">{row.sent}</td>
-      <td className="px-3 py-2 text-right font-mono">{formatRate(row.openRate, tracking.opens)}</td>
-      <td className="px-3 py-2 text-right font-mono">{formatRate(row.clickRate, tracking.clicks)}</td>
-      <td className="px-3 py-2 text-right font-mono">{formatRate(row.replyRate, true)}</td>
+      <td className="px-3 py-2 text-right font-mono font-semibold">{formatRate(row.replyRate, true)}</td>
       <td className="px-3 py-2 text-right font-mono">{formatRate(row.bounceRate, true)}</td>
+      <td className="px-3 py-2 text-right font-mono">{formatRate(row.openRate, tracking.opens || row.openTracked > 0)}</td>
+      <td className="px-3 py-2 text-right font-mono">{formatRate(row.clickRate, tracking.clicks)}</td>
     </>
   );
 }
@@ -118,11 +118,13 @@ export function SequencePerformancePanel({ sequenceId }: { sequenceId: string })
             ))}
           </div>
           <p className="text-[11px] text-text-secondary">
-            Enrollment counts are current. Email numbers cover messages the provider accepted in the window; rates
-            are over emails sent.
+            Enrollment counts are current. Email numbers cover messages the provider accepted in the window. Reply
+            rate is the number to steer by. The open rate is an estimate over emails that carried the tracking image:
+            Apple Mail and security scanners load images on their own and are left out, which also drops some real
+            opens.
             {!data.tracking.opens || !data.tracking.clicks
               ? ' Open and click tracking are turned on per sequence in Settings.'
-              : ' An open is an image load — some mail apps load every image, so treat open rate as a rough signal.'}
+              : ''}
           </p>
           <p className="text-[11px] text-text-secondary">
             A reply counts on the latest email the lead had received, so a step&apos;s reply rate means replies after
@@ -137,10 +139,12 @@ export function SequencePerformancePanel({ sequenceId }: { sequenceId: string })
                 <tr>
                   <th className="px-3 py-2 text-left font-semibold">Step</th>
                   <th className="px-3 py-2 text-right font-semibold">Sent</th>
-                  <th className="px-3 py-2 text-right font-semibold">Open rate</th>
-                  <th className="px-3 py-2 text-right font-semibold">Click rate</th>
                   <th className="px-3 py-2 text-right font-semibold">Reply rate</th>
                   <th className="px-3 py-2 text-right font-semibold">Bounce rate</th>
+                  <th className="px-3 py-2 text-right font-semibold" title="Estimate over emails that carried the tracking image">
+                    Est. open rate
+                  </th>
+                  <th className="px-3 py-2 text-right font-semibold">Click rate</th>
                 </tr>
               </thead>
               <tbody className="text-text-primary">

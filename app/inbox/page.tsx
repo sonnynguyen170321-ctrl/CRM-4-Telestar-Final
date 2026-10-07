@@ -61,6 +61,20 @@ interface Thread {
   folder: string;
 }
 
+/** GET /api/inbox/views: the inboxes this viewer may open, and the chosen one's mailboxes. */
+interface InboxViews {
+  ownerId: string;
+  people: { id: string; firstName: string; lastName: string; role: string }[];
+  mailboxes: { id: string; email: string; isActive: boolean }[];
+}
+
+function inboxQuery(folder: string, ownerId: string, accountId: string): string {
+  const params = new URLSearchParams({ folder });
+  if (ownerId) params.set('userId', ownerId);
+  if (accountId) params.set('accountId', accountId);
+  return params.toString();
+}
+
 export default function InboxPage() {
   const { showToast } = useToast();
   const router = useRouter();
@@ -73,6 +87,10 @@ export default function InboxPage() {
   // the column says so rather than implying an older thread simply does not exist.
   const [windowInfo, setWindowInfo] = useState<{ truncated: boolean; size: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  // Whose inbox, and which of its mailboxes (lib/inbox/scope.ts). Empty owner = the viewer's own.
+  const [inboxOwnerId, setInboxOwnerId] = useState('');
+  const [mailboxFilter, setMailboxFilter] = useState('');
+  const [views, setViews] = useState<InboxViews | null>(null);
   
   // Reply box states
   const [replyBody, setReplyBody] = useState('');
@@ -89,7 +107,7 @@ export default function InboxPage() {
   const loadThreads = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/inbox?folder=${folder}`);
+      const res = await fetch(`/api/inbox?${inboxQuery(folder, inboxOwnerId, mailboxFilter)}`);
       if (res.ok) {
         const data = await res.json();
         setThreads(data);
@@ -117,11 +135,33 @@ export default function InboxPage() {
     } finally {
       setLoading(false);
     }
-  }, [folder, showToast]);
+  }, [folder, inboxOwnerId, mailboxFilter, showToast]);
 
   useEffect(() => {
     loadThreads();
   }, [loadThreads]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const query = inboxOwnerId ? `?userId=${encodeURIComponent(inboxOwnerId)}` : '';
+    fetch(`/api/inbox/views${query}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: InboxViews | null) => {
+        if (!cancelled) setViews(data);
+      })
+      .catch(() => {
+        if (!cancelled) setViews(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [inboxOwnerId]);
+
+  const switchInbox = (ownerId: string) => {
+    setInboxOwnerId(ownerId);
+    setMailboxFilter('');
+    setSelectedThread(null);
+  };
 
   // Mark selected thread as read if unread
   useEffect(() => {
@@ -327,6 +367,33 @@ export default function InboxPage() {
           <span className="text-xs bg-brand-red/10 border border-brand-red/20 text-brand-red px-2 py-0.5 rounded-full uppercase font-bold font-mono">
             Live
           </span>
+          {views && views.people.length > 1 && (
+            <select
+              aria-label="Whose inbox"
+              value={inboxOwnerId || views.ownerId}
+              onChange={(e) => switchInbox(e.target.value)}
+              className="ml-2 bg-bg-main border border-card-border rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-brand-red"
+            >
+              {views.people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {`${p.firstName} ${p.lastName}`.trim()}{p.id === views.ownerId && !inboxOwnerId ? ' (me)' : ''}
+                </option>
+              ))}
+            </select>
+          )}
+          {views && views.mailboxes.length > 1 && (
+            <select
+              aria-label="Mailbox"
+              value={mailboxFilter}
+              onChange={(e) => { setMailboxFilter(e.target.value); setSelectedThread(null); }}
+              className="bg-bg-main border border-card-border rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-brand-red"
+            >
+              <option value="">All mailboxes</option>
+              {views.mailboxes.map((m) => (
+                <option key={m.id} value={m.id}>{m.email}{m.isActive ? '' : ' (disconnected)'}</option>
+              ))}
+            </select>
+          )}
         </div>
         <div className="relative w-72">
           <Search className="absolute left-3 top-2.5 w-4 h-4 text-text-muted dark:text-zinc-400" />

@@ -29,6 +29,70 @@ type MatchedLead = {
   emailInvalid: boolean;
 };
 
+// How far back a reply or bounce is traced to the send it answers. Bounded so the lookup rides the
+// (accountId, sentAt) index instead of scanning a busy sender mailbox's whole history.
+const SENT_MATCH_WINDOW_MS = 180 * 24 * 60 * 60 * 1000;
+
+const MATCHED_LEAD_SELECT = {
+  id: true, email: true, sequenceId: true, sequenceStatus: true, emailInvalid: true,
+} as const;
+
+/**
+ * The lead behind each address a fetched message came from (a reply) or bounced for.
+ *
+ * First the mailbox's own sends: an address this mailbox wrote to names its lead exactly, whoever
+ * holds that lead. Then, for addresses it never wrote to, the mailbox owner's own leads.
+ *
+ * Only the second used to exist. Since sequences send only from their chosen sender mailboxes
+ * (#250), a sequence regularly sends from a mailbox that is not the lead holder's, and every reply
+ * and every bounce landing there matched no lead: the cadence kept sending to a prospect who had
+ * answered, and to an address that had bounced (owner, 2026-10-07).
+ */
+async function matchLeads(
+  account: { id: string; userId: string },
+  emails: string[],
+): Promise<Map<string, MatchedLead>> {
+  const byEmail = new Map<string, MatchedLead>();
+  if (emails.length === 0) return byEmail;
+
+  const sent = await prisma.outboundMessage.findMany({
+    // Sends that left (sentAt set): an attempt that never went out cannot be what was answered.
+    where: {
+      accountId: account.id,
+      sentAt: { gte: new Date(Date.now() - SENT_MATCH_WINDOW_MS) },
+      to: { in: emails, mode: 'insensitive' },
+    },
+    select: { leadId: true, to: true },
+    orderBy: { sentAt: 'desc' },
+  });
+  // The latest send to each address names the lead.
+  const sentLeadByAddress = new Map<string, string>();
+  for (const row of sent) {
+    const address = row.to.toLowerCase();
+    if (!sentLeadByAddress.has(address)) sentLeadByAddress.set(address, row.leadId);
+  }
+
+  const leads = await prisma.lead.findMany({
+    where: {
+      OR: [
+        ...(sentLeadByAddress.size > 0 ? [{ id: { in: [...new Set(sentLeadByAddress.values())] } }] : []),
+        { email: { in: emails, mode: 'insensitive' }, assignedToId: account.userId },
+      ],
+    },
+    select: MATCHED_LEAD_SELECT,
+  });
+  const byId = new Map(leads.map((lead) => [lead.id, lead]));
+
+  for (const lead of leads) {
+    byEmail.set(lead.email.toLowerCase(), lead);
+  }
+  for (const [address, leadId] of sentLeadByAddress) {
+    const lead = byId.get(leadId);
+    if (lead) byEmail.set(address, lead);
+  }
+  return byEmail;
+}
+
 /**
  * One fetched message, classified once so persistence and the reply/bounce
  * handlers agree on what it is.
@@ -93,19 +157,7 @@ async function handleEmailSync(payload: EmailSyncPayload) {
     )
   );
 
-  const leadByEmail = new Map<string, MatchedLead>();
-  if (lookupEmails.length > 0) {
-    const existingLeads = await prisma.lead.findMany({
-      where: {
-        email: { in: lookupEmails, mode: 'insensitive' },
-        assignedToId: account.userId,
-      },
-      select: { id: true, email: true, sequenceId: true, sequenceStatus: true, emailInvalid: true },
-    });
-    for (const l of existingLeads) {
-      leadByEmail.set(l.email.toLowerCase(), l);
-    }
-  }
+  const leadByEmail = await matchLeads(account, lookupEmails);
 
   const classified: ClassifiedMessage[] = preParsed.map((p) => {
     const auto = !p.isBounce && isAutoReply(p.msg);
@@ -124,11 +176,14 @@ async function handleEmailSync(payload: EmailSyncPayload) {
     };
   });
 
-  // Persist every message, bounces included. Bounces used to be discarded here,
-  // which made historical bounce rate impossible to reconstruct.
+  // Persist prospect mail and every bounce. Bounces used to be discarded here, which made
+  // historical bounce rate impossible to reconstruct. Mail from anyone who is not a lead —
+  // newsletters, colleagues, personal mail — is not stored (owner, 2026-10-07: it filled the
+  // unified inbox, and it is not the CRM's to keep). It stays in the mailbox itself.
   let unsaved = 0;
   for (const c of classified) {
     if (!c.msg.fromEmail) continue;
+    if (!c.isBounce && !c.lead) continue;
 
     try {
       const exists = await prisma.inboundMessage.findUnique({

@@ -48,7 +48,9 @@ export async function GET(
             company: true,
             tasks: {
               where: { sequenceId: id, status: 'pending' },
-              select: { id: true, dueDate: true, type: true }
+              // lockedAt: the worker holds the task while it runs, which the table shows as
+              // "Sending now" rather than "Overdue".
+              select: { id: true, dueDate: true, type: true, lockedAt: true }
             }
           }
         }

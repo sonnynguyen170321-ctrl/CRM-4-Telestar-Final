@@ -655,6 +655,8 @@ async function handleEmailSend(payload: EmailSendPayload) {
   let providerMessageId: string | undefined;
   let receipt: SendReceipt = {};
   let threading: SendThreading | undefined;
+  // Whether the open pixel went out — the open rate's denominator (lib/sequences/performance.ts).
+  let openTracked = false;
   try {
     // Fetch attachments if templateId is present
     const attachments = existing.templateId
@@ -726,6 +728,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
       }
       if (tracking?.trackOpens) {
         htmlPayload = `${htmlPayload}${openPixelHtml(baseUrl, existing.tenantId, outboundMessageId)}`;
+        openTracked = true;
       }
     }
 
@@ -872,6 +875,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
       status: OUTBOUND_STATUS.SENT,
       providerMessageId: providerMessageId ?? null,
       sentAt: new Date(),
+      openTracked,
       // What the next step needs to reply in this thread. Only what the provider reported — an
       // absent id is stored as absent, and that step then goes out as a new email.
       ...(receipt.rfcMessageId ? { rfcMessageId: normalizeMessageId(receipt.rfcMessageId) } : {}),
