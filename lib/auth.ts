@@ -460,7 +460,7 @@ export async function getLeadWhereScope(user: SessionUser): Promise<Record<strin
     return {
       OR: [
         { assignedToId: { in: visibleIds } },
-        ...(campaignIds.length > 0 ? teamLeadCampaignReach(campaignIds) : []),
+        ...(campaignIds.length > 0 ? [teamLeadCampaignReach(campaignIds)] : []),
       ],
     };
   }
@@ -481,15 +481,12 @@ export async function getLeadWhereScope(user: SessionUser): Promise<Record<strin
 
 /**
  * What a team lead reaches in their campaigns beyond their pod's own leads (owner, 2026-10-07:
- * a team lead saw every other team's leads in a shared campaign). Only leads nobody can work:
- * unassigned ones, so a fresh import can be handed out, and ones whose rep was deactivated, so
- * they can be taken over. Another team's working lead is not theirs.
+ * a team lead saw every other team's leads in a shared campaign). Only leads nobody can work: ones
+ * whose rep was deactivated, so they can be taken over. Another team's working lead is not theirs.
+ * (Every lead has an assignee — `Lead.assignedToId` is required — so there is no unassigned case.)
  */
-function teamLeadCampaignReach(campaignIds: string[]): Record<string, unknown>[] {
-  return [
-    { assignedToId: null, campaignId: { in: campaignIds } },
-    { assignedTo: { isActive: false }, campaignId: { in: campaignIds } },
-  ];
+function teamLeadCampaignReach(campaignIds: string[]): Record<string, unknown> {
+  return { assignedTo: { isActive: false }, campaignId: { in: campaignIds } };
 }
 
 /**
@@ -528,7 +525,8 @@ export async function canAccessLead(
   if (!ACCOUNT_AXIS_ROLES.includes(viewer.role)) return false;
   if (!lead.campaignId) return false;
   // A team lead's campaign reach stops at leads nobody can work (teamLeadCampaignReach).
-  if (viewer.role === 'team_lead' && lead.assignedToId) {
+  if (viewer.role === 'team_lead') {
+    if (!lead.assignedToId) return false;
     const assignee = await prisma.user.findUnique({
       where: { id: lead.assignedToId },
       select: { isActive: true },

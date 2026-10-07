@@ -6,8 +6,8 @@ import type { SessionUser } from '@/lib/auth';
  * lead's lead scope was their pod OR every lead in any campaign their pod belongs to, so a shared
  * campaign showed them every other team's working leads. Owner decision: only their pod's leads.
  *
- * Kept on purpose: leads in their campaigns that nobody can work — unassigned (a fresh import must
- * be handed out) or held by a deactivated rep (must be taken over). Floor managers are unchanged.
+ * Kept on purpose: leads in their campaigns held by a deactivated rep, which must be taken over.
+ * Floor managers are unchanged.
  */
 
 const userFindMany = vi.fn();
@@ -47,14 +47,19 @@ beforeEach(() => {
 });
 
 describe('getLeadWhereScope — team lead', () => {
-  it('reaches the pod’s leads, and in their campaigns only unassigned or orphaned ones', async () => {
+  it('reaches the pod’s leads, and in their campaigns only those whose rep was deactivated', async () => {
     expect(await getLeadWhereScope(teamLead)).toEqual({
       OR: [
         { assignedToId: { in: ['tl-1', 'sdr-1'] } },
-        { assignedToId: null, campaignId: { in: ['camp-shared'] } },
         { assignedTo: { isActive: false }, campaignId: { in: ['camp-shared'] } },
       ],
     });
+  });
+
+  // Review finding: `assignedToId` is a required column, and Prisma refuses a null filter on it —
+  // every team lead's lead list would have answered 500.
+  it('never filters the required assignee column on null', async () => {
+    expect(JSON.stringify(await getLeadWhereScope(teamLead))).not.toContain('"assignedToId":null');
   });
 
   it('is the pod alone when the pod belongs to no campaign', async () => {
@@ -78,10 +83,6 @@ describe('canAccessLead — team lead', () => {
     expect(await canAccessLead(teamLead, { assignedToId: 'sdr-2', campaignId: 'camp-shared' })).toBe(false);
   });
 
-  it('opens an unassigned lead in their campaign, so it can be handed out', async () => {
-    expect(await canAccessLead(teamLead, { assignedToId: null, campaignId: 'camp-shared' })).toBe(true);
-  });
-
   it('opens a lead whose rep was deactivated, so it can be taken over', async () => {
     userFindUnique.mockResolvedValue({ isActive: false });
     expect(await canAccessLead(teamLead, { assignedToId: 'gone-1', campaignId: 'camp-shared' })).toBe(true);
@@ -93,5 +94,26 @@ describe('canAccessLead — team lead', () => {
 
   it('still lets a floor manager open any lead in their campaigns', async () => {
     expect(await canAccessLead(floorManager, { assignedToId: 'someone-else', campaignId: 'camp-shared' })).toBe(true);
+  });
+});
+
+describe('canAccessOpportunity — team lead', () => {
+  it('refuses another team’s opportunity in a shared campaign', async () => {
+    const { canAccessOpportunity } = await import('@/lib/opportunities/access');
+    userFindUnique.mockResolvedValue({ isActive: true });
+
+    expect(await canAccessOpportunity(teamLead, {
+      ownerId: 'sdr-2', createdById: 'sdr-2', campaignId: 'camp-shared',
+      lead: { id: 'lead-2', assignedToId: 'sdr-2', campaignId: 'camp-shared' },
+    })).toBe(false);
+  });
+
+  it('opens their pod’s opportunity', async () => {
+    const { canAccessOpportunity } = await import('@/lib/opportunities/access');
+
+    expect(await canAccessOpportunity(teamLead, {
+      ownerId: 'sdr-1', createdById: 'sdr-1', campaignId: 'camp-shared',
+      lead: { id: 'lead-1', assignedToId: 'sdr-1', campaignId: 'camp-shared' },
+    })).toBe(true);
   });
 });
