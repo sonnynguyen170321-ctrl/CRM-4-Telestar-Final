@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAppContext } from '@/context/AppContext';
+import { canOpenAdminPath } from '@/lib/admin/teamLeadAdminPaths';
 import {
   Database, Mail, Upload, Activity,
   LayoutDashboard, Users, Network, Building2, Briefcase, ScrollText,
@@ -15,7 +16,8 @@ type Tab = { name: string; href: string; icon: typeof Database };
 /**
  * Two groups: the people-ops console added by the Admin Control Center, and the
  * pre-existing system-ops tabs. Both are gated to director|floor_manager by the
- * effect below and by `proxy.ts` at the edge.
+ * effect below and by `proxy.ts` at the edge; a team lead gets the campaign pages only
+ * (lib/admin/teamLeadAdminPaths.ts) and sees only the tabs they can open.
  */
 const ADMIN_SECTIONS: { label: string; items: Tab[] }[] = [
   {
@@ -46,12 +48,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const pathname = usePathname();
 
-  // Fence admin routes to director or floor_manager roles only.
+  // Fence admin routes to director or floor_manager, and a team lead to the campaign pages.
+  const allowed = canOpenAdminPath(currentRole, pathname);
   useEffect(() => {
-    if (!isSessionLoading && currentRole && currentRole !== 'director' && currentRole !== 'floor_manager') {
+    if (!isSessionLoading && currentRole && !allowed) {
       router.replace('/');
     }
-  }, [isSessionLoading, currentRole, router]);
+  }, [isSessionLoading, currentRole, allowed, router]);
 
   if (isSessionLoading) {
     return (
@@ -61,9 +64,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  if (currentRole !== 'director' && currentRole !== 'floor_manager') {
+  if (!allowed) {
     return null;
   }
+
+  const sections = ADMIN_SECTIONS
+    .map((section) => ({ ...section, items: section.items.filter((tab) => canOpenAdminPath(currentRole, tab.href)) }))
+    .filter((section) => section.items.length > 0);
 
   return (
     <div className="space-y-6 flex-1 flex flex-col">
@@ -78,7 +85,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Admin Sub-navigation */}
       <nav aria-label="Admin sections" className="space-y-2 shrink-0">
-        {ADMIN_SECTIONS.map((section) => (
+        {sections.map((section) => (
           <div key={section.label} className="flex items-center gap-3 flex-wrap">
             <span className="type-micro font-semibold uppercase tracking-wide text-text-muted w-32 shrink-0">
               {section.label}

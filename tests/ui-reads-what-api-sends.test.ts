@@ -49,7 +49,7 @@ describe('admin campaigns reads what /api/campaigns sends', () => {
 
   it('busts the list cache for the new shape', () => {
     // A 60s TTL of the old shape after deploy is 60s of "0 leads" again.
-    expect(api).toMatch(/'list-v2'/);
+    expect(api).toMatch(/'list-v3'/);
   });
 });
 

@@ -24,6 +24,9 @@ export async function canAccessOpportunity(
   }
 
   if (!opp.campaignId) return false;
+  // A team lead works their pod's pipeline, not every opportunity in a shared campaign (owner,
+  // 2026-10-07) — reached above through the owner, the creator or the lead, not the campaign.
+  if (viewer.role === 'team_lead') return false;
   const visibleCampaignIds = await getVisibleCampaignIds(viewer);
   if (visibleCampaignIds === null) return true;
   return visibleCampaignIds.includes(opp.campaignId);

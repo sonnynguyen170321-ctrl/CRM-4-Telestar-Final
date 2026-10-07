@@ -31,33 +31,17 @@ export default function AdminCampaignsPage() {
   const fetchCampaigns = useCallback(async () => {
     setLoading(true);
     try {
-      // `/api/campaigns` returns the scoped list; membership counts come from the
-      // members endpoint per campaign, so the list is enriched client-side from
-      // the assignments control plane in one extra call.
-      const [campRes, assignRes] = await Promise.all([
-        fetch('/api/campaigns'),
-        fetch('/api/admin/assignments'),
-      ]);
+      // `/api/campaigns` returns the scoped list with its member counts. It used to be enriched
+      // from /api/admin/assignments, which a team lead may not call — every row read "No SDR".
+      const campRes = await fetch('/api/campaigns');
       if (!campRes.ok) {
         showToast(await readApiError(campRes, 'Failed to load campaigns'), 'error');
         return;
       }
       const raw = await campRes.json();
-      const assignments = assignRes.ok ? await assignRes.json() : { assignments: [], members: [] };
-
-      const activeMemberIds = new Set(
-        (assignments.members ?? [])
-          .filter((m: { role: string }) => m.role === 'sdr' || m.role === 'team_lead')
-          .map((m: { id: string }) => m.id)
-      );
-      const byCampaign = new Map<string, string[]>();
-      for (const a of assignments.assignments ?? []) {
-        byCampaign.set(a.campaignId, [...(byCampaign.get(a.campaignId) ?? []), a.userId]);
-      }
 
       setCampaigns(
         (Array.isArray(raw) ? raw : []).map((c: Record<string, any>) => {
-          const members = byCampaign.get(c.id) ?? [];
           return {
             id: c.id,
             name: c.name,
@@ -65,8 +49,8 @@ export default function AdminCampaignsPage() {
             targetVertical: c.targetVertical ?? null,
             targetGeo: c.targetGeo ?? null,
             client: c.client ?? { id: '', name: '—', status: 'active' },
-            memberCount: members.length,
-            activeSdrCount: members.filter((uid) => activeMemberIds.has(uid)).length,
+            memberCount: c._count?.campaignSdrs ?? 0,
+            activeSdrCount: Array.isArray(c.campaignSdrs) ? c.campaignSdrs.length : 0,
             leadCount: c._count?.leads ?? c.leadCount ?? 0,
           };
         })
