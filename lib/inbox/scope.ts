@@ -47,6 +47,15 @@ export async function inboxScope(userIds: string[] | null): Promise<{
   };
 }
 
+/** The subject a thread is grouped under: lower-cased, one Re:/Fwd: prefix dropped. */
+export function threadSubjectKey(subject: string | null): string {
+  if (!subject) return 'no-subject';
+  return subject
+    .toLowerCase()
+    .replace(/^(re|fwd|fw):\s*/gi, '')
+    .trim();
+}
+
 export type InboxOwnerResult = { ok: true; ownerId: string } | { ok: false; status: 403 | 404; error: string };
 
 /**

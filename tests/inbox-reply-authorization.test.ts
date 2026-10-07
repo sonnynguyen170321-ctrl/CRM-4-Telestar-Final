@@ -18,7 +18,7 @@ const mockRequireAuth = vi.fn();
 const mockVisibleUserIds = vi.fn();
 const mockInboxScope = vi.fn();
 const mockLeadFindFirst = vi.fn();
-const mockInboundFindFirst = vi.fn();
+const mockInboundFindMany = vi.fn();
 const mockAccountFindFirst = vi.fn();
 const mockCreateOutbound = vi.fn();
 const mockEnqueueSend = vi.fn();
@@ -27,13 +27,14 @@ vi.mock('@/lib/auth', () => ({
   requireAuth: (...a: unknown[]) => mockRequireAuth(...a),
   getVisibleUserIds: (...a: unknown[]) => mockVisibleUserIds(...a),
 }));
-vi.mock('@/lib/inbox/scope', () => ({
+vi.mock('@/lib/inbox/scope', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/inbox/scope')>()),
   inboxScope: (...a: unknown[]) => mockInboxScope(...a),
 }));
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     lead: { findFirst: (...a: unknown[]) => mockLeadFindFirst(...a) },
-    inboundMessage: { findFirst: (...a: unknown[]) => mockInboundFindFirst(...a) },
+    inboundMessage: { findMany: (...a: unknown[]) => mockInboundFindMany(...a) },
     emailAccount: { findFirst: (...a: unknown[]) => mockAccountFindFirst(...a) },
   },
 }));
@@ -66,15 +67,15 @@ beforeEach(() => {
   mockVisibleUserIds.mockResolvedValue(['u-sdr']);
   mockInboxScope.mockResolvedValue(SCOPE);
   mockLeadFindFirst.mockResolvedValue(LEAD);
-  mockInboundFindFirst.mockResolvedValue({ accountId: 'acct-sender' });
+  mockInboundFindMany.mockResolvedValue([{ accountId: 'acct-sender', subject: 'Re: Intro' }]);
   mockAccountFindFirst.mockResolvedValue({ id: 'acct-sender', email: 'mei@nekko.tech', userId: 'u-team-lead' });
-  mockCreateOutbound.mockResolvedValue({ id: 'out-1', to: LEAD.email, subject: 'Re: Intro', body: 'hello', createdAt: new Date() });
+  mockCreateOutbound.mockResolvedValue({ id: 'out-1', leadId: LEAD.id, tenantId: 't1', to: LEAD.email, subject: 'Re: Intro', body: 'hello', createdAt: new Date() });
   mockEnqueueSend.mockResolvedValue('job-1');
 });
 
 describe('POST /api/inbox/threads/[id]/reply', () => {
   it('refuses a conversation outside the caller’s inbox scope, and queues nothing', async () => {
-    mockInboundFindFirst.mockResolvedValue(null);
+    mockInboundFindMany.mockResolvedValue([]);
 
     const res = await POST(req({ leadId: LEAD.id, body: 'hello', subject: 'Intro' }), params);
 
@@ -87,7 +88,7 @@ describe('POST /api/inbox/threads/[id]/reply', () => {
     await POST(req({ leadId: LEAD.id, body: 'hello', subject: 'Intro' }), params);
 
     expect(mockInboxScope).toHaveBeenCalledWith(['u-sdr']);
-    expect(mockInboundFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mockInboundFindMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { tenantId: 't1', leadId: LEAD.id, isBounce: false, AND: [SCOPE.inbound] },
       orderBy: { date: 'desc' },
     }));
@@ -118,5 +119,51 @@ describe('POST /api/inbox/threads/[id]/reply', () => {
 
     expect(res.status).toBe(404);
     expect(mockCreateOutbound).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/inbox/threads/[id]/reply — review findings', () => {
+  const threadReq = (thread: string, body: unknown) => [
+    new NextRequest(new Request(`https://crm.test/api/inbox/threads/${encodeURIComponent(thread)}/reply`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })),
+    { params: Promise.resolve({ id: thread }) },
+  ] as const;
+
+  it('answers 400, not 500, to a malformed request', async () => {
+    for (const bad of [{ leadId: LEAD.id }, { leadId: LEAD.id, body: 42 }, { body: 'hi' }, null]) {
+      const res = await POST(...threadReq('thread-1', bad));
+      expect(res.status).toBe(400);
+    }
+    expect(mockCreateOutbound).not.toHaveBeenCalled();
+  });
+
+  it('treats a missing subject as empty instead of crashing', async () => {
+    const res = await POST(...threadReq('thread-1', { leadId: LEAD.id, body: 'hello' }));
+    expect(res.status).toBeLessThan(400);
+  });
+
+  it('replies from the mailbox of the thread being viewed, not just the lead’s latest', async () => {
+    mockInboundFindMany.mockResolvedValue([
+      { accountId: 'acct-other', subject: 'Re: Pricing' },
+      { accountId: 'acct-sender', subject: 'RE: Intro' },
+    ]);
+    mockAccountFindFirst.mockImplementation(async ({ where }: { where: { id: string } }) => ({ id: where.id, email: 'x@y.z' }));
+
+    await POST(...threadReq(`${LEAD.id}-intro`, { leadId: LEAD.id, body: 'hello', subject: 'Intro' }));
+
+    expect(mockCreateOutbound).toHaveBeenCalledWith(expect.objectContaining({ accountId: 'acct-sender' }));
+  });
+
+  it('keys the reply on the lead, and refuses a row that belongs to another lead', async () => {
+    mockCreateOutbound.mockResolvedValue({ id: 'out-x', leadId: 'lead-other', tenantId: 't1' });
+
+    const res = await POST(...threadReq('thread-1', { leadId: LEAD.id, body: 'hello', subject: 'Intro', clientRequestId: 'req-12345678' }));
+
+    expect(mockCreateOutbound).toHaveBeenCalledWith(expect.objectContaining({
+      source: { kind: 'reply', threadKey: `${LEAD.id}:thread-1`, requestId: 'req-12345678' },
+    }));
+    expect(res.status).toBe(409);
+    expect(mockEnqueueSend).not.toHaveBeenCalled();
   });
 });

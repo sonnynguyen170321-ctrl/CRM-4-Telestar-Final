@@ -1,20 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getVisibleUserIds, requireAuth } from '@/lib/auth';
-import { inboxScope, resolveInboxOwner } from '@/lib/inbox/scope';
+import { inboxScope, resolveInboxOwner, threadSubjectKey } from '@/lib/inbox/scope';
 import type { SessionUser } from '@/lib/auth';
 import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
 
 /** Most recent messages read per direction. See the comment on the inbound query. */
 const INBOX_MESSAGE_WINDOW = 500;
-
-function getThreadKey(subject: string | null): string {
-  if (!subject) return 'no-subject';
-  return subject
-    .toLowerCase()
-    .replace(/^(re|fwd|fw):\s*/gi, '')
-    .trim();
-}
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -170,7 +162,7 @@ export async function GET(req: NextRequest) {
     }>();
 
     for (const msg of unifiedMessages) {
-      const threadKey = `${msg.lead?.id || 'no-lead'}-${getThreadKey(msg.subject)}`;
+      const threadKey = `${msg.lead?.id || 'no-lead'}-${threadSubjectKey(msg.subject)}`;
       const existing = threadMap.get(threadKey);
 
       if (existing) {
@@ -281,8 +273,12 @@ export async function PATCH(req: NextRequest) {
         data: { isTrash: true },
       });
     } else if (action === 'delete') {
+      // A hard delete only of mail in mailboxes the viewer or their reports connected. Reading a
+      // conversation through a lead or a sequence (lib/inbox/scope.ts) is not owning the mailbox
+      // it sits in, and nothing brings a deleted message back.
+      const visible = await getVisibleUserIds(user);
       await prisma.inboundMessage.deleteMany({
-        where: target,
+        where: { ...target, ...(visible === null ? {} : { account: { userId: { in: visible } } }) },
       });
     }
 

@@ -168,10 +168,13 @@ describe('acting on messages', () => {
     });
   }
 
-  it('scopes a delete the same way — the destructive one most of all', async () => {
+  it('scopes a delete the same way, and only to mailboxes the viewer or their reports own', async () => {
     await PATCH(patch({ messageIds: ['m1'], action: 'delete' }));
 
-    expect(mockInboundDelete.mock.calls[0][0].where.AND).toEqual([inboundScopeOf([SDR.id])]);
+    const where = mockInboundDelete.mock.calls[0][0].where;
+    expect(where.AND).toEqual([inboundScopeOf([SDR.id])]);
+    // Seeing a conversation through a lead or a sequence is not owning the mailbox it sits in.
+    expect(where.account).toEqual({ userId: { in: [SDR.id] } });
   });
 
   it('lets a manager act on their reps’ conversations', async () => {
