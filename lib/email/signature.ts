@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import DOMPurify from 'isomorphic-dompurify';
-import { stripHtml } from './sanitize';
+import { composeEmailContent } from './composeBody';
 import { SIGNATURE_LIMITS, SIGNATURE_MAX_INPUT_CHARS } from './signatureLimits';
 
 /**
@@ -180,72 +180,14 @@ export function signatureForSend(html: string, rawImages: unknown): { html: stri
   return { html, attachments };
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-/**
- * The signature as plain text, readable for a table layout: a row is a line, a cell is a gap.
- *
- * Text comes from the parser, not a tag-stripping regex — a regex that removes `<…>` and then
- * decodes `&lt;` can hand back markup it just removed. Only line breaks are placed by pattern.
- */
-function signatureText(html: string): string {
-  const marked = html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(?:p|div|tr|table)>/gi, '\n$&')
-    .replace(/<\/t[dh]>/gi, ' $&');
-  const fragment = DOMPurify.sanitize(marked, { ALLOWED_TAGS: [], KEEP_CONTENT: true, RETURN_DOM_FRAGMENT: true });
-  return (fragment.textContent ?? '')
-    .replace(/ /g, ' ')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/ *\n */g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
-const CLOSING_PHRASE =
-  '(?:best regards|kind regards|warm regards|regards|best wishes|best|many thanks|thanks|thank you|yours sincerely|sincerely|cheers|trân trọng|thân ái|thân mến)';
-// "Best regards," alone, or "Thanks, Mei" on one line. Not "Thanks for your time".
-const CLOSING_LINE = new RegExp(
-  `^${CLOSING_PHRASE}\\s*(?:[,.!]\\s*)?$|^${CLOSING_PHRASE}\\s*,\\s*\\S+(?:\\s+\\S+)?$`,
-  'i',
-);
-const LEADING_BLOCK = /^\s*<(p|div)\b[^>]*>([\s\S]*?)<\/\1>/i;
-
-/** A message that already signs off ("Best regards,\nMei") in its last few lines. */
-function endsWithSignOff(bodyText: string): boolean {
-  const lines = bodyText.split('\n').map((line) => line.trim()).filter(Boolean);
-  return lines.slice(-3).some((line) => line.length <= 40 && CLOSING_LINE.test(line));
-}
-
-/** The signature without its own opening "Best regards, …" paragraph, if it has one. */
-function withoutLeadingClosing(html: string): string {
-  const block = html.match(LEADING_BLOCK);
-  if (!block) return html;
-  // A block that opens another block of its kind is a wrapper, not a paragraph; cutting at the
-  // first closing tag would leave it unbalanced.
-  if (new RegExp(`<${block[1]}\\b`, 'i').test(block[2])) return html;
-  const lines = signatureText(block[2]).split('\n').map((line) => line.trim()).filter(Boolean);
-  // Only a paragraph that is the closing and nothing else: "Best regards," with at most a short
-  // name under it. A signature pasted from Gmail is often one block — closing, name, title, phone —
-  // and dropping that would send the logo with nobody's name beside it.
-  if (lines.length === 0 || lines.length > 2 || !CLOSING_LINE.test(lines[0])) return html;
-  if (lines[1] && lines[1].length > 40) return html;
-  const rest = html.slice(block[0].length);
-  // A signature that is only a closing stays whole — dropping it would send nothing.
-  return signatureText(rest) || /<img\b/i.test(rest) ? rest : html;
-}
-
 export type ComposedEmailBody = { html: string; text: string; attachments: InlineAttachment[] };
 
 /**
- * The body a prospect receives: the rendered message with the mailbox signature under it.
+ * The body a prospect receives: the rendered message with the mailbox signature under it
+ * (`composeEmailContent`), plus an inline attachment for every image the signature shows.
  *
  * A plain-text body still gets the designed signature in its HTML part; flattening it to text there
- * is how a logo-and-table signature reached the prospect as a few run-together lines. When the
- * message already signs off by hand, the signature's own closing line is left out so "Best regards"
- * does not appear twice.
+ * is how a logo-and-table signature reached the prospect as a few run-together lines.
  */
 export function composeEmailBody(
   body: string,
@@ -253,22 +195,10 @@ export function composeEmailBody(
   signature: string | null | undefined,
   rawImages: unknown,
 ): ComposedEmailBody {
-  const bodyText = bodyIsHtml ? stripHtml(body) : body;
-  const bodyHtml = bodyIsHtml
-    ? body
-    : `<div style="font-family: sans-serif; white-space: pre-wrap;">${escapeHtml(body)}</div>`;
-
-  if (!signature || !signature.trim()) {
-    return { html: bodyHtml, text: bodyText, attachments: [] };
-  }
-
-  // A signature saved before the designer existed is plain text; its line breaks must survive.
-  const stored = /<[a-z][\s\S]*>/i.test(signature) ? signature : escapeHtml(signature).replace(/\r?\n/g, '<br>');
-  const signatureHtml = endsWithSignOff(bodyText) ? withoutLeadingClosing(stored) : stored;
-
+  const composed = composeEmailContent(body, bodyIsHtml, signature);
   return {
-    html: `${bodyHtml}<br><br>--<br>${signatureHtml}`,
-    text: `${bodyText}\n\n-- \n${signatureText(signatureHtml)}`,
-    attachments: signatureForSend(signatureHtml, rawImages).attachments,
+    html: composed.html,
+    text: composed.text,
+    attachments: composed.signatureHtml ? signatureForSend(composed.signatureHtml, rawImages).attachments : [],
   };
 }

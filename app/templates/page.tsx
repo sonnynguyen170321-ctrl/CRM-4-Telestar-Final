@@ -16,6 +16,9 @@ import Linkedin from '@/components/icons/Linkedin';
 import { useToast } from '@/context/ToastContext';
 import { useAppContext } from '@/context/AppContext';
 import DOMPurify from 'isomorphic-dompurify';
+import { EMAIL_FONT, composeEmailContent } from '@/lib/email/composeBody';
+import { isHtml } from '@/lib/email/sanitize';
+import { insertMergeTag } from '@/lib/templates/insertMergeTag';
 
 interface Template {
   id: string;
@@ -42,6 +45,13 @@ interface AbTestVariant {
 }
 
 const MERGE_FIELDS = ['firstName', 'lastName', 'company', 'title', 'email', 'phone', 'sdrName', 'sdrTitle'];
+
+/** A mailbox the preview can sign with — the caller's own, from GET /api/email/accounts. */
+interface PreviewMailbox {
+  id: string;
+  email: string;
+  sendPausedAt?: string | null;
+}
 
 const PREVIEW_DATA: Record<string, string> = {
   firstName: 'Sarah',
@@ -74,6 +84,11 @@ export default function TemplatesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const [mailboxes, setMailboxes] = useState<PreviewMailbox[]>([]);
+  const [previewAccountId, setPreviewAccountId] = useState('');
+  const [previewSignature, setPreviewSignature] = useState<string | null>(null);
+  const [sendingTest, setSendingTest] = useState(false);
   const [saving, setSaving] = useState(false);
   const [abVariants, setAbVariants] = useState<AbTestVariant[]>([]);
   const [abOpen, setAbOpen] = useState(false);
@@ -94,6 +109,43 @@ export default function TemplatesPage() {
   useEffect(() => {
     loadTemplates();
   }, [loadTemplates]);
+
+  // The preview signs with one of the caller's mailboxes, as the send path does.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/email/accounts')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: PreviewMailbox[]) => {
+        if (cancelled || !Array.isArray(data)) return;
+        setMailboxes(data);
+        setPreviewAccountId((current) => current || data[0]?.id || '');
+      })
+      .catch(() => {
+        if (!cancelled) setMailboxes([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!previewAccountId) {
+      setPreviewSignature(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/email/accounts/${previewAccountId}`)
+      .then((res) => (res.ok ? res.json() : { signature: null }))
+      .then((data: { signature?: string | null }) => {
+        if (!cancelled) setPreviewSignature(data.signature ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setPreviewSignature(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [previewAccountId]);
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -244,6 +296,51 @@ export default function TemplatesPage() {
       }
     } else {
       setBody((prev) => prev + ` ${tag}`);
+    }
+  };
+
+  const handleInsertSubjectField = (field: string) => {
+    const input = subjectRef.current;
+    const next = insertMergeTag(subject, input?.selectionStart ?? null, input?.selectionEnd ?? null, field);
+    setSubject(next.value);
+    requestAnimationFrame(() => {
+      input?.focus();
+      input?.setSelectionRange(next.cursor, next.cursor);
+    });
+  };
+
+  // A real send to the mailbox's own address, through the normal send path, with the demo data
+  // the preview shows. It is the only way to see what Gmail or Outlook makes of the message.
+  const handleSendTest = async () => {
+    const mailbox = mailboxes.find((m) => m.id === previewAccountId);
+    if (!mailbox) {
+      showToast('Connect a mailbox under Settings to send a test', 'error');
+      return;
+    }
+    setSendingTest(true);
+    try {
+      const res = await fetch('/api/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: mailbox.id,
+          to: mailbox.email,
+          subject: applyMergeFields(subject),
+          body: applyMergeFields(body),
+          ...(selectedTemp ? { templateId: selectedTemp.id } : {}),
+          clientRequestId: crypto.randomUUID(),
+        }),
+      });
+      if (res.ok) {
+        showToast(`Test queued to ${mailbox.email}`, 'success');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || 'Failed to send the test', 'error');
+      }
+    } catch {
+      showToast('Network error sending the test', 'error');
+    } finally {
+      setSendingTest(false);
     }
   };
 
@@ -595,11 +692,26 @@ export default function TemplatesPage() {
                           Email Subject
                         </label>
                         <input
+                          ref={subjectRef}
                           type="text"
                           value={subject}
                           onChange={(e) => setSubject(e.target.value)}
                           className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
                         />
+                        <div className="flex flex-wrap gap-1">
+                          <span className="text-[9px] text-text-muted mr-1 mt-1">Insert:</span>
+                          {MERGE_FIELDS.map((f) => (
+                            <button
+                              key={f}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => handleInsertSubjectField(f)}
+                              className="px-1.5 py-0.5 border border-card-border bg-bg-main hover:bg-card-border text-[9px] font-semibold text-text-secondary rounded transition-colors"
+                            >
+                              {f}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
 
@@ -754,8 +866,8 @@ export default function TemplatesPage() {
                               ref={editorRef}
                               contentEditable
                               onInput={(e) => setBody(e.currentTarget.innerHTML)}
-                              className="w-full bg-bg-main border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-48 placeholder-text-muted overflow-y-auto leading-relaxed font-sans text-xs focus:ring-1 focus:ring-brand-red/35 outline-none"
-                              style={{ minHeight: '12rem' }}
+                              className="email-canvas w-full border border-card-border rounded-xl p-3 focus:outline-none focus:border-brand-red h-48 placeholder-text-muted overflow-y-auto focus:ring-1 focus:ring-brand-red/35 outline-none"
+                              style={{ ...EMAIL_FONT, minHeight: '12rem' }}
                             />
                           )}
 
@@ -825,14 +937,40 @@ export default function TemplatesPage() {
                            the same shape of content with the same dependency; this one did not, so a
                            template body was a stored-XSS vector that fired in the author's own
                            authenticated session and in any reviewer's. */
-                        <div
-                          className="text-xs text-text-primary leading-relaxed font-sans select-text"
-                          dangerouslySetInnerHTML={{
-                            __html:
-                              DOMPurify.sanitize(getPreviewText()) ||
-                              '<span class="text-text-muted italic">(Empty Template)</span>',
-                          }}
-                        />
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <label htmlFor="preview-mailbox" className="text-[10px] font-bold text-text-muted uppercase">
+                              Signed as
+                            </label>
+                            <select
+                              id="preview-mailbox"
+                              value={previewAccountId}
+                              onChange={(e) => setPreviewAccountId(e.target.value)}
+                              className="bg-bg-main border border-card-border rounded-lg px-2 py-1 text-text-primary focus:outline-none focus:border-brand-red"
+                            >
+                              {mailboxes.length === 0 && <option value="">No mailbox connected</option>}
+                              {mailboxes.map((m) => (
+                                <option key={m.id} value={m.id}>{m.email}</option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={handleSendTest}
+                              disabled={sendingTest || !previewAccountId || !body.trim()}
+                              className="ml-auto px-2.5 py-1 border border-card-border bg-bg-main hover:bg-card-border/40 rounded-lg font-semibold text-text-secondary disabled:opacity-50 transition-colors"
+                            >
+                              {sendingTest ? 'Sending…' : 'Send test to me'}
+                            </button>
+                          </div>
+                          <div
+                            className="email-canvas rounded-lg p-3 select-text"
+                            dangerouslySetInnerHTML={{
+                              __html: body.trim()
+                                ? DOMPurify.sanitize(composeEmailContent(getPreviewText(), isHtml(body), previewSignature).html)
+                                : '<span class="text-text-muted italic">(Empty Template)</span>',
+                            }}
+                          />
+                        </div>
                       ) : (
                         <div className="text-xs text-text-primary whitespace-pre-line leading-relaxed font-sans">
                           {getPreviewText() || '(Empty Template)'}
@@ -843,6 +981,7 @@ export default function TemplatesPage() {
                       <span className="text-xs">💡</span>
                       <span>
                         Preview shows merge tokens substituted with demo data: Sarah Chen (VP Operations at Acme Corp).
+                        {channel === 'email' && ' Email layout and signature are exactly what the prospect receives; "Send test to me" sends this version to the chosen mailbox.'}
                       </span>
                     </div>
                   </div>

@@ -231,6 +231,28 @@ h1.type-micro, h2.type-micro, h3.type-micro, h4.type-micro, .type-micro {
   max-width: 68ch;
 }
 
+/* ── Email canvas ───────────────────────────────────────────────────────────
+   An email as the recipient's client lays it out, in either theme: the
+   template editor and preview. lib/email/composeBody.ts writes the same
+   paragraph and list margins inline on the sent message; preflight strips
+   list markers, mail clients keep them. */
+.email-canvas {
+  background: #ffffff;
+}
+.email-canvas p {
+  margin: 0;
+}
+.email-canvas ul {
+  list-style: disc;
+  margin: 0;
+  padding-left: 24px;
+}
+.email-canvas ol {
+  list-style: decimal;
+  margin: 0;
+  padding-left: 24px;
+}
+
 /* ── Collapse ad-hoc sizes onto the scale ───────────────────────────────────
    ~675 call sites use arbitrary Tailwind sizes (`text-[9px]`, `text-[11px]`,
    …) which produced five near-duplicate micro sizes — 8, 9, 10, 11, 13 — that

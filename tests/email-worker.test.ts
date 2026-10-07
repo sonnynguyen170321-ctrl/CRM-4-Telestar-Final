@@ -231,7 +231,7 @@ describe('handleEmailSend', () => {
 
     const sent = mockServiceSend.mock.calls[0][0] as { html: string; text: string };
     expect(sent.html).toContain('<table><tbody><tr><td><b>Mei</b></td></tr></tbody></table>');
-    expect(sent.text).toBe('Hi Linh,\nQuick question.\n\n-- \nMei');
+    expect(sent.text).toBe('Hi Linh,\nQuick question.\n\nMei');
   });
 
   describe('reply in the same thread', () => {
