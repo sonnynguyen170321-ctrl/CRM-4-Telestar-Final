@@ -11,8 +11,9 @@ import {
 } from '@telestar/core-research/buildDiscoveryQueries';
 import { isCandidateExcludedByIcp } from '@telestar/core-research/icpDiscoveryFilter';
 import {
-  parseCompanyHits,
+  parseCompanyHitsDetailed,
   parseContactHits,
+  type CompanyHitRejections,
   type ParsedCandidate,
   type RawSearchHit,
 } from '@telestar/core-research/parseDiscoveryResults';
@@ -140,6 +141,29 @@ export type DiscoveryPassResult = {
   errorMessage?: string | null;
 };
 
+/**
+ * Why a run that worked found no companies, in words an operator can act on. Production's FMCG run
+ * (2026-10-07) found nothing and said only "succeeded"; the cause was a size band typed into every
+ * query as a quoted phrase no page contains.
+ */
+export function describeEmptyRun(input: { queriesRun: number; hitsSeen: number; filtered: CompanyHitRejections; rejectedByIcp: number }): string {
+  const { queriesRun, hitsSeen, filtered, rejectedByIcp } = input;
+  if (hitsSeen === 0) {
+    return `No companies found: the search returned nothing for ${queriesRun} quer${queriesRun === 1 ? 'y' : 'ies'}. ` +
+      'Try fewer or broader keywords, or more countries.';
+  }
+  const parts = [
+    filtered.notACompanySite && `${filtered.notACompanySite} directory, research, news or job site(s)`,
+    filtered.institutional && `${filtered.institutional} government or education site(s)`,
+    filtered.roundup && `${filtered.roundup} "top companies" list(s) or market report(s)`,
+    rejectedByIcp && `${rejectedByIcp} company(ies) the ICP excludes`,
+    filtered.duplicate && `${filtered.duplicate} repeat(s) of a company already found`,
+  ].filter(Boolean);
+  return `No companies found: ${hitsSeen} result(s) came back, and none was a prospect company` +
+    (parts.length ? ` — ${parts.join(', ')}.` : '.') +
+    ' Try naming what the companies do (e.g. "aircraft maintenance") rather than a category word.';
+}
+
 function describeProviderFailures(failures: Map<string, number | null>): string {
   const detail = [...failures.entries()]
     .map(([provider, status]) => (status ? `${provider} ${status}` : provider))
@@ -201,6 +225,9 @@ export async function runDiscoveryPass(params: {
   // Raw results the providers returned, before parsing. The difference between "the web had
   // nothing" and "nothing we got back was readable" is only visible here.
   let hitsSeen = 0;
+  // Results refused as prospects, by reason (directory/research/job site, government or education,
+  // roundup page). An empty run reports these, so "nothing found" says what was found instead.
+  const filtered: CompanyHitRejections = { notACompanySite: 0, institutional: 0, roundup: 0, duplicate: 0, unreadable: 0 };
   const providerFailures = new Map<string, number | null>();
   const deps = params.deps ?? searchDepsFor({ tenantId, runId, stage: 'discovery' });
 
@@ -264,6 +291,7 @@ export async function runDiscoveryPass(params: {
     result.duplicates += harvested.duplicates;
     result.rejected += harvested.rejected;
     hitsSeen += harvested.hits;
+    for (const [reason, count] of Object.entries(harvested.filtered ?? {})) filtered[reason as keyof CompanyHitRejections] += count;
     cursor += 1;
     result.queriesRun += 1;
 
@@ -325,14 +353,23 @@ export async function runDiscoveryPass(params: {
     // "the ICP is narrow"; it was misconfiguration. An ICP rejection is not this: that is the
     // filter working, and it is counted separately.
     const parsedNothing = nothingFound && hitsSeen > 0 && result.duplicates === 0 && result.rejected === 0;
+    const filteredTotal = Object.values(filtered).reduce((sum, n) => sum + n, 0);
 
     const brokenRun = nothingFound && (providersBroke || parsedNothing);
     result.errorMessage = brokenRun
       ? providersBroke
         ? describeProviderFailures(providerFailures)
-        : `Providers returned ${hitsSeen} result(s) and none could be read as a ${run.kind === 'contact' ? 'person' : 'company'}. ` +
-          'Check the query plan and the provider category before treating this as an empty market.'
-      : null;
+        : filteredTotal > 0
+          ? // Say what the results were — directories, research sites, roundups — not just that none
+            // of them counted, so the operator knows to reword the search rather than widen it.
+            describeEmptyRun({ queriesRun: cursor, hitsSeen, filtered, rejectedByIcp: result.rejected })
+          : `Providers returned ${hitsSeen} result(s) and none could be read as a ${run.kind === 'contact' ? 'person' : 'company'}. ` +
+            'Check the query plan and the provider category before treating this as an empty market.'
+      : nothingFound
+        ? // Not broken, and still not silent: a run that found nothing says what it saw (production,
+          // 2026-10-07: an FMCG run of four queries found nothing and said only "succeeded").
+          describeEmptyRun({ queriesRun: cursor, hitsSeen, filtered, rejectedByIcp: result.rejected })
+        : null;
 
     await prisma.researchRun.updateMany({
       where: { id: runId, tenantId },
@@ -357,7 +394,7 @@ async function harvestQuery(input: {
   personaTitles?: string[];
   /** Collects every candidate this query created, for the AI-fit re-rank at the end of the pass. */
   created?: AiFitCandidate[];
-}): Promise<{ discovered: number; duplicates: number; rejected: number; hits: number; providerFailures: Map<string, number | null> }> {
+}): Promise<{ discovered: number; duplicates: number; rejected: number; hits: number; filtered?: CompanyHitRejections; providerFailures: Map<string, number | null> }> {
   const { tenantId, runId, kind, query, rules, deps } = input;
 
   // `company_profile` is the widest of the chain's purposes — discovery is looking for who exists at
@@ -387,7 +424,8 @@ async function harvestQuery(input: {
     }
   }
 
-  const parsed = kind === 'company' ? parseCompanyHits(query.query, hits) : parseContactHits(query.query, hits);
+  const companyParse = kind === 'company' ? parseCompanyHitsDetailed(query.query, hits) : null;
+  const parsed = companyParse ? companyParse.candidates : parseContactHits(query.query, hits);
 
   let discovered = 0;
   let duplicates = 0;
@@ -425,7 +463,7 @@ async function harvestQuery(input: {
     } else duplicates += 1;
   }
 
-  return { discovered, duplicates, rejected, hits: hits.length, providerFailures };
+  return { discovered, duplicates, rejected, hits: hits.length, filtered: companyParse?.rejected, providerFailures };
 }
 
 async function persistCandidate(input: {

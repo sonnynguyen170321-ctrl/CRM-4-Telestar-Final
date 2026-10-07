@@ -3,6 +3,8 @@
 // contact candidates from LinkedIn-person results, parsed from the public title pattern
 // "Name - Title - Company | LinkedIn". SERP titles/snippets only — no page scraping. Pure.
 
+import { isInstitutionalHost, registrableDomain } from "@telestar/core-identity/registrableDomain";
+
 export type RawSearchHit = {
   title: string;
   url: string;
@@ -37,6 +39,23 @@ export const EXCLUDED_HOSTS = new Set([
   "trustradius.com", "saasworthy.com", "financesonline.com", "sourceforge.net", "gartner.com",
   "techradar.com", "pcmag.com", "cnet.com", "zdnet.com", "wired.com", "venturebeat.com",
   "producthunt.net", "slashdot.org", "trustpilot.co.uk",
+  // Market research, company databases and finance sites (2026-10-08: every one of these came back
+  // as a "company" for a live ICP — they write about companies, they are not the prospect).
+  "mordorintelligence.com", "globaldata.com", "verifiedmarketreports.com", "verifiedmarketresearch.com",
+  "grandviewresearch.com", "marketsandmarkets.com", "imarcgroup.com", "statista.com",
+  "fortunebusinessinsights.com", "alliedmarketresearch.com", "researchandmarkets.com",
+  "precedenceresearch.com", "expertmarketresearch.com", "technavio.com", "ibisworld.com",
+  "euromonitor.com", "frost.com", "idc.com", "forrester.com", "emis.com", "bullfincher.io",
+  "companiesmarketcap.com", "pitchbook.com", "tracxn.com", "dnb.com", "cbinsights.com", "craft.co",
+  "macrotrends.net", "stockanalysis.com", "marketwatch.com", "yahoo.com", "investing.com",
+  "globenewswire.com", "einpresswire.com", "accesswire.com", "wsj.com", "ft.com", "cnbc.com",
+  "kompass.com", "europages.com", "f6s.com", "wellfound.com", "ycombinator.com", "similarweb.com",
+  "semrush.com", "dealroom.co", "startupblink.com",
+  // Job boards.
+  "gulftalent.com", "bayt.com", "naukri.com", "monster.com", "jobstreet.com", "jobsdb.com",
+  "seek.com.au", "seek.co.nz", "vietnamworks.com", "topcv.vn", "careerbuilder.com", "ziprecruiter.com",
+  "reed.co.uk", "totaljobs.com", "stepstone.de", "xing.com", "simplyhired.com", "careerjet.com",
+  "jooble.org", "adzuna.com", "jobindex.dk", "efinancialcareers.com", "swissdevjobs.ch",
 ]);
 
 // A SERP result whose TITLE is a listicle / roundup / comparison / review — the page is a SOURCE of
@@ -47,13 +66,19 @@ export const EXCLUDED_HOSTS = new Set([
 const LISTICLE_TITLE_RE =
   /\b(top|best|leading)\s+\d+\b|^\s*\d+\s+(best|top|leading|popular|great|essential)\b|\b\d+\s+(?:best|top)\b|\blist of\b|\b(alternatives|vs\.?|versus)\b/i;
 
+// The same page shapes without a number, and market reports. Production (2026-10-08): "Largest tech
+// companies by market cap", "Top Tech Companies in Norway", "Aviation MRO Market Size, Share &
+// Forecast". A company's own page names the company; these name a category.
+const ROUNDUP_TITLE_RE =
+  /^\s*(the\s+)?(top|best|leading|largest|biggest)\s+[^|:–—-]{0,60}?\b(compan(?:y|ies)|firms|brands|providers|vendors|banks|isps|operators|startups|businesses|agencies|airlines|retailers|chains|manufacturers|suppliers)\b|^\s*(compan(?:y|ies)|businesses|firms|startups)\s+in\b|\bmarket\s+(size|share|report|research|analysis|forecast|outlook|trends?|growth)\b/i;
+
 export function looksLikeListicleResult(title: string): boolean {
-  return LISTICLE_TITLE_RE.test(String(title ?? ""));
+  const text = String(title ?? "");
+  return LISTICLE_TITLE_RE.test(text) || ROUNDUP_TITLE_RE.test(text);
 }
 
-function rootDomain(host: string): string {
-  const parts = host.toLowerCase().replace(/^www\./, "").split(".");
-  return parts.length <= 2 ? parts.join(".") : parts.slice(-2).join(".");
+function rootDomain(host: string): string | null {
+  return registrableDomain(host);
 }
 
 function hostOf(url: string): string | null {
@@ -90,21 +115,60 @@ function cleanCompanyName(title: string, domain: string): string {
   return label.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** Why a search result was not taken as a prospect company. */
+export type CompanyHitRejections = {
+  /** A social network, directory, review site, research firm, news site or job board. */
+  notACompanySite: number;
+  /** A government, military or education body. */
+  institutional: number;
+  /** A roundup, listicle, comparison or market report — a page about companies. */
+  roundup: number;
+  /** A second page of a company already taken, or one the caller already knows. */
+  duplicate: number;
+  /** No registrable domain to tie a company to. */
+  unreadable: number;
+};
+
 export function parseCompanyHits(query: string, hits: RawSearchHit[], excludeRoots: string[] = []): ParsedCandidate[] {
+  return parseCompanyHitsDetailed(query, hits, excludeRoots).candidates;
+}
+
+/** `parseCompanyHits`, plus what was thrown away and why — an empty run has to be able to say. */
+export function parseCompanyHitsDetailed(
+  query: string,
+  hits: RawSearchHit[],
+  excludeRoots: string[] = []
+): { candidates: ParsedCandidate[]; rejected: CompanyHitRejections } {
   const out: ParsedCandidate[] = [];
+  const rejected: CompanyHitRejections = { notACompanySite: 0, institutional: 0, roundup: 0, duplicate: 0, unreadable: 0 };
   const seen = new Set<string>();
   // Roots we must never harvest — e.g. the lookalike seed's own domain, or already-known
   // companies passed by the caller. Normalized to root form for comparison.
-  const excluded = new Set(excludeRoots.map((d) => rootDomain(d.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0])));
+  const excluded = new Set(excludeRoots.map((d) => rootDomain(d)).filter((d): d is string => Boolean(d)));
   for (const hit of hits) {
     const host = hostOf(hit.url);
-    if (!host) continue;
-    const root = rootDomain(host);
-    if (EXCLUDED_HOSTS.has(root)) continue;
-    if (excluded.has(root)) continue;
+    const root = host ? rootDomain(host) : null;
+    if (!host || !root) {
+      rejected.unreadable += 1;
+      continue;
+    }
+    if (EXCLUDED_HOSTS.has(root)) {
+      rejected.notACompanySite += 1;
+      continue;
+    }
+    if (isInstitutionalHost(host)) {
+      rejected.institutional += 1;
+      continue;
+    }
     // A listicle / roundup / comparison page is a source of links, not a company candidate.
-    if (looksLikeListicleResult(hit.title)) continue;
-    if (seen.has(root)) continue;
+    if (looksLikeListicleResult(hit.title)) {
+      rejected.roundup += 1;
+      continue;
+    }
+    if (excluded.has(root) || seen.has(root)) {
+      rejected.duplicate += 1;
+      continue;
+    }
     seen.add(root);
     out.push({
       kind: "COMPANY",
@@ -118,7 +182,7 @@ export function parseCompanyHits(query: string, hits: RawSearchHit[], excludeRoo
       dedupeFingerprint: `company:${root}`,
     });
   }
-  return out;
+  return { candidates: out, rejected };
 }
 
 // Public LinkedIn SERP title patterns:

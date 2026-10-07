@@ -330,7 +330,8 @@ describe('research discovery', () => {
     const marker = randomUUID().slice(0, 8);
     const runId = await seedRun('company', [`empty serp ${marker}`]);
 
-    // Providers answered fine; the web just had nothing. That is a real, successful, empty run.
+    // Providers answered fine; the web just had nothing. That is a real, successful, empty run — and
+    // it says so, rather than a bare "succeeded" over an empty table (production, 2026-10-07).
     const result = await runDiscoveryPass({ tenantId: TENANT, runId, deps: fixtureDeps([]) });
 
     expect(result.discovered).toBe(0);
@@ -339,7 +340,7 @@ describe('research discovery', () => {
       select: { status: true, errorMessage: true },
     });
     expect(run.status).toBe('succeeded');
-    expect(run.errorMessage).toBeNull();
+    expect(run.errorMessage).toMatch(/^No companies found: the search returned nothing for 1 query\./);
   });
 
   it('fails a run whose providers answered but whose results all parsed to nothing', async () => {
@@ -371,6 +372,7 @@ describe('research discovery', () => {
     expect(run.status).toBe('failed');
     expect(run.errorMessage, 'the message has to name what happened, not just that it failed')
       .toMatch(/result/i);
+    expect(run.errorMessage, 'and what the results were').toMatch(/2 directory, research, news or job site/);
   });
 
   it('refuses to create a run with no queries', async () => {

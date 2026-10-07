@@ -1,3 +1,4 @@
+import { registrableDomain } from "@telestar/core-identity/registrableDomain";
 import { parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js";
 
 // Pure extractors: pull public emails + phones out of a company page's raw HTML. No network here
@@ -19,9 +20,10 @@ const JUNK_LOCALPARTS = new Set(["noreply", "no-reply", "donotreply", "example",
 const JUNK_DOMAINS = new Set(["example.com", "email.com", "domain.com", "yourdomain.com", "sentry.io", "wix.com", "wixpress.com", "godaddy.com", "sentry-next.wixpress.com"]);
 const ASSET_EXT = /\.(png|jpe?g|gif|svg|webp|css|js|ico|woff2?)$/i;
 
+// The registered domain (`acme.co.uk`), not the last two labels (`co.uk`): with the old rule every
+// address at any `.co.uk` company counted as "the company's own domain" — see registrableDomain.
 function rootDomain(host: string): string {
-  const parts = host.toLowerCase().replace(/^www\./, "").split(".");
-  return parts.length <= 2 ? parts.join(".") : parts.slice(-2).join(".");
+  return registrableDomain(host) ?? host.toLowerCase().replace(/^www\./, "");
 }
 
 const TRAILING_PUNCT = new Set([".", ",", ";", ":", ")"]);

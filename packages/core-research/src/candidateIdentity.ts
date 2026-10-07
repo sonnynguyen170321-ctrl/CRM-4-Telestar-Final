@@ -1,4 +1,5 @@
 import { normalizeCompanyName, normalizeIdentityDomain } from "@telestar/core-identity";
+import { registrableDomain } from "@telestar/core-identity/registrableDomain";
 import { EXCLUDED_HOSTS as EXCLUDED_PROSPECT_DOMAINS } from "./parseDiscoveryResults";
 
 export type ResearchIdentitySource =
@@ -155,7 +156,7 @@ const GENERIC_PLATFORM_COMPANY_LABELS = new Set([
   "crunchbase", "zoominfo", "apollo", "lusha", "rocketreach", "the org", "owler",
 ]);
 
+// The registered domain (`acme.co.uk`), not the last two labels (`co.uk`) — see registrableDomain.
 function rootDomain(host: string): string {
-  const parts = host.toLowerCase().replace(/^www\./, "").split(".");
-  return parts.length <= 2 ? parts.join(".") : parts.slice(-2).join(".");
+  return registrableDomain(host) ?? host.toLowerCase().replace(/^www\./, "");
 }
