@@ -91,6 +91,14 @@ const PARKED_DOMAIN_PATTERNS = [
   /godaddy\.com\/domains/i,
 ];
 
+/**
+ * True for a registrar parking page. Exported so research can refuse to classify a parked domain as a
+ * company from the same patterns the crawl uses to mark it PARKED.
+ */
+export function isParkedText(text: string): boolean {
+  return PARKED_DOMAIN_PATTERNS.some((pattern) => pattern.test(text));
+}
+
 const rateLimitState = new Map<string, number>();
 
 /**
@@ -277,7 +285,7 @@ async function fetchCompanyPagesUncached(
 
   if (
     homepageReachable &&
-    PARKED_DOMAIN_PATTERNS.some((pattern) => pattern.test(homepage.text))
+    isParkedText(homepage.text)
   ) {
     return {
       status: "PARKED",
