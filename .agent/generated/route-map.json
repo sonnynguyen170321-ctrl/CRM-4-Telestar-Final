@@ -110,7 +110,6 @@
     "/api/demo/inbound-reply",
     "/api/developer/keys",
     "/api/developer/keys/[id]",
-    "/api/dialer/config",
     "/api/email-health/accounts",
     "/api/email-health/accounts/[id]",
     "/api/email-health/accounts/[id]/cap",
@@ -250,5 +249,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 38,
-  "apiRouteCount": 201
+  "apiRouteCount": 200
 }

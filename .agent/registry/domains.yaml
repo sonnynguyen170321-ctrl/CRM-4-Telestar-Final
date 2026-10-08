@@ -350,8 +350,7 @@ domains:
     paths:
       - lib/telephony/**
       - app/api/telephony/**
-      - app/api/dialer/**
-      - components/CallDialerModal.tsx
+      - components/dialer/**
       - docs/dialer/**
     tests:
       - tests/telephony-*.test.ts
