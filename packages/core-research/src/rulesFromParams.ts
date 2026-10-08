@@ -95,7 +95,9 @@ export function resolveCountry(raw: string | null | undefined): string | null {
   const segments = text.split(",").map((part) => part.trim()).filter(Boolean);
   for (const candidate of [text, segments[segments.length - 1]]) {
     if (!candidate) continue;
-    const iso = candidate.length === 2 ? ISO2[foldText(candidate)] : undefined;
+    // A two-letter code only as the whole value ("DE"). As the last part of "Boston, MA" or
+    // "San Jose, CA" it is a US state, not Morocco or Canada.
+    const iso = candidate === text && candidate.length === 2 ? ISO2[foldText(candidate)] : undefined;
     const country = iso ?? normalizeCountry(candidate);
     if (country && KNOWN_COUNTRIES.has(foldText(country))) return country;
   }
@@ -304,11 +306,15 @@ export function builderParamsToRulesV2(params: ResearchBuilderParams, runId: str
     },
   };
 
-  const hasGeo = geos.countries.length > 0 || geos.regions.length > 0;
   return {
     rules: validateIcpVersionRulesV2(candidate),
     warnings: geos.warnings,
-    geoGate: hasGeo && geos.warnings.length === 0 && !geos.unconstrained,
+    // A known headquarters may reject a candidate only against an explicit list of countries. A region
+    // ("Asia", "Africa", "Middle East") is a hand-kept approximation — "Asia" without Saudi Arabia or the
+    // UAE, "Africa" without the DR Congo — and rejecting against an incomplete list deletes real
+    // prospects (review, 2026-10-08). With a region in the run, geography is judged by the ICP fit judge,
+    // which reads "Asia" the way a person would.
+    geoGate: geos.countries.length > 0 && geos.regions.length === 0 && geos.warnings.length === 0 && !geos.unconstrained,
     excludeKeywords: uniqueFolded(params.excludeKeywords),
   };
 }

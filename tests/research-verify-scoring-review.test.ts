@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ResearchBuilderParams } from '@telestar/core-research/buildDiscoveryQueries';
-import { builderParamsToRulesV2, toAccountRules } from '@telestar/core-research/rulesFromParams';
+import { builderParamsToRulesV2, resolveCountry, toAccountRules } from '@telestar/core-research/rulesFromParams';
 import { resolveKindPolicy } from '@telestar/core-research/targetPolicy';
 import type { CompanyClassificationInput } from '@telestar/core-research/verificationTypes';
 
@@ -75,14 +75,27 @@ describe('geography', () => {
     expect(brazil.verification).not.toBe('rejected');
   });
 
-  it('Stormwall "Asia" and "Türkiye": an Indian telco and a Turkish ISP are inside, Brazil is outside', () => {
+  it('Stormwall "Asia" and "Türkiye": a region never hard-rejects on geography — the judge reads it', () => {
+    // "Asia" as listed has no Saudi Arabia or UAE; rejecting against it deleted Gulf prospects (re-review).
     const target = icp(params({ industries: ['telcos', 'hosters'], geos: ['Asia', 'Türkiye'] }));
-    expect(target.geoGate).toBe(true);
+    expect(target.geoGate).toBe(false);
     const telco = classified({ industryText: 'Telecommunications', industryKey: 'TELECOM', hqCountry: 'India', employeeCount: 20000 });
     expect(score(target, telco).reason).not.toBe('hq_outside_target');
+    expect(score(target, classified({ ...telco, hqCountry: 'Saudi Arabia' })).reason).not.toBe('hq_outside_target');
+    expect(score(target, classified({ ...telco, hqCountry: 'Brazil' })).reason).not.toBe('hq_outside_target');
+  });
+
+  it('an explicit country list does gate: Türkiye inside, Brazil outside', () => {
+    const target = icp(params({ industries: ['telcos', 'hosters'], geos: ['Türkiye', 'India'] }));
+    expect(target.geoGate).toBe(true);
     const turk = classified({ industryText: 'Internet service provider', industryKey: 'ISP', hqCountry: 'Republic of Türkiye', employeeCount: 3000 });
     expect(score(target, turk).reason).not.toBe('hq_outside_target');
-    expect(score(target, classified({ ...telco, hqCountry: 'Brazil' })).reason).toBe('hq_outside_target');
+    expect(score(target, classified({ ...turk, hqCountry: 'Brazil' })).reason).toBe('hq_outside_target');
+  });
+
+  it('a two-letter state in "City, ST" is not read as a country', () => {
+    expect(resolveCountry('Boston, MA')).toBeNull();
+    expect(resolveCountry('DE')).toBe('Germany');
   });
 
   it('a country spelled KSA or "City, Kingdom of Saudi Arabia" on the company side matches Saudi Arabia', () => {
@@ -182,6 +195,16 @@ describe('combineWithJudge', () => {
       judgeReason: 'A rival agency',
     });
     expect(combineWithJudge(base({ verification: 'needs_review', reason: 'weighted_borderline' }), no('industry')).reason).toBe('not_icp_fit:industry');
+  });
+
+  it('a judge "no" about a guessed company, or one that cannot say why, is a review, not a rejection', () => {
+    expect(combineWithJudge(base({}), no('industry'), 'low')).toMatchObject({ verification: 'needs_review', reason: 'judge_doubt' });
+    expect(combineWithJudge(base({}), { fit: 'no', reason: 'Not a fit', element: null })).toMatchObject({ verification: 'needs_review', reason: 'judge_doubt' });
+  });
+
+  it('a yes never lifts a guessed classification to a fit', () => {
+    const unconfirmed = base({ verification: 'needs_review', reason: 'industry_unconfirmed' });
+    expect(combineWithJudge(unconfirmed, yes, 'low').verification).toBe('needs_review');
   });
 
   it('verified_fit needs the judge to say yes', () => {

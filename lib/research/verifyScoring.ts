@@ -1,7 +1,7 @@
 import type { FitJudgement } from '@telestar/core-research/fitJudge';
 import { classificationToEvidence } from '@telestar/core-research/rulesFromParams';
 import type { KindPolicy } from '@telestar/core-research/targetPolicy';
-import type { CompanyClassificationInput } from '@telestar/core-research/verificationTypes';
+import type { ClassificationConfidence, CompanyClassificationInput } from '@telestar/core-research/verificationTypes';
 import { assessIcpRulesV2, type IcpRulesV2Assessment } from '@telestar/core-scoring/rules/deriveQualification';
 import { canonicalizeIndustry, type IndustryKey } from '@telestar/core-scoring/rules/dictionaries/industry';
 import { INDUSTRY_ALLOWLIST_MISS_SCORE } from '@telestar/core-scoring/rules/dimensions/industryScore';
@@ -274,24 +274,31 @@ export function scoreClassifiedCandidate(input: ScoreClassifiedCandidateInput): 
  * (null) nothing changes: it cannot upgrade or reject.
  *
  *   - rejected stays rejected;
- *   - judge "no" -> rejected `not_icp_fit:<element>`, carrying the judge's reason;
+ *   - judge "no" -> rejected `not_icp_fit:<element>`, carrying the judge's reason — but only when the
+ *     classification it read was at least medium confidence and the judge named the part of the ICP that
+ *     failed; a "no" about a guessed company, or one that cannot say why, is a review (`judge_doubt`). The
+ *     same safeguard every deterministic rejection gets (review, 2026-10-08);
  *   - verified_fit needs the judge's "yes"; anything else becomes `judge_unsure`;
  *   - needs_review stays so, except that a "yes" lifts a candidate whose ONLY doubt was the industry wording or
- *     the company type and whom the engine itself rated qualified.
+ *     the company type, whom the engine itself rated qualified, and whose classification was not a guess.
  */
 export function combineWithJudge(
   result: VerificationResult,
   judge: Pick<FitJudgement, 'fit' | 'reason' | 'element'> | null,
+  confidence: ClassificationConfidence = 'medium',
 ): VerificationResult {
   if (!judge || result.verification === 'rejected') return result;
   if (judge.fit === 'no') {
-    return { ...result, verification: 'rejected', reason: `not_icp_fit:${judge.element ?? 'unknown'}`, judgeReason: judge.reason };
+    if (confidence === 'low' || !judge.element) {
+      return { ...result, verification: 'needs_review', reason: 'judge_doubt', judgeReason: judge.reason };
+    }
+    return { ...result, verification: 'rejected', reason: `not_icp_fit:${judge.element}`, judgeReason: judge.reason };
   }
   if (result.verification === 'verified_fit') {
     return judge.fit === 'yes' ? result : { ...result, verification: 'needs_review', reason: 'judge_unsure', judgeReason: judge.reason };
   }
   const onlyDoubtWasWording = result.reason === 'industry_unconfirmed' || result.reason === 'company_type_review';
-  if (judge.fit === 'yes' && onlyDoubtWasWording && result.verdict?.qualification === 'qualified') {
+  if (judge.fit === 'yes' && onlyDoubtWasWording && confidence !== 'low' && result.verdict?.qualification === 'qualified') {
     return { ...result, verification: 'verified_fit', reason: 'judge_confirmed', judgeReason: judge.reason };
   }
   return result;
