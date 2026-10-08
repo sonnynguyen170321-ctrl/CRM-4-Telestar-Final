@@ -52,6 +52,12 @@ function listMatches(list: readonly string[], tokens: Set<string>, text: string)
   });
 }
 
+/**
+ * The score for "the industry is known and nothing in the allowlist (or keywords) matched". Exported so the
+ * research verifier reads the same number instead of copying it (lib/research/verifyScoring.ts).
+ */
+export const INDUSTRY_ALLOWLIST_MISS_SCORE = 20;
+
 export function industryScore(
   evidence: NormalizedScoringEvidence,
   rules: IcpVersionRulesV2
@@ -112,5 +118,5 @@ export function industryScore(
     return { dimension: "industry", score: 60, hits, missingEvidence };
   }
 
-  return { dimension: "industry", score: 20, hits, missingEvidence };
+  return { dimension: "industry", score: INDUSTRY_ALLOWLIST_MISS_SCORE, hits, missingEvidence };
 }
