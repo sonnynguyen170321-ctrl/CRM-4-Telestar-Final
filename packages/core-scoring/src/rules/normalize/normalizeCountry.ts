@@ -2,6 +2,8 @@
 //
 // Canonical names match the region dictionary's country lists so geo comparisons
 // (targetCountries, expanded regions, office-location) are apples-to-apples.
+import { REGION_TO_COUNTRIES } from "../dictionaries/regions";
+
 // NFC + diacritic-fold + alias map. Pure.
 
 const COUNTRY_ALIASES: Record<string, string> = {
@@ -27,6 +29,10 @@ const COUNTRY_ALIASES: Record<string, string> = {
   "the netherlands": "Netherlands",
   holland: "Netherlands",
   "republic of ireland": "Ireland",
+  ksa: "Saudi Arabia",
+  "kingdom of saudi arabia": "Saudi Arabia",
+  saudi: "Saudi Arabia",
+  turkiye: "Turkey",
 };
 
 // Known canonical names that should pass through unchanged after title-casing.
@@ -119,4 +125,22 @@ export function normalizeCountries(
   }
 
   return [...out];
+}
+
+const KNOWN_COUNTRIES: ReadonlySet<string> = new Set([
+  ...Object.values(REGION_TO_COUNTRIES).flat(),
+  ...Object.values(COUNTRY_ALIASES),
+]);
+
+/** True for a canonical country name the region dictionary or the alias table knows. */
+export function isKnownCountry(canonical: string | null | undefined): boolean {
+  return canonical ? KNOWN_COUNTRIES.has(canonical) : false;
+}
+
+/** Folded spellings that mean this canonical country: its own name plus every alias that maps to it. */
+export function countryVariants(canonical: string): string[] {
+  const aliases = Object.entries(COUNTRY_ALIASES)
+    .filter(([, value]) => value === canonical)
+    .map(([alias]) => alias);
+  return [foldText(canonical), ...aliases];
 }

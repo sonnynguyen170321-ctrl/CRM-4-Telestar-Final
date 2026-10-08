@@ -82,14 +82,26 @@ export type FetchCompanyPagesInput = {
   paths?: readonly string[];
 };
 
+const MAX_PARKED_TEXT_CHARS = 1200;
+
 const PARKED_DOMAIN_PATTERNS = [
   /this domain is for sale/i,
   /buy this domain/i,
   /domain (?:may be |is )?for sale/i,
   /this domain is parked/i,
-  /related searches/i,
   /godaddy\.com\/domains/i,
 ];
+
+/**
+ * True for a registrar parking page. Exported so research can refuse to classify a parked domain as a
+ * company from the same patterns the crawl uses to mark it PARKED.
+ */
+export function isParkedText(text: string): boolean {
+  // A parking page is a stub. A long page that mentions "domain for sale" is a registrar, a broker or an
+  // article about domains, so only short text can be parked.
+  if (text.length > MAX_PARKED_TEXT_CHARS) return false;
+  return PARKED_DOMAIN_PATTERNS.some((pattern) => pattern.test(text));
+}
 
 const rateLimitState = new Map<string, number>();
 
@@ -277,7 +289,7 @@ async function fetchCompanyPagesUncached(
 
   if (
     homepageReachable &&
-    PARKED_DOMAIN_PATTERNS.some((pattern) => pattern.test(homepage.text))
+    isParkedText(homepage.text)
   ) {
     return {
       status: "PARKED",

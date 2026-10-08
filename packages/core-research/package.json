@@ -17,6 +17,7 @@
     "@telestar/core-scoring": "*",
     "@telestar/core-intel": "*",
     "@telestar/core-search": "*",
-    "libphonenumber-js": "^1.13.8"
+    "libphonenumber-js": "^1.13.8",
+    "zod": "^4.4.3"
   }
 }
