@@ -32,6 +32,7 @@ export enum JobType {
   MAINTENANCE_REPAIR = 'maintenance.repair',
   AGENT_EXECUTE_WORK_ORDER = 'agent.execute-work-order',
   RESEARCH_DISCOVER = 'research.discover',
+  RESEARCH_VERIFY = 'research.verify',
 }
 
 /**
@@ -42,6 +43,13 @@ export enum JobType {
 export interface ResearchDiscoverPayload {
   runId: string;
   startToken: string;
+}
+
+/** One slice of checking a company run's candidates against their own evidence (2026-10-08). */
+export interface ResearchVerifyPayload {
+  runId: string;
+  /** Random per enqueue; only for job-id uniqueness. Claims on candidate rows are what keep slices apart. */
+  sliceToken: string;
 }
 
 export interface SequenceEnrollPayload {
@@ -252,6 +260,7 @@ export type JobPayload = {
   [JobType.MAINTENANCE_REPAIR]: MaintenanceRepairPayload;
   [JobType.AGENT_EXECUTE_WORK_ORDER]: AgentExecuteWorkOrderPayload;
   [JobType.RESEARCH_DISCOVER]: ResearchDiscoverPayload;
+  [JobType.RESEARCH_VERIFY]: ResearchVerifyPayload;
 };
 
 export function jobQueue(jobType: JobType): QueueName {

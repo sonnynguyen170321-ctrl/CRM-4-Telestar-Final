@@ -78,9 +78,17 @@ function asTenant<T>(fn: () => Promise<T>): Promise<T> {
   return tenantStorage.run({ tenantId: TENANT, bypassRls: true }, fn);
 }
 
-function promoteCandidates(
+/**
+ * These tests are about promotion, so the candidates are taken as already checked and fitting. A company
+ * still `pending` verification, or ruled out, is not promoted (2026-10-08) — pinned on its own below.
+ */
+async function promoteCandidates(
   input: Omit<Parameters<typeof promoteCandidatesService>[0], 'campaignId'>,
 ) {
+  await prisma.researchCandidate.updateMany({
+    where: { tenantId: input.tenantId, id: { in: input.candidateIds }, verification: 'pending' },
+    data: { verification: 'verified_fit', verificationReason: 'weighted_qualified' },
+  });
   return promoteCandidatesService({ ...input, campaignId: PROMOTION_CAMPAIGN });
 }
 
@@ -299,9 +307,14 @@ describe('research discovery', () => {
 
     const done = await prisma.researchRun.findFirstOrThrow({
       where: { id: runId },
-      select: { status: true, queryCursor: true, discoveredCount: true },
+      select: { status: true, queryCursor: true, discoveredCount: true, verificationStartedAt: true },
     });
-    expect(done.status).toBe('succeeded');
+    // Discovery is finished; the company it found is now being checked, and the run settles when
+    // that is done (lib/research/verify.ts), not here.
+    expect(done.status).toBe('running');
+    expect(done.verificationStartedAt).not.toBeNull();
+    const found = await prisma.researchCandidate.findMany({ where: { runId }, select: { verification: true } });
+    expect(found.map((c) => c.verification)).toEqual(['pending']);
     expect(done.queryCursor).toBe(3);
     // Counted once, on the query that found it — the resume must not add it a second time.
     expect(done.discoveredCount).toBe(1);
@@ -439,6 +452,28 @@ describe('research promotion', () => {
       select: { promotedAccountId: true },
     });
     expect(ledger.promotedAccountId).toBe(result.accountId);
+  });
+
+  it('does not promote a company still being checked, or one ruled out', async () => {
+    const marker = randomUUID().slice(0, 8);
+    const runId = await seedRun('company', [`guard ${marker}`]);
+    await runDiscoveryPass({
+      tenantId: TENANT,
+      runId,
+      deps: fixtureDeps([
+        { title: `Pending Co ${marker}`, url: `https://pending-${marker}.com`, snippet: 'Pending Co runs payment rails for banks across Southeast Asia.' },
+        { title: `Ruled Out ${marker}`, url: `https://ruledout-${marker}.com`, snippet: 'Ruled Out is a news site covering payment rails for banks.' },
+      ]),
+    });
+    const rows = await prisma.researchCandidate.findMany({ where: { tenantId: TENANT, runId }, orderBy: { name: 'asc' }, select: { id: true, name: true } });
+    const ruledOut = rows.find((r) => r.name.startsWith('Ruled'))!;
+    await prisma.researchCandidate.update({ where: { id: ruledOut.id }, data: { verification: 'rejected', verificationReason: 'company_type:media_news' } });
+
+    const results = await asTenant(() =>
+      promoteCandidatesService({ tenantId: TENANT, actor: ACTOR, candidateIds: rows.map((r) => r.id), campaignId: PROMOTION_CAMPAIGN })
+    );
+    expect(results.map((r) => r.reason).sort()).toEqual(['candidate_pending', 'candidate_rejected']);
+    expect(results.every((r) => r.status === 'skipped')).toBe(true);
   });
 
   it('is idempotent — promoting twice creates one account and one pool record', async () => {

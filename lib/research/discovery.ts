@@ -25,6 +25,7 @@ import { prisma } from '@/lib/prisma';
 
 import { applyAiFit, type AiFitCandidate } from './aiFit';
 import { searchDepsFor } from './searchGateway';
+import { beginVerification } from './verify';
 
 // Discovery: find companies and people the CRM has never seen.
 //
@@ -189,6 +190,8 @@ export async function runDiscoveryPass(params: {
    * depending on what the live web happens to return today.
    */
   deps?: SearchDeps;
+  /** Hand-off to verification; injected by tests. */
+  beginVerification?: (tenantId: string, runId: string) => Promise<boolean>;
 }): Promise<DiscoveryPassResult> {
   const { tenantId, runId } = params;
   const budget = Math.max(1, Math.min(params.maxQueries ?? DISCOVERY_QUERY_BATCH, DISCOVERY_QUERY_BATCH));
@@ -204,7 +207,9 @@ export async function runDiscoveryPass(params: {
   // Judged against the run's whole persona set, not only the query that surfaced a candidate: a CTO
   // found by the "CEO" query is on-persona when the run also searched for CTOs.
   const personaTitles = personaTitlesOf(queries);
-  const aiFitRequested = readAiFitFlag(run.paramsJson);
+  // Company runs are judged by verification (lib/research/verify.ts) on the company's own evidence;
+  // the AI re-rank of a 240-character snippet was the weaker version of that and is not run for them.
+  const aiFitRequested = run.kind !== 'company' && readAiFitFlag(run.paramsJson);
   const createdThisPass: AiFitCandidate[] = [];
 
   await prisma.researchRun.updateMany({
@@ -371,6 +376,12 @@ export async function runDiscoveryPass(params: {
           describeEmptyRun({ queriesRun: cursor, hitsSeen, filtered, rejectedByIcp: result.rejected })
         : null;
 
+    // Company candidates are checked before the run settles: verification keeps the run `running`
+    // and settles it when the last candidate is checked (lib/research/verify.ts).
+    if (!brokenRun && run.kind === 'company' && !nothingFound && (await (params.beginVerification ?? beginVerification)(tenantId, runId))) {
+      return result;
+    }
+
     await prisma.researchRun.updateMany({
       where: { id: runId, tenantId },
       data: {
@@ -505,6 +516,8 @@ async function persistCandidate(input: {
         fitScore: fit.score,
         fitReason: fit.reason,
         fitSource: 'heuristic',
+        // A company is shown only once it has been checked against its own evidence (2026-10-08).
+        ...(kind === 'company' ? { verification: 'pending' as const } : {}),
       },
       select: { id: true },
     });

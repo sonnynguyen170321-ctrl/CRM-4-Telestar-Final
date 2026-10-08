@@ -597,11 +597,22 @@ domains:
       - lib/research/promote.ts
       - lib/research/readModel.ts
       - lib/research/searchGateway.ts
+      # Verification of company candidates (2026-10-08): orchestration, classification + scoring batch,
+      # per-domain cache, identity-page fetch, reason wording.
+      - lib/research/verify.ts
+      - lib/research/verifyBatch.ts
+      - lib/research/verifyScoring.ts
+      - lib/research/domainClassificationCache.ts
+      - lib/research/fetchIdentityPages.ts
+      - lib/research/verificationReasons.ts
+      - workers/research.ts
       - app/api/research/**
       - app/research/**
       - components/research/**
       # Runs the discovery pipeline for a set of ICPs and prints what it found; no database.
       - scripts/research-eval.ts
+      # Creates the owner's five ICP research runs (2026-10-08). Dry run unless --apply.
+      - scripts/research-owner-icp-runs-2026-10-08.ts
     tests:
       - tests/research-discovery.test.ts
     notes: >-

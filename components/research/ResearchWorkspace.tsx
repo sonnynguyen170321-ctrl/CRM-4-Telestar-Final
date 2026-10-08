@@ -27,6 +27,7 @@ import StatusBadge from '@/components/admin/StatusBadge';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 import { readApiError } from '@/lib/api/client';
+import { describeReason } from '@/lib/research/verificationReasons';
 import {
   canUseResearchRole,
   researchQueryOptionsForRole,
@@ -65,7 +66,30 @@ type CandidateRow = {
   fitReason: string | null;
   status: string;
   previouslyPromoted: boolean;
+  /** Null on contact rows and on company rows from before verification (2026-10-08). */
+  verification: Verification | null;
+  verificationReason: string | null;
+  verificationJson: {
+    judgeReason?: string | null;
+    company?: { kind?: string | null; industry?: string | null; whatTheySell?: string | null; hqCountry?: string | null; employeeCount?: number | null };
+  } | null;
 };
+
+type Verification = 'pending' | 'verified_fit' | 'needs_review' | 'rejected' | 'unverified';
+/** Which verification band the list shows. The shortlist is what a rep works; the rest is on request. */
+type VerificationView = 'shortlist' | 'rejected' | 'unverified' | 'pending';
+
+const VERIFICATION_VIEWS: Array<[VerificationView, string]> = [
+  ['shortlist', 'Shortlist'],
+  ['rejected', 'Ruled out'],
+  ['unverified', "Couldn't check"],
+  ['pending', 'Checking'],
+];
+
+function inVerificationView(candidate: CandidateRow, view: VerificationView): boolean {
+  if (view === 'shortlist') return candidate.verification === null || candidate.verification === 'verified_fit' || candidate.verification === 'needs_review';
+  return candidate.verification === view;
+}
 
 type IcpVersionRow = {
   id: string;
@@ -101,6 +125,8 @@ export default function ResearchWorkspace() {
   const [serverTabCounts, setServerTabCounts] = useState<Record<CandidateTab, number> | null>(null);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [candidateTab, setCandidateTab] = useState<CandidateTab>('review');
+  const [verificationView, setVerificationView] = useState<VerificationView>('shortlist');
+  const [verificationCounts, setVerificationCounts] = useState<Record<VerificationView, number> | null>(null);
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
   const [builderOpen, setBuilderOpen] = useState(false);
   const [drawerCandidateId, setDrawerCandidateId] = useState<string | null>(null);
@@ -177,7 +203,9 @@ export default function ResearchWorkspace() {
     async (runId: string, options: { quiet?: boolean } = {}) => {
       if (!options.quiet) setCandidatesLoading(true);
       try {
-        const params = new URLSearchParams({ runId, pageSize: '200' });
+        // The verification view is filtered on the server, so a run of hundreds of ruled-out companies
+        // cannot push its shortlist past the 200-row page.
+        const params = new URLSearchParams({ runId, pageSize: '200', verification: verificationView });
         const response = await fetch(`/api/research/candidates?${params}`);
         if (!response.ok) {
           showToast(await readApiError(response, 'Failed to load candidates'), 'error');
@@ -188,6 +216,7 @@ export default function ResearchWorkspace() {
         setCandidates(items);
         setCandidateCounts(data.counts ?? {});
         setServerTabCounts(data.tabCounts ?? null);
+        setVerificationCounts(data.verificationCounts ?? null);
         // A background refresh must not throw away what the SDR has ticked; it only drops rows that
         // are gone. A deliberate reload starts clean, as it always did.
         setSelectedCandidates((current) =>
@@ -201,7 +230,7 @@ export default function ResearchWorkspace() {
         if (!options.quiet) setCandidatesLoading(false);
       }
     },
-    [showToast],
+    [showToast, verificationView],
   );
 
   useEffect(() => {
@@ -240,6 +269,7 @@ export default function ResearchWorkspace() {
   const visibleCandidates = useMemo(
     () =>
       candidates.filter((candidate) => {
+        if (!inVerificationView(candidate, verificationView)) return false;
         if (candidateTab === 'all') return true;
         if (candidateTab === 'pipeline') {
           return candidate.status === 'promoted' || candidate.previouslyPromoted;
@@ -247,8 +277,11 @@ export default function ResearchWorkspace() {
         if (candidateTab === 'dismissed') return candidate.status === 'dismissed';
         return candidate.status === 'discovered';
       }),
-    [candidateTab, candidates],
+    [candidateTab, candidates, verificationView],
   );
+  // Verification bands exist only for company runs checked from 2026-10-08; older runs show no chips.
+  const showVerification =
+    verificationCounts !== null && (verificationCounts.rejected > 0 || verificationCounts.unverified > 0 || verificationCounts.pending > 0);
   const visibleCandidateIds = useMemo(() => visibleCandidates.map((candidate) => candidate.id), [visibleCandidates]);
 
   const tabCounts: Record<CandidateTab, number> = serverTabCounts ?? {
@@ -513,6 +546,23 @@ export default function ResearchWorkspace() {
                     </button>
                   ))}
                 </div>
+                {showVerification && verificationCounts && (
+                  <div className="flex max-w-full gap-1 overflow-x-auto" role="group" aria-label="Verification">
+                    {VERIFICATION_VIEWS.filter(([id]) => id === 'shortlist' || verificationCounts[id] > 0).map(([id, label]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        aria-pressed={verificationView === id}
+                        onClick={() => setVerificationView(id)}
+                        className={`min-h-11 whitespace-nowrap rounded-lg border px-3 type-meta font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-red ${
+                          verificationView === id ? 'border-text-primary text-text-primary' : 'border-card-border text-text-muted hover:text-text-primary'
+                        }`}
+                      >
+                        {label} <span className="font-mono">({verificationCounts[id]})</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <button
                   type="button"
                   className={primaryButton}
@@ -704,8 +754,12 @@ function CandidateTable({
         </thead>
         <tbody>
           {rows.map((candidate) => {
+            // A company ruled out, or not yet checked, is not promoted from the list (2026-10-08).
             const eligibleForPromotion =
-              candidate.status !== 'dismissed' && candidate.status !== 'duplicate';
+              candidate.status !== 'dismissed' &&
+              candidate.status !== 'duplicate' &&
+              candidate.verification !== 'rejected' &&
+              candidate.verification !== 'pending';
             return (
               <tr
                 key={candidate.id}
@@ -746,7 +800,11 @@ function CandidateTable({
                   <FitRing score={candidate.fitScore} />
                 </td>
                 <td className="max-w-xs px-3 py-3 type-meta leading-relaxed text-text-secondary">
-                  {candidate.fitReason || "Matched this run's search terms."}
+                  {candidate.verification ? (
+                    <VerificationCell candidate={candidate} />
+                  ) : (
+                    candidate.fitReason || "Matched this run's search terms."
+                  )}
                 </td>
                 <td className="px-3 py-3">
                   <StatusBadge
@@ -772,6 +830,39 @@ function CandidateTable({
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+const VERIFICATION_LABEL: Record<Verification, { text: string; tone: string }> = {
+  verified_fit: { text: 'Fits', tone: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' },
+  needs_review: { text: 'Worth a look', tone: 'border-amber-500/30 bg-amber-500/10 text-amber-300' },
+  rejected: { text: 'Ruled out', tone: 'border-card-border bg-bg-main text-text-muted' },
+  unverified: { text: "Couldn't check", tone: 'border-card-border bg-bg-main text-text-muted' },
+  pending: { text: 'Checking', tone: 'border-card-border bg-bg-main text-text-muted' },
+};
+
+/**
+ * What the company is and why it is (or is not) on the list, read from its own evidence rather than the
+ * search snippet (2026-10-08). Plain text only: the facts come from web pages.
+ */
+function VerificationCell({ candidate }: { candidate: CandidateRow }) {
+  const label = VERIFICATION_LABEL[candidate.verification ?? 'pending'];
+  const company = candidate.verificationJson?.company;
+  const facts = [
+    company?.whatTheySell || company?.industry,
+    company?.hqCountry,
+    typeof company?.employeeCount === 'number' ? `${company.employeeCount.toLocaleString()} staff` : null,
+  ].filter(Boolean);
+  const judge = candidate.verificationJson?.judgeReason;
+  return (
+    <div className="space-y-1">
+      <span className={`inline-flex rounded-full border px-2 py-0.5 type-meta font-semibold ${label.tone}`}>
+        {label.text}
+        {candidate.verification !== 'pending' && candidate.verificationReason ? ` — ${describeReason(candidate.verificationReason)}` : ''}
+      </span>
+      {facts.length > 0 && <span className="block text-text-secondary">{facts.join(' · ')}</span>}
+      {judge && <span className="block text-text-muted">{judge}</span>}
     </div>
   );
 }
