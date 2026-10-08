@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
-import { logPhoneCall, phoneCallTarget } from '@/lib/telephony/logPhoneCall';
+import { callDescription, DESCRIPTION_MAX, logPhoneCall, phoneCallTarget } from '@/lib/telephony/logPhoneCall';
 import { isPhoneOutcomeId, outcomeLeadTag, PHONE_OUTCOMES, telUri } from '@/lib/telephony/phoneOutcomes';
 
 /**
@@ -52,64 +52,98 @@ describe('the number to dial', () => {
 });
 
 describe('logging the call', () => {
-  const lead = { id: 'lead-1', firstName: 'Linh', lastName: 'Tran', tags: ['vip'] };
-  const ok = () => new Response('{}', { status: 200 });
+  const lead = { id: 'lead-1', firstName: 'Linh', lastName: 'Tran' };
+  const ok = (body: unknown = {}) => new Response(JSON.stringify(body), { status: 200 });
+  const NOW = new Date('2026-10-08T08:00:00Z');
 
-  it('records a call_logged activity with the outcome and notes', async () => {
+  it('records a call_logged activity in the task path’s shape, and the last-contacted date', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(ok());
 
-    const result = await logPhoneCall({ lead, outcome: 'connected_interested', notes: ' Wants pricing ', fetchImpl });
+    const result = await logPhoneCall({ lead, outcome: 'connected_interested', notes: ' Wants pricing ', fetchImpl, now: NOW });
 
-    expect(result).toEqual({ ok: true, warnings: [], activity: { action: 'connected_interested', outcome: 'Interested', notes: 'Wants pricing' } });
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const activity = { action: 'connected_interested', outcome: 'connected_interested', label: 'Interested', notes: 'Wants pricing' };
+    expect(result).toEqual({ ok: true, warnings: [], activity });
     const [url, init] = fetchImpl.mock.calls[0];
     expect(url).toBe('/api/activities');
     expect(JSON.parse(init.body)).toMatchObject({
       leadId: 'lead-1',
       type: 'call_logged',
       channel: 'phone',
-      metadata: { action: 'connected_interested', outcome: 'Interested', notes: 'Wants pricing', via: 'phone' },
+      description: 'Call logged. Outcome: Interested: Wants pricing',
+      metadata: { ...activity, via: 'phone' },
     });
+    expect(fetchImpl.mock.calls[1][0]).toBe('/api/leads/lead-1');
+    expect(JSON.parse(fetchImpl.mock.calls[1][1].body)).toEqual({ lastContactedAt: NOW.toISOString() });
   });
 
-  it('creates a callback task for 09:00 the next day', async () => {
+  // POST /api/activities creates the callback task for outcome 'callback_requested' — on the next
+  // business day in the lead's timezone. A client-made task on top of it would be a second one.
+  it('leaves the callback task to the activity route', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(ok());
 
-    await logPhoneCall({ lead, outcome: 'callback_requested', notes: '', fetchImpl, now: new Date(2026, 9, 8, 15, 0) });
+    await logPhoneCall({ lead, outcome: 'callback_requested', notes: '', fetchImpl, now: NOW });
 
-    const [url, init] = fetchImpl.mock.calls[1];
-    expect(url).toBe('/api/tasks');
-    const body = JSON.parse(init.body);
-    expect(body).toMatchObject({ leadId: 'lead-1', type: 'phone', priority: 'high' });
-    expect(new Date(body.dueDate).getTime()).toBe(new Date(2026, 9, 9, 9, 0).getTime());
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body).metadata.outcome).toBe('callback_requested');
+    expect(fetchImpl.mock.calls.map(([url]) => url)).not.toContain('/api/tasks');
   });
 
-  it('tags the lead do_not_call, keeping its other tags', async () => {
+  it('keeps the description under the activity limit, and the full notes in metadata', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(ok());
+    const notes = 'x'.repeat(900);
 
-    await logPhoneCall({ lead, outcome: 'do_not_call', notes: '', fetchImpl });
+    await logPhoneCall({ lead, outcome: 'no_answer', notes, fetchImpl });
 
-    const [url, init] = fetchImpl.mock.calls[1];
+    const body = JSON.parse(fetchImpl.mock.calls[0][1].body);
+    expect(body.description.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
+    expect(body.metadata.notes).toBe(notes);
+    expect(callDescription('No Answer', '')).toBe('Call logged. Outcome: No Answer');
+  });
+
+  // The lead API replaces the whole tag list, and the drawer's copy can be stale.
+  it('adds the tag to the lead’s tags as they are now, keeping a tag set since the drawer loaded', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(ok())
+      .mockResolvedValueOnce(ok({ tags: ['vip', 'wrong_number'] }))
+      .mockResolvedValueOnce(ok());
+
+    await logPhoneCall({ lead, outcome: 'do_not_call', notes: '', fetchImpl, now: NOW });
+
+    expect(fetchImpl.mock.calls[1]).toEqual(['/api/leads/lead-1']);
+    const [url, init] = fetchImpl.mock.calls[2];
     expect(url).toBe('/api/leads/lead-1');
     expect(init.method).toBe('PUT');
-    expect(JSON.parse(init.body)).toEqual({ tags: ['vip', 'do_not_call'] });
+    expect(JSON.parse(init.body)).toEqual({ lastContactedAt: NOW.toISOString(), tags: ['vip', 'wrong_number', 'do_not_call'] });
   });
 
-  it('does not tag a lead that already carries the tag', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(ok());
+  it('does not add a tag the lead already carries', async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(ok()).mockResolvedValueOnce(ok({ tags: ['wrong_number'] })).mockResolvedValueOnce(ok());
 
-    await logPhoneCall({ lead: { ...lead, tags: ['wrong_number'] }, outcome: 'wrong_number', notes: '', fetchImpl });
+    await logPhoneCall({ lead, outcome: 'wrong_number', notes: '', fetchImpl, now: NOW });
 
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchImpl.mock.calls[2][1].body)).toEqual({ lastContactedAt: NOW.toISOString() });
   });
 
   // An untagged do-not-call lead goes back in the queue and is called again.
   it('reports a tag that did not save instead of claiming success quietly', async () => {
-    const fetchImpl = vi.fn().mockResolvedValueOnce(ok()).mockResolvedValueOnce(new Response('{}', { status: 403 }));
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(ok())
+      .mockResolvedValueOnce(ok({ tags: [] }))
+      .mockResolvedValueOnce(new Response('{}', { status: 403 }));
 
     const result = await logPhoneCall({ lead, outcome: 'do_not_call', notes: '', fetchImpl });
 
     expect(result).toMatchObject({ ok: true, warnings: [expect.stringContaining('"do_not_call" tag did not save')] });
+  });
+
+  it('reports a tag it could not read the lead to add', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(ok())
+      .mockResolvedValueOnce(new Response('{}', { status: 500 }))
+      .mockResolvedValueOnce(ok());
+
+    const result = await logPhoneCall({ lead, outcome: 'do_not_call', notes: '', fetchImpl });
+
+    expect(result).toMatchObject({ ok: true, warnings: [expect.stringContaining('"do_not_call" tag could not be added')] });
   });
 
   it('stops, with the server’s reason, when the call itself was not logged', async () => {
@@ -129,5 +163,9 @@ describe('the lead drawer', () => {
     expect(panel).toContain("import('@/components/dialer/PhoneCallPanel')");
     expect(panel).not.toContain('CallDialerModal');
     expect(panel).not.toContain('/api/dialer/config');
+  });
+
+  it('re-reads the lead after a call is logged, so the next log builds on the server’s tags', () => {
+    expect(panel).toMatch(/const handleCallLogged = [\s\S]*?reloadLead\(\);/);
   });
 });

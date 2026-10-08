@@ -233,7 +233,7 @@ function LeadDetailPanelBody({
   animateIn,
   onBusyChange,
 }: Omit<LeadDetailPanelProps, 'siblingIds' | 'onNavigate'> & { animateIn: boolean; onBusyChange: (busy: boolean) => void }) {
-  const { isManager, currentRole } = useAppContext();
+  const { isManager, currentRole, currentUser } = useAppContext();
   const [lead, setLead] = useState<LeadDetail | null>(null);
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -715,16 +715,21 @@ function LeadDetailPanelBody({
     }
   };
 
-  /** A call logged from the phone panel, shown in the timeline straight away. */
-  const handleCallLogged = (activity: { action: string; outcome: string; notes: string }) => {
+  /**
+   * A call logged from the phone panel: shown in the timeline straight away, and the lead re-read so
+   * its tags and last-contacted date are the server's — the next log builds on them, not on this
+   * drawer's copy.
+   */
+  const handleCallLogged = (activity: { action: string; outcome: string; label: string; notes: string }) => {
     setAdHocActivities((prev) => [{
       id: Date.now().toString(),
       type: 'call_logged',
       channel: 'phone',
       metadata: activity,
       createdAt: new Date().toISOString(),
-      user: { firstName: '', lastName: '' },
+      user: { firstName: currentUser?.firstName ?? '', lastName: currentUser?.lastName ?? '' },
     }, ...prev]);
+    reloadLead();
   };
 
   const handleArchive = async () => {
@@ -2395,7 +2400,6 @@ function LeadDetailPanelBody({
             lastName: lead.lastName,
             company: lead.company,
             phone: lead.phone,
-            tags: lead.tags,
             contact: lead.contact,
           }}
           onClose={() => setShowDialer(false)}

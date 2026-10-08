@@ -3,11 +3,11 @@ import { countryNameToIso, countryOfE164, normalizePhoneIdentifier } from '@tele
 import { outcomeLeadTag, PHONE_OUTCOMES, type PhoneOutcomeId } from './phoneOutcomes';
 
 /**
- * Logging a call the rep placed outside the CRM, from the lead drawer. Client-side, and the same
- * effects the dashboard's task Call Logging modal has (app/page.tsx `handleLoggingSubmit`): the
- * `call_logged` activity, a callback task for tomorrow 09:00, and a `do_not_call` / `wrong_number`
- * tag so the lead leaves the calling queue. Every effect that fails is reported, never swallowed:
- * an untagged do-not-call lead gets called again.
+ * Logging a call the rep placed outside the CRM, from the lead drawer. Client-side, with the effects
+ * a logged call has elsewhere: the `call_logged` activity (whose route creates the callback task for
+ * "Call Back Requested"), the lead's last-contacted date, and a `do_not_call` / `wrong_number` tag
+ * so the lead leaves the calling queue. Every effect that fails is reported, never swallowed: an
+ * untagged do-not-call lead gets called again.
  */
 
 type CountryCode = NonNullable<ReturnType<typeof countryNameToIso>>;
@@ -35,8 +35,13 @@ export function phoneCallTarget(raw: string | null | undefined, recordCountry?: 
 
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
+/** Room `description` leaves for the notes: activities cap it at 500 (lib/validation/core.ts). */
+export const DESCRIPTION_MAX = 500;
+/** What the panel lets a rep type; the full text is kept in `metadata.notes`. */
+export const NOTES_MAX = 2000;
+
 export type LogPhoneCallInput = {
-  lead: { id: string; firstName: string; lastName: string; tags?: string[] | null };
+  lead: { id: string; firstName: string; lastName: string };
   outcome: PhoneOutcomeId;
   notes: string;
   /** For tests; the browser's fetch otherwise. */
@@ -44,12 +49,12 @@ export type LogPhoneCallInput = {
   now?: Date;
 };
 
-export type LogPhoneCallResult =
-  | { ok: false; error: string }
-  | { ok: true; warnings: string[]; activity: { action: PhoneOutcomeId; outcome: string; notes: string } };
+export type LoggedCall = { action: PhoneOutcomeId; outcome: PhoneOutcomeId; label: string; notes: string };
 
-const json = (body: unknown): RequestInit => ({
-  method: 'POST',
+export type LogPhoneCallResult = { ok: false; error: string } | { ok: true; warnings: string[]; activity: LoggedCall };
+
+const json = (method: 'POST' | 'PUT', body: unknown): RequestInit => ({
+  method,
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(body),
 });
@@ -59,47 +64,58 @@ async function errorText(res: Response, fallback: string): Promise<string> {
   return (body && typeof body.error === 'string' && body.error) || fallback;
 }
 
+/** "Call logged. Outcome: …: notes", shortened to fit; the notes themselves are never cut. */
+export function callDescription(label: string, notes: string): string {
+  const head = `Call logged. Outcome: ${label}`;
+  if (!notes) return head;
+  const full = `${head}: ${notes}`;
+  return full.length <= DESCRIPTION_MAX ? full : `${full.slice(0, DESCRIPTION_MAX - 1)}…`;
+}
+
+/**
+ * Metadata in the shape the task path writes (`outcome` is the id), so reports read one shape, and
+ * so `POST /api/activities` creates the callback task itself — on the next business day in the
+ * lead's timezone — exactly as it does for a call logged anywhere else.
+ */
 export async function logPhoneCall(input: LogPhoneCallInput): Promise<LogPhoneCallResult> {
   const call: Fetch = input.fetchImpl ?? ((url, init) => fetch(url, init));
   const label = PHONE_OUTCOMES.find((o) => o.id === input.outcome)?.label ?? input.outcome;
-  const notes = input.notes.trim();
-  const activity = { action: input.outcome, outcome: label, notes };
+  const notes = input.notes.trim().slice(0, NOTES_MAX);
+  const activity: LoggedCall = { action: input.outcome, outcome: input.outcome, label, notes };
 
-  const logged = await call('/api/activities', json({
+  const logged = await call('/api/activities', json('POST', {
     leadId: input.lead.id,
     type: 'call_logged',
     channel: 'phone',
-    description: `Call logged. Outcome: ${label}${notes ? `: ${notes}` : ''}`,
+    description: callDescription(label, notes),
     metadata: { ...activity, via: 'phone' },
   }));
   if (!logged.ok) return { ok: false, error: await errorText(logged, 'Failed to log the call') };
 
   const warnings: string[] = [];
 
-  if (input.outcome === 'callback_requested') {
-    const due = new Date(input.now ?? new Date());
-    due.setDate(due.getDate() + 1);
-    due.setHours(9, 0, 0, 0);
-    const task = await call('/api/tasks', json({
-      leadId: input.lead.id,
-      type: 'phone',
-      title: `Callback — ${input.lead.firstName} ${input.lead.lastName}`,
-      description: 'Callback requested',
-      dueDate: due.toISOString(),
-      priority: 'high',
-    }));
-    if (!task.ok) warnings.push('Call logged, but the callback task could not be created — add it by hand');
+  // A call is contact, as a completed phone task records it (app/api/tasks/[id]). The tag is added
+  // to the lead's tags as they are now, read fresh: the drawer's copy can be stale, and the lead
+  // API replaces the whole list — an old copy would drop a tag set since.
+  const tag = outcomeLeadTag(input.outcome);
+  const update: { lastContactedAt: string; tags?: string[] } = { lastContactedAt: (input.now ?? new Date()).toISOString() };
+  if (tag) {
+    const current = await call(`/api/leads/${input.lead.id}`);
+    const fresh = current.ok ? await current.json().catch(() => null) : null;
+    if (fresh && Array.isArray(fresh.tags)) {
+      if (!fresh.tags.includes(tag)) update.tags = [...fresh.tags, tag];
+    } else {
+      warnings.push(`Call logged, but the "${tag}" tag could not be added — set it on the lead`);
+    }
   }
 
-  const tag = outcomeLeadTag(input.outcome);
-  const tags = input.lead.tags ?? [];
-  if (tag && !tags.includes(tag)) {
-    const tagged = await call(`/api/leads/${input.lead.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tags: [...tags, tag] }),
-    });
-    if (!tagged.ok) warnings.push(`Call logged, but the "${tag}" tag did not save — set it on the lead`);
+  const saved = await call(`/api/leads/${input.lead.id}`, json('PUT', update));
+  if (!saved.ok) {
+    warnings.push(
+      update.tags
+        ? `Call logged, but the "${tag}" tag did not save — set it on the lead`
+        : 'Call logged, but the lead’s last-contacted date did not update'
+    );
   }
 
   return { ok: true, warnings, activity };

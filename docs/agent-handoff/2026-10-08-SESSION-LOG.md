@@ -119,9 +119,11 @@ Today the team calls with Bigin + MicroSIP.
 
 - Lead drawer **Call** → `components/dialer/PhoneCallPanel.tsx`: the number (E.164), copy, a `tel:`
   QR code a phone scans to dial, and the required outcome (the nine of the task Call Logging modal,
-  `lib/telephony/phoneOutcomes.ts`) with the same effects — `call_logged` activity, a 09:00
-  callback task, `do_not_call` / `wrong_number` tags, and the booking form for a booked meeting
-  (`lib/telephony/logPhoneCall.ts`). Works for every lead today (MicroSIP users copy the number).
+  `lib/telephony/phoneOutcomes.ts`) with the same effects (`lib/telephony/logPhoneCall.ts`): the
+  `call_logged` activity in the task path's metadata shape (its route creates the callback task, next
+  business day), `lastContactedAt`, a `do_not_call` / `wrong_number` tag added to the lead's tags
+  read fresh, and the booking form for a booked meeting. Escape closes, focus stays in the dialog.
+  Works for every lead today (MicroSIP users copy the number).
 - Gate: `isAlwaysOpen` — hours 00:00–24:00 on all seven days need no timezone, so `tz_unknown` no
   longer blocks there. Every other rule is unchanged.
 - Removed the old dialer: `CallDialerModal.tsx`, `/api/dialer/config` (+ its test), `sip.js`.

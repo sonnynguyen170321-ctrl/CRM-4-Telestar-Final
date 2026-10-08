@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { Check, Copy, Phone, X } from 'lucide-react';
 
 import { useToast } from '@/context/ToastContext';
-import { logPhoneCall, phoneCallTarget } from '@/lib/telephony/logPhoneCall';
+import { logPhoneCall, NOTES_MAX, phoneCallTarget, type LoggedCall } from '@/lib/telephony/logPhoneCall';
 import { PHONE_OUTCOMES, telUri, type PhoneOutcomeId } from '@/lib/telephony/phoneOutcomes';
 
 /**
@@ -24,12 +24,11 @@ type Props = {
     lastName: string;
     company?: string | null;
     phone?: string | null;
-    tags?: string[] | null;
     contact?: { country?: string | null } | null;
   };
   onClose: () => void;
   /** After a call is logged: the activity to show in the timeline. */
-  onLogged: (activity: { action: PhoneOutcomeId; outcome: string; notes: string }) => void;
+  onLogged: (activity: LoggedCall) => void;
   /** "Meeting Booked" hands over to the drawer's booking form. */
   onMeetingBooked: () => void;
 };
@@ -44,12 +43,59 @@ export default function PhoneCallPanel({ lead, onClose, onLogged, onMeetingBooke
   const [outcome, setOutcome] = useState<PhoneOutcomeId | null>(null);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  // The latest close handler, read at key time: the parent passes a new function on every render,
+  // and re-running the effect for it would pull focus back to the first button each time.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // A dialog: focus moves in on open and back to the Call button on close, Escape closes, and Tab
+  // stays inside while it is open.
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    formRef.current?.querySelector<HTMLElement>('button[aria-pressed]')?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab' || !formRef.current) return;
+      const focusable = Array.from(
+        formRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), textarea, input, [href]')
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      opener?.focus?.();
+    };
+  }, []);
 
   useEffect(() => {
     if (!target.e164) return;
     let cancelled = false;
+    let link: string;
+    try {
+      link = telUri(target.e164);
+    } catch {
+      setQrSvg(null);
+      return;
+    }
     // The SVG is generated from the number alone; nothing a user typed is placed in it as markup.
-    QRCode.toString(telUri(target.e164), { type: 'svg', margin: 1, width: 168, errorCorrectionLevel: 'M' })
+    QRCode.toString(link, { type: 'svg', margin: 1, width: 168, errorCorrectionLevel: 'M' })
       .then((svg) => {
         if (!cancelled) setQrSvg(svg);
       })
@@ -99,6 +145,7 @@ export default function PhoneCallPanel({ lead, onClose, onLogged, onMeetingBooke
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="phone-call-title">
       <div className="fixed inset-0 bg-black/40" onClick={onClose} />
       <form
+        ref={formRef}
         onSubmit={submit}
         className="relative w-full max-w-lg bg-card-bg border border-card-border rounded-2xl shadow-xl p-5 space-y-4 text-xs"
       >
@@ -151,7 +198,8 @@ export default function PhoneCallPanel({ lead, onClose, onLogged, onMeetingBooke
 
         <fieldset className="space-y-2">
           <legend className="text-xs font-bold text-text-secondary">
-            Call outcome <span className="text-brand-red">*</span>
+            Call outcome <span className="text-brand-red" aria-hidden="true">*</span>
+            <span className="sr-only">(required)</span>
           </legend>
           {GROUPS.map((group) => (
             <div key={group} className="space-y-1">
@@ -183,7 +231,7 @@ export default function PhoneCallPanel({ lead, onClose, onLogged, onMeetingBooke
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            maxLength={2000}
+            maxLength={NOTES_MAX}
             className="w-full bg-bg-main border border-card-border rounded-lg p-2 text-text-primary focus:outline-none focus:border-brand-red resize-none"
             placeholder="What was said, next step…"
           />
