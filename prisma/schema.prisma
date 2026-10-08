@@ -2582,6 +2582,7 @@ model Tenant {
   leadQualificationReviews LeadQualificationReview[]
   researchRuns             ResearchRun[]
   researchCandidates       ResearchCandidate[]
+  researchDomainClassifications ResearchDomainClassification[]
   researchProspects        ResearchProspect[]
   researchEvidence         ResearchEvidence[]
   researchFieldObservations ResearchFieldObservation[]
@@ -3880,6 +3881,32 @@ enum ResearchCandidateStatus {
   dismissed
 }
 
+/// Whether a company candidate was checked against its own evidence (owner, 2026-10-08: research
+/// listed news sites, job boards, associations and vendors as prospects). Separate from `status`,
+/// which is what the rep did with it — the same split as qualification vs workflow status on a lead.
+/// Null on contact candidates and on company rows from before verification existed.
+enum ResearchVerification {
+  /// Found, not checked yet.
+  pending
+  /// A company of a kind the ICP wants, and the ICP engine qualifies it on its own facts.
+  verified_fit
+  /// A company that may fit; something needs a person (low confidence, a services mention, a kind
+  /// the policy sends to review).
+  needs_review
+  /// Not a prospect, with the reason in `verificationReason` (a job board, an association, a vendor
+  /// for an operator ICP, outside the target countries, too small).
+  rejected
+  /// Could not be checked (site refused, classifier unavailable, no usable evidence). Never shown
+  /// as a fit; shown with the reason and a retry.
+  unverified
+}
+
+enum ResearchClassificationStatus {
+  pending
+  completed
+  failed
+}
+
 /// Outcome of trying to read a company website. Not a workflow state: it records what the crawler
 /// met, which is why `offline` and `blocked` are worth keeping apart from `failed`. Roughly 40% of
 /// real company sites refuse a crawler outright, and for those the search chain is the only evidence
@@ -3926,6 +3953,12 @@ model ResearchRun {
   /// batch in flight always finishes and the cursor is never left mid-query.
   pauseRequestedAt DateTime?
   errorMessage    String?
+  /// Verification of the run's company candidates (2026-10-08). The run stays `running` until every
+  /// candidate is checked, then settles; these say when that stage began and ended, and what it
+  /// could not do (some sites refused, classifier unavailable) without failing the run.
+  verificationStartedAt  DateTime?
+  verificationFinishedAt DateTime?
+  verificationWarning    String?
   startedAt       DateTime?
   finishedAt      DateTime?
   createdById     String?
@@ -3985,6 +4018,23 @@ model ResearchCandidate {
   promotedContactId String?
   promotedContact   Contact? @relation(fields: [promotedContactId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
+  /// Verification of a company candidate. See `ResearchVerification`.
+  verification       ResearchVerification?
+  /// Machine reason for the verdict: `company_type:media_news`, `excluded_country`,
+  /// `below_fit_threshold`, `site_blocked`, `classifier_unavailable`...
+  verificationReason String?
+  /// The verdict as scored: classifier version, rules key, fingerprint, sub-scores, gates, kind
+  /// decision, keyword matches. Enough to explain the row without re-running anything.
+  verificationJson   Json?
+  verifiedAt         DateTime?
+  /// Transient failures so far; at the limit the row becomes `unverified` instead of retrying forever.
+  verifyAttempts     Int       @default(0)
+  /// Claim held by the verify slice working on this row. A stale claim may be taken over.
+  verifyClaimToken   String?
+  verifyClaimedAt    DateTime?
+  classificationId   String?
+  classification     ResearchDomainClassification? @relation(fields: [classificationId, tenantId], references: [id, tenantId], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   tenantId  String
@@ -3999,6 +4049,43 @@ model ResearchCandidate {
   @@index([tenantId, dedupeFingerprint])
   @@index([tenantId, runId, status])
   @@index([tenantId, runId, fitScore])
+  @@index([tenantId, runId, verification])
+}
+
+/// What a company is, read from its own evidence (search highlight, then homepage/about when thin) —
+/// cached per tenant and domain so the same company is not fetched and classified again for every
+/// run. Independent of any ICP: the ICP verdict is computed per candidate from this.
+/// `classifierVersion` is part of the key; any change to the classifier bumps it, or old
+/// classifications are reused silently.
+model ResearchDomainClassification {
+  @@unique([id, tenantId], map: "ResearchDomainClassification_id_tenantId_key")
+  id                 String                       @id @default(cuid())
+  canonicalDomain    String
+  classifierVersion  Int
+  status             ResearchClassificationStatus @default(pending)
+  claimToken         String?
+  claimedAt          DateTime?
+  /// The grounded classification (company kind, industry, what they sell, HQ country, size,
+  /// confidence). Null until completed.
+  classificationJson Json?
+  /// Quotes the classification rests on, each with its source URL.
+  evidenceJson       Json?
+  /// How it was obtained: fetch status, pages used, deterministic hits, model, AI call id.
+  sourcesJson        Json?
+  confidence         String?
+  errorCode          String?
+  errorMessage       String?
+  expiresAt          DateTime
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+  tenantId           String
+  tenant             Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  candidates ResearchCandidate[]
+
+  @@unique([tenantId, canonicalDomain, classifierVersion])
+  @@index([tenantId])
+  @@index([tenantId, expiresAt])
 }
 
 /// Everything ever discovered, across runs. Without it the same company is rediscovered and
