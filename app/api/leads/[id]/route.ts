@@ -4,6 +4,7 @@ import { requireAuth, canAccessUser, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { scoreLead } from '@/lib/leads/scoring';
 import { scoreLeadIcp } from '@/lib/leads/icpScoring';
+import { describeIcpContext, loadLeadIcpContext } from '@/lib/leads/icpContext';
 import { normalizeEmail, normalizePhone, normalizeLinkedIn } from '@/lib/leads/normalize';
 import { pauseSequence } from '@/lib/sequences/engine';
 import { unenrollAllLeadCadences } from '@/lib/sequences/leadStop';
@@ -101,8 +102,17 @@ export async function GET(
     : [];
   const reviewerName = new Map(reviewers.map((u) => [u.id, `${u.firstName} ${u.lastName}`.trim()]));
 
+  // Which ICP the verdict is measured against, and whether it is still the one that applies
+  // (lib/leads/icpContext.ts). Computed here: the drawer only shows the sentences.
+  const icpContext = await loadLeadIcpContext({
+    tenantId: user.tenantId!,
+    campaignId: lead.campaignId ?? null,
+    scoredVersionId: lead.icpVersionId ?? null,
+  });
+
   return NextResponse.json({
     ...lead,
+    icpContext: { ...icpContext, ...describeIcpContext(icpContext) },
     icpAssessments: lead.icpAssessments.map(({ rulesSnapshot, ...assessment }) => ({
       ...assessment,
       // Only what the explanation names: thresholds, the target lists, the weights. The full
