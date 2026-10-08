@@ -38,10 +38,7 @@ const COUNTRY_ALIASES: Record<string, string> = {
   "the netherlands": "Netherlands",
   holland: "Netherlands",
   "republic of ireland": "Ireland",
-  ksa: "Saudi Arabia",
-  "kingdom of saudi arabia": "Saudi Arabia",
   saudi: "Saudi Arabia",
-  turkiye: "Turkey",
 };
 
 // Known canonical names that should pass through unchanged after title-casing.
