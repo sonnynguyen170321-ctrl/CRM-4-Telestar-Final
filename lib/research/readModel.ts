@@ -136,6 +136,12 @@ export type CandidateListQuery = {
   minFitScore?: number;
   /** Hides candidates whose fingerprint was already promoted in an earlier run. */
   hidePreviouslyPromoted?: boolean;
+  /**
+   * Which verification band to list (2026-10-08). `shortlist` — checked and fitting or worth a look,
+   * plus rows from before verification existed — is what a rep works; `rejected`, `unverified` and
+   * `pending` are shown on request, never mixed into it.
+   */
+  verification?: VerificationFilter;
   page?: number;
   pageSize?: number;
 };
@@ -148,13 +154,18 @@ export async function listResearchCandidates(query: CandidateListQuery, tenantId
   if (query.runId) where.runId = query.runId;
   if (query.status) where.status = query.status;
   if (typeof query.minFitScore === 'number') where.fitScore = { gte: query.minFitScore };
+  if (query.verification === 'shortlist') {
+    where.OR = [{ verification: { in: ['verified_fit', 'needs_review'] } }, { verification: null }];
+  } else if (query.verification && query.verification !== 'all') {
+    where.verification = query.verification;
+  }
 
   const [rows, total, grouped] = await Promise.all([
     prisma.researchCandidate.findMany({
       where: where as never,
-      // Fit descending, then newest: the whole point of the heuristic score is that the operator reads
-      // the top of the list and stops.
-      orderBy: [{ fitScore: 'desc' }, { createdAt: 'desc' }],
+      // Verified fits first, then those worth a look (enum order), then fit descending, then newest: the
+      // operator reads the top of the list and stops. Unverified legacy rows (null) sort last.
+      orderBy: [{ verification: { sort: 'asc', nulls: 'last' } }, { fitScore: 'desc' }, { createdAt: 'desc' }],
       skip: (page - 1) * pageSize,
       take: pageSize,
       select: {
@@ -162,7 +173,7 @@ export async function listResearchCandidates(query: CandidateListQuery, tenantId
         linkedinUrl: true, title: true, companyName: true, location: true,
         fitScore: true, fitReason: true, fitSource: true, emailGuess: true,
         dedupeFingerprint: true, promotedAccountId: true, promotedContactId: true,
-        createdAt: true,
+        createdAt: true, verification: true, verificationReason: true, verificationJson: true,
       },
     }),
     prisma.researchCandidate.count({ where: where as never }),
@@ -177,7 +188,8 @@ export async function listResearchCandidates(query: CandidateListQuery, tenantId
     grouped.map((entry) => [entry.status, entry._count._all]),
   ) as Record<string, number>;
   const tabCounts = query.runId ? await candidateTabCounts(tenantId, query.runId) : null;
-  if (rows.length === 0) return { items: [], total, page, pageSize, counts, tabCounts };
+  const verificationCounts = query.runId ? await candidateVerificationCounts(tenantId, query.runId) : null;
+  if (rows.length === 0) return { items: [], total, page, pageSize, counts, tabCounts, verificationCounts };
 
   // "Already taken in an earlier run" is a property of the fingerprint, not of this run's row, so it
   // needs the ledger. Without it a weekly run re-offers everything the team already imported.
@@ -199,7 +211,24 @@ export async function listResearchCandidates(query: CandidateListQuery, tenantId
     ? annotated.filter((row) => !row.previouslyPromoted)
     : annotated;
 
-  return { items, total, page, pageSize, counts, tabCounts };
+  return { items, total, page, pageSize, counts, tabCounts, verificationCounts };
+}
+
+export const VERIFICATION_FILTERS = ['shortlist', 'rejected', 'unverified', 'pending', 'all'] as const;
+export type VerificationFilter = (typeof VERIFICATION_FILTERS)[number];
+
+export type CandidateVerificationCounts = Record<Exclude<VerificationFilter, 'all'>, number>;
+
+/** Counted over the whole run, so the verification filters add up whatever page is showing. */
+async function candidateVerificationCounts(tenantId: string, runId: string): Promise<CandidateVerificationCounts> {
+  const grouped = await prisma.researchCandidate.groupBy({ by: ['verification'], where: { tenantId, runId }, _count: { _all: true } });
+  const counts: CandidateVerificationCounts = { shortlist: 0, rejected: 0, unverified: 0, pending: 0 };
+  for (const row of grouped) {
+    const n = row._count._all;
+    if (row.verification === 'verified_fit' || row.verification === 'needs_review' || row.verification === null) counts.shortlist += n;
+    else counts[row.verification] += n;
+  }
+  return counts;
 }
 
 /**

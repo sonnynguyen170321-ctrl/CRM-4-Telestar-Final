@@ -299,9 +299,14 @@ describe('research discovery', () => {
 
     const done = await prisma.researchRun.findFirstOrThrow({
       where: { id: runId },
-      select: { status: true, queryCursor: true, discoveredCount: true },
+      select: { status: true, queryCursor: true, discoveredCount: true, verificationStartedAt: true },
     });
-    expect(done.status).toBe('succeeded');
+    // Discovery is finished; the company it found is now being checked, and the run settles when
+    // that is done (lib/research/verify.ts), not here.
+    expect(done.status).toBe('running');
+    expect(done.verificationStartedAt).not.toBeNull();
+    const found = await prisma.researchCandidate.findMany({ where: { runId }, select: { verification: true } });
+    expect(found.map((c) => c.verification)).toEqual(['pending']);
     expect(done.queryCursor).toBe(3);
     // Counted once, on the query that found it — the resume must not add it a second time.
     expect(done.discoveredCount).toBe(1);

@@ -31,6 +31,13 @@ export const JOB_OPTIONS: Partial<Record<JobType, JobsOptions>> = {
     removeOnComplete: { age: 86400, count: 200 },
     removeOnFail: { age: 86400 * 7, count: 200 },
   },
+  // One attempt, for the same reason: a verify slice that throws leaves its candidates claimed, and the
+  // next slice (or a Resume) takes the stale claims over. A retry would pay for the same fetches twice.
+  [JobType.RESEARCH_VERIFY]: {
+    attempts: 1,
+    removeOnComplete: { age: 86400, count: 500 },
+    removeOnFail: { age: 86400 * 7, count: 200 },
+  },
   [JobType.EMAIL_SEND]: {
     attempts: 5,
     backoff: { type: 'exponential', delay: 5000 },

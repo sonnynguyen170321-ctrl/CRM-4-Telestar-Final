@@ -43,6 +43,7 @@
     "maintenance.repair",
     "reminder.due",
     "research.discover",
+    "research.verify",
     "sequence.advance",
     "sequence.enroll",
     "sequence.execute-task",
