@@ -128,7 +128,8 @@ describe('account rules reach qualified without a contact', () => {
     // Wrong country and wrong industry: no points at all.
     const none = run(classified({ hqCountry: 'France', industryText: 'Mining', industryKey: null, whatTheySell: 'Gold and copper mining' }));
     expect(none.verification).toBe('rejected');
-    expect(none.reason).toBe('below_fit_threshold');
+    // A known country outside the targets is rejected before the score is read (research fit gate).
+    expect(none.reason).toBe('outside_target_geo');
   });
 });
 
@@ -248,9 +249,9 @@ describe('verdict mapping order', () => {
     expect(score(target, classified())).toMatchObject({ verification: 'rejected', reason: 'industry_excluded' });
   });
 
-  it('4. wrong industry AND wrong country falls below the threshold', () => {
+  it('4. wrong industry AND wrong country: the known country rejects it before the score is read', () => {
     const result = score(stormwall, classified({ hqCountry: 'France', industryText: 'Mining', industryKey: null, whatTheySell: 'Gold and copper mining' }));
-    expect(result).toMatchObject({ verification: 'rejected', reason: 'below_fit_threshold' });
+    expect(result).toMatchObject({ verification: 'rejected', reason: 'outside_target_geo' });
     expect(result.fitScore).toBeLessThan(stormwall.rules.scorePolicy.needsReviewMinFitScore);
   });
 
@@ -346,10 +347,10 @@ describe('the owner ICPs on real-looking candidates', () => {
     const fit = score(saigon, bank, { name: 'Muster Bank', domain: 'musterbank.de' });
     const huge = score(saigon, classified({ hqCountry: 'Germany', employeeCount: 30000 }), { name: 'Grossbank', domain: 'grossbank.de' });
     expect(huge.assessed?.subScores.size).toBeLessThan(100);
-    // Over the range lowers the score. It does not reject: the weighted rule (owner, 2026-10-02) forgives one
-    // soft miss, so this stays a candidate a person can see.
     expect(huge.fitScore).toBeLessThan(fit.fitScore!);
-    expect(huge.verification).not.toBe('rejected');
+    // Lead scoring forgives one soft miss (owner, 2026-10-02); research does not, on a headcount it knows —
+    // see "research fit gates" below.
+    expect(huge).toMatchObject({ verification: 'rejected', reason: 'size_out_of_range' });
   });
 
   it('Stormwall: a three-person gaming shop is excluded as very small', () => {
@@ -358,5 +359,57 @@ describe('the owner ICPs on real-looking candidates', () => {
     // Unknown headcount is not small: it goes to a person, not the bin.
     const unknown = score(stormwall, classified({ industryText: 'Video games', industryKey: 'GAMING', hqCountry: 'Germany', employeeCount: null }));
     expect(unknown.verification).not.toBe('rejected');
+  });
+});
+
+describe('research fit gates: what the company is known to be, it is held to', () => {
+  // Lead scoring is weighted and forgiving on purpose: a lead is a person someone already chose. A research
+  // shortlist is the opposite — every off-target company in it is a rep's time. With the weighted rule alone,
+  // a Saudi construction firm for a network-security ICP came out "needs review" (fit ~60), and so did a
+  // bank in Brazil. Owner, 2026-10-08: the list is wrong too often. Research rejects a company on a fact it
+  // knows (with at least medium confidence); a fact it does not know still goes to a person.
+
+  it('rejects a known industry the ICP does not target', () => {
+    const builder = classified({ industryText: 'Construction', industryKey: 'CONSTRUCTION', whatTheySell: 'Commercial building contractor' });
+    expect(score(stormwall, builder, { name: 'Al Bina', domain: 'albina.sa' })).toMatchObject({ verification: 'rejected', reason: 'industry_not_targeted' });
+  });
+
+  it('rejects a known headquarters outside the target countries', () => {
+    expect(score(stormwall, classified({ hqCountry: 'Brazil' }), { name: 'Banco X', domain: 'bancox.com.br' })).toMatchObject({
+      verification: 'rejected',
+      reason: 'outside_target_geo',
+    });
+  });
+
+  it('rejects a known headcount outside the size range, but only reviews a size band', () => {
+    expect(score(saigon, classified({ hqCountry: 'Germany', employeeCount: 30000 })).reason).toBe('size_out_of_range');
+    const bandOnly = score(saigon, classified({ hqCountry: 'Germany', employeeCount: null, employeeBand: 'ENTERPRISE' as never }));
+    expect(bandOnly.verification).not.toBe('rejected');
+  });
+
+  it('does not reject on a fact the classifier only guessed', () => {
+    const guessed = score(stormwall, classified({ industryText: 'Construction', industryKey: 'CONSTRUCTION', confidence: 'low' }));
+    expect(guessed).toMatchObject({ verification: 'needs_review', reason: 'low_confidence' });
+  });
+
+  it('free-text targets (no canonical industry): a confident miss is rejected, a medium one reviewed', () => {
+    // FingerMind names "Aviation", "MRO", "CAMO", "Part 145" — none is a canonical industry key.
+    const bakery = (confidence: 'high' | 'medium') =>
+      score(fingermind, classified({ industryText: 'Bakery', industryKey: 'FNB', whatTheySell: 'Bread and pastries', hqCountry: 'Germany', confidence }), {
+        name: 'Backhaus',
+        domain: 'backhaus.de',
+      });
+    expect(bakery('high')).toMatchObject({ verification: 'rejected', reason: 'industry_not_targeted' });
+    expect(bakery('medium')).toMatchObject({ verification: 'needs_review', reason: 'industry_unconfirmed' });
+  });
+
+  it('keeps a free-text match a fit: an MRO named in what they sell', () => {
+    const mro = classified({ industryText: 'Aviation and Aerospace', industryKey: null, whatTheySell: 'Aircraft MRO and CAMO services (EASA Part 145)', hqCountry: 'Germany', employeeCount: 9000 });
+    expect(score(fingermind, mro, { name: 'Lufthansa Technik', domain: 'lufthansa-technik.com' }).verification).toBe('verified_fit');
+  });
+
+  it('never rejects on what it does not know', () => {
+    const unknown = classified({ industryText: null, industryKey: null, whatTheySell: null, hqCountry: null, employeeCount: null });
+    expect(score(stormwall, unknown).verification).toBe('needs_review');
   });
 });

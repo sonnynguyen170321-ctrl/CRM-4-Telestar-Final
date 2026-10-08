@@ -2,6 +2,7 @@ import { classificationToEvidence } from '@telestar/core-research/rulesFromParam
 import type { KindPolicy } from '@telestar/core-research/targetPolicy';
 import type { CompanyClassificationInput } from '@telestar/core-research/verificationTypes';
 import { assessIcpRulesV2, type IcpRulesV2Assessment } from '@telestar/core-scoring/rules/deriveQualification';
+import { canonicalizeIndustry } from '@telestar/core-scoring/rules/dictionaries/industry';
 import { foldText } from '@telestar/core-scoring/rules/normalize/index';
 import type { IcpVersionRulesV2 } from '@telestar/core-scoring/rules/schema-v2';
 
@@ -19,6 +20,7 @@ import { assessmentFingerprint } from '@/lib/leadgen/scorePoolItem';
  *   1. Not a company site (article, listicle, job posting, parked page)   -> rejected
  *   2. The company's KIND is one the ICP does not want                     -> rejected
  *   3. A terminal gate or an explicit exclusion (excluded country, denylist) -> rejected
+ *   3b. A known fact outside the ICP (country, headcount, industry)        -> rejected (researchFitGate)
  *   4. Below the fit threshold                                              -> rejected
  *   5. Qualified, classified with at least medium confidence, wanted kind   -> verified_fit
  *   6. Everything else                                                      -> needs_review
@@ -72,9 +74,54 @@ function exclusionReason(assessed: IcpRulesV2Assessment, verdict: IcpVerdict): s
   return hit?.id ?? 'explicit_exclusion';
 }
 
+/** The industry dimension's "known industry, nothing in the allowlist matched" score. */
+const INDUSTRY_KNOWN_MISS_SCORE = 20;
+
+/**
+ * Research holds a company to what it is known to be; lead scoring does not.
+ *
+ * The weighted lead rule forgives one soft miss on purpose — a lead is a person someone already chose.
+ * A research shortlist is the opposite: every off-target company in it costs a rep's time, and with the
+ * weighted rule alone a Saudi construction firm for a network-security ICP, or a bank in Brazil, came out
+ * "needs review" (owner, 2026-10-08: the list is wrong too often). So a fact the classifier established —
+ * headquarters country, headcount, industry — that falls outside the ICP rejects the company here. A fact it
+ * does not have never does, and a low-confidence classification is turned back into a review by the caller.
+ *
+ * Industry needs one more distinction. When every target is a canonical industry ("Banking", "ISP") and the
+ * company has one too, the comparison is exact. When the ICP names free text the dictionary does not know
+ * ("MRO", "Part 145"), the engine can only look for those words in what the company says it does, so only a
+ * high-confidence description that never mentions them is a rejection; a medium one goes to a person.
+ */
+function researchFitGate(
+  classification: CompanyClassificationInput,
+  rules: IcpVersionRulesV2,
+  assessed: IcpRulesV2Assessment,
+): Outcome | null {
+  const hit = (dimension: keyof IcpRulesV2Assessment['dimensionResults'], ids: string[]) =>
+    (assessed.dimensionResults[dimension]?.hits ?? []).some((h) => ids.includes(h.id));
+
+  if (hit('geo', ['geo_outside_target'])) return { verification: 'rejected', reason: 'outside_target_geo' };
+  if (classification.employeeCount != null && hit('size', ['size_too_small', 'size_too_large'])) {
+    return { verification: 'rejected', reason: 'size_out_of_range' };
+  }
+
+  const targets = rules.industry.mode === 'allowlist' ? rules.industry.targetIndustries : [];
+  if (targets.length === 0 || assessed.dimensionResults.industry?.score !== INDUSTRY_KNOWN_MISS_SCORE) return null;
+  const targetsCanonical = targets.every((target) => {
+    const key = canonicalizeIndustry(target);
+    return key !== null && key !== 'OTHER';
+  });
+  const exact = targetsCanonical && Boolean(classification.industryKey);
+  if (exact || (!targetsCanonical && classification.confidence === 'high')) {
+    return { verification: 'rejected', reason: 'industry_not_targeted' };
+  }
+  return { verification: 'needs_review', reason: 'industry_unconfirmed' };
+}
+
 function decide(
   classification: CompanyClassificationInput,
   policy: KindPolicy,
+  rules: IcpVersionRulesV2,
   assessed: IcpRulesV2Assessment,
   verdict: IcpVerdict,
 ): Outcome {
@@ -84,6 +131,8 @@ function decide(
   if (verdict.reason === 'disqualified' || verdict.reason === 'explicit_exclusion') {
     return { verification: 'rejected', reason: exclusionReason(assessed, verdict) };
   }
+  const fitGate = researchFitGate(classification, rules, assessed);
+  if (fitGate) return fitGate;
   if (verdict.reason === 'weighted_below_threshold') return { verification: 'rejected', reason: 'below_fit_threshold' };
 
   if (verdict.qualification !== 'qualified') return { verification: 'needs_review', reason: verdict.reason };
@@ -138,7 +187,7 @@ export function scoreClassifiedCandidate(input: ScoreClassifiedCandidateInput): 
   const verdict = deriveIcpVerdict(assessed, rules, evidence);
 
   return {
-    ...withLowConfidenceDowngrade(decide(classification, policy, assessed, verdict), classification),
+    ...withLowConfidenceDowngrade(decide(classification, policy, rules, assessed, verdict), classification),
     fitScore: verdict.fitScore,
     verdict,
     assessed: { subScores: assessed.subScores, gates: assessed.gates, missingEvidence: assessed.missingEvidence },
