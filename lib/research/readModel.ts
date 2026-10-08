@@ -105,9 +105,10 @@ function readQueryBudget(paramsJson: unknown): number | null {
  */
 export type CandidateTabCounts = { review: number; pipeline: number; dismissed: number; all: number };
 
-async function candidateTabCounts(tenantId: string, runId: string): Promise<CandidateTabCounts> {
+async function candidateTabCounts(tenantId: string, runId: string, verification?: VerificationFilter): Promise<CandidateTabCounts> {
+  // Counted within the verification view on screen, so "Needs review (12)" is twelve rows the rep can see.
   const rows = await prisma.researchCandidate.findMany({
-    where: { tenantId, runId },
+    where: { tenantId, runId, ...verificationWhere(verification) },
     select: { status: true, dedupeFingerprint: true },
   });
   const fingerprints = Array.from(new Set(rows.map((row) => row.dedupeFingerprint)));
@@ -154,11 +155,7 @@ export async function listResearchCandidates(query: CandidateListQuery, tenantId
   if (query.runId) where.runId = query.runId;
   if (query.status) where.status = query.status;
   if (typeof query.minFitScore === 'number') where.fitScore = { gte: query.minFitScore };
-  if (query.verification === 'shortlist') {
-    where.OR = [{ verification: { in: ['verified_fit', 'needs_review'] } }, { verification: null }];
-  } else if (query.verification && query.verification !== 'all') {
-    where.verification = query.verification;
-  }
+  Object.assign(where, verificationWhere(query.verification));
 
   const [rows, total, grouped] = await Promise.all([
     prisma.researchCandidate.findMany({
@@ -187,7 +184,7 @@ export async function listResearchCandidates(query: CandidateListQuery, tenantId
   const counts = Object.fromEntries(
     grouped.map((entry) => [entry.status, entry._count._all]),
   ) as Record<string, number>;
-  const tabCounts = query.runId ? await candidateTabCounts(tenantId, query.runId) : null;
+  const tabCounts = query.runId ? await candidateTabCounts(tenantId, query.runId, query.verification) : null;
   const verificationCounts = query.runId ? await candidateVerificationCounts(tenantId, query.runId) : null;
   if (rows.length === 0) return { items: [], total, page, pageSize, counts, tabCounts, verificationCounts };
 
@@ -216,6 +213,12 @@ export async function listResearchCandidates(query: CandidateListQuery, tenantId
 
 export const VERIFICATION_FILTERS = ['shortlist', 'rejected', 'unverified', 'pending', 'all'] as const;
 export type VerificationFilter = (typeof VERIFICATION_FILTERS)[number];
+
+function verificationWhere(view: VerificationFilter | undefined): Record<string, unknown> {
+  if (view === 'shortlist') return { OR: [{ verification: { in: ['verified_fit', 'needs_review'] } }, { verification: null }] };
+  if (view && view !== 'all') return { verification: view };
+  return {};
+}
 
 export type CandidateVerificationCounts = Record<Exclude<VerificationFilter, 'all'>, number>;
 

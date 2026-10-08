@@ -239,15 +239,23 @@ function buildCompanyQueries(input: { industries: string[]; keywords: string[]; 
   //
   // No "top <industry> companies <geo>" query any more: it aimed at directory pages, the parser
   // rightly refuses directory pages as candidates, and so every one of those queries was wasted.
+  //
+  // Each plain round asks twice: first in words ("Banking companies in New Zealand"), which a semantic
+  // engine (Exa, first in the chain, company category) reads as "find me such companies", then as the
+  // quoted term, which keyword engines honour. The quoted form alone found pages that merely CONTAIN the
+  // word — "Tech USA LLC", a school for "ISP" (2026-10-08); verification now drops those, so the words
+  // form is there to find more of the right ones. Each shape visits every country before the next.
   const queries: DiscoveryQuery[] = [];
   const rounds = primaries.length * (refinersUsed.length + 1);
   for (let round = 0; round < rounds && queries.length < input.limit * 2; round++) {
     const primary = primaries[round % primaries.length];
     const keyword = refinersUsed[Math.floor(round / primaries.length) - 1] ?? null;
-    for (const geo of geos) {
-      if (keyword) pushQuery(queries, [`"${primary}"`, `"${keyword}"`, geo, NEGATIVE_OPERATORS], [primary, keyword, geo]);
-      else pushQuery(queries, [`"${primary}"`, geo, NEGATIVE_OPERATORS], [primary, geo]);
+    if (keyword) {
+      for (const geo of geos) pushQuery(queries, [`"${primary}"`, `"${keyword}"`, geo, NEGATIVE_OPERATORS], [primary, keyword, geo]);
+      continue;
     }
+    for (const geo of geos) pushQuery(queries, [`${primary} companies`, geo ? `in ${geo}` : ""], [primary, geo]);
+    for (const geo of geos) pushQuery(queries, [`"${primary}"`, geo, NEGATIVE_OPERATORS], [primary, geo]);
   }
 
   return dedupeQueries(queries).slice(0, input.limit);

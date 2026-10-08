@@ -8,11 +8,14 @@ import {
   MAX_VERIFY_ATTEMPTS,
   VERIFY_BATCH,
   VERIFY_CLAIM_STALE_MS,
+  VERIFY_RECHECK_DELAY_MS,
   beginVerification,
+  reopenVerification,
   runVerificationSlice,
   type CandidateOutcome,
   type VerifyBatchFn,
 } from '@/lib/research/verify';
+import { startResearchRun } from '@/lib/research/runner';
 import { createTestTenant } from './helpers/testTenant';
 
 /**
@@ -131,6 +134,78 @@ describe('runVerificationSlice', () => {
     });
     expect((await slice(runId, broken)).outcome).toBe('continued');
     for (const c of await candidates(runId)) expect(c).toMatchObject({ verification: 'pending', verifyAttempts: 1, verifyClaimToken: null });
+    // A fixed code reaches the row, never the error text (it is shown to reps).
+    for (let i = 1; i < MAX_VERIFY_ATTEMPTS; i++) await slice(runId, broken);
+    for (const c of await candidates(runId)) expect(c).toMatchObject({ verification: 'unverified', verificationReason: 'verify_error' });
+  });
+
+  it('waiting on a domain another slice is classifying does not use up a retry, and rechecks later', async () => {
+    const runId = await runWith(1);
+    const busy = vi.fn<VerifyBatchFn>(async ({ candidates: cs }) =>
+      new Map(cs.map((c) => [c.id, { kind: 'retry', reason: 'domain_busy', countsAsAttempt: false } as const]))
+    );
+    for (let i = 0; i < MAX_VERIFY_ATTEMPTS + 2; i++) await slice(runId, busy);
+    expect((await candidates(runId))[0]).toMatchObject({ verification: 'pending', verifyAttempts: 0 });
+    expect(enqueueVerify).toHaveBeenLastCalledWith(expect.objectContaining({ runId }), tenantId, { delay: VERIFY_RECHECK_DELAY_MS });
+  });
+
+  it('a slice whose claim was taken over writes nothing', async () => {
+    const runId = await runWith(1);
+    const late = vi.fn<VerifyBatchFn>(async ({ candidates: cs }) => {
+      // Another slice takes the row over while this one works, and settles it.
+      await inTenant(() =>
+        prisma.researchCandidate.updateMany({ where: { runId }, data: { verifyClaimToken: 'newer', verification: 'verified_fit', verificationReason: 'newer' } })
+      );
+      return new Map(cs.map((c) => [c.id, verdict('rejected', 'late')]));
+    });
+    await slice(runId, late);
+    expect((await candidates(runId))[0]).toMatchObject({ verification: 'verified_fit', verificationReason: 'newer' });
+  });
+
+  it('refreshes its claims while a slow batch works, so no other slice takes them', async () => {
+    const runId = await runWith(1);
+    let refreshed: Date | null = null;
+    const slow = vi.fn<VerifyBatchFn>(async ({ candidates: cs }) => {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      refreshed = (await candidates(runId))[0].verifyClaimedAt;
+      return new Map(cs.map((c) => [c.id, verdict('verified_fit', 'ok')]));
+    });
+    let tick = T0.getTime();
+    const clock = () => new Date((tick += 1000));
+    await inTenant(() => runVerificationSlice({ runId, sliceToken: randomUUID() }, tenantId, { verifyBatch: slow, enqueueVerify, now: clock, heartbeatMs: 20 }));
+    expect(refreshed).not.toBeNull();
+    expect(refreshed!.getTime()).toBeGreaterThan(T0.getTime() + 1000);
+  });
+});
+
+describe('a run that failed verification can be resumed', () => {
+  it('Resume puts candidates the dead checker left unchecked back in the queue and restarts the run', async () => {
+    const runId = await runWith(2);
+    const down = always({ kind: 'retry', reason: 'classifier_unavailable' });
+    for (let i = 0; i < MAX_VERIFY_ATTEMPTS; i++) await slice(runId, down);
+    expect((await run(runId)).status).toBe('failed');
+
+    const enqueueSlice = vi.fn(async () => undefined);
+    expect(await inTenant(() => startResearchRun({ tenantId, runId, enqueueSlice }))).toEqual({ status: 'started' });
+    expect(enqueueSlice).toHaveBeenCalled();
+    for (const c of await candidates(runId)) expect(c).toMatchObject({ verification: 'pending', verifyAttempts: 0 });
+  });
+
+  it('a run with nothing left to check stays finished', async () => {
+    const runId = await runWith(1);
+    await slice(runId, always(verdict('rejected', 'company_type:media_news')));
+    await inTenant(() => prisma.researchRun.update({ where: { id: runId }, data: { status: 'failed' } }));
+    expect(await inTenant(() => reopenVerification(tenantId, runId))).toBe(0);
+    expect((await inTenant(() => startResearchRun({ tenantId, runId, enqueueSlice: vi.fn(async () => undefined) }))).status).toBe('already_finished');
+  });
+
+  it('pauses with the reason, instead of hanging, when verification cannot be queued', async () => {
+    const runId = await runWith(1);
+    const unreachable = vi.fn(async () => {
+      throw new Error('redis down');
+    });
+    expect(await inTenant(() => beginVerification(tenantId, runId, { enqueueVerify: unreachable }))).toBe(true);
+    expect(await run(runId)).toMatchObject({ status: 'paused', errorMessage: expect.stringMatching(/could not be queued/) });
   });
 
   it('says why the shortlist is empty when every company was ruled out', async () => {

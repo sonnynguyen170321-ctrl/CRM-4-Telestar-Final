@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
-import { runVerificationSlice } from '@/lib/research/verify';
+import { MAX_VERIFY_ATTEMPTS, runVerificationSlice } from '@/lib/research/verify';
 import { createVerifyBatch, type VerifyBatchDeps } from '@/lib/research/verifyBatch';
 import { createTestTenant } from './helpers/testTenant';
 
@@ -136,7 +136,7 @@ describe('verifyBatch', () => {
     const down = fakeModel({ available: false });
     await slice(runId, { generate: down.generate, fetchPages: blocked });
     expect((await candidates(runId))[0]).toMatchObject({ verification: 'pending', verifyAttempts: 1 });
-    await slice(runId, { generate: down.generate, fetchPages: blocked });
+    for (let i = 1; i < MAX_VERIFY_ATTEMPTS; i++) await slice(runId, { generate: down.generate, fetchPages: blocked });
     expect((await candidates(runId))[0]).toMatchObject({ verification: 'unverified', verificationReason: 'classifier_unavailable' });
     expect((await inTenant(() => prisma.researchRun.findUniqueOrThrow({ where: { id: runId } }))).status).toBe('failed');
   });

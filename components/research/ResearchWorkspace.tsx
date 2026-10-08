@@ -203,7 +203,9 @@ export default function ResearchWorkspace() {
     async (runId: string, options: { quiet?: boolean } = {}) => {
       if (!options.quiet) setCandidatesLoading(true);
       try {
-        const params = new URLSearchParams({ runId, pageSize: '200' });
+        // The verification view is filtered on the server, so a run of hundreds of ruled-out companies
+        // cannot push its shortlist past the 200-row page.
+        const params = new URLSearchParams({ runId, pageSize: '200', verification: verificationView });
         const response = await fetch(`/api/research/candidates?${params}`);
         if (!response.ok) {
           showToast(await readApiError(response, 'Failed to load candidates'), 'error');
@@ -228,7 +230,7 @@ export default function ResearchWorkspace() {
         if (!options.quiet) setCandidatesLoading(false);
       }
     },
-    [showToast],
+    [showToast, verificationView],
   );
 
   useEffect(() => {

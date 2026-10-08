@@ -59,7 +59,24 @@ export function createVerifyBatch(deps: VerifyBatchDeps = {}): VerifyBatchFn {
   const generate = deps.generate ?? (generateStructured as GenerateFn);
   const fetchPages = deps.fetchPages ?? fetchIdentityPages;
 
-  return async ({ tenantId, runId, candidates }) => {
+  return async (input) => {
+    // Domain claims this batch holds and has not completed. If anything below throws they are released
+    // as failed, so the retry does not find its own leftover claims and report the domains as busy.
+    const held = new Map<string, { id: string; token: string }>();
+    try {
+      return await verify(input, held);
+    } catch (error) {
+      for (const claim of held.values()) {
+        await failDomainClassification({ tenantId: input.tenantId, id: claim.id, token: claim.token, errorCode: 'verify_error', errorMessage: 'verification batch failed' }).catch(() => undefined);
+      }
+      throw error;
+    }
+  };
+
+  async function verify(
+    { tenantId, runId, candidates }: Parameters<VerifyBatchFn>[0],
+    held: Map<string, { id: string; token: string }>
+  ): Promise<Map<string, CandidateOutcome>> {
     const outcomes = new Map<string, CandidateOutcome>();
     const context = await loadRunContext(tenantId, runId);
     if (!context) {
@@ -77,7 +94,9 @@ export function createVerifyBatch(deps: VerifyBatchDeps = {}): VerifyBatchFn {
       }
       const claim = await claimDomainClassification({ tenantId, domain: candidate.domain, version: CLASSIFIER_VERSION });
       if (claim.state === 'busy') {
-        outcomes.set(candidate.id, { kind: 'retry', reason: 'domain_busy' });
+        // Another slice is classifying this domain right now; its result will be cached. Waiting on it is
+        // not this candidate failing, so it does not use up a retry.
+        outcomes.set(candidate.id, { kind: 'retry', reason: 'domain_busy', countsAsAttempt: false });
         continue;
       }
       if (claim.state === 'fresh') {
@@ -90,6 +109,7 @@ export function createVerifyBatch(deps: VerifyBatchDeps = {}): VerifyBatchFn {
         continue;
       }
 
+      held.set(claim.id, { id: claim.id, token: claim.token });
       const source = readSource(candidate.sourceJson);
       let bundle = buildClassificationBundle({ name: candidate.name, domain: candidate.domain, sourceUrl: source.url, highlight: source.snippet });
       let det = classifyDeterministically(bundle);
@@ -114,6 +134,7 @@ export function createVerifyBatch(deps: VerifyBatchDeps = {}): VerifyBatchFn {
       if (det.decided) {
         const grounded = groundClassification(deterministicRaw(det), bundle, det);
         if (grounded.value) {
+          held.delete(claim.id);
           await completeDomainClassification({ tenantId, id: claim.id, token: claim.token, classificationJson: grounded.value as never, evidenceJson: grounded.value.evidence as never, sourcesJson: { via: 'rules', fetchStatus, dropped: grounded.dropped } as never, confidence: grounded.value.confidence });
           classified.push({ candidate, classification: grounded.value, classificationId: claim.id, site });
           continue;
@@ -122,6 +143,7 @@ export function createVerifyBatch(deps: VerifyBatchDeps = {}): VerifyBatchFn {
       if (bundle.sources.length === 0) {
         // Nothing to read: no highlight and the site gave no pages. Say why, do not guess.
         const reason = fetchStatus === 'BLOCKED' ? 'site_blocked' : fetchStatus === 'OFFLINE' || fetchStatus === 'ERROR' ? 'site_unreachable' : 'no_evidence';
+        held.delete(claim.id);
         await failDomainClassification({ tenantId, id: claim.id, token: claim.token, errorCode: reason, errorMessage: `no readable evidence (${fetchStatus ?? 'not fetched'})` });
         outcomes.set(candidate.id, verdictOutcome({ verification: 'unverified', reason }));
         continue;
@@ -159,10 +181,12 @@ export function createVerifyBatch(deps: VerifyBatchDeps = {}): VerifyBatchFn {
         const grounded = raw ? groundClassification(raw, item.bundle, item.det) : { value: null, dropped: [] };
         if (!grounded.value) {
           const reason = outcome.available ? 'classification_unparseable' : 'classifier_unavailable';
+          held.delete(item.claim.id);
           await failDomainClassification({ tenantId, id: item.claim.id, token: item.claim.token, errorCode: reason, errorMessage: outcome.available ? 'no usable classification' : String(outcome.reason ?? 'unavailable') });
           outcomes.set(item.candidate.id, { kind: 'retry', reason });
           continue;
         }
+        held.delete(item.claim.id);
         await completeDomainClassification({
           tenantId,
           id: item.claim.id,
@@ -205,7 +229,7 @@ export function createVerifyBatch(deps: VerifyBatchDeps = {}): VerifyBatchFn {
       });
     }
     return outcomes;
-  };
+  }
 }
 
 async function judge(

@@ -40,7 +40,7 @@ export async function promoteCandidates(params: {
     select: {
       id: true, kind: true, status: true, name: true, domain: true, linkedinUrl: true,
       title: true, companyName: true, location: true, emailGuess: true, phone: true,
-      fitScore: true, fitReason: true, runId: true, dedupeFingerprint: true,
+      fitScore: true, fitReason: true, runId: true, dedupeFingerprint: true, verification: true,
     },
   });
 
@@ -48,6 +48,12 @@ export async function promoteCandidates(params: {
   for (const candidate of candidates) {
     if (candidate.status === 'dismissed' || candidate.status === 'duplicate') {
       results.push({ candidateId: candidate.id, status: 'skipped', reason: 'candidate_' + candidate.status });
+      continue;
+    }
+    // Not promoted while its check is running or after it was ruled out (2026-10-08). The page hides the
+    // button; this is the rule, so a direct API call cannot put a job board into a campaign.
+    if (candidate.verification === 'pending' || candidate.verification === 'rejected') {
+      results.push({ candidateId: candidate.id, status: 'skipped', reason: 'candidate_' + candidate.verification });
       continue;
     }
 
