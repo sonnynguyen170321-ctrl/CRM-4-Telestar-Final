@@ -2,15 +2,24 @@ import { isInstitutionalHost, registrableDomain } from "@telestar/core-identity/
 import { isParkedText } from "@telestar/core-intel/fetchWebsite";
 import { resolveSizeBand } from "@telestar/core-scoring/rules/dictionaries/sizeBands";
 import type { ClassificationBundle } from "./classificationEvidence";
-import type { ClassificationConfidence, ClassificationEvidence, CompanyClassification, CompanyKind } from "./companyClassification";
+import type {
+  ClassificationConfidence,
+  ClassificationEvidence,
+  CompanyClassification,
+  CompanyKind,
+  NotCompanyReason,
+} from "./companyClassification";
 import { looksLikeListicleResult } from "./parseDiscoveryResults";
 
 // The part of classification that needs no model. A LinkedIn record that says "Type: Nonprofit" or a
 // `.gov.ae` host is better evidence than anything a model infers from a snippet, and it costs nothing.
 //
-// `decided` means a HARD rule fired: groundClassification lets that verdict overrule the model. Soft
-// hints (an association-sounding name, a /blog/ path) set `partial` at medium confidence only — a firm
-// called "Aerospace Council Ltd" is still a company often enough that the model must get a say.
+// Two tiers. `decided` means a HARD rule fired and groundClassification lets it overrule the model: only
+// rules that have no realistic false positive are hard (LinkedIn Type, institutional and listing hosts,
+// a parked homepage). Everything else is a `hint`: it goes into the prompt as a non-binding signal the
+// model may overrule with field-matched evidence. LinkedIn Industry is a hint, not a rule, because
+// "Wholesale", "Government Relations" or "Online Media" also describe prospects (an aircraft-parts
+// distributor, an ad platform) and a hard rule would reject them with no way back.
 
 export type DeterministicPartial = Partial<
   Pick<
@@ -24,10 +33,16 @@ export type DeterministicPartial = Partial<
   >
 > & { confidence?: ClassificationConfidence };
 
+/** A non-binding signal for the prompt. `reason` is built from fixed wording only, never page text. */
+export type DeterministicHint =
+  | { field: "companyKind"; value: CompanyKind; reason: string }
+  | { field: "notCompanyReason"; value: NotCompanyReason; reason: string };
+
 export type DeterministicClassification = {
   partial: DeterministicPartial;
   decided: boolean;
   hardEvidence: ClassificationEvidence[];
+  hints: DeterministicHint[];
 };
 
 // LinkedIn "Type" values that name a non-commercial body.
@@ -37,9 +52,8 @@ const LINKEDIN_TYPE_KIND: ReadonlyArray<readonly [RegExp, CompanyKind]> = [
   [/\beducational\b/i, "education"],
 ];
 
-// LinkedIn "Industry" values. Only industries whose members are never an operating prospect are here;
-// "Banking" or "Airlines and Aviation" must stay undecided so the model can see what the company does.
-const LINKEDIN_INDUSTRY_KIND: ReadonlyArray<readonly [RegExp, CompanyKind]> = [
+// LinkedIn "Industry" values that usually, but not always, name a non-prospect.
+const LINKEDIN_INDUSTRY_HINT: ReadonlyArray<readonly [RegExp, CompanyKind]> = [
   [/\bmarket research\b/i, "research_analyst"],
   [/\bstaffing and recruiting\b/i, "services_agency"],
   [/\bevents? services\b/i, "event"],
@@ -67,30 +81,23 @@ const JOB_POSTING_PATH = /\/(?:jobs?|careers?|vacanc(?:y|ies))\/[^/]+/i;
 const ACADEMIC_SUFFIX_LABELS: ReadonlySet<string> = new Set(["edu", "ac"]);
 const MAX_INDUSTRY_TEXT = 80;
 
+type RuleVerdict = { partial: DeterministicPartial; evidence: ClassificationEvidence[] };
+
 export function classifyDeterministically(bundle: ClassificationBundle): DeterministicClassification {
   const partial: DeterministicPartial = {};
-
   carryOverFacts(bundle, partial);
 
-  const parked = parkedVerdict(bundle);
-  if (parked) return decide(partial, parked.partial, parked.evidence);
-
-  const host = hostVerdict(bundle);
-  if (host) return decide(partial, host.partial, host.evidence);
-
-  const record = linkedinVerdict(bundle);
-  if (record) return decide(partial, record.partial, record.evidence);
-
-  applySoftHints(bundle, partial);
-  return { partial, decided: false, hardEvidence: [] };
-}
-
-function decide(
-  base: DeterministicPartial,
-  verdict: DeterministicPartial,
-  evidence: ClassificationEvidence[]
-): DeterministicClassification {
-  return { partial: { ...base, ...verdict, confidence: "high" }, decided: true, hardEvidence: evidence };
+  // LinkedIn Type before the host: a LinkedIn-sourced candidate has the record but no company domain.
+  const hard = parkedVerdict(bundle) ?? linkedinTypeVerdict(bundle) ?? hostVerdict(bundle);
+  if (hard) {
+    return {
+      partial: { ...partial, ...hard.partial, confidence: "high" },
+      decided: true,
+      hardEvidence: hard.evidence,
+      hints: [],
+    };
+  }
+  return { partial, decided: false, hardEvidence: [], hints: softHints(bundle) };
 }
 
 /** Industry text and headcount the record states, whether or not a hard rule fires. */
@@ -115,23 +122,39 @@ function headcountOf(bundle: ClassificationBundle): number | null {
   return bundle.prose.employeeCount;
 }
 
-function parkedVerdict(bundle: ClassificationBundle): { partial: DeterministicPartial; evidence: ClassificationEvidence[] } | null {
+/** Only the first source: a parking page is a stub, and a later page cannot make a site parked. */
+function parkedVerdict(bundle: ClassificationBundle): RuleVerdict | null {
   const first = bundle.sources[0];
-  if (!first || !isParkedText(bundle.text)) return null;
+  if (!first || !isParkedText(first.text)) return null;
   return {
     partial: { isCompanySite: false, notCompanyReason: "parked", companyKind: null },
     evidence: [{ field: "notCompanyReason", quote: first.text.slice(0, 200), sourceUrl: first.url }],
   };
 }
 
-function hostVerdict(bundle: ClassificationBundle): { partial: DeterministicPartial; evidence: ClassificationEvidence[] } | null {
-  const subject = bundle.domain ?? bundle.sourceUrl;
-  const root = registrableDomain(subject);
+function linkedinTypeVerdict(bundle: ClassificationBundle): RuleVerdict | null {
+  const type = factValue(bundle, "type");
+  const match = type ? LINKEDIN_TYPE_KIND.find(([pattern]) => pattern.test(type)) : undefined;
+  if (!type || !match) return null;
+  // The quote is the record's own `Type: value`, so a reviewer can find it on the page.
+  const quote = `Type: ${type}`;
+  if (!bundle.text.includes(quote)) return null;
+  return {
+    partial: { isCompanySite: true, notCompanyReason: null, companyKind: match[1] },
+    evidence: [{ field: "companyKind", quote, sourceUrl: bundle.sources[0]?.url ?? bundle.sourceUrl ?? "" }],
+  };
+}
+
+/**
+ * Host rules read the candidate's own domain only. A LinkedIn-sourced candidate has a null domain and a
+ * `linkedin.com` source URL; falling back to that URL made every such candidate a job board.
+ */
+function hostVerdict(bundle: ClassificationBundle): RuleVerdict | null {
+  const root = registrableDomain(bundle.domain);
   if (!root) return null;
-  const sourceUrl = bundle.sourceUrl ?? `https://${root}/`;
 
   let kind: CompanyKind | null = null;
-  if (isInstitutionalHost(subject)) {
+  if (isInstitutionalHost(bundle.domain)) {
     // `techglobal.edu.vn` -> suffix `edu.vn` -> first label `edu`: the suffix says which kind of body.
     const suffixFirst = root.split(".").slice(1)[0] ?? "";
     kind = ACADEMIC_SUFFIX_LABELS.has(suffixFirst) ? "education" : "government";
@@ -142,62 +165,32 @@ function hostVerdict(bundle: ClassificationBundle): { partial: DeterministicPart
 
   return {
     partial: { isCompanySite: true, notCompanyReason: null, companyKind: kind },
-    evidence: [{ field: "companyKind", quote: `host ${root}`, sourceUrl }],
+    // Synthetic: marked as a rule's output so nothing mistakes it for a quote from the page.
+    evidence: [{ field: "companyKind", quote: `host ${root}`, sourceUrl: bundle.sourceUrl ?? `https://${root}/`, origin: "rule" }],
   };
 }
 
-function linkedinVerdict(bundle: ClassificationBundle): { partial: DeterministicPartial; evidence: ClassificationEvidence[] } | null {
-  const sourceUrl = bundle.sources[0]?.url ?? bundle.sourceUrl ?? "";
-  const type = factValue(bundle, "type");
+function softHints(bundle: ClassificationBundle): DeterministicHint[] {
+  const hints: DeterministicHint[] = [];
   const industry = factValue(bundle, "industry");
+  const fromIndustry = industry ? LINKEDIN_INDUSTRY_HINT.find(([pattern]) => pattern.test(industry)) : undefined;
+  if (fromIndustry) {
+    hints.push({ field: "companyKind", value: fromIndustry[1], reason: `the LinkedIn industry line suggests ${fromIndustry[1]}` });
+  }
 
-  const fromType = type ? LINKEDIN_TYPE_KIND.find(([pattern]) => pattern.test(type)) : undefined;
-  if (type && fromType) return verdict(fromType[1], "Type", type, bundle, sourceUrl);
-
-  const fromIndustry = industry ? LINKEDIN_INDUSTRY_KIND.find(([pattern]) => pattern.test(industry)) : undefined;
-  if (industry && fromIndustry) return verdict(fromIndustry[1], "Industry", industry, bundle, sourceUrl);
-  return null;
-}
-
-function verdict(
-  kind: CompanyKind,
-  label: string,
-  value: string,
-  bundle: ClassificationBundle,
-  sourceUrl: string
-): { partial: DeterministicPartial; evidence: ClassificationEvidence[] } | null {
-  // The quote is the record's own `Label: value`, so a reviewer can find it on the page.
-  const labelled = `${label}: ${value}`;
-  const quote = bundle.text.includes(labelled) ? labelled : bundle.text.includes(value) ? value : null;
-  if (!quote || quote.length < 8) return null;
-  return {
-    partial: { isCompanySite: true, notCompanyReason: null, companyKind: kind },
-    evidence: [{ field: "companyKind", quote, sourceUrl }],
-  };
-}
-
-function applySoftHints(bundle: ClassificationBundle, partial: DeterministicPartial): void {
-  partial.confidence = "medium";
   const path = pathOf(bundle.sourceUrl);
-
   if (looksLikeListicleResult(bundle.name)) {
-    Object.assign(partial, { isCompanySite: false, notCompanyReason: "listicle", companyKind: null });
-    return;
+    hints.push({ field: "notCompanyReason", value: "listicle", reason: "the title reads like a ranked list" });
+  } else if (path && JOB_POSTING_PATH.test(path)) {
+    hints.push({ field: "notCompanyReason", value: "job_posting", reason: "the url path looks like a job posting" });
+  } else if (path && ARTICLE_PATH.test(path)) {
+    hints.push({ field: "notCompanyReason", value: "article", reason: "the url path looks like an article" });
   }
-  if (path && JOB_POSTING_PATH.test(path)) {
-    Object.assign(partial, { isCompanySite: false, notCompanyReason: "job_posting", companyKind: null });
-    return;
+
+  if (!fromIndustry && ASSOCIATION_NAME.test(bundle.name)) {
+    hints.push({ field: "companyKind", value: "association_nonprofit", reason: "the name contains an association-style word" });
   }
-  if (path && ARTICLE_PATH.test(path)) {
-    Object.assign(partial, { isCompanySite: false, notCompanyReason: "article", companyKind: null });
-    return;
-  }
-  if (ASSOCIATION_NAME.test(bundle.name)) {
-    partial.companyKind = "association_nonprofit";
-    return;
-  }
-  // Nothing fired: say nothing, rather than a medium-confidence "no opinion".
-  delete partial.confidence;
+  return hints;
 }
 
 function factValue(bundle: ClassificationBundle, key: "industry" | "type" | "employees"): string | null {

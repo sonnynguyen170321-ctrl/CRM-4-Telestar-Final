@@ -50,6 +50,10 @@ export const ClassificationEvidenceSchema = z.strictObject({
   // quote that is not literally in the evidence the model was shown.
   quote: z.string().min(MIN_QUOTE_CHARS).max(MAX_QUOTE_CHARS),
   sourceUrl: z.string().min(1).max(2000),
+  // "rule" marks evidence a deterministic rule wrote (e.g. `host acme.com`). It is not a quote from the
+  // page, so nothing may treat it as one. Only the rule layer sets it; groundClassification strips it
+  // from anything the model returns.
+  origin: z.literal("rule").optional(),
 });
 
 export const CompanyClassificationSchema = z

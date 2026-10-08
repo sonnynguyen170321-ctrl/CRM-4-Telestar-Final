@@ -1,6 +1,7 @@
 import { INDUSTRY_KEYS } from "@telestar/core-scoring/rules/dictionaries/industry";
 import { SIZE_BAND_KEYS } from "@telestar/core-scoring/rules/dictionaries/sizeBands";
 import type { ClassificationBundle } from "./classificationEvidence";
+import type { DeterministicHint } from "./deterministicClassifier";
 import { COMPANY_KINDS, MAX_EVIDENCE_ITEMS, NOT_COMPANY_REASONS } from "./companyClassification";
 
 // Pure prompt builder + response parser for the classifier, mirroring fitPrompt.ts. No network, no
@@ -21,14 +22,43 @@ function defang(text: string): string {
   return text.replace(/<<</g, "‹‹‹").replace(/>>>/g, "›››");
 }
 
-export function buildClassificationPrompt(bundles: readonly ClassificationBundle[]): string {
+const MAX_FIELD_CHARS = 200;
+const LINE_BREAKS_AND_CONTROLS = new RegExp(
+  `[\\u0000-\\u001f\\u007f-\\u009f${String.fromCharCode(0x2028)}${String.fromCharCode(0x2029)}]+`,
+  "g"
+);
+
+/**
+ * One short line of untrusted text. A candidate name comes from a search-result title, so it can carry
+ * a newline followed by "[1] name: ..." or an instruction; flattened and truncated it can do neither.
+ */
+function oneLine(text: string | null | undefined): string {
+  return defang(String(text ?? "").replace(LINE_BREAKS_AND_CONTROLS, " ").replace(/\s+/g, " ").trim().slice(0, MAX_FIELD_CHARS));
+}
+
+/** Source text is already whitespace-collapsed by the bundle; this only removes what could break a line. */
+function bodyText(text: string): string {
+  return defang(text.replace(LINE_BREAKS_AND_CONTROLS, " ").replace(/\s+/g, " ").trim());
+}
+
+export function buildClassificationPrompt(
+  bundles: readonly ClassificationBundle[],
+  hints: ReadonlyArray<readonly DeterministicHint[]> = []
+): string {
   const rows = bundles.slice(0, MAX_CLASSIFY_PER_CALL).map((bundle, index) => {
-    const sources = bundle.sources.map((source) => `source ${defang(source.url)}\n${defang(source.text)}`).join("\n\n");
+    const sources = bundle.sources.map((source) => `source ${oneLine(source.url)}\n${bodyText(source.text)}`).join("\n\n");
+    // The row header is only the index: everything a candidate controls sits inside the fence.
+    const rowHints = (hints[index] ?? []).map((hint) => hint.reason);
     return [
-      `[${index}] name: ${defang(bundle.name)}; domain: ${defang(bundle.domain ?? "")}`,
+      `[${index}]`,
       BEGIN_FENCE,
+      `name: ${oneLine(bundle.name)}`,
+      `domain: ${oneLine(bundle.domain)}`,
       sources || "(no evidence text)",
       END_FENCE,
+      ...(rowHints.length > 0
+        ? [`signals for [${index}] (non-binding, may be wrong; overrule with evidence): ${rowHints.join("; ")}`]
+        : []),
     ].join("\n");
   });
 
@@ -43,6 +73,7 @@ export function buildClassificationPrompt(bundles: readonly ClassificationBundle
       `whatTheySell is one line (160 chars max).`,
     `employeeBand: one of ${SIZE_BAND_KEYS.join(", ")}, or null. Give employeeCount and hqCountry only when the evidence states them.`,
     `Every factual claim needs an evidence item: {"field", "quote", "sourceUrl"} where quote is copied VERBATIM (8-300 chars) from that source. ` +
+      `Set each item's "field" to the claim it backs: companyKind (also for isCompanySite / notCompanyReason), industry, whatTheySell, hqCountry or employeeCount; the quote must itself state that claim. ` +
       `At most ${MAX_EVIDENCE_ITEMS} items. A claim without a verbatim quote will be discarded. When the evidence is thin, say confidence "low".`,
     `Return ONLY a JSON array, one object per candidate: {"i": <index>, "isCompanySite", "notCompanyReason", "companyKind", "industryText", ` +
       `"industryKey", "whatTheySell", "hqCountry", "employeeCount", "employeeBand", "confidence": "high"|"medium"|"low", "evidence": [...]}.`,
