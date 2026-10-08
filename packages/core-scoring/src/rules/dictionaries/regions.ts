@@ -18,6 +18,14 @@ export const REGION_KEYS = [
   "MENA",
   "NORTH_AFRICA",
   "CENTRAL_AFRICA",
+  // 2026-10-08 (regions-v2): names owners type into the research builder.
+  "SOUTH_ASIA",
+  "CENTRAL_ASIA",
+  "AFRICA",
+  "GCC",
+  "CIS",
+  "WESTERN_EUROPE",
+  "EASTERN_EUROPE",
 ] as const;
 
 export type RegionKey = (typeof REGION_KEYS)[number];
@@ -118,6 +126,14 @@ export const REGION_TO_COUNTRIES: Record<RegionKey, readonly string[]> = {
     "Sweden",
     "Switzerland",
     "United Kingdom",
+    "Serbia",
+    "Ukraine",
+    "Albania",
+    "Bosnia and Herzegovina",
+    "North Macedonia",
+    "Montenegro",
+    "Moldova",
+    "Belarus",
   ],
   NORDICS: ["Denmark", "Finland", "Iceland", "Norway", "Sweden"],
   // German-speaking DACH (used by FlexEnergy: "German-speaking part of Switzerland").
@@ -164,6 +180,11 @@ export const REGION_TO_COUNTRIES: Record<RegionKey, readonly string[]> = {
     "Morocco",
     "Algeria",
     "Tunisia",
+    "Iraq",
+    "Iran",
+    "Libya",
+    "Syria",
+    "Yemen",
   ],
   NORTH_AFRICA: ["Morocco", "Algeria", "Tunisia", "Libya", "Egypt"],
   CENTRAL_AFRICA: [
@@ -175,9 +196,25 @@ export const REGION_TO_COUNTRIES: Record<RegionKey, readonly string[]> = {
     "Gabon",
     "Equatorial Guinea",
   ],
+  SOUTH_ASIA: ["India", "Pakistan", "Bangladesh", "Sri Lanka", "Nepal", "Bhutan", "Maldives"],
+  CENTRAL_ASIA: ["Kazakhstan", "Uzbekistan", "Kyrgyzstan", "Tajikistan", "Turkmenistan"],
+  AFRICA: [
+    "Egypt", "Morocco", "Algeria", "Tunisia", "Libya", "Nigeria", "Ghana", "Kenya", "Ethiopia", "Tanzania",
+    "Uganda", "Rwanda", "Senegal", "Ivory Coast", "South Africa", "Cameroon", "Chad", "Gabon",
+  ],
+  GCC: ["Saudi Arabia", "United Arab Emirates", "Qatar", "Kuwait", "Bahrain", "Oman"],
+  CIS: ["Russia", "Ukraine", "Belarus", "Moldova", "Kazakhstan", "Uzbekistan", "Kyrgyzstan", "Tajikistan", "Turkmenistan", "Armenia", "Azerbaijan", "Georgia"],
+  WESTERN_EUROPE: [
+    "Austria", "Belgium", "France", "Germany", "Ireland", "Liechtenstein", "Luxembourg", "Netherlands",
+    "Switzerland", "United Kingdom", "Italy", "Spain", "Portugal",
+  ],
+  EASTERN_EUROPE: [
+    "Poland", "Czechia", "Slovakia", "Hungary", "Romania", "Bulgaria", "Serbia", "Croatia", "Slovenia", "Ukraine",
+    "Belarus", "Moldova", "Albania", "Bosnia and Herzegovina", "North Macedonia", "Montenegro", "Estonia", "Latvia", "Lithuania",
+  ],
 };
 
-export const REGIONS_DICTIONARY_VERSION = "regions-v1";
+export const REGIONS_DICTIONARY_VERSION = "regions-v2";
 
 function isRegionKey(value: string): value is RegionKey {
   return (REGION_KEYS as readonly string[]).includes(value);

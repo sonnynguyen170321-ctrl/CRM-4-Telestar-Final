@@ -42,6 +42,9 @@ export type ResearchBuilderParams = {
   excludeKeywords: string[];
   excludeDomains: string[];
   companySize?: string;
+  // Company kinds this run treats as COMPETITORS (verification rejects them as `competitor:<kind>`), e.g. an
+  // agency ICP lists software_vendor. Read by resolveKindPolicy; the query planner ignores it.
+  competitorKinds?: string[];
   scope?: {
     companyName: string;
     domain?: string;
@@ -134,6 +137,9 @@ export function normalizeResearchBuilderParams(input: unknown): ResearchBuilderP
     excludeDomains: Array.from(
       new Set(splitInput(obj.excludeDomains).map((d) => normalizeDomain(d)).filter((d): d is string => Boolean(d)))
     ).slice(0, 30),
+    ...(Array.isArray(obj.competitorKinds) && obj.competitorKinds.length > 0
+      ? { competitorKinds: uniq(obj.competitorKinds.filter((k): k is string => typeof k === "string")).slice(0, 12) }
+      : {}),
     ...(normalizeTerm(obj.companySize) ? { companySize: normalizeTerm(obj.companySize) as string } : {}),
     ...(scope ? { scope } : {}),
     ...(seed ? { seed } : {}),

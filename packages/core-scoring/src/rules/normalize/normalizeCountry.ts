@@ -19,6 +19,15 @@ const COUNTRY_ALIASES: Record<string, string> = {
   britain: "United Kingdom",
   england: "United Kingdom",
   uae: "United Arab Emirates",
+  // 2026-10-08: spellings the research builder and company sites use. Same keys on the lead side so a
+  // candidate and a lead from "KSA" or "Türkiye" (folded to turkiye) land on the same country.
+  ksa: "Saudi Arabia",
+  "kingdom of saudi arabia": "Saudi Arabia",
+  turkiye: "Turkey",
+  "republic of turkiye": "Turkey",
+  "republic of turkey": "Turkey",
+  "u.a.e": "United Arab Emirates",
+  emirates: "United Arab Emirates",
   "u.a.e.": "United Arab Emirates",
   "hong kong sar": "Hong Kong",
   hongkong: "Hong Kong",

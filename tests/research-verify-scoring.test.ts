@@ -52,11 +52,12 @@ const SAIGON = params({
   titles: ['CTO', 'Head of Engineering'],
 });
 
-type Icp = { rules: IcpVersionRulesV2; policy: KindPolicy };
+type Icp = { rules: IcpVersionRulesV2; policy: KindPolicy; geoGate: boolean; excludeKeywords: string[] };
 
-function icp(p: ResearchBuilderParams, tweak: (rules: IcpVersionRulesV2) => IcpVersionRulesV2 = (r) => r): Icp {
-  const rules = toAccountRules(tweak(builderParamsToRulesV2(p, 'run-1').rules));
-  return { rules, policy: defaultKindPolicy(rules) };
+function icp(p: ResearchBuilderParams, tweak: (rules: IcpVersionRulesV2) => IcpVersionRulesV2 = (r) => r, stored: unknown = null): Icp {
+  const built = builderParamsToRulesV2(p, 'run-1');
+  const rules = toAccountRules(tweak(built.rules));
+  return { rules, policy: resolveKindPolicy(stored, rules), geoGate: built.geoGate, excludeKeywords: built.excludeKeywords };
 }
 
 const stormwall = icp(STORMWALL);
@@ -64,8 +65,10 @@ const stormwall = icp(STORMWALL);
 const saigon = icp(SAIGON, (rules) => ({
   ...rules,
   companyType: { ...rules.companyType, servicesConsultingPolicy: { disqualify: true, exceptMarkets: [] } },
-}));
+}), { competitorKinds: ['services_agency'] });
 const fingermind = icp(FINGERMIND);
+// A run that wants operators only: the one way a software vendor is rejected on its kind alone.
+const fingermindOperators = icp(FINGERMIND, (r) => r, { targetCompanyKinds: ['operator'] });
 
 const classified = (over: Partial<CompanyClassificationInput> = {}): CompanyClassificationInput => ({
   isCompanySite: true,
@@ -85,7 +88,7 @@ const classified = (over: Partial<CompanyClassificationInput> = {}): CompanyClas
 const RIYAD = { name: 'Riyad Bank', domain: 'riyadbank.com' };
 
 const score = (target: Icp, classification: CompanyClassificationInput, candidate = RIYAD, extra: { keywords?: string[] } = {}) =>
-  scoreClassifiedCandidate({ classification, candidate, rules: target.rules, policy: target.policy, rulesKey: 'research:run-1', ...extra });
+  scoreClassifiedCandidate({ classification, candidate, rules: target.rules, policy: target.policy, rulesKey: 'research:run-1', geoGate: target.geoGate, excludeKeywords: target.excludeKeywords, ...extra });
 
 describe('account rules reach qualified without a contact', () => {
   it('qualifies a company that fits every company dimension, though the ICP has persona rules', () => {
@@ -129,7 +132,7 @@ describe('account rules reach qualified without a contact', () => {
     const none = run(classified({ hqCountry: 'France', industryText: 'Mining', industryKey: null, whatTheySell: 'Gold and copper mining' }));
     expect(none.verification).toBe('rejected');
     // A known country outside the targets is rejected before the score is read (research fit gate).
-    expect(none.reason).toBe('outside_target_geo');
+    expect(none.reason).toBe('hq_outside_target');
   });
 });
 
@@ -178,10 +181,10 @@ describe('kind policy matrix', () => {
     ['an association of banks', stormwall, classified({ companyKind: 'association_nonprofit' }), 'rejected', 'company_type:association_nonprofit'],
     ['a school', stormwall, classified({ companyKind: 'education', industryText: 'Education', industryKey: 'EDUCATION' }), 'rejected', 'company_type:education'],
     ['an analyst firm', stormwall, classified({ companyKind: 'research_analyst' }), 'rejected', 'company_type:research_analyst'],
-    ['a job board', stormwall, classified({ companyKind: 'directory_marketplace_jobboard' }), 'rejected', 'company_type:directory_marketplace_jobboard'],
+    ['a job board for an aviation ICP', fingermind, classified({ companyKind: 'directory_marketplace_jobboard' }), 'rejected', 'company_type:directory_marketplace_jobboard'],
     ['a gaming expo', stormwall, classified({ companyKind: 'event', industryText: 'Gaming', industryKey: 'GAMING' }), 'rejected', 'company_type:event'],
-    ['an aviation-software vendor for an MRO ICP', fingermind, classified({ companyKind: 'software_vendor', industryText: 'Aviation software', industryKey: 'SOFTWARE', hqCountry: 'Germany' }), 'rejected', 'company_type:software_vendor'],
-    ['an outsourcing agency for Saigon', saigon, classified({ companyKind: 'services_agency', industryText: 'Software outsourcing', industryKey: 'IT_SERVICES', hqCountry: 'Germany', employeeCount: 120 }), 'rejected', 'company_type:services_agency'],
+    ['an aviation-software vendor for an operators-only run', fingermindOperators, classified({ companyKind: 'software_vendor', industryText: 'Aviation software', industryKey: 'SOFTWARE', hqCountry: 'Germany' }), 'rejected', 'company_type:software_vendor'],
+    ['an outsourcing agency for Saigon (a competitor)', saigon, classified({ companyKind: 'services_agency', industryText: 'Software outsourcing', industryKey: 'IT_SERVICES', hqCountry: 'Germany', employeeCount: 120 }), 'rejected', 'competitor:services_agency'],
     ['a wholesaler for a telecom ICP', stormwall, classified({ companyKind: 'reseller_wholesaler', industryText: 'Telecommunications', industryKey: 'TELECOM' }), 'needs_review', 'company_type_review'],
     ['an unclassified kind', stormwall, classified({ companyKind: null }), 'needs_review', 'company_type_review'],
   ];
@@ -244,14 +247,19 @@ describe('verdict mapping order', () => {
     expect(score(target, classified())).toMatchObject({ verification: 'rejected', reason: 'competitor_denylisted' });
   });
 
-  it('3c. an excluded industry is an explicit exclusion', () => {
+  it('3c. an exclude keyword in the industry text rejects on a word match', () => {
     const target = icp(params({ ...STORMWALL, excludeKeywords: ['banking'] }));
-    expect(score(target, classified())).toMatchObject({ verification: 'rejected', reason: 'industry_excluded' });
+    expect(score(target, classified())).toMatchObject({ verification: 'rejected', reason: 'excluded_keyword:banking' });
+    // 'bank' is not the word 'banking', and a hit only in what they sell is a mention for a person.
+    const bank = icp(params({ ...STORMWALL, excludeKeywords: ['bank'] }));
+    expect(score(bank, classified()).verification).not.toBe('rejected');
+    const mention = icp(params({ ...STORMWALL, excludeKeywords: ['payments'] }));
+    expect(score(mention, classified({ whatTheySell: 'Retail banking and payments' }))).toMatchObject({ verification: 'needs_review', reason: 'excluded_keyword_mention' });
   });
 
   it('4. wrong industry AND wrong country: the known country rejects it before the score is read', () => {
     const result = score(stormwall, classified({ hqCountry: 'France', industryText: 'Mining', industryKey: null, whatTheySell: 'Gold and copper mining' }));
-    expect(result).toMatchObject({ verification: 'rejected', reason: 'outside_target_geo' });
+    expect(result).toMatchObject({ verification: 'rejected', reason: 'hq_outside_target' });
     expect(result.fitScore).toBeLessThan(stormwall.rules.scorePolicy.needsReviewMinFitScore);
   });
 
@@ -338,7 +346,13 @@ describe('the owner ICPs on real-looking candidates', () => {
       classified({ companyKind: 'software_vendor', industryText: 'Aviation software', industryKey: 'SOFTWARE', hqCountry: 'Germany' }),
       { name: 'AircraftCloud', domain: 'aircraftcloud.com' },
     );
-    expect(vendor).toMatchObject({ verification: 'rejected', reason: 'company_type:software_vendor' });
+    expect(vendor.verification).toBe('needs_review');
+    const operatorsOnly = score(
+      fingermindOperators,
+      classified({ companyKind: 'software_vendor', industryText: 'Aviation software', industryKey: 'SOFTWARE', hqCountry: 'Germany' }),
+      { name: 'AircraftCloud', domain: 'aircraftcloud.com' },
+    );
+    expect(operatorsOnly).toMatchObject({ verification: 'rejected', reason: 'company_type:software_vendor' });
   });
 
   it('Saigon Technology: a German bank of 300 staff is a fit; a 30,000-staff bank is off the size range', () => {
@@ -377,7 +391,7 @@ describe('research fit gates: what the company is known to be, it is held to', (
   it('rejects a known headquarters outside the target countries', () => {
     expect(score(stormwall, classified({ hqCountry: 'Brazil' }), { name: 'Banco X', domain: 'bancox.com.br' })).toMatchObject({
       verification: 'rejected',
-      reason: 'outside_target_geo',
+      reason: 'hq_outside_target',
     });
   });
 
@@ -392,14 +406,14 @@ describe('research fit gates: what the company is known to be, it is held to', (
     expect(guessed).toMatchObject({ verification: 'needs_review', reason: 'low_confidence' });
   });
 
-  it('free-text targets (no canonical industry): a confident miss is rejected, a medium one reviewed', () => {
+  it('free-text targets (no canonical industry) never reject on industry, whatever the confidence', () => {
     // FingerMind names "Aviation", "MRO", "CAMO", "Part 145" — none is a canonical industry key.
     const bakery = (confidence: 'high' | 'medium') =>
       score(fingermind, classified({ industryText: 'Bakery', industryKey: 'FNB', whatTheySell: 'Bread and pastries', hqCountry: 'Germany', confidence }), {
         name: 'Backhaus',
         domain: 'backhaus.de',
       });
-    expect(bakery('high')).toMatchObject({ verification: 'rejected', reason: 'industry_not_targeted' });
+    expect(bakery('high')).toMatchObject({ verification: 'needs_review', reason: 'industry_unconfirmed' });
     expect(bakery('medium')).toMatchObject({ verification: 'needs_review', reason: 'industry_unconfirmed' });
   });
 

@@ -9,13 +9,11 @@ import { COMPANY_KINDS } from "../verificationTypes";
 /**
  * "Is this the sort of company the ICP wants?" decided on the company's KIND, before any score.
  * Production returned schools, analyst firms, job boards and software vendors for operator ICPs
- * (owner report, 2026-10-08); a score cannot tell a bank from the association of banks.
+ * (owner report, 2026-10-08). The kind is a classifier's reading, so a rejection needs the ICP to have
+ * said what it wants; otherwise a person looks (review of 2026-10-08: false rejects hide real prospects).
  */
 
-const rulesFor = (
-  targets: string[],
-  over: { disqualifyServices?: boolean; exceptMarkets?: string[] } = {},
-): IcpVersionRulesV2 => {
+const rulesFor = (targets: string[], over: { disqualifyServices?: boolean; exceptMarkets?: string[] } = {}): IcpVersionRulesV2 => {
   const rules = emptyIcpRulesV2("t", "t");
   return {
     ...rules,
@@ -26,6 +24,8 @@ const rulesFor = (
     },
   };
 };
+
+const SECTORLESS = ["association_nonprofit", "government", "education", "media_news", "research_analyst", "event"] as const;
 
 describe("defaultKindPolicy", () => {
   const STORMWALL = rulesFor(["ISP", "Telecom", "Banking", "E-commerce", "Gaming"]);
@@ -43,30 +43,20 @@ describe("defaultKindPolicy", () => {
     }
   });
 
-  it("rejects software vendors unless the ICP targets software-side industries", () => {
-    expect(defaultKindPolicy(FINGERMIND).software_vendor).toBe("reject");
-    expect(defaultKindPolicy(STORMWALL).software_vendor).toBe("reject");
+  it("never rejects a software vendor by default: accepted for a software ICP, otherwise reviewed", () => {
+    expect(defaultKindPolicy(FINGERMIND).software_vendor).toBe("review");
+    expect(defaultKindPolicy(STORMWALL).software_vendor).toBe("review");
+    expect(defaultKindPolicy(rulesFor([])).software_vendor).toBe("review");
     expect(defaultKindPolicy(SOFTWARE_ICP).software_vendor).toBe("accept");
     expect(defaultKindPolicy(rulesFor(["Cloud hosting"])).software_vendor).toBe("accept");
-    expect(defaultKindPolicy(rulesFor(["IT services"])).software_vendor).toBe("accept");
   });
 
-  it("sends vendors to review, not rejection, when the ICP names no industry at all", () => {
-    // Nothing says whether a vendor is wanted; a person decides rather than the engine guessing.
-    expect(defaultKindPolicy(rulesFor([])).software_vendor).toBe("review");
-  });
-
-  it("rejects services agencies when the ICP disqualifies them, accepts them when it targets services", () => {
-    expect(defaultKindPolicy(SAIGON).services_agency).toBe("reject");
+  it("services agencies: accepted when the ICP targets services, otherwise reviewed, never rejected by default", () => {
     expect(defaultKindPolicy(rulesFor(["IT services"])).services_agency).toBe("accept");
     expect(defaultKindPolicy(rulesFor(["Marketing"])).services_agency).toBe("accept");
     expect(defaultKindPolicy(STORMWALL).services_agency).toBe("review");
-  });
-
-  it("only reviews a disqualified services agency when an exception market exists", () => {
-    expect(defaultKindPolicy(rulesFor(["Banking"], { disqualifyServices: true, exceptMarkets: ["Vietnam"] })).services_agency).toBe(
-      "review",
-    );
+    // The services gate in the rules judges a disqualifying policy; the kind alone does not.
+    expect(defaultKindPolicy(SAIGON).services_agency).toBe("review");
   });
 
   it("reviews wholesalers, but rejects them for producer-sector ICPs", () => {
@@ -76,15 +66,13 @@ describe("defaultKindPolicy", () => {
     expect(defaultKindPolicy(rulesFor(["FMCG", "Retail"])).reseller_wholesaler).toBe("review");
   });
 
-  it.each(["association_nonprofit", "government", "education", "media_news", "directory_marketplace_jobboard", "research_analyst", "event"] as const)(
-    "rejects %s for an operator ICP",
-    (kind) => {
-      expect(defaultKindPolicy(STORMWALL)[kind]).toBe("reject");
-      expect(defaultKindPolicy(FINGERMIND)[kind]).toBe("reject");
-    },
-  );
+  it.each(SECTORLESS)("%s: rejected when the ICP names industries without that sector, reviewed when it names none", (kind) => {
+    expect(defaultKindPolicy(STORMWALL)[kind]).toBe("reject");
+    expect(defaultKindPolicy(FINGERMIND)[kind]).toBe("reject");
+    expect(defaultKindPolicy(rulesFor([]))[kind]).toBe("review");
+  });
 
-  it("accepts a sector kind only when the ICP targets that sector", () => {
+  it("accepts a sector kind when the ICP targets that sector", () => {
     expect(defaultKindPolicy(rulesFor(["Education"])).education).toBe("accept");
     expect(defaultKindPolicy(rulesFor(["Government"])).government).toBe("accept");
     expect(defaultKindPolicy(rulesFor(["Media"])).media_news).toBe("accept");
@@ -92,8 +80,13 @@ describe("defaultKindPolicy", () => {
   });
 
   it("does not let a gaming ICP accept a gaming EVENT", () => {
-    // 'Kingdom of Gaming' is a conference. Its industry text says gaming; its kind says event.
     expect(defaultKindPolicy(rulesFor(["Gaming"])).event).toBe("reject");
+  });
+
+  it("marketplaces are e-commerce operators: reviewed for an e-commerce or retail ICP, rejected otherwise", () => {
+    expect(defaultKindPolicy(STORMWALL).directory_marketplace_jobboard).toBe("review");
+    expect(defaultKindPolicy(rulesFor(["Retail"])).directory_marketplace_jobboard).toBe("review");
+    expect(defaultKindPolicy(FINGERMIND).directory_marketplace_jobboard).toBe("reject");
   });
 });
 
@@ -106,7 +99,7 @@ describe("resolveKindPolicy", () => {
     expect(resolveKindPolicy("junk", rules)).toEqual(defaultKindPolicy(rules));
   });
 
-  it("treats a stored kind list as the only kinds to accept", () => {
+  it("treats a stored kind list as the only kinds to accept; this is the only way a vendor is rejected by kind", () => {
     const policy = resolveKindPolicy({ targetCompanyKinds: ["operator", "services_agency"] }, rules);
     expect(policy.operator).toBe("accept");
     expect(policy.services_agency).toBe("accept");
@@ -124,5 +117,12 @@ describe("resolveKindPolicy", () => {
     expect(policy.software_vendor).toBe("accept");
     expect(policy.operator).toBe("accept");
     expect(policy.education).toBe("reject");
+  });
+
+  it("marks competitor kinds, e.g. agencies for Dpoint or MSPs for 1CloudHub", () => {
+    const policy = resolveKindPolicy({ competitorKinds: ["services_agency", "bogus"] }, rules);
+    expect(policy.services_agency).toBe("competitor");
+    expect(policy.operator).toBe("accept");
+    expect(resolveKindPolicy({ competitorKinds: "services_agency" }, rules)).toEqual(defaultKindPolicy(rules));
   });
 });

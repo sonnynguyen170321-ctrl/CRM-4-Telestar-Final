@@ -21,37 +21,86 @@ export type BuilderRules = {
   rules: IcpVersionRulesV2;
   /** Builder entries that could not be placed (an unrecognised geography); shown, never dropped silently. */
   warnings: string[];
+  /**
+   * Whether a known headquarters outside the target countries may reject a candidate. False when any
+   * geography could not be placed (a rejection against a PARTIAL country list would delete real prospects),
+   * or when the builder said Worldwide/Global.
+   */
+  geoGate: boolean;
+  /** Builder exclude keywords. Not engine rules: a substring there is terminal (see verifyScoring). */
+  excludeKeywords: string[];
 };
+
+type RegionKey = (typeof REGION_KEYS)[number];
 
 const KNOWN_COUNTRIES: ReadonlySet<string> = new Set(
   Object.values(REGION_TO_COUNTRIES).flatMap((countries) => countries.map((country) => foldText(country))),
 );
 
 // What people type for a region that is not a dictionary key. Folded, so diacritics and case do not matter.
-const REGION_ALIASES: Record<string, (typeof REGION_KEYS)[number]> = {
-  "middle east": "MENA",
-  "middle east and north africa": "MENA",
-  "southeast asia": "SEA",
-  "south east asia": "SEA",
-  asean: "SEA",
-  "asia pacific": "APAC",
-  "asia-pacific": "APAC",
-  "european union": "EU",
-  nordic: "NORDICS",
-  dach: "GERMAN_SPEAKING",
-  "latin america": "LATAM",
-  "north america": "NORTH_AMERICA",
-  "south america": "SOUTH_AMERICA",
-  "north africa": "NORTH_AFRICA",
+// A name may stand for several keys: "Asia" is East, South-East, South and Central Asia.
+const REGION_ALIASES: Record<string, readonly RegionKey[]> = {
+  "middle east": ["MENA"],
+  "middle east and north africa": ["MENA"],
+  "southeast asia": ["SEA"],
+  "south east asia": ["SEA"],
+  asean: ["SEA"],
+  asia: ["APAC", "SOUTH_ASIA", "CENTRAL_ASIA"],
+  "asia pacific": ["APAC"],
+  "asia-pacific": ["APAC"],
+  "european union": ["EU"],
+  nordic: ["NORDICS"],
+  dach: ["GERMAN_SPEAKING"],
+  "latin america": ["LATAM"],
+  "north america": ["NORTH_AMERICA"],
+  "south america": ["SOUTH_AMERICA"],
+  "north africa": ["NORTH_AFRICA"],
+  africa: ["AFRICA"],
+  gcc: ["GCC"],
+  gulf: ["GCC"],
+  "persian gulf": ["GCC"],
+  cis: ["CIS"],
+  "western europe": ["WESTERN_EUROPE"],
+  "eastern europe": ["EASTERN_EUROPE"],
 };
 
-// Country spellings the engine's alias table does not know. "Türkiye" is the official name and what
-// Stormwall's Turkish prospects write; without this it reads as an unknown country.
-const COUNTRY_ALIASES: Record<string, string> = {
-  turkiye: "Turkey",
-  ksa: "Saudi Arabia",
-  "kingdom of saudi arabia": "Saudi Arabia",
+// No geography constraint at all.
+const UNCONSTRAINED_GEOS: ReadonlySet<string> = new Set(["worldwide", "global", "anywhere", "international", "world"]);
+
+// ISO 3166-1 alpha-2 codes for the countries the dictionaries know.
+const ISO2: Record<string, string> = {
+  nz: "New Zealand", de: "Germany", au: "Australia", sg: "Singapore", vn: "Vietnam", ae: "United Arab Emirates",
+  sa: "Saudi Arabia", tr: "Turkey", eg: "Egypt", id: "Indonesia", in: "India", ma: "Morocco", my: "Malaysia",
+  th: "Thailand", ph: "Philippines", jp: "Japan", kr: "South Korea", cn: "China", hk: "Hong Kong", tw: "Taiwan",
+  gb: "United Kingdom", fr: "France", it: "Italy", es: "Spain", pt: "Portugal", nl: "Netherlands", be: "Belgium",
+  at: "Austria", ch: "Switzerland", se: "Sweden", no: "Norway", dk: "Denmark", fi: "Finland", pl: "Poland",
+  cz: "Czechia", ie: "Ireland", ca: "Canada", mx: "Mexico", br: "Brazil", ar: "Argentina", cl: "Chile",
+  co: "Colombia", pe: "Peru", za: "South Africa", ng: "Nigeria", ke: "Kenya", qa: "Qatar", kw: "Kuwait",
+  bh: "Bahrain", om: "Oman", jo: "Jordan", lb: "Lebanon", il: "Israel", pk: "Pakistan", bd: "Bangladesh",
+  lk: "Sri Lanka", np: "Nepal", ru: "Russia", ua: "Ukraine", kz: "Kazakhstan", us: "United States",
+  uk: "United Kingdom", dz: "Algeria", tn: "Tunisia", iq: "Iraq", ir: "Iran", ro: "Romania", hu: "Hungary",
+  gr: "Greece", rs: "Serbia", bg: "Bulgaria", hr: "Croatia", sk: "Slovakia", si: "Slovenia",
 };
+
+/**
+ * A raw country string as the canonical country name, or null when it cannot be placed.
+ *
+ * One function for both sides of the comparison (the builder's geos and a company's classified HQ), so
+ * "KSA", "Kingdom of Saudi Arabia" and "Riyadh, Saudi Arabia" are one country. A "City, Country" value is
+ * read by its last segment.
+ */
+export function resolveCountry(raw: string | null | undefined): string | null {
+  const text = String(raw ?? "").trim();
+  if (!text) return null;
+  const segments = text.split(",").map((part) => part.trim()).filter(Boolean);
+  for (const candidate of [text, segments[segments.length - 1]]) {
+    if (!candidate) continue;
+    const iso = candidate.length === 2 ? ISO2[foldText(candidate)] : undefined;
+    const country = iso ?? normalizeCountry(candidate);
+    if (country && KNOWN_COUNTRIES.has(foldText(country))) return country;
+  }
+  return null;
+}
 
 const SENIORITY_ALIASES: Record<string, SeniorityTier> = {
   "c-level": "C_LEVEL",
@@ -82,9 +131,18 @@ const uniqueFolded = (values: readonly string[]): string[] => {
   return out;
 };
 
+// "ISP/Telecom", "Banking & Finance", "Telecom and Hosting", "ISP, Gaming" are several industries typed as one.
+// F&B is the one industry whose own name contains an ampersand.
+const FNB_TOKEN = "fnbtoken";
+function splitIndustries(entry: string): string[] {
+  return entry
+    .replace(/\bf\s*&\s*b\b/gi, FNB_TOKEN)
+    .split(/\s*(?:\/|,|;|&|\band\b)\s*/i)
+    .map((part) => (part === FNB_TOKEN ? "F&B" : part));
+}
+
 function industryTargets(industries: readonly string[]): string[] {
-  // "ISP/Telecom" is two industries typed as one. Splitting is what lets each side match.
-  const terms = uniqueFolded(industries.flatMap((entry) => entry.split("/")));
+  const terms = uniqueFolded(industries.flatMap(splitIndustries));
   // The engine matches a company's industry against these as text. A company filed under the canonical
   // key ("Financial services" -> FINANCE) carries that key as a token, not the ICP's wording, so the
   // key is added beside the term rather than relying on the two phrasings coinciding.
@@ -92,28 +150,49 @@ function industryTargets(industries: readonly string[]): string[] {
   return uniqueFolded([...terms, ...keys]);
 }
 
-function resolveGeos(geos: readonly string[]): { countries: string[]; regions: string[]; warnings: string[] } {
+type ResolvedGeos = { countries: string[]; regions: string[]; warnings: string[]; unconstrained: boolean };
+
+function resolveGeos(geos: readonly string[]): ResolvedGeos {
   const countries: string[] = [];
-  const regions: string[] = [];
+  const regions: RegionKey[] = [];
   const warnings: string[] = [];
+  let unconstrained = false;
   for (const geo of uniqueFolded(geos)) {
     const folded = foldText(geo);
-    const regionKey = REGION_ALIASES[folded] ?? REGION_KEYS.find((key) => foldText(key.replace(/_/g, " ")) === folded);
-    if (regionKey) {
-      regions.push(regionKey);
+    if (UNCONSTRAINED_GEOS.has(folded)) {
+      unconstrained = true;
       continue;
     }
-    const country = COUNTRY_ALIASES[folded] ?? normalizeCountry(geo);
-    if (country && KNOWN_COUNTRIES.has(foldText(country))) {
+    const aliased = REGION_ALIASES[folded];
+    const regionKey = REGION_KEYS.find((key) => foldText(key.replace(/_/g, " ")) === folded);
+    if (aliased || regionKey) {
+      regions.push(...(aliased ?? [regionKey as RegionKey]));
+      continue;
+    }
+    const country = resolveCountry(geo);
+    if (country) {
       countries.push(country);
       continue;
     }
     warnings.push(`Geography not recognised and not applied: "${geo}"`);
   }
-  return { countries: uniqueFolded(countries), regions: Array.from(new Set(regions)), warnings };
+  // 'Global' beside a country widens the search rather than narrowing it.
+  if (unconstrained) return { countries: [], regions: [], warnings, unconstrained };
+  return { countries: uniqueFolded(countries), regions: Array.from(new Set(regions)), warnings, unconstrained };
 }
 
-type SizeRange = { min?: number; max?: number; excludeTooSmall?: boolean };
+type SizeRange = { min?: number; max?: number; excludeTooSmall?: boolean; floor?: number };
+
+// A number with thousands grouping ("1,001") or plain digits. A group is NOT thousands when a range follows it:
+// in "51-200,201-500" the "200,201" is two numbers separated by a comma.
+const NUM_START = String.raw`(?:\d{1,3}(?:,\d{3})+|\d+)`;
+const NUM_END = String.raw`(?:\d{1,3}(?:,\d{3})+(?!\s*[-–]\s*\d)|\d+)`;
+const RANGE_RE = new RegExp(String.raw`(${NUM_START})\s*(?:-|–|to)\s*(${NUM_END})`, "gi");
+const PLUS_RE = new RegExp(String.raw`(${NUM_START})\s*\+`, "g");
+const EXCLUDE_RANGE_RE = new RegExp(
+  String.raw`\b(?:exclud\w*|not|without|except)\s+(?:the\s+)?(${NUM_START})\s*(?:-|–|to)\s*(${NUM_END})`,
+  "gi",
+);
 
 function parseNumber(text: string): number {
   return Number(text.replace(/,/g, ""));
@@ -121,27 +200,42 @@ function parseNumber(text: string): number {
 
 function resolveSize(companySize: string | undefined): SizeRange {
   if (!companySize) return {};
-  if (EXCLUDE_TINY_PATTERN.test(companySize)) return { min: MIN_ABOVE_MICRO, excludeTooSmall: true };
+  let text = companySize;
+  let floor: number | undefined;
+
+  // "exclude 1-10" / "not 1-10": nothing at or below the top of that range.
+  for (const match of text.matchAll(EXCLUDE_RANGE_RE)) floor = Math.max(floor ?? 0, parseNumber(match[2]) + 1);
+  text = text.replace(EXCLUDE_RANGE_RE, " ");
+  if (EXCLUDE_TINY_PATTERN.test(text)) {
+    floor = Math.max(floor ?? 0, MIN_ABOVE_MICRO);
+    text = text.replace(EXCLUDE_TINY_PATTERN, " ");
+  }
 
   // "51-200, 201-500, 501-1000" or "2-500" or "1,001+": the span the listed ranges cover together.
   const lows: number[] = [];
   const highs: number[] = [];
   let openEnded = false;
-  for (const match of companySize.matchAll(/(\d[\d,]*)\s*(?:-|–|to)\s*(\d[\d,]*)/gi)) {
+  for (const match of text.matchAll(RANGE_RE)) {
     lows.push(parseNumber(match[1]));
     highs.push(parseNumber(match[2]));
   }
-  for (const match of companySize.matchAll(/(\d[\d,]*)\s*\+/g)) {
+  for (const match of text.matchAll(PLUS_RE)) {
     lows.push(parseNumber(match[1]));
     openEnded = true;
   }
   if (lows.length > 0) {
-    return { min: Math.min(...lows), ...(openEnded ? {} : { max: Math.max(...highs) }) };
+    const min = Math.min(...lows);
+    return {
+      min: floor !== undefined ? Math.max(floor, min) : min,
+      ...(openEnded ? {} : { max: Math.max(...highs) }),
+      ...(floor !== undefined ? { excludeTooSmall: true, floor } : {}),
+    };
   }
+  if (floor !== undefined) return { min: floor, excludeTooSmall: true, floor };
 
   // Words ("SME", "Enterprise"): the bands the phrase names, each phrase read by the engine's own
   // qualitative mapping so a size means the same thing here as on a lead.
-  const bands = companySize
+  const bands = text
     .split(/[,;/]+/)
     .map((phrase) => normalizeSize(null, phrase).sizeBand)
     .filter((band): band is NonNullable<typeof band> => band !== null);
@@ -166,7 +260,8 @@ function seniorityFloor(seniority: readonly string[]): SeniorityTier | undefined
 }
 
 /**
- * The builder's fields as schema-v2 rules.
+ * The builder's fields as schema-v2 rules. Builder runs never set `pointRules` (that mode only exists on
+ * saved ICPs), which is why `toAccountRules` handles it and this function never produces it.
  *
  * Keywords are deliberately NOT mapped: `industryKeywords` moves the industry and signals scores, so a
  * keyword would change a candidate's band. The owner's rule is that keywords rank and never gate; they
@@ -189,7 +284,8 @@ export function builderParamsToRulesV2(params: ResearchBuilderParams, runId: str
       ...base.industry,
       mode: targetIndustries.length > 0 ? "allowlist" : "all",
       targetIndustries,
-      excludedIndustries: uniqueFolded(params.excludeKeywords),
+      // Exclude keywords are NOT mapped here: the engine matches this list as a terminal substring ("bank"
+      // would exclude "Bankruptcy software"). verifyScoring matches them on word boundaries instead.
     },
     persona: { ...base.persona, titleAllowlist: titles, ...(floor ? { seniorityFloor: floor } : {}) },
     size: {
@@ -203,12 +299,18 @@ export function builderParamsToRulesV2(params: ResearchBuilderParams, runId: str
       // "Exclude very small" is an exclusion, not a preference: a weighted size score alone lets a
       // three-person shop through on geography and industry. The engine's headcount gate is fatal
       // only when the headcount is known, so an unknown size still goes to review.
-      ...(size.excludeTooSmall && size.min !== undefined ? { onePersonCompany: { disqualify: true, threshold: size.min } } : {}),
+      ...(size.floor !== undefined ? { onePersonCompany: { disqualify: true, threshold: size.floor } } : {}),
       competitorDenylist: uniqueFolded(params.excludeDomains.map(excludedDomainEntry)),
     },
   };
 
-  return { rules: validateIcpVersionRulesV2(candidate), warnings: geos.warnings };
+  const hasGeo = geos.countries.length > 0 || geos.regions.length > 0;
+  return {
+    rules: validateIcpVersionRulesV2(candidate),
+    warnings: geos.warnings,
+    geoGate: hasGeo && geos.warnings.length === 0 && !geos.unconstrained,
+    excludeKeywords: uniqueFolded(params.excludeKeywords),
+  };
 }
 
 /**
@@ -288,7 +390,10 @@ export function classificationToEvidence(
   candidate: CandidateFacts,
   site?: SiteFacts,
 ): RawScoringEvidence {
-  const industry = safeAlias(classification.industryKey) ?? classification.industryText ?? undefined;
+  // Free text is a TAG, never the raw industry: the engine canonicalises raw industry by substring, which files
+  // "LED display" under ISP ("isp") and "lead generation" under ADVERTISING ("ads"). Only a classified key,
+  // through its alias, is handed over as the industry.
+  const industry = safeAlias(classification.industryKey) ?? undefined;
   const evidenceText = [classification.industryText, classification.whatTheySell].filter(Boolean).join(" ");
   return {
     company: {
@@ -296,7 +401,7 @@ export function classificationToEvidence(
       ...(candidate.domain ? { domain: candidate.domain } : {}),
       ...(industry ? { industry } : {}),
       ...(classification.industryText ? { industryTags: [classification.industryText] } : {}),
-      ...(classification.hqCountry ? { country: classification.hqCountry } : {}),
+      ...(classification.hqCountry ? { country: resolveCountry(classification.hqCountry) ?? classification.hqCountry } : {}),
       ...(classification.employeeCount != null ? { employeeCount: classification.employeeCount } : {}),
       ...(classification.employeeCount == null && classification.employeeBand
         ? { employeeRange: classification.employeeBand.toLowerCase().replace(/_/g, " ") }

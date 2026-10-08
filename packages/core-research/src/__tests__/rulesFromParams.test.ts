@@ -101,7 +101,7 @@ describe("builderParamsToRulesV2", () => {
       params({ excludeKeywords: ["gambling"], excludeDomains: ["https://www.rival.com/x"] }),
       "r",
     );
-    expect(rules.industry.excludedIndustries).toEqual(["gambling"]);
+    expect(rules.industry.excludedIndustries).toEqual([]);
     expect(rules.disqualifiers.competitorDenylist).toEqual(["rival.com"]);
   });
 
@@ -246,10 +246,10 @@ describe("classificationToEvidence", () => {
     expect(company.industryTags).toEqual(["Restaurant group"]);
   });
 
-  it("falls back to the free text for a key with no alias, and omits industry when there is neither", () => {
-    expect(classificationToEvidence(classification({ industryKey: "OTHER", industryText: "Aircraft MRO" }), candidate).company.industry).toBe(
-      "Aircraft MRO",
-    );
+  it("keeps free text as a tag only (never the raw industry), and omits industry when there is neither", () => {
+    const ot = classificationToEvidence(classification({ industryKey: "OTHER", industryText: "Aircraft MRO" }), candidate).company;
+    expect(ot.industry).toBeUndefined();
+    expect(ot.industryTags).toEqual(["Aircraft MRO"]);
     const none = classificationToEvidence(classification({ industryKey: null, industryText: null }), candidate).company;
     expect(none.industry).toBeUndefined();
     expect(none.industryTags).toBeUndefined();

@@ -25,3 +25,4 @@ export * from "./classifyPrompt";
 export * from "./groundClassification";
 export * from "./rulesFromParams";
 export * from "./targetPolicy";
+export * from "./fitJudge";
