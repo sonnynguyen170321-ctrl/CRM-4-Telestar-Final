@@ -4050,6 +4050,7 @@ model ResearchCandidate {
   @@index([tenantId, runId, status])
   @@index([tenantId, runId, fitScore])
   @@index([tenantId, runId, verification])
+  @@index([tenantId, classificationId])
 }
 
 /// What a company is, read from its own evidence (search highlight, then homepage/about when thin) —

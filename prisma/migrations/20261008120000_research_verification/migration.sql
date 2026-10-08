@@ -64,6 +64,9 @@ CREATE UNIQUE INDEX "ResearchDomainClassification_tenantId_canonicalDomain_class
 -- CreateIndex
 CREATE INDEX "ResearchCandidate_tenantId_runId_verification_idx" ON "ResearchCandidate"("tenantId", "runId", "verification");
 
+-- CreateIndex (the foreign key's own index: deleting a cached classification sets this column to null)
+CREATE INDEX "ResearchCandidate_tenantId_classificationId_idx" ON "ResearchCandidate"("tenantId", "classificationId");
+
 -- AddForeignKey
 ALTER TABLE "ResearchCandidate" ADD CONSTRAINT "ResearchCandidate_classificationId_tenantId_fkey" FOREIGN KEY ("classificationId", "tenantId") REFERENCES "ResearchDomainClassification"("id", "tenantId") ON DELETE SET NULL ("classificationId") ON UPDATE CASCADE;
 
