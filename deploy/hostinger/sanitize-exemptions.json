@@ -29,6 +29,12 @@
     },
     "TelephonyCredential": {
       "providerCredentialId": "The telephony provider's opaque id for a rep's softphone credential, not a person's identifier. It is useless without the provider API key, which never goes into a dump, and keeping it lets credential bugs reproduce locally."
+    },
+    "ResearchCandidate": {
+      "verifyClaimToken": "A random cuid marking which verify slice holds the row, cleared when the slice finishes. Not a credential and not about any person; matched only because the name contains 'Token'."
+    },
+    "ResearchDomainClassification": {
+      "claimToken": "Same: a random cuid claim on a classification job, not a credential. The table describes public companies (kind, industry, HQ country, size) read from their own websites, not people."
     }
   }
 }
