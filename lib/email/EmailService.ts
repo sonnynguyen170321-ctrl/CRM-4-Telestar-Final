@@ -66,6 +66,8 @@ export interface InboxMessage {
    * moves by this, never by `date`, which is the sender's own `Date:` header and can be anything.
    */
   receivedAt?: Date;
+  /** The id this message was stored under before the adapter changed its id format, if any. */
+  legacyProviderMessageId?: string;
 }
 
 

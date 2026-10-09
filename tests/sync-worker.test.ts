@@ -25,6 +25,8 @@ const mockEnrollmentUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 const mockHandoff = vi.fn();
 
 const mockInboundUpdate = vi.fn();
+const mockInboundUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+const mockInboundFindFirst = vi.fn().mockResolvedValue(null);
 const mockClassifyReply = vi.fn();
 const mockApplyClassification = vi.fn();
 
@@ -62,6 +64,8 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: (...args: unknown[]) => mockInboundFindUnique(...args),
       create: (...args: unknown[]) => mockInboundCreate(...args),
       update: (...args: unknown[]) => mockInboundUpdate(...args),
+      updateMany: (...args: unknown[]) => mockInboundUpdateMany(...args),
+      findFirst: (...args: unknown[]) => mockInboundFindFirst(...args),
     },
     outboundMessage: {
       findFirst: (...args: unknown[]) => mockOutboundFindFirst(...args),
@@ -462,6 +466,25 @@ describe('handleApplyBounce', () => {
   });
 
   // --- P0 deliverability data capture ---
+
+  // Review finding, 2026-10-09: a step sent after the bounce but before the sync read it was the one
+  // marked bounced. The send a bounce answers is the latest one before the bounce arrived.
+  it('marks the send the bounce answers — the latest before it arrived — with the bounce time', async () => {
+    mockLeadFindUnique.mockResolvedValue(baseLead);
+    mockSuppressionFindFirst.mockResolvedValue(null);
+    mockOutboundFindFirst.mockResolvedValue({ id: 'out-step1' });
+    const receivedAt = '2026-10-08T03:10:00.000Z';
+
+    await handleApplyBounce({ providerMessageId: 'msg-1', leadId: 'lead-1', accountId: 'acct-1', bounceType: 'hard', receivedAt });
+
+    expect(mockOutboundFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { accountId: 'acct-1', to: { equals: 'john@acme.com', mode: 'insensitive' }, status: 'sent', sentAt: { lte: new Date(receivedAt) } },
+    }));
+    expect(mockOutboundUpdate).toHaveBeenCalledWith({
+      where: { id: 'out-step1' },
+      data: { status: 'bounced', bouncedAt: new Date(receivedAt), bounceType: 'hard' },
+    });
+  });
 
   it('flips the originating send to bounced so bounce rate is computable', async () => {
     mockLeadFindUnique.mockResolvedValue(baseLead);
@@ -924,6 +947,72 @@ describe('handleEmailSync', () => {
 
   // A sequence sends only from its chosen sender mailboxes, which are often not the lead
   // holder's. Replies and bounces landing there matched no lead, so the cadence kept going.
+  // Review finding, 2026-10-09: the apply loops ran over every message read, stored before or not.
+  // The cursor backs up a second and a re-read covers old mail, so a stored bounce was acted on again —
+  // a second notification to the rep, and a later send marked bounced.
+  describe('acting only on what this run stores', () => {
+    const dsn = { providerMessageId: 'gmail-dsn-1', fromEmail: 'mailer-daemon@googlemail.com', subject: 'Delivery Status Notification (Failure)', date: new Date() };
+    const lead = { id: 'lead-1', email: 'lead@acme.com', sequenceId: 'seq-1', sequenceStatus: 'active', emailInvalid: false, assignedToId: 'user-1', tenantId: 'tenant-1', tags: [] };
+
+    const arrange = () => {
+      mockAccountFindUnique.mockResolvedValue(mockAccount);
+      (EmailService.fromAccount as ReturnType<typeof vi.fn>).mockResolvedValue({ fetchMessagesSince: vi.fn().mockResolvedValue([dsn]) });
+      (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(true);
+      (extractBouncedRecipient as ReturnType<typeof vi.fn>).mockReturnValue('lead@acme.com');
+      mockLeadFindMany.mockResolvedValue([lead]);
+      mockLeadFindUnique.mockResolvedValue(lead);
+      mockSuppressionFindFirst.mockResolvedValue(null);
+    };
+
+    it('does not act again on a bounce stored and placed by an earlier run', async () => {
+      arrange();
+      mockInboundFindUnique.mockResolvedValue({ id: 'in-1', leadId: 'lead-1' });
+
+      const result = await handleEmailSync({ accountId: 'acct-1' });
+
+      expect(result).toMatchObject({ bounces: 0 });
+      expect(mockNotificationCreate).not.toHaveBeenCalled();
+      expect(mockSuppressionCreate).not.toHaveBeenCalled();
+      expect(mockInboundUpdateMany).not.toHaveBeenCalled();
+    });
+
+    // The case before #257: the bounce was stored with no lead and nothing ever acted on it.
+    it('acts once on a stored bounce it can now place with a lead', async () => {
+      arrange();
+      mockInboundFindUnique.mockResolvedValue({ id: 'in-1', leadId: null });
+
+      const result = await handleEmailSync({ accountId: 'acct-1' });
+
+      expect(mockInboundUpdateMany).toHaveBeenCalledWith({ where: { id: 'in-1', leadId: null }, data: { leadId: 'lead-1', isReply: false } });
+      expect(result).toMatchObject({ bounces: 1 });
+      expect(mockSuppressionCreate).toHaveBeenCalled();
+    });
+
+    it('leaves a stored bounce alone when another run placed it first', async () => {
+      arrange();
+      mockInboundFindUnique.mockResolvedValue({ id: 'in-1', leadId: null });
+      mockInboundUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+      expect(await handleEmailSync({ accountId: 'acct-1' })).toMatchObject({ bounces: 0 });
+    });
+
+    // IMAP stored the bare UID, which two mailboxes share.
+    it('recognises a message stored under the id its adapter used before', async () => {
+      arrange();
+      (EmailService.fromAccount as ReturnType<typeof vi.fn>).mockResolvedValue({
+        fetchMessagesSince: vi.fn().mockResolvedValue([{ ...dsn, providerMessageId: 'imap:mei@nekko.tech:7:123', legacyProviderMessageId: '123' }]),
+      });
+      mockInboundFindUnique.mockResolvedValue(null);
+      mockInboundFindFirst.mockResolvedValueOnce({ id: 'in-legacy', leadId: 'lead-1' });
+
+      const result = await handleEmailSync({ accountId: 'acct-1' });
+
+      expect(mockInboundFindFirst).toHaveBeenCalledWith({ where: { providerMessageId: '123', accountId: 'acct-1' }, select: { id: true, leadId: true } });
+      expect(mockInboundCreate).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ bounces: 0 });
+    });
+  });
+
   describe("a sender mailbox that is not the lead holder's", () => {
     const senderMailbox = { ...mockAccount, id: 'acct-tl', userId: 'team-lead-1', email: 'mei@nekko.tech' };
     const sdrLead = {

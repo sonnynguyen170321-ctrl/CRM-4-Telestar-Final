@@ -156,6 +156,8 @@ export interface EmailApplyBouncePayload {
   leadId: string;
   accountId: string;
   bounceType: 'hard' | 'soft';
+  /** When the bounce arrived (ISO). The send it answers is the latest one before this. */
+  receivedAt?: string;
 }
 
 export type ImportResolution = 'skip' | 'update' | 'import';

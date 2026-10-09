@@ -161,6 +161,9 @@ type ClassifiedMessage = {
   lead: MatchedLead | undefined;
 };
 
+/** An ISO time, or nothing for a missing or unparseable date (a sender's Date: header can be anything). */
+const validIso = (at: Date | undefined | null) => (at && !Number.isNaN(at.getTime()) ? at.toISOString() : undefined);
+
 /** Postgres text cannot hold NUL; a message containing one would be refused on every retry. */
 const stripNul = (value: string) => value.replace(/\u0000/g, '');
 
@@ -231,17 +234,41 @@ async function handleEmailSync(payload: EmailSyncPayload) {
   // historical bounce rate impossible to reconstruct. Mail from anyone who is not a lead —
   // newsletters, colleagues, personal mail — is not stored (owner, 2026-10-07: it filled the
   // unified inbox, and it is not the CRM's to keep). It stays in the mailbox itself.
+  //
+  // Only what this run stores — or a stored message it can now place with a lead — is acted on. A
+  // run reads some messages twice (the cursor backs up a second; a re-read covers old mail), and
+  // acting on a stored bounce again re-notified the rep and marked a later send bounced.
   let unsaved = 0;
+  const toApply = new Set<string>();
   for (const c of classified) {
     if (!c.msg.fromEmail) continue;
     if (!c.isBounce && !c.lead) continue;
 
     try {
-      const exists = await prisma.inboundMessage.findUnique({
-        where: { providerMessageId: c.msg.providerMessageId },
-        select: { id: true },
-      });
-      if (exists) continue;
+      const exists =
+        (await prisma.inboundMessage.findUnique({
+          where: { providerMessageId: c.msg.providerMessageId },
+          select: { id: true, leadId: true },
+        })) ??
+        // The id an adapter used before (IMAP stored the bare UID, which collides across mailboxes).
+        (c.msg.legacyProviderMessageId
+          ? await prisma.inboundMessage.findFirst({
+              where: { providerMessageId: c.msg.legacyProviderMessageId, accountId },
+              select: { id: true, leadId: true },
+            })
+          : null);
+      if (exists) {
+        // Stored with no lead — a bounce or reply the matching of the time could not place. It can
+        // now: attach it and act on it, once (the claim is conditional on the lead still being unset).
+        if (!exists.leadId && c.lead) {
+          const claimed = await prisma.inboundMessage.updateMany({
+            where: { id: exists.id, leadId: null },
+            data: { leadId: c.lead.id, isReply: c.isReply },
+          });
+          if (claimed.count === 1) toApply.add(c.msg.providerMessageId);
+        }
+        continue;
+      }
 
       await prisma.inboundMessage.create({
         data: {
@@ -264,6 +291,7 @@ async function handleEmailSync(payload: EmailSyncPayload) {
           tenantId: account.tenantId,
         },
       });
+      toApply.add(c.msg.providerMessageId);
     } catch (saveErr) {
       // Another sync of the same mailbox stored it between our check and our insert: fine.
       if (saveErr instanceof Prisma.PrismaClientKnownRequestError && saveErr.code === 'P2002') continue;
@@ -285,6 +313,7 @@ async function handleEmailSync(payload: EmailSyncPayload) {
 
   for (const c of classified) {
     if (!c.isBounce || !c.lead) continue;
+    if (!toApply.has(c.msg.providerMessageId)) continue;
     if (c.lead.emailInvalid) continue;
 
     await handleApplyBounce({
@@ -292,12 +321,14 @@ async function handleEmailSync(payload: EmailSyncPayload) {
       leadId: c.lead.id,
       accountId,
       bounceType: c.bounceType ?? 'hard',
+      receivedAt: validIso(c.msg.receivedAt ?? c.msg.date),
     });
     bounces++;
   }
 
   for (const c of classified) {
     if (c.isBounce || !c.lead) continue;
+    if (!toApply.has(c.msg.providerMessageId)) continue;
     // Auto-responders reach the same chokepoint as ordinary replies (Phase 8b). They are stored
     // with `isReply: false`, so reply-rate reporting is untouched, but they still have to pause a
     // cadence and record why — and routing them anywhere else would be the second inbound
@@ -513,15 +544,24 @@ export async function handleApplyBounce(payload: EmailApplyBouncePayload) {
   // Mark the originating send before the already-invalid guard below: a second
   // send that also bounces still needs its own row flipped, and only messages
   // still in 'sent' are selected so re-running cannot double-count.
+  // The send this bounce answers: the latest one before it arrived. Without the bound, a step sent
+  // after the bounce but before the sync read it was the one marked bounced.
+  const arrivedAt = payload.receivedAt ? new Date(payload.receivedAt) : null;
+  const bounceTime = arrivedAt && !Number.isNaN(arrivedAt.getTime()) ? arrivedAt : null;
   const originating = await prisma.outboundMessage.findFirst({
-    where: { accountId, to: { equals: lead.email, mode: 'insensitive' }, status: 'sent' },
+    where: {
+      accountId,
+      to: { equals: lead.email, mode: 'insensitive' },
+      status: 'sent',
+      ...(bounceTime ? { sentAt: { lte: bounceTime } } : {}),
+    },
     orderBy: { sentAt: 'desc' },
     select: { id: true },
   });
   if (originating) {
     await prisma.outboundMessage.update({
       where: { id: originating.id },
-      data: { status: 'bounced', bouncedAt: new Date(), bounceType },
+      data: { status: 'bounced', bouncedAt: bounceTime ?? new Date(), bounceType },
     });
   }
 

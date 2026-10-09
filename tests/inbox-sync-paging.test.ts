@@ -25,8 +25,29 @@ vi.mock('googleapis', () => ({
 }));
 vi.mock('@/lib/crypto', () => ({ encrypt: async (v: string) => v, decrypt: async (v: string) => v }));
 
+/** An IMAP inbox: UID → server receipt time. */
+const imapInbox = new Map<number, number>();
+vi.mock('imapflow', () => ({
+  ImapFlow: class {
+    mailbox = { uidValidity: BigInt(7) };
+    async connect() {}
+    async logout() {}
+    async getMailboxLock() { return { release() {} }; }
+    async search() { return [...imapInbox.keys()]; }
+    async *fetch(uids: number[], query: { source?: boolean }) {
+      for (const uid of uids) {
+        yield query.source
+          ? { uid, envelope: { from: [{ address: 'mailer-daemon@mx.example' }], to: [{ address: 'mei@nekko.tech' }], subject: 'Undelivered', date: new Date(0) }, source: 'x' }
+          : { uid, internalDate: new Date(imapInbox.get(uid)!) };
+      }
+    }
+  },
+}));
+vi.mock('mailparser', () => ({ simpleParser: async () => ({ text: 'body', html: '' }) }));
+
 const { GmailAdapter } = await import('@/lib/email/adapters/GmailAdapter');
 const { OutlookAdapter } = await import('@/lib/email/adapters/OutlookAdapter');
+const { ImapAdapter } = await import('@/lib/email/adapters/ImapAdapter');
 const { SYNC_READ_LIMIT, toInboxBatch } = await import('@/lib/email/inboxBatch');
 const { cursorAfter } = await import('@/workers/sync');
 
@@ -120,6 +141,42 @@ describe('Outlook sync paging', () => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify({ value: page, '@odata.nextLink': 'https://graph.example/next' }))));
 
     const batch = await new OutlookAdapter({ accessToken: 't', refreshToken: 'r' } as never).fetchMessagesSince(new Date(T0));
+
+    expect(batch.messages).toHaveLength(SYNC_READ_LIMIT);
+    expect(batch.truncated).toBe(true);
+  });
+});
+
+describe('IMAP sync', () => {
+  const adapter = () => new ImapAdapter({ email: 'Mei@Nekko.tech', password: 'p', imapServer: 'imap.example', imapPort: 993, smtpServer: 's', smtpPort: 465 } as never);
+
+  beforeEach(() => imapInbox.clear());
+
+  it('reads everything since the cursor by server receipt time, oldest first — not the newest 30', async () => {
+    for (let uid = 1; uid <= 80; uid += 1) imapInbox.set(uid, T0 + uid * 1000);
+    imapInbox.set(500, T0 - 60_000); // same day, before the cursor: SEARCH SINCE returns it anyway
+
+    const batch = await adapter().fetchMessagesSince(new Date(T0));
+
+    expect(batch.truncated).toBe(false);
+    expect(batch.messages).toHaveLength(80);
+    expect(batch.messages[0].receivedAt?.getTime()).toBe(T0 + 1000);
+  });
+
+  // UIDs are unique in one mailbox only; the stored id is unique across all of them.
+  it('names a message by mailbox, UIDVALIDITY and UID, and keeps the bare UID as its old id', async () => {
+    imapInbox.set(123, T0 + 1000);
+
+    const [message] = (await adapter().fetchMessagesSince(new Date(T0))).messages;
+
+    expect(message.providerMessageId).toBe('imap:mei@nekko.tech:7:123');
+    expect(message.legacyProviderMessageId).toBe('123');
+  });
+
+  it('stops at the read limit and says so', async () => {
+    for (let uid = 1; uid <= SYNC_READ_LIMIT + 5; uid += 1) imapInbox.set(uid, T0 + uid * 1000);
+
+    const batch = await adapter().fetchMessagesSince(new Date(T0));
 
     expect(batch.messages).toHaveLength(SYNC_READ_LIMIT);
     expect(batch.truncated).toBe(true);
