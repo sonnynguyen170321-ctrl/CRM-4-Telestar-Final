@@ -16,6 +16,26 @@ for isolation, route handlers imported directly.
 
 ---
 
+## Owner decisions, 2026-10-08 — read these first
+
+The phases below were planned for a dialer that also served Vietnam and inbound. The owner narrowed
+it; where a phase disagrees with this list, this list wins.
+
+| Decision | Effect on the plan |
+|---|---|
+| Telnyx stays the provider (Plivo was considered and dropped the same day) | No change to the seam |
+| **Vietnamese numbers are called from the rep's own phone** and logged in the CRM | Done ahead of the dialer: the lead drawer's Call button opens `components/dialer/PhoneCallPanel.tsx` (number, `tel:` QR code, required outcome with the task modal's effects). Phase 5 routes only non-VN numbers to the softphone; VN stays out of `allowedCountries` and the outbound profile |
+| **No inbound** | Phase 6 is not built. `TELNYX_CALL_CONTROL_APP_ID` is still created (the env check expects it) with no number |
+| Caller ID = numbers ported from Bigin; a current Telnyx number is the default meanwhile | Phase 9.2 settings carry the number list (per-country caller ID + default) |
+| Recording on, no spoken notice by default — both manager settings | Phase 7 reads the settings; a notice toggle is added to `TelephonySettings` |
+| **Call any time** | Calling hours 00:00–24:00 every day; the gate then needs no timezone (`isAlwaysOpen`, done ahead). DNC, number and country rules unchanged |
+| Outcome after hangup is required, through the existing logging flow | Unchanged (US3) |
+| **Whole team at once**, no pilot batches | Phase 10 becomes: one manager's live check on production (replaces the D0.5 spike branch, see `TELNYX_SETUP.md` §9), then everyone. GO/NO-GO #2 (concurrency ≥ 40 in writing) still applies |
+| Today the team uses Bigin + MicroSIP | Both keep working until the cut-over; MicroSIP's SIP credentials and `SIP_*` env are removed at the end |
+
+Already removed ahead of Phase 5 (D5.5): `components/CallDialerModal.tsx`, `/api/dialer/config` and the
+`sip.js` dependency — the old modal could not place a call and its route was the shared-password design.
+
 ## Phase 0 — Safety, account, planning
 | ID | Task | Files | Tests | Deps | Owner |
 |---|---|---|---|---|---|

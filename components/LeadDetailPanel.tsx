@@ -29,7 +29,7 @@ import MeetingStatusBadge from '@/components/meetings/MeetingStatusBadge';
 import { PAUSED_REASON_LABELS, normalizePausedReason } from '@/lib/automation/types';
 import dynamic from 'next/dynamic';
 
-const CallDialerModal = dynamic(() => import('@/components/CallDialerModal'), { ssr: false });
+const PhoneCallPanel = dynamic(() => import('@/components/dialer/PhoneCallPanel'), { ssr: false });
 import NextBestActionCard from '@/components/ai/NextBestActionCard';
 import { DrawerNavButtons, useDrawerNavigation } from '@/components/shared/DrawerNavigation';
 import ContactIntelligenceBadge from '@/components/intelligence/ContactIntelligenceBadge';
@@ -233,7 +233,7 @@ function LeadDetailPanelBody({
   animateIn,
   onBusyChange,
 }: Omit<LeadDetailPanelProps, 'siblingIds' | 'onNavigate'> & { animateIn: boolean; onBusyChange: (busy: boolean) => void }) {
-  const { isManager, currentRole } = useAppContext();
+  const { isManager, currentRole, currentUser } = useAppContext();
   const [lead, setLead] = useState<LeadDetail | null>(null);
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -268,31 +268,8 @@ function LeadDetailPanelBody({
   const [logNote, setLogNote] = useState('');
   const [logResponse, setLogResponse] = useState(false);
   const [savingLog, setSavingLog] = useState(false);
+  /** The call-by-phone panel (components/dialer/PhoneCallPanel.tsx). */
   const [showDialer, setShowDialer] = useState(false);
-  /**
-   * Whether this deployment has telephony at all.
-   *
-   * `null` while unknown, so the button is not flashed into a disabled state on first paint. The
-   * readiness call returns no credentials — the dialer asks for those separately, at the moment it
-   * places a call — so opening a lead does not spread the SIP password around.
-   */
-  const [dialerReady, setDialerReady] = useState<{ configured: boolean; missing: string[] } | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch('/api/dialer/config')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!cancelled && data) setDialerReady({ configured: Boolean(data.configured), missing: data.missing ?? [] });
-      })
-      .catch(() => {
-        // Readiness is advisory. If it cannot be determined the button stays enabled and the
-        // dialer reports the real reason, which is better than hiding the feature on a blip.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const [adHocActivities, setAdHocActivities] = useState<Array<{
     id: string; type: string; channel: string; metadata: Record<string, unknown>; createdAt: string;
     user: { firstName: string; lastName: string };
@@ -738,48 +715,21 @@ function LeadDetailPanelBody({
     }
   };
 
-  const handleDialerHangUp = async (notes: string, outcome: string) => {
-    if (!lead) return;
-    try {
-      const typeMap: Record<string, string> = {
-        'Connected - Pitching': 'connected_interested',
-        'Connected - Meeting Booked': 'connected_meeting_booked',
-        'Busy/No Answer': 'no_answer',
-        'Gatekeeper Rejection': 'wrong_number',
-        'Left Voicemail': 'voicemail_left',
-      };
-      
-      const actionValue = typeMap[outcome] || 'no_answer';
-      const generatedDescription = `Outbound call completed. Outcome: ${outcome}${notes ? `: ${notes}` : ''}`;
-      
-      const res = await fetch('/api/activities', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadId: lead.id,
-          type: 'call_logged',
-          channel: 'phone',
-          description: generatedDescription,
-          metadata: { action: actionValue, outcome, notes },
-        }),
-      });
-      if (!res.ok) throw new Error(await readApiError(res, 'Failed to log call activity'));
-
-      showToast('Call logged successfully', 'success');
-
-      setAdHocActivities((prev) => [{
-        id: Date.now().toString(),
-        type: 'call_logged',
-        channel: 'phone',
-        metadata: { action: actionValue, outcome, notes },
-        createdAt: new Date().toISOString(),
-        user: { firstName: '', lastName: '' },
-      }, ...prev]);
-
-      setShowDialer(false);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Failed to log call activity', 'error');
-    }
+  /**
+   * A call logged from the phone panel: shown in the timeline straight away, and the lead re-read so
+   * its tags and last-contacted date are the server's — the next log builds on them, not on this
+   * drawer's copy.
+   */
+  const handleCallLogged = (activity: { action: string; outcome: string; label: string; notes: string }) => {
+    setAdHocActivities((prev) => [{
+      id: Date.now().toString(),
+      type: 'call_logged',
+      channel: 'phone',
+      metadata: activity,
+      createdAt: new Date().toISOString(),
+      user: { firstName: currentUser?.firstName ?? '', lastName: currentUser?.lastName ?? '' },
+    }, ...prev]);
+    reloadLead();
   };
 
   const handleArchive = async () => {
@@ -1177,22 +1127,14 @@ function LeadDetailPanelBody({
                 </button>
                 <button
                   type="button"
-                  disabled={!lead.phone || dialerReady?.configured === false}
+                  disabled={!lead.phone}
                   onClick={() => {
-                    if (!lead.phone || dialerReady?.configured === false) return;
+                    if (!lead.phone) return;
                     setShowDialer(true);
                   }}
-                  title={
-                    !lead.phone
-                      ? 'No phone number'
-                      : dialerReady?.configured === false
-                        ? dialerReady.missing.length === 0
-                          ? 'The new dialer is being set up'
-                          : `Telephony is not configured on this deployment (missing ${dialerReady.missing.join(', ')})`
-                        : `Call ${lead.phone}`
-                  }
+                  title={!lead.phone ? 'No phone number' : `Call ${lead.phone} from your phone, then log it`}
                   className={`flex flex-col items-center justify-center p-2.5 rounded-xl transition-all text-center gap-1 ${
-                    lead.phone && dialerReady?.configured !== false
+                    lead.phone
                       ? 'bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 hover:border-emerald-500/30 text-emerald-500'
                       : 'bg-card-border/30 border border-transparent text-text-muted cursor-not-allowed opacity-50'
                   }`}
@@ -2451,16 +2393,18 @@ function LeadDetailPanelBody({
       )}
 
       {showDialer && lead && (
-        <CallDialerModal
+        <PhoneCallPanel
           lead={{
             id: lead.id,
             firstName: lead.firstName,
             lastName: lead.lastName,
             company: lead.company,
-            phone: lead.phone ?? undefined,
+            phone: lead.phone,
+            contact: lead.contact,
           }}
           onClose={() => setShowDialer(false)}
-          onHangUp={handleDialerHangUp}
+          onLogged={handleCallLogged}
+          onMeetingBooked={() => setShowBookingModal(true)}
         />
       )}
 
