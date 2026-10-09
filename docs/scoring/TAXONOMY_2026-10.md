@@ -102,9 +102,16 @@ It is public taxonomy, not production data.
 
 The known defect from the 2026-10-08 session log ("display" → ISP) is fixed in all three places:
 
-- ICP target / sub-industry / excluded entries match the evidence text as whole words. An excluded
-  "bet" no longer zeroes every company that writes "alphabet"; a target "ISP" no longer matches "display".
-- Industry keywords match as whole words ("AI" is not in "email").
+- ICP target / sub-industry / excluded entries and industry keywords match the evidence text at the
+  **start of a word**: an entry of 4+ letters matches any word that begins with it ("tech" →
+  "technology", "health" → "healthcare", "educat" → "educational"; a final "e" is optional, so
+  "finance" → "financial"), a shorter entry only as a whole word (plural allowed). An excluded "bet" no
+  longer zeroes every company that writes "alphabet", "ISP" no longer matches "display", "AI" is not in
+  "email" or "airline", and "tech" is never found mid-word ("biotech"). The evidence text is folded once
+  per lead.
+- ICP shorthand (`INDUSTRY_SHORTHANDS`): "Tech" / "Technology" / "High-tech" name SOFTWARE, SAAS,
+  IT_SERVICES, CLOUD_HOSTING and CYBERSECURITY; "IT" names IT_SERVICES, CLOUD_HOSTING and
+  CYBERSECURITY; "Security" names CYBERSECURITY. Keywords get the same canonical rescue.
 - New: an entry that names a canonical industry matches a company of that industry ("Bank" → BANKING,
   "Clinics" → HEALTHCARE). **Targets** accept the company's key or any parent ("IT services" admits a
   cybersecurity vendor); **exclusions** match the company's own key only, so excluding "IT services"
@@ -119,19 +126,22 @@ Read the taxonomy top to bottom; first match wins.
      a headline "Founder | ex-Google" is still a founder;
    - interns, trainees, apprentices, working students (EN, DE, FR, ES, PT, IT, VI, ZH, JA, KO) → `IC`,
      whole word, so "International" and "Internal" are untouched;
-   - assistant to / PA to / EA to / secretary to / "<role> assistant" / CEO office / director's office,
-     plus DE "Assistenz der Geschäftsführung", FR "assistant(e) de direction", VI "trợ lý", ZH "助理"
-     → `IC` / ADMIN;
+   - assistant to / PA to / EA to / secretary to / "<role> assistant", plus DE "Assistenz der
+     Geschäftsführung", FR "assistant(e) de direction", VI "trợ lý", ZH "助理" → `IC` / ADMIN;
+   - **masks** (`SENIORITY_MASKS`): "office of the CEO", "CEO office", "director's office", "product
+     owner" and other process owners are removed from the title before the taxonomy runs, so a real
+     rank elsewhere wins ("Director, Office of the CEO" → DIRECTOR, "Owner / Product Owner" → OWNER);
+     they decide only when nothing else matches ("CEO Office" → IC/ADMIN, "Product Owner" → MANAGER);
    - chief of staff, "right hand" / "bras droit", chief representative → `DIRECTOR` / EXECUTIVE;
-   - "product owner" and other process owners → `MANAGER` (after founders, so "Co-founder & Product
-     Owner" stays a founder); "lead generation" → `IC` / SALES ("Lead Generation Manager" → MANAGER).
+   - "lead generation" → `IC` / SALES ("Lead Generation Manager" → MANAGER).
 2. **C-suite**: added CGO, CBO, chief sales/customer/people/data/AI/legal, CHRO, CDO, CAIO, CSO, CXO,
    "C.E.O". "Chief accountant" / "kế toán trưởng" → `MANAGER` / FINANCE (v1 intended IC but its entry
    sat behind the bare "chief").
 3. **Founders / owners / partners** in 15+ languages; managing / founding / senior / equity / general
-   partner → `OWNER`.
+   / audit / tax / venture / operating partner → `OWNER`; "partner success / development / marketing…"
+   are partnerships roles → `IC`.
 4. **VP**: vice-president spellings, GVP, RVP, Vizepräsident, Phó tổng giám đốc, 副总裁, 副总经理,
-   執行役員, 부사장, 전무, 상무. Assistant VP / AGM / DGM → `MANAGER`.
+   執行役員, 부사장, 전무, 상무. Assistant VP, assistant / deputy GM and country manager → `MANAGER`.
 5. **CEO equivalents** → `C_LEVEL`: managing / general director, director general, directeur général,
    PDG, gérant, consejero delegado, amministratore delegato, VD, administrerende direktør,
    toimitusjohtaja, algemeen directeur, gerente general, prezes zarządu, генеральный директор, genel
@@ -143,7 +153,8 @@ Read the taxonomy top to bottom; first match wins.
    doanh → SALES director; giám đốc tài chính / công nghệ / vận hành → the C-suite role).
 8. **General manager, GM, country manager / head** → `DIRECTOR` / EXECUTIVE (was `MANAGER`).
 9. **Whole-word fallbacks**, only when nothing else matched: "head" (headline style "Head, Sales") →
-   `HEAD`, "partner" → `OWNER`, "principal" → `DIRECTOR`.
+   `HEAD`, "partner" only when the title opens with it ("Partner at McKinsey"; "Channel Partner" is not)
+   → `OWNER`, "principal" → `DIRECTOR`.
 
 Persona synonyms (`personaScore.ts`): CGO ↔ chief growth officer, CBO ↔ chief business officer.
 
@@ -194,7 +205,8 @@ is not committed):
   read by its "president" half).
 - **Lost seniority: 7 titles / 9 leads**, every one by a guard written for it: an assistant to the CEO
   (C_LEVEL → IC); a "right hand of the CEO" role (C_LEVEL → DIRECTOR, 3 leads); a chief of staff
-  (C_LEVEL → DIRECTOR); three "experience owner" process roles (OWNER → MANAGER); a lead-generation
+  (C_LEVEL → DIRECTOR); three "experience owner" process roles (OWNER → MANAGER, or DIRECTOR where the
+  title also says "principal"); a lead-generation
   representative (LEAD → IC). None of them is the decision-maker the old tier claimed.
 
 This export is a curated decision-maker list (two-thirds C-level or owner), so its unmatched rate was
@@ -202,8 +214,8 @@ already low. The larger gains are in uploads the export does not contain — jun
 (now caught by the guards) and non-English titles (previously almost all unmatched); the unit tests
 carry those cases.
 
-**LinkedIn industry labels** (fixture, 450 labels): unmapped **227 (50.4%) → 118 (26.2%)**; 113 newly
-mapped; 19 moved to a better key (the substring defects above); 4 deliberately unmapped (three
+**LinkedIn industry labels** (fixture, 450 labels): unmapped **227 (50.4%) → 116 (25.8%)**; 115 newly
+mapped; 20 moved to a better key (the substring defects above); 4 deliberately unmapped (three
 physical-security labels that v1 called CYBERSECURITY, and "Alternative Dispute Resolution" that v1
 called ISP).
 
@@ -236,10 +248,16 @@ same labels under both versions: information technology & services (354 leads), 
   IT_SERVICES, CLOUD_HOSTING and CYBERSECURITY; "IT" names IT_SERVICES, CLOUD_HOSTING and
   CYBERSECURITY. That is where the 63 cybersecurity leads come from.
 - "internet" (110 leads) has no key and stays unmatched under both versions.
+- **Verdict effect** (default weights industry 15 / persona 30, thresholds 75 / 45, computed with the
+  real verdict code): each of the 74 leads moves **one step**, never Fit ↔ No fit. With an allowlisted
+  title the industry moving 20 → 95 takes the fit score 73 → 98 (Review → Fit; biotechnology goes
+  back, Fit → Review); with a title off the allowlist it is 23 → 48 (No fit → Review, and back for
+  biotechnology). Exclusions, the only fatal industry rule, did not move for any lead.
 
 **Caveat — description text.** In scoring, the industry lists also run against the company
-description and research text. v1 matched "Tech" inside any description containing "technology",
-"fintech" or "biotech", and v2 does not. That cannot be measured from this export. The rescore preview
+description and research text. v1 matched "Tech" anywhere inside a word; v2 matches at the start of a
+word, so "technology" and "technical" still count and "fintech" / "biotech" no longer do. That
+cannot be measured from this export. The rescore preview
 (`scripts/backfill-lead-icp.ts --all` without `--apply`) shows the real moves before anything is
 written.
 
@@ -261,6 +279,9 @@ verdict. That ICP probably needs "IT services" / "service" taken off its exclusi
 - **Gérant → C_LEVEL** (legal head of a SARL); **Prokurist → DIRECTOR** (authorised signatory, one
   rank below the Geschäftsführer); **"Associé" → OWNER** in French (partner), whole word so the English
   "associate" is untouched.
+- **"Health" → HEALTHCARE**, and "Wellness" / "Fitness" with it (LinkedIn V1 "Health, Wellness and
+  Fitness"; research splits that label into single words). The side effect: LinkedIn "Retail Health and
+  Personal Care Products" reads as HEALTHCARE rather than RETAIL.
 - **Gambling stays unmapped** rather than GAMING: an ICP that targets video games must not start
   matching casinos.
 - **Wholesale has no key.** "Wholesale Machinery" / "Wholesale Chemical…" now map by the goods
@@ -268,7 +289,6 @@ verdict. That ICP probably needs "IT services" / "service" taken off its exclusi
 
 ## Known limitations
 
-- "Head of the CEO Office" reads as IC (the CEO-office guard wins over "head of").
 - "Director General Affairs" (Japanese/Korean/Vietnamese "General Affairs") reads as C-level via
   "director general".
 - Titles naming two roles resolve by the taxonomy order, not by which role is current.

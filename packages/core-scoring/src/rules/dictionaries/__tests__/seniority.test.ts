@@ -214,7 +214,9 @@ describe("false positives: a senior word in a title that is not senior", () => {
       ["Personal Assistant to the Chairman", "IC", "ADMIN"],
       ["Sales Director Assistant", "IC", "ADMIN"],
       ["CEO Office", "IC", "ADMIN"],
-      ["Director's Office Coordinator", "IC", "ADMIN"],
+      ["Director's Office Coordinator", "IC"],
+      ["CEO’s Office", "IC", "ADMIN"], // typographic apostrophe
+      ["秘書長", "C_LEVEL"],
       ["Assistenz der Geschäftsführung", "IC", "ADMIN"],
       ["Assistant de direction", "IC", "ADMIN"],
       ["Trợ lý Tổng Giám Đốc", "IC", "ADMIN"],
@@ -287,6 +289,47 @@ describe("false positives: a senior word in a title that is not senior", () => {
       ["Senior Vice President of Sales", "VP"],
       ["Vizepräsident", "VP"],
       ["Assistant General Manager", "MANAGER"],
+    ]);
+  });
+
+  it("a real rank next to an executive's office wins over the office", () => {
+    expectTier([
+      ["Director, Office of the CEO", "DIRECTOR"],
+      ["Head of CEO Office", "HEAD"],
+      ["Managing Director, Office of the CEO", "C_LEVEL"],
+      ["VP, Office of the President", "VP"],
+      ["Senior Manager, CEO Office", "MANAGER"],
+      ["Office of the CEO", "IC", "ADMIN"],
+    ]);
+  });
+
+  it("a process owner title only decides when no real owner role is present", () => {
+    expectTier([
+      ["Owner / Product Owner", "OWNER"],
+      ["Senior Product Owner", "MANAGER", "PRODUCT"],
+      ["Product Owner & Team Lead", "LEAD"],
+    ]);
+  });
+
+  it("only real partner forms are owners", () => {
+    expectTier([
+      ["Partner at McKinsey & Company", "OWNER"],
+      ["Audit Partner", "OWNER"],
+      ["Venture Partner", "OWNER"],
+      ["Channel Partner", "UNKNOWN"],
+      ["Sales Partner", "UNKNOWN"],
+      ["Technology Partner", "UNKNOWN"],
+      ["Partner Success Specialist", "IC"],
+      ["Partner Development", "IC", "PARTNERSHIPS"],
+    ]);
+  });
+
+  it("assistant and deputy GMs / country managers sit below the GM", () => {
+    expectTier([
+      ["Assistant GM", "MANAGER"],
+      ["Deputy GM", "MANAGER"],
+      ["Deputy/Assistant Country Manager", "MANAGER"],
+      ["Assistant Country Manager - Malaysia", "MANAGER"],
     ]);
   });
 });

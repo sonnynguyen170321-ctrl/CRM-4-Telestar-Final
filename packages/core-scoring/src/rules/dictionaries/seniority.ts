@@ -5,7 +5,7 @@
 // ("HR/Admin: any level OK"). Versioned data — bump SENIORITY_DICTIONARY_VERSION on change.
 // Sources and every judgement call: docs/scoring/TAXONOMY_2026-10.md. Pure data + pure helpers only.
 
-import { containsFoldedTerm, foldForMatch } from "./termMatch";
+import { containsFoldedTerm, foldForMatch, stripFoldedTerm } from "./termMatch";
 
 export const SENIORITY_TIERS = [
   "C_LEVEL",
@@ -85,8 +85,8 @@ export const SENIORITY_TAXONOMY: readonly SeniorityEntry[] = [
   // Staff to the top: senior, but not an officer of the company.
   { match: ["chief of staff", "right hand", "right-hand", "bras droit", "chief representative", "trưởng đại diện"], tier: "DIRECTOR", department: "EXECUTIVE", wholeWord: true },
   // Working FOR an executive: the senior word names the boss, not the person.
-  { match: ["secretary general", "secretary-general", "general secretary", "tổng thư ký", "秘书长"], tier: "C_LEVEL", department: "EXECUTIVE", wholeWord: true },
-  { match: ["assistant to", "assistant of", "assistant for", "executive assistant", "personal assistant", "administrative assistant", "pa to", "pa for", "ea to", "ea for", "secretary to", "ceo assistant", "director assistant", "manager assistant", "president assistant", "chairman assistant", "founder assistant", "owner assistant", "md assistant", "gm assistant", "ceo secretary", "director secretary", "ceo office", "ceo's office", "office of the ceo", "office of the president", "office of the chairman", "director's office", "president's office", "chairman's office", "assistent", "assistentin", "assistenz", "vorstandsassistent", "vorstandsassistentin", "assistant de direction", "assistante de direction", "asistente de dirección", "asistente de gerencia", "assistente di direzione", "trợ lý", "thư ký", "助理", "秘書"], tier: "IC", department: "ADMIN", wholeWord: true },
+  { match: ["secretary general", "secretary-general", "general secretary", "tổng thư ký", "秘书长", "秘書長"], tier: "C_LEVEL", department: "EXECUTIVE", wholeWord: true },
+  { match: ["assistant to", "assistant of", "assistant for", "executive assistant", "personal assistant", "administrative assistant", "pa to", "pa for", "ea to", "ea for", "secretary to", "ceo assistant", "director assistant", "manager assistant", "president assistant", "chairman assistant", "founder assistant", "owner assistant", "md assistant", "gm assistant", "ceo secretary", "director secretary", "assistent", "assistentin", "assistenz", "vorstandsassistent", "vorstandsassistentin", "assistant de direction", "assistante de direction", "asistente de dirección", "asistente de gerencia", "assistente di direzione", "trợ lý", "thư ký", "助理", "秘書"], tier: "IC", department: "ADMIN", wholeWord: true },
 
   // ── 2. C-level ──────────────────────────────────────────────────────────────────────────────
   { match: ["chief executive", "ceo", "c.e.o", "首席执行官", "最高経営責任者"], tier: "C_LEVEL", department: "EXECUTIVE" },
@@ -116,19 +116,16 @@ export const SENIORITY_TAXONOMY: readonly SeniorityEntry[] = [
 
   // ── Founders ────────────────────────────────────────────────────────────────────────────────
   { match: ["founder", "co-founder", "cofounder", "gründer", "gründerin", "mitgründer", "mitbegründer", "fondateur", "fondatrice", "cofondateur", "co-fondateur", "fundador", "fundadora", "cofundador", "fondatore", "cofondatore", "oprichter", "grundare", "grundlægger", "założyciel", "основатель", "kurucu", "pendiri", "người sáng lập", "nhà sáng lập", "đồng sáng lập", "sáng lập viên", "创始人", "創辦人", "創業者", "창업자", "창립자", "entrepreneur"], tier: "OWNER", department: "EXECUTIVE" },
-  // "Owner" as a process role. After founders, so "Co-founder & Product Owner" is still a founder.
-  { match: ["product owner"], tier: "MANAGER", department: "PRODUCT", wholeWord: true },
-  { match: ["process owner", "experience owner", "service owner", "system owner", "data owner", "application owner", "platform owner", "risk owner", "control owner", "content owner", "budget owner", "technical owner", "feature owner", "account owner"], tier: "MANAGER", department: "UNKNOWN", wholeWord: true },
   // Owners and partners of the firm.
   { match: ["owner", "co-owner", "proprietor", "proprietress", "inhaber", "inhaberin", "propriétaire", "propietario", "propietaria", "proprietário", "proprietária", "titolare", "dueño", "dueña", "właściciel", "владелец", "chủ sở hữu", "chủ doanh nghiệp", "pemilik", "老板", "オーナー", "self-employed", "self employed", "sole proprietor", "chef d'entreprise"], tier: "OWNER", department: "EXECUTIVE" },
   { match: ["eigenaar", "ägare", "ejer", "eier", "associé", "associée", "socio", "socia", "sócio", "sócia"], tier: "OWNER", department: "EXECUTIVE", wholeWord: true },
-  { match: ["managing partner", "founding partner", "senior partner", "equity partner", "general partner", "name partner"], tier: "OWNER", department: "EXECUTIVE" },
+  { match: ["managing partner", "founding partner", "senior partner", "equity partner", "general partner", "name partner", "associate partner", "audit partner", "tax partner", "advisory partner", "deal partner", "practice partner", "salaried partner", "venture partner", "operating partner"], tier: "OWNER", department: "EXECUTIVE" },
   // German executive (FlexEnergy). "Geschäftsführung" alone is not here: "Assistenz der Geschäftsführung".
   { match: ["geschäftsleitung", "geschaeftsleitung", "geschäftsführer", "geschaeftsfuehrer", "mitglied der geschäftsführung", "vorstand"], tier: "C_LEVEL", department: "EXECUTIVE" },
 
   // ── VP ──────────────────────────────────────────────────────────────────────────────────────
   // Assistant / deputy VP and GM ranks (banking, India, APAC) sit at manager level.
-  { match: ["assistant vice president", "assistant vice-president", "avp", "assistant general manager", "deputy general manager", "agm", "dgm"], tier: "MANAGER", department: "UNKNOWN" },
+  { match: ["assistant vice president", "assistant vice-president", "avp", "assistant general manager", "deputy general manager", "agm", "dgm", "assistant gm", "deputy gm", "assistant country manager", "deputy country manager", "assistant country head", "deputy country head"], tier: "MANAGER", department: "UNKNOWN" },
   { match: ["vice president", "vice-president", "vicepresident", "vicepresidente", "vizepräsident", "vizepraesident", "vp ", "vp of", "vp,", "svp", "evp", "gvp", "rvp", "phó tổng giám đốc", "副总裁", "副總裁", "副总经理", "副總經理", "副社長", "執行役員", "부사장", "전무", "상무"], tier: "VP", department: "UNKNOWN" },
 
   // ── CEO equivalents, president, chairman ────────────────────────────────────────────────────
@@ -198,16 +195,31 @@ export const SENIORITY_TAXONOMY: readonly SeniorityEntry[] = [
   { match: ["hr executive", "human resources executive", "people executive"], tier: "IC", department: "HR" },
   { match: ["hr business partner", "hrbp", "people partner", "talent partner", "talent acquisition partner"], tier: "IC", department: "HR", wholeWord: true },
   { match: ["business partner"], tier: "IC", department: "UNKNOWN", wholeWord: true },
+  // "Partner <function>" is a partnerships role, not a partner of the firm.
+  { match: ["partner success", "partner development", "partner marketing", "partner enablement", "partner relations", "partner sales", "partner account", "partner program", "partner ecosystem", "partner operations", "partner solutions", "partner technology", "partner integrations", "partner support", "partner channel"], tier: "IC", department: "PARTNERSHIPS", wholeWord: true },
   { match: ["admin executive", "administrative executive"], tier: "IC", department: "ADMIN" },
   { match: ["admin", "administrative", "administration"], tier: "IC", department: "ADMIN" },
   { match: ["consultant", "consultor", "consultora", "berater", "beraterin", "conseiller", "conseillère", "advisor", "adviser", "analyst", "analyste", "analista", "architect", "designer", "scientist", "researcher", "representative", "sales rep", "officer", "clerk", "secretary", "staff", "referent", "referentin", "sachbearbeiter", "sachbearbeiterin", "mitarbeiter", "mitarbeiterin", "nhân viên", "chuyên viên", "担当", "담당", "사원"], tier: "IC", department: "UNKNOWN", wholeWord: true },
   { match: ["specialist", "associate", "assistant", "coordinator", "executive", "especialista", "asistente", "assistente", "coordinador", "coordinadora", "coordenador", "coordenadora"], tier: "IC", department: "UNKNOWN" },
 
   // ── Whole-word fallbacks: only when nothing above matched ───────────────────────────────────
-  // "Head, Sales" / "Regional Head - BD"; "Partner, Sequoia"; "Principal" (consulting / VC / school).
+  // "Head, Sales" / "Regional Head - BD"; "Partner, Sequoia" / "Partner at McKinsey" (the title must
+  // open with it: "Channel Partner", "Technology Partner" are not partners of the firm); "Principal".
   { match: ["head", "kepala", "jefe", "jefa"], tier: "HEAD", department: "UNKNOWN", wholeWord: true },
-  { match: ["partner"], tier: "OWNER", department: "EXECUTIVE", wholeWord: true },
+  { match: ["partner"], tier: "OWNER", department: "EXECUTIVE", wholeWord: true, atStart: true },
   { match: ["principal"], tier: "DIRECTOR", department: "UNKNOWN", wholeWord: true },
+];
+
+/**
+ * Phrases that contain a rank word without naming the person's rank. They are removed from the title
+ * before the taxonomy runs, so a real rank elsewhere wins ("Director, Office of the CEO" is a
+ * director; "Owner / Product Owner" is an owner), and they classify the title only when nothing else
+ * does ("CEO Office" alone is staff; "Product Owner" alone is a manager).
+ */
+export const SENIORITY_MASKS: readonly SeniorityEntry[] = [
+  { match: ["office of the ceo", "office of the president", "office of the chairman", "office of the managing director", "ceo office", "ceo's office", "president's office", "chairman's office", "director's office", "md office"], tier: "IC", department: "ADMIN" },
+  { match: ["product owner"], tier: "MANAGER", department: "PRODUCT" },
+  { match: ["process owner", "experience owner", "service owner", "system owner", "data owner", "application owner", "platform owner", "risk owner", "control owner", "content owner", "budget owner", "technical owner", "feature owner", "account owner"], tier: "MANAGER", department: "UNKNOWN" },
 ];
 
 // v2 (2026-10-10): worldwide titles, accent folding, guards for former/intern/assistant-to,
@@ -241,9 +253,10 @@ function matchesFolded(foldedTitle: string, foldedKeyword: string, options: Matc
 }
 
 // Keywords folded once, at load.
-const COMPILED = SENIORITY_TAXONOMY.flatMap((entry) =>
-  entry.match.map((keyword) => ({ entry, keyword, folded: foldForMatch(keyword) }))
-);
+const compile = (entries: readonly SeniorityEntry[]) =>
+  entries.flatMap((entry) => entry.match.map((keyword) => ({ entry, keyword, folded: foldForMatch(keyword) })));
+const COMPILED = compile(SENIORITY_TAXONOMY);
+const COMPILED_MASKS = compile(SENIORITY_MASKS);
 
 /**
  * Resolve a raw title into a seniority tier + department.
@@ -257,13 +270,22 @@ export function lookupSeniority(rawTitle: string): SeniorityLookup {
     return { tier: "UNKNOWN", department: "UNKNOWN", matchedKeyword: null };
   }
 
+  // Remove mask phrases first; the first one found is the answer only if nothing else matches.
+  let masked = title;
+  let maskHit: SeniorityLookup | null = null;
+  for (const { entry, keyword, folded } of COMPILED_MASKS) {
+    if (!containsFoldedTerm(masked, folded)) continue;
+    maskHit ??= { tier: entry.tier, department: entry.department, matchedKeyword: keyword };
+    masked = stripFoldedTerm(masked, folded);
+  }
+
   for (const { entry, keyword, folded } of COMPILED) {
-    if (matchesFolded(title, folded, entry)) {
+    if (matchesFolded(masked, folded, entry)) {
       return { tier: entry.tier, department: entry.department, matchedKeyword: keyword };
     }
   }
 
-  return { tier: "UNKNOWN", department: "UNKNOWN", matchedKeyword: null };
+  return maskHit ?? { tier: "UNKNOWN", department: "UNKNOWN", matchedKeyword: null };
 }
 
 /** True when `candidate` is at least as senior as `floor`. */
