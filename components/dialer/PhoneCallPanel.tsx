@@ -5,7 +5,7 @@ import QRCode from 'qrcode';
 import { Check, Copy, Phone, X } from 'lucide-react';
 
 import { useToast } from '@/context/ToastContext';
-import { logPhoneCall, NOTES_MAX, phoneCallTarget, type LoggedCall } from '@/lib/telephony/logPhoneCall';
+import { dialWarning, logPhoneCall, NOTES_MAX, phoneCallTarget, type DialFlags, type LoggedCall } from '@/lib/telephony/logPhoneCall';
 import { PHONE_OUTCOMES, telUri, type PhoneOutcomeId } from '@/lib/telephony/phoneOutcomes';
 
 /**
@@ -24,8 +24,8 @@ type Props = {
     lastName: string;
     company?: string | null;
     phone?: string | null;
-    contact?: { country?: string | null } | null;
-  };
+    contact?: ({ country?: string | null } & DialFlags['contact']) | null;
+  } & Omit<DialFlags, 'contact'>;
   onClose: () => void;
   /** After a call is logged: the activity to show in the timeline. */
   onLogged: (activity: LoggedCall) => void;
@@ -108,6 +108,7 @@ export default function PhoneCallPanel({ lead, onClose, onLogged, onMeetingBooke
   }, [target.e164]);
 
   const shownNumber = target.e164 ?? lead.phone ?? '';
+  const warning = dialWarning(lead);
 
   const copyNumber = async () => {
     try {
@@ -162,6 +163,20 @@ export default function PhoneCallPanel({ lead, onClose, onLogged, onMeetingBooke
           </button>
         </div>
 
+        {warning && (
+          <p
+            role="alert"
+            className={`rounded-xl border p-3 leading-relaxed font-semibold ${
+              warning.block
+                ? 'border-brand-red/40 bg-brand-red/10 text-brand-red'
+                : 'border-brand-orange-text/30 bg-brand-orange-text/10 text-brand-orange-text'
+            }`}
+          >
+            {warning.message}
+          </p>
+        )}
+
+        {!warning?.block && (
         <div className="flex items-center gap-4 border border-card-border rounded-xl p-3 bg-bg-main/40">
           {target.e164 && qrSvg ? (
             <div
@@ -195,6 +210,7 @@ export default function PhoneCallPanel({ lead, onClose, onLogged, onMeetingBooke
             )}
           </div>
         </div>
+        )}
 
         <fieldset className="space-y-2">
           <legend className="text-xs font-bold text-text-secondary">
