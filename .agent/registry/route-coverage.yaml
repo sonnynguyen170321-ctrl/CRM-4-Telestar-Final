@@ -7,13 +7,14 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 201   mutating: 124   mutating without a test: 19
+# routes: 200   mutating: 124   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
     tests:
       - e2e/certification/golden-journey.spec.ts
       - e2e/leads/lead-crud.spec.ts
+      - tests/dialer-phone-call-panel.test.ts
   - path: app/api/admin/assignments/route.ts
     methods: [DELETE, GET, POST]
     tests:
@@ -415,10 +416,6 @@ routes:
       - tests/api-key-privilege-escalation.test.ts
       - tests/prelaunch-authz.test.ts
       - tests/safe-href.test.ts
-  - path: app/api/dialer/config/route.ts
-    methods: [GET]
-    tests:
-      - tests/dialer-config-route.test.ts
   - path: app/api/email-health/accounts/[id]/cap/route.ts
     methods: [PATCH]
     tests:
@@ -675,6 +672,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin.test.ts
       - tests/certification-role-evidence.test.ts
+      - tests/dialer-phone-call-panel.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
@@ -707,6 +705,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin.test.ts
       - tests/certification-role-evidence.test.ts
+      - tests/dialer-phone-call-panel.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
@@ -739,6 +738,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin.test.ts
       - tests/certification-role-evidence.test.ts
+      - tests/dialer-phone-call-panel.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
@@ -786,6 +786,7 @@ routes:
       - e2e/user-flow-31step.spec.ts
       - tests/admin.test.ts
       - tests/certification-role-evidence.test.ts
+      - tests/dialer-phone-call-panel.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
@@ -1179,6 +1180,7 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - tests/agent-object-authorization.test.ts
+      - tests/dialer-phone-call-panel.test.ts
       - tests/email-tracking.test.ts
       - tests/task-bulk-action.test.ts
   - path: app/api/tasks/[id]/run-now/route.ts
@@ -1191,6 +1193,7 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - tests/agent-object-authorization.test.ts
+      - tests/dialer-phone-call-panel.test.ts
       - tests/email-tracking.test.ts
       - tests/task-bulk-action.test.ts
   - path: app/api/tasks/bulk/route.ts
@@ -1207,6 +1210,7 @@ routes:
       - e2e/leads/dashboard-counters.spec.ts
       - e2e/roles/tenant-isolation.spec.ts
       - tests/agent-object-authorization.test.ts
+      - tests/dialer-phone-call-panel.test.ts
       - tests/email-tracking.test.ts
       - tests/task-bulk-action.test.ts
   - path: app/api/team/alerts/route.ts

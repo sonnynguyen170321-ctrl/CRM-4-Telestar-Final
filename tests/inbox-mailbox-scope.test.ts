@@ -84,7 +84,10 @@ describe('reading an inbox', () => {
 
     await GET(get());
 
-    expect(mockSequences).toHaveBeenCalledWith({ where: { createdById: { in: [SDR.id] } }, select: { id: true } });
+    expect(mockSequences).toHaveBeenCalledWith({
+      where: { createdById: { in: [SDR.id] }, createdBy: { role: { in: ['director', 'floor_manager', 'team_lead', 'leadgen_manager'] } } },
+      select: { id: true },
+    });
     const inbound = mockInbound.mock.calls[0][0].where;
     expect(inbound.tenantId).toBe('t1');
     expect(inbound.AND).toEqual([inboundScopeOf([SDR.id], ['seq-mine'])]);
@@ -154,6 +157,27 @@ describe('reading an inbox', () => {
     await GET(get('folder=spam'));
 
     expect(mockInbound.mock.calls[0][0].where).toMatchObject({ isSpam: true, isTrash: false });
+  });
+});
+
+describe('sequences shared across teams (owner, 2026-10-08)', () => {
+  // "Should the owner of a shared sequence see replies from other teams' leads? No if the owner is
+  // an SDR; yes from team lead up." The sequence branch only takes sequences whose creator holds a
+  // manager role, so an SDR owner keeps their own leads' replies (through the lead branch) only.
+  it('asks only for sequences created by a team lead or above', async () => {
+    await GET(get());
+
+    const where = mockSequences.mock.calls[0][0].where;
+    expect(where.createdBy.role.in).toEqual(['director', 'floor_manager', 'team_lead', 'leadgen_manager']);
+    expect(where.createdBy.role.in).not.toContain('sdr');
+  });
+
+  it('gives an SDR who owns a shared sequence no sequence branch, only their own leads and mailboxes', async () => {
+    mockSequences.mockResolvedValue([]); // the role filter leaves the SDR's sequence out
+
+    await GET(get());
+
+    expect(mockInbound.mock.calls[0][0].where.AND).toEqual([inboundScopeOf([SDR.id])]);
   });
 });
 

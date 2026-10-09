@@ -110,6 +110,20 @@ export function toDialableNumber(raw: string | null, dialCountries: DialCountry[
   return { e164: null, country: null };
 }
 
+export const MINUTES_PER_DAY = 1440;
+
+/**
+ * Calling hours that cover every minute of every weekday: the owner's "call any time" setting
+ * (2026-10-08). Start 0, end 1440, all seven days. Anything narrower keeps the clock rules.
+ */
+export function isAlwaysOpen(settings: Pick<GateSettings, 'callingHoursStart' | 'callingHoursEnd' | 'allowedWeekdays'>): boolean {
+  return (
+    settings.callingHoursStart <= 0 &&
+    settings.callingHoursEnd >= MINUTES_PER_DAY &&
+    [0, 1, 2, 3, 4, 5, 6].every((day) => settings.allowedWeekdays.includes(day))
+  );
+}
+
 function decide(facts: GateFacts): GateDecision {
   const reasons: BlockReason[] = [];
   const { settings } = facts;
@@ -142,7 +156,11 @@ function decide(facts: GateFacts): GateDecision {
     country: facts.leadCountry,
   });
   let localTime: string | null = null;
-  if (!timezone) {
+  // A team that allows every minute of every day needs no clock, so an unknown timezone blocks
+  // nothing there; the local time is still recorded when it is known.
+  if (settings && isAlwaysOpen(settings)) {
+    if (timezone) localTime = localClock(facts.now, timezone.timezone).label;
+  } else if (!timezone) {
     reasons.push('tz_unknown');
   } else {
     const clock = localClock(facts.now, timezone.timezone);

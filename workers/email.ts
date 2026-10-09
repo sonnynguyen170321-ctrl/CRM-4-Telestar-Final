@@ -61,7 +61,7 @@ async function deferralPolicyFor(sequenceId: string | null) {
 }
 import { classifyRecipientFailure } from '@/lib/email/recipientFailure';
 import { classifyProviderLimit } from '@/lib/email/providerLimit';
-import { findSuppression, suppressRecipient } from '@/lib/email/suppress';
+import { blockIfBounced, findSuppression, suppressRecipient } from '@/lib/email/suppress';
 import { finalizeSequenceStep, releaseSequenceStep } from '@/lib/sequences/stepOutcome';
 /** Minimal account shape the deliverability preflight needs. */
 type SendGateAccount = {
@@ -421,7 +421,20 @@ async function handleEmailSend(payload: EmailSendPayload) {
     email: to,
     campaignId: leadId ? existing.lead?.campaignId : null,
   });
-  if (suppressed) {
+  // The second lock: an earlier bounce for this address that never became a suppression — a sync
+  // that missed it, or a bounce matched to no lead. It is suppressed now and the cadence stopped.
+  const bounced = suppressed
+    ? null
+    : await blockIfBounced({
+        tenantId: existing.tenantId,
+        email: to,
+        leadId: leadId ?? existing.leadId,
+        actorUserId: existing.lead?.assignedToId ?? null,
+      });
+  if (suppressed || bounced) {
+    const refusal = suppressed
+      ? `Recipient suppressed: ${suppressed.reason}`
+      : `Recipient bounced earlier (${bounced!.at.toISOString()}); suppressed`;
     await prisma.outboundMessage.update({
       where: { id: outboundMessageId },
       data: {
@@ -430,15 +443,15 @@ async function handleEmailSend(payload: EmailSendPayload) {
         // never increments `attemptCount`, so the redrive cap could never end the loop. It sat
         // in the backlog forever, being re-queued forever, and could never reach a final state.
         status: OUTBOUND_STATUS.PERMANENTLY_FAILED,
-        errorMessage: `Recipient suppressed: ${suppressed.reason}`,
+        errorMessage: refusal,
       },
     });
     // A suppressed address means the step will never be sent, so the cadence must not wait on
     // it. Without this the enrollment stays active with a step that can only ever be refused.
     if (payload.sequenceStepRef) {
-      await releaseSequenceStep(payload.sequenceStepRef, `recipient suppressed: ${suppressed.reason}`);
+      await releaseSequenceStep(payload.sequenceStepRef, refusal.toLowerCase());
     }
-    return { skipped: true, reason: 'suppressed' };
+    return { skipped: true, reason: suppressed ? 'suppressed' : 'bounced_earlier' };
   }
 
   // Deliverability preflight — runs BEFORE quota reservation so a blocked send

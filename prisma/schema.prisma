@@ -1468,6 +1468,8 @@ model OutboundMessage {
   @@index([leadId, sentAt])
   // Email Log (/api/email-log): a tenant's sends, newest first.
   @@index([tenantId, createdAt])
+  // Bounce evidence at send time (lib/email/suppress.ts findBounceEvidence): the few bounced rows.
+  @@index([tenantId, bouncedAt])
 }
 
 /// One open or click recorded by the tracking routes. Kept per event (not only as counts on the
@@ -3342,6 +3344,8 @@ model InboundMessage {
   // Deliverability rollups: per-inbox windowed reply/bounce/spam counts.
   @@index([accountId, date])
   @@index([tenantId, date])
+  // Bounce evidence at send time (lib/email/suppress.ts findBounceEvidence) and the repair sweep.
+  @@index([tenantId, isBounce])
 }
 
 // ─── Deliverability / Email Health ───────────────────────────────────────────

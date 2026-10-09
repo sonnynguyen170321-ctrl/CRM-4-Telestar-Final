@@ -18,13 +18,19 @@ import { getVisibleUserIds, type SessionUser } from '@/lib/auth';
  *
  * `userIds` null means no restriction (a director's whole-tenant reach, used only for actions).
  */
+/** Roles whose sequences carry every enrolled lead's replies into their inbox. */
+export const SEQUENCE_REACH_ROLES = ['director', 'floor_manager', 'team_lead', 'leadgen_manager'] as const;
+
 export async function inboxScope(userIds: string[] | null): Promise<{
   inbound: Record<string, unknown>;
   outbound: Record<string, unknown>;
 }> {
   if (userIds === null) return { inbound: {}, outbound: {} };
+  // Only a manager's sequences bring every enrolled lead's replies with them. An SDR who owns a
+  // shared sequence sees their own leads' replies and no other team's (owner, 2026-10-07: "no if
+  // the owner is an SDR, yes from team lead up").
   const owned = await prisma.sequence.findMany({
-    where: { createdById: { in: userIds } },
+    where: { createdById: { in: userIds }, createdBy: { role: { in: [...SEQUENCE_REACH_ROLES] } } },
     select: { id: true },
   });
   const sequenceIds = owned.map((s) => s.id);

@@ -587,6 +587,23 @@ describe.skipIf(!hasDb)('a redelivered provider webhook does not double-apply', 
     sendBehaviour = async () => `provider-${crypto.randomUUID()}`;
     await run(async () => {
       await prisma.activity.deleteMany({ where: { tenantId: T } });
+      // Each test bounces the same address. A bounced send left by the previous test is evidence the
+      // send path acts on (lib/email/suppress.ts findBounceEvidence) — it would suppress the address
+      // and write its own `email_bounced` entry before this test's bounce arrives.
+      await prisma.outboundMessage.deleteMany({ where: { tenantId: T } });
+      await prisma.inboundMessage.deleteMany({ where: { account: { tenantId: T } } });
+      await prisma.suppressionEntry.deleteMany({ where: { tenantId: T } });
+      await prisma.lead.updateMany({ where: { tenantId: T }, data: { emailInvalid: false } });
+    });
+  });
+
+  // A bounce is permanent evidence: the send path refuses any address with a bounced send on record
+  // (lib/email/suppress.ts findBounceEvidence). Clearing only the suppression row is no longer enough
+  // to make the address sendable again, so the bounced sends go too, before later suites send to it.
+  afterAll(async () => {
+    await run(async () => {
+      await prisma.outboundMessage.deleteMany({ where: { tenantId: T } });
+      await prisma.inboundMessage.deleteMany({ where: { account: { tenantId: T } } });
       await prisma.suppressionEntry.deleteMany({ where: { tenantId: T } });
       await prisma.lead.updateMany({ where: { tenantId: T }, data: { emailInvalid: false } });
     });

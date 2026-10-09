@@ -41,6 +41,12 @@ const captureEnqueue = (type: string, payload: Record<string, unknown>) => {
   return Promise.resolve(`job-${enqueued.length}`);
 };
 
+// The send path's bounce-evidence lock (lib/email/suppress.ts) has its own tests
+// (tests/bounce-evidence-guard.test.ts); here no address has bounced before.
+vi.mock('@/lib/email/suppress', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/email/suppress')>()),
+  blockIfBounced: async () => null,
+}));
 vi.mock('@/lib/bullmq/enqueue', () => ({
   enqueue: (t: string, p: Record<string, unknown>) => captureEnqueue(t, p),
   enqueueImmediate: (t: string, p: Record<string, unknown>) => captureEnqueue(t, p),

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { evaluateCallPermission, toDialableNumber, type GateFacts } from '@/lib/telephony/compliance';
+import { evaluateCallPermission, isAlwaysOpen, toDialableNumber, type GateFacts } from '@/lib/telephony/compliance';
 import { localClock, resolveCallTimezone } from '@/lib/telephony/timezone';
 
 /**
@@ -277,5 +277,42 @@ describe('toDialableNumber', () => {
     expect(toDialableNumber('0948200638', ['SG', 'VN'])).toEqual({ e164: '+84948200638', country: 'VN' });
     expect(toDialableNumber('6123 4567', ['SG', 'VN'])).toEqual({ e164: '+6561234567', country: 'SG' });
     expect(toDialableNumber('0948200638', ['SG'])).toEqual({ e164: null, country: null });
+  });
+});
+
+/**
+ * Owner, 2026-10-08: "call any time". Hours 00:00–24:00 every day mean no clock rule, so a timezone
+ * the gate cannot work out blocks nothing; every other rule (do-not-call, number checks, country,
+ * switches) stays exactly as it was.
+ */
+describe('calling hours set to always open', () => {
+  const alwaysOpen = { ...facts().settings!, callingHoursStart: 0, callingHoursEnd: 1440 };
+
+  it('recognises only the full day on all seven days as always open', () => {
+    expect(isAlwaysOpen(alwaysOpen)).toBe(true);
+    expect(isAlwaysOpen({ ...alwaysOpen, callingHoursEnd: 1439 })).toBe(false);
+    expect(isAlwaysOpen({ ...alwaysOpen, callingHoursStart: 1 })).toBe(false);
+    expect(isAlwaysOpen({ ...alwaysOpen, allowedWeekdays: [1, 2, 3, 4, 5] })).toBe(false);
+  });
+
+  it('allows a call at 23:30 lead-local', () => {
+    expect(at('2026-10-05T16:30:00Z', { settings: alwaysOpen })).toMatchObject({ allowed: true, reasons: [], localTime: '23:30' });
+  });
+
+  it('does not block a number whose timezone cannot be known', () => {
+    const decision = evaluateCallPermission(facts({ rawPhone: '+14155552671', leadCountry: 'United States', settings: alwaysOpen }));
+    expect(decision.reasons).toEqual([]);
+    expect(decision.localTime).toBeNull();
+  });
+
+  it('keeps every other rule', () => {
+    expect(evaluateCallPermission(facts({ settings: alwaysOpen, suppressed: true })).reasons).toEqual(['suppressed']);
+    expect(evaluateCallPermission(facts({ settings: { ...alwaysOpen, allowedCountries: ['US'] } })).reasons).toEqual(['country_not_allowed']);
+    expect(evaluateCallPermission(facts({ settings: { ...alwaysOpen, killedAt: new Date() } })).reasons).toEqual(['kill_switch']);
+  });
+
+  it('still applies the clock when the day is narrower', () => {
+    const lateHours = { ...alwaysOpen, callingHoursEnd: 1380 };
+    expect(at('2026-10-05T16:30:00Z', { settings: lateHours }).reasons).toEqual(['outside_hours']);
   });
 });
