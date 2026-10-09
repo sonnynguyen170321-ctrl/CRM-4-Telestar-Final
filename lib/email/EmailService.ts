@@ -3,6 +3,7 @@ import { GmailAdapter } from './adapters/GmailAdapter';
 import { OutlookAdapter } from './adapters/OutlookAdapter';
 import { ImapAdapter } from './adapters/ImapAdapter';
 import { decrypt } from '@/lib/crypto';
+import { toInboxBatch, type InboxBatch } from './inboxBatch';
 
 export interface SendEmailOptions {
   from: string;
@@ -60,13 +61,21 @@ export interface InboxMessage {
   failedRecipient?: string | null;
   isSpam?: boolean;
   isTrash?: boolean;
+  /**
+   * When the provider received it (Gmail `internalDate`, Graph `receivedDateTime`). The sync cursor
+   * moves by this, never by `date`, which is the sender's own `Date:` header and can be anything.
+   */
+  receivedAt?: Date;
+  /** The id this message was stored under before the adapter changed its id format, if any. */
+  legacyProviderMessageId?: string;
 }
+
 
 export interface EmailAdapter {
   /** Send an email. Returns what the provider reported: its message id, or a full receipt. */
   send(options: SendEmailOptions): Promise<SendResult>;
   /** Fetch inbox messages received since `since`. Optional — not all adapters sync. */
-  fetchMessagesSince?(since: Date): Promise<InboxMessage[]>;
+  fetchMessagesSince?(since: Date): Promise<InboxMessage[] | InboxBatch>;
 }
 
 /**
@@ -85,9 +94,9 @@ export class EmailService {
   }
 
   /** Returns null when the underlying adapter does not support inbox sync. */
-  async fetchMessagesSince(since: Date): Promise<InboxMessage[] | null> {
+  async fetchMessagesSince(since: Date): Promise<InboxBatch | null> {
     if (!this.adapter.fetchMessagesSince) return null;
-    return this.adapter.fetchMessagesSince(since);
+    return toInboxBatch(await this.adapter.fetchMessagesSince(since));
   }
 
   static async fromAccount(account: EmailAccount): Promise<EmailService> {

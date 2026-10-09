@@ -233,6 +233,10 @@ domains:
       - app/api/email-health/**
       # Repairs bounces the old parser could not read an address out of, and suppresses them.
       - scripts/backfill-bounce-suppressions.ts
+      # Re-read missed mail (bounces and replies the old 50-per-run sync never read), and audit
+      # every bounced address (2026-10-09).
+      - scripts/inbox-resync.ts
+      - scripts/audit-bounce-coverage.ts
       - scripts/diagnose-email-*.ts
       - scripts/test-email-*.ts
     tests:

@@ -1,6 +1,11 @@
 import { google } from 'googleapis';
 import { fromHeaderValue } from '@/lib/email/senderName';
 import type { EmailAdapter, InboxMessage, SendEmailOptions, SendResult } from '../EmailService';
+import { SYNC_READ_LIMIT, type InboxBatch } from '../inboxBatch';
+
+/** Ids per list page (Gmail's maximum), and a backstop on pages per run. */
+const LIST_PAGE_SIZE = 500;
+const LIST_PAGE_LIMIT = 100;
 import { encrypt } from '@/lib/crypto';
 
 interface GmailConfig {
@@ -115,7 +120,7 @@ export class GmailAdapter implements EmailAdapter {
   }
 
   /** Fetch inbox messages received since `since` (metadata only). */
-  async fetchMessagesSince(since: Date): Promise<InboxMessage[]> {
+  async fetchMessagesSince(since: Date): Promise<InboxBatch> {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
@@ -148,11 +153,30 @@ export class GmailAdapter implements EmailAdapter {
 
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-    const list = await gmail.users.messages.list({
-      userId: 'me',
-      q: `in:inbox after:${Math.floor(since.getTime() / 1000)}`,
-      maxResults: 50,
-    });
+    // Every id since the cursor, page by page. Ids are cheap; it is reading each message that costs,
+    // and that is bounded below. Gmail lists newest first.
+    const query = `in:inbox after:${Math.floor(since.getTime() / 1000)}`;
+    const ids: string[] = [];
+    let pageToken: string | undefined;
+    let pages = 0;
+    do {
+      const page = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: LIST_PAGE_SIZE, pageToken });
+      for (const ref of page.data.messages ?? []) if (ref.id) ids.push(ref.id);
+      pageToken = page.data.nextPageToken ?? undefined;
+      pages += 1;
+    } while (pageToken && pages < LIST_PAGE_LIMIT);
+    if (pageToken) {
+      // Only after a very long outage or a first sync of a huge inbox. The listed ids are the newest
+      // ones, so mail older than them is not reached by this run and is skipped when the cursor moves.
+      console.error(
+        '[gmail-sync] more than', LIST_PAGE_SIZE * LIST_PAGE_LIMIT,
+        'messages since the cursor — older ones are not read; run scripts/inbox-resync.ts for this mailbox'
+      );
+    }
+    // Oldest first, so a run that stops at the limit leaves only newer mail for the next run.
+    const oldestFirst = ids.reverse();
+    const toRead = oldestFirst.slice(0, SYNC_READ_LIMIT);
+    const truncated = toRead.length < oldestFirst.length || Boolean(pageToken);
 
     const getGmailMessageBody = (payload: any): { body: string; bodyHtml: string } => {
       let body = '';
@@ -187,10 +211,10 @@ export class GmailAdapter implements EmailAdapter {
     };
 
     const messages: InboxMessage[] = [];
-    for (const ref of list.data.messages ?? []) {
+    for (const id of toRead) {
       const msg = await gmail.users.messages.get({
         userId: 'me',
-        id: ref.id!,
+        id,
         format: 'full',
       });
       const headers = msg.data.payload?.headers ?? [];
@@ -214,7 +238,7 @@ export class GmailAdapter implements EmailAdapter {
       const isTrash = labels.includes('TRASH');
 
       messages.push({
-        providerMessageId: ref.id!,
+        providerMessageId: id,
         fromEmail,
         fromName,
         to,
@@ -225,9 +249,10 @@ export class GmailAdapter implements EmailAdapter {
         failedRecipient: header('X-Failed-Recipients') || null,
         isSpam,
         isTrash,
+        ...(msg.data.internalDate ? { receivedAt: new Date(Number(msg.data.internalDate)) } : {}),
       });
     }
-    return messages;
+    return { messages, truncated, ...(pageToken ? { overflow: true } : {}) };
   }
 }
 

@@ -1,5 +1,11 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
+// The send path's bounce-evidence lock (lib/email/suppress.ts) has its own tests
+// (tests/bounce-evidence-guard.test.ts); here no address has bounced before.
+vi.mock('@/lib/email/suppress', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/email/suppress')>()),
+  blockIfBounced: async () => null,
+}));
 vi.mock('@/auth', () => ({
   auth: vi.fn(),
   handlers: {},

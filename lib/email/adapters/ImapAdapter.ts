@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import { fromHeaderValue } from '@/lib/email/senderName';
 import { ImapFlow } from 'imapflow';
 import type { EmailAdapter, InboxMessage, SendEmailOptions, SendResult } from '../EmailService';
+import { SYNC_READ_LIMIT, type InboxBatch } from '../inboxBatch';
 
 interface ImapConfig {
   email: string;
@@ -53,8 +54,8 @@ export class ImapAdapter implements EmailAdapter {
   }
 
   /** Fetch inbox messages received since `since` via IMAP. */
-  async fetchMessagesSince(since: Date): Promise<InboxMessage[]> {
-    if (!this.config.imapServer) return [];
+  async fetchMessagesSince(since: Date): Promise<InboxBatch> {
+    if (!this.config.imapServer) return { messages: [], truncated: false };
 
     const client = new ImapFlow({
       host: this.config.imapServer,
@@ -70,19 +71,38 @@ export class ImapAdapter implements EmailAdapter {
 
     await client.connect();
     const messages: InboxMessage[] = [];
+    let truncated = false;
     try {
       const lock = await client.getMailboxLock('INBOX');
       try {
-        const uids = ((await client.search({ since })) || []) as number[];
-        // Cap per run; newest last in UID order, keep the most recent 30 (source download is heavier)
-        const recent = uids.slice(-30);
-        if (recent.length > 0) {
-          for await (const msg of client.fetch(recent, { envelope: true, source: true })) {
+        // A UID is unique in one mailbox only (and only while UIDVALIDITY holds), but the stored id is
+        // unique across every mailbox: two mailboxes' UID 123 collided, and the second one's message
+        // — a bounce, a reply — was taken for already stored and never read.
+        const uidValidity = String((client.mailbox && typeof client.mailbox === 'object' ? client.mailbox.uidValidity : '') ?? '');
+        const idFor = (uid: number) => `imap:${this.config.email.toLowerCase()}:${uidValidity}:${uid}`;
+        // IMAP SEARCH SINCE compares dates only, so it returns the whole day; the server's own receipt
+        // time (INTERNALDATE) says which of those are past the cursor. Oldest first, up to the run's
+        // limit — it used to keep only the newest 30, and anything older in that run was never read.
+        const uids = ((await client.search({ since }, { uid: true })) || []) as number[];
+        const pending: { uid: number; receivedAt: Date }[] = [];
+        if (uids.length > 0) {
+          for await (const msg of client.fetch(uids, { uid: true, internalDate: true }, { uid: true })) {
+            const receivedAt = msg.internalDate ? new Date(msg.internalDate) : null;
+            if (receivedAt && receivedAt.getTime() >= since.getTime()) pending.push({ uid: msg.uid, receivedAt });
+          }
+        }
+        pending.sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime() || a.uid - b.uid);
+        const toRead = pending.slice(0, SYNC_READ_LIMIT);
+        truncated = toRead.length < pending.length;
+        const receivedByUid = new Map(toRead.map((m) => [m.uid, m.receivedAt]));
+        if (toRead.length > 0) {
+          for await (const msg of client.fetch(toRead.map((m) => m.uid), { uid: true, envelope: true, source: true }, { uid: true })) {
             const parsed = (await (simpleParser as any)(msg.source || '')) as any;
             const from = msg.envelope?.from?.[0];
             const to = msg.envelope?.to?.[0];
             messages.push({
-              providerMessageId: String(msg.uid),
+              providerMessageId: idFor(msg.uid),
+              legacyProviderMessageId: String(msg.uid),
               fromEmail: (from?.address ?? '').toLowerCase(),
               fromName: from?.name ?? null,
               to: (to?.address ?? '').toLowerCase(),
@@ -93,8 +113,10 @@ export class ImapAdapter implements EmailAdapter {
               failedRecipient: null,
               isSpam: false,
               isTrash: false,
+              receivedAt: receivedByUid.get(msg.uid),
             });
           }
+          messages.sort((a, b) => (a.receivedAt?.getTime() ?? 0) - (b.receivedAt?.getTime() ?? 0));
         }
       } finally {
         lock.release();
@@ -102,7 +124,7 @@ export class ImapAdapter implements EmailAdapter {
     } finally {
       await client.logout().catch(() => {});
     }
-    return messages;
+    return { messages, truncated };
   }
 
   /** Verify the SMTP connection credentials. Returns true if valid. */

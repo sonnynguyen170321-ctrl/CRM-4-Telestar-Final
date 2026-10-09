@@ -16,7 +16,7 @@ import {
   unenrollLead,
 } from '@/lib/sequences/engine';
 import { pauseEnrollmentOccurrence } from '@/lib/sequences/lifecycle';
-import { findSuppression } from '@/lib/email/suppress';
+import { blockIfBounced, findSuppression } from '@/lib/email/suppress';
 import { sendsImmediatelyOnEnroll } from '@/lib/sequences/rules';
 import { resolveSendingMailbox, sequenceSenderGap } from '@/lib/sequences/sender';
 import { enrollmentStepTaskId } from '@/lib/sequences/identity';
@@ -320,8 +320,11 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
   });
   const senderGap = !account && task.sequenceId ? await sequenceSenderGap(task.tenantId, task.sequenceId) : null;
 
-  // Check suppression
-  const suppressed = await findSuppression({ tenantId: task.tenantId, email: task.lead.email, campaignId: task.lead.campaignId });
+  // Check suppression — and, behind it, any earlier bounce for this address that never became a
+  // suppression (lib/email/suppress.ts blockIfBounced suppresses it and stops the cadence now).
+  const suppressed =
+    (await findSuppression({ tenantId: task.tenantId, email: task.lead.email, campaignId: task.lead.campaignId })) ??
+    (await blockIfBounced({ tenantId: task.tenantId, email: task.lead.email, leadId: task.lead.id, actorUserId: task.lead.assignedToId }));
 
   // The sequence this task belongs to — not `lead.sequence`, which is only the lead's pointer to
   // its most recent cadence. With several sequences running, the pointer can name a different,

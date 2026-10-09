@@ -5,6 +5,7 @@ import { JobType } from '@/lib/bullmq/types';
 import type { EmailSyncPayload, EmailApplyReplyPayload, EmailApplyBouncePayload } from '@/lib/bullmq/types';
 import { EmailService } from '@/lib/email/EmailService';
 import type { InboxMessage } from '@/lib/email/EmailService';
+import { toInboxBatch } from '@/lib/email/inboxBatch';
 import { isBounceMessage, isAutoReply, extractBouncedRecipient } from '@/lib/email/bounceDetection';
 import { pauseAllLeadCadences } from '@/lib/sequences/leadStop';
 import { suppressRecipient } from '@/lib/email/suppress';
@@ -49,8 +50,10 @@ const MATCHED_LEAD_SELECT = {
  * answered, and to an address that had bounced (owner, 2026-10-07).
  */
 async function matchLeads(
-  account: { id: string; userId: string },
+  account: { id: string; userId: string; tenantId: string },
   emails: string[],
+  /** Addresses a bounce names; one still unmatched falls back to the tenant's latest send to it. */
+  bouncedEmails: string[] = [],
 ): Promise<Map<string, MatchedLead>> {
   const byEmail = new Map<string, MatchedLead>();
   if (emails.length === 0) return byEmail;
@@ -90,7 +93,53 @@ async function matchLeads(
     const lead = byId.get(leadId);
     if (lead) byEmail.set(address, lead);
   }
+
+  // A bounce that still names no lead: the address was written to, just not from this mailbox nor
+  // to its owner's lead — a bounce delivered to another mailbox, a forwarded DSN. A dead address is
+  // dead for every sender, so the tenant's latest send to it names the lead (owner, 2026-10-09).
+  const unmatchedBounces = [...new Set(bouncedEmails.map((e) => e.toLowerCase()))].filter((e) => !byEmail.has(e));
+  if (unmatchedBounces.length > 0) {
+    const tenantSends = await prisma.outboundMessage.findMany({
+      where: {
+        tenantId: account.tenantId,
+        sentAt: { gte: new Date(Date.now() - SENT_MATCH_WINDOW_MS) },
+        to: { in: unmatchedBounces, mode: 'insensitive' },
+      },
+      select: { leadId: true, to: true },
+      orderBy: { sentAt: 'desc' },
+    });
+    const leadByAddress = new Map<string, string>();
+    for (const row of tenantSends) {
+      const address = row.to.toLowerCase();
+      if (!leadByAddress.has(address)) leadByAddress.set(address, row.leadId);
+    }
+    if (leadByAddress.size > 0) {
+      const found = await prisma.lead.findMany({
+        where: { id: { in: [...new Set(leadByAddress.values())] } },
+        select: MATCHED_LEAD_SELECT,
+      });
+      const foundById = new Map(found.map((lead) => [lead.id, lead]));
+      for (const [address, leadId] of leadByAddress) {
+        const lead = foundById.get(leadId);
+        if (lead) byEmail.set(address, lead);
+      }
+    }
+  }
   return byEmail;
+}
+
+/**
+ * Where a run that stopped at the read limit resumes: the newest received time it read, less a second
+ * — providers compare by the second, and a message sharing that second must not be skipped; one read
+ * twice is skipped by the stored-message check. Never before `since` (a run must make progress) and
+ * never after `now`.
+ */
+export function cursorAfter(messages: InboxMessage[], since: Date, now: Date): Date {
+  const newest = messages.reduce((latest, m) => {
+    const at = (m.receivedAt ?? m.date).getTime();
+    return Number.isFinite(at) && at > latest ? at : latest;
+  }, since.getTime());
+  return new Date(Math.min(Math.max(newest - 1000, since.getTime()), now.getTime()));
 }
 
 /**
@@ -112,6 +161,21 @@ type ClassifiedMessage = {
   lead: MatchedLead | undefined;
 };
 
+/** Whether a message arrived after the lead's running cadence began (a re-read's reply guard). */
+async function repliedDuringCurrentEnrollment(leadId: string, msg: InboxMessage): Promise<boolean> {
+  const at = (msg.receivedAt ?? msg.date).getTime();
+  if (!Number.isFinite(at)) return false;
+  const running = await prisma.sequenceEnrollment.findFirst({
+    where: { leadId, status: 'active' },
+    orderBy: { startedAt: 'desc' },
+    select: { startedAt: true },
+  });
+  return Boolean(running && running.startedAt.getTime() <= at);
+}
+
+/** An ISO time, or nothing for a missing or unparseable date (a sender's Date: header can be anything). */
+const validIso = (at: Date | undefined | null) => (at && !Number.isNaN(at.getTime()) ? at.toISOString() : undefined);
+
 /** Postgres text cannot hold NUL; a message containing one would be refused on every retry. */
 const stripNul = (value: string) => value.replace(/\u0000/g, '');
 
@@ -125,17 +189,22 @@ async function handleEmailSync(payload: EmailSyncPayload) {
   if (!account.isActive) return { skipped: true, reason: 'account_inactive' };
 
   const now = new Date();
-  const since = account.lastSyncAt ?? new Date(now.getTime() - DEFAULT_SYNC_LOOKBACK_MS);
+  const resync = payload.since ? new Date(payload.since) : null;
+  if (resync && Number.isNaN(resync.getTime())) return { skipped: true, reason: 'invalid_since' };
+  const since = resync ?? account.lastSyncAt ?? new Date(now.getTime() - DEFAULT_SYNC_LOOKBACK_MS);
 
   const service = await EmailService.fromAccount(account);
-  const messages = await service.fetchMessagesSince(since);
-  if (messages === null) {
-    await prisma.emailAccount.update({
-      where: { id: accountId },
-      data: { lastSyncAt: now },
-    });
+  const fetched = await service.fetchMessagesSince(since);
+  if (fetched === null) {
+    if (!resync) {
+      await prisma.emailAccount.update({
+        where: { id: accountId },
+        data: { lastSyncAt: now },
+      });
+    }
     return { skipped: true, reason: 'adapter_does_not_support_sync' };
   }
+  const { messages, truncated, overflow } = toInboxBatch(fetched);
 
   // Pre-parse bounce recipients so lead lookup covers BOTH senders (replies) and
   // DSN-reported recipients (bounces). Looking up only senders meant every bounce
@@ -157,7 +226,8 @@ async function handleEmailSync(payload: EmailSyncPayload) {
     )
   );
 
-  const leadByEmail = await matchLeads(account, lookupEmails);
+  const bouncedEmails = preParsed.flatMap((p) => (p.isBounce && p.bouncedRecipient ? [p.bouncedRecipient] : []));
+  const leadByEmail = await matchLeads(account, lookupEmails, bouncedEmails);
 
   const classified: ClassifiedMessage[] = preParsed.map((p) => {
     const auto = !p.isBounce && isAutoReply(p.msg);
@@ -180,17 +250,41 @@ async function handleEmailSync(payload: EmailSyncPayload) {
   // historical bounce rate impossible to reconstruct. Mail from anyone who is not a lead —
   // newsletters, colleagues, personal mail — is not stored (owner, 2026-10-07: it filled the
   // unified inbox, and it is not the CRM's to keep). It stays in the mailbox itself.
+  //
+  // Only what this run stores — or a stored message it can now place with a lead — is acted on. A
+  // run reads some messages twice (the cursor backs up a second; a re-read covers old mail), and
+  // acting on a stored bounce again re-notified the rep and marked a later send bounced.
   let unsaved = 0;
+  const toApply = new Set<string>();
   for (const c of classified) {
     if (!c.msg.fromEmail) continue;
     if (!c.isBounce && !c.lead) continue;
 
     try {
-      const exists = await prisma.inboundMessage.findUnique({
-        where: { providerMessageId: c.msg.providerMessageId },
-        select: { id: true },
-      });
-      if (exists) continue;
+      const exists =
+        (await prisma.inboundMessage.findUnique({
+          where: { providerMessageId: c.msg.providerMessageId },
+          select: { id: true, leadId: true },
+        })) ??
+        // The id an adapter used before (IMAP stored the bare UID, which collides across mailboxes).
+        (c.msg.legacyProviderMessageId
+          ? await prisma.inboundMessage.findFirst({
+              where: { providerMessageId: c.msg.legacyProviderMessageId, accountId },
+              select: { id: true, leadId: true },
+            })
+          : null);
+      if (exists) {
+        // Stored with no lead — a bounce or reply the matching of the time could not place. It can
+        // now: attach it and act on it, once (the claim is conditional on the lead still being unset).
+        if (!exists.leadId && c.lead) {
+          const claimed = await prisma.inboundMessage.updateMany({
+            where: { id: exists.id, leadId: null },
+            data: { leadId: c.lead.id, isReply: c.isReply },
+          });
+          if (claimed.count === 1) toApply.add(c.msg.providerMessageId);
+        }
+        continue;
+      }
 
       await prisma.inboundMessage.create({
         data: {
@@ -213,6 +307,7 @@ async function handleEmailSync(payload: EmailSyncPayload) {
           tenantId: account.tenantId,
         },
       });
+      toApply.add(c.msg.providerMessageId);
     } catch (saveErr) {
       // Another sync of the same mailbox stored it between our check and our insert: fine.
       if (saveErr instanceof Prisma.PrismaClientKnownRequestError && saveErr.code === 'P2002') continue;
@@ -234,6 +329,7 @@ async function handleEmailSync(payload: EmailSyncPayload) {
 
   for (const c of classified) {
     if (!c.isBounce || !c.lead) continue;
+    if (!toApply.has(c.msg.providerMessageId)) continue;
     if (c.lead.emailInvalid) continue;
 
     await handleApplyBounce({
@@ -241,12 +337,14 @@ async function handleEmailSync(payload: EmailSyncPayload) {
       leadId: c.lead.id,
       accountId,
       bounceType: c.bounceType ?? 'hard',
+      receivedAt: validIso(c.msg.receivedAt ?? c.msg.date),
     });
     bounces++;
   }
 
   for (const c of classified) {
     if (c.isBounce || !c.lead) continue;
+    if (!toApply.has(c.msg.providerMessageId)) continue;
     // Auto-responders reach the same chokepoint as ordinary replies (Phase 8b). They are stored
     // with `isReply: false`, so reply-rate reporting is untouched, but they still have to pause a
     // cadence and record why — and routing them anywhere else would be the second inbound
@@ -256,6 +354,10 @@ async function handleEmailSync(payload: EmailSyncPayload) {
     // inside handleApplyReply checks SequenceEnrollment.status === 'active' so a stale
     // Lead.sequenceStatus legacy cache value never drops a real reply (S3).
     if (!c.lead.sequenceId) continue;
+    // A re-read of the past acts only on what still concerns today's cadence: a reply the lead sent
+    // before their current enrollment started belongs to an earlier one, and an old out-of-office says
+    // nothing about now.
+    if (resync && (c.isAutoReply || !(await repliedDuringCurrentEnrollment(c.lead.id, c.msg)))) continue;
 
     await handleApplyReply({
       providerMessageId: c.msg.providerMessageId,
@@ -275,12 +377,19 @@ async function handleEmailSync(payload: EmailSyncPayload) {
     throw new Error(`[sync] ${unsaved} of ${messages.length} message(s) could not be saved for account ${accountId}; will retry from ${since.toISOString()}`);
   }
 
+  // A run that read everything moves the cursor to now. One that stopped at the read limit moves it
+  // only to the last message it read, so the next run starts there instead of skipping the rest.
+  const cursor = truncated ? cursorAfter(messages, since, now) : now;
+  if (resync) {
+    // A re-read of the past: the live cursor is not this run's to move.
+    return { success: true, accountId, messagesProcessed: messages.length, replies, bounces, autoReplies, truncated, cursor, ...(overflow ? { overflow } : {}) };
+  }
   await prisma.emailAccount.update({
     where: { id: accountId },
-    data: { lastSyncAt: now },
+    data: { lastSyncAt: cursor },
   });
 
-  return { success: true, accountId, messagesProcessed: messages.length, replies, bounces, autoReplies };
+  return { success: true, accountId, messagesProcessed: messages.length, replies, bounces, autoReplies, truncated };
 }
 
 /**
@@ -459,15 +568,24 @@ export async function handleApplyBounce(payload: EmailApplyBouncePayload) {
   // Mark the originating send before the already-invalid guard below: a second
   // send that also bounces still needs its own row flipped, and only messages
   // still in 'sent' are selected so re-running cannot double-count.
+  // The send this bounce answers: the latest one before it arrived. Without the bound, a step sent
+  // after the bounce but before the sync read it was the one marked bounced.
+  const arrivedAt = payload.receivedAt ? new Date(payload.receivedAt) : null;
+  const bounceTime = arrivedAt && !Number.isNaN(arrivedAt.getTime()) ? arrivedAt : null;
   const originating = await prisma.outboundMessage.findFirst({
-    where: { accountId, to: { equals: lead.email, mode: 'insensitive' }, status: 'sent' },
+    where: {
+      accountId,
+      to: { equals: lead.email, mode: 'insensitive' },
+      status: 'sent',
+      ...(bounceTime ? { sentAt: { lte: bounceTime } } : {}),
+    },
     orderBy: { sentAt: 'desc' },
     select: { id: true },
   });
   if (originating) {
     await prisma.outboundMessage.update({
       where: { id: originating.id },
-      data: { status: 'bounced', bouncedAt: new Date(), bounceType },
+      data: { status: 'bounced', bouncedAt: bounceTime ?? new Date(), bounceType },
     });
   }
 
