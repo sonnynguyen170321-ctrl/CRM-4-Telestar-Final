@@ -305,13 +305,14 @@ function LeadDetailPanelBody({
       .then((json) => {
         if (cancelled || !json?.data) return;
         const { hooks, draft } = json.data;
+        // A result generated while this load was in flight is newer: never replace it with the saved one.
         if (hooks) {
-          setAiResearchResult(hooks.data);
-          setAiHooksGeneratedAt(hooks.generatedAt);
+          setAiResearchResult((current: any) => current ?? hooks.data);
+          setAiHooksGeneratedAt((current) => current ?? hooks.generatedAt);
         }
         if (draft) {
-          setAiDraft(draft.data);
-          setAiDraftGeneratedAt(draft.generatedAt);
+          setAiDraft((current) => current ?? draft.data);
+          setAiDraftGeneratedAt((current) => current ?? draft.generatedAt);
         }
       })
       .catch(() => {

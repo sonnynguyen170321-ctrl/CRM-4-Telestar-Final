@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { consumeAttempt } from '@/lib/security/attemptLimit';
 import { canAccessLeadId, requireAuth, type SessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
@@ -56,6 +57,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
+const ENRICH_LIMIT_BUCKET = 'ai_enrich_lead';
+const ENRICH_LIMIT_PER_WINDOW = 120;
+const ENRICH_LIMIT_WINDOW_SECONDS = 10 * 60;
+
 export async function POST(req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
@@ -77,6 +82,20 @@ export async function POST(req: NextRequest) {
       );
     }
     const { leadId, mode, instruction } = parsedBody.data;
+    // Each call is a paid generation and a saved row; regenerate and the bulk summarize on the
+    // leads page both loop it. Per rep, so one rep cannot spend the tenant's AI budget alone.
+    const attempt = await consumeAttempt({
+      bucket: ENRICH_LIMIT_BUCKET,
+      subject: userId,
+      limit: ENRICH_LIMIT_PER_WINDOW,
+      windowSeconds: ENRICH_LIMIT_WINDOW_SECONDS,
+    });
+    if (!attempt.allowed) {
+      return NextResponse.json(
+        { error: 'Too many AI generations in a short time. Try again in a few minutes.' },
+        { status: 429, headers: { 'Retry-After': String(attempt.retryAfterSeconds) } }
+      );
+    }
     // Tenant scoping alone let any rep read another rep's lead here (pre-launch audit, 2026-10-05).
     if (!(await canAccessLeadId(sessionUser, leadId))) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });

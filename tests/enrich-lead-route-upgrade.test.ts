@@ -6,6 +6,7 @@ const leadFindFirst = vi.fn();
 const canAccess = vi.fn();
 const save = vi.fn();
 const load = vi.fn();
+const consumeAttempt = vi.fn();
 
 vi.mock('@/lib/auth', () => ({
   requireAuth: () => requireAuth(),
@@ -23,6 +24,8 @@ vi.mock('@/lib/leads/aiInsightStore', () => ({
   saveLeadInsight: (...a: unknown[]) => save(...a),
   loadLeadInsight: (...a: unknown[]) => load(...a),
 }));
+
+vi.mock('@/lib/security/attemptLimit', () => ({ consumeAttempt: (...a: unknown[]) => consumeAttempt(...a) }));
 
 const { POST, GET } = await import('@/app/api/ai/enrich-lead/route');
 const { NextRequest } = await import('next/server');
@@ -53,6 +56,7 @@ const get = (q: string) => GET(new NextRequest(`http://x/api/ai/enrich-lead${q}`
 describe('enrich-lead upgrade', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    consumeAttempt.mockResolvedValue({ allowed: true, retryAfterSeconds: 0 });
     requireAuth.mockResolvedValue({ id: 'u1', role: 'sdr', tenantId: 't1', email: 'u@t.test' });
     canAccess.mockResolvedValue(true);
     leadFindFirst.mockResolvedValue(LEAD);
@@ -125,5 +129,14 @@ describe('enrich-lead upgrade', () => {
 
   it('GET requires leadId', async () => {
     expect((await get('')).status).toBe(400);
+  });
+
+  it('refuses with 429 before any generation once a rep passes the limit', async () => {
+    consumeAttempt.mockResolvedValue({ allowed: false, retryAfterSeconds: 120 });
+    const res = await post({ leadId: 'lead-1' });
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Retry-After')).toBe('120');
+    expect(generateStructured).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
   });
 });

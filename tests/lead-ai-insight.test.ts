@@ -5,6 +5,7 @@ import {
   sanitizeInstruction,
   buildInstructionBlock,
   parseHooksOutput,
+  readStoredHooks,
   parseDraftOutput,
   MAX_INSTRUCTION_LENGTH,
 } from '@/lib/ai/leadEnrichment';
@@ -80,6 +81,33 @@ describe('model output parsing', () => {
     expect(parseHooksOutput('{"companySummary":"","icebreakers":[]}')).toBeNull();
     expect(parseHooksOutput('not json')).toBeNull();
     expect(parseHooksOutput('{"companySummary":"x"}')).toBeNull();
+  });
+
+  it('rejects hooks whose fields have the wrong shape, so a bad answer is never saved', () => {
+    const good = { id: 'q', style: 'Question', hook: 'What is next?', rationale: 'Role.' };
+    expect(parseHooksOutput(JSON.stringify({ companySummary: { a: 1 }, icebreakers: [good] }))).toBeNull();
+    expect(parseHooksOutput(JSON.stringify({ companySummary: 'x', keyPainPoints: 'slow', icebreakers: [good] }))).toBeNull();
+    expect(parseHooksOutput(JSON.stringify({ companySummary: 'x', icebreakers: [null] }))).toBeNull();
+    expect(parseHooksOutput(JSON.stringify({ companySummary: 'x', icebreakers: [{ ...good, hook: 42 }] }))).toBeNull();
+  });
+
+  it('fills the optional hook fields and drops unknown ones', () => {
+    const parsed = parseHooksOutput(
+      JSON.stringify({ companySummary: 'x', icebreakers: [{ id: 'q', style: 'Q', hook: 'h', rationale: 'r' }], extra: 'drop me' })
+    );
+    expect(parsed).toEqual({
+      companySummary: 'x',
+      industryFocus: '',
+      estimatedTechStack: [],
+      keyPainPoints: [],
+      icebreakers: [{ id: 'q', style: 'Q', hook: 'h', rationale: 'r' }],
+    });
+  });
+
+  it('reads a saved hooks row only when it still has a valid shape', () => {
+    expect(readStoredHooks({ companySummary: 'x', icebreakers: 'broken' })).toBeNull();
+    expect(readStoredHooks(null)).toBeNull();
+    expect(readStoredHooks({ companySummary: 'x', icebreakers: [] })?.companySummary).toBe('x');
   });
 
   it('parses a full draft with subject and body', () => {

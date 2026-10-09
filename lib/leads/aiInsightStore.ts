@@ -6,7 +6,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
-import type { LeadEmailDraft, LeadEnrichmentResponse } from '@/lib/ai/leadEnrichment';
+import { readStoredDraft, readStoredHooks, type LeadEmailDraft, type LeadEnrichmentResponse } from '@/lib/ai/leadEnrichment';
 
 export interface StoredPart<T> {
   data: T;
@@ -22,15 +22,12 @@ export async function loadLeadInsight(tenantId: string, leadId: string): Promise
   return tenantStorage.run({ tenantId, bypassRls: false }, async () => {
     const row = await prisma.leadAiInsight.findFirst({ where: { tenantId, leadId } });
     if (!row) return null;
+    // Stored JSON is re-checked on the way out: a row that no longer fits is shown as nothing saved.
+    const hooks = row.hooksGeneratedAt ? readStoredHooks(row.hooksJson) : null;
+    const draft = row.draftGeneratedAt ? readStoredDraft(row.draftJson) : null;
     return {
-      hooks:
-        row.hooksJson && row.hooksGeneratedAt
-          ? { data: row.hooksJson as unknown as LeadEnrichmentResponse, generatedAt: row.hooksGeneratedAt.toISOString() }
-          : null,
-      draft:
-        row.draftJson && row.draftGeneratedAt
-          ? { data: row.draftJson as unknown as LeadEmailDraft, generatedAt: row.draftGeneratedAt.toISOString() }
-          : null,
+      hooks: hooks && row.hooksGeneratedAt ? { data: hooks, generatedAt: row.hooksGeneratedAt.toISOString() } : null,
+      draft: draft && row.draftGeneratedAt ? { data: draft, generatedAt: row.draftGeneratedAt.toISOString() } : null,
     };
   });
 }
