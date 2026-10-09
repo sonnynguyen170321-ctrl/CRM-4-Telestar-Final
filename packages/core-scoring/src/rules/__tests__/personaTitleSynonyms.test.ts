@@ -51,6 +51,8 @@ describe("persona title synonyms", () => {
       ["coo", "Chief Operating Officer"],
       ["cio", "Chief Information Officer"],
       ["cmo", "Chief Marketing Officer"],
+      ["cgo", "Chief Growth Officer"],
+      ["cbo", "Chief Business Officer"],
       ["md", "Managing Director"],
       ["vp", "Vice President"],
     ] as const) {

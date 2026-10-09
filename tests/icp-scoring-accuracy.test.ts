@@ -234,8 +234,8 @@ describe('services / consulting', () => {
 describe('verdict version', () => {
   it('moved, so a rescore after this change writes a fresh assessment instead of reusing the old one', () => {
     const rules = telestarRules();
-    expect(verdictVersionFor(rules)).toBe('weighted-v2');
-    expect(verdictVersionFor({ ...rules, pointRules: { ...rules.pointRules, enabled: true } } as IcpVersionRulesV2)).toBe('points-v2');
+    expect(verdictVersionFor(rules)).toBe('weighted-v3');
+    expect(verdictVersionFor({ ...rules, pointRules: { ...rules.pointRules, enabled: true } } as IcpVersionRulesV2)).toBe('points-v3');
     const evidence = evidenceFor({});
     expect(assessmentFingerprint(evidence, rules, 'v1')).toBe(assessmentFingerprint(evidence, rules, 'v1'));
     expect(assessmentFingerprint(evidence, rules, 'v1')).not.toBe(assessmentFingerprint(evidence, rules, 'v2'));

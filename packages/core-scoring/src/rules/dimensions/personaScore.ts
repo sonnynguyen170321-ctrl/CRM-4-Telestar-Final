@@ -23,6 +23,8 @@ const TITLE_SYNONYMS: ReadonlyArray<readonly [string, string]> = [
   ["cro", "chief revenue officer"],
   ["cpo", "chief product officer"],
   ["cdo", "chief data officer"],
+  ["cgo", "chief growth officer"],
+  ["cbo", "chief business officer"],
   ["ciso", "chief information security officer"],
   ["chro", "chief human resources officer"],
   ["md", "managing director"],

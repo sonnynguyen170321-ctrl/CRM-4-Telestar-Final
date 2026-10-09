@@ -575,6 +575,9 @@ domains:
       - packages/**
       - lib/identity/**
       - scripts/backfill-account-identity.ts
+      # Read-only: how much of a title / industry list the scoring dictionaries recognise, before
+      # and after a dictionary change. No database, no network.
+      - scripts/taxonomy-coverage.ts
       - vitest.packages.config.ts
       - vitest.server-only-stub.ts
     tests:

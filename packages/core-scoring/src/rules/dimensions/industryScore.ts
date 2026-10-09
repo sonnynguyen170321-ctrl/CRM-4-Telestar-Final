@@ -1,6 +1,7 @@
 import type { DimensionHit, DimensionResult, NormalizedScoringEvidence } from "../evidence";
 import type { IcpVersionRulesV2 } from "../schema-v2";
-import { industryWithParents } from "../dictionaries/industry";
+import { industryKeysForTerm, industryWithParents, type IndustryKey } from "../dictionaries/industry";
+import { containsFoldedTerm, foldForMatch } from "../dictionaries/termMatch";
 import { CATEGORY_PREFERRED_SECTORS, classifyServedVerticals } from "../dictionaries/servedVertical";
 import { foldText } from "../normalize/normalizeCountry";
 
@@ -45,11 +46,29 @@ function companyIndustryTokens(evidence: NormalizedScoringEvidence): Set<string>
   return tokens;
 }
 
-function listMatches(list: readonly string[], tokens: Set<string>, text: string): boolean {
+/**
+ * An ICP industry entry matches when it is one of the company's tokens, names one of `keys` by its
+ * canonical form ("Bank" -> BANKING, "Hospitals" -> HEALTHCARE) or shorthand ("Tech" -> the software
+ * and IT keys, see INDUSTRY_SHORTHANDS), or appears in the evidence text (see `inText`). Substring
+ * matching (v1) let "ISP" fire inside "display" and an excluded "bet" inside "alphabet".
+ */
+function listMatches(list: readonly string[], tokens: Set<string>, foldedText: string, keys: ReadonlySet<IndustryKey>): boolean {
   return list.some((entry) => {
     const folded = foldText(entry);
-    return folded.length > 0 && (tokens.has(folded) || text.includes(folded));
+    if (folded.length === 0) return false;
+    if (tokens.has(folded)) return true;
+    if (industryKeysForTerm(entry).some((key) => keys.has(key))) return true;
+    return inText(foldedText, entry);
   });
+}
+
+/**
+ * An operator's word found in the evidence text: any word starting with it when it has 4+ letters
+ * ("tech" -> "technology", "finance" -> "financial"), a whole word when shorter ("AI" is not in
+ * "email", "bet" not in "alphabet"). `foldedText` is folded once per lead by the caller.
+ */
+function inText(foldedText: string, entry: string): boolean {
+  return containsFoldedTerm(foldedText, foldForMatch(entry), { prefix: true });
 }
 
 /**
@@ -66,10 +85,18 @@ export function industryScore(
   const hits: DimensionHit[] = [];
   const missingEvidence: string[] = [];
   const tokens = companyIndustryTokens(evidence);
-  const text = evidence.company.evidenceText;
+  // Folded once per lead: evidence text runs to many KB and is tested against every list entry.
+  const text = foldForMatch(evidence.company.evidenceText);
 
   // Denylist always applies regardless of mode.
-  if (listMatches(industry.excludedIndustries, tokens, text)) {
+  // A target names the company's key or any parent ("Software" admits a SaaS company); an exclusion
+  // names the company's own key only — excluding "IT services" must not exclude every cybersecurity
+  // vendor because CYBERSECURITY sits under IT_SERVICES.
+  const ownKey = evidence.company.industryCanonical;
+  const exclusionKeys = new Set<IndustryKey>(ownKey ? [ownKey] : []);
+  const targetKeys = new Set<IndustryKey>(ownKey ? industryWithParents(ownKey) : []);
+
+  if (listMatches(industry.excludedIndustries, tokens, text, exclusionKeys)) {
     hits.push({
       id: "industry_excluded",
       label: "Industry on exclusion list",
@@ -78,8 +105,10 @@ export function industryScore(
     return { dimension: "industry", score: 0, hits, missingEvidence };
   }
 
-  const keywordHit = industry.industryKeywords.some((keyword) =>
-    text.includes(foldText(keyword))
+  // As in listMatches (word-start for 4+ letters, whole word below), and a keyword that names the
+  // company's industry key counts too ("Tech" for a SaaS company).
+  const keywordHit = industry.industryKeywords.some(
+    (keyword) => inText(text, keyword) || industryKeysForTerm(keyword).some((key) => targetKeys.has(key))
   );
 
   if (industry.mode === "all") {
@@ -105,8 +134,8 @@ export function industryScore(
   }
 
   const allowMatch =
-    listMatches(industry.targetIndustries, tokens, text) ||
-    listMatches(industry.subIndustries, tokens, text);
+    listMatches(industry.targetIndustries, tokens, text, targetKeys) ||
+    listMatches(industry.subIndustries, tokens, text, targetKeys);
 
   if (allowMatch) {
     hits.push({ id: "industry_allowlist_match", label: "In target industry", reasonCode: "target_industry_match" });

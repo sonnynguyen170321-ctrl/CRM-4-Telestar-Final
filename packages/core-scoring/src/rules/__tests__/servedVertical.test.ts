@@ -145,3 +145,33 @@ describe("SERVED_VERTICAL_TAXONOMY integrity", () => {
     expect(roots.length).toBeGreaterThanOrEqual(12);
   });
 });
+
+describe("2026-10 niche verticals", () => {
+  const keysFor = (text: string) => classifyServedVerticals(text, 4).map((m) => m.key);
+
+  it.each([
+    ["CCaaS and conversational AI for contact centers", "TECH_CX"],
+    ["Revenue intelligence and sales engagement platform", "TECH_SALESTECH"],
+    ["Cloud ERP software for distributors", "TECH_BIZAPPS"],
+    ["CPaaS: SMS API and video conferencing", "TECH_COMMS"],
+    ["eKYC, AML and fraud prevention for banks", "FIN_REGTECH"],
+    ["Veterinary clinics and animal health", "HEALTH_VET"],
+    ["Chuỗi phòng gym và yoga studio", "RET_FITNESS"],
+    ["Car dealership group and auto repair", "RET_AUTO"],
+    ["Coworking and serviced office operator", "RE_COWORKING"],
+    ["Courier and parcel delivery across Vietnam", "LOG_COURIER"],
+    ["Chartered accountants and audit firm", "PRO_ACCOUNTING"],
+    ["Market research and survey research agency", "PRO_RESEARCH"],
+    ["Facilities management and security guards", "PRO_FACILITIES"],
+    ["Trung tâm Anh ngữ cho trẻ em", "EDU_LANGUAGE"],
+  ])("%s -> %s", (text, key) => {
+    expect(keysFor(text)).toContain(key);
+  });
+
+  it("short niche aliases stay whole words", () => {
+    expect(keysFor("Enterprise architecture consulting")).not.toContain("TECH_BIZAPPS"); // "erp" in "enterprise"
+    expect(keysFor("Space and satellite components")).not.toContain("RET_FITNESS"); // "spa" in "space"
+    expect(keysFor("Gymnastics equipment manufacturer")).not.toContain("RET_FITNESS"); // "gym" in "gymnastics"
+    expect(keysFor("Hamlet theatre productions")).not.toContain("FIN_REGTECH"); // "aml" in "hamlet"
+  });
+});

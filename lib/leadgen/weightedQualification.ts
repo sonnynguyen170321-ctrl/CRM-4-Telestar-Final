@@ -39,7 +39,10 @@ import type { IcpVersionRulesV2 } from '@telestar/core-scoring/rules/schema-v2';
  */
 // v2 (2026-10-06): country aliases on the ICP side, title word-set matching, services words send
 // a lead to review instead of ruling it out.
-export const ICP_VERDICT_VERSION = 'weighted-v2';
+// v3 (2026-10-10): the dictionaries underneath changed — worldwide titles (president, chairman, board,
+// GM, Vietnamese/European/Asian forms, former/intern/assistant-to guards) and whole-word industry
+// matching (docs/scoring/TAXONOMY_2026-10.md). Same evidence can now score differently.
+export const ICP_VERDICT_VERSION = 'weighted-v3';
 
 export type WeightedVerdictReason =
   | 'disqualified'
