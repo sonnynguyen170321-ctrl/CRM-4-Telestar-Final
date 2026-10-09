@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
-import { callDescription, DESCRIPTION_MAX, logPhoneCall, phoneCallTarget } from '@/lib/telephony/logPhoneCall';
+import { callDescription, DESCRIPTION_MAX, dialWarning, logPhoneCall, phoneCallTarget } from '@/lib/telephony/logPhoneCall';
 import { isPhoneOutcomeId, outcomeLeadTag, PHONE_OUTCOMES, telUri } from '@/lib/telephony/phoneOutcomes';
 
 /**
@@ -167,5 +167,28 @@ describe('the lead drawer', () => {
 
   it('re-reads the lead after a call is logged, so the next log builds on the server’s tags', () => {
     expect(panel).toMatch(/const handleCallLogged = [\s\S]*?reloadLead\(\);/);
+  });
+});
+
+describe('a lead that must not be called', () => {
+  it('blocks dialing when the lead, its contact or its tags say do not call', () => {
+    expect(dialWarning({ doNotCall: true, doNotCallReason: 'asked on 3 Oct' })).toEqual({
+      block: true,
+      message: 'Do not call: this lead is on the do-not-call list (asked on 3 Oct).',
+    });
+    expect(dialWarning({ contact: { doNotCall: true } })).toMatchObject({ block: true });
+    expect(dialWarning({ tags: ['vip', 'do_not_call'] })).toMatchObject({ block: true });
+  });
+
+  it('warns but still shows the number for a lead marked wrong number', () => {
+    expect(dialWarning({ tags: ['wrong_number'] })).toEqual({
+      block: false,
+      message: 'This number was marked wrong number on an earlier call. Check it before dialing.',
+    });
+  });
+
+  it('says nothing for a lead with no flag', () => {
+    expect(dialWarning({ tags: ['vip'], doNotCall: false, contact: { doNotCall: false } })).toBeNull();
+    expect(dialWarning({})).toBeNull();
   });
 });

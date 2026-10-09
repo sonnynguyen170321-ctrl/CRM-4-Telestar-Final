@@ -33,6 +33,36 @@ export function phoneCallTarget(raw: string | null | undefined, recordCountry?: 
   return { e164: null, country: null, isVietnam: false };
 }
 
+export type DialFlags = {
+  doNotCall?: boolean | null;
+  doNotCallReason?: string | null;
+  tags?: readonly string[] | null;
+  contact?: { doNotCall?: boolean | null } | null;
+};
+
+export type DialWarning = { block: boolean; message: string };
+
+/**
+ * What the panel says before a rep dials from their own phone. The server-side dial gate
+ * (lib/telephony/compliance.ts) never sees a handset call, so a do-not-call lead is stopped here:
+ * the number and the QR code are not shown. A wrong-number tag only warns — the number may have
+ * been fixed since.
+ */
+export function dialWarning(lead: DialFlags): DialWarning | null {
+  const tags = lead.tags ?? [];
+  if (lead.doNotCall || lead.contact?.doNotCall || tags.includes('do_not_call')) {
+    const reason = lead.doNotCallReason?.trim();
+    return {
+      block: true,
+      message: `Do not call: this lead is on the do-not-call list${reason ? ` (${reason})` : ''}.`,
+    };
+  }
+  if (tags.includes('wrong_number')) {
+    return { block: false, message: 'This number was marked wrong number on an earlier call. Check it before dialing.' };
+  }
+  return null;
+}
+
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 /** Room `description` leaves for the notes: activities cap it at 500 (lib/validation/core.ts). */

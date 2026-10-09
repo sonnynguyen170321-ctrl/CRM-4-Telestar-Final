@@ -79,6 +79,8 @@ interface LeadDetail {
   emailScore?: number | null;
   vendorSource?: string | null;
   tags: string[];
+  doNotCall?: boolean | null;
+  doNotCallReason?: string | null;
   lastContactedAt?: string;
   archivedAt?: string | null;
   sequenceId?: string | null;
@@ -2400,6 +2402,9 @@ function LeadDetailPanelBody({
             lastName: lead.lastName,
             company: lead.company,
             phone: lead.phone,
+            doNotCall: lead.doNotCall,
+            doNotCallReason: lead.doNotCallReason,
+            tags: lead.tags,
             contact: lead.contact,
           }}
           onClose={() => setShowDialer(false)}
