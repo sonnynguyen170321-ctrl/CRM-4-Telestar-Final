@@ -205,3 +205,26 @@ describe('where the next run starts', () => {
     expect(toInboxBatch([])).toEqual({ messages: [], truncated: false });
   });
 });
+
+describe('Outlook message text', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  // CodeQL (PR #266): a tag-stripping regex can leave markup behind; the parser reads the text.
+  it('reads an HTML body as text through the parser, leaving no markup', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      value: [{
+        id: 'm-1',
+        from: { emailAddress: { address: 'lead@acme.com', name: 'Lead' } },
+        toRecipients: [{ emailAddress: { address: 'rep@acme.com' } }],
+        subject: 'Re: hi',
+        receivedDateTime: new Date(T0).toISOString(),
+        body: { contentType: 'html', content: '<p>Thanks &amp; yes</p><scr<script>ipt>alert(1)</script>' },
+      }],
+    }))));
+
+    const { messages } = await new OutlookAdapter({ accessToken: 't', refreshToken: 'r' } as never).fetchMessagesSince(new Date(T0));
+
+    expect(messages[0].body).toContain('Thanks & yes');
+    expect(messages[0].body).not.toMatch(/<\s*script/i);
+  });
+});

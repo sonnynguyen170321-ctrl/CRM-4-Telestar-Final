@@ -2,6 +2,7 @@ import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailServi
 import { SYNC_READ_LIMIT, type InboxBatch } from '../inboxBatch';
 import { fromHeaderValue } from '@/lib/email/senderName';
 import { encrypt } from '@/lib/crypto';
+import DOMPurify from 'isomorphic-dompurify';
 
 interface OutlookConfig {
   accessToken: string;
@@ -214,6 +215,15 @@ export async function exchangeMicrosoftCode(code: string) {
   };
 }
 
+/**
+ * The text of an HTML body, read by the parser. A tag-stripping regex can leave markup behind (a
+ * `<scr<script>ipt>` shape survives one pass), and this text is shown in the inbox.
+ */
+function htmlToText(html: string): string {
+  const fragment = DOMPurify.sanitize(html, { ALLOWED_TAGS: [], KEEP_CONTENT: true, RETURN_DOM_FRAGMENT: true });
+  return (fragment.textContent ?? '').trim();
+}
+
 function toInboxMessage(m: any): InboxMessage {
   const fromEmail = (m.from?.emailAddress?.address ?? '').toLowerCase();
   const fromName = m.from?.emailAddress?.name ?? null;
@@ -228,7 +238,7 @@ function toInboxMessage(m: any): InboxMessage {
     to,
     subject: m.subject ?? '',
     date: receivedAt,
-    body: isHtml ? rawBody.replace(/<[^>]+>/g, '').trim() : rawBody,
+    body: isHtml ? htmlToText(rawBody) : rawBody,
     bodyHtml: isHtml ? rawBody : rawBody,
     failedRecipient: null,
     isSpam: false,
