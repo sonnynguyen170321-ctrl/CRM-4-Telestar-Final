@@ -160,6 +160,7 @@ export function createVerifyBatch(deps: VerifyBatchDeps = {}): VerifyBatchFn {
         outcome = await generate(
           {
             tenantId,
+            researchRunId: runId,
             operation: 'research_classify',
             systemPrompt:
               'You classify web evidence about companies for B2B prospecting. Answer with JSON only. Use only the evidence ' +
@@ -217,7 +218,7 @@ export function createVerifyBatch(deps: VerifyBatchDeps = {}): VerifyBatchFn {
         excludeKeywords: context.excludeKeywords,
       }),
     }));
-    const judgements = await judge(tenantId, context, scored.filter((s) => s.result.verification !== 'rejected' && s.classification.isCompanySite), generate);
+    const judgements = await judge(tenantId, runId, context, scored.filter((s) => s.result.verification !== 'rejected' && s.classification.isCompanySite), generate);
 
     for (const s of scored) {
       const finalResult = combineWithJudge(s.result, judgements.get(s.candidate.id) ?? null, s.classification.confidence);
@@ -236,6 +237,7 @@ export function createVerifyBatch(deps: VerifyBatchDeps = {}): VerifyBatchFn {
 
 async function judge(
   tenantId: string,
+  runId: string,
   context: RunContext,
   items: Array<{ candidate: ClaimedCandidate; classification: CompanyClassification }>,
   generate: GenerateFn
@@ -263,6 +265,7 @@ async function judge(
       const outcome = await generate(
         {
           tenantId,
+          researchRunId: runId,
           operation: 'research_fit_judge',
           systemPrompt:
             'You judge whether companies fit an ideal customer profile for B2B prospecting. Answer with JSON only. The ' +

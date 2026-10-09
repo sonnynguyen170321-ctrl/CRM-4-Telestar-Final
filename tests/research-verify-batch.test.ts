@@ -115,6 +115,19 @@ describe('verifyBatch', () => {
     expect(model.calls).toEqual(['research_classify', 'research_fit_judge']);
   });
 
+  it('attributes every AI call a verify slice makes to the research run', async () => {
+    const runId = await runWith([{ name: 'Riyad Bank', domain: 'riyadbank.com', snippet: RIYAD }]);
+    const seen: Array<{ operation: string; researchRunId?: string | null }> = [];
+    const model = fakeModel();
+    const generate = (async (input: { operation: string; researchRunId?: string | null }, parse: never) => {
+      seen.push({ operation: input.operation, researchRunId: input.researchRunId });
+      return (model.generate as never as (i: unknown, p: unknown) => Promise<unknown>)(input, parse);
+    }) as unknown as VerifyBatchDeps['generate'];
+    await slice(runId, { generate, fetchPages: blocked });
+    expect(seen.map((s) => s.operation)).toEqual(['research_classify', 'research_fit_judge']);
+    expect(seen.every((s) => s.researchRunId === runId)).toBe(true);
+  });
+
   it('rules out a job board by rule, without asking the model', async () => {
     const runId = await runWith([{ name: 'GulfTalent', domain: 'gulftalent.com', snippet: 'GulfTalent is the leading job site in the Middle East. Search thousands of jobs.' }]);
     const model = fakeModel();

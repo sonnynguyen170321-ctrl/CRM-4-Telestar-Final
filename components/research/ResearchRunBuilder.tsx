@@ -9,6 +9,8 @@ import {
   type ResearchBuilderParams,
 } from '@telestar/core-research/buildDiscoveryQueries';
 
+import { COMPANY_KINDS } from '@telestar/core-research/companyClassification';
+
 import { readApiError } from '@/lib/api/client';
 
 export type ResearchRunPayload = {
@@ -72,6 +74,7 @@ export default function ResearchRunBuilder({
   const [seniority, setSeniority] = useState('');
   const [excludeKeywords, setExcludeKeywords] = useState('');
   const [excludeDomains, setExcludeDomains] = useState('');
+  const [competitorKinds, setCompetitorKinds] = useState<string[]>([]);
   const [companySize, setCompanySize] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [companyDomain, setCompanyDomain] = useState('');
@@ -111,6 +114,7 @@ export default function ResearchRunBuilder({
     seniority,
     excludeKeywords,
     excludeDomains,
+    competitorKinds,
     companySize,
     companyName,
     companyDomain,
@@ -136,6 +140,7 @@ export default function ResearchRunBuilder({
       seniority,
       excludeKeywords,
       excludeDomains,
+      competitorKinds,
       companySize,
       ...(mode === 'COMPANY_CONTACTS'
         ? { scope: { companyName, domain: companyDomain } }
@@ -159,6 +164,7 @@ export default function ResearchRunBuilder({
     seniority,
     excludeKeywords,
     excludeDomains,
+    competitorKinds,
     companySize,
     companyName,
     companyDomain,
@@ -376,6 +382,9 @@ export default function ResearchRunBuilder({
               <TextField label="Company size" value={companySize} onChange={setCompanySize} placeholder="51-200 employees" />
               <TextField label="Exclude keywords" value={excludeKeywords} onChange={setExcludeKeywords} placeholder="agency, recruiter" />
               <TextField label="Exclude domains" value={excludeDomains} onChange={setExcludeDomains} placeholder="example.org" />
+              {kind === 'company' && mode !== 'COMPANY_CONTACTS' && (
+                <CompetitorKindsField value={competitorKinds} onChange={setCompetitorKinds} />
+              )}
             </div>
           )}
 
@@ -449,5 +458,45 @@ function TextField({
       <input className={fieldClass} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} />
       <span className="block type-meta text-text-muted">Separate multiple values with commas.</span>
     </label>
+  );
+}
+
+const KIND_LABELS: Record<(typeof COMPANY_KINDS)[number], string> = {
+  operator: 'Operating businesses',
+  software_vendor: 'Software vendors',
+  services_agency: 'Agencies and service firms',
+  reseller_wholesaler: 'Resellers and wholesalers',
+  association_nonprofit: 'Associations and non-profits',
+  government: 'Government bodies',
+  education: 'Schools and universities',
+  media_news: 'News and media sites',
+  directory_marketplace_jobboard: 'Directories, marketplaces, job boards',
+  research_analyst: 'Research and analyst firms',
+  event: 'Events and conferences',
+};
+
+function CompetitorKindsField({ value, onChange }: { value: string[]; onChange: (value: string[]) => void }) {
+  const toggle = (kindId: string) =>
+    onChange(value.includes(kindId) ? value.filter((k) => k !== kindId) : [...value, kindId]);
+  return (
+    <fieldset className="col-span-2 space-y-2">
+      <legend className="type-meta font-semibold text-text-secondary">Their competitors: rule these out</legend>
+      <div className="grid grid-cols-2 gap-2">
+        {COMPANY_KINDS.map((kindId) => (
+          <label key={kindId} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-card-border bg-bg-main px-3 type-meta text-text-secondary">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-brand-red"
+              checked={value.includes(kindId)}
+              onChange={() => toggle(kindId)}
+            />
+            {KIND_LABELS[kindId]}
+          </label>
+        ))}
+      </div>
+      <span className="block type-meta text-text-muted">
+        Companies of a ticked type are rejected as competitors during verification instead of being listed as prospects.
+      </span>
+    </fieldset>
   );
 }

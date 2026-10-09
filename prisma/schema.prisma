@@ -3001,6 +3001,11 @@ model AiCall {
   /// FK at all. Losing the row would silently reduce reported spend.
   workOrderId String?
   workOrder   WorkOrder? @relation(fields: [workOrderId, tenantId], references: [id, tenantId], onDelete: SetNull)
+  /// The research run this spend belongs to (2026-10-10), so a run can report what its verification cost.
+  /// SetNull for the same accounting reason as `workOrderId`; the SQL uses the column-list form
+  /// `ON DELETE SET NULL ("researchRunId")` so `tenantId` is never nulled.
+  researchRunId String?
+  researchRun   ResearchRun? @relation(fields: [researchRunId, tenantId], references: [id, tenantId], onDelete: SetNull)
 
   /// Linkage back to the executing AgentAction
   agentActionId String?
@@ -3038,6 +3043,7 @@ model AiCall {
   @@index([tenantId, provider])
   @@index([userId, createdAt])
   @@index([workOrderId])
+  @@index([tenantId, researchRunId])
 }
 
 // ─── Typed Work Orders (Phase 6a) ────────────────────────────────────────────
@@ -3973,6 +3979,7 @@ model ResearchRun {
   tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   candidates       ResearchCandidate[]
+  aiCalls          AiCall[]
   evidence         ResearchEvidence[]
   providerAttempts ResearchProviderAttempt[]
 

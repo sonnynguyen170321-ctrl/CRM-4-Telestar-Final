@@ -92,6 +92,7 @@ export async function applyAiFit(
       outcome = await generate(
         {
           tenantId: input.tenantId,
+          researchRunId: input.runId,
           operation: 'research_fit',
           systemPrompt:
             'You score B2B prospecting candidates against an ideal customer profile. Answer with JSON only. ' +
