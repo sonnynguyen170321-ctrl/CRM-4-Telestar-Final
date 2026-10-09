@@ -909,6 +909,7 @@ model Lead {
   tasks                Task[]
   notes                Note[]
   activities           Activity[]
+  aiInsight            LeadAiInsight?
   calls                Call[]
   reminders            Reminder[]
   outboundMessages     OutboundMessage[]
@@ -2552,6 +2553,7 @@ model Tenant {
   emailHealthSnapshots     EmailHealthSnapshot[]
   emailDomainHealth        EmailDomainHealth[]
   emailHealthAlerts        EmailHealthAlert[]
+  leadAiInsights           LeadAiInsight[]
   aiCalls                  AiCall[]
   autonomyPolicies         AutonomyPolicy[]
   prospectTransitions      ProspectTransition[]
@@ -4481,4 +4483,28 @@ model PhoneSuppression {
   tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, e164])
+}
+
+/// The latest AI prospect-research result for one lead: icebreaker hooks and an optional full email
+/// draft. One row per lead, replaced on each generation, so the drawer can show the last result
+/// (and when it was made) instead of losing it on close. This is a cache of generated, advisory
+/// text, not a record of truth: nothing reads it for a decision, and it is rewritten freely.
+model LeadAiInsight {
+  @@unique([id, tenantId], map: "LeadAiInsight_id_tenantId_key")
+  @@unique([leadId, tenantId], map: "LeadAiInsight_leadId_tenantId_key")
+  id                 String    @id @default(cuid())
+  tenantId           String
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leadId             String
+  lead               Lead      @relation(fields: [leadId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  hooksJson          Json?
+  hooksGeneratedAt   DateTime?
+  draftJson          Json?
+  draftGeneratedAt   DateTime?
+  /// Who triggered the most recent generation. Plain string, no FK: it is attribution only.
+  generatedById      String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([tenantId])
 }

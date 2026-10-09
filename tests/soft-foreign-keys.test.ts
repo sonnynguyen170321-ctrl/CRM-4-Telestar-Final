@@ -79,6 +79,8 @@ const SOFT_FOREIGN_KEYS = new Set([
   'AgentAction.leadId',
   'AgentApprovalRequest.campaignId',
   'AgentApprovalRequest.leadId',
+  // Who generated a lead's saved AI result: attribution only, the row outlives the user.
+  'LeadAiInsight.generatedById',
   'AiCall.leadId',
   'AiCall.userId',
   'AutonomyPolicy.updatedById',

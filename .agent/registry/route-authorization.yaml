@@ -89,7 +89,7 @@ routes:
     methods: [POST]
     guards: []
   - path: app/api/ai/enrich-lead/route.ts
-    methods: [POST]
+    methods: [GET, POST]
     guards: []
   - path: app/api/ai/memory/route.ts
     methods: [DELETE, GET, POST]
