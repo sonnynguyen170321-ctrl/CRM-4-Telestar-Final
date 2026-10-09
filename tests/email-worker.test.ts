@@ -18,6 +18,13 @@ const mockServiceSend = vi.fn();
 const mockEnqueueReschedule = vi.fn();
 const mockEnrollmentUpdateMany = vi.fn();
 
+// The send path's bounce-evidence lock (lib/email/suppress.ts) has its own tests
+// (tests/bounce-evidence-guard.test.ts); here no address has bounced before.
+const { mockBlockIfBounced } = vi.hoisted(() => ({ mockBlockIfBounced: vi.fn() }));
+vi.mock('@/lib/email/suppress', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/email/suppress')>()),
+  blockIfBounced: (...a: unknown[]) => mockBlockIfBounced(...a),
+}));
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     outboundMessage: {
@@ -219,6 +226,23 @@ describe('handleEmailSend', () => {
   });
 
   // A message typed as plain text used to get the signature flattened to a few lines of text.
+  // Owner, 2026-10-09 (Spanco): the follow-up went to an address that had already bounced, because
+  // the bounce was never turned into a suppression. The send worker now refuses on the evidence itself.
+  it('refuses a send to an address that bounced earlier, without calling the provider', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockSuppressionFindFirst.mockResolvedValueOnce(null);
+    mockBlockIfBounced.mockResolvedValueOnce({ source: 'bounce_message', at: new Date('2026-10-08T03:10:00Z'), reason: 'hard_bounce' });
+
+    const result = await handleEmailSend(buildPayload());
+
+    expect(result).toEqual({ skipped: true, reason: 'bounced_earlier' });
+    expect(mockBlockIfBounced).toHaveBeenCalledWith(expect.objectContaining({ email: 'test@example.com', leadId: 'lead-1' }));
+    expect(mockServiceSend).not.toHaveBeenCalled();
+    expect(mockOutboundUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      data: { status: 'permanently_failed', errorMessage: expect.stringContaining('Recipient bounced earlier') },
+    }));
+  });
+
   it('sends the designed signature under a plain-text body too', async () => {
     mockAccountFindUnique.mockResolvedValue(mockEmailAccount({
       signature: '<table><tbody><tr><td><b>Mei</b></td></tr></tbody></table>',

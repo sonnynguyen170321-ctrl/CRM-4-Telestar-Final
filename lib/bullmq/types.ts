@@ -221,6 +221,7 @@ export interface MaintenanceRepairPayload {
     | 'stale-pending-outbound'
     | 'quota-drift'
     | 'audit-prune'
+    | 'unapplied-bounces'
   )[];
 }
 

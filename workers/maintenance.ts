@@ -8,6 +8,7 @@ import { OUTBOUND_STATUS, SENDING_CLAIM_LEASE_MS } from '@/lib/email/idempotency
 import { enqueueReschedule } from '@/lib/bullmq/enqueue';
 import { ensureOccurrenceStepTask } from '@/lib/sequences/occurrenceTask';
 import { finalizeSequenceStep, releaseSequenceStep, resolveStepRefForOutbound } from '@/lib/sequences/stepOutcome';
+import { suppressRecipient } from '@/lib/email/suppress';
 
 /**
  * Shared with the send path, which uses the same window to decide whether a `sending` claim is
@@ -485,6 +486,88 @@ async function pruneAuditTier(
   return { deleted, exhausted: true };
 }
 
+/** Stored bounces read per page, and pages per run, by `repairUnappliedBounces`. */
+const BOUNCE_REPAIR_PAGE = 500;
+const BOUNCE_REPAIR_PAGE_LIMIT = 50;
+
+/**
+ * Bounces that were stored but never became a suppression (owner, 2026-10-09: Spanco).
+ *
+ * A bounce stops sends only once the sync matches it to a lead. Before #257 a bounce landing in a
+ * sequence's sender mailbox matched no lead when that mailbox was not the lead holder's, and it was
+ * stored and never read again — the address stayed sendable. This walks every stored bounce, page by
+ * page, and suppresses each address that is not suppressed yet: with the lead the bounce names, or
+ * the lead of the tenant's latest send to that address, so the lead is marked and its cadences
+ * stop; tenant-wide even when no lead can be found. That send is marked bounced too, which is what
+ * the send-time check (`findBounceEvidence`) and the bounce rate read.
+ *
+ * Every page is read; only unapplied addresses cost writes, so a run over an already-clean table is
+ * two reads per page. Idempotent: `suppressRecipient` keeps one entry per address.
+ */
+async function repairUnappliedBounces(): Promise<{ fixed: number; details: string[] }> {
+  const details: string[] = [];
+  let fixed = 0;
+  const handled = new Set<string>();
+
+  let cursor: string | undefined;
+  for (let page = 0; page < BOUNCE_REPAIR_PAGE_LIMIT; page += 1) {
+    const bounces = await prisma.inboundMessage.findMany({
+      where: { isBounce: true, bouncedRecipient: { not: null } },
+      select: { id: true, tenantId: true, leadId: true, bouncedRecipient: true, bounceType: true },
+      orderBy: { id: 'asc' },
+      take: BOUNCE_REPAIR_PAGE,
+      ...pageAfter(cursor),
+    });
+    if (bounces.length === 0) break;
+    cursor = bounces[bounces.length - 1].id;
+
+    const emails = [...new Set(bounces.map((b) => b.bouncedRecipient!.trim().toLowerCase()).filter(Boolean))];
+    const suppressed = await prisma.suppressionEntry.findMany({
+      where: { email: { in: emails } },
+      select: { tenantId: true, email: true },
+    });
+    const isSuppressed = new Set(suppressed.map((s) => `${s.tenantId}:${(s.email ?? '').toLowerCase()}`));
+
+    for (const bounce of bounces) {
+      const email = bounce.bouncedRecipient!.trim().toLowerCase();
+      const key = `${bounce.tenantId}:${email}`;
+      if (!email || isSuppressed.has(key) || handled.has(key)) continue;
+      handled.add(key);
+      try {
+        const latestSend = await prisma.outboundMessage.findFirst({
+          where: { tenantId: bounce.tenantId, to: { equals: email, mode: 'insensitive' }, sentAt: { not: null } },
+          orderBy: { sentAt: 'desc' },
+          select: { id: true, leadId: true, bouncedAt: true },
+        });
+        const leadId = bounce.leadId ?? latestSend?.leadId ?? null;
+        const result = await suppressRecipient({
+          tenantId: bounce.tenantId,
+          email,
+          leadId,
+          reason: bounce.bounceType === 'soft' ? 'soft_bounce' : 'hard_bounce',
+          detail: 'a stored bounce that had not been applied (maintenance repair)',
+        });
+        if (!result.suppressed) {
+          details.push(`bounce:${bounce.id} -> could not suppress ${email}`);
+          continue;
+        }
+        if (latestSend && !latestSend.bouncedAt) {
+          await prisma.outboundMessage.updateMany({
+            where: { id: latestSend.id, bouncedAt: null },
+            data: { bouncedAt: new Date(), bounceType: bounce.bounceType === 'soft' ? 'soft' : 'hard' },
+          });
+        }
+        fixed += 1;
+        details.push(`bounce:${bounce.id} -> suppressed ${email}${leadId ? ` (lead ${leadId})` : ' (no lead found)'}`);
+      } catch (err) {
+        details.push(`bounce:${bounce.id} -> repair failed: ${err}`);
+      }
+    }
+    if (bounces.length < BOUNCE_REPAIR_PAGE) break;
+  }
+  return { fixed, details };
+}
+
 async function repairAuditPrune(): Promise<{ fixed: number; details: string[] }> {
   const extensionDays = retentionDays('AUDIT_RETENTION_DAYS', 90);
   const adminDays = Math.max(retentionDays('ADMIN_AUDIT_RETENTION_DAYS', 365), extensionDays);
@@ -681,6 +764,7 @@ const REPAIR_FN: Record<string, () => Promise<{ fixed: number; details: string[]
   'enrollment-schedule-drift': repairEnrollmentScheduleDrift,
   'stale-pending-outbound': repairStalePendingOutbound,
   'audit-prune': repairAuditPrune,
+  'unapplied-bounces': repairUnappliedBounces,
 };
 
 async function handleRepair(payload: MaintenanceRepairPayload) {

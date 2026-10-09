@@ -15,6 +15,12 @@ import type { SessionUser } from '@/lib/auth';
  * lead's outreach ends must end all of its cadences, not the one the lead's pointer names.
  */
 
+// The send path's bounce-evidence lock (lib/email/suppress.ts) has its own tests
+// (tests/bounce-evidence-guard.test.ts); here no address has bounced before.
+vi.mock('@/lib/email/suppress', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/email/suppress')>()),
+  blockIfBounced: async () => null,
+}));
 vi.mock('@/auth', () => ({ auth: vi.fn(), handlers: {}, signIn: vi.fn(), signOut: vi.fn() }));
 
 const { fakeQueue } = vi.hoisted(() => ({

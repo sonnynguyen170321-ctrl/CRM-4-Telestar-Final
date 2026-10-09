@@ -1,4 +1,5 @@
 import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailService';
+import { SYNC_READ_LIMIT, type InboxBatch } from '../inboxBatch';
 import { fromHeaderValue } from '@/lib/email/senderName';
 import { encrypt } from '@/lib/crypto';
 
@@ -125,46 +126,35 @@ export class OutlookAdapter implements EmailAdapter {
    * Requires the Mail.Read scope — accounts connected before that scope was
    * added must be reconnected from Settings.
    */
-  async fetchMessagesSince(since: Date): Promise<InboxMessage[]> {
-    const url =
+  async fetchMessagesSince(since: Date): Promise<InboxBatch> {
+    // Oldest first, page by page, until the run's limit: a run that stops leaves only newer mail,
+    // and the sync moves its cursor to the last message read. It used to take the newest 50 and
+    // nothing else, so a burst of bounces after a batch send was mostly never read.
+    let next: string | null =
       'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages' +
       `?$filter=receivedDateTime ge ${since.toISOString()}` +
-      '&$select=from,toRecipients,subject,receivedDateTime,body&$orderby=receivedDateTime desc&$top=50';
+      '&$select=from,toRecipients,subject,receivedDateTime,body&$orderby=receivedDateTime asc&$top=100';
 
     let token = this.config.accessToken;
-    let res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (res.status === 401) {
-      token = await this.refreshAccessToken();
-      res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const messages: InboxMessage[] = [];
+    while (next && messages.length < SYNC_READ_LIMIT) {
+      let res: Response = await fetch(next, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 401) {
+        token = await this.refreshAccessToken();
+        res = await fetch(next, { headers: { Authorization: `Bearer ${token}` } });
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(`Microsoft Graph inbox fetch failed: ${(err as any).error?.message ?? res.statusText}`);
+      }
+      const data: { value?: unknown[]; '@odata.nextLink'?: unknown } = await res.json();
+      for (const m of (data.value ?? []) as any[]) {
+        if (messages.length >= SYNC_READ_LIMIT) break;
+        messages.push(toInboxMessage(m));
+      }
+      next = typeof data['@odata.nextLink'] === 'string' ? data['@odata.nextLink'] : null;
     }
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(`Microsoft Graph inbox fetch failed: ${(err as any).error?.message ?? res.statusText}`);
-    }
-
-    const data = await res.json();
-    return ((data.value ?? []) as any[]).map((m) => {
-      const fromEmail = (m.from?.emailAddress?.address ?? '').toLowerCase();
-      const fromName = m.from?.emailAddress?.name ?? null;
-      const to = (m.toRecipients?.[0]?.emailAddress?.address ?? '').toLowerCase();
-      
-      const isHtml = m.body?.contentType === 'html';
-      const rawBody = m.body?.content ?? '';
-      
-      return {
-        providerMessageId: m.id,
-        fromEmail,
-        fromName,
-        to,
-        subject: m.subject ?? '',
-        date: new Date(m.receivedDateTime),
-        body: isHtml ? rawBody.replace(/<[^>]+>/g, '').trim() : rawBody,
-        bodyHtml: isHtml ? rawBody : rawBody,
-        failedRecipient: null,
-        isSpam: false,
-        isTrash: false,
-      };
-    });
+    return { messages, truncated: Boolean(next) || messages.length >= SYNC_READ_LIMIT };
   }
 }
 
@@ -221,5 +211,28 @@ export async function exchangeMicrosoftCode(code: string) {
     tokenExpiry: tokens.expires_in
       ? new Date(Date.now() + tokens.expires_in * 1000)
       : null,
+  };
+}
+
+function toInboxMessage(m: any): InboxMessage {
+  const fromEmail = (m.from?.emailAddress?.address ?? '').toLowerCase();
+  const fromName = m.from?.emailAddress?.name ?? null;
+  const to = (m.toRecipients?.[0]?.emailAddress?.address ?? '').toLowerCase();
+  const isHtml = m.body?.contentType === 'html';
+  const rawBody = m.body?.content ?? '';
+  const receivedAt = new Date(m.receivedDateTime);
+  return {
+    providerMessageId: m.id,
+    fromEmail,
+    fromName,
+    to,
+    subject: m.subject ?? '',
+    date: receivedAt,
+    body: isHtml ? rawBody.replace(/<[^>]+>/g, '').trim() : rawBody,
+    bodyHtml: isHtml ? rawBody : rawBody,
+    failedRecipient: null,
+    isSpam: false,
+    isTrash: false,
+    receivedAt,
   };
 }

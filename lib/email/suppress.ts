@@ -166,3 +166,62 @@ export async function suppressRecipient(
     return { suppressed: false, newlySuppressed: false };
   }
 }
+
+export type BounceEvidence = { source: 'send' | 'bounce_message'; at: Date; reason: 'hard_bounce' | 'soft_bounce' };
+
+/**
+ * Any earlier bounce for this address in the tenant, whether or not it was ever matched to a lead.
+ *
+ * The send path's second lock. Suppression is written only when the inbox sync reads a bounce and
+ * matches it to a lead; when that link broke — a run that read only 50 messages, a bounce in a
+ * sender mailbox matched to nobody — the address stayed sendable and the next step went out to a
+ * dead mailbox (owner, 2026-10-09: Spanco, `550 5.7.1`, follow-up sent anyway). This asks the
+ * records directly: a send to the address marked bounced, or a stored bounce naming it.
+ */
+export async function findBounceEvidence(input: { tenantId: string; email: string | null | undefined }): Promise<BounceEvidence | null> {
+  const email = input.email?.trim().toLowerCase();
+  if (!email) return null;
+
+  const send = await prisma.outboundMessage.findFirst({
+    where: { tenantId: input.tenantId, bouncedAt: { not: null }, to: { equals: email, mode: 'insensitive' } },
+    orderBy: { bouncedAt: 'asc' },
+    select: { bouncedAt: true, bounceType: true },
+  });
+  if (send?.bouncedAt) {
+    return { source: 'send', at: send.bouncedAt, reason: send.bounceType === 'soft' ? 'soft_bounce' : 'hard_bounce' };
+  }
+
+  const message = await prisma.inboundMessage.findFirst({
+    where: { tenantId: input.tenantId, isBounce: true, bouncedRecipient: { equals: email, mode: 'insensitive' } },
+    orderBy: { createdAt: 'asc' },
+    select: { createdAt: true, bounceType: true },
+  });
+  if (message) {
+    return { source: 'bounce_message', at: message.createdAt, reason: message.bounceType === 'soft' ? 'soft_bounce' : 'hard_bounce' };
+  }
+  return null;
+}
+
+/**
+ * Refuse a send to an address with bounce evidence, and put the evidence to work: suppress the
+ * address and stop the lead's cadences, exactly as the bounce would have if it had been matched.
+ * Returns the evidence when the send must not happen.
+ */
+export async function blockIfBounced(input: {
+  tenantId: string;
+  email: string | null | undefined;
+  leadId?: string | null;
+  actorUserId?: string | null;
+}): Promise<BounceEvidence | null> {
+  const evidence = await findBounceEvidence(input);
+  if (!evidence || !input.email) return evidence;
+  await suppressRecipient({
+    tenantId: input.tenantId,
+    email: input.email,
+    leadId: input.leadId ?? null,
+    reason: evidence.reason,
+    detail: `an earlier send to this address bounced (${evidence.at.toISOString()})`,
+    actorUserId: input.actorUserId ?? null,
+  });
+  return evidence;
+}

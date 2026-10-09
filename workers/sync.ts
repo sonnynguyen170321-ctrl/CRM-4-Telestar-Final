@@ -5,6 +5,7 @@ import { JobType } from '@/lib/bullmq/types';
 import type { EmailSyncPayload, EmailApplyReplyPayload, EmailApplyBouncePayload } from '@/lib/bullmq/types';
 import { EmailService } from '@/lib/email/EmailService';
 import type { InboxMessage } from '@/lib/email/EmailService';
+import { toInboxBatch } from '@/lib/email/inboxBatch';
 import { isBounceMessage, isAutoReply, extractBouncedRecipient } from '@/lib/email/bounceDetection';
 import { pauseAllLeadCadences } from '@/lib/sequences/leadStop';
 import { suppressRecipient } from '@/lib/email/suppress';
@@ -49,8 +50,10 @@ const MATCHED_LEAD_SELECT = {
  * answered, and to an address that had bounced (owner, 2026-10-07).
  */
 async function matchLeads(
-  account: { id: string; userId: string },
+  account: { id: string; userId: string; tenantId: string },
   emails: string[],
+  /** Addresses a bounce names; one still unmatched falls back to the tenant's latest send to it. */
+  bouncedEmails: string[] = [],
 ): Promise<Map<string, MatchedLead>> {
   const byEmail = new Map<string, MatchedLead>();
   if (emails.length === 0) return byEmail;
@@ -90,7 +93,53 @@ async function matchLeads(
     const lead = byId.get(leadId);
     if (lead) byEmail.set(address, lead);
   }
+
+  // A bounce that still names no lead: the address was written to, just not from this mailbox nor
+  // to its owner's lead — a bounce delivered to another mailbox, a forwarded DSN. A dead address is
+  // dead for every sender, so the tenant's latest send to it names the lead (owner, 2026-10-09).
+  const unmatchedBounces = [...new Set(bouncedEmails.map((e) => e.toLowerCase()))].filter((e) => !byEmail.has(e));
+  if (unmatchedBounces.length > 0) {
+    const tenantSends = await prisma.outboundMessage.findMany({
+      where: {
+        tenantId: account.tenantId,
+        sentAt: { gte: new Date(Date.now() - SENT_MATCH_WINDOW_MS) },
+        to: { in: unmatchedBounces, mode: 'insensitive' },
+      },
+      select: { leadId: true, to: true },
+      orderBy: { sentAt: 'desc' },
+    });
+    const leadByAddress = new Map<string, string>();
+    for (const row of tenantSends) {
+      const address = row.to.toLowerCase();
+      if (!leadByAddress.has(address)) leadByAddress.set(address, row.leadId);
+    }
+    if (leadByAddress.size > 0) {
+      const found = await prisma.lead.findMany({
+        where: { id: { in: [...new Set(leadByAddress.values())] } },
+        select: MATCHED_LEAD_SELECT,
+      });
+      const foundById = new Map(found.map((lead) => [lead.id, lead]));
+      for (const [address, leadId] of leadByAddress) {
+        const lead = foundById.get(leadId);
+        if (lead) byEmail.set(address, lead);
+      }
+    }
+  }
   return byEmail;
+}
+
+/**
+ * Where a run that stopped at the read limit resumes: the newest received time it read, less a second
+ * — providers compare by the second, and a message sharing that second must not be skipped; one read
+ * twice is skipped by the stored-message check. Never before `since` (a run must make progress) and
+ * never after `now`.
+ */
+export function cursorAfter(messages: InboxMessage[], since: Date, now: Date): Date {
+  const newest = messages.reduce((latest, m) => {
+    const at = (m.receivedAt ?? m.date).getTime();
+    return Number.isFinite(at) && at > latest ? at : latest;
+  }, since.getTime());
+  return new Date(Math.min(Math.max(newest - 1000, since.getTime()), now.getTime()));
 }
 
 /**
@@ -128,14 +177,15 @@ async function handleEmailSync(payload: EmailSyncPayload) {
   const since = account.lastSyncAt ?? new Date(now.getTime() - DEFAULT_SYNC_LOOKBACK_MS);
 
   const service = await EmailService.fromAccount(account);
-  const messages = await service.fetchMessagesSince(since);
-  if (messages === null) {
+  const fetched = await service.fetchMessagesSince(since);
+  if (fetched === null) {
     await prisma.emailAccount.update({
       where: { id: accountId },
       data: { lastSyncAt: now },
     });
     return { skipped: true, reason: 'adapter_does_not_support_sync' };
   }
+  const { messages, truncated } = toInboxBatch(fetched);
 
   // Pre-parse bounce recipients so lead lookup covers BOTH senders (replies) and
   // DSN-reported recipients (bounces). Looking up only senders meant every bounce
@@ -157,7 +207,8 @@ async function handleEmailSync(payload: EmailSyncPayload) {
     )
   );
 
-  const leadByEmail = await matchLeads(account, lookupEmails);
+  const bouncedEmails = preParsed.flatMap((p) => (p.isBounce && p.bouncedRecipient ? [p.bouncedRecipient] : []));
+  const leadByEmail = await matchLeads(account, lookupEmails, bouncedEmails);
 
   const classified: ClassifiedMessage[] = preParsed.map((p) => {
     const auto = !p.isBounce && isAutoReply(p.msg);
@@ -275,12 +326,15 @@ async function handleEmailSync(payload: EmailSyncPayload) {
     throw new Error(`[sync] ${unsaved} of ${messages.length} message(s) could not be saved for account ${accountId}; will retry from ${since.toISOString()}`);
   }
 
+  // A run that read everything moves the cursor to now. One that stopped at the read limit moves it
+  // only to the last message it read, so the next run starts there instead of skipping the rest.
+  const cursor = truncated ? cursorAfter(messages, since, now) : now;
   await prisma.emailAccount.update({
     where: { id: accountId },
-    data: { lastSyncAt: now },
+    data: { lastSyncAt: cursor },
   });
 
-  return { success: true, accountId, messagesProcessed: messages.length, replies, bounces, autoReplies };
+  return { success: true, accountId, messagesProcessed: messages.length, replies, bounces, autoReplies, truncated };
 }
 
 /**

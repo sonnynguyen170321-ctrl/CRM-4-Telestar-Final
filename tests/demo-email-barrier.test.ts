@@ -4,6 +4,12 @@ import { isDemoTenant, effectiveDryRun, DEMO_TENANT_ID } from '@/lib/emailSafety
 const mockSend = vi.fn().mockResolvedValue('provider-msg-123');
 const mockFromAccount = vi.fn().mockResolvedValue({ send: mockSend });
 
+// The send path's bounce-evidence lock (lib/email/suppress.ts) has its own tests
+// (tests/bounce-evidence-guard.test.ts); here no address has bounced before.
+vi.mock('@/lib/email/suppress', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/email/suppress')>()),
+  blockIfBounced: async () => null,
+}));
 vi.mock('@/lib/email/EmailService', () => ({
   EmailService: {
     fromAccount: (...args: unknown[]) => mockFromAccount(...args),
