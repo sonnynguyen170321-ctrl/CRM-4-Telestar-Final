@@ -12,7 +12,8 @@
 // (15 top-level sectors) rather than tuned to any one example. Bump SERVED_VERTICAL_VERSION on change.
 
 // v3: word-boundary (Unicode) alias matching + Vietnamese aliases across all sectors.
-export const SERVED_VERTICAL_VERSION = "served-vertical-v3";
+// v4 (2026-10-10): 15 niche leaves (CX/contact-center tech, sales tech, ERP, regtech, coworking, courier…).
+export const SERVED_VERTICAL_VERSION = "served-vertical-v4";
 
 export type ServedVerticalEntry = {
   key: string;
@@ -35,6 +36,11 @@ export const SERVED_VERTICAL_TAXONOMY: readonly ServedVerticalEntry[] = [
   { key: "TECH_HARDWARE", label: "Hardware & Semiconductors", parent: "TECHNOLOGY", aliases: ["semiconductor", "chip", "hardware", "iot device", "robotics", "electronics component"] },
   { key: "TECH_IT_SERVICES", label: "IT Services & MSP", parent: "TECHNOLOGY", aliases: ["it services", "managed services", "msp", "system integrator", "it consulting", "outsourced it", "dịch vụ công nghệ thông tin", "tích hợp hệ thống", "giải pháp công nghệ"] },
   { key: "TECH_TELECOM", label: "Telecom & Networking", parent: "TECHNOLOGY", aliases: ["telecom", "telecommunication", "networking", "isp", "broadband", "5g", "voip", "carrier", "viễn thông", "mạng lưới"] },
+  // 2026-10 niches (docs/scoring/TAXONOMY_2026-10.md): the software categories B2B outbound sells into most.
+  { key: "TECH_CX", label: "CX & Contact Center Tech", parent: "TECHNOLOGY", aliases: ["ccaas", "contact center software", "contact centre software", "call center software", "helpdesk software", "help desk software", "customer service software", "customer support software", "conversational ai", "chatbot", "voice ai", "cx platform"] },
+  { key: "TECH_SALESTECH", label: "Sales Tech & CRM", parent: "TECHNOLOGY", aliases: ["crm software", "crm platform", "sales engagement", "sales intelligence", "revenue intelligence", "sales enablement", "cpq", "lead generation software", "b2b data provider", "phần mềm crm"] },
+  { key: "TECH_BIZAPPS", label: "ERP & Business Apps", parent: "TECHNOLOGY", aliases: ["erp", "erp software", "hcm software", "hris", "payroll software", "procurement software", "supply chain software", "project management software", "collaboration software", "phần mềm erp", "phần mềm quản lý"] },
+  { key: "TECH_COMMS", label: "Communications Platforms", parent: "TECHNOLOGY", aliases: ["cpaas", "ucaas", "unified communications", "video conferencing", "sms api", "messaging api"] },
   { key: "TECHNOLOGY", label: "Technology", aliases: ["technology", "tech company", "software", "internet", "information technology", "công nghệ", "công nghệ thông tin", "phần mềm"] },
 
   // ═══ FINANCE ═════════════════════════════════════════════════════════════════════════════════
@@ -46,6 +52,7 @@ export const SERVED_VERTICAL_TAXONOMY: readonly ServedVerticalEntry[] = [
   { key: "FIN_CAPITAL_MARKETS", label: "Capital Markets", parent: "FINANCE", aliases: ["capital markets", "trading platform", "exchange", "securities", "hedge fund", "private equity", "venture capital"] },
   { key: "FIN_CRYPTO", label: "Crypto & Web3", parent: "FINANCE", aliases: ["crypto", "cryptocurrency", "web3", "defi", "blockchain", "nft", "digital assets", "stablecoin"] },
   { key: "FIN_ACCOUNTING", label: "Accounting & Tax", parent: "FINANCE", aliases: ["accounting", "bookkeeping", "tax software", "invoicing", "expense management", "erp finance"] },
+  { key: "FIN_REGTECH", label: "RegTech, KYC & Fraud", parent: "FINANCE", aliases: ["regtech", "kyc", "ekyc", "aml", "anti-money laundering", "fraud prevention", "fraud detection", "identity verification"] },
   { key: "FINANCE", label: "Financial Services", aliases: ["finance", "financial services", "fintech", "financial technology", "tài chính", "dịch vụ tài chính", "công nghệ tài chính"] },
 
   // ═══ HEALTHCARE & LIFE SCIENCES ══════════════════════════════════════════════════════════════
@@ -55,6 +62,7 @@ export const SERVED_VERTICAL_TAXONOMY: readonly ServedVerticalEntry[] = [
   { key: "HEALTH_PROVIDERS", label: "Providers & Clinics", parent: "HEALTHCARE", aliases: ["hospital", "clinic", "provider network", "telehealth", "telemedicine", "home care", "dental", "bệnh viện", "phòng khám", "nha khoa"] },
   { key: "HEALTH_DIGITAL", label: "Digital Health", parent: "HEALTHCARE", aliases: ["digital health", "healthtech", "health app", "mental health platform", "patient engagement"] },
   { key: "HEALTH_PAYERS", label: "Health Payers", parent: "HEALTHCARE", aliases: ["health insurance", "payer", "health plan", "benefits administration"] },
+  { key: "HEALTH_VET", label: "Veterinary & Animal Health", parent: "HEALTHCARE", aliases: ["veterinary", "animal health", "pet clinic", "thú y"] },
   { key: "HEALTHCARE", label: "Healthcare & Life Sciences", aliases: ["healthcare", "health care", "life sciences", "medical", "y tế", "chăm sóc sức khỏe"] },
 
   // ═══ INDUSTRIAL & MANUFACTURING ══════════════════════════════════════════════════════════════
@@ -82,6 +90,9 @@ export const SERVED_VERTICAL_TAXONOMY: readonly ServedVerticalEntry[] = [
   { key: "RET_FMCG", label: "FMCG / CPG", parent: "CONSUMER", aliases: ["fmcg", "cpg", "consumer packaged goods", "consumer goods", "household goods", "hàng tiêu dùng", "tiêu dùng nhanh"] },
   { key: "RET_HOME", label: "Home & Furniture", parent: "CONSUMER", aliases: ["furniture", "home goods", "home decor", "appliances", "homeware", "nội thất", "đồ gia dụng"] },
   { key: "RET_ECOMMERCE", label: "Ecommerce & Marketplaces", parent: "CONSUMER", aliases: ["ecommerce", "e-commerce", "online retail", "marketplace", "d2c", "direct to consumer", "dropshipping", "thương mại điện tử", "sàn thương mại điện tử", "bán hàng trực tuyến"] },
+  { key: "RET_FITNESS", label: "Fitness & Wellness", parent: "CONSUMER", aliases: ["fitness", "gym", "wellness center", "wellness centre", "yoga studio", "spa", "phòng gym", "thể hình"] },
+  { key: "RET_AUTO", label: "Auto Dealers & Aftermarket", parent: "CONSUMER", aliases: ["car dealership", "auto dealer", "automotive dealer", "car dealer", "dealership", "auto repair", "vehicle repair", "đại lý ô tô", "showroom ô tô"] },
+  { key: "RET_ELECTRONICS", label: "Consumer Electronics", parent: "CONSUMER", aliases: ["consumer electronics", "electronics retail", "smartphones", "điện máy", "điện thoại di động"] },
   { key: "CONSUMER", label: "Consumer & Retail", aliases: ["retail", "retailer", "consumer brand", "commerce", "bán lẻ", "phân phối", "nhà phân phối", "bán buôn", "bán sỉ"] },
 
   // ═══ FOOD & AGRICULTURE ══════════════════════════════════════════════════════════════════════
@@ -107,6 +118,7 @@ export const SERVED_VERTICAL_TAXONOMY: readonly ServedVerticalEntry[] = [
   { key: "RE_CONSTRUCTION", label: "Construction", parent: "REAL_ESTATE", aliases: ["construction", "contractor", "civil engineering", "infrastructure construction", "xây dựng", "nhà thầu", "xây lắp"] },
   { key: "RE_BUILDING_MATERIALS", label: "Building Materials", parent: "REAL_ESTATE", aliases: ["building materials", "cement", "concrete", "lumber", "roofing", "vật liệu xây dựng", "xi măng", "bê tông"] },
   { key: "RE_AEC", label: "Architecture & Engineering", parent: "REAL_ESTATE", aliases: ["architecture", "engineering firm", "aec", "design and build"] },
+  { key: "RE_COWORKING", label: "Coworking & Flex Space", parent: "REAL_ESTATE", aliases: ["coworking", "co-working", "flexible workspace", "serviced office", "văn phòng chia sẻ"] },
   { key: "REAL_ESTATE", label: "Real Estate & Construction", aliases: ["real estate", "property", "bất động sản"] },
 
   // ═══ TRANSPORT & LOGISTICS ═══════════════════════════════════════════════════════════════════
@@ -115,6 +127,7 @@ export const SERVED_VERTICAL_TAXONOMY: readonly ServedVerticalEntry[] = [
   { key: "LOG_WAREHOUSING", label: "Warehousing", parent: "LOGISTICS", aliases: ["warehousing", "warehouse", "distribution center", "kho bãi", "trung tâm phân phối"] },
   { key: "LOG_MOBILITY", label: "Mobility & Rideshare", parent: "LOGISTICS", aliases: ["mobility", "rideshare", "ride-hailing", "micromobility", "car rental"] },
   { key: "LOG_MARITIME", label: "Maritime & Aviation", parent: "LOGISTICS", aliases: ["maritime", "shipping line", "port", "aviation logistics", "air cargo"] },
+  { key: "LOG_COURIER", label: "Courier & Parcel", parent: "LOGISTICS", aliases: ["courier", "express delivery", "parcel delivery", "same-day delivery", "chuyển phát nhanh", "giao hàng nhanh"] },
   { key: "LOGISTICS", label: "Transport & Logistics", aliases: ["transportation", "transport", "logistics company", "vận tải", "logistics"] },
 
   // ═══ MEDIA, MARKETING & ENTERTAINMENT ════════════════════════════════════════════════════════
@@ -132,12 +145,16 @@ export const SERVED_VERTICAL_TAXONOMY: readonly ServedVerticalEntry[] = [
   { key: "PRO_HR", label: "HR & Staffing", parent: "PRO_SERVICES", aliases: ["human resources", "hr tech", "recruiting", "staffing", "talent acquisition", "payroll", "nhân sự", "tuyển dụng"] },
   { key: "PRO_AGENCY", label: "Creative & Design Agency", parent: "PRO_SERVICES", aliases: ["design agency", "creative agency", "branding agency", "web agency"] },
   { key: "PRO_BPO", label: "BPO & Outsourcing", parent: "PRO_SERVICES", aliases: ["bpo", "outsourcing", "call center", "shared services", "customer support outsourcing", "thuê ngoài", "tổng đài"] },
+  { key: "PRO_ACCOUNTING", label: "Accounting & Audit Firms", parent: "PRO_SERVICES", aliases: ["accounting firm", "audit firm", "chartered accountants", "cpa firm", "tax advisory", "bookkeeping services", "kiểm toán", "dịch vụ kế toán"] },
+  { key: "PRO_RESEARCH", label: "Market Research", parent: "PRO_SERVICES", aliases: ["market research", "research firm", "survey research", "nghiên cứu thị trường"] },
+  { key: "PRO_FACILITIES", label: "Facilities & Security Services", parent: "PRO_SERVICES", aliases: ["facility management", "facilities management", "facilities services", "cleaning services", "janitorial", "security guards", "manned guarding", "dịch vụ bảo vệ", "quản lý tòa nhà"] },
   { key: "PRO_SERVICES", label: "Professional Services", aliases: ["professional services", "business services", "b2b services", "dịch vụ chuyên nghiệp", "dịch vụ doanh nghiệp"] },
 
   // ═══ EDUCATION ═══════════════════════════════════════════════════════════════════════════════
   { key: "EDU_EDTECH", label: "Edtech", parent: "EDUCATION", aliases: ["edtech", "e-learning", "elearning", "online courses", "lms", "học trực tuyến", "khóa học trực tuyến"] },
   { key: "EDU_SCHOOLS", label: "Schools & Higher Ed", parent: "EDUCATION", aliases: ["school", "university", "college", "higher education", "k-12", "trường học", "đại học", "trường đại học"] },
   { key: "EDU_TRAINING", label: "Corporate Training", parent: "EDUCATION", aliases: ["corporate training", "professional training", "certification", "upskilling", "đào tạo doanh nghiệp", "trung tâm đào tạo"] },
+  { key: "EDU_LANGUAGE", label: "Language Schools", parent: "EDUCATION", aliases: ["language school", "english center", "english centre", "language learning", "trung tâm anh ngữ", "trung tâm ngoại ngữ"] },
   { key: "EDUCATION", label: "Education", aliases: ["education", "learning", "giáo dục", "đào tạo"] },
 
   // ═══ TRAVEL & HOSPITALITY ════════════════════════════════════════════════════════════════════

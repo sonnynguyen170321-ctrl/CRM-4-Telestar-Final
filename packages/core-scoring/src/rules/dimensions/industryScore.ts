@@ -1,6 +1,7 @@
 import type { DimensionHit, DimensionResult, NormalizedScoringEvidence } from "../evidence";
 import type { IcpVersionRulesV2 } from "../schema-v2";
-import { industryWithParents } from "../dictionaries/industry";
+import { canonicalizeIndustry, industryWithParents, type IndustryKey } from "../dictionaries/industry";
+import { containsTerm } from "../dictionaries/termMatch";
 import { CATEGORY_PREFERRED_SECTORS, classifyServedVerticals } from "../dictionaries/servedVertical";
 import { foldText } from "../normalize/normalizeCountry";
 
@@ -45,10 +46,20 @@ function companyIndustryTokens(evidence: NormalizedScoringEvidence): Set<string>
   return tokens;
 }
 
-function listMatches(list: readonly string[], tokens: Set<string>, text: string): boolean {
+/**
+ * An ICP industry entry matches when it is one of the company's tokens, names one of `keys` by its
+ * canonical form ("Bank" -> BANKING, "Hospitals" -> HEALTHCARE), or appears in the evidence text as a
+ * whole word. Substring matching (v1) let "ISP" fire inside "display" and an excluded "bet" inside
+ * "alphabet".
+ */
+function listMatches(list: readonly string[], tokens: Set<string>, text: string, keys: ReadonlySet<IndustryKey>): boolean {
   return list.some((entry) => {
     const folded = foldText(entry);
-    return folded.length > 0 && (tokens.has(folded) || text.includes(folded));
+    if (folded.length === 0) return false;
+    if (tokens.has(folded)) return true;
+    const key = canonicalizeIndustry(entry);
+    if (key !== null && keys.has(key)) return true;
+    return containsTerm(text, entry, { plural: true });
   });
 }
 
@@ -69,7 +80,14 @@ export function industryScore(
   const text = evidence.company.evidenceText;
 
   // Denylist always applies regardless of mode.
-  if (listMatches(industry.excludedIndustries, tokens, text)) {
+  // A target names the company's key or any parent ("Software" admits a SaaS company); an exclusion
+  // names the company's own key only — excluding "IT services" must not exclude every cybersecurity
+  // vendor because CYBERSECURITY sits under IT_SERVICES.
+  const ownKey = evidence.company.industryCanonical;
+  const exclusionKeys = new Set<IndustryKey>(ownKey ? [ownKey] : []);
+  const targetKeys = new Set<IndustryKey>(ownKey ? industryWithParents(ownKey) : []);
+
+  if (listMatches(industry.excludedIndustries, tokens, text, exclusionKeys)) {
     hits.push({
       id: "industry_excluded",
       label: "Industry on exclusion list",
@@ -78,8 +96,9 @@ export function industryScore(
     return { dimension: "industry", score: 0, hits, missingEvidence };
   }
 
+  // Whole words, as in listMatches: a keyword "AI" must not fire inside "email" or "maintain".
   const keywordHit = industry.industryKeywords.some((keyword) =>
-    text.includes(foldText(keyword))
+    containsTerm(text, keyword, { plural: true })
   );
 
   if (industry.mode === "all") {
@@ -105,8 +124,8 @@ export function industryScore(
   }
 
   const allowMatch =
-    listMatches(industry.targetIndustries, tokens, text) ||
-    listMatches(industry.subIndustries, tokens, text);
+    listMatches(industry.targetIndustries, tokens, text, targetKeys) ||
+    listMatches(industry.subIndustries, tokens, text, targetKeys);
 
   if (allowMatch) {
     hits.push({ id: "industry_allowlist_match", label: "In target industry", reasonCode: "target_industry_match" });
