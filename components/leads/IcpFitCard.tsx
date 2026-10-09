@@ -25,6 +25,13 @@ export type IcpFitLead = {
   icpScoredAt?: string | null;
   qualificationOverride?: Qualification | null;
   campaign?: { id: string } | null;
+  /** Which ICP applies and whether the verdict was scored with it (lib/leads/icpContext.ts). */
+  icpContext?: {
+    source: 'campaign' | 'default' | 'none';
+    outdated: boolean;
+    line: string;
+    warning: string | null;
+  } | null;
   icpAssessments?: Array<
     ExplainableAssessment & {
       id: string;
@@ -172,10 +179,25 @@ export function IcpFitCard({
       ) : (
         <p className="text-[12px] text-text-secondary leading-normal">
           {lead.campaign?.id
-            ? 'No ICP is published for this campaign, so there is nothing to score against. A manager can configure one under ICP & Scoring.'
+            ? 'This lead has not been scored yet.'
             : 'This lead has no campaign, so there is no ICP to score it against.'}{' '}
           You can still record your own verdict.
         </p>
+      )}
+
+      {/* Which ICP the verdict is measured against. Without this a campaign with no ICP of its own
+          silently showed the company default (Telestar) as if it were the campaign's. */}
+      {lead.icpContext && (
+        <div className="space-y-1" data-testid="icp-context">
+          <p className={`text-[12px] leading-snug ${lead.icpContext.source === 'campaign' ? 'text-text-secondary' : 'text-text-primary'}`}>
+            {lead.icpContext.line}
+          </p>
+          {lead.icpContext.warning && (
+            <p role="status" className="text-[12px] leading-snug text-brand-orange-text">
+              {lead.icpContext.warning}
+            </p>
+          )}
+        </div>
       )}
 
       {reviewing ? (
