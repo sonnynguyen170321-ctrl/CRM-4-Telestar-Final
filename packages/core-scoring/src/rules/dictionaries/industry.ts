@@ -127,6 +127,41 @@ export function canonicalizeIndustry(raw: string): IndustryKey | null {
   return null;
 }
 
+const TECH_FAMILY: readonly IndustryKey[] = ["SOFTWARE", "SAAS", "IT_SERVICES", "CLOUD_HOSTING", "CYBERSECURITY"];
+
+/**
+ * Shorthand an operator types into an ICP industry list that names a FAMILY of keys, not one key.
+ * The live "Telestar v2" ICP targets "Tech": under industry-v1 that matched by substring ("tech" inside
+ * "technology", and by accident inside "biotechnology"); under whole-word matching it needs this to
+ * keep matching software and IT companies. ICP-side only: a company whose industry is "Tech" stays
+ * unmapped, because one key cannot be chosen for it.
+ */
+export const INDUSTRY_SHORTHANDS: Readonly<Record<string, readonly IndustryKey[]>> = {
+  tech: TECH_FAMILY,
+  technology: TECH_FAMILY,
+  technologies: TECH_FAMILY,
+  "high tech": TECH_FAMILY,
+  "high-tech": TECH_FAMILY,
+  "hi-tech": TECH_FAMILY,
+  "tech company": TECH_FAMILY,
+  "tech companies": TECH_FAMILY,
+  "technology company": TECH_FAMILY,
+  "technology companies": TECH_FAMILY,
+  it: ["IT_SERVICES", "CLOUD_HOSTING", "CYBERSECURITY"],
+};
+
+/**
+ * Every canonical key an ICP industry term names: its shorthand family when the WHOLE term is one
+ * ("Tech", "IT"; "Tech consulting" is not), else the key `canonicalizeIndustry` finds, else none.
+ */
+export function industryKeysForTerm(term: string): IndustryKey[] {
+  const folded = foldForMatch(String(term ?? ""));
+  const family = INDUSTRY_SHORTHANDS[folded];
+  if (family) return [...family];
+  const key = canonicalizeIndustry(folded);
+  return key ? [key] : [];
+}
+
 /** Canonical key plus its parent keys (for allow/deny matching up the hierarchy). */
 export function industryWithParents(key: IndustryKey): IndustryKey[] {
   const entry = INDUSTRY_TAXONOMY.find((item) => item.canonical === key);

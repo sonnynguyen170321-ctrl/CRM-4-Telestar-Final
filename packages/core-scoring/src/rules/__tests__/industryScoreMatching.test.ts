@@ -95,3 +95,39 @@ describe("industry lists understand canonical industries", () => {
     expect(result.hits.map((h) => h.id)).toContain("industry_excluded");
   });
 });
+
+// The live "Telestar v2" ICP targets ["Tech", "Software", "SaaS"] and excludes ["service", "bpo",
+// "consultant"]. v1 matched "Tech" by substring; whole-word matching needs the shorthand family.
+describe("ICP shorthand: 'Tech' / 'Technology' / 'IT' name a family of industries", () => {
+  const telestarV2 = { targetIndustries: ["Tech", "Software", "SaaS"], excludedIndustries: ["service", "bpo", "consultant"] };
+  const ids = (industry: string, rulesIn: Partial<Industry> = telestarV2) =>
+    score({ industry }, rulesIn).hits.map((h) => h.id);
+
+  it.each(["Computer Software", "Software Development", "Computer & Network Security", "Data Security Software Products", "Cloud hosting"])(
+    "'Tech' admits %s",
+    (industry) => {
+      expect(ids(industry, { targetIndustries: ["Tech"] })).toContain("industry_allowlist_match");
+    }
+  );
+
+  it.each(["Biotechnology", "Financial Services", "Retail", "Hospital & Health Care"])("'Tech' does not admit %s", (industry) => {
+    expect(ids(industry, { targetIndustries: ["Tech"] })).not.toContain("industry_allowlist_match");
+  });
+
+  it("'IT' and 'Technology' work the same way; a longer phrase is not shorthand", () => {
+    expect(ids("Computer and Network Security", { targetIndustries: ["IT"] })).toContain("industry_allowlist_match");
+    expect(ids("Computer Software", { targetIndustries: ["Technology"] })).toContain("industry_allowlist_match");
+    expect(ids("Computer Software", { targetIndustries: ["Tech consulting"] })).not.toContain("industry_allowlist_match");
+  });
+
+  it("the live ICP keeps its v1 exclusions: '…& services' labels are still excluded", () => {
+    expect(ids("Information Technology & Services")).toContain("industry_excluded");
+    expect(ids("Financial Services")).toContain("industry_excluded");
+    expect(ids("Computer Software")).not.toContain("industry_excluded");
+  });
+
+  it("an excluded 'Tech' excludes the family by the company's own key", () => {
+    expect(ids("Computer Software", { excludedIndustries: ["Tech"] })).toContain("industry_excluded");
+    expect(ids("Retail", { excludedIndustries: ["Tech"] })).not.toContain("industry_excluded");
+  });
+});

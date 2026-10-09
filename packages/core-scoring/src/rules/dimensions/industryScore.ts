@@ -1,6 +1,6 @@
 import type { DimensionHit, DimensionResult, NormalizedScoringEvidence } from "../evidence";
 import type { IcpVersionRulesV2 } from "../schema-v2";
-import { canonicalizeIndustry, industryWithParents, type IndustryKey } from "../dictionaries/industry";
+import { industryKeysForTerm, industryWithParents, type IndustryKey } from "../dictionaries/industry";
 import { containsTerm } from "../dictionaries/termMatch";
 import { CATEGORY_PREFERRED_SECTORS, classifyServedVerticals } from "../dictionaries/servedVertical";
 import { foldText } from "../normalize/normalizeCountry";
@@ -48,17 +48,16 @@ function companyIndustryTokens(evidence: NormalizedScoringEvidence): Set<string>
 
 /**
  * An ICP industry entry matches when it is one of the company's tokens, names one of `keys` by its
- * canonical form ("Bank" -> BANKING, "Hospitals" -> HEALTHCARE), or appears in the evidence text as a
- * whole word. Substring matching (v1) let "ISP" fire inside "display" and an excluded "bet" inside
- * "alphabet".
+ * canonical form ("Bank" -> BANKING, "Hospitals" -> HEALTHCARE) or shorthand ("Tech" -> the software
+ * and IT keys, see INDUSTRY_SHORTHANDS), or appears in the evidence text as a whole word. Substring
+ * matching (v1) let "ISP" fire inside "display" and an excluded "bet" inside "alphabet".
  */
 function listMatches(list: readonly string[], tokens: Set<string>, text: string, keys: ReadonlySet<IndustryKey>): boolean {
   return list.some((entry) => {
     const folded = foldText(entry);
     if (folded.length === 0) return false;
     if (tokens.has(folded)) return true;
-    const key = canonicalizeIndustry(entry);
-    if (key !== null && keys.has(key)) return true;
+    if (industryKeysForTerm(entry).some((key) => keys.has(key))) return true;
     return containsTerm(text, entry, { plural: true });
   });
 }

@@ -207,6 +207,47 @@ mapped; 19 moved to a better key (the substring defects above); 4 deliberately u
 physical-security labels that v1 called CYBERSECURITY, and "Alternative Dispute Resolution" that v1
 called ISP).
 
+## Impact on the two live ICPs
+
+Measured old (origin/main) against new code, dimension by dimension, over the production lead
+industries (66 LinkedIn labels, 2,408 lead-label rows) and titles (496 titles, 1,956 leads). Only the
+industry label was used as evidence; descriptions and research text were not part of the export
+(see the caveat below).
+
+**"TeleStar ICP v3"** (titles + excluded countries, no industry rules) and **"Telestar v2"** titles:
+**0 leads** flip between allowlisted and not, in either direction.
+
+**"Telestar v2" industry** (targets Tech / Software / SaaS; excludes service / bpo / consultant):
+
+| Industry label | Leads | Target match old → new | Score old → new |
+|---|---|---|---|
+| computer & network security / computer and network security | 63 | no → **yes** | 20 → 95 |
+| biotechnology | 11 | yes → **no** | 95 → 20 |
+
+All other labels: no change in target match or score. **Exclusion flips: 0.** "service" excludes the
+same labels under both versions: information technology & services (354 leads), financial services
+(46), information services (12), environmental services (5), consumer services (2).
+
+- The 11 biotechnology leads matched "Tech" in v1 only through the substring "bio-**tech**-nology".
+  Biotech is life sciences, not the software/IT market the ICP names, so the loss is accepted.
+- "Tech" did not match software and IT labels by itself in v1 either ("computer software" matched
+  through "Software"). Whole-word matching alone would have made "Tech" match nothing, so ICP
+  shorthand was added (`INDUSTRY_SHORTHANDS`): "Tech", "Technology", "High-tech" name SOFTWARE, SAAS,
+  IT_SERVICES, CLOUD_HOSTING and CYBERSECURITY; "IT" names IT_SERVICES, CLOUD_HOSTING and
+  CYBERSECURITY. That is where the 63 cybersecurity leads come from.
+- "internet" (110 leads) has no key and stays unmatched under both versions.
+
+**Caveat — description text.** In scoring, the industry lists also run against the company
+description and research text. v1 matched "Tech" inside any description containing "technology",
+"fintech" or "biotech", and v2 does not. That cannot be measured from this export. The rescore preview
+(`scripts/backfill-lead-icp.ts --all` without `--apply`) shows the real moves before anything is
+written.
+
+**For the owner, not caused by this change:** the v2 exclusion "service" removes every "information
+technology & services" company (354 leads) — the label LinkedIn gives most software firms — and,
+through the description text, any company that writes "services". An exclusion is fatal to the
+verdict. That ICP probably needs "IT services" / "service" taken off its exclusion list.
+
 ## Decisions and judgement calls
 
 - **General / country manager → DIRECTOR**, not MANAGER: they run a P&L and are the top local
