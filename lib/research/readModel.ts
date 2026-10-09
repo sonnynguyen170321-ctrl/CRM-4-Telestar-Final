@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { INFRA_REASONS } from '@/lib/research/verificationReasons';
 
 // Read models for the research surface.
 //
@@ -220,16 +221,22 @@ function verificationWhere(view: VerificationFilter | undefined): Record<string,
   return {};
 }
 
-export type CandidateVerificationCounts = Record<Exclude<VerificationFilter, 'all'>, number>;
+export type CandidateVerificationCounts = Record<Exclude<VerificationFilter, 'all'>, number> & { retryable: number };
 
 /** Counted over the whole run, so the verification filters add up whatever page is showing. */
 async function candidateVerificationCounts(tenantId: string, runId: string): Promise<CandidateVerificationCounts> {
-  const grouped = await prisma.researchCandidate.groupBy({ by: ['verification'], where: { tenantId, runId }, _count: { _all: true } });
-  const counts: CandidateVerificationCounts = { shortlist: 0, rejected: 0, unverified: 0, pending: 0 };
+  const grouped = await prisma.researchCandidate.groupBy({
+    by: ['verification', 'verificationReason'],
+    where: { tenantId, runId },
+    _count: { _all: true },
+  });
+  const counts: CandidateVerificationCounts = { shortlist: 0, rejected: 0, unverified: 0, pending: 0, retryable: 0 };
   for (const row of grouped) {
     const n = row._count._all;
     if (row.verification === 'verified_fit' || row.verification === 'needs_review' || row.verification === null) counts.shortlist += n;
     else counts[row.verification] += n;
+    // Unchecked for a reason another try can fix: what "Check again" would reopen.
+    if (row.verification === 'unverified' && (INFRA_REASONS as readonly string[]).includes(row.verificationReason ?? '')) counts.retryable += n;
   }
   return counts;
 }

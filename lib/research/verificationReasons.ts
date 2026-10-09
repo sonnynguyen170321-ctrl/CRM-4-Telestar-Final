@@ -41,9 +41,25 @@ const REASON_WORDS: Array<[RegExp, string]> = [
   [/^no_evidence/, 'nothing readable'],
   [/^no_domain/, 'no website'],
   [/^classifier_unavailable/, 'checker unavailable'],
+  [/^classification_unparseable/, 'checker answer unreadable'],
 ];
 
 export function describeReason(reason: string | null | undefined): string {
   if (!reason) return 'other';
   return REASON_WORDS.find(([pattern]) => pattern.test(reason))?.[1] ?? reason.replace(/[_:]/g, ' ');
 }
+
+/**
+ * Reasons that say the check could not run, which says nothing about the company. A run made only of
+ * these failed; Resume or "Check again" puts them back in the queue (`reopenVerification`). Fixed codes, never raw error
+ * text: what lands in `verificationReason` is shown to reps.
+ */
+export const INFRA_REASONS = [
+  'classifier_unavailable',
+  'classification_unparseable',
+  'verify_error',
+  'no_outcome',
+  'domain_busy',
+  'cache_unreadable',
+  'run_rules_unreadable',
+] as const;

@@ -191,6 +191,20 @@ describe('a run that failed verification can be resumed', () => {
     for (const c of await candidates(runId)) expect(c).toMatchObject({ verification: 'pending', verifyAttempts: 0 });
   });
 
+  it('a finished run with companies left unchecked by a bad answer can be checked again', async () => {
+    const runId = await runWith(2);
+    const outcomes: CandidateOutcome[] = [verdict('verified_fit', 'ok'), { kind: 'retry', reason: 'classification_unparseable' }];
+    const mixed = vi.fn<VerifyBatchFn>(async ({ candidates: cs }) => new Map(cs.map((c) => [c.id, c.name === 'Company 0' ? outcomes[0] : outcomes[1]] as const)));
+    for (let i = 0; i < MAX_VERIFY_ATTEMPTS; i++) await slice(runId, mixed);
+    expect(await run(runId)).toMatchObject({ status: 'succeeded', verificationWarning: expect.stringMatching(/1 of 2 could not be checked/) });
+
+    const enqueueSlice = vi.fn(async () => undefined);
+    expect(await inTenant(() => startResearchRun({ tenantId, runId, enqueueSlice }))).toEqual({ status: 'started' });
+    expect(await run(runId)).toMatchObject({ status: 'running', verificationWarning: null });
+    const rows = await candidates(runId);
+    expect(rows.map((c) => c.verification).sort()).toEqual(['pending', 'verified_fit']);
+  });
+
   it('a run with nothing left to check stays finished', async () => {
     const runId = await runWith(1);
     await slice(runId, always(verdict('rejected', 'company_type:media_news')));

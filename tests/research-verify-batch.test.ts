@@ -150,4 +150,11 @@ describe('verifyBatch', () => {
     expect(model.calls).toEqual(['research_fit_judge']);
     expect((await candidates(second))[0].verification).toBe('verified_fit');
   });
+
+  it('says the answer was unreadable, not that the checker was down, when a reply cannot be parsed', async () => {
+    const runId = await runWith([{ name: 'Riyad Bank', domain: 'riyadbank.com', snippet: RIYAD }]);
+    const garbled = vi.fn(async () => ({ available: false, data: null, reason: 'generation could not be parsed into the expected shape' }));
+    for (let i = 0; i < MAX_VERIFY_ATTEMPTS; i++) await slice(runId, { generate: garbled as unknown as VerifyBatchDeps['generate'], fetchPages: blocked });
+    expect((await candidates(runId))[0]).toMatchObject({ verification: 'unverified', verificationReason: 'classification_unparseable' });
+  });
 });

@@ -96,7 +96,11 @@ export async function startResearchRun(input: {
   const totalQueries = Array.isArray(run.queriesJson) ? run.queriesJson.length : 0;
   // A `running` or `paused` run at the end of its cursor is let through: it died between its last
   // query and its final status write, and one pass over nothing is what writes that status.
-  if (run.status === 'succeeded') return { status: 'already_finished', runStatus: run.status };
+  // A finished run may still hold companies that could not be checked for an infrastructure reason (the
+  // model's reply was cut off, the checker was down): "Check again" reopens exactly those.
+  if (run.status === 'succeeded' && (await reopenVerification(tenantId, runId)) === 0) {
+    return { status: 'already_finished', runStatus: run.status };
+  }
   // A run whose discovery is finished may still have verification to do: candidates waiting to be
   // checked, or ones a dead classifier left unchecked (reopened here). Only with neither is it finished —
   // otherwise "Resume to try again" on a run that failed verification would be a dead end.
@@ -112,11 +116,11 @@ export async function startResearchRun(input: {
       // write is not the run that was judged startable.
       queryCursor: run.queryCursor,
       OR: [
-        { status: { in: ['queued', 'paused', 'failed'] } },
+        { status: { in: ['queued', 'paused', 'failed', 'succeeded'] } },
         { status: 'running', updatedAt: { lt: new Date(now.getTime() - STALE_RUNNER_MS) } },
       ],
     },
-    data: { status: 'running', pauseRequestedAt: null, errorMessage: null, finishedAt: null },
+    data: { status: 'running', pauseRequestedAt: null, errorMessage: null, finishedAt: null, verificationWarning: null, verificationFinishedAt: null },
   });
   if (claimed.count === 0) return { status: 'already_running' };
 

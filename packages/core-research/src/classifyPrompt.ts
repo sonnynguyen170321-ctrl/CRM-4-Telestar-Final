@@ -7,7 +7,11 @@ import { COMPANY_KINDS, MAX_EVIDENCE_ITEMS, NOT_COMPANY_REASONS } from "./compan
 // Pure prompt builder + response parser for the classifier, mirroring fitPrompt.ts. No network, no
 // provider: the live call is injected by the caller.
 
-export const MAX_CLASSIFY_PER_CALL = 8;
+// Four per call. Eight answers, each with up to eight quoted evidence items, ran past the output cap and
+// were cut off mid-JSON: production's first verified run (2026-10-08) lost 92 of 142 companies that way.
+export const MAX_CLASSIFY_PER_CALL = 4;
+/** Output budget per classify call: room for MAX_CLASSIFY_PER_CALL full answers with all their quotes. */
+export const CLASSIFY_MAX_OUTPUT_TOKENS = 6000;
 
 const BEGIN_FENCE = "<<<BEGIN_UNTRUSTED>>>";
 const END_FENCE = "<<<END_UNTRUSTED>>>";
@@ -105,11 +109,52 @@ export function parseClassificationResponse(text: string, count: number): Map<nu
 function extractJsonArray(text: string): unknown {
   const cleaned = String(text ?? "").replace(/```(?:json)?/gi, "").trim();
   const start = cleaned.indexOf("[");
+  if (start === -1) return null;
   const end = cleaned.lastIndexOf("]");
-  if (start === -1 || end === -1 || end <= start) return null;
-  try {
-    return JSON.parse(cleaned.slice(start, end + 1));
-  } catch {
-    return null;
+  if (end > start) {
+    try {
+      return JSON.parse(cleaned.slice(start, end + 1));
+    } catch {
+      // Fall through: an answer cut off at the output limit still has whole objects before the cut.
+    }
   }
+  return salvageObjects(cleaned.slice(start + 1));
+}
+
+/**
+ * Every complete top-level `{...}` in a JSON array whose end is missing or broken. A reply cut off at
+ * the token limit (2026-10-08) used to throw away every answer in it; the ones before the cut are whole
+ * and still useful. String-aware, so a brace inside a quoted value does not end an object. Linear.
+ */
+function salvageObjects(body: string): unknown[] {
+  const out: unknown[] = [];
+  let depth = 0;
+  let begin = -1;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") {
+      if (depth === 0) begin = i;
+      depth += 1;
+    } else if (ch === "}" && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && begin >= 0) {
+        try {
+          out.push(JSON.parse(body.slice(begin, i + 1)));
+        } catch {
+          // A malformed object is skipped; its candidate is retried, the others are kept.
+        }
+        begin = -1;
+      }
+    }
+  }
+  return out;
 }

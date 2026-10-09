@@ -6,9 +6,9 @@ import { enqueue } from '@/lib/bullmq/enqueue';
 import { JobType, type ResearchVerifyPayload } from '@/lib/bullmq/types';
 import { prisma } from '@/lib/prisma';
 
-import { describeReason } from './verificationReasons';
+import { describeReason, INFRA_REASONS } from './verificationReasons';
 
-export { describeReason };
+export { describeReason, INFRA_REASONS };
 
 /**
  * Verification of a company run's candidates: each one checked against its own evidence before a rep
@@ -37,20 +37,6 @@ export const VERIFY_HEARTBEAT_MS = 30 * 1000;
 /** When another slice holds what is left, or a domain is busy elsewhere, look again after this. */
 export const VERIFY_RECHECK_DELAY_MS = 60 * 1000;
 
-/**
- * Reasons that say the check could not run, which says nothing about the company. A run made only of
- * these failed; Resume puts them back in the queue (`reopenVerification`). Fixed codes, never raw error
- * text: what lands in `verificationReason` is shown to reps.
- */
-export const INFRA_REASONS = [
-  'classifier_unavailable',
-  'classification_unparseable',
-  'verify_error',
-  'no_outcome',
-  'domain_busy',
-  'cache_unreadable',
-  'run_rules_unreadable',
-] as const;
 const INFRA = new Set<string>(INFRA_REASONS);
 
 export type ClaimedCandidate = {
