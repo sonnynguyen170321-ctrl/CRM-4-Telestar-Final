@@ -50,6 +50,9 @@ type RunRow = {
   pauseRequested?: boolean;
   /** `running`, but nobody has written to the run for minutes — the worker died. */
   stalled?: boolean;
+  /** AI calls attributed to this run and their estimated cost. */
+  aiCalls?: number;
+  aiCostUsd?: number;
 };
 
 /** How often the page re-reads a run the worker is executing. The page watches; it never drives. */
@@ -429,6 +432,11 @@ export default function ResearchWorkspace() {
                     {selectedRun
                       ? new Date(selectedRun.createdAt).toLocaleString()
                       : 'Choose a run from the history rail to inspect its progress.'}
+                    {selectedRun && (selectedRun.aiCalls ?? 0) > 0 && (
+                      <span className="ml-2 font-mono" title="Estimated from provider token rates, not billed">
+                        {`AI: ${selectedRun.aiCalls} calls · $${(selectedRun.aiCostUsd ?? 0).toFixed(2)} est.`}
+                      </span>
+                    )}
                   </p>
                 </div>
                 <span

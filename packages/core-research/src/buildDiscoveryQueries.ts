@@ -1,4 +1,5 @@
 import type { IcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
+import { COMPANY_KINDS, type CompanyKind } from "./companyClassification";
 
 // The native research engine's query planner: the ICP rules ARE the default search spec.
 // Manual builder params only narrow or seed the same deterministic query plan. SERP snippets
@@ -121,6 +122,9 @@ export function normalizeResearchBuilderParams(input: unknown): ResearchBuilderP
         ...(normalizeTerm(seedObj?.companyId) ? { companyId: normalizeTerm(seedObj?.companyId) as string } : {}),
       }
     : undefined;
+  const competitorKinds = Array.isArray(obj.competitorKinds)
+    ? Array.from(new Set(obj.competitorKinds.filter((k): k is CompanyKind => typeof k === "string" && (COMPANY_KINDS as readonly string[]).includes(k))))
+    : [];
   const mode: ResearchBuilderMode = seed ? "LOOKALIKE" : scope ? "COMPANY_CONTACTS" : "BUILDER";
 
   return {
@@ -137,9 +141,7 @@ export function normalizeResearchBuilderParams(input: unknown): ResearchBuilderP
     excludeDomains: Array.from(
       new Set(splitInput(obj.excludeDomains).map((d) => normalizeDomain(d)).filter((d): d is string => Boolean(d)))
     ).slice(0, 30),
-    ...(Array.isArray(obj.competitorKinds) && obj.competitorKinds.length > 0
-      ? { competitorKinds: uniq(obj.competitorKinds.filter((k): k is string => typeof k === "string")).slice(0, 12) }
-      : {}),
+    ...(competitorKinds.length > 0 ? { competitorKinds } : {}),
     ...(normalizeTerm(obj.companySize) ? { companySize: normalizeTerm(obj.companySize) as string } : {}),
     ...(scope ? { scope } : {}),
     ...(seed ? { seed } : {}),

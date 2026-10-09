@@ -27,6 +27,8 @@ export interface AiCallRecord {
   userId?: string | null;
   leadId?: string | null;
   workOrderId?: string | null;
+  /** The research run this spend belongs to, when it ran inside one. */
+  researchRunId?: string | null;
   agentActionId?: string | null;
   /** What the call was for: 'chat', 'briefing', 'research', 'draft_reply', … */
   operation: string;
@@ -67,6 +69,7 @@ export async function recordAiCall(record: AiCallRecord): Promise<RecordAiCallOu
         userId: record.userId ?? null,
         leadId: record.leadId ?? null,
         workOrderId: record.workOrderId ?? null,
+        researchRunId: record.researchRunId ?? null,
         agentActionId: record.agentActionId ?? null,
         operation: record.operation,
         provider: record.provider,

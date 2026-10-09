@@ -88,6 +88,7 @@ export interface GatewayRequestOptions {
   attribution?: GatewayAttribution;
   leadId?: string;
   workOrderId?: string;
+  researchRunId?: string;
   operation?: string;
   executionId?: string;
   /** Correlation id for one logical turn, echoed into every log line and attribution row. */
@@ -671,6 +672,7 @@ export class AiGateway {
       userId: opts.sessionUser?.id ?? opts.attribution?.userId ?? null,
       leadId: opts.leadId ?? null,
       workOrderId: opts.workOrderId ?? null,
+      researchRunId: opts.researchRunId ?? null,
       agentActionId: opts.attribution?.agentActionId ?? null,
       operation: opts.operation ?? 'gateway_inference',
       provider: model.provider,

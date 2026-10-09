@@ -39,6 +39,7 @@ export interface GenerationAttribution {
   userId?: string | null;
   leadId?: string | null;
   workOrderId?: string | null;
+  researchRunId?: string | null;
   agentActionId?: string | null;
   /** What the call was for — 'prioritization', 'sequence_draft', … */
   operation: string;
@@ -102,6 +103,7 @@ export async function generateStructured<T>(
       userId: input.userId ?? null,
       leadId: input.leadId ?? null,
       workOrderId: input.workOrderId ?? null,
+      researchRunId: input.researchRunId ?? null,
       agentActionId: input.agentActionId ?? null,
       operation: input.operation,
       provider: 'openai',
@@ -131,6 +133,7 @@ export async function generateStructured<T>(
       operation: input.operation,
       leadId: input.leadId ?? undefined,
       workOrderId: input.workOrderId ?? undefined,
+      researchRunId: input.researchRunId ?? undefined,
       preferredModel: input.modelId,
       criteria: {
         ...input.criteria,

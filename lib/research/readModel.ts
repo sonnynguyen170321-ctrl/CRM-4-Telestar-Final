@@ -37,6 +37,9 @@ export type ResearchRunRow = {
   pauseRequested: boolean;
   /** `running` with nobody writing to it for `STALE_RUNNER_MS` — the worker died. Resume claims it. */
   stalled: boolean;
+  /** AiCall rows attributed to this run (classification, fit judging) and their estimated cost in USD. */
+  aiCalls: number;
+  aiCostUsd: number;
 };
 
 export async function listResearchRuns(tenantId: string, limit = 50): Promise<ResearchRunRow[]> {
@@ -56,7 +59,7 @@ export async function listResearchRuns(tenantId: string, limit = 50): Promise<Re
   // Promoted counts come from one grouped query rather than a per-run count: a list of 50 runs would
   // otherwise fire 50 extra round trips to render one column.
   const runIds = runs.map((r) => r.id);
-  const [promoted, created] = await Promise.all([
+  const [promoted, created, aiSpend] = await Promise.all([
     prisma.researchCandidate.groupBy({
       by: ['runId'],
       where: { tenantId, status: 'promoted', runId: { in: runIds } },
@@ -67,7 +70,14 @@ export async function listResearchRuns(tenantId: string, limit = 50): Promise<Re
       where: { tenantId, runId: { in: runIds } },
       _count: { _all: true },
     }),
+    prisma.aiCall.groupBy({
+      by: ['researchRunId'],
+      where: { tenantId, researchRunId: { in: runIds } },
+      _count: { _all: true },
+      _sum: { estimatedCostUsd: true },
+    }),
   ]);
+  const aiByRun = new Map(aiSpend.map((a) => [a.researchRunId, { calls: a._count._all, cost: Number(a._sum.estimatedCostUsd ?? 0) }]));
   const promotedByRun = new Map(promoted.map((p) => [p.runId, p._count._all]));
   const createdByRun = new Map(created.map((p) => [p.runId, p._count._all]));
 
@@ -87,6 +97,8 @@ export async function listResearchRuns(tenantId: string, limit = 50): Promise<Re
     errorMessage: run.errorMessage,
     pauseRequested: run.pauseRequestedAt !== null,
     stalled: run.status === 'running' && now - run.updatedAt.getTime() > STALE_RUNNER_MS,
+    aiCalls: aiByRun.get(run.id)?.calls ?? 0,
+    aiCostUsd: aiByRun.get(run.id)?.cost ?? 0,
   }));
 }
 
