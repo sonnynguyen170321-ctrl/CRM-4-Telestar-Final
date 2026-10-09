@@ -17,16 +17,19 @@ interface MailComposerModalProps {
   task?: Task;
   /** Called after a successful send so the parent can refresh activities. */
   onSent?: () => void;
+  /** Seed the subject and/or body (for example from an AI draft). A seeded body is never overwritten by a sequence template. */
+  initialSubject?: string;
+  initialBody?: string;
 }
 
-export default function MailComposerModal({ lead, onClose, task, onSent }: MailComposerModalProps) {
+export default function MailComposerModal({ lead, onClose, task, onSent, initialSubject, initialBody }: MailComposerModalProps) {
   const { showToast } = useToast();
   // One id per open composer. A retried request reuses it, so the server resolves both
   // attempts to the same OutboundMessage instead of sending twice. A task, when present,
   // is a stronger key still and takes precedence server-side.
   const requestIdRef = useRef<string>(crypto.randomUUID());
-  const [subject, setSubject] = useState('');
-  const [body, setBody] = useState('');
+  const [subject, setSubject] = useState(initialSubject ?? '');
+  const [body, setBody] = useState(initialBody ?? '');
   const [account, setAccount] = useState<EmailAccount | null>(null);
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [loadingAccount, setLoadingAccount] = useState(true);
@@ -84,7 +87,7 @@ export default function MailComposerModal({ lead, onClose, task, onSent }: MailC
           }
         }
 
-        if (initialTemplateId) {
+        if (initialTemplateId && !initialBody) {
           setSelectedTemplateId(initialTemplateId);
           applyTemplate(initialTemplateId, emailTemplates);
         } else {

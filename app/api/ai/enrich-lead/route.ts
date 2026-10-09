@@ -3,22 +3,57 @@ import { canAccessLeadId, requireAuth, type SessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
 import { generateStructured } from '@/lib/ai/generation';
+import {
+  buildInstructionBlock,
+  enrichRequestSchema,
+  parseDraftOutput,
+  parseHooksOutput,
+  type LeadEmailDraft,
+  type LeadEnrichmentResponse,
+} from '@/lib/ai/leadEnrichment';
+import { loadLeadInsight, saveLeadInsight } from '@/lib/leads/aiInsightStore';
 
 export const dynamic = 'force-dynamic';
 
-export interface LeadEnrichmentResponse {
-  companySummary: string;
-  industryFocus: string;
-  /** Always empty: no longer generated (it was invented). Kept so older clients do not break. */
-  estimatedTechStack: string[];
-  grounding?: { usedResearch: boolean; researchedFacts: number; hasTitle: boolean; hasNotes: boolean };
-  keyPainPoints: string[];
-  icebreakers: Array<{
-    id: string;
-    style: string;
-    hook: string;
-    rationale: string;
-  }>;
+export type { LeadEnrichmentResponse };
+
+/**
+ * Saving is a convenience; a failure must not throw away a result the rep has just paid for.
+ * The response says whether it was kept so the drawer can tell them.
+ */
+async function persistInsight(input: Parameters<typeof saveLeadInsight>[0]): Promise<boolean> {
+  try {
+    await saveLeadInsight(input);
+    return true;
+  } catch (error: unknown) {
+    console.error('Failed to save lead insight:', error);
+    return false;
+  }
+}
+
+/** The latest saved result for a lead, so the drawer can show it again after being closed. */
+export async function GET(req: NextRequest) {
+  const userOrRes = await requireAuth();
+  if (userOrRes instanceof NextResponse) return userOrRes;
+  const sessionUser = userOrRes as SessionUser;
+  if (!sessionUser.tenantId) {
+    return NextResponse.json({ error: 'No tenant context' }, { status: 403 });
+  }
+  const leadId = req.nextUrl.searchParams.get('leadId');
+  if (!leadId) {
+    return NextResponse.json({ error: 'leadId is required' }, { status: 400 });
+  }
+  try {
+    if (!(await canAccessLeadId(sessionUser, leadId))) {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+    // Tenant comes from the session only.
+    const insight = await loadLeadInsight(sessionUser.tenantId, leadId);
+    return NextResponse.json({ success: true, data: insight ?? { hooks: null, draft: null } });
+  } catch (error: unknown) {
+    console.error('Failed to load saved lead insight:', error);
+    return NextResponse.json({ error: 'Could not load the saved research for this lead' }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -34,10 +69,14 @@ export async function POST(req: NextRequest) {
   const userId = sessionUser.id;
 
   try {
-    const { leadId, customContext } = await req.json();
-    if (!leadId) {
-      return NextResponse.json({ error: 'leadId is required' }, { status: 400 });
+    const parsedBody = enrichRequestSchema.safeParse(await req.json().catch(() => null));
+    if (!parsedBody.success) {
+      return NextResponse.json(
+        { error: parsedBody.error.issues[0]?.message ?? 'Invalid request' },
+        { status: 400 }
+      );
     }
+    const { leadId, mode, instruction } = parsedBody.data;
     // Tenant scoping alone let any rep read another rep's lead here (pre-launch audit, 2026-10-05).
     if (!(await canAccessLeadId(sessionUser, leadId))) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
@@ -110,7 +149,7 @@ export async function POST(req: NextRequest) {
         notesSummary ? `Rep notes: ${notesSummary}` : null,
       ].filter((line): line is string => Boolean(line));
 
-      const systemPrompt = `You help a B2B SDR prepare a first cold email. You are given everything the CRM knows about one prospect.
+      const hooksSystemPrompt = `You help a B2B SDR prepare a first cold email. You are given everything the CRM knows about one prospect.
 
 Hard rules — breaking any of them makes the output unusable:
 - Use ONLY the facts provided. Never invent customers, case studies, results, numbers, funding, news, tools or technology the company uses.
@@ -131,29 +170,34 @@ Output valid JSON exactly in this schema:
   ]
 }`;
 
+      const draftSystemPrompt = `You help a B2B SDR write a first cold email to one prospect. You are given everything the CRM knows about them.
+
+Hard rules — breaking any of them makes the output unusable:
+- Use ONLY the facts provided. Never invent customers, case studies, results, numbers, funding, news, tools or technology the company uses.
+- When you reason beyond the facts, say so plainly ("likely", "teams like yours often") and keep it general to the role.
+- If the facts are thin, keep the email short and general rather than filling the gap.
+- Under 120 words in the body, peer-to-peer, one low-pressure ask. No "Hope this finds you well", no "I came across your profile".
+- Address the prospect by first name when known. Do not sign with a made-up name; end with "Best," only.
+- Write in English unless the rep notes ask for another language.
+
+Output valid JSON exactly in this schema:
+{ "subject": "Under 8 words, no clickbait.", "body": "Plain text with blank lines between paragraphs." }`;
+
       const knownBlock = known.map((line) => `- ${line}`).join('\n');
-      const repAsk = customContext ? `\nThe rep asks: ${String(customContext).slice(0, 500)}` : '';
+      const repAsk = buildInstructionBlock(instruction);
       const userPrompt = `What the CRM knows:\n${knownBlock}\n${repAsk}\n\nReturn the JSON now.`;
 
-      const result = await generateStructured<LeadEnrichmentResponse>(
+      const isDraft = mode === 'draft';
+      const result = await generateStructured<LeadEnrichmentResponse | LeadEmailDraft>(
         {
           tenantId,
           userId,
           leadId,
-          operation: 'enrich_lead',
-          systemPrompt,
+          operation: isDraft ? 'enrich_lead_draft' : 'enrich_lead',
+          systemPrompt: isDraft ? draftSystemPrompt : hooksSystemPrompt,
           userPrompt,
         },
-        (raw: string) => {
-          try {
-            const cleaned = raw.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
-            const parsed = JSON.parse(cleaned);
-            if (!parsed.companySummary || !Array.isArray(parsed.icebreakers)) return null;
-            return parsed as LeadEnrichmentResponse;
-          } catch {
-            return null;
-          }
-        }
+        isDraft ? parseDraftOutput : parseHooksOutput
       );
 
       if (!result.available || !result.data) {
@@ -184,16 +228,21 @@ Output valid JSON exactly in this schema:
         );
       }
 
-      return NextResponse.json({
-        success: true,
-        data: {
-          ...result.data,
-          // The tech-stack guess is no longer asked for; never pass one through.
-          estimatedTechStack: [],
-          // What the hooks were built from, so the rep can judge them.
-          grounding: { usedResearch: Boolean(research), researchedFacts: facts.length, hasTitle: Boolean(title), hasNotes: Boolean(notesSummary) },
-        },
-      });
+      if (isDraft) {
+        const draft = result.data as LeadEmailDraft;
+        const saved = await persistInsight({ tenantId, leadId, userId, draft });
+        return NextResponse.json({ success: true, draft, saved });
+      }
+
+      const hooks: LeadEnrichmentResponse = {
+        ...(result.data as LeadEnrichmentResponse),
+        // The tech-stack guess is no longer asked for; never pass one through.
+        estimatedTechStack: [],
+        // What the hooks were built from, so the rep can judge them.
+        grounding: { usedResearch: Boolean(research), researchedFacts: facts.length, hasTitle: Boolean(title), hasNotes: Boolean(notesSummary) },
+      };
+      const saved = await persistInsight({ tenantId, leadId, userId, hooks });
+      return NextResponse.json({ success: true, data: hooks, saved });
     });
   } catch (error: unknown) {
     console.error('Failed to enrich lead:', error);

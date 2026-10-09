@@ -283,6 +283,44 @@ function LeadDetailPanelBody({
   const [aiResearchResult, setAiResearchResult] = useState<any>(null);
   const [copiedHookId, setCopiedHookId] = useState<string | null>(null);
   const [showIntelligenceDrawer, setShowIntelligenceDrawer] = useState(false);
+  const [aiHooksGeneratedAt, setAiHooksGeneratedAt] = useState<string | null>(null);
+  const [aiInstruction, setAiInstruction] = useState('');
+  const [aiDraft, setAiDraft] = useState<{ subject: string; body: string } | null>(null);
+  const [aiDraftGeneratedAt, setAiDraftGeneratedAt] = useState<string | null>(null);
+  const [aiDraftLoading, setAiDraftLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [composerSeed, setComposerSeed] = useState<{ subject?: string; body?: string } | null>(null);
+
+  // Load the last saved result so it survives closing the drawer.
+  useEffect(() => {
+    if (!leadId) return;
+    let cancelled = false;
+    setAiResearchResult(null);
+    setAiHooksGeneratedAt(null);
+    setAiDraft(null);
+    setAiDraftGeneratedAt(null);
+    setAiError(null);
+    fetch(`/api/ai/enrich-lead?leadId=${encodeURIComponent(leadId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (cancelled || !json?.data) return;
+        const { hooks, draft } = json.data;
+        if (hooks) {
+          setAiResearchResult(hooks.data);
+          setAiHooksGeneratedAt(hooks.generatedAt);
+        }
+        if (draft) {
+          setAiDraft(draft.data);
+          setAiDraftGeneratedAt(draft.generatedAt);
+        }
+      })
+      .catch(() => {
+        // A failed load only means nothing is pre-filled; generating still works.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [leadId]);
 
   // Anything open that holds work in progress. While one is, previous / next is off: stepping
   // remounts this body, and the open composer, call or form would vanish with it.
@@ -301,33 +339,59 @@ function LeadDetailPanelBody({
     onBusyChange(busy);
   }, [busy, onBusyChange]);
 
-  const handleGenerateResearch = async () => {
+  const requestAi = async (mode: 'hooks' | 'draft') => {
     if (!leadId) return;
-    setAiResearchLoading(true);
+    const setLoading = mode === 'draft' ? setAiDraftLoading : setAiResearchLoading;
+    setLoading(true);
+    setAiError(null);
     try {
+      const instruction = aiInstruction.trim();
       const res = await fetch('/api/ai/enrich-lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId }),
+        body: JSON.stringify({ leadId, mode, ...(instruction ? { instruction } : {}) }),
       });
       const data = await res.json().catch(() => null);
-      if (res.ok && data?.data) {
+      const now = new Date().toISOString();
+      if (res.ok && mode === 'hooks' && data?.data) {
         setAiResearchResult(data.data);
-        showToast('AI research & icebreakers generated!', 'success');
+        setAiHooksGeneratedAt(now);
+        showToast(data.saved === false ? 'Hooks generated, but could not be saved for later' : 'AI research & icebreakers generated!', data.saved === false ? 'error' : 'success');
+      } else if (res.ok && mode === 'draft' && data?.draft) {
+        setAiDraft(data.draft);
+        setAiDraftGeneratedAt(now);
+        showToast(data.saved === false ? 'Draft generated, but could not be saved for later' : 'Email draft generated', data.saved === false ? 'error' : 'success');
       } else if (data?.available === false) {
-        // The route now refuses rather than inventing a payload, so the panel has to say why
-        // it is empty. "Failed to generate" reads like a transient glitch worth retrying; the
-        // truth is that no provider ran, and the operator should write the email themselves.
-        setAiResearchResult(null);
-        showToast(data.message ?? 'Research did not run — no provider available', 'error');
+        // The route refuses rather than inventing, so say why the panel is empty: no provider
+        // ran, and the rep should write the email themselves.
+        if (mode === 'hooks') setAiResearchResult(null);
+        const msg = data.message ?? 'Research did not run — no provider available';
+        setAiError(msg);
+        showToast(msg, 'error');
+      } else if (res.status === 400 && typeof data?.error === 'string') {
+        setAiError(data.error);
+        showToast(data.error, 'error');
       } else {
-        showToast('Failed to generate AI research', 'error');
+        const msg = mode === 'draft' ? 'Could not generate a draft. Try again.' : 'Failed to generate AI research';
+        setAiError(msg);
+        showToast(msg, 'error');
       }
     } catch {
-      showToast('Network error generating AI research', 'error');
+      const msg = 'Network error generating AI research';
+      setAiError(msg);
+      showToast(msg, 'error');
     } finally {
-      setAiResearchLoading(false);
+      setLoading(false);
     }
+  };
+
+  const handleGenerateResearch = () => requestAi('hooks');
+  const handleGenerateDraft = () => requestAi('draft');
+
+  /** Open the composer with the given text; the rep still reviews and sends it themselves. */
+  const openComposerWith = (seed: { subject?: string; body?: string }) => {
+    setComposerSeed(seed);
+    setShowComposer(true);
   };
 
   const handleCopyHook = (hookText: string, hookId: string) => {
@@ -1272,14 +1336,37 @@ function LeadDetailPanelBody({
                     ) : (
                       <>
                         <Wand2 className="w-3.5 h-3.5" />
-                        <span>{aiResearchResult ? 'Refresh Hooks' : 'Generate Hooks'}</span>
+                        <span>{aiResearchResult ? 'Regenerate Hooks' : 'Generate Hooks'}</span>
                       </>
                     )}
                   </button>
                 </div>
 
+                <div className="space-y-1">
+                  <label htmlFor="ai-instruction" className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">
+                    Instruction (optional)
+                  </label>
+                  <input
+                    id="ai-instruction"
+                    type="text"
+                    value={aiInstruction}
+                    maxLength={300}
+                    onChange={(e) => setAiInstruction(e.target.value)}
+                    placeholder="e.g. shorter, mention their Series B, more formal"
+                    className="w-full text-xs bg-bg-main/60 border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary placeholder:text-text-muted focus:outline-hidden focus:border-brand-red/50"
+                  />
+                  <p className="text-[10px] text-text-muted">Applies to the next hooks or draft you generate. Only facts we already hold are used.</p>
+                </div>
+
+                {aiError && (
+                  <p className="text-[11px] text-red-600 dark:text-red-400" role="alert">{aiError}</p>
+                )}
+
                 {aiResearchResult ? (
                   <div className="space-y-3.5 pt-2 border-t border-card-border/60">
+                    {aiHooksGeneratedAt && (
+                      <p className="text-[10px] text-text-muted">Generated {new Date(aiHooksGeneratedAt).toLocaleString()}</p>
+                    )}
                     {/* What the AI had to go on (app/api/ai/enrich-lead): without company research it
                         only knows the name, title and company, and says so. */}
                     {aiResearchResult.grounding && (
@@ -1335,6 +1422,14 @@ function LeadDetailPanelBody({
                               </button>
                             </div>
                             <p className="text-xs text-text-secondary leading-snug italic">"{ib.hook}"</p>
+                            <button
+                              type="button"
+                              onClick={() => openComposerWith({ body: ib.hook })}
+                              className="text-[11px] font-semibold text-brand-red hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                              <span>Use in email</span>
+                            </button>
                             <p className="text-[10px] text-text-muted">💡 {ib.rationale}</p>
                           </div>
                         ))}
@@ -1346,6 +1441,44 @@ function LeadDetailPanelBody({
                     Click <span className="font-semibold text-text-primary">"Generate Hooks"</span> to research <span className="font-semibold text-text-primary">{lead?.company || 'this prospect'}</span> and synthesize hyper-personalized cold outreach angles.
                   </p>
                 )}
+
+                <div className="space-y-2 pt-2 border-t border-card-border/60">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Full email draft</p>
+                    <button
+                      type="button"
+                      onClick={handleGenerateDraft}
+                      disabled={aiDraftLoading}
+                      className="px-2.5 py-1 border border-card-border hover:border-brand-red/40 text-text-primary text-[11px] font-semibold rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                    >
+                      {aiDraftLoading ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                          <span>Drafting...</span>
+                        </>
+                      ) : (
+                        <span>{aiDraft ? 'Redraft email' : 'Draft full email'}</span>
+                      )}
+                    </button>
+                  </div>
+                  {aiDraft && (
+                    <div className="bg-card-bg border border-card-border rounded-xl p-3 space-y-1.5">
+                      {aiDraftGeneratedAt && (
+                        <p className="text-[10px] text-text-muted">Generated {new Date(aiDraftGeneratedAt).toLocaleString()}</p>
+                      )}
+                      <p className="text-xs font-semibold text-text-primary">{aiDraft.subject}</p>
+                      <p className="text-xs text-text-secondary whitespace-pre-wrap leading-snug">{aiDraft.body}</p>
+                      <button
+                        type="button"
+                        onClick={() => openComposerWith({ subject: aiDraft.subject, body: aiDraft.body })}
+                        className="text-[11px] font-semibold text-brand-red hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        <span>Use in email</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Prospect Profile Section */}
@@ -2365,6 +2498,8 @@ function LeadDetailPanelBody({
 
       {showComposer && lead && (
         <MailComposerModal
+          initialSubject={composerSeed?.subject}
+          initialBody={composerSeed?.body}
           lead={{
             id: lead.id,
             firstName: lead.firstName,
@@ -2376,7 +2511,10 @@ function LeadDetailPanelBody({
             sequenceId: lead.sequenceId ?? undefined,
             sequenceStep: lead.sequenceStep ?? undefined,
           }}
-          onClose={() => setShowComposer(false)}
+          onClose={() => {
+            setShowComposer(false);
+            setComposerSeed(null);
+          }}
           onSent={() => {
             // No toast here. `onSent` fires when the send is *queued* — the composer already
             // says so — and the worker can still refuse it (paused mailbox, quota, suppression)
