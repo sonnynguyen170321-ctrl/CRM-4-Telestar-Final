@@ -25,7 +25,10 @@ const EXTRA_FOLDS: Readonly<Record<string, string>> = {
   "ı": "i",
 };
 
-/** Lowercase, NFC, accent-stripped, whitespace-collapsed. "Giám Đốc" and "giam doc" fold the same. */
+/**
+ * Lowercase, NFC, accent-stripped, whitespace-collapsed, typographic apostrophes made plain.
+ * "Giám Đốc" and "giam doc" fold the same; so do "CEO’s" and "CEO's".
+ */
 export function foldForMatch(value: string): string {
   return String(value ?? "")
     .normalize("NFC")
@@ -33,6 +36,7 @@ export function foldForMatch(value: string): string {
     .normalize("NFD")
     .replace(/\p{M}+/gu, "")
     .replace(/[đðłøæœßı]/g, (ch) => EXTRA_FOLDS[ch] ?? ch)
+    .replace(/[‘’ʼ]/g, "'")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -45,22 +49,42 @@ export type TermMatchOptions = {
   plural?: boolean;
   /** The term must open the text (after leading punctuation): "former" in "Former CEO", not "CEO, former VP". */
   atStart?: boolean;
+  /**
+   * For words an operator types into an ICP: when the term's last word has 4+ letters it also matches
+   * a text word that STARTS with it ("tech" -> "technology", "health" -> "healthcare", "educat" ->
+   * "educational"), and a final "e" is optional so "finance" reaches "financial". Shorter terms stay
+   * whole words (plural allowed): "AI" never matches "email" or "airline", "isp" never "display",
+   * "bet" never "alphabet". Never mid-word: "tech" is not found in "biotech".
+   */
+  prefix?: boolean;
 };
+
+const PREFIX_MIN_LETTERS = 4;
 
 const matcherCache = new Map<string, RegExp>();
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 function matcherFor(foldedTerm: string, options: TermMatchOptions): RegExp {
-  const key = `${options.plural ? "p" : ""}${options.atStart ? "s" : ""}|${foldedTerm}`;
+  const key = `${options.plural ? "p" : ""}${options.atStart ? "s" : ""}${options.prefix ? "x" : ""}|${foldedTerm}`;
   const cached = matcherCache.get(key);
   if (cached) return cached;
 
-  const escaped = foldedTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const first = foldedTerm.charAt(0);
   const last = foldedTerm.charAt(foldedTerm.length - 1);
   const before = options.atStart ? "^[^\\p{L}\\p{N}]*" : WORD_CHAR.test(first) ? "(?<![\\p{L}\\p{N}])" : "";
-  const suffix = options.plural && /\p{L}/u.test(last) ? "(?:e?s)?" : "";
-  const after = WORD_CHAR.test(last) ? "(?![\\p{L}\\p{N}])" : "";
-  const re = new RegExp(`${before}${escaped}${suffix}${after}`, "u");
+  const lastWord = /\p{L}+$/u.exec(foldedTerm)?.[0] ?? "";
+  let body: string;
+  if (options.prefix && lastWord.length >= PREFIX_MIN_LETTERS) {
+    // Word-start prefix; a final "e" is optional once the word is longer than the minimum.
+    const stem = lastWord.length > PREFIX_MIN_LETTERS && foldedTerm.endsWith("e") ? foldedTerm.slice(0, -1) : foldedTerm;
+    body = `${escapeRegExp(stem)}\\p{L}*`;
+  } else {
+    const suffix = (options.plural || options.prefix) && /\p{L}/u.test(last) ? "(?:e?s)?" : "";
+    const after = WORD_CHAR.test(last) ? "(?![\\p{L}\\p{N}])" : "";
+    body = `${escapeRegExp(foldedTerm)}${suffix}${after}`;
+  }
+  const re = new RegExp(`${before}${body}`, "u");
   matcherCache.set(key, re);
   return re;
 }
@@ -78,4 +102,12 @@ export function containsFoldedTerm(foldedText: string, foldedTerm: string, optio
   if (!foldedTerm || !foldedText) return false;
   if (UNSPACED_SCRIPT.test(foldedTerm) && !options.atStart) return foldedText.includes(foldedTerm);
   return matcherFor(foldedTerm, options).test(foldedText);
+}
+
+/** Remove every whole-word occurrence of `foldedTerm` from `foldedText` (both already folded). */
+export function stripFoldedTerm(foldedText: string, foldedTerm: string): string {
+  if (!foldedTerm || !foldedText) return foldedText;
+  if (UNSPACED_SCRIPT.test(foldedTerm)) return foldedText.split(foldedTerm).join(" ").replace(/\s+/g, " ").trim();
+  const re = new RegExp(matcherFor(foldedTerm, {}).source, "gu");
+  return foldedText.replace(re, " ").replace(/\s+/g, " ").trim();
 }

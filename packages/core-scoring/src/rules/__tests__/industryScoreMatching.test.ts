@@ -131,3 +131,33 @@ describe("ICP shorthand: 'Tech' / 'Technology' / 'IT' name a family of industrie
     expect(ids("Retail", { excludedIndustries: ["Tech"] })).not.toContain("industry_excluded");
   });
 });
+
+// Reviewer finding M1: stems an operator types ("tech", "health", "finance", "educat", "security")
+// must keep reaching the words they abbreviate, in lists and in keywords.
+describe("stems in ICP lists and keywords", () => {
+  const allow = (description: string, targetIndustries: string[], industry = "Other") =>
+    score({ industry, description }, { targetIndustries }).hits.map((h) => h.id);
+
+  it.each([
+    ["Technology consulting for retailers", "tech"],
+    ["A healthcare staffing platform", "health"],
+    ["Financial planning for families", "finance"],
+    ["Educational content for schools", "educat"],
+  ])("'%s' is admitted by target %s", (description, target) => {
+    expect(allow(description, [target])).toContain("industry_allowlist_match");
+  });
+
+  it("'security' reaches a cybersecurity company through its key, not mid-word text", () => {
+    expect(allow("", ["security"], "Computer & Network Security")).toContain("industry_allowlist_match");
+    expect(allow("Cybersecurity awareness posters", ["security"], "Printing Services")).not.toContain("industry_allowlist_match");
+  });
+
+  it("keywords get the same rules plus the canonical rescue", () => {
+    const kw = (industry: string, description: string, industryKeywords: string[]) =>
+      score({ industry, description }, { mode: "all", industryKeywords }).score;
+    expect(kw("Marketing Services", "Healthcare brands", ["health"])).toBe(90);
+    expect(kw("SaaS", "Billing platform", ["Tech"])).toBe(90);
+    expect(kw("Marketing Services", "Email for airlines", ["AI"])).toBe(80);
+  });
+});
+

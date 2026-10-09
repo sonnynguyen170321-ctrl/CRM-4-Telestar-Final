@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { containsTerm, foldForMatch } from "../termMatch";
+import { containsTerm, foldForMatch, stripFoldedTerm } from "../termMatch";
 
 describe("foldForMatch", () => {
   it("strips accents, including letters NFD does not decompose", () => {
@@ -9,6 +9,7 @@ describe("foldForMatch", () => {
     expect(foldForMatch("Administrerende direktør")).toBe("administrerende direktor");
     expect(foldForMatch("Właściciel")).toBe("wlasciciel");
     expect(foldForMatch("  Président   Directeur  ")).toBe("president directeur");
+    expect(foldForMatch("CEO’s Office")).toBe("ceo's office");
   });
 });
 
@@ -58,5 +59,31 @@ describe("containsTerm", () => {
   it("never matches an empty term or text", () => {
     expect(containsTerm("CEO", "")).toBe(false);
     expect(containsTerm("", "ceo")).toBe(false);
+  });
+
+  it("prefix: 4+ letter terms match the start of a word, shorter ones stay whole words", () => {
+    const p = { prefix: true };
+    expect(containsTerm("Technology consulting", "tech", p)).toBe(true);
+    expect(containsTerm("Digital healthcare", "health", p)).toBe(true);
+    expect(containsTerm("Financial services", "finance", p)).toBe(true);
+    expect(containsTerm("Educational services", "educat", p)).toBe(true);
+    expect(containsTerm("Software", "software", p)).toBe(true);
+    // never mid-word
+    expect(containsTerm("Biotechnology", "tech", p)).toBe(false);
+    expect(containsTerm("Cybersecurity", "security", p)).toBe(false);
+    // short terms: whole word (plural allowed) only
+    expect(containsTerm("Email marketing for airlines", "ai", p)).toBe(false);
+    expect(containsTerm("AI copywriting", "ai", p)).toBe(true);
+    expect(containsTerm("Display ads", "isp", p)).toBe(false);
+    expect(containsTerm("Regional ISPs", "isp", p)).toBe(true);
+    expect(containsTerm("Alphabet indexing", "bet", p)).toBe(false);
+  });
+});
+
+describe("stripFoldedTerm", () => {
+  it("removes whole-word occurrences only", () => {
+    expect(stripFoldedTerm("director, office of the ceo", "office of the ceo")).toBe("director,");
+    expect(stripFoldedTerm("owner / product owner", "product owner")).toBe("owner /");
+    expect(stripFoldedTerm("productowner", "product owner")).toBe("productowner");
   });
 });

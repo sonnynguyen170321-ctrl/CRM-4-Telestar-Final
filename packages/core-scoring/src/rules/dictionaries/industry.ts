@@ -74,7 +74,7 @@ export const INDUSTRY_TAXONOMY: readonly IndustryEntry[] = [
   { canonical: "INSURANCE", parents: ["FINANCE"], aliases: ["insurance", "insurtech", "reinsurance", "insurer", "actuarial", "claims adjusting", "bảo hiểm"] },
   { canonical: "CRYPTO", aliases: ["crypto", "cryptocurrency", "web3", "defi", "nft", "blockchain", "digital assets", "decentralized finance", "bitcoin", "tiền mã hóa", "tiền điện tử"] },
   { canonical: "FINANCE", aliases: ["finance", "financial services", "financial service", "asset management", "investment management", "investment advice", "wealth management", "capital markets", "venture capital", "private equity", "hedge fund", "securities", "stock brokerage", "securities brokerage", "online brokerage", "stock exchange", "commodity exchange", "pension fund", "funds and trusts", "trusts and estates", "loan", "lending", "mortgage", "microfinance", "consumer finance", "tài chính", "chứng khoán", "quỹ đầu tư"] },
-  { canonical: "HEALTHCARE", aliases: ["healthcare", "health care", "health & wellness", "medical", "pharma", "pharmaceutical", "hospital", "clinic", "clinical", "biotech", "biotechnology", "life sciences", "medtech", "healthtech", "health tech", "digital health", "telehealth", "telemedicine", "dental", "dentist", "physician", "nursing home", "mental health", "home health", "elderly care", "veterinary", "chiropractor", "optometrist", "therapist", "ambulance", "outpatient", "alternative medicine", "y tế", "bệnh viện", "phòng khám", "dược phẩm", "nha khoa", "chăm sóc sức khỏe"] },
+  { canonical: "HEALTHCARE", aliases: ["healthcare", "health care", "health", "health & wellness", "health, wellness and fitness", "wellness", "fitness", "medical", "pharma", "pharmaceutical", "hospital", "clinic", "clinical", "biotech", "biotechnology", "life sciences", "medtech", "healthtech", "health tech", "digital health", "telehealth", "telemedicine", "dental", "dentist", "physician", "nursing home", "mental health", "home health", "elderly care", "veterinary", "chiropractor", "optometrist", "therapist", "ambulance", "outpatient", "alternative medicine", "y tế", "bệnh viện", "phòng khám", "dược phẩm", "nha khoa", "chăm sóc sức khỏe"] },
   { canonical: "ECOMMERCE", parents: ["RETAIL"], aliases: ["ecommerce", "e-commerce", "online retail", "online store", "online shop", "online marketplace", "internet marketplace", "online and mail order retail", "d2c", "direct-to-consumer", "direct to consumer", "dropshipping", "thương mại điện tử", "sàn thương mại điện tử", "bán hàng trực tuyến"] },
   { canonical: "RETAIL", aliases: ["retail", "retailer", "supermarket", "hypermarket", "grocery", "groceries", "department store", "convenience store", "bán lẻ", "siêu thị", "chuỗi cửa hàng"] },
   { canonical: "FNB", aliases: ["f&b", "food & beverage", "food and beverage", "restaurant", "cafe", "café", "coffee shop", "qsr", "quick service restaurant", "catering", "caterer", "bars, taverns", "nightclub", "brewery", "breweries", "distillery", "distilleries", "winery", "wineries", "food service", "foodservice", "food processing", "nhà hàng", "thực phẩm", "đồ uống", "nước giải khát", "chế biến thực phẩm"] },
@@ -84,11 +84,11 @@ export const INDUSTRY_TAXONOMY: readonly IndustryEntry[] = [
   { canonical: "TRANSPORTATION", aliases: ["transportation", "transport", "mobility", "fleet", "airline", "aviation", "rail", "railway", "trucking", "maritime", "taxi", "limousine", "ride-hailing", "ridesharing", "urban transit", "public transit", "bus service", "vận tải", "hàng không"] },
   { canonical: "HOSPITALITY", aliases: ["hospitality", "hotel", "hotels and motels", "motel", "resort", "travel", "tourism", "accommodation", "lodging", "hostel", "homestay", "bed-and-breakfast", "bed and breakfast", "travel agency", "tour operator", "khách sạn", "du lịch", "lữ hành", "khu nghỉ dưỡng"] },
   { canonical: "GAMING", parents: ["ENTERTAINMENT"], aliases: ["gaming", "games", "video game", "game development", "game studio", "esports", "e-sports", "gamefi"] },
-  { canonical: "ENTERTAINMENT", aliases: ["entertainment", "movies", "film", "music", "sound recording", "performing arts", "spectator sports", "sports teams", "amusement park", "theme park", "museum", "theater", "theatre", "cinema", "recreational facilities", "golf courses", "country clubs", "wellness and fitness", "fitness", "giải trí"] },
+  { canonical: "ENTERTAINMENT", aliases: ["entertainment", "movies", "film", "music", "sound recording", "performing arts", "spectator sports", "sports teams", "amusement park", "theme park", "museum", "theater", "theatre", "cinema", "recreational facilities", "golf courses", "country clubs", "giải trí"] },
   { canonical: "ADVERTISING", parents: ["MARKETING"], aliases: ["advertising", "ad agency", "ads", "adtech", "ad tech", "programmatic", "media buying", "quảng cáo"] },
   { canonical: "MEDIA", aliases: ["media", "publisher", "publishing", "broadcasting", "broadcast", "news", "newspaper", "radio", "television", "streaming", "podcast", "magazine", "journalism", "blog", "animation", "post-production", "cable and satellite", "truyền thông", "báo chí"] },
   { canonical: "MARKETING", aliases: ["marketing", "martech", "digital marketing", "marketing agency", "public relations", "pr agency", "seo", "market research", "branding agency", "creative agency", "growth agency", "lead generation", "demand generation", "influencer marketing", "tiếp thị"] },
-  { canonical: "EDUCATION", aliases: ["education", "edtech", "university", "universities", "college", "school", "schools", "academy", "online courses", "e-learning", "elearning", "professional training", "vocational training", "corporate training", "flight training", "tutoring", "language school", "k-12", "higher education", "giáo dục", "đào tạo", "trường học", "đại học", "trung tâm anh ngữ"] },
+  { canonical: "EDUCATION", aliases: ["education", "educational", "educational services", "edtech", "university", "universities", "college", "school", "schools", "academy", "online courses", "e-learning", "elearning", "professional training", "vocational training", "corporate training", "flight training", "tutoring", "language school", "k-12", "higher education", "giáo dục", "đào tạo", "trường học", "đại học", "trung tâm anh ngữ"] },
   { canonical: "GOVERNMENT", aliases: ["government", "public sector", "govtech", "public administration", "public policy", "public safety", "law enforcement", "administration of justice", "courts of law", "correctional", "fire protection", "legislative", "armed forces", "military", "municipal", "ministry", "chính phủ", "cơ quan nhà nước", "nhà nước"] },
   { canonical: "UTILITY", parents: ["ENERGY"], aliases: ["utility", "utilities", "electric utility", "electricity distribution", "power distribution", "electric power", "power generation", "water utility", "water supply", "wastewater", "waste", "waste management", "natural gas distribution", "điện lực", "cấp nước"] },
   { canonical: "ENERGY", aliases: ["energy", "oil & gas", "oil and gas", "oil, gas", "petroleum", "renewable", "renewables", "solar", "wind energy", "wind power", "clean energy", "cleantech", "hydrogen", "nuclear", "coal", "mining", "natural gas", "oil extraction", "năng lượng", "dầu khí", "điện mặt trời"] },
@@ -148,6 +148,9 @@ export const INDUSTRY_SHORTHANDS: Readonly<Record<string, readonly IndustryKey[]
   "technology company": TECH_FAMILY,
   "technology companies": TECH_FAMILY,
   it: ["IT_SERVICES", "CLOUD_HOSTING", "CYBERSECURITY"],
+  // "Security" alone is also guards and patrols, so it is not a company-side alias; in an ICP list
+  // it means the cybersecurity market (v1 reached "cybersecurity" by substring).
+  security: ["CYBERSECURITY"],
 };
 
 /**
@@ -156,11 +159,18 @@ export const INDUSTRY_SHORTHANDS: Readonly<Record<string, readonly IndustryKey[]
  */
 export function industryKeysForTerm(term: string): IndustryKey[] {
   const folded = foldForMatch(String(term ?? ""));
-  const family = INDUSTRY_SHORTHANDS[folded];
-  if (family) return [...family];
-  const key = canonicalizeIndustry(folded);
-  return key ? [key] : [];
+  let keys = termKeysCache.get(folded);
+  if (!keys) {
+    const key = canonicalizeIndustry(folded);
+    keys = INDUSTRY_SHORTHANDS[folded] ?? (key ? [key] : []);
+    // ICP terms repeat across every lead scored; the dictionary is static, so the answer is too.
+    if (termKeysCache.size < TERM_KEYS_CACHE_LIMIT) termKeysCache.set(folded, keys);
+  }
+  return [...keys];
 }
+
+const TERM_KEYS_CACHE_LIMIT = 5000;
+const termKeysCache = new Map<string, readonly IndustryKey[]>();
 
 /** Canonical key plus its parent keys (for allow/deny matching up the hierarchy). */
 export function industryWithParents(key: IndustryKey): IndustryKey[] {

@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { INDUSTRY_TAXONOMY, canonicalizeIndustry, type IndustryKey } from "../industry";
+import { INDUSTRY_TAXONOMY, canonicalizeIndustry, industryKeysForTerm, type IndustryKey } from "../industry";
 
 const LINKEDIN_LABELS = readFileSync(
   fileURLToPath(new URL("./__fixtures__/linkedin-industries-v2.txt", import.meta.url)),
@@ -110,6 +110,18 @@ describe("canonicalizeIndustry: new coverage (LinkedIn V2, plurals, Vietnamese)"
     ]);
   });
 
+  it("reads health, wellness and fitness as healthcare, never entertainment", () => {
+    expectKeys([
+      ["Health, Wellness and Fitness", "HEALTHCARE"],
+      ["Wellness and Fitness Services", "HEALTHCARE"],
+      // research splits "Health, Wellness and Fitness" on ",", "&" and "and" (rulesFromParams.ts)
+      ["Health", "HEALTHCARE"],
+      ["Wellness", "HEALTHCARE"],
+      ["Fitness", "HEALTHCARE"],
+      ["Educational Services", "EDUCATION"],
+    ]);
+  });
+
   it("accepts plurals without turning the plural into a free suffix", () => {
     expectKeys([
       ["Banks", "BANKING"],
@@ -166,5 +178,16 @@ describe("taxonomy invariants", () => {
     const mapped = LINKEDIN_LABELS.filter((label) => canonicalizeIndustry(label) !== null).length;
     expect(LINKEDIN_LABELS.length).toBeGreaterThan(400);
     expect(mapped / LINKEDIN_LABELS.length).toBeGreaterThanOrEqual(0.7);
+  });
+});
+
+describe("industryKeysForTerm (ICP side)", () => {
+  it("names a family for shorthand and one key otherwise", () => {
+    expect(industryKeysForTerm("Tech")).toEqual(["SOFTWARE", "SAAS", "IT_SERVICES", "CLOUD_HOSTING", "CYBERSECURITY"]);
+    expect(industryKeysForTerm("IT")).toEqual(["IT_SERVICES", "CLOUD_HOSTING", "CYBERSECURITY"]);
+    expect(industryKeysForTerm("Security")).toEqual(["CYBERSECURITY"]);
+    expect(industryKeysForTerm("Health")).toEqual(["HEALTHCARE"]);
+    expect(industryKeysForTerm("Banks")).toEqual(["BANKING"]);
+    expect(industryKeysForTerm("Tech consulting")).toEqual([]);
   });
 });
