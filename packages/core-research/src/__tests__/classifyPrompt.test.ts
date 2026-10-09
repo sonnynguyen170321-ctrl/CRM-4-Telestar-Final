@@ -120,3 +120,24 @@ describe('parseClassificationResponse', () => {
     expect(parseClassificationResponse('', 3).size).toBe(0);
   });
 });
+
+describe('parseClassificationResponse — a reply cut off at the output limit', () => {
+  // Production, 2026-10-08: every reply for eight candidates ran past the token cap and stopped mid-JSON,
+  // and the whole batch was thrown away — 92 of 142 companies left unchecked.
+  it('keeps every whole answer before the cut', () => {
+    const raw = '```json\n[{"i":0,"companyKind":"operator","whatTheySell":"Banking {retail} and \\"corporate\\""},{"i":1,"companyKind":"education"},{"i":2,"companyKind":"oper';
+    const out = parseClassificationResponse(raw, 3);
+    expect([...out.keys()]).toEqual([0, 1]);
+    expect(out.get(0)).toMatchObject({ companyKind: 'operator', whatTheySell: 'Banking {retail} and "corporate"' });
+  });
+
+  it('still reads a complete reply in one piece, and nothing from a reply with no array', () => {
+    expect([...parseClassificationResponse('[{"i":0,"companyKind":"operator"}]', 1).keys()]).toEqual([0]);
+    expect(parseClassificationResponse('I cannot help with that.', 1).size).toBe(0);
+  });
+
+  it('skips a malformed object without losing the rest', () => {
+    const out = parseClassificationResponse('[{"i":0,"companyKind":"operator"},{"i":1,"companyKind":},{"i":2,"companyKind":"event"}', 3);
+    expect([...out.keys()]).toEqual([0, 2]);
+  });
+});

@@ -126,7 +126,7 @@ export default function ResearchWorkspace() {
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [candidateTab, setCandidateTab] = useState<CandidateTab>('review');
   const [verificationView, setVerificationView] = useState<VerificationView>('shortlist');
-  const [verificationCounts, setVerificationCounts] = useState<Record<VerificationView, number> | null>(null);
+  const [verificationCounts, setVerificationCounts] = useState<(Record<VerificationView, number> & { retryable?: number }) | null>(null);
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
   const [builderOpen, setBuilderOpen] = useState(false);
   const [drawerCandidateId, setDrawerCandidateId] = useState<string | null>(null);
@@ -487,7 +487,7 @@ export default function ResearchWorkspace() {
                         <CirclePause className="h-4 w-4" aria-hidden="true" />
                         {selectedRun.pauseRequested ? 'Pausing after this batch…' : 'Pause after this batch'}
                       </button>
-                    ) : (
+                    ) : selectedRun.status === 'succeeded' && !verificationCounts?.retryable ? null : (
                       <button
                         type="button"
                         className={primaryButton}
@@ -495,7 +495,11 @@ export default function ResearchWorkspace() {
                         onClick={() => startRun(selectedRun.id)}
                       >
                         <CirclePlay className="h-4 w-4" aria-hidden="true" />
-                        {selectedRun.status === 'queued' ? 'Run research' : 'Resume run'}
+                        {selectedRun.status === 'queued'
+                          ? 'Run research'
+                          : selectedRun.status === 'succeeded'
+                            ? `Check again (${verificationCounts?.retryable ?? 0})`
+                            : 'Resume run'}
                       </button>
                     )}
                   </div>
