@@ -12,7 +12,15 @@ import type { InboxMessage } from './EmailService';
 export const SYNC_READ_LIMIT = 300;
 
 /** What one run read, and whether mail was left for the next run. */
-export type InboxBatch = { messages: InboxMessage[]; truncated: boolean };
+export type InboxBatch = {
+  messages: InboxMessage[];
+  truncated: boolean;
+  /**
+   * More mail since the cursor than one run can even list (Gmail: 50,000 ids). The oldest of it is
+   * not reached by this run; a re-read over a shorter window is needed (scripts/inbox-resync.ts).
+   */
+  overflow?: boolean;
+};
 
 /** An adapter that does not page (IMAP) still returns a bare list: it read everything. */
 export function toInboxBatch(result: InboxMessage[] | InboxBatch): InboxBatch {

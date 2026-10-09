@@ -602,6 +602,50 @@ describe('handleEmailSync', () => {
     expect(mockAccountUpdate).not.toHaveBeenCalled();
   });
 
+  // Review finding: a re-read applied a weeks-old reply to whatever cadence runs today — pausing a
+  // lead re-enrolled since. It now acts only on replies from the current enrollment.
+  describe('a re-read acts only on what concerns the running cadence', () => {
+    const since = new Date(Date.now() - 30 * 86_400_000);
+    const lead = { id: 'lead-1', email: 'lead@acme.com', sequenceId: 'seq-1', sequenceStatus: 'active', emailInvalid: false, stage: 'sequence_active', assignedToId: 'user-1' };
+    const reply = (daysAgo: number) => ({ providerMessageId: `r-${daysAgo}`, fromEmail: 'lead@acme.com', subject: 'Re: hello', date: new Date(Date.now() - daysAgo * 86_400_000) });
+
+    const arrange = (msg: ReturnType<typeof reply>, enrolledDaysAgo: number) => {
+      mockAccountFindUnique.mockResolvedValue(mockAccount);
+      (EmailService.fromAccount as ReturnType<typeof vi.fn>).mockResolvedValue({ fetchMessagesSince: vi.fn().mockResolvedValue([msg]) });
+      (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(false);
+      (isAutoReply as ReturnType<typeof vi.fn>).mockReturnValue(false);
+      mockLeadFindMany.mockResolvedValue([lead]);
+      mockEnrollmentFindFirst.mockResolvedValue({ id: 'enr-1', status: 'active', startedAt: new Date(Date.now() - enrolledDaysAgo * 86_400_000), currentStep: 1 });
+    };
+
+    it('stores but does not act on a reply sent before the current enrollment began', async () => {
+      arrange(reply(20), 5);
+
+      const result = await handleEmailSync({ accountId: 'acct-1', since: since.toISOString() });
+
+      expect(mockInboundCreate).toHaveBeenCalled();
+      expect(result).toMatchObject({ replies: 0 });
+    });
+
+    it('acts on a reply sent during the current enrollment', async () => {
+      arrange(reply(2), 5);
+      mockLeadFindUnique.mockResolvedValue(lead);
+
+      const result = await handleEmailSync({ accountId: 'acct-1', since: since.toISOString() });
+
+      expect(result).toMatchObject({ replies: 1 });
+    });
+
+    it('never acts on an old out-of-office', async () => {
+      arrange(reply(2), 5);
+      (isAutoReply as ReturnType<typeof vi.fn>).mockReturnValue(true);
+
+      const result = await handleEmailSync({ accountId: 'acct-1', since: since.toISOString() });
+
+      expect(result).toMatchObject({ autoReplies: 0 });
+    });
+  });
+
   it('refuses a re-read from a time that is not one', async () => {
     mockAccountFindUnique.mockResolvedValue(mockAccount);
     expect(await handleEmailSync({ accountId: 'acct-1', since: 'yesterday-ish' })).toEqual({ skipped: true, reason: 'invalid_since' });

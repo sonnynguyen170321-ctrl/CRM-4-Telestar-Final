@@ -252,7 +252,7 @@ export class GmailAdapter implements EmailAdapter {
         ...(msg.data.internalDate ? { receivedAt: new Date(Number(msg.data.internalDate)) } : {}),
       });
     }
-    return { messages, truncated };
+    return { messages, truncated, ...(pageToken ? { overflow: true } : {}) };
   }
 }
 

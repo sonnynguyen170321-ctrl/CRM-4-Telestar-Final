@@ -161,6 +161,18 @@ type ClassifiedMessage = {
   lead: MatchedLead | undefined;
 };
 
+/** Whether a message arrived after the lead's running cadence began (a re-read's reply guard). */
+async function repliedDuringCurrentEnrollment(leadId: string, msg: InboxMessage): Promise<boolean> {
+  const at = (msg.receivedAt ?? msg.date).getTime();
+  if (!Number.isFinite(at)) return false;
+  const running = await prisma.sequenceEnrollment.findFirst({
+    where: { leadId, status: 'active' },
+    orderBy: { startedAt: 'desc' },
+    select: { startedAt: true },
+  });
+  return Boolean(running && running.startedAt.getTime() <= at);
+}
+
 /** An ISO time, or nothing for a missing or unparseable date (a sender's Date: header can be anything). */
 const validIso = (at: Date | undefined | null) => (at && !Number.isNaN(at.getTime()) ? at.toISOString() : undefined);
 
@@ -192,7 +204,7 @@ async function handleEmailSync(payload: EmailSyncPayload) {
     }
     return { skipped: true, reason: 'adapter_does_not_support_sync' };
   }
-  const { messages, truncated } = toInboxBatch(fetched);
+  const { messages, truncated, overflow } = toInboxBatch(fetched);
 
   // Pre-parse bounce recipients so lead lookup covers BOTH senders (replies) and
   // DSN-reported recipients (bounces). Looking up only senders meant every bounce
@@ -342,6 +354,10 @@ async function handleEmailSync(payload: EmailSyncPayload) {
     // inside handleApplyReply checks SequenceEnrollment.status === 'active' so a stale
     // Lead.sequenceStatus legacy cache value never drops a real reply (S3).
     if (!c.lead.sequenceId) continue;
+    // A re-read of the past acts only on what still concerns today's cadence: a reply the lead sent
+    // before their current enrollment started belongs to an earlier one, and an old out-of-office says
+    // nothing about now.
+    if (resync && (c.isAutoReply || !(await repliedDuringCurrentEnrollment(c.lead.id, c.msg)))) continue;
 
     await handleApplyReply({
       providerMessageId: c.msg.providerMessageId,
@@ -366,7 +382,7 @@ async function handleEmailSync(payload: EmailSyncPayload) {
   const cursor = truncated ? cursorAfter(messages, since, now) : now;
   if (resync) {
     // A re-read of the past: the live cursor is not this run's to move.
-    return { success: true, accountId, messagesProcessed: messages.length, replies, bounces, autoReplies, truncated, cursor };
+    return { success: true, accountId, messagesProcessed: messages.length, replies, bounces, autoReplies, truncated, cursor, ...(overflow ? { overflow } : {}) };
   }
   await prisma.emailAccount.update({
     where: { id: accountId },

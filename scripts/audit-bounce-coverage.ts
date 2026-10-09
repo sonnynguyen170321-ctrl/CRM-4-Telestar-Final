@@ -48,7 +48,9 @@ type TenantReport = {
 async function auditTenant(tenantId: string, tenantName: string): Promise<TenantReport> {
   const now = Date.now();
 
-  // Every address with bounce evidence, and when it first bounced.
+  // Every address with bounce evidence, and when it first bounced — by when the bounce *arrived*
+  // (the DSN's own date), not when it was stored or applied: a bounce found by a re-read today was
+  // still a bounce on the day it came, and a send after that day is the incident.
   const firstBounce = new Map<string, number>();
   const note = (email: string | null, at: Date | null) => {
     if (!email || !at) return;
@@ -64,9 +66,9 @@ async function auditTenant(tenantId: string, tenantName: string): Promise<Tenant
   bouncedSends.forEach((row) => note(row.to, row.bouncedAt));
   const bounceMessages = await prisma.inboundMessage.findMany({
     where: { tenantId, isBounce: true, bouncedRecipient: { not: null } },
-    select: { bouncedRecipient: true, createdAt: true },
+    select: { bouncedRecipient: true, date: true, createdAt: true },
   });
-  bounceMessages.forEach((row) => note(row.bouncedRecipient, row.createdAt));
+  bounceMessages.forEach((row) => note(row.bouncedRecipient, Number.isFinite(row.date.getTime()) ? row.date : row.createdAt));
   const addresses = [...firstBounce.keys()];
 
   // Bounced, but never suppressed.
@@ -120,8 +122,9 @@ async function auditTenant(tenantId: string, tenantName: string): Promise<Tenant
     .map((m) => ({ email: m.email, lastSyncAt: m.lastSyncAt?.toISOString() ?? null }));
 
   // Hours with a burst of mail into one mailbox, the last 30 days.
+  // Stored mail only, so it undercounts what the old sync dropped; it shows where to look.
   const received = await prisma.inboundMessage.findMany({
-    where: { tenantId, createdAt: { gte: new Date(now - 30 * DAY_MS) } },
+    where: { tenantId, date: { gte: new Date(now - 30 * DAY_MS) } },
     select: { accountId: true, date: true },
   });
   const perHour = new Map<string, number>();
@@ -162,7 +165,7 @@ function print(report: TenantReport) {
   report.sendsAfterBounce.sample.forEach((row) => console.log(`      ${row.to} bounced ${row.firstBounceAt}, sent again ${row.sentAt} from ${row.mailbox}`));
   console.log(`  mailboxes not synced in 2 h:      ${report.staleMailboxes.length}`);
   report.staleMailboxes.forEach((row) => console.log(`      ${row.email} — last ${row.lastSyncAt ?? 'never'}`));
-  console.log(`  hours with ${BURST_THRESHOLD}+ messages into one mailbox (30 days): ${report.burstHours.length}`);
+  console.log(`  hours (UTC) with ${BURST_THRESHOLD}+ stored messages into one mailbox (30 days): ${report.burstHours.length}`);
   report.burstHours.forEach((row) => console.log(`      ${row.mailbox} ${row.hour}: ${row.messages}`));
 }
 
