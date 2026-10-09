@@ -24,6 +24,11 @@
  *
  * Suppression is never undone here. Reviving an address is a deliberate human act, and giving
  * this module an "unsuppress" would make it the thing that silently lets a dead address back in.
+ *
+ * A bounce is also permanent evidence (owner, 2026-10-09: "a bounce means we do not send again"):
+ * `findBounceEvidence` reads the bounce records themselves, so deleting a suppression row by hand
+ * does not revive an address — the next send suppresses it again. An "unsuppress" feature, if one
+ * is ever built, has to record the revival and make `findBounceEvidence` ignore older evidence.
  */
 import { prisma } from '@/lib/prisma';
 import { pauseAllLeadCadences } from '@/lib/sequences/leadStop';

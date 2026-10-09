@@ -30,8 +30,9 @@ vi.mock('@/lib/bullmq', () => ({ createAppWorker: vi.fn() }));
 
 const { handleRepair } = await import('@/workers/maintenance');
 
+const BOUNCE_AT = new Date('2026-10-08T03:10:00Z');
 const bounce = (id: string, email: string, over: Record<string, unknown> = {}) => ({
-  id, tenantId: 't1', leadId: null, bouncedRecipient: email, bounceType: 'hard', ...over,
+  id, tenantId: 't1', leadId: null, bouncedRecipient: email, bounceType: 'hard', createdAt: BOUNCE_AT, ...over,
 });
 
 beforeEach(() => {
@@ -44,7 +45,7 @@ beforeEach(() => {
 });
 
 describe('handleRepair — unapplied-bounces', () => {
-  it('suppresses a stored bounce that never became a suppression, with the lead of the latest send', async () => {
+  it('suppresses a stored bounce that never became a suppression, with the lead of the send it answers', async () => {
     inboundFindMany.mockResolvedValueOnce([bounce('b1', 'Zolkiflii@Spanco.com.my')]);
     outboundFindFirst.mockResolvedValue({ id: 'out-2', leadId: 'lead-7', bouncedAt: null });
 
@@ -52,7 +53,8 @@ describe('handleRepair — unapplied-bounces', () => {
 
     expect(result['unapplied-bounces'].fixed).toBe(1);
     expect(outboundFindFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: { tenantId: 't1', to: { equals: 'zolkiflii@spanco.com.my', mode: 'insensitive' }, sentAt: { not: null } },
+      // The latest send before the bounce arrived — a later send that went through is not the one.
+      where: { tenantId: 't1', to: { equals: 'zolkiflii@spanco.com.my', mode: 'insensitive' }, sentAt: { not: null, lte: BOUNCE_AT } },
     }));
     expect(suppressRecipient).toHaveBeenCalledWith(expect.objectContaining({
       tenantId: 't1', email: 'zolkiflii@spanco.com.my', leadId: 'lead-7', reason: 'hard_bounce',
@@ -60,7 +62,7 @@ describe('handleRepair — unapplied-bounces', () => {
     // The send is marked bounced, which the send-time check and the bounce rate read.
     expect(outboundUpdateMany).toHaveBeenCalledWith({
       where: { id: 'out-2', bouncedAt: null },
-      data: { bouncedAt: expect.any(Date), bounceType: 'hard' },
+      data: { bouncedAt: BOUNCE_AT, bounceType: 'hard' },
     });
   });
 
@@ -111,6 +113,7 @@ describe('handleRepair — unapplied-bounces', () => {
     const result = await handleRepair({ types: ['unapplied-bounces'] });
 
     expect(inboundFindMany).toHaveBeenCalledTimes(2);
+    expect(inboundFindMany.mock.calls[0][0]).toMatchObject({ orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
     expect(inboundFindMany.mock.calls[1][0]).toMatchObject({ cursor: { id: 'b499' }, skip: 1 });
     expect(result['unapplied-bounces'].fixed).toBe(1);
   });

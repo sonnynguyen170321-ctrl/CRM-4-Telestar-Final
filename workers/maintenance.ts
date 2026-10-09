@@ -488,7 +488,7 @@ async function pruneAuditTier(
 
 /** Stored bounces read per page, and pages per run, by `repairUnappliedBounces`. */
 const BOUNCE_REPAIR_PAGE = 500;
-const BOUNCE_REPAIR_PAGE_LIMIT = 50;
+const BOUNCE_REPAIR_PAGE_LIMIT = 100;
 
 /**
  * Bounces that were stored but never became a suppression (owner, 2026-10-09: Spanco).
@@ -501,8 +501,9 @@ const BOUNCE_REPAIR_PAGE_LIMIT = 50;
  * stop; tenant-wide even when no lead can be found. That send is marked bounced too, which is what
  * the send-time check (`findBounceEvidence`) and the bounce rate read.
  *
- * Every page is read; only unapplied addresses cost writes, so a run over an already-clean table is
- * two reads per page. Idempotent: `suppressRecipient` keeps one entry per address.
+ * Newest first, so the bounces that matter now are always reached; up to 50,000 per run. Every
+ * page is read; only unapplied addresses cost writes, so a run over an already-clean table is two
+ * reads per page. Idempotent: `suppressRecipient` keeps one entry per address.
  */
 async function repairUnappliedBounces(): Promise<{ fixed: number; details: string[] }> {
   const details: string[] = [];
@@ -513,8 +514,8 @@ async function repairUnappliedBounces(): Promise<{ fixed: number; details: strin
   for (let page = 0; page < BOUNCE_REPAIR_PAGE_LIMIT; page += 1) {
     const bounces = await prisma.inboundMessage.findMany({
       where: { isBounce: true, bouncedRecipient: { not: null } },
-      select: { id: true, tenantId: true, leadId: true, bouncedRecipient: true, bounceType: true },
-      orderBy: { id: 'asc' },
+      select: { id: true, tenantId: true, leadId: true, bouncedRecipient: true, bounceType: true, createdAt: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: BOUNCE_REPAIR_PAGE,
       ...pageAfter(cursor),
     });
@@ -534,8 +535,10 @@ async function repairUnappliedBounces(): Promise<{ fixed: number; details: strin
       if (!email || isSuppressed.has(key) || handled.has(key)) continue;
       handled.add(key);
       try {
+        // The send this bounce answers: the latest one to the address before the bounce arrived — a
+        // later send that went through must not be marked bounced.
         const latestSend = await prisma.outboundMessage.findFirst({
-          where: { tenantId: bounce.tenantId, to: { equals: email, mode: 'insensitive' }, sentAt: { not: null } },
+          where: { tenantId: bounce.tenantId, to: { equals: email, mode: 'insensitive' }, sentAt: { not: null, lte: bounce.createdAt } },
           orderBy: { sentAt: 'desc' },
           select: { id: true, leadId: true, bouncedAt: true },
         });
@@ -554,7 +557,7 @@ async function repairUnappliedBounces(): Promise<{ fixed: number; details: strin
         if (latestSend && !latestSend.bouncedAt) {
           await prisma.outboundMessage.updateMany({
             where: { id: latestSend.id, bouncedAt: null },
-            data: { bouncedAt: new Date(), bounceType: bounce.bounceType === 'soft' ? 'soft' : 'hard' },
+            data: { bouncedAt: bounce.createdAt, bounceType: bounce.bounceType === 'soft' ? 'soft' : 'hard' },
           });
         }
         fixed += 1;

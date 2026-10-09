@@ -20,9 +20,10 @@ const mockStepCopyFindUnique = vi.fn().mockResolvedValue(null);
 
 // The send path's bounce-evidence lock (lib/email/suppress.ts) has its own tests
 // (tests/bounce-evidence-guard.test.ts); here no address has bounced before.
+const { mockBlockIfBounced } = vi.hoisted(() => ({ mockBlockIfBounced: vi.fn() }));
 vi.mock('@/lib/email/suppress', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/email/suppress')>()),
-  blockIfBounced: async () => null,
+  blockIfBounced: (...a: unknown[]) => mockBlockIfBounced(...a),
 }));
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -208,6 +209,20 @@ describe('handleExecuteTask', () => {
   it('returns manual_action_required for a non-email task', async () => {
     mockTaskFindUnique.mockResolvedValue(buildTask({ type: 'call' }));
     expect(await handleExecuteTask({ taskId: 'task-1' })).toEqual({ status: 'manual_action_required', type: 'call' });
+  });
+
+  // Owner, 2026-10-09 (Spanco): step 1 bounced, the bounce never became a suppression, and step 2
+  // went out. The step now asks for bounce evidence itself and is refused.
+  it('refuses a step to an address that bounced earlier, and sends nothing', async () => {
+    arrangeEligible();
+    mockBlockIfBounced.mockResolvedValueOnce({ source: 'bounce_message', at: new Date('2026-10-08T03:10:00Z'), reason: 'hard_bounce' });
+
+    const result = await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(mockBlockIfBounced).toHaveBeenCalledWith(expect.objectContaining({ email: 'prospect@acme.com', leadId: 'lead-1' }));
+    expect(result.status).not.toBe('queued');
+    expect(mockCreateOutbound).not.toHaveBeenCalled();
+    expect(mockEnqueueSend).not.toHaveBeenCalled();
   });
 
   it('skips when the lead is no longer actively enrolled (paused)', async () => {

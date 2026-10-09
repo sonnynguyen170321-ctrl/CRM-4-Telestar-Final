@@ -166,7 +166,12 @@ export class GmailAdapter implements EmailAdapter {
       pages += 1;
     } while (pageToken && pages < LIST_PAGE_LIMIT);
     if (pageToken) {
-      console.warn('[gmail-sync] more than', LIST_PAGE_SIZE * LIST_PAGE_LIMIT, 'messages since the cursor; reading the oldest listed');
+      // Only after a very long outage or a first sync of a huge inbox. The listed ids are the newest
+      // ones, so mail older than them is not reached by this run and is skipped when the cursor moves.
+      console.error(
+        '[gmail-sync] more than', LIST_PAGE_SIZE * LIST_PAGE_LIMIT,
+        'messages since the cursor — older ones are not read; run scripts/inbox-resync.ts for this mailbox'
+      );
     }
     // Oldest first, so a run that stops at the limit leaves only newer mail for the next run.
     const oldestFirst = ids.reverse();
