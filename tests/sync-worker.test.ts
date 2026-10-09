@@ -581,6 +581,32 @@ describe('handleEmailSync', () => {
     });
   });
 
+  // scripts/inbox-resync.ts re-reads the past; that must never move the live cursor, or today's
+  // replies would wait behind weeks of old mail.
+  it('re-reads from a given time without moving the mailbox cursor, and says where to continue', async () => {
+    const since = new Date(Date.now() - 30 * 86_400_000);
+    const receivedAt = new Date(since.getTime() + 3_600_000);
+    mockAccountFindUnique.mockResolvedValue(mockAccount);
+    const fetchMessagesSince = vi.fn().mockResolvedValue({
+      messages: [{ providerMessageId: 'old-1', fromEmail: 'news@shop.com', subject: 'x', date: new Date(0), receivedAt }],
+      truncated: true,
+    });
+    (EmailService.fromAccount as ReturnType<typeof vi.fn>).mockResolvedValue({ fetchMessagesSince });
+    (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    (isAutoReply as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+    const result = await handleEmailSync({ accountId: 'acct-1', since: since.toISOString() });
+
+    expect(fetchMessagesSince).toHaveBeenCalledWith(since);
+    expect(result).toMatchObject({ success: true, truncated: true, cursor: new Date(receivedAt.getTime() - 1000) });
+    expect(mockAccountUpdate).not.toHaveBeenCalled();
+  });
+
+  it('refuses a re-read from a time that is not one', async () => {
+    mockAccountFindUnique.mockResolvedValue(mockAccount);
+    expect(await handleEmailSync({ accountId: 'acct-1', since: 'yesterday-ish' })).toEqual({ skipped: true, reason: 'invalid_since' });
+  });
+
   it('returns skipped if account not found', async () => {
     mockAccountFindUnique.mockResolvedValue(null);
 

@@ -177,15 +177,19 @@ async function handleEmailSync(payload: EmailSyncPayload) {
   if (!account.isActive) return { skipped: true, reason: 'account_inactive' };
 
   const now = new Date();
-  const since = account.lastSyncAt ?? new Date(now.getTime() - DEFAULT_SYNC_LOOKBACK_MS);
+  const resync = payload.since ? new Date(payload.since) : null;
+  if (resync && Number.isNaN(resync.getTime())) return { skipped: true, reason: 'invalid_since' };
+  const since = resync ?? account.lastSyncAt ?? new Date(now.getTime() - DEFAULT_SYNC_LOOKBACK_MS);
 
   const service = await EmailService.fromAccount(account);
   const fetched = await service.fetchMessagesSince(since);
   if (fetched === null) {
-    await prisma.emailAccount.update({
-      where: { id: accountId },
-      data: { lastSyncAt: now },
-    });
+    if (!resync) {
+      await prisma.emailAccount.update({
+        where: { id: accountId },
+        data: { lastSyncAt: now },
+      });
+    }
     return { skipped: true, reason: 'adapter_does_not_support_sync' };
   }
   const { messages, truncated } = toInboxBatch(fetched);
@@ -360,6 +364,10 @@ async function handleEmailSync(payload: EmailSyncPayload) {
   // A run that read everything moves the cursor to now. One that stopped at the read limit moves it
   // only to the last message it read, so the next run starts there instead of skipping the rest.
   const cursor = truncated ? cursorAfter(messages, since, now) : now;
+  if (resync) {
+    // A re-read of the past: the live cursor is not this run's to move.
+    return { success: true, accountId, messagesProcessed: messages.length, replies, bounces, autoReplies, truncated, cursor };
+  }
   await prisma.emailAccount.update({
     where: { id: accountId },
     data: { lastSyncAt: cursor },

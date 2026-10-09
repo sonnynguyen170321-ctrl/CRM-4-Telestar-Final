@@ -136,6 +136,12 @@ export interface EmailSendPayload {
 
 export interface EmailSyncPayload {
   accountId: string;
+  /**
+   * Re-read from here instead of the mailbox's cursor (scripts/inbox-resync.ts). ISO time. With it,
+   * the run leaves `lastSyncAt` alone and reports where to continue in `cursor`, so re-reading the
+   * past never holds up today's replies and bounces.
+   */
+  since?: string;
 }
 
 export interface EmailApplyReplyPayload {
