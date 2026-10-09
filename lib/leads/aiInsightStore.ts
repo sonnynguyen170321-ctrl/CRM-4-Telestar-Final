@@ -6,7 +6,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { tenantStorage } from '@/lib/tenant-context';
-import { readStoredDraft, readStoredHooks, type LeadEmailDraft, type LeadEnrichmentResponse } from '@/lib/ai/leadEnrichment';
+import { readStoredDraft, readStoredHooks, type LeadEmailDraft, type LeadEnrichmentResponse } from '@/lib/leads/aiInsightShape';
 
 export interface StoredPart<T> {
   data: T;
