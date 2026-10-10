@@ -1221,14 +1221,17 @@ routes:
       - e2e/roles/role-negative-access.spec.ts
   - path: app/api/team/campaigns/[id]/route.ts
     methods: [GET]
-    tests: []
+    tests:
+      - tests/telephony-call-metrics.test.ts
   - path: app/api/team/campaigns/route.ts
     methods: [GET]
-    tests: []
+    tests:
+      - tests/telephony-call-metrics.test.ts
   - path: app/api/team/leaderboard/route.ts
     methods: [GET]
     tests:
       - e2e/roles/role-negative-access.spec.ts
+      - tests/telephony-call-metrics.test.ts
   - path: app/api/team/meetings/route.ts
     methods: [GET]
     tests:
