@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { countCalls } from '@/lib/telephony/metrics';
 import type { ContactIntelligence } from '@prisma/client';
 import {
   calculateIntrinsicQualityScore,
@@ -63,6 +64,14 @@ export async function recalculateContactIntelligence(
   let wonOpportunityCount = 0;
   let referralGivenCount = 0;
 
+  // Calls are counted by the shared definition (softphone Call rows + call_made/call_logged
+  // activities that are not their shadow), not from the activity types above.
+  touchCount += await countCalls({
+    tenantId,
+    mode: 'attempts',
+    scope: { leadIds: contact.leadAssignments.map((lead) => lead.id) },
+  });
+
   let lastContactedAt: Date | null = null;
   let lastRepliedAt: Date | null = null;
   let lastMeetingAt: Date | null = null;
@@ -91,7 +100,7 @@ export async function recalculateContactIntelligence(
 
     // Touch counts & activities
     for (const activity of lead.activities) {
-      if (['email_sent', 'call_made', 'linkedin_sent', 'whatsapp_sent'].includes(activity.type)) {
+      if (['email_sent', 'linkedin_sent', 'whatsapp_sent'].includes(activity.type)) {
         touchCount++;
       } else if (activity.type === 'email_replied') {
         replyCount++;
