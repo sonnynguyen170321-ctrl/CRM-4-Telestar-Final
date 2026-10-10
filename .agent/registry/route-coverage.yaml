@@ -1240,6 +1240,10 @@ routes:
       - tests/telephony-calls-route.test.ts
       - tests/telephony-proxy-matcher.test.ts
       - tests/telephony-softphone.test.ts
+  - path: app/api/telephony/calls/[id]/recording/route.ts
+    methods: [GET]
+    tests:
+      - tests/telephony-recording-route.test.ts
   - path: app/api/telephony/calls/pending-outcome/route.ts
     methods: [GET]
     tests:

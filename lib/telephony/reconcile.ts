@@ -2,6 +2,7 @@ import { prisma, tenantStorage } from '@/lib/prisma';
 
 import { finishCall, processTelephonyEvent } from './applyEvent';
 import { getTelephonyProvider } from './index';
+import { purgeExpiredRecordings } from './recording';
 import { safeError } from './safeError';
 import { parseTelnyxEvent } from './telnyx/events';
 
@@ -46,6 +47,8 @@ export type ReconcileSummary = {
   replayFailed: number;
   abandoned: number;
   purgedEvents: number;
+  purgedRecordings: number;
+  recordingPurgeFailed: number;
   canceledAuthorized: number;
   finalizedStuck: number;
   stillAlive: number;
@@ -213,6 +216,8 @@ export async function reconcileTelephony(input: { now?: Date; tenantIds?: string
     replayFailed: 0,
     abandoned: 0,
     purgedEvents: 0,
+    purgedRecordings: 0,
+    recordingPurgeFailed: 0,
     canceledAuthorized: 0,
     finalizedStuck: 0,
     stillAlive: 0,
@@ -222,6 +227,14 @@ export async function reconcileTelephony(input: { now?: Date; tenantIds?: string
   if (!tenantIds) {
     summary.abandoned = await abandonUnmatchedEvents(now);
     summary.purgedEvents = await purgeOldEvents(now);
+  }
+  try {
+    const purge = await purgeExpiredRecordings({ now, tenantIds });
+    summary.purgedRecordings = purge.deleted;
+    summary.recordingPurgeFailed = purge.failed;
+  } catch (error) {
+    summary.providerUnavailable = true;
+    console.error('[telephony-reconcile] recording purge failed', { error: safeError(error) });
   }
   await cancelStaleAuthorized(now, tenantIds, summary);
   await finalizeStuck(now, tenantIds, summary);

@@ -230,6 +230,7 @@
     "/api/team/sdr-progress",
     "/api/telephony/calls",
     "/api/telephony/calls/[id]/outcome",
+    "/api/telephony/calls/[id]/recording",
     "/api/telephony/calls/pending-outcome",
     "/api/telephony/phone-calls",
     "/api/telephony/status",
@@ -255,5 +256,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 38,
-  "apiRouteCount": 206
+  "apiRouteCount": 207
 }

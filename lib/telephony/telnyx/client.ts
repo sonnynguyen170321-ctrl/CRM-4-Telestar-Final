@@ -40,6 +40,7 @@ const COMMAND_PATH: Record<CallCommand['action'], string> = {
   hangup: 'hangup',
   transfer: 'transfer',
   record_start: 'record_start',
+  speak: 'speak',
 };
 
 function commandBody(command: CallCommand, commandId: string): Record<string, unknown> {
@@ -59,6 +60,8 @@ function commandBody(command: CallCommand, commandId: string): Record<string, un
         channels: command.channels ?? 'dual',
         play_beep: command.playBeep ?? false,
       };
+    case 'speak':
+      return { command_id: commandId, payload: command.payload, payload_type: 'text', voice: 'female', language: 'en-US' };
     default:
       return { command_id: commandId };
   }

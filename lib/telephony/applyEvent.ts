@@ -4,6 +4,7 @@ import { prisma, tenantStorage } from '@/lib/prisma';
 
 import { finalStatusFor, isTerminalStatus, statusesBefore, type FinalStatus } from './callStatus';
 import { legCallId } from './legMarker';
+import { startRecordingOnAnswer, storeSavedRecording } from './recording';
 import { parseTelnyxEvent, type TelnyxEvent } from './telnyx/events';
 
 /**
@@ -111,11 +112,14 @@ async function onAnswered(call: CallRef, event: TelnyxEvent): Promise<void> {
   const at = event.occurredAt ?? new Date();
   await advance(call, 'answered');
   await prisma.call.updateMany({ where: { id: call.id, tenantId: call.tenantId, answeredAt: null }, data: { answeredAt: at } });
+  // The lead's leg answering is the hook: both the answered and the bridged event reach here, and the
+  // stable command ids make the second a no-op at the provider.
+  await startRecordingOnAnswer(call, event);
 }
 
 async function onRecordingSaved(call: CallRef, event: TelnyxEvent): Promise<void> {
   if (!event.recordingId) return;
-  await prisma.call.updateMany({ where: { id: call.id, tenantId: call.tenantId, recordingProviderId: null }, data: { recordingProviderId: event.recordingId } });
+  await storeSavedRecording(call, event.recordingId, event.occurredAt ?? new Date());
 }
 
 /**

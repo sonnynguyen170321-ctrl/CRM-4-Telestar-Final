@@ -151,6 +151,14 @@ enum has no client or viewer role; revisit if one is added.
 | D7.2 | Playback route: `canAccessLead` + (caller or `MANAGER_ROLES`); fresh URL streamed; access audited | `app/api/telephony/calls/[id]/recording/route.ts` | Role matrix (non-caller SDR 403, team lead 200, other tenant 404); audit row. Mutants: role check | D7.1 | C |
 | D7.3 | Purge at `recordingPurgeAt` | `workers/telephony.ts` | Day 89 kept, day 90 deleted | D7.1 | C |
 
+**Done 2026-10-10 (D7.1–D7.3).** Decisions: recording starts when the lead's leg answers (`call.answered` /
+`call.bridged` with direction `outgoing` or our `leg:` mark), `record_start` dual-channel first so the optional
+`speak` notice is on the file; command ids `record:<callId>` / `notice:<callId>`. The purge runs inside the reconcile
+cron (`purgeExpiredRecordings`, batch 100) instead of a worker. Playback is `GET /api/telephony/calls/[id]/recording`
+(own rep or manager role, and `canAccessLead`; uniform 404; streamed, never redirected; audit `admin.call.recording_play`
+once per listen). The activity feed marks calls with `recordingCallId` when the viewer may play them. Needs live Telnyx
+confirmation: `speak` reaching both parties on a bridged leg, and the recording-saved payload's `recording_id`.
+
 ## Phase 8 — One call count everywhere
 | ID | Task | Files | Tests | Deps | Owner |
 |---|---|---|---|---|---|

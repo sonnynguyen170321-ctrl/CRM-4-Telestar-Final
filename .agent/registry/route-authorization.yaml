@@ -699,6 +699,11 @@ routes:
     guards:
       - canAccessLead
     reason: Per-record ownership is in the query, not a helper - the call is read with its id, the session tenant and `userId` equal to the signed-in rep, so another rep's call, another tenant's call and a missing call all answer the same 404. The rep can only set the outcome and notes of their own outbound call (never its status), within 24 hours, and only once it reached the provider; API keys are refused.
+  - path: app/api/telephony/calls/[id]/recording/route.ts
+    methods: [GET]
+    guards:
+      - canAccessLead (via lib/telephony/recordingAccess.ts)
+    reason: The call is looked up inside the session's tenant and answered 404 unless it has a recording and the viewer is the rep who made the call or a manager role who can still work the lead. API keys are refused. Every playback is audited and the provider URL never leaves the server.
   - path: app/api/telephony/calls/pending-outcome/route.ts
     methods: [GET]
     guards: []

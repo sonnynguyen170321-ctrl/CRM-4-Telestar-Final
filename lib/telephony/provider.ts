@@ -30,7 +30,9 @@ export type CallCommand =
   | { action: 'answer' }
   | { action: 'hangup' }
   | { action: 'transfer'; to: string; from?: string; timeoutSecs?: number; clientState?: string }
-  | { action: 'record_start'; channels?: 'single' | 'dual'; playBeep?: boolean };
+  | { action: 'record_start'; channels?: 'single' | 'dual'; playBeep?: boolean }
+  /** Text-to-speech on a leg; used for the recording notice. */
+  | { action: 'speak'; payload: string };
 
 export interface TelephonyProvider {
   readonly name: string;
