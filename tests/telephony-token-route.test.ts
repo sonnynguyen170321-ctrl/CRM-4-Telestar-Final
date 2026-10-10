@@ -101,6 +101,13 @@ describe('POST /api/telephony/token', () => {
     expect(fake.credentials.size).toBe(0);
   });
 
+  it('never mints a token for an API key', async () => {
+    const keyed = { ...users.rep, apiKey: { id: 'k1', name: 'any', scopes: ['*'] } } as SessionUser;
+    const { response } = await requestToken(keyed);
+    expect(response.status).toBe(403);
+    expect(fake.credentials.size).toBe(0);
+  });
+
   it('gives a rep a token for their own credential, created on first use, never cached', async () => {
     const { response, body } = await requestToken(users.rep);
 

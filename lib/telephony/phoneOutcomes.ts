@@ -5,48 +5,18 @@
  *
  * The same nine outcomes, with the same ids, as the task Call Logging modal on the dashboard
  * (app/page.tsx), so a call logged from the lead drawer and one logged from a task count alike.
+ * The list itself lives in lib/telephony/outcomes.ts; this re-exports it for the panel.
  * Client-safe: no server imports.
  */
 
-export type PhoneOutcomeId =
-  | 'no_answer'
-  | 'voicemail_left'
-  | 'voicemail_not_left'
-  | 'connected_interested'
-  | 'connected_not_interested'
-  | 'connected_meeting_booked'
-  | 'callback_requested'
-  | 'wrong_number'
-  | 'do_not_call';
-
-export type PhoneOutcome = {
-  id: PhoneOutcomeId;
-  label: string;
-  group: 'No contact' | 'Connected' | 'Follow-up';
-};
-
-export const PHONE_OUTCOMES: readonly PhoneOutcome[] = [
-  { id: 'no_answer', label: 'No Answer', group: 'No contact' },
-  { id: 'voicemail_left', label: 'Voicemail Left', group: 'No contact' },
-  { id: 'voicemail_not_left', label: 'Went to Voicemail — No Message', group: 'No contact' },
-  { id: 'connected_interested', label: 'Interested', group: 'Connected' },
-  { id: 'connected_not_interested', label: 'Not Interested', group: 'Connected' },
-  { id: 'connected_meeting_booked', label: 'Meeting Booked', group: 'Connected' },
-  { id: 'callback_requested', label: 'Call Back Requested', group: 'Follow-up' },
-  { id: 'wrong_number', label: 'Wrong Number', group: 'Follow-up' },
-  { id: 'do_not_call', label: 'Do Not Call', group: 'Follow-up' },
-];
-
-export function isPhoneOutcomeId(value: unknown): value is PhoneOutcomeId {
-  return PHONE_OUTCOMES.some((outcome) => outcome.id === value);
-}
-
-/** The tag an outcome puts on the lead, so it leaves the calling queue. */
-export function outcomeLeadTag(id: PhoneOutcomeId): 'do_not_call' | 'wrong_number' | null {
-  if (id === 'do_not_call') return 'do_not_call';
-  if (id === 'wrong_number') return 'wrong_number';
-  return null;
-}
+export {
+  getPhoneOutcome,
+  isPhoneOutcomeId,
+  outcomeLeadTag,
+  PHONE_OUTCOMES,
+  type PhoneOutcome,
+  type PhoneOutcomeId,
+} from './outcomes';
 
 /**
  * The `tel:` link a phone opens when it scans the code: the E.164 number, nothing else. A link built

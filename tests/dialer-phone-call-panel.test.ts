@@ -53,97 +53,44 @@ describe('the number to dial', () => {
 
 describe('logging the call', () => {
   const lead = { id: 'lead-1', firstName: 'Linh', lastName: 'Tran' };
-  const ok = (body: unknown = {}) => new Response(JSON.stringify(body), { status: 200 });
-  const NOW = new Date('2026-10-08T08:00:00Z');
+  const ok = (body: unknown = {}) => new Response(JSON.stringify(body), { status: 201 });
 
-  it('records a call_logged activity in the task path’s shape, and the last-contacted date', async () => {
+  // The server writes the activity, last-contacted date, callback task, tag and suppression in one
+  // transaction (tests/telephony-phone-calls-route.test.ts); the browser sends one request.
+  it('sends one request with the lead, the outcome and the trimmed notes', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(ok());
 
-    const result = await logPhoneCall({ lead, outcome: 'connected_interested', notes: ' Wants pricing ', fetchImpl, now: NOW });
+    const result = await logPhoneCall({ lead, outcome: 'connected_interested', notes: ' Wants pricing ', fetchImpl });
 
     const activity = { action: 'connected_interested', outcome: 'connected_interested', label: 'Interested', notes: 'Wants pricing' };
     expect(result).toEqual({ ok: true, warnings: [], activity });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
     const [url, init] = fetchImpl.mock.calls[0];
-    expect(url).toBe('/api/activities');
-    expect(JSON.parse(init.body)).toMatchObject({
-      leadId: 'lead-1',
-      type: 'call_logged',
-      channel: 'phone',
-      description: 'Call logged. Outcome: Interested: Wants pricing',
-      metadata: { ...activity, via: 'phone' },
-    });
-    expect(fetchImpl.mock.calls[1][0]).toBe('/api/leads/lead-1');
-    expect(JSON.parse(fetchImpl.mock.calls[1][1].body)).toEqual({ lastContactedAt: NOW.toISOString() });
+    expect(url).toBe('/api/telephony/phone-calls');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({ leadId: 'lead-1', outcome: 'connected_interested', notes: 'Wants pricing' });
   });
 
-  // POST /api/activities creates the callback task for outcome 'callback_requested' — on the next
-  // business day in the lead's timezone. A client-made task on top of it would be a second one.
-  it('leaves the callback task to the activity route', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(ok());
+  it('never reads or rewrites the lead’s tags from the browser', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(ok({ suppressed: true }));
 
-    await logPhoneCall({ lead, outcome: 'callback_requested', notes: '', fetchImpl, now: NOW });
+    await logPhoneCall({ lead, outcome: 'do_not_call', notes: '', fetchImpl });
 
-    expect(JSON.parse(fetchImpl.mock.calls[0][1].body).metadata.outcome).toBe('callback_requested');
-    expect(fetchImpl.mock.calls.map(([url]) => url)).not.toContain('/api/tasks');
+    expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual(['/api/telephony/phone-calls']);
   });
 
-  it('keeps the description under the activity limit, and the full notes in metadata', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(ok());
-    const notes = 'x'.repeat(900);
-
-    await logPhoneCall({ lead, outcome: 'no_answer', notes, fetchImpl });
-
-    const body = JSON.parse(fetchImpl.mock.calls[0][1].body);
-    expect(body.description.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
-    expect(body.metadata.notes).toBe(notes);
+  it('builds the description under the activity limit', () => {
     expect(callDescription('No Answer', '')).toBe('Call logged. Outcome: No Answer');
+    expect(callDescription('No Answer', 'x'.repeat(900)).length).toBeLessThanOrEqual(DESCRIPTION_MAX);
   });
 
-  // The lead API replaces the whole tag list, and the drawer's copy can be stale.
-  it('adds the tag to the lead’s tags as they are now, keeping a tag set since the drawer loaded', async () => {
-    const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(ok())
-      .mockResolvedValueOnce(ok({ tags: ['vip', 'wrong_number'] }))
-      .mockResolvedValueOnce(ok());
-
-    await logPhoneCall({ lead, outcome: 'do_not_call', notes: '', fetchImpl, now: NOW });
-
-    expect(fetchImpl.mock.calls[1]).toEqual(['/api/leads/lead-1']);
-    const [url, init] = fetchImpl.mock.calls[2];
-    expect(url).toBe('/api/leads/lead-1');
-    expect(init.method).toBe('PUT');
-    expect(JSON.parse(init.body)).toEqual({ lastContactedAt: NOW.toISOString(), tags: ['vip', 'wrong_number', 'do_not_call'] });
-  });
-
-  it('does not add a tag the lead already carries', async () => {
-    const fetchImpl = vi.fn().mockResolvedValueOnce(ok()).mockResolvedValueOnce(ok({ tags: ['wrong_number'] })).mockResolvedValueOnce(ok());
-
-    await logPhoneCall({ lead, outcome: 'wrong_number', notes: '', fetchImpl, now: NOW });
-
-    expect(JSON.parse(fetchImpl.mock.calls[2][1].body)).toEqual({ lastContactedAt: NOW.toISOString() });
-  });
-
-  // An untagged do-not-call lead goes back in the queue and is called again.
-  it('reports a tag that did not save instead of claiming success quietly', async () => {
-    const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(ok())
-      .mockResolvedValueOnce(ok({ tags: [] }))
-      .mockResolvedValueOnce(new Response('{}', { status: 403 }));
+  // An unlisted number is called again by someone else.
+  it('warns when a do-not-call number could not be added to the list', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(ok({ suppressed: false }));
 
     const result = await logPhoneCall({ lead, outcome: 'do_not_call', notes: '', fetchImpl });
 
-    expect(result).toMatchObject({ ok: true, warnings: [expect.stringContaining('"do_not_call" tag did not save')] });
-  });
-
-  it('reports a tag it could not read the lead to add', async () => {
-    const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(ok())
-      .mockResolvedValueOnce(new Response('{}', { status: 500 }))
-      .mockResolvedValueOnce(ok());
-
-    const result = await logPhoneCall({ lead, outcome: 'do_not_call', notes: '', fetchImpl });
-
-    expect(result).toMatchObject({ ok: true, warnings: [expect.stringContaining('"do_not_call" tag could not be added')] });
+    expect(result).toMatchObject({ ok: true, warnings: [expect.stringContaining('do-not-call list')] });
   });
 
   it('stops, with the server’s reason, when the call itself was not logged', async () => {

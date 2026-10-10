@@ -128,16 +128,17 @@ describe('TelephonyEvent', () => {
 });
 
 describe('TelephonySettings and do-not-call defaults', () => {
-  it('starts switched off, in dry-run, 08:00–17:00 every day, recording kept 90 days', async () => {
+  it('starts switched off, in dry-run, any time every day, recording kept 90 days, nothing dialable until set', async () => {
     const settings = await inTenant(() => prisma.telephonySettings.create({ data: { tenantId } }));
     expect(settings).toMatchObject({
       enabled: false,
       dryRun: true,
-      callingHoursStart: 480,
-      callingHoursEnd: 1020,
+      callingHoursStart: 0,
+      callingHoursEnd: 1440,
       allowedWeekdays: [0, 1, 2, 3, 4, 5, 6],
-      allowedCountries: ['VN'],
+      allowedCountries: [],
       recordingEnabled: true,
+      recordingNotice: false,
       recordingRetentionDays: 90,
       inboundRingSecs: 20,
       fallbackUserIds: [],

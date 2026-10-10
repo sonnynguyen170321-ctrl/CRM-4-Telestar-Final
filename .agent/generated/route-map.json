@@ -228,6 +228,7 @@
     "/api/team/meetings",
     "/api/team/sdr-progress",
     "/api/telephony/calls",
+    "/api/telephony/phone-calls",
     "/api/telephony/token",
     "/api/templates",
     "/api/templates/[id]",
@@ -249,5 +250,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 38,
-  "apiRouteCount": 200
+  "apiRouteCount": 201
 }
