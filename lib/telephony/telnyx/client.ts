@@ -28,9 +28,30 @@ const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 
 type FetchLike = typeof fetch;
 
+/** Telnyx serves recording downloads from its own domain and from the S3 bucket behind it. */
+export const DEFAULT_RECORDING_HOST_SUFFIXES = ['telnyx.com', 's3.amazonaws.com', 'amazonaws.com'] as const;
+
+/** True for an https URL whose host is one of the suffixes or a subdomain of one. */
+export function isTrustedRecordingUrl(url: string, extraSuffixes: readonly string[] = []): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return false;
+  const host = parsed.hostname.toLowerCase();
+  return [...DEFAULT_RECORDING_HOST_SUFFIXES, ...extraSuffixes].some((suffix) => {
+    const s = suffix.trim().toLowerCase().replace(/^\./, '');
+    return s.length > 0 && (host === s || host.endsWith(`.${s}`));
+  });
+}
+
 export type TelnyxConfig = {
   apiKey: string;
   credentialConnectionId: string;
+  /** Extra host suffixes recordings may be downloaded from, on top of `DEFAULT_RECORDING_HOST_SUFFIXES`. */
+  recordingHosts?: string[];
   fetchImpl?: FetchLike;
   sleep?: (ms: number) => Promise<void>;
 };
@@ -40,6 +61,7 @@ const COMMAND_PATH: Record<CallCommand['action'], string> = {
   hangup: 'hangup',
   transfer: 'transfer',
   record_start: 'record_start',
+  speak: 'speak',
 };
 
 function commandBody(command: CallCommand, commandId: string): Record<string, unknown> {
@@ -59,6 +81,8 @@ function commandBody(command: CallCommand, commandId: string): Record<string, un
         channels: command.channels ?? 'dual',
         play_beep: command.playBeep ?? false,
       };
+    case 'speak':
+      return { command_id: commandId, payload: command.payload, payload_type: 'text', voice: 'female', language: 'en-US' };
     default:
       return { command_id: commandId };
   }
@@ -184,6 +208,10 @@ export class TelnyxProvider implements TelephonyProvider {
       `/calls/${encodeURIComponent(callControlId)}/actions/${COMMAND_PATH[command.action]}`,
       commandBody(command, commandId)
     );
+  }
+
+  isRecordingUrlTrusted(url: string): boolean {
+    return isTrustedRecordingUrl(url, this.config.recordingHosts ?? []);
   }
 
   async getRecordingUrl(recordingId: string): Promise<string | null> {

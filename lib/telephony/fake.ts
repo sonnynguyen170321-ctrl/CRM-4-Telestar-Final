@@ -18,12 +18,13 @@ export class FakeTelephonyProvider implements TelephonyProvider {
   tokensMinted: string[] = [];
   commands: Array<{ callControlId: string; command: CallCommand; commandId: string }> = [];
   deletedRecordings: string[] = [];
+  recordingUrlRequests: string[] = [];
   /** Control ids the provider still reports as up; anything else is over. */
   liveCalls = new Set<string>();
   callStatusChecks: string[] = [];
   balance: ProviderBalance = { availableCredit: 100, currency: 'USD' };
   /** Set to make the next matching operation throw. */
-  failNext: Partial<Record<'createCredential' | 'mintToken' | 'command' | 'getBalance' | 'getCallStatus', TelephonyProviderError>> = {};
+  failNext: Partial<Record<'createCredential' | 'mintToken' | 'command' | 'getBalance' | 'getCallStatus' | 'getRecordingUrl' | 'deleteRecording', TelephonyProviderError>> = {};
   private sequence = 0;
 
   private maybeFail(operation: keyof FakeTelephonyProvider['failNext']) {
@@ -67,11 +68,30 @@ export class FakeTelephonyProvider implements TelephonyProvider {
     this.commands.push({ callControlId, command, commandId });
   }
 
+  /** Hosts the fake refuses to download from; empty trusts every https URL. */
+  untrustedRecordingHosts: string[] = [];
+
+  isRecordingUrlTrusted(url: string): boolean {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === 'https:' && !this.untrustedRecordingHosts.includes(parsed.hostname);
+    } catch {
+      return false;
+    }
+  }
+
+  /** Recording ids whose delete keeps failing (a persistent outage, unlike the one-shot `failNext`). */
+  failingDeletes = new Set<string>();
+
   async getRecordingUrl(recordingId: string): Promise<string | null> {
+    this.maybeFail('getRecordingUrl');
+    this.recordingUrlRequests.push(recordingId);
     return this.deletedRecordings.includes(recordingId) ? null : `https://recordings.example/${recordingId}.mp3`;
   }
 
   async deleteRecording(recordingId: string): Promise<void> {
+    this.maybeFail('deleteRecording');
+    if (this.failingDeletes.has(recordingId)) throw new TelephonyProviderError('delete failed', 503, true);
     this.deletedRecordings.push(recordingId);
   }
 

@@ -8,6 +8,7 @@ import { nextBusinessDay } from '@/lib/dates/businessDays';
 import { businessTimezoneFor } from '@/lib/dates/businessTimezone';
 import { handleApiError } from '@/lib/api/errors';
 import { onActivityLogged } from '@/lib/contact-intelligence/events';
+import { listenableCallIds } from '@/lib/telephony/recordingAccess';
 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -53,7 +54,20 @@ export async function GET(req: NextRequest) {
     take: limit,
   });
 
-  return NextResponse.json(activities);
+  // Provider calls carry their Call id; say which ones have a recording this viewer may play, so the
+  // timeline shows a control only where the playback route would answer. The route decides again.
+  const callIdOf = (metadata: unknown): string | null => {
+    const id = (metadata as { callId?: unknown } | null)?.callId;
+    return typeof id === 'string' ? id : null;
+  };
+  const callIds = activities.filter((a) => a.type === 'call_made').map((a) => callIdOf(a.metadata)).filter((id): id is string => id !== null);
+  const playable = user.tenantId ? await listenableCallIds({ ...user, tenantId: user.tenantId }, callIds) : new Set<string>();
+  return NextResponse.json(
+    activities.map((a) => {
+      const callId = a.type === 'call_made' ? callIdOf(a.metadata) : null;
+      return callId && playable.has(callId) ? { ...a, recordingCallId: callId } : a;
+    })
+  );
 }
 
 export async function POST(req: NextRequest) {

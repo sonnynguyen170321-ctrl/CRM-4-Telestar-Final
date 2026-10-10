@@ -151,6 +151,25 @@ enum has no client or viewer role; revisit if one is added.
 | D7.2 | Playback route: `canAccessLead` + (caller or `MANAGER_ROLES`); fresh URL streamed; access audited | `app/api/telephony/calls/[id]/recording/route.ts` | Role matrix (non-caller SDR 403, team lead 200, other tenant 404); audit row. Mutants: role check | D7.1 | C |
 | D7.3 | Purge at `recordingPurgeAt` | `workers/telephony.ts` | Day 89 kept, day 90 deleted | D7.1 | C |
 
+**Done 2026-10-10 (D7.1–D7.3).** Decisions: recording starts when the lead's leg answers (`call.answered` /
+`call.bridged` with direction `outgoing` or our `leg:` mark), `record_start` dual-channel first so the optional
+`speak` notice is on the file; command ids `record:<callId>` / `notice:<callId>`. The purge runs inside the reconcile
+cron (`purgeExpiredRecordings`, batch 100) instead of a worker. Playback is `GET /api/telephony/calls/[id]/recording`
+(own rep or manager role, and `canAccessLead`; uniform 404; streamed, never redirected; audit `admin.call.recording_play`
+once per listen). The activity feed marks calls with `recordingCallId` when the viewer may play them. Needs live Telnyx
+confirmation: `speak` reaching both parties on a bridged leg, and the recording-saved payload's `recording_id`.
+
+**Consent.** Recording is on by default and the spoken notice is off (owner decision, 2026-10-08). Recording-consent
+laws differ by destination country (some require every party's consent, which a notice provides). A manager must turn
+`recordingNotice` on for any country in `allowedCountries` where that is required; the CRM does not decide it per country.
+
+**Hardening 2026-10-10 (security review).** Playback audit is fail-closed and independent of `Range` (one row per person
+and call per 10 minutes, written before audio is fetched; 60 new listens per 10 minutes per person); purge also dates
+rows that have an id but no `recordingPurgeAt`, and backs failed deletes off (`recordingPurgeAttemptAt`, 30 min); what
+was sent to the provider is kept on the call (`recordingStartedAt`, `recordingNoticeAt`) and the lead leg is identified
+by our mark or the stored `leadLegControlId`, never by direction; downloads follow no redirect and only trusted hosts
+(`TELEPHONY_RECORDING_HOSTS` adds suffixes).
+
 ## Phase 8 — One call count everywhere
 | ID | Task | Files | Tests | Deps | Owner |
 |---|---|---|---|---|---|

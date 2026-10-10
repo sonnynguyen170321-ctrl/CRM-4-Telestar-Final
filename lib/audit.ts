@@ -271,6 +271,8 @@ export const ADMIN_AUDIT_ACTIONS = [
   'admin.sequence.update',
   'admin.sequence.senders',
   'admin.seed.reset',
+  // A recorded phone call was played back (docs/dialer/TASKS.md D7.2).
+  'admin.call.recording_play',
 ] as const;
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number];

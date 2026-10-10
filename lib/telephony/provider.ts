@@ -30,7 +30,9 @@ export type CallCommand =
   | { action: 'answer' }
   | { action: 'hangup' }
   | { action: 'transfer'; to: string; from?: string; timeoutSecs?: number; clientState?: string }
-  | { action: 'record_start'; channels?: 'single' | 'dual'; playBeep?: boolean };
+  | { action: 'record_start'; channels?: 'single' | 'dual'; playBeep?: boolean }
+  /** Text-to-speech on a leg; used for the recording notice. */
+  | { action: 'speak'; payload: string };
 
 export interface TelephonyProvider {
   readonly name: string;
@@ -49,6 +51,8 @@ export interface TelephonyProvider {
   command(callControlId: string, command: CallCommand, commandId: string): Promise<void>;
   /** A fresh, short-lived download URL for a recording. */
   getRecordingUrl(recordingId: string): Promise<string | null>;
+  /** Whether this download URL points at a host the provider is known to serve recordings from (https only). */
+  isRecordingUrlTrusted(url: string): boolean;
   /** Delete a recording; succeeding when it is already gone. */
   deleteRecording(recordingId: string): Promise<void>;
   getBalance(): Promise<ProviderBalance>;

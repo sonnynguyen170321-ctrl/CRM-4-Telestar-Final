@@ -4360,6 +4360,14 @@ model Call {
   blockedReasons      String[]      @default([])
   recordingProviderId String?
   recordingPurgeAt    DateTime?
+  /// Last time the purge tried (and failed) to delete this recording; failing rows back off so they cannot starve later ones.
+  recordingPurgeAttemptAt DateTime?
+  /// `record_start` accepted for this call. Checked before sending it again, so a late replay never re-records.
+  recordingStartedAt  DateTime?
+  /// The spoken recording notice was accepted for this call; played once.
+  recordingNoticeAt   DateTime?
+  /// Control id of the leg we created with the transfer (the lead's leg), from its marked `call.initiated`.
+  leadLegControlId    String?
   /// The `call_made` Activity written once from the final provider event (soft link, unique).
   activityId          String?       @unique
   /// The missed-call Task created for an unanswered inbound call (soft link, unique = one per call).

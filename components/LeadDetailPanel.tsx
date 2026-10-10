@@ -41,6 +41,7 @@ import ContactIntelligenceBadge from '@/components/intelligence/ContactIntellige
 import ContactIntelligenceDrawer from '@/components/intelligence/ContactIntelligenceDrawer';
 import { safeHttpUrl } from '@/lib/security/safeHref';
 import ProspectClock from '@/components/time/ProspectClock';
+import CallRecordingPlayer from '@/components/telephony/CallRecordingPlayer';
 import { inferTimezone } from '@/lib/time/inferTimezone';
 import { IcpFitCard, type IcpFitLead } from '@/components/leads/IcpFitCard';
 
@@ -282,7 +283,7 @@ function LeadDetailPanelBody({
   const [pendingCallId, setPendingCallId] = useState<string | null>(null);
   const [resumeCallId, setResumeCallId] = useState<string | null>(null);
   const [adHocActivities, setAdHocActivities] = useState<Array<{
-    id: string; type: string; channel: string; metadata: Record<string, unknown>; createdAt: string;
+    id: string; type: string; channel: string; description?: string; recordingCallId?: string; metadata: Record<string, unknown>; createdAt: string;
     user: { firstName: string; lastName: string };
   }>>([]);
   const [runningTask, setRunningTask] = useState<string | null>(null);
@@ -489,8 +490,8 @@ function LeadDetailPanelBody({
 
     fetch(`/api/activities?leadId=${leadId}&limit=50`)
       .then((r) => (r.ok ? r.json() : []))
-      .then((data: Array<{ id: string; type: string; channel: string; metadata: Record<string, unknown>; createdAt: string; user: { firstName: string; lastName: string } }>) =>
-        setAdHocActivities((data ?? []).filter((a) => a.metadata && (a.metadata as Record<string, unknown>).action))
+      .then((data: Array<{ id: string; type: string; channel: string; description?: string; recordingCallId?: string; metadata: Record<string, unknown>; createdAt: string; user: { firstName: string; lastName: string } }>) =>
+        setAdHocActivities((data ?? []).filter((a) => a.metadata && ((a.metadata as Record<string, unknown>).action || a.recordingCallId)))
       )
       .catch(() => setAdHocActivities([]));
 
@@ -519,6 +520,7 @@ function LeadDetailPanelBody({
       description: string;
       isPinned?: boolean;
       channel?: string;
+      recordingCallId?: string;
     }
 
     const list: TimelineItem[] = [];
@@ -566,9 +568,12 @@ function LeadDetailPanelBody({
         id: a.id,
         date: a.createdAt,
         type: 'activity',
-        title: `${a.user.firstName} ${a.user.lastName} — ${channelLabel}: ${action.replace(/_/g, ' ')}`,
+        title: action
+          ? `${a.user.firstName} ${a.user.lastName} — ${channelLabel}: ${action.replace(/_/g, ' ')}`
+          : `${a.user.firstName} ${a.user.lastName} — ${a.description || 'Phone call'}`,
         description: notes,
         channel: a.channel,
+        recordingCallId: a.recordingCallId,
       });
     });
 
@@ -1930,6 +1935,7 @@ function LeadDetailPanelBody({
                           <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-line">
                             {item.description}
                           </p>
+                          {item.recordingCallId && <CallRecordingPlayer callId={item.recordingCallId} />}
                         </div>
                       </div>
                     );
