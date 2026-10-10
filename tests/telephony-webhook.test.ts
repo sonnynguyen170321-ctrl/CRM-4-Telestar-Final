@@ -415,6 +415,10 @@ describe('a parked call from the rep’s browser', () => {
   });
 
   it('re-runs the gate: a call authorized at 16:59:59 is refused at 17:00', async () => {
+    // The default is any time (owner, 2026-10-08); a manager who sets 08:00-17:00 gets it enforced.
+    await inTenant(world.tenantId, () =>
+      prisma.telephonySettings.update({ where: { tenantId: world.tenantId }, data: { callingHoursStart: 480, callingHoursEnd: 1020 } })
+    );
     const call = await makeCall(world);
     vi.setSystemTime(new Date('2026-10-05T10:00:00Z')); // 17:00 in Vietnam
     await post(parked(call, { clientState: clientStateFor(call, nowSeconds()) }));
