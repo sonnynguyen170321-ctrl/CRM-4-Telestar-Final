@@ -203,7 +203,7 @@ describe('webhook body', () => {
         controller.enqueue(chunk);
       },
     });
-    const response = await POST(new NextRequest(url, { method: 'POST', body: stream, duplex: 'half', headers: { 'content-length': '10' } } as RequestInit));
+    const response = await POST(new NextRequest(url, { method: 'POST', body: stream, duplex: 'half', headers: { 'content-length': '10' } } as unknown as ConstructorParameters<typeof NextRequest>[1]));
     expect(response.status).toBe(413);
     expect(sent).toBeLessThan(6); // stopped reading once past the cap
     expect(await storedEvents()).toHaveLength(0);
