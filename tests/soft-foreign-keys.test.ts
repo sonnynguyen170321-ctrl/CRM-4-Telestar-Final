@@ -46,6 +46,7 @@ const EXTERNAL_IDS = new Set([
   // credential, a number and a webhook event.
   'Call.providerSessionId',
   'Call.providerControlId',
+  'Call.leadLegControlId', // Telnyx's control id for the lead's leg (recording start)
   'Call.recordingProviderId',
   'TelephonyCredential.providerCredentialId',
   'TelephonyNumber.providerNumberId',
