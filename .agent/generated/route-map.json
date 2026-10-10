@@ -229,7 +229,10 @@
     "/api/team/meetings",
     "/api/team/sdr-progress",
     "/api/telephony/calls",
+    "/api/telephony/calls/[id]/outcome",
+    "/api/telephony/calls/pending-outcome",
     "/api/telephony/phone-calls",
+    "/api/telephony/status",
     "/api/telephony/telnyx/webhook",
     "/api/telephony/token",
     "/api/templates",
@@ -252,5 +255,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 38,
-  "apiRouteCount": 203
+  "apiRouteCount": 206
 }

@@ -79,7 +79,7 @@ A `PrismaClient` constructed directly carries no tenant extension at all. Everyt
 
 Raw SQL is a ROOT client operation. The extension is registered as `query.$allModels` and cannot observe it, so no tenant filter is applied and no GUC is set unless the call goes through `withTenantRaw` or `withBypassRaw`.
 
-**14 file(s), 43 site(s).**
+**15 file(s), 44 site(s).**
 
 | File | Line(s) | Why this is safe |
 |---|---|---|
@@ -95,6 +95,7 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 | `lib/prisma.ts` | 138, 171, 172, 254, 255, 279, 313, 320, 321 | The extension itself — this is the file that implements tenant scoping, so it necessarily names the flag it honours and runs the `set_config` statements that carry tenant context into the database. Its own `$queryRaw`/`$executeRaw` calls are the GUC statements and the maintenance sweep, not data access. |
 | `lib/research/cache.ts` | 175, 410 | Cache updates through `withTenantRaw`, so the statement carries tenant context on its own connection. |
 | `lib/search/accentSearch.ts` | 83, 84 | Accent-insensitive search through `withTenantRaw`, with `tenantId` also named explicitly in the WHERE clause. |
+| `lib/telephony/outcomeEffects.ts` | 132 | Appends the do_not_call / wrong_number queue tag to one lead through `withTenantRaw`, so the statement carries the tenant on its own connection, with `tenantId` also named in the WHERE clause. Raw SQL because `Lead.tags` is a nullable array and Prisma's `push` does not match NULL; the single statement is atomic, so a concurrent tag change is not lost. |
 | `workers/email.ts` | 158, 201 | The daily send quota: an atomic compare-and-set reserving a slot on `EmailAccount.dailySendCount`, and the matching release when the provider refuses a message outright. Both go through `withTenantRaw` and address a single row by id. Raw SQL rather than a read-modify-write so two workers cannot both spend the last send of a quota; the release is dated to today and floored at zero so it can never mint one. |
 | `workers/healthcheck.ts` | 28 | `SELECT 1` liveness probe. Touches no tenant-owned table. |
 
@@ -106,7 +107,7 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 |---|---|
 | Category A sites | 23 |
 | Category B sites | 8 |
-| Category C sites | 43 |
-| All sites | 74 |
+| Category C sites | 44 |
+| All sites | 75 |
 | Unreviewed | 0 |
 

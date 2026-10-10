@@ -57,10 +57,20 @@ describe('CSP — the origin inventory', () => {
     expect(directive('form-action')).toContain('https://login.microsoftonline.com');
   });
 
-  it('keeps connect-src same-origin', () => {
-    // The API is same-origin. Widening this would mean a browser talks to a third party
-    // directly, which deserves scrutiny rather than a quiet entry.
-    expect(directive('connect-src')).toEqual(["'self'"]);
+  it('keeps connect-src to this origin plus the Telnyx RTC endpoint the softphone needs', () => {
+    // The API is same-origin. Widening this means a browser talks to a third party directly, which
+    // deserves scrutiny rather than a quiet entry; the softphone's signalling host is the one exception.
+    expect(directive('connect-src')).toEqual(["'self'", 'wss://rtc.telnyx.com', 'https://rtc.telnyx.com']);
+  });
+
+  it('does not allow the development hosts of the SDK or a wildcard', () => {
+    expect(policy).not.toContain('rtcdev.telnyx.com');
+    expect(policy).not.toMatch(/\*/);
+  });
+
+  it('lets this origin use the microphone and nobody else, camera and geolocation stay off', () => {
+    const config = readFileSync('next.config.ts', 'utf8');
+    expect(config).toContain('camera=(), microphone=(self), geolocation=()');
   });
 
   it('does not list server-side-only origins', () => {

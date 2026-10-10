@@ -30,6 +30,11 @@ import { PAUSED_REASON_LABELS, normalizePausedReason } from '@/lib/automation/ty
 import dynamic from 'next/dynamic';
 
 const PhoneCallPanel = dynamic(() => import('@/components/dialer/PhoneCallPanel'), { ssr: false });
+// The browser softphone pulls in the Telnyx SDK; it loads only when a rep opens it.
+const Softphone = dynamic(() => import('@/components/dialer/Softphone'), { ssr: false });
+import { useDialerEnabled } from '@/components/dialer/useDialerStatus';
+import { chooseCallSurface } from '@/lib/telephony/callSurface';
+import { phoneCallTarget } from '@/lib/telephony/logPhoneCall';
 import NextBestActionCard from '@/components/ai/NextBestActionCard';
 import { DrawerNavButtons, useDrawerNavigation } from '@/components/shared/DrawerNavigation';
 import ContactIntelligenceBadge from '@/components/intelligence/ContactIntelligenceBadge';
@@ -270,8 +275,12 @@ function LeadDetailPanelBody({
   const [logNote, setLogNote] = useState('');
   const [logResponse, setLogResponse] = useState(false);
   const [savingLog, setSavingLog] = useState(false);
-  /** The call-by-phone panel (components/dialer/PhoneCallPanel.tsx). */
+  /** The Call button's screen: the call-by-phone panel or the browser softphone (chooseCallSurface). */
   const [showDialer, setShowDialer] = useState(false);
+  const dialerEnabled = useDialerEnabled();
+  /** A softphone call on this lead that ended without an outcome (tab closed mid-call): nudge to finish it. */
+  const [pendingCallId, setPendingCallId] = useState<string | null>(null);
+  const [resumeCallId, setResumeCallId] = useState<string | null>(null);
   const [adHocActivities, setAdHocActivities] = useState<Array<{
     id: string; type: string; channel: string; metadata: Record<string, unknown>; createdAt: string;
     user: { firstName: string; lastName: string };
@@ -401,6 +410,21 @@ function LeadDetailPanelBody({
     showToast('Icebreaker hook copied to clipboard!', 'success');
     setTimeout(() => setCopiedHookId(null), 2500);
   };
+
+  useEffect(() => {
+    const leadId = lead?.id;
+    if (!leadId) return;
+    let cancelled = false;
+    fetch(`/api/telephony/calls/pending-outcome?leadId=${encodeURIComponent(leadId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body) => {
+        if (!cancelled) setPendingCallId(body?.calls?.[0]?.id ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [lead?.id]);
 
   const reloadLead = () => {
     if (leadId) {
@@ -1133,6 +1157,22 @@ function LeadDetailPanelBody({
                 }}
               />
             </div>
+          </div>
+        )}
+
+        {pendingCallId && !showDialer && (
+          <div role="status" className="px-4 py-2.5 border-b border-brand-orange-text/30 bg-brand-orange-text/10 flex items-center justify-between gap-3 text-xs">
+            <span className="text-brand-orange-text font-semibold">A call on this lead has no outcome yet.</span>
+            <button
+              type="button"
+              onClick={() => {
+                setResumeCallId(pendingCallId);
+                setShowDialer(true);
+              }}
+              className="px-2.5 py-1 rounded-lg border border-brand-orange-text/40 text-brand-orange-text font-semibold hover:bg-brand-orange-text/10"
+            >
+              Log outcome
+            </button>
           </div>
         )}
 
@@ -2533,9 +2573,9 @@ function LeadDetailPanelBody({
         />
       )}
 
-      {showDialer && lead && (
-        <PhoneCallPanel
-          lead={{
+      {showDialer && lead && (() => {
+        const dialerProps = {
+          lead: {
             id: lead.id,
             firstName: lead.firstName,
             lastName: lead.lastName,
@@ -2545,12 +2585,23 @@ function LeadDetailPanelBody({
             doNotCallReason: lead.doNotCallReason,
             tags: lead.tags,
             contact: lead.contact,
-          }}
-          onClose={() => setShowDialer(false)}
-          onLogged={handleCallLogged}
-          onMeetingBooked={() => setShowBookingModal(true)}
-        />
-      )}
+          },
+          onClose: () => {
+            setShowDialer(false);
+            setResumeCallId(null);
+          },
+          onLogged: (activity: Parameters<typeof handleCallLogged>[0]) => {
+            if (resumeCallId) setPendingCallId(null);
+            handleCallLogged(activity);
+          },
+          onMeetingBooked: () => setShowBookingModal(true),
+        };
+        // Vietnamese numbers, and every number while the browser dialer is off for this rep, keep the
+        // call-from-your-own-phone panel. The do-not-call warning blocks on both screens.
+        const surface = chooseCallSurface({ target: phoneCallTarget(lead.phone, lead.contact?.country), dialerEnabled });
+        if (resumeCallId) return <Softphone {...dialerProps} resumeCallId={resumeCallId} />;
+        return surface === 'softphone' ? <Softphone {...dialerProps} /> : <PhoneCallPanel {...dialerProps} />;
+      })()}
 
       {showBookingModal && lead && (
         <MeetingBookingModal

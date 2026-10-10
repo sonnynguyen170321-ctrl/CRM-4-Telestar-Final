@@ -13,7 +13,7 @@
 # `tests/route-authorization.test.ts` fails when a mutating route has neither a guard nor a
 # hand-written `reason`. Reasons survive regeneration; they are the only part a human owns.
 #
-# routes: 203   mutating: 126   mutating with neither guard nor reason: 39
+# routes: 206   mutating: 127   mutating with neither guard nor reason: 39
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -694,6 +694,14 @@ routes:
   - path: app/api/team/sdr-progress/route.ts
     methods: [GET]
     guards: []
+  - path: app/api/telephony/calls/[id]/outcome/route.ts
+    methods: [PATCH]
+    guards:
+      - canAccessLead
+    reason: Per-record ownership is in the query, not a helper - the call is read with its id, the session tenant and `userId` equal to the signed-in rep, so another rep's call, another tenant's call and a missing call all answer the same 404. The rep can only set the outcome and notes of their own outbound call (never its status), within 24 hours, and only once it reached the provider; API keys are refused.
+  - path: app/api/telephony/calls/pending-outcome/route.ts
+    methods: [GET]
+    guards: []
   - path: app/api/telephony/calls/route.ts
     methods: [POST]
     guards:
@@ -702,6 +710,9 @@ routes:
     methods: [POST]
     guards:
       - canAccessLead
+  - path: app/api/telephony/status/route.ts
+    methods: [GET]
+    guards: []
   - path: app/api/telephony/telnyx/webhook/route.ts
     methods: [POST]
     guards: []

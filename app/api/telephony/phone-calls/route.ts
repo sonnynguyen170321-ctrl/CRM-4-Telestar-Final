@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       notes: parsed.data.notes,
       canAccess: (lead) => canAccessLead(user, lead),
     });
-    return NextResponse.json({ activity: result.activity, suppressed: result.suppressed }, { status: 201 });
+    return NextResponse.json({ activity: result.activity, suppressed: result.suppressed, tagFailed: result.tagFailed }, { status: 201 });
   } catch (error) {
     if (error instanceof PhoneCallLeadNotFoundError || error instanceof PhoneCallForbiddenError) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     return handleApiError('api/telephony/phone-calls POST', error);
