@@ -72,12 +72,26 @@ export const CONNECTED_ACTIVITY_OUTCOMES: readonly string[] = Array.from(
   ]),
 );
 
+/** An IANA zone Postgres will accept, or UTC. A bad zone must not fail a dashboard. */
+function validTimeZone(timezone: string | undefined): string {
+  if (!timezone) return 'UTC';
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone });
+    return timezone;
+  } catch {
+    return 'UTC';
+  }
+}
+
 const CALL_ACTIVITY_TYPES = ['call_logged', 'call_made'] as const;
 
 function scopeIsEmpty(scope: CallScope): boolean {
   return (
     (scope.userIds !== undefined && scope.userIds.length === 0) || (scope.leadIds !== undefined && scope.leadIds.length === 0) ||
-    (scope.leadAssignedToIds !== undefined && scope.leadAssignedToIds.length === 0)
+    (scope.leadAssignedToIds !== undefined && scope.leadAssignedToIds.length === 0) ||
+    // An empty id must never widen the scope to the whole tenant.
+    scope.campaignId === '' ||
+    scope.clientId === ''
   );
 }
 
@@ -87,12 +101,12 @@ function scopeConditions(alias: Prisma.Sql, scope: CallScope, tenantId: string):
   const col = (name: string) => Prisma.raw(`${alias.sql}."${name}"`);
   if (scope.userIds) parts.push(Prisma.sql`${col('userId')} IN (${Prisma.join(scope.userIds)})`);
   if (scope.leadIds) parts.push(Prisma.sql`${col('leadId')} IN (${Prisma.join(scope.leadIds)})`);
-  if (scope.campaignId || scope.clientId || scope.leadAssignedToIds) {
+  if (scope.campaignId !== undefined || scope.clientId !== undefined || scope.leadAssignedToIds) {
     const assigned = scope.leadAssignedToIds
       ? Prisma.sql`AND l."assignedToId" IN (${Prisma.join(scope.leadAssignedToIds)})`
       : Prisma.empty;
-    const campaign = scope.campaignId ? Prisma.sql`AND l."campaignId" = ${scope.campaignId}` : Prisma.empty;
-    const client = scope.clientId
+    const campaign = scope.campaignId !== undefined ? Prisma.sql`AND l."campaignId" = ${scope.campaignId}` : Prisma.empty;
+    const client = scope.clientId !== undefined
       ? Prisma.sql`AND EXISTS (SELECT 1 FROM "Campaign" cp WHERE cp.id = l."campaignId" AND cp."tenantId" = ${tenantId} AND cp."clientId" = ${scope.clientId})`
       : Prisma.empty;
     parts.push(
@@ -137,8 +151,10 @@ function countableCalls(params: CountCallsParams): Prisma.Sql {
 
   const activityParts: Prisma.Sql[] = [
     Prisma.sql`a."tenantId" = ${tenantId}`,
-    Prisma.sql`a.type::text IN (${Prisma.join([...CALL_ACTIVITY_TYPES])})`,
-    Prisma.sql`a.metadata->>'callId' IS NULL`,
+    // Compared as the enum, not as text, so (tenantId, type, createdAt) can serve the filter.
+    Prisma.sql`a.type IN (${Prisma.join(CALL_ACTIVITY_TYPES.map((type) => Prisma.sql`${type}::"ActivityType"`))})`,
+    // A callId only marks a shadow when that Call exists in this tenant; an orphan id is a real call.
+    Prisma.sql`NOT EXISTS (SELECT 1 FROM "Call" k2 WHERE k2.id = a.metadata->>'callId' AND k2."tenantId" = ${tenantId})`,
     Prisma.sql`NOT EXISTS (SELECT 1 FROM "Call" k WHERE k."activityId" = a.id AND k."tenantId" = ${tenantId})`,
     ...(mode === 'connected' ? [Prisma.sql`a.metadata->>'outcome' IN (${Prisma.join([...CONNECTED_ACTIVITY_OUTCOMES])})`] : []),
     ...rangeConditions(Prisma.sql`a."createdAt"`, range),
@@ -176,7 +192,7 @@ export async function countCallsBy(params: CountCallsGroupedParams): Promise<Map
       ? Prisma.sql`"userId"`
       : params.by === 'lead'
         ? Prisma.sql`"leadId"`
-        : Prisma.sql`to_char(("at" AT TIME ZONE 'UTC') AT TIME ZONE ${params.timezone ?? 'UTC'}, 'YYYY-MM-DD')`;
+        : Prisma.sql`to_char(("at" AT TIME ZONE 'UTC') AT TIME ZONE ${validTimeZone(params.timezone)}, 'YYYY-MM-DD')`;
 
   const rows = await withTenantRaw(params.tenantId, (db) =>
     db.$queryRaw<Array<{ key: string | null; n: number }>>(

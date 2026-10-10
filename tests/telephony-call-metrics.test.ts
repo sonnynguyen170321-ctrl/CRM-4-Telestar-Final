@@ -295,6 +295,36 @@ suite('countCalls - golden fixture', () => {
   });
 });
 
+suite('countCalls - hardening', () => {
+  it('falls back to UTC for an invalid time zone', async () => {
+    const byDay = await run(() =>
+      countCallsBy({ tenantId: fx.tenantId, mode: 'attempts', range: RANGE, by: 'day', timezone: 'Not/AZone' }),
+    );
+    expect(Object.fromEntries(byDay)).toEqual({ '2026-03-10': 7 });
+  });
+
+  it('counts a call activity whose callId matches no Call as a real attempt', async () => {
+    await run(() => activity({ userId: fx.sdrId, leadId: leadIds.l1, type: 'call_made', at: NOON, metadata: { callId: 'no-such-call' } }));
+    expect(await count('attempts')).toBe(8);
+    expect(await count('attempts', { userIds: [fx.sdrId] })).toBe(5);
+  });
+
+  it('does not treat a callId from another tenant as a shadow', async () => {
+    await run(() => activity({ userId: fx.sdrId, leadId: leadIds.l1, type: 'call_made', at: NOON, metadata: { callId: 'co-session-call' } }));
+    const other = await runAs(`${PREFIX}-other-tenant`, () =>
+      call({ tenantId: `${PREFIX}-other-tenant`, userId: `${PREFIX}-other-director`, leadId: fx.otherTenantLeadId, status: 'no_answer', initiatedAt: NOON, session: 'x1' }),
+    );
+    await run(() => prisma.activity.updateMany({ where: { tenantId: fx.tenantId, userId: fx.sdrId, type: 'call_made', metadata: { path: ['callId'], equals: 'co-session-call' } }, data: { metadata: { callId: other.id } } }));
+    expect(await count('attempts')).toBe(8);
+  });
+
+  it('never widens an empty campaign or client id to the whole tenant', async () => {
+    expect(await count('attempts', { campaignId: '' })).toBe(0);
+    expect(await count('attempts', { clientId: '' })).toBe(0);
+    expect(await count('connected', { clientId: '', campaignId: fx.campaignId })).toBe(0);
+  });
+});
+
 suite('every surface reads the same numbers', () => {
   it('My Day (rep S)', async () => {
     const day = await run(() => getMyDay({ id: fx.sdrId, tenantId: fx.tenantId, role: 'sdr' } as never, new Date()));
@@ -333,6 +363,15 @@ suite('every surface reads the same numbers', () => {
     const callChannel = snapshot.channels.find((c) => c.channel === 'call');
     expect(callChannel?.touchpoints).toBe(7);
     expect(snapshot.reps.reduce((sum, rep) => sum + rep.touchpoints, 0)).toBe(7);
+  });
+
+  it('client report credits a rep whose only touch is a Call row', async () => {
+    await run(() => call({ userId: fx.directorId, leadId: leadIds.l1, status: 'no_answer', initiatedAt: NOON, session: 'solo' }));
+    const snapshot = await run(() =>
+      buildReportMetrics({ clientId, campaignId: fx.campaignId, periodStart: FROM, periodEnd: TO, generatedById: fx.directorId, generatedByName: 'Dee Rector' }),
+    );
+    expect(snapshot.channels.find((c) => c.channel === 'call')?.touchpoints).toBe(8);
+    expect(snapshot.reps.reduce((sum, rep) => sum + rep.touchpoints, 0)).toBe(8);
   });
 
   it('contact intelligence (leads L1 and L2)', async () => {
