@@ -81,6 +81,10 @@ async function enableDialer(t: string, user: SessionUser) {
   }, t);
 }
 
+/** The default is any time (owner, 2026-10-08); the clock rules apply once a manager narrows the hours. */
+const limitHoursToOfficeDay = () =>
+  inTenant(() => prisma.telephonySettings.update({ where: { tenantId }, data: { callingHoursStart: 480, callingHoursEnd: 1020 } }));
+
 async function call(user: SessionUser | null, body: unknown) {
   authUser.current = user;
   const response = await POST(
@@ -160,6 +164,7 @@ describe('POST /api/telephony/calls', () => {
 
   it('records a blocked attempt with its reasons and issues no token', async () => {
     vi.setSystemTime(new Date('2026-10-05T10:00:00Z')); // 17:00 in Vietnam
+    await limitHoursToOfficeDay();
     const { response, body } = await call(users.rep, { leadId: ids.lead });
 
     expect(response.status).toBe(200);
@@ -189,6 +194,7 @@ describe('POST /api/telephony/calls', () => {
 
   it('records a blocked attempt when the lead’s clock cannot be known', async () => {
     await inTenant(() => prisma.telephonySettings.update({ where: { tenantId }, data: { allowedCountries: ['VN', 'US'] } }));
+    await limitHoursToOfficeDay();
     await inTenant(() => prisma.lead.update({ where: { id: ids.lead }, data: { phone: '+1 415 555 2671', contactId: null } }));
     const { body } = await call(users.rep, { leadId: ids.lead });
     expect(body).toMatchObject({ allowed: false, reasons: ['tz_unknown'], timezone: null, localTime: null });

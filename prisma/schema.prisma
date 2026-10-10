@@ -4306,6 +4306,7 @@ enum CallStatus {
 
 /// What the rep says happened, chosen after hangup (lib/telephony/outcomes.ts is the one list).
 enum CallOutcome {
+  voicemail_not_left
   connected_interested
   connected_not_interested
   meeting_booked
@@ -4450,14 +4451,18 @@ model TelephonySettings {
   id                     String    @id @default(cuid())
   enabled                Boolean   @default(false)
   dryRun                 Boolean   @default(true)
-  /// Calling hours in the lead's local time, minutes since midnight (08:00–17:00).
-  callingHoursStart      Int       @default(480)
-  callingHoursEnd        Int       @default(1020)
+  /// Calling hours in the lead's local time, minutes since midnight. Default 00:00–24:00: call any time
+  /// (owner decision, 2026-10-08), which needs no timezone (isAlwaysOpen).
+  callingHoursStart      Int       @default(0)
+  callingHoursEnd        Int       @default(1440)
   /// 0 = Sunday … 6 = Saturday. Every day by default (owner decision, 2026-10-04).
   allowedWeekdays        Int[]     @default([0, 1, 2, 3, 4, 5, 6])
-  /// ISO country codes the team may call.
-  allowedCountries       String[]  @default(["VN"])
+  /// ISO country codes the team may dial through the provider. Empty until a manager sets it: nothing is
+  /// dialable by default. Never VN: Vietnamese numbers are called from the rep's own phone and logged.
+  allowedCountries       String[]  @default([])
   recordingEnabled       Boolean   @default(true)
+  /// Speak a recording notice at the start of a call. Off by default (owner decision, 2026-10-08).
+  recordingNotice        Boolean   @default(false)
   recordingRetentionDays Int       @default(90)
   inboundRingSecs        Int       @default(20)
   /// Users tried in order when the lead's owner does not answer an inbound call.
