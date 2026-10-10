@@ -1218,6 +1218,7 @@ model Activity {
   @@index([leadId])
   @@index([leadId, type, createdAt])
   @@index([tenantId, userId, type, createdAt])
+  @@index([tenantId, type, createdAt])
   @@index([sequenceId, createdAt])
   @@index([type])
   @@index([createdAt])
@@ -4384,6 +4385,8 @@ model Call {
   @@index([tenantId, leadId, createdAt])
   @@index([tenantId, status, createdAt])
   @@index([tenantId, toE164, createdAt])
+  /// lib/telephony/metrics.ts counts calls by when they were placed, per tenant.
+  @@index([tenantId, initiatedAt])
   @@index([recordingPurgeAt])
 }
 

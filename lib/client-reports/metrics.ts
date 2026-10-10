@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { countCalls, countCallsBy } from '@/lib/telephony/metrics';
 import { ClientReportSnapshot, ReportAudience, SdrDisplayMode } from './types';
 import { formatRepDisplayName, sanitizeClientFacingText } from './sanitization';
 
@@ -28,7 +29,7 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
   // 1. Fetch Client and Campaign info
   const client = await prisma.client.findUnique({
     where: { id: clientId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, tenantId: true },
   });
 
   if (!client) {
@@ -101,7 +102,8 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
    */
   const OUTBOUND_ACTIVITY_TYPES = new Set([
     'email_sent',
-    'call_logged',
+    // Calls are not listed: they are counted after this loop by lib/telephony/metrics.ts, which
+    // covers softphone Call rows and call_made/call_logged activities without counting one twice.
     'linkedin_message',
     'whatsapp_message',
   ]);
@@ -183,6 +185,45 @@ export async function buildReportMetrics(params: BuildReportMetricsParams): Prom
     }
     // Non-outbound activity is intentionally not counted anywhere client-facing.
   }
+
+  // Calls: one definition shared with every other surface (attempts, whatever the channel label).
+  const callCountParams = {
+    tenantId: client.tenantId,
+    mode: 'attempts' as const,
+    scope: { clientId, ...(campaignId ? { campaignId } : {}) },
+    range: { from: periodStart, to: periodEnd },
+  };
+  const [callTotal, callsByRep, callsByLead] = await Promise.all([
+    countCalls(callCountParams),
+    countCallsBy({ ...callCountParams, by: 'user' }),
+    countCallsBy({ ...callCountParams, by: 'lead' }),
+  ]);
+  callTouches += callTotal;
+  // A rep whose only touches are Call rows has no activity in the loop above; they still get credit,
+  // so the rep table sums to the headline.
+  const missingReps = [...callsByRep.keys()].filter((userId) => !repActivityMap.has(userId));
+  if (missingReps.length > 0) {
+    const users = await prisma.user.findMany({
+      where: { id: { in: missingReps } },
+      select: { id: true, firstName: true, lastName: true, email: true },
+    });
+    for (const u of users) {
+      repActivityMap.set(u.id, {
+        name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email.split('@')[0],
+        touches: 0,
+        replies: 0,
+        leadIds: new Set(),
+        meetingsBooked: 0,
+        qualifiedMeetings: 0,
+        acceptedOpportunities: 0,
+      });
+    }
+  }
+  for (const [userId, n] of callsByRep) {
+    const rep = repActivityMap.get(userId);
+    if (rep) rep.touches += n;
+  }
+  for (const leadId of callsByLead.keys()) touchedLeadIds.add(leadId);
 
   const leadsTouched = touchedLeadIds.size;
   const touchpointsCompleted = emailTouches + callTouches + linkedinTouches + whatsappTouches + manualTouches;

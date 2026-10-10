@@ -4,6 +4,7 @@ import { requireManager } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { computeVisibleUserIds } from '@/lib/podScoping';
 import { handleApiError } from '@/lib/api/errors';
+import { countCallsBy } from '@/lib/telephony/metrics';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +12,8 @@ export async function GET(req: NextRequest) {
   const userOrRes = await requireManager();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
+  if (!user.tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const tenantId = user.tenantId;
 
   try {
     const { searchParams } = new URL(req.url);
@@ -47,14 +50,26 @@ export async function GET(req: NextRequest) {
 
   // Aggregate activity counts in the DB (uses the [userId, type, createdAt] index)
   // instead of pulling thousands of rows and bucketing them per user in JS.
-  const counts = await prisma.activity.groupBy({
-    by: ['userId', 'type'],
-    where: {
-      createdAt: { gte: rangeStart },
-      userId: { in: targetIds },
-    },
-    _count: { _all: true },
-  });
+  // Calls are not counted from the activity types any more: one shared definition covers softphone
+  // Call rows, rep-phone logs and legacy call activities without counting a call twice.
+  const [counts, callsByUser] = await Promise.all([
+    prisma.activity.groupBy({
+      by: ['userId', 'type'],
+      where: {
+        createdAt: { gte: rangeStart },
+        userId: { in: targetIds },
+        type: { notIn: ['call_logged', 'call_made'] },
+      },
+      _count: { _all: true },
+    }),
+    countCallsBy({
+      tenantId,
+      by: 'user',
+      mode: 'attempts',
+      scope: { userIds: targetIds },
+      range: { from: rangeStart },
+    }),
+  ]);
 
   // userId -> (activityType -> count)
   const countsByUser = new Map<string, Map<string, number>>();
@@ -73,7 +88,7 @@ export async function GET(req: NextRequest) {
     const t = countsByUser.get(u.id);
     const c = (type: string) => t?.get(type) ?? 0;
 
-    const calls = c('call_logged') + c('call_made');
+    const calls = callsByUser.get(u.id) ?? 0;
     const emails = c('email_sent');
     const linkedin = c('linkedin_touch') + c('linkedin_sent');
     const whatsapp = c('whatsapp_message') + c('whatsapp_sent');

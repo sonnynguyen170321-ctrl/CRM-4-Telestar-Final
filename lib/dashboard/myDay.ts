@@ -3,6 +3,7 @@ import type { ActivityType, Prisma } from '@prisma/client';
 import { getLeadWhereScope, type SessionUser } from '@/lib/auth';
 import { getLocalDayBoundaries } from '@/lib/dates/timezone';
 import { prisma } from '@/lib/prisma';
+import { countCalls } from '@/lib/telephony/metrics';
 
 /**
  * A rep's day for Home's "My Performance" card, counted by the server.
@@ -14,8 +15,7 @@ import { prisma } from '@/lib/prisma';
  * `sequence_active` after every cadence on the lead has finished.
  */
 
-const CHANNEL_TYPES: Record<'calls' | 'emails' | 'linkedin', ActivityType[]> = {
-  calls: ['call_logged', 'call_made'],
+const CHANNEL_TYPES: Record<'emails' | 'linkedin', ActivityType[]> = {
   emails: ['email_sent', 'email_task_completed'],
   linkedin: ['linkedin_sent', 'linkedin_touch'],
 };
@@ -38,7 +38,8 @@ export async function getMyDay(user: SessionUser, now: Date = new Date()): Promi
   const leadScope = (await getLeadWhereScope(user)) as Prisma.LeadWhereInput;
 
   const [calls, emails, dryRunEmails, linkedin, inSequence] = await Promise.all([
-    prisma.activity.count({ where: { ...today, type: { in: CHANNEL_TYPES.calls } } }),
+    // Calls come from the one shared definition (softphone Call rows + unlinked call activities).
+    countCalls({ tenantId, scope: { userIds: [user.id] }, range: { from: start }, mode: 'attempts' }),
     prisma.activity.count({ where: { ...today, type: { in: CHANNEL_TYPES.emails } } }),
     // A dry run writes `email_sent` too. Counted and subtracted, rather than excluded with
     // `NOT dryRun = true`, which SQL also applies to every row whose metadata lacks the key.

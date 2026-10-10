@@ -39,6 +39,13 @@ const mockPrismaClient = {
   outboundMessage: { findMany: vi.fn() },
 };
 
+// Calls are counted in SQL by lib/telephony/metrics.ts, which this mocked-Prisma suite cannot run;
+// tests/telephony-call-metrics.test.ts covers the report's call numbers against a real database.
+vi.mock('@/lib/telephony/metrics', () => ({
+  countCalls: async () => 0,
+  countCallsBy: async () => new Map<string, number>(),
+}));
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     client: { findUnique: (...args: unknown[]) => mockPrismaClient.client.findUnique(...args) },
@@ -395,7 +402,7 @@ describe('Client Reports Module - Unit Tests', () => {
   describe('6. buildReportMetrics query scoping', () => {
     beforeEach(() => {
       vi.clearAllMocks();
-      mockPrismaClient.client.findUnique.mockResolvedValue({ id: 'cli-1', name: 'Acme Corp' });
+      mockPrismaClient.client.findUnique.mockResolvedValue({ id: 'cli-1', name: 'Acme Corp', tenantId: 'tenant-1' });
       mockPrismaClient.campaign.findUnique.mockResolvedValue({ id: 'camp-1', name: 'Outreach Q1' });
       mockPrismaClient.lead.count.mockResolvedValue(10);
       mockPrismaClient.lead.groupBy.mockResolvedValue([]);

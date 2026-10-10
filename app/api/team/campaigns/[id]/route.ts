@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth, getVisibleUserIds } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { handleApiError } from '@/lib/api/errors';
+import { countCallsBy } from '@/lib/telephony/metrics';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,8 @@ export async function GET(
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
+  if (!user.tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const tenantId = user.tenantId;
 
   const { id } = await params;
   const { searchParams } = new URL(req.url);
@@ -137,7 +140,21 @@ export async function GET(
   const seqIds = enrolledSequences.map((s) => s.id);
   const repIds = assignedUsers.map((u) => u.id);
 
-  const [enrolledBySeqRows, completedBySeqRows, tasksByRepRows] = await Promise.all([
+  const callsByRepPromise = repIds.length
+    ? countCallsBy({
+        tenantId,
+        by: 'user',
+        mode: 'attempts',
+        scope: {
+          campaignId: id,
+          userIds: repIds,
+          ...(user.role === 'sdr' ? { leadAssignedToIds: [user.id] } : visibleUserIds ? { leadAssignedToIds: visibleUserIds } : {}),
+        },
+        range: { from: rangeStart },
+      })
+    : Promise.resolve(new Map<string, number>());
+
+  const [enrolledBySeqRows, completedBySeqRows, tasksByRepRows, callsByRep] = await Promise.all([
     seqIds.length
       ? prisma.lead.groupBy({
           by: ['sequenceId'],
@@ -159,6 +176,7 @@ export async function GET(
           _count: { _all: true },
         })
       : Promise.resolve([] as { userId: string; _count: { _all: number } }[]),
+    callsByRepPromise,
   ]);
 
   const enrolledBySeq = new Map(enrolledBySeqRows.map((r) => [r.sequenceId, r._count._all]));
@@ -193,7 +211,7 @@ export async function GET(
     const repActs = activities.filter((a) => a.userId === u.id);
 
     const emails = repActs.filter((a) => a.type === 'email_sent').length;
-    const calls = repActs.filter((a) => a.type === 'call_logged' || a.type === 'call_made').length;
+    const calls = callsByRep.get(u.id) ?? 0;
     const linkedin = repActs.filter((a) => a.type === 'linkedin_touch' || a.type === 'linkedin_sent').length;
     const whatsapp = repActs.filter((a) => a.type === 'whatsapp_message' || a.type === 'whatsapp_sent').length;
     const booked = repActs.filter((a) => a.type === 'meeting_booked').length;
