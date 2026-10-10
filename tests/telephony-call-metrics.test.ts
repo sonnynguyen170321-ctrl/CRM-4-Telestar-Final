@@ -179,7 +179,6 @@ async function seedGolden() {
 }
 
 beforeAll(async () => {
-  if (!hasDb) return;
   await runAs(`${PREFIX}-tenant`, async () => {
     await prisma.call.deleteMany({ where: { tenantId: `${PREFIX}-tenant` } });
     await prisma.activity.deleteMany({ where: { tenantId: `${PREFIX}-tenant` } });
@@ -208,13 +207,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (!hasDb) return;
   await clearRows();
   await dropFixtureDependents();
 });
 
 beforeEach(async () => {
-  if (!hasDb) return;
   await clearRows();
   await run(seedGolden);
   vi.useFakeTimers({ toFake: ['Date'] });
