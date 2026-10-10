@@ -13,7 +13,7 @@
 # `tests/route-authorization.test.ts` fails when a mutating route has neither a guard nor a
 # hand-written `reason`. Reasons survive regeneration; they are the only part a human owns.
 #
-# routes: 206   mutating: 127   mutating with neither guard nor reason: 39
+# routes: 212   mutating: 131   mutating with neither guard nor reason: 39
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -224,6 +224,10 @@ routes:
   - path: app/api/cron/sequence-engine/route.ts
     methods: [GET]
     guards: []
+  - path: app/api/cron/telephony-health/route.ts
+    methods: [GET]
+    guards: []
+    reason: Cron route, read-only. authorizeCronRequest admits the scheduler (constant-time CRON_SECRET bearer); a signed-in manager is refused with 403 because the checks look across every team. It writes nothing but a heartbeat and sends ops alerts that name teams and counts, never numbers.
   - path: app/api/cron/telephony-reconcile/route.ts
     methods: [GET]
     guards: []
@@ -703,6 +707,7 @@ routes:
     methods: [GET]
     guards:
       - canAccessLead (via lib/telephony/recordingAccess.ts)
+      - canAccessUser (via lib/telephony/recordingAccess.ts)
     reason: The call is looked up inside the session's tenant and answered 404 unless it has a recording and the viewer is the rep who made the call or a manager role who can still work the lead. API keys are refused. Every playback is audited and the provider URL never leaves the server.
   - path: app/api/telephony/calls/pending-outcome/route.ts
     methods: [GET]
@@ -715,6 +720,24 @@ routes:
     methods: [POST]
     guards:
       - canAccessLead
+  - path: app/api/telephony/settings/credentials/[id]/route.ts
+    methods: [DELETE]
+    guards:
+      - canAccessUser
+    reason: requireTelephonyManager (lib/telephony/settingsAccess.ts): interactive session only (no API key), tenant from the session, 20 revokes per user per minute. A director or floor manager may revoke any rep's login in the tenant; a team lead only a rep passing canAccessUser (their own report chain), anything else is a 404 and untouched. The credential is looked up by id AND the session tenant. Audited as admin.telephony.credential_revoke.
+  - path: app/api/telephony/settings/numbers/[id]/route.ts
+    methods: [DELETE, PATCH]
+    guards: []
+    reason: requireTelephonyAdmin (lib/telephony/settingsAccess.ts): interactive session only (no API key), director or floor manager only (CRON_MANAGER_ROLES), tenant from the session, 30 writes per user per minute. Every read and write of the number is keyed by id AND the session tenant, so another team's id is a 404; defaults only move within the session tenant, and a removed default is handed to the next active number. Audited as admin.telephony.number.
+  - path: app/api/telephony/settings/numbers/route.ts
+    methods: [POST]
+    guards: []
+    reason: requireTelephonyAdmin (lib/telephony/settingsAccess.ts): interactive session only (no API key), director or floor manager only (CRON_MANAGER_ROLES), tenant from the session, 30 writes per user per minute. The number is created under the session tenant with its country read from the E.164; Vietnamese numbers are refused; a clash with any registered number is a 409 that does not say whose. Defaults are unique per tenant by partial unique index. Audited as admin.telephony.number.
+  - path: app/api/telephony/settings/route.ts
+    methods: [GET, PATCH]
+    guards:
+      - getVisibleUserIds
+    reason: requireTelephonyManager (lib/telephony/settingsAccess.ts): interactive session only (no API key), role in MANAGER_ROLES, tenant from the session. GET is a read-only view for a team lead (only their own reps' logins). PATCH is for a director or floor manager (CRON_MANAGER_ROLES); a team lead may send exactly {killed: true} (the emergency stop) and nothing else. Strict zod body that cannot name a tenant; Vietnam is refused as a dialable country; environment switches are shown by state only. Audited as admin.telephony.settings / admin.telephony.kill with before and after.
   - path: app/api/telephony/status/route.ts
     methods: [GET]
     guards: []

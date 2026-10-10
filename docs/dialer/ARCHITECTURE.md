@@ -1,6 +1,13 @@
 # Telnyx Dialer — Architecture
 
-Scope: outbound click-to-call and inbound calling for ~34 SDRs (30+ concurrent calls) in
+> **Revised 2026-10-08 (owner decisions, `TASKS.md`).** No inbound: diagrams (c) and (d) and
+> `lib/telephony/inbound.ts` are not built, and `fallbackUserIds`/`inboundRingSecs` in `TelephonySettings`
+> are unused. Vietnamese numbers are not dialled through Telnyx (the rep's own phone, logged by
+> `PhoneCallPanel` and `POST /api/telephony/phone-calls`). Calling hours default to any time, so the 08:00-17:00 rule
+> and the timezone lookup apply only when a manager narrows the hours. Recording has an optional spoken notice (default off).
+> The Phase 0 spike became the live check in `TELNYX_SETUP.md` section 9. Operations: `RUNBOOK.md`.
+
+Scope: outbound click-to-call (inbound dropped, see above) for ~34 SDRs (30+ concurrent calls) in
 `CRM-4-Telestar-Final`, replacing `components/CallDialerModal.tsx` (sip.js + one SIP password served to
 every browser by `app/api/dialer/config/route.ts`). Decision record: `ADR-001-park-and-authorize.md`.
 
@@ -11,13 +18,14 @@ every browser by `app/api/dialer/config/route.ts`). Decision record: `ADR-001-pa
 | Browser softphone | `components/dialer/useTelnyxClient.ts`, `Softphone.tsx` | `@telnyx/webrtc` client; one client per browser (BroadcastChannel lock); requests a call token before dialing; outcome form only after hangup. Audio goes browser ↔ Telnyx, never through the VPS. |
 | Token route | `app/api/telephony/token/route.ts` | Lazily creates the user's Telnyx telephony credential (idempotent), mints a 24 h JWT, `Cache-Control: no-store`. No password reaches the browser. |
 | Call route (gate) | `POST /api/telephony/calls` | Runs `lib/telephony/compliance.ts`; writes a `Call` (`authorized` or `blocked` + compliance snapshot); returns an HMAC call token (`lib/telephony/authToken.ts`). |
-| Compliance service | `lib/telephony/compliance.ts` | Pure `evaluateCallPermission` + loader. Ordered rules: kill switch/dry-run → active credential → `canAccessLead` → valid E.164 → allowed country → `PhoneSuppression` → lead/contact `doNotCall` → 08:00–17:00 lead-local. Exception ⇒ blocked (`gate_error`). |
+| Compliance service | `lib/telephony/compliance.ts` | Pure `evaluateCallPermission` + loader. Ordered rules: kill switch/dry-run → active credential → `canAccessLead` → valid E.164 → allowed country (never `VN`) → number type → `PhoneSuppression` → lead/contact `doNotCall` → calling hours in lead-local time (skipped when hours are "any time", the default). Exception ⇒ blocked (`gate_error`). |
 | Provider adapter | `lib/telephony/provider.ts`, `telnyx/client.ts`, `telnyx/verify.ts`, `fake.ts`, `flags.ts` | Provider-neutral interface; Ed25519 verification (300 s skew); flags mirror `lib/emailSafety.ts` (disabled / dry-run / demo tenant ⇒ no dial). |
 | Webhook route | `app/api/telephony/telnyx/webhook/route.ts` | Raw body → verify → `TelephonyEvent` insert (on conflict do nothing) → outbound `call.initiated` inline → everything else enqueued. Excluded in `proxy.ts`, declared public in route authorization. |
-| Worker | `workers/telephony.ts` (registered in `workers/index.ts`), queue in `lib/bullmq/{types,queues,jobOptions}.ts` | Correlates events, forward-only status, finalize, Activity write, inbound routing (`lib/telephony/inbound.ts`), recording storage, daily purge. |
-| Cron | `app/api/cron/telephony-reconcile`, `app/api/cron/telephony-health` (5 min, `CRON_SECRET`) | Reconcile: replay unprocessed events, cancel stale `authorized`, finalize stuck calls against Telnyx. Health: alerts via `lib/ops/notifyOps.ts`. |
+| Worker | `workers/telephony.ts` (registered in `workers/index.ts`), queue in `lib/bullmq/{types,queues,jobOptions}.ts` | Correlates events, forward-only status, finalize, Activity write, recording storage, daily purge. ~~Inbound routing (`lib/telephony/inbound.ts`)~~ not built. |
+| Cron | `app/api/cron/telephony-reconcile`, `app/api/cron/telephony-health` (5 min, `CRON_SECRET`) | Reconcile: replay unprocessed events, cancel stale `authorized`, finalize stuck calls against Telnyx. Health (`lib/telephony/health.ts`): balance, failure rate, webhook silence, event backlog, concurrency, alerted via `lib/ops/notifyOps.ts` with a per-condition cooldown; platform-wide, scheduler secret only. |
+| Manager settings | `app/settings/telephony/page.tsx`, `components/settings/telephony/*`, `app/api/telephony/settings/**`, `lib/telephony/settings*.ts` | Managers (`MANAGER_ROLES`, no API keys): enabled / dry-run / kill switch, hours and weekdays, allowed countries, recording options, caller ID numbers (`TelephonyNumber`, per-country and overall default read by `lib/telephony/callerId.ts`), softphone logins and revoke, server switches read-only. Every change audited (`admin.telephony.*`) with before and after. |
 | Postgres | migration `telephony_core` | `Call`, `TelephonyCredential`, `TelephonyNumber`, `TelephonyEvent`, `TelephonySettings`, `PhoneSuppression`, `Lead`/`Contact.doNotCall*`; tenant RLS via `supabase/rls.sql`. |
-| Telnyx | external | Credential connection (outbound, call parking on), Call Control app (inbound), outbound voice profile (country whitelist, concurrency and daily spend caps), recordings. |
+| Telnyx | external | Credential connection (outbound, call parking on), Call Control app (created for the env check; no inbound number), outbound voice profile (country whitelist, concurrency and daily spend caps), recordings. |
 
 ## Trust boundaries
 
@@ -130,7 +138,7 @@ sequenceDiagram
   end
 ```
 
-## (c) Inbound to the lead's owner
+## (c) Inbound to the lead's owner — not built (superseded 2026-10-08: no inbound)
 
 ```mermaid
 sequenceDiagram
@@ -154,7 +162,7 @@ sequenceDiagram
   W->>DB: answered -> completed, Activity once
 ```
 
-## (d) Inbound missed → fallback → missed-call task
+## (d) Inbound missed → fallback → missed-call task — not built (superseded 2026-10-08: no inbound)
 
 ```mermaid
 sequenceDiagram
@@ -189,7 +197,7 @@ sequenceDiagram
   participant U as Caller or manager
   participant R as GET calls/id/recording
   T->>W: call.recording.saved (via webhook inbox)
-  W->>DB: recordingProviderId, recordingPurgeAt = saved + 90 d
+  W->>DB: recordingProviderId, recordingPurgeAt = saved + retention (default 90 d)
   U->>R: play
   R->>DB: canAccessLead + (caller or MANAGER_ROLES)
   R->>DB: logAdminAudit
@@ -200,7 +208,7 @@ sequenceDiagram
   W->>DB: clear recordingProviderId
 ```
 
-Assumptions the Phase 0 spike must confirm: the token arrives on `call.initiated` (the SDK exposes
+Assumptions the live check (`TELNYX_SETUP.md` section 9, replacing the Phase 0 spike) must confirm: the token arrives on `call.initiated` (the SDK exposes
 `clientState` and `X-` custom headers on `newCall`); `ringing` is inferred from the transfer leg (Telnyx
 has no explicit ringing event); inbound `call.initiated` through the queue is fast enough to answer — if
 not, it moves inline like outbound.

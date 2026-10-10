@@ -7,13 +7,14 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 206   mutating: 127   mutating without a test: 19
+# routes: 212   mutating: 131   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
     tests:
       - e2e/certification/golden-journey.spec.ts
       - e2e/leads/lead-crud.spec.ts
+      - tests/telephony-recording-route.test.ts
   - path: app/api/admin/assignments/route.ts
     methods: [DELETE, GET, POST]
     tests:
@@ -384,6 +385,10 @@ routes:
     tests:
       - e2e/deep-smoke.spec.ts
       - tests/cron-routes-tenant-scope.test.ts
+  - path: app/api/cron/telephony-health/route.ts
+    methods: [GET]
+    tests:
+      - tests/telephony-health.test.ts
   - path: app/api/cron/telephony-reconcile/route.ts
     methods: [GET]
     tests:
@@ -1216,14 +1221,17 @@ routes:
       - e2e/roles/role-negative-access.spec.ts
   - path: app/api/team/campaigns/[id]/route.ts
     methods: [GET]
-    tests: []
+    tests:
+      - tests/telephony-call-metrics.test.ts
   - path: app/api/team/campaigns/route.ts
     methods: [GET]
-    tests: []
+    tests:
+      - tests/telephony-call-metrics.test.ts
   - path: app/api/team/leaderboard/route.ts
     methods: [GET]
     tests:
       - e2e/roles/role-negative-access.spec.ts
+      - tests/telephony-call-metrics.test.ts
   - path: app/api/team/meetings/route.ts
     methods: [GET]
     tests:
@@ -1239,11 +1247,16 @@ routes:
       - tests/telephony-call-outcome-route.test.ts
       - tests/telephony-calls-route.test.ts
       - tests/telephony-proxy-matcher.test.ts
+      - tests/telephony-recording-route.test.ts
       - tests/telephony-softphone.test.ts
   - path: app/api/telephony/calls/[id]/recording/route.ts
     methods: [GET]
     tests:
+      - tests/telephony-call-outcome-route.test.ts
+      - tests/telephony-calls-route.test.ts
+      - tests/telephony-proxy-matcher.test.ts
       - tests/telephony-recording-route.test.ts
+      - tests/telephony-softphone.test.ts
   - path: app/api/telephony/calls/pending-outcome/route.ts
     methods: [GET]
     tests:
@@ -1254,6 +1267,7 @@ routes:
       - tests/telephony-call-outcome-route.test.ts
       - tests/telephony-calls-route.test.ts
       - tests/telephony-proxy-matcher.test.ts
+      - tests/telephony-recording-route.test.ts
       - tests/telephony-softphone.test.ts
   - path: app/api/telephony/phone-calls/route.ts
     methods: [POST]
@@ -1261,6 +1275,22 @@ routes:
       - tests/dialer-phone-call-panel.test.ts
       - tests/telephony-outcome-effects.test.ts
       - tests/telephony-phone-calls-route.test.ts
+  - path: app/api/telephony/settings/credentials/[id]/route.ts
+    methods: [DELETE]
+    tests:
+      - tests/telephony-settings-route.test.ts
+  - path: app/api/telephony/settings/numbers/[id]/route.ts
+    methods: [DELETE, PATCH]
+    tests:
+      - tests/telephony-settings-route.test.ts
+  - path: app/api/telephony/settings/numbers/route.ts
+    methods: [POST]
+    tests:
+      - tests/telephony-settings-route.test.ts
+  - path: app/api/telephony/settings/route.ts
+    methods: [GET, PATCH]
+    tests:
+      - tests/telephony-settings-route.test.ts
   - path: app/api/telephony/status/route.ts
     methods: [GET]
     tests:
@@ -1274,6 +1304,7 @@ routes:
     methods: [POST]
     tests:
       - tests/telephony-proxy-matcher.test.ts
+      - tests/telephony-settings-route.test.ts
       - tests/telephony-token-route.test.ts
   - path: app/api/templates/[id]/ab-test/route.ts
     methods: [DELETE, GET, POST]

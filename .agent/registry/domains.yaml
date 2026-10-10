@@ -355,6 +355,9 @@ domains:
       - lib/telephony/**
       - app/api/telephony/**
       - app/api/cron/telephony-reconcile/**
+      - app/api/cron/telephony-health/**
+      - app/settings/telephony/**
+      - components/settings/telephony/**
       - workers/telephony.ts
       - components/dialer/**
       - docs/dialer/**

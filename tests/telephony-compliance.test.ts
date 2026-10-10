@@ -143,6 +143,14 @@ describe('evaluateCallPermission', () => {
     }
   });
 
+  it('an empty country list allows no country at all, and no settings row allows none either (fail-closed)', () => {
+    const none = facts({ rawPhone: '+14155550123', dialCountries: ['US'], settings: { ...facts().settings!, allowedCountries: [] } });
+    const decision = evaluateCallPermission(none);
+    expect(decision.allowed).toBe(false);
+    expect(decision.reasons).toContain('country_not_allowed');
+    expect(evaluateCallPermission(facts({ rawPhone: '+14155550123', dialCountries: ['US'], settings: null })).allowed).toBe(false);
+  });
+
   it('blocks premium-rate and shared-cost numbers', () => {
     expect(evaluateCallPermission(facts({ rawPhone: '19001234' })).reasons).toEqual(['number_type_not_allowed']);
     expect(evaluateCallPermission(facts({ rawPhone: '19001234', settings: { ...facts().settings!, allowedCountries: [] } })).reasons).toEqual([

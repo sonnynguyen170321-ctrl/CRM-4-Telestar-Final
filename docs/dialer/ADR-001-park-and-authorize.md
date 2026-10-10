@@ -1,12 +1,23 @@
 # ADR-001: Park and authorize outbound calls server-side
 
 ## Status
-Proposed (2026-10-04). Accepted once the Phase 0 spike passes.
+Proposed (2026-10-04). Built (outbound webhook, worker, reconcile; 2026-10-10). **Accepted once the live check
+passes** (`TELNYX_SETUP.md` section 9 replaced the Phase 0 spike branch, per the owner decisions of 2026-10-08).
+
+## Amendments, 2026-10-08
+- The gate's hours rule is no longer a fixed 08:00-17:00: the owner chose **call any time**, so by default no clock
+  rule applies and no timezone is needed (`isAlwaysOpen`). Where a manager narrows the hours, everything below about
+  checking hours twice still holds.
+- **Vietnam is not dialled through Telnyx** (the rep's own phone, logged in the CRM). The spike plan's Vietnamese
+  mobile/landline measurements below are superseded: the live check uses numbers abroad that the team owns.
+- No inbound calling, so only the outbound half of this decision is built.
+- The kill switch, dry run and enabled flag are manager settings (`settings/telephony`), so "stops dialing immediately"
+  below needs no deploy.
 
 ## Context
 Every rep's browser holds a Telnyx credential through `@telnyx/webrtc`, and a credential can dial any
 number its outbound voice profile allows. The owner requires our Do-Not-Call list (`PhoneSuppression`),
-the lead/contact `doNotCall` flag and calling hours (08:00–17:00 lead-local) to be enforced — and anything
+the lead/contact `doNotCall` flag and calling hours (originally 08:00–17:00 lead-local; now a manager setting, any time by default) to be enforced — and anything
 enforced only in the browser can be skipped from devtools. The current dialer
 (`components/CallDialerModal.tsx`) enforces nothing, and a call "happened" only because the rep typed it.
 We need proof that every outbound call was checked, and a `Call` row recording what was allowed and why.
@@ -43,11 +54,11 @@ failover URL, the `TelephonyEvent` inbox, the reconcile cron and the webhook-sil
 check runs twice, so a call authorized at 16:59:59 can be blocked at 17:00:01 (accepted). The 1.5 s
 budget leaves little room for a slow handler, so inline work is limited to primary-key reads.
 
-## Validating spike (Phase 0, throwaway branch, go/no-go)
+## Validating spike (Phase 0, throwaway branch, go/no-go) — superseded 2026-10-08 by the live check on production, same pass criteria
 1. `newCall` with the token in `clientState`, and separately in an `X-` custom header: confirm it arrives
    on the `call.initiated` payload of a parked call.
 2. Hang up a parked call from the webhook and confirm the far end never rings.
-3. Measure park → connect over ≥20 calls to Vietnamese mobile and landline numbers.
+3. Measure park → connect over ≥10 calls to numbers abroad that the team owns. ~~≥20 calls to Vietnamese mobile and landline numbers~~ (superseded: Vietnam is not dialled through Telnyx).
 
 Pass: token present on 100% of calls; no parked call ever connects unauthorized; p95 park → connect < 1.5 s.
 
