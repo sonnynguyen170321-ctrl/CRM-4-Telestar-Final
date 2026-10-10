@@ -13,7 +13,7 @@ inbound calling. The team calls any time of day unless a manager narrows the hou
 
 | What | Where |
 |---|---|
-| Manager settings, emergency stop, caller ID numbers, softphone logins | CRM, Settings, "Phone & dialer" (`/settings/telephony`; director, floor manager, team lead) |
+| Manager settings, emergency stop, caller ID numbers, softphone logins | CRM, Settings, "Phone & dialer" (`/settings/telephony`). Director and floor manager change everything; a team lead sees it read-only, can press the emergency stop (not lift it) and can revoke the logins of reps in their own report chain |
 | Server switches | the VPS env file: `TELEPHONY_ENABLED`, `TELEPHONY_DRY_RUN`, the six Telnyx variables, `TELNYX_BALANCE_ALERT_USD`, optional `TELNYX_CONCURRENCY_LIMIT`, `ALERT_WEBHOOK_URL` |
 | What was allowed or refused, and why | the `Call` table (`status`, `compliance`); blocked attempts are kept |
 | Raw provider events | `TelephonyEvent` (processed ones are deleted after 30 days) |
@@ -30,7 +30,7 @@ Calling needs every layer below to say yes. Any "no" stops new calls; the first 
 | `TELEPHONY_DRY_RUN=false` | server | dry run: calls are checked and recorded as `blocked` with reason `dry_run`, none is placed | same |
 | "Dialer on for this team" | manager | the team is refused | Phone & dialer, Calling rules |
 | "Dry run" (team) | manager | as above, for this team only | same |
-| Emergency stop | manager | everything for this team stops now | the red button at the top of Phone & dialer |
+| Emergency stop | manager (a team lead may press it, only a director or floor manager lifts it) | everything for this team stops now | the red button at the top of Phone & dialer |
 | A rep's softphone login | manager | that rep only | Phone & dialer, Softphone logins, Revoke |
 
 Turn on for real: server flags on and dry run off in the env file, then in the page add at least one
@@ -45,7 +45,7 @@ Turn off: use the emergency stop first (instant, no deploy), then decide whether
 - Effect: the next softphone token is refused, and any call that is parked at that moment is hung up and
   recorded as `blocked` with reason `kill_switch`. A call already talking is not cut; it ends when the rep hangs up.
 - Reps can still log calls made from their own phone. Nothing about the manual `PhoneCallPanel` depends on the dialer.
-- Lift it with "Allow calling again". Pressing the stop twice keeps the first time and person.
+- Lift it with "Allow calling again" (director or floor manager). Pressing the stop twice keeps the first time and person.
 
 ## 3. Dry run
 
@@ -114,12 +114,11 @@ in the Telnyx portal and clear `Call.recordingProviderId`.
 Phone & dialer lists the numbers the Telnyx account owns. A call shows, in order: the default number for
 the lead's country, any number in that country, the overall default, any number, and otherwise
 Telnyx's own default. Adding a number here does not buy or port it (do that in the Telnyx portal first).
-The first number added becomes the default for its country and the overall default. A number is unique
-across the whole deployment.
+The first number added becomes the default for its country and the overall default; removing or switching off a default hands it to the next active number, and removing the last number warns you that calls will show Telnyx's own number. A Vietnamese (+84) number cannot be added: Vietnam is never dialled through Telnyx. A number is unique across the whole deployment, and the database allows one default per country and one overall default per team.
 
 ## 9. Softphone logins
 
-A login is created the first time a rep opens the softphone. Revoke it when a laptop is lost or someone
+A login is created the first time a rep opens the softphone. Writes to numbers and revokes are capped per person per minute. Revoke it when a laptop is lost or someone
 leaves: the rep is refused a token at once, and the login is deleted at Telnyx. If the response says
 "revoked here, but the provider could not be reached", press the button again later: it retries just the
 provider part. A revoked rep stays revoked. To give access back, delete that rep's `TelephonyCredential`

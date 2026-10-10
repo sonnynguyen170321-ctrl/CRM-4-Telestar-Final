@@ -45,6 +45,13 @@ describe('chooseCallerId', () => {
     expect(chooseCallerId([us1, sg], 'AU')).toBe(us1.e164);
   });
 
+  it('never uses a Vietnamese number, not even as the last resort', () => {
+    const vn = n('+84948200638', 'VN', { isDefault: true, isOverallDefault: true });
+    expect(chooseCallerId([vn], 'VN')).toBeNull();
+    expect(chooseCallerId([vn, us1], 'VN')).toBe(us1.e164);
+    expect(chooseCallerId([vn, sg], null)).toBe(sg.e164);
+  });
+
   it('matches the country case-insensitively and returns null with no numbers', () => {
     expect(chooseCallerId([sg], 'sg')).toBe(sg.e164);
     expect(chooseCallerId([], 'SG')).toBeNull();
@@ -65,7 +72,7 @@ describe('pickCallerId', () => {
 
     await make(theirs, { isDefault: true, isOverallDefault: true });
     await make(mine, { isActive: false, isDefault: true });
-    await make(mine, { purpose: 'inbound', isDefault: true });
+    await make(mine, { purpose: 'inbound' });
     const usable = await make(mine, {});
 
     expect(await pickCallerId(mine, 'US')).toBe(usable.e164);

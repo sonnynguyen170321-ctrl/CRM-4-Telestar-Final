@@ -16,7 +16,9 @@ vi.mock('@/lib/auth', async (importOriginal) => {
   };
 });
 
+import { clearVisibleUserCache } from '@/lib/auth';
 import { TELEPHONY_ENV } from '@/lib/env-contract';
+import { __setAttemptLimitRedis } from '@/lib/security/attemptLimit';
 import { prisma } from '@/lib/prisma';
 import { FakeTelephonyProvider } from '@/lib/telephony/fake';
 import { setTelephonyProviderForTests } from '@/lib/telephony/index';
@@ -117,7 +119,20 @@ async function makeCredential(t: string, userId: string) {
   );
 }
 
+/** An in-memory stand-in for the limiter Redis, so the suite needs none and a test can count up to the cap. */
+function fakeLimiterRedis() {
+  const counts = new Map<string, number>();
+  return {
+    incr: async (key: string) => counts.set(key, (counts.get(key) ?? 0) + 1).get(key)!,
+    expire: async () => 1,
+    ttl: async () => 42,
+    del: async (key: string) => counts.delete(key),
+  };
+}
+
 beforeEach(async () => {
+  __setAttemptLimitRedis(fakeLimiterRedis());
+  clearVisibleUserCache();
   savedEnv = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
   for (const k of TELEPHONY_ENV) process.env[k] = SECRET_VALUE;
   process.env.TELEPHONY_AUTH_SECRET = SECRET_VALUE;
@@ -139,6 +154,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  __setAttemptLimitRedis(null);
   authUser.current = null;
   setTelephonyProviderForTests(null);
   for (const k of ENV_KEYS) {
@@ -246,8 +262,8 @@ describe('PATCH /api/telephony/settings', () => {
     const row = await settingsRow();
     expect(row).toMatchObject({ enabled: true, dryRun: false, allowedCountries: ['SG', 'US'], recordingEnabled: true, updatedById: users.director.id });
 
-    await patch(users.teamLead, { recordingNotice: true });
-    expect(await settingsRow()).toMatchObject({ enabled: true, allowedCountries: ['SG', 'US'], recordingNotice: true, updatedById: users.teamLead.id });
+    await patch(users.floorManager, { recordingNotice: true });
+    expect(await settingsRow()).toMatchObject({ enabled: true, allowedCountries: ['SG', 'US'], recordingNotice: true, updatedById: users.floorManager.id });
   });
 
   it('never writes another team\'s row', async () => {
@@ -397,7 +413,7 @@ describe('caller ID numbers', () => {
   it('refuses a duplicate in this team (409) and a number another team owns, without saying which', async () => {
     const e164 = uniqueE164();
     await addNumber(users.director, { e164 });
-    expect((await addNumber(users.teamLead, { e164 })).response.status).toBe(409);
+    expect((await addNumber(users.floorManager, { e164 })).response.status).toBe(409);
 
     const taken = uniqueE164();
     await addNumber(users.otherDirector, { e164: taken });
@@ -471,7 +487,7 @@ describe('revoking a softphone credential', () => {
     const credential = await inTenant(() =>
       prisma.telephonyCredential.create({ data: { tenantId, userId: users.sdr.id, provider: 'fake', providerCredentialId: created.providerCredentialId, sipUsername: created.sipUsername } })
     );
-    const { response, body } = await revoke(users.teamLead, credential.id);
+    const { response, body } = await revoke(users.floorManager, credential.id);
     expect(response.status).toBe(200);
     expect(body).toMatchObject({ revoked: true, providerRevoked: true });
     expect(provider.credentials.has(created.providerCredentialId)).toBe(false);
@@ -522,5 +538,131 @@ describe('revoking a softphone credential', () => {
     const theirs = await makeCredential(otherTenantId, otherSdr.id);
     expect((await revoke(users.director, theirs.id)).response.status).toBe(404);
     expect((await inTenant(() => prisma.telephonyCredential.findUnique({ where: { id: theirs.id } }), otherTenantId))?.status).toBe('active');
+  });
+});
+
+async function reportTo(managerId: string) {
+  const rep = await makeUser(tenantId, 'sdr');
+  await inTenant(() => prisma.user.update({ where: { id: rep.id }, data: { managerId } }));
+  clearVisibleUserCache();
+  return rep;
+}
+
+describe('team lead: read-only view, emergency stop, own reps only', () => {
+  it('sees the settings read-only and only the logins of their own reps', async () => {
+    const mine = await reportTo(users.teamLead.id);
+    await makeCredential(tenantId, mine.id);
+    await makeCredential(tenantId, users.sdr.id);
+
+    const lead = await get(users.teamLead);
+    expect(lead.body.readOnly).toBe(true);
+    expect(lead.body.credentials).toHaveLength(1);
+    const director = await get(users.director);
+    expect(director.body.readOnly).toBe(false);
+    expect(director.body.credentials).toHaveLength(2);
+  });
+
+  it('may press the emergency stop, audited, but not lift it or change anything else', async () => {
+    expect((await patch(users.teamLead, { killed: true })).response.status).toBe(200);
+    expect(await settingsRow()).toMatchObject({ killedById: users.teamLead.id });
+    expect(await auditRows('admin.telephony.kill')).toHaveLength(1);
+
+    for (const body of [{ killed: false }, { enabled: true }, { killed: true, enabled: true }, { allowedCountries: ['SG'] }, { dryRun: false }]) {
+      expect((await patch(users.teamLead, body)).response.status).toBe(403);
+    }
+    expect(await settingsRow()).toMatchObject({ enabled: false, dryRun: true, allowedCountries: [] });
+    expect((await settingsRow())?.killedAt).not.toBeNull();
+    expect((await patch(users.floorManager, { killed: false })).response.status).toBe(200);
+  });
+
+  it('cannot add, change or remove caller ID numbers', async () => {
+    const number = (await addNumber(users.director, { e164: uniqueE164() })).body.number;
+    expect((await addNumber(users.teamLead, { e164: uniqueE164() })).response.status).toBe(403);
+    expect((await patchNumber(users.teamLead, number.id, { isActive: false })).response.status).toBe(403);
+    expect((await removeNumber(users.teamLead, number.id)).response.status).toBe(403);
+    expect(await numberRows()).toHaveLength(1);
+    expect((await numberRows())[0].isActive).toBe(true);
+  });
+
+  it('revokes a rep in their own chain and gets a 404 for anyone else', async () => {
+    const mine = await reportTo(users.teamLead.id);
+    const own = await makeCredential(tenantId, mine.id);
+    const stranger = await makeCredential(tenantId, users.sdr.id);
+
+    expect((await revoke(users.teamLead, stranger.id)).response.status).toBe(404);
+    expect((await inTenant(() => prisma.telephonyCredential.findUnique({ where: { id: stranger.id } })))?.status).toBe('active');
+    expect((await revoke(users.teamLead, own.id)).response.status).toBe(200);
+    expect((await inTenant(() => prisma.telephonyCredential.findUnique({ where: { id: own.id } })))?.status).toBe('revoked');
+  });
+
+  it('a director or floor manager revokes any rep', async () => {
+    const credential = await makeCredential(tenantId, users.sdr.id);
+    expect((await revoke(users.floorManager, credential.id)).response.status).toBe(200);
+  });
+});
+
+describe('caller ID: Vietnam, defaults and removal', () => {
+  it('refuses a Vietnamese number as a caller ID', async () => {
+    const { response, body } = await addNumber(users.director, { e164: '+84948200638' });
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(body)).toMatch(/Vietnam/);
+    expect(await numberRows()).toHaveLength(0);
+  });
+
+  it('promotes the next active number when a default is removed, and says when the last one goes', async () => {
+    const a = (await addNumber(users.director, { e164: uniqueE164() })).body.number;
+    const b = (await addNumber(users.director, { e164: uniqueE164() })).body.number;
+    const first = await removeNumber(users.director, a.id);
+    expect(first.body.warning).toBeUndefined();
+    expect((await numberRows()).find((n) => n.id === b.id)).toMatchObject({ isDefault: true, isOverallDefault: true });
+
+    const last = await removeNumber(users.director, b.id);
+    expect(last.response.status).toBe(200);
+    expect(last.body.warning).toMatch(/last caller ID/);
+  });
+
+  it('skips inactive numbers when promoting, and promotes when a default is switched off', async () => {
+    const a = (await addNumber(users.director, { e164: uniqueE164() })).body.number;
+    const b = (await addNumber(users.director, { e164: uniqueE164() })).body.number;
+    const c = (await addNumber(users.director, { e164: uniqueE164() })).body.number;
+    await patchNumber(users.director, b.id, { isActive: false });
+    await patchNumber(users.director, a.id, { isActive: false });
+    const rows = await numberRows();
+    expect(rows.find((n) => n.id === c.id)).toMatchObject({ isDefault: true, isOverallDefault: true });
+    expect(rows.find((n) => n.id === a.id)).toMatchObject({ isDefault: false, isOverallDefault: false });
+  });
+
+  it('keeps one default per country and one overall in the database itself', async () => {
+    await addNumber(users.director, { e164: uniqueE164() });
+    await expect(
+      inTenant(() => prisma.telephonyNumber.create({ data: { tenantId, e164: uniqueE164(), country: 'US', isDefault: true } }))
+    ).rejects.toMatchObject({ code: 'P2002' });
+    await expect(
+      inTenant(() => prisma.telephonyNumber.create({ data: { tenantId, e164: uniqueE164(), country: 'GB', isOverallDefault: true } }))
+    ).rejects.toMatchObject({ code: 'P2002' });
+  });
+
+  it('two numbers added at the same moment end with exactly one default', async () => {
+    const results = await Promise.all([addNumber(users.director, { e164: uniqueE164() }), addNumber(users.director, { e164: uniqueE164() })]);
+    expect(results.map((r) => r.response.status).every((status) => status === 201 || status === 409)).toBe(true);
+    const rows = await numberRows();
+    expect(rows.filter((n) => n.isDefault)).toHaveLength(1);
+    expect(rows.filter((n) => n.isOverallDefault)).toHaveLength(1);
+  });
+});
+
+describe('rate limits', () => {
+  it('caps number writes and credential revokes per user, not per team', async () => {
+    const statuses: number[] = [];
+    for (let i = 0; i < 31; i += 1) statuses.push((await addNumber(users.director, { e164: '+0000' })).response.status);
+    expect(statuses.slice(0, 30).every((s) => s === 400)).toBe(true);
+    expect(statuses[30]).toBe(429);
+    expect((await addNumber(users.floorManager, { e164: '+0000' })).response.status).toBe(400);
+
+    const credential = await makeCredential(tenantId, users.sdr.id);
+    const revokes: number[] = [];
+    for (let i = 0; i < 21; i += 1) revokes.push((await revoke(users.director, credential.id)).response.status);
+    expect(revokes.slice(0, 20).every((s) => s === 200)).toBe(true);
+    expect(revokes[20]).toBe(429);
   });
 });

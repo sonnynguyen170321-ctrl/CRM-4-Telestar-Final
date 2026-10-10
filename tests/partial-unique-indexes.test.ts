@@ -65,6 +65,16 @@ const REQUIRED = [
     table: 'SuppressionEntry',
     protects: 'the same company being suppressed twice at tenant scope',
   },
+  {
+    name: 'telephony_number_overall_default_unique',
+    table: 'TelephonyNumber',
+    protects: 'two overall-default caller IDs for one team, so a call would show whichever the query met first',
+  },
+  {
+    name: 'telephony_number_country_default_unique',
+    table: 'TelephonyNumber',
+    protects: 'two default caller IDs for one country of one team',
+  },
 ] as const;
 
 describe.skipIf(!hasDb)('partial unique indexes that schema.prisma cannot express', () => {
@@ -94,7 +104,9 @@ describe.skipIf(!hasDb)('partial unique indexes that schema.prisma cannot expres
           'lead_normalized_email_unique',
           'suppression_email_scope_unique',
           'suppression_domain_scope_unique',
-          'suppression_company_scope_unique'
+          'suppression_company_scope_unique',
+          'telephony_number_overall_default_unique',
+          'telephony_number_country_default_unique'
         )
     `;
 

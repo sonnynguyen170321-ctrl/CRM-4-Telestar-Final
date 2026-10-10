@@ -45,10 +45,10 @@ export default function TelephonySettingsPage() {
         <p className="text-xs text-text-muted" role="status">Loading…</p>
       ) : (
         <div className="max-w-4xl space-y-6">
-          <KillSwitchCard settings={payload.settings} send={send} />
+          <KillSwitchCard settings={payload.settings} readOnly={payload.readOnly} send={send} />
           <DeploymentCard deployment={payload.deployment} />
-          <CallingRulesCard key={payload.settings.updatedAt ?? 'unsaved'} settings={payload.settings} send={send} />
-          <NumbersCard numbers={payload.numbers} send={send} />
+          <CallingRulesCard key={payload.settings.updatedAt ?? 'unsaved'} settings={payload.settings} readOnly={payload.readOnly} send={send} />
+          <NumbersCard numbers={payload.numbers} readOnly={payload.readOnly} send={send} />
           <CredentialsCard credentials={payload.credentials} send={send} />
         </div>
       )}

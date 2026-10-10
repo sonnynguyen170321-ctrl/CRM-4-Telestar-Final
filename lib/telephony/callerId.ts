@@ -15,6 +15,8 @@ import { prisma } from '@/lib/prisma';
 type CandidateNumber = { e164: string; country: string; isDefault: boolean; isOverallDefault: boolean };
 
 export function chooseCallerId(numbers: CandidateNumber[], numberCountry: string | null): string | null {
+  // Vietnam is never dialled through the provider, so a Vietnamese number is never shown as caller ID.
+  numbers = numbers.filter((n) => n.country.toUpperCase() !== 'VN');
   const wanted = numberCountry?.toUpperCase();
   const inCountry = wanted ? numbers.filter((n) => n.country.toUpperCase() === wanted) : [];
   return (

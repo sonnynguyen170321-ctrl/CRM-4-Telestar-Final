@@ -725,20 +725,22 @@ routes:
     guards: []
   - path: app/api/telephony/settings/credentials/[id]/route.ts
     methods: [DELETE]
-    guards: []
-    reason: requireTelephonyManager (lib/telephony/settingsAccess.ts): interactive session only (no API key), role in MANAGER_ROLES, tenant from the session. The credential is looked up by id AND the session tenant, so another team's id is a 404 and is left untouched. Audited as admin.telephony.credential_revoke.
+    guards:
+      - canAccessUser
+    reason: requireTelephonyManager (lib/telephony/settingsAccess.ts): interactive session only (no API key), tenant from the session, 20 revokes per user per minute. A director or floor manager may revoke any rep's login in the tenant; a team lead only a rep passing canAccessUser (their own report chain), anything else is a 404 and untouched. The credential is looked up by id AND the session tenant. Audited as admin.telephony.credential_revoke.
   - path: app/api/telephony/settings/numbers/[id]/route.ts
     methods: [DELETE, PATCH]
     guards: []
-    reason: requireTelephonyManager (lib/telephony/settingsAccess.ts): interactive session only (no API key), role in MANAGER_ROLES, tenant from the session. Every read and write of the number is keyed by id AND the session tenant, so another team's id is a 404; default flags only move within the session tenant. Audited as admin.telephony.number.
+    reason: requireTelephonyAdmin (lib/telephony/settingsAccess.ts): interactive session only (no API key), director or floor manager only (CRON_MANAGER_ROLES), tenant from the session, 30 writes per user per minute. Every read and write of the number is keyed by id AND the session tenant, so another team's id is a 404; defaults only move within the session tenant, and a removed default is handed to the next active number. Audited as admin.telephony.number.
   - path: app/api/telephony/settings/numbers/route.ts
     methods: [POST]
     guards: []
-    reason: requireTelephonyManager (lib/telephony/settingsAccess.ts): interactive session only (no API key), role in MANAGER_ROLES. The number is created under the session tenant with its country read from the E.164; a number already registered anywhere is a 409 that does not say whose. Audited as admin.telephony.number.
+    reason: requireTelephonyAdmin (lib/telephony/settingsAccess.ts): interactive session only (no API key), director or floor manager only (CRON_MANAGER_ROLES), tenant from the session, 30 writes per user per minute. The number is created under the session tenant with its country read from the E.164; Vietnamese numbers are refused; a clash with any registered number is a 409 that does not say whose. Defaults are unique per tenant by partial unique index. Audited as admin.telephony.number.
   - path: app/api/telephony/settings/route.ts
     methods: [GET, PATCH]
-    guards: []
-    reason: requireTelephonyManager (lib/telephony/settingsAccess.ts): interactive session only (no API key), role in MANAGER_ROLES, tenant from the session; the body is a strict zod schema that cannot name a tenant, and Vietnam is refused as a dialable country. Responses show environment switches by state only, never a value. Audited as admin.telephony.settings / admin.telephony.kill with before and after.
+    guards:
+      - getVisibleUserIds
+    reason: requireTelephonyManager (lib/telephony/settingsAccess.ts): interactive session only (no API key), role in MANAGER_ROLES, tenant from the session. GET is a read-only view for a team lead (only their own reps' logins). PATCH is for a director or floor manager (CRON_MANAGER_ROLES); a team lead may send exactly {killed: true} (the emergency stop) and nothing else. Strict zod body that cannot name a tenant; Vietnam is refused as a dialable country; environment switches are shown by state only. Audited as admin.telephony.settings / admin.telephony.kill with before and after.
   - path: app/api/telephony/telnyx/webhook/route.ts
     methods: [POST]
     guards: []

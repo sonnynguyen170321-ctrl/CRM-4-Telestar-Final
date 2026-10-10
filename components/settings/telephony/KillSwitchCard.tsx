@@ -7,10 +7,15 @@ import { useToast } from '@/context/ToastContext';
 import type { SettingsDto } from '@/lib/telephony/settingsAdmin';
 import type { SendResult } from './useTelephonySettings';
 
-type Props = { settings: SettingsDto; send: (url: string, method: 'PATCH', body: unknown) => Promise<SendResult> };
+type Props = {
+  settings: SettingsDto;
+  /** A team lead can stop calling but not lift the stop. */
+  readOnly: boolean;
+  send: (url: string, method: 'PATCH', body: unknown) => Promise<SendResult>;
+};
 
 /** One big control: stop every call for this team now, or lift the stop. Reps keep the manual call panel. */
-export default function KillSwitchCard({ settings, send }: Props) {
+export default function KillSwitchCard({ settings, readOnly, send }: Props) {
   const { showToast } = useToast();
   const [busy, setBusy] = useState(false);
 
@@ -38,7 +43,9 @@ export default function KillSwitchCard({ settings, send }: Props) {
               : 'Stops every call for the whole team immediately: calls already parked are hung up and nobody can log in to the softphone. Manual call logging keeps working.'}
           </p>
         </div>
-        {settings.killed ? (
+        {settings.killed && readOnly ? (
+          <p className="text-xs font-semibold text-text-secondary">A director or floor manager lifts the stop.</p>
+        ) : settings.killed ? (
           <button
             type="button"
             onClick={() => void change(false)}

@@ -12,7 +12,7 @@ import type { SendResult } from './useTelephonySettings';
  * The editable calling rules. The page keys this card by the server's `updatedAt`, so after a save the
  * reloaded settings start a fresh draft.
  */
-type Props = { settings: SettingsDto; send: (url: string, method: 'PATCH', body: unknown) => Promise<SendResult> };
+type Props = { settings: SettingsDto; readOnly: boolean; send: (url: string, method: 'PATCH', body: unknown) => Promise<SendResult> };
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const STEP_MINUTES = 30;
@@ -62,7 +62,7 @@ function Switch({ id, label, hint, checked, onChange }: { id: string; label: str
   );
 }
 
-export default function CallingRulesCard({ settings, send }: Props) {
+export default function CallingRulesCard({ settings, readOnly, send }: Props) {
   const { showToast } = useToast();
   const countries = useCountryOptions();
   const [draft, setDraft] = useState(settings);
@@ -102,6 +102,8 @@ export default function CallingRulesCard({ settings, send }: Props) {
   return (
     <form onSubmit={save} className="space-y-5 rounded-2xl border border-card-border bg-card-bg p-5 shadow-sm" aria-labelledby="rules-heading">
       <h2 id="rules-heading" className="type-section text-text-primary">Calling rules</h2>
+      {readOnly && <p className="text-xs text-text-muted" role="note">You can view these. A director or floor manager changes them.</p>}
+      <fieldset disabled={readOnly} className="m-0 min-w-0 space-y-5 border-0 p-0">
 
       <div className="space-y-3">
         <Switch id="tel-enabled" label="Dialer on for this team" hint="Nobody can call until this is on and the server switches allow it." checked={draft.enabled} onChange={(enabled) => patch({ enabled })} />
@@ -219,7 +221,9 @@ export default function CallingRulesCard({ settings, send }: Props) {
         </div>
       </fieldset>
 
-      <div className="flex items-center gap-3">
+      </fieldset>
+
+      <div className="flex items-center gap-3" hidden={readOnly}>
         <button
           type="submit"
           disabled={!dirty || saving}

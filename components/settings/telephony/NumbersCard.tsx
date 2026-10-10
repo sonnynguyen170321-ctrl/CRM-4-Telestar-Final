@@ -8,6 +8,7 @@ import type { NumberDto } from '@/lib/telephony/settingsNumbers';
 import type { SendResult } from './useTelephonySettings';
 
 type Props = {
+  readOnly: boolean;
   numbers: NumberDto[];
   send: (url: string, method: 'PATCH' | 'POST' | 'DELETE', body?: unknown) => Promise<SendResult>;
 };
@@ -16,7 +17,7 @@ const E164_PATTERN = '^\\+[1-9][0-9]{6,14}$';
 const smallButton = 'rounded-md border border-card-border px-2 py-1 text-[11px] font-semibold text-text-primary hover:bg-card-border/30 disabled:opacity-60';
 
 /** Caller-ID numbers the account owns. The one marked for the dialled country is shown to the lead. */
-export default function NumbersCard({ numbers, send }: Props) {
+export default function NumbersCard({ numbers, readOnly, send }: Props) {
   const { showToast } = useToast();
   const [e164, setE164] = useState('');
   const [label, setLabel] = useState('');
@@ -26,7 +27,8 @@ export default function NumbersCard({ numbers, send }: Props) {
     setBusyId(id);
     const result = await action();
     setBusyId(null);
-    showToast(result.ok ? success : result.error, result.ok ? 'success' : 'error');
+    const warning = result.ok && typeof result.data.warning === 'string' ? result.data.warning : null;
+    showToast(result.ok ? (warning ?? success) : result.error, result.ok && !warning ? 'success' : 'error');
     return result.ok;
   };
 
@@ -62,7 +64,7 @@ export default function NumbersCard({ numbers, send }: Props) {
                 <th scope="col" className="py-1 pr-3">Number</th>
                 <th scope="col" className="py-1 pr-3">Country</th>
                 <th scope="col" className="py-1 pr-3">Status</th>
-                <th scope="col" className="py-1 text-right">Actions</th>
+                {!readOnly && <th scope="col" className="py-1 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -78,6 +80,7 @@ export default function NumbersCard({ numbers, send }: Props) {
                     {n.isDefault && <span className="ml-2 font-semibold text-text-primary">Default for {n.country}</span>}
                     {n.isOverallDefault && <span className="ml-2 font-semibold text-text-primary">Overall default</span>}
                   </td>
+                  {!readOnly && (
                   <td className="py-2">
                     <div className="flex flex-wrap justify-end gap-1.5">
                       {n.isActive && !n.isDefault && <button type="button" className={smallButton} disabled={busyId === n.id} onClick={() => void change(n, { isDefault: true }, `Default for ${n.country} updated`)}>Make default for {n.country}</button>}
@@ -98,6 +101,7 @@ export default function NumbersCard({ numbers, send }: Props) {
                       </button>
                     </div>
                   </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -105,7 +109,7 @@ export default function NumbersCard({ numbers, send }: Props) {
         </div>
       )}
 
-      <form onSubmit={add} className="flex flex-wrap items-end gap-3 border-t border-card-border pt-3">
+      <form onSubmit={add} hidden={readOnly} className="flex flex-wrap items-end gap-3 border-t border-card-border pt-3">
         <div className="space-y-1">
           <label htmlFor="tel-new-number" className="block text-[10px] font-bold uppercase text-text-muted">Number (international format)</label>
           <input

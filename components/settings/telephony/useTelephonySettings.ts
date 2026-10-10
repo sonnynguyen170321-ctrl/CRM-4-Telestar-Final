@@ -7,6 +7,8 @@ import type { SettingsDto, deploymentState } from '@/lib/telephony/settingsAdmin
 import type { CredentialDto, NumberDto } from '@/lib/telephony/settingsNumbers';
 
 export type TelephonyPayload = {
+  /** A team lead: sees the settings, may press the emergency stop and revoke their own reps' logins. */
+  readOnly: boolean;
   settings: SettingsDto;
   deployment: ReturnType<typeof deploymentState>;
   numbers: NumberDto[];
