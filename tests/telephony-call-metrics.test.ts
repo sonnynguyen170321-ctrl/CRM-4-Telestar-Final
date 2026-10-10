@@ -52,8 +52,7 @@ const { GET: campaignGET } = await import('@/app/api/team/campaigns/[id]/route')
 const { runAs, setupWorkOrderFixture } = await import('./helpers/workOrderFixture');
 type WorkOrderFixture = Awaited<ReturnType<typeof setupWorkOrderFixture>>;
 
-const hasDb = Boolean(process.env.DATABASE_URL);
-const suite = hasDb ? describe : describe.skip;
+const suite = describe;
 
 const PREFIX = 'callmetrics';
 const FROM = new Date('2026-03-10T00:00:00.000Z');
