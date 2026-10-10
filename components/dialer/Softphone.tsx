@@ -44,6 +44,8 @@ type Props = {
   onLogged: (activity: LoggedCall) => void;
   /** "Meeting Booked" hands over to the drawer's booking form. */
   onMeetingBooked: () => void;
+  /** Reopen the wrap-up of an earlier call that has no outcome yet, instead of placing a new call. */
+  resumeCallId?: string;
 };
 
 const STATUS_TEXT = {
@@ -58,10 +60,13 @@ type Notification = { type?: string; call?: RtcCallLike & { id?: string } };
 
 const toOptions = (devices: MediaDeviceInfo[]): DeviceOption[] => devices.map((d) => ({ deviceId: d.deviceId, label: d.label }));
 
-export default function Softphone({ lead, onClose, onLogged, onMeetingBooked }: Props) {
+export default function Softphone({ lead, onClose, onLogged, onMeetingBooked, resumeCallId }: Props) {
   const { showToast } = useToast();
-  const rtc = useTelnyxClient(true);
-  const [state, dispatchRaw] = useReducer(softphoneReducer, INITIAL_SOFTPHONE_STATE);
+  // Finishing an earlier call's outcome needs no phone connection, so none is made.
+  const rtc = useTelnyxClient(!resumeCallId);
+  const [state, dispatchRaw] = useReducer(softphoneReducer, INITIAL_SOFTPHONE_STATE, (initial) =>
+    resumeCallId ? softphoneReducer(initial, { type: 'RESUME_WRAP_UP', callId: resumeCallId }) : initial
+  );
   const stateRef = useRef(state);
   const callRef = useRef<RtcCallLike | null>(null);
   const attemptRef = useRef(0);
@@ -318,12 +323,14 @@ export default function Softphone({ lead, onClose, onLogged, onMeetingBooked }: 
           </p>
         )}
 
+        {!resumeCallId && (
         <div className="flex items-center justify-between gap-3 border border-card-border rounded-xl p-3 bg-bg-main/40">
           <span className="font-mono text-lg font-semibold text-text-primary break-all">{shownNumber}</span>
           <span role="status" className={`type-meta ${rtc.status === 'registered' ? 'text-emerald-700' : 'text-text-muted'}`}>
             {STATUS_TEXT[rtc.status]}
           </span>
         </div>
+        )}
 
         {rtc.status === 'locked' && (
           <p role="alert" className="rounded-xl border border-brand-orange-text/30 bg-brand-orange-text/10 p-3 text-brand-orange-text leading-relaxed">
@@ -343,7 +350,7 @@ export default function Softphone({ lead, onClose, onLogged, onMeetingBooked }: 
           </p>
         )}
 
-        {!target.e164 && <p className="text-brand-orange-text leading-relaxed">This lead has no number that can be called. Add one on the lead first.</p>}
+        {!resumeCallId && !target.e164 && <p className="text-brand-orange-text leading-relaxed">This lead has no number that can be called. Add one on the lead first.</p>}
 
         {state.phase === 'blocked' && <BlockedReasons reasons={state.reasons} dryRun={state.dryRun} localTime={state.localTime} timezone={state.timezone} />}
         {state.phase === 'error' && (
@@ -374,11 +381,11 @@ export default function Softphone({ lead, onClose, onLogged, onMeetingBooked }: 
         )}
         {state.phase === 'saved' && <p role="status" className="font-semibold text-emerald-700">Call logged as {getPhoneOutcome(state.outcome)?.label}.</p>}
 
-        <DevicePicker inputs={devices.inputs} outputs={devices.outputs} micId={micId} speakerId={speakerId} onMic={chooseMic} onSpeaker={chooseSpeaker} />
+        {!resumeCallId && <DevicePicker inputs={devices.inputs} outputs={devices.outputs} micId={micId} speakerId={speakerId} onMic={chooseMic} onSpeaker={chooseSpeaker} />}
 
         <div className="flex justify-end gap-2">
           {isLive(state) && <HangupButton onClick={hangup} label={state.phase === 'checking' || state.phase === 'connecting' ? 'Cancel' : 'Hang up'} />}
-          {(state.phase === 'idle' || state.phase === 'blocked' || state.phase === 'error') && (
+          {(state.phase === 'idle' || state.phase === 'blocked' || state.phase === 'error') && !resumeCallId && (
             <>
               <button type="button" onClick={requestClose} className="px-3 py-1.5 border border-card-border rounded-lg text-text-secondary hover:text-text-primary">
                 Close

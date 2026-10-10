@@ -23,6 +23,7 @@ import { PHONE_OUTCOMES } from '@/lib/telephony/outcomes';
 import { tenantStorage } from '@/lib/tenant-context';
 import { PATCH } from '@/app/api/telephony/calls/[id]/outcome/route';
 import { GET as GET_STATUS } from '@/app/api/telephony/status/route';
+import { GET as GET_PENDING } from '@/app/api/telephony/calls/pending-outcome/route';
 import { createTestTenant } from './helpers/testTenant';
 
 /**
@@ -241,6 +242,35 @@ describe('PATCH /api/telephony/calls/[id]/outcome', () => {
     expect(rows[0]).toMatchObject({ type: 'phone', userId: users.rep.id, priority: 'high' });
   });
 
+  it('allows re-labelling, but makes one callback task per call and moves the last-contacted date once', async () => {
+    const callId = await makeCall(tenantId, users.rep.id, ids.lead);
+    await patch(users.rep, callId, { outcome: 'callback_requested' });
+    const first = (await leadRow()).lastContactedAt!;
+    await new Promise((r) => setTimeout(r, 20));
+    expect((await patch(users.rep, callId, { outcome: 'no_answer' })).response.status).toBe(200);
+    expect((await patch(users.rep, callId, { outcome: 'callback_requested' })).response.status).toBe(200);
+    expect(await tasks()).toHaveLength(1);
+    expect((await leadRow()).lastContactedAt!.getTime()).toBe(first.getTime());
+    expect((await callRow(callId)).outcome).toBe('callback_requested');
+    // A different call is a different callback.
+    const second = await makeCall(tenantId, users.rep.id, ids.lead);
+    await patch(users.rep, second, { outcome: 'callback_requested' });
+    expect(await tasks()).toHaveLength(2);
+  });
+
+  it('saves the label but applies no lead effects once the rep can no longer work the lead', async () => {
+    const callId = await makeCall(tenantId, users.rep.id, ids.lead);
+    await inTenant(() => prisma.lead.update({ where: { id: ids.lead }, data: { assignedToId: users.peer.id } }));
+    const { response } = await patch(users.rep, callId, { outcome: 'do_not_call' });
+    expect(response.status).toBe(200);
+    expect((await callRow(callId)).outcome).toBe('do_not_call');
+    const lead = await leadRow();
+    expect(lead.doNotCall).toBe(false);
+    expect(lead.lastContactedAt).toBeNull();
+    expect(lead.tags).toEqual([]);
+    expect(await suppressions()).toHaveLength(0);
+  });
+
   it('labels a call whose lead is gone without error', async () => {
     const callId = await makeCall(tenantId, users.rep.id, null);
     const { response, body } = await patch(users.rep, callId, { outcome: 'do_not_call' });
@@ -287,5 +317,42 @@ describe('GET /api/telephony/status', () => {
     expect(mine.body).toEqual({ enabled: true });
     expect(mine.response.headers.get('Cache-Control')).toBe('no-store');
     expect((await status(users.other)).body).toEqual({ enabled: false });
+  });
+});
+
+describe('GET /api/telephony/calls/pending-outcome', () => {
+  const pending = async (user: SessionUser | null, query = '') => {
+    authUser.current = user;
+    const response = await GET_PENDING(new NextRequest(`https://crm.telestar.cloud/api/telephony/calls/pending-outcome${query}`));
+    return { response, body: await response.json() };
+  };
+
+  it('requires a session and refuses an API key', async () => {
+    expect((await pending(null)).response.status).toBe(401);
+    const keyed = { ...users.rep, apiKey: { id: 'k1', name: 'any', scopes: ['*'] } } as SessionUser;
+    expect((await pending(keyed)).response.status).toBe(403);
+  });
+
+  it('lists only the rep own finished outbound calls with no outcome, under 24 hours old', async () => {
+    const mine = await makeCall(tenantId, users.rep.id, ids.lead);
+    await makeCall(tenantId, users.rep.id, ids.lead, { outcome: 'no_answer' });
+    await makeCall(tenantId, users.rep.id, ids.lead, { status: 'ringing' });
+    await makeCall(tenantId, users.rep.id, ids.lead, { status: 'blocked' });
+    await makeCall(tenantId, users.rep.id, ids.lead, { createdAt: new Date(Date.now() - OUTCOME_WINDOW_MS - 60_000) });
+    await makeCall(tenantId, users.peer.id, ids.lead);
+
+    const { response, body } = await pending(users.rep);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(body.calls).toHaveLength(1);
+    expect(body.calls[0]).toMatchObject({ id: mine, leadId: ids.lead, leadName: 'Ann L', toE164: TO });
+    expect((await pending(users.other)).body.calls).toEqual([]);
+  });
+
+  it('narrows to one lead, and drops a call once its outcome is saved', async () => {
+    const callId = await makeCall(tenantId, users.rep.id, ids.lead);
+    expect((await pending(users.rep, '?leadId=another-lead')).body.calls).toEqual([]);
+    expect((await pending(users.rep, `?leadId=${ids.lead}`)).body.calls).toHaveLength(1);
+    await patch(users.rep, callId, { outcome: 'no_answer' });
+    expect((await pending(users.rep)).body.calls).toEqual([]);
   });
 });

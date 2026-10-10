@@ -68,6 +68,7 @@ export type SoftphoneEvent =
   | { type: 'SAVE_STARTED' }
   | { type: 'SAVE_SUCCEEDED'; outcome: PhoneOutcomeId }
   | { type: 'SAVE_FAILED'; message: string }
+  | { type: 'RESUME_WRAP_UP'; callId: string }
   | { type: 'RESET' };
 
 export const INITIAL_SOFTPHONE_STATE: SoftphoneState = { phase: 'idle' };
@@ -137,6 +138,12 @@ export function softphoneReducer(state: SoftphoneState, event: SoftphoneEvent): 
 
     case 'SAVE_FAILED':
       return state.phase === 'wrap_up' ? { ...state, saving: false, saveError: event.message } : state;
+
+    case 'RESUME_WRAP_UP':
+      // A call that ended without an outcome (tab closed, drawer left): reopen its wrap-up.
+      return state.phase === 'idle'
+        ? { phase: 'wrap_up', callId: event.callId, answered: true, endedBy: 'remote_hangup', saving: false, saveError: null }
+        : state;
 
     case 'RESET':
       return state.phase === 'blocked' || state.phase === 'error' || state.phase === 'saved' ? INITIAL_SOFTPHONE_STATE : state;

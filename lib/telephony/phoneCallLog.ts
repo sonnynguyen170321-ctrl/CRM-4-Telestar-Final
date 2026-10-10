@@ -117,7 +117,15 @@ export async function recordPhoneCall(params: LogPhoneCallParams & { canAccess: 
     return { activity: created, suppressed: effects.suppressed };
   });
 
-  await appendOutcomeTag(tenantId, lead.id, outcome);
+  // The activity and the do-not-call flags are committed. A failed tag must not turn this into a 500:
+  // the rep would retry and log the call twice. Report it instead.
+  let tagFailed = false;
+  try {
+    await appendOutcomeTag(tenantId, lead.id, outcome);
+  } catch (error) {
+    tagFailed = true;
+    console.error('[telephony] call logged but the queue tag could not be written', { tenantId, leadId: lead.id, outcome, error });
+  }
 
   await onActivityLogged({
     activityId: activity.id,
@@ -129,5 +137,5 @@ export async function recordPhoneCall(params: LogPhoneCallParams & { canAccess: 
     tenantId,
   });
 
-  return { activity, suppressed };
+  return { activity, suppressed, tagFailed };
 }

@@ -165,6 +165,17 @@ describe('softphone state machine: the outcome is required', () => {
   });
 });
 
+describe('softphone state machine: reopening a lost wrap-up', () => {
+  it('goes straight to wrap-up for an earlier call, only from idle', () => {
+    const resumed = run([{ type: 'RESUME_WRAP_UP', callId: 'old' }]);
+    expect(resumed).toMatchObject({ phase: 'wrap_up', callId: 'old', saving: false });
+    expect(canClose(resumed)).toBe(false);
+    expect(run([{ type: 'SAVE_STARTED' }, { type: 'SAVE_SUCCEEDED', outcome: 'no_answer' }], resumed)).toMatchObject({ phase: 'saved', callId: 'old' });
+    const live = run(IN_CALL);
+    expect(run([{ type: 'RESUME_WRAP_UP', callId: 'old' }], live)).toBe(live);
+  });
+});
+
 describe('the gate\'s words', () => {
   it('has a label for every block reason, and for the dry-run marker', () => {
     for (const reason of [...BLOCK_REASONS, 'dry_run']) {

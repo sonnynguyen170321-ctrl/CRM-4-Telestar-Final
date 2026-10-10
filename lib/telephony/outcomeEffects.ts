@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client';
 
 import { nextBusinessDay } from '@/lib/dates/businessDays';
 import { businessTimezoneFor } from '@/lib/dates/businessTimezone';
-import { withTenantRaw } from '@/lib/prisma';
+import { prisma, withTenantRaw } from '@/lib/prisma';
 
 import { getPhoneOutcome, outcomeLeadTag, type PhoneOutcomeId } from './outcomes';
 
@@ -32,6 +32,18 @@ export async function callbackDueDate(outcome: PhoneOutcomeId, lead: OutcomeLead
   return nextBusinessDay(now, await businessTimezoneFor({ leadTimezone: lead.timezone, assigneeId: lead.assignedToId ?? fallbackUserId }));
 }
 
+/** The callback task's description carries the call id: that is how a re-label finds the task it made. */
+export const callbackDescription = (callId: string) => `Callback requested on previous call (call ${callId})`;
+
+/** Whether this call already produced a callback task for the lead, open or done. */
+export async function callbackTaskExists(tenantId: string, leadId: string, callId: string): Promise<boolean> {
+  const found = await prisma.task.findFirst({
+    where: { tenantId, leadId, type: 'phone', description: callbackDescription(callId) },
+    select: { id: true },
+  });
+  return found !== null;
+}
+
 export type ApplyOutcomeEffectsInput = {
   tenantId: string;
   userId: string;
@@ -44,6 +56,10 @@ export type ApplyOutcomeEffectsInput = {
   dueDate: Date | null;
   /** Where the suppression came from, for the audit trail ("logged call", "softphone call <id>"). */
   suppressionNote: string;
+  /** False on a re-label of a call that already has an outcome: the last-contacted date moves once. */
+  firstWrite?: boolean;
+  /** Marks the callback task with the call it came from, so it can be found again (see `callbackTaskExists`). */
+  callId?: string;
   now: Date;
 };
 
@@ -53,7 +69,9 @@ export async function applyOutcomeEffects(tx: Prisma.TransactionClient, input: A
   const definition = getPhoneOutcome(outcome);
   if (!definition) throw new Error(`Unknown phone outcome: ${outcome}`);
 
-  await tx.lead.updateMany({ where: { id: lead.id, tenantId }, data: { lastContactedAt: now } });
+  if (input.firstWrite !== false) {
+    await tx.lead.updateMany({ where: { id: lead.id, tenantId }, data: { lastContactedAt: now } });
+  }
 
   let suppressed = false;
   if (definition.leadEffect === 'do_not_call') {
@@ -87,7 +105,7 @@ export async function applyOutcomeEffects(tx: Prisma.TransactionClient, input: A
         userId: lead.assignedToId ?? userId,
         type: 'phone',
         title: `Callback: ${lead.firstName} ${lead.lastName}`,
-        description: 'Callback requested on previous call',
+        description: input.callId ? `${callbackDescription(input.callId)}` : 'Callback requested on previous call',
         dueDate: input.dueDate,
         priority: 'high',
       },

@@ -100,5 +100,8 @@ export async function logPhoneCall(input: LogPhoneCallInput): Promise<LogPhoneCa
   if (input.outcome === 'do_not_call' && body && body.suppressed === false) {
     warnings.push('Call logged and the lead is flagged do-not-call, but its number could not be read, so the number was not added to the do-not-call list');
   }
+  if (body && body.tagFailed === true) {
+    warnings.push('Call logged, but the lead could not be tagged out of the calling queue. Tell a manager if this lead keeps coming up');
+  }
   return { ok: true, warnings, activity };
 }

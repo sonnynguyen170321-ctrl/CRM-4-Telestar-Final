@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { requireInteractiveUser, requireAuth } from '@/lib/auth';
+import { canAccessLead, requireInteractiveUser, requireAuth } from '@/lib/auth';
 import { handleApiError } from '@/lib/api/errors';
 import { recordCallOutcome } from '@/lib/telephony/callOutcome';
 import { NOTES_MAX, PHONE_OUTCOME_IDS } from '@/lib/telephony/outcomes';
@@ -48,6 +48,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       callId: callId.data,
       outcome: parsed.data.outcome,
       notes: parsed.data.notes,
+      canAccess: (lead) => canAccessLead(user, lead),
     });
     if (result.ok) {
       return NextResponse.json({ callId: result.callId, outcome: result.outcome, suppressed: result.suppressed }, { headers: NO_STORE });
