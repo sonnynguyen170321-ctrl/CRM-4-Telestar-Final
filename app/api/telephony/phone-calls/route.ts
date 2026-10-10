@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { canAccessLead, rejectApiKeyCaller, requireAuth } from '@/lib/auth';
+import { canAccessLead, requireInteractiveUser, requireAuth } from '@/lib/auth';
 import { handleApiError } from '@/lib/api/errors';
 import { NOTES_MAX, PHONE_OUTCOME_IDS } from '@/lib/telephony/outcomes';
 import { PhoneCallForbiddenError, PhoneCallLeadNotFoundError, recordPhoneCall } from '@/lib/telephony/phoneCallLog';
@@ -28,7 +28,7 @@ const phoneCallSchema = z.object({
 export async function POST(req: NextRequest) {
   const user = await requireAuth();
   if (user instanceof NextResponse) return user;
-  const keyRefusal = rejectApiKeyCaller(user);
+  const keyRefusal = requireInteractiveUser(user);
   if (keyRefusal) return keyRefusal;
   if (!user.tenantId) return NextResponse.json({ error: 'No tenant context' }, { status: 403 });
 
