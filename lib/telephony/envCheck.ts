@@ -45,6 +45,9 @@ export function checkTelephonyEnv(env: Record<string, string | undefined>): EnvC
   if (env.TELNYX_BALANCE_ALERT_USD !== undefined && !(Number(env.TELNYX_BALANCE_ALERT_USD) > 0)) {
     checks.push({ level: 'FAIL', message: 'TELNYX_BALANCE_ALERT_USD must be a positive number' });
   }
+  if (env.TELNYX_CONCURRENCY_LIMIT !== undefined && !/^[1-9][0-9]*$/.test(env.TELNYX_CONCURRENCY_LIMIT)) {
+    checks.push({ level: 'FAIL', message: 'TELNYX_CONCURRENCY_LIMIT must be a positive whole number (the limit Telnyx confirmed)' });
+  }
 
   if (!checks.some((check) => check.level === 'FAIL')) {
     checks.push({

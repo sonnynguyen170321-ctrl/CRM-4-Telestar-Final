@@ -1,12 +1,15 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
 import {
   Key,
   Globe,
   Loader2,
   Users,
   Bell,
+  Phone,
+  ChevronRight,
 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
@@ -352,6 +355,25 @@ function SettingsPageInner() {
 
           {/* Developer API Keys & External Integrations (Director / Floor Manager — the API refuses anyone else) */}
           {(currentRole === 'director' || currentRole === 'floor_manager') && <DeveloperApiKeysPanel />}
+
+          {/* Phone & dialer (managers; the API enforces MANAGER_ROLES) */}
+          {(currentRole === 'director' || currentRole === 'floor_manager' || currentRole === 'team_lead') && (
+            <Link
+              href="/settings/telephony"
+              className="flex items-center justify-between gap-3 bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm hover:border-brand-red transition-colors"
+            >
+              <span>
+                <span className="type-section text-text-primary flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-brand-orange-text" aria-hidden="true" />
+                  Phone &amp; dialer
+                </span>
+                <span className="block text-xs text-text-secondary mt-1">
+                  Calling rules, caller ID numbers, recording, softphone logins and the emergency stop.
+                </span>
+              </span>
+              <ChevronRight className="w-4 h-4 text-text-muted shrink-0" aria-hidden="true" />
+            </Link>
+          )}
 
           {/* Booking Links (Director / Floor Manager / Team Lead) */}
           {(currentRole === 'director' || currentRole === 'floor_manager' || currentRole === 'team_lead') && (

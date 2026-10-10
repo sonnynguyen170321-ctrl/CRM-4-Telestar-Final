@@ -4428,6 +4428,10 @@ model TelephonyNumber {
   country          String
   label            String?
   isActive         Boolean  @default(true)
+  /// Caller ID for calls to this number's country (at most one per country per tenant; kept by the settings route).
+  isDefault        Boolean  @default(false)
+  /// Caller ID for countries with no number of their own (at most one per tenant).
+  isOverallDefault Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   tenantId         String

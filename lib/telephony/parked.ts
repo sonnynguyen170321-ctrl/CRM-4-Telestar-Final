@@ -8,6 +8,7 @@ import { prisma, tenantStorage } from '@/lib/prisma';
 import { fromClientState, verifyCallToken } from './authToken';
 import { loadCallGate } from './gate';
 import { getTelephonyProvider } from './index';
+import { pickCallerId } from './callerId';
 import { legClientState } from './legMarker';
 import { safeError } from './safeError';
 import type { TelnyxEvent } from './telnyx/events';
@@ -84,18 +85,6 @@ async function block(call: Call, reasons: string[]): Promise<void> {
     where: { id: call.id, tenantId: call.tenantId, status: 'authorized' },
     data: { status: 'blocked', blockedReasons: reasons },
   });
-}
-
-/** A caller ID from the tenant's own numbers: one in the dialled number's country first, then any outbound-capable one. */
-async function pickCallerId(tenantId: string, numberCountry: string | null): Promise<string | null> {
-  const numbers = await prisma.telephonyNumber.findMany({
-    where: { tenantId, isActive: true, purpose: { in: ['outbound', 'both'] } },
-    orderBy: { createdAt: 'asc' },
-    take: 20,
-    select: { e164: true, country: true },
-  });
-  const wanted = numberCountry?.toUpperCase();
-  return (numbers.find((n) => wanted && n.country.toUpperCase() === wanted) ?? numbers[0])?.e164 ?? null;
 }
 
 export async function handleParkedCall(event: TelnyxEvent, now: Date = new Date()): Promise<ParkedOutcome> {

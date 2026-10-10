@@ -273,6 +273,11 @@ export const ADMIN_AUDIT_ACTIONS = [
   'admin.seed.reset',
   // A recorded phone call was played back (docs/dialer/TASKS.md D7.2).
   'admin.call.recording_play',
+  // The dialer's manager settings (docs/dialer/TASKS.md D9.2). The kill switch has its own action so it shows by itself.
+  'admin.telephony.settings',
+  'admin.telephony.kill',
+  'admin.telephony.number',
+  'admin.telephony.credential_revoke',
 ] as const;
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number];

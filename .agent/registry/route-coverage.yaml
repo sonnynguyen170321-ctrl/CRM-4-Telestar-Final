@@ -8,6 +8,7 @@
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
 # routes: 206   mutating: 127   mutating without a test: 19
+# routes: 208   mutating: 130   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -384,6 +385,10 @@ routes:
     tests:
       - e2e/deep-smoke.spec.ts
       - tests/cron-routes-tenant-scope.test.ts
+  - path: app/api/cron/telephony-health/route.ts
+    methods: [GET]
+    tests:
+      - tests/telephony-health.test.ts
   - path: app/api/cron/telephony-reconcile/route.ts
     methods: [GET]
     tests:
@@ -1265,6 +1270,22 @@ routes:
     methods: [GET]
     tests:
       - tests/telephony-call-outcome-route.test.ts
+  - path: app/api/telephony/settings/credentials/[id]/route.ts
+    methods: [DELETE]
+    tests:
+      - tests/telephony-settings-route.test.ts
+  - path: app/api/telephony/settings/numbers/[id]/route.ts
+    methods: [DELETE, PATCH]
+    tests:
+      - tests/telephony-settings-route.test.ts
+  - path: app/api/telephony/settings/numbers/route.ts
+    methods: [POST]
+    tests:
+      - tests/telephony-settings-route.test.ts
+  - path: app/api/telephony/settings/route.ts
+    methods: [GET, PATCH]
+    tests:
+      - tests/telephony-settings-route.test.ts
   - path: app/api/telephony/telnyx/webhook/route.ts
     methods: [POST]
     tests:
@@ -1274,6 +1295,7 @@ routes:
     methods: [POST]
     tests:
       - tests/telephony-proxy-matcher.test.ts
+      - tests/telephony-settings-route.test.ts
       - tests/telephony-token-route.test.ts
   - path: app/api/templates/[id]/ab-test/route.ts
     methods: [DELETE, GET, POST]

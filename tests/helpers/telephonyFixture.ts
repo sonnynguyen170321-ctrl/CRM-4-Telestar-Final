@@ -127,7 +127,7 @@ export async function buildDialerWorld(tenantId: string, options: { phone?: stri
 export async function makeCall(
   world: DialerWorld,
   data: Partial<{
-    status: 'authorized' | 'initiated' | 'ringing' | 'answered' | 'completed' | 'blocked';
+    status: 'authorized' | 'initiated' | 'ringing' | 'answered' | 'completed' | 'blocked' | 'failed';
     sessionId: string | null;
     controlId: string | null;
     initiatedAt: Date | null;

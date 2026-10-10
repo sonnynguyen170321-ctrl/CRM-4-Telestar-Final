@@ -14,6 +14,7 @@
 # hand-written `reason`. Reasons survive regeneration; they are the only part a human owns.
 #
 # routes: 206   mutating: 127   mutating with neither guard nor reason: 39
+# routes: 208   mutating: 130   mutating with neither guard nor reason: 39
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -224,6 +225,10 @@ routes:
   - path: app/api/cron/sequence-engine/route.ts
     methods: [GET]
     guards: []
+  - path: app/api/cron/telephony-health/route.ts
+    methods: [GET]
+    guards: []
+    reason: Cron route, read-only. authorizeCronRequest admits the scheduler (constant-time CRON_SECRET bearer); a signed-in manager is refused with 403 because the checks look across every team. It writes nothing but a heartbeat and sends ops alerts that name teams and counts, never numbers.
   - path: app/api/cron/telephony-reconcile/route.ts
     methods: [GET]
     guards: []
@@ -718,6 +723,22 @@ routes:
   - path: app/api/telephony/status/route.ts
     methods: [GET]
     guards: []
+  - path: app/api/telephony/settings/credentials/[id]/route.ts
+    methods: [DELETE]
+    guards: []
+    reason: requireTelephonyManager (lib/telephony/settingsAccess.ts): interactive session only (no API key), role in MANAGER_ROLES, tenant from the session. The credential is looked up by id AND the session tenant, so another team's id is a 404 and is left untouched. Audited as admin.telephony.credential_revoke.
+  - path: app/api/telephony/settings/numbers/[id]/route.ts
+    methods: [DELETE, PATCH]
+    guards: []
+    reason: requireTelephonyManager (lib/telephony/settingsAccess.ts): interactive session only (no API key), role in MANAGER_ROLES, tenant from the session. Every read and write of the number is keyed by id AND the session tenant, so another team's id is a 404; default flags only move within the session tenant. Audited as admin.telephony.number.
+  - path: app/api/telephony/settings/numbers/route.ts
+    methods: [POST]
+    guards: []
+    reason: requireTelephonyManager (lib/telephony/settingsAccess.ts): interactive session only (no API key), role in MANAGER_ROLES. The number is created under the session tenant with its country read from the E.164; a number already registered anywhere is a 409 that does not say whose. Audited as admin.telephony.number.
+  - path: app/api/telephony/settings/route.ts
+    methods: [GET, PATCH]
+    guards: []
+    reason: requireTelephonyManager (lib/telephony/settingsAccess.ts): interactive session only (no API key), role in MANAGER_ROLES, tenant from the session; the body is a strict zod schema that cannot name a tenant, and Vietnam is refused as a dialable country. Responses show environment switches by state only, never a value. Audited as admin.telephony.settings / admin.telephony.kill with before and after.
   - path: app/api/telephony/telnyx/webhook/route.ts
     methods: [POST]
     guards: []

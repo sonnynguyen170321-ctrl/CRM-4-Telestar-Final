@@ -51,6 +51,14 @@ describe('checkTelephonyEnv', () => {
     expect(failures(enabledEnv({ TELNYX_BALANCE_ALERT_USD: '50' }))).toEqual([]);
   });
 
+  it('checks the optional concurrency limit is a positive whole number', () => {
+    for (const bad of ['0', '-4', 'forty', '12.5', '']) {
+      expect(failures(enabledEnv({ TELNYX_CONCURRENCY_LIMIT: bad }))).toEqual([expect.stringMatching(/TELNYX_CONCURRENCY_LIMIT/)]);
+    }
+    expect(failures(enabledEnv({ TELNYX_CONCURRENCY_LIMIT: '40' }))).toEqual([]);
+    expect(failures(enabledEnv())).toEqual([]);
+  });
+
   it('rejects flag values other than exactly "true" or "false"', () => {
     expect(failures({ TELEPHONY_ENABLED: 'TRUE' })).toEqual(['TELEPHONY_ENABLED must be "true" or "false"']);
     expect(failures(enabledEnv({ TELEPHONY_DRY_RUN: 'no' }))).toEqual(['TELEPHONY_DRY_RUN must be "true" or "false"']);
