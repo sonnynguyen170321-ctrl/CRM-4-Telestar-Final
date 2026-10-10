@@ -20,6 +20,7 @@ export const syncQueue = () => getQueue(QUEUES.SYNC);
 export const maintenanceQueue = () => getQueue(QUEUES.MAINTENANCE);
 export const agentQueue = () => getQueue(QUEUES.AGENT);
 export const researchQueue = () => getQueue(QUEUES.RESEARCH);
+export const telephonyQueue = () => getQueue(QUEUES.TELEPHONY);
 
 export async function closeAllQueues(): Promise<void> {
   const results = await Promise.allSettled(

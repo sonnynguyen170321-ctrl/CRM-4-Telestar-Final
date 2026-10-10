@@ -63,10 +63,15 @@ export const proxy = auth(function handler(req: NextRequest & { auth: { user?: u
 // unsubscribe headers do not have a staff session — the route authenticates via
 // cryptographic HMAC token in the query params.
 //
+// api/telephony/telnyx/webhook is excluded because Telnyx posts call events with no cookies. The handler
+// accepts nothing without a valid Ed25519 signature over the raw body (lib/telephony/telnyx/verify.ts)
+// and a timestamp within five minutes, and acts on a call only through its stored Call row and HMAC call
+// token — never on the payload alone. Only this one path is open, not api/telephony.
+//
 // api/email/oauth is excluded because external OAuth providers redirect back with
 // authorization codes without an active session cookie.
 export const config = {
   matcher: [
-    '/((?!api/auth|api/cron|api/health|api/csp-report|api/unsubscribe|api/t/|api/email/oauth|api/client-reports/public|client-reports/public|login|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)',
+    '/((?!api/auth|api/cron|api/health|api/csp-report|api/unsubscribe|api/t/|api/email/oauth|api/telephony/telnyx/webhook|api/client-reports/public|client-reports/public|login|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)',
   ],
 };

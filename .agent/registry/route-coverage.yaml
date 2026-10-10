@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 201   mutating: 125   mutating without a test: 19
+# routes: 203   mutating: 126   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -384,6 +384,10 @@ routes:
     tests:
       - e2e/deep-smoke.spec.ts
       - tests/cron-routes-tenant-scope.test.ts
+  - path: app/api/cron/telephony-reconcile/route.ts
+    methods: [GET]
+    tests:
+      - tests/telephony-reconcile.test.ts
   - path: app/api/csp-report/route.ts
     methods: [POST]
     tests: []
@@ -1238,6 +1242,10 @@ routes:
     tests:
       - tests/dialer-phone-call-panel.test.ts
       - tests/telephony-phone-calls-route.test.ts
+  - path: app/api/telephony/telnyx/webhook/route.ts
+    methods: [POST]
+    tests:
+      - tests/telephony-webhook.test.ts
   - path: app/api/telephony/token/route.ts
     methods: [POST]
     tests:

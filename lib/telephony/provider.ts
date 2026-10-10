@@ -52,7 +52,14 @@ export interface TelephonyProvider {
   /** Delete a recording; succeeding when it is already gone. */
   deleteRecording(recordingId: string): Promise<void>;
   getBalance(): Promise<ProviderBalance>;
+  /**
+   * Whether the provider still has this call leg up. What the reconcile cron asks about a call that
+   * no webhook has finished: "not alive" means it is over (the cause and duration are not known).
+   */
+  getCallStatus(callControlId: string): Promise<ProviderCallStatus>;
 }
+
+export type ProviderCallStatus = { alive: boolean };
 
 /** A provider call that failed, with the provider's status so callers can tell "gone" from "broken". */
 export class TelephonyProviderError extends Error {

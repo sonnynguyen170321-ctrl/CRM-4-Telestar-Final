@@ -8,6 +8,8 @@ export const QUEUES = {
   AGENT: 'agent',
   /** Research discovery runs. Own queue so a 1,000-query run never sits in front of a send. */
   RESEARCH: 'research',
+  /** Provider call events (Telnyx webhooks). Own queue so a burst of call events never waits behind a send. */
+  TELEPHONY: 'telephony',
 } as const;
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
@@ -33,6 +35,7 @@ export enum JobType {
   AGENT_EXECUTE_WORK_ORDER = 'agent.execute-work-order',
   RESEARCH_DISCOVER = 'research.discover',
   RESEARCH_VERIFY = 'research.verify',
+  TELEPHONY_EVENT = 'telephony.event',
 }
 
 /**
@@ -50,6 +53,14 @@ export interface ResearchVerifyPayload {
   runId: string;
   /** Random per enqueue; only for job-id uniqueness. Claims on candidate rows are what keep slices apart. */
   sliceToken: string;
+}
+
+/**
+ * One stored provider event to apply to its call. The id is `TelephonyEvent.providerEventId`; the worker
+ * reads the event row and resolves the tenant from the `Call` it belongs to, never from this payload.
+ */
+export interface TelephonyEventPayload {
+  providerEventId: string;
 }
 
 export interface SequenceEnrollPayload {
@@ -270,11 +281,13 @@ export type JobPayload = {
   [JobType.AGENT_EXECUTE_WORK_ORDER]: AgentExecuteWorkOrderPayload;
   [JobType.RESEARCH_DISCOVER]: ResearchDiscoverPayload;
   [JobType.RESEARCH_VERIFY]: ResearchVerifyPayload;
+  [JobType.TELEPHONY_EVENT]: TelephonyEventPayload;
 };
 
 export function jobQueue(jobType: JobType): QueueName {
   if (jobType.startsWith('agent.')) return QUEUES.AGENT;
   if (jobType.startsWith('research.')) return QUEUES.RESEARCH;
+  if (jobType.startsWith('telephony.')) return QUEUES.TELEPHONY;
   if (jobType.startsWith('sequence.')) return QUEUES.SEQUENCE;
   if (jobType === JobType.EMAIL_SEND) return QUEUES.EMAIL;
   if (jobType.startsWith('email.')) return QUEUES.SYNC;

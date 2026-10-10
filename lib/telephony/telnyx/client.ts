@@ -4,6 +4,7 @@ import {
   TelephonyProviderError,
   type CallCommand,
   type ProviderBalance,
+  type ProviderCallStatus,
   type ProviderCredential,
   type ProviderToken,
   type TelephonyProvider,
@@ -194,6 +195,19 @@ export class TelnyxProvider implements TelephonyProvider {
 
   async deleteRecording(recordingId: string): Promise<void> {
     await this.request('DELETE', `/recordings/${encodeURIComponent(recordingId)}`, undefined, { allowNotFound: true });
+  }
+
+  async getCallStatus(callControlId: string): Promise<ProviderCallStatus> {
+    try {
+      const reply = await this.request('GET', `/calls/${encodeURIComponent(callControlId)}`, undefined, { allowNotFound: true });
+      if (reply.status === 404) return { alive: false };
+      const json = parseJson<{ data?: { is_alive?: boolean } }>(reply);
+      return { alive: json.data?.is_alive === true };
+    } catch (error) {
+      // Telnyx answers 422 (90018) for a leg that has already ended.
+      if (error instanceof TelephonyProviderError && error.status === 422) return { alive: false };
+      throw error;
+    }
   }
 
   async getBalance(): Promise<ProviderBalance> {

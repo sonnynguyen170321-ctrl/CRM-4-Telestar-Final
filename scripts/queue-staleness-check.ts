@@ -26,6 +26,7 @@ import {
   maintenanceQueue,
   sequenceQueue,
   syncQueue,
+  telephonyQueue,
 } from '@/lib/bullmq/queues';
 import { QUEUES, jobQueue, type JobType } from '@/lib/bullmq/types';
 import { notifyOps } from '@/lib/ops/notifyOps';
@@ -69,6 +70,7 @@ function queueForJobName(jobName: string) {
     case QUEUES.SYNC: return syncQueue();
     case QUEUES.AGENT: return agentQueue();
     case QUEUES.RESEARCH: return researchQueue();
+    case QUEUES.TELEPHONY: return telephonyQueue();
     default: return maintenanceQueue();
   }
 }

@@ -2,6 +2,7 @@ import {
   TelephonyProviderError,
   type CallCommand,
   type ProviderBalance,
+  type ProviderCallStatus,
   type ProviderCredential,
   type ProviderToken,
   type TelephonyProvider,
@@ -17,9 +18,12 @@ export class FakeTelephonyProvider implements TelephonyProvider {
   tokensMinted: string[] = [];
   commands: Array<{ callControlId: string; command: CallCommand; commandId: string }> = [];
   deletedRecordings: string[] = [];
+  /** Control ids the provider still reports as up; anything else is over. */
+  liveCalls = new Set<string>();
+  callStatusChecks: string[] = [];
   balance: ProviderBalance = { availableCredit: 100, currency: 'USD' };
   /** Set to make the next matching operation throw. */
-  failNext: Partial<Record<'createCredential' | 'mintToken' | 'command' | 'getBalance', TelephonyProviderError>> = {};
+  failNext: Partial<Record<'createCredential' | 'mintToken' | 'command' | 'getBalance' | 'getCallStatus', TelephonyProviderError>> = {};
   private sequence = 0;
 
   private maybeFail(operation: keyof FakeTelephonyProvider['failNext']) {
@@ -69,6 +73,12 @@ export class FakeTelephonyProvider implements TelephonyProvider {
 
   async deleteRecording(recordingId: string): Promise<void> {
     this.deletedRecordings.push(recordingId);
+  }
+
+  async getCallStatus(callControlId: string): Promise<ProviderCallStatus> {
+    this.maybeFail('getCallStatus');
+    this.callStatusChecks.push(callControlId);
+    return { alive: this.liveCalls.has(callControlId) };
   }
 
   async getBalance(): Promise<ProviderBalance> {

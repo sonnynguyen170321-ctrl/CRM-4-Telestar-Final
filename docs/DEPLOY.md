@@ -140,6 +140,8 @@ Point the host scheduler (PM2 cron module or OS `crontab`) at the cron routes wi
 0 * * * *    curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://crm.yourdomain.com/api/cron/email-health
 # maintenance — repairs drift and prunes the audit log (daily, off-peak)
 30 3 * * *   curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://crm.yourdomain.com/api/cron/maintenance
+# telephony reconcile — replays unprocessed dialer events, cancels never-connected calls, finishes stuck ones (every 5 min; install with the dialer, docs/dialer/TASKS.md D4.5)
+*/5 * * * *  curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://crm.yourdomain.com/api/cron/telephony-reconcile
 ```
 
 The email-health pass reads only data the inbox sync has already stored, so it is safe to run
@@ -539,6 +541,7 @@ cat <<'EOF' | crontab -
 */10 * * * * /opt/crm-4-u/bin/cron-call.sh inbox-sync
 0 * * * *    /opt/crm-4-u/bin/cron-call.sh email-health
 30 3 * * *   /opt/crm-4-u/bin/cron-call.sh maintenance
+*/5 * * * *  /opt/crm-4-u/bin/cron-call.sh telephony-reconcile
 EOF
 ```
 
