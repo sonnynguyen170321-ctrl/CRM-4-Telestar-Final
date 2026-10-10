@@ -5,6 +5,7 @@ import { JobType } from '@/lib/bullmq/types';
 import { prisma, tenantStorage } from '@/lib/prisma';
 import { findCallForEvent } from '@/lib/telephony/applyEvent';
 import { legCallId } from '@/lib/telephony/legMarker';
+import { safeError } from '@/lib/telephony/safeError';
 import { handleParkedCall } from '@/lib/telephony/parked';
 import { parseTelnyxEvent, type TelnyxEvent } from '@/lib/telephony/telnyx/events';
 import { verifyTelnyxWebhook } from '@/lib/telephony/telnyx/verify';
@@ -39,10 +40,15 @@ export async function POST(req: NextRequest) {
   const publicKey = process.env.TELNYX_PUBLIC_KEY?.trim();
   if (!publicKey) return reply(503, { error: 'Webhook verification is not configured' });
 
-  const contentLength = Number(req.headers.get('content-length'));
-  if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) return reply(413, { error: 'Body too large' });
-  const rawBody = await req.text();
-  if (rawBody.length > MAX_BODY_BYTES) return reply(413, { error: 'Body too large' });
+  const raw = await readCapped(req, MAX_BODY_BYTES);
+  if (raw === 'too_large') return reply(413, { error: 'Body too large' });
+  // Decoded once, strictly, keeping a leading BOM: the signature covers these exact bytes.
+  let rawBody: string;
+  try {
+    rawBody = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(raw);
+  } catch {
+    return reply(400, { error: 'Body is not UTF-8' });
+  }
 
   const check = verifyTelnyxWebhook({
     rawBody,
@@ -74,7 +80,7 @@ export async function POST(req: NextRequest) {
     );
     if (stored.count === 0) return reply(200, { received: true, duplicate: true });
   } catch (error) {
-    console.error('[telephony] webhook event could not be stored', { eventId: event.providerEventId, error: error instanceof Error ? error.message : String(error) });
+    console.error('[telephony] webhook event could not be stored', { eventId: event.providerEventId, error: safeError(error) });
     return reply(500, { error: 'Event not stored' });
   }
 
@@ -87,23 +93,58 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     // The event is stored; the reconcile cron replays it. Telnyx must not be told to resend.
-    console.error('[telephony] webhook event not handled inline', { eventId: event.providerEventId, error: error instanceof Error ? error.message : String(error) });
+    console.error('[telephony] webhook event not handled inline', { eventId: event.providerEventId, error: safeError(error) });
   }
   return reply(200, { received: true });
 }
 
 /**
+ * The body's bytes, stopping at `limit`: a declared Content-Length is not trusted, and a chunked body
+ * has none. Past the limit the stream is cancelled and nothing more is read.
+ */
+async function readCapped(req: NextRequest, limit: number): Promise<Uint8Array | 'too_large'> {
+  if (!req.body) return new Uint8Array();
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel().catch(() => undefined);
+      return 'too_large';
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+/**
  * A `call.initiated` for a call waiting to be authorized — as against the leg we created ourselves
  * when connecting one. Our leg carries `leg:<callId>` in its client state, and is only believed when
- * that call exists and already holds this provider session. Anything uncertain is parked: it is
+ * that call is connected (initiated or ringing), holds this provider session, and the event is an
+ * outgoing leg other than the parked leg we stored. Anything uncertain is parked: it is
  * checked, and hung up on if it fails.
  */
 async function isParkedCall(event: TelnyxEvent): Promise<boolean> {
   if (event.type !== 'call.initiated') return false;
   const ownCallId = legCallId(event.clientState);
   if (!ownCallId || !event.sessionId) return true;
-  const call = await asSystem(() => prisma.call.findFirst({ where: { id: ownCallId, providerSessionId: event.sessionId }, select: { id: true } }));
-  return call === null;
+  if (event.direction !== 'outgoing') return true;
+  const call = await asSystem(() =>
+    prisma.call.findFirst({
+      where: { id: ownCallId, providerSessionId: event.sessionId, status: { in: ['initiated', 'ringing'] } },
+      select: { providerControlId: true },
+    })
+  );
+  return call === null || call.providerControlId === event.controlId;
 }
 
 async function markProcessed(providerEventId: string, note: string | null): Promise<void> {

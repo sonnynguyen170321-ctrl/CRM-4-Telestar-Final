@@ -9,7 +9,9 @@ import { fromClientState, verifyCallToken } from './authToken';
 import { loadCallGate } from './gate';
 import { getTelephonyProvider } from './index';
 import { legClientState } from './legMarker';
+import { safeError } from './safeError';
 import type { TelnyxEvent } from './telnyx/events';
+import { TelephonyProviderError } from './provider';
 
 /**
  * The inline half of the webhook: a rep's browser placed a call, the provider parked it, and
@@ -29,7 +31,34 @@ import type { TelnyxEvent } from './telnyx/events';
 
 export type ParkedOutcome =
   | { action: 'connected'; callId: string }
+  /** The connect command's result is unknown (timeout, 5xx). Left `initiated` for the reconcile cron; not hung up, as the transfer may have gone through. */
+  | { action: 'unknown'; reason: string; callId: string }
   | { action: 'hung_up'; reason: string; callId: string | null };
+
+
+const MAX_FROM_LENGTH = 256;
+
+/**
+ * The user part of a SIP address (`sip:gencredX@sip.telnyx.com`, `<sip:gencredX@host>;tag=1`, `gencredX@host`),
+ * lower-cased; null when `from` is missing, oversized or has no user part. Compared for equality, never as a substring.
+ */
+export function sipUserOf(from: string | null | undefined): string | null {
+  if (!from || from.length > MAX_FROM_LENGTH) return null;
+  let address = from.trim();
+  const open = address.indexOf('<');
+  if (open >= 0) {
+    const close = address.indexOf('>', open);
+    if (close < 0) return null;
+    address = address.slice(open + 1, close).trim();
+  } else {
+    address = address.split(';')[0];
+  }
+  address = address.replace(/^sips?:/i, '');
+  const at = address.indexOf('@');
+  if (at <= 0) return null;
+  const user = address.slice(0, at);
+  return /^[A-Za-z0-9._~%+-]+$/.test(user) ? user.toLowerCase() : null;
+}
 
 /** Ring the lead this long before giving up. */
 const RING_TIMEOUT_SECONDS = 30;
@@ -44,7 +73,7 @@ async function hangUp(event: TelnyxEvent): Promise<void> {
   } catch (error) {
     console.error('[telephony] could not hang up a parked call; the provider park timeout will drop it', {
       eventId: event.providerEventId,
-      error: error instanceof Error ? error.message : String(error),
+      error: safeError(error),
     });
   }
 }
@@ -78,10 +107,7 @@ export async function handleParkedCall(event: TelnyxEvent, now: Date = new Date(
     if (outcome.action === 'hung_up') await hangUp(event);
     return outcome;
   } catch (error) {
-    console.error('[telephony] parked call failed closed', {
-      eventId: event.providerEventId,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    console.error('[telephony] parked call failed closed', { eventId: event.providerEventId, error: safeError(error) });
     await hangUp(event);
     return { action: 'hung_up', reason: 'error', callId };
   }
@@ -104,23 +130,27 @@ async function connectIfAllowed(event: TelnyxEvent, now: Date, noteCall: (id: st
       return { action: 'hung_up', reason, callId: call.id } as const;
     };
 
-    // What the token says must be what the row says, and what the rep's phone is dialling.
-    if (call.direction !== 'outbound' || call.status !== 'authorized') return { action: 'hung_up', reason: 'not_authorized', callId: call.id } as const;
-    if (call.userId !== claims.userId || call.toE164 !== claims.toE164 || !call.leadId) return refuse('token_mismatch');
-    if (digits(event.to) !== digits(call.toE164)) return refuse('destination_mismatch');
+    // A refusal that is not provably the token holder's own attempt only hangs up the offending leg. The
+    // row belongs to the rep it was authorized for; a copied or mismatched token must not cancel it.
+    const hangUpOnly = (reason: string) => ({ action: 'hung_up', reason, callId: call.id }) as const;
+    if (call.direction !== 'outbound' || call.status !== 'authorized') return hangUpOnly('not_authorized');
+    if (call.userId !== claims.userId || call.toE164 !== claims.toE164 || !call.leadId) return hangUpOnly('token_mismatch');
 
     const user = await prisma.user.findFirst({
       where: { id: claims.userId, tenantId: claims.tenantId, isActive: true },
       select: { id: true, email: true, firstName: true, lastName: true, role: true },
     });
-    if (!user) return refuse('user_inactive');
+    if (!user) return hangUpOnly('user_inactive');
     const credential = await prisma.telephonyCredential.findFirst({
       where: { tenantId: claims.tenantId, userId: user.id, status: 'active', revokedAt: null },
       select: { sipUsername: true },
     });
-    if (!credential) return refuse('no_credential');
+    if (!credential) return hangUpOnly('no_credential');
     // The call must come from this rep's own login, not another rep's browser holding a copied token.
-    if (event.from && !event.from.toLowerCase().includes(credential.sipUsername.toLowerCase())) return refuse('credential_mismatch');
+    // Missing, oversized or different: hang up that leg and leave the rep's row alone.
+    if (sipUserOf(event.from) !== credential.sipUsername.toLowerCase()) return hangUpOnly('credential_mismatch');
+    // From here the token is valid and the call is the token holder's own, so a refusal is its verdict.
+    if (digits(event.to) !== digits(call.toE164)) return refuse('destination_mismatch');
 
     const sessionUser: SessionUser & { tenantId: string } = { ...user, tenantId: claims.tenantId };
     const { decision } = await loadCallGate({ user: sessionUser, leadId: call.leadId, contactId: call.contactId ?? undefined, now });
@@ -145,8 +175,11 @@ async function connectIfAllowed(event: TelnyxEvent, now: Date, noteCall: (id: st
         `transfer:${call.id}`
       );
     } catch (error) {
-      console.error('[telephony] could not connect an authorized call', { callId: call.id, error: error instanceof Error ? error.message : String(error) });
-      // Nothing was dialled: end it here, and leave `initiatedAt` empty so it is not counted as an attempt.
+      console.error('[telephony] could not connect an authorized call', { callId: call.id, error: safeError(error) });
+      // A timeout or a 5xx does not say whether the transfer happened. Leave the row `initiated`: events
+      // finish it if it did, and the reconcile cron asks the provider if they never come.
+      if (error instanceof TelephonyProviderError && error.retryable) return { action: 'unknown', reason: 'connect_unknown', callId: call.id } as const;
+      // The provider refused: nothing was dialled. End it here, and leave `initiatedAt` empty so it is not counted as an attempt.
       await prisma.call.updateMany({
         where: { id: call.id, tenantId: call.tenantId, status: 'initiated' },
         data: { status: 'failed', initiatedAt: null, endedAt: now, hangupCause: 'connect_failed', billedDurationSec: 0 },

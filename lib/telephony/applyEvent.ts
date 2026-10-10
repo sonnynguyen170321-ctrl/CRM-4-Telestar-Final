@@ -1,4 +1,4 @@
-import { Prisma, type Call, type CallStatus } from '@prisma/client';
+import { Prisma, type CallStatus } from '@prisma/client';
 
 import { prisma, tenantStorage } from '@/lib/prisma';
 
@@ -25,14 +25,18 @@ const asTenant = <T>(tenantId: string, fn: () => Promise<T>) => tenantStorage.ru
 
 export type ProcessResult = 'applied' | 'already_processed' | 'unmatched' | 'missing';
 
-export async function findCallForEvent(event: Pick<TelnyxEvent, 'sessionId' | 'controlId'>): Promise<Call | null> {
+/** The columns the event handlers need. Read under the bypass scope, so nothing else is fetched. */
+const CALL_REF_SELECT = { id: true, tenantId: true, answeredAt: true, providerSessionId: true } as const;
+export type CallRef = Prisma.CallGetPayload<{ select: typeof CALL_REF_SELECT }>;
+
+export async function findCallForEvent(event: Pick<TelnyxEvent, 'sessionId' | 'controlId'>): Promise<CallRef | null> {
   return asSystem(async () => {
     if (event.sessionId) {
-      const bySession = await prisma.call.findFirst({ where: { provider: 'telnyx', providerSessionId: event.sessionId } });
+      const bySession = await prisma.call.findFirst({ where: { provider: 'telnyx', providerSessionId: event.sessionId }, select: CALL_REF_SELECT });
       if (bySession) return bySession;
     }
     if (event.controlId) {
-      return prisma.call.findFirst({ where: { provider: 'telnyx', providerControlId: event.controlId }, orderBy: { createdAt: 'desc' } });
+      return prisma.call.findFirst({ where: { provider: 'telnyx', providerControlId: event.controlId }, orderBy: { createdAt: 'desc' }, select: CALL_REF_SELECT });
     }
     return null;
   });
@@ -89,7 +93,7 @@ export async function processTelephonyEvent(providerEventId: string): Promise<Pr
   return 'applied';
 }
 
-async function advance(call: Call, to: CallStatus, extra: Prisma.CallUpdateManyMutationInput = {}): Promise<boolean> {
+async function advance(call: Pick<CallRef, 'id' | 'tenantId'>, to: CallStatus, extra: Prisma.CallUpdateManyMutationInput = {}): Promise<boolean> {
   const moved = await prisma.call.updateMany({
     where: { id: call.id, tenantId: call.tenantId, status: { in: statusesBefore(to) } },
     data: { status: to, ...extra },
@@ -98,18 +102,18 @@ async function advance(call: Call, to: CallStatus, extra: Prisma.CallUpdateManyM
 }
 
 /** Our own transferred leg being created is the closest thing Telnyx gives to "ringing". The parked leg's `call.initiated` is the webhook's inline work, not ours. */
-async function onLegInitiated(call: Call, event: TelnyxEvent): Promise<void> {
+async function onLegInitiated(call: CallRef, event: TelnyxEvent): Promise<void> {
   if (legCallId(event.clientState) !== call.id) return;
   await advance(call, 'ringing');
 }
 
-async function onAnswered(call: Call, event: TelnyxEvent): Promise<void> {
+async function onAnswered(call: CallRef, event: TelnyxEvent): Promise<void> {
   const at = event.occurredAt ?? new Date();
   await advance(call, 'answered');
   await prisma.call.updateMany({ where: { id: call.id, tenantId: call.tenantId, answeredAt: null }, data: { answeredAt: at } });
 }
 
-async function onRecordingSaved(call: Call, event: TelnyxEvent): Promise<void> {
+async function onRecordingSaved(call: CallRef, event: TelnyxEvent): Promise<void> {
   if (!event.recordingId) return;
   await prisma.call.updateMany({ where: { id: call.id, tenantId: call.tenantId, recordingProviderId: null }, data: { recordingProviderId: event.recordingId } });
 }
@@ -119,7 +123,7 @@ async function onRecordingSaved(call: Call, event: TelnyxEvent): Promise<void> {
  * the order they reached us in — a `call.answered` that overtook its own hangup, or lost the race
  * to a job, still counts. The webhook delays the hangup job a few seconds for the same reason.
  */
-async function onHangup(call: Call, event: TelnyxEvent): Promise<void> {
+async function onHangup(call: CallRef, event: TelnyxEvent): Promise<void> {
   const stored = call.providerSessionId
     ? await asSystem(() =>
         prisma.telephonyEvent.findMany({
@@ -157,7 +161,7 @@ export type FinishInput = {
  * Move a call to its end and make sure its Activity exists. Shared by the worker and the reconcile
  * cron. When the call already ended, only the fields still empty are filled — the status never changes.
  */
-export async function finishCall(call: Call, input: FinishInput): Promise<'finished' | 'already_final'> {
+export async function finishCall(call: CallRef, input: FinishInput): Promise<'finished' | 'already_final'> {
   const billedDurationSec = input.answeredAt ? Math.max(0, Math.ceil((input.endedAt.getTime() - input.answeredAt.getTime()) / 1000)) : 0;
   const finished = await advance(call, input.status, {
     endedAt: input.endedAt,

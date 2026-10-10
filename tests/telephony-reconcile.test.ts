@@ -28,6 +28,8 @@ import { TelephonyProviderError } from '@/lib/telephony/provider';
 import {
   ABANDON_UNMATCHED_AFTER_MS,
   abandonUnmatchedEvents,
+  EVENT_RETENTION_MS,
+  purgeOldEvents,
   BATCH,
   REPLAY_AFTER_MS,
   STALE_AUTHORIZED_AFTER_MS,
@@ -177,6 +179,23 @@ describe('replaying unprocessed events', () => {
 
     expect((await reload(world.tenantId, mine.id)).status).toBe('completed');
     expect((await reload(other.tenantId, theirs.id)).status).toBe('answered');
+  });
+});
+
+describe('event retention', () => {
+  it('deletes processed events past 30 days and keeps newer ones and any unprocessed one', async () => {
+    const day = 24 * 60 * MIN;
+    const old = { id: id(), type: 'call.answered', sessionId: 's-ret' };
+    const recent = { id: id(), type: 'call.answered', sessionId: 's-ret' };
+    const oldUnprocessed = { id: id(), type: 'call.answered', sessionId: 's-ret' };
+    await storeEvent(old, { receivedAt: ago(EVENT_RETENTION_MS + day), processedAt: ago(EVENT_RETENTION_MS + day) });
+    await storeEvent(recent, { receivedAt: ago(EVENT_RETENTION_MS - day), processedAt: ago(EVENT_RETENTION_MS - day) });
+    await storeEvent(oldUnprocessed, { receivedAt: ago(EVENT_RETENTION_MS + day) });
+
+    expect(await purgeOldEvents(NOW)).toBeGreaterThanOrEqual(1);
+
+    const left = await asSystem(() => prisma.telephonyEvent.findMany({ where: { providerEventId: { startsWith: prefix } }, select: { providerEventId: true } }));
+    expect(left.map((e) => e.providerEventId).sort()).toEqual([recent.id, oldUnprocessed.id].sort());
   });
 });
 

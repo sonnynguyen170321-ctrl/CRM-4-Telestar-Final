@@ -2,6 +2,7 @@ import { prisma, tenantStorage } from '@/lib/prisma';
 
 import { finishCall, processTelephonyEvent } from './applyEvent';
 import { getTelephonyProvider } from './index';
+import { safeError } from './safeError';
 import { parseTelnyxEvent } from './telnyx/events';
 
 /**
@@ -29,6 +30,9 @@ export const STUCK_RINGING_AFTER_MS = 15 * 60_000;
 /** Longest believable conversation before the provider is asked. */
 export const STUCK_ANSWERED_AFTER_MS = 4 * 60 * 60_000;
 export const BATCH = 100;
+/** Processed provider events are kept this long (payloads hold phone numbers), then deleted. */
+export const EVENT_RETENTION_MS = 30 * 24 * 60 * 60_000;
+export const PURGE_BATCH = 500;
 /** How far back a tenant-scoped replay looks for the tenant's sessions. */
 const TENANT_SESSION_LOOKBACK_MS = 48 * 60 * 60_000;
 
@@ -41,6 +45,7 @@ export type ReconcileSummary = {
   replayed: number;
   replayFailed: number;
   abandoned: number;
+  purgedEvents: number;
   canceledAuthorized: number;
   finalizedStuck: number;
   stillAlive: number;
@@ -74,12 +79,13 @@ async function replayEvents(now: Date, tenantIds: string[] | null, summary: Reco
       if (result === 'applied') summary.replayed += 1;
     } catch (error) {
       summary.replayFailed += 1;
-      const message = error instanceof Error ? error.message : String(error);
-      console.error('[telephony-reconcile] replay failed', { eventId: event.providerEventId, error: message });
+      const failure = safeError(error);
+      const message = failure.code ? `${failure.name}:${failure.code}` : failure.name;
+      console.error('[telephony-reconcile] replay failed', { eventId: event.providerEventId, error: failure });
       await asSystem(() =>
         prisma.telephonyEvent.updateMany({
           where: { providerEventId: event.providerEventId, processedAt: null },
-          data: { attempts: { increment: 1 }, lastError: message.slice(0, 500) },
+          data: { attempts: { increment: 1 }, lastError: message },
         })
       );
     }
@@ -99,6 +105,24 @@ export async function abandonUnmatchedEvents(now: Date): Promise<number> {
     })
   );
   return result.count;
+}
+
+/**
+ * Delete processed events past retention, one bounded batch per run (platform-wide only: events carry no
+ * tenant). Unprocessed events are never deleted. Returns how many went.
+ */
+export async function purgeOldEvents(now: Date): Promise<number> {
+  const old = await asSystem(() =>
+    prisma.telephonyEvent.findMany({
+      where: { processedAt: { not: null, lt: new Date(now.getTime() - EVENT_RETENTION_MS) } },
+      orderBy: { processedAt: 'asc' },
+      take: PURGE_BATCH,
+      select: { id: true },
+    })
+  );
+  if (old.length === 0) return 0;
+  const removed = await asSystem(() => prisma.telephonyEvent.deleteMany({ where: { id: { in: old.map((e) => e.id) }, processedAt: { not: null } } }));
+  return removed.count;
 }
 
 async function cancelStaleAuthorized(now: Date, tenantIds: string[] | null, summary: ReconcileSummary): Promise<void> {
@@ -149,6 +173,7 @@ async function finalizeStuck(now: Date, tenantIds: string[] | null, summary: Rec
       },
       orderBy: { updatedAt: 'asc' },
       take: BATCH,
+      select: { id: true, tenantId: true, providerControlId: true, providerSessionId: true, answeredAt: true },
     })
   );
   if (stuck.length === 0) return;
@@ -175,7 +200,7 @@ async function finalizeStuck(now: Date, tenantIds: string[] | null, summary: Rec
       summary.finalizedStuck += 1;
     } catch (error) {
       summary.providerUnavailable = true;
-      console.error('[telephony-reconcile] could not finalize a stuck call', { callId: call.id, error: error instanceof Error ? error.message : String(error) });
+      console.error('[telephony-reconcile] could not finalize a stuck call', { callId: call.id, error: safeError(error) });
     }
   }
 }
@@ -187,13 +212,17 @@ export async function reconcileTelephony(input: { now?: Date; tenantIds?: string
     replayed: 0,
     replayFailed: 0,
     abandoned: 0,
+    purgedEvents: 0,
     canceledAuthorized: 0,
     finalizedStuck: 0,
     stillAlive: 0,
     providerUnavailable: false,
   };
   await replayEvents(now, tenantIds, summary);
-  if (!tenantIds) summary.abandoned = await abandonUnmatchedEvents(now);
+  if (!tenantIds) {
+    summary.abandoned = await abandonUnmatchedEvents(now);
+    summary.purgedEvents = await purgeOldEvents(now);
+  }
   await cancelStaleAuthorized(now, tenantIds, summary);
   await finalizeStuck(now, tenantIds, summary);
   return summary;

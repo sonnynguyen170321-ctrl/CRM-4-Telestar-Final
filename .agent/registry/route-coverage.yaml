@@ -1237,6 +1237,7 @@ routes:
     methods: [POST]
     tests:
       - tests/telephony-calls-route.test.ts
+      - tests/telephony-proxy-matcher.test.ts
   - path: app/api/telephony/phone-calls/route.ts
     methods: [POST]
     tests:
@@ -1245,10 +1246,12 @@ routes:
   - path: app/api/telephony/telnyx/webhook/route.ts
     methods: [POST]
     tests:
+      - tests/telephony-proxy-matcher.test.ts
       - tests/telephony-webhook.test.ts
   - path: app/api/telephony/token/route.ts
     methods: [POST]
     tests:
+      - tests/telephony-proxy-matcher.test.ts
       - tests/telephony-token-route.test.ts
   - path: app/api/templates/[id]/ab-test/route.ts
     methods: [DELETE, GET, POST]

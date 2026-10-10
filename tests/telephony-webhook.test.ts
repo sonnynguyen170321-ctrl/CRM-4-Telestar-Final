@@ -190,6 +190,49 @@ describe('webhook signature', () => {
   });
 });
 
+describe('webhook body', () => {
+  const url = 'https://crm.telestar.cloud/api/telephony/telnyx/webhook';
+
+  it('refuses a body over 256 KB however it is delivered, without trusting Content-Length', async () => {
+    const chunk = new TextEncoder().encode('x'.repeat(64 * 1024));
+    let sent = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sent >= 6) return controller.close();
+        sent += 1;
+        controller.enqueue(chunk);
+      },
+    });
+    const response = await POST(new NextRequest(url, { method: 'POST', body: stream, duplex: 'half', headers: { 'content-length': '10' } } as RequestInit));
+    expect(response.status).toBe(413);
+    expect(sent).toBeLessThan(6); // stopped reading once past the cap
+    expect(await storedEvents()).toHaveLength(0);
+  });
+
+  it('accepts a body of exactly 256 KB up to the signature check', async () => {
+    const body = 'x'.repeat(256 * 1024);
+    const response = await POST(new NextRequest(url, { method: 'POST', body, headers: signer.headers(body, nowSeconds()) }));
+    expect(response.status).toBe(400); // signed and in bounds, but not a call event
+  });
+
+  it('refuses a body that is not valid UTF-8', async () => {
+    const response = await POST(new NextRequest(url, { method: 'POST', body: new Uint8Array([0x7b, 0xff, 0x7d]), headers: { 'telnyx-signature-ed25519': 'AA==', 'telnyx-timestamp': String(nowSeconds()) } }));
+    expect(response.status).toBe(400);
+  });
+
+  it('logs the kind of failure, never its message', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const spy = vi.spyOn(prisma.telephonyEvent, 'createMany').mockRejectedValueOnce(Object.assign(new Error('Invalid create args {to: +84948200638, token: SECRET-TOKEN}'), { code: 'P2002' }));
+    await post({ id: eventId(), type: 'call.answered', sessionId: 'x', controlId: 'x' });
+    spy.mockRestore();
+    const output = JSON.stringify(logged.mock.calls);
+    logged.mockRestore();
+    expect(output).toContain('P2002');
+    expect(output).not.toContain('SECRET-TOKEN');
+    expect(output).not.toContain('84948200638');
+  });
+});
+
 describe('webhook inbox and queueing', () => {
   it('stores a redelivered event once and queues it once', async () => {
     await makeCall(world, { status: 'initiated', sessionId: 's-dup', controlId: 'c-dup' });
@@ -296,7 +339,7 @@ describe('a parked call from the rep’s browser', () => {
     expect((await reload(world.tenantId, call.id)).status).toBe('authorized');
   });
 
-  it('is hung up and the row blocked when the token was issued to another user', async () => {
+  it('hangs up, but leaves the rep’s row alone, when the token was issued to another user', async () => {
     const call = await makeCall(world);
     const colleague = await inTenant(world.tenantId, () =>
       prisma.user.create({ data: { tenantId: world.tenantId, email: `c.${randomUUID()}@t.test`, firstName: 'C', lastName: 'W', password: 'x', role: 'sdr' } })
@@ -305,7 +348,7 @@ describe('a parked call from the rep’s browser', () => {
     await post(parked(call, { clientState }));
     expect(transfers()).toHaveLength(0);
     expect(hangups()).toHaveLength(1);
-    expect(await reload(world.tenantId, call.id)).toMatchObject({ status: 'blocked', blockedReasons: ['token_mismatch'] });
+    expect((await reload(world.tenantId, call.id)).status).toBe('authorized');
   });
 
   it('is hung up when the browser dials a different number than the token names', async () => {
@@ -316,12 +359,37 @@ describe('a parked call from the rep’s browser', () => {
     expect(await reload(world.tenantId, call.id)).toMatchObject({ status: 'blocked', blockedReasons: ['destination_mismatch'] });
   });
 
-  it('is hung up when it comes from another rep’s login', async () => {
+  it('hangs up, but leaves the row alone, when it comes from another rep’s login (a copied token)', async () => {
     const call = await makeCall(world);
     await post(parked(call, { from: 'sip:gencredSomeoneElse@sip.telnyx.com' }));
     expect(transfers()).toHaveLength(0);
     expect(hangups()).toHaveLength(1);
-    expect(await reload(world.tenantId, call.id)).toMatchObject({ status: 'blocked', blockedReasons: ['credential_mismatch'] });
+    expect((await reload(world.tenantId, call.id)).status).toBe('authorized');
+  });
+
+  it('refuses a call with no caller identity, and one whose login only contains the rep’s as a substring', async () => {
+    const call = await makeCall(world);
+    await post(parked(call, { from: undefined }));
+    await post(parked(call, { from: `sip:x${world.sipUsername}y@sip.telnyx.com` }));
+    await post(parked(call, { from: `sip:${world.sipUsername}@sip.telnyx.com`.padEnd(300, 'a') }));
+    expect(transfers()).toHaveLength(0);
+    expect(hangups()).toHaveLength(3);
+    expect((await reload(world.tenantId, call.id)).status).toBe('authorized');
+  });
+
+  it('accepts the rep’s login in the common SIP address shapes', async () => {
+    for (const shape of [
+      (u: string) => u,
+      (u: string) => `${u}@sip.telnyx.com`,
+      (u: string) => `<sip:${u.toUpperCase()}@sip.telnyx.com>;tag=abc`,
+      (u: string) => `"Rep" <sip:${u}@sip.telnyx.com>`,
+    ]) {
+      const call = await makeCall(world);
+      fake.commands.length = 0;
+      await post(parked(call, { from: shape(world.sipUsername) }));
+      expect(transfers(), shape(world.sipUsername)).toHaveLength(shape(world.sipUsername).includes('@') ? 1 : 0);
+      vi.setSystemTime(new Date(Date.now() + 4000));
+    }
   });
 
   it('never reaches another tenant’s call: a token naming a call outside its tenant finds nothing', async () => {
@@ -392,14 +460,24 @@ describe('a parked call from the rep’s browser', () => {
     expect((await reload(world.tenantId, call.id)).blockedReasons).toContain('dry_run');
   });
 
-  it('fails closed when the provider cannot connect it: hung up, ended as failed, not counted as an attempt', async () => {
+  it('fails closed when the provider refuses to connect it: hung up, ended as failed, not counted as an attempt', async () => {
     const call = await makeCall(world);
-    fake.failNext.command = new TelephonyProviderError('boom', 500, true);
+    fake.failNext.command = new TelephonyProviderError('refused', 400, false);
     const { response } = await post(parked(call));
     expect(response.status).toBe(200);
     expect(hangups()).toHaveLength(1);
+    expect(await reload(world.tenantId, call.id)).toMatchObject({ status: 'failed', hangupCause: 'connect_failed', initiatedAt: null });
+  });
+
+  it('leaves a call initiated, and does not hang it up, when the connect result is unknown (timeout)', async () => {
+    const call = await makeCall(world);
+    fake.failNext.command = new TelephonyProviderError('timeout', null, true);
+    const { response } = await post(parked(call));
+    expect(response.status).toBe(200);
+    expect(hangups()).toHaveLength(0);
     const row = await reload(world.tenantId, call.id);
-    expect(row).toMatchObject({ status: 'failed', hangupCause: 'connect_failed', initiatedAt: null });
+    expect(row.status).toBe('initiated');
+    expect(row.initiatedAt).not.toBeNull();
   });
 
   it('fails closed on an unexpected error: hung up, answered 200', async () => {
@@ -427,6 +505,22 @@ describe('the leg we create ourselves', () => {
     await post({ id: eventId(), type: 'call.initiated', sessionId: 'sess-leg', controlId: 'ctl-b', direction: 'outgoing', clientState: legClientState(call.id) });
     expect(hangups()).toHaveLength(0);
     expect(enqueueMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['an incoming leg', { direction: 'incoming' as const }],
+    ['the parked leg itself', { controlId: 'ctl-a' }],
+  ])('is not believed for %s carrying the mark: treated as parked and hung up', async (_name, override) => {
+    const call = await makeCall(world, { status: 'initiated', sessionId: 'sess-m', controlId: 'ctl-a' });
+    await post({ id: eventId(), type: 'call.initiated', sessionId: 'sess-m', controlId: 'ctl-b', direction: 'outgoing', clientState: legClientState(call.id), to: '+84900000002', ...override });
+    expect(hangups()).toHaveLength(1);
+    expect(enqueueMock).not.toHaveBeenCalled();
+  });
+
+  it.each(['answered', 'completed'] as const)('is not believed once the call is %s', async (status) => {
+    const call = await makeCall(world, { status, sessionId: 'sess-s', controlId: 'ctl-a' });
+    await post({ id: eventId(), type: 'call.initiated', sessionId: 'sess-s', controlId: 'ctl-b', direction: 'outgoing', clientState: legClientState(call.id), to: '+84900000002' });
+    expect(hangups()).toHaveLength(1);
   });
 
   it('is believed only when the named call holds that provider session: a forged mark is hung up', async () => {

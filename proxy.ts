@@ -72,6 +72,6 @@ export const proxy = auth(function handler(req: NextRequest & { auth: { user?: u
 // authorization codes without an active session cookie.
 export const config = {
   matcher: [
-    '/((?!api/auth|api/cron|api/health|api/csp-report|api/unsubscribe|api/t/|api/email/oauth|api/telephony/telnyx/webhook|api/client-reports/public|client-reports/public|login|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)',
+    '/((?!api/auth|api/cron|api/health|api/csp-report|api/unsubscribe|api/t/|api/email/oauth|api/telephony/telnyx/webhook$|api/telephony/telnyx/webhook/|api/client-reports/public|client-reports/public|login|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)',
   ],
 };
