@@ -30,6 +30,11 @@ import { PAUSED_REASON_LABELS, normalizePausedReason } from '@/lib/automation/ty
 import dynamic from 'next/dynamic';
 
 const PhoneCallPanel = dynamic(() => import('@/components/dialer/PhoneCallPanel'), { ssr: false });
+// The browser softphone pulls in the Telnyx SDK; it loads only when a rep opens it.
+const Softphone = dynamic(() => import('@/components/dialer/Softphone'), { ssr: false });
+import { useDialerEnabled } from '@/components/dialer/useDialerStatus';
+import { chooseCallSurface } from '@/lib/telephony/callSurface';
+import { phoneCallTarget } from '@/lib/telephony/logPhoneCall';
 import NextBestActionCard from '@/components/ai/NextBestActionCard';
 import { DrawerNavButtons, useDrawerNavigation } from '@/components/shared/DrawerNavigation';
 import ContactIntelligenceBadge from '@/components/intelligence/ContactIntelligenceBadge';
@@ -270,8 +275,9 @@ function LeadDetailPanelBody({
   const [logNote, setLogNote] = useState('');
   const [logResponse, setLogResponse] = useState(false);
   const [savingLog, setSavingLog] = useState(false);
-  /** The call-by-phone panel (components/dialer/PhoneCallPanel.tsx). */
+  /** The Call button's screen: the call-by-phone panel or the browser softphone (chooseCallSurface). */
   const [showDialer, setShowDialer] = useState(false);
+  const dialerEnabled = useDialerEnabled();
   const [adHocActivities, setAdHocActivities] = useState<Array<{
     id: string; type: string; channel: string; metadata: Record<string, unknown>; createdAt: string;
     user: { firstName: string; lastName: string };
@@ -2533,9 +2539,9 @@ function LeadDetailPanelBody({
         />
       )}
 
-      {showDialer && lead && (
-        <PhoneCallPanel
-          lead={{
+      {showDialer && lead && (() => {
+        const dialerProps = {
+          lead: {
             id: lead.id,
             firstName: lead.firstName,
             lastName: lead.lastName,
@@ -2545,12 +2551,16 @@ function LeadDetailPanelBody({
             doNotCallReason: lead.doNotCallReason,
             tags: lead.tags,
             contact: lead.contact,
-          }}
-          onClose={() => setShowDialer(false)}
-          onLogged={handleCallLogged}
-          onMeetingBooked={() => setShowBookingModal(true)}
-        />
-      )}
+          },
+          onClose: () => setShowDialer(false),
+          onLogged: handleCallLogged,
+          onMeetingBooked: () => setShowBookingModal(true),
+        };
+        // Vietnamese numbers, and every number while the browser dialer is off for this rep, keep the
+        // call-from-your-own-phone panel. The do-not-call warning blocks on both screens.
+        const surface = chooseCallSurface({ target: phoneCallTarget(lead.phone, lead.contact?.country), dialerEnabled });
+        return surface === 'softphone' ? <Softphone {...dialerProps} /> : <PhoneCallPanel {...dialerProps} />;
+      })()}
 
       {showBookingModal && lead && (
         <MeetingBookingModal

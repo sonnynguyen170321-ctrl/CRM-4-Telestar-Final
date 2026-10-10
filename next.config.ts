@@ -9,7 +9,7 @@ const SECURITY_HEADERS = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=()' },
   // Report-only: nothing is blocked, violations are posted to /api/csp-report so the real
   // origin inventory can be observed before enforcement. Set here rather than in proxy.ts
   // because the middleware deliberately skips /login, static assets and the public

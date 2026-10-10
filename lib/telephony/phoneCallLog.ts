@@ -4,12 +4,11 @@ import { countryNameToIso } from '@telestar/core-identity';
 
 import type { SessionUser } from '@/lib/auth';
 import { onActivityLogged } from '@/lib/contact-intelligence/events';
-import { nextBusinessDay } from '@/lib/dates/businessDays';
-import { businessTimezoneFor } from '@/lib/dates/businessTimezone';
 import { prisma } from '@/lib/prisma';
 
 import { toDialableNumber, type DialCountry } from './compliance';
-import { callDescription, getPhoneOutcome, outcomeLeadTag, type PhoneOutcomeId } from './outcomes';
+import { appendOutcomeTag, applyOutcomeEffects, callbackDueDate } from './outcomeEffects';
+import { callDescription, getPhoneOutcome, type PhoneOutcomeId } from './outcomes';
 
 /**
  * The server side of logging a call a rep placed on their own phone (docs/dialer/TASKS.md, owner
@@ -88,16 +87,11 @@ export async function recordPhoneCall(params: LogPhoneCallParams & { canAccess: 
   if (!lead) throw new PhoneCallLeadNotFoundError();
   if (!(await canAccess(lead))) throw new PhoneCallForbiddenError();
 
-  const tag = outcomeLeadTag(outcome);
   const e164 = definition.leadEffect === 'do_not_call' ? dialableE164(lead) : null;
-  const dueDate =
-    definition.leadEffect === 'callback'
-      ? nextBusinessDay(now, await businessTimezoneFor({ leadTimezone: lead.timezone, assigneeId: lead.assignedToId ?? user.id }))
-      : null;
-  const reason = params.notes ? `Logged on a call: ${params.notes}`.slice(0, 500) : 'Logged on a call';
+  const dueDate = await callbackDueDate(outcome, lead, user.id, now);
   const metadata = { action: outcome, outcome, label: definition.label, notes: params.notes, via: 'phone' };
 
-  const activity = await prisma.$transaction(async (tx) => {
+  const { activity, suppressed } = await prisma.$transaction(async (tx) => {
     const created = await tx.activity.create({
       data: {
         tenantId,
@@ -109,59 +103,21 @@ export async function recordPhoneCall(params: LogPhoneCallParams & { canAccess: 
         metadata,
       },
     });
-
-    await tx.lead.updateMany({ where: { id: lead.id, tenantId }, data: { lastContactedAt: now } });
-
-    if (definition.leadEffect === 'do_not_call') {
-      // Only the first do-not-call sets the date and reason, so a repeat does not rewrite history.
-      await tx.lead.updateMany({
-        where: { id: lead.id, tenantId, doNotCall: false },
-        data: {
-          doNotCall: true,
-          doNotCallAt: now,
-          doNotCallReason: reason,
-        },
-      });
-      if (lead.contactId) {
-        await tx.contact.updateMany({
-          where: { id: lead.contactId, tenantId, doNotCall: false },
-          data: { doNotCall: true, doNotCallAt: now, doNotCallReason: reason },
-        });
-      }
-      if (e164) {
-        await tx.phoneSuppression.upsert({
-          where: { tenantId_e164: { tenantId, e164 } },
-          create: { tenantId, e164, source: 'call_outcome', reason: `Lead ${lead.id}, logged call`, createdById: user.id },
-          update: {},
-        });
-      }
-    }
-
-    if (tag) {
-      // Appended in SQL (array_append), and only when absent: a concurrent tag change is not lost.
-      await tx.lead.updateMany({
-        where: { id: lead.id, tenantId, NOT: { tags: { has: tag } } },
-        data: { tags: { push: tag } },
-      });
-    }
-
-    if (dueDate) {
-      await tx.task.create({
-        data: {
-          tenantId,
-          leadId: lead.id,
-          userId: lead.assignedToId ?? user.id,
-          type: 'phone',
-          title: `Callback: ${lead.firstName} ${lead.lastName}`,
-          description: 'Callback requested on previous call',
-          dueDate,
-          priority: 'high',
-        },
-      });
-    }
-
-    return created;
+    const effects = await applyOutcomeEffects(tx, {
+      tenantId,
+      userId: user.id,
+      outcome,
+      lead,
+      e164,
+      notes: params.notes,
+      dueDate,
+      suppressionNote: 'logged call',
+      now,
+    });
+    return { activity: created, suppressed: effects.suppressed };
   });
+
+  await appendOutcomeTag(tenantId, lead.id, outcome);
 
   await onActivityLogged({
     activityId: activity.id,
@@ -173,5 +129,5 @@ export async function recordPhoneCall(params: LogPhoneCallParams & { canAccess: 
     tenantId,
   });
 
-  return { activity, suppressed: Boolean(e164) };
+  return { activity, suppressed };
 }

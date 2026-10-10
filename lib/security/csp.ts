@@ -39,6 +39,15 @@ const DEMO_IMAGES = 'https://images.unsplash.com';
 const ENTRA_ID = 'https://login.microsoftonline.com';
 
 /**
+ * The browser dialer (docs/dialer, @telnyx/webrtc 2.27): the SDK signals over a WebSocket to
+ * wss://rtc.telnyx.com and posts call-quality reports to https://rtc.telnyx.com/call_report. Audio is
+ * WebRTC (ICE to stun/turn.telnyx.com), which CSP does not govern. The rtcdev/canary hosts are the
+ * SDK's development targets and are deliberately not listed.
+ */
+const TELNYX_RTC_SOCKET = 'wss://rtc.telnyx.com';
+const TELNYX_RTC_HTTPS = 'https://rtc.telnyx.com';
+
+/**
  * Build the policy.
  *
  * `nonce` is accepted but currently unused — see `script-src` below. It is threaded
@@ -77,9 +86,10 @@ export function buildCsp({ nonce }: { nonce?: string } = {}): string {
     // the import screens.
     'img-src': ["'self'", 'data:', 'blob:', DEMO_IMAGES],
 
-    // The API is same-origin. If this ever needs widening, that is a signal a browser is
-    // talking to a third party directly and it deserves scrutiny rather than an entry.
-    'connect-src': ["'self'"],
+    // The API is same-origin. The one deliberate exception is the Telnyx RTC endpoint the browser
+    // softphone talks to directly (see TELNYX_RTC_SOCKET above); anything else widening this is a
+    // signal a browser is talking to a third party and deserves scrutiny rather than an entry.
+    'connect-src': ["'self'", TELNYX_RTC_SOCKET, TELNYX_RTC_HTTPS],
 
     // Sign-in posts to Entra ID; everything else stays home.
     'form-action': ["'self'", ENTRA_ID],
