@@ -42,6 +42,7 @@
     "/sequences",
     "/sequences/performance",
     "/settings",
+    "/settings/telephony",
     "/team",
     "/team/campaigns/[id]/members",
     "/templates"
@@ -103,6 +104,7 @@
     "/api/cron/inbox-sync",
     "/api/cron/maintenance",
     "/api/cron/sequence-engine",
+    "/api/cron/telephony-health",
     "/api/cron/telephony-reconcile",
     "/api/csp-report",
     "/api/dashboard/my-day",
@@ -233,6 +235,10 @@
     "/api/telephony/calls/[id]/recording",
     "/api/telephony/calls/pending-outcome",
     "/api/telephony/phone-calls",
+    "/api/telephony/settings",
+    "/api/telephony/settings/credentials/[id]",
+    "/api/telephony/settings/numbers",
+    "/api/telephony/settings/numbers/[id]",
     "/api/telephony/status",
     "/api/telephony/telnyx/webhook",
     "/api/telephony/token",
@@ -255,6 +261,6 @@
     "/api/work-orders",
     "/api/work-orders/[id]/dispatch"
   ],
-  "pageCount": 38,
-  "apiRouteCount": 207
+  "pageCount": 39,
+  "apiRouteCount": 212
 }

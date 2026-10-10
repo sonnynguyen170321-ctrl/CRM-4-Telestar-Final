@@ -7,14 +7,14 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 206   mutating: 127   mutating without a test: 19
-# routes: 208   mutating: 130   mutating without a test: 19
+# routes: 212   mutating: 131   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
     tests:
       - e2e/certification/golden-journey.spec.ts
       - e2e/leads/lead-crud.spec.ts
+      - tests/telephony-recording-route.test.ts
   - path: app/api/admin/assignments/route.ts
     methods: [DELETE, GET, POST]
     tests:
@@ -1244,11 +1244,16 @@ routes:
       - tests/telephony-call-outcome-route.test.ts
       - tests/telephony-calls-route.test.ts
       - tests/telephony-proxy-matcher.test.ts
+      - tests/telephony-recording-route.test.ts
       - tests/telephony-softphone.test.ts
   - path: app/api/telephony/calls/[id]/recording/route.ts
     methods: [GET]
     tests:
+      - tests/telephony-call-outcome-route.test.ts
+      - tests/telephony-calls-route.test.ts
+      - tests/telephony-proxy-matcher.test.ts
       - tests/telephony-recording-route.test.ts
+      - tests/telephony-softphone.test.ts
   - path: app/api/telephony/calls/pending-outcome/route.ts
     methods: [GET]
     tests:
@@ -1259,6 +1264,7 @@ routes:
       - tests/telephony-call-outcome-route.test.ts
       - tests/telephony-calls-route.test.ts
       - tests/telephony-proxy-matcher.test.ts
+      - tests/telephony-recording-route.test.ts
       - tests/telephony-softphone.test.ts
   - path: app/api/telephony/phone-calls/route.ts
     methods: [POST]
@@ -1266,10 +1272,6 @@ routes:
       - tests/dialer-phone-call-panel.test.ts
       - tests/telephony-outcome-effects.test.ts
       - tests/telephony-phone-calls-route.test.ts
-  - path: app/api/telephony/status/route.ts
-    methods: [GET]
-    tests:
-      - tests/telephony-call-outcome-route.test.ts
   - path: app/api/telephony/settings/credentials/[id]/route.ts
     methods: [DELETE]
     tests:
@@ -1286,6 +1288,10 @@ routes:
     methods: [GET, PATCH]
     tests:
       - tests/telephony-settings-route.test.ts
+  - path: app/api/telephony/status/route.ts
+    methods: [GET]
+    tests:
+      - tests/telephony-call-outcome-route.test.ts
   - path: app/api/telephony/telnyx/webhook/route.ts
     methods: [POST]
     tests:

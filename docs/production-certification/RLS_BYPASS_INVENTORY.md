@@ -34,7 +34,7 @@ Any statement that this system enforces isolation at the database layer today is
 
 The Prisma extension in `lib/prisma.ts` injects `where: { tenantId }` into every model operation. Inside one of these scopes it does not, so the query is only as tenant-correct as it was written to be. On a database with no RLS policies this is the entire boundary.
 
-**21 file(s), 24 site(s).**
+**22 file(s), 25 site(s).**
 
 | File | Line(s) | Why this is safe |
 |---|---|---|
@@ -56,6 +56,7 @@ The Prisma extension in `lib/prisma.ts` injects `where: { tenantId }` into every
 | `lib/ops/cronHeartbeat.ts` | 24 | Writes one JobRun heartbeat row so a stopped cron becomes detectable. The tenant is passed in by the caller and stamped onto the insert, never read from a request, and the only table touched is JobRun — the queue mirror, which carries no tenant-owned business data. It bypasses because a cron has no session to resolve a tenant from, exactly as the other cron and worker sites here do. Reads nothing, so there is no cross-tenant read to widen. |
 | `lib/prisma.ts` | 49 | The extension itself — this is the file that implements tenant scoping, so it necessarily names the flag it honours and runs the `set_config` statements that carry tenant context into the database. Its own `$queryRaw`/`$executeRaw` calls are the GUC statements and the maintenance sweep, not data access. |
 | `lib/telephony/applyEvent.ts` | 23 | Worker and cron path. The 'system' scope wraps only `TelephonyEvent` reads and writes (no tenant column) and the read-only lookup of the `Call` an event belongs to, found by the provider's globally unique session or control id. Every write to a tenant-owned table (`Call`, `Activity`, `Lead`) runs in `asTenant(call.tenantId)`, a scoped, non-bypassed context, with `tenantId` also named in each `where`. |
+| `lib/telephony/health.ts` | 42 | The health cron's platform-wide, read-only counts: 'system' scope is used for grouped counts of recent `Call` rows by tenant and status, the count of stored `TelephonyEvent`s (no tenant column), and tenant names for alert text. Nothing is written, no row is returned to a request, and the only caller is the CRON_SECRET-authorized scheduler (a manager session is refused); alert text carries team names and counts, never a number or a person. |
 | `lib/telephony/reconcile.ts` | 40 | The reconcile cron's cross-tenant sweep: 'system' scope is used only to find candidate rows (unprocessed `TelephonyEvent`s, stale `Call`s) in bounded batches, narrowed to one tenant when a manager runs it by hand. Each repair is then made in `asTenant(call.tenantId)`, scoped and non-bypassed, with `tenantId` in the `where`. |
 | `lib/telephony/recording.ts` | 31 | The recording purge (run by the reconcile cron): 'system' scope is used only to find due candidates (`Call` rows whose `recordingPurgeAt` has passed) in one bounded batch, narrowed to a tenant when a manager runs it by hand. The provider delete and the write that clears `recordingProviderId` then run in `tenantStorage.run({ tenantId: call.tenantId })`, scoped and non-bypassed, with `tenantId` in the `where`. |
 | `lib/workflows/importInline.ts` | 37 | Scoped to `payload.tenantId`. The inline fallback runs when Redis is unavailable; its `importRow.count` calls are filtered by `batchId`, which belongs to the batch being imported. |
@@ -107,9 +108,9 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 
 | | Count |
 |---|---|
-| Category A sites | 24 |
+| Category A sites | 25 |
 | Category B sites | 8 |
 | Category C sites | 46 |
-| All sites | 78 |
+| All sites | 79 |
 | Unreviewed | 0 |
 
