@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client';
 import { tenantStorage } from '@/lib/tenant-context';
 import { jobQueue, type JobPayload, type JobType } from './types';
 import { DEFAULT_JOB_OPTIONS, JOB_OPTIONS } from './jobOptions';
-import { sequenceQueue, emailQueue, importQueue, syncQueue, maintenanceQueue, agentQueue, researchQueue } from './queues';
+import { sequenceQueue, emailQueue, importQueue, syncQueue, maintenanceQueue, agentQueue, researchQueue, telephonyQueue } from './queues';
 
 /**
  * "Make sure this job exists" — the recovery-safe sibling of `enqueue` (Phase 8a).
@@ -40,6 +40,7 @@ function resolveQueue(jobType: JobType) {
     case 'maintenance': return maintenanceQueue();
     case 'agent': return agentQueue();
     case 'research': return researchQueue();
+    case 'telephony': return telephonyQueue();
   }
 }
 

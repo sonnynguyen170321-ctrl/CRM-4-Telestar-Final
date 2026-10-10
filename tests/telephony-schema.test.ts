@@ -198,7 +198,7 @@ describe('database guards', () => {
 
 describe('the global webhook inbox', () => {
   it('is read only by telephony code — it has no tenant column, so no row-level security', () => {
-    const allowed = [/^lib[\/]telephony[\/]/, /^app[\/]api[\/]telephony[\/]/, /^workers[\/]telephony\.ts$/];
+    const allowed = [/^lib[\\/]telephony[\\/]/, /^app[\\/]api[\\/]telephony[\\/]/, /^app[\\/]api[\\/]cron[\\/]telephony-/, /^workers[\\/]telephony\.ts$/];
     const offenders: string[] = [];
     const walk = (dir: string) => {
       for (const entry of readdirSync(join(process.cwd(), dir), { withFileTypes: true })) {

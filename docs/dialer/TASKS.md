@@ -115,6 +115,18 @@ enum has no client or viewer role; revisit if one is added.
 | D4.4 | Reconcile cron (5 min): replay unprocessed events, cancel stale `authorized`, finalize stuck calls | `app/api/cron/telephony-reconcile/route.ts` | `CRON_SECRET` required; each repair branch | D4.3 | C |
 | D4.5 | Webhook + failover URL set in Telnyx; cron installed | VPS crontab | Live test event | D4.4 + deploy | O |
 
+**Built 2026-10-10 (D4.1–D4.4; D4.5 is the owner's).** Decisions made while building it:
+- **Token transport:** the softphone's `clientState` (base64 of the call token, `toClientState`) is read from `payload.client_state` of the parked leg's `call.initiated`. The spike (D0.5) must confirm it arrives; if not, the ADR fallback applies.
+- A parked leg is told apart from the leg we create on connect by a `leg:<callId>` client state on the transfer (`lib/telephony/legMarker.ts`), believed only when that call already holds the same provider session. Direction is not relied on.
+- The webhook checks, besides the token and the row: the dialled number equals the token's, the `from` names the rep's own SIP user, and the gate is re-run. The claim `authorized -> initiated` is a guarded update; the transfer's `command_id` is `transfer:<callId>`.
+- Dialer off / dry-run / kill switch: events are verified and stored, the parked call is hung up and the row marked `blocked`; nothing is bridged. A failed connect ends the row `failed` with `initiatedAt` cleared (not an attempt).
+- Events are queued with the `JobRun` dedupe key `telephony:event:<providerEventId>` (the BullMQ job id must be the `JobRun` id, so the event id cannot be the job id itself). Hangups are delayed 5 s; the worker decides answered-or-not from every stored event of the session.
+- `billedDurationSec` is derived (answered to ended, rounded up); the provider's CDR stays the billing truth. `getCallStatus` was added to the provider seam for the reconcile cron.
+- Reconcile replays inline (not through the queue, so a broken queue cannot block its own repair): events older than 2 min, `authorized` calls older than 3 min are cancelled, `initiated`/`ringing` older than 15 min and `answered` older than 4 h are checked with the provider.
+- Security review follow-ups (same day): the `leg:` mark is believed only for an outgoing leg of a call that is `initiated`/`ringing`, holds the same session, and whose control id differs from the parked leg's; the caller must be the rep's SIP user, matched exactly on the user part of `from` (missing or oversized is a refusal); a mismatching or copied token only hangs up that leg and never blocks the legitimate row; an unknown connect result (timeout, 5xx) leaves the row `initiated` for reconcile; the body is read as a stream with a 256 KB byte cap; logs carry error name/code only; the proxy exemption is the exact webhook path.
+- **Retention:** the reconcile cron deletes *processed* `TelephonyEvent` rows older than 30 days (500 per run); unprocessed events are never deleted. Payloads hold phone numbers, so this bounds how long they are kept.
+- Caller ID for the transfer is the tenant's active outbound `TelephonyNumber` in the dialled country, else any; none means the provider default. The settings work (default number per country) replaces that choice later.
+
 ## Phase 5 — Softphone rewrite
 | ID | Task | Files | Tests | Deps | Owner |
 |---|---|---|---|---|---|

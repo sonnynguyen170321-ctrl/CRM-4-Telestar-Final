@@ -34,7 +34,7 @@ Any statement that this system enforces isolation at the database layer today is
 
 The Prisma extension in `lib/prisma.ts` injects `where: { tenantId }` into every model operation. Inside one of these scopes it does not, so the query is only as tenant-correct as it was written to be. On a database with no RLS policies this is the entire boundary.
 
-**17 file(s), 20 site(s).**
+**20 file(s), 23 site(s).**
 
 | File | Line(s) | Why this is safe |
 |---|---|---|
@@ -46,14 +46,17 @@ The Prisma extension in `lib/prisma.ts` injects `where: { tenantId }` into every
 | `app/api/cron/maintenance/route.ts` | 77 | System context, deliberately cross-tenant: it iterates tenants to schedule per-tenant maintenance. `CRON_SECRET` bearer token only. |
 | `app/api/cron/sequence-engine/route.ts` | 130 | System context, deliberately cross-tenant: it scans due sequence steps for every tenant and processes each within its own tenant boundary. Task claims use a conditional `updateMany` on `id + status + lockedAt`, so two runners cannot both take a task. `CRON_SECRET` bearer token only. |
 | `app/api/leads/recalculate-scores/route.ts` | 27 | Session tenant from the verified `SessionUser`. The `lead.update` calls inside the scope address ids drawn from a preceding tenant-scoped read, so no caller-supplied id reaches the database. |
+| `app/api/telephony/telnyx/webhook/route.ts` | 21 | A public, signature-verified webhook with no session, so no tenant is known yet. The 'system' bypass scope wraps only reads and writes of `TelephonyEvent` (the provider's own event inbox, which has no tenant column), and the lookup of the `Call` row an event names, which is read-only and selects the call's own `tenantId`. Everything after that — the inline connect decision in `lib/telephony/parked.ts` and the queued job — runs scoped to the tenant on that row (or on the HMAC-signed call token), never bypassed. |
 | `app/api/unsubscribe/route.ts` | 20 | Public by necessity — an unsubscribe link is followed without a session. The tenant is not taken from the request but recovered from an HMAC-verified token that binds `tenantId`, `email` and `leadId`; a forged or edited token fails verification before any query runs. |
 | `lib/auth.ts` | 51, 75, 112 | Runs before a tenant is known, which is the reason the bypass exists. API keys are resolved by unique `keyHash` and users by the id inside an already-verified token; both are identity lookups whose whole purpose is to establish the tenant that later queries are scoped by. |
-| `lib/bullmq/enqueue.ts` | 54 | Scoped to the payload's own `tenantId`, not to 'system'. The bypass exists so the `JobRun` mirror row can be written with the tenant stamped on it. |
-| `lib/bullmq/ensureJob.ts` | 91, 121 | Idempotent job creation. The `jobRun.findUnique({ where: { dedupeKey } })` lookup runs before the tenant is known — a dedupe key is global by construction, because its job is to notice a duplicate whoever enqueued it. The row it finds carries its own `tenantId`, which scopes everything after. |
+| `lib/bullmq/enqueue.ts` | 55 | Scoped to the payload's own `tenantId`, not to 'system'. The bypass exists so the `JobRun` mirror row can be written with the tenant stamped on it. |
+| `lib/bullmq/ensureJob.ts` | 92, 122 | Idempotent job creation. The `jobRun.findUnique({ where: { dedupeKey } })` lookup runs before the tenant is known — a dedupe key is global by construction, because its job is to notice a duplicate whoever enqueued it. The row it finds carries its own `tenantId`, which scopes everything after. |
 | `lib/bullmq/rescheduleSequenceTask.ts` | 101 | Scoped to `input.tenantId`. The `jobRun` lookup by `dedupeKey` is the same pre-tenant identity lookup as `ensureJob`. |
 | `lib/bullmq/workerUtils.ts` | 40 | Scoped to the tenant declared on the job payload. `jobRun.update` calls address the row by its own id, obtained from the job being executed. |
 | `lib/ops/cronHeartbeat.ts` | 24 | Writes one JobRun heartbeat row so a stopped cron becomes detectable. The tenant is passed in by the caller and stamped onto the insert, never read from a request, and the only table touched is JobRun — the queue mirror, which carries no tenant-owned business data. It bypasses because a cron has no session to resolve a tenant from, exactly as the other cron and worker sites here do. Reads nothing, so there is no cross-tenant read to widen. |
 | `lib/prisma.ts` | 49 | The extension itself — this is the file that implements tenant scoping, so it necessarily names the flag it honours and runs the `set_config` statements that carry tenant context into the database. Its own `$queryRaw`/`$executeRaw` calls are the GUC statements and the maintenance sweep, not data access. |
+| `lib/telephony/applyEvent.ts` | 22 | Worker and cron path. The 'system' scope wraps only `TelephonyEvent` reads and writes (no tenant column) and the read-only lookup of the `Call` an event belongs to, found by the provider's globally unique session or control id. Every write to a tenant-owned table (`Call`, `Activity`, `Lead`) runs in `asTenant(call.tenantId)`, a scoped, non-bypassed context, with `tenantId` also named in each `where`. |
+| `lib/telephony/reconcile.ts` | 39 | The reconcile cron's cross-tenant sweep: 'system' scope is used only to find candidate rows (unprocessed `TelephonyEvent`s, stale `Call`s) in bounded batches, narrowed to one tenant when a manager runs it by hand. Each repair is then made in `asTenant(call.tenantId)`, scoped and non-bypassed, with `tenantId` in the `where`. |
 | `lib/workflows/importInline.ts` | 37 | Scoped to `payload.tenantId`. The inline fallback runs when Redis is unavailable; its `importRow.count` calls are filtered by `batchId`, which belongs to the batch being imported. |
 
 ---
@@ -101,9 +104,9 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 
 | | Count |
 |---|---|
-| Category A sites | 20 |
+| Category A sites | 23 |
 | Category B sites | 8 |
 | Category C sites | 43 |
-| All sites | 71 |
+| All sites | 74 |
 | Unreviewed | 0 |
 

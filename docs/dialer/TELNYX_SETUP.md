@@ -67,6 +67,9 @@ The account has been in use for months, so check rather than create.
       on before `TELEPHONY_ENABLED=true`, and re-check it after any change to this connection.
 - [ ] Webhooks → **Webhook URL**: `https://crm.telestar.cloud/api/telephony/telnyx/webhook`
       (the route lands in Phase 1; until then calls will not connect — expected).
+- [ ] **Outbound-only.** `crm-webrtc` must carry no inbound number and no inbound routing: the webhook hangs
+      up every `call.initiated` that does not carry a valid call token (there is no inbound dialer), so
+      anything routed here would be dropped. Port or point numbers elsewhere.
 - [ ] **Webhook failover URL**: same path for now.
 - [ ] **Webhook API version**: v2.
 - [ ] Note the connection **ID** → `TELNYX_CREDENTIAL_CONNECTION_ID`.

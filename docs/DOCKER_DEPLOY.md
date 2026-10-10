@@ -221,6 +221,7 @@ CRM_DIR=/opt/crm-4-u
 
 */5 * * * *  cd $CRM_DIR && source .env.production && curl -fsS -H "Authorization: Bearer $CRON_SECRET" "https://$CRM_DOMAIN/api/cron/sequence-engine" >/dev/null
 */10 * * * * cd $CRM_DIR && source .env.production && curl -fsS -H "Authorization: Bearer $CRON_SECRET" "https://$CRM_DOMAIN/api/cron/inbox-sync" >/dev/null
+*/5 * * * *  cd $CRM_DIR && source .env.production && curl -fsS -H "Authorization: Bearer $CRON_SECRET" "https://$CRM_DOMAIN/api/cron/telephony-reconcile" >/dev/null
 15 2 * * *   cd $CRM_DIR && bash scripts/backup-postgres-r2.sh .env.production >> /var/log/crm-4-u-backup.log 2>&1
 ```
 

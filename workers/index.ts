@@ -13,6 +13,7 @@ import { createSyncWorker } from './sync';
 import { createImportWorker } from './import';
 import { createAgentWorker } from './agent';
 import { createResearchWorker } from './research';
+import { createTelephonyWorker } from './telephony';
 
 const workers: Worker[] = [];
 
@@ -34,6 +35,7 @@ function registerWorkers(): void {
     { name: 'import', worker: createImportWorker() },
     { name: 'agent', worker: createAgentWorker() },
     { name: 'research', worker: createResearchWorker() },
+    { name: 'telephony', worker: createTelephonyWorker() },
   ];
 
   for (const { name, worker } of list) {

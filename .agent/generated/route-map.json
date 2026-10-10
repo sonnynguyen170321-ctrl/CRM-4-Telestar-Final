@@ -103,6 +103,7 @@
     "/api/cron/inbox-sync",
     "/api/cron/maintenance",
     "/api/cron/sequence-engine",
+    "/api/cron/telephony-reconcile",
     "/api/csp-report",
     "/api/dashboard/my-day",
     "/api/demo/diagnostics",
@@ -229,6 +230,7 @@
     "/api/team/sdr-progress",
     "/api/telephony/calls",
     "/api/telephony/phone-calls",
+    "/api/telephony/telnyx/webhook",
     "/api/telephony/token",
     "/api/templates",
     "/api/templates/[id]",
@@ -250,5 +252,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 38,
-  "apiRouteCount": 201
+  "apiRouteCount": 203
 }

@@ -23,6 +23,15 @@ export const DEFAULT_JOB_OPTIONS: JobsOptions = {
 };
 
 export const JOB_OPTIONS: Partial<Record<JobType, JobsOptions>> = {
+  // Safe to retry: applying an event is forward-only and guarded (status moves only up, the final
+  // Activity is keyed `call:<id>:final`, timestamps fill only when empty). A call event that cannot
+  // find its call yet (its parked call.initiated is still being handled) succeeds on a later attempt.
+  [JobType.TELEPHONY_EVENT]: {
+    attempts: 5,
+    backoff: { type: 'exponential', delay: 2000 },
+    removeOnComplete: { age: 86400, count: 2000 },
+    removeOnFail: { age: 86400 * 7, count: 500 },
+  },
   // One attempt. A research slice that throws marks its run `failed` with the reason, and the
   // operator resumes from the cursor; an automatic retry would re-pay for the query in flight
   // and race a Resume click for the same run.

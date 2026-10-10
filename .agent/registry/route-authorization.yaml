@@ -13,7 +13,7 @@
 # `tests/route-authorization.test.ts` fails when a mutating route has neither a guard nor a
 # hand-written `reason`. Reasons survive regeneration; they are the only part a human owns.
 #
-# routes: 201   mutating: 125   mutating with neither guard nor reason: 39
+# routes: 203   mutating: 126   mutating with neither guard nor reason: 39
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -224,6 +224,10 @@ routes:
   - path: app/api/cron/sequence-engine/route.ts
     methods: [GET]
     guards: []
+  - path: app/api/cron/telephony-reconcile/route.ts
+    methods: [GET]
+    guards: []
+    reason: Cron route. authorizeCronRequest admits only the scheduler (constant-time CRON_SECRET bearer, platform-wide) or a director/floor_manager session, which is confined to its own tenant. Every repair writes under the call's own tenant and is idempotent.
   - path: app/api/csp-report/route.ts
     methods: [POST]
     guards: []
@@ -698,6 +702,10 @@ routes:
     methods: [POST]
     guards:
       - canAccessLead
+  - path: app/api/telephony/telnyx/webhook/route.ts
+    methods: [POST]
+    guards: []
+    reason: Public by necessity (Telnyx posts with no session) and excluded from the proxy for that reason alone. Nothing is read, stored or done until the raw body verifies under the Ed25519 key (verifyTelnyxWebhook) with a timestamp within 300 s. The tenant is never taken from the payload - it comes from the Call row or the HMAC-signed call token - and a parked call connects only if token, row and the compliance gate agree, otherwise it is hung up.
   - path: app/api/telephony/token/route.ts
     methods: [POST]
     guards: []

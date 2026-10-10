@@ -354,6 +354,8 @@ domains:
     paths:
       - lib/telephony/**
       - app/api/telephony/**
+      - app/api/cron/telephony-reconcile/**
+      - workers/telephony.ts
       - components/dialer/**
       - docs/dialer/**
     tests:

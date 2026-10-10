@@ -18,7 +18,8 @@
     "workers/research.ts",
     "workers/sequence.ts",
     "workers/serverOnlyResolution.ts",
-    "workers/sync.ts"
+    "workers/sync.ts",
+    "workers/telephony.ts"
   ],
   "queues": [
     "agent",
@@ -27,7 +28,8 @@
     "maintenance",
     "research",
     "sequence",
-    "sync"
+    "sync",
+    "telephony"
   ],
   "jobTypes": [
     "agent.execute-work-order",
@@ -49,7 +51,8 @@
     "sequence.execute-task",
     "sequence.pause",
     "sequence.rebuild",
-    "sequence.unenroll"
+    "sequence.unenroll",
+    "telephony.event"
   ],
   "invariant": "The database is workflow truth; every delayed job must be rebuildable from it."
 }
