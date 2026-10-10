@@ -4,7 +4,7 @@ import { prisma, tenantStorage } from '@/lib/prisma';
 
 import { finalStatusFor, isTerminalStatus, statusesBefore, type FinalStatus } from './callStatus';
 import { legCallId } from './legMarker';
-import { startRecordingOnAnswer, storeSavedRecording } from './recording';
+import { noteLeadLeg, startRecordingOnAnswer, storeSavedRecording } from './recording';
 import { parseTelnyxEvent, type TelnyxEvent } from './telnyx/events';
 
 /**
@@ -105,6 +105,7 @@ async function advance(call: Pick<CallRef, 'id' | 'tenantId'>, to: CallStatus, e
 /** Our own transferred leg being created is the closest thing Telnyx gives to "ringing". The parked leg's `call.initiated` is the webhook's inline work, not ours. */
 async function onLegInitiated(call: CallRef, event: TelnyxEvent): Promise<void> {
   if (legCallId(event.clientState) !== call.id) return;
+  await noteLeadLeg(call, event);
   await advance(call, 'ringing');
 }
 

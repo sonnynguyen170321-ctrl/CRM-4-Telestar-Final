@@ -68,6 +68,21 @@ export class FakeTelephonyProvider implements TelephonyProvider {
     this.commands.push({ callControlId, command, commandId });
   }
 
+  /** Hosts the fake refuses to download from; empty trusts every https URL. */
+  untrustedRecordingHosts: string[] = [];
+
+  isRecordingUrlTrusted(url: string): boolean {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === 'https:' && !this.untrustedRecordingHosts.includes(parsed.hostname);
+    } catch {
+      return false;
+    }
+  }
+
+  /** Recording ids whose delete keeps failing (a persistent outage, unlike the one-shot `failNext`). */
+  failingDeletes = new Set<string>();
+
   async getRecordingUrl(recordingId: string): Promise<string | null> {
     this.maybeFail('getRecordingUrl');
     this.recordingUrlRequests.push(recordingId);
@@ -76,6 +91,7 @@ export class FakeTelephonyProvider implements TelephonyProvider {
 
   async deleteRecording(recordingId: string): Promise<void> {
     this.maybeFail('deleteRecording');
+    if (this.failingDeletes.has(recordingId)) throw new TelephonyProviderError('delete failed', 503, true);
     this.deletedRecordings.push(recordingId);
   }
 

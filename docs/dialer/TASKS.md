@@ -159,6 +159,17 @@ cron (`purgeExpiredRecordings`, batch 100) instead of a worker. Playback is `GET
 once per listen). The activity feed marks calls with `recordingCallId` when the viewer may play them. Needs live Telnyx
 confirmation: `speak` reaching both parties on a bridged leg, and the recording-saved payload's `recording_id`.
 
+**Consent.** Recording is on by default and the spoken notice is off (owner decision, 2026-10-08). Recording-consent
+laws differ by destination country (some require every party's consent, which a notice provides). A manager must turn
+`recordingNotice` on for any country in `allowedCountries` where that is required; the CRM does not decide it per country.
+
+**Hardening 2026-10-10 (security review).** Playback audit is fail-closed and independent of `Range` (one row per person
+and call per 10 minutes, written before audio is fetched; 60 new listens per 10 minutes per person); purge also dates
+rows that have an id but no `recordingPurgeAt`, and backs failed deletes off (`recordingPurgeAttemptAt`, 30 min); what
+was sent to the provider is kept on the call (`recordingStartedAt`, `recordingNoticeAt`) and the lead leg is identified
+by our mark or the stored `leadLegControlId`, never by direction; downloads follow no redirect and only trusted hosts
+(`TELEPHONY_RECORDING_HOSTS` adds suffixes).
+
 ## Phase 8 — One call count everywhere
 | ID | Task | Files | Tests | Deps | Owner |
 |---|---|---|---|---|---|

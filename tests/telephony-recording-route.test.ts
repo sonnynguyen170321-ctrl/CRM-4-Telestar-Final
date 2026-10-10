@@ -21,8 +21,10 @@ import { prisma, tenantStorage } from '@/lib/prisma';
 import { FakeTelephonyProvider } from '@/lib/telephony/fake';
 import { listenableCallIds } from '@/lib/telephony/recordingAccess';
 import { setTelephonyProviderForTests } from '@/lib/telephony/index';
-import { GET } from '@/app/api/telephony/calls/[id]/recording/route';
+import { GET, LISTEN_LIMIT, LISTEN_WINDOW_MS } from '@/app/api/telephony/calls/[id]/recording/route';
+import { TelephonyProviderError } from '@/lib/telephony/provider';
 import { GET as listActivities } from '@/app/api/activities/route';
+import { __setAttemptLimitRedis } from '@/lib/security/attemptLimit';
 import { createTestTenant } from './helpers/testTenant';
 import { buildDialerWorld, inTenant, makeCall, type DialerWorld } from './helpers/telephonyFixture';
 
@@ -40,7 +42,9 @@ let world: DialerWorld;
 let other: DialerWorld;
 let callId: string;
 let users: { rep: SessionUser; peer: SessionUser; lead: SessionUser; director: SessionUser; foreignDirector: SessionUser };
-let upstreamCalls: Array<{ url: string; range: string | null }>;
+let upstreamCalls: Array<{ url: string; range: string | null; redirect: string | undefined }>;
+/** The attempt limiter's Redis: an in-memory counter the tests can pre-load. */
+let counters: Map<string, number>;
 
 async function makeUser(tenantId: string, role: SessionUser['role'], extra: { managerId?: string } = {}): Promise<SessionUser> {
   const row = await inTenant(tenantId, () =>
@@ -61,11 +65,22 @@ beforeEach(async () => {
   fake = new FakeTelephonyProvider();
   setTelephonyProviderForTests(fake);
   upstreamCalls = [];
+  counters = new Map();
+  __setAttemptLimitRedis({
+    incr: async (key) => {
+      counters.set(key, (counters.get(key) ?? 0) + 1);
+      return counters.get(key)!;
+    },
+    expire: async () => 1,
+    ttl: async () => 42,
+    del: async (key) => counters.delete(key),
+  });
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (!url.startsWith('https://recordings.example/')) return realFetch(input, init);
-    upstreamCalls.push({ url, range: new Headers(init?.headers).get('range') });
     const range = new Headers(init?.headers).get('range');
+    upstreamCalls.push({ url, range, redirect: init?.redirect });
+    if (range === 'bytes=999999-') return new Response(null, { status: 416, headers: { 'content-range': `bytes */${AUDIO.length}` } });
     return range
       ? new Response(AUDIO.subarray(3), { status: 206, headers: { 'content-type': 'audio/mpeg', 'content-range': `bytes 3-${AUDIO.length - 1}/${AUDIO.length}`, 'content-length': String(AUDIO.length - 3) } })
       : new Response(AUDIO, { status: 200, headers: { 'content-type': 'audio/mpeg', 'content-length': String(AUDIO.length), 'accept-ranges': 'bytes', 'x-signed': UPSTREAM } });
@@ -93,6 +108,8 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  __setAttemptLimitRedis(null);
+  vi.restoreAllMocks();
   globalThis.fetch = realFetch;
   setTelephonyProviderForTests(null);
   authUser.current = null;
@@ -160,7 +177,7 @@ describe('who may listen', () => {
   });
 
   it('answers 502 without leaking the provider error when the provider is down', async () => {
-    fake.failNext.getRecordingUrl = new (await import('@/lib/telephony/provider')).TelephonyProviderError('secret-detail', 503, true);
+    fake.failNext.getRecordingUrl = new TelephonyProviderError('secret-detail', 503, true);
     const res = await call(callId);
     expect(res.status).toBe(502);
     expect(JSON.stringify(await res.json())).not.toContain('secret-detail');
@@ -209,10 +226,133 @@ describe('audit', () => {
     expect(JSON.stringify(rows[0].changedFields)).not.toContain('recordings.example');
   });
 
+  it('writes a row for a first request with a range that does not start at zero', async () => {
+    authUser.current = users.director;
+
+    const res = await call(callId, { range: 'bytes=1-' });
+
+    expect(res.status).toBe(206);
+    expect(await auditRows(users.director.id)).toHaveLength(1);
+    await call(callId, { range: 'bytes=5-' }); // a continuation, not a new listen
+    expect(await auditRows(users.director.id)).toHaveLength(1);
+  });
+
+  it('writes a new row once the earlier listen is more than ten minutes old, and per person', async () => {
+    authUser.current = users.director;
+    await call(callId);
+    await inTenant(world.tenantId, () =>
+      prisma.auditLog.updateMany({ where: { userId: users.director.id, action: 'admin.call.recording_play' }, data: { createdAt: new Date(Date.now() - LISTEN_WINDOW_MS - 1000) } })
+    );
+
+    await call(callId);
+    expect(await auditRows(users.director.id)).toHaveLength(2);
+
+    authUser.current = users.lead; // someone else's listen is not a continuation of the director's
+    await call(callId);
+    expect(await auditRows(users.lead.id)).toHaveLength(1);
+  });
+
   it('writes nothing for a refused request', async () => {
     authUser.current = users.peer;
     await call(callId);
     expect(await auditRows(users.peer.id)).toHaveLength(0);
+  });
+
+  it('writes the row before any audio is fetched, and refuses playback when it cannot be written', async () => {
+    authUser.current = users.director;
+    vi.spyOn(prisma.auditLog, 'create').mockRejectedValueOnce(new Error('db down'));
+
+    const res = await call(callId);
+
+    expect(res.status).toBe(503);
+    expect(upstreamCalls).toEqual([]);
+    expect(fake.recordingUrlRequests).toEqual([]);
+  });
+
+  it('keeps the audit row when the provider then fails', async () => {
+    authUser.current = users.director;
+    fake.failNext.getRecordingUrl = new TelephonyProviderError('down', 503, true);
+
+    expect((await call(callId)).status).toBe(502);
+    expect(await auditRows(users.director.id)).toHaveLength(1);
+  });
+});
+
+describe('rate limit', () => {
+  it('answers 429 after the per-person limit of new listens, without audit or audio', async () => {
+    authUser.current = users.director;
+    counters.set(`attempts:recording-playback:${world.tenantId}:${users.director.id}`, LISTEN_LIMIT);
+
+    const res = await call(callId);
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toBe('42');
+    expect(upstreamCalls).toEqual([]);
+    expect(await auditRows(users.director.id)).toHaveLength(0);
+  });
+
+  it('does not count a continuation against the limit', async () => {
+    authUser.current = users.director;
+    await call(callId);
+    await call(callId, { range: 'bytes=3-' });
+    await call(callId, { range: 'bytes=4-' });
+
+    expect(counters.get(`attempts:recording-playback:${world.tenantId}:${users.director.id}`)).toBe(1);
+  });
+});
+
+describe('upstream hardening', () => {
+  it('refuses to download from a host the provider does not vouch for', async () => {
+    fake.untrustedRecordingHosts = ['recordings.example'];
+
+    expect((await call(callId)).status).toBe(502);
+    expect(upstreamCalls).toEqual([]);
+  });
+
+  it('never follows a redirect', async () => {
+    await call(callId);
+    expect(upstreamCalls[0].redirect).toBe('error');
+  });
+
+  it('answers 416 when the provider says the range cannot be satisfied', async () => {
+    const res = await call(callId, { range: 'bytes=999999-' });
+    expect(res.status).toBe(416);
+    expect(res.headers.get('content-range')).toBe(`bytes */${AUDIO.length}`);
+  });
+
+  it('aborts the upstream request when the client goes away', async () => {
+    const controller = new AbortController();
+    let seen: AbortSignal | null = null;
+    const inner = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      seen = init?.signal ?? null;
+      return inner(input, init);
+    }) as typeof fetch;
+
+    await GET(new NextRequest(`http://localhost/api/telephony/calls/${callId}/recording`, { signal: controller.signal }), { params: Promise.resolve({ id: callId }) });
+    controller.abort();
+
+    expect((seen as AbortSignal | null)?.aborted).toBe(true);
+  });
+});
+
+describe('a call whose lead is gone', () => {
+  beforeEach(async () => {
+    await inTenant(world.tenantId, () => prisma.call.update({ where: { id: callId }, data: { leadId: null } }));
+  });
+
+  it('plays for the caller and for a manager over the caller, not for an unrelated manager or rep', async () => {
+    const stranger = await makeUser(world.tenantId, 'team_lead');
+    clearVisibleUserCache();
+
+    authUser.current = users.rep;
+    expect((await call(callId)).status).toBe(200);
+    authUser.current = users.lead;
+    expect((await call(callId)).status).toBe(200);
+    authUser.current = stranger;
+    expect((await call(callId)).status).toBe(404);
+    authUser.current = users.peer;
+    expect((await call(callId)).status).toBe(404);
   });
 });
 

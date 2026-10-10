@@ -8,7 +8,8 @@ import { FakeTelephonyProvider } from '@/lib/telephony/fake';
 import { setTelephonyProviderForTests } from '@/lib/telephony/index';
 import { legClientState } from '@/lib/telephony/legMarker';
 import { TelephonyProviderError } from '@/lib/telephony/provider';
-import { RECORDING_NOTICE_TEXT, RECORDING_PURGE_BATCH, purgeExpiredRecordings, recordingPurgeAt } from '@/lib/telephony/recording';
+import { isTrustedRecordingUrl } from '@/lib/telephony/telnyx/client';
+import { PURGE_RETRY_BACKOFF_MS, RECORDING_NOTICE_TEXT, RECORDING_PURGE_BATCH, purgeExpiredRecordings, recordingPurgeAt, storeSavedRecording } from '@/lib/telephony/recording';
 import { reconcileTelephony } from '@/lib/telephony/reconcile';
 import { createTestTenant } from './helpers/testTenant';
 import { buildDialerWorld, deleteEventsWithPrefix, inTenant, makeCall, reload, storeEvent, type DialerWorld } from './helpers/telephonyFixture';
@@ -30,12 +31,6 @@ const id = () => `${prefix}${(counter += 1)}`;
 const setSettings = (data: { recordingEnabled?: boolean; recordingNotice?: boolean; recordingRetentionDays?: number }) =>
   inTenant(world.tenantId, () => prisma.telephonySettings.updateMany({ where: { tenantId: world.tenantId }, data }));
 
-const answeredOnLeadLeg = async (session: string, control = 'lead-leg') => {
-  const spec = { id: id(), type: 'call.answered', sessionId: session, controlId: control, direction: 'outgoing' as const };
-  await storeEvent(spec);
-  return spec;
-};
-
 beforeEach(async () => {
   prefix = `evt-rec-${randomUUID()}-`;
   counter = 0;
@@ -50,41 +45,57 @@ afterEach(async () => {
 });
 
 describe('starting a recording', () => {
-  it('records the lead leg when recording is enabled, and plays no notice by default', async () => {
-    const call = await makeCall(world, { status: 'ringing', sessionId: 's1', controlId: 'rep-leg', initiatedAt: new Date() });
-    const spec = await answeredOnLeadLeg('s1');
+  /** The lead's leg answering, carrying our mark as Telnyx echoes the transfer's client_state. */
+  const marked = (callId: string, type: string, session: string, control = 'lead-leg') => ({
+    id: id(),
+    type,
+    sessionId: session,
+    controlId: control,
+    direction: 'outgoing' as const,
+    clientState: legClientState(callId),
+  });
+  const stage = async (session: string) => makeCall(world, { status: 'ringing', sessionId: session, controlId: 'rep-leg', initiatedAt: new Date() });
+  const run = async (spec: ReturnType<typeof marked>) => {
+    await storeEvent(spec);
+    return processTelephonyEvent(spec.id);
+  };
 
-    await processTelephonyEvent(spec.id);
+  it('records the lead leg when recording is enabled, and plays no notice by default', async () => {
+    const call = await stage('s1');
+
+    await run(marked(call.id, 'call.answered', 's1'));
 
     expect(fake.commands).toEqual([
       { callControlId: 'lead-leg', command: { action: 'record_start', channels: 'dual', playBeep: false }, commandId: `record:${call.id}` },
     ]);
+    expect((await reload(world.tenantId, call.id)).recordingStartedAt).not.toBeNull();
   });
 
   it('plays the notice after starting the recording when recordingNotice is on', async () => {
-    const call = await makeCall(world, { status: 'ringing', sessionId: 's2', controlId: 'rep-leg', initiatedAt: new Date() });
+    const call = await stage('s2');
     await setSettings({ recordingNotice: true });
 
-    await processTelephonyEvent((await answeredOnLeadLeg('s2')).id);
+    await run(marked(call.id, 'call.answered', 's2'));
 
     expect(fake.commands.map((c) => [c.callControlId, c.command.action, c.commandId])).toEqual([
       ['lead-leg', 'record_start', `record:${call.id}`],
       ['lead-leg', 'speak', `notice:${call.id}`],
     ]);
     expect(fake.commands[1].command).toEqual({ action: 'speak', payload: RECORDING_NOTICE_TEXT });
+    expect((await reload(world.tenantId, call.id)).recordingNoticeAt).not.toBeNull();
   });
 
   it('records nothing when recording is disabled', async () => {
-    await makeCall(world, { status: 'ringing', sessionId: 's3', controlId: 'rep-leg', initiatedAt: new Date() });
+    const call = await stage('s3');
     await setSettings({ recordingEnabled: false, recordingNotice: true });
 
-    await processTelephonyEvent((await answeredOnLeadLeg('s3')).id);
+    await run(marked(call.id, 'call.answered', 's3'));
 
     expect(fake.commands).toEqual([]);
   });
 
   it('does not record the rep leg', async () => {
-    await makeCall(world, { status: 'ringing', sessionId: 's4', controlId: 'rep-leg', initiatedAt: new Date() });
+    await stage('s4');
     const spec = { id: id(), type: 'call.answered', sessionId: 's4', controlId: 'rep-leg', direction: 'incoming' as const };
     await storeEvent(spec);
 
@@ -93,44 +104,70 @@ describe('starting a recording', () => {
     expect(fake.commands).toEqual([]);
   });
 
-  it('recognises the lead leg by its mark when the event carries no direction', async () => {
-    const call = await makeCall(world, { status: 'ringing', sessionId: 's5', controlId: 'rep-leg', initiatedAt: new Date() });
-    const spec = { id: id(), type: 'call.bridged', sessionId: 's5', controlId: 'lead-leg', clientState: legClientState(call.id) };
+  it('does not decide by direction alone', async () => {
+    await stage('s4b');
+    const spec = { id: id(), type: 'call.answered', sessionId: 's4b', controlId: 'some-leg', direction: 'outgoing' as const };
     await storeEvent(spec);
 
     await processTelephonyEvent(spec.id);
 
-    expect(fake.commands.map((c) => c.command.action)).toEqual(['record_start']);
+    expect(fake.commands).toEqual([]);
   });
 
-  it('issues the same command ids when answered, bridged and a redelivery all arrive', async () => {
-    const call = await makeCall(world, { status: 'ringing', sessionId: 's6', controlId: 'rep-leg', initiatedAt: new Date() });
-    await setSettings({ recordingNotice: true });
-    const answered = await answeredOnLeadLeg('s6');
-    const bridged = { id: id(), type: 'call.bridged', sessionId: 's6', controlId: 'lead-leg', direction: 'outgoing' as const };
+  it('remembers the lead leg from its marked call.initiated and recognises later events without the mark', async () => {
+    const call = await stage('s5');
+    await run(marked(call.id, 'call.initiated', 's5'));
+    expect((await reload(world.tenantId, call.id)).leadLegControlId).toBe('lead-leg');
+
+    const bridged = { id: id(), type: 'call.bridged', sessionId: 's5', controlId: 'lead-leg' };
     await storeEvent(bridged);
-
-    await processTelephonyEvent(answered.id);
-    await processTelephonyEvent(answered.id); // redelivered: already processed
     await processTelephonyEvent(bridged.id);
+    expect(fake.commands.map((c) => c.command.action)).toEqual(['record_start']);
 
-    const ids = fake.commands.map((c) => c.commandId);
-    expect(new Set(ids)).toEqual(new Set([`record:${call.id}`, `notice:${call.id}`]));
-    expect(ids).toHaveLength(4); // the provider dedupes the repeats by command id
+    // The rep's leg is a different control id and is still left alone.
+    const repBridged = { id: id(), type: 'call.bridged', sessionId: 's5', controlId: 'rep-leg' };
+    await storeEvent(repBridged);
+    await processTelephonyEvent(repBridged.id);
+    expect(fake.commands).toHaveLength(1);
+  });
+
+  it('sends nothing more when a late answered or bridged event arrives after both were accepted', async () => {
+    const call = await stage('s6');
+    await setSettings({ recordingNotice: true });
+
+    await run(marked(call.id, 'call.answered', 's6'));
+    await run(marked(call.id, 'call.bridged', 's6'));
+    await run(marked(call.id, 'call.answered', 's6')); // a reconcile replay with a new event id
+
+    expect(fake.commands.map((c) => c.commandId)).toEqual([`record:${call.id}`, `notice:${call.id}`]);
+  });
+
+  it('still plays the notice once when record_start is refused, and records on a later event', async () => {
+    const call = await stage('s6b');
+    await setSettings({ recordingNotice: true });
+    fake.failNext.command = new TelephonyProviderError('already recording', 422, false);
+
+    await run(marked(call.id, 'call.answered', 's6b'));
+    expect(fake.commands.map((c) => c.command.action)).toEqual(['speak']);
+    expect((await reload(world.tenantId, call.id)).recordingStartedAt).toBeNull();
+
+    await run(marked(call.id, 'call.bridged', 's6b'));
+    expect(fake.commands.map((c) => c.command.action)).toEqual(['speak', 'record_start']); // the notice is not spoken again
   });
 
   it('keeps the call going when the provider refuses to record', async () => {
-    const call = await makeCall(world, { status: 'ringing', sessionId: 's7', controlId: 'rep-leg', initiatedAt: new Date() });
+    const call = await stage('s7');
     fake.failNext.command = new TelephonyProviderError('refused', 422, false);
 
-    await processTelephonyEvent((await answeredOnLeadLeg('s7')).id);
+    await run(marked(call.id, 'call.answered', 's7'));
 
     expect((await reload(world.tenantId, call.id)).status).toBe('answered');
   });
 
   it('retries the event when the result of the record command is unknown', async () => {
-    const call = await makeCall(world, { status: 'ringing', sessionId: 's8', controlId: 'rep-leg', initiatedAt: new Date() });
-    const spec = await answeredOnLeadLeg('s8');
+    const call = await stage('s8');
+    const spec = marked(call.id, 'call.answered', 's8');
+    await storeEvent(spec);
     fake.failNext.command = new TelephonyProviderError('timeout', null, true);
 
     await expect(processTelephonyEvent(spec.id)).rejects.toThrow();
@@ -206,7 +243,7 @@ describe('purging expired recordings', () => {
     await purgeExpiredRecordings({ now: NOW, tenantIds: [world.tenantId] });
     const again = await purgeExpiredRecordings({ now: NOW, tenantIds: [world.tenantId] });
 
-    expect(again).toEqual({ deleted: 0, failed: 0 });
+    expect(again).toEqual({ deleted: 0, failed: 0, backfilled: 0 });
     expect(fake.deletedRecordings).toEqual(['rec-once']);
   });
 
@@ -216,7 +253,7 @@ describe('purging expired recordings', () => {
 
     const summary = await purgeExpiredRecordings({ now: NOW, tenantIds: [world.tenantId] });
 
-    expect(summary).toEqual({ deleted: 1, failed: 0 });
+    expect(summary).toEqual({ deleted: 1, failed: 0, backfilled: 0 });
     expect((await reload(world.tenantId, call.id)).recordingProviderId).toBeNull();
   });
 
@@ -226,9 +263,10 @@ describe('purging expired recordings', () => {
 
     const summary = await purgeExpiredRecordings({ now: NOW, tenantIds: [world.tenantId] });
 
-    expect(summary).toEqual({ deleted: 0, failed: 1 });
+    expect(summary).toEqual({ deleted: 0, failed: 1, backfilled: 0 });
     expect((await reload(world.tenantId, call.id)).recordingProviderId).toBe('rec-down');
-    expect((await purgeExpiredRecordings({ now: NOW, tenantIds: [world.tenantId] })).deleted).toBe(1);
+    expect((await purgeExpiredRecordings({ now: NOW, tenantIds: [world.tenantId] })).deleted).toBe(0); // backing off
+    expect((await purgeExpiredRecordings({ now: new Date(NOW.getTime() + PURGE_RETRY_BACKOFF_MS + 1), tenantIds: [world.tenantId] })).deleted).toBe(1);
   });
 
   it('leaves calls without a purge date alone and stays inside the tenant scope', async () => {
@@ -267,6 +305,59 @@ describe('purging expired recordings', () => {
     expect(second.deleted).toBe(3);
   });
 
+it('gives a recording with an id but no purge date one from when the call ended, and purges it once due', async () => {
+    const old = await recorded('rec-legacy-old', null);
+    const young = await recorded('rec-legacy-young', null);
+    await inTenant(world.tenantId, async () => {
+      await prisma.call.updateMany({ where: { id: old.id }, data: { endedAt: new Date(NOW.getTime() - 100 * DAY) } });
+      await prisma.call.updateMany({ where: { id: young.id }, data: { endedAt: new Date(NOW.getTime() - 10 * DAY) } });
+    });
+
+    const summary = await purgeExpiredRecordings({ now: NOW, tenantIds: [world.tenantId] });
+
+    expect(summary.backfilled).toBe(2);
+    expect(summary.deleted).toBe(1);
+    expect(fake.deletedRecordings).toEqual(['rec-legacy-old']);
+    const kept = await reload(world.tenantId, young.id);
+    expect(kept.recordingProviderId).toBe('rec-legacy-young');
+    expect(kept.recordingPurgeAt).toEqual(new Date(NOW.getTime() - 10 * DAY + 90 * DAY));
+  });
+
+  it('sets a missing purge date when the recording is saved again for a call that already holds its id', async () => {
+    const call = await recorded('rec-nodate-2', null);
+
+    await storeSavedRecording({ id: call.id, tenantId: world.tenantId }, 'rec-other', NOW);
+
+    const row = await reload(world.tenantId, call.id);
+    expect(row.recordingProviderId).toBe('rec-nodate-2');
+    expect(row.recordingPurgeAt).toEqual(new Date(NOW.getTime() + 90 * DAY));
+  });
+
+  it('does not let a full batch of failing rows starve the ones behind them', async () => {
+    const failing = Array.from({ length: RECORDING_PURGE_BATCH }, (_, i) => `bad-${i}`);
+    await inTenant(world.tenantId, () =>
+      prisma.call.createMany({
+        data: failing.map((rid, i) => ({
+          tenantId: world.tenantId,
+          direction: 'outbound' as const,
+          status: 'completed' as const,
+          toE164: world.toE164,
+          recordingProviderId: rid,
+          recordingPurgeAt: new Date(NOW.getTime() - 5 * DAY - i * 1000),
+        })),
+      })
+    );
+    failing.forEach((rid) => fake.failingDeletes.add(rid));
+    const good = await recorded('good-behind', new Date(NOW.getTime() - DAY));
+
+    const first = await purgeExpiredRecordings({ now: NOW, tenantIds: [world.tenantId] });
+    expect(first).toMatchObject({ deleted: 0, failed: RECORDING_PURGE_BATCH });
+
+    const second = await purgeExpiredRecordings({ now: new Date(NOW.getTime() + 60_000), tenantIds: [world.tenantId] });
+    expect(second.deleted).toBe(1);
+    expect((await reload(world.tenantId, good.id)).recordingProviderId).toBeNull();
+  });
+
   it('runs as part of the reconcile cron', async () => {
     const call = await recorded('rec-cron', new Date(NOW.getTime() - DAY));
 
@@ -274,5 +365,22 @@ describe('purging expired recordings', () => {
 
     expect(summary.purgedRecordings).toBe(1);
     expect((await reload(world.tenantId, call.id)).recordingProviderId).toBeNull();
+  });
+});
+
+describe('which hosts a recording may be downloaded from', () => {
+  it('accepts https on Telnyx and S3 hosts and on configured suffixes only', () => {
+    expect(isTrustedRecordingUrl('https://s3.amazonaws.com/telephony-recorder-prod/a.mp3?X-Amz-Signature=1')).toBe(true);
+    expect(isTrustedRecordingUrl('https://media.telnyx.com/a.mp3')).toBe(true);
+    expect(isTrustedRecordingUrl('https://files.example.org/a.mp3')).toBe(false);
+    expect(isTrustedRecordingUrl('https://files.example.org/a.mp3', ['example.org'])).toBe(true);
+  });
+
+  it('refuses plain http, look-alike hosts, embedded credentials and junk', () => {
+    expect(isTrustedRecordingUrl('http://media.telnyx.com/a.mp3')).toBe(false);
+    expect(isTrustedRecordingUrl('https://telnyx.com.evil.test/a.mp3')).toBe(false);
+    expect(isTrustedRecordingUrl('https://eviltelnyx.com/a.mp3')).toBe(false);
+    expect(isTrustedRecordingUrl('https://user:pw@media.telnyx.com/a.mp3')).toBe(false);
+    expect(isTrustedRecordingUrl('not a url')).toBe(false);
   });
 });

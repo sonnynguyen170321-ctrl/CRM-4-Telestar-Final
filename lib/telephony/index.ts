@@ -21,5 +21,7 @@ export function getTelephonyProvider(): TelephonyProvider {
   return new TelnyxProvider({
     apiKey: process.env.TELNYX_API_KEY!,
     credentialConnectionId: process.env.TELNYX_CREDENTIAL_CONNECTION_ID!,
+    // Optional, comma-separated host suffixes recordings may be downloaded from (see telnyx/client.ts).
+    recordingHosts: (process.env.TELEPHONY_RECORDING_HOSTS ?? '').split(',').map((h) => h.trim()).filter(Boolean),
   });
 }
