@@ -179,10 +179,19 @@ by our mark or the stored `leadLegControlId`, never by direction; downloads foll
 ## Phase 9 — Operations
 | ID | Task | Files | Tests | Deps | Owner |
 |---|---|---|---|---|---|
-| D9.1 | Health cron via `lib/ops/notifyOps.ts`: balance, failure rate, webhook silence, backlog, concurrency 80% | `app/api/cron/telephony-health/route.ts` | Each threshold boundary; dedupe. Mutants: comparisons | D4.4 | C |
-| D9.2 | Settings page (managers, `logAdminAudit`) | `app/settings/telephony/page.tsx`, `app/api/telephony/settings/route.ts` | Non-manager 403; kill switch blocks the next gate call; audit old/new | D3.1 | C |
-| D9.3 | Runbook: outage, balance, kill switch, rollback | `docs/dialer/RUNBOOK.md` | — | D9.1 | C |
-| D9.4 | Install the health cron; test-fire each alert | VPS | Alerts received | D9.1 + deploy | O |
+| D9.1 | **Built 2026-10-10.** Health cron via `lib/ops/notifyOps.ts`: balance, failure rate, webhook silence, backlog, concurrency 80% | `app/api/cron/telephony-health/route.ts` | Each threshold boundary; dedupe. Mutants: comparisons | D4.4 | C |
+| D9.2 | **Built 2026-10-10.** Settings page (managers, `logAdminAudit`) | `app/settings/telephony/page.tsx`, `app/api/telephony/settings/route.ts` | Non-manager 403; kill switch blocks the next gate call; audit old/new | D3.1 | C |
+| D9.3 | **Built 2026-10-10.** Runbook: outage, balance, kill switch, rollback (`RUNBOOK.md`) | `docs/dialer/RUNBOOK.md` | — | D9.1 | C |
+| D9.4 | Install the health cron (`docs/DEPLOY.md`); set `ALERT_WEBHOOK_URL`; test-fire each alert (`RUNBOOK.md` section 5) | VPS | Alerts received | D9.1 + deploy | O |
+
+**Built 2026-10-10 (D9.1–D9.3; D9.4 is the owner's).** Decisions made while building it:
+- **Settings API:** `GET/PATCH /api/telephony/settings`, `POST /numbers`, `PATCH/DELETE /numbers/[id]`, `DELETE /credentials/[id]`. Directors, floor managers and team leads (`MANAGER_ROLES`); never an API key; the tenant is the session's. Strict zod bodies that cannot name a tenant or write `killedAt` directly; the kill switch is a boolean (`killed`) and pressing it twice keeps the first time and person.
+- **Vietnam is refused** as an allowed country with a message saying why (the API and the page). Hours are 0-1440 minutes, start before end; "any time" expands to 00:00-24:00 and all weekdays; retention is bounded 7 to 730 days (default 90).
+- **Audit:** `admin.telephony.settings` (before and after of the fields that changed), `.kill`, `.number` (add / update / remove), `.credential_revoke`. A save that changes nothing writes no row.
+- **Caller ID:** migration `telephony_number_defaults` adds `TelephonyNumber.isDefault` (default for its country) and `isOverallDefault`. The first number a team adds becomes both; `lib/telephony/callerId.ts` (used by the webhook) picks country default, any number in the country, overall default, any number, else the provider default. A number's country is read from its E.164, and a number is unique across the deployment (a clash is a 409 that does not say whose it is). The provider seam has no "list account numbers", so numbers are added by hand.
+- **Credentials:** revoke marks the login revoked first (the token route refuses the rep at once), then deletes it at the provider; a provider failure is reported (`providerRevoked: false`) and a second press retries only the provider part. Restoring a revoked rep is a manual row delete (RUNBOOK section 9).
+- **Health cron:** scheduler secret only (a signed-in manager gets 403: the checks span every team). Findings: `telephony:balance`, `balance-unavailable`, `failure-rate:<tenant>`, `webhook-silence`, `backlog`, `concurrency`, `check-error:<name>`. Dedupe is `notifyOps`'s per-key 30-minute cooldown, held in the server process (a restart may repeat a still-true alert). Alert text names teams and counts, never a number. `TELNYX_CONCURRENCY_LIMIT` is optional; unset skips the check. Silence means calls placed in 30 minutes and no event received (the team calls any time, so there are no "working hours").
+- Not in this PR: recording playback and purge, softphone (their own PRs).
 
 ## Phase 10 — Pilot and rollout
 | ID | Task | Deps | Owner |

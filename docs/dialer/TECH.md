@@ -1,13 +1,13 @@
 # Dialer — technical notes
 
-Companion to `ARCHITECTURE.md` and `SYSTEM_DESIGN.md`. The implementation reference: where each piece
+Companion to `ARCHITECTURE.md`, `SYSTEM_DESIGN.md` and `RUNBOOK.md`. The implementation reference: where each piece
 lives, which existing helpers it reuses, and the rules a change to it must keep.
 
 ## Module map
 
 | Path | Role |
 |---|---|
-| `lib/telephony/provider.ts` | Provider interface: `ensureCredential`, `mintToken`, `connectCall`, `hangup`, `answer`, `transfer`, `recordStart`, `getRecordingUrl`, `deleteRecording`, `getBalance` |
+| `lib/telephony/provider.ts` | Provider interface: `findCredentialByName`, `createCredential`, `revokeCredential`, `mintToken`, `command` (answer, hangup, transfer, record_start), `getRecordingUrl`, `deleteRecording`, `getBalance`, `getCallStatus` |
 | `lib/telephony/telnyx/client.ts` | Telnyx REST client (fetch, timeout, retry on 429/5xx honouring `retry-after`, `command_id` on commands) |
 | `lib/telephony/telnyx/verify.ts` | Ed25519 webhook verification over `${telnyx-timestamp}|${rawBody}`, 300 s skew window |
 | `lib/telephony/fake.ts` | In-memory provider for tests |
@@ -17,7 +17,11 @@ lives, which existing helpers it reuses, and the rules a change to it must keep.
 | `lib/telephony/gate.ts` | Loader: reads lead/contact, suppression, credential and settings for the session's tenant, then calls the pure gate |
 | `lib/telephony/timezone.ts` | Lead-local time for the calling-hours rule |
 | `lib/telephony/outcomes.ts` | The one outcome list, shared by UI and server |
-| `lib/telephony/inbound.ts` | Inbound routing: number → tenant → caller → owner → fallback → missed |
+| ~~`lib/telephony/inbound.ts`~~ | Not built: no inbound (owner decision, 2026-10-08) |
+| `lib/telephony/callerId.ts` | Caller ID for a call: the country default, any number in the country, the overall default, any number, else the provider default; the tenant's active outbound numbers only |
+| `lib/telephony/settingsInput.ts` | Zod rules for what a manager may write: countries (ISO-2, never `VN`), hours (0-1440, start before end), weekdays, "any time", retention 7-730 days, E.164 numbers |
+| `lib/telephony/settingsAdmin.ts`, `settingsNumbers.ts`, `settingsAccess.ts` | Read and change a team's settings, numbers and softphone logins; the guard (interactive session, `MANAGER_ROLES`, tenant from the session); audit with before and after |
+| `lib/telephony/health.ts` | The five health checks and their delivery through `notifyOps` |
 | `lib/telephony/metrics.ts` | `countCalls` — the one call count every dashboard uses |
 | `app/api/telephony/token/route.ts` | Mint a 24 h WebRTC token for the signed-in rep |
 | `app/api/telephony/calls/route.ts` | Run the gate, write the `Call` row, return the call token |
@@ -25,7 +29,9 @@ lives, which existing helpers it reuses, and the rules a change to it must keep.
 | `app/api/telephony/calls/[id]/recording/route.ts` | Stream a recording to the caller or a manager |
 | `app/api/telephony/telnyx/webhook/route.ts` | Public, signed webhook receiver → `TelephonyEvent` inbox |
 | `workers/telephony.ts` | Applies inbox events to `Call` rows, writes the Activity once |
-| `app/api/cron/telephony-reconcile`, `app/api/cron/telephony-health` | Replay / finalize stuck calls; ops alerts |
+| `app/api/cron/telephony-reconcile`, `app/api/cron/telephony-health` | Replay / finalize stuck calls; ops alerts (scheduler secret; health refuses a manager session) |
+| `app/settings/telephony/page.tsx`, `components/settings/telephony/*` | Phone & dialer settings page (managers) |
+| `app/api/telephony/settings/**` | Settings, numbers and softphone-login endpoints behind the page |
 | `components/dialer/useTelnyxClient.ts`, `components/dialer/Softphone.tsx` | Browser client and call UI |
 
 ## Reused, not rewritten
@@ -56,7 +62,7 @@ lives, which existing helpers it reuses, and the rules a change to it must keep.
    rejected; duplicates are dropped on `TelephonyEvent.providerEventId`.
 5. **No secrets reach the browser** except the user's own short-lived WebRTC token.
 6. **Recording URLs never reach the browser.** Playback streams through our route after an access check;
-   each access is audited; recordings are deleted at `recordingPurgeAt` (90 days).
+   each access is audited; recordings are deleted at `recordingPurgeAt` (the retention setting, default 90 days).
 7. **Tenant on every query**, stated explicitly, not left to the request-scoped extension alone.
 8. **Status updates are guarded in SQL**, not only in code: `UPDATE "Call" … WHERE status IN (<earlier
    states>)`, so a late or out-of-order webhook cannot overwrite a finished call.
@@ -70,8 +76,14 @@ lives, which existing helpers it reuses, and the rules a change to it must keep.
 12. **Deactivating a rep revokes their Telnyx credential at the provider**, not only locally.
 13. **`TelephonySettings` is upserted** (no row exists until a manager saves); `fallbackUserIds` are
     re-validated against active users when used.
-14. **No 24-hour frequency rule** (owner decision, 2026-10-04). Calling hours 08:00–17:00 lead-local, every
-   day; own Do-Not-Call list and lead/contact `doNotCall`; unknown lead timezone blocks the call.
+14. **No 24-hour frequency rule** (owner decision, 2026-10-04). **Call any time** by default (owner decision,
+    2026-10-08: hours 00:00-24:00, every day, no timezone needed); a manager may narrow the hours, and then they
+    are lead-local and an unknown lead timezone blocks the call. Own Do-Not-Call list and lead/contact `doNotCall`
+    always apply.
+15. **Vietnam is never in `allowedCountries`** and is refused by the settings API: Vietnamese numbers are called
+    from the rep's own phone and logged (`PhoneCallPanel`).
+16. **Settings changes are audited** (`admin.telephony.settings`, `.kill`, `.number`, `.credential_revoke`) with the
+    non-secret before and after; the environment switches are shown by state only, never a value.
 
 ## Browser requirements
 
@@ -87,7 +99,9 @@ lives, which existing helpers it reuses, and the rules a change to it must keep.
 Env group `Telephony` in `lib/env-contract.ts` (all-or-none): `TELNYX_API_KEY`, `TELNYX_PUBLIC_KEY`,
 `TELNYX_CREDENTIAL_CONNECTION_ID`, `TELNYX_CALL_CONTROL_APP_ID`, `TELNYX_OUTBOUND_VOICE_PROFILE_ID`,
 `TELEPHONY_AUTH_SECRET`. Flags: `TELEPHONY_ENABLED` (on only for `true`), `TELEPHONY_DRY_RUN` (on unless
-`false`), `TELNYX_BALANCE_ALERT_USD`. Per-tenant settings (hours, countries, recording, fallback chain,
-kill switch) live in `TelephonySettings` and are edited on `settings/telephony`.
+`false`), `TELNYX_BALANCE_ALERT_USD`, optional `TELNYX_CONCURRENCY_LIMIT` (a positive whole number; the health
+cron skips the check when unset). Per-tenant settings (hours, countries, recording and notice, retention,
+kill switch) live in `TelephonySettings` and caller IDs in `TelephonyNumber`; both are edited on
+`settings/telephony`. (`fallbackUserIds` and `inboundRingSecs` are unused: no inbound.)
 
 Account setup: `docs/dialer/TELNYX_SETUP.md`.

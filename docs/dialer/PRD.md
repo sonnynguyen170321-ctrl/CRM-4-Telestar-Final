@@ -1,4 +1,14 @@
-# PRD — Telnyx Dialer (Outbound + Inbound)
+# PRD — Telnyx Dialer (Outbound; inbound dropped)
+
+> **Revised 2026-10-08 (owner decisions, `TASKS.md`).** This document keeps its original text; where a
+> later decision replaced it, the old text is struck through or marked *Superseded* with the new rule
+> beside it. In force today:
+> - **Outbound only, no inbound.** G4, US5 and US6 are not built.
+> - **Vietnam is never dialled through Telnyx.** Vietnamese numbers are called from the rep's own phone and logged in the CRM (`components/dialer/PhoneCallPanel.tsx`). The softphone serves other countries; `allowedCountries` never holds `VN`.
+> - **Call any time** by default: hours 00:00-24:00 every day. A manager can still narrow hours and weekdays; the 08:00-17:00 rule below is now only an option, not the default.
+> - **Recording on, no spoken notice by default**; the notice is a manager toggle. Retention is a manager setting (default 90 days).
+> - **Whole team at once**, no pilot batches: one manager's live check on production, then everyone (stages 2 to 4 of section 8 are replaced).
+> - Telnyx stays the provider (the Plivo option was dropped).
 
 ## 1. Problem
 ~34 SDRs place 30+ concurrent calls to Vietnam and international numbers. The current dialer
@@ -10,9 +20,9 @@ Call counts disagree across the leaderboard, My Day, client reports and contact 
 
 ## 2. Goals
 - G1 Click-to-call from the lead drawer works all day with no shared secret in the browser.
-- G2 Server-side, non-bypassable compliance gate (hours, own DNC list, country).
+- G2 Server-side, non-bypassable compliance gate (own DNC list, country, number type, and hours when a manager has narrowed them).
 - G3 Every call record is created and advanced only by signed Telnyx webhooks.
-- G4 Inbound hotline rings the lead owner, then a fallback chain; a missed call never goes unseen.
+- ~~G4 Inbound hotline rings the lead owner, then a fallback chain; a missed call never goes unseen.~~ *Superseded 2026-10-08: no inbound.*
 - G5 Calls are recorded, kept 90 days, playable only by the caller and managers.
 - G6 One call count across every surface.
 - G7 Managers can stop, pause or tune dialing without a deploy.
@@ -37,7 +47,7 @@ Call counts disagree across the leaderboard, My Day, client reports and contact 
 
 **US1 Click-to-call from the lead drawer (SDR)**
 - AC1 Call → `POST /api/telephony/calls`; a blocked attempt is stored as a `Call` (`status=blocked`) with a compliance snapshot.
-- AC2 When blocked, the softphone lists every reason in plain language (outside 08:00–17:00 lead-local, on our DNC list, lead flagged DNC, country not allowed, invalid number, no phone, no microphone permission, dialer disabled, gate error).
+- AC2 When blocked, the softphone lists every reason in plain language (outside the calling hours, when narrowed; on our DNC list, lead flagged DNC, country not allowed, invalid number, no phone, no microphone permission, dialer disabled, gate error).
 - AC3 `tz_unknown` shows an inline "Set lead timezone" control; after saving, the gate re-runs without closing the drawer.
 - AC4 A lead with no phone shows an immediate error and never sits on "connecting".
 - AC5 A repeat call to the same number within 24h is allowed.
@@ -57,29 +67,29 @@ Call counts disagree across the leaderboard, My Day, client reports and contact 
 - AC1 `do_not_call` adds a `PhoneSuppression` row and sets `lead.doNotCall` (+ time, reason).
 - AC2 Any later attempt to that number by anyone in the tenant is blocked.
 
-**US5 Inbound hotline (SDR, team lead)**
+**US5 Inbound hotline (SDR, team lead)** — *Superseded 2026-10-08: not built (no inbound).*
 - AC1 Caller matched by `[tenantId, normalizedPhone]` (Lead, then Contact); the owner's softphone rings for `inboundRingSecs` (default 20).
 - AC2 No answer → `fallbackUserIds` in order.
 - AC3 Inbound skips hours and DNC rules.
 
-**US6 Missed-call task (SDR)**
+**US6 Missed-call task (SDR)** — *Superseded 2026-10-08: not built (no inbound).*
 - AC1 No answer anywhere → voicemail (recording on) → `status=missed` → a "Missed call from …" Task to the owner (or first fallback) + notification.
 - AC2 Exactly one task per call (`missedCallTaskId` unique).
 - AC3 Unknown caller → stub Lead (number as name, `source=inbound_call`) + the task.
 
 **US7 Recording playback (SDR, managers)**
-- AC1 A consent notice plays at call start.
+- AC1 A consent notice plays at call start. *Revised 2026-10-08: only when the manager turns "recording notice" on; off by default.*
 - AC2 `GET /api/telephony/calls/[id]/recording` requires `canAccessLead` and (caller or `MANAGER_ROLES`); anyone else gets 403.
 - AC3 Each play fetches a fresh Telnyx URL; every access is written with `logAdminAudit`.
 - AC4 After 90 days (`recordingPurgeAt`) the recording is deleted at Telnyx and the UI says "expired".
 
 **US8 Manager settings (floor manager, director)**
-- AC1 `settings/telephony`: kill switch, dry-run, hours (480–1020, every day), allowed countries, recording on/off, retention, inbound ring seconds, fallback chain, credential revoke, who is registered.
+- AC1 `settings/telephony` (built, PR F): kill switch, dry-run, any-time toggle and hours/weekdays (default 00:00-24:00 every day), allowed countries (never Vietnam), recording on/off, recording notice, retention days (7 to 730, default 90), caller ID numbers with per-country and overall defaults, softphone logins with revoke, and the server switches shown read-only. ~~Inbound ring seconds and fallback chain~~ *superseded: no inbound.*
 - AC2 The kill switch blocks new calls from the next gate evaluation, no deploy.
 - AC3 Every change is audited with old and new values.
 
 **US9 Ops alerts (Owner)**
-- AC1 5-minute health check via `notifyOps`: balance below `TELNYX_BALANCE_ALERT_USD`; failure rate >20% in 15 min (≥10 calls); no webhooks during working hours; event backlog >50; concurrency ≥80% of the Telnyx limit.
+- AC1 5-minute health check via `notifyOps` (built, PR F): balance below `TELNYX_BALANCE_ALERT_USD`; failure rate >20% in 15 min (≥10 calls); no webhooks for 30 min while calls were placed (replaces "during working hours": the team calls any time); event backlog >50; concurrency ≥80% of `TELNYX_CONCURRENCY_LIMIT` when set.
 - AC2 Alerts are de-duplicated and link to `docs/dialer/RUNBOOK.md`.
 
 **US10 Consistent dashboards (Director)**
@@ -97,10 +107,10 @@ Call counts disagree across the leaderboard, My Day, client reports and contact 
 | CRM calls vs Telnyx CDRs, daily | 100% match |
 
 ## 7. Compliance requirements
-- **Decrees 91/2020 and 330/2026 (Vietnam):** outbound marketing calls only 08:00–17:00 lead-local, enforced at the gate and again when `call.initiated` arrives; unknown timezone blocks the call.
+- **Decrees 91/2020 and 330/2026 (Vietnam):** outbound marketing calls only 08:00–17:00 lead-local. *Revised 2026-10-08: Vietnamese numbers are not called through the dialer at all (own phone, logged), so this no longer binds the gate by default; the calling-hours machinery stays for any manager who narrows the hours, and then also applies again when `call.initiated` arrives and an unknown timezone blocks the call.*
 - **Own Do-Not-Call list:** `PhoneSuppression` + lead/contact `doNotCall`, checked before every outbound call; the `do_not_call` outcome adds to it. Calling a number on the national list is fined 160–180 million VND for organisations; importing that list is a later decision.
-- **Voice Brandname risk:** Vietnamese operators may block marketing calls over VoIP without a registered brand name. Telnyx's written answer is required before the pilot; the pilot answer rate is the signal; fallback is a Vietnam trunk behind the same provider interface.
-- **Recordings are personal data:** consent notice, 90-day purge, role-limited and audited access, recordings stay at Telnyx.
+- **Voice Brandname risk** *(superseded 2026-10-08: Vietnam is not dialled through Telnyx)*: Vietnamese operators may block marketing calls over VoIP without a registered brand name. Telnyx's written answer is required before the pilot; the pilot answer rate is the signal; fallback is a Vietnam trunk behind the same provider interface.
+- **Recordings are personal data:** optional consent notice (off by default), purge at the retention setting (default 90 days), role-limited and audited access, recordings stay at Telnyx.
 - **Secrets:** `TELNYX_API_KEY` and `TELEPHONY_AUTH_SECRET` stay server-side; browsers get short-lived per-user tokens; webhooks are Ed25519-verified with a 300 s skew limit.
 
 ## 8. Release criteria
@@ -108,14 +118,14 @@ Call counts disagree across the leaderboard, My Day, client reports and contact 
 |---|---|
 | 0 Pre-build | Backup verified by a restore drill; Telnyx Level 2; spike: token reaches `call.initiated`, park→connect < 1.5 s |
 | 1 Dry-run, 1 manager | Gate decisions logged, no calls placed; zero 5xx from the webhook route; alerts fire on a test trigger |
-| 2 Pilot, 3 SDRs, 1 week | Daily review; 100% CDR match; recording playback + purge checked; zero phantom calls |
-| 3 Pilot inbound | Owner ring → fallback → missed-call task proven live; unknown-caller stub lead created |
-| 4 Floor, batches of 10 | Concurrency ≥40 confirmed in writing; dropped calls < 1% per batch; kill switch rehearsed |
+| ~~2 Pilot, 3 SDRs, 1 week~~ | *Superseded 2026-10-08: replaced by one manager's live check on production (`TELNYX_SETUP.md` section 9), then the whole team.* |
+| ~~3 Pilot inbound~~ | *Superseded: no inbound.* |
+| 4 Whole team at once | Concurrency ≥40 confirmed in writing; dropped calls < 1% in the first week; 100% CDR match; kill switch rehearsed (`RUNBOOK.md`) |
 | 5 Cleanup | `SIP_*` env removed; `/api/dialer/config` gone; runbook signed off |
 
 ## 9. Open risks
 - Concurrency raise not granted before the floor rollout (blocks stage 4).
-- Vietnamese caller-ID / brandname rejection lowers the answer rate.
+- ~~Vietnamese caller-ID / brandname rejection lowers the answer rate.~~ *Superseded: Vietnam is called from the rep's own phone.*
 - The SDK's `clientState` does not reach `call.initiated` on a parked call → server-originated click-to-call (more latency).
 - Webhook outage → failover URL, inbox table, reconcile cron.
 - Balance runs out mid-shift → auto-recharge, alert, daily spend cap.

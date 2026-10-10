@@ -1,5 +1,7 @@
 # Telnyx Dialer — System Design
 
+> **Revised 2026-10-08:** there is no inbound calling, so the inbound transitions and events below (`call.initiated` inbound, the fallback chain, `missed` from inbound) are not built; Vietnamese numbers are never dialled through Telnyx; calling hours default to any time. See `TASKS.md` owner decisions and `RUNBOOK.md`.
+
 ## Call status state machine
 
 Status only moves forward. Terminal: `blocked`, `completed`, `no_answer`, `busy`, `failed`, `missed`,
