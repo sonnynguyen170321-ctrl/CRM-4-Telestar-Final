@@ -52,6 +52,7 @@ type LeadFacts = {
   campaignId: string | null;
   phone: string | null;
   timezone: string | null;
+  contactId: string | null;
   contact: { country: string | null } | null;
   account: { country: string | null } | null;
 };
@@ -79,6 +80,7 @@ export async function recordPhoneCall(params: LogPhoneCallParams & { canAccess: 
       campaignId: true,
       phone: true,
       timezone: true,
+      contactId: true,
       contact: { select: { country: true } },
       account: { select: { country: true } },
     },
@@ -92,6 +94,7 @@ export async function recordPhoneCall(params: LogPhoneCallParams & { canAccess: 
     definition.leadEffect === 'callback'
       ? nextBusinessDay(now, await businessTimezoneFor({ leadTimezone: lead.timezone, assigneeId: lead.assignedToId ?? user.id }))
       : null;
+  const reason = params.notes ? `Logged on a call: ${params.notes}`.slice(0, 500) : 'Logged on a call';
   const metadata = { action: outcome, outcome, label: definition.label, notes: params.notes, via: 'phone' };
 
   const activity = await prisma.$transaction(async (tx) => {
@@ -116,9 +119,15 @@ export async function recordPhoneCall(params: LogPhoneCallParams & { canAccess: 
         data: {
           doNotCall: true,
           doNotCallAt: now,
-          doNotCallReason: params.notes ? `Logged on a call: ${params.notes}`.slice(0, 500) : 'Logged on a call',
+          doNotCallReason: reason,
         },
       });
+      if (lead.contactId) {
+        await tx.contact.updateMany({
+          where: { id: lead.contactId, tenantId, doNotCall: false },
+          data: { doNotCall: true, doNotCallAt: now, doNotCallReason: reason },
+        });
+      }
       if (e164) {
         await tx.phoneSuppression.upsert({
           where: { tenantId_e164: { tenantId, e164 } },

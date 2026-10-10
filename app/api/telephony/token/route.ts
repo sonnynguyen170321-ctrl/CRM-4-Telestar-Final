@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { requireAuth } from '@/lib/auth';
+import { rejectApiKeyCaller, requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { TelephonyProviderError } from '@/lib/telephony/provider';
 import { CredentialRevokedError, TokenRateLimitedError, issueRepToken } from '@/lib/telephony/credentials';
@@ -20,6 +20,8 @@ const NO_STORE = { 'Cache-Control': 'no-store' };
 export async function POST() {
   const user = await requireAuth();
   if (user instanceof NextResponse) return user;
+  const keyRefusal = rejectApiKeyCaller(user);
+  if (keyRefusal) return keyRefusal;
   if (!user.tenantId) return NextResponse.json({ error: 'No tenant context' }, { status: 403, headers: NO_STORE });
 
   if (!isTelephonyEnabled(user.tenantId)) {

@@ -215,7 +215,7 @@ describe('POST /api/telephony/phone-calls', () => {
 
   it('refuses a rep who cannot work the lead, and writes nothing', async () => {
     const { response } = await log(users.peer, { leadId: ids.lead, outcome: 'do_not_call' });
-    expect([403, 404]).toContain(response.status);
+    expect(response.status).toBe(404);
     expect(await activities()).toHaveLength(0);
     expect((await leadRow()).doNotCall).toBe(false);
     expect(await suppressions()).toHaveLength(0);
@@ -227,6 +227,29 @@ describe('POST /api/telephony/phone-calls', () => {
     expect(await activities(ids.otherLead, otherTenantId)).toHaveLength(0);
     expect((await leadRow(ids.otherLead, otherTenantId)).doNotCall).toBe(false);
     expect(await suppressions(otherTenantId)).toHaveLength(0);
+  });
+
+  it('refuses an API key, whatever its scopes, and writes nothing', async () => {
+    const keyed = { ...users.rep, apiKey: { id: 'k1', name: 'ro', scopes: ['leads:read'] } } as SessionUser;
+    const { response } = await log(keyed, { leadId: ids.lead, outcome: 'do_not_call' });
+    expect(response.status).toBe(403);
+    expect(await activities()).toHaveLength(0);
+    expect((await leadRow()).doNotCall).toBe(false);
+    expect(await suppressions()).toHaveLength(0);
+  });
+
+  it('do_not_call also flags the linked contact, once, keeping an earlier reason', async () => {
+    const contactId = await inTenant(
+      async () => (await prisma.contact.create({ data: { tenantId, firstName: 'Cee', lastName: 'K', company: 'Acme', email: `c.${randomUUID()}@acme.test` } })).id
+    );
+    await inTenant(() => prisma.lead.update({ where: { id: ids.lead }, data: { contactId } }));
+    await log(users.rep, { leadId: ids.lead, outcome: 'do_not_call', notes: 'first' });
+    const first = await inTenant(() => prisma.contact.findUniqueOrThrow({ where: { id: contactId } }));
+    expect(first).toMatchObject({ doNotCall: true, doNotCallReason: 'Logged on a call: first' });
+    expect(first.doNotCallAt).not.toBeNull();
+    await log(users.rep, { leadId: ids.lead, outcome: 'do_not_call', notes: 'second' });
+    const second = await inTenant(() => prisma.contact.findUniqueOrThrow({ where: { id: contactId } }));
+    expect(second.doNotCallReason).toBe('Logged on a call: first');
   });
 
   it('answers 404 for a lead that does not exist', async () => {

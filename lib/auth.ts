@@ -172,6 +172,19 @@ export function rejectSessionCaller(user: SessionUser): NextResponse | null {
   );
 }
 
+/**
+ * For routes that act as a person at a keyboard (the softphone token, placing or logging a call):
+ * an API key is refused, whatever its scopes, so a read-only key cannot write and no key can mint
+ * a WebRTC credential. Keys have their own surface under `/api/v1`.
+ */
+export function rejectApiKeyCaller(user: SessionUser): NextResponse | null {
+  if (!user.apiKey) return null;
+  return NextResponse.json(
+    { error: 'This endpoint takes a signed-in user, not an API key', code: 'session_required' },
+    { status: 403 }
+  );
+}
+
 /** Require a specific role (or above) in an API route handler. */
 export async function requireRole(
   minRole: SessionUser['role']

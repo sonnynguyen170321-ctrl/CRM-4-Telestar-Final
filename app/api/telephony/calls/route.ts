@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { requireAuth, type SessionUser } from '@/lib/auth';
+import { rejectApiKeyCaller, requireAuth, type SessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { issueCallToken, toClientState, CALL_TOKEN_TTL_SECONDS } from '@/lib/telephony/authToken';
 import { isTelephonyEnabled } from '@/lib/telephony/flags';
@@ -47,6 +47,8 @@ const notFound = () => NextResponse.json({ error: 'Lead not found', code: 'not_f
 export async function POST(req: NextRequest) {
   const user = await requireAuth();
   if (user instanceof NextResponse) return user;
+  const keyRefusal = rejectApiKeyCaller(user);
+  if (keyRefusal) return keyRefusal;
   if (!user.tenantId) return NextResponse.json({ error: 'No tenant context' }, { status: 403, headers: NO_STORE });
   const tenantId = user.tenantId;
 

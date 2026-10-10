@@ -134,6 +134,12 @@ describe('POST /api/telephony/calls', () => {
     expect((await call(null, { leadId: ids.lead })).response.status).toBe(401);
   });
 
+  it('refuses an API key and records no call', async () => {
+    const keyed = { ...users.rep, apiKey: { id: 'k1', name: 'ro', scopes: ['*'] } } as SessionUser;
+    expect((await call(keyed, { leadId: ids.lead })).response.status).toBe(403);
+    expect(await callRows()).toHaveLength(0);
+  });
+
   it('is refused with no row while the deployment switch is off', async () => {
     process.env.TELEPHONY_ENABLED = 'false';
     const { response, body } = await call(users.rep, { leadId: ids.lead });
