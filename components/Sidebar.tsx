@@ -60,6 +60,8 @@ interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>;
+  /** A count to show beside the name, e.g. ICPs waiting for review. */
+  badge?: number;
 }
 
 /**
@@ -96,6 +98,23 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
       return true;
     }
   });
+
+  // Custom ICPs waiting for this person's review (team lead and up). The server decides whose
+  // submissions count; anyone else gets 403 and sees no badge.
+  const [icpReviewCount, setIcpReviewCount] = useState(0);
+  useEffect(() => {
+    if (!isManager) return;
+    let cancelled = false;
+    fetch('/api/icp/reviews?countOnly=1')
+      .then((r) => (r.ok ? r.json() : { count: 0 }))
+      .then((data) => {
+        if (!cancelled) setIcpReviewCount(Number(data.count) || 0);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isManager, pathname]);
 
   // Sync CSS variable on load and change
   useEffect(() => {
@@ -202,7 +221,7 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
               ? [{ name: 'Lead Filter', href: '/lead-filter', icon: Funnel }]
               : []),
             ...(isManager
-              ? [{ name: 'ICP & Scoring', href: '/automation?tab=scoring', icon: Target }]
+              ? [{ name: 'ICP & Scoring', href: '/automation?tab=scoring', icon: Target, badge: icpReviewCount }]
               : []),
           ],
         },
@@ -318,7 +337,17 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
                       />
 
                       {expanded ? (
-                        <span className="truncate">{item.name}</span>
+                        <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                          <span className="truncate">{item.name}</span>
+                          {item.badge ? (
+                            <span
+                              className="rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white"
+                              aria-label={`${item.badge} waiting for review`}
+                            >
+                              {item.badge}
+                            </span>
+                          ) : null}
+                        </span>
                       ) : (
                         <span
                           role="tooltip"

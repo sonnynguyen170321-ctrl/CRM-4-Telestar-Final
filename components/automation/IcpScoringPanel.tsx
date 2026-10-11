@@ -1,53 +1,38 @@
 'use client';
 
 import {
-  AlertCircle,
-  Check,
   CheckCircle2,
   CircleDot,
-  Copy,
   Flame,
   Loader2,
   MessageSquareReply,
   Plus,
   RefreshCw,
-  Save,
   Target,
+  Check,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { IcpVersionRulesV2 } from '@telestar/core-scoring/rules/schema-v2';
-import { useToast } from '@/context/ToastContext';
 import { RescorePreview } from '@/components/automation/RescorePreview';
-import { ScoringPointsEditor } from '@/components/automation/ScoringPointsEditor';
+import { ActionButton, IcpEditorCard } from '@/components/icp/IcpEditorCard';
+import { IcpReviewQueue } from '@/components/icp/IcpReviewQueue';
+import { Field, inputClass } from '@/components/icp/IcpRuleEditor';
 import {
-  clearIcpDraft,
-  loadIcpDraft,
-  saveIcpDraft,
-  shouldPersistIcpDraft,
-} from '@/lib/leadgen/icpDraftRecovery';
-import { managerSimplificationNotes } from '@/lib/leadgen/icpManagerRules';
+  currentVersionOf,
+  icpApi,
+  newestPublished,
+  ownerLabel,
+  readJson,
+  type IcpProfile,
+  type IcpTemplate,
+} from '@/components/icp/icpClient';
+import { useToast } from '@/context/ToastContext';
 
-type Version = {
-  id: string;
-  versionNumber: number;
-  status: 'draft' | 'published' | 'archived';
-  rulesJson: IcpVersionRulesV2;
-  updatedAt: string;
-};
-type Profile = {
-  id: string;
-  name: string;
-  description: string | null;
-  isDefault: boolean;
-  versions: Version[];
-};
-type Template = { id: string; name: string; description: string };
 type Campaign = {
   id: string;
   name: string;
   icpVersionId: string | null;
   icpProfileId?: string | null;
-  icpProfile?: { id: string; name: string } | null;
+  icpProfile?: { id: string; name: string; kind?: string } | null;
   client: { name: string };
   icpVersion: {
     id: string;
@@ -61,57 +46,51 @@ type Summary = {
   distribution: { hot: number; warm: number; cold: number };
 };
 
-const inputClass =
-  'min-h-11 w-full rounded-lg border border-card-border bg-bg-main px-3 py-2 text-sm text-text-primary outline-none transition-colors focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 disabled:cursor-not-allowed disabled:opacity-50';
-
-type Section = 'icp' | 'points' | 'rescore' | 'engagement';
+type Section = 'icp' | 'points' | 'reviews' | 'rescore' | 'engagement';
 const SECTION_LABEL: Record<Section, string> = {
   icp: 'ICP rules',
   points: 'Scoring points',
+  reviews: 'ICP reviews',
   rescore: 'Campaigns & re-score',
   engagement: 'Engagement',
 };
 
-const csv = (value: string) =>
-  Array.from(new Set(value.split(',').map((part) => part.trim()).filter(Boolean)));
-
-async function json<T>(response: Response): Promise<T> {
-  const data = (await response.json().catch(() => ({}))) as T & { error?: string };
-  if (!response.ok) throw new Error(data.error || 'Request failed');
-  return data;
-}
+type KindFilter = 'all' | 'library' | 'custom';
 
 export function IcpScoringPanel() {
   const { showToast } = useToast();
   const [section, setSection] = useState<Section>('icp');
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const [profiles, setProfiles] = useState<IcpProfile[]>([]);
+  const [templates, setTemplates] = useState<IcpTemplate[]>([]);
+  const [canManageLibrary, setCanManageLibrary] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [reviewCount, setReviewCount] = useState(0);
   const [profileId, setProfileId] = useState('');
-  const [rules, setRules] = useState<IcpVersionRulesV2 | null>(null);
+  const [filter, setFilter] = useState<KindFilter>('all');
   const [busy, setBusy] = useState('');
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [createKind, setCreateKind] = useState<'library' | 'custom'>('library');
   const [draftName, setDraftName] = useState('');
   const [templateId, setTemplateId] = useState('');
+  const [createCampaignId, setCreateCampaignId] = useState('');
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [recoveredDraft, setRecoveredDraft] = useState(false);
-  const [rulesVersionId, setRulesVersionId] = useState('');
 
   const load = useCallback(async (preferred?: string) => {
     setLoading(true);
     try {
-      const [library, campaignData] = await Promise.all([
-        fetch('/api/icp/profiles').then((r) =>
-          json<{ profiles: Profile[]; templates: Template[] }>(r),
-        ),
-        fetch('/api/icp/campaigns').then((r) =>
-          json<{ campaigns: Campaign[] }>(r),
-        ),
+      const [library, campaignData, reviews] = await Promise.all([
+        icpApi.list(),
+        fetch('/api/icp/campaigns').then((r) => readJson<{ campaigns: Campaign[] }>(r)),
+        fetch('/api/icp/reviews?countOnly=1')
+          .then((r) => readJson<{ count: number }>(r))
+          .catch(() => ({ count: 0 })),
       ]);
       setProfiles(library.profiles);
       setTemplates(library.templates);
+      setCanManageLibrary(library.canManageLibrary);
       setCampaigns(campaignData.campaigns);
+      setReviewCount(reviews.count);
       setProfileId((current) => {
         const candidate = preferred || current;
         return library.profiles.some((item) => item.id === candidate)
@@ -129,59 +108,12 @@ export function IcpScoringPanel() {
     void load();
   }, [load]);
 
+  const visibleProfiles = useMemo(
+    () => profiles.filter((item) => filter === 'all' || item.kind === filter),
+    [profiles, filter],
+  );
   const profile = profiles.find((item) => item.id === profileId) ?? null;
-  const version =
-    profile?.versions.find((item) => item.status === 'draft') ??
-    profile?.versions.find((item) => item.status === 'published') ??
-    null;
-  const editable = version?.status === 'draft';
-  const dirty =
-    Boolean(rules && version && rulesVersionId === version.id) &&
-    JSON.stringify(rules) !== JSON.stringify(version?.rulesJson);
-  // The schema rejects weights that do not sum to 100 and a Fit bar at or under the Review bar;
-  // saying so here, before the save round-trip, is what makes those two numbers safe to edit.
-  const scoringProblem = rules ? describeScoringProblem(rules) : null;
-  const advanced = useMemo(() => (rules ? managerSimplificationNotes(rules) : []), [rules]);
-  const needsSave = dirty || advanced.length > 0;
-
-  useEffect(() => {
-    if (!version?.rulesJson) {
-      setRules(null);
-      setRulesVersionId('');
-      setRecoveredDraft(false);
-      return;
-    }
-    const recovered = loadIcpDraft(
-      window.sessionStorage,
-      version.id,
-      version.updatedAt,
-    );
-    setRules(structuredClone(recovered ?? version.rulesJson));
-    setRulesVersionId(version.id);
-    setRecoveredDraft(Boolean(recovered));
-  }, [version]);
-
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
-
-  useEffect(() => {
-    if (
-      !version ||
-      !rules ||
-      !shouldPersistIcpDraft(dirty, rulesVersionId, version.id)
-    )
-      return;
-    saveIcpDraft(
-      window.sessionStorage,
-      version.id,
-      version.updatedAt,
-      rules,
-    );
-  }, [dirty, rules, rulesVersionId, version]);
+  const version = profile ? currentVersionOf(profile) : null;
 
   const published = useMemo(
     () =>
@@ -192,7 +124,7 @@ export function IcpScoringPanel() {
             id: candidate.id,
             profileId: item.id,
             versionNumber: candidate.versionNumber,
-            label: `${item.name} · v${candidate.versionNumber}`,
+            label: `${item.name} · v${candidate.versionNumber}${item.kind === 'custom' ? ' (custom)' : ''}`,
           })),
       ),
     [profiles],
@@ -214,92 +146,24 @@ export function IcpScoringPanel() {
     act(
       'create',
       async () => {
-        if (draftName.trim().length < 2) throw new Error('Enter an ICP name');
-        const result = await fetch('/api/icp/profiles', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: draftName.trim(),
-            templateId: templateId || undefined,
-          }),
-        }).then((r) => json<{ profile: { id: string } }>(r));
+        const kind = canManageLibrary ? createKind : 'custom';
+        if (kind === 'library' && draftName.trim().length < 2) throw new Error('Enter an ICP name');
+        if (kind === 'custom' && !createCampaignId && !canManageLibrary) throw new Error('Choose the campaign this ICP is for');
+        const result =
+          kind === 'library'
+            ? await icpApi.createLibrary({ name: draftName.trim(), templateId: templateId || undefined })
+            : await icpApi.createCustom({
+                campaignId: createCampaignId || undefined,
+                templateId: templateId || undefined,
+                name: draftName.trim() || undefined,
+              });
         setDraftName('');
         setTemplateId('');
         setShowCreate(false);
+        setFilter('all');
         await load(result.profile.id);
       },
       'ICP draft created',
-    );
-
-  const confirmSimplification = () =>
-    advanced.length === 0 ||
-    window.confirm(
-      [
-        'This legacy ICP cannot be represented exactly by the simple editor.',
-        'Continuing may remove criteria or broaden the employee range:',
-        ...advanced.map((criterion) => `- ${criterion}`),
-        '',
-        'Continue with simplification?',
-      ].join('\n'),
-    );
-
-  const clone = () => {
-    if (!version || !confirmSimplification()) return;
-    void act(
-      'clone',
-      async () => {
-        await fetch('/api/icp/versions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourceVersionId: version.id,
-            acknowledgeSimplification: advanced.length > 0,
-          }),
-        }).then(json);
-        clearIcpDraft(window.sessionStorage, version.id);
-        setRecoveredDraft(false);
-        await load(profileId);
-      },
-      'Editable draft created',
-    );
-  };
-
-  const save = () => {
-    if (!version || !rules || !confirmSimplification()) return;
-    void act(
-      'save',
-      async () => {
-        await fetch(`/api/icp/versions/${version.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            expectedUpdatedAt: version.updatedAt,
-            rulesJson: rules,
-            acknowledgeSimplification: advanced.length > 0,
-          }),
-        }).then(json);
-        clearIcpDraft(window.sessionStorage, version.id);
-        setRecoveredDraft(false);
-        setRules(null);
-        setRulesVersionId('');
-        await load(profileId);
-      },
-      'ICP draft saved',
-    );
-  };
-  const publish = () =>
-    version &&
-    act(
-      'publish',
-      async () => {
-        await fetch(`/api/icp/versions/${version.id}/publish`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ expectedUpdatedAt: version.updatedAt }),
-        }).then(json);
-        await load(profileId);
-      },
-      'ICP version published',
     );
 
   const makeDefault = () =>
@@ -307,7 +171,7 @@ export function IcpScoringPanel() {
     act(
       'default',
       async () => {
-        await fetch(`/api/icp/profiles/${profile.id}/default`, { method: 'POST' }).then(json);
+        await fetch(`/api/icp/profiles/${profile.id}/default`, { method: 'POST' }).then(readJson);
         await load(profileId);
       },
       `${profile.name} is now the default: it pre-ranks pool records that belong to no campaign`,
@@ -317,13 +181,9 @@ export function IcpScoringPanel() {
     act(
       `campaign:${campaignId}`,
       async () => {
-        await fetch(`/api/icp/campaigns/${campaignId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ icpVersionId }),
-        }).then(json);
+        await icpApi.assign(campaignId, icpVersionId);
         const campaignData = await fetch('/api/icp/campaigns').then((response) =>
-          json<{ campaigns: Campaign[] }>(response),
+          readJson<{ campaigns: Campaign[] }>(response),
         );
         setCampaigns(campaignData.campaigns);
       },
@@ -338,25 +198,13 @@ export function IcpScoringPanel() {
       async () => {
         const result = await fetch('/api/leads/recalculate-scores', {
           method: 'POST',
-        }).then((r) => json<Summary>(r));
+        }).then((r) => readJson<Summary>(r));
         setSummary(result);
       },
       'Engagement priorities recalculated',
     );
 
-  const setList = (
-    group: 'geography' | 'industry' | 'persona',
-    key: string,
-    value: string,
-  ) =>
-    setRules((current) =>
-      current
-        ? {
-            ...current,
-            [group]: { ...current[group], [key]: csv(value) },
-          }
-        : current,
-    );
+  const view = section === 'points' ? 'points' : 'rules';
 
   return (
     <div className="space-y-6">
@@ -365,7 +213,7 @@ export function IcpScoringPanel() {
           <div>
             <h2 className="type-section flex items-center gap-2 text-text-primary">
               <Target className="h-5 w-5 text-brand-red" aria-hidden="true" />
-              ICP & Scoring
+              ICP &amp; Scoring
             </h2>
             <p className="mt-2 max-w-[68ch] text-sm leading-6 text-text-secondary">
               ICP Match belongs to each campaign. Engagement belongs to the
@@ -373,7 +221,7 @@ export function IcpScoringPanel() {
             </p>
           </div>
           <div className="inline-flex rounded-lg border border-card-border bg-bg-main p-1" aria-label="Scoring settings">
-            {(['icp', 'points', 'rescore', 'engagement'] as const).map((item) => (
+            {(['icp', 'points', 'reviews', 'rescore', 'engagement'] as const).map((item) => (
               <button
                 key={item}
                 type="button"
@@ -386,6 +234,9 @@ export function IcpScoringPanel() {
                 }`}
               >
                 {SECTION_LABEL[item]}
+                {item === 'reviews' && reviewCount > 0 && (
+                  <span className="ml-2 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-white">{reviewCount}</span>
+                )}
               </button>
             ))}
           </div>
@@ -394,6 +245,8 @@ export function IcpScoringPanel() {
 
       {section === 'engagement' ? (
         <Engagement summary={summary} busy={busy === 'recalculate'} onRun={recalculate} />
+      ) : section === 'reviews' ? (
+        <IcpReviewQueue onDecided={() => load(profileId)} />
       ) : section === 'rescore' ? (
         <>
           <CampaignTable campaigns={campaigns} versions={published} busy={busy} onAssign={assign} />
@@ -412,16 +265,35 @@ export function IcpScoringPanel() {
                 <h2 className="type-section text-text-primary">ICP library</h2>
                 <p className="mt-1 text-sm text-text-secondary">
                   Published versions are immutable; edits always happen in a new draft.
+                  {!canManageLibrary && ' Shared ICPs are managed by directors and managers; you can make a custom ICP for a campaign.'}
                 </p>
               </div>
-              <button type="button" onClick={() => setShowCreate((value) => !value)} disabled={dirty} title={dirty ? 'Save or discard the current draft first' : undefined} className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-brand-red px-4 text-xs font-bold text-white hover:bg-brand-red-hover disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="button" onClick={() => setShowCreate((value) => !value)} className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-brand-red px-4 text-xs font-bold text-white hover:bg-brand-red-hover disabled:cursor-not-allowed disabled:opacity-50">
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 New ICP
               </button>
             </div>
 
             {showCreate && (
-              <div className="mt-5 grid grid-cols-[1fr_1fr_auto] items-end gap-4 border-y border-card-border py-5">
+              <div className="mt-5 grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-4 border-y border-card-border py-5">
+                {canManageLibrary && (
+                  <Field label="Kind">
+                    <select className={inputClass} value={createKind} onChange={(e) => setCreateKind(e.target.value as 'library' | 'custom')}>
+                      <option value="library">Shared library ICP</option>
+                      <option value="custom">Custom ICP (mine)</option>
+                    </select>
+                  </Field>
+                )}
+                {(createKind === 'custom' || !canManageLibrary) && (
+                  <Field label={canManageLibrary ? 'For campaign (optional)' : 'For campaign'}>
+                    <select className={inputClass} value={createCampaignId} onChange={(e) => setCreateCampaignId(e.target.value)}>
+                      <option value="">{canManageLibrary ? 'No campaign' : 'Choose a campaign'}</option>
+                      {campaigns.map((campaign) => (
+                        <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
                 <Field label="ICP name">
                   <input className={inputClass} value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="SEA logistics decision makers" />
                 </Field>
@@ -433,7 +305,7 @@ export function IcpScoringPanel() {
                     ))}
                   </select>
                 </Field>
-                <Button label="Create draft" icon={Plus} busy={busy === 'create'} disabled={Boolean(busy)} onClick={create} primary />
+                <ActionButton label="Create draft" icon={Plus} busy={busy === 'create'} disabled={Boolean(busy)} onClick={create} primary />
               </div>
             )}
 
@@ -449,164 +321,56 @@ export function IcpScoringPanel() {
               </div>
             ) : (
               <div className="mt-6">
-                <label className="block max-w-md space-y-2 text-xs font-semibold text-text-secondary">
-                  Active profile
-                  <select className={inputClass} value={profileId} onChange={(e) => {
-                      if (!dirty || window.confirm('Discard unsaved ICP changes?')) {
-                        if (dirty && version) {
-                          clearIcpDraft(window.sessionStorage, version.id);
-                        }
-                        setRecoveredDraft(false);
-                        setRules(null);
-                        setRulesVersionId('');
-                        setProfileId(e.target.value);
-                      }
-                    }}>
-                    {profiles.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}{item.isDefault ? ' · Default' : ''}
-                      </option>
+                <div className="flex items-end gap-4">
+                  <label className="block max-w-md flex-1 space-y-2 text-xs font-semibold text-text-secondary">
+                    Active profile
+                    <select className={inputClass} value={profileId} onChange={(e) => setProfileId(e.target.value)}>
+                      {visibleProfiles.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}{item.isDefault ? ' · Default' : ''}{item.kind === 'custom' ? ` · ${ownerLabel(item)}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="inline-flex rounded-lg border border-card-border bg-bg-main p-1" role="group" aria-label="Filter ICPs">
+                    {(['all', 'library', 'custom'] as const).map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        aria-pressed={filter === item}
+                        onClick={() => {
+                          setFilter(item);
+                          const first = profiles.find((p) => item === 'all' || p.kind === item);
+                          if (first && !(profile && (item === 'all' || profile.kind === item))) setProfileId(first.id);
+                        }}
+                        className={`min-h-11 cursor-pointer rounded-md px-3 text-xs font-semibold ${filter === item ? 'bg-brand-red text-white' : 'text-text-secondary hover:bg-card-bg'}`}
+                      >
+                        {item === 'all' ? 'All' : item === 'library' ? 'Shared' : 'Custom'}
+                      </button>
                     ))}
-                  </select>
-                </label>
-
-                {profile && version && rules && (
-                  <div className="mt-6 border-t border-card-border pt-6">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h3 className="type-card text-text-primary">
-                          {profile.name} · v{version.versionNumber}
-                        </h3>
-                        <p className="mt-1 text-xs text-text-secondary">
-                          {editable ? 'Draft — editable' : 'Published — read only'}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        {editable ? (
-                          <>
-                            <Button label="Save draft" icon={Save} busy={busy === 'save'} disabled={Boolean(busy) || !needsSave || Boolean(scoringProblem)} onClick={save} />
-                            <Button label="Publish" icon={Check} busy={busy === 'publish'} disabled={Boolean(busy) || needsSave} onClick={publish} primary />
-                          </>
-                        ) : (
-                          <Button label="Edit" icon={Copy} busy={busy === 'clone'} disabled={Boolean(busy)} onClick={clone} primary />
-                        )}
-                        {!profile.isDefault && version.status === 'published' && (
-                          <Button label="Set as default" icon={Check} busy={busy === 'default'} disabled={Boolean(busy)} onClick={makeDefault} />
-                        )}
-                      </div>
-                    </div>
-
-                    {!editable && (
-                      <p className="mt-4 flex items-center gap-2 border-l-2 border-blue-500 bg-blue-500/5 px-4 py-3 text-xs text-text-secondary">
-                        <AlertCircle className="h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />
-                        Published versions are read-only so past scores keep the rules they were made with. Edit
-                        makes a new draft from this one; publish it to replace this version.
-                      </p>
-                    )}
-
-                    {advanced.length > 0 && (
-                      <details className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-xs text-text-secondary">
-                        <summary className="cursor-pointer font-semibold text-text-primary">
-                          Advanced criteria from an older template are active
-                        </summary>
-                        <ul className="mt-3 list-disc space-y-1 pl-5">
-                          {advanced.map((criterion) => (
-                            <li key={criterion}>{criterion}</li>
-                          ))}
-                        </ul>
-                        <p className="mt-3">
-                          {editable
-                            ? 'Saving will remove or fold these rules into the simple fields. Review the list: the resulting ICP may be broader.'
-                            : 'Creating a draft requires confirmation because some rules will be removed or broadened.'}
-                        </p>
-                      </details>
-                    )}
-
-                    {recoveredDraft && (
-                      <p className="mt-4 text-xs font-semibold text-blue-700" role="status">
-                        Unsaved draft recovered from this browser session.
-                      </p>
-                    )}
-                    {dirty && (
-                      <p className="mt-4 text-xs font-semibold text-amber-700" role="status">
-                        Unsaved changes. Save the draft before publishing or leaving this profile.
-                      </p>
-                    )}
-                    {section === 'points' ? (
-                      <ScoringPointsEditor
-                        rules={rules}
-                        editable={editable}
-                        versionId={version.id}
-                        onChange={setRules}
-                        onEdit={clone}
-                      />
-                    ) : (
-                    <>
-                    <fieldset disabled={!editable} className="mt-6 grid grid-cols-2 gap-5">
-                      <Field label="Target countries">
-                        <input className={inputClass} value={rules.geography.targetCountries.join(', ')} onChange={(e) => setList('geography', 'targetCountries', e.target.value)} placeholder="Vietnam, Singapore" />
-                      </Field>
-                      <Field label="Excluded countries">
-                        <input className={inputClass} value={rules.geography.excludedCountries.join(', ')} onChange={(e) => setList('geography', 'excludedCountries', e.target.value)} placeholder="Known mismatch means No fit" />
-                      </Field>
-                      <Field label="Industry rule">
-                        <select className={inputClass} value={rules.industry.mode} onChange={(e) => setRules({ ...rules, industry: { ...rules.industry, mode: e.target.value as IcpVersionRulesV2['industry']['mode'] } })}>
-                          <option value="all">Any industry</option>
-                          <option value="allowlist">Must match target industries</option>
-                          <option value="denylist">Exclude listed industries only</option>
-                        </select>
-                      </Field>
-                      <Field label="Target industries">
-                        <input className={inputClass} value={rules.industry.targetIndustries.join(', ')} onChange={(e) => setList('industry', 'targetIndustries', e.target.value)} placeholder="Software, Logistics" />
-                      </Field>
-                      <Field label="Excluded industries">
-                        <input className={inputClass} value={rules.industry.excludedIndustries.join(', ')} onChange={(e) => setList('industry', 'excludedIndustries', e.target.value)} placeholder="Gambling, Tobacco" />
-                      </Field>
-                      <Field label="Accepted buyer titles">
-                        <input className={inputClass} value={rules.persona.titleAllowlist.join(', ')} onChange={(e) => setList('persona', 'titleAllowlist', e.target.value)} placeholder="CEO, VP Sales, Head of Operations" />
-                      </Field>
-                      <Field label="Excluded buyer titles">
-                        <input className={inputClass} value={rules.persona.titleDenylist.join(', ')} onChange={(e) => setList('persona', 'titleDenylist', e.target.value)} placeholder="Intern, Assistant" />
-                      </Field>
-                      <Field label="Minimum seniority">
-                        <select className={inputClass} value={rules.persona.seniorityFloor ?? ''} onChange={(e) => {
-                          const persona = { ...rules.persona };
-                          if (e.target.value) persona.seniorityFloor = e.target.value as NonNullable<typeof persona.seniorityFloor>;
-                          else delete persona.seniorityFloor;
-                          setRules({ ...rules, persona });
-                        }}>
-                          <option value="">No minimum</option>
-                          <option value="C_LEVEL">C-level</option>
-                          <option value="VP">VP</option>
-                          <option value="DIRECTOR">Director</option>
-                          <option value="MANAGER">Manager</option>
-                          <option value="IC">Individual contributor</option>
-                        </select>
-                      </Field>
-                      <Field label="Minimum employees">
-                        <input type="number" min={0} className={inputClass} value={rules.size.minEmployees ?? ''} onChange={(e) => setRules({ ...rules, size: { ...rules.size, minEmployees: e.target.value ? Number(e.target.value) : undefined } })} placeholder="No minimum" />
-                      </Field>
-                      <Field label="Maximum employees">
-                        <input type="number" min={0} className={inputClass} value={rules.size.maxEmployees ?? ''} onChange={(e) => setRules({ ...rules, size: { ...rules.size, maxEmployees: e.target.value ? Number(e.target.value) : undefined } })} placeholder="No maximum" />
-                      </Field>
-                    </fieldset>
-                    <ScoringControls rules={rules} editable={editable} onChange={setRules} problem={scoringProblem} />
-                    </>
-                    )}
                   </div>
+                </div>
+
+                {profile && version && (
+                  <IcpEditorCard
+                    key={profile.id}
+                    profile={profile}
+                    view={view}
+                    onChanged={() => load(profile.id)}
+                    extraActions={
+                      canManageLibrary && profile.kind === 'library' && !profile.isDefault && newestPublished(profile) ? (
+                        <ActionButton label="Set as default" icon={Check} busy={busy === 'default'} disabled={Boolean(busy)} onClick={() => void makeDefault()} />
+                      ) : null
+                    }
+                  />
                 )}
               </div>
             )}
           </section>
-
         </>
       )}
     </div>
   );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="space-y-2 text-xs font-semibold text-text-secondary">{label}{children}</label>;
 }
 
 function Signal({ title, text, tone }: { title: string; text: string; tone: string }) {
@@ -615,29 +379,6 @@ function Signal({ title, text, tone }: { title: string; text: string; tone: stri
       <h3 className="type-card text-text-primary">{title}</h3>
       <p className="mt-2 text-sm leading-6 text-text-secondary">{text}</p>
     </div>
-  );
-}
-
-function Button({
-  label,
-  icon: Icon,
-  busy,
-  disabled,
-  onClick,
-  primary = false,
-}: {
-  label: string;
-  icon: typeof Save;
-  busy: boolean;
-  disabled: boolean;
-  onClick: () => void;
-  primary?: boolean;
-}) {
-  return (
-    <button type="button" disabled={disabled} onClick={onClick} className={`inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-4 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${primary ? 'bg-brand-red text-white hover:bg-brand-red-hover' : 'border border-card-border text-text-primary hover:bg-bg-main'}`}>
-      {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Icon className="h-4 w-4" aria-hidden="true" />}
-      {label}
-    </button>
   );
 }
 
@@ -707,7 +448,7 @@ function CampaignTable({
                         }
                       }}
                     >
-                      <option value={NO_ICP}>No ICP (don't score)</option>
+                      <option value={NO_ICP}>{"No ICP (don't score)"}</option>
                       {versions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                     </select>
                   </td>
@@ -745,7 +486,7 @@ function Engagement({
             Meeting wins over reply, reply wins over opens. Title, phone, and email quality never affect engagement.
           </p>
         </div>
-        <Button label="Recalculate engagement" icon={RefreshCw} busy={busy} disabled={busy} onClick={onRun} primary />
+        <ActionButton label="Recalculate engagement" icon={RefreshCw} busy={busy} disabled={busy} onClick={onRun} primary />
       </div>
       <div className="mt-6 grid grid-cols-4 gap-4">
         {ladder.map(([title, label, Icon], index) => (
@@ -765,162 +506,5 @@ function Engagement({
         </p>
       )}
     </section>
-  );
-}
-
-const WEIGHT_FIELDS: { key: keyof IcpVersionRulesV2['scoringWeights']; label: string; hint: string }[] = [
-  { key: 'persona', label: 'Buyer title', hint: 'Title matches the accepted buyers' },
-  { key: 'geo', label: 'Country', hint: 'Company is in a target country' },
-  { key: 'industry', label: 'Industry', hint: 'Only counts with "Must match target industries"' },
-  { key: 'size', label: 'Company size', hint: 'Only counts when headcount is known' },
-  { key: 'companyType', label: 'Company type', hint: 'Rarely known; usually leave low' },
-  { key: 'signals', label: 'Keywords', hint: 'Industry keywords when industry is "Any"' },
-];
-
-function describeScoringProblem(rules: IcpVersionRulesV2): string | null {
-  if (rules.pointRules && rules.pointRules.fitAt <= rules.pointRules.reviewAt) {
-    return 'Points: the Fit total must be higher than the Review total.';
-  }
-  const sum = Object.values(rules.scoringWeights).reduce((total, value) => total + (Number(value) || 0), 0);
-  if (sum !== 100) return `Points must add up to 100 (now ${sum}).`;
-  if (rules.scorePolicy.qualifiedMinFitScore <= rules.scorePolicy.needsReviewMinFitScore) {
-    return 'The Fit score must be higher than the Review score.';
-  }
-  return null;
-}
-
-/**
- * Points, thresholds and the "never qualified" switches.
- *
- * The verdict became weighted on 2026-10-03 (`lib/leadgen/weightedQualification.ts`): only the
- * dimensions this ICP constrains are averaged, by these points, and the two thresholds turn the
- * average into Fit / Review / No fit. Before, the points and thresholds were stored, unread, and
- * reset to defaults on every save — and so were four of the five disqualifiers below.
- */
-function ScoringControls({
-  rules,
-  editable,
-  onChange,
-  problem,
-}: {
-  rules: IcpVersionRulesV2;
-  editable: boolean;
-  onChange: (rules: IcpVersionRulesV2) => void;
-  problem: string | null;
-}) {
-  const sum = Object.values(rules.scoringWeights).reduce((total, value) => total + (Number(value) || 0), 0);
-  const setWeight = (key: keyof IcpVersionRulesV2['scoringWeights'], value: string) =>
-    onChange({ ...rules, scoringWeights: { ...rules.scoringWeights, [key]: Math.max(0, Math.round(Number(value) || 0)) } });
-  const setPolicy = (key: 'qualifiedMinFitScore' | 'needsReviewMinFitScore', value: string) =>
-    onChange({ ...rules, scorePolicy: { ...rules.scorePolicy, [key]: Math.max(0, Math.min(100, Math.round(Number(value) || 0))) } });
-  const setToggle = (key: 'genericEmailContact' | 'websiteOffline', checked: boolean) =>
-    onChange({ ...rules, disqualifiers: { ...rules.disqualifiers, [key]: { ...rules.disqualifiers[key], disqualify: checked } } });
-
-  return (
-    <fieldset disabled={!editable} className="mt-8 space-y-6 border-t border-card-border pt-6">
-      {rules.pointRules?.enabled ? (
-        <p className="rounded-lg border border-card-border px-3 py-2 text-xs text-text-secondary">
-          This ICP scores with per-value points (Scoring points tab), so the weights and thresholds below are not used.
-          The &ldquo;Never qualified&rdquo; switches still apply.
-        </p>
-      ) : null}
-      <div className={rules.pointRules?.enabled ? 'hidden' : undefined}>
-        <h4 className="text-sm font-bold text-text-primary">Dimension weights</h4>
-        <p className="mt-1 text-xs leading-5 text-text-secondary">
-          A lead scores the weighted average of the rules above that it has data for. Rules you have not set, and data the
-          lead does not have, are left out rather than counted against it.
-        </p>
-        <div className="mt-4 grid grid-cols-3 gap-4">
-          {WEIGHT_FIELDS.map((field) => (
-            <label key={field.key} className="space-y-1 text-xs font-semibold text-text-secondary">
-              <span className="flex items-baseline justify-between gap-2">
-                {field.label}
-                <span className="font-normal text-text-muted">{field.hint}</span>
-              </span>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                className={inputClass}
-                value={rules.scoringWeights[field.key]}
-                onChange={(e) => setWeight(field.key, e.target.value)}
-              />
-            </label>
-          ))}
-        </div>
-        <p className={`mt-2 text-xs font-semibold ${sum === 100 ? 'text-text-muted' : 'text-amber-700'}`} role="status">
-          Total {sum} / 100
-        </p>
-      </div>
-
-      <div className={`grid grid-cols-2 gap-4 ${rules.pointRules?.enabled ? 'hidden' : ''}`}>
-        <label className="space-y-1 text-xs font-semibold text-text-secondary">
-          Fit at or above
-          <input type="number" min={0} max={100} className={inputClass} value={rules.scorePolicy.qualifiedMinFitScore} onChange={(e) => setPolicy('qualifiedMinFitScore', e.target.value)} />
-        </label>
-        <label className="space-y-1 text-xs font-semibold text-text-secondary">
-          Review at or above (below is No fit)
-          <input type="number" min={0} max={100} className={inputClass} value={rules.scorePolicy.needsReviewMinFitScore} onChange={(e) => setPolicy('needsReviewMinFitScore', e.target.value)} />
-        </label>
-      </div>
-      <p className="text-xs leading-5 text-text-secondary">
-        A lead missing its country, industry or title (where you set one) is Review at best — the score cannot vouch for
-        what it never saw.
-      </p>
-
-      <div>
-        <h4 className="text-sm font-bold text-text-primary">Never qualified</h4>
-        <p className="mt-1 text-xs leading-5 text-text-secondary">
-          These, excluded countries, excluded industries and excluded titles are No fit whatever the score.
-        </p>
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <Toggle
-            label="Contact on a free email (Gmail, Yahoo…)"
-            checked={rules.disqualifiers.genericEmailContact.disqualify}
-            onChange={(checked) => setToggle('genericEmailContact', checked)}
-          />
-          <Toggle
-            label="Company website is offline"
-            checked={rules.disqualifiers.websiteOffline.disqualify}
-            onChange={(checked) => setToggle('websiteOffline', checked)}
-          />
-          <Toggle
-            label="One-person company"
-            checked={rules.disqualifiers.onePersonCompany.disqualify}
-            onChange={(checked) =>
-              onChange({ ...rules, disqualifiers: { ...rules.disqualifiers, onePersonCompany: { ...rules.disqualifiers.onePersonCompany, disqualify: checked } } })
-            }
-          />
-          <Toggle
-            label="Sells services or consulting rather than a product"
-            checked={rules.companyType.servicesConsultingPolicy.disqualify}
-            onChange={(checked) =>
-              onChange({
-                ...rules,
-                companyType: {
-                  ...rules.companyType,
-                  servicesConsultingPolicy: { ...rules.companyType.servicesConsultingPolicy, disqualify: checked },
-                },
-              })
-            }
-          />
-        </div>
-      </div>
-
-      {problem && (
-        <p className="text-xs font-semibold text-amber-700" role="alert">
-          {problem} Fix this to save.
-        </p>
-      )}
-    </fieldset>
-  );
-}
-
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
-  return (
-    <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-card-border px-3 text-xs font-semibold text-text-secondary">
-      <input type="checkbox" className="h-4 w-4 accent-brand-red" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      {label}
-    </label>
   );
 }

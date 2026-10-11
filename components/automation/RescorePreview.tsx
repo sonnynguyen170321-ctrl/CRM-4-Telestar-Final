@@ -28,7 +28,16 @@ function describe(key: string): string {
  *
  * Each button walks every lead, batch by batch (`rescoreAllLeads`); the operator never repeats.
  */
-export function RescorePreview({ showToast }: { showToast: (message: string, kind: 'success' | 'error' | 'info') => void }) {
+export function RescorePreview({
+  showToast,
+  campaignId,
+  campaignName,
+}: {
+  showToast: (message: string, kind: 'success' | 'error' | 'info') => void;
+  /** Rescore only this campaign (the campaign ICP page and the review queue); omit for every lead. */
+  campaignId?: string;
+  campaignName?: string;
+}) {
   const [busy, setBusy] = useState<'' | 'preview' | 'apply'>('');
   const [preview, setPreview] = useState<RescoreAllTotals | null>(null);
   // Leads done so far in the running pass: a full rescore is several batches, minutes on a big tenant.
@@ -38,7 +47,7 @@ export function RescorePreview({ showToast }: { showToast: (message: string, kin
     setBusy(dryRun ? 'preview' : 'apply');
     setDone(0);
     try {
-      const result = await rescoreAllLeads({ onlyUnscored: false, dryRun }, fetch, (totals) => setDone(totals.scored + totals.notScored));
+      const result = await rescoreAllLeads({ onlyUnscored: false, dryRun, ...(campaignId ? { campaignId } : {}) }, fetch, (totals) => setDone(totals.scored + totals.notScored));
       if (!result.ok) {
         const message = await readApiError(result.response, dryRun ? 'Preview failed' : 'Rescore failed');
         const partial = result.totals.scored + result.totals.notScored;
@@ -66,7 +75,9 @@ export function RescorePreview({ showToast }: { showToast: (message: string, kin
 
   return (
     <section className="rounded-xl border border-card-border bg-card-bg p-5">
-      <h3 className="text-sm font-bold text-text-primary">Re-score existing leads</h3>
+      <h3 className="text-sm font-bold text-text-primary">
+        {campaignId ? `Re-score ${campaignName ?? 'this campaign'}` : 'Re-score existing leads'}
+      </h3>
       <p className="mt-1 text-xs leading-5 text-text-secondary">
         Leads keep their verdict until they are re-scored. Preview shows what would change; nothing is written until
         you apply.

@@ -613,6 +613,7 @@ ${detail.sequences && detail.sequences.length > 0 ? `
               onExportCSV={() => handleExportCSV(campaignDetail)}
               showTabsSwitcher={!isSdr}
               canExport={canImportExport(currentRole)}
+              campaignId={selectedCampaignId}
             />
           ) : (
             <CampaignOverview

@@ -6,7 +6,17 @@ const source = (path: string) =>
   readFileSync(join(process.cwd(), path), "utf8");
 
 describe("manager ICP and scoring surface", () => {
-  const panel = source("components/automation/IcpScoringPanel.tsx");
+  // The panel is built from shared parts: the editor card (version actions and banners) and the rule
+  // editor (the form). Automation and the campaign ICP page both use them.
+  const panel = [
+    "components/automation/IcpScoringPanel.tsx",
+    "components/icp/IcpEditorCard.tsx",
+    "components/icp/IcpRuleEditor.tsx",
+    "components/icp/useIcpDraft.ts",
+    "components/icp/icpClient.ts",
+  ]
+    .map(source)
+    .join("\n");
   const automation = source("app/automation/page.tsx");
 
   it("replaces editable point weights with two independent plain-language signals", () => {
@@ -51,16 +61,34 @@ describe("ICP authoring route contract", () => {
     "app/api/icp/versions/route.ts",
     "app/api/icp/versions/[id]/route.ts",
     "app/api/icp/versions/[id]/publish/route.ts",
+    "app/api/icp/versions/[id]/approve/route.ts",
+    "app/api/icp/versions/[id]/reject/route.ts",
+    "app/api/icp/versions/[id]/withdraw/route.ts",
     "app/api/icp/campaigns/route.ts",
     "app/api/icp/campaigns/[id]/route.ts",
+    "app/api/icp/reviews/route.ts",
   ].map(source);
 
-  it("requires manager authorization on every authoring surface", () => {
-    for (const route of routes) expect(route).toContain("requireIcpManager");
+  it("puts every authoring surface behind one of the three ICP guards", () => {
+    for (const route of routes) {
+      expect(route).toMatch(/requireIcp(Manager|Staff|User)/);
+    }
+  });
+
+  it("checks the object, not just the role, on every route that edits or decides", () => {
+    for (const path of [
+      "app/api/icp/versions/route.ts",
+      "app/api/icp/versions/[id]/route.ts",
+    ]) {
+      expect(source(path)).toContain("authorizeVersionEdit");
+    }
+    expect(source("app/api/icp/versions/[id]/publish/route.ts")).toContain("publishModeFor");
+    expect(source("app/api/icp/versions/[id]/approve/route.ts")).toContain("canReviewSubmission");
+    expect(source("app/api/icp/versions/[id]/reject/route.ts")).toContain("canReviewSubmission");
   });
 
   it("keeps mutating request bodies strict and tenant identity server-derived", () => {
-    for (const route of routes.filter((route) => route.includes("export async function POST") || route.includes("export async function PATCH"))) {
+    for (const route of routes.filter((route) => route.includes("safeParse("))) {
       expect(route).toContain(".strict()");
       expect(route).toContain("requireTenantId(user)");
       expect(route).not.toMatch(/tenantId:\s*parsed\.data/);

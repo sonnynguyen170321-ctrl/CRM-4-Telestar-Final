@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Briefcase, AlertTriangle, Users2 } from 'lucide-react';
+import { Briefcase, AlertTriangle, Target, Users2 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { readApiError } from '@/lib/api/client';
 import AdminTable, { type Column } from '@/components/admin/AdminTable';
@@ -122,6 +122,12 @@ export default function AdminCampaignsPage() {
       render: (c) => (
         <div className="inline-flex items-center gap-2 justify-end">
           <CampaignActions campaign={c} onChanged={fetchCampaigns} />
+          <Link
+            href={`/campaigns/${c.id}/icp`}
+            className="inline-flex items-center gap-1.5 px-3 py-1 border border-card-border bg-bg-main hover:bg-card-border/30 text-text-secondary text-xs font-semibold rounded-lg transition-colors"
+          >
+            <Target className="w-3.5 h-3.5" aria-hidden="true" /> ICP &amp; scoring
+          </Link>
           <Link
             href={`/admin/campaigns/${c.id}/members`}
             className="inline-flex items-center gap-1.5 px-3 py-1 border border-card-border bg-bg-main hover:bg-card-border/30 text-text-secondary text-xs font-semibold rounded-lg transition-colors"
