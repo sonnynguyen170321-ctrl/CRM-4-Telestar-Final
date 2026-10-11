@@ -22,6 +22,8 @@ export type TelnyxEvent = {
   direction: TelnyxLegDirection | null;
   /** `client_state`, base64 as Telnyx carries it. */
   clientState: string | null;
+  /** `state` of the leg on `call.initiated`: `parked` for a parked browser call, `bridging` for a leg we create. */
+  state: string | null;
   from: string | null;
   to: string | null;
   hangupCause: string | null;
@@ -64,6 +66,7 @@ export function parseTelnyxEvent(body: unknown): TelnyxEvent | null {
     controlId: text(payload.call_control_id),
     direction,
     clientState: text(payload.client_state),
+    state: text(payload.state),
     from: text(payload.from),
     to: text(payload.to),
     hangupCause: text(payload.hangup_cause),

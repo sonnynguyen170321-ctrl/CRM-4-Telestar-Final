@@ -135,16 +135,40 @@ async function readCapped(req: NextRequest, limit: number): Promise<Uint8Array |
  */
 async function isParkedCall(event: TelnyxEvent): Promise<boolean> {
   if (event.type !== 'call.initiated') return false;
-  const ownCallId = legCallId(event.clientState);
-  if (!ownCallId || !event.sessionId) return true;
-  if (event.direction !== 'outgoing') return true;
+  return !(await isOwnTransferLeg(event));
+}
+
+/** An E.164 caller ID. A rep's browser leg always comes from its SIP credential, so it can never look like this. */
+const E164 = /^\+[1-9]\d{6,14}$/;
+
+/**
+ * The leg we created with the transfer. Telnyx does not echo the transfer's client state onto it, so it
+ * is recognised by what only it can look like: a `bridging` outgoing leg in the session of a call that is
+ * `initiated`/`ringing`, with a different control id from the parked leg, calling that call's own number
+ * from an E.164 caller ID (not a SIP address). Our `leg:<callId>` mark, if it ever arrives, must also name
+ * that same call. On recognition the lead leg's control id is stored so later events correlate.
+ */
+async function isOwnTransferLeg(event: TelnyxEvent): Promise<boolean> {
+  if (!event.sessionId || !event.controlId || event.direction !== 'outgoing') return false;
   const call = await asSystem(() =>
     prisma.call.findFirst({
-      where: { id: ownCallId, providerSessionId: event.sessionId, status: { in: ['initiated', 'ringing'] } },
-      select: { providerControlId: true },
+      where: { provider: 'telnyx', providerSessionId: event.sessionId, status: { in: ['initiated', 'ringing'] } },
+      select: { id: true, tenantId: true, toE164: true, providerControlId: true, leadLegControlId: true },
     })
   );
-  return call === null || call.providerControlId === event.controlId;
+  if (!call || call.providerControlId === event.controlId) return false;
+  const marked = legCallId(event.clientState);
+  if (marked !== null && marked !== call.id) return false;
+  if (marked === null) {
+    if (event.state !== 'bridging') return false;
+    if (!event.from || !E164.test(event.from)) return false;
+    if (event.to !== call.toE164) return false;
+  }
+  if (call.leadLegControlId !== null && call.leadLegControlId !== event.controlId) return false;
+  await tenantStorage.run({ tenantId: call.tenantId }, () =>
+    prisma.call.updateMany({ where: { id: call.id, tenantId: call.tenantId, leadLegControlId: null }, data: { leadLegControlId: event.controlId } })
+  );
+  return true;
 }
 
 async function markProcessed(providerEventId: string, note: string | null): Promise<void> {

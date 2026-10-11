@@ -32,6 +32,7 @@ export type EventSpec = {
   controlId?: string | null;
   direction?: 'incoming' | 'outgoing';
   clientState?: string | null;
+  state?: string;
   from?: string;
   to?: string;
   hangupCause?: string;
@@ -54,6 +55,7 @@ export function eventBody(spec: EventSpec) {
         call_control_id: spec.controlId ?? undefined,
         direction: spec.direction,
         client_state: spec.clientState ?? undefined,
+        state: spec.state,
         from: spec.from,
         to: spec.to,
         hangup_cause: spec.hangupCause,
