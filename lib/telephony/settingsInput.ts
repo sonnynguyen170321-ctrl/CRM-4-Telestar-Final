@@ -12,17 +12,7 @@ export const MIN_RETENTION_DAYS = 7;
 export const MAX_RETENTION_DAYS = 730;
 export const MINUTES_PER_DAY = 1440;
 const ALL_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
-const MAX_COUNTRIES = 250;
 const MAX_LABEL_LENGTH = 80;
-
-export const VIETNAM_REFUSAL =
-  'Vietnam cannot be dialled through the provider: Vietnamese numbers are called from the rep\'s own phone and logged in the CRM.';
-
-const countrySchema = z
-  .string()
-  .transform((value) => value.trim().toUpperCase())
-  .refine((value) => /^[A-Z]{2}$/.test(value), 'Use two-letter country codes such as SG or US')
-  .refine((value) => value !== 'VN', VIETNAM_REFUSAL);
 
 const minuteSchema = z.number().int().min(0).max(MINUTES_PER_DAY);
 const weekdaySchema = z.number().int().min(0).max(6);
@@ -40,7 +30,6 @@ export const settingsPatchSchema = z
     callingHoursStart: minuteSchema,
     callingHoursEnd: minuteSchema,
     allowedWeekdays: z.array(weekdaySchema).min(1, 'Pick at least one weekday').max(7),
-    allowedCountries: z.array(countrySchema).max(MAX_COUNTRIES),
     recordingEnabled: z.boolean(),
     recordingNotice: z.boolean(),
     recordingRetentionDays: z
@@ -73,7 +62,6 @@ export const settingsPatchSchema = z
     ...patch,
     ...(anyTime === true ? { callingHoursStart: 0, callingHoursEnd: MINUTES_PER_DAY, allowedWeekdays: ALL_WEEKDAYS } : {}),
     ...(patch.allowedWeekdays ? { allowedWeekdays: sortedUnique(patch.allowedWeekdays) } : {}),
-    ...(patch.allowedCountries ? { allowedCountries: [...new Set(patch.allowedCountries)] } : {}),
   }));
 
 export type SettingsPatch = z.output<typeof settingsPatchSchema>;

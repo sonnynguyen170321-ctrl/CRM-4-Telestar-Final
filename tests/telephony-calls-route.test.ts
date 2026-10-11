@@ -58,7 +58,7 @@ async function makeLead(t: string, campaignId: string, assignedToId: string, dat
     async () =>
       (
         await prisma.lead.create({
-          data: { tenantId: t, firstName: 'Ann', lastName: 'L', email: `ann.${randomUUID()}@acme.test`, company: 'Acme', phone: '0948200638', campaignId, assignedToId, ...data },
+          data: { tenantId: t, firstName: 'Ann', lastName: 'L', email: `ann.${randomUUID()}@acme.test`, company: 'Acme', phone: '+66812345678', campaignId, assignedToId, ...data },
         })
       ).id,
     t
@@ -74,7 +74,7 @@ async function makeCampaign(t: string) {
 
 async function enableDialer(t: string, user: SessionUser) {
   await inTenant(async () => {
-    await prisma.telephonySettings.create({ data: { tenantId: t, enabled: true, dryRun: false, allowedCountries: ['VN', 'SG'] } });
+    await prisma.telephonySettings.create({ data: { tenantId: t, enabled: true, dryRun: false } });
     await prisma.telephonyCredential.create({
       data: { tenantId: t, userId: user.id, provider: 'fake', providerCredentialId: `cred-${randomUUID()}`, sipUsername: 'gencred' },
     });
@@ -149,7 +149,7 @@ describe('POST /api/telephony/calls', () => {
   });
 
   it('rejects a body without a lead', async () => {
-    expect((await call(users.rep, { phone: '+84948200638' })).response.status).toBe(400);
+    expect((await call(users.rep, { phone: '+66812345678' })).response.status).toBe(400);
     expect(await callRows()).toHaveLength(0);
   });
 
@@ -159,13 +159,13 @@ describe('POST /api/telephony/calls', () => {
     expect(response.status).toBe(201);
     expect(response.headers.get('Cache-Control')).toBe('no-store');
     const [row] = await callRows();
-    expect(row).toMatchObject({ status: 'authorized', direction: 'outbound', userId: users.rep.id, leadId: ids.lead, contactId: null, toE164: '+84948200638', blockedReasons: [] });
+    expect(row).toMatchObject({ status: 'authorized', direction: 'outbound', userId: users.rep.id, leadId: ids.lead, contactId: null, toE164: '+66812345678', blockedReasons: [] });
     expect(row.authorizedAt?.toISOString()).toBe(VN_10AM.toISOString());
-    expect(row.compliance).toMatchObject({ allowed: true, localTime: '10:00', timezone: { timezone: 'Asia/Ho_Chi_Minh' } });
+    expect(row.compliance).toMatchObject({ allowed: true, localTime: '10:00', timezone: { timezone: 'Asia/Bangkok' } });
 
-    expect(body).toMatchObject({ callId: row.id, allowed: true, toE164: '+84948200638' });
+    expect(body).toMatchObject({ callId: row.id, allowed: true, toE164: '+66812345678' });
     const check = verifyCallToken(fromClientState(body.clientState), Math.floor(VN_10AM.getTime() / 1000));
-    expect(check).toEqual({ ok: true, claims: expect.objectContaining({ callId: row.id, tenantId, userId: users.rep.id, toE164: '+84948200638' }) });
+    expect(check).toEqual({ ok: true, claims: expect.objectContaining({ callId: row.id, tenantId, userId: users.rep.id, toE164: '+66812345678' }) });
   });
 
   it('records a blocked attempt with its reasons and issues no token', async () => {
@@ -180,6 +180,18 @@ describe('POST /api/telephony/calls', () => {
     expect(row).toMatchObject({ status: 'blocked', blockedReasons: ['outside_hours'], authorizedAt: null });
   });
 
+  it('refuses a Vietnamese number with the own-phone reason, and needs no country list to allow a foreign one', async () => {
+    const vnLead = await makeLead(tenantId, ids.campaign, users.rep.id, { phone: '+84948200638' });
+    const { body } = await call(users.rep, { leadId: vnLead });
+    expect(body).toMatchObject({ allowed: false, reasons: ['vietnam_own_phone'] });
+    expect(body).not.toHaveProperty('clientState');
+    expect(await callRows()).toHaveLength(1);
+
+    vi.setSystemTime(new Date(VN_10AM.getTime() + 10_000)); // past the per-rep spacing
+    const { body: foreign } = await call(users.rep, { leadId: ids.lead }); // Thai number, no allowedCountries anywhere
+    expect(foreign).toMatchObject({ allowed: true });
+  });
+
   it('in dry-run records what would have happened and places nothing', async () => {
     delete process.env.TELEPHONY_DRY_RUN;
     const { body } = await call(users.rep, { leadId: ids.lead });
@@ -190,16 +202,15 @@ describe('POST /api/telephony/calls', () => {
   });
 
   it('blocks a number on this tenant’s do-not-call list, and only this tenant’s', async () => {
-    await inTenant(() => prisma.phoneSuppression.create({ data: { tenantId: otherTenantId, e164: '+84948200638', source: 'manual' } }), otherTenantId);
+    await inTenant(() => prisma.phoneSuppression.create({ data: { tenantId: otherTenantId, e164: '+66812345678', source: 'manual' } }), otherTenantId);
     expect((await call(users.rep, { leadId: ids.lead })).response.status).toBe(201);
 
     vi.setSystemTime(new Date(VN_10AM.getTime() + 10_000));
-    await inTenant(() => prisma.phoneSuppression.create({ data: { tenantId, e164: '+84948200638', source: 'manual' } }));
+    await inTenant(() => prisma.phoneSuppression.create({ data: { tenantId, e164: '+66812345678', source: 'manual' } }));
     expect((await call(users.rep, { leadId: ids.lead })).body.reasons).toEqual(['suppressed']);
   });
 
   it('records a blocked attempt when the lead’s clock cannot be known', async () => {
-    await inTenant(() => prisma.telephonySettings.update({ where: { tenantId }, data: { allowedCountries: ['VN', 'US'] } }));
     await limitHoursToOfficeDay();
     await inTenant(() => prisma.lead.update({ where: { id: ids.lead }, data: { phone: '+1 415 555 2671', contactId: null } }));
     const { body } = await call(users.rep, { leadId: ids.lead });

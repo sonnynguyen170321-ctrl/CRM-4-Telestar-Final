@@ -24,7 +24,6 @@ const EDITABLE_KEYS = [
   'callingHoursStart',
   'callingHoursEnd',
   'allowedWeekdays',
-  'allowedCountries',
   'recordingEnabled',
   'recordingNotice',
   'recordingRetentionDays',
@@ -36,7 +35,6 @@ type EditableValues = {
   callingHoursStart: number;
   callingHoursEnd: number;
   allowedWeekdays: number[];
-  allowedCountries: string[];
   recordingEnabled: boolean;
   recordingNotice: boolean;
   recordingRetentionDays: number;
@@ -48,7 +46,6 @@ const DEFAULTS: EditableValues = {
   callingHoursStart: 0,
   callingHoursEnd: MINUTES_PER_DAY,
   allowedWeekdays: ALL_WEEKDAYS,
-  allowedCountries: [],
   recordingEnabled: true,
   recordingNotice: false,
   recordingRetentionDays: DEFAULT_RETENTION_DAYS,

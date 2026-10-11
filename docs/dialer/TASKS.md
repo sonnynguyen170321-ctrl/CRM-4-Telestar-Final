@@ -24,11 +24,11 @@ it; where a phase disagrees with this list, this list wins.
 | Decision | Effect on the plan |
 |---|---|
 | Telnyx stays the provider (Plivo was considered and dropped the same day) | No change to the seam |
-| **Vietnamese numbers are called from the rep's own phone** and logged in the CRM | Done ahead of the dialer: the lead drawer's Call button opens `components/dialer/PhoneCallPanel.tsx` (number, `tel:` QR code, required outcome with the task modal's effects). Phase 5 routes only non-VN numbers to the softphone; VN stays out of `allowedCountries` and the outbound profile |
+| **Vietnamese numbers are called from the rep's own phone** and logged in the CRM | Done ahead of the dialer: the lead drawer's Call button opens `components/dialer/PhoneCallPanel.tsx` (number, `tel:` QR code, required outcome with the task modal's effects). Phase 5 routes only non-VN numbers to the softphone; the gate refuses VN (`vietnam_own_phone`) and VN stays out of the outbound profile whitelist |
 | **No inbound** | Phase 6 is not built. `TELNYX_CALL_CONTROL_APP_ID` is still created (the env check expects it) with no number |
 | Caller ID = numbers ported from Bigin; a current Telnyx number is the default meanwhile | Phase 9.2 settings carry the number list (per-country caller ID + default) |
 | Recording on, no spoken notice by default — both manager settings | Phase 7 reads the settings; a notice toggle is added to `TelephonySettings` |
-| **Call any time** | Calling hours 00:00–24:00 every day; the gate then needs no timezone (`isAlwaysOpen`, done ahead). DNC, number and country rules unchanged |
+| **Call any time** | Calling hours 00:00–24:00 every day; the gate then needs no timezone (`isAlwaysOpen`, done ahead). DNC and number rules unchanged |
 | Outcome after hangup is required, through the existing logging flow | Unchanged (US3) |
 | **Whole team at once**, no pilot batches | Phase 10 becomes: one manager's live check on production (replaces the D0.5 spike branch, see `TELNYX_SETUP.md` §9), then everyone. GO/NO-GO #2 (concurrency ≥ 40 in writing) still applies |
 | Today the team uses Bigin + MicroSIP | Both keep working until the cut-over; MicroSIP's SIP credentials and `SIP_*` env are removed at the end |
@@ -96,7 +96,9 @@ enum has no client or viewer role; revisit if one is added.
   the same 404.
 - One attempt per rep per 3 s (database check + an in-process guard against parallel requests); repeat
   calls are otherwise unlimited. The token is signed before the row is written.
-- The country allow-list is judged on the dialled number, not the record. Premium-rate and
+- **Country allow-list removed (owner decision, 2026-10-11):** the country lock is the Telnyx outbound profile
+  whitelist; the CRM has no list (`TelephonySettings.allowedCountries` is deprecated and unread). The gate keeps one
+  country rule, judged on the dialled number: VN is refused (`vietnam_own_phone`). Premium-rate and
   shared-cost numbers are blocked (`number_type_not_allowed`, libphonenumber full metadata via
   `@telestar/core-identity/phone-type`).
 - **Timezone order changed from the plan (security review):** the number's zone first when its country
@@ -161,7 +163,7 @@ confirmation: `speak` reaching both parties on a bridged leg, and the recording-
 
 **Consent.** Recording is on by default and the spoken notice is off (owner decision, 2026-10-08). Recording-consent
 laws differ by destination country (some require every party's consent, which a notice provides). A manager must turn
-`recordingNotice` on for any country in `allowedCountries` where that is required; the CRM does not decide it per country.
+`recordingNotice` on for any destination country where that is required; the CRM does not decide it per country.
 
 **Hardening 2026-10-10 (security review).** Playback audit is fail-closed and independent of `Range` (one row per person
 and call per 10 minutes, written before audio is fetched; 60 new listens per 10 minutes per person); purge also dates
@@ -186,7 +188,7 @@ by our mark or the stored `leadLegControlId`, never by direction; downloads foll
 
 **Built 2026-10-10 (D9.1–D9.3; D9.4 is the owner's).** Decisions made while building it:
 - **Settings API:** `GET/PATCH /api/telephony/settings`, `POST /numbers`, `PATCH/DELETE /numbers/[id]`, `DELETE /credentials/[id]`. Never an API key; the tenant is the session's. **Roles (security review):** director and floor manager (`CRON_MANAGER_ROLES`) change everything; a team lead gets a read-only view (and only their own reps' logins), may send exactly `{killed: true}` (the emergency stop; only an admin lifts it) and may revoke only reps passing `canAccessUser` (404 otherwise). Number writes and revokes are rate-limited per user (30 and 20 a minute). Strict zod bodies that cannot name a tenant or write `killedAt` directly; the kill switch is a boolean (`killed`) and pressing it twice keeps the first time and person.
-- **Vietnam is refused** as an allowed country with a message saying why (the API and the page). Hours are 0-1440 minutes, start before end; "any time" expands to 00:00-24:00 and all weekdays; retention is bounded 7 to 730 days (default 90).
+- **No country list (2026-10-11):** the settings API is strict and rejects `allowedCountries` (400); the page has no country picker. Hours are 0-1440 minutes, start before end; "any time" expands to 00:00-24:00 and all weekdays; retention is bounded 7 to 730 days (default 90).
 - **Audit:** `admin.telephony.settings` (before and after of the fields that changed), `.kill`, `.number` (add / update / remove), `.credential_revoke`. A save that changes nothing writes no row.
 - **Caller ID (hardened):** a Vietnamese number is refused and never chosen; partial unique indexes keep one default per country and one overall default per team (a racing writer retries once, then gets a 409); removing or deactivating a default promotes the next active number, and removing the last one returns a warning. Migration `telephony_number_defaults` adds `TelephonyNumber.isDefault` (default for its country) and `isOverallDefault`. The first number a team adds becomes both; `lib/telephony/callerId.ts` (used by the webhook) picks country default, any number in the country, overall default, any number, else the provider default. A number's country is read from its E.164, and a number is unique across the deployment (a clash is a 409 that does not say whose it is). The provider seam has no "list account numbers", so numbers are added by hand.
 - **Credentials:** revoke marks the login revoked first (the token route refuses the rep at once), then deletes it at the provider; a provider failure is reported (`providerRevoked: false`) and a second press retries only the provider part. Restoring a revoked rep is a manual row delete (RUNBOOK section 9).

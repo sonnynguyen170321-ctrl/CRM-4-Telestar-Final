@@ -47,8 +47,9 @@ The account has been in use for months, so check rather than create.
 
 - Name: `crm-outbound` (new; leave the profile MicroSIP uses untouched).
 - [ ] **Whitelisted destinations**: every country the team calls **except Vietnam** (the default is
-      only US/CA; a call to an unlisted country is refused). Leaving VN out is a second lock behind
-      the CRM's own country rule.
+      only US/CA; a call to an unlisted country is refused). **This whitelist is the only country
+      lock: the CRM has no country allow-list** (removed 2026-10-11). Leaving VN out is a second lock
+      behind the CRM gate's `vietnam_own_phone` refusal.
 - [ ] **Concurrent call limit**: the account limit from step 1.
 - [ ] **Daily spend limit**: on, with a cap that stops a runaway day (e.g. 2× a normal day).
 - [ ] **Call recording**: **off** here. The CRM starts recordings itself, so it can follow the
