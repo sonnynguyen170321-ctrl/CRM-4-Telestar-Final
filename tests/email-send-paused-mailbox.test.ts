@@ -36,6 +36,7 @@ vi.mock('@/lib/prisma', () => ({
     suppressionEntry: { findFirst: (...a: unknown[]) => mockSuppressionFindFirst(...a) },
     emailAccount: { findFirst: (...a: unknown[]) => mockAccountFindFirst(...a) },
     template: { findUnique: vi.fn().mockResolvedValue(null) },
+    user: { findFirst: vi.fn().mockResolvedValue(null) },
   },
 }));
 vi.mock('@/lib/email/idempotency', () => ({ newRequestId: () => 'req-1' }));

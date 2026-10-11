@@ -4,6 +4,7 @@ import { getVisibleUserIds, requireAuth } from '@/lib/auth';
 import { inboxScope, resolveInboxOwner, threadSubjectKey } from '@/lib/inbox/scope';
 import type { SessionUser } from '@/lib/auth';
 import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
+import { describeDelivery } from '@/lib/inbox/deliveryStatus';
 
 /** Most recent messages read per direction. See the comment on the inbound query. */
 const INBOX_MESSAGE_WINDOW = 500;
@@ -146,7 +147,8 @@ export async function GET(req: NextRequest) {
         // it rendered before. `deliveryStatus` is what lets the thread mark a message as failed
         // rather than showing it indistinguishably from one that arrived.
         deliveryStatus: msg.status,
-        deliveryError: msg.status === OUTBOUND_STATUS.SENT ? null : msg.errorMessage,
+        // Plain words only (lib/inbox/deliveryStatus.ts): the raw errorMessage can carry a provider's answer.
+        deliveryError: msg.status === OUTBOUND_STATUS.SENT ? null : describeDelivery(msg.status, msg.errorMessage)?.detail ?? null,
       })),
     ];
 

@@ -189,9 +189,12 @@ export const sendEmailSchema = z.object({
   to: z.string().email().max(320),
   subject: z.string().min(1).max(998).optional(),
   body: longText.min(1).optional(),
+  /**
+   * Plain alias of `body`. There is deliberately no `html` or `replyTo` field: the route used to
+   * accept both and drop them. HTML travels in `body` (the worker detects markup and builds the
+   * text part itself); a Reply-To has no UI and no column to carry it to the worker.
+   */
   text: longText.optional(),
-  html: longText.optional(),
-  replyTo: z.string().email().max(320).optional(),
   leadId: id.optional(),
   templateId: id.optional(),
   /** Present when the send completes a CRM task — the most durable idempotency key. */

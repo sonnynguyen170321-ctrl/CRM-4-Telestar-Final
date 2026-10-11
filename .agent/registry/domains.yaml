@@ -189,8 +189,11 @@ domains:
       - lib/automation/**
       - lib/email/**
       - lib/emailSafety.ts
+      # Plain-words delivery state of an outgoing message, for the inbox Sent folder.
+      - lib/inbox/deliveryStatus.ts
       # Inserts a merge field into a template subject or body at the cursor.
       - lib/templates/insertMergeTag.ts
+      - lib/templates/render.ts
       # createOutboundMessage / enqueueEmailSendWorkflow: the one door every send goes through.
       - lib/workflows/email.ts
       - lib/replies/**

@@ -3,6 +3,8 @@ import type { EmailSendPayload } from '@/lib/bullmq/types';
 
 const mockOutboundFindUnique = vi.fn();
 const mockOutboundFindFirst = vi.fn();
+const mockInboundFindFirst = vi.fn();
+const { mockRenderTemplate } = vi.hoisted(() => ({ mockRenderTemplate: vi.fn((val: string) => val) }));
 const mockOutboundUpdate = vi.fn();
 const mockOutboundUpdateMany = vi.fn();
 const mockSuppressionFindFirst = vi.fn();
@@ -35,6 +37,9 @@ vi.mock('@/lib/prisma', () => ({
     },
     suppressionEntry: {
       findFirst: (...args: unknown[]) => mockSuppressionFindFirst(...args),
+    },
+    inboundMessage: {
+      findFirst: (...args: unknown[]) => mockInboundFindFirst(...args),
     },
     emailAccount: {
       findUnique: (...args: unknown[]) => mockAccountFindUnique(...args),
@@ -79,7 +84,7 @@ vi.mock('@/lib/email/EmailService', () => ({
 }));
 
 vi.mock('@/lib/templates/render', () => ({
-  renderTemplate: vi.fn((val: string) => val),
+  renderTemplate: (...args: [string]) => mockRenderTemplate(...args),
 }));
 
 vi.mock('@/lib/tenant-context', () => ({
@@ -347,6 +352,109 @@ describe('handleEmailSend', () => {
       expect(mockOutboundFindFirst).not.toHaveBeenCalled();
       expect(mockServiceSend.mock.calls[0][0]).not.toHaveProperty('threading');
     });
+  });
+
+  describe('hostile threading headers are never written (CRLF injection)', () => {
+    function arrange(row: Record<string, unknown>) {
+      mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage({ inReplyToInboundId: 'in-1', subject: 'Re: Intro' }));
+      mockInboundFindFirst.mockResolvedValueOnce(row);
+      mockSuppressionFindFirst.mockResolvedValueOnce(null);
+      mockExecuteRaw.mockResolvedValueOnce(1);
+      mockServiceSend.mockResolvedValueOnce('gm-x');
+    }
+
+    it.each([
+      ['an inbound Message-ID carrying a header line', '<a@b.test>\r\nBcc: attacker@evil.test'],
+      ['an inbound Message-ID with spaces inside', '<a b@c.test>'],
+      ['an inbound Message-ID with nested brackets', '<a<b>@c.test>'],
+    ])('goes out unthreaded for %s', async (_c, rfc) => {
+      arrange({ accountId: 'acc-1', rfcMessageId: rfc, referencesHeader: null });
+
+      await handleEmailSend(buildPayload({ subject: 'Re: Intro' }));
+
+      expect(mockServiceSend.mock.calls[0][0]).not.toHaveProperty('threading');
+    });
+
+    it('drops injected and oversized ids from References and keeps the valid ones', async () => {
+      arrange({
+        accountId: 'acc-1',
+        rfcMessageId: '<ok@b.test>',
+        referencesHeader: '<root@b.test>\r\nBcc: x@evil.test <' + 'a'.repeat(400) + '@b.test> <mid@b.test>',
+      });
+
+      await handleEmailSend(buildPayload({ subject: 'Re: Intro' }));
+
+      const { references, inReplyTo } = mockServiceSend.mock.calls[0][0].threading as { references: string; inReplyTo: string };
+      expect(inReplyTo).toBe('<ok@b.test>');
+      expect(references).not.toMatch(/[\r\n]|Bcc/);
+      expect(references.split(' ')).toEqual(['<root@b.test>', '<x@evil.test>', '<mid@b.test>', '<ok@b.test>']);
+    });
+
+    it('caps the number and total length of References', async () => {
+      const long = Array.from({ length: 80 }, (_, i) => `<id${i}-${'x'.repeat(60)}@b.test>`).join(' ');
+      arrange({ accountId: 'acc-1', rfcMessageId: '<ok@b.test>', referencesHeader: long });
+
+      await handleEmailSend(buildPayload({ subject: 'Re: Intro' }));
+
+      const { references } = mockServiceSend.mock.calls[0][0].threading as { references: string };
+      expect(references.split(' ').length).toBeLessThanOrEqual(20);
+      expect(references.length).toBeLessThanOrEqual(2000);
+      expect(references.startsWith('<id0-')).toBe(true);
+      expect(references.endsWith('<ok@b.test>')).toBe(true);
+    });
+  });
+
+  describe('reply to a prospect’s message from the inbox', () => {
+    const inbound = { accountId: 'acc-1', rfcMessageId: 'abc123@mail.prospect.test', referencesHeader: '<root@prospect.test>' };
+
+    function arrangeInboxReply(inboundRow: Record<string, unknown> | null) {
+      mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage({ inReplyToInboundId: 'in-1', subject: 'Re: Intro' }));
+      mockInboundFindFirst.mockResolvedValueOnce(inboundRow);
+      mockSuppressionFindFirst.mockResolvedValueOnce(null);
+      mockExecuteRaw.mockResolvedValueOnce(1);
+    }
+
+    it('carries In-Reply-To and References of the inbound message, tenant-scoped', async () => {
+      arrangeInboxReply(inbound);
+      mockServiceSend.mockResolvedValueOnce('gm-9');
+
+      await handleEmailSend(buildPayload({ subject: 'Re: Intro' }));
+
+      expect(mockInboundFindFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'in-1', tenantId: TENANT_ID } }),
+      );
+      expect(mockServiceSend.mock.calls[0][0]).toMatchObject({
+        subject: 'Re: Intro',
+        threading: { inReplyTo: '<abc123@mail.prospect.test>', references: '<root@prospect.test> <abc123@mail.prospect.test>' },
+      });
+    });
+
+    it.each([
+      ['it arrived in another mailbox', { ...inbound, accountId: 'acc-other' }],
+      ['it has no Message-ID', { ...inbound, rfcMessageId: null }],
+      ['it no longer exists', null],
+    ])('goes out unthreaded, not failed, when %s', async (_case, row) => {
+      arrangeInboxReply(row);
+      mockServiceSend.mockResolvedValueOnce('gm-10');
+
+      const result = await handleEmailSend(buildPayload({ subject: 'Re: Intro' }));
+
+      expect(result).toMatchObject({ success: true });
+      expect(mockServiceSend.mock.calls[0][0]).not.toHaveProperty('threading');
+    });
+  });
+
+  it('fills {{sdrName}} from the mailbox owner, not the lead’s assignee', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockLeadFindUnique.mockResolvedValueOnce({ id: 'lead-1', assignedTo: { firstName: 'Assignee', lastName: 'Person', role: 'sdr' } });
+    mockAccountFindUnique.mockResolvedValue(mockEmailAccount({ user: { id: 'u-owner', firstName: 'Mei', lastName: 'Tran', role: 'team_lead' } }));
+    mockSuppressionFindFirst.mockResolvedValueOnce(null);
+    mockExecuteRaw.mockResolvedValueOnce(1);
+    mockServiceSend.mockResolvedValueOnce('gm-11');
+
+    await handleEmailSend(buildPayload({ body: 'Regards, {{sdrName}}' }));
+
+    expect(mockRenderTemplate).toHaveBeenCalledWith('Regards, {{sdrName}}', expect.anything(), expect.objectContaining({ firstName: 'Mei', role: 'team_lead' }));
   });
 
   it('skips if already sent with providerMessageId', async () => {

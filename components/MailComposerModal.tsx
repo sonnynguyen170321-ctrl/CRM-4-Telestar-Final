@@ -3,11 +3,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { Mail, Send, X, AlertCircle, Loader2 } from 'lucide-react';
+import DOMPurify from 'isomorphic-dompurify';
 import { useToast } from '@/context/ToastContext';
+import { isHtml } from '@/lib/email/sanitize';
 
 interface Task { id: string; type: string; title: string; description: string; dueDate: string; status: string; leadId: string; }
 interface Lead { id: string; firstName: string; lastName: string; company: string; title: string; email: string; phone?: string; sequenceId?: string; sequenceStep?: number; }
-interface EmailAccount { id: string; email: string; provider: string; sendPausedAt?: string | null; sendPauseReason?: string | null }
+interface EmailAccount { id: string; email: string; provider: string; sendPausedAt?: string | null; sendPauseReason?: string | null; healthLevel?: string | null }
 interface Template { id: string; name: string; channel: string; subject?: string | null; body: string }
 
 interface MailComposerModalProps {
@@ -20,6 +22,25 @@ interface MailComposerModalProps {
   /** Seed the subject and/or body (for example from an AI draft). A seeded body is never overwritten by a sequence template. */
   initialSubject?: string;
   initialBody?: string;
+}
+
+/**
+ * The preview of a template body. Nothing remote is fetched while previewing: a shared template
+ * could otherwise carry a tracking pixel that fires for whoever opens it. Images, stylesheets and
+ * inline styles (which can load `url(...)`) are removed from the preview only; the markup that is
+ * sent is untouched.
+ */
+function previewHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    FORBID_TAGS: ['img', 'picture', 'source', 'video', 'audio', 'iframe', 'object', 'embed', 'link', 'style', 'svg'],
+    FORBID_ATTR: ['style', 'srcset', 'background', 'src'],
+  });
+}
+
+/** The text of an HTML body, read by the parser (no regex stripping of markup). */
+function htmlToPlain(html: string): string {
+  const doc = new DOMParser().parseFromString(DOMPurify.sanitize(html), 'text/html');
+  return (doc.body.innerText || doc.body.textContent || '').trim();
 }
 
 export default function MailComposerModal({ lead, onClose, task, onSent, initialSubject, initialBody }: MailComposerModalProps) {
@@ -38,6 +59,8 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
 
+  const bodyIsHtml = isHtml(body);
+
   // Close on Escape.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -45,22 +68,15 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const substituteLeadVars = useCallback((str: string) => {
-    const replacements: Record<string, string> = {
-      firstName: lead.firstName, lastName: lead.lastName, company: lead.company,
-      title: lead.title, email: lead.email, phone: lead.phone || 'your phone number',
-      sdrName: 'SDR', sdrTitle: 'Sales Development Representative',
-    };
-    return Object.entries(replacements).reduce(
-      (s, [k, v]) => s.replace(new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`, 'g'), v), str);
-  }, [lead.firstName, lead.lastName, lead.company, lead.title, lead.email, lead.phone]);
-
+  // The template goes in as written, merge fields and all. {{sdrName}} and the rest are filled in
+  // on the server (app/api/email/send), from the lead and from the mailbox owner. Filling them in
+  // here used to put "SDR" and a made-up title into every email.
   const applyTemplate = useCallback((templateId: string, availableTemplates: Template[]) => {
     const t = availableTemplates.find(x => x.id === templateId);
     if (!t) return;
-    setSubject(substituteLeadVars(t.subject ?? 'Following up'));
-    setBody(substituteLeadVars(t.body));
-  }, [substituteLeadVars]);
+    setSubject(t.subject ?? 'Following up');
+    setBody(t.body);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -179,7 +195,7 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
 
         <div className="p-5 space-y-4 overflow-y-auto text-xs">
           {/* Sender Account Picker / Status */}
-          {accounts.length > 1 ? (
+          {accounts.length > 1 && (
             <div className="space-y-1">
               <label htmlFor="mail-account" className="text-[10px] font-bold text-text-muted uppercase block">
                 Sending From Mailbox
@@ -195,15 +211,16 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
               >
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.email} ({a.provider})
+                    {a.email} ({a.provider}){a.sendPausedAt ? ' - paused' : ''}
                   </option>
                 ))}
               </select>
             </div>
-          ) : account?.sendPausedAt ? (
-            // Say it before the rep writes the email, not after the worker refuses it. Without
-            // this the mailbox looked fine, the send answered 200, and the message sat at
-            // `failed` with a reason nobody on screen had seen.
+          )}
+          {account?.sendPausedAt ? (
+            // Say it before the rep writes the email, not after the worker refuses it. Shown for
+            // whichever mailbox is selected: with more than one mailbox it used to appear only for
+            // a single one, so picking a paused mailbox just turned Send off without a word.
             <div role="status" className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 text-[11px] text-text-secondary leading-normal flex gap-2">
               <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
               <span>
@@ -215,7 +232,10 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
           ) : account ? (
             <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-3 text-[11px] text-text-secondary leading-normal flex gap-2">
               <AlertCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" aria-hidden="true" />
-              <span>Sending from <strong>{account.email}</strong>. The send is logged on the lead automatically.</span>
+              <span>
+                Sending from <strong>{account.email}</strong>. The send is logged on the lead automatically.
+                {account.healthLevel === 'critical' ? <> This mailbox has critical health; a manager may have stopped it from sending.</> : null}
+              </span>
             </div>
           ) : (
             <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 text-[11px] text-text-secondary leading-normal flex gap-2">
@@ -254,8 +274,29 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
 
           <div className="space-y-1.5">
             <label htmlFor="mail-body" className="text-[10px] font-bold text-text-muted uppercase block">Body</label>
-            <textarea id="mail-body" value={body} onChange={(e) => setBody(e.target.value)} required
-              className="w-full bg-bg-main border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-48 placeholder-text-muted resize-none leading-relaxed font-mono text-xs" />
+            {bodyIsHtml ? (
+              // An HTML template is shown as the email will look, read-only, not as raw tags. The
+              // markup itself stays in `body` and is what is sent. Merge fields stay as written
+              // here; they are filled in on the server. The rich editor replaces this view.
+              <div>
+                <div
+                  id="mail-body"
+                  role="document"
+                  aria-label="Email body preview"
+                  className="w-full bg-white text-black border border-card-border rounded-xl p-3 h-48 overflow-y-auto text-xs leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: previewHtml(body) }}
+                />
+                <p className="text-[10px] text-text-muted mt-1">
+                  HTML template: shown as it will look and sent as written. Names and other merge fields are filled in when it is sent.{' '}
+                  <button type="button" onClick={() => setBody(htmlToPlain(body))} className="text-brand-orange-text font-semibold hover:underline">
+                    Edit as plain text instead
+                  </button>
+                </p>
+              </div>
+            ) : (
+              <textarea id="mail-body" value={body} onChange={(e) => setBody(e.target.value)} required
+                className="w-full bg-bg-main border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-48 placeholder-text-muted resize-none leading-relaxed font-mono text-xs" />
+            )}
           </div>
 
           {error && (

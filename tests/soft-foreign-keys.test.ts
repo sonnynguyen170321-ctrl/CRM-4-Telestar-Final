@@ -38,6 +38,7 @@ const EXTERNAL_IDS = new Set([
   'InboundMessage.providerMessageId',
   'OutboundMessage.providerMessageId',
   'OutboundMessage.rfcMessageId', // the RFC Message-ID the provider put on the wire
+  'InboundMessage.rfcMessageId', // the RFC Message-ID the prospect's mail client gave the message
   'OutboundMessage.providerThreadId', // Gmail's conversation id
   'JobRun.bullJobId', // a BullMQ job id, which lives in Redis
   'Meeting.externalEventId', // the calendar provider's event
@@ -124,6 +125,9 @@ const SOFT_FOREIGN_KEYS = new Set([
   // The earlier message a reply-in-thread step answers. Read back and re-checked before use
   // (workers/email.ts); a missing parent sends as a new email, so no cascade is wanted.
   'OutboundMessage.inReplyToOutboundId',
+  // The prospect's message an inbox reply answers; re-checked by the worker, and a missing parent just
+  // sends unthreaded.
+  'OutboundMessage.inReplyToInboundId',
   // Who attached a sending mailbox — an audit stamp, soft like every other *ById here.
   'SequenceSender.addedById',
   'Task.sequenceId',

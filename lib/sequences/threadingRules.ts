@@ -26,15 +26,40 @@ export function normalizeMessageId(id: string): string {
   return trimmed.startsWith('<') ? trimmed : `<${trimmed}>`;
 }
 
+// <local@domain>: one token, one "@", no whitespace, no nested brackets.
+const MESSAGE_ID = /^<[^<>\s@]+@[^<>\s@]+>$/;
+/** An RFC 5322 msg-id is far shorter than this; longer is hostile or corrupt. */
+const MAX_MESSAGE_ID_LENGTH = 255;
+const MAX_REFERENCES_LENGTH = 2000;
+
 /**
- * The References header of a reply: the parent's chain, then the parent itself. Capped from the
- * front so a long cadence keeps the root and the most recent messages, which is what clients use.
+ * A Message-ID that is safe to write into a mail header, or null.
+ *
+ * These ids come from other people's mail (the prospect's client chose them) and are written into
+ * the headers of what we send. All whitespace, line breaks included, is collapsed first, then the
+ * id must be exactly one `<...>` token with no whitespace and no nested angle brackets, so an id
+ * followed by an injected header line is dropped instead of becoming a header.
+ */
+export function cleanMessageId(id: string | null | undefined): string | null {
+  if (!id) return null;
+  const candidate = normalizeMessageId(id.replace(/\s+/g, ' '));
+  if (candidate.length > MAX_MESSAGE_ID_LENGTH) return null;
+  return MESSAGE_ID.test(candidate) ? candidate : null;
+}
+
+/**
+ * The References header of a reply: the parent's chain, then the parent itself. Invalid ids are
+ * dropped. Capped from the front so a long cadence keeps the root and the most recent messages,
+ * which is what clients use, and capped in total length.
  */
 export function buildReferences(parentReferences: string | null | undefined, parentMessageId: string, cap = 20): string {
-  const ids = [...(parentReferences ?? '').split(/\s+/).filter(Boolean), normalizeMessageId(parentMessageId)];
-  const unique = [...new Set(ids)];
-  if (unique.length <= cap) return unique.join(' ');
-  return [unique[0], ...unique.slice(unique.length - (cap - 1))].join(' ');
+  const chain = (parentReferences ?? '').split(/\s+/).filter(Boolean);
+  const ids = [...chain, parentMessageId].map(cleanMessageId).filter((id): id is string => id !== null);
+  let unique = [...new Set(ids)];
+  if (unique.length > cap) unique = [unique[0], ...unique.slice(unique.length - (cap - 1))];
+  // Drop from the middle, never the root or the parent, until the header is short enough.
+  while (unique.length > 2 && unique.join(' ').length > MAX_REFERENCES_LENGTH) unique.splice(1, 1);
+  return unique.join(' ');
 }
 
 type StepLike = { order: number; channel: string; autoComplete?: boolean };
