@@ -4,7 +4,7 @@ import { prisma, tenantStorage } from '@/lib/prisma';
 
 import { finalStatusFor, isTerminalStatus, statusesBefore, type FinalStatus } from './callStatus';
 import { legCallId } from './legMarker';
-import { noteLeadLeg, startRecordingOnAnswer, storeSavedRecording } from './recording';
+import { isLeadLegEvent, noteLeadLeg, startRecordingOnAnswer, storeSavedRecording } from './recording';
 import { parseTelnyxEvent, type TelnyxEvent } from './telnyx/events';
 
 /**
@@ -80,8 +80,9 @@ export async function processTelephonyEvent(providerEventId: string): Promise<Pr
       case 'call.initiated':
         return onLegInitiated(call, event);
       case 'call.answered':
-      case 'call.bridged':
         return onAnswered(call, event);
+      case 'call.bridged':
+        return undefined; // media is bridged while the lead's phone is still ringing: not an answer
       case 'call.hangup':
         return onHangup(call, event);
       case 'call.recording.saved':
@@ -111,12 +112,15 @@ async function onLegInitiated(call: CallRef, event: TelnyxEvent): Promise<void> 
   await advance(call, 'ringing');
 }
 
+/** Only the lead's leg answering is the call connecting; the rep's leg answers the moment the browser picks up. */
 async function onAnswered(call: CallRef, event: TelnyxEvent): Promise<void> {
+  const stored = await prisma.call.findFirst({ where: { id: call.id, tenantId: call.tenantId }, select: { leadLegControlId: true } });
+  if (!isLeadLegEvent(event, call.id, stored?.leadLegControlId ?? null)) return;
+  await noteLeadLeg(call, event);
   const at = event.occurredAt ?? new Date();
   await advance(call, 'answered');
   await prisma.call.updateMany({ where: { id: call.id, tenantId: call.tenantId, answeredAt: null }, data: { answeredAt: at } });
-  // The lead's leg answering is the hook: both the answered and the bridged event reach here, and the
-  // stable command ids make the second a no-op at the provider.
+  // Recording starts here, on the lead's answer; a redelivery is a no-op at the provider (stable command ids).
   await startRecordingOnAnswer(call, event);
 }
 
@@ -134,15 +138,18 @@ async function onHangup(call: CallRef, event: TelnyxEvent): Promise<void> {
   const stored = call.providerSessionId
     ? await asSystem(() =>
         prisma.telephonyEvent.findMany({
-          where: { sessionId: call.providerSessionId, type: { in: ['call.answered', 'call.bridged', 'call.hangup'] } },
+          where: { sessionId: call.providerSessionId, type: { in: ['call.answered', 'call.hangup'] } },
           orderBy: { receivedAt: 'asc' },
           take: 50,
         })
       )
     : [];
   const events = stored.map((s) => parseTelnyxEvent(s.payload)).filter((e): e is TelnyxEvent => e !== null);
+  const leg = await prisma.call.findFirst({ where: { id: call.id, tenantId: call.tenantId }, select: { leadLegControlId: true } });
 
-  const answerTimes = events.filter((e) => e.type === 'call.answered' || e.type === 'call.bridged').map((e) => (e.occurredAt ?? new Date()).getTime());
+  const answerTimes = events
+    .filter((e) => e.type === 'call.answered' && isLeadLegEvent(e, call.id, leg?.leadLegControlId ?? null))
+    .map((e) => (e.occurredAt ?? new Date()).getTime());
   const answeredAt = call.answeredAt ?? (answerTimes.length > 0 ? new Date(Math.min(...answerTimes)) : null);
 
   // The lead's leg says why the call ended; the rep's leg only says the call is over.
@@ -222,7 +229,10 @@ export async function ensureFinalActivity(callId: string, tenantId: string): Pro
   const at = call.endedAt ?? new Date();
   let activity: { id: string } | null;
   try {
-    activity = await prisma.activity.create({
+    // A second writer (the other leg's hangup, a replay) is the normal case: look first, so it does not
+    // run into the unique key and put Prisma's query error in the log. Only a true race reaches the catch.
+    const existing = await prisma.activity.findFirst({ where: { idempotencyKey: key }, select: { id: true } });
+    activity = existing ?? await prisma.activity.create({
       data: {
         idempotencyKey: key,
         userId: call.userId,

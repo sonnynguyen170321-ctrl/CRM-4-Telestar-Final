@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { prisma } from '@/lib/prisma';
 import { processTelephonyEvent } from '@/lib/telephony/applyEvent';
@@ -122,10 +122,15 @@ describe('starting a recording', () => {
     const bridged = { id: id(), type: 'call.bridged', sessionId: 's5', controlId: 'lead-leg' };
     await storeEvent(bridged);
     await processTelephonyEvent(bridged.id);
+    expect(fake.commands).toEqual([]); // bridged is media setup, not an answer
+
+    const answered = { id: id(), type: 'call.answered', sessionId: 's5', controlId: 'lead-leg' };
+    await storeEvent(answered);
+    await processTelephonyEvent(answered.id);
     expect(fake.commands.map((c) => c.command.action)).toEqual(['record_start']);
 
     // The rep's leg is a different control id and is still left alone.
-    const repBridged = { id: id(), type: 'call.bridged', sessionId: 's5', controlId: 'rep-leg' };
+    const repBridged = { id: id(), type: 'call.answered', sessionId: 's5', controlId: 'rep-leg' };
     await storeEvent(repBridged);
     await processTelephonyEvent(repBridged.id);
     expect(fake.commands).toHaveLength(1);
@@ -148,11 +153,39 @@ describe('starting a recording', () => {
     fake.failNext.command = new TelephonyProviderError('already recording', 422, false);
 
     await run(marked(call.id, 'call.answered', 's6b'));
-    expect(fake.commands.map((c) => c.command.action)).toEqual(['speak']);
-    expect((await reload(world.tenantId, call.id)).recordingStartedAt).toBeNull();
+    // Refused on the lead leg, so it is tried on the rep leg; the notice is still spoken once.
+    expect(fake.commands.map((c) => [c.callControlId, c.command.action])).toEqual([['rep-leg', 'record_start'], ['lead-leg', 'speak']]);
+    expect((await reload(world.tenantId, call.id)).recordingStartedAt).not.toBeNull();
 
-    await run(marked(call.id, 'call.bridged', 's6b'));
-    expect(fake.commands.map((c) => c.command.action)).toEqual(['speak', 'record_start']); // the notice is not spoken again
+    await run(marked(call.id, 'call.answered', 's6b'));
+    expect(fake.commands).toHaveLength(2); // nothing is sent twice
+  });
+
+  it('does not log an error, or try the other leg, when the call has already ended', async () => {
+    const call = await stage('s6c');
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    fake.failNext.command = new TelephonyProviderError('ended', 422, false, { code: '90018', title: 'Call has already ended' });
+
+    await run(marked(call.id, 'call.answered', 's6c'));
+
+    expect(fake.commands).toEqual([]);
+    expect(JSON.stringify(err.mock.calls)).not.toContain("could not start");
+    expect(info).toHaveBeenCalled();
+    info.mockRestore();
+    err.mockRestore();
+  });
+
+  it('logs the provider status, code and title of a refusal, nothing else', async () => {
+    const call = await stage('s6d');
+    const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    fake.failNext.command = new TelephonyProviderError('refused', 403, false, { code: '10010', title: 'Forbidden' });
+    await run(marked(call.id, 'call.answered', 's6d'));
+    const logged = JSON.stringify(err.mock.calls);
+    err.mockRestore();
+    expect(logged).toContain('"status":403');
+    expect(logged).toContain('10010');
+    expect(logged).toContain('Forbidden');
   });
 
   it('keeps the call going when the provider refuses to record', async () => {

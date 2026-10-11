@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/auth', () => ({ auth: vi.fn(), handlers: {}, signIn: vi.fn(), signOut: vi.fn() }));
 
 import { prisma } from '@/lib/prisma';
+import { FakeTelephonyProvider } from '@/lib/telephony/fake';
+import { setTelephonyProviderForTests } from '@/lib/telephony/index';
 import { processTelephonyEvent } from '@/lib/telephony/applyEvent';
 import { canAdvance, finalStatusFor, isTerminalStatus, statusesBefore } from '@/lib/telephony/callStatus';
 import { legClientState } from '@/lib/telephony/legMarker';
@@ -40,10 +42,12 @@ const at = (seconds: number) => new Date(T0.getTime() + seconds * 1000);
 async function liveCall(status: 'initiated' | 'ringing' | 'answered' = 'initiated', w = world) {
   const sessionId = `sess-${randomUUID()}`;
   const call = await makeCall(w, { status, sessionId, controlId: `ctl-${randomUUID()}`, initiatedAt: at(0) });
+  await inTenant(w.tenantId, () => prisma.call.update({ where: { id: call.id }, data: { leadLegControlId: LEAD_LEG } }));
   return { call, sessionId };
 }
 
-const ev = (sessionId: string, spec: Partial<EventSpec> & { type: string }): EventSpec => ({ id: id(), sessionId, controlId: `leg-${randomUUID()}`, ...spec });
+const LEAD_LEG = 'lead-leg';
+const ev = (sessionId: string, spec: Partial<EventSpec> & { type: string }): EventSpec => ({ id: id(), sessionId, controlId: LEAD_LEG, ...spec });
 
 async function run(spec: EventSpec) {
   await storeEvent(spec);
@@ -51,6 +55,7 @@ async function run(spec: EventSpec) {
 }
 
 beforeEach(async () => {
+  setTelephonyProviderForTests(new FakeTelephonyProvider());
   prefix = `evt-ap-${randomUUID()}-`;
   counter = 0;
   world = await buildDialerWorld(await createTestTenant(`t-telap-${randomUUID()}`, 'Events'));
@@ -58,6 +63,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  setTelephonyProviderForTests(null);
   await deleteEventsWithPrefix(prefix);
 });
 
@@ -183,6 +189,7 @@ describe('applying events to a call', () => {
   it('correlates by control id when the session id is missing', async () => {
     const { call } = await liveCall();
     const full = await reload(world.tenantId, call.id);
+    await inTenant(world.tenantId, () => prisma.call.update({ where: { id: call.id }, data: { leadLegControlId: full.providerControlId } }));
     await run({ id: id(), type: 'call.answered', controlId: full.providerControlId, occurredAt: at(3) });
     expect((await reload(world.tenantId, call.id)).status).toBe('answered');
   });
@@ -202,6 +209,39 @@ describe('applying events to a call', () => {
     expect((await reload(world.tenantId, mine.call.id)).status).toBe('no_answer');
     expect((await reload(other.tenantId, theirs.call.id)).status).toBe('initiated');
     expect(await activitiesFor(other.tenantId, theirs.call.id)).toHaveLength(0);
+  });
+});
+
+describe('what counts as answered (production trace, 2026-10-11)', () => {
+  it('takes answeredAt from the lead leg call.answered, never from call.bridged or the rep leg', async () => {
+    const { call, sessionId } = await liveCall('ringing');
+    await run(ev(sessionId, { type: 'call.bridged', occurredAt: at(1.5) }));
+    await run(ev(sessionId, { type: 'call.bridged', controlId: 'rep-leg', occurredAt: at(1.5) }));
+    expect(await reload(world.tenantId, call.id)).toMatchObject({ status: 'ringing', answeredAt: null });
+
+    await run(ev(sessionId, { type: 'call.answered', occurredAt: at(7.87) }));
+    await run(ev(sessionId, { type: 'call.answered', controlId: 'rep-leg', occurredAt: at(7.98) }));
+    const answered = await reload(world.tenantId, call.id);
+    expect(answered.status).toBe('answered');
+    expect(answered.answeredAt?.toISOString()).toBe(at(7.87).toISOString());
+
+    await run(ev(sessionId, { type: 'call.hangup', direction: 'outgoing', hangupCause: 'normal_clearing', occurredAt: at(8.99), endTime: at(8.99) }));
+    await run(ev(sessionId, { type: 'call.hangup', controlId: 'rep-leg', direction: 'incoming', hangupCause: 'originator_cancel', occurredAt: at(8.99) }));
+    expect(await reload(world.tenantId, call.id)).toMatchObject({ status: 'completed', billedDurationSec: 2 });
+  });
+
+  it('is not connected when the call was bridged but the lead never answered', async () => {
+    const { call, sessionId } = await liveCall('ringing');
+    await run(ev(sessionId, { type: 'call.bridged', occurredAt: at(2) }));
+    await run(ev(sessionId, { type: 'call.hangup', direction: 'outgoing', hangupCause: 'originator_cancel', occurredAt: at(20) }));
+    expect(await reload(world.tenantId, call.id)).toMatchObject({ status: 'canceled', answeredAt: null, billedDurationSec: 0 });
+  });
+
+  it('does not count the rep leg answering as the lead answering', async () => {
+    const { call, sessionId } = await liveCall('ringing');
+    await run(ev(sessionId, { type: 'call.answered', controlId: 'rep-leg', occurredAt: at(1) }));
+    await run(ev(sessionId, { type: 'call.hangup', direction: 'outgoing', hangupCause: 'timeout', occurredAt: at(30) }));
+    expect(await reload(world.tenantId, call.id)).toMatchObject({ status: 'no_answer', answeredAt: null });
   });
 });
 

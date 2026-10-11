@@ -44,6 +44,7 @@ import {
   asSystem,
   buildDialerWorld,
   deleteEventsWithPrefix,
+  inTenant,
   makeCall,
   reload,
   storeEvent,
@@ -143,7 +144,8 @@ describe('replaying unprocessed events', () => {
 
   it('does not abandon an event whose call exists, however old', async () => {
     const call = await makeCall(world, { status: 'initiated', sessionId: 's-known', controlId: 'c-known' });
-    const old = { id: id(), type: 'call.answered', sessionId: 's-known' };
+    await inTenant(world.tenantId, () => prisma.call.update({ where: { id: call.id }, data: { leadLegControlId: 'lead' } }));
+    const old = { id: id(), type: 'call.answered', sessionId: 's-known', controlId: 'lead' };
     await storeEvent(old, { receivedAt: ago(ABANDON_UNMATCHED_AFTER_MS + 10 * MIN) });
     await reconcileTelephony({ now: NOW, tenantIds: [world.tenantId] });
     expect((await eventRow(old.id)).lastError).toBeNull();
@@ -248,7 +250,8 @@ describe('finishing calls that no webhook ended', () => {
 
   it('finishes it as completed when the stored events show it was answered', async () => {
     const call = await makeCall(world, { status: 'initiated', sessionId: 's-a', controlId: 'c-a', initiatedAt: ago(STUCK_RINGING_AFTER_MS + MIN) });
-    await storeEvent({ id: id(), type: 'call.answered', sessionId: 's-a', occurredAt: ago(STUCK_RINGING_AFTER_MS) }, { processedAt: NOW });
+    await inTenant(world.tenantId, () => prisma.call.update({ where: { id: call.id }, data: { leadLegControlId: 'lead' } }));
+    await storeEvent({ id: id(), type: 'call.answered', sessionId: 's-a', controlId: 'lead', occurredAt: ago(STUCK_RINGING_AFTER_MS) }, { processedAt: NOW });
     await reconcileTelephony({ now: NOW, tenantIds: [world.tenantId] });
     const row = await reload(world.tenantId, call.id);
     expect(row.status).toBe('completed');

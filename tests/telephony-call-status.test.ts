@@ -70,3 +70,25 @@ describe('parseTelnyxEvent', () => {
     });
   });
 });
+
+describe('provider error detail', () => {
+  it('keeps only the Telnyx error code and title, never the detail text', async () => {
+    const { telnyx } = telnyxWith([{ status: 422, body: { errors: [{ code: '90018', title: 'Call has already ended', detail: 'Bearer SECRET +84948200638' }] } }]);
+    const error = await telnyx.command('c', { action: 'record_start' }, 'id').catch((e) => e);
+    expect(error.status).toBe(422);
+    expect(error.providerError).toEqual({ code: '90018', title: 'Call has already ended' });
+    expect(JSON.stringify(error.providerError)).not.toContain('SECRET');
+  });
+});
+
+describe('isCallOverError', () => {
+  it('is true for a vanished call and false for any other refusal', async () => {
+    const { isCallOverError } = await import('@/lib/telephony/recording');
+    const { TelephonyProviderError } = await import('@/lib/telephony/provider');
+    expect(isCallOverError(new TelephonyProviderError('x', 404, false))).toBe(true);
+    expect(isCallOverError(new TelephonyProviderError('x', 422, false, { code: '90018', title: null }))).toBe(true);
+    expect(isCallOverError(new TelephonyProviderError('x', 422, false, { code: '1', title: 'Invalid' }))).toBe(false);
+    expect(isCallOverError(new TelephonyProviderError('x', 403, false))).toBe(false);
+    expect(isCallOverError(new Error('x'))).toBe(false);
+  });
+});

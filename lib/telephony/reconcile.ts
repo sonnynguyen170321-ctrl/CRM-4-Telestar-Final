@@ -148,18 +148,18 @@ async function cancelStaleAuthorized(now: Date, tenantIds: string[] | null, summ
   }
 }
 
-/** When the stored events say the call was answered, in case the status lags them. */
-async function storedAnsweredAt(sessionId: string | null): Promise<Date | null> {
-  if (!sessionId) return null;
+/** When the stored events say the lead answered, in case the status lags them. Bridged and the rep's leg do not count. */
+async function storedAnsweredAt(sessionId: string | null, leadLegControlId: string | null): Promise<Date | null> {
+  if (!sessionId || !leadLegControlId) return null;
   const rows = await asSystem(() =>
     prisma.telephonyEvent.findMany({
-      where: { sessionId, type: { in: ['call.answered', 'call.bridged'] } },
+      where: { sessionId, type: 'call.answered' },
       orderBy: { receivedAt: 'asc' },
-      take: 5,
+      take: 10,
       select: { payload: true, receivedAt: true },
     })
   );
-  const first = rows[0];
+  const first = rows.find((r) => parseTelnyxEvent(r.payload)?.controlId === leadLegControlId);
   if (!first) return null;
   return parseTelnyxEvent(first.payload)?.occurredAt ?? first.receivedAt;
 }
@@ -176,7 +176,7 @@ async function finalizeStuck(now: Date, tenantIds: string[] | null, summary: Rec
       },
       orderBy: { updatedAt: 'asc' },
       take: BATCH,
-      select: { id: true, tenantId: true, providerControlId: true, providerSessionId: true, answeredAt: true },
+      select: { id: true, tenantId: true, providerControlId: true, providerSessionId: true, answeredAt: true, leadLegControlId: true },
     })
   );
   if (stuck.length === 0) return;
@@ -196,7 +196,7 @@ async function finalizeStuck(now: Date, tenantIds: string[] | null, summary: Rec
         summary.stillAlive += 1;
         continue;
       }
-      const answeredAt = call.answeredAt ?? (await storedAnsweredAt(call.providerSessionId));
+      const answeredAt = call.answeredAt ?? (await storedAnsweredAt(call.providerSessionId, call.leadLegControlId));
       await asTenant(call.tenantId, () =>
         finishCall(call, { status: answeredAt ? 'completed' : 'failed', endedAt: now, hangupCause: 'reconciled', answeredAt })
       );
