@@ -31,7 +31,7 @@ describe("manager ICP and scoring surface", () => {
     expect(panel).toContain("makes a new draft from this one");
     expect(panel).toContain("The same prospect can use a different published ICP in every campaign");
     expect(panel).toContain("old results stale until campaign rescore");
-    expect(panel).toContain("(pinned)");
+    expect(panel).toContain("No ICP (don't score)");
     expect(panel).toContain("Advanced criteria from an older template are active");
     expect(panel).toContain("Unsaved changes");
     expect(panel).toContain("acknowledgeSimplification");

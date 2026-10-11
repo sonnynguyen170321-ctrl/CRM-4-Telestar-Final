@@ -7,11 +7,13 @@ import {
 } from "@/app/api/icp/manager";
 import { getVisibleCampaignIds } from "@/lib/auth";
 import { requireTenantId } from "@/lib/api/tenant";
+import { logAdminAudit } from "@/lib/audit";
 import { invalidateList } from "@/lib/cache";
 import { assignCampaignIcp } from "@/lib/leadgen/icpAuthoring";
 
 const assignmentSchema = z
-  .object({ icpVersionId: z.string().min(1) })
+  // null clears the campaign's ICP: it is then not scored (there is no default fallback).
+  .object({ icpVersionId: z.string().min(1).nullable() })
   .strict();
 
 export async function PATCH(
@@ -50,7 +52,21 @@ export async function PATCH(
       icpVersionId: parsed.data.icpVersionId,
     });
     await invalidateList(tenantId, "campaigns");
-    return NextResponse.json({ campaign });
+    const cleared = parsed.data.icpVersionId === null;
+    await logAdminAudit({
+      actorId: user.id,
+      action: cleared ? "admin.campaign.icp_clear" : "admin.campaign.icp_assign",
+      tableName: "Campaign",
+      recordId: id,
+      changedFields: { icpVersionId: parsed.data.icpVersionId },
+    });
+    return NextResponse.json({
+      campaign,
+      // Assigning or clearing does not rescore: verdicts already stored stay until a rescore.
+      note: cleared
+        ? "This campaign no longer has an ICP, so it is not scored. Existing lead verdicts stay until you rescore the campaign, which clears them."
+        : "Existing lead verdicts stay until you rescore the campaign.",
+    });
   } catch (error) {
     return icpAuthoringErrorResponse(error);
   }

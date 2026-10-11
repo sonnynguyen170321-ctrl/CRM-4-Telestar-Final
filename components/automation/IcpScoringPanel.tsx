@@ -46,6 +46,8 @@ type Campaign = {
   id: string;
   name: string;
   icpVersionId: string | null;
+  icpProfileId?: string | null;
+  icpProfile?: { id: string; name: string } | null;
   client: { name: string };
   icpVersion: {
     id: string;
@@ -188,6 +190,8 @@ export function IcpScoringPanel() {
           .filter((candidate) => candidate.status === 'published')
           .map((candidate) => ({
             id: candidate.id,
+            profileId: item.id,
+            versionNumber: candidate.versionNumber,
             label: `${item.name} · v${candidate.versionNumber}`,
           })),
       ),
@@ -306,10 +310,10 @@ export function IcpScoringPanel() {
         await fetch(`/api/icp/profiles/${profile.id}/default`, { method: 'POST' }).then(json);
         await load(profileId);
       },
-      `${profile.name} now scores every lead whose campaign has no ICP`,
+      `${profile.name} is now the default: it pre-ranks pool records that belong to no campaign`,
     );
 
-  const assign = (campaignId: string, icpVersionId: string) =>
+  const assign = (campaignId: string, icpVersionId: string | null) =>
     act(
       `campaign:${campaignId}`,
       async () => {
@@ -323,7 +327,9 @@ export function IcpScoringPanel() {
         );
         setCampaigns(campaignData.campaigns);
       },
-      'Campaign ICP updated; old assessments now show Review until rescored',
+      icpVersionId === null
+        ? 'Campaign ICP cleared: the campaign is not scored. Existing verdicts clear on the next rescore'
+        : 'Campaign ICP updated; rescore the campaign to apply it to existing leads',
     );
 
   const recalculate = () =>
@@ -642,10 +648,23 @@ function CampaignTable({
   onAssign,
 }: {
   campaigns: Campaign[];
-  versions: Array<{ id: string; label: string }>;
+  versions: Array<{ id: string; label: string; profileId: string; versionNumber: number }>;
   busy: string;
-  onAssign: (campaignId: string, versionId: string) => void;
+  onAssign: (campaignId: string, versionId: string | null) => void;
 }) {
+  // A campaign follows its profile's newest published version, not the version it was pinned to.
+  const currentFor = (campaign: Campaign) => {
+    if (!campaign.icpProfileId) {
+      const pin = campaign.icpVersion;
+      return pin && pin.status === 'published' ? versions.find((item) => item.id === pin.id) ?? null : null;
+    }
+    return (
+      versions
+        .filter((item) => item.profileId === campaign.icpProfileId)
+        .sort((a, b) => b.versionNumber - a.versionNumber)[0] ?? null
+    );
+  };
+  const NO_ICP = '__none__';
   return (
     <section className="rounded-2xl border border-card-border bg-card-bg p-6">
       <h2 className="type-section text-text-primary">Campaign assignments</h2>
@@ -672,22 +691,23 @@ function CampaignTable({
                   <td className="px-3 py-3 font-semibold text-text-primary">{campaign.name}</td>
                   <td className="px-3 py-3 text-text-secondary">{campaign.client.name}</td>
                   <td className="px-3 py-3 text-text-secondary">
-                    {campaign.icpVersion ? `${campaign.icpVersion.icpProfile.name} · v${campaign.icpVersion.versionNumber}` : 'Not assigned'}
+                    {currentFor(campaign)?.label ??
+                      (campaign.icpProfile ? `${campaign.icpProfile.name} · nothing published, not scored` : 'No ICP, not scored')}
                   </td>
                   <td className="px-3 py-3">
                     <select
                       aria-label={`Assign ICP to ${campaign.name}`}
                       className={inputClass}
-                      value={campaign.icpVersionId ?? ''}
-                      disabled={!versions.length || busy === `campaign:${campaign.id}`}
-                      onChange={(e) => e.target.value && onAssign(campaign.id, e.target.value)}
+                      value={currentFor(campaign)?.id ?? NO_ICP}
+                      disabled={busy === `campaign:${campaign.id}`}
+                      onChange={(e) => {
+                        if (e.target.value !== NO_ICP) return onAssign(campaign.id, e.target.value);
+                        if (window.confirm(`Stop scoring ${campaign.name}? Its leads will show Not scored after the next rescore.`)) {
+                          onAssign(campaign.id, null);
+                        }
+                      }}
                     >
-                      <option value="">Select published ICP</option>
-                      {campaign.icpVersion && !versions.some((item) => item.id === campaign.icpVersion?.id) && (
-                        <option value={campaign.icpVersion.id}>
-                          {campaign.icpVersion.icpProfile.name} - v{campaign.icpVersion.versionNumber} (pinned)
-                        </option>
-                      )}
+                      <option value={NO_ICP}>No ICP (don't score)</option>
                       {versions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                     </select>
                   </td>

@@ -56,8 +56,8 @@ describe('scoreNewLead never rejects', () => {
   });
 
   it('passes the ICP result through when the lead is simply not scorable', async () => {
-    mockScoreLeadIcp.mockResolvedValue({ status: 'not_scored', reason: 'no_icp_configured' });
+    mockScoreLeadIcp.mockResolvedValue({ status: 'not_scored', reason: 'campaign_has_no_icp' });
     const out = await scoreNewLead({ tenantId: 't1', leadId: 'lead-1' });
-    expect(out.icp).toEqual({ status: 'not_scored', reason: 'no_icp_configured' });
+    expect(out.icp).toEqual({ status: 'not_scored', reason: 'campaign_has_no_icp' });
   });
 });

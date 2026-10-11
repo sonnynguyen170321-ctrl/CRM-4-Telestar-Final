@@ -77,14 +77,15 @@ export async function updateIcpAllowlist(input: {
     }
   }
 
-  // The named campaigns, plus every campaign on any version of this profile: publishing archives
-  // the current one, and a campaign left on an old version keeps scoring against the old list.
-  // Matching every version (not just the current) is what lets a re-run finish a run that died
-  // between publishing and moving the campaigns.
+  // The named campaigns, plus every LEGACY campaign pinned to any version of this profile:
+  // publishing archives the current one, and a campaign left on an old pin has no ICP at all.
+  // Campaigns linked to the profile (`icpProfileId`) follow its newest published version by
+  // themselves and need no moving. Matching every version (not just the current) is what lets a
+  // re-run finish a run that died between publishing and moving the legacy campaigns.
   const requested = input.campaignIds ?? [];
   const campaigns = await prisma.campaign.findMany({
-    where: { tenantId, OR: [{ id: { in: requested } }, { icpVersion: { icpProfileId: profile.id } }] },
-    select: { id: true, name: true, icpVersionId: true },
+    where: { tenantId, OR: [{ id: { in: requested } }, { icpProfileId: null, icpVersion: { icpProfileId: profile.id } }] },
+    select: { id: true, name: true, icpVersionId: true, icpProfileId: true },
     orderBy: { name: 'asc' },
   });
   const missing = requested.filter((id) => !campaigns.some((c) => c.id === id));
@@ -98,7 +99,7 @@ export async function updateIcpAllowlist(input: {
     titlesToAdd,
     titlesAlreadyThere,
     campaignsToMove: campaigns
-      .filter((c) => titlesToAdd.length > 0 || c.icpVersionId !== source.id)
+      .filter((c) => c.icpProfileId !== profile.id && (titlesToAdd.length > 0 || c.icpVersionId !== source.id))
       .map((c) => ({ id: c.id, name: c.name, fromVersionId: c.icpVersionId })),
   };
   if (!input.apply) return plan;

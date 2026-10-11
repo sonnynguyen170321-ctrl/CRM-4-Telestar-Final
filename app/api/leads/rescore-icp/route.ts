@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { requireAuth, type SessionUser } from '@/lib/auth';
+import { getVisibleCampaignIds, requireAuth, type SessionUser } from '@/lib/auth';
 import { canManageScoringRequest } from '@/lib/leads/scoringAccess';
 import { rescoreLeadsIcp, RESCORE_LEADS_BATCH_LIMIT } from '@/lib/leads/icpScoring';
 import { parseBody } from '@/lib/validation/core';
@@ -49,11 +49,20 @@ export async function POST(req: NextRequest) {
   if (parsed.error) return parsed.error;
   const tenantId = user.tenantId;
 
+  // A campaign the caller cannot see is a campaign that does not exist for them (404, not 403).
+  // With no campaign named, a caller who sees only some campaigns (team lead, floor manager) rescores
+  // only those; a tenant-wide caller (null) rescores everything.
+  const visibleCampaignIds = await getVisibleCampaignIds(user);
+  if (parsed.data.campaignId && visibleCampaignIds !== null && !visibleCampaignIds.includes(parsed.data.campaignId)) {
+    return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+  }
+
   try {
     const report = await tenantStorage.run({ tenantId }, () =>
       rescoreLeadsIcp({
         tenantId,
         campaignId: parsed.data.campaignId,
+        ...(visibleCampaignIds !== null && !parsed.data.campaignId ? { campaignIds: visibleCampaignIds } : {}),
         onlyUnscored: parsed.data.onlyUnscored,
         limit: parsed.data.limit,
         cursor: parsed.data.cursor,

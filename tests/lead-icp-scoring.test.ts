@@ -108,7 +108,7 @@ describe.skipIf(!hasDb)('scoreLeadIcp', () => {
     const l = await lead(ids.campaignBare);
     const result = await run(T, () => scoreLeadIcp({ tenantId: T, leadId: l.id }));
     expect(result.status).toBe('not_scored');
-    if (result.status === 'not_scored') expect(result.reason).toBe('no_icp_configured');
+    if (result.status === 'not_scored') expect(result.reason).toBe('campaign_has_no_icp');
     const after = await reload(l.id);
     expect(after.icpFitScore).toBeNull();
     expect(after.icpQualification).toBeNull();

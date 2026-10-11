@@ -532,10 +532,14 @@ routes:
   - path: app/api/icp/campaigns/[id]/route.ts
     methods: [PATCH]
     tests:
+      - tests/admin-audit-coverage.test.ts
+      - tests/icp-campaign-assign-route.test.ts
       - tests/icp-management-ui.test.ts
   - path: app/api/icp/campaigns/route.ts
     methods: [GET]
     tests:
+      - tests/admin-audit-coverage.test.ts
+      - tests/icp-campaign-assign-route.test.ts
       - tests/icp-management-ui.test.ts
   - path: app/api/icp/profiles/[id]/default/route.ts
     methods: [POST]
@@ -680,6 +684,7 @@ routes:
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
       - tests/admin.test.ts
+      - tests/campaign-icp-resolver.test.ts
       - tests/certification-role-evidence.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
@@ -712,6 +717,7 @@ routes:
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
       - tests/admin.test.ts
+      - tests/campaign-icp-resolver.test.ts
       - tests/certification-role-evidence.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
@@ -744,6 +750,7 @@ routes:
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
       - tests/admin.test.ts
+      - tests/campaign-icp-resolver.test.ts
       - tests/certification-role-evidence.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
@@ -791,6 +798,7 @@ routes:
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
       - tests/admin.test.ts
+      - tests/campaign-icp-resolver.test.ts
       - tests/certification-role-evidence.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
@@ -1396,6 +1404,7 @@ routes:
     methods: [GET, POST]
     tests:
       - tests/api-keys-and-integrations.test.ts
+      - tests/campaign-icp-resolver.test.ts
       - tests/prelaunch-authz.test.ts
       - tests/v1-api-key-tenant-context.test.ts
   - path: app/api/v1/openapi.json/route.ts

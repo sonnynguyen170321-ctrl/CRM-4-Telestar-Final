@@ -205,11 +205,11 @@ describe('rescoreAllLeads (browser loop)', () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(ok({ scored: 2, notScored: 0, reasons: {}, transitions: { 'qualified→needs_review': 1 }, unchanged: 1, pinned: 0, nextCursor: 'c1' }))
-      .mockResolvedValueOnce(ok({ scored: 1, notScored: 1, reasons: { no_icp_configured: 1 }, transitions: { 'qualified→needs_review': 1 }, unchanged: 0, pinned: 1, nextCursor: null }));
+      .mockResolvedValueOnce(ok({ scored: 1, notScored: 1, reasons: { campaign_has_no_icp: 1 }, transitions: { 'qualified→needs_review': 1 }, unchanged: 0, pinned: 1, nextCursor: null }));
     const result = await rescoreAllLeads({ onlyUnscored: false, dryRun: true }, fetchImpl as unknown as typeof fetch);
     expect(result).toEqual({
       ok: true,
-      totals: { scored: 3, notScored: 1, reasons: { no_icp_configured: 1 }, transitions: { 'qualified→needs_review': 2 }, unchanged: 1, pinned: 1, stoppedEarly: false },
+      totals: { scored: 3, notScored: 1, reasons: { campaign_has_no_icp: 1 }, transitions: { 'qualified→needs_review': 2 }, unchanged: 1, pinned: 1, stoppedEarly: false },
     });
     expect(JSON.parse(fetchImpl.mock.calls[1][1].body)).toEqual({ onlyUnscored: false, dryRun: true, cursor: 'c1' });
     expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).not.toHaveProperty('cursor');

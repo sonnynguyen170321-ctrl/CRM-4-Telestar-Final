@@ -8,9 +8,10 @@ import { prisma } from "@/lib/prisma";
 /**
  * Make this ICP profile the tenant default.
  *
- * The default scores every lead whose campaign has no ICP of its own (`resolveIcpVersionId`). It
- * could only be set when the first profile was created, so a tenant whose first profile was a test
- * ("Telestar") scored unassigned leads against it forever, while the real ICP sat unused next to it.
+ * The default only pre-ranks pool records that belong to no campaign (`resolvePoolPreRankVersionId`);
+ * since 2026-10-10 no campaign or lead falls back to it. It could only be set when the first profile
+ * was created, so a tenant whose first profile was a test ("Telestar") pre-ranked the unassigned pool
+ * against it forever, while the real ICP sat unused next to it.
  *
  * One default per tenant, moved in a single transaction: the old default is cleared and the new one
  * set together, so no read in between can see two or none. A profile with no published version is

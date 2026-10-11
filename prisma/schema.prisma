@@ -451,6 +451,9 @@ model User {
   researchRunsCreated       ResearchRun[]           @relation("ResearchRunCreatedBy")
   assignedCampaignProspects CampaignProspect[]      @relation("CampaignProspectAssignedSdr")
   createdCampaignProspects  CampaignProspect[]      @relation("CampaignProspectCreatedBy")
+  ownedIcpProfiles          IcpProfile[]            @relation("IcpProfileOwner")
+  submittedIcpVersions      IcpVersion[]            @relation("IcpVersionSubmittedBy")
+  reviewedIcpVersions       IcpVersion[]            @relation("IcpVersionReviewedBy")
 
   @@index([tenantId])
   @@index([tenantId, managerId])
@@ -491,7 +494,14 @@ model Campaign {
   targetGeo      String?
   /// Which rule set scores leads imported for this campaign. Separate from
   /// `CampaignLeadRequirement`, which stays the delivery contract with the client.
+  /// DEPRECATED as the scoring source: the campaign follows `icpProfileId`'s latest published
+  /// version. Still written by the assign route as history, and read only as a legacy pin when
+  /// `icpProfileId` is null. Drop one release after the profile link is everywhere.
   icpVersionId   String?
+  /// The ICP profile this campaign scores against (its latest published version). Null = the
+  /// campaign has no ICP and is NOT scored; there is no default fallback.
+  icpProfileId   String?
+  icpProfile     IcpProfile?    @relation(fields: [icpProfileId, tenantId], references: [id, tenantId], onDelete: SetNull)
   icpVersion     IcpVersion?    @relation(fields: [icpVersionId, tenantId], references: [id, tenantId], onDelete: SetNull)
   status         CampaignStatus @default(active)
   startDate      DateTime
@@ -519,6 +529,7 @@ model Campaign {
   prospects          CampaignProspect[]
 
   @@index([tenantId])
+  @@index([tenantId, icpProfileId])
 }
 
 model CampaignSdr {
@@ -1929,6 +1940,8 @@ model OpportunityActivity {
 
 enum IcpVersionStatus {
   draft
+  /// Submitted by a rep for review; never used for scoring until a team lead or manager approves.
+  pending_review
   published
   archived
 }
@@ -1941,20 +1954,34 @@ enum IcpQualification {
   unqualified
 }
 
+/// Who an ICP profile belongs to. `library` is made by managers and shared across campaigns;
+/// `custom` is made from one campaign by its creator (`ownerUserId`).
+enum IcpProfileKind {
+  library
+  custom
+}
+
 model IcpProfile {
   @@unique([id, tenantId], map: "IcpProfile_id_tenantId_key")
   id          String   @id @default(cuid())
   name        String
   description String?
   isDefault   Boolean  @default(false)
+  kind        IcpProfileKind @default(library)
+  /// Custom ICPs: the user who made it. Null for library profiles and after the user is deleted
+  /// (SET NULL on this column only: the migration uses the column-list form so tenantId survives).
+  ownerUserId String?
+  owner       User?    @relation("IcpProfileOwner", fields: [ownerUserId, tenantId], references: [id, tenantId], onDelete: SetNull)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  versions IcpVersion[]
+  versions  IcpVersion[]
+  campaigns Campaign[]
 
   @@unique([tenantId, name])
+  @@index([tenantId, ownerUserId])
   @@index([tenantId])
 }
 
@@ -1968,6 +1995,16 @@ model IcpVersion {
   /// The whole rule set, validated by @telestar/core-icp before it is stored.
   rulesJson     Json?
   publishedAt   DateTime?
+  /// Review workflow: a rep's Publish only submits (status pending_review); a team lead or manager
+  /// approves (published) or rejects (back to draft with reviewNote). Null for versions that never
+  /// went through review (library ICPs, manager-published). SET NULL on user delete, own column only.
+  submittedById String?
+  submittedBy   User?            @relation("IcpVersionSubmittedBy", fields: [submittedById, tenantId], references: [id, tenantId], onDelete: SetNull)
+  submittedAt   DateTime?
+  reviewedById  String?
+  reviewedBy    User?            @relation("IcpVersionReviewedBy", fields: [reviewedById, tenantId], references: [id, tenantId], onDelete: SetNull)
+  reviewedAt    DateTime?
+  reviewNote    String?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   tenantId      String

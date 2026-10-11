@@ -211,6 +211,7 @@ describe("ICP authoring persistence safety", () => {
     db.campaign.findFirst.mockResolvedValue({
       id: "campaign-a",
       icpVersionId: null,
+      icpProfileId: null,
     });
     db.icpVersion.findFirst.mockResolvedValue(null);
 
@@ -227,8 +228,32 @@ describe("ICP authoring persistence safety", () => {
         tenantId,
         status: "published",
       },
-      select: { id: true },
+      select: { id: true, icpProfileId: true },
     });
     expect(db.campaign.update).not.toHaveBeenCalled();
+  });
+
+  it("follows the version's profile and keeps the version as history", async () => {
+    db.campaign.findFirst.mockResolvedValue({ id: "campaign-a", icpVersionId: null, icpProfileId: null });
+    db.icpVersion.findFirst.mockResolvedValue({ id: "v3", icpProfileId: "profile-1" });
+    db.campaign.update.mockResolvedValue({ id: "campaign-a" });
+
+    await assignCampaignIcp({ tenantId, campaignId: "campaign-a", icpVersionId: "v3" });
+
+    expect(db.campaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { icpVersionId: "v3", icpProfileId: "profile-1" } }),
+    );
+  });
+
+  it("clears both columns with null, leaving the campaign without an ICP", async () => {
+    db.campaign.findFirst.mockResolvedValue({ id: "campaign-a", icpVersionId: "v3", icpProfileId: "profile-1" });
+    db.campaign.update.mockResolvedValue({ id: "campaign-a" });
+
+    await assignCampaignIcp({ tenantId, campaignId: "campaign-a", icpVersionId: null });
+
+    expect(db.icpVersion.findFirst).not.toHaveBeenCalled();
+    expect(db.campaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { icpVersionId: null, icpProfileId: null } }),
+    );
   });
 });
