@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Loader2, X } from 'lucide-react';
+import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 import { useToast } from '@/context/ToastContext';
 import type { SettingsDto } from '@/lib/telephony/settingsAdmin';
@@ -17,22 +17,8 @@ type Props = { settings: SettingsDto; readOnly: boolean; send: (url: string, met
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const STEP_MINUTES = 30;
 const MINUTES_PER_DAY = 1440;
-const VIETNAM = 'VN';
 
 const clock = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
-
-/** Every two-letter region the browser can name, minus Vietnam (called from the rep's own phone). */
-function useCountryOptions() {
-  return useMemo(() => {
-    const names = new Intl.DisplayNames(['en'], { type: 'region', fallback: 'none' });
-    const letters = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
-    return letters
-      .flatMap((a) => letters.map((b) => `${a}${b}`))
-      .map((code) => ({ code, name: names.of(code) }))
-      .filter((c): c is { code: string; name: string } => Boolean(c.name) && c.code !== VIETNAM)
-      .sort((x, y) => x.name.localeCompare(y.name));
-  }, []);
-}
 
 function minuteOptions(current: number, from: number) {
   const options = new Set<number>([current]);
@@ -64,14 +50,11 @@ function Switch({ id, label, hint, checked, onChange }: { id: string; label: str
 
 export default function CallingRulesCard({ settings, readOnly, send }: Props) {
   const { showToast } = useToast();
-  const countries = useCountryOptions();
   const [draft, setDraft] = useState(settings);
   const [saving, setSaving] = useState(false);
-  const [vietnamNote, setVietnamNote] = useState(false);
   const patch = (changes: Partial<SettingsDto>) => setDraft((d) => ({ ...d, ...changes }));
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
-  const nameOf = (code: string) => countries.find((c) => c.code === code)?.name ?? code;
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -90,7 +73,6 @@ export default function CallingRulesCard({ settings, readOnly, send }: Props) {
       ...(draft.anyTime
         ? { anyTime: true }
         : { anyTime: false, callingHoursStart: draft.callingHoursStart, callingHoursEnd: draft.callingHoursEnd, allowedWeekdays: draft.allowedWeekdays }),
-      allowedCountries: draft.allowedCountries,
       recordingEnabled: draft.recordingEnabled,
       recordingNotice: draft.recordingNotice,
       recordingRetentionDays: draft.recordingRetentionDays,
@@ -145,52 +127,6 @@ export default function CallingRulesCard({ settings, readOnly, send }: Props) {
               </div>
             </fieldset>
           </div>
-        )}
-      </fieldset>
-
-      <fieldset className="space-y-2">
-        <legend className="text-[10px] font-bold uppercase text-text-muted">Countries the team may dial through the dialer</legend>
-        <p className="max-w-[62ch] text-[11px] leading-4 text-text-muted">
-          Nothing is dialable until a country is added. Vietnam is not offered: Vietnamese numbers are called from the rep&apos;s own phone and logged in the CRM.
-        </p>
-        <ul className="flex flex-wrap gap-1.5" aria-label="Allowed countries">
-          {draft.allowedCountries.length === 0 && <li className="text-xs text-text-muted">No countries yet</li>}
-          {draft.allowedCountries.map((code) => (
-            <li key={code} className="flex items-center gap-1 rounded-full border border-card-border bg-bg-main py-0.5 pl-2.5 pr-1 text-xs font-semibold text-text-primary">
-              {nameOf(code)} ({code})
-              <button
-                type="button"
-                aria-label={`Remove ${nameOf(code)}`}
-                className="rounded-full p-0.5 hover:bg-card-border/40"
-                onClick={() => patch({ allowedCountries: draft.allowedCountries.filter((c) => c !== code) })}
-              >
-                <X className="h-3 w-3" aria-hidden="true" />
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor="tel-add-country" className="text-xs font-semibold text-text-primary">Add a country</label>
-          <select
-            id="tel-add-country"
-            className={fieldClass}
-            value=""
-            onChange={(e) => {
-              const code = e.target.value;
-              if (code) patch({ allowedCountries: [...new Set([...draft.allowedCountries, code])] });
-            }}
-          >
-            <option value="">Choose…</option>
-            {countries.filter((c) => !draft.allowedCountries.includes(c.code)).map((c) => <option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}
-          </select>
-          <button type="button" className="text-[11px] text-text-muted underline" onClick={() => setVietnamNote((v) => !v)} aria-expanded={vietnamNote}>
-            Why not Vietnam?
-          </button>
-        </div>
-        {vietnamNote && (
-          <p className="max-w-[62ch] rounded-lg bg-bg-main p-2 text-[11px] leading-4 text-text-secondary" role="note">
-            Telnyx does not carry calls to Vietnam, so the lead drawer opens a panel with the number to call from the rep&apos;s own phone, then the rep logs the outcome here.
-          </p>
         )}
       </fieldset>
 

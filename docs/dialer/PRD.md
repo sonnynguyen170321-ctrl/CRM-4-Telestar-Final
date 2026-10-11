@@ -4,7 +4,7 @@
 > later decision replaced it, the old text is struck through or marked *Superseded* with the new rule
 > beside it. In force today:
 > - **Outbound only, no inbound.** G4, US5 and US6 are not built.
-> - **Vietnam is never dialled through Telnyx.** Vietnamese numbers are called from the rep's own phone and logged in the CRM (`components/dialer/PhoneCallPanel.tsx`). The softphone serves other countries; `allowedCountries` never holds `VN`.
+> - **Vietnam is never dialled through Telnyx.** Vietnamese numbers are called from the rep's own phone and logged in the CRM (`components/dialer/PhoneCallPanel.tsx`). The softphone serves other countries; the gate refuses VN (`vietnam_own_phone`). The country lock is the Telnyx outbound profile whitelist; the CRM has no country allow-list.
 > - **Call any time** by default: hours 00:00-24:00 every day. A manager can still narrow hours and weekdays; the 08:00-17:00 rule below is now only an option, not the default.
 > - **Recording on, no spoken notice by default**; the notice is a manager toggle. Retention is a manager setting (default 90 days).
 > - **Whole team at once**, no pilot batches: one manager's live check on production, then everyone (stages 2 to 4 of section 8 are replaced).
@@ -20,7 +20,7 @@ Call counts disagree across the leaderboard, My Day, client reports and contact 
 
 ## 2. Goals
 - G1 Click-to-call from the lead drawer works all day with no shared secret in the browser.
-- G2 Server-side, non-bypassable compliance gate (own DNC list, country, number type, and hours when a manager has narrowed them).
+- G2 Server-side, non-bypassable compliance gate (own DNC list, Vietnam refusal, number type, and hours when a manager has narrowed them).
 - G3 Every call record is created and advanced only by signed Telnyx webhooks.
 - ~~G4 Inbound hotline rings the lead owner, then a fallback chain; a missed call never goes unseen.~~ *Superseded 2026-10-08: no inbound.*
 - G5 Calls are recorded, kept 90 days, playable only by the caller and managers.
@@ -39,7 +39,7 @@ Call counts disagree across the leaderboard, My Day, client reports and contact 
 |---|---|
 | SDR | Dial fast, see clearly why a call is blocked, take inbound calls from own leads, log the outcome once |
 | Team lead | Listen to team recordings, see team connect rate, be in the fallback chain |
-| Floor manager | Kill switch, calling hours, countries, fallback chain, live health |
+| Floor manager | Kill switch, calling hours, fallback chain, live health |
 | Director | One trusted call count across dashboards and client reports |
 | Ops/Owner | Telnyx account, balance, concurrency, backups, alerts, rollout decisions |
 
@@ -47,7 +47,7 @@ Call counts disagree across the leaderboard, My Day, client reports and contact 
 
 **US1 Click-to-call from the lead drawer (SDR)**
 - AC1 Call → `POST /api/telephony/calls`; a blocked attempt is stored as a `Call` (`status=blocked`) with a compliance snapshot.
-- AC2 When blocked, the softphone lists every reason in plain language (outside the calling hours, when narrowed; on our DNC list, lead flagged DNC, country not allowed, invalid number, no phone, no microphone permission, dialer disabled, gate error).
+- AC2 When blocked, the softphone lists every reason in plain language (outside the calling hours, when narrowed; on our DNC list, lead flagged DNC, Vietnamese number (call from your own phone), invalid number, no phone, no microphone permission, dialer disabled, gate error).
 - AC3 `tz_unknown` shows an inline "Set lead timezone" control; after saving, the gate re-runs without closing the drawer.
 - AC4 A lead with no phone shows an immediate error and never sits on "connecting".
 - AC5 A repeat call to the same number within 24h is allowed.
@@ -84,7 +84,7 @@ Call counts disagree across the leaderboard, My Day, client reports and contact 
 - AC4 After 90 days (`recordingPurgeAt`) the recording is deleted at Telnyx and the UI says "expired".
 
 **US8 Manager settings (floor manager, director)**
-- AC1 `settings/telephony` (built, PR F): kill switch, dry-run, any-time toggle and hours/weekdays (default 00:00-24:00 every day), allowed countries (never Vietnam), recording on/off, recording notice, retention days (7 to 730, default 90), caller ID numbers with per-country and overall defaults, softphone logins with revoke, and the server switches shown read-only. ~~Inbound ring seconds and fallback chain~~ *superseded: no inbound.*
+- AC1 `settings/telephony` (built, PR F): kill switch, dry-run, any-time toggle and hours/weekdays (default 00:00-24:00 every day), recording on/off, recording notice, retention days (7 to 730, default 90), caller ID numbers with per-country and overall defaults, softphone logins with revoke, and the server switches shown read-only. ~~Inbound ring seconds and fallback chain~~ *superseded: no inbound.*
 - AC2 The kill switch blocks new calls from the next gate evaluation, no deploy.
 - AC3 Every change is audited with old and new values.
 

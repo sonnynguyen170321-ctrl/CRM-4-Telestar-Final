@@ -19,7 +19,7 @@ lives, which existing helpers it reuses, and the rules a change to it must keep.
 | `lib/telephony/outcomes.ts` | The one outcome list, shared by UI and server |
 | ~~`lib/telephony/inbound.ts`~~ | Not built: no inbound (owner decision, 2026-10-08) |
 | `lib/telephony/callerId.ts` | Caller ID for a call: the country default, any number in the country, the overall default, any number, else the provider default; the tenant's active outbound numbers only |
-| `lib/telephony/settingsInput.ts` | Zod rules for what a manager may write: countries (ISO-2, never `VN`), hours (0-1440, start before end), weekdays, "any time", retention 7-730 days, E.164 numbers |
+| `lib/telephony/settingsInput.ts` | Zod rules for what a manager may write: hours (0-1440, start before end), weekdays, "any time", retention 7-730 days, E.164 numbers |
 | `lib/telephony/settingsAdmin.ts`, `settingsNumbers.ts`, `settingsAccess.ts` | Read and change a team's settings, numbers and softphone logins; the guard (interactive session, `MANAGER_ROLES`, tenant from the session); audit with before and after |
 | `lib/telephony/health.ts` | The five health checks and their delivery through `notifyOps` |
 | `lib/telephony/metrics.ts` | `countCalls` — the one call count every dashboard uses |
@@ -80,8 +80,9 @@ lives, which existing helpers it reuses, and the rules a change to it must keep.
     2026-10-08: hours 00:00-24:00, every day, no timezone needed); a manager may narrow the hours, and then they
     are lead-local and an unknown lead timezone blocks the call. Own Do-Not-Call list and lead/contact `doNotCall`
     always apply.
-15. **Vietnam is never in `allowedCountries`** and is refused by the settings API: Vietnamese numbers are called
-    from the rep's own phone and logged (`PhoneCallPanel`).
+15. **Vietnam is refused by the gate** (`vietnam_own_phone`): Vietnamese numbers are called from the rep's own
+    phone and logged (`PhoneCallPanel`). There is no CRM country allow-list; the Telnyx outbound profile whitelists
+    destinations.
 16. **Settings changes are audited** (`admin.telephony.settings`, `.kill`, `.number`, `.credential_revoke`) with the
     non-secret before and after; the environment switches are shown by state only, never a value.
 
@@ -100,7 +101,7 @@ Env group `Telephony` in `lib/env-contract.ts` (all-or-none): `TELNYX_API_KEY`, 
 `TELNYX_CREDENTIAL_CONNECTION_ID`, `TELNYX_CALL_CONTROL_APP_ID`, `TELNYX_OUTBOUND_VOICE_PROFILE_ID`,
 `TELEPHONY_AUTH_SECRET`. Flags: `TELEPHONY_ENABLED` (on only for `true`), `TELEPHONY_DRY_RUN` (on unless
 `false`), `TELNYX_BALANCE_ALERT_USD`, optional `TELNYX_CONCURRENCY_LIMIT` (a positive whole number; the health
-cron skips the check when unset). Per-tenant settings (hours, countries, recording and notice, retention,
+cron skips the check when unset). Per-tenant settings (hours, recording and notice, retention,
 kill switch) live in `TelephonySettings` and caller IDs in `TelephonyNumber`; both are edited on
 `settings/telephony`. (`fallbackUserIds` and `inboundRingSecs` are unused: no inbound.)
 

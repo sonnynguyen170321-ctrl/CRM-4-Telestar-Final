@@ -210,7 +210,6 @@ describe('GET /api/telephony/settings', () => {
       callingHoursStart: 0,
       callingHoursEnd: 1440,
       allowedWeekdays: [0, 1, 2, 3, 4, 5, 6],
-      allowedCountries: [],
       recordingEnabled: true,
       recordingNotice: false,
       recordingRetentionDays: 90,
@@ -248,22 +247,23 @@ describe('GET /api/telephony/settings', () => {
   });
 
   it('never shows another team\'s settings', async () => {
-    await inTenant(() => prisma.telephonySettings.create({ data: { tenantId: otherTenantId, enabled: true, allowedCountries: ['SG'] } }), otherTenantId);
+    await inTenant(() => prisma.telephonySettings.create({ data: { tenantId: otherTenantId, enabled: true } }), otherTenantId);
     const { body } = await get(users.director);
-    expect(body.settings).toMatchObject({ enabled: false, allowedCountries: [] });
+    expect(body.settings).toMatchObject({ enabled: false });
   });
 });
 
 describe('PATCH /api/telephony/settings', () => {
   it('creates the row on the first save and changes only what was sent', async () => {
-    const { response, body } = await patch(users.director, { enabled: true, dryRun: false, allowedCountries: ['sg', 'US'] });
+    const { response, body } = await patch(users.director, { enabled: true, dryRun: false });
     expect(response.status).toBe(200);
-    expect(body.settings).toMatchObject({ enabled: true, dryRun: false, allowedCountries: ['SG', 'US'] });
+    expect(body.settings).toMatchObject({ enabled: true, dryRun: false });
+    expect(body.settings).not.toHaveProperty('allowedCountries');
     const row = await settingsRow();
-    expect(row).toMatchObject({ enabled: true, dryRun: false, allowedCountries: ['SG', 'US'], recordingEnabled: true, updatedById: users.director.id });
+    expect(row).toMatchObject({ enabled: true, dryRun: false, recordingEnabled: true, updatedById: users.director.id });
 
     await patch(users.floorManager, { recordingNotice: true });
-    expect(await settingsRow()).toMatchObject({ enabled: true, allowedCountries: ['SG', 'US'], recordingNotice: true, updatedById: users.floorManager.id });
+    expect(await settingsRow()).toMatchObject({ enabled: true, recordingNotice: true, updatedById: users.floorManager.id });
   });
 
   it('never writes another team\'s row', async () => {
@@ -274,10 +274,9 @@ describe('PATCH /api/telephony/settings', () => {
     expect((await settingsRow())?.dryRun).toBe(true); // not touched by the other team's save
   });
 
-  it('refuses Vietnam with a clear message and saves nothing', async () => {
-    const { response, body } = await patch(users.director, { enabled: true, allowedCountries: ['SG', 'VN'] });
+  it('rejects allowedCountries (the country lock is the Telnyx profile) and saves nothing', async () => {
+    const { response } = await patch(users.director, { enabled: true, allowedCountries: ['SG', 'US'] });
     expect(response.status).toBe(400);
-    expect(JSON.stringify(body)).toMatch(/own phone/i);
     expect(await settingsRow()).toBeNull();
     expect(await auditRows()).toHaveLength(0);
   });
@@ -567,10 +566,10 @@ describe('team lead: read-only view, emergency stop, own reps only', () => {
     expect(await settingsRow()).toMatchObject({ killedById: users.teamLead.id });
     expect(await auditRows('admin.telephony.kill')).toHaveLength(1);
 
-    for (const body of [{ killed: false }, { enabled: true }, { killed: true, enabled: true }, { allowedCountries: ['SG'] }, { dryRun: false }]) {
+    for (const body of [{ killed: false }, { enabled: true }, { killed: true, enabled: true }, { recordingNotice: true }, { dryRun: false }]) {
       expect((await patch(users.teamLead, body)).response.status).toBe(403);
     }
-    expect(await settingsRow()).toMatchObject({ enabled: false, dryRun: true, allowedCountries: [] });
+    expect(await settingsRow()).toMatchObject({ enabled: false, dryRun: true });
     expect((await settingsRow())?.killedAt).not.toBeNull();
     expect((await patch(users.floorManager, { killed: false })).response.status).toBe(200);
   });

@@ -79,7 +79,6 @@ export async function loadCallGate(input: {
         callingHoursStart: true,
         callingHoursEnd: true,
         allowedWeekdays: true,
-        allowedCountries: true,
       },
     }),
   ]);

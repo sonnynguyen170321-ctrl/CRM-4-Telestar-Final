@@ -111,16 +111,16 @@ export async function buildDialerWorld(tenantId: string, options: { phone?: stri
         lastName: 'L',
         email: `ann.${randomUUID()}@acme.test`,
         company: 'Acme',
-        phone: options.phone ?? '0948200638',
+        phone: options.phone ?? '+66812345678',
         campaignId: campaign.id,
         assignedToId: rep.id,
       },
     });
-    await prisma.telephonySettings.create({ data: { tenantId, enabled: true, dryRun: false, allowedCountries: ['VN', 'SG'] } });
+    await prisma.telephonySettings.create({ data: { tenantId, enabled: true, dryRun: false } });
     await prisma.telephonyCredential.create({
       data: { tenantId, userId: rep.id, provider: 'fake', providerCredentialId: `cred-${randomUUID()}`, sipUsername },
     });
-    return { tenantId, repId: rep.id, leadId: lead.id, sipUsername, toE164: '+84948200638' };
+    return { tenantId, repId: rep.id, leadId: lead.id, sipUsername, toE164: '+66812345678' };
   });
 }
 

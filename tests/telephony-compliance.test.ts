@@ -26,17 +26,17 @@ function facts(overrides: Partial<GateFacts> = {}): GateFacts {
       callingHoursStart: 480,
       callingHoursEnd: 1020,
       allowedWeekdays: [0, 1, 2, 3, 4, 5, 6],
-      allowedCountries: ['VN', 'US', 'AU', 'SG'],
     },
     credential: { status: 'active', revokedAt: null },
     canAccessLead: true,
-    rawPhone: '0948200638',
-    dialCountries: ['VN'],
+    // Thailand shares Vietnam's UTC+7 clock; Vietnamese numbers are refused by the gate itself.
+    rawPhone: '0812345678',
+    dialCountries: ['TH'],
     suppressed: false,
     leadDoNotCall: false,
     contactDoNotCall: false,
     leadTimezone: null,
-    leadCountry: 'Vietnam',
+    leadCountry: 'Thailand',
     ...overrides,
   };
 }
@@ -44,14 +44,14 @@ function facts(overrides: Partial<GateFacts> = {}): GateFacts {
 const at = (iso: string, overrides: Partial<GateFacts> = {}) => evaluateCallPermission(facts({ now: new Date(iso), ...overrides }));
 
 describe('evaluateCallPermission', () => {
-  it('allows a Vietnamese mobile at 10:00 local, dialling it as E.164', () => {
+  it('allows a Thai mobile at 10:00 local, dialling it as E.164', () => {
     expect(evaluateCallPermission(facts())).toMatchObject({
       allowed: true,
       dryRun: false,
       reasons: [],
-      toE164: '+84948200638',
-      numberCountry: 'VN',
-      timezone: { timezone: 'Asia/Ho_Chi_Minh', source: 'phone' },
+      toE164: '+66812345678',
+      numberCountry: 'TH',
+      timezone: { timezone: 'Asia/Bangkok', source: 'phone' },
       localTime: '10:00',
     });
   });
@@ -121,8 +121,8 @@ describe('evaluateCallPermission', () => {
       expect(evaluateCallPermission(facts({ rawPhone: '+14155552671', leadTimezone: zone, leadCountry: null })).reasons).toEqual(['tz_unknown']);
     });
 
-    it('does not read a US number on the clock of a record that says Vietnam', () => {
-      expect(evaluateCallPermission(facts({ rawPhone: '+14155552671', leadCountry: 'Vietnam' })).reasons).toEqual(['tz_unknown']);
+    it('does not read a US number on the clock of a record that says Thailand', () => {
+      expect(evaluateCallPermission(facts({ rawPhone: '+14155552671', leadCountry: 'Thailand' })).reasons).toEqual(['tz_unknown']);
     });
 
     it('ignores an invalid stored timezone instead of trusting it', () => {
@@ -132,31 +132,28 @@ describe('evaluateCallPermission', () => {
     });
   });
 
-  it('cannot be moved into hours by editing the lead’s timezone: a Vietnamese number keeps Vietnam’s clock', () => {
+  it('cannot be moved into hours by editing the lead’s timezone: a Thai number keeps Thailand’s clock', () => {
     // 21:00 in Hanoi is 03:00 the next day in Kiritimati and 03:00 in Auckland (NZDT) — both would
     // read "in hours" for a team with early hours, and 08:00+ in Kiritimati one hour later.
     const evening = '2026-10-05T14:00:00Z';
     for (const leadTimezone of ['Pacific/Kiritimati', 'Pacific/Auckland', 'America/New_York']) {
       const decision = at(evening, { leadTimezone });
-      expect(decision.timezone).toEqual({ timezone: 'Asia/Ho_Chi_Minh', source: 'phone' });
+      expect(decision.timezone).toEqual({ timezone: 'Asia/Bangkok', source: 'phone' });
       expect(decision.reasons).toEqual(['outside_hours']);
     }
   });
 
-  it('an empty country list allows no country at all, and no settings row allows none either (fail-closed)', () => {
-    const none = facts({ rawPhone: '+14155550123', dialCountries: ['US'], settings: { ...facts().settings!, allowedCountries: [] } });
-    const decision = evaluateCallPermission(none);
-    expect(decision.allowed).toBe(false);
-    expect(decision.reasons).toContain('country_not_allowed');
+  it('has no country allow-list: a foreign number is allowed, and no settings row still blocks (fail-closed)', () => {
+    const us = facts({ rawPhone: '+14155550123', dialCountries: ['US'], leadTimezone: 'America/Los_Angeles', leadCountry: 'United States', settings: { ...facts().settings!, callingHoursStart: 0, callingHoursEnd: 1440 } });
+    const decision = evaluateCallPermission(us);
+    expect(decision.reasons).toEqual([]);
+    expect(decision.allowed).toBe(true);
+    expect(decision.numberCountry).toBe('US');
     expect(evaluateCallPermission(facts({ rawPhone: '+14155550123', dialCountries: ['US'], settings: null })).allowed).toBe(false);
   });
 
   it('blocks premium-rate and shared-cost numbers', () => {
-    expect(evaluateCallPermission(facts({ rawPhone: '19001234' })).reasons).toEqual(['number_type_not_allowed']);
-    expect(evaluateCallPermission(facts({ rawPhone: '19001234', settings: { ...facts().settings!, allowedCountries: [] } })).reasons).toEqual([
-      'number_type_not_allowed',
-      'country_not_allowed',
-    ]);
+    expect(evaluateCallPermission(facts({ rawPhone: '+19005551234', dialCountries: ['US'], leadCountry: 'United States', leadTimezone: 'America/Chicago', settings: { ...facts().settings!, callingHoursStart: 0, callingHoursEnd: 1440 } })).reasons).toEqual(['number_type_not_allowed']);
   });
 
   it('blocks on our own do-not-call list and on either do-not-call flag', () => {
@@ -165,10 +162,12 @@ describe('evaluateCallPermission', () => {
     expect(evaluateCallPermission(facts({ contactDoNotCall: true })).reasons).toEqual(['contact_do_not_call']);
   });
 
-  it('blocks a country the team has not allowed, judged by the number not the record', () => {
-    const settings = { ...facts().settings!, allowedCountries: ['VN'] };
-    expect(evaluateCallPermission(facts({ settings, rawPhone: '+6561234567' })).reasons).toEqual(['country_not_allowed']);
-    expect(evaluateCallPermission(facts({ settings: { ...settings, allowedCountries: [] } })).reasons).toEqual(['country_not_allowed']);
+  it('refuses a Vietnamese destination (call from your own phone), judged by the number not the record', () => {
+    const vn = { rawPhone: '0948200638', dialCountries: ['VN' as const], leadCountry: 'Vietnam' };
+    expect(evaluateCallPermission(facts(vn)).reasons).toEqual(['vietnam_own_phone']);
+    expect(evaluateCallPermission(facts({ rawPhone: '+84948200638', dialCountries: ['SG'], leadCountry: 'Singapore' })).reasons).toEqual(['vietnam_own_phone']);
+    // A Singapore number on a lead recorded in Vietnam is not refused.
+    expect(evaluateCallPermission(facts({ rawPhone: '+6561234567' })).reasons).not.toContain('vietnam_own_phone');
   });
 
   it('blocks a missing or unparseable number', () => {
@@ -187,7 +186,6 @@ describe('evaluateCallPermission', () => {
   it('treats a team with no settings row as off, and blocks everything that needs the settings', () => {
     expect(evaluateCallPermission(facts({ settings: null })).reasons).toEqual([
       'team_disabled',
-      'country_not_allowed',
       'day_not_allowed',
       'outside_hours',
     ]);
@@ -315,7 +313,7 @@ describe('calling hours set to always open', () => {
 
   it('keeps every other rule', () => {
     expect(evaluateCallPermission(facts({ settings: alwaysOpen, suppressed: true })).reasons).toEqual(['suppressed']);
-    expect(evaluateCallPermission(facts({ settings: { ...alwaysOpen, allowedCountries: ['US'] } })).reasons).toEqual(['country_not_allowed']);
+    expect(evaluateCallPermission(facts({ settings: alwaysOpen, rawPhone: '0948200638', dialCountries: ['VN'], leadCountry: 'Vietnam' })).reasons).toEqual(['vietnam_own_phone']);
     expect(evaluateCallPermission(facts({ settings: { ...alwaysOpen, killedAt: new Date() } })).reasons).toEqual(['kill_switch']);
   });
 

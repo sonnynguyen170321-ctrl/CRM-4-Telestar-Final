@@ -27,19 +27,10 @@ describe('settingsPatchSchema', () => {
     expect(parse({ enabled: true, killedAt: new Date().toISOString() }).success).toBe(false);
   });
 
-  it('refuses Vietnam with a message that says why, in any casing', () => {
-    for (const country of ['VN', 'vn', ' Vn ']) {
-      expect(messages({ allowedCountries: ['SG', country] }).join(' ')).toMatch(/Vietnam.*own phone/i);
-    }
-  });
-
-  it('normalizes countries to unique upper-case ISO-2 codes and refuses anything else', () => {
-    const result = parse({ allowedCountries: ['sg', 'SG', 'us'] });
-    expect(result.success && result.data.allowedCountries).toEqual(['SG', 'US']);
-    expect(parse({ allowedCountries: ['USA'] }).success).toBe(false);
-    expect(parse({ allowedCountries: ['1S'] }).success).toBe(false);
-    expect(parse({ allowedCountries: [] }).success).toBe(true);
-    expect(parse({ allowedCountries: Array.from({ length: 251 }, (_, i) => String.fromCharCode(65 + (i % 26)) + String.fromCharCode(65 + (Math.floor(i / 26) % 26))) }).success).toBe(false);
+  it('has no country allow-list: allowedCountries is an unknown key and is rejected', () => {
+    expect(parse({ allowedCountries: ['SG'] }).success).toBe(false);
+    expect(parse({ allowedCountries: [] }).success).toBe(false);
+    expect(parse({ enabled: true, allowedCountries: ['SG'] }).success).toBe(false);
   });
 
   it('bounds the calling hours to a real day, start before end', () => {

@@ -222,14 +222,14 @@ describe('webhook body', () => {
 
   it('logs the kind of failure, never its message', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const spy = vi.spyOn(prisma.telephonyEvent, 'createMany').mockRejectedValueOnce(Object.assign(new Error('Invalid create args {to: +84948200638, token: SECRET-TOKEN}'), { code: 'P2002' }));
+    const spy = vi.spyOn(prisma.telephonyEvent, 'createMany').mockRejectedValueOnce(Object.assign(new Error('Invalid create args {to: +66812345678, token: SECRET-TOKEN}'), { code: 'P2002' }));
     await post({ id: eventId(), type: 'call.answered', sessionId: 'x', controlId: 'x' });
     spy.mockRestore();
     const output = JSON.stringify(logged.mock.calls);
     logged.mockRestore();
     expect(output).toContain('P2002');
     expect(output).not.toContain('SECRET-TOKEN');
-    expect(output).not.toContain('84948200638');
+    expect(output).not.toContain('66812345678');
   });
 });
 
@@ -303,7 +303,7 @@ describe('a parked call from the rep’s browser', () => {
     expect(transfers()[0]).toMatchObject({
       callControlId: spec.controlId,
       commandId: `transfer:${call.id}`,
-      command: { action: 'transfer', to: '+84948200638', timeoutSecs: 30, clientState: legClientState(call.id) },
+      command: { action: 'transfer', to: '+66812345678', timeoutSecs: 30, clientState: legClientState(call.id) },
     });
     expect(hangups()).toHaveLength(0);
     const row = await reload(world.tenantId, call.id);
