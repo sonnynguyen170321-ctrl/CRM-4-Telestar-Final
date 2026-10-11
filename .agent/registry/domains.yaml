@@ -194,6 +194,14 @@ domains:
       # Inserts a merge field into a template subject or body at the cursor.
       - lib/templates/insertMergeTag.ts
       - lib/templates/render.ts
+      # The shared composer: editor schema, HTML sanitiser, merge-field checks, attachment policy,
+      # CC/BCC rules; snippets (personal/shared); the composer's routes (preview, attachments).
+      - lib/compose/**
+      - lib/snippets/**
+      - app/api/snippets/**
+      - app/api/email/preview/**
+      - app/api/email/attachments/**
+      - components/compose/**
       # createOutboundMessage / enqueueEmailSendWorkflow: the one door every send goes through.
       - lib/workflows/email.ts
       - lib/replies/**
@@ -216,6 +224,8 @@ domains:
       - tests/email-idempotency.test.ts
       - tests/email-safety.test.ts
       - tests/email-send-paused-mailbox.test.ts
+      - tests/compose-*.test.ts
+      - tests/email-composer-fixes.test.ts
       - tests/unsubscribe.test.ts
       - tests/demo-email-barrier.test.ts
       - tests/variant-attribution.test.ts

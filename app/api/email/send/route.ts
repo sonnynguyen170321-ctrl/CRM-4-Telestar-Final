@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mailboxRefusal, recipientRefusal } from '@/lib/email/sendGate';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, canAccessLead, getVisibleUserIds } from '@/lib/auth';
+import { requireAuth, canAccessLead } from '@/lib/auth';
+import { findSendableAccount } from '@/lib/email/sendableAccount';
+import { finalizeComposed, prepareComposed } from '@/lib/email/prepareComposed';
 import { canViewOwned } from '@/lib/visibility';
 import type { SessionUser } from '@/lib/auth';
 import { renderTemplate } from '@/lib/templates/render';
@@ -44,19 +46,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: recipientBlocked.error, code: recipientBlocked.code }, { status: recipientBlocked.status });
   }
 
-  // Your own mailbox. A director or floor manager may also send from a mailbox of someone under
-  // them — not, as before, from any mailbox in the company. A From line speaks for whoever
-  // connected the mailbox, so this is not widened to team leads.
-  const isManager = user.role === 'director' || user.role === 'floor_manager';
-  const reach = isManager ? await getVisibleUserIds(user) : [user.id];
-  const account = await prisma.emailAccount.findFirst({
-    where: {
-      id: body.accountId,
-      tenantId,
-      isActive: true,
-      ...(reach === null ? {} : { userId: { in: reach.includes(user.id) ? reach : [...reach, user.id] } }),
-    },
-  });
+  // Your own mailbox, or one of someone under you for a director / floor manager
+  // (lib/email/sendableAccount.ts - the same rule the preview applies).
+  const account = await findSendableAccount(user, tenantId, body.accountId);
   if (!account) {
     return NextResponse.json({ error: 'Email account not found' }, { status: 404 });
   }
@@ -111,6 +103,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Body cannot be empty' }, { status: 400 });
   }
 
+  // CC/BCC suppression, the caller's own attachments within the cap, a sanitised HTML body with
+  // pasted images turned into inline attachments (lib/email/prepareComposed.ts).
+  const prepared = await prepareComposed({
+    tenantId,
+    userId: user.id,
+    campaignId: leadCampaignId,
+    to: body.to,
+    cc: body.cc,
+    bcc: body.bcc,
+    body: text,
+    attachmentIds: body.attachmentIds,
+  });
+  if (!prepared.ok) return prepared.response;
+  text = prepared.value.body;
+
   try {
     const outboundMessage = await createOutboundMessage({
       // Prefer the task: it is durable and shared with the sequence path, so completing
@@ -123,10 +130,16 @@ export async function POST(req: NextRequest) {
       accountId: body.accountId,
       templateId: body.templateId,
       to: body.to,
+      cc: prepared.value.cc,
+      bcc: prepared.value.bcc,
       subject,
       body: text,
       tenantId,
     });
+
+    // The files go on the message before it is queued, so the worker finds them.
+    const attachFailure = await finalizeComposed(tenantId, user.id, outboundMessage.id, prepared.value);
+    if (attachFailure) return attachFailure;
 
     await enqueueEmailSendWorkflow(
       {

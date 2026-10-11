@@ -128,6 +128,12 @@ const SOFT_FOREIGN_KEYS = new Set([
   // The prospect's message an inbox reply answers; re-checked by the worker, and a missing parent just
   // sends unthreaded.
   'OutboundMessage.inReplyToInboundId',
+  // The message an ad-hoc composer attachment was sent with. OutboundMessage has no (id, tenantId) key to
+  // hang a composite relation on, and the worker re-reads the rows by this id inside the tenant anyway.
+  'Attachment.outboundMessageId',
+  // Who uploaded a composer attachment: an ownership stamp checked against the session before it can be
+  // attached (lib/email/composeAttachments.ts); a departed user's unsent uploads are swept after a day.
+  'Attachment.uploadedById',
   // Who attached a sending mailbox — an audit stamp, soft like every other *ById here.
   'SequenceSender.addedById',
   'Task.sequenceId',

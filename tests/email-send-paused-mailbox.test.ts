@@ -109,6 +109,8 @@ describe('POST /api/email/send with a paused mailbox', () => {
 describe('what the rep is shown', () => {
   const panel = readFileSync(join(process.cwd(), 'components', 'LeadDetailPanel.tsx'), 'utf8');
   const composer = readFileSync(join(process.cwd(), 'components', 'MailComposerModal.tsx'), 'utf8');
+  // The pause notice moved into the shared mailbox picker (PR 2 of the composer plan).
+  const mailboxPicker = readFileSync(join(process.cwd(), 'components', 'compose', 'MailboxSelect.tsx'), 'utf8');
   const accountsRoute = readFileSync(join(process.cwd(), 'app', 'api', 'email', 'accounts', 'route.ts'), 'utf8');
 
   it('the lead panel no longer announces "Email sent" when a send is merely queued', () => {
@@ -119,7 +121,8 @@ describe('what the rep is shown', () => {
 
   it('the composer disables Send and explains when the mailbox is paused', () => {
     expect(composer).toMatch(/sendPausedAt/);
-    expect(composer).toMatch(/Sending is paused for/);
+    expect(mailboxPicker).toMatch(/Sending is paused for/);
+    expect(mailboxPicker).toMatch(/mailbox.sendPausedAt/);
     expect(composer).toMatch(/disabled=\{[^}]*sendPausedAt[^}]*\}/);
   });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Mail,
   Send,
@@ -10,10 +10,6 @@ import {
   Search,
   CheckCircle,
   Inbox,
-  Bold,
-  Italic,
-  Underline,
-  List,
   Reply,
   Sparkles,
   Wand2,
@@ -25,6 +21,13 @@ import DOMPurify from 'isomorphic-dompurify';
 import { useRouter } from 'next/navigation';
 import { openLeadSlideOver } from '@/lib/leads/openLead';
 import { describeDelivery } from '@/lib/inbox/deliveryStatus';
+import ComposeEditor from '@/components/compose/ComposeEditor';
+import RecipientField from '@/components/compose/RecipientField';
+import AttachmentBar from '@/components/compose/AttachmentBar';
+import { SignatureBlock } from '@/components/compose/ComposeParts';
+import { useMailboxes, useSnippets } from '@/components/compose/useComposeData';
+import type { ComposeAttachment } from '@/components/compose/types';
+import { isHtmlBlank, plainTextToHtml } from '@/lib/compose/html';
 
 interface Message {
   id: string;
@@ -99,7 +102,13 @@ export default function InboxPage() {
   // Reply box states
   const [replyBody, setReplyBody] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
-  const replyEditorRef = useRef<HTMLDivElement>(null);
+  // Copies and files for the reply being written; cleared when it is queued.
+  const [replyCc, setReplyCc] = useState<string[]>([]);
+  const [replyBcc, setReplyBcc] = useState<string[]>([]);
+  const [showReplyCopies, setShowReplyCopies] = useState(false);
+  const [replyAttachments, setReplyAttachments] = useState<ComposeAttachment[]>([]);
+  const { mailboxes } = useMailboxes();
+  const { snippets: replySnippets, createSnippet } = useSnippets();
   // One id per reply being written. A retried click (double tap, flaky network) reuses it, so the
   // server resolves both to the same queued message. A new one is minted after each queued reply.
   const replyRequestIdRef = useRef<string>(crypto.randomUUID());
@@ -287,7 +296,7 @@ export default function InboxPage() {
   // Handle sending reply
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedThread || !replyBody.trim()) return;
+    if (!selectedThread || isHtmlBlank(replyBody) || sendingReply) return;
 
     setSendingReply(true);
     try {
@@ -299,6 +308,9 @@ export default function InboxPage() {
           subject: selectedThread.subject,
           leadId: selectedThread.lead?.id,
           clientRequestId: replyRequestIdRef.current,
+          ...(replyCc.length ? { cc: replyCc } : {}),
+          ...(replyBcc.length ? { bcc: replyBcc } : {}),
+          ...(replyAttachments.length ? { attachmentIds: replyAttachments.map((a) => a.id) } : {}),
         }),
       });
 
@@ -312,7 +324,9 @@ export default function InboxPage() {
         
         // Clear editor
         setReplyBody('');
-        if (replyEditorRef.current) replyEditorRef.current.innerHTML = '';
+        setReplyCc([]);
+        setReplyBcc([]);
+        setReplyAttachments([]);
         
         // Update thread local state
         const queued = { ...data.outboundMessage, deliveryStatus: data.status ?? 'pending', deliveryError: null };
@@ -334,12 +348,11 @@ export default function InboxPage() {
     }
   };
 
-  const execReplyCommand = (command: string, value: string = '') => {
-    if (replyEditorRef.current) {
-      replyEditorRef.current.focus();
-      document.execCommand(command, false, value);
-      setReplyBody(replyEditorRef.current.innerHTML);
-    }
+  const saveReplySnippet = async (html: string) => {
+    const name = window.prompt('Name this snippet')?.trim();
+    if (!name) return;
+    const result = await createSnippet(name, html);
+    showToast(result.ok ? `Snippet "${name}" saved` : result.error, result.ok ? 'success' : 'error');
   };
 
   const handleGenerateAiDrafts = async () => {
@@ -373,14 +386,15 @@ export default function InboxPage() {
   };
 
   const handleApplyAiDraft = (draftBody: string) => {
-    const formattedHtml = draftBody.replace(/\n/g, '<br/>');
-    setReplyBody(formattedHtml);
-    if (replyEditorRef.current) {
-      replyEditorRef.current.innerHTML = formattedHtml;
-      replyEditorRef.current.focus();
-    }
+    setReplyBody(plainTextToHtml(draftBody));
     showToast('AI draft inserted into composer!', 'success');
   };
+
+  const replyMailbox = useMemo(() => {
+    const latestInbound = [...(selectedThread?.messages ?? [])].reverse().find((m) => m.type === 'inbound');
+    const wrote = latestInbound?.to?.toLowerCase();
+    return wrote ? mailboxes.find((m) => m.email.toLowerCase() === wrote) ?? null : null;
+  }, [selectedThread, mailboxes]);
 
   const [classFilter, setClassFilter] = useState<'all' | 'needs_attention' | 'C' | 'D' | 'B' | 'A'>('all');
 
@@ -999,7 +1013,13 @@ export default function InboxPage() {
 
               {/* Reply Composer Editor */}
               {selectedThread.lead ? (
-                <form onSubmit={handleSendReply} className="border-t border-card-border p-4 bg-card-bg space-y-3">
+                <form
+                  onSubmit={handleSendReply}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); event.currentTarget.requestSubmit(); }
+                  }}
+                  className="border-t border-card-border p-4 bg-card-bg space-y-3"
+                >
                   {/* Smart Quick Reply Chips */}
                   <div className="flex flex-wrap items-center gap-1.5 pb-1">
                     <span className="text-[10px] text-text-secondary font-bold font-mono mr-1">QUICK REPLIES:</span>
@@ -1033,60 +1053,44 @@ export default function InboxPage() {
                       <Reply className="w-3.5 h-3.5" />
                       <span>Reply to {selectedThread.lead.firstName}</span>
                     </span>
-                    
-                    {/* Rich text formatting toolbar */}
-                    <div className="flex items-center gap-0.5 bg-bg-main border border-card-border rounded-lg p-0.5">
-                      <button
-                        type="button"
-                        onMouseDown={(e) => { e.preventDefault(); execReplyCommand('bold'); }}
-                        className="p-1 hover:bg-card-border/50 text-text-secondary hover:text-text-primary rounded text-xs"
-                        title="Bold"
-                      >
-                        <Bold className="w-3.5 h-3.5" />
+                    {!showReplyCopies && (
+                      <button type="button" onClick={() => setShowReplyCopies(true)} className="text-xs font-semibold text-brand-orange-text hover:underline focus-ring rounded">
+                        Cc / Bcc
                       </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => { e.preventDefault(); execReplyCommand('italic'); }}
-                        className="p-1 hover:bg-card-border/50 text-text-secondary hover:text-text-primary rounded text-xs"
-                        title="Italic"
-                      >
-                        <Italic className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => { e.preventDefault(); execReplyCommand('underline'); }}
-                        className="p-1 hover:bg-card-border/50 text-text-secondary hover:text-text-primary rounded text-xs"
-                        title="Underline"
-                      >
-                        <Underline className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => { e.preventDefault(); execReplyCommand('insertUnorderedList'); }}
-                        className="p-1 hover:bg-card-border/50 text-text-secondary hover:text-text-primary rounded text-xs"
-                        title="Bullet List"
-                      >
-                        <List className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    )}
                   </div>
 
-                  <div className="relative">
-                    <div
-                      ref={replyEditorRef}
-                      contentEditable
-                      suppressContentEditableWarning
-                      onInput={(e) => setReplyBody(e.currentTarget.innerHTML)}
-                      className="w-full bg-bg-main border border-card-border rounded-xl p-3 text-text-primary text-xs focus:outline-none focus:border-brand-red min-h-[5rem] max-h-36 overflow-y-auto leading-relaxed text-left focus:ring-1 focus:ring-brand-red/35 outline-none font-sans empty-placeholder"
-                      data-placeholder="Type your reply here..."
-                      style={{ minHeight: '5rem' }}
-                    />
-                  </div>
+                  {replyMailbox?.sendPausedAt && (
+                    <p role="status" className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-text-secondary">
+                      Sending is paused for <strong>{replyMailbox.email}</strong>{replyMailbox.sendPauseReason ? ` - ${replyMailbox.sendPauseReason}` : ''}. A manager can resume it under Email Health.
+                    </p>
+                  )}
+
+                  {(showReplyCopies || replyCc.length > 0 || replyBcc.length > 0) && (
+                    <div className="space-y-1.5">
+                      <RecipientField id="reply-cc" label="Cc" value={replyCc} onChange={setReplyCc} />
+                      <RecipientField id="reply-bcc" label="Bcc" value={replyBcc} onChange={setReplyBcc} exclude={replyCc} />
+                    </div>
+                  )}
+
+                  <ComposeEditor
+                    value={replyBody}
+                    onChange={setReplyBody}
+                    ariaLabel="Reply"
+                    placeholder="Type your reply here..."
+                    heightClass="min-h-[5rem] max-h-44"
+                    compact
+                    snippets={replySnippets}
+                    onCreateSnippet={(html) => void saveReplySnippet(html)}
+                  />
+
+                  {replyMailbox && <SignatureBlock html={replyMailbox.signaturePreview} mailboxEmail={replyMailbox.email} />}
+                  <AttachmentBar attachments={replyAttachments} onChange={setReplyAttachments} disabled={sendingReply} />
 
                   <div className="flex justify-end gap-2">
                     <button
                       type="submit"
-                      disabled={sendingReply || !replyBody.trim()}
+                      disabled={sendingReply || isHtmlBlank(replyBody) || Boolean(replyMailbox?.sendPausedAt)}
                       className="px-4 py-1.5 bg-brand-red hover:bg-brand-red-hover text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-60 shadow-sm"
                     >
                       {sendingReply ? (
@@ -1098,6 +1102,7 @@ export default function InboxPage() {
                         <>
                           <Send className="w-3.5 h-3.5" />
                           <span>Send Reply</span>
+                          <span className="hidden text-xs font-normal opacity-80 xl:inline">Ctrl+Enter</span>
                         </>
                       )}
                     </button>

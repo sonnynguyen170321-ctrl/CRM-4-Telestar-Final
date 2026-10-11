@@ -1,6 +1,7 @@
 import type { EmailAdapter, InboxMessage, SendEmailOptions, SendReceipt } from '../EmailService';
 import { SYNC_READ_LIMIT, type InboxBatch } from '../inboxBatch';
 import { fromHeaderValue } from '@/lib/email/senderName';
+import { buildRawMime, copyRecipientFields } from './copyRecipients';
 import { encrypt } from '@/lib/crypto';
 import DOMPurify from 'isomorphic-dompurify';
 import { randomUUID } from 'node:crypto';
@@ -153,6 +154,7 @@ export class OutlookAdapter implements EmailAdapter {
     const mail = new MailComposer({
       from: fromHeaderValue(options.from, options.fromName),
       to: options.to,
+      ...copyRecipientFields(options),
       subject: options.subject,
       html: options.html,
       text: options.text,
@@ -167,7 +169,7 @@ export class OutlookAdapter implements EmailAdapter {
 
     // Graph's sendMail takes MIME only base64-encoded (text/plain body); raw MIME is refused as
     // invalid base64. https://learn.microsoft.com/graph/api/user-sendmail#request-body
-    const rawMessageBuffer = await mail.compile().build();
+    const rawMessageBuffer = await buildRawMime(mail, options);
     const rawMime = rawMessageBuffer.toString('base64');
 
     const sendRequest = async (accessToken: string) => {

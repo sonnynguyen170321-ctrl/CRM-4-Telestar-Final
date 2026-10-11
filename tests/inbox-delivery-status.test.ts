@@ -73,22 +73,26 @@ describe('what the screens no longer carry', () => {
     expect(composer).not.toMatch(/sdrName: 'SDR'/);
     expect(composer).not.toContain('Sales Development Representative');
     expect(composer).not.toContain('substituteLeadVars');
-    // The notice is its own branch, not the `else` of the multi-mailbox picker.
-    expect(composer).toMatch(/accounts\.length > 1 && \(/);
-    expect(composer).toMatch(/\{account\?\.sendPausedAt \? \(/);
+    // The notice lives in the shared mailbox picker and is its own branch, not the `else` of a
+    // multi-mailbox list: it shows for whichever mailbox is selected.
+    const picker = read('components', 'compose', 'MailboxSelect.tsx');
+    expect(picker).toMatch(/\{mailbox\?\.sendPausedAt \? \(/);
+    expect(picker).not.toMatch(/mailboxes\.length > 1 &&/);
   });
 
-  it('the composer shows an HTML template as a rendered preview, and keeps the markup to send', () => {
+  it('the composer shows an HTML template in the rich editor, never as raw tags in a textarea', () => {
     const composer = read('components', 'MailComposerModal.tsx');
-    expect(composer).toContain('bodyIsHtml');
-    expect(composer).toContain('previewHtml(body)');
+    expect(composer).toContain('<ComposeEditor');
+    expect(composer).not.toContain('<textarea');
   });
 
-  it('the preview fetches nothing remote: no images, styles or srcs', () => {
-    const composer = read('components', 'MailComposerModal.tsx');
-    const forbidden = /FORBID_TAGS: \[([^\]]*)\]/.exec(composer)![1];
-    for (const tag of ['img', 'link', 'style', 'iframe', 'svg']) expect(forbidden).toContain(`'${tag}'`);
-    expect(/FORBID_ATTR: \[([^\]]*)\]/.exec(composer)![1]).toContain("'style'");
+  it('opening a draft or a preview fetches nothing remote until the rep asks for images', () => {
+    // The editor and the preview both swap web images for a blank placeholder first (a shared
+    // template could carry a tracking pixel); tests/compose-lib.test.ts covers the functions.
+    expect(read('components', 'compose', 'ComposeEditor.tsx')).toContain('blockRemoteImages');
+    expect(read('components', 'compose', 'ComposeParts.tsx')).toContain('blockRemoteImages');
+    const forbidden = /FORBIDDEN_TAGS = \[([^\]]*)\]/.exec(read('lib', 'compose', 'html.ts'))![1];
+    for (const tag of ['link', 'style', 'iframe', 'svg']) expect(forbidden).toContain(`'${tag}'`);
   });
 });
 

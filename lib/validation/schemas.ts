@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidRecipient, MAX_COPY_RECIPIENTS } from '@/lib/compose/recipients';
 import { httpUrl, ianaTimezone, id, isoDate, longText, nullableShortText, nullableLongText, nullableText } from './core';
 
 // Enums mirrored from prisma/schema.prisma — keep in sync with the DB enums.
@@ -184,6 +185,20 @@ export const updateTemplateSchema = createTemplateSchema.partial();
 
 // ─── Email ───────────────────────────────────────────────────────────────────
 
+/** CC / BCC: a list of plain addresses, at most ten, each checked (no names, no whitespace). */
+export const copyRecipientList = z
+  .array(
+    z
+      .string()
+      .trim()
+      .max(320)
+      .refine((value) => isValidRecipient(value.toLowerCase()), { message: 'Not a valid email address' }),
+  )
+  .max(MAX_COPY_RECIPIENTS, `At most ${MAX_COPY_RECIPIENTS} addresses`);
+
+/** Ids of uploaded composer attachments (POST /api/email/attachments) to send with the message. */
+export const composeAttachmentIds = z.array(id).max(10);
+
 export const sendEmailSchema = z.object({
   accountId: id,
   to: z.string().email().max(320),
@@ -205,6 +220,9 @@ export const sendEmailSchema = z.object({
    * which still cannot false-dedup — see lib/email/idempotency.ts.
    */
   clientRequestId: z.string().min(8).max(100).optional(),
+  cc: copyRecipientList.optional(),
+  bcc: copyRecipientList.optional(),
+  attachmentIds: composeAttachmentIds.optional(),
 });
 
 // ─── Users ───────────────────────────────────────────────────────────────────

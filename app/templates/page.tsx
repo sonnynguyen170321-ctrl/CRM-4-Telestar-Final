@@ -16,9 +16,12 @@ import Linkedin from '@/components/icons/Linkedin';
 import { useToast } from '@/context/ToastContext';
 import { useAppContext } from '@/context/AppContext';
 import DOMPurify from 'isomorphic-dompurify';
-import { EMAIL_FONT, composeEmailContent } from '@/lib/email/composeBody';
+import { composeEmailContent } from '@/lib/email/composeBody';
 import { isHtml } from '@/lib/email/sanitize';
-import { insertMergeTag } from '@/lib/templates/insertMergeTag';
+import ComposeEditor from '@/components/compose/ComposeEditor';
+import SubjectField from '@/components/compose/SubjectField';
+import { useSnippets } from '@/components/compose/useComposeData';
+import { hasUnsupportedHtml } from '@/lib/compose/html';
 
 interface Template {
   id: string;
@@ -84,7 +87,6 @@ export default function TemplatesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const subjectRef = useRef<HTMLInputElement>(null);
   const [mailboxes, setMailboxes] = useState<PreviewMailbox[]>([]);
   const [previewAccountId, setPreviewAccountId] = useState('');
   const [previewSignature, setPreviewSignature] = useState<string | null>(null);
@@ -94,8 +96,7 @@ export default function TemplatesPage() {
   const [creatingAb, setCreatingAb] = useState(false);
   const [attachments, setAttachments] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [isHtmlView, setIsHtmlView] = useState(false);
-  const editorRef = useRef<HTMLDivElement>(null);
+  const { snippets, createSnippet } = useSnippets();
 
   const loadTemplates = useCallback(async () => {
     const res = await fetch('/api/templates');
@@ -186,51 +187,13 @@ export default function TemplatesPage() {
     setAbOpen(false);
     loadAbVariants(temp.id);
     fetchAttachments(temp.id);
-
-    // Set editor content
-    if (editorRef.current) {
-      editorRef.current.innerHTML = temp.body;
-    }
   };
 
-  // Keep editor synced when body changes externally (but not during typing)
-  useEffect(() => {
-    if (editorRef.current && selectedTemp && editorRef.current.innerHTML !== body) {
-      if (document.activeElement !== editorRef.current) {
-        editorRef.current.innerHTML = body;
-      }
-    }
-  }, [body, selectedTemp]);
-
-  const insertMergeTagWysiwyg = (tag: string) => {
-    if (editorRef.current) {
-      editorRef.current.focus();
-      const tagText = `{{${tag}}}`;
-      const sel = window.getSelection();
-      if (sel && sel.getRangeAt && sel.rangeCount) {
-        const range = sel.getRangeAt(0);
-        range.deleteContents();
-        const node = document.createTextNode(tagText);
-        range.insertNode(node);
-        const newRange = document.createRange();
-        newRange.setStartAfter(node);
-        newRange.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(newRange);
-        setBody(editorRef.current.innerHTML);
-      } else {
-        editorRef.current.innerHTML += ` ${tagText}`;
-        setBody(editorRef.current.innerHTML);
-      }
-    }
-  };
-
-  const execEditorCommand = (command: string, value: string = '') => {
-    if (editorRef.current) {
-      editorRef.current.focus();
-      document.execCommand(command, false, value);
-      setBody(editorRef.current.innerHTML);
-    }
+  const saveSnippetFromTemplate = async (html: string) => {
+    const name = window.prompt('Name this snippet')?.trim();
+    if (!name) return;
+    const result = await createSnippet(name, html);
+    showToast(result.ok ? `Snippet "${name}" saved` : result.error, result.ok ? 'success' : 'error');
   };
 
   const handleUploadAttachment = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -285,27 +248,9 @@ export default function TemplatesPage() {
     }
   };
 
+  // Non-email channels are plain text: the variable is appended. Email uses the shared editor.
   const handleInsertMergeField = (field: string) => {
-    const tag = `{{${field}}}`;
-    if (channel === 'email') {
-      if (!isHtmlView) {
-        insertMergeTagWysiwyg(field);
-      } else {
-        setBody((prev) => prev + ` ${tag}`);
-      }
-    } else {
-      setBody((prev) => prev + ` ${tag}`);
-    }
-  };
-
-  const handleInsertSubjectField = (field: string) => {
-    const input = subjectRef.current;
-    const next = insertMergeTag(subject, input?.selectionStart ?? null, input?.selectionEnd ?? null, field);
-    setSubject(next.value);
-    requestAnimationFrame(() => {
-      input?.focus();
-      input?.setSelectionRange(next.cursor, next.cursor);
-    });
+    setBody((prev) => prev + ` {{${field}}}`);
   };
 
   const handleSaveTemplate = async () => {
@@ -651,32 +596,7 @@ export default function TemplatesPage() {
                     </div>
 
                     {channel === 'email' && (
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-text-muted uppercase block">
-                          Email Subject
-                        </label>
-                        <input
-                          ref={subjectRef}
-                          type="text"
-                          value={subject}
-                          onChange={(e) => setSubject(e.target.value)}
-                          className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
-                        />
-                        <div className="flex flex-wrap gap-1">
-                          <span className="text-[9px] text-text-muted mr-1 mt-1">Insert:</span>
-                          {MERGE_FIELDS.map((f) => (
-                            <button
-                              key={f}
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleInsertSubjectField(f)}
-                              className="px-1.5 py-0.5 border border-card-border bg-bg-main hover:bg-card-border text-[9px] font-semibold text-text-secondary rounded transition-colors"
-                            >
-                              {f}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                      <SubjectField id="template-subject" value={subject} onChange={setSubject} />
                     )}
 
                     {/* A/B Testing */}
@@ -747,7 +667,7 @@ export default function TemplatesPage() {
                         <label className="text-[10px] font-bold text-text-muted uppercase block">
                           Message Body
                         </label>
-                        <div className="flex flex-wrap gap-1 justify-end">
+                        <div className={`flex flex-wrap gap-1 justify-end ${channel === 'email' ? 'hidden' : ''}`}>
                           <span className="text-[9px] font-mono text-text-muted mr-1 mt-1">
                             Insert:
                           </span>
@@ -767,73 +687,22 @@ export default function TemplatesPage() {
 
                       {channel === 'email' ? (
                         <div className="space-y-2">
-                          {/* Rich Text Editor Toolbar */}
-                          <div className="flex items-center justify-between bg-bg-main border border-card-border rounded-lg p-1">
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onMouseDown={(e) => { e.preventDefault(); execEditorCommand('bold'); }}
-                                className="p-1.5 hover:bg-card-border/40 text-text-secondary hover:text-text-primary rounded text-xs font-extrabold font-mono transition-colors"
-                                title="Bold (Ctrl+B)"
-                              >
-                                B
-                              </button>
-                              <button
-                                type="button"
-                                onMouseDown={(e) => { e.preventDefault(); execEditorCommand('italic'); }}
-                                className="p-1.5 hover:bg-card-border/40 text-text-secondary hover:text-text-primary rounded text-xs italic font-serif transition-colors"
-                                title="Italic (Ctrl+I)"
-                              >
-                                I
-                              </button>
-                              <button
-                                type="button"
-                                onMouseDown={(e) => { e.preventDefault(); execEditorCommand('underline'); }}
-                                className="p-1.5 hover:bg-card-border/40 text-text-secondary hover:text-text-primary rounded text-xs underline transition-colors"
-                                title="Underline (Ctrl+U)"
-                              >
-                                U
-                              </button>
-                              <button
-                                type="button"
-                                onMouseDown={(e) => { e.preventDefault(); execEditorCommand('insertUnorderedList'); }}
-                                className="p-1.5 hover:bg-card-border/40 text-text-secondary hover:text-text-primary rounded text-xs font-mono transition-colors"
-                                title="Bullet List"
-                              >
-                                • List
-                              </button>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => setIsHtmlView(!isHtmlView)}
-                              className={`px-2 py-1 rounded text-[9px] font-bold font-mono border transition-colors ${
-                                isHtmlView
-                                  ? 'bg-brand-red/10 border-brand-red/20 text-brand-red'
-                                  : 'border-card-border text-text-secondary hover:text-text-primary'
-                              }`}
-                            >
-                              {isHtmlView ? 'Rich Text Editor' : 'Edit HTML Code'}
-                            </button>
-                          </div>
-
-                          {/* Editor Content Area */}
-                          {isHtmlView ? (
-                            <textarea
-                              value={body}
-                              onChange={(e) => setBody(e.target.value)}
-                              className="w-full bg-bg-main border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-48 placeholder-text-muted resize-none leading-relaxed font-mono text-xs"
-                              placeholder="<p>Write your raw HTML here...</p>"
-                            />
-                          ) : (
-                            <div
-                              ref={editorRef}
-                              contentEditable
-                              onInput={(e) => setBody(e.currentTarget.innerHTML)}
-                              className="email-canvas w-full border border-card-border rounded-xl p-3 focus:outline-none focus:border-brand-red h-48 placeholder-text-muted overflow-y-auto focus:ring-1 focus:ring-brand-red/35 outline-none"
-                              style={{ ...EMAIL_FONT, minHeight: '12rem' }}
-                            />
+                          {hasUnsupportedHtml(body) && (
+                            <p role="status" className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-text-secondary">
+                              This template uses layout the rich editor cannot show (tables, colours or fonts). It opens as HTML so nothing is lost; switch to the rich view only if you accept a simpler layout.
+                            </p>
                           )}
+                          <ComposeEditor
+                            key={selectedTemp?.id ?? 'new'}
+                            value={body}
+                            onChange={setBody}
+                            ariaLabel="Template body"
+                            placeholder="Write the email. Type {{ for variables or / for snippets."
+                            allowSource
+                            initialMode={hasUnsupportedHtml(body) ? 'source' : 'rich'}
+                            snippets={snippets}
+                            onCreateSnippet={(html) => void saveSnippetFromTemplate(html)}
+                          />
 
                           {/* Attachments Section */}
                           <div className="border border-card-border rounded-xl p-3 bg-bg-main/30 space-y-3">

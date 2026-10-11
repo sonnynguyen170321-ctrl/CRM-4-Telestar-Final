@@ -13,7 +13,7 @@
 # `tests/route-authorization.test.ts` fails when a mutating route has neither a guard nor a
 # hand-written `reason`. Reasons survive regeneration; they are the only part a human owns.
 #
-# routes: 217   mutating: 134   mutating with neither guard nor reason: 37
+# routes: 222   mutating: 139   mutating with neither guard nor reason: 37
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -306,7 +306,15 @@ routes:
   - path: app/api/email/accounts/route.ts
     methods: [GET, POST]
     guards:
-      - getVisibleUserIds
+      - getVisibleUserIds (via lib/email/sendableAccount.ts)
+  - path: app/api/email/attachments/[id]/route.ts
+    methods: [DELETE]
+    guards: []
+    reason: Deletes only a row the session user uploaded and has not sent - the where clause is tenantId, uploadedById equal to the session user, no template and no message - so another rep's, another tenant's and an already-sent file all read as not found.
+  - path: app/api/email/attachments/route.ts
+    methods: [POST]
+    guards: []
+    reason: Creates a row owned by the session user in the session tenant and nothing else; only that user can attach it to a message (resolveComposeAttachments filters on uploadedById), type and size are checked by the server, and unsent uploads are swept after a day.
   - path: app/api/email/oauth/google/callback/route.ts
     methods: [GET]
     guards: []
@@ -319,6 +327,10 @@ routes:
   - path: app/api/email/oauth/microsoft/route.ts
     methods: [GET]
     guards: []
+  - path: app/api/email/preview/route.ts
+    methods: [GET, POST]
+    guards:
+      - canAccessLead
   - path: app/api/email/providers/route.ts
     methods: [GET]
     guards: []
@@ -326,7 +338,6 @@ routes:
     methods: [POST]
     guards:
       - canAccessLead
-      - getVisibleUserIds
   - path: app/api/health/route.ts
     methods: [GET]
     guards: []
@@ -676,6 +687,14 @@ routes:
   - path: app/api/settings/route.ts
     methods: [GET, PUT]
     guards: []
+  - path: app/api/snippets/[id]/route.ts
+    methods: [DELETE, PATCH]
+    guards:
+      - getVisibleUserIds (via lib/visibility.ts)
+  - path: app/api/snippets/route.ts
+    methods: [GET, POST]
+    guards:
+      - getVisibleUserIds (via lib/visibility.ts)
   - path: app/api/t/c/[token]/route.ts
     methods: [GET]
     guards: []

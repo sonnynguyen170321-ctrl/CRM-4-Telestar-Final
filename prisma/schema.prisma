@@ -419,6 +419,7 @@ model User {
   reminders                Reminder[]
   sequences                Sequence[]
   templates                Template[]
+  snippets                 Snippet[]
   approvedStepCopies       SequenceStepCopy[]
   draftedSequences         SequenceDraftRecord[]
   campaignSdrs             CampaignSdr[]
@@ -1400,6 +1401,10 @@ model OutboundMessage {
   sequenceStepOrder Int?
 
   to                String
+  /// Carbon-copy and blind-copy recipients, validated and de-duplicated by the send routes. The
+  /// worker re-reads them from here, so a redrive sends to the same people.
+  cc                String[]     @default([])
+  bcc               String[]     @default([])
   subject           String?
   body              String?
   /// The provider's own id for the send (Gmail message id, SMTP Message-ID; null on Outlook), and
@@ -2555,6 +2560,7 @@ model Tenant {
   sequenceSteps            SequenceStep[]
   tasks                    Task[]
   templates                Template[]
+  snippets                 Snippet[]
   abVariants               AbTestVariant[]
   notes                    Note[]
   reminders                Reminder[]
@@ -3330,18 +3336,52 @@ model AgentApprovalRequest {
 }
 
 model Attachment {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
   contentType String
-  content     String   @db.Text // Base64 encoded file data
-  templateId  String
-  template    Template @relation(fields: [templateId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  content     String    @db.Text // Base64 encoded file data
+  /// A template's attachment: goes out with every email the template sends. Null for an ad-hoc
+  /// attachment of one composed message (`outboundMessageId`, or `uploadedById` until it is sent).
+  templateId  String?
+  template    Template? @relation(fields: [templateId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  /// The message an ad-hoc attachment was sent with. A plain id like OutboundMessage.inReplyToInboundId:
+  /// OutboundMessage has no (id, tenantId) key, and the worker re-reads it with the tenant anyway.
+  outboundMessageId String?
+  /// Who uploaded an ad-hoc attachment. Only this user can attach it to a message while it is
+  /// unbound; a plain id, checked against the session in lib/email/composeAttachments.ts.
+  uploadedById String?
+  /// Content-ID of an inline image (`<img src="cid:...">`) extracted from the composed body.
+  cid         String?
+  sizeBytes   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@index([outboundMessageId])
+  @@index([tenantId])
+  @@index([uploadedById, createdAt])
+}
+
+/// A reusable block of an email (a meeting ask, a case-study paragraph) inserted into the composer
+/// with `/` or the Snippets button. Personal by default; a manager can share one with the tenant.
+model Snippet {
+  @@unique([id, tenantId], map: "Snippet_id_tenantId_key")
+  id          String   @id @default(cuid())
+  name        String
+  bodyHtml    String   @db.Text
+  /// Visible to everyone in the tenant. Set by a manager (lib/visibility.ts canShare); a personal
+  /// snippet is visible to its owner only.
+  isShared    Boolean  @default(false)
+  ownerUserId String
+  owner       User     @relation(fields: [ownerUserId, tenantId], references: [id, tenantId], onDelete: Cascade)
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@index([templateId])
-  @@index([tenantId])
+  @@index([tenantId, isShared])
+  @@index([ownerUserId])
 }
 
 model InboundMessage {

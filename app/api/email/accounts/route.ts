@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getVisibleUserIds, requireAuth } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { encrypt } from '@/lib/crypto';
 import { verifyImapCredentials } from '@/lib/email/adapters/ImapAdapter';
 import { z } from 'zod';
 import { parseBody } from '@/lib/validation/core';
+import { mailboxQuota } from '@/lib/email/mailboxQuota';
+import { editableSignature } from '@/lib/email/signature';
+import { reachableMailboxUserIds } from '@/lib/email/sendableAccount';
 
 export async function GET(_req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -15,13 +18,12 @@ export async function GET(_req: NextRequest) {
   // Your own mailboxes. A director or floor manager also gets those of the people under them
   // (`getVisibleUserIds` walks managerId) — it used to be every mailbox in the company. This is
   // the list the composer sends from, so it matches what POST /api/email/send will accept.
-  const isManager = user.role === 'director' || user.role === 'floor_manager';
-  const reach = isManager ? await getVisibleUserIds(user) : [user.id];
+  const reach = await reachableMailboxUserIds(user);
   const accounts = await prisma.emailAccount.findMany({
     where: {
       tenantId: user.tenantId,
       isActive: true,
-      ...(reach === null ? {} : { userId: { in: reach.includes(user.id) ? reach : [...reach, user.id] } }),
+      ...(reach === null ? {} : { userId: { in: reach } }),
     },
     select: {
       id: true,
@@ -30,17 +32,50 @@ export async function GET(_req: NextRequest) {
       isActive: true,
       lastSyncAt: true,
       signature: true,
+      // Only to show the signature in the composer (images back to data URIs); not returned as is.
+      signatureImages: true,
       fromName: true,
       createdAt: true,
       // The composer needs to know a mailbox cannot send *before* the rep writes the email.
       // Pause state is operational, not a credential — nothing here decrypts or exposes a token.
       sendPausedAt: true,
       sendPauseReason: true,
+      healthLevel: true,
+      // What is left to send today and this hour, for the composer's mailbox picker. Counters only.
+      dailyCap: true,
+      dailySendCount: true,
+      dailySendDate: true,
+      hourlyCap: true,
     },
     orderBy: { createdAt: 'asc' },
   });
 
-  return NextResponse.json(accounts);
+  // The hourly ceiling is measured against real sent rows (workers/email.ts sentInLastHour).
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const sentRecently = accounts.length
+    ? await prisma.outboundMessage.groupBy({
+        by: ['accountId'],
+        where: {
+          tenantId: user.tenantId,
+          accountId: { in: accounts.map((a) => a.id) },
+          OR: [
+            { status: 'sent', sentAt: { gte: hourAgo } },
+            { status: { in: ['sending', 'reconciliation_required'] }, claimedAt: { gte: hourAgo } },
+          ],
+        },
+        _count: { _all: true },
+      })
+    : [];
+  const lastHour = new Map(sentRecently.map((row) => [row.accountId, row._count._all]));
+
+  return NextResponse.json(
+    accounts.map(({ dailySendCount, dailySendDate, dailyCap, hourlyCap, signatureImages, ...account }) => ({
+      ...account,
+      // The signature the worker will put under the message, as the composer can display it.
+      signaturePreview: editableSignature(account.signature, signatureImages),
+      quota: mailboxQuota({ dailyCap, dailySendCount, dailySendDate, hourlyCap }, lastHour.get(account.id) ?? 0),
+    }))
+  );
 }
 
 /**

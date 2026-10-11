@@ -10,6 +10,9 @@ export interface SendEmailOptions {
   /** Display name for the From header; see `lib/email/senderName.ts`. */
   fromName?: string | null;
   to: string;
+  /** Visible and blind copies. Both are already validated and free of the main recipient. */
+  cc?: string[];
+  bcc?: string[];
   subject: string;
   html?: string;
   text?: string;
